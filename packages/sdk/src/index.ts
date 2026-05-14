@@ -6,6 +6,9 @@
 // Agent façade
 export { Agent, type AgentPromptResult } from "./agent.js";
 
+// Cron façade
+export { Cron } from "./cron.js";
+
 // Errors (runtime classes)
 export {
   AuthenticationError,

@@ -4,6 +4,7 @@ import {
   Agent,
   AuthenticationError,
   ConfigurationError,
+  Cron,
   IntegrationNotConnectedError,
   NetworkError,
   RateLimitError,
@@ -14,8 +15,9 @@ import {
 } from "../src/index.js";
 
 describe("@usetheo/sdk public surface", () => {
-  it("exports Agent and Theokit façades", () => {
+  it("exports Agent, Cron, and Theokit façades", () => {
     expect(Agent).toBeDefined();
+    expect(Cron).toBeDefined();
     expect(Theokit).toBeDefined();
   });
 
@@ -36,6 +38,21 @@ describe("@usetheo/sdk public surface", () => {
     await expect(Theokit.me()).rejects.toBeInstanceOf(ConfigurationError);
     await expect(Theokit.models.list()).rejects.toBeInstanceOf(ConfigurationError);
     await expect(Theokit.repositories.list()).rejects.toBeInstanceOf(ConfigurationError);
+  });
+
+  it("Cron namespace methods reject with ConfigurationError until implemented", async () => {
+    await expect(Cron.create({ cron: "0 9 * * *", message: "hi" })).rejects.toBeInstanceOf(
+      ConfigurationError,
+    );
+    await expect(Cron.list()).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.get("cron-x")).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.delete("cron-x")).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.enable("cron-x")).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.disable("cron-x")).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.run("cron-x")).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.start()).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.stop()).rejects.toBeInstanceOf(ConfigurationError);
+    await expect(Cron.status()).rejects.toBeInstanceOf(ConfigurationError);
   });
 });
 
