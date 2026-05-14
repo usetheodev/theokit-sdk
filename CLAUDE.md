@@ -64,9 +64,10 @@ Resolved 2026-05-14. Changing any requires updating `docs.md`, `README.md`, and 
 | Error base class | `TheokitAgentError` | All errors extend this. |
 | Local agent ID prefix | `agent-` | Per `docs.md`. |
 | Cloud agent ID prefix | `bc-` | Used to auto-detect runtime in `Agent.resume()` / `Agent.get()`. |
-| Project config dir | `.theokit/` | `.theokit/mcp.json`, `.theokit/hooks.json`, `.theokit/agents/*.md`. |
+| Project config dir | `.theokit/` | `.theokit/mcp.json`, `.theokit/hooks.json`, `.theokit/agents/*.md`, `.theokit/cron/jobs.json`. |
 | User config dir | `~/.theokit/` | `~/.theokit/mcp.json`, `~/.theokit/hooks.json`. |
 | Pagination cursor field | `nextCursor` | Renamed from the `nextTheo` placeholder in the original `docs.md`. |
+| Top-level API namespaces | `Agent`, `Cron`, `Theokit` | Static classes with private constructors. |
 
 > **Naming note.** The agent itself is "the Theo agent" in prose (matches the locked usetheo narrative). The **SDK surface** uses the `Theokit` prefix for consistency with the env var and project name. Two different things — don't collapse them.
 
@@ -157,6 +158,8 @@ Surface to the user before resolving. Do not commit a silent answer.
 | Supported cloud SCM providers at GA (`github`, `gitlab`, `azuredevops`, ...) | Pending | Drives `IntegrationNotConnectedError.provider` values. |
 | `Symbol.asyncDispose` in the public `SDKAgent` type: skeleton uses `dispose()` to avoid bumping TS lib to `ESNext.Disposable` before we need it. | Pending | Add when the local runtime ships; coordinate with the `lib` bump in `tsconfig.base.json`. |
 | Whether `pnpm validate` should fail on `attw` warnings or just publint errors. | Pending | Affects CI strictness. |
+| Local cron scheduler library: `croner` (zero deps, modern) vs `cron` (mature, larger) vs `node-cron` (simple, no timezone). | Pending | Affects bundle size and feature set of local cron runtime. |
+| Cron job persistence format: JSON file (current plan: `.theokit/cron/jobs.json`) vs SQLite vs append-only log. | Pending | Affects crash recovery and concurrent-process safety. |
 
 ## Inviolable rules (carried from root and global)
 

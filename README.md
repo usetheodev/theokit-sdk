@@ -378,6 +378,59 @@ Hooks are file-based only. There is no programmatic hook callback — hooks are 
 - **Local.** Add `.theokit/hooks.json` to the repo passed as `local.cwd`, or `~/.theokit/hooks.json` for user-level hooks.
 - **Cloud.** Commit `.theokit/hooks.json` and its scripts to the repo passed in `cloud.repos`.
 
+## Cron jobs
+
+Schedule agent runs on a cron expression. Two runtimes:
+
+- **Local.** The in-process scheduler activated via `Cron.start()` fires the job while the host process is alive. Persisted to `.theokit/cron/jobs.json`.
+- **Cloud.** Theo PaaS schedules the job server-side. Fires regardless of any SDK process.
+
+```typescript
+import { Cron } from "@usetheo/sdk";
+
+const job = await Cron.create({
+  cron: "0 9 * * *",                 // every day at 09:00
+  timezone: "America/Sao_Paulo",
+  message: "Summarize yesterday's commits and post to #engineering",
+  agent: {
+    apiKey: process.env.THEOKIT_API_KEY!,
+    model: { id: "composer-2" },
+    local: { cwd: process.cwd() },
+  },
+});
+
+await Cron.start();                  // required for local jobs to fire
+```
+
+Supported expressions: 5-field POSIX cron, plus shorthand `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`. `timezone` accepts any IANA identifier; defaults to UTC.
+
+### Managing jobs
+
+```typescript
+const { items } = await Cron.list({ runtime: "local", cwd: process.cwd() });
+const job = await Cron.get(jobId);
+await Cron.disable(jobId);           // pause without deleting
+await Cron.enable(jobId);            // resume
+await Cron.delete(jobId);            // permanent
+
+const run = await Cron.run(jobId);   // off-schedule manual fire — returns the Run
+```
+
+### Local scheduler control
+
+The local scheduler must be explicitly started for local jobs to fire. For 24/7 scheduling without a long-running SDK process, use the cloud runtime.
+
+```typescript
+await Cron.start({ cwd: process.cwd() });
+const status = await Cron.status();
+// { running: true, jobCount: 3, nextFireAt: 1747... }
+await Cron.stop();
+```
+
+Cloud jobs do not need `Cron.start()` — Theo PaaS fires them server-side.
+
+Job-to-agent binding: pass `agent` (ephemeral agent created on each fire) OR `agentId` (bound to an existing agent for context continuity). Setting both is a `ConfigurationError`.
+
 ## Artifacts
 
 List and download files from the agent's workspace.
@@ -500,6 +553,8 @@ For the full reference (`CloudOptions`, `ModelSelection`, `McpServerConfig`, `Ag
 - `local.settingSources` (and the file-based MCP / subagent paths it gates) does not apply to cloud agents. Cloud always loads project / team / plugins.
 - Hooks are file-based only (`.theokit/hooks.json`). No programmatic callbacks.
 - Cloud runtime requires Theo PaaS, currently pre-release.
+- Local cron jobs only fire while the host process is alive. Run the SDK as a systemd / launchd / pm2 service, or use the cloud runtime, for 24/7 scheduling.
+- Local cron jobs in flight are NOT resumed if the host process crashes mid-fire.
 
 ## Where this fits
 

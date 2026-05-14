@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     errors: "src/errors.ts",
+    cron: "src/cron.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

@@ -603,6 +603,111 @@ type SDKAgentInfo = {
       repos?: string[];
     }
 );
+Cron jobs
+@usetheo/sdk supports scheduling agent runs on a cron expression. Two runtimes:
+
+Runtime	What runs the job
+Local	The in-process scheduler activated via Cron.start(). Jobs fire while the host process is alive. Persisted to .theokit/cron/jobs.json.
+Cloud	Theo PaaS schedules the job server-side. Fires regardless of any SDK process.
+
+Runtime is inferred from how the job is created: pass agent.local or an agentId with agent- prefix for local; pass agent.cloud or an agentId with bc- prefix for cloud.
+
+Cron.create()
+
+
+function Cron.create(options: CronCreateOptions): Promise<CronJob>;
+
+const job = await Cron.create({
+  cron: "0 9 * * *",                 // every day at 09:00
+  timezone: "America/Sao_Paulo",
+  message: "Summarize yesterday's commits and post to #engineering",
+  agent: {
+    apiKey: process.env.THEOKIT_API_KEY!,
+    model: { id: "composer-2" },
+    local: { cwd: process.cwd() },
+  },
+});
+
+await Cron.start();                  // required for local jobs to actually fire
+Either agent (ephemeral agent created on each fire) or agentId (bound to an existing agent for context continuity) must be set, never both. Setting both is a ConfigurationError.
+
+Supported cron expressions:
+
+5-field POSIX cron (minute hour day-of-month month day-of-week)
+Shorthand: @hourly, @daily, @weekly, @monthly, @yearly
+timezone accepts any IANA identifier; defaults to UTC. Invalid expressions throw ConfigurationError synchronously at create time.
+
+Listing and managing jobs
+
+
+const { items } = await Cron.list({ runtime: "local", cwd: process.cwd() });
+const job = await Cron.get(jobId);
+await Cron.disable(jobId);           // pause without deleting
+await Cron.enable(jobId);            // resume
+await Cron.delete(jobId);            // permanent
+Manual fire (off-schedule)
+
+
+const run = await Cron.run(jobId);   // returns the resulting Run
+for await (const event of run.stream()) {
+  // ...
+}
+Local scheduler control
+The local scheduler must be explicitly started for local jobs to fire. For 24/7 scheduling without a long-running SDK process, use the cloud runtime.
+
+
+await Cron.start({ cwd: process.cwd() });
+const status = await Cron.status();
+// { running: true, jobCount: 3, nextFireAt: 1747... }
+await Cron.stop();
+Cloud jobs do not need Cron.start() — Theo PaaS fires them server-side.
+
+CronJob
+
+
+interface CronJob {
+  id: string;
+  name?: string;
+  cron: string;
+  timezone?: string;
+  message: string | SDKUserMessage;
+  agent?: AgentOptions;              // mutually exclusive with agentId
+  agentId?: string;
+  enabled: boolean;
+  status: "scheduled" | "running" | "paused" | "errored";
+  runtime: "local" | "cloud";
+  lastRunAt?: number;
+  nextRunAt?: number;
+  createdAt: number;
+}
+CronCreateOptions
+
+
+interface CronCreateOptions {
+  cron: string;
+  message: string | SDKUserMessage;
+  agent?: AgentOptions;
+  agentId?: string;
+  name?: string;
+  timezone?: string;
+  enabled?: boolean;                 // defaults to true
+  apiKey?: string;                   // falls back to THEOKIT_API_KEY
+}
+CronSchedulerStatus
+
+
+interface CronSchedulerStatus {
+  running: boolean;
+  jobCount: number;
+  nextFireAt?: number;
+  lastError?: { jobId: string; message: string; at: number };
+}
+Known cron limitations
+
+Local cron jobs only fire while the host process is alive. Run the SDK as a systemd / launchd / pm2 service, or use the cloud runtime, for 24/7 scheduling.
+Local jobs are persisted to .theokit/cron/jobs.json (and reloaded on Cron.start()), but in-flight executions are NOT resumed if the process crashes mid-fire.
+Cron.run() (manual fire) does not update lastRunAt — only scheduled fires do.
+
 The Theo namespace
 Account-level and catalog reads. All methods take an optional { apiKey } and otherwise fall back to Theo_API_KEY.
 

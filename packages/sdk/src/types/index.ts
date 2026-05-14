@@ -3,6 +3,7 @@
 
 export type * from "./agent.js";
 export type * from "./conversation.js";
+export type * from "./cron.js";
 export type * from "./mcp.js";
 export type * from "./messages.js";
 export type * from "./run.js";
