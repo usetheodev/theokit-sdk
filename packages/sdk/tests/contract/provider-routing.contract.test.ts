@@ -117,7 +117,9 @@ type ProposedAgentOptions = AgentOptions & {
 
 type ProposedSDKAgent = SDKAgent & {
   providers: {
-    routes(): Promise<Array<{ capability: string; provider: string; model?: string; reason: string }>>;
+    routes(): Promise<
+      Array<{ capability: string; provider: string; model?: string; reason: string }>
+    >;
   };
 };
 

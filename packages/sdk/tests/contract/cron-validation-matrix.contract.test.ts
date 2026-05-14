@@ -39,37 +39,41 @@ describe("Cron validation matrix contract", () => {
     expect(job.agentId).toBeUndefined();
   });
 
-  it.each(["*/15 * * * *", "0 0 1 1 *", "30 9 * * 1"])(
-    "accepts valid POSIX cron expression %s",
-    async (cron) => {
-      const job = await Cron.create({
+  it.each([
+    "*/15 * * * *",
+    "0 0 1 1 *",
+    "30 9 * * 1",
+  ])("accepts valid POSIX cron expression %s", async (cron) => {
+    const job = await Cron.create({
+      cron,
+      timezone: "UTC",
+      message: `Run ${cron}`,
+      agentId: "agent-00000000-0000-4000-8000-000000000001",
+      apiKey: "theo_test_contract_key",
+    });
+
+    expect(job).toMatchObject({
+      cron,
+      timezone: "UTC",
+      runtime: "local",
+    });
+  });
+
+  it.each([
+    "",
+    "* * *",
+    "60 * * * *",
+    "0 24 * * *",
+    "@sometimes",
+  ])("rejects invalid cron expression %s", async (cron) => {
+    await expectInvalidCron(
+      Cron.create({
         cron,
-        timezone: "UTC",
-        message: `Run ${cron}`,
+        message: "bad cron",
         agentId: "agent-00000000-0000-4000-8000-000000000001",
-        apiKey: "theo_test_contract_key",
-      });
-
-      expect(job).toMatchObject({
-        cron,
-        timezone: "UTC",
-        runtime: "local",
-      });
-    },
-  );
-
-  it.each(["", "* * *", "60 * * * *", "0 24 * * *", "@sometimes"])(
-    "rejects invalid cron expression %s",
-    async (cron) => {
-      await expectInvalidCron(
-        Cron.create({
-          cron,
-          message: "bad cron",
-          agentId: "agent-00000000-0000-4000-8000-000000000001",
-        }),
-      );
-    },
-  );
+      }),
+    );
+  });
 
   it("manual Cron.run does not update lastRunAt", async () => {
     const job = await Cron.create({

@@ -30,12 +30,20 @@ describe("skills contract", () => {
 
     expect(skills).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ name: "code-review", description: expect.stringMatching(/Reviews TypeScript/) }),
-        expect.objectContaining({ name: "test-architect", description: expect.stringMatching(/red-first/) }),
+        expect.objectContaining({
+          name: "code-review",
+          description: expect.stringMatching(/Reviews TypeScript/),
+        }),
+        expect.objectContaining({
+          name: "test-architect",
+          description: expect.stringMatching(/red-first/),
+        }),
       ]),
     );
     expect(JSON.stringify(events)).toContain("code-review");
-    expect(JSON.stringify(events)).not.toContain("Check public API compatibility, runtime behavior");
+    expect(JSON.stringify(events)).not.toContain(
+      "Check public API compatibility, runtime behavior",
+    );
   });
 
   it("reload picks up new skills and rejects malformed skill frontmatter", async () => {
@@ -57,7 +65,10 @@ describe("skills contract", () => {
       expect.arrayContaining([expect.objectContaining({ name: "security" })]),
     );
 
-    await workspace.writeText(".theokit/skills/bad/SKILL.md", "---\nname: bad\n---\n\nMissing description.");
+    await workspace.writeText(
+      ".theokit/skills/bad/SKILL.md",
+      "---\nname: bad\n---\n\nMissing description.",
+    );
     await expect(agent.reload()).rejects.toMatchObject({
       name: "ConfigurationError",
       message: expect.stringMatching(/skill|description/i),

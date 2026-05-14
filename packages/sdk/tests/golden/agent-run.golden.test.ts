@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/index.js";
+import { assertGoldenHasContractSignal, normalizeForGolden } from "../helpers/normalize.js";
+import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
 import cloudAgentInfoGolden from "./agent/cloud-agent-info.json";
 import localAgentInfoGolden from "./agent/local-agent-info.json";
 import waitCancelledLocalGolden from "./run/wait-cancelled.local.json";
 import waitErrorLocalGolden from "./run/wait-error.local.json";
 import waitFinishedCloudGolden from "./run/wait-finished.cloud.json";
 import waitFinishedLocalGolden from "./run/wait-finished.local.json";
-import { assertGoldenHasContractSignal, normalizeForGolden } from "../helpers/normalize.js";
-import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
 
 describe("agent and run golden contracts", () => {
   let workspace: TempWorkspace | undefined;

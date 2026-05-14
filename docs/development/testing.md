@@ -17,9 +17,36 @@ Tests live in `packages/sdk/tests/`. The Vitest config (`packages/sdk/vitest.con
 | Test type | Where | What to cover |
 | --- | --- | --- |
 | **Smoke** | `tests/smoke.test.ts` | Public API surface is importable; stubs reject with the right error type. |
+| **Golden** | `tests/golden/*.golden.test.ts` + `tests/golden/**/*.json` | Frozen, normalized snapshots of public outputs (agent metadata, run results, stream events, cron jobs, errors). Drive TDD for the runtime adapters. |
+| **Contract** | `tests/contract/*.contract.test.ts` | Behavioral contracts of public methods — argument validation, error mapping, runtime detection, HTTP protocol. |
 | **Unit** | `tests/<feature>.test.ts` | Pure logic — error class shape, env var resolution, ID prefix detection, cron expression parsing. |
 | **Integration** | `tests/integration/*.test.ts` (when added) | Runtime adapters against real backends, hitting `THEOKIT_API_KEY` if present. Skipped by default. |
 | **Types** | `tests/types/*.test-d.ts` (when added) | `expectTypeOf` assertions on public type contract. |
+
+### Golden tests in detail
+
+Goldens normalize non-deterministic fields (IDs, timestamps, `/tmp` paths, PR URLs, API keys) and compare to a frozen JSON file. The hygiene test (`tests/golden/hygiene.golden.test.ts`) sweeps every `tests/golden/**/*.json` and enforces:
+
+- Every golden carries a public contract signal (`type`, `status`, `name`, `agentId`, `runtime`, `capability`, etc. — see `tests/helpers/contract-signal.ts`).
+- No raw UUIDs, ISO timestamps, secret-looking keys (`apiKey`, `token`, `secret`, …), or absolute temp paths.
+- Tool call `args`/`result` are normalized to `<unknown>` (tool payloads are NOT part of the stable schema).
+- Files are byte-stable — Biome is configured to ignore them so `pnpm check:fix` cannot reformat goldens.
+
+Add a new golden by writing a `*.golden.test.ts` that calls a public API, passes the result through `normalizeForGolden(...)`, and `expect(normalized).toEqual(imported-JSON)`. Then commit the matching JSON under `tests/golden/<area>/`.
+
+### Determinism dependency for stream goldens
+
+`stream.golden.test.ts` asserts a specific sequence of `SDKMessage` types (including `task` and `request`). For this to be reproducible, the local runtime adapter MUST expose a deterministic LLM-mock mode when invoked from tests. The `tests/helpers/local-http-server.ts` helper exists for this purpose — runtime adapters should route through an injectable `fetch` (see `docs.md` HTTP client contract) so tests can plug it in.
+
+Until that mock is wired up, the stream goldens are intentionally RED. Do not "fix" them by relaxing the assertion — the assertion is the spec.
+
+### Updating a golden
+
+1. Make the public-API change.
+2. Re-run the affected test. It will fail with a diff.
+3. Verify the new output is correct (manual review — goldens are reviewed in PR, not auto-generated blindly).
+4. Update the JSON file to match. The hygiene test will catch unsafe leakage automatically.
+5. Add a `CHANGELOG.md` entry. Goldens ARE part of the public contract — updating them is a user-visible change.
 
 ## Vitest patterns
 

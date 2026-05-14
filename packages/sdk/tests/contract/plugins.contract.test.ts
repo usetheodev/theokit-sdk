@@ -82,6 +82,8 @@ type ProposedAgentOptions = AgentOptions & {
 
 type ProposedSDKAgent = SDKAgent & {
   plugins: {
-    list(): Promise<Array<{ name: string; version: string; capabilities: string[]; source: string }>>;
+    list(): Promise<
+      Array<{ name: string; version: string; capabilities: string[]; source: string }>
+    >;
   };
 };

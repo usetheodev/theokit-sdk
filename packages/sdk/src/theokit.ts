@@ -1,4 +1,5 @@
 import { ConfigurationError } from "./errors.js";
+import type { SDKProvider } from "./types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
 
 const NOT_IMPLEMENTED = "Not implemented yet — see CHANGELOG.md and docs.md";
@@ -55,5 +56,18 @@ export class Theokit {
   } = {
     list: (_options) =>
       Promise.reject(new ConfigurationError(`Theokit.repositories.list: ${NOT_IMPLEMENTED}`)),
+  };
+
+  /**
+   * Provider catalog. Lists every provider known to the platform, including
+   * plugin-registered ones, with capability and availability metadata.
+   *
+   * @public
+   */
+  static readonly providers: {
+    list: (options?: TheokitRequestOptions) => Promise<SDKProvider[]>;
+  } = {
+    list: (_options) =>
+      Promise.reject(new ConfigurationError(`Theokit.providers.list: ${NOT_IMPLEMENTED}`)),
   };
 }

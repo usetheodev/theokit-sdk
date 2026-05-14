@@ -24,18 +24,34 @@ describe("run.stream SDKMessage contract", () => {
       model: { id: "composer-2" },
       local: { cwd: workspace.cwd },
     });
-    const run = await agent.send("Use shell to inspect src/index.js, then ask for approval before editing.");
+    const run = await agent.send(
+      "Use shell to inspect src/index.js, then ask for approval before editing.",
+    );
 
     const events = await collectStream(run);
     const normalized = normalizeForGolden(events);
     assertGoldenHasContractSignal(normalized);
 
     expect(events.map((event) => event.type)).toEqual(
-      expect.arrayContaining(["system", "user", "assistant", "thinking", "tool_call", "task", "request"]),
+      expect.arrayContaining([
+        "system",
+        "user",
+        "assistant",
+        "thinking",
+        "tool_call",
+        "task",
+        "request",
+      ]),
     );
-    expect(normalizeForGolden(events.find((event) => event.type === "system"))).toEqual(systemGolden);
-    expect(normalizeForGolden(events.find((event) => event.type === "assistant"))).toEqual(assistantGolden);
-    expect(normalizeForGolden(events.find((event) => event.type === "tool_call"))).toEqual(toolCallGolden);
+    expect(normalizeForGolden(events.find((event) => event.type === "system"))).toEqual(
+      systemGolden,
+    );
+    expect(normalizeForGolden(events.find((event) => event.type === "assistant"))).toEqual(
+      assistantGolden,
+    );
+    expect(normalizeForGolden(events.find((event) => event.type === "tool_call"))).toEqual(
+      toolCallGolden,
+    );
     expect(events.find((event) => event.type === "user")).toMatchObject({
       type: "user",
       message: {
