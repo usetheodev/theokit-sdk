@@ -1,0 +1,9 @@
+{
+  "id": "run-<id>",
+  "status": "finished",
+  "result": "The answer is 42.",
+  "model": {
+    "id": "composer-2"
+  },
+  "durationMs": "<duration-ms>"
+}

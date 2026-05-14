@@ -11,3 +11,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `@usetheo/sdk` package skeleton at `packages/sdk/` (initial scaffold).
 - `pi/packages/*` integrated as workspace children via `pnpm-workspace.yaml` (initial scaffold).
 - `docs.md` locked as the canonical public API contract (initial scaffold).
+- `docs/` folder with human-friendly documentation: getting-started, concepts, guides (cron, MCP, subagents, hooks, errors, resource management), reference, and development guide for contributors (initial scaffold).
+
+### Changed
+- `pi/` and `cookbook/` moved under `referencia/` as read-only reference material; `pnpm-workspace.yaml` and `biome.json` updated to exclude `referencia/**` from workspace and lint targets.

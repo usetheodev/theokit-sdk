@@ -1,0 +1,7 @@
+{
+  "name": "RateLimitError",
+  "message": "Rate limit exceeded",
+  "isRetryable": true,
+  "code": "rate_limit_error",
+  "protoErrorCode": "RATE_LIMIT_ERROR"
+}

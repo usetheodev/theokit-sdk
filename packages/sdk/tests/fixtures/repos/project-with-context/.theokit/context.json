@@ -1,0 +1,14 @@
+{
+  "sources": [
+    {
+      "name": "project-readme",
+      "path": "README.md"
+    },
+    {
+      "name": "architecture-note",
+      "path": "docs/architecture.md"
+    }
+  ],
+  "exclude": ["**/.env", "**/secrets/**"],
+  "maxTokens": 1200
+}

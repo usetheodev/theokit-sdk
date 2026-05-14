@@ -19,6 +19,7 @@ theokit-sdk/
 ├── README.md           # Public-facing front door
 ├── CLAUDE.md           # This file
 ├── docs.md             # Canonical public API contract (source of truth)
+├── docs/               # Human-friendly documentation site (markdown)
 ├── CHANGELOG.md        # Workspace-level changelog (per-package changelogs in each package)
 ├── package.json        # Workspace root (private, pnpm)
 ├── pnpm-workspace.yaml # Workspace member globs

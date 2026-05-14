@@ -1,0 +1,19 @@
+{
+  "runtime": "local",
+  "sources": [
+    {
+      "name": "project-readme",
+      "path": "README.md",
+      "status": "included"
+    },
+    {
+      "name": "architecture-note",
+      "path": "docs/architecture.md",
+      "status": "included"
+    }
+  ],
+  "budget": {
+    "maxTokens": 1200,
+    "usedTokens": "<tokens>"
+  }
+}

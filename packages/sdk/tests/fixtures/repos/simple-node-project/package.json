@@ -1,0 +1,7 @@
+{
+  "name": "simple-node-project",
+  "type": "module",
+  "scripts": {
+    "slow": "node src/slow-tool.js"
+  }
+}

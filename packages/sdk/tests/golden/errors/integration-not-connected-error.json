@@ -1,0 +1,8 @@
+{
+  "name": "IntegrationNotConnectedError",
+  "message": "GitHub integration is not connected",
+  "isRetryable": false,
+  "code": "integration_not_connected",
+  "provider": "github",
+  "helpUrl": "https://usetheo.com/docs/integrations/github"
+}

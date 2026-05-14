@@ -1,0 +1,10 @@
+{
+  "type": "tool_call",
+  "agent_id": "agent-<id>",
+  "run_id": "run-<id>",
+  "call_id": "call-<id>",
+  "name": "shell",
+  "status": "completed",
+  "args": "<unknown>",
+  "result": "<unknown>"
+}

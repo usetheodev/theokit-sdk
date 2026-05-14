@@ -1,0 +1,9 @@
+{
+  "id": "run-<id>",
+  "status": "error",
+  "result": "Command failed",
+  "model": {
+    "id": "composer-2"
+  },
+  "durationMs": "<duration-ms>"
+}

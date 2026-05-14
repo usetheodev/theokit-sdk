@@ -569,6 +569,17 @@ For the full reference (`CloudOptions`, `ModelSelection`, `McpServerConfig`, `Ag
 
 The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). The `referencia/` directory contains read-only study material — including a fork of [`earendil-works/pi`](https://github.com/earendil-works/pi) and the OpenAI Agents Python SDK — that informed the design but is not a runtime dependency.
 
+## Documentation
+
+The human-friendly docs live in [`docs/`](./docs/). Start with:
+
+- [Getting started](./docs/getting-started/quickstart.md) — quickstart, installation, authentication
+- [Concepts](./docs/concepts/agent-and-run.md) — Agent, Run, runtimes, stream events
+- [Guides](./docs/guides/cron-jobs.md) — cron jobs, MCP, subagents, hooks, error handling
+- [Development guide](./docs/development/setup.md) — for contributors to the SDK itself
+
+The canonical machine-readable contract is at [`docs.md`](./docs.md).
+
 ## Development
 
 This monorepo uses **pnpm workspaces**, **Biome 2.4**, **tsup 8**, **Vitest 3**, **TypeScript 5.8+**, and **Changesets**. Node 22.12+ required (use `nvm use` to pick it up from `.nvmrc`).

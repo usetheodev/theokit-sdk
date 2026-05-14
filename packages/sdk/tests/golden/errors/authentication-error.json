@@ -1,0 +1,7 @@
+{
+  "name": "AuthenticationError",
+  "message": "Invalid API key",
+  "isRetryable": false,
+  "code": "authentication_error",
+  "protoErrorCode": "AUTHENTICATION_ERROR"
+}

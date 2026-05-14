@@ -1,0 +1,20 @@
+[
+  {
+    "type": "status",
+    "agent_id": "bc-<id>",
+    "run_id": "run-<id>",
+    "status": "CREATING"
+  },
+  {
+    "type": "status",
+    "agent_id": "bc-<id>",
+    "run_id": "run-<id>",
+    "status": "RUNNING"
+  },
+  {
+    "type": "status",
+    "agent_id": "bc-<id>",
+    "run_id": "run-<id>",
+    "status": "FINISHED"
+  }
+]

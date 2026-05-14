@@ -1,0 +1,12 @@
+{
+  "id": "cron-<id>",
+  "cron": "@hourly",
+  "timezone": "UTC",
+  "message": "Run local scheduled task",
+  "agentId": "agent-<id>",
+  "enabled": true,
+  "status": "scheduled",
+  "runtime": "local",
+  "createdAt": "<timestamp>",
+  "nextRunAt": "<timestamp>"
+}

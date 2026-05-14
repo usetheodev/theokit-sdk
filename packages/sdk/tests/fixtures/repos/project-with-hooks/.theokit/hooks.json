@@ -1,0 +1,9 @@
+{
+  "hooks": {
+    "preRun": [
+      {
+        "command": "node ./validate-workspace.js"
+      }
+    ]
+  }
+}

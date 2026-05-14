@@ -1,0 +1,14 @@
+{
+  "type": "assistant",
+  "agent_id": "agent-<id>",
+  "run_id": "run-<id>",
+  "message": {
+    "role": "assistant",
+    "content": [
+      {
+        "type": "text",
+        "text": "The answer is 42."
+      }
+    ]
+  }
+}

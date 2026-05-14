@@ -1,0 +1,6 @@
+{
+  "name": "ConfigurationError",
+  "message": "Invalid configuration",
+  "isRetryable": false,
+  "code": "configuration_error"
+}
