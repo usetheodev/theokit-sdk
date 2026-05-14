@@ -11,6 +11,9 @@ The files in this `reference/` folder are human-friendly cross-references and to
 | The exact shape of every public type | [`../../docs.md`](../../docs.md) |
 | How to call each `Agent.*` method | [Concepts: Agent and Run](../concepts/agent-and-run.md) |
 | How to call each `Cron.*` method | [Guides: Cron jobs](../guides/cron-jobs.md) |
+| How to configure project context | [Guides: Context manager](../guides/context-manager.md) |
+| How to configure durable memory | [Guides: Memory](../guides/memory.md) |
+| How to load file-based skills | [Guides: Skills](../guides/skills.md) |
 | Error class hierarchy and retry strategy | [Guides: Error handling](../guides/error-handling.md) |
 | Stream event taxonomy | [Concepts: Stream events](../concepts/stream-events.md) and [Stream events reference below](./stream-events.md) |
 | Subpath imports (`/cron`, `/errors`) | [Installation](../getting-started/installation.md) |
@@ -40,7 +43,10 @@ import {
   type RunResult,
   type SDKAgent,
   type SDKAgentInfo,
+  type SDKContextManager,
+  type SDKMemoryManager,
   type SDKMessage,
+  type SDKSkillsManager,
   type SDKUserMessage,
   type SettingSource,
   type TheokitRequestOptions,
