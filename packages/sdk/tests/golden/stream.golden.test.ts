@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/index.js";
+import { collectStream } from "../helpers/collect-stream.js";
+import { assertGoldenHasContractSignal, normalizeForGolden } from "../helpers/normalize.js";
+import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
 import assistantTextGolden from "./stream/assistant-text.local.json";
 import cloudStatusLifecycleGolden from "./stream/cloud-status-lifecycle.json";
 import systemInitGolden from "./stream/system-init.local.json";
 import toolCallEnvelopeGolden from "./stream/tool-call-envelope.local.json";
-import { collectStream } from "../helpers/collect-stream.js";
-import { assertGoldenHasContractSignal, normalizeForGolden } from "../helpers/normalize.js";
-import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
 
 describe("stream event golden contracts", () => {
   let workspace: TempWorkspace | undefined;
@@ -24,18 +24,34 @@ describe("stream event golden contracts", () => {
       model: { id: "composer-2" },
       local: { cwd: workspace.cwd },
     });
-    const run = await agent.send("Use shell to inspect src/index.js, then answer: The answer is 42.");
+    const run = await agent.send(
+      "Use shell to inspect src/index.js, then answer: The answer is 42.",
+    );
 
     const events = await collectStream(run);
     const normalizedEvents = normalizeForGolden(events);
 
     assertGoldenHasContractSignal(normalizedEvents);
     expect(events.map((event) => event.type)).toEqual(
-      expect.arrayContaining(["system", "user", "assistant", "thinking", "tool_call", "task", "request"]),
+      expect.arrayContaining([
+        "system",
+        "user",
+        "assistant",
+        "thinking",
+        "tool_call",
+        "task",
+        "request",
+      ]),
     );
-    expect(normalizeForGolden(events.find((event) => event.type === "system"))).toEqual(systemInitGolden);
-    expect(normalizeForGolden(events.find((event) => event.type === "assistant"))).toEqual(assistantTextGolden);
-    expect(normalizeForGolden(events.find((event) => event.type === "tool_call"))).toEqual(toolCallEnvelopeGolden);
+    expect(normalizeForGolden(events.find((event) => event.type === "system"))).toEqual(
+      systemInitGolden,
+    );
+    expect(normalizeForGolden(events.find((event) => event.type === "assistant"))).toEqual(
+      assistantTextGolden,
+    );
+    expect(normalizeForGolden(events.find((event) => event.type === "tool_call"))).toEqual(
+      toolCallEnvelopeGolden,
+    );
   });
 
   it("matches normalized cloud status lifecycle golden", async () => {

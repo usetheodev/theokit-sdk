@@ -53,7 +53,12 @@ describe("Hermes reference parity contract", () => {
       model: { id: "composer-2" },
       local: { cwd: workspace.cwd },
       mcpServers: {
-        "github/tools.v1": { type: "stdio", command: "node", args: ["./mcp-server.js"], cwd: workspace.cwd },
+        "github/tools.v1": {
+          type: "stdio",
+          command: "node",
+          args: ["./mcp-server.js"],
+          cwd: workspace.cwd,
+        },
       },
     });
     const run = await agent.send("List MCP tools.");

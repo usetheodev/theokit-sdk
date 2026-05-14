@@ -117,17 +117,29 @@ export class UnknownAgentError extends TheokitAgentError {
 }
 
 /**
- * Thrown when a {@link Run} operation is not available on the current runtime.
- * Check first with `run.supports(operation)`.
+ * Thrown when a {@link Run} or agent operation is not available on the current
+ * runtime. Check first with `run.supports(operation)`.
+ *
+ * Extends {@link TheokitAgentError} (so error-catching code that branches on
+ * `instanceof TheokitAgentError` continues to work) but is never retryable —
+ * an unsupported operation will not become supported on retry.
  *
  * @public
  */
-export class UnsupportedRunOperationError extends Error {
+export class UnsupportedRunOperationError extends TheokitAgentError {
   override readonly name: string = "UnsupportedRunOperationError";
   readonly operation: RunOperation;
 
-  constructor(message: string, operation: RunOperation) {
-    super(message);
+  constructor(
+    message: string,
+    operation: RunOperation,
+    options: { code?: string; cause?: unknown } = {},
+  ) {
+    super(message, {
+      ...options,
+      isRetryable: false,
+      code: options.code ?? "unsupported_run_operation",
+    });
     this.operation = operation;
   }
 }

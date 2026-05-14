@@ -1,10 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
 
-import { Agent, Theokit, type AgentOptions, type SDKAgent } from "../../src/index.js";
-import contextSnapshotGolden from "./context/snapshot.local.json";
-import providerRoutesGolden from "./providers/routes.json";
+import { Agent, Theokit } from "../../src/index.js";
 import { assertGoldenHasContractSignal, normalizeForGolden } from "../helpers/normalize.js";
 import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
+import contextSnapshotGolden from "./context/snapshot.local.json";
+import providerRoutesGolden from "./providers/routes.json";
 
 describe("platform extension golden contracts", () => {
   let workspace: TempWorkspace | undefined;
@@ -22,17 +22,18 @@ describe("platform extension golden contracts", () => {
 
   it("matches normalized local engine context snapshot golden", async () => {
     workspace = await createTempWorkspace("project-with-context");
-    const options: ProposedAgentOptions = {
+    const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
       model: { id: "composer-2" },
       local: { cwd: workspace.cwd },
       context: {
-        sources: ["project"],
+        manager: "file",
         maxTokens: 1200,
       },
-    };
-    const agent = (await Agent.create(options)) as ProposedSDKAgent;
+    });
 
+    if (!agent.context)
+      throw new Error("agent.context should be populated when context settings are provided");
     const snapshot = await agent.context.snapshot();
     const normalized = normalizeForGolden(snapshot);
 
@@ -44,7 +45,7 @@ describe("platform extension golden contracts", () => {
   it("matches normalized provider routes golden", async () => {
     process.env.FIXTURE_SEARCH_TOKEN = "fixture-search-secret";
     workspace = await createTempWorkspace("project-with-plugins");
-    const options: ProposedAgentOptions = {
+    const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
       model: { id: "anthropic:claude-3-7-sonnet" },
       local: { cwd: workspace.cwd, settingSources: ["plugins"] },
@@ -56,9 +57,10 @@ describe("platform extension golden contracts", () => {
         ],
         fallback: ["openrouter", "nous"],
       },
-    };
-    const agent = (await Agent.create(options)) as ProposedSDKAgent;
+    });
 
+    if (!agent.providers)
+      throw new Error("agent.providers should be populated when provider routes are configured");
     const routes = await agent.providers.routes();
     const normalized = normalizeForGolden(routes);
 
@@ -68,10 +70,9 @@ describe("platform extension golden contracts", () => {
   });
 
   it("provider catalog output remains public and secret-free", async () => {
-    const providersApi = (Theokit as ProposedTheokit).providers;
-    expect(providersApi?.list).toEqual(expect.any(Function));
+    expect(typeof Theokit.providers.list).toBe("function");
 
-    const providers = await providersApi.list({ apiKey: "theo_test_contract_key" });
+    const providers = await Theokit.providers.list({ apiKey: "theo_test_contract_key" });
     const normalized = normalizeForGolden(providers);
 
     expect(normalized).toEqual(
@@ -85,43 +86,8 @@ describe("platform extension golden contracts", () => {
         }),
       ]),
     );
-    expect(JSON.stringify(normalized)).not.toMatch(/api[_-]?key|authorization|password|secret|token/i);
+    expect(JSON.stringify(normalized)).not.toMatch(
+      /api[_-]?key|authorization|password|secret|token/i,
+    );
   });
 });
-
-type ProposedAgentOptions = AgentOptions & {
-  context?: {
-    sources: string[];
-    maxTokens: number;
-  };
-  plugins?: {
-    enabled?: string[];
-  };
-  providers?: {
-    routes: Array<{ capability: "chat" | "web_search" | "image" | "embedding"; provider: string }>;
-    fallback?: string[];
-  };
-};
-
-type ProposedSDKAgent = SDKAgent & {
-  context: {
-    snapshot(): Promise<unknown>;
-  };
-  providers: {
-    routes(): Promise<Array<{ capability: string; provider: string; model?: string; reason: string }>>;
-  };
-};
-
-type ProposedTheokit = typeof Theokit & {
-  providers: {
-    list(options?: { apiKey?: string }): Promise<
-      Array<{
-        name: string;
-        displayName: string;
-        capabilities: string[];
-        isAvailable: boolean;
-        setupSchema: object;
-      }>
-    >;
-  };
-};

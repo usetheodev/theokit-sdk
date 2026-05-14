@@ -161,6 +161,8 @@ Surface to the user before resolving. Do not commit a silent answer.
 | Whether `pnpm validate` should fail on `attw` warnings or just publint errors. | Pending | Affects CI strictness. |
 | Local cron scheduler library: `croner` (zero deps, modern) vs `cron` (mature, larger) vs `node-cron` (simple, no timezone). | Pending | Affects bundle size and feature set of local cron runtime. |
 | Cron job persistence format: JSON file (current plan: `.theokit/cron/jobs.json`) vs SQLite vs append-only log. | Pending | Affects crash recovery and concurrent-process safety. |
+| Memory subsystem: `docs.md` includes `AgentOptions.memory` and `SDKAgent.memory`, but no runtime types or stubs exist yet. Decision: namespace/user/scope keying, local persistence path layout, redaction rules. | Pending | Drives `SDKMemoryManager` shape and `.theokit/memory/` layout. |
+| Skills subsystem: `docs.md` includes `AgentOptions.skills`, `SDKAgent.skills`, and `.theokit/skills/<name>/SKILL.md` discovery, but no runtime types or stubs exist yet. Decision: metadata-only public surface, frontmatter schema, parent/subagent inheritance. | Pending | Drives `SDKSkillsManager` shape and skill loader. |
 
 ## Inviolable rules (carried from root and global)
 

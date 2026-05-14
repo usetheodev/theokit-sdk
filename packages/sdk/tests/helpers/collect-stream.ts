@@ -7,7 +7,10 @@ export async function collectStream(run: Run, timeoutMs = 5_000): Promise<SDKMes
 
   const events: SDKMessage[] = [];
   const timeout = new Promise<never>((_, reject) => {
-    setTimeout(() => reject(new Error(`run.stream() did not finish within ${timeoutMs}ms`)), timeoutMs);
+    setTimeout(
+      () => reject(new Error(`run.stream() did not finish within ${timeoutMs}ms`)),
+      timeoutMs,
+    );
   });
 
   await Promise.race([

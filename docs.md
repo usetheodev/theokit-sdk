@@ -233,7 +233,7 @@ Each agent.send() returns a Run. The agent retains conversation context across r
 Run
 
 type RunStatus = "running" | "finished" | "error" | "cancelled";
-type RunOperation = "stream" | "wait" | "cancel" | "conversation";
+type RunOperation = "stream" | "wait" | "cancel" | "conversation" | "listArtifacts" | "downloadArtifact";
 interface Run {
   readonly id: string;
   readonly agentId: string;
@@ -1209,10 +1209,10 @@ Use helpUrl to point the user at the right reconnect flow. New providers will be
 
 UnsupportedRunOperationError
 
-class UnsupportedRunOperationError extends Error {
+class UnsupportedRunOperationError extends TheoAgentError {
   readonly operation: RunOperation;
 }
-Thrown when a Run operation is not available on the current runtime. Use run.supports(operation) and run.unsupportedReason(operation) to check before calling.
+Thrown when a Run or agent operation is not available on the current runtime. Extends `TheoAgentError` with `isRetryable: false` and `code: "unsupported_run_operation"`. Use `run.supports(operation)` and `run.unsupportedReason(operation)` to check before calling. The `operation` field includes Run operations (`stream`, `wait`, `cancel`, `conversation`) and agent-level operations (`listArtifacts`, `downloadArtifact`).
 
 Known limitations
 Inline mcpServers are not persisted across Agent.resume(). Pass them again on resume if needed.

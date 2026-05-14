@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Agent, Theokit } from "../../src/index.js";
-import { startLocalHttpServer, type LocalHttpServer } from "../helpers/local-http-server.js";
+import { type LocalHttpServer, startLocalHttpServer } from "../helpers/local-http-server.js";
 
 describe("cloud HTTP protocol contract", () => {
   let server: LocalHttpServer | undefined;
@@ -73,7 +73,10 @@ describe("cloud HTTP protocol contract", () => {
 
   it("maps HTTP error envelopes to public typed errors", async () => {
     server = await startLocalHttpServer((_request, response) => {
-      response.writeHead(429, { "content-type": "application/json", "x-request-id": "request-123" });
+      response.writeHead(429, {
+        "content-type": "application/json",
+        "x-request-id": "request-123",
+      });
       response.end(
         JSON.stringify({
           error: {

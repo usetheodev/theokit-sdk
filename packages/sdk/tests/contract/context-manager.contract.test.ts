@@ -27,7 +27,9 @@ describe("engine context manager contract", () => {
     const agent = (await Agent.create(options)) as ProposedSDKAgent;
 
     const snapshot = await agent.context.snapshot();
-    const run = await agent.send("Answer using loaded project context: what kind of tests are used?");
+    const run = await agent.send(
+      "Answer using loaded project context: what kind of tests are used?",
+    );
     const result = await run.wait();
 
     expect(normalizeForGolden(snapshot)).toEqual(contextGolden);
@@ -47,7 +49,10 @@ describe("engine context manager contract", () => {
     const agent = (await Agent.create(options)) as ProposedSDKAgent;
     const before = await agent.context.snapshot();
 
-    await workspace.writeText("docs/architecture.md", "# Architecture\n\nReloaded context marker: zinc.");
+    await workspace.writeText(
+      "docs/architecture.md",
+      "# Architecture\n\nReloaded context marker: zinc.",
+    );
     await agent.reload();
     const after = await agent.context.snapshot();
 

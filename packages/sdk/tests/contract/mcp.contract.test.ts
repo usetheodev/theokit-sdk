@@ -48,7 +48,12 @@ describe("MCP server contract", () => {
       model: { id: "composer-2" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       mcpServers: {
-        createOnly: { type: "stdio", command: "node", args: ["./mcp-server.js"], cwd: workspace.cwd },
+        createOnly: {
+          type: "stdio",
+          command: "node",
+          args: ["./mcp-server.js"],
+          cwd: workspace.cwd,
+        },
       },
     });
 
@@ -62,7 +67,10 @@ describe("MCP server contract", () => {
 
     const systemEvent = events.find((event) => event.type === "system");
     expect(systemEvent).toMatchObject({
-      tools: expect.arrayContaining([expect.stringMatching(/sendOnly/), expect.stringMatching(/fixture-shell/)]),
+      tools: expect.arrayContaining([
+        expect.stringMatching(/sendOnly/),
+        expect.stringMatching(/fixture-shell/),
+      ]),
     });
     expect(JSON.stringify(systemEvent)).not.toContain("createOnly");
   });

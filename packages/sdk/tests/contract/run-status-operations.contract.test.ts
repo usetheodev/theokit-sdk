@@ -75,7 +75,9 @@ describe("Run status and operation support contract", () => {
   });
 });
 
-async function collectUnsupportedStream(run: { stream(): AsyncGenerator<unknown, void> }): Promise<void> {
+async function collectUnsupportedStream(run: {
+  stream(): AsyncGenerator<unknown, void>;
+}): Promise<void> {
   for await (const _event of run.stream()) {
     throw new Error("unsupported stream unexpectedly emitted an event");
   }

@@ -53,19 +53,33 @@ describe("Agent management contract", () => {
     });
     const fetched = await Agent.get(agent.agentId, { apiKey: "theo_test_contract_key" });
 
-    expect(listed.items).toEqual(expect.arrayContaining([expect.objectContaining({ agentId: agent.agentId })]));
+    expect(listed.items).toEqual(
+      expect.arrayContaining([expect.objectContaining({ agentId: agent.agentId })]),
+    );
     expect(normalizeForGolden(fetched)).toEqual(cloudAgentInfoGolden);
 
-    await expect(Agent.archive(agent.agentId, { apiKey: "theo_test_contract_key" })).resolves.toBeUndefined();
-    await expect(Agent.get(agent.agentId, { apiKey: "theo_test_contract_key" })).resolves.toMatchObject({
+    await expect(
+      Agent.archive(agent.agentId, { apiKey: "theo_test_contract_key" }),
+    ).resolves.toBeUndefined();
+    await expect(
+      Agent.get(agent.agentId, { apiKey: "theo_test_contract_key" }),
+    ).resolves.toMatchObject({
       archived: true,
     });
-    await expect(Agent.unarchive(agent.agentId, { apiKey: "theo_test_contract_key" })).resolves.toBeUndefined();
-    await expect(Agent.get(agent.agentId, { apiKey: "theo_test_contract_key" })).resolves.toMatchObject({
+    await expect(
+      Agent.unarchive(agent.agentId, { apiKey: "theo_test_contract_key" }),
+    ).resolves.toBeUndefined();
+    await expect(
+      Agent.get(agent.agentId, { apiKey: "theo_test_contract_key" }),
+    ).resolves.toMatchObject({
       archived: false,
     });
-    await expect(Agent.delete(agent.agentId, { apiKey: "theo_test_contract_key" })).resolves.toBeUndefined();
-    await expect(Agent.get(agent.agentId, { apiKey: "theo_test_contract_key" })).rejects.toMatchObject({
+    await expect(
+      Agent.delete(agent.agentId, { apiKey: "theo_test_contract_key" }),
+    ).resolves.toBeUndefined();
+    await expect(
+      Agent.get(agent.agentId, { apiKey: "theo_test_contract_key" }),
+    ).rejects.toMatchObject({
       name: "UnknownAgentError",
       code: expect.any(String),
     });
@@ -108,11 +122,12 @@ describe("Agent management contract", () => {
   });
 
   it("requires parent agentId for cloud getRun and routes by bc prefix", async () => {
-    await expect(Agent.getRun("run-00000000-0000-4000-8000-000000000001", { runtime: "cloud" } as never)).rejects
-      .toMatchObject({
-        name: "ConfigurationError",
-        message: expect.stringMatching(/agentId/i),
-      });
+    await expect(
+      Agent.getRun("run-00000000-0000-4000-8000-000000000001", { runtime: "cloud" } as never),
+    ).rejects.toMatchObject({
+      name: "ConfigurationError",
+      message: expect.stringMatching(/agentId/i),
+    });
 
     const run = await Agent.getRun("run-00000000-0000-4000-8000-000000000001", {
       runtime: "cloud",

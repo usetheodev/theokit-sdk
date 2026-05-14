@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/index.js";
-import localListGolden from "../golden/artifacts/local-list-empty.json";
 import localDownloadErrorGolden from "../golden/artifacts/local-download-unsupported-error.json";
+import localListGolden from "../golden/artifacts/local-list-empty.json";
 import { normalizeForGolden } from "../helpers/normalize.js";
 import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
 
@@ -23,7 +23,9 @@ describe("agent artifacts contract", () => {
     });
 
     await expect(agent.listArtifacts()).resolves.toEqual(localListGolden);
-    await expect(agent.downloadArtifact("report.txt")).rejects.toMatchObject(localDownloadErrorGolden);
+    await expect(agent.downloadArtifact("report.txt")).rejects.toMatchObject(
+      localDownloadErrorGolden,
+    );
   });
 
   it("cloud agents list artifact metadata and download artifact bytes", async () => {

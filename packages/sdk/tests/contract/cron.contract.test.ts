@@ -87,8 +87,16 @@ describe("Cron contract", () => {
       apiKey: "theo_test_contract_key",
     });
 
-    await expect(Cron.disable(job.id)).resolves.toMatchObject({ id: job.id, enabled: false, status: "paused" });
-    await expect(Cron.enable(job.id)).resolves.toMatchObject({ id: job.id, enabled: true, status: "scheduled" });
+    await expect(Cron.disable(job.id)).resolves.toMatchObject({
+      id: job.id,
+      enabled: false,
+      status: "paused",
+    });
+    await expect(Cron.enable(job.id)).resolves.toMatchObject({
+      id: job.id,
+      enabled: true,
+      status: "scheduled",
+    });
     await expect(Cron.run(job.id)).resolves.toMatchObject({
       id: expect.stringMatching(/^run-/),
       agentId: expect.stringMatching(/^agent-/),
@@ -99,7 +107,10 @@ describe("Cron contract", () => {
   });
 });
 
-async function expectCronConfigurationError(promise: Promise<unknown>, message: RegExp): Promise<void> {
+async function expectCronConfigurationError(
+  promise: Promise<unknown>,
+  message: RegExp,
+): Promise<void> {
   await expect(promise).rejects.toMatchObject({
     name: "ConfigurationError",
     message: expect.stringMatching(message),

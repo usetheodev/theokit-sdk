@@ -36,7 +36,9 @@ describe("local and cloud runtime contract", () => {
     expect(cloudAgent.agentId).toMatch(/^bc-/);
     expect(localRun.agentId).toBe(localAgent.agentId);
     expect(cloudRun.agentId).toBe(cloudAgent.agentId);
-    expect(cloudEvents).toEqual(expect.arrayContaining([expect.objectContaining({ type: "status" })]));
+    expect(cloudEvents).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "status" })]),
+    );
     expect(normalizeForGolden(cloudResult)).toEqual(waitFinishedCloud);
   });
 
