@@ -33,6 +33,9 @@ Concept	Description
 Agent	Durable container that holds conversation state, workspace config, and settings. Survives across multiple prompts.
 Run	One prompt submission. Owns its own stream, status, result, and cancellation.
 SDKMessage	Normalized stream events emitted during a run. Same shape across all runtimes.
+Context manager	File-based or inline project context selected before each run and bounded by a token budget.
+Memory	Durable facts persisted across agent instances by namespace, user, and scope.
+Skills	File-based capability packs loaded from `.theokit/skills/*/SKILL.md` and exposed to the agent by name and description.
 Installation
 
 npm install @Theo/sdk
@@ -106,6 +109,84 @@ const agent = await Agent.create({
   },
   local: { cwd: process.cwd() },
 });
+
+Context manager
+The context manager selects project context before a run starts. It is for working-set material: README files, architecture notes, generated summaries, and other documents that help the agent understand the current task. It is not durable user memory.
+
+Enable file-based context with `context.manager: "file"`. Local agents read `.theokit/context.json` from the workspace when `local.settingSources` includes `"project"`; cloud agents read committed project context from the cloned repo. Call `agent.context.snapshot()` to inspect the public, redacted context that will be offered to runs.
+
+
+const agent = await Agent.create({
+  apiKey: process.env.Theo_API_KEY!,
+  model: { id: "composer-2" },
+  local: { cwd: process.cwd(), settingSources: ["project"] },
+  context: {
+    manager: "file",
+    maxTokens: 1200,
+  },
+});
+const snapshot = await agent.context.snapshot();
+await agent.reload(); // re-read .theokit/context.json and referenced files
+
+`.theokit/context.json`:
+
+
+{
+  "sources": [
+    { "name": "project-readme", "path": "README.md" },
+    { "name": "architecture-note", "path": "docs/architecture.md" }
+  ],
+  "exclude": ["**/.env", "**/secrets/**"],
+  "maxTokens": 1200
+}
+
+The snapshot must never include secrets, absolute temporary paths, or raw tokens. `maxTokens` is a hard budget; implementations may summarize or omit low-priority sources to stay under budget.
+
+Memory
+Memory stores durable facts across agent instances. It is keyed by namespace, user, and scope so agents can remember stable preferences without leaking facts across users or teams.
+
+
+const agent = await Agent.create({
+  apiKey: process.env.Theo_API_KEY!,
+  model: { id: "composer-2" },
+  local: { cwd: process.cwd() },
+  memory: {
+    enabled: true,
+    namespace: "my-app",
+    userId: "user-123",
+    scope: "user",
+  },
+});
+await (await agent.send("Remember: my preferred test runner is Vitest.")).wait();
+
+Use `scope: "agent"` for one agent's durable state, `"user"` for a user's stable preferences, and `"team"` only for shared team facts that are safe for every authorized caller. Memory must not store API keys, bearer tokens, passwords, authorization headers, or other credential material. Local `storePath` values must stay inside the workspace; path traversal is a `ConfigurationError`.
+
+Skills
+Skills are named capability packs. The SDK exposes their names and descriptions to the agent so it knows when to use them, but full skill prompt bodies are not included in public streams, snapshots, or `agent.skills.list()` output.
+
+Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded when `local.settingSources` includes `"project"`. Cloud agents load skills committed in the repo. `agent.reload()` re-reads skill files and fails with `ConfigurationError` if a skill is malformed instead of silently ignoring it.
+
+
+const agent = await Agent.create({
+  apiKey: process.env.Theo_API_KEY!,
+  model: { id: "composer-2" },
+  local: { cwd: process.cwd(), settingSources: ["project"] },
+  skills: {
+    enabled: ["code-review", "test-architect"],
+  },
+});
+const skills = await agent.skills.list();
+
+Example skill:
+
+
+---
+name: code-review
+description: Reviews TypeScript SDK changes for contract regressions.
+---
+
+Check public API compatibility, runtime behavior, and tests that can produce false positives.
+
 SDKAgent
 The handle returned by Agent.create() and Agent.resume().
 
@@ -113,6 +194,9 @@ The handle returned by Agent.create() and Agent.resume().
 interface SDKAgent {
   readonly agentId: string;
   readonly model: ModelSelection | undefined;
+  readonly context?: SDKContextManager;
+  readonly memory?: SDKMemoryManager;
+  readonly skills?: SDKSkillsManager;
   send(message: string | SDKUserMessage, options?: SendOptions): Promise<Run>;
   close(): void;
   reload(): Promise<void>;
@@ -123,9 +207,12 @@ interface SDKAgent {
 Member	Description
 agentId	Stable agent identifier. agent-<uuid> for local, bc-<uuid> for cloud.
 model	Current model selection. Updates after every successful send({ model }). undefined until something sets it (including resumed agents whose caller did not pass model).
+context	Context manager handle when context is enabled. `snapshot()` returns the public, redacted context selected for runs.
+memory	Memory manager handle when memory is enabled. Reserved for explicit memory inspection and deletion APIs.
+skills	Skills manager handle when skills are enabled. `list()` returns public skill metadata, never full prompt bodies.
 send	Start a new run with the given prompt. Returns a Run handle.
 close	Begin disposal without awaiting. Fire-and-forget.
-reload	Re-read filesystem config (hooks, project MCP, subagents) without disposing.
+reload	Re-read filesystem config (context, skills, hooks, project MCP, subagents) without disposing.
 [Symbol.asyncDispose]	Async disposal. Pair with await using for automatic cleanup.
 listArtifacts	List files produced by the agent (cloud only; local returns empty).
 downloadArtifact	Download a file by path (cloud only; local throws).
@@ -890,6 +977,15 @@ const agent = await Agent.create({
 });
 Subagents committed to the repo at .Theo/agents/*.md (with name, description, and optional model frontmatter) are also picked up. Inline definitions override file-based ones with the same name.
 
+Context, memory, and skills
+Context, memory, and skills are loaded before MCP tools and subagents are offered to a run:
+
+Context is task working-set. It is selected per agent from inline config or `.theokit/context.json`, bounded by `maxTokens`, and exposed through `agent.context.snapshot()`.
+Memory is durable recall. It persists facts by `{ namespace, userId, scope }`, rejects stores outside the workspace, and must redact credential material.
+Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL.md`, listed with `agent.skills.list()`, and only expose public metadata in streams and snapshots.
+
+`agent.reload()` refreshes file-based context and skills without disposing the agent or losing conversation state. Invalid context files or malformed skill frontmatter raise `ConfigurationError`.
+
 Hooks
 Hooks are file-based only. There is no programmatic hook callback. Hooks are a project policy boundary, not a per-run knob.
 
@@ -936,6 +1032,9 @@ local	{ cwd?: string | string[]; settingSources?: SettingSource[]; sandboxOption
 cloud	CloudOptions		Cloud agent config.
 mcpServers	Record<string, McpServerConfig>		Inline MCP server definitions.
 agents	Record<string, AgentDefinition>		Subagent definitions.
+context	ContextOptions		Project context manager configuration.
+memory	MemoryOptions		Control durable memory for this agent.
+skills	SkillsOptions		Load named skills from project files or explicit paths.
 agentId	string	Auto-generated	Durable agent ID. Pass to keep a stable ID across invocations.
 CloudOptions
 Property	Type	Default	Description
@@ -950,6 +1049,58 @@ description	string	required	When to use this subagent. Shown to the parent agent
 prompt	string	required	System prompt for the subagent.
 model	ModelSelection | "inherit"	"inherit"	Model override. Pass "inherit" to use the parent's selection.
 mcpServers	Array<string | Record<string, McpServerConfig>>		MCP servers available to this subagent. Names reference servers from the parent's mcpServers.
+ContextOptions
+
+interface ContextOptions {
+  manager: "file" | "inline";
+  maxTokens?: number;
+  sources?: Array<{ name: string; path?: string; content?: string; priority?: number }>;
+}
+`manager: "file"` reads `.theokit/context.json`; `manager: "inline"` uses `sources` passed directly in `Agent.create()`. File sources are resolved relative to the workspace. Secrets and excluded files must not appear in `agent.context.snapshot()`.
+
+SDKContextManager
+
+interface SDKContextManager {
+  snapshot(): Promise<{
+    runtime: "local" | "cloud";
+    sources: Array<{ name: string; path?: string; status: "included" | "excluded" | "summarized" }>;
+    budget?: { maxTokens?: number; usedTokens?: number };
+  }>;
+}
+The snapshot is a public diagnostic view. It may summarize source content but must not expose raw credentials or full secret-bearing files.
+
+MemoryOptions
+
+interface MemoryOptions {
+  enabled: boolean;
+  namespace?: string;
+  userId?: string;
+  scope?: "agent" | "user" | "team";
+  storePath?: string;
+}
+`namespace` separates application domains. `userId` isolates user memories. `scope` defaults to `"agent"` unless the implementation documents a broader default. Local `storePath` is relative to the workspace and cannot escape it.
+
+SDKMemoryManager
+
+interface SDKMemoryManager {
+  // Reserved for explicit inspection and deletion APIs.
+}
+The agent can use enabled memory during runs, but public memory management APIs are intentionally narrow until deletion and audit semantics are finalized.
+
+SkillsOptions
+
+interface SkillsOptions {
+  enabled?: string[];
+  paths?: string[];
+}
+`enabled` names skills to load from configured skill sources. `paths` may point at explicit local skill directories. Cloud rejects local-only paths unless the files are committed in the repo.
+
+SDKSkillsManager
+
+interface SDKSkillsManager {
+  list(): Promise<Array<{ name: string; description: string }>>;
+}
+`list()` returns metadata only. It must not return full `SKILL.md` prompt bodies.
 ModelSelection
 
 interface ModelSelection {
@@ -1068,6 +1219,5 @@ Inline mcpServers are not persisted across Agent.resume(). Pass them again on re
 Artifact download is not implemented for local agents (agent.listArtifacts() returns an empty list and agent.downloadArtifact() throws).
 local.settingSources (and the file-based MCP / subagent paths it gates) does not apply to cloud agents. Cloud always loads project / team / plugins.
 Hooks are file-based only (.Theo/hooks.json). No programmatic callbacks.
-
-
-
+Inline memory, context, and skill config should be treated as process-local unless documented otherwise. Durable behavior comes from memory stores and committed file-based context / skills.
+Skill prompt bodies are not stable public output. Use `agent.skills.list()` for metadata and avoid scraping streams for full skill text.
