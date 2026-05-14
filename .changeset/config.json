@@ -1,0 +1,11 @@
+{
+  "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
+  "changelog": "@changesets/cli/changelog",
+  "commit": false,
+  "fixed": [],
+  "linked": [],
+  "access": "public",
+  "baseBranch": "main",
+  "updateInternalDependencies": "patch",
+  "ignore": ["@the-open-runtime-agent-core", "@the-open-runtime-ai", "@the-open-runtime-coding-agent", "@the-open-runtime-tui", "@the-open-runtime-web-ui"]
+}

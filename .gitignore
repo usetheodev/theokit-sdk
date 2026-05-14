@@ -1,0 +1,40 @@
+node_modules/
+dist/
+coverage/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Editor (keep shared configs, ignore user state)
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.recommended.json
+.idea/
+*.swp
+
+# Temp
+*.tmp
+.tmp/
+
+# Vitest
+.vitest-cache/
+
+# Turbo (in case we adopt later)
+.turbo/
+
+# Tsup
+.tsup/

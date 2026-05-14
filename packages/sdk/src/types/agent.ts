@@ -1,0 +1,238 @@
+import type { McpServerConfig } from "./mcp.js";
+import type { Run, SDKUserMessage, SendOptions } from "./run.js";
+
+/**
+ * One slot in a {@link ModelSelection.params} array.
+ *
+ * @public
+ */
+export interface ModelParameterValue {
+  id: string;
+  value: string;
+}
+
+/**
+ * Identifies a model plus optional per-model parameters (e.g. reasoning effort).
+ *
+ * Use `Theokit.models.list()` to discover valid ids and parameter definitions.
+ *
+ * @public
+ */
+export interface ModelSelection {
+  id: string;
+  params?: ModelParameterValue[];
+}
+
+/**
+ * Which on-disk settings layers a local agent loads.
+ *
+ * @public
+ */
+export type SettingSource = "project" | "user" | "team" | "mdm" | "plugins" | "all";
+
+/**
+ * Local agent configuration.
+ *
+ * @public
+ */
+export interface LocalOptions {
+  cwd?: string | string[];
+  settingSources?: SettingSource[];
+  sandboxOptions?: { enabled: boolean };
+}
+
+/**
+ * Repo to clone into a cloud agent's VM.
+ *
+ * @public
+ */
+export interface CloudRepo {
+  url: string;
+  startingRef?: string;
+  prUrl?: string;
+}
+
+/**
+ * Cloud execution environment.
+ *
+ * @public
+ */
+export interface CloudEnv {
+  type: "cloud" | "pool" | "machine";
+  name?: string;
+}
+
+/**
+ * Cloud agent configuration.
+ *
+ * @public
+ */
+export interface CloudOptions {
+  env?: CloudEnv;
+  repos?: CloudRepo[];
+  workOnCurrentBranch?: boolean;
+  autoCreatePR?: boolean;
+  skipReviewerRequest?: boolean;
+  /**
+   * Short-lived credentials scoped to the agent. Encrypted at rest, deleted
+   * with the agent. Names must not start with `THEOKIT_`.
+   */
+  envVars?: Record<string, string>;
+}
+
+/**
+ * Subagent definition. The parent agent spawns these via its Agent tool.
+ *
+ * @public
+ */
+export interface AgentDefinition {
+  description: string;
+  prompt: string;
+  model?: ModelSelection | "inherit";
+  mcpServers?: Array<string | Record<string, McpServerConfig>>;
+}
+
+/**
+ * Top-level options accepted by `Agent.create()`.
+ *
+ * Pass either `local` or `cloud` to pick a runtime.
+ *
+ * @public
+ */
+export interface AgentOptions {
+  model?: ModelSelection;
+  /** Falls back to `THEOKIT_API_KEY`. */
+  apiKey?: string;
+  name?: string;
+  local?: LocalOptions;
+  cloud?: CloudOptions;
+  mcpServers?: Record<string, McpServerConfig>;
+  agents?: Record<string, AgentDefinition>;
+  agentId?: string;
+}
+
+/**
+ * Artifact produced inside an agent's workspace. Cloud-only.
+ *
+ * @public
+ */
+export interface SDKArtifact {
+  path: string;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
+/**
+ * Handle returned by `Agent.create()` and `Agent.resume()`.
+ *
+ * @public
+ */
+export interface SDKAgent {
+  readonly agentId: string;
+  readonly model: ModelSelection | undefined;
+  send(message: string | SDKUserMessage, options?: SendOptions): Promise<Run>;
+  /** Fire-and-forget disposal. */
+  close(): void;
+  /** Re-read filesystem config (hooks, project MCP, subagents) without disposing. */
+  reload(): Promise<void>;
+  /**
+   * Async disposal. Implementations also expose `[Symbol.asyncDispose]` so
+   * `await using` works once the consuming TypeScript target enables it.
+   */
+  dispose(): Promise<void>;
+  /** Cloud-only. Local returns an empty array. */
+  listArtifacts(): Promise<SDKArtifact[]>;
+  /** Cloud-only. Local throws `UnsupportedRunOperationError`. */
+  downloadArtifact(path: string): Promise<Buffer>;
+}
+
+/**
+ * Metadata returned by `Agent.list()` and `Agent.get()`.
+ *
+ * @public
+ */
+export type SDKAgentInfo = {
+  agentId: string;
+  name: string;
+  summary: string;
+  lastModified: number;
+  status?: "running" | "finished" | "error";
+  createdAt?: number;
+  archived?: boolean;
+} & (
+  | { runtime?: undefined }
+  | { runtime: "local"; cwd?: string }
+  | {
+      runtime: "cloud";
+      env?: CloudEnv;
+      repos?: string[];
+    }
+);
+
+/**
+ * Options for `Agent.list()`.
+ *
+ * @public
+ */
+export type ListAgentsOptions = {
+  limit?: number;
+  cursor?: string;
+} & (
+  | { runtime?: undefined }
+  | { runtime: "local"; cwd?: string }
+  | {
+      runtime: "cloud";
+      prUrl?: string;
+      includeArchived?: boolean;
+      apiKey?: string;
+    }
+);
+
+/**
+ * Options for `Agent.get()`.
+ *
+ * @public
+ */
+export interface GetAgentOptions {
+  cwd?: string;
+  apiKey?: string;
+}
+
+/**
+ * Options for `Agent.listRuns()`.
+ *
+ * @public
+ */
+export type ListRunsOptions = {
+  limit?: number;
+  cursor?: string;
+} & ({ runtime?: "local"; cwd?: string } | { runtime: "cloud"; apiKey?: string });
+
+/**
+ * Options for `Agent.getRun()`. Cloud requires the parent `agentId`.
+ *
+ * @public
+ */
+export type GetRunOptions =
+  | { runtime?: "local"; cwd?: string }
+  | { runtime: "cloud"; agentId: string; apiKey?: string };
+
+/**
+ * Options for archive/unarchive/delete.
+ *
+ * @public
+ */
+export interface AgentOperationOptions {
+  cwd?: string;
+  apiKey?: string;
+}
+
+/**
+ * Paginated list shape.
+ *
+ * @public
+ */
+export interface ListResult<T> {
+  items: T[];
+  nextCursor?: string;
+}
