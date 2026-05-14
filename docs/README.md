@@ -23,6 +23,9 @@ Official documentation for `@usetheo/sdk` — the TypeScript SDK for the Theo ag
 - [Cron jobs](./guides/cron-jobs.md) — schedule agent runs with cron expressions
 - [MCP servers](./guides/mcp-servers.md) — inline and file-based MCP configuration
 - [Subagents](./guides/subagents.md) — named subagents the parent agent can spawn
+- [Context manager](./guides/context-manager.md) — file-based project context and public snapshots
+- [Memory](./guides/memory.md) — durable facts isolated by namespace, user, and scope
+- [Skills](./guides/skills.md) — file-based capability packs loaded from `.theokit/skills`
 - [Hooks](./guides/hooks.md) — file-based project policy boundaries
 - [Error handling](./guides/error-handling.md) — `TheokitAgentError` hierarchy, retry strategy
 - [Resource management](./guides/resource-management.md) — `await using`, `dispose()`, lifecycle
