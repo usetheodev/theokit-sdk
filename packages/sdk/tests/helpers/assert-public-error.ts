@@ -2,7 +2,7 @@ import { expect } from "vitest";
 
 import { TheokitAgentError } from "../../src/index.js";
 
-type ErrorCtor<T extends Error = Error> = new (...args: any[]) => T;
+type ErrorCtor<T extends Error = Error> = new (...args: never[]) => T;
 
 export interface PublicErrorShape {
   ctor: ErrorCtor;

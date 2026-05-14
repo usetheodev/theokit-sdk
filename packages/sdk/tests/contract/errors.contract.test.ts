@@ -49,13 +49,16 @@ describe("public error contract", () => {
   it("all public SDK errors carry typed retry and code metadata", () => {
     const cause = new Error("transport");
 
-    expectPublicError(new AuthenticationError("Invalid API key", { code: "authentication_error", cause }), {
-      ctor: AuthenticationError,
-      name: "AuthenticationError",
-      code: "authentication_error",
-      isRetryable: false,
-      cause,
-    });
+    expectPublicError(
+      new AuthenticationError("Invalid API key", { code: "authentication_error", cause }),
+      {
+        ctor: AuthenticationError,
+        name: "AuthenticationError",
+        code: "authentication_error",
+        isRetryable: false,
+        cause,
+      },
+    );
     expectPublicError(new RateLimitError("Too many requests", { code: "rate_limit_error" }), {
       ctor: RateLimitError,
       name: "RateLimitError",
@@ -74,6 +77,8 @@ describe("public error contract", () => {
       code: "unknown_agent_error",
       isRetryable: false,
     });
-    expect(new UnsupportedRunOperationError("No stream", "stream")).toBeInstanceOf(TheokitAgentError);
+    expect(new UnsupportedRunOperationError("No stream", "stream")).toBeInstanceOf(
+      TheokitAgentError,
+    );
   });
 });

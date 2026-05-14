@@ -1,4 +1,6 @@
+import type { ContextSettings, SDKContextManager } from "./context.js";
 import type { McpServerConfig } from "./mcp.js";
+import type { PluginsSettings, ProviderRoutingSettings, SDKProvidersManager } from "./providers.js";
 import type { Run, SDKUserMessage, SendOptions } from "./run.js";
 
 /**
@@ -109,6 +111,12 @@ export interface AgentOptions {
   mcpServers?: Record<string, McpServerConfig>;
   agents?: Record<string, AgentDefinition>;
   agentId?: string;
+  /** Context manager configuration. See `agent.context`. */
+  context?: ContextSettings;
+  /** Provider routing configuration. See `agent.providers`. */
+  providers?: ProviderRoutingSettings;
+  /** Plugins to enable. Plugin sources must also be active via `local.settingSources`. */
+  plugins?: PluginsSettings;
 }
 
 /**
@@ -130,10 +138,21 @@ export interface SDKArtifact {
 export interface SDKAgent {
   readonly agentId: string;
   readonly model: ModelSelection | undefined;
+  /**
+   * Context manager for this agent. Populated when context is enabled via
+   * {@link AgentOptions.context}. See {@link SDKContextManager}.
+   */
+  readonly context?: SDKContextManager;
+  /**
+   * Provider routing inspector for this agent. Populated when at least one
+   * provider route is configured (via {@link AgentOptions.providers}, plugins,
+   * or model-implied providers). See {@link SDKProvidersManager}.
+   */
+  readonly providers?: SDKProvidersManager;
   send(message: string | SDKUserMessage, options?: SendOptions): Promise<Run>;
   /** Fire-and-forget disposal. */
   close(): void;
-  /** Re-read filesystem config (hooks, project MCP, subagents) without disposing. */
+  /** Re-read filesystem config (context, hooks, project MCP, subagents) without disposing. */
   reload(): Promise<void>;
   /**
    * Async disposal. Implementations also expose `[Symbol.asyncDispose]` so

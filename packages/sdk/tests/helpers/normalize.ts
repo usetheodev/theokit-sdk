@@ -1,3 +1,5 @@
+import { hasContractSignal } from "./contract-signal.js";
+
 const SECRET_KEYS = /(?:api[_-]?key|token|secret|authorization|password|client_secret)/i;
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const UNIX_MS_MIN = 946684800000;
@@ -76,22 +78,17 @@ function normalizeString(value: string): string {
   normalized = normalized.replace(/\bcall-[0-9a-fA-F-]{8,}\b/g, "call-<id>");
   normalized = normalized.replace(/\/tmp\/[^\s"',)]+/g, "<tmp>");
   normalized = normalized.replace(/\/var\/folders\/[^\s"',)]+/g, "<tmp>");
-  normalized = normalized.replace(/https:\/\/github\.com\/[^/\s"']+\/[^/\s"']+\/pull\/\d+/g, "<pr-url>");
+  normalized = normalized.replace(
+    /https:\/\/github\.com\/[^/\s"']+\/[^/\s"']+\/pull\/\d+/g,
+    "<pr-url>",
+  );
   normalized = normalized.replace(/\b(?:sk|theo|tok)_[A-Za-z0-9_-]{8,}\b/g, "<tokens>");
   if (ISO_TIMESTAMP.test(normalized)) return "<timestamp>";
   return normalized;
 }
 
 export function assertGoldenHasContractSignal(value: unknown): void {
-  const text = JSON.stringify(value);
-  const hasContractSignal =
-    text.includes('"type"') ||
-    text.includes('"status"') ||
-    text.includes('"name"') ||
-    text.includes('"agent_id"') ||
-    text.includes('"run_id"') ||
-    text.includes('"code"');
-  if (!hasContractSignal) {
+  if (!hasContractSignal(value)) {
     throw new Error("Golden value lost all public contract signals during normalization");
   }
 }

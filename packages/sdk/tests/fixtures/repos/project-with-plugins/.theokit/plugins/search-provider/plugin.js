@@ -4,6 +4,6 @@ export function register(ctx) {
     displayName: "Fixture Search",
     isAvailable() {
       return Boolean(process.env.FIXTURE_SEARCH_TOKEN);
-    }
+    },
   });
 }

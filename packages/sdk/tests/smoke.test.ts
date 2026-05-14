@@ -22,6 +22,7 @@ describe("@usetheo/sdk public surface", () => {
     expect(typeof Cron.start).toBe("function");
     expect(typeof Theokit.models.list).toBe("function");
     expect(typeof Theokit.repositories.list).toBe("function");
+    expect(typeof Theokit.providers.list).toBe("function");
   });
 });
 
@@ -76,10 +77,21 @@ describe("error class hierarchy", () => {
     expect(err.helpUrl).toBe("https://example.com/connect/github");
   });
 
-  it("UnsupportedRunOperationError carries the operation", () => {
+  it("UnsupportedRunOperationError carries the operation, defaults to non-retryable, and exposes a stable code", () => {
     const err = new UnsupportedRunOperationError("not supported here", "stream");
     expect(err.operation).toBe("stream");
     expect(err).toBeInstanceOf(Error);
-    expect(err).not.toBeInstanceOf(TheokitAgentError);
+    expect(err).toBeInstanceOf(TheokitAgentError);
+    expect(err.isRetryable).toBe(false);
+    expect(err.code).toBe("unsupported_run_operation");
+  });
+
+  it("UnsupportedRunOperationError carries the downloadArtifact operation", () => {
+    const err = new UnsupportedRunOperationError(
+      "Artifacts are not supported for local agents",
+      "downloadArtifact",
+    );
+    expect(err.operation).toBe("downloadArtifact");
+    expect(err.code).toBe("unsupported_run_operation");
   });
 });

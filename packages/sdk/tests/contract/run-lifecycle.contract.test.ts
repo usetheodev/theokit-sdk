@@ -76,7 +76,9 @@ describe("Run lifecycle contract", () => {
           type: "agentConversationTurn",
           turn: expect.objectContaining({
             steps: expect.arrayContaining([
-              expect.objectContaining({ type: expect.stringMatching(/assistantMessage|thinkingMessage|toolCall/) }),
+              expect.objectContaining({
+                type: expect.stringMatching(/assistantMessage|thinkingMessage|toolCall/),
+              }),
             ]),
           }),
         }),

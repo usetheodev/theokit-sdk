@@ -26,7 +26,9 @@ describe("memory contract", () => {
     } satisfies ProposedAgentOptions;
 
     const first = await Agent.create(baseOptions);
-    const rememberRun = await first.send("Remember this durable preference: preferred test runner is Vitest.");
+    const rememberRun = await first.send(
+      "Remember this durable preference: preferred test runner is Vitest.",
+    );
     await expect(rememberRun.wait()).resolves.toMatchObject({ status: "finished" });
     await first.dispose();
 
@@ -49,7 +51,11 @@ describe("memory contract", () => {
       memory: { enabled: true, namespace: "sdk-contract", userId: "user-a", scope: "user" },
     };
     const userA = await Agent.create(userAOptions);
-    await (await userA.send("Remember: my deploy token is sk-proj-memory-secret-1234567890 and my editor is Neovim.")).wait();
+    await (
+      await userA.send(
+        "Remember: my deploy token is sk-proj-memory-secret-1234567890 and my editor is Neovim.",
+      )
+    ).wait();
     await userA.dispose();
 
     const userBOptions: ProposedAgentOptions = {
@@ -59,7 +65,9 @@ describe("memory contract", () => {
       memory: { enabled: true, namespace: "sdk-contract", userId: "user-b", scope: "user" },
     };
     const userB = await Agent.create(userBOptions);
-    const result = await (await userB.send("What editor and token did user-a ask you to remember?")).wait();
+    const result = await (
+      await userB.send("What editor and token did user-a ask you to remember?")
+    ).wait();
 
     expect(result.result ?? "").not.toContain("Neovim");
     expect(result.result ?? "").not.toContain("sk-proj-memory-secret");

@@ -13,6 +13,7 @@
       "!**/dist",
       "!**/coverage",
       "!**/.changeset",
+      "!**/tests/golden/**/*.json",
       "!referencia"
     ]
   },
