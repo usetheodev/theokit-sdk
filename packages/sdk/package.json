@@ -28,6 +28,16 @@
         "default": "./dist/index.cjs"
       }
     },
+    "./cron": {
+      "import": {
+        "types": "./dist/cron.d.ts",
+        "default": "./dist/cron.js"
+      },
+      "require": {
+        "types": "./dist/cron.d.cts",
+        "default": "./dist/cron.cjs"
+      }
+    },
     "./errors": {
       "import": {
         "types": "./dist/errors.d.ts",

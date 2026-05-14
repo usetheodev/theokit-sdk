@@ -50,6 +50,27 @@ for await (const event of run.stream()) {
 }
 ```
 
+## Schedule with cron
+
+```typescript
+import { Cron } from "@usetheo/sdk";
+
+await Cron.create({
+  cron: "0 9 * * *",
+  timezone: "America/Sao_Paulo",
+  message: "Summarize yesterday's commits",
+  agent: {
+    apiKey: process.env.THEOKIT_API_KEY!,
+    model: { id: "composer-2" },
+    local: { cwd: process.cwd() },
+  },
+});
+
+await Cron.start();   // required for local jobs to fire
+```
+
+Two runtimes: **local** (in-process scheduler — fires while the host process is alive) and **cloud** (Theo PaaS schedules server-side). See [`docs.md`](../../docs.md) for the full Cron contract.
+
 ## Status
 
 This package is a scaffold. The contract is defined in [`docs.md`](../../docs.md). Implementation lands incrementally — see [`CHANGELOG.md`](./CHANGELOG.md).

@@ -9,11 +9,11 @@
     "ignoreUnknown": true,
     "includes": [
       "**/*.{ts,tsx,js,mjs,cjs,jsx,json,jsonc}",
-      "!**/node_modules/**",
-      "!**/dist/**",
-      "!**/coverage/**",
-      "!**/.changeset/**",
-      "!referencia/**"
+      "!**/node_modules",
+      "!**/dist",
+      "!**/coverage",
+      "!**/.changeset",
+      "!referencia"
     ]
   },
   "formatter": {
