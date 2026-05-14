@@ -1,0 +1,13 @@
+[
+  {
+    "capability": "chat",
+    "provider": "anthropic",
+    "model": "claude-3-7-sonnet",
+    "reason": "explicit-model-provider"
+  },
+  {
+    "capability": "web_search",
+    "provider": "fixture-search",
+    "reason": "first-available-plugin-provider"
+  }
+]

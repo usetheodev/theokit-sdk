@@ -1,0 +1,14 @@
+{
+  "agentId": "bc-<id>",
+  "name": "Contract Cloud Agent",
+  "summary": "Cloud contract fixture",
+  "lastModified": "<timestamp>",
+  "status": "running",
+  "createdAt": "<timestamp>",
+  "runtime": "cloud",
+  "archived": false,
+  "env": {
+    "type": "cloud"
+  },
+  "repos": ["https://github.com/usetheo/example"]
+}

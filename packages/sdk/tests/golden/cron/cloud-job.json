@@ -1,0 +1,12 @@
+{
+  "id": "cron-<id>",
+  "cron": "0 9 * * *",
+  "timezone": "America/Sao_Paulo",
+  "message": "Run cloud scheduled task",
+  "agentId": "bc-<id>",
+  "enabled": true,
+  "status": "scheduled",
+  "runtime": "cloud",
+  "createdAt": "<timestamp>",
+  "nextRunAt": "<timestamp>"
+}

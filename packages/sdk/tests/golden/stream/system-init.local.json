@@ -1,0 +1,10 @@
+{
+  "type": "system",
+  "subtype": "init",
+  "agent_id": "agent-<id>",
+  "run_id": "run-<id>",
+  "model": {
+    "id": "composer-2"
+  },
+  "tools": ["shell"]
+}

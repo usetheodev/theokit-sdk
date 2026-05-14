@@ -1,0 +1,10 @@
+{
+  "agentId": "agent-<id>",
+  "name": "Contract Local Agent",
+  "summary": "Local contract fixture",
+  "lastModified": "<timestamp>",
+  "status": "finished",
+  "createdAt": "<timestamp>",
+  "runtime": "local",
+  "cwd": "<tmp>"
+}
