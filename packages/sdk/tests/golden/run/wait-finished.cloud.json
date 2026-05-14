@@ -1,0 +1,18 @@
+{
+  "id": "run-<id>",
+  "status": "finished",
+  "result": "Cloud run completed.",
+  "model": {
+    "id": "composer-2"
+  },
+  "durationMs": "<duration-ms>",
+  "git": {
+    "branches": [
+      {
+        "repoUrl": "https://github.com/usetheo/example",
+        "branch": "<branch>",
+        "prUrl": "<pr-url>"
+      }
+    ]
+  }
+}

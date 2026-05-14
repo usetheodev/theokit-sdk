@@ -1,0 +1,6 @@
+{
+  "name": "search-provider",
+  "version": "0.0.1",
+  "capabilities": ["web_search", "context_provider"],
+  "entry": "./plugin.js"
+}

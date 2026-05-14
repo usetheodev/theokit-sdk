@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "fixture-shell": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["./mcp-server.js"],
+      "cwd": "."
+    }
+  }
+}

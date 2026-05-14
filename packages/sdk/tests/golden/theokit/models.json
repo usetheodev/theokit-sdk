@@ -1,0 +1,34 @@
+[
+  {
+    "id": "composer-2",
+    "displayName": "Composer 2",
+    "parameters": [
+      {
+        "id": "thinking",
+        "displayName": "Thinking",
+        "values": [
+          {
+            "value": "low",
+            "displayName": "Low"
+          },
+          {
+            "value": "high",
+            "displayName": "High"
+          }
+        ]
+      }
+    ],
+    "variants": [
+      {
+        "displayName": "High thinking",
+        "params": [
+          {
+            "id": "thinking",
+            "value": "high"
+          }
+        ],
+        "isDefault": false
+      }
+    ]
+  }
+]

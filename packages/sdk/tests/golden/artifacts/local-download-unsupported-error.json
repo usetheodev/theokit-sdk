@@ -1,0 +1,7 @@
+{
+  "name": "UnsupportedRunOperationError",
+  "message": "Artifacts are not supported for local agents",
+  "isRetryable": false,
+  "code": "unsupported_run_operation",
+  "operation": "downloadArtifact"
+}

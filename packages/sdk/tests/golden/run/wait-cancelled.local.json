@@ -1,0 +1,8 @@
+{
+  "id": "run-<id>",
+  "status": "cancelled",
+  "model": {
+    "id": "composer-2"
+  },
+  "durationMs": "<duration-ms>"
+}

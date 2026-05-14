@@ -1,0 +1,7 @@
+{
+  "name": "UnsupportedRunOperationError",
+  "message": "Operation stream is not supported for this run",
+  "isRetryable": false,
+  "code": "unsupported_run_operation",
+  "operation": "stream"
+}
