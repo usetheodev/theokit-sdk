@@ -1,5 +1,11 @@
 import { ConfigurationError, UnknownAgentError } from "./errors.js";
-import { getSchedulerState, startScheduler, stopScheduler } from "./internal/cron/scheduler.js";
+import {
+  getSchedulerState,
+  scheduleJob,
+  startScheduler,
+  stopScheduler,
+  unscheduleJob,
+} from "./internal/cron/scheduler.js";
 import { deleteJob, getJob, jobCount, listJobs, upsertJob } from "./internal/cron/store.js";
 import {
   estimateNextRunAt,
@@ -39,7 +45,9 @@ export class Cron {
    * @public
    */
   static async create(options: CronCreateOptions): Promise<CronJob> {
-    return createCronJob(options);
+    const job = await createCronJob(options);
+    if (job.runtime === "local" && job.enabled !== false) scheduleJob(job);
+    return job;
   }
 
   /**
@@ -76,6 +84,7 @@ export class Cron {
    * @public
    */
   static delete(jobId: string, _options: CronOperationOptions = {}): Promise<void> {
+    unscheduleJob(jobId);
     deleteJob(jobId);
     return Promise.resolve();
   }
@@ -203,6 +212,13 @@ async function updateJobStatus(jobId: string, enabled: boolean): Promise<CronJob
     status: enabled ? "scheduled" : "paused",
   };
   upsertJob(updated);
+  if (updated.runtime === "local") {
+    if (enabled) {
+      scheduleJob(updated);
+    } else {
+      unscheduleJob(updated.id);
+    }
+  }
   return updated;
 }
 
