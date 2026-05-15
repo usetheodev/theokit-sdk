@@ -1,9 +1,5 @@
 import { ConfigurationError } from "../../errors.js";
-import type {
-  AgentDefinition,
-  AgentOptions,
-  CloudOptions,
-} from "../../types/agent.js";
+import type { AgentDefinition, AgentOptions, CloudOptions } from "../../types/agent.js";
 import type { McpServerConfig } from "../../types/mcp.js";
 
 /**
@@ -37,6 +33,18 @@ export function validateAgentOptions(options: AgentOptions): void {
   validateMcpServers(options);
   validateSubagents(options.agents);
   validateMemory(options);
+  validatePlugins(options);
+}
+
+function validatePlugins(options: AgentOptions): void {
+  const plugins = (options as { plugins?: { paths?: string[] } }).plugins;
+  if (plugins?.paths === undefined) return;
+  if (options.cloud !== undefined && plugins.paths.length > 0) {
+    throw new ConfigurationError(
+      "Cloud agents require committed plugin manifests; local plugin paths are not supported",
+      { code: "cloud_plugin_path_rejected" },
+    );
+  }
 }
 
 function ensureRuntimeShape(options: AgentOptions): void {
@@ -91,16 +99,13 @@ function isStdioWithCwd(config: McpServerConfig): boolean {
   return false;
 }
 
-function validateSubagents(
-  agents: Record<string, AgentDefinition> | undefined,
-): void {
+function validateSubagents(agents: Record<string, AgentDefinition> | undefined): void {
   if (agents === undefined) return;
   for (const [name, definition] of Object.entries(agents)) {
     if (typeof definition.description !== "string" || definition.description.length === 0) {
-      throw new ConfigurationError(
-        `Subagent "${name}" requires a non-empty description`,
-        { code: "subagent_missing_description" },
-      );
+      throw new ConfigurationError(`Subagent "${name}" requires a non-empty description`, {
+        code: "subagent_missing_description",
+      });
     }
     if (typeof definition.prompt !== "string" || definition.prompt.length === 0) {
       throw new ConfigurationError(`Subagent "${name}" requires a non-empty prompt`, {

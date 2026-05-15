@@ -1,21 +1,8 @@
-import { generateRunId } from "../ids.js";
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
-import type { ConversationTurn } from "../../types/conversation.js";
-import type { SDKMessage } from "../../types/messages.js";
-import type {
-  Run,
-  RunOperation,
-  RunResult,
-  RunStatus,
-  SDKUserMessage,
-  SendOptions,
-} from "../../types/run.js";
+import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { SessionMessage } from "./agent-session.js";
-import {
-  applyExtraRunFields,
-  buildFixtureScript,
-  type FixtureScript,
-} from "./fixture-responder.js";
+import { buildFixtureScript } from "./fixture-responder.js";
+import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { MemoryFact } from "./memory-store.js";
 import { registerRun } from "./run-registry.js";
 
@@ -45,15 +32,8 @@ export interface CreateLocalRunOptions {
  * @internal
  */
 export function createLocalRun(options: CreateLocalRunOptions): Run {
-  const userText = typeof options.message === "string" ? options.message : options.message.text;
-  const id = generateRunId();
-  const startTime = Date.now();
-  const supported = new Set<RunOperation>([
-    "stream",
-    "wait",
-    "cancel",
-    "conversation",
-  ]);
+  const { userText, id, startTime } = prepareRunContext(options.message);
+  const supported = new Set<RunOperation>(["stream", "wait", "cancel", "conversation"]);
 
   const script = buildFixtureScript({
     agentId: options.agentId,
@@ -87,45 +67,7 @@ export function createLocalRun(options: CreateLocalRunOptions): Run {
   return handle;
 }
 
-interface LocalRunCtorOptions {
-  id: string;
-  agentId: string;
-  model: ModelSelection | undefined;
-  script: FixtureScript;
-  supportedOps: Set<RunOperation>;
-  startTime: number;
-}
-
-class LocalRun implements Run {
-  readonly id: string;
-  readonly agentId: string;
-  status: RunStatus = "running";
-  result?: string;
-  model?: ModelSelection;
-  durationMs?: number;
-  createdAt?: number;
-
-  private readonly script: FixtureScript;
-  private readonly supportedOps: Set<RunOperation>;
-  private readonly startTime: number;
-  private readonly listeners = new Set<(status: RunStatus) => void>();
-  private terminationPromise: Promise<RunResult>;
-  private resolveTermination!: (value: RunResult) => void;
-  private terminated = false;
-
-  constructor(options: LocalRunCtorOptions) {
-    this.id = options.id;
-    this.agentId = options.agentId;
-    if (options.model !== undefined) this.model = options.model;
-    this.script = options.script;
-    this.supportedOps = options.supportedOps;
-    this.startTime = options.startTime;
-    this.createdAt = options.startTime;
-    this.terminationPromise = new Promise<RunResult>((resolve) => {
-      this.resolveTermination = resolve;
-    });
-  }
-
+class LocalRun extends FixtureRunBase {
   bootstrap(): void {
     if (this.script.cancellable) return;
     setTimeout(() => {
@@ -133,40 +75,10 @@ class LocalRun implements Run {
     }, 0);
   }
 
-  async *stream(): AsyncGenerator<SDKMessage, void> {
-    for (const event of this.script.events) {
-      yield event;
-    }
-    await this.terminationPromise;
-  }
-
-  wait(): Promise<RunResult> {
-    return this.terminationPromise;
-  }
-
-  cancel(): Promise<void> {
-    if (this.terminated) return Promise.resolve();
-    this.transitionTo("cancelled");
-    return Promise.resolve();
-  }
-
-  conversation(): Promise<ConversationTurn[]> {
-    return Promise.resolve(this.script.conversation);
-  }
-
-  supports(op: RunOperation): boolean {
-    return this.supportedOps.has(op);
-  }
-
-  unsupportedReason(op: RunOperation): string | undefined {
-    return this.supportedOps.has(op) ? undefined : `Operation ${op} is not supported`;
-  }
-
-  onDidChangeStatus(listener: (status: RunStatus) => void): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
+  protected override notifyImmediately(): boolean {
+    // Local agents emit the "running" state synchronously to subscribers;
+    // tests rely on observing the transition even when added pre-completion.
+    return true;
   }
 
   private async completeNaturally(): Promise<void> {
@@ -175,46 +87,10 @@ class LocalRun implements Run {
       try {
         await this.script.beforeComplete();
       } catch {
-        // Surface as error status instead of letting the run hang.
-        this.transitionTo("error");
+        this.transitionTo("error" satisfies RunStatus);
         return;
       }
     }
     this.transitionTo(this.script.finalStatus);
-  }
-
-  private transitionTo(nextStatus: RunStatus): void {
-    if (this.terminated) return;
-    this.terminated = true;
-    this.status = nextStatus;
-    this.durationMs = Date.now() - this.startTime;
-    if (nextStatus !== "cancelled" && this.script.result !== undefined) {
-      this.result = this.script.result;
-    }
-    this.notifyListeners();
-    this.resolveTermination(this.buildResult(nextStatus));
-  }
-
-  private buildResult(status: RunStatus): RunResult {
-    const final: RunResult = {
-      id: this.id,
-      status: status === "running" ? "finished" : status,
-      ...(this.model !== undefined ? { model: this.model } : {}),
-      durationMs: this.durationMs ?? Date.now() - this.startTime,
-    };
-    if (status === "finished" || status === "error") {
-      if (this.script.result !== undefined) final.result = this.script.result;
-    }
-    return applyExtraRunFields(final, this.script);
-  }
-
-  private notifyListeners(): void {
-    for (const listener of this.listeners) {
-      try {
-        listener(this.status);
-      } catch {
-        // listeners are user code; never propagate
-      }
-    }
   }
 }

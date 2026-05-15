@@ -23,9 +23,7 @@ export function getRun(runId: string): Run | undefined {
 
 export function listRunsByAgent(agentId: string): Run[] {
   const ids = runsByAgent.get(agentId) ?? [];
-  return ids
-    .map((id) => runs.get(id))
-    .filter((run): run is Run => run !== undefined);
+  return ids.map((id) => runs.get(id)).filter((run): run is Run => run !== undefined);
 }
 
 export function clearRunRegistry(): void {

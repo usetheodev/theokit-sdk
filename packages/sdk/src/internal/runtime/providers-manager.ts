@@ -1,10 +1,10 @@
+import type { ModelSelection } from "../../types/agent.js";
 import type {
   PluginsSettings,
   ProviderRoutingSettings,
   ResolvedProviderRoute,
   SDKProvidersManager,
 } from "../../types/providers.js";
-import type { ModelSelection } from "../../types/agent.js";
 
 /**
  * Provider routing inspector. Computes the resolved capability →

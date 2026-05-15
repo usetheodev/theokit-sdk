@@ -51,7 +51,9 @@ export function validateCronExpression(cron: string): void {
       { code: "invalid_cron" },
     );
   }
-  fields.forEach((field, index) => validateFieldOrThrow(field, index, cron));
+  for (const [index, field] of fields.entries()) {
+    validateFieldOrThrow(field, index, cron);
+  }
 }
 
 function validateFieldOrThrow(field: string, index: number, cron: string): void {

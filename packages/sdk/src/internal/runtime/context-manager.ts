@@ -30,7 +30,12 @@ interface FileContextConfig {
 
 interface InternalState {
   config: FileContextConfig;
-  loadedSources: Array<{ name: string; path: string; status: ContextSource["status"]; tokens: string[] }>;
+  loadedSources: Array<{
+    name: string;
+    path: string;
+    status: ContextSource["status"];
+    tokens: string[];
+  }>;
 }
 
 export class FileContextManager implements SDKContextManager {
@@ -43,7 +48,9 @@ export class FileContextManager implements SDKContextManager {
   ) {}
 
   async initialize(): Promise<void> {
-    if (!this.settingSourcesIncludeProject) {
+    // `context.manager: "file"` is itself an opt-in for project-level context
+    // loading, even when `local.settingSources` does not include "project".
+    if (!this.settingSourcesIncludeProject && this.settings.manager !== "file") {
       this.state = { config: { sources: [] }, loadedSources: [] };
       return;
     }
@@ -124,7 +131,9 @@ function readSources(
     });
   }
   return sourcesRaw
-    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object")
+    .filter(
+      (entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === "object",
+    )
     .map((entry) => {
       const name = typeof entry.name === "string" ? entry.name : "";
       const path = typeof entry.path === "string" ? entry.path : "";
@@ -182,7 +191,5 @@ function matchesGlob(pattern: string, path: string): boolean {
 }
 
 function tokenizeContent(content: string): string[] {
-  return content
-    .split(/\s+/)
-    .filter((token) => token.length > 0);
+  return content.split(/\s+/).filter((token) => token.length > 0);
 }
