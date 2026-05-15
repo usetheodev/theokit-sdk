@@ -1,7 +1,8 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { readWorkspaceDir } from "./workspace-dir.js";
 
 /**
  * Plugin manifest exposed via `agent.plugins.list()`. Includes provenance
@@ -45,20 +46,7 @@ export class PluginsManager {
   async refresh(): Promise<void> {
     this.plugins = [];
     const pluginsRoot = join(this.cwd, ".theokit", "plugins");
-    let entries: Array<{ name: string; isDirectory(): boolean }>;
-    try {
-      entries = (await readdir(pluginsRoot, { withFileTypes: true })) as Array<{
-        name: string;
-        isDirectory(): boolean;
-      }>;
-    } catch (cause) {
-      const err = cause as NodeJS.ErrnoException;
-      if (err.code === "ENOENT") return;
-      throw new ConfigurationError(`Failed to read plugins directory: ${pluginsRoot}`, {
-        code: "plugins_read_error",
-        cause,
-      });
-    }
+    const entries = await readWorkspaceDir(pluginsRoot, "plugins_read_error", "plugins directory");
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const manifestPath = join(pluginsRoot, entry.name, "plugin.json");

@@ -1,6 +1,7 @@
 [
   {
     "id": "composer-2",
+    "name": "Composer 2",
     "displayName": "Composer 2",
     "parameters": [
       {

@@ -22,9 +22,9 @@ import {
   type MemoryFact,
   readMemoryFacts,
 } from "./memory-store.js";
-import { PluginsManager, type PluginMetadata } from "./plugins-manager.js";
+import { type PluginMetadata, PluginsManager } from "./plugins-manager.js";
 import { ProvidersManagerImpl } from "./providers-manager.js";
-import { SkillsManager, type SkillMetadata } from "./skills-manager.js";
+import { type SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
 
 /**
@@ -70,11 +70,7 @@ export class LocalAgent implements SDKAgent {
     const providerCount =
       (options.providers?.routes?.length ?? 0) + (options.plugins?.enabled?.length ?? 0);
     if (providerCount > 0 || options.providers !== undefined) {
-      this.providers = new ProvidersManagerImpl(
-        options.model,
-        options.providers,
-        options.plugins,
-      );
+      this.providers = new ProvidersManagerImpl(options.model, options.providers, options.plugins);
     }
 
     const skillsConfig = (options as { skills?: { enabled?: string[] } }).skills;
@@ -130,10 +126,7 @@ export class LocalAgent implements SDKAgent {
     );
   }
 
-  async send(
-    message: string | SDKUserMessage,
-    options: SendOptions = {},
-  ): Promise<Run> {
+  async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
     if (this.disposed) {
       throw new Error("Agent has been disposed");
     }
@@ -145,9 +138,7 @@ export class LocalAgent implements SDKAgent {
 
     const memoryConfig = (this.options as { memory?: MemoryConfig }).memory;
     const memoryFacts =
-      memoryConfig?.enabled === true
-        ? await readMemoryFacts(this.workspaceCwd, memoryConfig)
-        : [];
+      memoryConfig?.enabled === true ? await readMemoryFacts(this.workspaceCwd, memoryConfig) : [];
     const sessionMessages = getSessionMessages(this.agentId);
     const projectMcpServers = this.settingSourcesIncludeProject
       ? await readProjectMcpServers(this.workspaceCwd)

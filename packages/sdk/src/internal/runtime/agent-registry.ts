@@ -1,5 +1,4 @@
-import type { AgentOptions } from "../../types/agent.js";
-import type { ModelSelection } from "../../types/agent.js";
+import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 
 /**
  * Process-wide agent registry. Holds the metadata needed to satisfy

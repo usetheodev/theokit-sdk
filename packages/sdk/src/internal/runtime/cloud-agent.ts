@@ -1,10 +1,5 @@
 import { ConfigurationError, UnknownAgentError } from "../../errors.js";
-import type {
-  AgentOptions,
-  ModelSelection,
-  SDKAgent,
-  SDKArtifact,
-} from "../../types/agent.js";
+import type { AgentOptions, ModelSelection, SDKAgent, SDKArtifact } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { generateCloudAgentId } from "../ids.js";
 import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
@@ -47,10 +42,7 @@ export class CloudAgent implements SDKAgent {
     (this as Record<symbol, unknown>)[Symbol.asyncDispose] = () => this.dispose();
   }
 
-  send(
-    message: string | SDKUserMessage,
-    options: SendOptions = {},
-  ): Promise<Run> {
+  send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
     const overrideModel = options.model;
     if (overrideModel !== undefined) {
       this.model = overrideModel;

@@ -34,9 +34,7 @@ function sanitizeName(name: string): string {
   return name.replace(/[^a-zA-Z0-9]+/g, "_").replace(/^_|_$/g, "");
 }
 
-async function readProjectMcpConfig(
-  cwd: string,
-): Promise<Record<string, McpServerConfig>> {
+async function readProjectMcpConfig(cwd: string): Promise<Record<string, McpServerConfig>> {
   const path = join(cwd, ".theokit", "mcp.json");
   try {
     const raw = await readFile(path, "utf8");

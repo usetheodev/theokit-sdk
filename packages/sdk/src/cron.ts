@@ -1,11 +1,6 @@
 import { ConfigurationError, UnknownAgentError } from "./errors.js";
-import {
-  deleteJob,
-  getJob,
-  jobCount,
-  listJobs,
-  upsertJob,
-} from "./internal/cron/store.js";
+import { getSchedulerState, startScheduler, stopScheduler } from "./internal/cron/scheduler.js";
+import { deleteJob, getJob, jobCount, listJobs, upsertJob } from "./internal/cron/store.js";
 import {
   estimateNextRunAt,
   validateCronExpression,
@@ -13,14 +8,8 @@ import {
 } from "./internal/cron/validate.js";
 import { resolveApiKey } from "./internal/env.js";
 import { generateCronId } from "./internal/ids.js";
-import {
-  getSchedulerState,
-  startScheduler,
-  stopScheduler,
-} from "./internal/cron/scheduler.js";
 import { createStubRun } from "./internal/runtime/stub-run.js";
-import type { AgentOptions } from "./types/agent.js";
-import type { ListResult } from "./types/agent.js";
+import type { AgentOptions, ListResult } from "./types/agent.js";
 import type {
   CronCreateOptions,
   CronGetOptions,
@@ -96,10 +85,7 @@ export class Cron {
    *
    * @public
    */
-  static async enable(
-    jobId: string,
-    _options: CronOperationOptions = {},
-  ): Promise<CronJob> {
+  static async enable(jobId: string, _options: CronOperationOptions = {}): Promise<CronJob> {
     return updateJobStatus(jobId, true);
   }
 
@@ -108,10 +94,7 @@ export class Cron {
    *
    * @public
    */
-  static async disable(
-    jobId: string,
-    _options: CronOperationOptions = {},
-  ): Promise<CronJob> {
+  static async disable(jobId: string, _options: CronOperationOptions = {}): Promise<CronJob> {
     return updateJobStatus(jobId, false);
   }
 
