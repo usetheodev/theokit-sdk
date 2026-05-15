@@ -107,6 +107,15 @@ export interface SystemPromptSkillRef {
 }
 
 /**
+ * Public view of a recalled memory fact exposed to the system-prompt resolver.
+ *
+ * @public
+ */
+export interface SystemPromptMemoryFact {
+  text: string;
+}
+
+/**
  * Context passed to a {@link SystemPromptResolver}. Field order is a
  * compatibility contract: new fields are appended, never reordered.
  *
@@ -118,6 +127,8 @@ export interface SystemPromptContext {
   model: ModelSelection | undefined;
   skills: ReadonlyArray<SystemPromptSkillRef>;
   userMessage: string;
+  /** Recalled durable facts when memory is enabled. Appended in v1.1. */
+  memory: ReadonlyArray<SystemPromptMemoryFact>;
 }
 
 /**
@@ -131,6 +142,51 @@ export interface SystemPromptContext {
  * @public
  */
 export type SystemPromptResolver = (ctx: SystemPromptContext) => string | Promise<string>;
+
+/**
+ * Skills configuration accepted by `Agent.create()` via
+ * {@link AgentOptions.skills}.
+ *
+ * Skills are discovered from `.theokit/skills/<name>/SKILL.md` when
+ * `local.settingSources` includes `"project"`.
+ *
+ * @public
+ */
+export interface SkillsSettings {
+  /**
+   * Names of skills the parent agent may invoke. When omitted, every
+   * discovered skill is enabled.
+   */
+  enabled?: string[];
+  /**
+   * Whether the SDK auto-injects the loaded skill list (name + description) as a
+   * `<skills>` block in the LLM system prompt. Default `true`.
+   *
+   * Set to `false` when supplying a custom `systemPrompt` resolver that formats
+   * skills itself.
+   */
+  autoInject?: boolean;
+}
+
+/**
+ * Memory configuration accepted by `Agent.create()` via {@link AgentOptions.memory}.
+ *
+ * Persists durable facts under `.theokit/memory/<namespace>/<scope>-<userId>.json`.
+ *
+ * @public
+ */
+export interface MemorySettings {
+  enabled: boolean;
+  namespace?: string;
+  userId?: string;
+  scope?: "agent" | "user" | "team";
+  storePath?: string;
+  /**
+   * Whether the SDK auto-injects recalled facts as a `<memory>` block in the
+   * LLM system prompt. Default `true`.
+   */
+  autoInject?: boolean;
+}
 
 /**
  * Top-level options accepted by `Agent.create()`.
@@ -163,6 +219,10 @@ export interface AgentOptions {
   providers?: ProviderRoutingSettings;
   /** Plugins to enable. Plugin sources must also be active via `local.settingSources`. */
   plugins?: PluginsSettings;
+  /** Skills configuration. See `agent.skills`. */
+  skills?: SkillsSettings;
+  /** Memory configuration. Persists durable facts; auto-recalled on send. */
+  memory?: MemorySettings;
 }
 
 /**

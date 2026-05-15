@@ -12,28 +12,24 @@ cp .env.example .env
 pnpm dev
 ```
 
-## ⚠️ Implementation status
+## Behaviour
 
-The public API accepts `onStep` and `onDelta` (declared on `SendOptions`
-in `docs.md`). The **fixture-mode runtime** invokes them and the
-contract is exercised by tests. The **real LLM runtime** (Anthropic /
-OpenAI / OpenRouter agent loop) does NOT yet route stream events into
-these callbacks, so against a live provider you'll observe:
+`onStep` fires once per completed assistant text turn AND once per tool
+call inside a tool batch (using the `ConversationStep` discriminator
+already public — `assistantMessage` and `toolCall`). `onDelta` fires
+per `text-delta` token streamed from the provider.
 
-```
-Total steps: 0, total deltas: 0
-Final result: <text>
-```
+Cancellation note: `onStep` only fires for **completed** steps. A run
+cancelled mid-turn does not emit a synthetic "cancelled" step (EC-6) —
+listen on `run.onDidChangeStatus` if you need cancellation events.
 
-Final result arrives correctly. Tracking: wire `real-local-run.ts`
-event stream into the SendOptions callbacks. Use `run.stream()`
-instead today for token-level streaming against real providers.
+## Use cases
 
-## Use cases (once wired)
-
-- Building progress bars / spinners
+- Progress bars / spinners
 - Streaming text to a UI as tokens arrive
 - Real-time observability (token counts, step timings)
 - Cancellation logic that watches for specific delta types
 
 The callbacks are awaited — return a promise to apply backpressure.
+Callback errors are caught and logged to stderr; they do NOT crash the
+run.
