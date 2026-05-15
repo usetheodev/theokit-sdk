@@ -14,7 +14,8 @@
       "!**/coverage",
       "!**/.changeset",
       "!**/tests/golden/**/*.json",
-      "!referencia"
+      "!referencia",
+      "!scripts"
     ]
   },
   "formatter": {

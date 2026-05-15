@@ -59,11 +59,7 @@ function buildLoopInputs(
   runId: string,
   userText: string,
 ): AgentLoopInputs {
-  const primary =
-    options.agentOptions.providers?.routes?.[0]?.provider ??
-    (process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY.length > 0
-      ? "anthropic"
-      : "openai");
+  const primary = options.agentOptions.providers?.routes?.[0]?.provider ?? detectPrimaryProvider();
   const fallback = options.agentOptions.providers?.fallback;
   const chain = resolveProviderChain({
     primary,
@@ -80,6 +76,19 @@ function buildLoopInputs(
     shellCwd: options.workspaceCwd,
     shellSandbox: options.agentOptions.local?.sandboxOptions?.enabled === true,
   };
+}
+
+function detectPrimaryProvider(): string {
+  if (process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY.length > 0) {
+    return "anthropic";
+  }
+  if (process.env.OPENAI_API_KEY !== undefined && process.env.OPENAI_API_KEY.length > 0) {
+    return "openai";
+  }
+  if (process.env.OPENROUTER_API_KEY !== undefined && process.env.OPENROUTER_API_KEY.length > 0) {
+    return "openrouter";
+  }
+  return "openai";
 }
 
 function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
