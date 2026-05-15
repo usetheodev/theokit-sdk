@@ -54,6 +54,11 @@ export function createCloudRun(options: CreateCloudRunOptions): Run {
     agentOptions: options.agentOptions,
     sendOptions: options.sendOptions,
     workspaceCwd: undefined,
+    subagents: {},
+    settingSourcesIncludeProject: false,
+    memoryFacts: [],
+    sessionMessages: [],
+    projectMcpServers: {},
   });
 
   const handle = new CloudRun({
