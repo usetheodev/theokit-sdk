@@ -9,6 +9,7 @@ import {
   removeRegisteredAgent,
   updateRegisteredAgent,
 } from "./internal/runtime/agent-registry.js";
+import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
 import { CloudAgent } from "./internal/runtime/cloud-agent.js";
 import { LocalAgent } from "./internal/runtime/local-agent.js";
 import { createHistoricalCloudRun, createStubRun } from "./internal/runtime/stub-run.js";
@@ -150,7 +151,7 @@ export class Agent {
         code: "unknown_agent",
       });
     }
-    return { items: [createStubRun({ agentId, status: "finished" })] };
+    return { items: listRunsByAgent(agentId) };
   }
 
   /**
@@ -168,6 +169,8 @@ export class Agent {
       }
       return createHistoricalCloudRun(options.agentId, runId);
     }
+    const existing = getRegisteredRun(runId);
+    if (existing !== undefined) return existing;
     return createStubRun({ agentId: "agent-pending", status: "finished" });
   }
 

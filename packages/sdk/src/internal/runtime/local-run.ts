@@ -15,6 +15,7 @@ import type {
   SendOptions,
 } from "../../types/run.js";
 import { buildFixtureScript, type FixtureScript } from "./fixture-responder.js";
+import { registerRun } from "./run-registry.js";
 
 /**
  * Options accepted by `createLocalRun()`.
@@ -70,6 +71,7 @@ export function createLocalRun(options: CreateLocalRunOptions): Run {
     startTime,
   });
   handle.bootstrap();
+  registerRun(handle);
   return handle;
 }
 
