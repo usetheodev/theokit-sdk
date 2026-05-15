@@ -1,6 +1,9 @@
 import { hasContractSignal } from "./contract-signal.js";
 
-const SECRET_KEYS = /(?:api[_-]?key|token|secret|authorization|password|client_secret)/i;
+// Anchored: only redact keys whose FULL name is a secret. `apiKey` redacts;
+// `apiKeyName` (a NAME, not a secret) does NOT.
+const SECRET_KEYS =
+  /^(?:api[_-]?key|access[_-]?token|refresh[_-]?token|token|secret|authorization|password|client[_-]?secret)$/i;
 const ISO_TIMESTAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{3})?Z$/;
 const UNIX_MS_MIN = 946684800000;
 
