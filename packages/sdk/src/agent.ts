@@ -230,7 +230,9 @@ async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
       code: "authentication_error",
     });
   }
-  return new LocalAgent(options);
+  const agent = new LocalAgent(options);
+  await agent.initialize();
+  return agent;
 }
 
 async function createCloudAgent(options: AgentOptions): Promise<SDKAgent> {
