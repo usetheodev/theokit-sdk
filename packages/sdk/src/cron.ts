@@ -227,4 +227,3 @@ async function updateJobStatus(jobId: string, enabled: boolean): Promise<CronJob
   }
   return updated;
 }
-
