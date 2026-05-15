@@ -1,4 +1,4 @@
-import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { ConversationTurn } from "../../types/conversation.js";
 import type {
   SDKAssistantMessage,
@@ -45,6 +45,8 @@ export interface FixtureRequest {
   agentOptions: AgentOptions;
   sendOptions: SendOptions;
   workspaceCwd: string | undefined;
+  subagents?: Record<string, AgentDefinition>;
+  settingSourcesIncludeProject?: boolean;
 }
 
 /**
