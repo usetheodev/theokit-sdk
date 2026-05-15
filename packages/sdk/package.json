@@ -90,5 +90,8 @@
     "theo",
     "theokit",
     "usetheo"
-  ]
+  ],
+  "dependencies": {
+    "croner": "^9.0.0"
+  }
 }

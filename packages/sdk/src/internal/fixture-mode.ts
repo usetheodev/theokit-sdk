@@ -51,3 +51,22 @@ export function shouldUseFixtureMode(apiKey: string | undefined): boolean {
   if (getConfiguredBaseUrl() !== undefined) return false;
   return isFixtureApiKey(apiKey);
 }
+
+/**
+ * Returns `true` when the local runtime should drive the real LLM agent
+ * loop instead of the deterministic fixture responder. Real mode requires
+ * a non-fixture API key AND at least one provider env credential.
+ *
+ * @internal
+ */
+export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
+  if (isFixtureApiKey(apiKey)) return false;
+  if (apiKey === undefined || apiKey.length === 0) return false;
+  return (
+    (typeof process.env.ANTHROPIC_API_KEY === "string" &&
+      process.env.ANTHROPIC_API_KEY.length > 0) ||
+    (typeof process.env.OPENAI_API_KEY === "string" && process.env.OPENAI_API_KEY.length > 0) ||
+    (typeof process.env.OPENROUTER_API_KEY === "string" &&
+      process.env.OPENROUTER_API_KEY.length > 0)
+  );
+}

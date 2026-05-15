@@ -1,9 +1,12 @@
 import { ConfigurationError, UnknownAgentError } from "../../errors.js";
 import type { AgentOptions, ModelSelection, SDKAgent, SDKArtifact } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import { resolveApiKey } from "../env.js";
+import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
 import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import { createCloudRun } from "./cloud-run.js";
+import { createRealCloudRun } from "./real-cloud-run.js";
 
 /**
  * Cloud SDKAgent implementation. Holds the cloud configuration and routes
@@ -48,13 +51,24 @@ export class CloudAgent implements SDKAgent {
       this.model = overrideModel;
       updateRegisteredAgent(this.agentId, { model: overrideModel });
     }
-    const run = createCloudRun({
-      agentId: this.agentId,
-      model: this.model ?? { id: "composer-2" },
-      message,
-      agentOptions: this.options,
-      sendOptions: options,
-    });
+    const apiKey = resolveApiKey(this.options.apiKey);
+    const useRealRuntime =
+      apiKey !== undefined && !isFixtureApiKey(apiKey) && getConfiguredBaseUrl() !== undefined;
+    const run = useRealRuntime
+      ? createRealCloudRun({
+          agentId: this.agentId,
+          model: this.model ?? { id: "composer-2" },
+          message,
+          agentOptions: this.options,
+          sendOptions: options,
+        })
+      : createCloudRun({
+          agentId: this.agentId,
+          model: this.model ?? { id: "composer-2" },
+          message,
+          agentOptions: this.options,
+          sendOptions: options,
+        });
     return Promise.resolve(run);
   }
 
