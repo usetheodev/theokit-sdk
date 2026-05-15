@@ -8,6 +8,7 @@ import type {
   ModelSelection,
   SDKAgent,
   SDKArtifact,
+  SystemPromptContext,
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { resolveApiKey } from "../env.js";
@@ -29,6 +30,7 @@ import { ProvidersManagerImpl } from "./providers-manager.js";
 import { createRealLocalRun } from "./real-local-run.js";
 import { type SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
+import { resolveSystemPromptForSend } from "./system-prompt.js";
 
 /**
  * Local SDKAgent implementation. Owns the workspace cwd plus the file-based
@@ -147,9 +149,35 @@ export class LocalAgent implements SDKAgent {
     await this.runPreHook(userText);
     appendSessionMessage(this.agentId, { role: "user", text: userText });
 
-    const run = await this.dispatchRun(message, options);
+    const resolvedSystemPrompt = await this.resolveSystemPromptForSend(userText, options);
+    const run = await this.dispatchRun(message, options, resolvedSystemPrompt);
     this.attachPostRunHook(run);
     return run;
+  }
+
+  private resolveSystemPromptForSend(
+    userText: string,
+    options: SendOptions,
+  ): Promise<string | undefined> {
+    return resolveSystemPromptForSend(this.options.systemPrompt, options.systemPrompt, () =>
+      this.buildSystemPromptContext(userText),
+    );
+  }
+
+  private async buildSystemPromptContext(userText: string): Promise<SystemPromptContext> {
+    // Lazy: only call skillsManager.list() when a resolver is registered.
+    const agentSetting = this.options.systemPrompt;
+    const skills =
+      typeof agentSetting === "function" && this.skillsManager !== undefined
+        ? await this.skillsManager.list()
+        : [];
+    return {
+      agentId: this.agentId,
+      cwd: this.workspaceCwd,
+      model: this.model,
+      skills: skills.map((skill) => ({ name: skill.name, description: skill.description })),
+      userMessage: userText,
+    };
   }
 
   private applyModelOverride(overrideModel: ModelSelection | undefined): void {
@@ -172,7 +200,11 @@ export class LocalAgent implements SDKAgent {
     }
   }
 
-  private async dispatchRun(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
+  private async dispatchRun(
+    message: string | SDKUserMessage,
+    options: SendOptions,
+    systemPrompt: string | undefined,
+  ): Promise<Run> {
     const apiKey = resolveApiKey(this.options.apiKey);
     if (shouldUseRealLocalRuntime(apiKey)) {
       return createRealLocalRun({
@@ -183,14 +215,16 @@ export class LocalAgent implements SDKAgent {
         sendOptions: options,
         workspaceCwd: this.workspaceCwd,
         hooks: this.hooksExecutor,
+        ...(systemPrompt !== undefined ? { systemPrompt } : {}),
       });
     }
-    return this.createFixtureRun(message, options);
+    return this.createFixtureRun(message, options, systemPrompt);
   }
 
   private async createFixtureRun(
     message: string | SDKUserMessage,
     options: SendOptions,
+    systemPrompt: string | undefined,
   ): Promise<Run> {
     const memoryConfig = (this.options as { memory?: MemoryConfig }).memory;
     const memoryFacts =
@@ -216,6 +250,7 @@ export class LocalAgent implements SDKAgent {
       sessionMessages,
       projectMcpServers,
       ...(persistMemoryFact !== undefined ? { persistMemoryFact } : {}),
+      ...(systemPrompt !== undefined ? { systemPrompt } : {}),
     });
   }
 

@@ -29,6 +29,8 @@ export interface CreateRealCloudRunOptions {
   agentOptions: AgentOptions;
   sendOptions: SendOptions;
   fetch?: typeof fetch;
+  /** Pre-resolved system prompt threaded by `CloudAgent.send`. */
+  systemPrompt?: string;
 }
 
 export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
@@ -66,6 +68,7 @@ export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
       userText,
       fetchImpl: options.fetch ?? fetch,
       sendOptions: options.sendOptions,
+      systemPrompt: options.systemPrompt,
     },
   );
   handle.bootstrap();
@@ -78,6 +81,7 @@ interface RealCloudRunInputs {
   userText: string;
   fetchImpl: typeof fetch;
   sendOptions: SendOptions;
+  systemPrompt: string | undefined;
 }
 
 class RealCloudRun extends FixtureRunBase {
@@ -133,6 +137,9 @@ class RealCloudRun extends FixtureRunBase {
       body: JSON.stringify({
         message: this.inputs.userText,
         mcpServers: this.inputs.sendOptions.mcpServers,
+        ...(this.inputs.systemPrompt !== undefined
+          ? { systemPrompt: this.inputs.systemPrompt }
+          : {}),
       }),
     });
     if (!response.ok) {

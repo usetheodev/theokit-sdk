@@ -26,6 +26,8 @@ export interface CreateRealLocalRunOptions {
   sendOptions: SendOptions;
   workspaceCwd: string;
   hooks: HooksExecutor;
+  /** Pre-resolved system prompt threaded by `LocalAgent.send`. */
+  systemPrompt?: string;
 }
 
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
@@ -75,6 +77,7 @@ function buildLoopInputs(
     hooks: options.hooks,
     shellCwd: options.workspaceCwd,
     shellSandbox: options.agentOptions.local?.sandboxOptions?.enabled === true,
+    ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
   };
 }
 

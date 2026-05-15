@@ -347,10 +347,24 @@ The callbacks are awaited before the next update is processed, so you can apply 
 Per-send options
 Property	Type	Description
 model	ModelSelection	Per-send model override. If omitted, uses agent.model. Sticky: a successful send updates agent.model.
+systemPrompt	string	Per-call system prompt override. Wins over AgentOptions.systemPrompt. String only — for dynamic resolvers, configure on AgentOptions. An empty string is honoured (it explicitly clears the system context).
 mcpServers	Record<string, McpServerConfig>	Inline MCP server definitions. Fully replaces creation-time servers for this run.
 onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step (text, thinking, or tool batch).
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
+
+SystemPromptContext
+Passed to a systemPrompt resolver function (when AgentOptions.systemPrompt is a callable). Field order is a compatibility contract: new fields are appended, never reordered.
+
+interface SystemPromptContext {
+  agentId: string;
+  cwd: string | undefined;
+  model: ModelSelection | undefined;
+  skills: ReadonlyArray<{ name: string; description: string }>;
+  userMessage: string;
+}
+
+The resolver may be sync or async. Errors thrown propagate to the caller of agent.send(). The SDK does NOT impose a timeout — wrap your own Promise.race if you call into slow resources.
 The next three sections are detailed reference for SDKMessage, InteractionUpdate, and ConversationTurn. Skim or skip on a first read; Resuming agents picks up the narrative.
 
 Stream events
@@ -1028,6 +1042,7 @@ Property	Type	Default	Description
 model	ModelSelection	Required for local; cloud falls back to the server-resolved default	Model to use. See ModelSelection.
 apiKey	string	Theo_API_KEY env	User API key or service account key. Team Admin keys are not yet supported.
 name	string	Auto-generated	Human-readable agent name surfaced as title in Agent.list() / Agent.get().
+systemPrompt	string \| (ctx: SystemPromptContext) => string \| Promise<string>	(none)	System prompt for the agent. Either a plain string or an async resolver that receives a SystemPromptContext. Override per-call via SendOptions.systemPrompt. Subagents do NOT inherit this — they use AgentDefinition.prompt. The SDK does not impose a timeout on resolvers — wrap your own Promise.race if you call into slow resources.
 local	{ cwd?: string | string[]; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
 cloud	CloudOptions		Cloud agent config.
 mcpServers	Record<string, McpServerConfig>		Inline MCP server definitions.

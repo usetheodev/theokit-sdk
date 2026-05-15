@@ -24,6 +24,11 @@ export interface CreateLocalRunOptions {
   sessionMessages: SessionMessage[];
   projectMcpServers: Record<string, unknown>;
   persistMemoryFact?: (fact: MemoryFact) => Promise<void>;
+  /**
+   * Accepted for API parity with the real runtime; the fixture responder is
+   * deterministic and does not feed the prompt into its scripts.
+   */
+  systemPrompt?: string;
 }
 
 /**

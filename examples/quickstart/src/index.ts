@@ -22,12 +22,12 @@ async function main(): Promise<void> {
     apiKey: process.env.THEOKIT_API_KEY ?? "user-real-example-key",
     model: { id: pickModel() },
     local: { cwd: process.cwd() },
+    systemPrompt:
+      "You are a senior staff engineer. Respond in exactly one terse sentence. No emojis, no greetings, no apologies.",
   });
   console.log(`Agent: ${agent.agentId}`);
 
-  const run = await agent.send(
-    "Greet me in one sentence and tell me what year you think it is.",
-  );
+  const run = await agent.send("What year do you think it is?");
 
   for await (const event of run.stream()) {
     if (event.type === "assistant") {
