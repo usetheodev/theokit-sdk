@@ -1,0 +1,12 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "ignore": ["referencia/**"],
+  "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
+  "workspaces": {
+    "packages/sdk": {
+      "entry": ["tests/**/*.test.ts", "tests/helpers/**/*.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
+      "ignore": ["src/internal/**"]
+    }
+  }
+}

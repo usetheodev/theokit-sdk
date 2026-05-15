@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# pre-commit hook — light Tier 1 quality gates.
+# See .claude/quality-gates.md.
+
+set -e
+
+# Load nvm if available so we hit the .nvmrc-pinned Node.
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1 || true
+  nvm use --silent >/dev/null 2>&1 || true
+fi
+
+echo "→ pre-commit: Biome check + typecheck"
+
+if ! pnpm exec biome check --no-errors-on-unmatched --staged 2>&1; then
+  echo ""
+  echo "✗ G2 (Biome) failed. Run 'pnpm check:fix' to auto-fix, or fix manually."
+  exit 1
+fi
+
+if ! pnpm -w run typecheck 2>&1 | tail -3; then
+  echo ""
+  echo "✗ G1 (typecheck) failed. Fix the types."
+  exit 1
+fi
+
+echo "✓ pre-commit gates passed"
