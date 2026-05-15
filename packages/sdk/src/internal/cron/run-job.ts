@@ -26,13 +26,15 @@ import { createStubRun } from "../runtime/stub-run.js";
 export async function runCronJob(job: CronJob): Promise<Run> {
   if (job.agent !== undefined) return runWithEphemeralAgent(job.agent as AgentOptions, job.message);
   if (job.agentId !== undefined) return runWithExistingAgent(job.agentId, job.message);
-  throw new ConfigurationError(
-    `Cron job ${job.id} has neither agent nor agentId — cannot run.`,
-    { code: "cron_no_target" },
-  );
+  throw new ConfigurationError(`Cron job ${job.id} has neither agent nor agentId — cannot run.`, {
+    code: "cron_no_target",
+  });
 }
 
-async function runWithExistingAgent(agentId: string, message: string | SDKUserMessage): Promise<Run> {
+async function runWithExistingAgent(
+  agentId: string,
+  message: string | SDKUserMessage,
+): Promise<Run> {
   const info = await Agent.get(agentId).catch(() => undefined);
   if (info === undefined) {
     // Agent not registered (fixture-mode fake id or registry was lost).
