@@ -80,7 +80,12 @@ function isToolCallPayload(
 function normalizeNumberValue(value: number, path: string[]): unknown {
   const key = path.at(-1) ?? "";
   if (/duration/i.test(key)) return "<duration-ms>";
-  if ((/At$/.test(key) || /timestamp/i.test(key)) && value > UNIX_MS_MIN) return "<timestamp>";
+  if (
+    (/At$/.test(key) || /timestamp/i.test(key) || /modified/i.test(key)) &&
+    value > UNIX_MS_MIN
+  ) {
+    return "<timestamp>";
+  }
   return value;
 }
 
