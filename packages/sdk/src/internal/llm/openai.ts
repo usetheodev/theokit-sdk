@@ -173,7 +173,9 @@ function mapOpenAIFinish(reason: string): LlmStopReason {
 function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
   const messages: Array<Record<string, unknown>> = [];
   if (request.system !== undefined) messages.push({ role: "system", content: request.system });
-  for (const message of request.messages) messages.push(toOpenAIMessage(message));
+  for (const message of request.messages) {
+    for (const out of toOpenAIMessages(message)) messages.push(out);
+  }
   const body: Record<string, unknown> = {
     model: request.model,
     stream: true,
@@ -190,28 +192,48 @@ function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
   return body;
 }
 
-function toOpenAIMessage(message: LlmMessage): Record<string, unknown> {
-  if (message.role === "system") {
-    const text = message.content
-      .filter((part) => part.type === "text")
-      .map((part) => (part as { text: string }).text)
-      .join("\n");
-    return { role: "system", content: text };
-  }
-  if (message.role === "user") {
-    const segments = message.content
-      .filter((part) => part.type === "text" || part.type === "tool_result")
-      .map((part) => {
-        if (part.type === "text") return part.text;
-        return `[tool result ${part.toolUseId}]\n${part.content}`;
-      })
-      .join("\n");
-    return { role: "user", content: segments };
-  }
-  const text = message.content
+function toOpenAIMessages(message: LlmMessage): Array<Record<string, unknown>> {
+  if (message.role === "system") return [systemMessage(message)];
+  if (message.role === "user") return userOrToolMessages(message);
+  return [assistantMessage(message)];
+}
+
+function systemMessage(message: LlmMessage): Record<string, unknown> {
+  return { role: "system", content: joinTextParts(message) };
+}
+
+function joinTextParts(message: LlmMessage): string {
+  return message.content
     .filter((part) => part.type === "text")
     .map((part) => (part as { text: string }).text)
     .join("\n");
+}
+
+/**
+ * Translate a logical `user` turn. If the turn contains tool_result parts
+ * they must be emitted as `role: "tool"` messages with matching
+ * `tool_call_id` — OpenAI rejects tool_calls followed by a user message.
+ * Plain text parts (and any other parts) collapse into a single user
+ * message that follows the tool messages.
+ */
+function userOrToolMessages(message: LlmMessage): Array<Record<string, unknown>> {
+  const out: Array<Record<string, unknown>> = [];
+  for (const part of message.content) {
+    if (part.type === "tool_result") {
+      out.push({
+        role: "tool",
+        tool_call_id: part.toolUseId,
+        content: part.content,
+      });
+    }
+  }
+  const userText = joinTextParts(message);
+  if (userText.length > 0) out.push({ role: "user", content: userText });
+  return out;
+}
+
+function assistantMessage(message: LlmMessage): Record<string, unknown> {
+  const text = joinTextParts(message);
   const toolCalls = message.content
     .filter((part) => part.type === "tool_use")
     .map((part) => {
