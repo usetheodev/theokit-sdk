@@ -5,12 +5,13 @@
 </p>
 
 <p align="center">
-  <h1 align="center">@usetheo/sdk</h1>
+  <p align="center"><code>@usetheo/sdk</code></p>
+  <h1 align="center">Code your agent. Keep your runtime.</h1>
   <p align="center">
-    <strong>TypeScript SDK for the Theo agent harness</strong>
+    <strong>A TypeScript SDK with an Apache-2.0 local runtime, multi-provider keys, and an opt-in cloud.</strong>
   </p>
   <p align="center">
-    Same agent surface, local or cloud. No vendor lock-in.
+    Ship agents into your CI, your cron, your backend — and walk away whenever you want.
   </p>
   <p align="center">
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
@@ -22,9 +23,11 @@
 
 ---
 
-The `@usetheo/sdk` package lets you call the Theo agent from your own TypeScript code. One interface, two runtimes: run inline against your local working tree, or against a cloud-hosted VM on Theo PaaS.
+There is a version of your agent that does not sit in a chat window.
 
-It is a **community auxiliary** of the [usetheo](https://usetheo.dev) ecosystem — inspired by the Claude SDK, Cursor SDK, and Pi. Useful when you want to embed agent capabilities in your own product. Not part of the main funnel (TheoCode → TheoCreate or TheoKit → Theo PaaS) — but composes cleanly with it.
+You don't open a panel. You don't type a prompt. You commit code, and the agent runs — the same way every other piece of your stack runs. It writes a PR description after every merge. It summarizes yesterday's incidents at 9 AM. It refactors a module overnight. It answers questions in Slack about the codebase it knows by heart.
+
+That agent is built with `@usetheo/sdk` — and when you decide to leave, the runtime leaves with you. A community auxiliary of the [usetheo](https://usetheo.dev) ecosystem, inspired by the Claude SDK, Cursor SDK, and Pi.
 
 ## Overview
 
@@ -43,12 +46,29 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | Layer | `@usetheo/sdk` | Closed-runtime alternatives |
 | --- | --- | --- |
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
-| Local agent harness | **Apache-2.0** via [`pi/`](./pi) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
+| Local agent harness | **Apache-2.0** via [`pi/`](./referencia/pi) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
 | LLM provider | Multi-provider via `pi-ai` (Anthropic, OpenAI, Google, …) | Usually single-vendor |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork `pi/`, keep running with your own provider keys | High — runtime is the vendor's |
 
+Most agent SDKs ship open; most agent runtimes don't. This one does — end to end.
+
 The "open stack underneath" line is load-bearing: you can run an agent fully locally against your own provider keys and never call our backend. The managed cloud runtime (Theo PaaS) is a deploy convenience, not a dependency.
+
+## What you'd ship
+
+- **PR description writer.** Triggered on push, scans the diff, drafts the description with code refs.
+- **Nightly code reviewer.** Runs at 2 AM, opens issues for code smells it found.
+- **Internal codebase Q&A.** A Slack bot that knows your repo. Answers grounded in real files, not generic text.
+- **Customer support copilot.** Embedded in your dashboard. Cancels subscriptions, refunds payments, opens tickets — through MCP tools you wire in.
+- **CI gate.** Reject PRs that fail a quality check expressed as an agent prompt.
+- **Sandbox runner.** One agent per user request, isolated by repo, with bounded permissions.
+
+---
+
+## How it works
+
+Below this line, full technical vocabulary is in play. Installation, authentication, the full API surface — `Agent`, `Run`, MCP servers, subagents, hooks, cron jobs, cloud runtime, errors.
 
 ## Installation
 
@@ -103,6 +123,9 @@ const result = await Agent.prompt("What does the auth middleware do?", {
 | **Agent** | Durable container that holds conversation state, workspace config, and settings. Survives across multiple prompts. |
 | **Run** | One prompt submission. Owns its own stream, status, result, and cancellation. |
 | **SDKMessage** | Normalized stream events emitted during a run. Same shape across all runtimes. |
+| **Context** | File-based or inline project context selected before each run and bounded by a token budget. |
+| **Memory** | Durable facts persisted across agent instances by namespace, user, and scope. |
+| **Skills** | File-based capability packs loaded from `.theokit/skills/*/SKILL.md` and exposed to the agent by name and description. |
 
 ## Creating a local agent
 
@@ -371,6 +394,27 @@ const agent = await Agent.create({
 
 Subagents committed to the repo at `.theokit/agents/*.md` (with `name`, `description`, optional `model` frontmatter) are also picked up. Inline definitions override file-based ones with the same name.
 
+## Memory, context, and skills
+
+Durable memory, project context, and named capability packs (Skills) are part of the public contract — defined in [`docs.md`](./docs.md) and exposed through `AgentOptions.memory`, `AgentOptions.context`, and `AgentOptions.skills`.
+
+```typescript
+const agent = await Agent.create({
+  apiKey: process.env.THEOKIT_API_KEY!,
+  model: { id: "composer-2" },
+  local: { cwd: process.cwd(), settingSources: ["project"] },
+  context: { manager: "file", maxTokens: 1200 },
+  memory: { enabled: true, namespace: "my-app", userId: "user-123", scope: "user" },
+  skills: { enabled: ["code-review", "test-architect"] },
+});
+```
+
+- **Context** — file-based (`.theokit/context.json`) or inline; bounded by `maxTokens`; surfaced via `agent.context.snapshot()`. Snapshots never expose secrets.
+- **Memory** — durable facts persisted across agent instances, keyed by `{ namespace, userId, scope }`. Must not store credentials. Local `storePath` must stay inside the workspace.
+- **Skills** — capability packs at `.theokit/skills/<name>/SKILL.md`. Listed via `agent.skills.list()` (metadata only — full skill bodies never appear in public streams).
+
+`agent.reload()` re-reads file-based context and skills without disposing. The runtime implementation lands with the contract — see [Status](#status) below.
+
 ## Hooks
 
 Hooks are file-based only. There is no programmatic hook callback — hooks are a project policy boundary, not a per-run knob.
@@ -555,6 +599,15 @@ For the full reference (`CloudOptions`, `ModelSelection`, `McpServerConfig`, `Ag
 - Cloud runtime requires Theo PaaS, currently pre-release.
 - Local cron jobs only fire while the host process is alive. Run the SDK as a systemd / launchd / pm2 service, or use the cloud runtime, for 24/7 scheduling.
 - Local cron jobs in flight are NOT resumed if the host process crashes mid-fire.
+
+## Status
+
+Honest claims only. Production-ready is not the same as "every feature shipped".
+
+- **Local runtime** — production. The tested path.
+- **Cloud runtime** — pre-release with Theo PaaS. Public contract locked in `docs.md`; APIs may evolve until PaaS reaches general availability.
+- **Memory & Skills** — public contract locked in `docs.md`. Runtime implementation arrives with the contract; today the surface area is the type contract plus file conventions.
+- **Cron (local)** — fires only while the host process is alive. Run as a `systemd` / `launchd` / `pm2` service, or use the cloud runtime, for 24/7 scheduling.
 
 ## Where this fits
 
