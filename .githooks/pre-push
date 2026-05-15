@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# pre-push hook — full Tier 1 quality gates (pnpm validate).
+# See .claude/quality-gates.md.
+
+set -e
+
+if [ -s "$HOME/.nvm/nvm.sh" ]; then
+  # shellcheck source=/dev/null
+  . "$HOME/.nvm/nvm.sh" >/dev/null 2>&1 || true
+  nvm use --silent >/dev/null 2>&1 || true
+fi
+
+echo "→ pre-push: pnpm validate (full quality gates, ~30-60s)"
+echo ""
+
+if ! pnpm -w run validate; then
+  echo ""
+  echo "✗ One or more hard gates failed. See .claude/quality-gates.md."
+  echo "  To push anyway (emergencies only): git push --no-verify"
+  exit 1
+fi
+
+echo "✓ pre-push gates passed"

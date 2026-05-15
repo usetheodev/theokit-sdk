@@ -39,6 +39,8 @@ export interface ModelVariant {
  */
 export interface ModelListItem {
   id: string;
+  /** Short, plain-text model name. Mirrors `displayName` for typical SDKs. */
+  name?: string;
   displayName: string;
   description?: string;
   parameters?: ModelParameterDefinition[];

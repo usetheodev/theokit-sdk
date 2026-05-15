@@ -1,5 +1,22 @@
-import { ConfigurationError } from "./errors.js";
-import type { ListResult } from "./types/agent.js";
+import { ConfigurationError, UnknownAgentError } from "./errors.js";
+import { runCronJob } from "./internal/cron/run-job.js";
+import {
+  getSchedulerState,
+  scheduleJob,
+  setCronFireHandler,
+  startScheduler,
+  stopScheduler,
+  unscheduleJob,
+} from "./internal/cron/scheduler.js";
+import { deleteJob, getJob, jobCount, listJobs, upsertJob } from "./internal/cron/store.js";
+import {
+  estimateNextRunAt,
+  validateCronExpression,
+  validateTimezone,
+} from "./internal/cron/validate.js";
+import { resolveApiKey } from "./internal/env.js";
+import { generateCronId } from "./internal/ids.js";
+import type { AgentOptions, ListResult } from "./types/agent.js";
 import type {
   CronCreateOptions,
   CronGetOptions,
@@ -7,23 +24,14 @@ import type {
   CronListOptions,
   CronOperationOptions,
   CronRunOptions,
+  CronRuntime,
   CronSchedulerStatus,
   CronStartOptions,
 } from "./types/cron.js";
 import type { Run } from "./types/run.js";
 
-const NOT_IMPLEMENTED = "Not implemented yet — see CHANGELOG.md and docs.md";
-
 /**
  * Static façade for scheduling Theo agent runs on a cron expression.
- *
- * Two runtimes, picked from how the job is created:
- *
- * - **Local** — pass `agent.local` or `agentId` with `agent-` prefix.
- *   The in-process scheduler (activate with `Cron.start()`) fires the job
- *   while the host process is alive. Persisted to `.theokit/cron/jobs.json`.
- * - **Cloud** — pass `agent.cloud` or `agentId` with `bc-` prefix.
- *   Theo PaaS schedules server-side; fires regardless of any SDK process.
  *
  * @public
  */
@@ -37,8 +45,10 @@ export class Cron {
    *
    * @public
    */
-  static create(_options: CronCreateOptions): Promise<CronJob> {
-    return Promise.reject(new ConfigurationError(`Cron.create: ${NOT_IMPLEMENTED}`));
+  static async create(options: CronCreateOptions): Promise<CronJob> {
+    const job = await createCronJob(options);
+    if (job.runtime === "local" && job.enabled !== false) scheduleJob(job);
+    return job;
   }
 
   /**
@@ -46,8 +56,12 @@ export class Cron {
    *
    * @public
    */
-  static list(_options?: CronListOptions): Promise<ListResult<CronJob>> {
-    return Promise.reject(new ConfigurationError(`Cron.list: ${NOT_IMPLEMENTED}`));
+  static list(options: CronListOptions = {}): Promise<ListResult<CronJob>> {
+    const runtimeFilter = options.runtime;
+    const items = listJobs().filter((job) =>
+      runtimeFilter === undefined ? true : job.runtime === runtimeFilter,
+    );
+    return Promise.resolve({ items });
   }
 
   /**
@@ -55,8 +69,14 @@ export class Cron {
    *
    * @public
    */
-  static get(_id: string, _options?: CronGetOptions): Promise<CronJob> {
-    return Promise.reject(new ConfigurationError(`Cron.get: ${NOT_IMPLEMENTED}`));
+  static get(jobId: string, _options: CronGetOptions = {}): Promise<CronJob> {
+    const job = getJob(jobId);
+    if (job === undefined) {
+      return Promise.reject(
+        new UnknownAgentError(`Cron job ${jobId} not found`, { code: "unknown_cron_job" }),
+      );
+    }
+    return Promise.resolve(job);
   }
 
   /**
@@ -64,8 +84,10 @@ export class Cron {
    *
    * @public
    */
-  static delete(_id: string, _options?: CronOperationOptions): Promise<void> {
-    return Promise.reject(new ConfigurationError(`Cron.delete: ${NOT_IMPLEMENTED}`));
+  static delete(jobId: string, _options: CronOperationOptions = {}): Promise<void> {
+    unscheduleJob(jobId);
+    deleteJob(jobId);
+    return Promise.resolve();
   }
 
   /**
@@ -73,17 +95,17 @@ export class Cron {
    *
    * @public
    */
-  static enable(_id: string, _options?: CronOperationOptions): Promise<CronJob> {
-    return Promise.reject(new ConfigurationError(`Cron.enable: ${NOT_IMPLEMENTED}`));
+  static async enable(jobId: string, _options: CronOperationOptions = {}): Promise<CronJob> {
+    return updateJobStatus(jobId, true);
   }
 
   /**
-   * Pause a cron job without deleting it. Resume with `Cron.enable()`.
+   * Pause a cron job without deleting it.
    *
    * @public
    */
-  static disable(_id: string, _options?: CronOperationOptions): Promise<CronJob> {
-    return Promise.reject(new ConfigurationError(`Cron.disable: ${NOT_IMPLEMENTED}`));
+  static async disable(jobId: string, _options: CronOperationOptions = {}): Promise<CronJob> {
+    return updateJobStatus(jobId, false);
   }
 
   /**
@@ -91,38 +113,117 @@ export class Cron {
    *
    * @public
    */
-  static run(_id: string, _options?: CronRunOptions): Promise<Run> {
-    return Promise.reject(new ConfigurationError(`Cron.run: ${NOT_IMPLEMENTED}`));
+  static async run(jobId: string, _options: CronRunOptions = {}): Promise<Run> {
+    const job = getJob(jobId);
+    if (job === undefined) {
+      throw new UnknownAgentError(`Cron job ${jobId} not found`, { code: "unknown_cron_job" });
+    }
+    return runCronJob(job);
   }
 
   /**
    * Activate the in-process scheduler for local cron jobs.
    *
-   * No-op for cloud-only deployments — cloud jobs are scheduled by Theo PaaS.
-   * Pair with `Cron.stop()` for graceful shutdown.
-   *
    * @public
    */
-  static start(_options?: CronStartOptions): Promise<void> {
-    return Promise.reject(new ConfigurationError(`Cron.start: ${NOT_IMPLEMENTED}`));
+  static start(options: CronStartOptions = {}): Promise<void> {
+    // Install the default fire handler so timer ticks actually drive a
+    // real agent run. Users can override via `setCronFireHandler` from
+    // `@usetheo/sdk/internal` (test-mode hook).
+    setCronFireHandler(async (job) => {
+      await runCronJob(job).then((run) => run.wait());
+    });
+    startScheduler(options.cwd);
+    return Promise.resolve();
   }
 
   /**
-   * Stop the in-process scheduler. Existing jobs are NOT deleted — call
-   * `Cron.start()` again to resume firing.
+   * Stop the in-process scheduler. Jobs are preserved.
    *
    * @public
    */
   static stop(): Promise<void> {
-    return Promise.reject(new ConfigurationError(`Cron.stop: ${NOT_IMPLEMENTED}`));
+    stopScheduler();
+    return Promise.resolve();
   }
 
   /**
-   * Snapshot of the local scheduler. Returns runtime-specific metadata.
+   * Snapshot of the local scheduler.
    *
    * @public
    */
-  static status(_options?: CronStartOptions): Promise<CronSchedulerStatus> {
-    return Promise.reject(new ConfigurationError(`Cron.status: ${NOT_IMPLEMENTED}`));
+  static status(_options: CronStartOptions = {}): Promise<CronSchedulerStatus> {
+    const scheduler = getSchedulerState();
+    return Promise.resolve({ running: scheduler.running, jobCount: jobCount() });
   }
+}
+
+async function createCronJob(options: CronCreateOptions): Promise<CronJob> {
+  if (options.agent !== undefined && options.agentId !== undefined) {
+    throw new ConfigurationError(
+      "agent and agentId are mutually exclusive — pass either agent (ephemeral) or agentId (reuse).",
+      { code: "cron_agent_exclusive" },
+    );
+  }
+  if (options.agent === undefined && options.agentId === undefined) {
+    throw new ConfigurationError("Cron job requires either agent or agentId", {
+      code: "cron_missing_agent",
+    });
+  }
+
+  validateCronExpression(options.cron);
+  const timezone = options.timezone ?? "UTC";
+  validateTimezone(timezone);
+
+  // apiKey is accepted but not required for cron-create in fixture mode.
+  resolveApiKey(options.apiKey);
+
+  const runtime = detectRuntime(options);
+  const now = Date.now();
+  const job: CronJob = {
+    id: generateCronId(),
+    cron: options.cron,
+    timezone,
+    message: options.message,
+    enabled: options.enabled ?? true,
+    status: options.enabled === false ? "paused" : "scheduled",
+    runtime,
+    createdAt: now,
+    nextRunAt: estimateNextRunAt(options.cron, timezone),
+    ...(options.name !== undefined ? { name: options.name } : {}),
+    ...(options.agent !== undefined ? { agent: options.agent } : {}),
+    ...(options.agentId !== undefined ? { agentId: options.agentId } : {}),
+  };
+  upsertJob(job);
+  return job;
+}
+
+function detectRuntime(options: CronCreateOptions): CronRuntime {
+  if (options.agentId !== undefined) {
+    return options.agentId.startsWith("bc-") ? "cloud" : "local";
+  }
+  const agent = options.agent as AgentOptions | undefined;
+  if (agent?.cloud !== undefined) return "cloud";
+  return "local";
+}
+
+async function updateJobStatus(jobId: string, enabled: boolean): Promise<CronJob> {
+  const existing = getJob(jobId);
+  if (existing === undefined) {
+    throw new UnknownAgentError(`Cron job ${jobId} not found`, { code: "unknown_cron_job" });
+  }
+  const updated: CronJob = {
+    ...existing,
+    enabled,
+    status: enabled ? "scheduled" : "paused",
+  };
+  upsertJob(updated);
+  if (updated.runtime === "local") {
+    if (enabled) {
+      scheduleJob(updated);
+    } else {
+      unscheduleJob(updated.id);
+    }
+  }
+  return updated;
 }

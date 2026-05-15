@@ -92,6 +92,31 @@ Resolved 2026-05-14 with research backing in [the SOTA validation report](#sota-
 | Streaming | `AsyncGenerator` of discriminated `SDKMessage` | — | Matches `@anthropic-ai/claude-agent-sdk`. |
 | Resource disposal | `dispose()` method + `[Symbol.asyncDispose]` (implementation-side) | — | Skeleton interface uses `dispose()` until lib bump to `ESNext.Disposable`. |
 
+## Voice and Tone
+
+**Locked 2026-05-15.** TheoKit-SDK has adopted the aspirational voice originally scoped to TheoKit. The operational guide — three communication layers (HERO / BODY / DEEP DIVE), vocabulary translation, banned terms list, storytelling rules, before/after examples — lives in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md). Read it before writing any public copy for this project. This file does not duplicate it.
+
+**Applies to:**
+
+- `README.md` HERO and BODY layers (everything above the `## How it works` delimiter)
+- `PITCH.md` — landing-page copy at workspace root
+- Future TheoKit-SDK launch material, blog posts, social copy, and site sections referencing the SDK
+
+**Does NOT apply to (stays technical-direct):**
+
+- `docs.md` — the canonical public API contract. Precise, technical, no marketing varnish.
+- `README.md` DEEP DIVE layer — everything from `## How it works` downward, including Installation, Authentication, Core concepts, API surfaces (`Agent.create`, `agent.send`, `SDKMessage`), MCP, Cron, Errors, Cloud reference, Configuration reference, Development. Full technical vocabulary is in play.
+- This `CLAUDE.md`, ADRs, `CHANGELOG.md`, internal design notes, and per-package docs.
+
+**Cross-project narrative anchors that must hold (regardless of voice):**
+
+- "Harness pillar of usetheo" — the SDK is the harness, not the framework (TheoKit) and not the runtime (Theo PaaS).
+- "Open stack underneath" — the load-bearing differentiator. Apache-2.0 SDK, Apache-2.0 local runtime via `pi/`, multi-provider keys, opt-in cloud, walk-away cost zero.
+- "Pre-release honesty" — cloud runtime depends on Theo PaaS, currently pre-release. Cloud-only features must be labeled.
+- "No invented integration" — never claim wiring with other usetheo pillars that does not yet exist (Cross-Project Rule 2).
+
+If a piece of TheoKit-SDK copy contradicts the locked narrative in [`../CLAUDE.md`](../CLAUDE.md) or the operational rules in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md), the root and TheoKit rules win — surface the conflict before publishing.
+
 ## Pre-release honesty (cloud runtime)
 
 The cloud runtime depends on **Theo PaaS**, currently pre-release per the root `CLAUDE.md` (3.49/4.0).

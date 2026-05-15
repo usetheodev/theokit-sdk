@@ -2,7 +2,7 @@
   "name": "@usetheo/sdk",
   "version": "0.0.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
   "bugs": "https://github.com/usetheo/theokit-sdk/issues",
   "repository": {
@@ -90,5 +90,8 @@
     "theo",
     "theokit",
     "usetheo"
-  ]
+  ],
+  "dependencies": {
+    "croner": "^9.0.0"
+  }
 }
