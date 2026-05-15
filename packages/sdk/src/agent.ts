@@ -1,17 +1,17 @@
 import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
 import { resolveApiKey } from "./internal/env.js";
-import { isCloudAgentId, isLocalAgentId } from "./internal/ids.js";
-import { httpRequest } from "./internal/http.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "./internal/fixture-mode.js";
+import { httpRequest } from "./internal/http.js";
+import { isCloudAgentId, isLocalAgentId } from "./internal/ids.js";
 import {
   getRegisteredAgent,
   listRegisteredAgents,
   removeRegisteredAgent,
   updateRegisteredAgent,
 } from "./internal/runtime/agent-registry.js";
-import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
 import { CloudAgent } from "./internal/runtime/cloud-agent.js";
 import { LocalAgent } from "./internal/runtime/local-agent.js";
+import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
 import { createHistoricalCloudRun, createStubRun } from "./internal/runtime/stub-run.js";
 import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
 import type {
@@ -62,10 +62,7 @@ export class Agent {
    *
    * @public
    */
-  static async prompt(
-    message: string,
-    options: AgentOptions,
-  ): Promise<AgentPromptResult> {
+  static async prompt(message: string, options: AgentOptions): Promise<AgentPromptResult> {
     const agent = await Agent.create(options);
     try {
       const run = await agent.send(message);
@@ -80,10 +77,7 @@ export class Agent {
    *
    * @public
    */
-  static async resume(
-    agentId: string,
-    options: Partial<AgentOptions> = {},
-  ): Promise<SDKAgent> {
+  static async resume(agentId: string, options: Partial<AgentOptions> = {}): Promise<SDKAgent> {
     const existing = getRegisteredAgent(agentId);
     if (existing !== undefined) {
       // Strip inline mcpServers — they don't persist across resume.
@@ -109,9 +103,7 @@ export class Agent {
    *
    * @public
    */
-  static async list(
-    options: ListAgentsOptions = {},
-  ): Promise<ListResult<SDKAgentInfo>> {
+  static async list(options: ListAgentsOptions = {}): Promise<ListResult<SDKAgentInfo>> {
     const runtime = options.runtime;
     const all = listRegisteredAgents(runtime);
     const items = all.map((agent) => toAgentInfo(agent));
@@ -123,10 +115,7 @@ export class Agent {
    *
    * @public
    */
-  static async get(
-    agentId: string,
-    _options: GetAgentOptions = {},
-  ): Promise<SDKAgentInfo> {
+  static async get(agentId: string, _options: GetAgentOptions = {}): Promise<SDKAgentInfo> {
     const agent = getRegisteredAgent(agentId);
     if (agent === undefined) {
       throw new UnknownAgentError(`Agent ${agentId} not found`, {
@@ -141,10 +130,7 @@ export class Agent {
    *
    * @public
    */
-  static async listRuns(
-    agentId: string,
-    _options: ListRunsOptions = {},
-  ): Promise<ListResult<Run>> {
+  static async listRuns(agentId: string, _options: ListRunsOptions = {}): Promise<ListResult<Run>> {
     const agent = getRegisteredAgent(agentId);
     if (agent === undefined) {
       throw new UnknownAgentError(`Agent ${agentId} not found`, {
@@ -162,10 +148,9 @@ export class Agent {
   static async getRun(runId: string, options: GetRunOptions = {}): Promise<Run> {
     if (options.runtime === "cloud") {
       if (!("agentId" in options) || typeof options.agentId !== "string") {
-        throw new ConfigurationError(
-          "Cloud getRun requires the parent agentId",
-          { code: "missing_agent_id" },
-        );
+        throw new ConfigurationError("Cloud getRun requires the parent agentId", {
+          code: "missing_agent_id",
+        });
       }
       return createHistoricalCloudRun(options.agentId, runId);
     }
@@ -179,17 +164,8 @@ export class Agent {
    *
    * @public
    */
-  static async archive(
-    agentId: string,
-    _options: AgentOperationOptions = {},
-  ): Promise<void> {
-    const agent = getRegisteredAgent(agentId);
-    if (agent === undefined) {
-      throw new UnknownAgentError(`Agent ${agentId} not found`, {
-        code: "unknown_agent",
-      });
-    }
-    updateRegisteredAgent(agentId, { archived: true });
+  static archive(agentId: string, _options: AgentOperationOptions = {}): Promise<void> {
+    return setArchivedFlag(agentId, true);
   }
 
   /**
@@ -197,17 +173,8 @@ export class Agent {
    *
    * @public
    */
-  static async unarchive(
-    agentId: string,
-    _options: AgentOperationOptions = {},
-  ): Promise<void> {
-    const agent = getRegisteredAgent(agentId);
-    if (agent === undefined) {
-      throw new UnknownAgentError(`Agent ${agentId} not found`, {
-        code: "unknown_agent",
-      });
-    }
-    updateRegisteredAgent(agentId, { archived: false });
+  static unarchive(agentId: string, _options: AgentOperationOptions = {}): Promise<void> {
+    return setArchivedFlag(agentId, false);
   }
 
   /**
@@ -215,10 +182,7 @@ export class Agent {
    *
    * @public
    */
-  static async delete(
-    agentId: string,
-    _options: AgentOperationOptions = {},
-  ): Promise<void> {
+  static async delete(agentId: string, _options: AgentOperationOptions = {}): Promise<void> {
     removeRegisteredAgent(agentId);
   }
 }
@@ -271,31 +235,46 @@ async function createCloudAgent(options: AgentOptions): Promise<SDKAgent> {
   return new CloudAgent(mergedOptions, response.agentId);
 }
 
-function toAgentInfo(
-  agent: ReturnType<typeof getRegisteredAgent> & object,
-): SDKAgentInfo {
-  if (isLocalAgentId(agent.agentId)) {
-    return {
-      agentId: agent.agentId,
-      name: agent.name ?? "Untitled agent",
-      summary: agent.summary ?? "Local contract fixture",
-      lastModified: agent.lastModified,
-      ...(agent.status !== undefined ? { status: agent.status } : {}),
-      createdAt: agent.createdAt,
-      runtime: "local",
-      ...(agent.cwd !== undefined ? { cwd: agent.cwd } : {}),
-    };
-  }
+type RegisteredAgent = ReturnType<typeof getRegisteredAgent> & object;
+
+function toAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
+  return isLocalAgentId(agent.agentId) ? toLocalAgentInfo(agent) : toCloudAgentInfo(agent);
+}
+
+function commonAgentInfo(agent: RegisteredAgent, fallbackSummary: string) {
   return {
     agentId: agent.agentId,
     name: agent.name ?? "Untitled agent",
-    summary: agent.summary ?? "Cloud contract fixture",
+    summary: agent.summary ?? fallbackSummary,
     lastModified: agent.lastModified,
-    ...(agent.status !== undefined ? { status: agent.status } : {}),
     createdAt: agent.createdAt,
+    ...(agent.status !== undefined ? { status: agent.status } : {}),
+  };
+}
+
+function toLocalAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
+  return {
+    ...commonAgentInfo(agent, "Local contract fixture"),
+    runtime: "local",
+    ...(agent.cwd !== undefined ? { cwd: agent.cwd } : {}),
+  };
+}
+
+function toCloudAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
+  return {
+    ...commonAgentInfo(agent, "Cloud contract fixture"),
     archived: agent.archived,
     runtime: "cloud",
     env: { type: "cloud" },
     ...(agent.repos !== undefined ? { repos: agent.repos } : {}),
   };
+}
+
+function setArchivedFlag(agentId: string, archived: boolean): Promise<void> {
+  const agent = getRegisteredAgent(agentId);
+  if (agent === undefined) {
+    throw new UnknownAgentError(`Agent ${agentId} not found`, { code: "unknown_agent" });
+  }
+  updateRegisteredAgent(agentId, { archived });
+  return Promise.resolve();
 }

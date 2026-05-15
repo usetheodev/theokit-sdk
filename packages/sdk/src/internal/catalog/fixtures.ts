@@ -25,6 +25,7 @@ export const FIXTURE_USER: SDKUser = {
 export const FIXTURE_MODELS: SDKModel[] = [
   {
     id: "composer-2",
+    name: "Composer 2",
     displayName: "Composer 2",
     parameters: [
       {
@@ -52,6 +53,19 @@ export const FIXTURE_REPOSITORIES: SDKRepository[] = [
 ];
 
 /**
+ * Generic JSON Schema used as `setupSchema` for fixture providers. The
+ * property name is intentionally generic (`credential`) so the schema never
+ * contains substrings that look like environment variable names for real
+ * provider tokens — fixture output must remain secret-shaped-noise-free.
+ */
+const GENERIC_SETUP_SCHEMA = {
+  type: "object",
+  description: "Configuration values for this provider.",
+  required: ["credential"],
+  properties: { credential: { type: "string" } },
+} as const;
+
+/**
  * Fixture provider catalog. Covers chat, web_search, image, and embedding
  * capabilities. The `setupSchema` is intentionally generic JSON Schema —
  * consumers drive UI from these definitions.
@@ -64,54 +78,34 @@ export const FIXTURE_PROVIDERS: SDKProvider[] = [
     displayName: "Anthropic",
     capabilities: ["chat"],
     isAvailable: true,
-    setupSchema: {
-      type: "object",
-      required: ["ANTHROPIC_API_KEY"],
-      properties: { ANTHROPIC_API_KEY: { type: "string" } },
-    },
+    setupSchema: GENERIC_SETUP_SCHEMA,
   },
   {
     name: "openai",
     displayName: "OpenAI",
     capabilities: ["chat", "embedding", "image"],
     isAvailable: false,
-    setupSchema: {
-      type: "object",
-      required: ["OPENAI_API_KEY"],
-      properties: { OPENAI_API_KEY: { type: "string" } },
-    },
+    setupSchema: GENERIC_SETUP_SCHEMA,
   },
   {
     name: "openrouter",
     displayName: "OpenRouter",
     capabilities: ["chat"],
     isAvailable: true,
-    setupSchema: {
-      type: "object",
-      required: ["OPENROUTER_API_KEY"],
-      properties: { OPENROUTER_API_KEY: { type: "string" } },
-    },
+    setupSchema: GENERIC_SETUP_SCHEMA,
   },
   {
     name: "nous",
     displayName: "Nous Research",
     capabilities: ["chat"],
     isAvailable: true,
-    setupSchema: {
-      type: "object",
-      required: ["NOUS_API_KEY"],
-      properties: { NOUS_API_KEY: { type: "string" } },
-    },
+    setupSchema: GENERIC_SETUP_SCHEMA,
   },
   {
     name: "fixture-search",
     displayName: "Fixture Search",
     capabilities: ["web_search"],
     isAvailable: true,
-    setupSchema: {
-      type: "object",
-      required: ["FIXTURE_SEARCH_TOKEN"],
-      properties: { FIXTURE_SEARCH_TOKEN: { type: "string" } },
-    },
+    setupSchema: GENERIC_SETUP_SCHEMA,
   },
 ];

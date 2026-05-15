@@ -63,10 +63,7 @@ export function resolveBaseUrl(): string {
  *
  * @internal
  */
-export async function httpRequest<T>(
-  path: string,
-  options: HttpRequestOptions,
-): Promise<T> {
+export async function httpRequest<T>(path: string, options: HttpRequestOptions): Promise<T> {
   const url = `${resolveBaseUrl()}${path}`;
   const fetchFn = options.fetchFn ?? globalThis.fetch;
   const headers: Record<string, string> = {
@@ -74,8 +71,7 @@ export async function httpRequest<T>(
     authorization: `Bearer ${options.apiKey}`,
     ...(options.headers ?? {}),
   };
-  const body =
-    options.body !== undefined ? JSON.stringify(options.body) : undefined;
+  const body = options.body !== undefined ? JSON.stringify(options.body) : undefined;
 
   const response = await safeFetch(fetchFn, url, {
     method: options.method ?? "GET",
@@ -116,10 +112,7 @@ async function safeParseJsonResponse(response: Response): Promise<unknown> {
  *
  * @internal
  */
-export function mapHttpStatusToError(
-  status: number,
-  body: unknown,
-): TheokitAgentError {
+export function mapHttpStatusToError(status: number, body: unknown): TheokitAgentError {
   const envelope = extractErrorEnvelope(body);
   const message = envelope.message ?? `HTTP ${status}`;
   const errorOptions = {

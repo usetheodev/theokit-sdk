@@ -1,7 +1,38 @@
 import { UnsupportedRunOperationError } from "../../errors.js";
 import type { ConversationTurn } from "../../types/conversation.js";
+import type { SDKMessage } from "../../types/messages.js";
 import type { Run, RunOperation, RunResult, RunStatus } from "../../types/run.js";
 import { generateRunId } from "../ids.js";
+
+function makeStubAsyncGenerator(
+  next: () => Promise<IteratorResult<SDKMessage, void>>,
+): AsyncGenerator<SDKMessage, void> {
+  const iterator: AsyncGenerator<SDKMessage, void> = {
+    next,
+    return: () => Promise.resolve({ value: undefined, done: true }),
+    throw: (cause) => Promise.reject(cause),
+    [Symbol.asyncIterator]() {
+      return this;
+    },
+    [Symbol.asyncDispose]: () => Promise.resolve(),
+  };
+  return iterator;
+}
+
+function emptyStream(): AsyncGenerator<SDKMessage, void> {
+  return makeStubAsyncGenerator(() => Promise.resolve({ value: undefined, done: true }));
+}
+
+function unsupportedStream(): AsyncGenerator<SDKMessage, void> {
+  return makeStubAsyncGenerator(() =>
+    Promise.reject(
+      new UnsupportedRunOperationError(
+        "stream is not available on historical cloud runs",
+        "stream",
+      ),
+    ),
+  );
+}
 
 /**
  * Minimal Run skeleton used in fixture mode where the full local runtime
@@ -29,12 +60,7 @@ export function createStubRun(options: StubRunOptions): Run {
     result: options.result,
     durationMs: 0,
   };
-  const supportedOps = new Set<RunOperation>([
-    "stream",
-    "wait",
-    "cancel",
-    "conversation",
-  ]);
+  const supportedOps = new Set<RunOperation>(["stream", "wait", "cancel", "conversation"]);
 
   const listeners = new Set<(status: RunStatus) => void>();
   const handle: Run = {
@@ -42,9 +68,7 @@ export function createStubRun(options: StubRunOptions): Run {
     agentId: options.agentId,
     status: initialStatus,
     ...(options.result !== undefined ? { result: options.result } : {}),
-    async *stream(): AsyncGenerator<never, void> {
-      // No events in stub mode. Real Run streams SDKMessage events.
-    },
+    stream: () => emptyStream(),
     wait: () => Promise.resolve(finalResult),
     cancel: () => Promise.resolve(),
     conversation: () => Promise.resolve<ConversationTurn[]>([]),
@@ -77,12 +101,7 @@ export function createHistoricalCloudRun(agentId: string, runId?: string): Run {
     id,
     agentId,
     status: "finished",
-    async *stream(): AsyncGenerator<never, void> {
-      throw new UnsupportedRunOperationError(
-        "stream is not available on historical cloud runs",
-        "stream",
-      );
-    },
+    stream: () => unsupportedStream(),
     wait: () => Promise.resolve(finalResult),
     cancel: () => Promise.resolve(),
     conversation: () => Promise.resolve<ConversationTurn[]>([]),

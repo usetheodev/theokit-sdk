@@ -32,10 +32,7 @@ function memoryFilePath(cwd: string, config: MemoryConfig): string {
   return resolvePath(cwd, relativePath);
 }
 
-export async function readMemoryFacts(
-  cwd: string,
-  config: MemoryConfig,
-): Promise<MemoryFact[]> {
+export async function readMemoryFacts(cwd: string, config: MemoryConfig): Promise<MemoryFact[]> {
   if (!config.enabled) return [];
   const file = memoryFilePath(cwd, config);
   try {

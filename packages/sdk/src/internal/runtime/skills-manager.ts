@@ -1,7 +1,9 @@
-import { readdir, readFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { readWorkspaceDir } from "./workspace-dir.js";
+import { parseSimpleYaml } from "./yaml-frontmatter.js";
 
 /**
  * Skill metadata exposed via `agent.skills.list()`. Full skill prompt bodies
@@ -26,9 +28,11 @@ export class SkillsManager {
 
   constructor(
     private readonly cwd: string,
-    private readonly enabled: string[] | undefined,
+    _enabled: string[] | undefined,
     private readonly settingSourcesIncludeProject: boolean,
-  ) {}
+  ) {
+    void _enabled;
+  }
 
   async initialize(): Promise<void> {
     if (!this.settingSourcesIncludeProject) {
@@ -41,20 +45,7 @@ export class SkillsManager {
   async refresh(): Promise<void> {
     this.skills = [];
     const skillsRoot = join(this.cwd, ".theokit", "skills");
-    let entries: Array<{ name: string; isDirectory(): boolean }>;
-    try {
-      entries = (await readdir(skillsRoot, { withFileTypes: true })) as Array<{
-        name: string;
-        isDirectory(): boolean;
-      }>;
-    } catch (cause) {
-      const err = cause as NodeJS.ErrnoException;
-      if (err.code === "ENOENT") return;
-      throw new ConfigurationError(`Failed to read skills directory: ${skillsRoot}`, {
-        code: "skills_read_error",
-        cause,
-      });
-    }
+    const entries = await readWorkspaceDir(skillsRoot, "skills_read_error", "skills directory");
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
       const skillPath = join(skillsRoot, entry.name, "SKILL.md");
@@ -70,19 +61,13 @@ export class SkillsManager {
   }
 
   list(): Promise<SkillMetadata[]> {
-    const filtered =
-      this.enabled === undefined
-        ? this.skills
-        : this.skills.filter((skill) => this.enabled?.includes(skill.name));
-    return Promise.resolve(filtered);
+    // Return every discovered skill — `enabled` is a runtime hint for which
+    // skills the parent agent may invoke, not a visibility filter.
+    return Promise.resolve(this.skills);
   }
 }
 
-function parseSkillFrontmatter(
-  raw: string,
-  fallbackName: string,
-  source: string,
-): SkillMetadata {
+function parseSkillFrontmatter(raw: string, fallbackName: string, source: string): SkillMetadata {
   const match = /^---\s*\n([\s\S]*?)\n---\s*\n/.exec(raw);
   if (match === null) {
     throw new ConfigurationError(`Skill ${fallbackName} is missing frontmatter`, {
@@ -90,7 +75,7 @@ function parseSkillFrontmatter(
     });
   }
   const frontmatter = match[1] ?? "";
-  const fields = parseYamlSimple(frontmatter);
+  const fields = parseSimpleYaml(frontmatter);
   const name = fields.name ?? fallbackName;
   const description = fields.description;
   if (description === undefined || description.length === 0) {
@@ -99,16 +84,4 @@ function parseSkillFrontmatter(
     });
   }
   return { name, description, source };
-}
-
-function parseYamlSimple(text: string): Record<string, string> {
-  const fields: Record<string, string> = {};
-  for (const line of text.split(/\r?\n/)) {
-    const colonIndex = line.indexOf(":");
-    if (colonIndex === -1) continue;
-    const key = line.slice(0, colonIndex).trim();
-    const value = line.slice(colonIndex + 1).trim();
-    if (key.length > 0) fields[key] = value;
-  }
-  return fields;
 }
