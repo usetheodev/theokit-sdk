@@ -16,6 +16,7 @@ function ctx(overrides: Partial<SystemPromptContext> = {}): SystemPromptContext 
     model: { id: "test-model" },
     skills: [],
     userMessage: "hi",
+    memory: [],
     ...overrides,
   };
 }
@@ -55,6 +56,7 @@ describe("resolveSystemPrompt", () => {
       model: { id: "test-model" },
       skills: [],
       userMessage: "ping",
+      memory: [],
     });
   });
 

@@ -16,15 +16,22 @@ pnpm dev
 The example deliberately sets `ANTHROPIC_API_KEY` to a bogus value
 so the primary fails.
 
-## ⚠️ Implementation status
+## Behaviour
 
-`AgentOptions.providers.routes` and `providers.fallback` are declared
-and the provider router resolves the chain at create time. The
-**failover-on-error** behaviour — silently retrying with the next
-provider when the primary returns 4xx/5xx — is NOT yet wired in the
-real LLM runtime. Today a primary failure surfaces as `status=error`
-on the Run instead of falling through.
+The chain is wrapped in `FallbackLlmClient` when its length is > 1.
+On every `agent.send()`:
 
-Tracking: wrap `AgentLoopInputs.llm` in a chain-aware adapter that
-catches `NetworkError` and retries against the next resolved client.
+- The primary provider is tried first.
+- If its HTTP handshake throws `NetworkError` (non-2xx status), the SDK
+  logs a one-line diagnostic to stderr and retries with the next entry.
+- Once a provider has yielded its first event, failover is OFF for that
+  stream — partial output would corrupt the response.
+- An aborted signal between attempts short-circuits the chain (EC-3) —
+  the next provider is NOT called.
+- If every provider in the chain fails, the last `NetworkError` is
+  re-thrown.
+
+Set both `ANTHROPIC_API_KEY` (bogus) and `OPENROUTER_API_KEY` (valid)
+to observe the failover — the run prints `status=finished` and the
+stderr line shows which provider failed.
 

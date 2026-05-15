@@ -15,6 +15,7 @@ import type {
   LlmToolCallPart,
 } from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
+import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
 
@@ -89,6 +90,14 @@ async function runIteration(
       turn: { steps: [{ type: "assistantMessage", message: { text: llmOutput.text } }] },
     });
     ctx.finalText = llmOutput.text;
+    if (inputs.onStep !== undefined) {
+      const cb = inputs.onStep;
+      await safeCall(
+        () => cb({ step: { type: "assistantMessage", message: { text: llmOutput.text } } }),
+        undefined,
+        "SendOptions.onStep",
+      );
+    }
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     ctx.finalStatus = "finished";
@@ -97,6 +106,22 @@ async function runIteration(
   ctx.messages.push(buildAssistantTurn(llmOutput.text, llmOutput.toolCalls));
   const toolResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
   ctx.messages.push({ role: "user", content: toolResults });
+  if (inputs.onStep !== undefined) {
+    const cb = inputs.onStep;
+    for (const call of llmOutput.toolCalls) {
+      await safeCall(
+        () =>
+          cb({
+            step: {
+              type: "toolCall",
+              message: { callId: call.id, name: call.name, args: call.input },
+            },
+          }),
+        undefined,
+        "SendOptions.onStep",
+      );
+    }
+  }
   if (toolResults.some((part) => part.type === "tool_result" && part.isError === true)) {
     return "error";
   }
@@ -163,7 +188,18 @@ async function collectLlmEvents(
       finishValue = next;
       break;
     }
-    if (next.value.type === "text_delta") accumulatedText += next.value.text;
+    if (next.value.type === "text_delta") {
+      accumulatedText += next.value.text;
+      if (inputs.onDelta !== undefined) {
+        const cb = inputs.onDelta;
+        const text = next.value.text;
+        await safeCall(
+          () => cb({ update: { type: "text-delta", text } }),
+          undefined,
+          "SendOptions.onDelta",
+        );
+      }
+    }
     if (next.value.type === "error") {
       ctx.finalText = next.value.message;
       ctx.events.push(buildAssistantEvent(inputs, next.value.message));
