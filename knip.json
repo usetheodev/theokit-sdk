@@ -1,6 +1,6 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignore": ["referencia/**"],
+  "ignore": ["referencia/**", "scripts/**"],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
   "workspaces": {
     "packages/sdk": {
