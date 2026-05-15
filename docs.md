@@ -1042,7 +1042,7 @@ Property	Type	Default	Description
 model	ModelSelection	Required for local; cloud falls back to the server-resolved default	Model to use. See ModelSelection.
 apiKey	string	Theo_API_KEY env	User API key or service account key. Team Admin keys are not yet supported.
 name	string	Auto-generated	Human-readable agent name surfaced as title in Agent.list() / Agent.get().
-systemPrompt	string \| (ctx: SystemPromptContext) => string \| Promise<string>	(none)	System prompt for the agent. Either a plain string or an async resolver that receives a SystemPromptContext. Override per-call via SendOptions.systemPrompt. Subagents do NOT inherit this — they use AgentDefinition.prompt. The SDK does not impose a timeout on resolvers — wrap your own Promise.race if you call into slow resources.
+systemPrompt	string \| (ctx: SystemPromptContext) => string \| Promise<string>	(none)	System prompt for the agent. Either a plain string or an async resolver that receives a SystemPromptContext. Priority order: SendOptions.systemPrompt (per-call override) > AgentOptions.systemPrompt (resolved if function) > undefined. An empty string in either slot is honoured (explicitly clears the system context). Subagents do NOT inherit this — they use AgentDefinition.prompt. The SDK does not impose a timeout on resolvers — wrap your own Promise.race if you call into slow resources.
 local	{ cwd?: string | string[]; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
 cloud	CloudOptions		Cloud agent config.
 mcpServers	Record<string, McpServerConfig>		Inline MCP server definitions.
