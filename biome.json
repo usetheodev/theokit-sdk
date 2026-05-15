@@ -14,7 +14,9 @@
       "!**/coverage",
       "!**/.changeset",
       "!**/tests/golden/**/*.json",
-      "!referencia"
+      "!referencia",
+      "!scripts",
+      "!examples"
     ]
   },
   "formatter": {
@@ -39,6 +41,12 @@
       "correctness": {
         "noUnusedImports": "error",
         "noUnusedVariables": "warn"
+      },
+      "complexity": {
+        "noExcessiveCognitiveComplexity": {
+          "level": "error",
+          "options": { "maxAllowedComplexity": 10 }
+        }
       }
     }
   },
