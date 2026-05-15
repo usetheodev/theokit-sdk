@@ -1,6 +1,10 @@
 import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
 import { resolveApiKey } from "./internal/env.js";
-import { getConfiguredBaseUrl, isFixtureApiKey } from "./internal/fixture-mode.js";
+import {
+  getConfiguredBaseUrl,
+  isFixtureApiKey,
+  shouldUseRealLocalRuntime,
+} from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { isCloudAgentId, isLocalAgentId } from "./internal/ids.js";
 import {
@@ -192,7 +196,11 @@ async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
   if (apiKey === undefined) {
     throw new AuthenticationError("Missing API key", { code: "missing_api_key" });
   }
-  if (!isFixtureApiKey(apiKey) && getConfiguredBaseUrl() === undefined) {
+  if (
+    !isFixtureApiKey(apiKey) &&
+    getConfiguredBaseUrl() === undefined &&
+    !shouldUseRealLocalRuntime(apiKey)
+  ) {
     throw new AuthenticationError("Invalid API key", {
       code: "authentication_error",
     });

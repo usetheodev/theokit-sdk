@@ -55,6 +55,7 @@ export abstract class FixtureRunBase implements Run {
   protected readonly terminationPromise: Promise<RunResult>;
   protected resolveTermination!: (value: RunResult) => void;
   protected terminated = false;
+  private eventNotifier: { promise: Promise<void>; resolve: () => void };
 
   constructor(options: FixtureRunBaseOptions) {
     this.id = options.id;
@@ -67,15 +68,34 @@ export abstract class FixtureRunBase implements Run {
     this.terminationPromise = new Promise<RunResult>((resolve) => {
       this.resolveTermination = resolve;
     });
+    this.eventNotifier = makeNotifier();
   }
 
   abstract bootstrap(): void;
 
+  /**
+   * Subclasses driving real (non-fixture) runtimes should call this after
+   * pushing a new event into `this.script.events` so that already-awaiting
+   * consumers of `stream()` wake up and yield it.
+   */
+  protected notifyNewEvents(): void {
+    const current = this.eventNotifier;
+    this.eventNotifier = makeNotifier();
+    current.resolve();
+  }
+
   async *stream(): AsyncGenerator<SDKMessage, void> {
-    for (const event of this.script.events) {
-      yield event;
+    let index = 0;
+    while (!this.terminated) {
+      while (index < this.script.events.length) {
+        yield this.script.events[index++] as SDKMessage;
+      }
+      if (this.terminated) break;
+      await Promise.race([this.eventNotifier.promise, this.terminationPromise]);
     }
-    await this.terminationPromise;
+    while (index < this.script.events.length) {
+      yield this.script.events[index++] as SDKMessage;
+    }
   }
 
   wait(): Promise<RunResult> {
@@ -117,6 +137,7 @@ export abstract class FixtureRunBase implements Run {
       this.result = this.script.result;
     }
     this.notifyAllListeners();
+    this.eventNotifier.resolve();
     this.resolveTermination(this.buildResult(nextStatus));
   }
 
@@ -161,4 +182,12 @@ export abstract class FixtureRunBase implements Run {
       }
     }
   }
+}
+
+function makeNotifier(): { promise: Promise<void>; resolve: () => void } {
+  let resolve: () => void = () => undefined;
+  const promise = new Promise<void>((res) => {
+    resolve = res;
+  });
+  return { promise, resolve };
 }
