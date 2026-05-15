@@ -1,5 +1,11 @@
 import { ConfigurationError, UnknownAgentError } from "../../errors.js";
-import type { AgentOptions, ModelSelection, SDKAgent, SDKArtifact } from "../../types/agent.js";
+import type {
+  AgentOptions,
+  ModelSelection,
+  SDKAgent,
+  SDKArtifact,
+  SystemPromptContext,
+} from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
@@ -7,6 +13,7 @@ import { generateCloudAgentId } from "../ids.js";
 import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import { createCloudRun } from "./cloud-run.js";
 import { createRealCloudRun } from "./real-cloud-run.js";
+import { resolveSystemPromptForSend } from "./system-prompt.js";
 
 /**
  * Cloud SDKAgent implementation. Holds the cloud configuration and routes
@@ -45,12 +52,14 @@ export class CloudAgent implements SDKAgent {
     (this as Record<symbol, unknown>)[Symbol.asyncDispose] = () => this.dispose();
   }
 
-  send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
+  async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
     const overrideModel = options.model;
     if (overrideModel !== undefined) {
       this.model = overrideModel;
       updateRegisteredAgent(this.agentId, { model: overrideModel });
     }
+    const userText = typeof message === "string" ? message : message.text;
+    const systemPrompt = await this.resolveSystemPromptForSend(userText, options);
     const apiKey = resolveApiKey(this.options.apiKey);
     const useRealRuntime =
       apiKey !== undefined && !isFixtureApiKey(apiKey) && getConfiguredBaseUrl() !== undefined;
@@ -61,6 +70,7 @@ export class CloudAgent implements SDKAgent {
           message,
           agentOptions: this.options,
           sendOptions: options,
+          ...(systemPrompt !== undefined ? { systemPrompt } : {}),
         })
       : createCloudRun({
           agentId: this.agentId,
@@ -68,8 +78,27 @@ export class CloudAgent implements SDKAgent {
           message,
           agentOptions: this.options,
           sendOptions: options,
+          ...(systemPrompt !== undefined ? { systemPrompt } : {}),
         });
-    return Promise.resolve(run);
+    return run;
+  }
+
+  private resolveSystemPromptForSend(
+    userText: string,
+    options: SendOptions,
+  ): Promise<string | undefined> {
+    return resolveSystemPromptForSend(
+      this.options.systemPrompt,
+      options.systemPrompt,
+      (): Promise<SystemPromptContext> =>
+        Promise.resolve({
+          agentId: this.agentId,
+          cwd: undefined,
+          model: this.model,
+          skills: [],
+          userMessage: userText,
+        }),
+    );
   }
 
   close(): void {
