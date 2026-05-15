@@ -88,6 +88,12 @@ export interface SDKUserMessage {
  */
 export interface SendOptions {
   model?: ModelSelection;
+  /**
+   * Per-call system prompt override. Wins over `AgentOptions.systemPrompt`.
+   * String only — for dynamic resolvers, configure on `AgentOptions`. An
+   * empty string is honoured (it explicitly clears the system context).
+   */
+  systemPrompt?: string;
   /** Fully replaces creation-time servers for this run (not merged). */
   mcpServers?: Record<string, McpServerConfig>;
   onStep?: (args: { step: ConversationStep }) => void | Promise<void>;

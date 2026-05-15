@@ -95,6 +95,44 @@ export interface AgentDefinition {
 }
 
 /**
+ * Public skill metadata exposed to the system-prompt resolver. Mirrors the
+ * shape returned by `agent.skills.list()` — name + description only, never
+ * full skill bodies.
+ *
+ * @public
+ */
+export interface SystemPromptSkillRef {
+  name: string;
+  description: string;
+}
+
+/**
+ * Context passed to a {@link SystemPromptResolver}. Field order is a
+ * compatibility contract: new fields are appended, never reordered.
+ *
+ * @public
+ */
+export interface SystemPromptContext {
+  agentId: string;
+  cwd: string | undefined;
+  model: ModelSelection | undefined;
+  skills: ReadonlyArray<SystemPromptSkillRef>;
+  userMessage: string;
+}
+
+/**
+ * Resolver function that produces the system prompt dynamically. Receives
+ * the {@link SystemPromptContext} and returns a string (or a Promise of one).
+ *
+ * The SDK does NOT impose a timeout on the resolver — wrap your own
+ * `Promise.race` if you call into slow resources. Errors propagate to the
+ * caller of `agent.send()`.
+ *
+ * @public
+ */
+export type SystemPromptResolver = (ctx: SystemPromptContext) => string | Promise<string>;
+
+/**
  * Top-level options accepted by `Agent.create()`.
  *
  * Pass either `local` or `cloud` to pick a runtime.
@@ -106,6 +144,14 @@ export interface AgentOptions {
   /** Falls back to `THEOKIT_API_KEY`. */
   apiKey?: string;
   name?: string;
+  /**
+   * System prompt for the agent. Either a plain string or a resolver
+   * function that receives the {@link SystemPromptContext} and returns the
+   * prompt dynamically. Override per-call via {@link SendOptions.systemPrompt}.
+   *
+   * Subagents do NOT inherit this — they use {@link AgentDefinition.prompt}.
+   */
+  systemPrompt?: string | SystemPromptResolver;
   local?: LocalOptions;
   cloud?: CloudOptions;
   mcpServers?: Record<string, McpServerConfig>;
