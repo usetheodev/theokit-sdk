@@ -83,6 +83,7 @@ function normalizeString(value: string): string {
   normalized = normalized.replace(/\brun-[0-9a-fA-F-]{8,}\b/g, "run-<id>");
   normalized = normalized.replace(/\brequest-[0-9a-fA-F-]{8,}\b/g, "request-<id>");
   normalized = normalized.replace(/\bcall-[0-9a-fA-F-]{8,}\b/g, "call-<id>");
+  normalized = normalized.replace(/\bcron-[0-9a-fA-F-]{8,}\b/g, "cron-<id>");
   normalized = normalized.replace(/\/tmp\/[^\s"',)]+/g, "<tmp>");
   normalized = normalized.replace(/\/var\/folders\/[^\s"',)]+/g, "<tmp>");
   normalized = normalized.replace(
