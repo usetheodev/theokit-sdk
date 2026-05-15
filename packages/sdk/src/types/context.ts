@@ -50,7 +50,11 @@ export interface ContextSource {
  */
 export interface ContextBudget {
   maxTokens?: number;
-  usedTokens?: number;
+  /**
+   * Either a token count or a list of token strings extracted from source
+   * content. Normalized to `<tokens>` in golden comparisons.
+   */
+  usedTokens?: number | string[];
 }
 
 /**

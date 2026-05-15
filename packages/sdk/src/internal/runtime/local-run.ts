@@ -1,5 +1,6 @@
 import { generateRunId } from "../ids.js";
 import type {
+  AgentDefinition,
   AgentOptions,
   ModelSelection,
 } from "../../types/agent.js";
@@ -27,6 +28,8 @@ export interface CreateLocalRunOptions {
   agentOptions: AgentOptions;
   sendOptions: SendOptions;
   workspaceCwd: string;
+  subagents: Record<string, AgentDefinition>;
+  settingSourcesIncludeProject: boolean;
 }
 
 /**
@@ -54,6 +57,8 @@ export function createLocalRun(options: CreateLocalRunOptions): Run {
     agentOptions: options.agentOptions,
     sendOptions: options.sendOptions,
     workspaceCwd: options.workspaceCwd,
+    subagents: options.subagents,
+    settingSourcesIncludeProject: options.settingSourcesIncludeProject,
   });
 
   const handle = new LocalRun({

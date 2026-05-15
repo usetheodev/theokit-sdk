@@ -43,6 +43,14 @@ function normalizeObjectValue(value: object, path: string[]): Record<string, unk
   return output;
 }
 
+const TOKEN_COUNT_KEYS = new Set([
+  "usedTokens",
+  "inputTokens",
+  "outputTokens",
+  "cacheReadTokens",
+  "cacheWriteTokens",
+]);
+
 function normalizeObjectEntry(
   parent: object,
   key: string,
@@ -50,6 +58,7 @@ function normalizeObjectEntry(
   path: string[],
 ): unknown {
   if (SECRET_KEYS.test(key)) return "<secret>";
+  if (TOKEN_COUNT_KEYS.has(key)) return "<tokens>";
   const childPath = [...path, key];
   if (isToolCallPayload(parent, key, path, childPath)) return "<unknown>";
   return normalizeNode(child, childPath);
