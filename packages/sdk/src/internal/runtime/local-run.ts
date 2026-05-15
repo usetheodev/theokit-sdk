@@ -1,9 +1,5 @@
 import { generateRunId } from "../ids.js";
-import type {
-  AgentDefinition,
-  AgentOptions,
-  ModelSelection,
-} from "../../types/agent.js";
+import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { ConversationTurn } from "../../types/conversation.js";
 import type { SDKMessage } from "../../types/messages.js";
 import type {
@@ -14,7 +10,13 @@ import type {
   SDKUserMessage,
   SendOptions,
 } from "../../types/run.js";
-import { buildFixtureScript, type FixtureScript } from "./fixture-responder.js";
+import type { SessionMessage } from "./agent-session.js";
+import {
+  applyExtraRunFields,
+  buildFixtureScript,
+  type FixtureScript,
+} from "./fixture-responder.js";
+import type { MemoryFact } from "./memory-store.js";
 import { registerRun } from "./run-registry.js";
 
 /**
@@ -31,6 +33,10 @@ export interface CreateLocalRunOptions {
   workspaceCwd: string;
   subagents: Record<string, AgentDefinition>;
   settingSourcesIncludeProject: boolean;
+  memoryFacts: MemoryFact[];
+  sessionMessages: SessionMessage[];
+  projectMcpServers: Record<string, unknown>;
+  persistMemoryFact?: (fact: MemoryFact) => Promise<void>;
 }
 
 /**
@@ -60,6 +66,12 @@ export function createLocalRun(options: CreateLocalRunOptions): Run {
     workspaceCwd: options.workspaceCwd,
     subagents: options.subagents,
     settingSourcesIncludeProject: options.settingSourcesIncludeProject,
+    memoryFacts: options.memoryFacts,
+    sessionMessages: options.sessionMessages,
+    projectMcpServers: options.projectMcpServers,
+    ...(options.persistMemoryFact !== undefined
+      ? { persistMemoryFact: options.persistMemoryFact }
+      : {}),
   });
 
   const handle = new LocalRun({
@@ -116,10 +128,9 @@ class LocalRun implements Run {
 
   bootstrap(): void {
     if (this.script.cancellable) return;
-    // Use setTimeout (macrotask) so the run stays "running" through the
-    // microtask chain that resolves `await agent.send(...)`. Without this
-    // the run flips to "finished" before the consumer's first observation.
-    setTimeout(() => this.completeNaturally(), 0);
+    setTimeout(() => {
+      void this.completeNaturally();
+    }, 0);
   }
 
   async *stream(): AsyncGenerator<SDKMessage, void> {
@@ -158,8 +169,17 @@ class LocalRun implements Run {
     };
   }
 
-  private completeNaturally(): void {
+  private async completeNaturally(): Promise<void> {
     if (this.terminated) return;
+    if (this.script.beforeComplete !== undefined) {
+      try {
+        await this.script.beforeComplete();
+      } catch {
+        // Surface as error status instead of letting the run hang.
+        this.transitionTo("error");
+        return;
+      }
+    }
     this.transitionTo(this.script.finalStatus);
   }
 
@@ -169,9 +189,6 @@ class LocalRun implements Run {
     this.status = nextStatus;
     this.durationMs = Date.now() - this.startTime;
     if (nextStatus !== "cancelled" && this.script.result !== undefined) {
-      this.result = this.script.result;
-    }
-    if (nextStatus === "error" && this.script.result !== undefined) {
       this.result = this.script.result;
     }
     this.notifyListeners();
@@ -188,7 +205,7 @@ class LocalRun implements Run {
     if (status === "finished" || status === "error") {
       if (this.script.result !== undefined) final.result = this.script.result;
     }
-    return final;
+    return applyExtraRunFields(final, this.script);
   }
 
   private notifyListeners(): void {
@@ -196,7 +213,7 @@ class LocalRun implements Run {
       try {
         listener(this.status);
       } catch {
-        // Listeners are user code; never propagate.
+        // listeners are user code; never propagate
       }
     }
   }

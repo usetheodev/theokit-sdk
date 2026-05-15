@@ -1,3 +1,6 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
+
 import { UnsupportedRunOperationError } from "../../errors.js";
 import type {
   AgentDefinition,
@@ -9,9 +12,16 @@ import type {
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { generateLocalAgentId } from "../ids.js";
 import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
+import { appendSessionMessage, getSessionMessages } from "./agent-session.js";
 import { FileContextManager } from "./context-manager.js";
 import { loadProjectHooks } from "./hooks-loader.js";
 import { createLocalRun } from "./local-run.js";
+import {
+  appendMemoryFact,
+  type MemoryConfig,
+  type MemoryFact,
+  readMemoryFacts,
+} from "./memory-store.js";
 import { PluginsManager, type PluginMetadata } from "./plugins-manager.js";
 import { ProvidersManagerImpl } from "./providers-manager.js";
 import { SkillsManager, type SkillMetadata } from "./skills-manager.js";
@@ -120,7 +130,7 @@ export class LocalAgent implements SDKAgent {
     );
   }
 
-  send(
+  async send(
     message: string | SDKUserMessage,
     options: SendOptions = {},
   ): Promise<Run> {
@@ -132,6 +142,25 @@ export class LocalAgent implements SDKAgent {
       this.model = overrideModel;
       updateRegisteredAgent(this.agentId, { model: overrideModel });
     }
+
+    const memoryConfig = (this.options as { memory?: MemoryConfig }).memory;
+    const memoryFacts =
+      memoryConfig?.enabled === true
+        ? await readMemoryFacts(this.workspaceCwd, memoryConfig)
+        : [];
+    const sessionMessages = getSessionMessages(this.agentId);
+    const projectMcpServers = this.settingSourcesIncludeProject
+      ? await readProjectMcpServers(this.workspaceCwd)
+      : {};
+
+    const userText = typeof message === "string" ? message : message.text;
+    appendSessionMessage(this.agentId, { role: "user", text: userText });
+
+    const persistMemoryFact =
+      memoryConfig?.enabled === true
+        ? (fact: MemoryFact) => appendMemoryFact(this.workspaceCwd, memoryConfig, fact)
+        : undefined;
+
     const run = createLocalRun({
       agentId: this.agentId,
       model: this.model,
@@ -141,8 +170,23 @@ export class LocalAgent implements SDKAgent {
       workspaceCwd: this.workspaceCwd,
       subagents: this.resolvedSubagents,
       settingSourcesIncludeProject: this.settingSourcesIncludeProject,
+      memoryFacts,
+      sessionMessages,
+      projectMcpServers,
+      ...(persistMemoryFact !== undefined ? { persistMemoryFact } : {}),
     });
-    return Promise.resolve(run);
+
+    // Record assistant message in session for follow-up recall.
+    void run.wait().then((result) => {
+      if (result.result !== undefined) {
+        appendSessionMessage(this.agentId, {
+          role: "assistant",
+          text: result.result,
+        });
+      }
+    });
+
+    return run;
   }
 
   close(): void {
@@ -188,4 +232,15 @@ function includesSetting(options: AgentOptions, source: string): boolean {
   const sources = options.local?.settingSources;
   if (sources === undefined) return false;
   return sources.includes(source as never) || sources.includes("all" as never);
+}
+
+async function readProjectMcpServers(cwd: string): Promise<Record<string, unknown>> {
+  const path = join(cwd, ".theokit", "mcp.json");
+  try {
+    const raw = await readFile(path, "utf8");
+    const parsed = JSON.parse(raw) as { servers?: Record<string, unknown> };
+    return parsed.servers ?? {};
+  } catch {
+    return {};
+  }
 }
