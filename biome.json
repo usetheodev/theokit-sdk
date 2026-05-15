@@ -15,7 +15,8 @@
       "!**/.changeset",
       "!**/tests/golden/**/*.json",
       "!referencia",
-      "!scripts"
+      "!scripts",
+      "!examples"
     ]
   },
   "formatter": {
