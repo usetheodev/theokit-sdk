@@ -22,21 +22,17 @@ pnpm dev
 3. Lists skills via the public API (`agent.skills.list()`).
 4. Asks the LLM to list them.
 
-## ⚠️ Implementation status
+## Behaviour
 
-Skills load and the public API (`agent.skills.list()`) returns them
-correctly. The metadata is also passed into `SystemPromptContext.skills`
-so a resolver can reference them. However, skills are NOT yet
-auto-injected into the LLM's system prompt when no resolver is
-configured — today the model has no awareness of the loaded skills
-unless the caller threads them via `systemPrompt: (ctx) => ...`.
+Loaded skills are auto-injected into the LLM system prompt as a
+`<skills>` block listing each skill's `name: description` (ADR D4).
+The skill body never leaves the loader — only the frontmatter fields
+are exposed. Descriptions are XML-escaped before embedding (ADR D9).
 
-To get the agent in this example to "see" the skills today, set:
+Opt out with `skills: { autoInject: false }` when you want full control
+through a custom `systemPrompt` resolver. The resolver still receives
+the skills metadata via `ctx.skills`.
 
-```ts
-systemPrompt: (ctx) =>
-  `Available skills:\n${ctx.skills.map((s) => `- ${s.name}: ${s.description}`).join("\n")}`
-```
-
-Tracking: decide whether the agent loop should auto-prefix a skills
-section to the system prompt or leave it explicit (current state).
+> v1 limitation (EC-7): the SDK does not impose a cross-provider
+> system-prompt token budget. Keep loaded-skill counts modest. A future
+> minor release may add a pipeline-level budget allocation.

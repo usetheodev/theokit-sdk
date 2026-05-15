@@ -51,11 +51,11 @@ Plus a non-fixture SDK key (any string that does NOT start with
 | [`send-overrides`](./send-overrides) | ✅ Full | Per-call `model` / `systemPrompt` overrides on the same agent. |
 | [`subagents`](./subagents) | ✅ Full | Inline `agents` map, subagent metadata exposed to parent. |
 | [`run-lifecycle`](./run-lifecycle) | ✅ Full | `run.supports()`, `onDidChangeStatus`, `run.conversation()`. |
-| [`streaming-callbacks`](./streaming-callbacks) | ⚠️ Partial | `onStep` / `onDelta` are declared but not yet routed in the real LLM runtime. See its README. |
-| [`provider-fallback`](./provider-fallback) | ⚠️ Partial | Chain resolves at create time but failover-on-error not yet wired. See its README. |
-| [`context-manager`](./context-manager) | ⚠️ Partial | Snapshot works; LLM injection not yet wired. See its README. |
-| [`skills`](./skills) | ⚠️ Partial | `agent.skills.list()` works; auto-injection into system prompt is opt-in via resolver. See its README. |
-| [`memory`](./memory) | ⚠️ Partial | Persistence works; real-LLM recall not yet auto-injected. See its README. |
+| [`streaming-callbacks`](./streaming-callbacks) | ✅ Full | `onStep` fires per assistant turn / tool batch; `onDelta` fires per token. |
+| [`provider-fallback`](./provider-fallback) | ✅ Full | Primary handshake failure falls over to the next entry in `providers.fallback`. |
+| [`context-manager`](./context-manager) | ✅ Full | Loaded sources appear as a `<context>` block in the LLM system prompt. |
+| [`skills`](./skills) | ✅ Full | Skills list auto-injected as a `<skills>` block; opt out with `skills.autoInject: false`. |
+| [`memory`](./memory) | ✅ Full | Persisted facts auto-injected as a `<memory>` block on the next send. |
 
 ### Fixture mode (no PaaS / provider required)
 
@@ -73,11 +73,11 @@ and the same example code hits the live runtime.
 
 ## Honest coverage note
 
-The 14 examples together exercise ~85% of the public API. The 5
-"⚠️ Partial" entries flag real **runtime gaps** — features declared
-in `docs.md` and accepted by the public types, but not yet wired into
-the production LLM agent loop. Each README documents the gap and the
-workaround.
+The 14 examples together exercise ~85% of the public API. The five
+features previously flagged as "⚠️ Partial" (callbacks, fallback,
+context, skills, memory) are wired into the real LLM agent loop as of
+the runtime-gaps fix. Each example's README documents the observable
+behaviour against a real provider key.
 
 Not covered yet:
 

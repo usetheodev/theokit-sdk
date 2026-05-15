@@ -1,6 +1,7 @@
 import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
+import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { resolveProviderChain } from "../llm/router.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
@@ -28,6 +29,8 @@ export interface CreateRealLocalRunOptions {
   hooks: HooksExecutor;
   /** Pre-resolved system prompt threaded by `LocalAgent.send`. */
   systemPrompt?: string;
+  onStep?: SendOptions["onStep"];
+  onDelta?: SendOptions["onDelta"];
 }
 
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
@@ -67,17 +70,21 @@ function buildLoopInputs(
     primary,
     ...(fallback !== undefined ? { fallback } : {}),
   });
+  const llm =
+    chain.length === 1 ? (chain[0] as (typeof chain)[number]) : new FallbackLlmClient(chain);
   return {
     agentId: options.agentId,
     runId,
     model: options.model ?? { id: "claude-sonnet-4-6" },
     userMessage: userText,
-    llm: chain[0] as (typeof chain)[number],
+    llm,
     mcp: buildMcpMap(options),
     hooks: options.hooks,
     shellCwd: options.workspaceCwd,
     shellSandbox: options.agentOptions.local?.sandboxOptions?.enabled === true,
     ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
+    ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
+    ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
   };
 }
 

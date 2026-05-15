@@ -1,9 +1,8 @@
-# Memory persistence
+# Memory recall
 
-Persistent durable facts via `AgentOptions.memory`. Writes to
-`.theokit/memory/<scope>.json` under the workspace. Two separate
-agent handles share the same memory file — the second one recalls
-what the first one was asked to remember.
+Durable facts persisted under `.theokit/memory/<namespace>/<scope>-<userId>.json`
+are auto-injected into the LLM system prompt as a `<memory>` block on
+every send.
 
 ## Run
 
@@ -15,24 +14,30 @@ pnpm dev
 
 ## What it does
 
-1. Spawns Agent #1 → tells it "Remember: the magic-number for this workspace is 8675309."
-2. Disposes Agent #1 (it persists the fact to `.theokit/memory/global.json`).
-3. Spawns Agent #2 against the same workspace.
-4. Asks Agent #2 the magic-number — it recalls 8675309 from memory.
+1. Writes a fact to `.theokit/memory/demo/agent-user-1.json` directly
+   (simulates a prior session or external persistence).
+2. Creates an agent with `memory: { enabled: true, ... }` against the
+   same workspace.
+3. Asks the LLM for the persisted value — the model recalls 8675309
+   from the auto-injected `<memory>` block.
 
-## ⚠️ Implementation status
+> v1 scope: auto-persistence-on-send ("user says 'remember', SDK
+> writes the fact") is out of scope. Persist via your own code or
+> via the fixture runtime. The **recall** side is wired end-to-end
+> in the real LLM runtime.
 
-Memory write + persistence to `.theokit/memory/<scope>.json` works in
-**both** fixture and real runtime — fixture-mode contract tests prove
-the round-trip. However, in the **real LLM runtime** the persisted
-facts are NOT yet auto-injected into the second agent's LLM messages
-on send, so Agent #2 answers "undefined" today. The fixture-mode
-runtime does inject them via pattern matching, which is why contract
-tests pass.
+## Behaviour
 
-Tracking: extend `real-local-run.ts` `buildLoopInputs` to read
-`memoryFacts` and prepend them as a system context block (similar to
-the context-manager wiring).
+Recalled facts are auto-injected into the LLM system prompt as a
+`<memory>` block on every send (ADR D5). Each fact's text is
+XML-escaped before embedding (ADR D9). A corrupt memory file degrades
+to "no facts loaded" with a stderr warning rather than crashing the
+run (EC-4).
 
-Workaround today: pass memory facts manually via your own
-`systemPrompt` resolver that reads from disk.
+Opt out with `memory: { enabled: true, autoInject: false }` when you
+want full control through a custom `systemPrompt` resolver. The
+resolver still receives the recalled facts via `ctx.memory`.
+
+> v1 limitation (EC-7): the SDK does not impose a cross-provider
+> system-prompt token budget. Keep memory size modest. A future minor
+> release may add a pipeline-level budget allocation.

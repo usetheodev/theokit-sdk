@@ -92,6 +92,30 @@ export class FileContextManager implements SDKContextManager {
     budget.usedTokens = allTokens;
     return Promise.resolve({ runtime: "local", sources, budget });
   }
+
+  /**
+   * Internal-only — returns per-source token slices so the system-prompt
+   * `ContextPromptProvider` can format the `<source>` body. The public
+   * `snapshot()` flattens tokens across sources for the budget summary,
+   * which is the wrong shape for prompt assembly.
+   *
+   * @internal
+   */
+  internalAssemblySnapshot(): {
+    sources: Array<{ name: string; status: ContextSource["status"]; tokens: string[] }>;
+    maxTokens: number | undefined;
+  } {
+    const state = this.state ?? { config: { sources: [] }, loadedSources: [] };
+    const maxTokens = this.settings.maxTokens ?? state.config.maxTokens;
+    return {
+      sources: state.loadedSources.map((src) => ({
+        name: src.name,
+        status: src.status,
+        tokens: [...src.tokens],
+      })),
+      maxTokens,
+    };
+  }
 }
 
 function parseConfig(raw: string, configPath: string): FileContextConfig {

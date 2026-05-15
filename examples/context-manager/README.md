@@ -22,16 +22,16 @@ pnpm dev
 4. Prints the snapshot (source name, status, path, budget).
 5. Asks the agent a question that requires the loaded context.
 
-## ⚠️ Implementation status
+## Behaviour
 
-The context manager loads, tokenises, and exposes the snapshot
-correctly — `agent.context.snapshot()` returns the populated sources
-list and budget. However, the loaded context is NOT yet injected into
-the system prompt sent to the real LLM. Today the model answers
-without seeing the file contents.
+The loaded sources are auto-injected into the LLM system prompt as a
+`<context>...</context>` block (ADR D3). When the total token count
+exceeds `maxTokens`, each source is truncated proportionally — a
+per-source floor protects against starvation when many sources share
+a tiny budget. Source bodies are XML-escaped before embedding so a
+file containing literal `</context>` cannot break out of the block
+(ADR D9 — prompt-injection defence).
 
-Tracking: extend `AgentLoopInputs.systemPrompt` builder to append a
-context block (token-budgeted) for resolvers that opt in, OR have a
-separate `contextPreamble` field that the agent loop concatenates
-before user messages.
+The model answers the question against the loaded facts. Source
+ordering preserves `.theokit/context.json` declaration order.
 

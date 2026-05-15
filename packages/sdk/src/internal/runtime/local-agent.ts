@@ -30,6 +30,9 @@ import { ProvidersManagerImpl } from "./providers-manager.js";
 import { createRealLocalRun } from "./real-local-run.js";
 import { type SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
+import { SystemPromptPipeline } from "./system-prompt/pipeline.js";
+import { safeCall } from "./system-prompt/safe-call.js";
+import type { SystemPromptAssemblyContext } from "./system-prompt/types.js";
 import { resolveSystemPromptForSend } from "./system-prompt.js";
 
 /**
@@ -56,6 +59,7 @@ export class LocalAgent implements SDKAgent {
   private readonly skillsManager: SkillsManager | undefined;
   private readonly pluginsManager: PluginsManager | undefined;
   private readonly hooksExecutor: HooksExecutor;
+  private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
 
   constructor(options: AgentOptions) {
     this.agentId = options.agentId ?? generateLocalAgentId();
@@ -79,7 +83,7 @@ export class LocalAgent implements SDKAgent {
       this.providers = new ProvidersManagerImpl(options.model, options.providers, options.plugins);
     }
 
-    const skillsConfig = (options as { skills?: { enabled?: string[] } }).skills;
+    const skillsConfig = options.skills;
     if (skillsConfig !== undefined || this.settingSourcesIncludeProject) {
       this.skillsManager = new SkillsManager(
         this.workspaceCwd,
@@ -149,34 +153,77 @@ export class LocalAgent implements SDKAgent {
     await this.runPreHook(userText);
     appendSessionMessage(this.agentId, { role: "user", text: userText });
 
-    const resolvedSystemPrompt = await this.resolveSystemPromptForSend(userText, options);
-    const run = await this.dispatchRun(message, options, resolvedSystemPrompt);
+    const memoryFacts = await this.readMemoryForSend();
+    const baseSystemPrompt = await this.resolveSystemPromptForSend(userText, options, memoryFacts);
+    const assembledSystemPrompt = await this.assembleSystemPromptForSend(
+      userText,
+      baseSystemPrompt,
+      memoryFacts,
+    );
+    const run = await this.dispatchRun(message, options, assembledSystemPrompt, memoryFacts);
     this.attachPostRunHook(run);
     return run;
+  }
+
+  private readMemoryForSend(): Promise<MemoryFact[]> {
+    const memoryConfig = this.options.memory;
+    if (memoryConfig?.enabled !== true) return Promise.resolve([]);
+    // Wrap in safeCall so a corrupt memory file degrades to "no facts" instead
+    // of crashing the run (edge-case review EC-4).
+    return safeCall(() => readMemoryFacts(this.workspaceCwd, memoryConfig), [], "memory read");
+  }
+
+  private async assembleSystemPromptForSend(
+    userText: string,
+    baseSystemPrompt: string | undefined,
+    memoryFacts: ReadonlyArray<MemoryFact>,
+  ): Promise<string | undefined> {
+    const assemblyCtx = await this.buildAssemblyContext(userText, baseSystemPrompt, memoryFacts);
+    return this.systemPromptPipeline.assemble(assemblyCtx);
+  }
+
+  private async buildAssemblyContext(
+    userText: string,
+    baseSystemPrompt: string | undefined,
+    memoryFacts: ReadonlyArray<MemoryFact>,
+  ): Promise<SystemPromptAssemblyContext> {
+    const baseCtx = await this.buildSystemPromptContext(userText, memoryFacts);
+    const assemblyCtx: SystemPromptAssemblyContext = {
+      ...baseCtx,
+      skillsAutoInject: this.options.skills?.autoInject ?? true,
+      memoryAutoInject: this.options.memory?.autoInject ?? true,
+    };
+    if (baseSystemPrompt !== undefined) assemblyCtx.baseSystemPrompt = baseSystemPrompt;
+    if (this.context !== undefined) {
+      const internal = this.context.internalAssemblySnapshot();
+      assemblyCtx.contextSnapshot = { sources: internal.sources };
+      if (internal.maxTokens !== undefined) assemblyCtx.contextMaxTokens = internal.maxTokens;
+    }
+    return assemblyCtx;
   }
 
   private resolveSystemPromptForSend(
     userText: string,
     options: SendOptions,
+    memoryFacts: ReadonlyArray<MemoryFact>,
   ): Promise<string | undefined> {
     return resolveSystemPromptForSend(this.options.systemPrompt, options.systemPrompt, () =>
-      this.buildSystemPromptContext(userText),
+      this.buildSystemPromptContext(userText, memoryFacts),
     );
   }
 
-  private async buildSystemPromptContext(userText: string): Promise<SystemPromptContext> {
-    // Lazy: only call skillsManager.list() when a resolver is registered.
-    const agentSetting = this.options.systemPrompt;
-    const skills =
-      typeof agentSetting === "function" && this.skillsManager !== undefined
-        ? await this.skillsManager.list()
-        : [];
+  private async buildSystemPromptContext(
+    userText: string,
+    memoryFacts: ReadonlyArray<MemoryFact>,
+  ): Promise<SystemPromptContext> {
+    const skills = this.skillsManager !== undefined ? await this.skillsManager.list() : [];
     return {
       agentId: this.agentId,
       cwd: this.workspaceCwd,
       model: this.model,
       skills: skills.map((skill) => ({ name: skill.name, description: skill.description })),
       userMessage: userText,
+      memory: memoryFacts.map((fact) => ({ text: fact.text })),
     };
   }
 
@@ -204,6 +251,7 @@ export class LocalAgent implements SDKAgent {
     message: string | SDKUserMessage,
     options: SendOptions,
     systemPrompt: string | undefined,
+    memoryFacts: ReadonlyArray<MemoryFact>,
   ): Promise<Run> {
     const apiKey = resolveApiKey(this.options.apiKey);
     if (shouldUseRealLocalRuntime(apiKey)) {
@@ -216,19 +264,20 @@ export class LocalAgent implements SDKAgent {
         workspaceCwd: this.workspaceCwd,
         hooks: this.hooksExecutor,
         ...(systemPrompt !== undefined ? { systemPrompt } : {}),
+        ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
+        ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
       });
     }
-    return this.createFixtureRun(message, options, systemPrompt);
+    return this.createFixtureRun(message, options, systemPrompt, memoryFacts);
   }
 
   private async createFixtureRun(
     message: string | SDKUserMessage,
     options: SendOptions,
     systemPrompt: string | undefined,
+    memoryFacts: ReadonlyArray<MemoryFact>,
   ): Promise<Run> {
-    const memoryConfig = (this.options as { memory?: MemoryConfig }).memory;
-    const memoryFacts =
-      memoryConfig?.enabled === true ? await readMemoryFacts(this.workspaceCwd, memoryConfig) : [];
+    const memoryConfig = this.options.memory as MemoryConfig | undefined;
     const sessionMessages = getSessionMessages(this.agentId);
     const projectMcpServers = this.settingSourcesIncludeProject
       ? await readProjectMcpServers(this.workspaceCwd)
@@ -246,7 +295,7 @@ export class LocalAgent implements SDKAgent {
       workspaceCwd: this.workspaceCwd,
       subagents: this.resolvedSubagents,
       settingSourcesIncludeProject: this.settingSourcesIncludeProject,
-      memoryFacts,
+      memoryFacts: [...memoryFacts],
       sessionMessages,
       projectMcpServers,
       ...(persistMemoryFact !== undefined ? { persistMemoryFact } : {}),

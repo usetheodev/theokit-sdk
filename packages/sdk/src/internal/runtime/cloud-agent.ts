@@ -97,6 +97,7 @@ export class CloudAgent implements SDKAgent {
           model: this.model,
           skills: [],
           userMessage: userText,
+          memory: [],
         }),
     );
   }
