@@ -1,7 +1,9 @@
 import { ConfigurationError, UnknownAgentError } from "./errors.js";
+import { runCronJob } from "./internal/cron/run-job.js";
 import {
   getSchedulerState,
   scheduleJob,
+  setCronFireHandler,
   startScheduler,
   stopScheduler,
   unscheduleJob,
@@ -14,7 +16,6 @@ import {
 } from "./internal/cron/validate.js";
 import { resolveApiKey } from "./internal/env.js";
 import { generateCronId } from "./internal/ids.js";
-import { createStubRun } from "./internal/runtime/stub-run.js";
 import type { AgentOptions, ListResult } from "./types/agent.js";
 import type {
   CronCreateOptions,
@@ -117,8 +118,7 @@ export class Cron {
     if (job === undefined) {
       throw new UnknownAgentError(`Cron job ${jobId} not found`, { code: "unknown_cron_job" });
     }
-    const agentId = resolveAgentIdFromJob(job);
-    return createStubRun({ agentId, status: "running" });
+    return runCronJob(job);
   }
 
   /**
@@ -127,6 +127,12 @@ export class Cron {
    * @public
    */
   static start(options: CronStartOptions = {}): Promise<void> {
+    // Install the default fire handler so timer ticks actually drive a
+    // real agent run. Users can override via `setCronFireHandler` from
+    // `@usetheo/sdk/internal` (test-mode hook).
+    setCronFireHandler(async (job) => {
+      await runCronJob(job).then((run) => run.wait());
+    });
     startScheduler(options.cwd);
     return Promise.resolve();
   }
@@ -222,7 +228,3 @@ async function updateJobStatus(jobId: string, enabled: boolean): Promise<CronJob
   return updated;
 }
 
-function resolveAgentIdFromJob(job: CronJob): string {
-  if (job.agentId !== undefined) return job.agentId;
-  return job.runtime === "cloud" ? "bc-pending" : "agent-pending";
-}
