@@ -20,7 +20,7 @@ describe("golden file hygiene", () => {
 
       expect(raw.trim(), relativePath).not.toBe("");
       expect(serialized, relativePath).not.toMatch(
-        /\b(?:agent|bc|run|request|call)-[0-9a-fA-F-]{8,}\b/,
+        /\b(?:agent|bc|run|request|call|cron)-[0-9a-fA-F-]{8,}\b/,
       );
       expect(serialized, relativePath).not.toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
       expect(serialized, relativePath).not.toMatch(/\/tmp\/|\/var\/folders\/|[A-Z]:\\\\/);
