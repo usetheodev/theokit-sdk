@@ -64,11 +64,14 @@ async function dispatchSingleCall(
         exitCode: 126,
       }),
     );
+    // Surface the denial as a regular tool_result so the model can react
+    // (explain to the user, try a different command, etc.). Marking it
+    // `isError` would short-circuit the agent loop, which is too harsh —
+    // a policy denial is expected behaviour, not a runtime failure.
     return {
       type: "tool_result",
       toolUseId: call.id,
-      content: `Hook denied: ${preDecision.reason ?? "no reason given"}`,
-      isError: true,
+      content: `Hook denied this tool call: ${preDecision.reason ?? "no reason given"}`,
     };
   }
   const result = await executeTool(inputs, resolved, call);
