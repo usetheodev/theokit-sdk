@@ -2,7 +2,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
-
+PITCH.md
 # Logs
 *.log
 npm-debug.log*
