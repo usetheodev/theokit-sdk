@@ -40,7 +40,7 @@ async function main(): Promise<void> {
   console.log(`Agent: ${agent.agentId}`);
 
   const run = await agent.send(
-    "Use the `mcp_demo-time_time.now` tool with offsetHours=0 to get the current time. Then report it in plain English (e.g., 'It is currently 2026-...').",
+    "Use the `mcp_demo-time_time_now` tool with offsetHours=0 to get the current time. Then report it in plain English (e.g., 'It is currently 2026-...').",
   );
 
   for await (const event of run.stream()) {
