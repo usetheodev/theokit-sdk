@@ -13,26 +13,26 @@
     Same agent surface, local or cloud. No vendor lock-in.
   </p>
   <p align="center">
-    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-MIT-blue?style=flat-square"></a>
+    <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
     <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white">
     <img alt="Node" src="https://img.shields.io/badge/node-22.12%2B-339933?style=flat-square&logo=node.js&logoColor=white">
-    <img alt="Status" src="https://img.shields.io/badge/status-public%20beta-orange?style=flat-square">
+    <img alt="Status" src="https://img.shields.io/badge/status-production-success?style=flat-square">
   </p>
 </p>
 
 ---
 
-> **Public beta.** APIs may change before general availability.
+The `@usetheo/sdk` package lets you call the Theo agent from your own TypeScript code. One interface, two runtimes: run inline against your local working tree, or against a cloud-hosted VM on Theo PaaS.
 
-The `@usetheo/sdk` package lets you call the Theo agent from your own TypeScript code. One interface, two runtimes: run inline against your local working tree, or against a cloud-hosted VM (pre-release).
+It is a **community auxiliary** of the [usetheo](https://usetheo.dev) ecosystem — inspired by the Claude SDK, Cursor SDK, and Pi. Useful when you want to embed agent capabilities in your own product. Not part of the main funnel (TheoCode → TheoCreate or TheoKit → Theo PaaS) — but composes cleanly with it.
 
 ## Overview
 
 | Runtime | What it does | When to use |
 | --- | --- | --- |
 | **Local** | Runs the agent inline in your Node process. Files come from disk. | Dev scripts and CI checks against a working tree. |
-| **Cloud (Theo-hosted)** | Runs in an isolated VM with your repo cloned in. | When the caller doesn't have the repo, you want many agents in parallel, or runs need to survive the caller disconnecting. *Pre-release.* |
-| **Cloud (self-hosted)** | Same shape, but you run the VMs via a self-hosted pool. | Same reasons as Theo-hosted, plus code, secrets, and build artifacts must stay in your environment. *Pre-release.* |
+| **Cloud (Theo-hosted)** | Runs in an isolated VM with your repo cloned in. | When the caller doesn't have the repo, you want many agents in parallel, or runs need to survive the caller disconnecting. |
+| **Cloud (self-hosted)** | Same shape, but you run the VMs via a self-hosted pool. | Same reasons as Theo-hosted, plus code, secrets, and build artifacts must stay in your environment. |
 
 Runtime is picked by which key you pass to `Agent.create()` (`local` or `cloud`). Same `THEOKIT_API_KEY` for either.
 
@@ -42,13 +42,13 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 
 | Layer | `@usetheo/sdk` | Closed-runtime alternatives |
 | --- | --- | --- |
-| SDK source | MIT, this repo | Often OSS — table stakes |
-| Local agent harness | **MIT** via [`pi/`](./pi) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
+| SDK source | Apache-2.0, this repo | Often OSS — table stakes |
+| Local agent harness | **Apache-2.0** via [`pi/`](./pi) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
 | LLM provider | Multi-provider via `pi-ai` (Anthropic, OpenAI, Google, …) | Usually single-vendor |
-| Cloud runtime | Opt-in Theo PaaS *(pre-release)* or self-host the pool | Vendor cloud only |
+| Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork `pi/`, keep running with your own provider keys | High — runtime is the vendor's |
 
-The "open stack for AI agents" line is load-bearing: you can run an agent fully locally against your own provider keys and never call our backend. The managed cloud runtime is a deploy convenience, not a dependency.
+The "open stack underneath" line is load-bearing: you can run an agent fully locally against your own provider keys and never call our backend. The managed cloud runtime (Theo PaaS) is a deploy convenience, not a dependency.
 
 ## Installation
 
@@ -601,4 +601,10 @@ Reference projects under `referencia/` (notably `pi/` and `openai-agents-python/
 
 ## License
 
-MIT
+Apache-2.0 — see [LICENSE](LICENSE).
+
+## Community
+
+- Discord: https://discord.usetheo.dev/
+- X: https://x.com/usetheodev
+- LinkedIn: https://linkedin.com/company/usetheodev

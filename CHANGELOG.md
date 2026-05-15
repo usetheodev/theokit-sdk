@@ -14,4 +14,5 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `docs/` folder with human-friendly documentation: getting-started, concepts, guides (cron, MCP, subagents, hooks, errors, resource management), reference, and development guide for contributors (initial scaffold).
 
 ### Changed
+- License standardized to **Apache-2.0** (was MIT). Aligns all usetheo open-core pillars under a single license — see root `CLAUDE.md` strategic review of 2026-05-14.
 - `pi/` and `cookbook/` moved under `referencia/` as read-only reference material; `pnpm-workspace.yaml` and `biome.json` updated to exclude `referencia/**` from workspace and lint targets.

@@ -1,0 +1,18 @@
+{
+  "threshold": 5,
+  "minTokens": 50,
+  "minLines": 5,
+  "reporters": ["console"],
+  "format": ["typescript", "javascript"],
+  "ignore": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/referencia/**",
+    "**/tests/golden/**",
+    "**/tests/fixtures/**",
+    "**/coverage/**"
+  ],
+  "absolute": true,
+  "gitignore": true,
+  "exitCode": 1
+}
