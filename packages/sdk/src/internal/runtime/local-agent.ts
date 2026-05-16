@@ -127,8 +127,6 @@ export class LocalAgent implements SDKAgent {
       cwd: this.workspaceCwd,
       status: "finished",
     });
-
-    (this as Record<symbol, unknown>)[Symbol.asyncDispose] = () => this.dispose();
   }
 
   async initialize(): Promise<void> {
@@ -401,6 +399,10 @@ export class LocalAgent implements SDKAgent {
   dispose(): Promise<void> {
     this.disposed = true;
     return Promise.resolve();
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.dispose();
   }
 
   listArtifacts(): Promise<SDKArtifact[]> {

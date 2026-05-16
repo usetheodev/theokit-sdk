@@ -2,8 +2,8 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { parseSkillFrontmatter } from "./skill-frontmatter.js";
 import { readWorkspaceDir } from "./workspace-dir.js";
-import { parseSimpleYaml } from "./yaml-frontmatter.js";
 
 /**
  * Skill metadata exposed via `agent.skills.list()`. Full skill prompt bodies
@@ -15,11 +15,17 @@ export interface SkillMetadata {
   name: string;
   description: string;
   source: string;
+  category?: string;
+  dependencies?: string[];
 }
 
 /**
  * File-based skills loader. Discovers `.theokit/skills/<name>/SKILL.md`
  * frontmatter when `local.settingSources` includes `"project"`.
+ *
+ * Per ADR D10 + EC-5: malformed YAML or missing required frontmatter fields
+ * exclude the skill from `list()` and emit a stderr warning. The agent run
+ * continues without the broken skill.
  *
  * @internal
  */
@@ -55,8 +61,8 @@ export class SkillsManager {
       } catch {
         continue;
       }
-      const metadata = parseSkillFrontmatter(raw, entry.name, skillPath);
-      this.skills.push(metadata);
+      const metadata = tryParseSkill(raw, entry.name, skillPath);
+      if (metadata !== undefined) this.skills.push(metadata);
     }
   }
 
@@ -67,21 +73,29 @@ export class SkillsManager {
   }
 }
 
-function parseSkillFrontmatter(raw: string, fallbackName: string, source: string): SkillMetadata {
-  const match = /^---\s*\n([\s\S]*?)\n---\s*\n/.exec(raw);
-  if (match === null) {
-    throw new ConfigurationError(`Skill ${fallbackName} is missing frontmatter`, {
-      code: "skill_missing_frontmatter",
-    });
+function tryParseSkill(
+  raw: string,
+  fallbackName: string,
+  source: string,
+): SkillMetadata | undefined {
+  try {
+    const frontmatter = parseSkillFrontmatter(raw, fallbackName);
+    const metadata: SkillMetadata = {
+      name: frontmatter.name,
+      description: frontmatter.description,
+      source,
+    };
+    if (frontmatter.category !== undefined) metadata.category = frontmatter.category;
+    if (frontmatter.dependencies !== undefined) metadata.dependencies = frontmatter.dependencies;
+    return metadata;
+  } catch (cause) {
+    if (cause instanceof ConfigurationError) {
+      const code = cause.code ?? "unknown";
+      process.stderr.write(
+        `[theokit-sdk] skill ${fallbackName} skipped (${code}): ${cause.message}\n`,
+      );
+      return undefined;
+    }
+    throw cause;
   }
-  const frontmatter = match[1] ?? "";
-  const fields = parseSimpleYaml(frontmatter);
-  const name = fields.name ?? fallbackName;
-  const description = fields.description;
-  if (description === undefined || description.length === 0) {
-    throw new ConfigurationError(`Skill ${name} is missing required field: description`, {
-      code: "skill_missing_description",
-    });
-  }
-  return { name, description, source };
 }

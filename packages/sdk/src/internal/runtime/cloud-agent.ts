@@ -27,6 +27,8 @@ export class CloudAgent implements SDKAgent {
   readonly agentId: string;
   model: ModelSelection | undefined;
   private readonly options: AgentOptions;
+  /** Idempotency guard for dispose() (EC-3). */
+  private disposed = false;
 
   constructor(options: AgentOptions, providedAgentId?: string) {
     this.agentId = providedAgentId ?? options.agentId ?? generateCloudAgentId();
@@ -47,8 +49,6 @@ export class CloudAgent implements SDKAgent {
       repos: repoUrls,
       status: "running",
     });
-
-    (this as Record<symbol, unknown>)[Symbol.asyncDispose] = () => this.dispose();
   }
 
   /**
@@ -120,7 +120,15 @@ export class CloudAgent implements SDKAgent {
   }
 
   dispose(): Promise<void> {
+    // EC-3: idempotent. `await using` may dispatch dispose twice (the using
+    // exit hook + explicit `await agent.dispose()`); second call is a no-op.
+    if (this.disposed) return Promise.resolve();
+    this.disposed = true;
     return Promise.resolve();
+  }
+
+  [Symbol.asyncDispose](): Promise<void> {
+    return this.dispose();
   }
 
   listArtifacts(): Promise<SDKArtifact[]> {
