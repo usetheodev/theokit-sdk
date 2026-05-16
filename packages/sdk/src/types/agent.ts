@@ -186,6 +186,35 @@ export interface MemorySettings {
    * LLM system prompt. Default `true`.
    */
   autoInject?: boolean;
+  /**
+   * Index + tools configuration (memory-system-openclaw-parity).
+   *
+   * When `tools !== false`, the SDK registers `memory_search` and
+   * `memory_get` with the LLM. Backed by SQLite + FTS5 (and sqlite-vec
+   * when an embedding provider is configured).
+   */
+  index?: {
+    /** Whether to register `memory_search` + `memory_get` tools. Default `true`. */
+    tools?: boolean;
+    /** Vector index backend. Default and only supported value: `"sqlite-vec"`. */
+    backend?: "sqlite-vec";
+    /** Embedding provider config. When omitted, the index runs in FTS-only mode. */
+    embedding?: {
+      provider: "openai" | "mistral" | "openrouter";
+      model?: string;
+    };
+  };
+  /**
+   * Active Memory blocking recall (Phase 7). When `enabled: true`, runs
+   * before each `send()` and prepends an `<active-memory>` block.
+   */
+  activeRecall?: {
+    enabled?: boolean;
+    queryMode?: "message" | "recent" | "full";
+    timeoutMs?: number;
+    maxSummaryChars?: number;
+    persistTranscripts?: boolean;
+  };
 }
 
 /**

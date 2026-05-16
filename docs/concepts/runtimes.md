@@ -16,14 +16,14 @@ The runtime is picked by which key you pass to `Agent.create()`:
 // Local
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   local: { cwd: "/path/to/repo" },
 });
 
 // Cloud
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   cloud: {
     repos: [{ url: "https://github.com/your-org/your-repo", startingRef: "main" }],
     autoCreatePR: true,

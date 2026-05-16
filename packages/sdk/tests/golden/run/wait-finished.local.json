@@ -3,7 +3,7 @@
   "status": "finished",
   "result": "The answer is 42.",
   "model": {
-    "id": "composer-2"
+    "id": "google/gemini-2.0-flash-exp:free"
   },
   "durationMs": "<duration-ms>"
 }

@@ -33,7 +33,7 @@ describe("real hook execution", () => {
 
     const agent = await Agent.create({
       apiKey: "theo_test_hooks",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd, settingSources: ["project"] },
     });
     const run = await agent.send("Trigger hook");
@@ -61,7 +61,7 @@ describe("real hook execution", () => {
 
     const agent = await Agent.create({
       apiKey: "theo_test_hooks",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd, settingSources: ["project"] },
     });
     await expect(agent.send("Trigger hook")).rejects.toMatchObject({

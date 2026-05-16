@@ -1,6 +1,7 @@
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { SessionMessage } from "./agent-session.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "./default-model.js";
 import { buildFixtureScript } from "./fixture-responder.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { MemoryFact } from "./memory-store.js";
@@ -43,7 +44,7 @@ export function createLocalRun(options: CreateLocalRunOptions): Run {
   const script = buildFixtureScript({
     agentId: options.agentId,
     runId: id,
-    model: options.model ?? { id: "composer-2" },
+    model: options.model ?? { id: DEFAULT_AGENTIC_MODEL_ID },
     userMessage: userText,
     runtime: "local",
     agentOptions: options.agentOptions,

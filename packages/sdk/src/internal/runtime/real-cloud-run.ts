@@ -44,7 +44,9 @@ export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
     "downloadArtifact",
   ]);
 
-  const placeholderScript: FixtureScript = {
+  // FixtureScript shape required by the base Run class but never consumed
+  // by the real cloud run path (the cloud transport drives events instead).
+  const unusedFixtureScript: FixtureScript = {
     events: [],
     finalStatus: "running",
     cancellable: false,
@@ -58,7 +60,7 @@ export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
       id,
       agentId: options.agentId,
       model: options.model,
-      script: placeholderScript,
+      script: unusedFixtureScript,
       supportedOps: supported,
       startTime,
     },

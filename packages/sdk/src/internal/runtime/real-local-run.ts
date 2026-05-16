@@ -1,9 +1,11 @@
 import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
+import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { resolveProviderChain } from "../llm/router.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
+import type { SessionMessage } from "./agent-session.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { FixtureScript } from "./fixture-types.js";
 import type { HooksExecutor } from "./hooks-executor.js";
@@ -31,12 +33,19 @@ export interface CreateRealLocalRunOptions {
   systemPrompt?: string;
   onStep?: SendOptions["onStep"];
   onDelta?: SendOptions["onDelta"];
+  /** Prior conversation history (excluding the current user message). */
+  priorMessages?: ReadonlyArray<SessionMessage>;
+  /** Memory tools to register with the LLM (Phase 6 of memory-system-openclaw-parity). */
+  memoryTools?: ReadonlyArray<MemoryToolSpec>;
 }
 
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   const { userText, id, startTime } = prepareRunContext(options.message);
   const supported = new Set<RunOperation>(["stream", "wait", "cancel", "conversation"]);
-  const placeholderScript: FixtureScript = {
+  // The base Run class accepts a FixtureScript for shape; the real LLM
+  // run never consumes it because `buildLoopInputs` drives the real agent
+  // loop instead of replaying events. Empty script keeps the type honest.
+  const unusedFixtureScript: FixtureScript = {
     events: [],
     finalStatus: "running",
     cancellable: false,
@@ -48,7 +57,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
       id,
       agentId: options.agentId,
       model: options.model,
-      script: placeholderScript,
+      script: unusedFixtureScript,
       supportedOps: supported,
       startTime,
     },
@@ -85,6 +94,10 @@ function buildLoopInputs(
     ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
     ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
     ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
+    ...(options.priorMessages !== undefined ? { priorMessages: options.priorMessages } : {}),
+    ...(options.memoryTools !== undefined && options.memoryTools.length > 0
+      ? { memoryTools: options.memoryTools }
+      : {}),
   };
 }
 

@@ -65,9 +65,17 @@
     "clean": "rm -rf dist"
   },
   "peerDependencies": {
+    "better-sqlite3": "^12.0.0",
+    "sqlite-vec": "^0.1.0",
     "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "sqlite-vec": {
+      "optional": true
+    },
     "zod": {
       "optional": true
     }
@@ -93,5 +101,10 @@
   ],
   "dependencies": {
     "croner": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.10.0",
+    "sqlite-vec": "^0.1.9"
   }
 }

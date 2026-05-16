@@ -60,6 +60,15 @@ interface LoopContext {
 
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
   const tools = await collectTools(inputs.mcp);
+  for (const memTool of inputs.memoryTools ?? []) {
+    tools.push({
+      name: memTool.name,
+      description: memTool.description,
+      inputSchema: memTool.inputSchema,
+      origin: "memory",
+      memoryHandler: memTool.execute,
+    });
+  }
   const events: SDKMessage[] = [
     buildSystemEvent(
       inputs,
@@ -67,10 +76,17 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
     ),
     buildUserEvent(inputs),
   ];
+  const priorMessages: LlmMessage[] = (inputs.priorMessages ?? []).map((msg) => ({
+    role: msg.role,
+    content: [{ type: "text", text: msg.text }],
+  }));
   return {
     events,
     conversation: [],
-    messages: [{ role: "user", content: [{ type: "text", text: inputs.userMessage }] }],
+    messages: [
+      ...priorMessages,
+      { role: "user", content: [{ type: "text", text: inputs.userMessage }] },
+    ],
     tools,
     finalText: "",
     finalStatus: "finished",

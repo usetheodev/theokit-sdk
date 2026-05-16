@@ -21,7 +21,7 @@ describe("stream event golden contracts", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send(
@@ -57,7 +57,7 @@ describe("stream event golden contracts", () => {
   it("matches normalized cloud status lifecycle golden", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       cloud: {
         repos: [{ url: "https://github.com/usetheo/example", startingRef: "main" }],
         autoCreatePR: true,

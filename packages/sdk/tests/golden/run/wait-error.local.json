@@ -3,7 +3,7 @@
   "status": "error",
   "result": "Command failed",
   "model": {
-    "id": "composer-2"
+    "id": "google/gemini-2.0-flash-exp:free"
   },
   "durationMs": "<duration-ms>"
 }

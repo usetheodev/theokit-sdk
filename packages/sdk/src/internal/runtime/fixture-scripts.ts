@@ -26,9 +26,9 @@ import type { FixtureRequest, FixtureScript } from "./fixture-types.js";
 // Memory: detect Remember/recall patterns
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function isMemoryWritePrompt(message: string): boolean {
-  return /^\s*Remember[\s:]/i.test(message) || message.includes("Remember this durable");
-}
+import { extractMemoryFact } from "./memory-store.js";
+
+export { extractMemoryFact, isMemoryWritePrompt } from "./memory-store.js";
 
 export function isMemoryRecallPrompt(message: string, request: FixtureRequest): boolean {
   if (request.memoryFacts.length === 0 && request.sessionMessages.length === 0) return false;
@@ -42,7 +42,7 @@ export function isMemoryRecallPrompt(message: string, request: FixtureRequest): 
 }
 
 export function memoryWriteScript(request: FixtureRequest): FixtureScript {
-  const fact = extractFact(request.userMessage);
+  const fact = extractMemoryFactOrMessage(request.userMessage);
   return {
     events: [
       systemEvent(request, defaultLocalTools(request)),
@@ -80,10 +80,15 @@ export function memoryRecallScript(request: FixtureRequest): FixtureScript {
   };
 }
 
-function extractFact(message: string): string {
-  const match = /Remember(?:\s+this\s+durable\s+preference)?\s*[:]\s*(.+)$/i.exec(message);
-  if (match === null || match[1] === undefined) return message;
-  return match[1].trim().replace(/\.$/, "");
+/**
+ * Fixture-script-only wrapper: the shared {@link extractMemoryFact} returns
+ * `""` on no match, but the fixture's pre-existing semantics returned the
+ * full message. Preserve that behaviour for the fixture path so existing
+ * fixture contract tests stay green.
+ */
+function extractMemoryFactOrMessage(message: string): string {
+  const fact = extractMemoryFact(message);
+  return fact.length > 0 ? fact : message;
 }
 
 function recallFromHaystack(question: string, haystack: string[]): string | undefined {

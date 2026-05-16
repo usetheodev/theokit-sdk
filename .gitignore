@@ -38,3 +38,12 @@ Thumbs.db
 
 # Tsup
 .tsup/
+
+# Study material (cloned for reference, not tracked as gitlinks)
+referencia/openclaw/
+
+# Third-party benchmark tool — not SDK code
+docs/evalscope/
+
+# Ralph loop local state
+.claude/ralph-loop.local.md

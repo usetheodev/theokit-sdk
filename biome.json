@@ -16,7 +16,8 @@
       "!**/tests/golden/**/*.json",
       "!referencia",
       "!scripts",
-      "!examples"
+      "!examples",
+      "!docs"
     ]
   },
   "formatter": {

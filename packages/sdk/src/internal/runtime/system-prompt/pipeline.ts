@@ -1,4 +1,5 @@
 import { ConfigurationError } from "../../../errors.js";
+import { ActiveMemoryPromptProvider } from "./providers/active-memory-provider.js";
 import { BasePromptProvider } from "./providers/base-provider.js";
 import { ContextPromptProvider } from "./providers/context-provider.js";
 import { MemoryPromptProvider } from "./providers/memory-provider.js";
@@ -61,6 +62,7 @@ export class SystemPromptPipeline {
    */
   static default(): SystemPromptPipeline {
     return new SystemPromptPipeline([
+      new ActiveMemoryPromptProvider(),
       new ContextPromptProvider(),
       new SkillsPromptProvider(),
       new MemoryPromptProvider(),
