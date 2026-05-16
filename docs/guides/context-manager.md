@@ -9,7 +9,7 @@ Local agents read `.theokit/context.json` from the workspace when `local.setting
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
   context: {
     manager: "file",

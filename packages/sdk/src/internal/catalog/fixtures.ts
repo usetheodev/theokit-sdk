@@ -26,8 +26,8 @@ export const FIXTURE_USER: SDKUser = {
 export const FIXTURE_MODELS: SDKModel[] = [
   {
     id: DEFAULT_AGENTIC_MODEL_ID,
-    name: "Gemini 2.0 Flash (free)",
-    displayName: "Gemini 2.0 Flash (experimental, free)",
+    name: "Gemini 2.0 Flash",
+    displayName: "Gemini 2.0 Flash",
     parameters: [
       {
         id: "thinking",

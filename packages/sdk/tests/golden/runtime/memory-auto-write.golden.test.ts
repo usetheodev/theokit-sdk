@@ -238,7 +238,7 @@ describe("LocalAgent.send memory auto-write", () => {
     if (cwd === undefined) throw new Error("missing workspace");
     const agent = await Agent.create({
       apiKey: "theo_test_memwrite_fixture",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd, settingSources: ["project"] },
       memory: { enabled: true },
     });

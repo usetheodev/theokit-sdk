@@ -37,7 +37,7 @@ describe("catalog, cron, and artifacts golden contracts", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -56,7 +56,7 @@ describe("catalog, cron, and artifacts golden contracts", () => {
   it("matches normalized cloud cron job golden", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
 
@@ -77,7 +77,7 @@ describe("catalog, cron, and artifacts golden contracts", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 

@@ -13,7 +13,7 @@ interface CloudAgentWithPayload extends SDKAgent {
 async function main(): Promise<void> {
   const agent = (await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_cloud_with_subagents",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     cloud: {
       repos: [{ url: "https://github.com/usetheo/example", startingRef: "main" }],
     },
@@ -21,7 +21,7 @@ async function main(): Promise<void> {
       reviewer: {
         description: "Reviews pull requests for security issues",
         prompt: "You are a security-focused code reviewer. Look for SQL injection, XSS, secret leaks.",
-        model: { id: "google/gemini-2.0-flash-exp:free" },
+        model: { id: "google/gemini-2.0-flash-001" },
       },
       tester: {
         description: "Generates test cases for changed code",

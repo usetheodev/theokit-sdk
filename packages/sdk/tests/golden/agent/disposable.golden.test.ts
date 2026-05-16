@@ -11,7 +11,7 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
   it("await using disposes LocalAgent exactly once", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_disposable_local",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: process.cwd() },
     });
     const spy = vi.spyOn(agent, "dispose");
@@ -27,7 +27,7 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
   it("await using disposes CloudAgent exactly once", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_disposable_cloud",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
     const spy = vi.spyOn(agent, "dispose");
@@ -42,7 +42,7 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
   it("double dispose is idempotent on LocalAgent (EC-6)", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_double_dispose_local",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: process.cwd() },
     });
     await agent.dispose();
@@ -55,7 +55,7 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
   it("double dispose is idempotent on CloudAgent (EC-3/EC-6)", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_double_dispose_cloud",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
     await agent.dispose();
@@ -67,7 +67,7 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
   it("manual dispose still works (no behavioral regression)", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_manual_dispose",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: process.cwd() },
     });
     await expect(agent.dispose()).resolves.toBeUndefined();
@@ -76,7 +76,7 @@ describe("Symbol.asyncDispose support (ADR D5)", () => {
   it("Symbol.asyncDispose calls dispose (used by `using`)", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_symbol_dispose",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: process.cwd() },
     });
     const spy = vi.spyOn(agent, "dispose");

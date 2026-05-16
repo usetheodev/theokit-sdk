@@ -15,7 +15,7 @@ describe("MCP server contract", () => {
     workspace = await createTempWorkspace("project-with-theokit-mcp");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       mcpServers: {
         inlineHttp: {
@@ -45,7 +45,7 @@ describe("MCP server contract", () => {
     workspace = await createTempWorkspace("project-with-theokit-mcp");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       mcpServers: {
         createOnly: {
@@ -79,14 +79,14 @@ describe("MCP server contract", () => {
     workspace = await createTempWorkspace("project-with-theokit-mcp");
     const created = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       mcpServers: { ephemeral: { type: "stdio", command: "node", args: ["./mcp-server.js"] } },
     });
 
     const resumed = await Agent.resume(created.agentId, {
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const run = await resumed.send("List MCP tools after resume.");
@@ -99,7 +99,7 @@ describe("MCP server contract", () => {
   it("rejects stdio cwd for cloud MCP servers", async () => {
     const options: AgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
       mcpServers: {
         badCloudStdio: { type: "stdio", command: "node", cwd: "/tmp" },

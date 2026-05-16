@@ -16,7 +16,7 @@ describe("Agent.prompt contract", () => {
 
     const result = await Agent.prompt("Read src/index.js and report the exported answer.", {
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -24,7 +24,7 @@ describe("Agent.prompt contract", () => {
       id: expect.stringMatching(/^run-/),
       status: "finished",
       result: expect.stringMatching(/42/),
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       durationMs: expect.any(Number),
     });
   });
@@ -35,7 +35,7 @@ describe("Agent.prompt contract", () => {
     await expect(
       Agent.prompt("This must fail with public auth error", {
         apiKey: "invalid",
-        model: { id: "google/gemini-2.0-flash-exp:free" },
+        model: { id: "google/gemini-2.0-flash-001" },
         local: { cwd: workspace.cwd },
       }),
     ).rejects.toMatchObject({

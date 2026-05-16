@@ -13,7 +13,7 @@ import {
  */
 
 const REPOS = [{ url: "https://github.com/usetheo/example" }];
-const MODEL = { id: "google/gemini-2.0-flash-exp:free" };
+const MODEL = { id: "google/gemini-2.0-flash-001" };
 
 function minimal(): AgentOptions {
   return {

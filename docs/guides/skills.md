@@ -9,7 +9,7 @@ Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
   skills: {
     enabled: ["code-review", "test-architect"],

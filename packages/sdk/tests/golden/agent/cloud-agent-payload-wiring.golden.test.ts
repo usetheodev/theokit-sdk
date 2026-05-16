@@ -12,7 +12,7 @@ import type { CloudAgent } from "../../../src/internal/runtime/cloud-agent.js";
  */
 
 const FIXTURE_KEY = "theo_test_payload_wiring";
-const MODEL = { id: "google/gemini-2.0-flash-exp:free" };
+const MODEL = { id: "google/gemini-2.0-flash-001" };
 
 describe("CloudAgent — cloudPayload field is the serialized contract", () => {
   it("cloudPayload is built at construct-time and matches AgentOptions shape", async () => {

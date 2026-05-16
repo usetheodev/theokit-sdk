@@ -18,7 +18,7 @@ describe("Run lifecycle contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -31,7 +31,7 @@ describe("Run lifecycle contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send("Return only: The answer is 42.");
@@ -45,7 +45,7 @@ describe("Run lifecycle contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send("Run npm run slow, then wait for it.");
@@ -62,7 +62,7 @@ describe("Run lifecycle contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send("Inspect the project with shell and summarize.");

@@ -43,7 +43,7 @@ describe("Agent.resume", () => {
 
     const original = (await Agent.create({
       apiKey: "theo_test_resume_init",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd, settingSources: ["project"] },
       context: { manager: "file" },
     })) as AgentWithLoaders;

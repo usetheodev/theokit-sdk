@@ -89,7 +89,7 @@ describe("SkillsManager — broken skills are skipped, not fatal (EC-5)", () => 
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const agent = await Agent.create({
       apiKey: "theo_test_skills_strict",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd, settingSources: ["project"] },
     });
     const agentWithSkills = agent as unknown as {
@@ -112,7 +112,7 @@ describe("SkillsManager — broken skills are skipped, not fatal (EC-5)", () => 
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     const agent = await Agent.create({
       apiKey: "theo_test_skills_no_fm",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd, settingSources: ["project"] },
     });
     const agentWithSkills = agent as unknown as {
