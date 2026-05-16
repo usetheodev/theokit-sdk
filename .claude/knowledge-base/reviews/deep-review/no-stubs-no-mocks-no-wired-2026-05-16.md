@@ -274,5 +274,7 @@ grep -rn "composer-2" packages/sdk/src/ packages/sdk/tests/ docs.md docs/ ...  �
 - LoC G8 ✅ — 105 arquivos ≤ 400 LoC
 - jscpd ✅ — 0 clones
 - dogfood ✅ — 5/5 exemplos rodam end-to-end com chaves reais (incluindo `memory-dreaming` com OpenRouter embedding: 6 facts → 4 clusters semânticos, 3 paráfrases de Vitest agrupadas)
+- publint ✅ — `pnpm validate:publint` reports "All good!" (pacote npm-shape correto)
+- attw ✅ — `pnpm validate:attw` retorna 🟢 em todos os entry points (`@usetheo/sdk`, `@usetheo/sdk/cron`, `@usetheo/sdk/errors`, `@usetheo/sdk/package.json`) × todos os module resolutions (node10, node16-CJS, node16-ESM, bundler)
 
-**Commit:** `c73b975` em `feat/sdk-implementation` (sem co-autoria). Push concluído contra `github-usetheo:usetheodev/theokit-sdk.git`.
+**Commits:** `c73b975` (remediação completa) + `af0d99b` (refresh do status doc) em `feat/sdk-implementation` (sem co-autoria). Push concluído contra `github-usetheo:usetheodev/theokit-sdk.git`.
