@@ -233,11 +233,11 @@ Para registro — busquei e descartei:
 
 ---
 
-## Status final (2026-05-16, após remediação)
+## Status final (2026-05-16, após 4 rounds de remediação)
 
 | Item | Estado | Como foi resolvido |
 |---|---|---|
-| BLOCKER-1 | ✅ CLOSED | 5 arquivos `*-embedding.ts` deletados + `stub-adapter.ts` deletado. Catálogo reduzido a `{ openai, mistral }`. Tipo público `provider` narrowed para a união real. |
+| BLOCKER-1 | ✅ CLOSED | 5 arquivos `*-embedding.ts` deletados + `stub-adapter.ts` deletado. Catálogo final: `{ openai, mistral, openrouter }` (3 adapters reais). Tipo público `provider` narrowed para `"openai" \| "mistral" \| "openrouter"`. |
 | BLOCKER-2 | ✅ CLOSED | `MemoryBackend` union reduzida a `"sqlite-vec"`. Branch lancedb removido de `IndexManager.open`. Teste `lancedb-backend.golden.test.ts` deletado. `@lancedb/lancedb` removido dos externals do tsup. |
 | BLOCKER-3 | ✅ CLOSED | `Agent.getRun(runId)` lança `UnknownAgentError(code: "run_not_found")` quando o run não está no registry. |
 | BLOCKER-4 | ✅ CLOSED | `runCronJob` lança `UnknownAgentError(code: "agent_not_registered")` quando o agentId persistido não está mais registrado. |
@@ -245,24 +245,34 @@ Para registro — busquei e descartei:
 | BLOCKER-6 | ✅ CLOSED | Campo `ActiveMemoryOptions.mode` removido por completo (não havia branch para `"subagent"`). |
 | BLOCKER-7 | ✅ CLOSED | Removida toda linguagem "Phase 9.1 / future LLM narrative" — a pipeline determinística é o produto final v1, não um placeholder. |
 | CRITICAL-1 | ✅ CLOSED | Promessa "wire cron → memory-dreaming" removida da documentação do exemplo. `Memory.runDreamingSweep` é a API pública e usuários a invocam de qualquer contexto agendado. |
-| MAJOR-1 | ✅ CLOSED | `makeLocalDemoRuntime` removido do exemplo `memory-dreaming`. `MemoryEmbeddingRuntime` BYO type removido do barrel público. Exemplo fail-fast sem `OPENAI_API_KEY`/`MISTRAL_API_KEY`. |
+| MAJOR-1 | ✅ CLOSED | `makeLocalDemoRuntime` removido do exemplo `memory-dreaming`. `MemoryEmbeddingRuntime` BYO type removido do barrel público. Exemplo fail-fast sem `OPENAI_API_KEY`/`MISTRAL_API_KEY`/`OPENROUTER_API_KEY`. |
+
+### Itens adicionais resolvidos depois do escopo original do review
+
+| Item | Estado | Como foi resolvido |
+|---|---|---|
+| Cloud fixture artifacts vazando para real-key callers | ✅ CLOSED (Round 4) | `CloudAgent.listArtifacts/downloadArtifact` agora lançam `cloud_runtime_pre_release` para chaves não-fixture. Fixture artifacts só servidos quando `theo_test_*` key + sem `THEOKIT_API_BASE_URL`. 4 novos testes em `cloud-prerelease-guard.golden.test.ts`. |
+| Modelo default `composer-2` (placeholder não-real) | ✅ CLOSED (Round 4) | Sweep SDK-wide: `composer-2` → `google/gemini-2.0-flash-exp:free` (OpenRouter free tier, tool-calling real). Constante central em `internal/runtime/default-model.ts`. 30+ testes, 10+ docs, 3 exemplos atualizados. |
+| Adapter OpenRouter ausente do catálogo | ✅ CLOSED (Round 3) | Novo adapter `openrouter` em `internal/memory/adapters/openrouter-embedding.ts` via `/api/v1/embeddings` (OpenAI-compatible). Honra `OPENROUTER_API_KEY` + `OPENROUTER_API_BASE_URL`. Stub-fetch test em `multi-adapter.golden.test.ts`. |
+| Modelo de chat caro nos exemplos | ✅ CLOSED (Round 3) | `openai/gpt-4o-mini` → `google/gemini-2.0-flash-001` nos 4 exemplos de chat (~33% mais barato em input tokens, mesma fidelity em tool calling). |
 
 **Verificação automatizada (todos os greps retornam vazio):**
 ```
-grep -rn "not_implemented\|not.implemented" packages/sdk/src/      → 0 matches
-grep -rn "TODO\b\|FIXME\|deferred to Phase\|stub for now"          → 0 matches
-grep -rn "Phase [0-9]\+\.[0-9]\+"                                  → 0 matches
-grep -rn "\bMock\b\|\bFake\b\|\bStub\b"                            → 0 matches
-grep -rn "createStubRun\|createHistoricalCloudRun\|stub-adapter"   → 0 matches
+grep -rn "not_implemented\|not.implemented" packages/sdk/src/                  → 0 matches
+grep -rn "TODO\b\|FIXME\|deferred to Phase\|stub for now"                      → 0 matches
+grep -rn "Phase [0-9]\+\.[0-9]\+"                                              → 0 matches
+grep -rn "\bMock\b\|\bFake\b\|\bStub\b"                                        → 0 matches
+grep -rn "createStubRun\|createHistoricalCloudRun\|stub-adapter\|stub-run"     → 0 matches
+grep -rn "composer-2" packages/sdk/src/ packages/sdk/tests/ docs.md docs/ ...  → 0 matches
 ```
 
-**Quality gates pós-remediação:**
+**Quality gates pós-remediação (verificadas pela última vez no commit `c73b975`):**
 - typecheck ✅ — `tsc --noEmit` clean
-- testes ✅ — 191/191 passing (35 test files; lancedb-backend test removido junto com a feature)
+- testes ✅ — **196/196 passing (36 test files)** — sobe de 191 → 196 por causa de novos testes (openrouter adapter, cloud pre-release guard)
 - biome ✅ — `pnpm check` clean (só `info` cosmético sobre schema)
-- dependency-cruiser ✅ — 0 cycles (107 módulos, 214 deps)
-- LoC G8 ✅ — 103 arquivos ≤ 400 LoC
+- dependency-cruiser ✅ — 0 cycles (109 módulos, 219 deps)
+- LoC G8 ✅ — 105 arquivos ≤ 400 LoC
 - jscpd ✅ — 0 clones
-- dogfood ✅ — 4/4 exemplos (memory, memory-search, memory-get, active-memory) com `status=finished`; memory-dreaming corretamente falha sem creds reais (comportamento esperado sob a regra)
+- dogfood ✅ — 5/5 exemplos rodam end-to-end com chaves reais (incluindo `memory-dreaming` com OpenRouter embedding: 6 facts → 4 clusters semânticos, 3 paráfrases de Vitest agrupadas)
 
-Próxima sessão: o SDK pode ter `Memory.runDreamingSweep` exercitado contra OPENAI_API_KEY real para fechar o último vetor de prova end-to-end.
+**Commit:** `c73b975` em `feat/sdk-implementation` (sem co-autoria). Push concluído contra `github-usetheo:usetheodev/theokit-sdk.git`.
