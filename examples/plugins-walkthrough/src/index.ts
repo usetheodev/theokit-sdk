@@ -48,7 +48,7 @@ async function main(): Promise<void> {
 
   const agent = (await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_plugins_walkthrough",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     local: { cwd, settingSources: ["plugins"] },
     plugins: { enabled: ["search-plugin"] },
   })) as AgentWithPlugins;

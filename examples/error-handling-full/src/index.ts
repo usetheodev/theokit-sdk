@@ -73,7 +73,7 @@ async function main(): Promise<void> {
   // 4. UnsupportedRunOperationError — local agent.downloadArtifact
   const agent = await Agent.create({
     apiKey: "theo_test_error_handling_full",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     local: { cwd: process.cwd() },
   });
   try {

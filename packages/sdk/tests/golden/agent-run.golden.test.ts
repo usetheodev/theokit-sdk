@@ -23,7 +23,7 @@ describe("agent and run golden contracts", () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
       name: "Contract Local Agent",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -55,7 +55,7 @@ describe("agent and run golden contracts", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -71,7 +71,7 @@ describe("agent and run golden contracts", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -88,7 +88,7 @@ describe("agent and run golden contracts", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -103,7 +103,7 @@ describe("agent and run golden contracts", () => {
   it("matches normalized cloud finished run golden with git metadata", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: {
         repos: [{ url: "https://github.com/usetheo/example", startingRef: "main" }],
         autoCreatePR: true,

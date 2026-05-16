@@ -20,7 +20,7 @@ interface CloudAgentWithPayload extends SDKAgent {
 async function main(): Promise<void> {
   const agent = (await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_cloud_with_mcp_http",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     cloud: {
       repos: [{ url: "https://github.com/usetheo/example", startingRef: "main" }],
     },
