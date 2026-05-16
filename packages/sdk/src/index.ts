@@ -20,7 +20,12 @@ export {
   UnknownAgentError,
   UnsupportedRunOperationError,
 } from "./errors.js";
-
+// Memory subsystem (public surfaces)
+export {
+  type DreamingSweepOptions,
+  type DreamingSweepResult,
+  Memory,
+} from "./memory.js";
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 

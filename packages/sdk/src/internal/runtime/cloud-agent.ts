@@ -12,6 +12,7 @@ import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
 import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import { createCloudRun } from "./cloud-run.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "./default-model.js";
 import { createRealCloudRun } from "./real-cloud-run.js";
 import { resolveSystemPromptForSend } from "./system-prompt.js";
 
@@ -26,20 +27,18 @@ export class CloudAgent implements SDKAgent {
   readonly agentId: string;
   model: ModelSelection | undefined;
   private readonly options: AgentOptions;
-  private artifacts: SDKArtifact[];
 
   constructor(options: AgentOptions, providedAgentId?: string) {
     this.agentId = providedAgentId ?? options.agentId ?? generateCloudAgentId();
     this.model = options.model;
     this.options = options;
-    this.artifacts = buildFixtureArtifacts();
 
     const repoUrls = (options.cloud?.repos ?? []).map((repo) => repo.url);
     registerAgent({
       agentId: this.agentId,
       runtime: "cloud",
       name: options.name,
-      summary: "Cloud contract fixture",
+      summary: this.isFixtureMode() ? "Cloud contract fixture" : "Cloud agent",
       model: this.model,
       createdAt: Date.now(),
       lastModified: Date.now(),
@@ -50,6 +49,16 @@ export class CloudAgent implements SDKAgent {
     });
 
     (this as Record<symbol, unknown>)[Symbol.asyncDispose] = () => this.dispose();
+  }
+
+  /**
+   * Fixture-mode is on iff the API key matches the `theo_test_*` test pattern
+   * AND no real `THEOKIT_API_BASE_URL` is configured. Outside fixture-mode,
+   * cloud operations are pre-release and must surface explicit errors.
+   */
+  private isFixtureMode(): boolean {
+    const apiKey = resolveApiKey(this.options.apiKey);
+    return isFixtureApiKey(apiKey) && getConfiguredBaseUrl() === undefined;
   }
 
   async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
@@ -66,7 +75,7 @@ export class CloudAgent implements SDKAgent {
     const run = useRealRuntime
       ? createRealCloudRun({
           agentId: this.agentId,
-          model: this.model ?? { id: "composer-2" },
+          model: this.model ?? { id: DEFAULT_AGENTIC_MODEL_ID },
           message,
           agentOptions: this.options,
           sendOptions: options,
@@ -74,7 +83,7 @@ export class CloudAgent implements SDKAgent {
         })
       : createCloudRun({
           agentId: this.agentId,
-          model: this.model ?? { id: "composer-2" },
+          model: this.model ?? { id: DEFAULT_AGENTIC_MODEL_ID },
           message,
           agentOptions: this.options,
           sendOptions: options,
@@ -115,7 +124,15 @@ export class CloudAgent implements SDKAgent {
   }
 
   listArtifacts(): Promise<SDKArtifact[]> {
-    return Promise.resolve(this.artifacts);
+    if (!this.isFixtureMode()) {
+      return Promise.reject(
+        new ConfigurationError(
+          "Cloud runtime is pre-release. listArtifacts() will return real artifacts when Theo PaaS ships; today it is only available in fixture mode (theo_test_* keys).",
+          { code: "cloud_runtime_pre_release" },
+        ),
+      );
+    }
+    return Promise.resolve(buildFixtureArtifacts());
   }
 
   downloadArtifact(path: string): Promise<Buffer> {
@@ -126,7 +143,15 @@ export class CloudAgent implements SDKAgent {
         }),
       );
     }
-    const match = this.artifacts.find((artifact) => artifact.path === path);
+    if (!this.isFixtureMode()) {
+      return Promise.reject(
+        new ConfigurationError(
+          "Cloud runtime is pre-release. downloadArtifact() will fetch real PaaS artifacts when the cloud runtime ships; today it is only available in fixture mode (theo_test_* keys).",
+          { code: "cloud_runtime_pre_release" },
+        ),
+      );
+    }
+    const match = buildFixtureArtifacts().find((artifact) => artifact.path === path);
     if (match === undefined) {
       return Promise.reject(
         new UnknownAgentError(`Artifact ${path} not found`, { code: "unknown_artifact" }),
@@ -136,6 +161,11 @@ export class CloudAgent implements SDKAgent {
   }
 }
 
+/**
+ * Canonical fixture artifact list. Only used when the agent is in fixture
+ * mode (theo_test_* keys, no THEOKIT_API_BASE_URL). Real PaaS artifacts will
+ * be fetched over HTTP when the cloud runtime ships.
+ */
 function buildFixtureArtifacts(): SDKArtifact[] {
   return [
     {

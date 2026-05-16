@@ -18,7 +18,7 @@ import { Agent } from "@usetheo/sdk";
 async function main(): Promise<void> {
   const agent = await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_cloud_demo",
-    model: { id: "composer-2" },
+    model: { id: "google/gemini-2.0-flash-exp:free" },
     cloud: {
       repos: [{ url: "https://github.com/usetheo/example", startingRef: "main" }],
       autoCreatePR: true,

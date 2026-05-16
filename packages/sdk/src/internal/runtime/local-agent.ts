@@ -11,6 +11,7 @@ import type {
   SystemPromptContext,
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { resolveApiKey } from "../env.js";
 import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
 import { generateLocalAgentId } from "../ids.js";
@@ -18,10 +19,12 @@ import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import { appendSessionMessage, getSessionMessages } from "./agent-session.js";
 import { FileContextManager } from "./context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
+import { LocalAgentMemory } from "./local-agent-memory.js";
 import { createLocalRun } from "./local-run.js";
 import {
   appendMemoryFact,
-  type MemoryConfig,
+  extractMemoryFact,
+  isMemoryWritePrompt,
   type MemoryFact,
   readMemoryFacts,
 } from "./memory-store.js";
@@ -60,6 +63,7 @@ export class LocalAgent implements SDKAgent {
   private readonly pluginsManager: PluginsManager | undefined;
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
+  private readonly memoryGlue: LocalAgentMemory;
 
   constructor(options: AgentOptions) {
     this.agentId = options.agentId ?? generateLocalAgentId();
@@ -108,6 +112,7 @@ export class LocalAgent implements SDKAgent {
     }
 
     this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
+    this.memoryGlue = new LocalAgentMemory(options, this.workspaceCwd, this.agentId);
 
     registerAgent({
       agentId: this.agentId,
@@ -151,16 +156,36 @@ export class LocalAgent implements SDKAgent {
 
     const userText = typeof message === "string" ? message : message.text;
     await this.runPreHook(userText);
+    // Capture prior history BEFORE appending the current user message so the
+    // resumed/continuation agent loop sees the conversation up to (but not
+    // including) the new send.
+    const priorMessages = [...getSessionMessages(this.agentId)];
     appendSessionMessage(this.agentId, { role: "user", text: userText });
 
+    // Auto-write-on-send: opt-in via the user typing "Remember: <fact>". Persist
+    // BEFORE the LLM call so the new fact is durable even if the LLM call fails.
+    await this.maybePersistMemoryFactFromUserMessage(userText);
     const memoryFacts = await this.readMemoryForSend();
+    const memoryTools = await this.memoryGlue.ensureTools();
+    const activeMemorySummary = await this.memoryGlue.runActiveMemoryIfEnabled(
+      userText,
+      priorMessages,
+    );
     const baseSystemPrompt = await this.resolveSystemPromptForSend(userText, options, memoryFacts);
     const assembledSystemPrompt = await this.assembleSystemPromptForSend(
       userText,
       baseSystemPrompt,
       memoryFacts,
+      activeMemorySummary,
     );
-    const run = await this.dispatchRun(message, options, assembledSystemPrompt, memoryFacts);
+    const run = await this.dispatchRun(
+      message,
+      options,
+      assembledSystemPrompt,
+      memoryFacts,
+      priorMessages,
+      memoryTools,
+    );
     this.attachPostRunHook(run);
     return run;
   }
@@ -173,12 +198,33 @@ export class LocalAgent implements SDKAgent {
     return safeCall(() => readMemoryFacts(this.workspaceCwd, memoryConfig), [], "memory read");
   }
 
+  private async maybePersistMemoryFactFromUserMessage(userText: string): Promise<void> {
+    const memoryConfig = this.options.memory;
+    // Top-level gate: memory must be opt-in via memory.enabled === true (EC-4).
+    if (memoryConfig?.enabled !== true) return;
+    if (!isMemoryWritePrompt(userText)) return;
+    const fact = extractMemoryFact(userText);
+    // Skip empty facts so "Remember:   " doesn't pollute the recall block (EC-3).
+    if (fact.length === 0) return;
+    await safeCall(
+      () => appendMemoryFact(this.workspaceCwd, memoryConfig, { text: fact }),
+      undefined,
+      "memory write",
+    );
+  }
+
   private async assembleSystemPromptForSend(
     userText: string,
     baseSystemPrompt: string | undefined,
     memoryFacts: ReadonlyArray<MemoryFact>,
+    activeMemorySummary: string | undefined,
   ): Promise<string | undefined> {
-    const assemblyCtx = await this.buildAssemblyContext(userText, baseSystemPrompt, memoryFacts);
+    const assemblyCtx = await this.buildAssemblyContext(
+      userText,
+      baseSystemPrompt,
+      memoryFacts,
+      activeMemorySummary,
+    );
     return this.systemPromptPipeline.assemble(assemblyCtx);
   }
 
@@ -186,6 +232,7 @@ export class LocalAgent implements SDKAgent {
     userText: string,
     baseSystemPrompt: string | undefined,
     memoryFacts: ReadonlyArray<MemoryFact>,
+    activeMemorySummary: string | undefined,
   ): Promise<SystemPromptAssemblyContext> {
     const baseCtx = await this.buildSystemPromptContext(userText, memoryFacts);
     const assemblyCtx: SystemPromptAssemblyContext = {
@@ -194,6 +241,9 @@ export class LocalAgent implements SDKAgent {
       memoryAutoInject: this.options.memory?.autoInject ?? true,
     };
     if (baseSystemPrompt !== undefined) assemblyCtx.baseSystemPrompt = baseSystemPrompt;
+    if (activeMemorySummary !== undefined && activeMemorySummary.length > 0) {
+      assemblyCtx.activeMemorySummary = activeMemorySummary;
+    }
     if (this.context !== undefined) {
       const internal = this.context.internalAssemblySnapshot();
       assemblyCtx.contextSnapshot = { sources: internal.sources };
@@ -252,23 +302,39 @@ export class LocalAgent implements SDKAgent {
     options: SendOptions,
     systemPrompt: string | undefined,
     memoryFacts: ReadonlyArray<MemoryFact>,
+    priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+    memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
   ): Promise<Run> {
     const apiKey = resolveApiKey(this.options.apiKey);
     if (shouldUseRealLocalRuntime(apiKey)) {
-      return createRealLocalRun({
-        agentId: this.agentId,
-        model: this.model,
-        message,
-        agentOptions: this.options,
-        sendOptions: options,
-        workspaceCwd: this.workspaceCwd,
-        hooks: this.hooksExecutor,
-        ...(systemPrompt !== undefined ? { systemPrompt } : {}),
-        ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
-        ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
-      });
+      return createRealLocalRun(
+        this.buildRealRunOptions(message, options, systemPrompt, priorMessages, memoryTools),
+      );
     }
     return this.createFixtureRun(message, options, systemPrompt, memoryFacts);
+  }
+
+  private buildRealRunOptions(
+    message: string | SDKUserMessage,
+    options: SendOptions,
+    systemPrompt: string | undefined,
+    priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+    memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
+  ): Parameters<typeof createRealLocalRun>[0] {
+    return {
+      agentId: this.agentId,
+      model: this.model,
+      message,
+      agentOptions: this.options,
+      sendOptions: options,
+      workspaceCwd: this.workspaceCwd,
+      hooks: this.hooksExecutor,
+      ...(systemPrompt !== undefined ? { systemPrompt } : {}),
+      ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
+      ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
+      ...(priorMessages.length > 0 ? { priorMessages } : {}),
+      ...(memoryTools !== undefined && memoryTools.length > 0 ? { memoryTools } : {}),
+    };
   }
 
   private async createFixtureRun(
@@ -277,15 +343,13 @@ export class LocalAgent implements SDKAgent {
     systemPrompt: string | undefined,
     memoryFacts: ReadonlyArray<MemoryFact>,
   ): Promise<Run> {
-    const memoryConfig = this.options.memory as MemoryConfig | undefined;
+    // Memory write is now handled by maybePersistMemoryFactFromUserMessage in
+    // send() — no need to thread persistMemoryFact into the fixture run,
+    // which would cause a double-write (edge-case review EC-2).
     const sessionMessages = getSessionMessages(this.agentId);
     const projectMcpServers = this.settingSourcesIncludeProject
       ? await readProjectMcpServers(this.workspaceCwd)
       : {};
-    const persistMemoryFact =
-      memoryConfig?.enabled === true
-        ? (fact: MemoryFact) => appendMemoryFact(this.workspaceCwd, memoryConfig, fact)
-        : undefined;
     return createLocalRun({
       agentId: this.agentId,
       model: this.model,
@@ -298,7 +362,6 @@ export class LocalAgent implements SDKAgent {
       memoryFacts: [...memoryFacts],
       sessionMessages,
       projectMcpServers,
-      ...(persistMemoryFact !== undefined ? { persistMemoryFact } : {}),
       ...(systemPrompt !== undefined ? { systemPrompt } : {}),
     });
   }

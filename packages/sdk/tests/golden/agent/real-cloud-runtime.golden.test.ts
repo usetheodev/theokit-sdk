@@ -14,7 +14,12 @@ async function startPaaSStub(): Promise<{ server: Server; url: string }> {
     if (req.url === "/v1/agents" && req.method === "POST") {
       res.statusCode = 200;
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ agentId: "bc-stub-123", model: { id: "composer-2" } }));
+      res.end(
+        JSON.stringify({
+          agentId: "bc-stub-123",
+          model: { id: "google/gemini-2.0-flash-exp:free" },
+        }),
+      );
       return;
     }
     if (!req.url?.startsWith("/v1/agents/")) {
@@ -60,7 +65,7 @@ describe("real cloud runtime", () => {
   it("streams a real cloud Run through the SSE protocol", async () => {
     const agent = await Agent.create({
       apiKey: "user-real-cloud-key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
     const run = await agent.send("Run in the cloud");

@@ -46,7 +46,7 @@ The fastest way in: a local agent against your current working tree, streaming e
 import { Agent } from "@Theo/sdk";
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   local: { cwd: process.cwd() },
 });
 const run = await agent.send("Summarize what this repository does");
@@ -64,13 +64,13 @@ Agent.create() validates options and returns a handle immediately. Pass either l
 // Local agent
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   local: { cwd: "/path/to/repo" },
 });
 // Cloud agent
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   cloud: {
     repos: [{ url: "https://github.com/your-org/your-repo", startingRef: "main" }],
     autoCreatePR: true,
@@ -104,7 +104,7 @@ When a selected model requires Max Mode, Theo enables it automatically for the S
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
   model: {
-    id: "composer-2",
+    id: "google/gemini-2.0-flash-exp:free",
     params: [{ id: "thinking", value: "high" }],
   },
   local: { cwd: process.cwd() },
@@ -118,7 +118,7 @@ Enable file-based context with `context.manager: "file"`. Local agents read `.th
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
   context: {
     manager: "file",
@@ -148,7 +148,7 @@ Memory stores durable facts across agent instances. It is keyed by namespace, us
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   local: { cwd: process.cwd() },
   memory: {
     enabled: true,
@@ -169,7 +169,7 @@ Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
   skills: {
     enabled: ["code-review", "test-architect"],
@@ -224,7 +224,7 @@ One-shot convenience: creates an agent, sends a single prompt, waits for the run
 
 const result = await Agent.prompt("What does the auth middleware do?", {
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   local: { cwd: process.cwd() },
 });
 Sending messages
@@ -324,7 +324,7 @@ The model you pass to agent.send() overrides the agent's selection for that run,
 
 
 const run = await agent.send("Plan the refactor", {
-  model: { id: "composer-2", params: [{ id: "thinking", value: "high" }] },
+  model: { id: "google/gemini-2.0-flash-exp:free", params: [{ id: "thinking", value: "high" }] },
 });
 console.log(agent.model);  // updated to the override after the send succeeds
 run.model and result.model reflect the selection that this specific run actually used and are immutable once the run starts.
@@ -724,7 +724,7 @@ const job = await Cron.create({
   message: "Summarize yesterday's commits and post to #engineering",
   agent: {
     apiKey: process.env.THEOKIT_API_KEY!,
-    model: { id: "composer-2" },
+    model: { id: "google/gemini-2.0-flash-exp:free" },
     local: { cwd: process.cwd() },
   },
 });
@@ -849,7 +849,7 @@ Use Theo.models.list() to discover valid model ids and per-model params before c
 
 
 const models = await Theo.models.list();
-const composer = models.find((model) => model.id === "composer-2");
+const composer = models.find((model) => model.id === "google/gemini-2.0-flash-exp:free");
 console.log(composer?.parameters);
 // [
 //   {
@@ -867,7 +867,7 @@ Pass selected parameter values through model.params. Preset variants already con
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
   model: {
-    id: "composer-2",
+    id: "google/gemini-2.0-flash-exp:free",
     params: [{ id: "thinking", value: "high" }],
   },
   local: { cwd: process.cwd() },
@@ -931,7 +931,7 @@ Cloud agents can receive authenticated MCP configs inline too. Use HTTP auth whe
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   cloud: {
     repos: [{ url: "https://github.com/your-org/your-repo", startingRef: "main" }],
   },
@@ -974,7 +974,7 @@ Define named subagents that the main agent spawns via the Agent tool. Pass them 
 
 
 const agent = await Agent.create({
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-exp:free" },
   apiKey: process.env.Theo_API_KEY!,
   local: { cwd: process.cwd() },
   agents: {
@@ -1126,7 +1126,7 @@ interface ModelParameterValue {
   id: string;
   value: string;
 }
-id is the model identifier (for example, "composer-2"). params carries per-model parameters such as reasoning effort. Use Theo.models.list() to discover valid ids, parameter definitions, and preset variants for your account.
+id is the model identifier (for example, "google/gemini-2.0-flash-exp:free"). params carries per-model parameters such as reasoning effort. Use Theo.models.list() to discover valid ids, parameter definitions, and preset variants for your account.
 
 McpServerConfig
 

@@ -15,7 +15,7 @@ describe("hooks contract", () => {
     workspace = await createTempWorkspace("project-with-hooks");
     const options = {
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       hooks: { preRun: () => undefined },
     } as unknown as AgentOptions;
@@ -27,7 +27,7 @@ describe("hooks contract", () => {
 
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
     });
     const run = await agent.send("Run with file-based preRun hook.");
@@ -41,7 +41,7 @@ describe("hooks contract", () => {
     await expect(
       Agent.create({
         apiKey: "theo_test_contract_key",
-        model: { id: "composer-2" },
+        model: { id: "google/gemini-2.0-flash-exp:free" },
         local: { cwd: workspace.cwd, settingSources: ["project"] },
       }),
     ).rejects.toMatchObject({
@@ -54,7 +54,7 @@ describe("hooks contract", () => {
     await expect(
       Agent.create({
         apiKey: "theo_test_contract_key",
-        model: { id: "composer-2" },
+        model: { id: "google/gemini-2.0-flash-exp:free" },
         cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
       }),
     ).resolves.toMatchObject({

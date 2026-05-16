@@ -106,7 +106,7 @@ The model passed to `agent.send()` overrides the agent's selection for that run,
 
 ```typescript
 const run = await agent.send("Plan the refactor", {
-  model: { id: "composer-2", params: [{ id: "thinking", value: "high" }] },
+  model: { id: "google/gemini-2.0-flash-exp:free", params: [{ id: "thinking", value: "high" }] },
 });
 console.log(agent.model); // updated to the override after the send succeeds
 ```

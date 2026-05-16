@@ -4,7 +4,22 @@ import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus, SendOptions } from "../../types/run.js";
 import type { LlmClient } from "../llm/types.js";
 import type { McpClient } from "../mcp/client.js";
+import type { SessionMessage } from "../runtime/agent-session.js";
 import type { HooksExecutor } from "../runtime/hooks-executor.js";
+
+/**
+ * Minimal memory-tool spec accepted by the agent loop. Concrete shape lives
+ * in `internal/memory/tools.ts`; we declare it inline here to avoid pulling
+ * the memory module into the cheap loop-types contract.
+ *
+ * @internal
+ */
+export interface MemoryToolSpec {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  execute(input: Record<string, unknown>): Promise<string>;
+}
 
 /**
  * Shared agent-loop types. Kept in their own module so the dispatch helpers
@@ -29,6 +44,19 @@ export interface AgentLoopInputs {
   onStep?: SendOptions["onStep"];
   /** Fires per raw incremental update (text-delta, …) — finer than onStep. */
   onDelta?: SendOptions["onDelta"];
+  /**
+   * Prior conversation history (user + assistant turns) from previous
+   * `agent.send()` calls on the same agent. Excludes the current user
+   * message — that is supplied via `userMessage` and appended by the
+   * loop. Empty array for first-send agents.
+   */
+  priorMessages?: ReadonlyArray<SessionMessage>;
+  /**
+   * Memory tools (`memory_search`, `memory_get`) to register with the LLM
+   * when `AgentOptions.memory.enabled === true`. Appended to the shell + MCP
+   * tool catalog in `collectTools`.
+   */
+  memoryTools?: ReadonlyArray<MemoryToolSpec>;
 }
 
 export interface AgentLoopOutput {

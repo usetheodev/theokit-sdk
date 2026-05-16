@@ -16,7 +16,6 @@ import {
 import { CloudAgent } from "./internal/runtime/cloud-agent.js";
 import { LocalAgent } from "./internal/runtime/local-agent.js";
 import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
-import { createHistoricalCloudRun, createStubRun } from "./internal/runtime/stub-run.js";
 import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
 import type {
   AgentOperationOptions,
@@ -94,12 +93,16 @@ export class Agent {
       if (existing.runtime === "cloud") {
         return new CloudAgent(mergedOptions, agentId);
       }
-      return new LocalAgent({ ...mergedOptions, model: existing.options.model });
+      const agent = new LocalAgent({ ...mergedOptions, model: existing.options.model });
+      await agent.initialize();
+      return agent;
     }
     if (isCloudAgentId(agentId)) {
       return new CloudAgent({ ...options, agentId } as AgentOptions, agentId);
     }
-    return new LocalAgent({ ...options, agentId } as AgentOptions);
+    const agent = new LocalAgent({ ...options, agentId } as AgentOptions);
+    await agent.initialize();
+    return agent;
   }
 
   /**
@@ -151,16 +154,17 @@ export class Agent {
    */
   static async getRun(runId: string, options: GetRunOptions = {}): Promise<Run> {
     if (options.runtime === "cloud") {
-      if (!("agentId" in options) || typeof options.agentId !== "string") {
-        throw new ConfigurationError("Cloud getRun requires the parent agentId", {
-          code: "missing_agent_id",
-        });
-      }
-      return createHistoricalCloudRun(options.agentId, runId);
+      throw new ConfigurationError(
+        "Cloud runtime is pre-release. Theo PaaS endpoints are not wired yet — getRun({ runtime: 'cloud' }) will be enabled when the PaaS ships.",
+        { code: "cloud_runtime_pre_release" },
+      );
     }
     const existing = getRegisteredRun(runId);
     if (existing !== undefined) return existing;
-    return createStubRun({ agentId: "agent-pending", status: "finished" });
+    throw new UnknownAgentError(
+      `Run ${runId} is not in this process's registry. It may have been disposed, persisted in a previous process, or never created.`,
+      { code: "run_not_found" },
+    );
   }
 
   /**
