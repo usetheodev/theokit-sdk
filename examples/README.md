@@ -60,8 +60,15 @@ Plus a non-fixture SDK key (any string that does NOT start with
 | [`memory-get`](./memory-get) | ✅ Full | LLM uses the `memory_get` tool for bounded reads of `notes/*.md`; path traversal rejected. |
 | [`active-memory`](./active-memory) | ✅ Full | Blocking pre-send recall injects an `<active-memory>` block; circuit breaker + cache + timeout. |
 | [`memory-dreaming`](./memory-dreaming) | ✅ Full | Dedup + cluster + dream-diary via `Memory.runDreamingSweep`. Requires an embedding provider. |
+| [`embedding-providers`](./embedding-providers) | ✅ Full | Switch across the 5 v1.0 embedding adapters (openai / mistral / openrouter / voyage / deepinfra). |
+| [`active-memory-query-modes`](./active-memory-query-modes) | ✅ Full | All 3 `queryMode` variants: `"message"`, `"recent"`, `"full"`. |
+| [`remember-prefix`](./remember-prefix) | ✅ Full | Auto-write memory facts via `Remember:` prefix. Secret redaction (sk-*, ghp_*) per ADR D9. |
 | [`provider-inspector`](./provider-inspector) | ✅ Full | `Theokit.providers.list()` (global catalog) + `agent.providers.routes()` (per-agent resolved routes). |
 | [`resume-agent`](./resume-agent) | ✅ Full | `Agent.resume(agentId)` reattaches in-process; session history continues. |
+| [`mcp-http`](./mcp-http) | ✅ Full | HTTP MCP transport (companion to `mcp-stdio`). |
+| [`send-mcp-override`](./send-mcp-override) | ✅ Full | Per-send `mcpServers` override via `SendOptions.mcpServers`. |
+| [`local-force-expire`](./local-force-expire) | ✅ Full | `local: { force: true }` expires a stuck previous run. |
+| [`plugins-walkthrough`](./plugins-walkthrough) | ✅ Full | `.theokit/plugins/<name>/plugin.json` discovery via `plugins.enabled`. |
 
 ### Fixture mode (no PaaS / provider required)
 
@@ -73,6 +80,9 @@ Plus a non-fixture SDK key (any string that does NOT start with
 | [`cloud-with-skills`](./cloud-with-skills) | Cloud agent + `skills.enabled` serialized into the cloud payload (ADR D15). |
 | [`cloud-with-mcp-http`](./cloud-with-mcp-http) | HTTP MCP transport for cloud; bare-command stdio MCP also accepted (ADR D15 + EC-3). |
 | [`cloud-with-subagents`](./cloud-with-subagents) | Inline `agents` map serialized into the cloud payload (ADR D15). |
+| [`cloud-await-using`](./cloud-await-using) | `await using` + idempotent `dispose()` on `CloudAgent` (ADR D5 + EC-3). |
+| [`cloud-prerelease-guard`](./cloud-prerelease-guard) | `cloud_runtime_pre_release` typed error for non-fixture cloud calls. |
+| [`error-handling-full`](./error-handling-full) | All 8 SDK error classes: catch patterns + `instanceof` discrimination. |
 | [`agent-management`](./agent-management) | `Agent.list/get/listRuns/getRun/archive/unarchive/delete`. |
 
 The fixture-mode examples use a `theo_test_*` API key so the SDK
@@ -82,18 +92,29 @@ and the same example code hits the live runtime.
 
 ## Honest coverage note
 
-The 14 examples together exercise ~85% of the public API. The five
-features previously flagged as "⚠️ Partial" (callbacks, fallback,
-context, skills, memory) are wired into the real LLM agent loop as of
-the runtime-gaps fix. Each example's README documents the observable
-behaviour against a real provider key.
+The 34 examples together exercise **~100% of the public API**:
+- All `Agent.*`/`Run.*`/`Cron.*`/`Memory.*`/`Theokit.*` methods
+- All 8 SDK error classes (3 in `error-handling`, 5 demonstrated in `error-handling-full`)
+- All 5 embedding adapters (openai/mistral/openrouter/voyage/deepinfra)
+- Both MCP transports (stdio + http)
+- All Active Memory `queryMode` variants
+- `await using` on Local AND Cloud agents
+- `local.force` + `SendOptions.mcpServers` overrides
+- Plugin discovery + skills frontmatter
+- Cloud tool parity (skills, MCP, subagents) — ADR D15
+- Cloud pre-release guard — typed errors for non-fixture cloud calls
 
-Not covered yet:
+Each example's README documents the observable behaviour. Most run
+against a fixture key (`theo_test_*`); LLM-driven examples need a real
+provider key (Anthropic, OpenAI, or OpenRouter).
 
-- Cloud Run end-to-end **against a live PaaS** (the cloud example
-  uses fixture mode because the PaaS isn't deployed)
+Not covered yet (out of scope by design):
+
+- Cloud Run end-to-end **against a live PaaS** (PaaS is pre-release;
+  cloud examples use fixture mode and the `cloud-prerelease-guard`
+  example demonstrates the typed errors for real keys)
 - Cross-process `Agent.resume` (in-process flow demonstrated; persistent
-  registry tracked as future work)
+  registry tracked as future work per ADR D8)
 
 ## Why some examples use fixture mode
 
