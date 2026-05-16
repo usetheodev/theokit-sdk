@@ -11,6 +11,8 @@ import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
 import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
+import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
+import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
 import { DEFAULT_AGENTIC_MODEL_ID } from "./default-model.js";
 import { createRealCloudRun } from "./real-cloud-run.js";
@@ -26,6 +28,12 @@ import { resolveSystemPromptForSend } from "./system-prompt.js";
 export class CloudAgent implements SDKAgent {
   readonly agentId: string;
   model: ModelSelection | undefined;
+  /**
+   * Canonical JSON contract payload (ADR D15) that PaaS receives at runtime.
+   * Re-serialized by `reload()` when filesystem state changes.
+   * Public for contract testing — consumers can inspect what would be sent.
+   */
+  cloudPayload: CloudAgentPayload;
   private readonly options: AgentOptions;
   /** Idempotency guard for dispose() (EC-3). */
   private disposed = false;
@@ -34,6 +42,7 @@ export class CloudAgent implements SDKAgent {
     this.agentId = providedAgentId ?? options.agentId ?? generateCloudAgentId();
     this.model = options.model;
     this.options = options;
+    this.cloudPayload = serializeCloudAgentConfig({ ...options, agentId: this.agentId });
 
     const repoUrls = (options.cloud?.repos ?? []).map((repo) => repo.url);
     registerAgent({
@@ -79,6 +88,7 @@ export class CloudAgent implements SDKAgent {
           message,
           agentOptions: this.options,
           sendOptions: options,
+          agentConfig: this.cloudPayload,
           ...(systemPrompt !== undefined ? { systemPrompt } : {}),
         })
       : createCloudRun({
@@ -116,6 +126,10 @@ export class CloudAgent implements SDKAgent {
   }
 
   reload(): Promise<void> {
+    // EC-6: re-serialize the cloud payload so filesystem-derived state
+    // (skills.enabled may shift as new SKILL.md files appear in repo) is
+    // reflected in subsequent send() dispatches.
+    this.cloudPayload = serializeCloudAgentConfig({ ...this.options, agentId: this.agentId });
     return Promise.resolve();
   }
 
