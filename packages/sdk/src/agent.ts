@@ -14,6 +14,7 @@ import {
   updateRegisteredAgent,
 } from "./internal/runtime/agent-registry.js";
 import { CloudAgent } from "./internal/runtime/cloud-agent.js";
+import { validateCloudToolParity } from "./internal/runtime/cloud-tool-parity.js";
 import { LocalAgent } from "./internal/runtime/local-agent.js";
 import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
 import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
@@ -54,6 +55,7 @@ export class Agent {
    */
   static async create(options: AgentOptions): Promise<SDKAgent> {
     validateAgentOptions(options);
+    validateCloudToolParity(options);
     if (options.cloud !== undefined) {
       return createCloudAgent(options);
     }
