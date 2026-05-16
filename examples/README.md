@@ -70,6 +70,9 @@ Plus a non-fixture SDK key (any string that does NOT start with
 | [`error-handling`](./error-handling) | Typed `try/catch` against `AuthenticationError`, `ConfigurationError`, `UnknownAgentError`. |
 | [`theokit-catalog`](./theokit-catalog) | `Theokit.me()`, `models.list()`, `repositories.list()`, `providers.list()`. |
 | [`cloud-agent`](./cloud-agent) | `cloud: { repos, autoCreatePR }` + `listArtifacts()` / `downloadArtifact()`. |
+| [`cloud-with-skills`](./cloud-with-skills) | Cloud agent + `skills.enabled` serialized into the cloud payload (ADR D15). |
+| [`cloud-with-mcp-http`](./cloud-with-mcp-http) | HTTP MCP transport for cloud; bare-command stdio MCP also accepted (ADR D15 + EC-3). |
+| [`cloud-with-subagents`](./cloud-with-subagents) | Inline `agents` map serialized into the cloud payload (ADR D15). |
 | [`agent-management`](./agent-management) | `Agent.list/get/listRuns/getRun/archive/unarchive/delete`. |
 
 The fixture-mode examples use a `theo_test_*` API key so the SDK

@@ -5,6 +5,7 @@ import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "
 import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl } from "../fixture-mode.js";
 import { parseSseStream } from "../llm/sse.js";
+import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { FixtureScript } from "./fixture-types.js";
 
@@ -31,6 +32,8 @@ export interface CreateRealCloudRunOptions {
   fetch?: typeof fetch;
   /** Pre-resolved system prompt threaded by `CloudAgent.send`. */
   systemPrompt?: string;
+  /** Canonical cloud-agent payload (ADR D15) — embedded in POST body as `agentConfig`. */
+  agentConfig?: CloudAgentPayload;
 }
 
 export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
@@ -71,6 +74,7 @@ export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
       fetchImpl: options.fetch ?? fetch,
       sendOptions: options.sendOptions,
       systemPrompt: options.systemPrompt,
+      agentConfig: options.agentConfig,
     },
   );
   handle.bootstrap();
@@ -84,6 +88,7 @@ interface RealCloudRunInputs {
   fetchImpl: typeof fetch;
   sendOptions: SendOptions;
   systemPrompt: string | undefined;
+  agentConfig: CloudAgentPayload | undefined;
 }
 
 class RealCloudRun extends FixtureRunBase {
@@ -142,6 +147,7 @@ class RealCloudRun extends FixtureRunBase {
         ...(this.inputs.systemPrompt !== undefined
           ? { systemPrompt: this.inputs.systemPrompt }
           : {}),
+        ...(this.inputs.agentConfig !== undefined ? { agentConfig: this.inputs.agentConfig } : {}),
       }),
     });
     if (!response.ok) {
