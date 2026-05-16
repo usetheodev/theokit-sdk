@@ -3,6 +3,13 @@ Theo SDK
 Public beta
 The TypeScript SDK is in public beta. APIs may change before general availability.
 
+Stability & versioning
+- Architectural decisions are tracked under `.claude/knowledge-base/adrs/` in the repository (D1..D14).
+- Embedding provider unions are locked by ADR D11 (`openai`, `mistral`, `openrouter`, `voyage`, `deepinfra`).
+- The default model id `google/gemini-2.0-flash-exp:free` is a runnable fallback; query `Theokit.models.list()` for the canonical catalog (ADR D4).
+- `await using agent = await Agent.create(...)` is supported (ADR D5).
+- Skill files require strict YAML frontmatter (`name`, `description`) (ADR D10).
+
 The @Theo/sdk package lets you call Theo's agent from your own code. The same agent that runs in the Theo IDE, CLI, and web app is now scriptable from TypeScript. You can also use Theo's native /sdk skill to help you start building.
 
 Overview

@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
-import { AuthenticationError, NetworkError, RateLimitError } from "../../../errors.js";
+import {
+  AuthenticationError,
+  ConfigurationError,
+  NetworkError,
+  RateLimitError,
+} from "../../../errors.js";
 import type {
   CreateAdapterOptions,
   EmbeddingRuntime,
@@ -27,8 +32,20 @@ export interface OpenAiCompatibleConfig {
   apiKeyEnv: string;
   baseUrlEnv?: string;
   defaultModel: string;
-  /** Best-effort dimension hint by model id. */
+  /**
+   * Dimension hint by model id. The chosen model MUST be in this table —
+   * unknown models throw `ConfigurationError(code: "embedding_unknown_model")`
+   * (EC-4 fix). This prevents vec0 virtual-table dimension mismatches that
+   * surface as cryptic errors downstream.
+   */
   dimensionByModel: Record<string, number>;
+  /**
+   * Path component appended to `baseUrl` for the embeddings endpoint.
+   * Default `"/v1/embeddings"` (OpenAI canonical). REPLACES the default —
+   * does NOT concatenate. Used by DeepInfra (`"/v1/openai/embeddings"`),
+   * etc. (EC-2 fix).
+   */
+  embeddingsPath?: string;
 }
 
 export async function createOpenAiCompatibleRuntime(
@@ -46,7 +63,15 @@ export async function createOpenAiCompatibleRuntime(
   const baseUrl = options.baseUrl ?? envBaseUrl ?? cfg.defaultBaseUrl;
   const fetchImpl = options.fetch ?? fetch;
   const cache = options.cache ?? new LruEmbeddingCache();
-  const dimension = cfg.dimensionByModel[model] ?? 1536;
+  // EC-4: refuse unknown models to prevent vec0 dimension mismatches downstream.
+  const dimension = cfg.dimensionByModel[model];
+  if (dimension === undefined) {
+    throw new ConfigurationError(
+      `${cfg.id} adapter: model "${model}" is not in the dimension table. Use one of: ${Object.keys(cfg.dimensionByModel).join(", ")}. To add it, update dimensionByModel in the adapter source.`,
+      { code: "embedding_unknown_model" },
+    );
+  }
+  const embeddingsPath = cfg.embeddingsPath ?? "/v1/embeddings";
 
   const stats: EmbeddingRuntimeStats = {
     cacheHits: 0,
@@ -69,6 +94,7 @@ export async function createOpenAiCompatibleRuntime(
         dimension,
         apiKey,
         baseUrl,
+        embeddingsPath,
         fetchImpl,
         providerId: cfg.id,
       }),
@@ -83,6 +109,7 @@ interface EmbedTextsInput {
   dimension: number;
   apiKey: string;
   baseUrl: string;
+  embeddingsPath: string;
   fetchImpl: typeof fetch;
   providerId: string;
 }
@@ -144,6 +171,7 @@ async function runBatches(
     const vectors = await embedBatch({
       apiKey: input.apiKey,
       baseUrl: input.baseUrl,
+      embeddingsPath: input.embeddingsPath,
       model: input.model,
       inputs: batch.map((b) => b.text),
       fetchImpl: input.fetchImpl,
@@ -163,6 +191,7 @@ async function runBatches(
 interface BatchOptions {
   apiKey: string;
   baseUrl: string;
+  embeddingsPath: string;
   model: string;
   inputs: ReadonlyArray<string>;
   fetchImpl: typeof fetch;
@@ -171,7 +200,8 @@ interface BatchOptions {
 }
 
 async function embedBatch(opts: BatchOptions): Promise<number[][]> {
-  const url = `${opts.baseUrl.replace(/\/$/, "")}/v1/embeddings`;
+  // EC-2: embeddingsPath REPLACES the suffix; never concatenates.
+  const url = `${opts.baseUrl.replace(/\/$/, "")}${opts.embeddingsPath}`;
   let attempt = 0;
   while (true) {
     opts.stats.httpCalls += 1;

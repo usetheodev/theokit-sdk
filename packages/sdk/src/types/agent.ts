@@ -200,7 +200,7 @@ export interface MemorySettings {
     backend?: "sqlite-vec";
     /** Embedding provider config. When omitted, the index runs in FTS-only mode. */
     embedding?: {
-      provider: "openai" | "mistral" | "openrouter";
+      provider: "openai" | "mistral" | "openrouter" | "voyage" | "deepinfra";
       model?: string;
     };
   };
@@ -290,10 +290,16 @@ export interface SDKAgent {
   /** Re-read filesystem config (context, hooks, project MCP, subagents) without disposing. */
   reload(): Promise<void>;
   /**
-   * Async disposal. Implementations also expose `[Symbol.asyncDispose]` so
-   * `await using` works once the consuming TypeScript target enables it.
+   * Async disposal. Idempotent — calling more than once is a no-op (per ADR D5).
+   * Prefer `await using agent = await Agent.create(...)` over explicit
+   * `dispose()` for resource safety.
    */
   dispose(): Promise<void>;
+  /**
+   * `await using` support per ADR D5. Identical semantics to `dispose()` —
+   * idempotent across both surfaces.
+   */
+  [Symbol.asyncDispose](): Promise<void>;
   /** Cloud-only. Local returns an empty array. */
   listArtifacts(): Promise<SDKArtifact[]>;
   /** Cloud-only. Local throws `UnsupportedRunOperationError`. */

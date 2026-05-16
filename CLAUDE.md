@@ -173,21 +173,29 @@ pnpm build                    # tsup → dist/{index,errors}.{js,cjs,d.ts}
 pnpm validate                 # everything above plus publint + attw
 ```
 
-## Open decisions (do not silently choose)
+## Decided ADRs
 
-Surface to the user before resolving. Do not commit a silent answer.
+Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.claude/knowledge-base/adrs/). Every decision was previously a `Pending` row in this table; each is now committed with rationale + date.
 
-| Decision | Status | Impact |
+| ID | Decision | ADR |
 | --- | --- | --- |
-| Implement vs wrap: the SDK currently stands alone (no `referencia/pi` import). If we decide to internally use `pi-agent-core` as the local-runtime engine, that becomes a workspace-vs-vendored decision. | **Pending** | Determines whether `pi` re-enters the workspace or stays in `referencia/`. |
-| Model id catalog: `README.md` examples use `composer-2` (placeholder from `docs.md`). Real catalog comes from `Theokit.models.list()`. | Pending | Affects example accuracy and onboarding. |
-| Supported cloud SCM providers at GA (`github`, `gitlab`, `azuredevops`, ...) | Pending | Drives `IntegrationNotConnectedError.provider` values. |
-| `Symbol.asyncDispose` in the public `SDKAgent` type: skeleton uses `dispose()` to avoid bumping TS lib to `ESNext.Disposable` before we need it. | Pending | Add when the local runtime ships; coordinate with the `lib` bump in `tsconfig.base.json`. |
-| Whether `pnpm validate` should fail on `attw` warnings or just publint errors. | Pending | Affects CI strictness. |
-| Local cron scheduler library: `croner` (zero deps, modern) vs `cron` (mature, larger) vs `node-cron` (simple, no timezone). | Pending | Affects bundle size and feature set of local cron runtime. |
-| Cron job persistence format: JSON file (current plan: `.theokit/cron/jobs.json`) vs SQLite vs append-only log. | Pending | Affects crash recovery and concurrent-process safety. |
-| Memory subsystem: `docs.md` includes `AgentOptions.memory` and `SDKAgent.memory`, but no runtime types or stubs exist yet. Decision: namespace/user/scope keying, local persistence path layout, redaction rules. | Pending | Drives `SDKMemoryManager` shape and `.theokit/memory/` layout. |
-| Skills subsystem: `docs.md` includes `AgentOptions.skills`, `SDKAgent.skills`, and `.theokit/skills/<name>/SKILL.md` discovery, but no runtime types or stubs exist yet. Decision: metadata-only public surface, frontmatter schema, parent/subagent inheritance. | Pending | Drives `SDKSkillsManager` shape and skill loader. |
+| D1 | Node 22.12+ mandatory in CI + local | [D01-node-22-mandatory.md](./.claude/knowledge-base/adrs/D01-node-22-mandatory.md) |
+| D2 | Knip full mode enforced strictly | [D02-knip-strict.md](./.claude/knowledge-base/adrs/D02-knip-strict.md) |
+| D3 | `pi` stays stand-alone (no vendor, no workspace-link) | [D03-pi-standalone.md](./.claude/knowledge-base/adrs/D03-pi-standalone.md) |
+| D4 | Model catalog source-of-truth = `Theokit.models.list()` | [D04-model-catalog.md](./.claude/knowledge-base/adrs/D04-model-catalog.md) |
+| D5 | Adopt `Symbol.asyncDispose` on `SDKAgent` | [D05-symbol-async-dispose.md](./.claude/knowledge-base/adrs/D05-symbol-async-dispose.md) |
+| D6 | `pnpm validate` strict on publint AND attw | [D06-validate-strictness.md](./.claude/knowledge-base/adrs/D06-validate-strictness.md) |
+| D7 | `croner` locked as cron scheduler library | [D07-croner-scheduler.md](./.claude/knowledge-base/adrs/D07-croner-scheduler.md) |
+| D8 | Cron persistence = JSON file with atomic write | [D08-cron-persistence-json.md](./.claude/knowledge-base/adrs/D08-cron-persistence-json.md) |
+| D9 | Memory namespace/scope defaults locked | [D09-memory-namespace-defaults.md](./.claude/knowledge-base/adrs/D09-memory-namespace-defaults.md) |
+| D10 | Skills frontmatter strict schema (Zod) | [D10-skills-frontmatter-schema.md](./.claude/knowledge-base/adrs/D10-skills-frontmatter-schema.md) |
+| D11 | Embedding adapters: openai/mistral/openrouter/voyage/deepinfra shipped; lmstudio/google/bedrock deferred | [D11-embedding-adapters-shipped.md](./.claude/knowledge-base/adrs/D11-embedding-adapters-shipped.md) |
+| D12 | LanceDB backend deferred to v1.1 | [D12-lancedb-deferred.md](./.claude/knowledge-base/adrs/D12-lancedb-deferred.md) |
+| D13 | Active Memory subagent mode deferred to v1.1 | [D13-active-memory-subagent-deferred.md](./.claude/knowledge-base/adrs/D13-active-memory-subagent-deferred.md) |
+| D14 | Dreaming narrative LLM deferred to v1.1 | [D14-dreaming-narrative-deferred.md](./.claude/knowledge-base/adrs/D14-dreaming-narrative-deferred.md) |
+
+Open question that remained:
+- **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
 
 ## Inviolable rules (carried from root and global)
 

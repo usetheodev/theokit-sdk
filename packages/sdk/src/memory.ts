@@ -16,9 +16,12 @@ export interface DreamingSweepOptions {
   /**
    * Embedding provider for semantic dedup + clustering. Required — dreaming
    * relies on real embeddings to score cosine similarity. Supported providers:
-   * `"openai"`, `"mistral"`, `"openrouter"`.
+   * `"openai"`, `"mistral"`, `"openrouter"`, `"voyage"`, `"deepinfra"`.
    */
-  embedding: { provider: "openai" | "mistral" | "openrouter"; model?: string };
+  embedding: {
+    provider: "openai" | "mistral" | "openrouter" | "voyage" | "deepinfra";
+    model?: string;
+  };
   /** Cosine-similarity threshold for the dedup phase. Default `0.95`. */
   dedupThreshold?: number;
   /** Cosine-similarity threshold for the clustering phase. Default `0.75`. */
