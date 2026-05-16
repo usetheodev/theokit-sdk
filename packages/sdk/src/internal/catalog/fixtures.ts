@@ -1,5 +1,6 @@
 import type { SDKProvider } from "../../types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "../../types/theokit.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/default-model.js";
 
 /**
  * Fixture catalog data — returned when fixture-mode is active (no
@@ -24,9 +25,9 @@ export const FIXTURE_USER: SDKUser = {
 /** Fixture model catalog (matches `tests/golden/theokit/models.json`). */
 export const FIXTURE_MODELS: SDKModel[] = [
   {
-    id: "composer-2",
-    name: "Composer 2",
-    displayName: "Composer 2",
+    id: DEFAULT_AGENTIC_MODEL_ID,
+    name: "Gemini 2.0 Flash (free)",
+    displayName: "Gemini 2.0 Flash (experimental, free)",
     parameters: [
       {
         id: "thinking",

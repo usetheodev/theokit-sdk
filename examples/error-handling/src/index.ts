@@ -23,7 +23,7 @@ async function expectAuthError(): Promise<void> {
   try {
     await Agent.create({
       apiKey: "",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd: process.cwd() },
     });
     console.log("[1 missing key] unexpected success");
@@ -40,7 +40,7 @@ async function expectConfigError(): Promise<void> {
   try {
     await Agent.create({
       apiKey: "theo_test_demo",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd: process.cwd() },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });

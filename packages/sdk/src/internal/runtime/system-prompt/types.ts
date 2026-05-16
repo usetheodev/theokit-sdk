@@ -22,6 +22,8 @@ export interface SystemPromptAssemblyContext extends SystemPromptContext {
   memoryAutoInject?: boolean;
   /** The user-resolved base system prompt (string or resolver output). */
   baseSystemPrompt?: string;
+  /** Active Memory recall summary (Phase 7 of memory-system-peer-project-parity). */
+  activeMemorySummary?: string;
 }
 
 /**

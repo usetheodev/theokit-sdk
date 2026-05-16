@@ -55,7 +55,13 @@ Plus a non-fixture SDK key (any string that does NOT start with
 | [`provider-fallback`](./provider-fallback) | ✅ Full | Primary handshake failure falls over to the next entry in `providers.fallback`. |
 | [`context-manager`](./context-manager) | ✅ Full | Loaded sources appear as a `<context>` block in the LLM system prompt. |
 | [`skills`](./skills) | ✅ Full | Skills list auto-injected as a `<skills>` block; opt out with `skills.autoInject: false`. |
-| [`memory`](./memory) | ✅ Full | Persisted facts auto-injected as a `<memory>` block on the next send. |
+| [`memory`](./memory) | ✅ Full | Persisted facts auto-injected as a `<memory>` block on the next send. `Remember:` prefix auto-writes (now backed by MEMORY.md). |
+| [`memory-search`](./memory-search) | ✅ Full | LLM uses the `memory_search` tool to find facts in `.theokit/memory/MEMORY.md` via FTS5/hybrid index. |
+| [`memory-get`](./memory-get) | ✅ Full | LLM uses the `memory_get` tool for bounded reads of `notes/*.md`; path traversal rejected. |
+| [`active-memory`](./active-memory) | ✅ Full | Blocking pre-send recall injects an `<active-memory>` block; circuit breaker + cache + timeout. |
+| [`memory-dreaming`](./memory-dreaming) | ✅ Full | Dedup + cluster + dream-diary via `Memory.runDreamingSweep`. Requires an embedding provider. |
+| [`provider-inspector`](./provider-inspector) | ✅ Full | `Theokit.providers.list()` (global catalog) + `agent.providers.routes()` (per-agent resolved routes). |
+| [`resume-agent`](./resume-agent) | ✅ Full | `Agent.resume(agentId)` reattaches in-process; session history continues. |
 
 ### Fixture mode (no PaaS / provider required)
 
@@ -83,8 +89,8 @@ Not covered yet:
 
 - Cloud Run end-to-end **against a live PaaS** (the cloud example
   uses fixture mode because the PaaS isn't deployed)
-- `agent.providers.list()` runtime inspection (managed but no example)
-- `Agent.resume(agentId)` (used internally by Cron; no standalone example)
+- Cross-process `Agent.resume` (in-process flow demonstrated; persistent
+  registry tracked as future work)
 
 ## Why some examples use fixture mode
 

@@ -77,7 +77,12 @@ async function startStubPaaS(): Promise<{ server: Server; url: string; captured:
     if (req.url === "/v1/agents" && req.method === "POST") {
       res.statusCode = 200;
       res.setHeader("content-type", "application/json");
-      res.end(JSON.stringify({ agentId: "bc-stub-sp", model: { id: "composer-2" } }));
+      res.end(
+        JSON.stringify({
+          agentId: "bc-stub-sp",
+          model: { id: "google/gemini-2.0-flash-exp:free" },
+        }),
+      );
       return;
     }
     if (!req.url?.startsWith("/v1/agents/")) {
@@ -280,7 +285,7 @@ describe("systemPrompt routing", () => {
     process.env.THEOKIT_API_BASE_URL = stub.url;
     const agent = await Agent.create({
       apiKey: "user-real-cloud-systemprompt",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
       systemPrompt: "Cloud agent persona.",
     });

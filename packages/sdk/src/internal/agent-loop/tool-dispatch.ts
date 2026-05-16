@@ -16,9 +16,11 @@ export interface ResolvedTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  origin: "shell" | "mcp";
+  origin: "shell" | "mcp" | "memory";
   mcpServerName?: string;
   mcpToolName?: string;
+  /** Direct handler for `origin === "memory"` tools — returns JSON-encoded result string. */
+  memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
 }
 
 interface ToolResult {
@@ -105,7 +107,21 @@ async function executeTool(
     return { stdout: "", stderr: `Unknown tool ${call.name}`, exitCode: 127 };
   }
   if (resolved.origin === "shell") return runShellTool(inputs, call);
+  if (resolved.origin === "memory") return runMemoryTool(resolved, call);
   return runMcpTool(inputs, resolved, call);
+}
+
+async function runMemoryTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
+  if (resolved.memoryHandler === undefined) {
+    return { stdout: "", stderr: `memory tool ${call.name} has no handler`, exitCode: 127 };
+  }
+  try {
+    const stdout = await resolved.memoryHandler(call.input);
+    return { stdout, stderr: "", exitCode: 0 };
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    return { stdout: "", stderr: message, exitCode: 1 };
+  }
 }
 
 async function runShellTool(inputs: AgentLoopInputs, call: LlmToolCallPart): Promise<ToolResult> {

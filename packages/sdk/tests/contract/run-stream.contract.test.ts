@@ -21,7 +21,7 @@ describe("run.stream SDKMessage contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send(
@@ -64,7 +64,7 @@ describe("run.stream SDKMessage contract", () => {
   it("emits cloud status lifecycle events with bc agent id", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-exp:free" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }], autoCreatePR: true },
     });
     const run = await agent.send("Open a PR that updates README.md");
