@@ -12,4 +12,4 @@
  *
  * @internal
  */
-export const DEFAULT_AGENTIC_MODEL_ID = "google/gemini-2.0-flash-exp:free";
+export const DEFAULT_AGENTIC_MODEL_ID = "google/gemini-2.0-flash-001";

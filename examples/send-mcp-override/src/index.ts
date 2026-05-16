@@ -12,7 +12,7 @@ import { Agent } from "@usetheo/sdk";
 async function main(): Promise<void> {
   const agent = await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_send_mcp_override",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     local: { cwd: process.cwd() },
     mcpServers: {
       // Agent's baseline MCP set

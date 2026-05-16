@@ -18,7 +18,7 @@ import { Agent, ConfigurationError } from "../../../src/index.js";
  */
 
 const FIXTURE_KEY = "theo_test_cloud_tool_parity";
-const MODEL = { id: "google/gemini-2.0-flash-exp:free" };
+const MODEL = { id: "google/gemini-2.0-flash-001" };
 const REPOS = [{ url: "https://github.com/usetheo/example" }];
 
 describe("validateCloudToolParity (ADR D15/D16)", () => {

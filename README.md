@@ -95,7 +95,7 @@ import { Agent } from "@usetheo/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
 
@@ -111,7 +111,7 @@ Each event is a discriminated `SDKMessage`. For a one-shot prompt (create, run, 
 ```typescript
 const result = await Agent.prompt("What does the auth middleware do?", {
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
 ```
@@ -134,7 +134,7 @@ const result = await Agent.prompt("What does the auth middleware do?", {
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: "/path/to/repo" },
 });
 ```
@@ -147,7 +147,7 @@ Use `model.params` to pass per-model options (such as reasoning effort). Discove
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
   model: {
-    id: "google/gemini-2.0-flash-exp:free",
+    id: "google/gemini-2.0-flash-001",
     params: [{ id: "thinking", value: "high" }],
   },
   local: { cwd: process.cwd() },
@@ -235,7 +235,7 @@ The model passed to `agent.send()` overrides the agent's selection for that run,
 
 ```typescript
 const run = await agent.send("Plan the refactor", {
-  model: { id: "google/gemini-2.0-flash-exp:free", params: [{ id: "thinking", value: "high" }] },
+  model: { id: "google/gemini-2.0-flash-001", params: [{ id: "thinking", value: "high" }] },
 });
 console.log(agent.model); // updated to the override after the send succeeds
 ```
@@ -342,7 +342,7 @@ Agents can pick up MCP servers from several sources. Inline definitions in `Agen
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
   mcpServers: {
     docs: {
@@ -376,7 +376,7 @@ Define named subagents that the main agent spawns via the Agent tool.
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
   agents: {
     "code-reviewer": {
@@ -401,7 +401,7 @@ Durable memory, project context, and named capability packs (Skills) are part of
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
   context: { manager: "file", maxTokens: 1200 },
   memory: { enabled: true, namespace: "my-app", userId: "user-123", scope: "user" },
@@ -438,7 +438,7 @@ const job = await Cron.create({
   message: "Summarize yesterday's commits and post to #engineering",
   agent: {
     apiKey: process.env.THEOKIT_API_KEY!,
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     local: { cwd: process.cwd() },
   },
 });
@@ -538,7 +538,7 @@ Cloud agents are created with the same `Agent.create()` call but with the `cloud
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-exp:free" },
+  model: { id: "google/gemini-2.0-flash-001" },
   cloud: {
     repos: [{ url: "https://github.com/your-org/your-repo", startingRef: "main" }],
     autoCreatePR: true,

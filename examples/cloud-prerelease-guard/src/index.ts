@@ -14,7 +14,7 @@ async function main(): Promise<void> {
 
   const agent = await Agent.create({
     apiKey: realKey,
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
   });
   console.log(`Cloud agent created: ${agent.agentId}`);

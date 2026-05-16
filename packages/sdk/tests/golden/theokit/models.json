@@ -1,8 +1,8 @@
 [
   {
-    "id": "google/gemini-2.0-flash-exp:free",
-    "name": "Gemini 2.0 Flash (free)",
-    "displayName": "Gemini 2.0 Flash (experimental, free)",
+    "id": "google/gemini-2.0-flash-001",
+    "name": "Gemini 2.0 Flash",
+    "displayName": "Gemini 2.0 Flash",
     "parameters": [
       {
         "id": "thinking",

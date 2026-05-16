@@ -15,7 +15,7 @@ describe("plugins contract", () => {
     workspace = await createTempWorkspace("project-with-plugins");
     const options: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd, settingSources: ["plugins"] },
       plugins: {
         enabled: ["search-provider"],
@@ -45,7 +45,7 @@ describe("plugins contract", () => {
     await expect(
       Agent.create({
         apiKey: "theo_test_contract_key",
-        model: { id: "google/gemini-2.0-flash-exp:free" },
+        model: { id: "google/gemini-2.0-flash-001" },
         local: { cwd: workspace.cwd, settingSources: ["plugins"] },
         plugins: { enabled: ["broken"] },
       } as ProposedAgentOptions),
@@ -59,7 +59,7 @@ describe("plugins contract", () => {
     await expect(
       Agent.create({
         apiKey: "theo_test_contract_key",
-        model: { id: "google/gemini-2.0-flash-exp:free" },
+        model: { id: "google/gemini-2.0-flash-001" },
         cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
         plugins: {
           paths: ["/tmp/local-plugin"],

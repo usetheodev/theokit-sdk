@@ -15,7 +15,7 @@ describe("skills contract", () => {
     workspace = await createTempWorkspace("project-with-skills");
     const options: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       skills: {
         enabled: ["code-review", "test-architect"],
@@ -50,7 +50,7 @@ describe("skills contract", () => {
     workspace = await createTempWorkspace("project-with-skills");
     const options: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       skills: { enabled: ["code-review"] },
     };

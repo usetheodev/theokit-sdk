@@ -75,7 +75,7 @@ describe("Cron contract", () => {
         agentId: "agent-00000000-0000-4000-8000-000000000001",
         agent: {
           apiKey: "theo_test_contract_key",
-          model: { id: "google/gemini-2.0-flash-exp:free" },
+          model: { id: "google/gemini-2.0-flash-001" },
           local: {},
         },
       }),

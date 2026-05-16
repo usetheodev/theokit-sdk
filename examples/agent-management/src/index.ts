@@ -21,13 +21,13 @@ async function main(): Promise<void> {
   const a = await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_mgmt_demo",
     name: "alpha",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     local: { cwd: process.cwd() },
   });
   const b = await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_mgmt_demo",
     name: "beta",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
   });
   console.log(`Seeded local=${a.agentId} cloud=${b.agentId}`);

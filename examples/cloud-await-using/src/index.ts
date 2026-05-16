@@ -16,7 +16,7 @@ async function main(): Promise<void> {
   {
     await using agent = await Agent.create({
       apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_cloud_await_using",
-      model: { id: "google/gemini-2.0-flash-exp:free" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
     console.log(`  cloud agent ${agent.agentId} alive inside the using block`);
@@ -27,7 +27,7 @@ async function main(): Promise<void> {
   console.log("Pattern B: explicit dispose() — same idempotent behavior.\n");
   const agent = await Agent.create({
     apiKey: "theo_test_cloud_await_using_b",
-    model: { id: "google/gemini-2.0-flash-exp:free" },
+    model: { id: "google/gemini-2.0-flash-001" },
     cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
   });
   console.log(`  cloud agent ${agent.agentId} created`);
