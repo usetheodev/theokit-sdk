@@ -166,16 +166,7 @@ export class Agent {
    * @public
    */
   static async get(agentId: string, _options: GetAgentOptions = {}): Promise<SDKAgentInfo> {
-    let agent = getRegisteredAgent(agentId);
-    if (agent === undefined) {
-      await hydrateRegistryFromDisk(process.cwd());
-      agent = getRegisteredAgent(agentId);
-    }
-    if (agent === undefined) {
-      throw new UnknownAgentError(`Agent ${agentId} not found`, {
-        code: "unknown_agent",
-      });
-    }
+    const agent = await getRegisteredAgentOrThrow(agentId);
     return toAgentInfo(agent);
   }
 
@@ -185,16 +176,7 @@ export class Agent {
    * @public
    */
   static async listRuns(agentId: string, _options: ListRunsOptions = {}): Promise<ListResult<Run>> {
-    let agent = getRegisteredAgent(agentId);
-    if (agent === undefined) {
-      await hydrateRegistryFromDisk(process.cwd());
-      agent = getRegisteredAgent(agentId);
-    }
-    if (agent === undefined) {
-      throw new UnknownAgentError(`Agent ${agentId} not found`, {
-        code: "unknown_agent",
-      });
-    }
+    await getRegisteredAgentOrThrow(agentId);
     return { items: listRunsByAgent(agentId) };
   }
 
@@ -378,6 +360,18 @@ function toCloudAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
 }
 
 async function setArchivedFlag(agentId: string, archived: boolean): Promise<void> {
+  await getRegisteredAgentOrThrow(agentId);
+  updateRegisteredAgent(agentId, { archived });
+  // Block until disk reflects the flip so subsequent reads observe it (D17).
+  await flushRegistrySaves();
+}
+
+/**
+ * Lookup a registered agent by ID, falling back to disk rehydration (ADR D21)
+ * before throwing {@link UnknownAgentError}. Shared by the surfaces that need
+ * the resume-aware contract (`get`, `listRuns`, `setArchivedFlag`).
+ */
+async function getRegisteredAgentOrThrow(agentId: string): Promise<RegisteredAgent> {
   let agent = getRegisteredAgent(agentId);
   if (agent === undefined) {
     await hydrateRegistryFromDisk(process.cwd());
@@ -386,7 +380,5 @@ async function setArchivedFlag(agentId: string, archived: boolean): Promise<void
   if (agent === undefined) {
     throw new UnknownAgentError(`Agent ${agentId} not found`, { code: "unknown_agent" });
   }
-  updateRegisteredAgent(agentId, { archived });
-  // Block until disk reflects the flip so subsequent reads observe it (D17).
-  await flushRegistrySaves();
+  return agent;
 }
