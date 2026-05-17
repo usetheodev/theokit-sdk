@@ -8,7 +8,6 @@ import type {
   ModelSelection,
   SDKAgent,
   SDKArtifact,
-  SystemPromptContext,
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
@@ -16,7 +15,6 @@ import { resolveApiKey } from "../env.js";
 import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../memory/cwd-mutex.js";
-import { writeSessionSummary } from "../memory/session-summary-writer.js";
 import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import {
   appendSessionMessage,
@@ -37,13 +35,18 @@ import {
   readMemoryFacts,
 } from "./memory-store.js";
 import { type PluginMetadata, PluginsManager } from "./plugins-manager.js";
+import { runPostRunLifecycle } from "./post-run-lifecycle.js";
 import { ProvidersManagerImpl } from "./providers-manager.js";
 import { createRealLocalRun } from "./real-local-run.js";
 import { type SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
+import {
+  assembleSystemPromptForSend as assembleSystemPromptForSendHelper,
+  buildSystemPromptContext as buildSystemPromptContextHelper,
+  type LocalAssemblyInputs,
+} from "./system-prompt/local-assembly.js";
 import { SystemPromptPipeline } from "./system-prompt/pipeline.js";
 import { safeCall } from "./system-prompt/safe-call.js";
-import type { SystemPromptAssemblyContext } from "./system-prompt/types.js";
 import { resolveSystemPromptForSend } from "./system-prompt.js";
 import { validateToolCatalog } from "./validate-agent-options.js";
 
@@ -181,64 +184,16 @@ export class LocalAgent implements SDKAgent {
           return;
         }
         resolve(run);
-        await this.runPostRunLifecycle(run, userText);
+        await runPostRunLifecycle({
+          run,
+          userText,
+          agentId: this.agentId,
+          workspaceCwd: this.workspaceCwd,
+          hooksExecutor: this.hooksExecutor,
+          memoryGlue: this.memoryGlue,
+        });
       });
     });
-  }
-
-  private async runPostRunLifecycle(run: Run, userText: string): Promise<void> {
-    let result: Awaited<ReturnType<Run["wait"]>>;
-    try {
-      result = await run.wait();
-    } catch {
-      // Caller observes failures via their own run.wait()/stream(); the
-      // mutex still releases via the flushes below.
-      await flushSessionWrites();
-      return;
-    }
-
-    if (result.result !== undefined) {
-      appendSessionMessage(
-        this.agentId,
-        { role: "assistant", text: result.result },
-        this.workspaceCwd,
-      );
-    }
-
-    // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
-    if (result.status === "finished" && result.result !== undefined) {
-      try {
-        await writeSessionSummary({
-          cwd: this.workspaceCwd,
-          runId: result.id,
-          agentId: this.agentId,
-          userText,
-          assistantText: result.result,
-          status: "finished",
-          at: Date.now(),
-        });
-        // EC-3: trigger sync so the next memory_search({corpus:"sessions"})
-        // sees the just-written summary. Fire-and-forget; the read path
-        // tolerates a missed sync because IndexManager re-scans on each call.
-        void this.memoryGlue.syncIfReady();
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : String(cause);
-        process.stderr.write(
-          `[theokit-sdk] session summary write failed (${result.id}): ${message}\n`,
-        );
-      }
-    }
-
-    await this.hooksExecutor.run({
-      event: "postRun",
-      output: {
-        status: result.status,
-        ...(result.result !== undefined ? { result: result.result } : {}),
-      },
-      agentId: this.agentId,
-      runId: result.id,
-    });
-    await flushSessionWrites();
   }
 
   private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
@@ -305,43 +260,31 @@ export class LocalAgent implements SDKAgent {
     );
   }
 
-  private async assembleSystemPromptForSend(
+  private localAssemblyInputs(): LocalAssemblyInputs {
+    return {
+      agentId: this.agentId,
+      workspaceCwd: this.workspaceCwd,
+      model: this.model,
+      options: this.options,
+      context: this.context,
+      skillsManager: this.skillsManager,
+      systemPromptPipeline: this.systemPromptPipeline,
+    };
+  }
+
+  private assembleSystemPromptForSend(
     userText: string,
     baseSystemPrompt: string | undefined,
     memoryFacts: ReadonlyArray<MemoryFact>,
     activeMemorySummary: string | undefined,
   ): Promise<string | undefined> {
-    const assemblyCtx = await this.buildAssemblyContext(
+    return assembleSystemPromptForSendHelper(
+      this.localAssemblyInputs(),
       userText,
       baseSystemPrompt,
       memoryFacts,
       activeMemorySummary,
     );
-    return this.systemPromptPipeline.assemble(assemblyCtx);
-  }
-
-  private async buildAssemblyContext(
-    userText: string,
-    baseSystemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    activeMemorySummary: string | undefined,
-  ): Promise<SystemPromptAssemblyContext> {
-    const baseCtx = await this.buildSystemPromptContext(userText, memoryFacts);
-    const assemblyCtx: SystemPromptAssemblyContext = {
-      ...baseCtx,
-      skillsAutoInject: this.options.skills?.autoInject ?? true,
-      memoryAutoInject: this.options.memory?.autoInject ?? true,
-    };
-    if (baseSystemPrompt !== undefined) assemblyCtx.baseSystemPrompt = baseSystemPrompt;
-    if (activeMemorySummary !== undefined && activeMemorySummary.length > 0) {
-      assemblyCtx.activeMemorySummary = activeMemorySummary;
-    }
-    if (this.context !== undefined) {
-      const internal = this.context.internalAssemblySnapshot();
-      assemblyCtx.contextSnapshot = { sources: internal.sources };
-      if (internal.maxTokens !== undefined) assemblyCtx.contextMaxTokens = internal.maxTokens;
-    }
-    return assemblyCtx;
   }
 
   private resolveSystemPromptForSend(
@@ -350,23 +293,8 @@ export class LocalAgent implements SDKAgent {
     memoryFacts: ReadonlyArray<MemoryFact>,
   ): Promise<string | undefined> {
     return resolveSystemPromptForSend(this.options.systemPrompt, options.systemPrompt, () =>
-      this.buildSystemPromptContext(userText, memoryFacts),
+      buildSystemPromptContextHelper(this.localAssemblyInputs(), userText, memoryFacts),
     );
-  }
-
-  private async buildSystemPromptContext(
-    userText: string,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-  ): Promise<SystemPromptContext> {
-    const skills = this.skillsManager !== undefined ? await this.skillsManager.list() : [];
-    return {
-      agentId: this.agentId,
-      cwd: this.workspaceCwd,
-      model: this.model,
-      skills: skills.map((skill) => ({ name: skill.name, description: skill.description })),
-      userMessage: userText,
-      memory: memoryFacts.map((fact) => ({ text: fact.text })),
-    };
   }
 
   private applyModelOverride(overrideModel: ModelSelection | undefined): void {
