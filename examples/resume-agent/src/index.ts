@@ -43,6 +43,15 @@ async function main(): Promise<void> {
   const r2 = await (await resumed.send("What's my favourite test runner?")).wait();
   console.log(`[resumed-handle] said: ${r2.result}`);
   await resumed.dispose();
+
+  // Step 3 (DX helper): Agent.getOrCreate(id, options) collapses the
+  // try/catch + UnknownAgentError + cold-create dance into a single call.
+  // Idempotent: subsequent calls with the same id always resume.
+  const helperHandle = await Agent.getOrCreate(agentId, baseOptions);
+  console.log(
+    `\n[getOrCreate-handle] agentId: ${helperHandle.agentId} (same id: ${helperHandle.agentId === agentId})`,
+  );
+  await helperHandle.dispose();
 }
 
 main().catch((cause) => {

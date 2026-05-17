@@ -101,8 +101,20 @@ async function main(): Promise<void> {
   console.log("       else throw e;");
   console.log("     }");
 
-  // 8. TheokitAgentError — base class fallback
-  console.log("\n8. TheokitAgentError — base class catch (fallback)");
+  // 8. Agent.getOrCreate propagates non-UnknownAgentError exceptions (D22)
+  console.log("\n8. Agent.getOrCreate — non-UnknownAgentError propagation");
+  try {
+    await Agent.getOrCreate("agent-getorcreate-missing-model-001", {
+      apiKey: "theo_test_error_handling_full",
+      local: { cwd: process.cwd() },
+    } as never);
+  } catch (cause) {
+    console.log(`   ConfigurationError surfaced: ${classifyError(cause)}`);
+    if (cause instanceof TheokitAgentError) console.log(`   code: ${cause.code}`);
+  }
+
+  // 9. TheokitAgentError — base class fallback
+  console.log("\n9. TheokitAgentError — base class catch (fallback)");
   console.log("   Every SDK error extends TheokitAgentError, so:");
   console.log("");
   console.log("     try { await op(); }");

@@ -67,10 +67,32 @@ async function expectUnknownAgent(): Promise<void> {
   }
 }
 
+async function expectGetOrCreateValidation(): Promise<void> {
+  // Agent.getOrCreate (ADR D22) MUST propagate non-UnknownAgentError exceptions
+  // — config errors are not swallowed by the resume-fallback path.
+  try {
+    // No model + local set → resume miss (unknown id) → create fails with
+    // ConfigurationError(missing_model). The helper does NOT silently
+    // succeed; the typed error reaches the caller.
+    await Agent.getOrCreate("agent-getorcreate-no-model-00000", {
+      apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_error_handling",
+      local: { cwd: process.cwd() },
+    } as never);
+    console.log("[4 getOrCreate config] unexpected success");
+  } catch (cause) {
+    if (cause instanceof ConfigurationError) {
+      console.log(`[4 getOrCreate config] ✓ ConfigurationError code=${cause.code}`);
+    } else {
+      console.log(`[4 getOrCreate config] unexpected: ${(cause as Error).name}`);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   await expectAuthError();
   await expectConfigError();
   await expectUnknownAgent();
+  await expectGetOrCreateValidation();
 }
 
 main().catch((cause) => {

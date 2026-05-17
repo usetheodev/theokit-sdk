@@ -6,8 +6,12 @@
 // Agent façade
 export { Agent, type AgentPromptResult } from "./agent.js";
 
+// DX helpers — agent construction patterns (ADR D22-D26)
+export { AgentBuilder } from "./agent-builder.js";
+export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
 // Cron façade
 export { Cron } from "./cron.js";
+export { type DefineToolSpec, defineTool } from "./define-tool.js";
 
 // Errors (runtime classes)
 export {

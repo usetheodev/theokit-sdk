@@ -36,6 +36,24 @@ OPENROUTER_API_KEY=sk-or-...
 Plus a non-fixture SDK key (any string that does NOT start with
 `theo_test_`) — examples default to `THEOKIT_API_KEY=user-real-example-key`.
 
+## DX helpers cheat sheet
+
+The SDK exposes four helpers on top of the canonical
+`Agent.create({...})` options bag. Each one is opt-in — you can build
+the same agent with or without them. Pick where you learn each:
+
+| Helper | Where to learn it |
+|---|---|
+| `Agent.create({...})` — options-bag (canonical) | [`quickstart`](./quickstart) |
+| `Agent.builder()` — fluent chain (ADR D25) | [`quickstart`](./quickstart) with `BUILDER=1 pnpm dev`, [`agent-management`](./agent-management) |
+| `Agent.getOrCreate(id, options)` — resume-or-create (ADR D22) | [`telegram-pro`](./telegram-pro), [`telegram-bot`](./telegram-bot), [`resume-agent`](./resume-agent), [`agent-management`](./agent-management), [`error-handling`](./error-handling), [`error-handling-full`](./error-handling-full) |
+| `createAgentFactory(common)` — factory closure (ADR D23) | [`telegram-pro`](./telegram-pro) |
+| `defineTool(spec)` — Zod-driven type-safe tool builder (ADR D24) | [`telegram-pro`](./telegram-pro) |
+
+The 33 single-feature examples (memory, mcp, cron, etc.) intentionally
+keep the plain `Agent.create({...})` form — they exist to teach ONE
+SDK feature isolated from helper sugar. See ADR D27 for the rationale.
+
 ## Example inventory
 
 ### Real LLM (calls your provider, costs money)
@@ -127,3 +145,25 @@ that demonstrate **shape** (catalog reads, error types, cloud
 lifecycle) without requiring credentials or a deployed PaaS. The
 LLM-driven examples bypass fixture mode by using a non-fixture API
 key + provider env credential.
+
+## Maintenance
+
+Two scripts under `tools/` keep this inventory in sync with reality.
+
+```bash
+# Categorize every example by the SDK helpers it uses (manual ground truth).
+bash tools/triage-examples.sh
+#   → .claude/knowledge-base/reviews/examples-triage-<date>.md
+
+# Sweep `npx tsc --noEmit` across every example to catch regressions
+# after any change to the SDK public surface. Uses
+# `pnpm install --ignore-workspace --no-frozen-lockfile` so the
+# `file:../../packages/sdk` link picks up the freshly built dist.
+bash tools/typecheck-examples.sh
+#   → .claude/knowledge-base/reviews/examples-typecheck-<date>.md
+```
+
+When you add a new example, append a row to **Example inventory**
+above AND, if it covers a new "Where to start" category, add a bullet
+there. If your example introduces a new pattern that should reach
+existing users, add a row to the **DX helpers cheat sheet**.

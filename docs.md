@@ -625,6 +625,91 @@ const run = await agent.send("Also update the changelog");
 await run.wait();
 agent.model is undefined on resume unless you pass model again. Inline mcpServers are not persisted across resume — they often carry secrets and live in memory only. Pass them again on resume, or use file-based MCP config (.Theo/mcp.json + local.settingSources) for servers that should survive.
 
+Agent.getOrCreate()
+
+function Agent.getOrCreate(agentId: string, options: AgentOptions): Promise<SDKAgent>;
+
+Consolidates the resume-or-create dance into a single call (ADR D22). Tries `Agent.resume(agentId, options)` first; on `UnknownAgentError` falls through to `Agent.create({ ...options, agentId })`. On same-process race (a second caller wins the create), retries `Agent.resume` once and returns the winner's handle. Any other error propagates verbatim.
+
+const agent = await Agent.getOrCreate(`tg-user-${userId}`, {
+  apiKey: process.env.Theo_API_KEY!,
+  model: { id: "claude-sonnet-4-6" },
+  local: { cwd: process.cwd() },
+  memory: { enabled: true, namespace: "tg-bot", scope: "user", userId },
+});
+
+Use when: chat bots, long-running agents, any consumer that wants idempotent "give me this agent" semantics without try/catch boilerplate.
+
+createAgentFactory()
+
+function createAgentFactory(common: Partial<AgentOptions>): AgentFactory;
+interface AgentFactory {
+  forSession(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
+  getOrCreate(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
+}
+
+Captures shared `AgentOptions` once and produces per-session agents with focused overrides (ADR D23). Merge rules: top-level shallow merge with overrides winning; deep merge for `local`, `memory`, `cloud`; total replace for collection-shaped fields (`mcpServers`, `agents`, `tools`, `providers`, `plugins`, `skills`, `context`). The function-level `agentId` always wins.
+
+const factory = createAgentFactory({
+  apiKey: process.env.Theo_API_KEY!,
+  model: { id: "claude-sonnet-4-6" },
+  local: { cwd: process.cwd(), settingSources: ["project"] },
+  systemPrompt: "You are a helpful assistant.",
+});
+
+const agent = await factory.getOrCreate(`tg-user-${userId}`, {
+  memory: { enabled: true, namespace: "tg-bot", scope: "user", userId },
+});
+
+Use when: chat-bot patterns where 90% of the config is identical across users and only a handful of fields change per session.
+
+defineTool()
+
+function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool;
+interface DefineToolSpec<T extends ZodType> {
+  name: string;
+  description: string;
+  inputSchema: T;
+  handler: (input: z.infer<T>) => string | Promise<string>;
+}
+
+Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
+
+import { z } from "zod";
+import { defineTool } from "@usetheo/sdk";
+
+const rollTool = defineTool({
+  name: "roll",
+  description: "Roll N dice with S sides each.",
+  inputSchema: z.object({
+    count: z.number().int().min(1).max(100),
+    sides: z.number().int().min(2).max(1000),
+  }),
+  handler: ({ count, sides }) => {
+    // count is inferred as number — no `as` cast needed.
+    const rolls = Array.from({ length: count }, () => 1 + Math.floor(Math.random() * sides));
+    return JSON.stringify({ rolls, total: rolls.reduce((a, b) => a + b, 0) });
+  },
+});
+
+Use when: custom tools whose handlers expect typed input and benefit from automatic runtime validation. Invalid input becomes `tool_result(isError)` with a Zod message instead of silent NaN/undefined.
+
+Agent.builder()
+
+function Agent.builder(): AgentBuilder;
+
+Fluent builder alternative to the options bag (ADR D25). Chainable setters mutate internal state and return `this`. Three terminals: `.build()` returns an `AgentOptions` snapshot; `.create()` calls `Agent.create`; `.getOrCreate(id)` calls `Agent.getOrCreate`. Validation runs inside the terminal — no half-built leaking.
+
+const agent = await Agent.builder()
+  .apiKey(process.env.Theo_API_KEY!)
+  .model({ id: "claude-sonnet-4-6" })
+  .local({ cwd: process.cwd() })
+  .systemPrompt("You are a helpful assistant.")
+  .tools([rollTool])
+  .getOrCreate(`tg-user-${userId}`);
+
+Use when: progressive construction, factory wiring where setters are called conditionally, or when fluent APIs are the team preference. Setters that overwrite silently are documented — last call wins.
+
 Inspecting agents and runs
 List, fetch, and reload past agents. List endpoints return { items, nextTheo? } for Theo-based pagination.
 
