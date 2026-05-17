@@ -10,7 +10,8 @@ import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
-import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
+import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
@@ -55,6 +56,9 @@ export class CloudAgent implements SDKAgent {
       lastModified: Date.now(),
       archived: false,
       options,
+      // Persistence routing only (ADR D17). Cloud agents do not surface `cwd`
+      // through `SDKAgentInfo` (toCloudAgentInfo strips it).
+      cwd: process.cwd(),
       repos: repoUrls,
       status: "running",
     });
@@ -71,6 +75,38 @@ export class CloudAgent implements SDKAgent {
   }
 
   async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
+    // Custom inline tools are local-only — cloud agents reject per-call
+    // tools the same way creation-time tools are rejected (handlers cannot
+    // cross the wire). Mirror the ConfigurationError code so callers can
+    // catch both surfaces uniformly.
+    if (options.tools !== undefined && options.tools.length > 0) {
+      throw new ConfigurationError(
+        "Custom inline tools are local-only in SDK v1.0 — cloud agents cannot serialize handler functions",
+        { code: "cloud_custom_tools_rejected" },
+      );
+    }
+    // ADR D19: same per-agent send mutex as LocalAgent. Holds until the run
+    // completes so concurrent sends to the same agentId serialize end-to-end.
+    return new Promise<Run>((resolve, reject) => {
+      void withCwdMutex(`agent-send:${this.agentId}`, async () => {
+        let run: Run;
+        try {
+          run = await this.sendLocked(message, options);
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        resolve(run);
+        try {
+          await run.wait();
+        } catch {
+          // Caller observes via their own wait/stream.
+        }
+      });
+    });
+  }
+
+  private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
     const overrideModel = options.model;
     if (overrideModel !== undefined) {
       this.model = overrideModel;
@@ -81,7 +117,7 @@ export class CloudAgent implements SDKAgent {
     const apiKey = resolveApiKey(this.options.apiKey);
     const useRealRuntime =
       apiKey !== undefined && !isFixtureApiKey(apiKey) && getConfiguredBaseUrl() !== undefined;
-    const run = useRealRuntime
+    return useRealRuntime
       ? createRealCloudRun({
           agentId: this.agentId,
           model: this.model ?? { id: DEFAULT_AGENTIC_MODEL_ID },
@@ -99,7 +135,6 @@ export class CloudAgent implements SDKAgent {
           sendOptions: options,
           ...(systemPrompt !== undefined ? { systemPrompt } : {}),
         });
-    return run;
   }
 
   private resolveSystemPromptForSend(
@@ -133,12 +168,12 @@ export class CloudAgent implements SDKAgent {
     return Promise.resolve();
   }
 
-  dispose(): Promise<void> {
+  async dispose(): Promise<void> {
     // EC-3: idempotent. `await using` may dispatch dispose twice (the using
     // exit hook + explicit `await agent.dispose()`); second call is a no-op.
-    if (this.disposed) return Promise.resolve();
+    if (this.disposed) return;
     this.disposed = true;
-    return Promise.resolve();
+    await flushRegistrySaves(process.cwd());
   }
 
   [Symbol.asyncDispose](): Promise<void> {

@@ -1,4 +1,4 @@
-import type { ModelSelection } from "./agent.js";
+import type { CustomTool, ModelSelection } from "./agent.js";
 import type { ConversationStep, ConversationTurn } from "./conversation.js";
 import type { McpServerConfig } from "./mcp.js";
 import type { SDKMessage } from "./messages.js";
@@ -49,6 +49,31 @@ export interface RunResult {
   model?: ModelSelection;
   durationMs?: number;
   git?: RunGitInfo;
+  /**
+   * Structured error detail, populated when `status === "error"`. Surfaces
+   * the diagnostic that emit-error-event pushes into the stream so callers
+   * that don't drain `run.stream()` still get the cause via `run.wait()`.
+   *
+   * For successful runs (`status: "finished"`) this is undefined.
+   *
+   * @public
+   */
+  error?: RunErrorDetail;
+}
+
+/**
+ * Structured error attached to a {@link RunResult} when the underlying run
+ * transitioned to `"error"` status. `message` is always present; `code` is
+ * a stable identifier suitable for branching (e.g. `"llm_4xx"`,
+ * `"tool_dispatch_failed"`, `"mcp_init_failed"`); `cause` is the raw error
+ * for further inspection when available.
+ *
+ * @public
+ */
+export interface RunErrorDetail {
+  message: string;
+  code?: string;
+  cause?: unknown;
 }
 
 /**
@@ -96,6 +121,16 @@ export interface SendOptions {
   systemPrompt?: string;
   /** Fully replaces creation-time servers for this run (not merged). */
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * Per-call inline custom tools. Fully replaces `AgentOptions.tools` for
+   * this run (not merged). Local runtime only — cloud agents reject any
+   * non-empty per-call tools array with the same error code as creation
+   * (`cloud_custom_tools_rejected`). Semantics:
+   * - `undefined` → fall back to `AgentOptions.tools`
+   * - `[]` → explicitly clear (no custom tools for this run)
+   * - `[t1, t2]` → use exactly these tools for this run
+   */
+  tools?: CustomTool[];
   onStep?: (args: { step: ConversationStep }) => void | Promise<void>;
   onDelta?: (args: { update: InteractionUpdate }) => void | Promise<void>;
   /** Local agents only. Expire a stuck active run before starting this message. */

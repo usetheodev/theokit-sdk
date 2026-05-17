@@ -83,6 +83,24 @@ export class LocalAgentMemory {
     return result.summary;
   }
 
+  /**
+   * Trigger a background `IndexManager.sync()` so a freshly written session
+   * summary (ADR D20) is recallable via `memory_search({ corpus: "sessions" })`
+   * on the next call. Fire-and-forget at the call site; failures degrade to
+   * "summary indexed on next regular sync" with a stderr warning.
+   *
+   * @internal
+   */
+  async syncIfReady(): Promise<void> {
+    if (this.index === undefined) return;
+    try {
+      await this.index.sync();
+    } catch (cause) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      process.stderr.write(`[theokit-sdk] session index sync failed: ${message}\n`);
+    }
+  }
+
   private async maybeCreateEmbeddingRuntime(): Promise<EmbeddingRuntime | undefined> {
     const cfg = this.options.memory?.index?.embedding;
     if (cfg === undefined) return undefined;

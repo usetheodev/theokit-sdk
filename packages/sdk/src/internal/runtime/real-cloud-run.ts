@@ -217,11 +217,14 @@ class RealCloudRun extends FixtureRunBase {
     };
   }
 
-  private fail(message: string): void {
+  private fail(message: string, code?: string): void {
     const event: SDKAssistantMessage = this.buildAssistantEvent(message);
     this.script.events.push(event satisfies SDKMessage);
     this.notifyNewEvents();
     this.script.result = message;
+    if (this.script.errorDetail === undefined) {
+      this.script.errorDetail = { message, ...(code !== undefined ? { code } : {}) };
+    }
     this.transitionTo("error" satisfies RunStatus);
   }
 }

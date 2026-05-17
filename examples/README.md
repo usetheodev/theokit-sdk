@@ -42,6 +42,8 @@ Plus a non-fixture SDK key (any string that does NOT start with
 
 | Example | Status | What it shows |
 | --- | --- | --- |
+| [`telegram-pro`](./telegram-pro) | ✅ Full | **Flagship multimodal demo** — voice (Whisper) + photo/sticker (Gemini vision + cache) + inline buttons + group `@mention` + forum topics + shell tool + filesystem MCP + hooks policy + cron + skills + wiki search. Reproduces 5 OpenClaw patterns + covers ~95% of the SDK surface in ~900 LoC. |
+| [`telegram-bot`](./telegram-bot) | ✅ Full | Minimal Telegram bot reference (~120 LoC) — restart-proof per ADRs D17/D18/D19/D20/D21. Bundled dogfood script (`pnpm dogfood`) exercises the full chat-assistant pattern end-to-end against real LLM. |
 | [`quickstart`](./quickstart) | ✅ Full | Create → send → stream → wait. systemPrompt + persona steering. |
 | [`shell-tool`](./shell-tool) | ✅ Full | Real shell tool against a tmp workspace. |
 | [`mcp-stdio`](./mcp-stdio) | ✅ Full | Inline MCP stdio server + JSON-RPC tools/call. |

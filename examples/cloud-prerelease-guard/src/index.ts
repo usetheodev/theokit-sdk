@@ -48,7 +48,7 @@ async function main(): Promise<void> {
 
   console.log("\nTrying Agent.getRun(id, { runtime: 'cloud' })...");
   try {
-    await Agent.getRun("any-run-id", { runtime: "cloud" });
+    await Agent.getRun("any-run-id", { runtime: "cloud", agentId: "any-agent-id" });
     console.error("✗ FAIL — call should have thrown.");
     process.exit(1);
   } catch (cause) {

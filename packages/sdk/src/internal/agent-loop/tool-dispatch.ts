@@ -16,11 +16,13 @@ export interface ResolvedTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  origin: "shell" | "mcp" | "memory";
+  origin: "shell" | "mcp" | "memory" | "custom";
   mcpServerName?: string;
   mcpToolName?: string;
   /** Direct handler for `origin === "memory"` tools — returns JSON-encoded result string. */
   memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
+  /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`. */
+  customHandler?: (input: Record<string, unknown>) => string | Promise<string>;
 }
 
 interface ToolResult {
@@ -108,6 +110,7 @@ async function executeTool(
   }
   if (resolved.origin === "shell") return runShellTool(inputs, call);
   if (resolved.origin === "memory") return runMemoryTool(resolved, call);
+  if (resolved.origin === "custom") return runCustomTool(resolved, call);
   return runMcpTool(inputs, resolved, call);
 }
 
@@ -117,6 +120,19 @@ async function runMemoryTool(resolved: ResolvedTool, call: LlmToolCallPart): Pro
   }
   try {
     const stdout = await resolved.memoryHandler(call.input);
+    return { stdout, stderr: "", exitCode: 0 };
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    return { stdout: "", stderr: message, exitCode: 1 };
+  }
+}
+
+async function runCustomTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
+  if (resolved.customHandler === undefined) {
+    return { stdout: "", stderr: `custom tool ${call.name} has no handler`, exitCode: 127 };
+  }
+  try {
+    const stdout = await resolved.customHandler(call.input);
     return { stdout, stderr: "", exitCode: 0 };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);

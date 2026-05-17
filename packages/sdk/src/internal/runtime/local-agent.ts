@@ -15,8 +15,16 @@ import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { resolveApiKey } from "../env.js";
 import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
 import { generateLocalAgentId } from "../ids.js";
-import { registerAgent, updateRegisteredAgent } from "./agent-registry.js";
-import { appendSessionMessage, getSessionMessages } from "./agent-session.js";
+import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { writeSessionSummary } from "../memory/session-summary-writer.js";
+import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
+import {
+  appendSessionMessage,
+  compactSession,
+  flushSessionWrites,
+  getSessionMessages,
+  hydrateSession,
+} from "./agent-session.js";
 import { FileContextManager } from "./context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
@@ -37,6 +45,7 @@ import { SystemPromptPipeline } from "./system-prompt/pipeline.js";
 import { safeCall } from "./system-prompt/safe-call.js";
 import type { SystemPromptAssemblyContext } from "./system-prompt/types.js";
 import { resolveSystemPromptForSend } from "./system-prompt.js";
+import { validateToolCatalog } from "./validate-agent-options.js";
 
 /**
  * Local SDKAgent implementation. Owns the workspace cwd plus the file-based
@@ -139,6 +148,9 @@ export class LocalAgent implements SDKAgent {
       this.settingSourcesIncludeProject,
       this.options.agents,
     );
+    // ADR D18: hydrate persisted session history so a resumed agent sees
+    // the conversation that occurred in the previous process.
+    await hydrateSession(this.agentId, this.workspaceCwd);
   }
 
   /** Expose the hooks executor so the agent loop can fire PreToolUse/etc. */
@@ -147,6 +159,89 @@ export class LocalAgent implements SDKAgent {
   }
 
   async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
+    // Per-call tools: run the same name/schema/dedupe checks as creation.
+    // (Cloud agents reject per-call tools in CloudAgent.send.)
+    if (options.tools !== undefined && options.tools.length > 0) {
+      validateToolCatalog(options.tools);
+    }
+    // ADR D19 (EC-8): per-agent send mutex keyed by `agent-send:${agentId}`.
+    // The lock spans the FULL run lifecycle — dispatch + run.wait() + post-run
+    // assistant-turn append + session summary write + disk flush — so
+    // concurrent sends to the SAME agentId cannot interleave user/assistant
+    // records mid-turn AND `agent.dispose()` can never return before the
+    // summary write finishes (ADR D20).
+    return new Promise<Run>((resolve, reject) => {
+      void withCwdMutex(`agent-send:${this.agentId}`, async () => {
+        const userText = typeof message === "string" ? message : message.text;
+        let run: Run;
+        try {
+          run = await this.sendLocked(message, options);
+        } catch (err) {
+          reject(err);
+          return;
+        }
+        resolve(run);
+        await this.runPostRunLifecycle(run, userText);
+      });
+    });
+  }
+
+  private async runPostRunLifecycle(run: Run, userText: string): Promise<void> {
+    let result: Awaited<ReturnType<Run["wait"]>>;
+    try {
+      result = await run.wait();
+    } catch {
+      // Caller observes failures via their own run.wait()/stream(); the
+      // mutex still releases via the flushes below.
+      await flushSessionWrites();
+      return;
+    }
+
+    if (result.result !== undefined) {
+      appendSessionMessage(
+        this.agentId,
+        { role: "assistant", text: result.result },
+        this.workspaceCwd,
+      );
+    }
+
+    // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
+    if (result.status === "finished" && result.result !== undefined) {
+      try {
+        await writeSessionSummary({
+          cwd: this.workspaceCwd,
+          runId: result.id,
+          agentId: this.agentId,
+          userText,
+          assistantText: result.result,
+          status: "finished",
+          at: Date.now(),
+        });
+        // EC-3: trigger sync so the next memory_search({corpus:"sessions"})
+        // sees the just-written summary. Fire-and-forget; the read path
+        // tolerates a missed sync because IndexManager re-scans on each call.
+        void this.memoryGlue.syncIfReady();
+      } catch (cause) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        process.stderr.write(
+          `[theokit-sdk] session summary write failed (${result.id}): ${message}\n`,
+        );
+      }
+    }
+
+    await this.hooksExecutor.run({
+      event: "postRun",
+      output: {
+        status: result.status,
+        ...(result.result !== undefined ? { result: result.result } : {}),
+      },
+      agentId: this.agentId,
+      runId: result.id,
+    });
+    await flushSessionWrites();
+  }
+
+  private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
     if (this.disposed) {
       throw new Error("Agent has been disposed");
     }
@@ -158,7 +253,7 @@ export class LocalAgent implements SDKAgent {
     // resumed/continuation agent loop sees the conversation up to (but not
     // including) the new send.
     const priorMessages = [...getSessionMessages(this.agentId)];
-    appendSessionMessage(this.agentId, { role: "user", text: userText });
+    appendSessionMessage(this.agentId, { role: "user", text: userText }, this.workspaceCwd);
 
     // Auto-write-on-send: opt-in via the user typing "Remember: <fact>". Persist
     // BEFORE the LLM call so the new fact is durable even if the LLM call fails.
@@ -184,7 +279,6 @@ export class LocalAgent implements SDKAgent {
       priorMessages,
       memoryTools,
     );
-    this.attachPostRunHook(run);
     return run;
   }
 
@@ -364,23 +458,6 @@ export class LocalAgent implements SDKAgent {
     });
   }
 
-  private attachPostRunHook(run: Run): void {
-    void run.wait().then(async (result) => {
-      if (result.result !== undefined) {
-        appendSessionMessage(this.agentId, { role: "assistant", text: result.result });
-      }
-      await this.hooksExecutor.run({
-        event: "postRun",
-        output: {
-          status: result.status,
-          ...(result.result !== undefined ? { result: result.result } : {}),
-        },
-        agentId: this.agentId,
-        runId: result.id,
-      });
-    });
-  }
-
   close(): void {
     this.disposed = true;
   }
@@ -396,9 +473,19 @@ export class LocalAgent implements SDKAgent {
     );
   }
 
-  dispose(): Promise<void> {
+  async dispose(): Promise<void> {
+    if (this.disposed) return;
     this.disposed = true;
-    return Promise.resolve();
+    // Wait for any in-flight send + post-run lifecycle to release the
+    // per-agent send mutex. Without this, `dispose()` could return before
+    // `writeSessionSummary` finishes, leaving the caller to read a
+    // partially-written `.theokit/memory/sessions/<runId>.md` file.
+    await withCwdMutex(`agent-send:${this.agentId}`, () => Promise.resolve());
+    // Now flush any remaining disk writes so the on-disk state matches the
+    // in-memory state before the caller proceeds (ADR D17 + D18).
+    await flushSessionWrites();
+    await compactSession(this.agentId, this.workspaceCwd);
+    await flushRegistrySaves(this.workspaceCwd);
   }
 
   [Symbol.asyncDispose](): Promise<void> {

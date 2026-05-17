@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- Public `AgentOptions.tools` field for inline custom tools (#tools-inline). The SDK now exposes a `CustomTool` type — `{ name, description, inputSchema, handler }` — that consumers can pass at `Agent.create()` or `Agent.resume()`. Handlers are invoked locally when the model emits `tool_use`. Local runtime only; cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")` when `tools.length > 0`. Handlers are not persisted (allow-list strip in `stripSecretsFromOptions`) — re-pass on resume. Reserved-name collisions (`shell`, `memory_search`, `memory_get`, `mcp_*`) and duplicate names rejected at validation time.
+- Per-call `SendOptions.tools` override (#tools-percall). `agent.send(msg, { tools: [...] })` fully replaces `AgentOptions.tools` for that run, matching the existing `mcpServers` semantics. `undefined` → fall back to agent-level tools; `[]` → explicit clear (no custom tools); `[t1, t2]` → exact replacement. Same validation rules apply per-call. Cloud agents reject per-call tools with the same `cloud_custom_tools_rejected` code.
+
 ## 1.0.0
 
 ### Major Changes
@@ -65,6 +72,88 @@ All notable changes to `@usetheo/sdk` are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+### Added (multimodal demo `examples/telegram-pro`)
+
+- **New `examples/telegram-pro/`** — ~600 LoC Telegram bot that reproduces the 5 highest-value patterns from OpenClaw's `extensions/telegram` (187 production files) on top of `@usetheo/sdk` 1.0.0:
+  - **Voice transcription** ([`src/transcribe.ts`](../../examples/telegram-pro/src/transcribe.ts)) — downloads the OGG/Opus from Telegram, POSTs multipart to Whisper. Provider order: `OPENAI_API_KEY` → `GROQ_API_KEY` → graceful "voice not configured" reply. Transcript is injected into the agent loop as `[voice transcript: ...]`.
+  - **Vision** ([`src/vision.ts`](../../examples/telegram-pro/src/vision.ts)) — photo and sticker descriptions via `google/gemini-2.0-flash-001` multimodal on OpenRouter. Disk-cached at `.theokit/cache/vision/<sha256>.txt` keyed by Telegram's `file_unique_id`, so repeated stickers (common in groups) skip the LLM roundtrip.
+  - **Inline buttons** ([`src/buttons.ts`](../../examples/telegram-pro/src/buttons.ts)) — agent emits `[BUTTONS: A | B | C]` at end of reply; example strips the marker, renders a grammy `InlineKeyboard`, and routes button taps back to the agent as `[user tapped button: A]` so conversation history stays consistent.
+  - **Group `@mention` gating** ([`src/group-policy.ts`](../../examples/telegram-pro/src/group-policy.ts)) — `shouldRespondInChat(ctx, policy)` filter; private chats always pass; groups only when message text contains `@<botname>`, replies to the bot, or starts with `/`.
+  - **Forum-topic scoping** ([`src/agent.ts`](../../examples/telegram-pro/src/agent.ts)) — per-`message_thread_id` agentId (`tg-pro-tpc-<chatId>-<threadId>`) so each topic in a supergroup gets its own isolated session JSONL. Memory namespace stays scoped to `userId` so facts follow the user across topics.
+- **README walkthrough** — full BotFather setup including `/setprivacy → Disable` (so the bot sees all group messages, not just commands), per-pattern try-it examples, filesystem layout inspection, and an explicit "what this example does NOT cover" honesty note.
+- **examples/README.md inventory** — `telegram-pro` listed at the top as the **Multimodal demo**, ahead of `telegram-assistant` (personal assistant) and `telegram-bot` (minimal reference).
+
+### Added (chat assistant readiness — flagship demo `examples/telegram-assistant`)
+
+- **New `examples/telegram-assistant/`** — ~300 LoC Personal Assistant Telegram bot built on `@usetheo/sdk` 1.0.0. Demonstrates the full chat-assistant surface end-to-end against a real LLM:
+  - **Commands**: `/start /help /me /remember /forget /recall /summary /reset` — covers explicit fact write, fact removal by substring, past-conversation search via `corpus="sessions"`, dreaming consolidation via `Memory.runDreamingSweep`, and conversation reset.
+  - **Per-user isolation** — agent id = `tg-assistant-<userId>`, memory namespace pinned to `ctx.from.id` so group chats keep each member's facts separated (EC-11 documented).
+  - **Allow-list** — optional `TELEGRAM_ALLOWED_USERS` env var locks the bot to specific Telegram user-ids so a randomly-discovered bot can't burn the operator's LLM budget.
+  - **Format-aware replies** — Telegram MarkdownV2 escape + auto-split for responses > 4096 chars (`splitForTelegram` chooses paragraph/newline boundaries before hard-splitting at 4000 chars).
+  - **Daily dreaming hook** — `runDream()` wraps `Memory.runDreamingSweep` and picks the embedding provider from available env keys (`OPENAI_API_KEY` → `MISTRAL_API_KEY` → `OPENROUTER_API_KEY`).
+- **README walkthrough** — full BotFather token-acquisition flow (no prior Telegram knowledge needed), OpenRouter signup, `.env` template, restart-proof demo, file-system layout inspection, and a "what survives restart vs `/reset`" matrix.
+- **examples/README.md inventory** — `telegram-assistant` listed as the **Flagship demo** at the top of the table; existing minimal `telegram-bot` reference kept intact.
+
+### Fixed (chat assistant readiness — Phase 5 dogfood-driven bug)
+
+- **Persistent-registry coalescing dropped second-mutation data.** Two synchronous `registerAgent` calls (e.g., create chat A then create chat B in quick succession) used to coalesce into ONE save whose snapshot only captured the agent that registered before the first microtask flushed. The second agent's full options were never persisted; on restart, `Agent.resume` cold-started a fresh agent with no model, no memory, no system prompt — the run then failed with `claude-sonnet-4-6 is not a valid model ID` because real-local-run's fallback model is not on OpenRouter. Caught in Phase 5 dogfood against real Gemini-flash.
+- **Fix**: the save loop now uses a `dirtyCwds` Set. Every mutation marks the cwd dirty. The in-flight save's IIFE loops while dirty: clear flag, yield once to settle burst, snapshot, save. If a mutation arrives DURING the save's await, the loop runs again. Two registers within one microtask burst still coalesce to one save; mutations during the save no longer drop on the floor.
+- **No regression** — 284/284 vitest suite green; Phase 0 golden tests (50 parallel `Agent.create` calls produce valid JSON) still pass with the new loop.
+
+### Added (chat assistant readiness — Phase 5 / Dogfood QA)
+
+- **`examples/telegram-bot/src/dogfood.ts` + `dogfood-restart.ts`** — automated end-to-end validation against a REAL LLM (OpenRouter gemini-2.0-flash-001), no Telegram token required:
+  1. Two distinct chats (`tg-dogfood-chat-A`, `tg-dogfood-chat-B`) on the same workspace cwd, each says "Remember: ..." and asks a follow-up. **PASS** in-process recall.
+  2. Inspect persisted state: registry.json + per-agent messages.jsonl + sessions corpus dir all exist on disk.
+  3. **Real process restart** via `spawnSync("npx tsx ...", ...)` runs a fresh node process. The subprocess `Agent.resume`s both chats — pulling registry.json + messages.jsonl + MEMORY.md from disk. Both LLMs answer with the persisted facts ("Vitest + alpha-7", "PostgreSQL + project-beta") after the restart boundary. **PASS** post-restart recall.
+  4. Concurrent burst: 5 parallel sends into one chat produce strictly-alternating user/assistant records (16 records total). **PASS** mutex serialization.
+  5. Sessions corpus: 11+ `.md` summaries on disk after all runs. **PASS** corpus seeding.
+- **Result**: 10 PASS / 0 WARN / 0 FAIL against real LLM. The chat assistant pattern works end-to-end with `@usetheo/sdk` v1.0.0.
+
+### Added (chat assistant readiness — Phase 4 / `examples/telegram-bot`)
+
+- **New `examples/telegram-bot/`** — ~120 LoC `grammy` bot proving the chat assistant pattern end-to-end. One persistent agent per chat (`Agent.resume(`tg-${chatId}`)` first, fall back to `Agent.create` on `UnknownAgentError`). Memory enabled with `namespace: "telegram-bot"`, `userId: ctx.from.id`, `activeRecall.enabled`. A `/recall <query>` command uses `memory_search({ corpus: "sessions" })` to surface past conversations.
+- **README walkthrough** documents: BotFather setup, `.env` template, run, chat, `kill -9`, restart, chat-again-and-see-memory. Inspects `.theokit/agents/registry.json`, `.theokit/agents/<id>/messages.jsonl`, `.theokit/memory/MEMORY.md`, and `.theokit/memory/sessions/<runId>.md` to show what survived.
+- **EC-10 doc** — explicit callout that v1 supports exactly ONE SDK process per cwd; co-locating a bot + a standalone cron worker on the same workspace will race the registry.
+- **EC-11 doc** — explicit callout that group-chat `ctx.chat.id` is the group id (not the user); the example uses `ctx.from.id` to keep per-user memory isolated in groups.
+- **examples/README.md inventory** updated with the bot at the top of the list — it is the marquee proof for v1.0 chat assistant readiness.
+
+### Added (chat assistant readiness — Phase 3 / ADR D20)
+
+- **`memory_search({ corpus: "sessions" })` actually works.** Per-run summaries are written to `<cwd>/.theokit/memory/sessions/<runId>.md` after every finished run. IndexManager discovers them via the new `session-loader` and tags each chunk with `source: "sessions"`. The `corpus` filter in `memory_search` was already wired; this PR plugs in the data source.
+- **EC-9: only `status === "finished"` runs write summaries.** Cancelled, errored, or still-running runs leave no marker behind, so the recall corpus never returns fragments of failed conversations as authoritative context.
+- **EC-3: post-run sync is automatic.** `writeSessionSummary` triggers `IndexManager.sync()` in the background immediately after the markdown write. `memory_search({ corpus: "sessions" })` sees the new file on the next call without an ambiguous lazy trigger.
+- **Secret redaction.** Both user and assistant text run through the shared `redactSecrets` regex before persisting, matching the MEMORY.md write pipeline.
+- **`local-agent.ts` post-run hook moved INSIDE the send mutex.** The user-turn append, assistant-turn append, summary write, hooks executor, and `flushSessionWrites` all happen before the lock releases. `agent.dispose()` waits on the same mutex so it can never return before the summary lands on disk.
+- **`agent.dispose()` is now strict** — it acquires the per-agent send mutex before flushing, guaranteeing the in-flight `run.wait()` and post-run lifecycle complete before any caller's `await dispose()` resolves.
+- **New tests**: 8 golden cases under `tests/golden/memory/sessions-corpus.golden.test.ts` cover summary-on-finish, hit-on-sessions-search, memory-corpus excludes sessions, redaction, corrupt-file tolerance, EC-3 sync-after-wait, EC-9 cancelled-run, and EC-9 errored-run.
+
+### Added (chat assistant readiness — Phase 2 / ADR D19)
+
+- **Per-agent send mutex** keyed by `agent-send:${agentId}` (ADR D19). `LocalAgent.send` and `CloudAgent.send` now serialize end-to-end per agent: dispatch → `run.wait()` → assistant-turn append → disk flush all happen inside the lock. Two webhook calls hitting the same chat id can no longer interleave `appendSessionMessage` records mid-turn.
+- **Concurrent-distinct-agents stay parallel** (EC-8) — the mutex key is per-agentId. A parent agent's send and a subagent send (distinct ids) acquire different locks and run concurrently. Proven by the deadlock-free golden case.
+- **`agent.send()` returns the Run as soon as it dispatches**, but the mutex internally awaits completion + post-run hook + session flush before releasing. Streaming consumers keep their `run.stream()` access unchanged; the only observable difference is that a second `agent.send()` on the same agent now waits for the first to finish.
+- **New tests**: 5 golden cases under `tests/golden/agent/concurrent-send.golden.test.ts` cover two-concurrent-sends-serialize (strict role alternation), different-agents-stay-parallel, EC-8 subagent no-deadlock, sequential history linearity, and dispose-with-pending-send safety.
+
+### Added (chat assistant readiness — Phase 1 / ADR D18)
+
+- **Persistent session messages** at `<cwd>/.theokit/agents/<agentId>/messages.jsonl` (ADR D18). Append-only JSONL with one record per turn (`{role, text, at}`). `LocalAgent.send` now writes both the user turn and the assistant turn to disk; `Agent.resume()` hydrates the conversation back into memory on `initialize()`. Survives `kill -9` between sends.
+- **Opportunistic compaction** — when the JSONL exceeds 400 lines (2× the default `maxTurns=200`), the file is trimmed copy-on-write to the most recent 200 turns. Compaction also runs once during `dispose()` so a long-running chat does not leave 10k stale lines on disk.
+- **Race-free append + compaction** (EC-2) — both operations chain through a single per-`(agentId, cwd)` promise queue. Appends and compactions never race each other on the read+rename window. Reentry into `withCwdMutex("agent-send:...")` was rejected because Phase 2's send mutex uses the same key (non-reentrant) and would deadlock; the dedicated queue is the canonical serializer.
+- **Multi-line text** (EC-6) — `JSON.stringify` on append and `JSON.parse` per-line on read keep newlines, tabs, and embedded quotes intact across a restart.
+- **Crash-safe reader** (EC-7) — malformed lines (e.g., a half-written final record from a power loss) are skipped with a stderr warning. The reader never throws.
+- **New tests**: 10 golden cases under `tests/golden/runtime/agent-session-persistence.golden.test.ts` cover round-trip restart, compaction trim, EC-2 (concurrent appends + compaction across threshold), per-agent isolation, EC-6 (tricky text), EC-7 (partial last line), JSONL validity, hydrate-fills-cache, end-to-end Agent.create→send→resume conversation continuity, and direct 500-record compaction.
+
+### Added (chat assistant readiness — Phase 0 / ADRs D17 + D21)
+
+- **Persistent agent registry** at `<cwd>/.theokit/agents/registry.json` (ADR D17). Every `Agent.create / archive / update / delete` mutation triggers a coalesced, atomic write-through. The in-memory `Map` stays as the read-through cache; persistence is keyed per-cwd (EC-5). Survives `kill -9` + process restart.
+- **`Agent.resume()` falls back to disk** (ADR D21). On in-memory miss, `Agent.resume(id)` reads the persisted registry, validates the rehydrated entry (local agents check `local.cwd` still exists), and reconstructs the matching `LocalAgent` / `CloudAgent`. Throws `UnknownAgentError(code: "agent_rehydration_failed")` when the workspace path is missing.
+- **`Agent.create({ agentId })` collision** (EC-1) — pinning an `agentId` that already lives in the persisted registry now throws `ConfigurationError(code: "agent_id_already_exists")`. Forces the resume-first pattern that chat assistants need.
+- **Secret stripping on persist** — `apiKey`, MCP server `headers` / `env`, hook closures, and inline tool handlers are never written to disk. The allow-list mirrors the cloud-config-serializer (ADR D15).
+- **Corrupt-registry recovery** (EC-4) — invalid JSON / schema-version mismatch logs a stderr warning and falls back to `{}`. The next mutation overwrites the file with valid JSON.
+- **`replaceFileAtomic` multi-writer safe** — per-call unique `.<pid>.<rand>.tmp` suffix replaces the shared `.tmp` path. Removes a cross-process race that surfaced as `ENOENT` on rename when parallel writers raced on the same target.
+- **New tests**: 11 golden cases under `tests/golden/runtime/agent-registry-persistence.golden.test.ts` cover round-trip, cross-restart rehydration, stale-cwd rejection, secret stripping, concurrent-write integrity (50 parallel creates), archived-flag persistence, cloud-agent rehydration, EC-1 collision throw, EC-4 corruption recovery, and EC-5 per-cwd isolation.
 
 ### Changed (default model: composer-2 → free agentic model)
 

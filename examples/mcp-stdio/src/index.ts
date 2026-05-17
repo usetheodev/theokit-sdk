@@ -45,7 +45,7 @@ async function main(): Promise<void> {
 
   for await (const event of run.stream()) {
     if (event.type === "system") {
-      console.log(`[system] tools: ${event.tools.join(", ")}`);
+      console.log(`[system] tools: ${(event.tools ?? []).join(", ")}`);
     } else if (event.type === "tool_call" && event.status === "completed") {
       const stdout = (event.result as { stdout?: string } | undefined)?.stdout ?? "";
       console.log(`[tool_call:${event.name}] → ${stdout.trim()}`);

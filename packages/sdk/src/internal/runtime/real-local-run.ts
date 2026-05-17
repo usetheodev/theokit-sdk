@@ -1,7 +1,7 @@
-import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { AgentOptions, CustomTool, ModelSelection } from "../../types/agent.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
-import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { CustomToolSpec, MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { resolveProviderChain } from "../llm/router.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
@@ -98,7 +98,31 @@ function buildLoopInputs(
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
       : {}),
+    ...buildCustomToolsInput(options.agentOptions, options.sendOptions),
   };
+}
+
+/**
+ * Resolve the effective custom-tool catalog for this run.
+ *
+ * Precedence (matches the mcpServers semantics — "fully replaces, not merged"):
+ *  - `sendOptions.tools === undefined` → fall back to `agentOptions.tools`
+ *  - `sendOptions.tools = []`         → explicitly clear (no custom tools)
+ *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
+ */
+function buildCustomToolsInput(
+  agentOptions: AgentOptions,
+  sendOptions: { tools?: CustomTool[] } | undefined,
+): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
+  const tools = sendOptions?.tools ?? agentOptions.tools;
+  if (tools === undefined || tools.length === 0) return {};
+  const customTools: CustomToolSpec[] = tools.map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    handler: tool.handler,
+  }));
+  return { customTools };
 }
 
 function detectPrimaryProvider(): string {
@@ -157,7 +181,7 @@ class RealLocalRun extends FixtureRunBase {
     try {
       return this.buildInputs();
     } catch (cause) {
-      this.emitErrorEvent(cause, "Failed to build agent loop inputs");
+      this.emitErrorEvent(cause, "Failed to build agent loop inputs", "", "build_inputs_failed");
       this.transitionTo("error" satisfies RunStatus);
       return undefined;
     }
@@ -172,6 +196,7 @@ class RealLocalRun extends FixtureRunBase {
           cause,
           `MCP server ${name} failed to initialize`,
           `MCP server ${name} failed to initialize: `,
+          "mcp_init_failed",
         );
       }
     }
@@ -188,7 +213,7 @@ class RealLocalRun extends FixtureRunBase {
       if (output.result.length > 0) this.script.result = output.result;
       this.transitionTo(output.finalStatus);
     } catch (cause) {
-      this.emitErrorEvent(cause, "Agent loop failed");
+      this.emitErrorEvent(cause, "Agent loop failed", "", "agent_loop_failed");
       this.transitionTo("error" satisfies RunStatus);
     } finally {
       for (const client of inputs.mcp.values()) {
@@ -197,20 +222,25 @@ class RealLocalRun extends FixtureRunBase {
     }
   }
 
-  private emitErrorEvent(cause: unknown, fallback: string, prefix = ""): void {
+  private emitErrorEvent(cause: unknown, fallback: string, prefix = "", code?: string): void {
     const message = cause instanceof Error ? cause.message : String(cause);
+    const display = prefix.length > 0 ? `${prefix}${message}` : message || fallback;
+    // Also stash structured detail on the script so wait() callers see the
+    // cause via `result.error` without having to drain the stream.
+    if (this.script.errorDetail === undefined) {
+      this.script.errorDetail = {
+        message: display,
+        ...(code !== undefined ? { code } : {}),
+        cause,
+      };
+    }
     this.script.events.push({
       type: "assistant",
       agent_id: this.agentId,
       run_id: this.id,
       message: {
         role: "assistant",
-        content: [
-          {
-            type: "text",
-            text: prefix.length > 0 ? `${prefix}${message}` : message || fallback,
-          },
-        ],
+        content: [{ type: "text", text: display }],
       },
     });
     this.notifyNewEvents();

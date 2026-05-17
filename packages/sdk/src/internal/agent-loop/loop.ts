@@ -69,6 +69,15 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
       memoryHandler: memTool.execute,
     });
   }
+  for (const customTool of inputs.customTools ?? []) {
+    tools.push({
+      name: customTool.name,
+      description: customTool.description,
+      inputSchema: customTool.inputSchema,
+      origin: "custom",
+      customHandler: customTool.handler,
+    });
+  }
   const events: SDKMessage[] = [
     buildSystemEvent(
       inputs,

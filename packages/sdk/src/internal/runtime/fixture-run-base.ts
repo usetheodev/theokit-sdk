@@ -151,6 +151,11 @@ export abstract class FixtureRunBase implements Run {
     if ((status === "finished" || status === "error") && this.script.result !== undefined) {
       base.result = this.script.result;
     }
+    // Surface the script's errorDetail (set by emitErrorEvent) so wait()
+    // callers see the cause without having to drain stream().
+    if (status === "error" && this.script.errorDetail !== undefined) {
+      base.error = this.script.errorDetail;
+    }
     return this.extendRunResult(applyExtraRunFields(base, this.script));
   }
 

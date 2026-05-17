@@ -22,6 +22,20 @@ export interface MemoryToolSpec {
 }
 
 /**
+ * Internal mirror of the public {@link import("../../types/agent.js").CustomTool}
+ * passed through the loop. Declared inline so the cheap loop-types contract
+ * doesn't import the public types barrel.
+ *
+ * @internal
+ */
+export interface CustomToolSpec {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  handler: (input: Record<string, unknown>) => string | Promise<string>;
+}
+
+/**
  * Shared agent-loop types. Kept in their own module so the dispatch helpers
  * can import `AgentLoopInputs` without pulling the whole orchestrator file.
  *
@@ -57,6 +71,11 @@ export interface AgentLoopInputs {
    * tool catalog in `collectTools`.
    */
   memoryTools?: ReadonlyArray<MemoryToolSpec>;
+  /**
+   * Inline custom tools declared via `AgentOptions.tools`. Appended to the
+   * tool catalog after shell + MCP + memory, before the LLM call.
+   */
+  customTools?: ReadonlyArray<CustomToolSpec>;
 }
 
 export interface AgentLoopOutput {

@@ -356,6 +356,7 @@ Property	Type	Description
 model	ModelSelection	Per-send model override. If omitted, uses agent.model. Sticky: a successful send updates agent.model.
 systemPrompt	string	Per-call system prompt override. Wins over AgentOptions.systemPrompt. String only — for dynamic resolvers, configure on AgentOptions. An empty string is honoured (it explicitly clears the system context).
 mcpServers	Record<string, McpServerConfig>	Inline MCP server definitions. Fully replaces creation-time servers for this run.
+tools	CustomTool[]	Per-call inline custom tools. Fully replaces `AgentOptions.tools` for this run (not merged). `undefined` → fall back to agent tools; `[]` → explicit clear (no custom tools for this run); `[t1, t2]` → use exactly these. Local runtime only — cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")`.
 onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step (text, thinking, or tool batch).
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
@@ -1057,6 +1058,7 @@ agents	Record<string, AgentDefinition>		Subagent definitions.
 context	ContextOptions		Project context manager configuration.
 memory	MemoryOptions		Control durable memory for this agent.
 skills	SkillsOptions		Load named skills from project files or explicit paths.
+tools	CustomTool[]		Inline custom tools registered with the LLM. Local runtime only — cloud agents reject any non-empty tools array (ConfigurationError code `cloud_custom_tools_rejected`). Handlers are not persisted; re-pass on Agent.resume.
 agentId	string	Auto-generated	Durable agent ID. Pass to keep a stable ID across invocations.
 CloudOptions
 Property	Type	Default	Description
@@ -1071,6 +1073,14 @@ description	string	required	When to use this subagent. Shown to the parent agent
 prompt	string	required	System prompt for the subagent.
 model	ModelSelection | "inherit"	"inherit"	Model override. Pass "inherit" to use the parent's selection.
 mcpServers	Array<string | Record<string, McpServerConfig>>		MCP servers available to this subagent. Names reference servers from the parent's mcpServers.
+CustomTool
+Property	Type	Default	Description
+name	string	required	Tool name surfaced to the LLM. Must match `/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/`. Reserved (rejected): `shell`, `memory_search`, `memory_get`, anything `mcp_*`.
+description	string	required	Description surfaced to the LLM. Drives tool-selection accuracy.
+inputSchema	Record<string, unknown>	required	JSON Schema describing the `input` argument. Must declare `type: "object"`.
+handler	(input: Record<string, unknown>) => string \| Promise<string>	required	Local handler invoked when the model emits `tool_use`. Return value becomes `tool_result.content`. Throws → `tool_result` with `isError: true` (loop terminates as `status: "error"`, matching shell/MCP/memory behaviour).
+
+Tools are local-only in v1.0 — cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")` when `tools.length > 0`. Handlers are not persisted by `stripSecretsFromOptions`; re-pass them on `Agent.resume(id, { tools: [...] })` if you want the same tools active for the resumed agent.
 ContextOptions
 
 interface ContextOptions {
