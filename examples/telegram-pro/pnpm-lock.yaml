@@ -10,10 +10,13 @@ importers:
     dependencies:
       '@usetheo/sdk':
         specifier: file:../../packages/sdk
-        version: file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)
+        version: file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3)
       grammy:
         specifier: ^1.30.0
         version: 1.43.0
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
     devDependencies:
       better-sqlite3:
         specifier: ^12.10.0
@@ -428,6 +431,9 @@ packages:
   wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
 
+  zod@4.4.3:
+    resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
+
 snapshots:
 
   '@esbuild/aix-ppc64@0.28.0':
@@ -510,12 +516,13 @@ snapshots:
 
   '@grammyjs/types@3.27.3': {}
 
-  '@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)':
+  '@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3)':
     dependencies:
       croner: 9.1.0
     optionalDependencies:
       better-sqlite3: 12.10.0
       sqlite-vec: 0.1.9
+      zod: 4.4.3
 
   abort-controller@3.0.0:
     dependencies:
@@ -756,3 +763,5 @@ snapshots:
       webidl-conversions: 3.0.1
 
   wrappy@1.0.2: {}
+
+  zod@4.4.3: {}

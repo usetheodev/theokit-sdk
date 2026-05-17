@@ -1,4 +1,4 @@
-import { Agent, UnknownAgentError } from "@usetheo/sdk";
+import { Agent } from "@usetheo/sdk";
 import type { Context } from "grammy";
 import { Bot } from "grammy";
 
@@ -8,9 +8,9 @@ import { Bot } from "grammy";
  * (ADR D18), per-agent send mutex (ADR D19), and corpus="sessions" recall
  * (ADR D20) shipped in @usetheo/sdk 1.0.0.
  *
- * Pattern: try Agent.resume(id) first; create only on UnknownAgentError.
- * Without the resume-first guard, restart + create silently wipes prior
- * conversation history.
+ * Pattern: `Agent.getOrCreate(id, options)` (ADR D22) consolidates the
+ * resume-or-create dance into a single call — no try/catch boilerplate, no
+ * forgotten re-throw, no race condition on concurrent messages.
  */
 
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
@@ -36,27 +36,20 @@ function chatAgentId(ctx: Context): string {
 
 async function getAgent(ctx: Context) {
   const agentId = chatAgentId(ctx);
-  try {
-    return await Agent.resume(agentId);
-  } catch (err) {
-    if (err instanceof UnknownAgentError) {
-      return Agent.create({
-        agentId,
-        apiKey: process.env.THEOKIT_API_KEY,
-        model: { id: "google/gemini-2.0-flash-001" },
-        local: { cwd: process.cwd() },
-        memory: {
-          enabled: true,
-          namespace: "telegram-bot",
-          scope: "user",
-          userId: resolveUserId(ctx),
-          activeRecall: { enabled: true, queryMode: "recent" },
-        },
-        systemPrompt: "You are a personal assistant on Telegram. Reply in 1-3 sentences. Be specific. Remember the user across restarts.",
-      });
-    }
-    throw err;
-  }
+  return Agent.getOrCreate(agentId, {
+    apiKey: process.env.THEOKIT_API_KEY,
+    model: { id: "google/gemini-2.0-flash-001" },
+    local: { cwd: process.cwd() },
+    memory: {
+      enabled: true,
+      namespace: "telegram-bot",
+      scope: "user",
+      userId: resolveUserId(ctx),
+      activeRecall: { enabled: true, queryMode: "recent" },
+    },
+    systemPrompt:
+      "You are a personal assistant on Telegram. Reply in 1-3 sentences. Be specific. Remember the user across restarts.",
+  });
 }
 
 bot.command("start", async (ctx) => {
