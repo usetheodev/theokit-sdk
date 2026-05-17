@@ -115,24 +115,28 @@ async function executeTool(
 }
 
 async function runMemoryTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
-  if (resolved.memoryHandler === undefined) {
-    return { stdout: "", stderr: `memory tool ${call.name} has no handler`, exitCode: 127 };
-  }
-  try {
-    const stdout = await resolved.memoryHandler(call.input);
-    return { stdout, stderr: "", exitCode: 0 };
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    return { stdout: "", stderr: message, exitCode: 1 };
-  }
+  return runHandlerTool("memory", resolved.memoryHandler, call);
 }
 
 async function runCustomTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
-  if (resolved.customHandler === undefined) {
-    return { stdout: "", stderr: `custom tool ${call.name} has no handler`, exitCode: 127 };
+  return runHandlerTool("custom", resolved.customHandler, call);
+}
+
+/**
+ * Shared dispatch path for in-process handler tools (memory + custom). Wraps
+ * the handler call in try/catch and converts the result into the uniform
+ * stdout/stderr/exitCode shape the agent loop consumes.
+ */
+async function runHandlerTool(
+  kind: "memory" | "custom",
+  handler: ((input: Record<string, unknown>) => string | Promise<string>) | undefined,
+  call: LlmToolCallPart,
+): Promise<ToolResult> {
+  if (handler === undefined) {
+    return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
   }
   try {
-    const stdout = await resolved.customHandler(call.input);
+    const stdout = await handler(call.input);
     return { stdout, stderr: "", exitCode: 0 };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
