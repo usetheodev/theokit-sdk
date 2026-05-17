@@ -65,6 +65,31 @@ async function main(): Promise<void> {
   await Agent.delete(a.agentId);
   await Agent.delete(b.agentId);
   console.log(`\nDeleted both agents`);
+
+  // DX helpers (ADRs D22, D25): builder + getOrCreate. Same semantics as the
+  // raw create/resume above, just less boilerplate.
+  const builderAgent = await Agent.builder()
+    .apiKey(process.env.THEOKIT_API_KEY ?? "theo_test_mgmt_demo")
+    .name("builder-demo")
+    .model({ id: "google/gemini-2.0-flash-001" })
+    .local({ cwd: process.cwd() })
+    .create();
+  console.log(`\nAgent.builder()...create() → ${builderAgent.agentId}`);
+
+  // getOrCreate consolidates resume-or-create. Calling it twice returns the
+  // same handle without throwing "already exists" on the second pass.
+  const goCAgent = await Agent.getOrCreate(builderAgent.agentId, {
+    apiKey: process.env.THEOKIT_API_KEY ?? "theo_test_mgmt_demo",
+    model: { id: "google/gemini-2.0-flash-001" },
+    local: { cwd: process.cwd() },
+  });
+  console.log(
+    `Agent.getOrCreate(${builderAgent.agentId}) → reused=${goCAgent.agentId === builderAgent.agentId}`,
+  );
+
+  await builderAgent.dispose();
+  await goCAgent.dispose();
+  await Agent.delete(builderAgent.agentId);
 }
 
 main().catch((cause) => {

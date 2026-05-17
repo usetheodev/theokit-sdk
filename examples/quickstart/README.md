@@ -8,8 +8,12 @@ flow: **create → send → stream → wait**.
 ```bash
 pnpm install --ignore-workspace
 cp .env.example .env       # paste one provider key
-pnpm dev
+pnpm dev                   # options-bag form (Agent.create)
+BUILDER=1 pnpm dev         # fluent-builder form (Agent.builder)
 ```
+
+Both produce the same agent and the same output. Pick whichever
+ergonomics fits your codebase.
 
 ## What it does
 
@@ -45,3 +49,37 @@ to compare against the default-personality output.
   that receives a `SystemPromptContext` with `agentId`, `cwd`, `model`,
   `skills`, and `userMessage` — useful for prompts that adapt to the
   workspace or active skills.
+
+## Two ways to create an agent
+
+This example ships two equivalent entry points side by side. Pick the
+one that matches your codebase style.
+
+**Options-bag form** (`main()` — runs by default):
+
+```ts
+const agent = await Agent.create({
+  apiKey: API_KEY,
+  model: { id: pickModel() },
+  local: { cwd: process.cwd() },
+  systemPrompt: SYSTEM_PROMPT,
+});
+```
+
+**Fluent-builder form** (`mainWithBuilder()` — runs with `BUILDER=1`):
+
+```ts
+const agent = await Agent.builder()
+  .apiKey(API_KEY)
+  .model({ id: pickModel() })
+  .local({ cwd: process.cwd() })
+  .systemPrompt(SYSTEM_PROMPT)
+  .create();
+```
+
+Both produce the same `SDKAgent`. `Agent.builder()` is just syntactic
+sugar over `Agent.create()` (ADR D25) — same validation, same
+persistence, same surface. Use the builder when you want progressive
+construction (e.g., applying setters conditionally before `.create()`).
+See also `Agent.builder().getOrCreate(agentId)` for the resume-or-create
+flow used by chat-bot patterns.

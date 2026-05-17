@@ -1,5 +1,6 @@
 import { stat } from "node:fs/promises";
 
+import { AgentBuilder } from "./agent-builder.js";
 import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
 import { resolveApiKey } from "./internal/env.js";
 import {
@@ -145,6 +146,62 @@ export class Agent {
       `Agent "${agentId}" not found. Use Agent.create({ agentId, ... }) for first-time setup, or catch UnknownAgentError to branch resume-vs-create.`,
       { code: "unknown_agent" },
     );
+  }
+
+  /**
+   * Start building an {@link AgentOptions} via fluent chain. See ADR D25.
+   * Terminals: `.build()`, `.create()`, `.getOrCreate(id)`.
+   *
+   * The builder receives `create` + `getOrCreate` as injected callbacks so
+   * that `agent-builder.ts` doesn't need a static import of `Agent` — keeps
+   * the module graph acyclic (G6).
+   *
+   * @public
+   */
+  static builder(): AgentBuilder {
+    return new AgentBuilder({
+      create: (options) => Agent.create(options),
+      getOrCreate: (agentId, options) => Agent.getOrCreate(agentId, options),
+    });
+  }
+
+  /**
+   * Get an existing agent by ID, or create one with the supplied options if
+   * the ID is not yet registered. Eliminates the resume-vs-create boilerplate
+   * common to chat bots and other long-running agent consumers. See ADR D22.
+   *
+   * Resolution:
+   * 1. Try `Agent.resume(agentId, options)`. Return on success.
+   * 2. On `UnknownAgentError`, fall through to `Agent.create({ ...options, agentId })`.
+   * 3. On same-process race (`ConfigurationError(code: "agent_id_already_exists")`
+   *    during step 2), retry `Agent.resume` once and return the winner's handle.
+   * 4. Any other error propagates verbatim.
+   *
+   * Caveats:
+   * - The function-level `agentId` always wins over `options.agentId`.
+   * - Options differ between calls? Last-call-wins for this handle (matches `Agent.resume`).
+   * - Disposed agents are NOT auto-deleted from the registry. To force a fresh
+   *   agent, call `Agent.delete(agentId)` first.
+   *
+   * @public
+   */
+  static async getOrCreate(agentId: string, options: AgentOptions): Promise<SDKAgent> {
+    try {
+      return await Agent.resume(agentId, options);
+    } catch (err) {
+      if (!(err instanceof UnknownAgentError)) throw err;
+    }
+    try {
+      return await Agent.create({ ...options, agentId });
+    } catch (err) {
+      // EC-1: another caller in the same process won the create race between
+      // our resume miss and our create attempt. Reuse their handle instead of
+      // surfacing the conflict to the caller.
+      if (err instanceof ConfigurationError && err.code === "agent_id_already_exists") {
+        return await Agent.resume(agentId, options);
+      }
+      throw err;
+    }
   }
 
   /**
