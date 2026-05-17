@@ -1,3 +1,5 @@
+import { stat } from "node:fs/promises";
+
 import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
 import { resolveApiKey } from "./internal/env.js";
 import {
@@ -6,9 +8,11 @@ import {
   shouldUseRealLocalRuntime,
 } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
-import { isCloudAgentId, isLocalAgentId } from "./internal/ids.js";
+import { isLocalAgentId } from "./internal/ids.js";
 import {
+  flushRegistrySaves,
   getRegisteredAgent,
+  hydrateRegistryFromDisk,
   listRegisteredAgents,
   removeRegisteredAgent,
   updateRegisteredAgent,
@@ -56,6 +60,19 @@ export class Agent {
   static async create(options: AgentOptions): Promise<SDKAgent> {
     validateAgentOptions(options);
     validateCloudToolParity(options);
+    // EC-1: when the caller pins an agentId, hydrate the persisted registry
+    // first and reject collisions explicitly. Without this, restart + create
+    // silently wipes the prior agent's metadata.
+    if (options.agentId !== undefined) {
+      const persistenceCwd = resolveAgentPersistenceCwd(options);
+      await hydrateRegistryFromDisk(persistenceCwd);
+      if (getRegisteredAgent(options.agentId) !== undefined) {
+        throw new ConfigurationError(
+          `Agent "${options.agentId}" already exists. Use Agent.resume("${options.agentId}") to reattach, or pick a different agentId.`,
+          { code: "agent_id_already_exists" },
+        );
+      }
+    }
     if (options.cloud !== undefined) {
       return createCloudAgent(options);
     }
@@ -83,12 +100,29 @@ export class Agent {
    * @public
    */
   static async resume(agentId: string, options: Partial<AgentOptions> = {}): Promise<SDKAgent> {
-    const existing = getRegisteredAgent(agentId);
+    let existing = getRegisteredAgent(agentId);
+    if (existing === undefined) {
+      // D21: fall back to the persisted registry. Different cwds get isolated
+      // registry.json files; we read the cwd the caller is operating in.
+      const persistenceCwd = resolveAgentPersistenceCwd(options);
+      await hydrateRegistryFromDisk(persistenceCwd);
+      existing = getRegisteredAgent(agentId);
+    }
     if (existing !== undefined) {
+      await validateRehydratedAgent(agentId, existing);
       // Strip inline mcpServers — they don't persist across resume.
+      // Deep-merge `local` so callers passing `local: { cwd }` keep the
+      // persisted `settingSources` and `sandboxOptions`. The previous
+      // shallow spread silently wiped these fields, which broke long-running
+      // agents that depended on file-based hooks/skills.
+      const mergedLocal =
+        options.local !== undefined && existing.options.local !== undefined
+          ? { ...existing.options.local, ...options.local }
+          : (options.local ?? existing.options.local);
       const mergedOptions: AgentOptions = {
         ...existing.options,
         ...options,
+        ...(mergedLocal !== undefined ? { local: mergedLocal } : {}),
         mcpServers: undefined,
         agentId,
       };
@@ -99,12 +133,18 @@ export class Agent {
       await agent.initialize();
       return agent;
     }
-    if (isCloudAgentId(agentId)) {
-      return new CloudAgent({ ...options, agentId } as AgentOptions, agentId);
-    }
-    const agent = new LocalAgent({ ...options, agentId } as AgentOptions);
-    await agent.initialize();
-    return agent;
+    // Cold miss: throw UnknownAgentError so chat-assistant bots can
+    // explicitly branch to `Agent.create({ agentId, ...full options })` on
+    // first contact. The previous silent cold-create with the caller's
+    // partial options was a footgun — it persisted incomplete agents
+    // (no model, no system prompt) that then failed at first send.
+    //
+    // Migration: callers that want the OLD "always succeed" behaviour
+    // should catch `UnknownAgentError` and call `Agent.create` themselves.
+    throw new UnknownAgentError(
+      `Agent "${agentId}" not found. Use Agent.create({ agentId, ... }) for first-time setup, or catch UnknownAgentError to branch resume-vs-create.`,
+      { code: "unknown_agent" },
+    );
   }
 
   /**
@@ -113,6 +153,7 @@ export class Agent {
    * @public
    */
   static async list(options: ListAgentsOptions = {}): Promise<ListResult<SDKAgentInfo>> {
+    await hydrateRegistryFromDisk(process.cwd());
     const runtime = options.runtime;
     const all = listRegisteredAgents(runtime);
     const items = all.map((agent) => toAgentInfo(agent));
@@ -125,7 +166,11 @@ export class Agent {
    * @public
    */
   static async get(agentId: string, _options: GetAgentOptions = {}): Promise<SDKAgentInfo> {
-    const agent = getRegisteredAgent(agentId);
+    let agent = getRegisteredAgent(agentId);
+    if (agent === undefined) {
+      await hydrateRegistryFromDisk(process.cwd());
+      agent = getRegisteredAgent(agentId);
+    }
     if (agent === undefined) {
       throw new UnknownAgentError(`Agent ${agentId} not found`, {
         code: "unknown_agent",
@@ -140,7 +185,11 @@ export class Agent {
    * @public
    */
   static async listRuns(agentId: string, _options: ListRunsOptions = {}): Promise<ListResult<Run>> {
-    const agent = getRegisteredAgent(agentId);
+    let agent = getRegisteredAgent(agentId);
+    if (agent === undefined) {
+      await hydrateRegistryFromDisk(process.cwd());
+      agent = getRegisteredAgent(agentId);
+    }
     if (agent === undefined) {
       throw new UnknownAgentError(`Agent ${agentId} not found`, {
         code: "unknown_agent",
@@ -194,6 +243,50 @@ export class Agent {
    */
   static async delete(agentId: string, _options: AgentOperationOptions = {}): Promise<void> {
     removeRegisteredAgent(agentId);
+    await flushRegistrySaves();
+  }
+}
+
+/**
+ * Resolve the cwd used for persistence routing. Local agents pin a workspace
+ * cwd via `options.local.cwd`; cloud agents and unspecified locals default to
+ * `process.cwd()`. Matches the routing key set by `LocalAgent`/`CloudAgent`
+ * constructors so disk reads and writes hit the same `<cwd>/.theokit/agents/registry.json`.
+ *
+ * @internal
+ */
+function resolveAgentPersistenceCwd(options: Partial<AgentOptions>): string {
+  const localCwd = options.local?.cwd;
+  if (typeof localCwd === "string") return localCwd;
+  if (Array.isArray(localCwd) && typeof localCwd[0] === "string") return localCwd[0];
+  return process.cwd();
+}
+
+/**
+ * D21 validation: when rehydrating a persisted local agent, ensure the
+ * recorded workspace cwd still exists on disk. Without this, a stale entry
+ * would silently re-initialize against a missing path and fail mysteriously
+ * deep inside the loader chain.
+ *
+ * @internal
+ */
+async function validateRehydratedAgent(
+  agentId: string,
+  entry: { runtime: "local" | "cloud"; cwd?: string; options: AgentOptions },
+): Promise<void> {
+  if (entry.runtime !== "local") return;
+  const candidate = entry.options.local?.cwd ?? entry.cwd;
+  if (typeof candidate !== "string") return;
+  try {
+    const info = await stat(candidate);
+    if (!info.isDirectory()) {
+      throw new Error(`Workspace path is not a directory: ${candidate}`);
+    }
+  } catch (cause) {
+    throw new UnknownAgentError(
+      `Agent "${agentId}" cannot be rehydrated — workspace cwd "${candidate}" is missing or inaccessible.`,
+      { code: "agent_rehydration_failed", cause },
+    );
   }
 }
 
@@ -284,11 +377,16 @@ function toCloudAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
   };
 }
 
-function setArchivedFlag(agentId: string, archived: boolean): Promise<void> {
-  const agent = getRegisteredAgent(agentId);
+async function setArchivedFlag(agentId: string, archived: boolean): Promise<void> {
+  let agent = getRegisteredAgent(agentId);
+  if (agent === undefined) {
+    await hydrateRegistryFromDisk(process.cwd());
+    agent = getRegisteredAgent(agentId);
+  }
   if (agent === undefined) {
     throw new UnknownAgentError(`Agent ${agentId} not found`, { code: "unknown_agent" });
   }
   updateRegisteredAgent(agentId, { archived });
-  return Promise.resolve();
+  // Block until disk reflects the flip so subsequent reads observe it (D17).
+  await flushRegistrySaves();
 }

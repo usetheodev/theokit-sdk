@@ -47,3 +47,10 @@ docs/evalscope/
 
 # Ralph loop local state
 .claude/ralph-loop.local.md
+
+# SDK runtime state generated at workspace cwd by Agent.create / Cron.create /
+# memory writes. Test fixtures under tests/fixtures/repos/*/.theokit are
+# explicitly tracked and exempt from this ignore.
+/packages/sdk/.theokit/
+/examples/*/.theokit/
+.gstack/

@@ -24,7 +24,7 @@ async function main(): Promise<void> {
     model: { id: "openai/gpt-4o-mini" },
     local: { cwd: process.cwd() },
     providers: {
-      routes: [{ provider: "anthropic", capabilities: ["chat"] }],
+      routes: [{ provider: "anthropic", capability: "chat" }],
       fallback: ["openrouter"],
     },
   });
