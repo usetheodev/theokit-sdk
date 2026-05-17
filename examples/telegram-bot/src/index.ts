@@ -103,4 +103,9 @@ bot.catch((err) => {
   console.error("Bot error:", err);
 });
 
+// Verify the token + log "Connected as @<username>" BEFORE bot.start() (which
+// blocks on getUpdates forever). Makes the boot observable to humans and to
+// CI sweeps that match the connected-marker line.
+const me = await bot.api.getMe();
+console.log(`Connected as @${me.username} (id=${me.id}). Send /start to your bot.`);
 await bot.start();
