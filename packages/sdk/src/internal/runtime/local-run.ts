@@ -89,14 +89,26 @@ class LocalRun extends FixtureRunBase {
 
   private async completeNaturally(): Promise<void> {
     if (this.terminated) return;
-    if (this.script.beforeComplete !== undefined) {
-      try {
-        await this.script.beforeComplete();
-      } catch {
-        this.transitionTo("error" satisfies RunStatus);
-        return;
-      }
-    }
+    const beforeOk = await this.runBeforeComplete();
+    if (!beforeOk) return;
     this.transitionTo(this.script.finalStatus);
+  }
+
+  /** Runs the optional beforeComplete hook. Returns false iff it failed and the run transitioned to error. */
+  private async runBeforeComplete(): Promise<boolean> {
+    if (this.script.beforeComplete === undefined) return true;
+    try {
+      await this.script.beforeComplete();
+      return true;
+    } catch (cause) {
+      // Capture the beforeComplete failure on the script so the wait()
+      // caller sees `result.error.message` instead of an opaque status.
+      if (this.script.errorDetail === undefined) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        this.script.errorDetail = { message, code: "before_complete_failed", cause };
+      }
+      this.transitionTo("error" satisfies RunStatus);
+      return false;
+    }
   }
 }

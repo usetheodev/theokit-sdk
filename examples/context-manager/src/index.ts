@@ -54,7 +54,7 @@ async function main(): Promise<void> {
     for (const src of snapshot.sources) {
       console.log(`  - ${src.name} (${src.status}) ${src.path}`);
     }
-    console.log(`  Budget tokens: ${snapshot.budget.maxTokens ?? "unbounded"}`);
+    console.log(`  Budget tokens: ${snapshot.budget?.maxTokens ?? "unbounded"}`);
   }
 
   const run = await agent.send(

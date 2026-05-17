@@ -6,6 +6,7 @@ import { chunkMarkdown } from "./chunk-markdown.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { memoryDir, memoryMdPath, notesDir } from "./markdown-store.js";
+import { discoverSessionFiles } from "./session-loader.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
 import {
   createVectorIndex,
@@ -385,7 +386,7 @@ function blendScores(
 interface DiscoveredFile {
   absolutePath: string;
   relPath: string;
-  source: "memory" | "wiki";
+  source: "memory" | "wiki" | "sessions";
 }
 
 async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
@@ -420,6 +421,15 @@ async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
       absolutePath: wiki.absolutePath,
       relPath: wiki.relPath,
       source: "wiki",
+    });
+  }
+  // sessions/*.md (ADR D20 — per-run summaries for corpus="sessions" recall)
+  const sessionFiles = await discoverSessionFiles(cwd);
+  for (const session of sessionFiles) {
+    results.push({
+      absolutePath: session.absolutePath,
+      relPath: session.relPath,
+      source: "sessions",
     });
   }
   return results;

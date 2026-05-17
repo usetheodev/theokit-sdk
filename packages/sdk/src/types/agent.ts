@@ -107,6 +107,41 @@ export interface SystemPromptSkillRef {
 }
 
 /**
+ * Public skill listing handle exposed as `agent.skills`. Populated when
+ * `settingSources` includes `"project"` so the SDK discovers
+ * `.theokit/skills/<name>/SKILL.md` files OR when `skills.enabled` is set
+ * explicitly on the agent options.
+ *
+ * @public
+ */
+export interface SDKAgentSkills {
+  list(): Promise<ReadonlyArray<SystemPromptSkillRef>>;
+}
+
+/**
+ * Public plugin metadata returned by `agent.plugins.list()`. Mirrors the
+ * `.theokit/plugins/<name>/MANIFEST.json` allow-listed shape; never exposes
+ * raw plugin bodies, credentials, or internal hooks.
+ *
+ * @public
+ */
+export interface SDKPluginMetadata {
+  name: string;
+  description?: string;
+}
+
+/**
+ * Public plugin listing handle exposed as `agent.plugins`. Populated when
+ * `settingSources` includes `"plugins"` OR when `plugins.enabled` is set
+ * on the agent options.
+ *
+ * @public
+ */
+export interface SDKAgentPlugins {
+  list(): Promise<ReadonlyArray<SDKPluginMetadata>>;
+}
+
+/**
  * Public view of a recalled memory fact exposed to the system-prompt resolver.
  *
  * @public
@@ -218,6 +253,39 @@ export interface MemorySettings {
 }
 
 /**
+ * Inline custom tool — registered with the LLM under the given name + schema
+ * and dispatched locally to {@link CustomTool.handler} when the model emits a
+ * `tool_use` for it.
+ *
+ * Local runtime only (SDK v1.0). Cloud agents reject `tools` (handlers cannot
+ * cross the wire — use MCP servers or subagents for cloud tool surfaces).
+ *
+ * Handlers MUST be re-passed on `Agent.resume()` because closures cannot be
+ * persisted. The tool catalog (name + description + schema) is NOT serialized.
+ *
+ * @public
+ */
+export interface CustomTool {
+  /**
+   * Tool name surfaced to the LLM. Must match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`
+   * and must not collide with `shell`, `memory_search`, `memory_get`, or any
+   * `mcp_*` prefix (reserved for the SDK's built-in tools).
+   */
+  name: string;
+  /** Description surfaced to the LLM. Required — drives tool-selection accuracy. */
+  description: string;
+  /** JSON Schema (Draft-7 subset) describing the `input` argument. Must be `type: "object"`. */
+  inputSchema: Record<string, unknown>;
+  /**
+   * Local handler invoked when the model emits `tool_use` for this tool.
+   * Returns a string (becomes the `tool_result.content` surfaced back to the
+   * model). Throws → SDK converts to `tool_result` with `isError: true` and
+   * the error `message` as content.
+   */
+  handler: (input: Record<string, unknown>) => string | Promise<string>;
+}
+
+/**
  * Top-level options accepted by `Agent.create()`.
  *
  * Pass either `local` or `cloud` to pick a runtime.
@@ -252,6 +320,12 @@ export interface AgentOptions {
   skills?: SkillsSettings;
   /** Memory configuration. Persists durable facts; auto-recalled on send. */
   memory?: MemorySettings;
+  /**
+   * Inline custom tools. Local runtime only — cloud agents reject any non-empty
+   * `tools` array. Handlers are not persisted; pass them again on resume.
+   * See {@link CustomTool}.
+   */
+  tools?: CustomTool[];
 }
 
 /**
@@ -284,6 +358,18 @@ export interface SDKAgent {
    * or model-implied providers). See {@link SDKProvidersManager}.
    */
   readonly providers?: SDKProvidersManager;
+  /**
+   * Skill listing for this agent. Populated when project-scoped skills are
+   * enabled (`settingSources: ["project"]`) or when `skills.enabled` is set.
+   * See {@link SDKAgentSkills}.
+   */
+  readonly skills?: SDKAgentSkills;
+  /**
+   * Plugin listing for this agent. Populated when project-scoped plugins are
+   * enabled (`settingSources: ["plugins"]`) or when `plugins.enabled` is set.
+   * See {@link SDKAgentPlugins}.
+   */
+  readonly plugins?: SDKAgentPlugins;
   send(message: string | SDKUserMessage, options?: SendOptions): Promise<Run>;
   /** Fire-and-forget disposal. */
   close(): void;

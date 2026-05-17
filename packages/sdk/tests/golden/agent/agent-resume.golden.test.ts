@@ -61,9 +61,12 @@ describe("Agent.resume", () => {
     await resumed.dispose();
   });
 
-  it("does not crash when resuming a cold (unknown) agent id", async () => {
-    const resumed = await Agent.resume("agent-unknown-cold-id");
-    expect(resumed.agentId).toBe("agent-unknown-cold-id");
-    await resumed.dispose();
+  it("throws UnknownAgentError on cold-miss (new behavior — chat-assistant footgun fix)", async () => {
+    const { UnknownAgentError } = await import("../../../src/index.js");
+    await expect(Agent.resume("agent-unknown-cold-id")).rejects.toBeInstanceOf(UnknownAgentError);
+    // Verify code is `unknown_agent` so callers can branch reliably.
+    await expect(Agent.resume("agent-unknown-cold-id")).rejects.toMatchObject({
+      code: "unknown_agent",
+    });
   });
 });
