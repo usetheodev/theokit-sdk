@@ -13,6 +13,8 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+.theokit/
+dist-runtime/
 
 # Env
 .env
