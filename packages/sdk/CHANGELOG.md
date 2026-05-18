@@ -2,6 +2,25 @@
 
 ## [Unreleased]
 
+### Added (v1.3 secret-redaction-discipline — Security block 1/2 patterns)
+
+- **`Security` public namespace** (ADR D68). New top-level export `Security.addPattern(re: RegExp)` registers custom redaction patterns for org-internal token shapes. Additive — built-in patterns cannot be removed. Throws if `/g` flag is missing.
+- **Canonical secret redactor** in `internal/security/redact.ts` (ADR D68/D71). 12 builtin credential patterns (OpenAI/Anthropic `sk-*`, GitHub PAT classic + fine-grained, GitLab, AWS `AKIA`, Google `AIza`, Slack `xox*-`, Sentry `sntrys_`, Stripe `sk_live_` / `rk_live_`) plus parametric `key=value` matcher (Authorization Bearer, access_token, api_key, password, x-api-key) plus dedicated Bearer pattern. Two-bucket masking: short tokens (<18 chars) → `***`; longer → `prefix...suffix` for debuggability.
+- **Env opt-out: `THEOKIT_REDACT_SECRETS`** (ADR D69/D70). Default ON. Set to `"false"`/`"0"`/`"no"`/`"off"` to disable; SDK emits one-time stderr warning. Env var snapshotted at module init — runtime mutation (e.g., prompt injection) cannot disable mid-process.
+- **Wired at output boundaries** (ADR D73):
+  - `internal/errors/mappers/shared.ts:truncateRaw` redacts `ErrorMetadata.raw` before exposure. Closes the vector created by v1.3 error-context-surfacing where 2KB of raw provider response body could echo `Authorization: Bearer sk-...` headers.
+  - `internal/telemetry/tracer.ts` wraps `setAttribute`/`setAttributes`/`addEvent`/`startSpan` to redact string values before they reach Langfuse / Sentry / PostHog exporters.
+  - `internal/runtime/agent-session-store.ts:appendToSessionFile` redacts JSON.stringify(record) before appendFile to the transcript JSONL.
+  - `internal/memory/migrate-sqlite-to-lance.ts` wraps the migration logger so any fact text containing secrets is masked at the egress.
+- **CI gate against new unredacted sinks** — `tests/lint/no-unredacted-sink.test.ts` greps `src/` for new `console.log`/`appendFile`/`writeFile`/`span.setAttribute` callsites that bypass `redactSecrets`, fails the test run if any land without joining the whitelist (with rationale).
+- **Adversarial property tests** via `fast-check` — 12 builtin patterns × 200 runs + PARAM_PATTERN × 200 + BEARER × 200 + 4 sink adversarial tests × 50-100 runs each = ~3000 randomized inputs proving zero leak.
+
+### Changed (secret-redaction-discipline)
+
+- **`ErrorMetadata.raw` shape**: pre-T1.1 the field returned the original `body` object when ≤2KB; post-T1.1 it always returns a (possibly redacted) string because the redactor coerces non-strings via `JSON.stringify`. A workspace-wide grep at land time confirmed zero callers of `err.metadata.raw.someKey`. Consumers that need the parsed shape must `JSON.parse(err.metadata.raw)`.
+- **`redactSecrets` consolidated**: the two duplicate impls in `internal/memory/types.ts` (3 patterns) and `internal/runtime/fixture-responder.ts` (5 patterns) are gone — both now route through the canonical module. The fixture sentinel `fixture-search-secret` is replaced locally in `redactEventSecrets` (NOT via `addPattern`) to avoid being cleared by the vitest `beforeEach` reset hook.
+- **`vitest.setup.ts`** also resets `_extraPatterns` and re-enables redaction between tests (ADR D60 + secret-redaction EC-3) to prevent test bleed across files.
+
 ### Added (v1.3 error-context-surfacing — Error handling block 1/2 patterns)
 
 - **`ErrorMetadata` + `ErrorCode` types exposed from `errors.ts`** (ADR D65/D66). New optional `metadata` field on `TheokitAgentError` and subclasses carries `{ provider, endpoint, code, statusCode?, retryAfter?, raw? }` when the error originates from a provider HTTP call. `ErrorCode` is a finite literal union (`"rate_limit" | "auth_failed" | "invalid_request" | "timeout" | "server_error" | "context_too_long" | "content_filtered" | "model_unavailable" | "network" | "unknown"`) enabling exhaustive `switch` checks at consumer code.

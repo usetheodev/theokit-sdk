@@ -114,6 +114,7 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/proper-lockfile": "^4.1.4",
     "better-sqlite3": "^12.10.0",
+    "fast-check": "^4.8.0",
     "proper-lockfile": "^4.1.2",
     "sqlite-vec": "^0.1.9"
   }
