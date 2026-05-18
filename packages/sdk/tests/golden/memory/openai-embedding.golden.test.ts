@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { AuthenticationError, NetworkError } from "../../../src/errors.js";
+import { AuthenticationError, ConfigurationError } from "../../../src/errors.js";
 import { openAiMemoryEmbeddingProviderAdapter } from "../../../src/internal/memory/adapters/openai-embedding.js";
 
 /**
@@ -117,13 +117,13 @@ describe("OpenAI embedding adapter", () => {
     expect(runtime.stats().retries).toBe(1);
   });
 
-  it("propagates NetworkError on non-retryable status (400)", async () => {
+  it("propagates ConfigurationError on non-retryable 400 (post-D67 mapper)", async () => {
     const stub = makeFetchStub([{ status: 400, body: { error: "bad request" } }]);
     const runtime = await openAiMemoryEmbeddingProviderAdapter.create({
       apiKey: "sk-stub",
       fetch: stub.fetch,
     });
-    await expect(runtime.embed(["x"])).rejects.toBeInstanceOf(NetworkError);
+    await expect(runtime.embed(["x"])).rejects.toBeInstanceOf(ConfigurationError);
   });
 
   it("throws AuthenticationError when OPENAI_API_KEY is missing entirely", async () => {

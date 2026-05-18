@@ -1,6 +1,6 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { atomicWriteJson } from "../persistence/atomic-write.js";
 import { memoryDir } from "./markdown-store.js";
 
 /**
@@ -37,9 +37,10 @@ export async function persistActiveMemoryTranscript(
 ): Promise<void> {
   try {
     const dir = join(memoryDir(cwd), "transcripts", "active-memory");
-    await mkdir(dir, { recursive: true });
     const file = join(dir, `${transcript.runId}.json`);
-    await writeFile(file, JSON.stringify(transcript, null, 2), "utf8");
+    // atomicWriteJson auto-creates the parent directory + writes atomically
+    // (no torn writes during crash).
+    await atomicWriteJson(file, transcript);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     process.stderr.write(`[theokit-sdk] active-memory transcript persist failed: ${message}\n`);

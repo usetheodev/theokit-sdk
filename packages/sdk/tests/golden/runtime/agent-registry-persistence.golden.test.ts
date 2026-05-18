@@ -41,12 +41,13 @@ describe("Agent registry persistence (T0.1 / ADR D17 + D21)", () => {
     await agent.dispose();
 
     const raw = await readFile(join(cwd, ".theokit", "agents", "registry.json"), "utf8");
+    // Post-D62: versioned envelope `{ _schemaVersion: 1, data: {...} }`.
     const parsed = JSON.parse(raw) as {
-      schemaVersion: string;
-      agents: Record<string, { agentId: string; runtime: string }>;
+      _schemaVersion: number;
+      data: Record<string, { agentId: string; runtime: string }>;
     };
-    expect(parsed.schemaVersion).toBe("1.0");
-    expect(parsed.agents[agent.agentId]?.runtime).toBe("local");
+    expect(parsed._schemaVersion).toBe(1);
+    expect(parsed.data[agent.agentId]?.runtime).toBe("local");
   });
 
   it("registry-loaded-on-resume-after-restart — fresh in-memory + Agent.resume returns rehydrated agent", async () => {
@@ -127,9 +128,10 @@ describe("Agent registry persistence (T0.1 / ADR D17 + D21)", () => {
     await Promise.all(agents.map((a) => a.dispose()));
 
     const raw = await readFile(join(cwd, ".theokit", "agents", "registry.json"), "utf8");
-    const parsed = JSON.parse(raw) as { agents: Record<string, unknown> };
+    // Post-D62: versioned envelope `{ _schemaVersion: 1, data: {...} }`.
+    const parsed = JSON.parse(raw) as { _schemaVersion: number; data: Record<string, unknown> };
     // 50 distinct agentIds (auto-generated) must all be present.
-    expect(Object.keys(parsed.agents).length).toBe(50);
+    expect(Object.keys(parsed.data).length).toBe(50);
   });
 
   it("registry-archived-flag-persists — Agent.archive → restart → registry shows archived: true", async () => {
@@ -244,9 +246,10 @@ describe("Agent registry persistence (T0.1 / ADR D17 + D21)", () => {
 
     // Next save overwrote the corrupt bytes with valid JSON.
     const raw = await readFile(registryPath, "utf8");
-    const parsed = JSON.parse(raw) as { schemaVersion: string; agents: Record<string, unknown> };
-    expect(parsed.schemaVersion).toBe("1.0");
-    expect(parsed.agents["agent-corruption-recovery-test"]).toBeDefined();
+    // Post-D62: versioned envelope `{ _schemaVersion: 1, data: {...} }`.
+    const parsed = JSON.parse(raw) as { _schemaVersion: number; data: Record<string, unknown> };
+    expect(parsed._schemaVersion).toBe(1);
+    expect(parsed.data["agent-corruption-recovery-test"]).toBeDefined();
   });
 
   it("registry-isolated-per-cwd (EC-5) — two cwds → two registry.json files; wrong cwd throws unknown_agent", async () => {

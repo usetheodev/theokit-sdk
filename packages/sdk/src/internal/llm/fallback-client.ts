@@ -1,4 +1,4 @@
-import { NetworkError } from "../../errors.js";
+import { AuthenticationError, NetworkError, RateLimitError } from "../../errors.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
 
 /**
@@ -63,9 +63,19 @@ async function tryFirstEvent(
     const firstResult = await generator.next();
     return { kind: "ok", generator, firstResult };
   } catch (cause) {
-    if (cause instanceof NetworkError) {
+    // Post-T2.1 refinement: provider-mapped errors may surface as
+    // AuthenticationError (401/403) or RateLimitError (429) instead of
+    // NetworkError. All three categories indicate a provider-side
+    // pre-stream failure where falling back to the next provider is
+    // sensible (different provider → different key / no rate limit).
+    if (
+      cause instanceof NetworkError ||
+      cause instanceof RateLimitError ||
+      cause instanceof AuthenticationError
+    ) {
+      const errCode = cause.metadata?.code ?? cause.code ?? "unknown";
       process.stderr.write(
-        `[theokit-sdk] provider ${client.name} failed (${cause.code ?? "unknown"}): falling back\n`,
+        `[theokit-sdk] provider ${client.name} failed (${errCode}): falling back\n`,
       );
       return { kind: "handshake_error", error: cause };
     }

@@ -1299,23 +1299,410 @@ interface ListResult<T> {
 }
 Returned by Agent.list() and Agent.listRuns(). nextTheo is absent when there are no more pages.
 
+Agent.generateObject()
+Returns a typed value matching a Zod schema. The SDK creates a transient local agent under the hood, registers a single synthetic `output` tool whose JSON schema is derived from the Zod schema, and forces the model to call it exactly once. The handler captures the raw input, schema-parses it, and returns the typed object. The transient agent is disposed and hard-deleted from the registry across retries (see ADR D33).
+
+
+import { z } from "zod";
+import { Agent } from "@usetheo/sdk";
+
+const FactCard = z.object({
+  title: z.string().min(1),
+  summary: z.string().min(20),
+  year: z.number().int().nullable(),
+  sources: z.array(z.string()).min(1).max(3),
+});
+
+const { object, raw, usage, finishReason } = await Agent.generateObject({
+  apiKey: process.env.THEOKIT_API_KEY,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
+  schema: FactCard,
+  prompt: "Produce a fact card about: Brazilian samba.",
+  systemPrompt: "Match the schema exactly. Keep summary 2-3 sentences.",
+  maxRetries: 1,
+});
+// object is fully typed: z.infer<typeof FactCard>
+
+GenerateObjectOptions
+
+interface GenerateObjectOptions<T extends ZodType> {
+  schema: T;
+  prompt: string;
+  model: ModelSelection;
+  local: LocalOptions;
+  systemPrompt?: string;
+  apiKey?: string;
+  maxRetries?: number; // default 1 (initial attempt + 1 retry)
+}
+
+GenerateObjectResult
+
+interface GenerateObjectResult<T> {
+  object: T;                  // z.infer<schema>
+  raw: unknown;               // pre-parse capture
+  usage: { inputTokens: number; outputTokens: number };
+  finishReason: "tool_use" | "error";
+}
+
+GenerateObjectError
+
+class GenerateObjectError extends Error {
+  readonly code: "no_tool_call" | "parse_failed";
+  readonly cause?: unknown;
+}
+Thrown when (1) the model returns plain text instead of calling the `output` tool after all retries, or (2) the Zod parse fails after all retries. Always extends `Error`. `cause` carries the last `z.ZodError` for `parse_failed`.
+
+Notes:
+- `zod` is an OPTIONAL peer dependency. The SDK loads it lazily via `createRequire`; if missing, `ConfigurationError(code: "zod_not_installed")` is thrown.
+- Only the local runtime is supported in v1.1. The transient agent runs in your Node process — no cloud runtime is created.
+- The same provider routing and fallback as `agent.send` applies (configure via `local.providers` or env keys).
+- The schema can be `z.object(...)`, `z.array(...)`, `z.discriminatedUnion(...)`, etc. Anything Zod can stringify to JSON Schema works.
+
+AgentOptions.telemetry
+Opt-in OpenTelemetry instrumentation for `agent.send`, `llm.call`, and `tool.call` (ADR D34). Spans only emit when `@opentelemetry/api` is installed AND `telemetry.enabled === true`. Loaded lazily via `createRequire` — no runtime overhead and no peer-dep installation required to use the SDK.
+
+
+import { Agent } from "@usetheo/sdk";
+
+const agent = await Agent.create({
+  apiKey: process.env.THEOKIT_API_KEY,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd() },
+  telemetry: {
+    enabled: true,
+    exporter: "console",        // or "otlp" — or pass your own SDK
+    serviceName: "my-bot",       // default: "theokit-sdk"
+    includeContent: false,        // privacy default — only timing/counts emitted
+  },
+});
+
+TelemetrySettings
+
+interface TelemetrySettings {
+  enabled: boolean;
+  includeContent?: boolean;     // default false (privacy-by-default)
+  exporter?: "console" | "otlp" | unknown;
+  serviceName?: string;
+}
+
+Spans emitted:
+
+| Span | Attributes |
+|------|------------|
+| `agent.send` | `agent.id`, `agent.runtime` (local|cloud), `run.id` |
+| `llm.call`   | `llm.model`, `llm.provider`, `llm.stop_reason`, `llm.input_tokens`, `llm.output_tokens` |
+| `tool.call`  | `tool.name`, `tool.origin` (custom|mcp|builtin), `tool.exit_code` |
+
+Privacy contract:
+- `includeContent: false` (default) — span attributes carry counts, IDs, status codes, model name. NO prompt content, NO LLM completion text, NO tool input/output payloads.
+- `includeContent: true` — adds `llm.prompt`, `llm.completion`, `tool.input`, `tool.output` (truncated to 4 KB per attribute). Use with care; never enable in production logs without redaction at the exporter.
+
+Resilience:
+- All OTel calls are wrapped in a `safe()` helper. If the exporter throws or the OTel SDK misbehaves, the error is swallowed — `agent.send` NEVER fails because of telemetry.
+- Open spans owned by an agent are tracked per-handle and closed in `agent.dispose()` so a missing finish event from a cancelled run does not leak.
+
+React helpers (`@usetheo/react`)
+A separate workspace package — installs from npm as `@usetheo/react`, peer-deps `react ^18 || ^19` and `@usetheo/sdk ^1.1.0`. Provides two surfaces:
+
+useTheoChat — React hook that wires a `<form>` UI to a `/api/chat` endpoint, parses the SSE stream, and exposes message state.
+
+
+import { useTheoChat } from "@usetheo/react";
+
+function Chat() {
+  const { messages, input, setInput, send, isStreaming, error } = useTheoChat({
+    api: "/api/chat",            // your endpoint
+    initialMessages: [],
+  });
+  return (
+    <div>
+      {messages.map((m) => <div key={m.id}><b>{m.role}:</b> {m.content}</div>)}
+      <input value={input} onChange={(e) => setInput(e.target.value)} />
+      <button onClick={send} disabled={isStreaming}>{isStreaming ? "..." : "Send"}</button>
+      {error && <p>{error.message}</p>}
+    </div>
+  );
+}
+
+streamTheoChat — Next.js / framework-agnostic SSE handler. Takes a `Request`, calls `agent.send`, streams SDKMessages to the wire format below.
+
+
+import { streamTheoChat } from "@usetheo/react";
+import { Agent } from "@usetheo/sdk";
+
+export async function POST(req: Request) {
+  const agent = await Agent.getOrCreate("web-bot-shared", {
+    apiKey: process.env.THEOKIT_API_KEY,
+    model: { id: "google/gemini-2.0-flash-001" },
+    local: { cwd: process.cwd() },
+  });
+  return streamTheoChat({ agent, req });
+}
+
+Wire format — Vercel AI Data Stream v1 (compat: drop-in for `useChat`).
+
+| Code | Payload          | Meaning |
+|------|------------------|---------|
+| `0`  | string           | Text delta. Append to current assistant message. |
+| `9`  | `{ toolCallId, toolName, args? }` | Tool call started. |
+| `a`  | `{ toolCallId, result }` | Tool call completed. |
+| `d`  | `{ finishReason, usage? }` | Finish event (terminates the stream). |
+| `3`  | string           | Stream-level error (HTTP stays 200; protocol surfaces the error). |
+
+Notes:
+- Pre-stream `ConfigurationError` / `AuthenticationError` returned by `agent.send` are surfaced as HTTP 400 / 401 from `streamTheoChat`, NOT as `3:` events (they happen before the stream starts).
+- The hook attaches an `AbortController` and aborts the fetch on `useEffect` cleanup (unmount-safe).
+- The stream is considered finished when a `d:` record arrives OR the response body closes (graceful EOF).
+
+Agent.streamObject() (v1.2+)
+Streams a typed object alongside intermediate partial deltas as the model produces it. Same synthetic-forced-tool pattern as `Agent.generateObject` (ADR D33), but exposed as an `AsyncIterator<StreamObjectEvent<T>>` so consumers can render partial state as it arrives. ADR D39.
+
+
+import { z } from "zod";
+import { Agent } from "@usetheo/sdk";
+
+const FactCard = z.object({
+  title: z.string().min(1),
+  summary: z.string(),
+  year: z.number().nullable(),
+});
+
+for await (const evt of Agent.streamObject({
+  apiKey: process.env.THEOKIT_API_KEY,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd() },
+  schema: FactCard,
+  prompt: "Produce a fact card about: jazz music.",
+})) {
+  if (evt.type === "partial") render(evt.partial); // best-effort snapshot
+  if (evt.type === "complete") finalize(evt.object); // z.infer<typeof FactCard>
+}
+
+StreamObjectEvent
+
+type StreamObjectEvent<T> =
+  | { type: "partial"; partial: DeepPartial<T>; attempt: number }
+  | { type: "complete"; object: T; raw: unknown; usage; finishReason: "tool_use" | "error" };
+
+Notes:
+- The `complete` event always fires (or the iterator throws `StreamObjectError`). Partials are best-effort — providers that batch output (e.g., Anthropic in some modes) may emit zero partials.
+- The transient agent created behind the scenes is disposed AND hard-deleted from the registry in the iterator's `finally` block — including when the consumer calls `iter.return()` mid-stream (EC-4).
+- Same retry semantics as `generateObject`: `maxRetries` (default 1), `StreamObjectError(code: "no_tool_call" | "parse_failed")` taxonomy.
+- The `complete.object` is identical to what `Agent.generateObject` would return for the same input — verified by compat test.
+
+@usetheo/react hooks (v1.2+)
+The React package ships **three** complementary hooks. Each is single-purpose; do not conflate them (ADR D40).
+
+| Hook | Use case |
+|------|----------|
+| `useTheoChat` | Multi-turn chat with message history (v1.1) |
+| `useTheoCompletion` | Single-shot text generation (autocomplete, translation, summarization) |
+| `useTheoAssistant<T>` | Object-shaped streaming (wraps `Agent.streamObject<T>`) |
+
+Each hook has a matching server-side handler:
+
+| Hook | Server handler |
+|------|----------------|
+| `useTheoChat` | `streamTheoChat({ agent, body })` |
+| `useTheoCompletion` | `streamCompletion({ agent, body })` |
+| `useTheoAssistant` | `streamAssistant({ schema, body, model, local })` |
+
+Wire format codes (extension of Vercel AI Data Stream v1; see `packages/react/src/wire-format.md`):
+- `o:<json>` — partial object delta (only from `streamAssistant`)
+- `O:<json>` — complete object (only from `streamAssistant`)
+- Unknown codes are silently ignored by older clients (forward-compat, EC-11).
+
+MCP OAuth 2.1 (v1.2+)
+HTTP MCP servers can declare `auth.oauth` to opt into PKCE authentication. ADR D41.
+
+
+import type { McpServerConfig } from "@usetheo/sdk";
+
+const notionMcp: McpServerConfig = {
+  type: "http",
+  url: "https://mcp.notion.com/sse",
+  auth: {
+    CLIENT_ID: process.env.NOTION_OAUTH_CLIENT_ID!,
+    scopes: ["read"],
+    oauth: {
+      authorizationEndpoint: "https://api.notion.com/v1/oauth/authorize",
+      tokenEndpoint: "https://api.notion.com/v1/oauth/token",
+      redirectMode: "localhost", // or "manual" for SSH/headless dev
+    },
+  },
+};
+
+McpOAuthConfig
+
+interface McpOAuthConfig {
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  redirectMode: "manual" | "localhost";
+  localhostPort?: number;  // 0 = random free port (default)
+  timeoutMs?: number;       // default 300_000 = 5min
+}
+
+Token storage:
+- Preferred: OS keychain via `keytar` (macOS Keychain / Windows Credential Manager / Linux libsecret). Install with `pnpm add keytar`.
+- Fallback: `~/.theokit/mcp-tokens.json` with `chmod 600` (POSIX). Windows file fallback has no chmod equivalent — documented gotcha (EC-14).
+
+CSRF protection:
+- `state` parameter is generated per flow and validated on callback. Mismatch → `ConfigurationError(code: "oauth_state_mismatch")`. (EC-2 MUST FIX)
+
+Refresh:
+- Automatic on 401 from the MCP endpoint. Concurrent refreshes are serialized per server name to avoid `invalid_grant` from duplicate exchanges (EC-9).
+- Token endpoint without `expires_in` → default conservative 3600s (RFC 6749 §5.1) (EC-10).
+
+Telemetry auto-instrumentation (v1.2+)
+When `telemetry.enabled: true`, the SDK feature-detects installed observability libs and auto-registers OTel exporters. Zero config required — install Langfuse/Sentry/PostHog, set their env keys, spans appear. ADR D42.
+
+Supported (auto-detected via `createRequire`):
+- `@langfuse/node` v3+ → `LangfuseSpanProcessor` (env: `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`)
+- `@sentry/node` → event processor enriching events with OTel trace context
+- `posthog-node` → custom SpanProcessor capturing `agent.send` / `llm.call` / `tool.call` events (env: `POSTHOG_API_KEY`)
+
+Opt-out:
+
+const agent = await Agent.create({
+  telemetry: {
+    enabled: true,
+    autoDetect: false,             // disable ALL auto-instrumentation
+    disable: ["langfuse"],          // OR per-adapter opt-out (case-insensitive)
+  },
+});
+
+EC-12 (double-billing prevention): if you've already wired Langfuse manually before creating the agent, auto-instrumentation detects the existing processor and skips.
+
+Memory backends (v1.2+)
+Memory.index now accepts `backend: "sqlite-vec" | "lance"` (default `"sqlite-vec"`). ADR D43.
+
+
+import { Memory } from "@usetheo/sdk";
+
+const memory = await Memory.create({
+  cwd: process.cwd(),
+  index: {
+    backend: "lance",  // use @lancedb/lancedb for >100k facts
+    embedding: { provider: "openai", model: "text-embedding-3-small" },
+  },
+});
+
+Notes:
+- `@lancedb/lancedb` is an OPTIONAL peer dep. If missing + `backend: "lance"` → `ConfigurationError(code: "lance_backend_unavailable")` with install instructions.
+- Filters use Lance's structured filter API (object form) — NEVER string interpolation. SQL injection via namespace is impossible (EC-1 MUST FIX).
+- Embedding dimension is validated when opening an existing Lance index. Mismatch (e.g., switching from OpenAI to Voyage) → `ConfigurationError(code: "embedding_dimension_mismatch")` (EC-8).
+
+Migration CLI: `theokit-migrate-memory` (v1.2+)
+Migrate an existing SQLite memory index to LanceDB without data loss. ADR D44.
+
+
+# Dry-run first (preview, no writes)
+pnpm exec theokit-migrate-memory --cwd . --dry-run
+
+# Real migration with confirmation prompt
+pnpm exec theokit-migrate-memory --cwd .
+
+Algorithm:
+1. Read all facts from `.theokit/memory/index.sqlite`.
+2. Write to staging dir `.theokit/memory/lance-new/`.
+3. Validate: count match + sample-of-10 NFC unicode-normalized text match (EC-3 MUST FIX — facts in pt-BR/zh/ja with accents/emojis migrate correctly).
+4. On success: rename `lance-new/` → `lance/` (atomic commit).
+5. Prompt to delete SQLite db (skip with `--keep-sqlite`).
+6. On validation failure: leave SQLite intact, remove `lance-new/`.
+
+Options:
+- `--cwd <path>` — workspace directory (default: cwd)
+- `--dry-run` — read SQLite, validate counts, but DO NOT write Lance
+- `--keep-sqlite` — skip the delete-SQLite prompt
+- `--batch-size <n>` — migration batch size (default: 100)
+
 Errors
 All SDK errors extend TheoAgentError. Use isRetryable to drive retry logic.
 
 
-class TheoAgentError extends Error {
+class TheokitAgentError extends Error {
   readonly isRetryable: boolean;
   readonly code?: string;
   readonly cause?: unknown;
   readonly protoErrorCode?: string;
+  readonly metadata?: ErrorMetadata; // populated for provider HTTP errors (v1.3+)
 }
+
+interface ErrorMetadata {
+  provider: string;          // "anthropic" | "openai" | "openrouter" | ...
+  endpoint: string;          // "/v1/messages" | "/v1/chat/completions" | ...
+  code: ErrorCode;           // finite enum — see below
+  statusCode?: number;       // HTTP status if applicable
+  retryAfter?: number;       // seconds (only when provider returns numeric retry-after)
+  raw?: unknown;             // raw response body (truncated to ~2KB)
+}
+
+type ErrorCode =
+  | "rate_limit"
+  | "auth_failed"
+  | "invalid_request"
+  | "timeout"
+  | "server_error"
+  | "context_too_long"
+  | "content_filtered"
+  | "model_unavailable"
+  | "network"
+  | "unknown";
+
 Error	When
-AuthenticationError	Invalid API key, not logged in, insufficient permissions.
-RateLimitError	Too many requests or usage limits exceeded.
-ConfigurationError	Invalid model, bad request parameters.
+AuthenticationError	Invalid API key, not logged in, insufficient permissions (HTTP 401/403).
+RateLimitError	Too many requests or usage limits exceeded (HTTP 429).
+ConfigurationError	Invalid model, bad request parameters (HTTP 400; covers context_too_long, content_filtered, model_unavailable).
 IntegrationNotConnectedError	Creating a cloud agent for a repo whose SCM provider is not connected.
-NetworkError	Service unavailable, timeout.
+NetworkError	Service unavailable, timeout (HTTP 5xx / 408).
 UnknownAgentError	Catch-all for unclassified server or runtime errors.
+
+### Error context (v1.3+)
+
+When an error originates from a provider HTTP call, the SDK populates a typed `metadata` field on the thrown error so callers can react programmatically without parsing strings:
+
+```typescript
+try {
+  await agent.send("...");
+} catch (err) {
+  if (err instanceof TheokitAgentError && err.metadata !== undefined) {
+    switch (err.metadata.code) {
+      case "rate_limit":
+        await wait(err.metadata.retryAfter ?? 60);
+        return retry();
+      case "auth_failed":
+        throw new Error(`Check your API key for ${err.metadata.provider}`);
+      case "context_too_long":
+        // trigger compression / shorter prompt
+        break;
+      case "content_filtered":
+      case "model_unavailable":
+      case "invalid_request":
+      case "timeout":
+      case "server_error":
+      case "network":
+      case "unknown":
+        throw err;
+    }
+  }
+  throw err;
+}
+```
+
+#### Scope and known caveats
+
+The following are documented design choices from the edge-case review (2026-05-18). Intentional limitations of v1.3:
+
+- **Mid-stream errors are NOT routed through provider mappers** (EC-7). The mapper only handles `!response.ok` (pre-stream HTTP errors). When an SSE stream fails AFTER the initial 200 OK (e.g., upstream timeout mid-token), the error path stays in the original streaming flow — no `metadata` populated. A separate mid-stream error surface lands in v1.4.
+
+- **`UnsupportedRunOperationError` does not carry `metadata`** (EC-10). This subclass is thrown when a consumer calls a `Run` operation not supported by the current runtime — not an HTTP error. `err.metadata` will be `undefined`. By design.
+
+- **`IntegrationNotConnectedError` has its own `provider` field separate from `metadata.provider`** (EC-9). Backward compat preserves the existing `err.provider` (public field, used by callers since pre-v1.3). The new `err.metadata?.provider` is populated when the error originated from an HTTP call. Two fields with similar name on one error instance — read `err.provider` first for connection-state semantics; `err.metadata?.provider` is HTTP-origin metadata.
+
+- **`cause` chain depth is not capped** (EC-6). Errors may wrap multiple times: fetch err → mapper err → router err → caller err. ES2022 `cause` is supported in Node 20+ and you can walk it manually. Stack traces can be long; no native limiter.
+
+- **Embedding `parseEmbedResponse` "no data" maps to `code: "invalid_request"`** (EC-8). Semantically it's "invalid response" from provider, but the `ErrorCode` enum does not yet have that exact label. Closest existing code wins. A future release may add `"invalid_response"` if usage justifies.
 IntegrationNotConnectedError
 
 class IntegrationNotConnectedError extends ConfigurationError {

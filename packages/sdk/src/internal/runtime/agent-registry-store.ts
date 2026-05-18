@@ -1,9 +1,8 @@
-import { mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
 import type { AgentOptions } from "../../types/agent.js";
-import { replaceFileAtomic } from "../memory/atomic-write.js";
-import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
+import { readVersionedJson, writeVersionedJson } from "../persistence/schema-version.js";
 import type { AgentRuntime, RegisteredAgent } from "./agent-registry.js";
 
 /**
@@ -19,12 +18,15 @@ import type { AgentRuntime, RegisteredAgent } from "./agent-registry.js";
  * @internal
  */
 
-const SCHEMA_VERSION = "1.0";
+/** Current numeric schema version for the agent registry (ADR D62). */
+const SCHEMA_VERSION = 1;
+const LEGACY_SCHEMA_VERSION_STRING = "1.0";
 const REGISTRY_RELATIVE_PATH = join(".theokit", "agents", "registry.json");
 
-interface RegistryFile {
-  schemaVersion: typeof SCHEMA_VERSION;
-  agents: Record<string, SerializedAgent>;
+/** Legacy on-disk shape (pre-D62 — `schemaVersion` string field + flat `agents`). */
+interface LegacyRegistryFile {
+  schemaVersion?: string;
+  agents?: Record<string, SerializedAgent>;
 }
 
 interface SerializedAgent {
@@ -232,30 +234,22 @@ function registryPath(cwd: string): string {
  * @internal
  */
 export async function loadRegistry(cwd: string): Promise<Record<string, SerializedAgent>> {
-  const path = registryPath(cwd);
-  let raw: string;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch {
-    return {};
-  }
-  try {
-    const parsed = JSON.parse(raw) as RegistryFile;
-    if (typeof parsed !== "object" || parsed === null) return {};
-    if (parsed.schemaVersion !== SCHEMA_VERSION) {
-      process.stderr.write(
-        `[theokit-sdk] registry.json schemaVersion mismatch (got ${parsed.schemaVersion}, want ${SCHEMA_VERSION}); ignoring file.\n`,
-      );
+  return readVersionedJson<Record<string, SerializedAgent>>({
+    path: registryPath(cwd),
+    currentVersion: SCHEMA_VERSION,
+    defaultValue: () => ({}),
+    // EC-2 fix: `parsed` is the full object so we can detect + migrate legacy
+    // shape `{ schemaVersion: "1.0", agents: {...} }` (no `_schemaVersion`,
+    // no `data` wrapper).
+    migrate: (parsed, _fromVersion) => {
+      if (typeof parsed !== "object" || parsed === null) return {};
+      const legacy = parsed as LegacyRegistryFile;
+      if (legacy.schemaVersion === LEGACY_SCHEMA_VERSION_STRING && legacy.agents) {
+        return legacy.agents;
+      }
       return {};
-    }
-    return parsed.agents ?? {};
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(
-      `[theokit-sdk] registry.json is corrupt (${message}); falling back to empty registry. Next save will overwrite.\n`,
-    );
-    return {};
-  }
+    },
+  });
 }
 
 /**
@@ -273,11 +267,11 @@ export async function saveRegistry(
   for (const [id, agent] of Object.entries(agents)) {
     serialized[id] = toSerialized(agent);
   }
-  const file: RegistryFile = { schemaVersion: SCHEMA_VERSION, agents: serialized };
   const path = registryPath(cwd);
   await withCwdMutex(`registry:${cwd}`, async () => {
-    await mkdir(dirname(path), { recursive: true });
-    await replaceFileAtomic(path, `${JSON.stringify(file, null, 2)}\n`);
+    // writeVersionedJson writes `{ _schemaVersion: N, data: serialized }`
+    // atomically (parent dir auto-created via atomicWriteJson).
+    await writeVersionedJson(path, serialized, SCHEMA_VERSION);
   });
 }
 

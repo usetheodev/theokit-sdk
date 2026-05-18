@@ -1,11 +1,7 @@
 import { createHash } from "node:crypto";
 
-import {
-  AuthenticationError,
-  ConfigurationError,
-  NetworkError,
-  RateLimitError,
-} from "../../../errors.js";
+import { AuthenticationError, ConfigurationError, NetworkError } from "../../../errors.js";
+import { mapOpenAICompatibleError } from "../../errors/mappers/openai-compatible.js";
 import type {
   CreateAdapterOptions,
   EmbeddingRuntime,
@@ -206,14 +202,29 @@ async function embedBatch(opts: BatchOptions): Promise<number[][]> {
   while (true) {
     opts.stats.httpCalls += 1;
     const response = await postEmbedRequest(opts, url);
-    if (response.ok) return await parseEmbedResponse(response, opts.providerId);
+    if (response.ok)
+      return await parseEmbedResponse(response, opts.providerId, opts.embeddingsPath);
     if (isRetryable(response.status) && attempt < MAX_RETRIES) {
       attempt += 1;
       opts.stats.retries += 1;
       await sleep(linearBackoffMs(attempt));
       continue;
     }
-    throw mapErrorStatus(opts.providerId, response.status);
+    // Read body (best-effort) so the mapper has access to provider error code.
+    const text = await response.text().catch(() => "");
+    let body: unknown = text;
+    try {
+      body = JSON.parse(text);
+    } catch {
+      // not JSON — keep as string
+    }
+    throw mapOpenAICompatibleError({
+      providerId: opts.providerId,
+      status: response.status,
+      body,
+      headers: response.headers,
+      endpoint: opts.embeddingsPath,
+    });
   }
 }
 
@@ -228,11 +239,21 @@ async function postEmbedRequest(opts: BatchOptions, url: string): Promise<Respon
   });
 }
 
-async function parseEmbedResponse(response: Response, providerId: string): Promise<number[][]> {
+async function parseEmbedResponse(
+  response: Response,
+  providerId: string,
+  endpoint: string,
+): Promise<number[][]> {
   const json = (await response.json()) as { data?: Array<{ embedding: number[] }> };
   if (!Array.isArray(json.data)) {
-    throw new NetworkError(`${providerId} /v1/embeddings returned no data`, {
+    throw new NetworkError(`${providerId} ${endpoint} returned no data`, {
       code: "embedding_invalid_response",
+      metadata: {
+        provider: providerId,
+        endpoint,
+        code: "invalid_request",
+        raw: json,
+      },
     });
   }
   return json.data.map((d) => d.embedding);
@@ -240,22 +261,6 @@ async function parseEmbedResponse(response: Response, providerId: string): Promi
 
 function isRetryable(status: number): boolean {
   return status === 429 || (status >= 500 && status < 600);
-}
-
-function mapErrorStatus(providerId: string, status: number): Error {
-  if (status === 401) {
-    return new AuthenticationError(`${providerId} /v1/embeddings rejected the API key (401)`, {
-      code: "embedding_unauthorized",
-    });
-  }
-  if (status === 429) {
-    return new RateLimitError(`${providerId} /v1/embeddings rate limit exhausted`, {
-      code: "embedding_rate_limit",
-    });
-  }
-  return new NetworkError(`${providerId} /v1/embeddings returned ${status}`, {
-    code: "embedding_http_error",
-  });
 }
 
 function hashKey(model: string, text: string): string {

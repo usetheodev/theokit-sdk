@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { NetworkError } from "../../../src/errors.js";
+import { AuthenticationError, NetworkError, RateLimitError } from "../../../src/errors.js";
 import { FallbackLlmClient } from "../../../src/internal/llm/fallback-client.js";
 import type {
   LlmClient,
@@ -153,6 +153,97 @@ describe("FallbackLlmClient", () => {
     const r = await collect(wrapped, new AbortController().signal);
     expect(r.error).toBeInstanceOf(NetworkError);
     expect((r.error as NetworkError).message).toContain("500");
+  });
+
+  // EC-4 from edge-case review: router aggregate failure should surface
+  // the LAST provider's metadata so debugging is not a black box.
+  it("EC-4: aggregate failure surfaces metadata of the last provider tried", async () => {
+    // Primary throws RateLimitError (mapped 429), fallback throws
+    // AuthenticationError (mapped 401). Last error = AuthenticationError.
+    const primary: LlmClient = {
+      name: "primary",
+      stream: () =>
+        generatorThatRejectsFirstNext(
+          () =>
+            new RateLimitError("primary rate limited", {
+              code: "openai_rate_limit",
+              metadata: {
+                provider: "openai",
+                endpoint: "/v1/chat/completions",
+                code: "rate_limit",
+                statusCode: 429,
+                retryAfter: 60,
+              },
+            }),
+        ),
+    };
+    const fallback: LlmClient = {
+      name: "fallback",
+      stream: () =>
+        generatorThatRejectsFirstNext(
+          () =>
+            new AuthenticationError("fallback bad key", {
+              code: "anthropic_auth_failed",
+              metadata: {
+                provider: "anthropic",
+                endpoint: "/v1/messages",
+                code: "auth_failed",
+                statusCode: 401,
+              },
+            }),
+        ),
+    };
+    const wrapped = new FallbackLlmClient([primary, fallback]);
+    const r = await collect(wrapped, new AbortController().signal);
+    expect(r.error).toBeInstanceOf(AuthenticationError);
+    expect((r.error as AuthenticationError).metadata?.provider).toBe("anthropic");
+    expect((r.error as AuthenticationError).metadata?.code).toBe("auth_failed");
+  });
+
+  it("falls back when primary throws RateLimitError (post-T2.1 mapper refinement)", async () => {
+    let fallbackCalls = 0;
+    const primary: LlmClient = {
+      name: "primary",
+      stream: () =>
+        generatorThatRejectsFirstNext(
+          () => new RateLimitError("primary 429", { code: "primary_rate_limit" }),
+        ),
+    };
+    const fallback: LlmClient = {
+      name: "fallback",
+      async *stream() {
+        fallbackCalls += 1;
+        yield { type: "text_delta", text: "F" };
+        return baseFinish;
+      },
+    };
+    const wrapped = new FallbackLlmClient([primary, fallback]);
+    const r = await collect(wrapped, new AbortController().signal);
+    expect(fallbackCalls).toBe(1);
+    expect(r.error).toBeUndefined();
+  });
+
+  it("falls back when primary throws AuthenticationError (post-T2.1 mapper refinement)", async () => {
+    let fallbackCalls = 0;
+    const primary: LlmClient = {
+      name: "primary",
+      stream: () =>
+        generatorThatRejectsFirstNext(
+          () => new AuthenticationError("primary 401", { code: "primary_auth_failed" }),
+        ),
+    };
+    const fallback: LlmClient = {
+      name: "fallback",
+      async *stream() {
+        fallbackCalls += 1;
+        yield { type: "text_delta", text: "F" };
+        return baseFinish;
+      },
+    };
+    const wrapped = new FallbackLlmClient([primary, fallback]);
+    const r = await collect(wrapped, new AbortController().signal);
+    expect(fallbackCalls).toBe(1);
+    expect(r.error).toBeUndefined();
   });
 
   it("skips the fallback HTTP call when the abort signal is already aborted (EC-3)", async () => {

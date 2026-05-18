@@ -10,6 +10,9 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Autouse setup: isolates THEOKIT_HOME per-test in a fresh tmpdir
+    // (T6.1, ADR D60). Tests never write to the developer's real state.
+    setupFiles: ["./vitest.setup.ts"],
     exclude: [
       "**/node_modules/**",
       "tests/contract/**",

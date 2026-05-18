@@ -2,6 +2,105 @@
 
 ## [Unreleased]
 
+### Added (v1.3 error-context-surfacing — Error handling block 1/2 patterns)
+
+- **`ErrorMetadata` + `ErrorCode` types exposed from `errors.ts`** (ADR D65/D66). New optional `metadata` field on `TheokitAgentError` and subclasses carries `{ provider, endpoint, code, statusCode?, retryAfter?, raw? }` when the error originates from a provider HTTP call. `ErrorCode` is a finite literal union (`"rate_limit" | "auth_failed" | "invalid_request" | "timeout" | "server_error" | "context_too_long" | "content_filtered" | "model_unavailable" | "network" | "unknown"`) enabling exhaustive `switch` checks at consumer code.
+- **Provider error mappers** (ADR D67):
+  - `mapAnthropicError({ status, body, headers, endpoint })` — translates raw Anthropic API HTTP errors into typed `TheokitAgentError` subclasses with full metadata. Handles 401/403/429/400/408/5xx with detail mapping (e.g., 400 with context-length signal → `context_too_long` code; 529 overloaded_error → `server_error` with retryAfter).
+  - `mapOpenAICompatibleError({ providerId, status, body, headers, endpoint })` — same shape for OpenAI-compatible dialects (OpenAI, OpenRouter, DeepSeek, Together, Mistral, DeepInfra, Voyage). Inspects `body.error.code` / `body.error.type` for fine-grained mapping; gracefully falls back to status-based code when body doesn't follow the OpenAI shape (EC-3).
+  - Both mappers truncate raw body to ~2KB in `metadata.raw` to avoid log bloat.
+  - Both ignore HTTP-date format `retry-after` headers (EC-5) — only numeric-seconds form populates `metadata.retryAfter`.
+- **Wired in call sites**:
+  - `internal/llm/anthropic.ts` — `/v1/messages` HTTP errors go through `mapAnthropicError`.
+  - `internal/llm/openai.ts` — `/v1/chat/completions` HTTP errors go through `mapOpenAICompatibleError`.
+  - `internal/memory/adapters/openai-compatible.ts` — `/v1/embeddings` HTTP errors go through `mapOpenAICompatibleError`; legacy `mapErrorStatus` deleted.
+  - `internal/llm/fallback-client.ts` — fallback decision now considers `AuthenticationError` and `RateLimitError` (not just `NetworkError`), so 401 / 429 from one provider triggers fallback to the next (EC-1 fix).
+
+### Changed
+
+- **Refined subclass selection on HTTP errors** (breaking change for callers asserting on specific subclasses). Previously every non-OK HTTP response from Anthropic/OpenAI/OpenRouter/embedding adapters threw a `NetworkError` (or a coarse mapping). Now:
+  - `401` / `403` → `AuthenticationError`
+  - `429` → `RateLimitError`
+  - `400` → `ConfigurationError` (with `code: "context_too_long" | "content_filtered" | "model_unavailable" | "invalid_request"` depending on body inspection)
+  - `408` → `NetworkError` (`code: "timeout"`)
+  - `5xx` → `NetworkError` (`code: "server_error"` — covers Anthropic 529 overloaded_error)
+  - Other → `UnknownAgentError`
+
+  Callers using `instanceof TheokitAgentError` (the base class) are unaffected. Callers using subclass-specific `instanceof` may need to broaden (e.g., switch from `instanceof NetworkError` to `instanceof TheokitAgentError`) or handle the additional subclasses. **Affected internal tests updated**: `tests/golden/llm/anthropic-client.golden.test.ts` (401 now asserts `AuthenticationError`), `tests/golden/memory/openai-embedding.golden.test.ts` (400 now asserts `ConfigurationError`).
+
+### Added (v1.3 persistence & state hardening — 6 patterns from sdk-references)
+
+- **`internal/persistence/` shared primitives directory** (ADR D59). Cross-cutting state helpers consolidated in one place; `internal/memory/atomic-write.ts` and `internal/memory/cwd-mutex.ts` kept as backward-compatible re-export shims.
+- **`getTheokitHome(cwd)` + `getProfilesRoot()` + `displayTheokitHome(cwd)`** (ADR D60). Canonical path resolver. Honors `THEOKIT_HOME` env override when set (test isolation, profile switching, multi-tenant deployments); defaults to `<cwd>/.theokit`. Profile root always anchored to `~/.theokit/profiles/` regardless of env.
+- **`atomicWriteJson<T>(path, data, options?)` typed helper** with auto-mkdir of the parent directory (EC-4 fix). Sits on top of existing `replaceFileAtomic`. Migrated callers: `agent-registry-store`, `transcript-store`, `mcp/token-storage`.
+- **`withFileLock<T>(path, fn, options?)` cross-process file-lock helper** (ADR D61). Uses `proper-lockfile` optional peer dep with a companion `<path>.lock` file and `realpath: false` so the target file does not need to exist yet (EC-1 fix). Falls back gracefully to in-process `withCwdMutex` (with one-shot stderr warning) when the peer dep is missing. Combines `withCwdMutex` + `proper-lockfile` for full in-process AND cross-process serialization.
+- **`migrateSchema({ db, currentVersion, migrations })`** SQLite forward-only migration runner via `PRAGMA user_version` (ADR D62). Migrations run inside a transaction (atomic rollback on failure); downgrade attempts throw; gaps in the migration sequence are accepted (result.to reflects last applied version).
+- **`readVersionedJson<T>(opts)` / `writeVersionedJson<T>(path, data, version)`** JSON envelope helpers with `_schemaVersion` field. The migrate callback receives the FULL parsed object (not just `.data`), so legacy shapes without the wrapper migrate correctly (EC-2 fix). Agent registry migrated from ad-hoc `SCHEMA_VERSION = "1.0"` to standard envelope; legacy-on-disk files are auto-migrated on next save.
+- **`applyWalWithFallback(db, label)`** SQLite WAL mode helper with DELETE fallback for NFS/SMB/FUSE filesystems (ADR D63). Wired in `internal/memory/index-db.ts` for the memory index. Warns once per label on fallback.
+- **`sanitizeFts5Query(query)` + `containsCjk(text)`** FTS5 query sanitization (ADR D64). 6-step port of Hermes' `_sanitize_fts5_query` — preserves quoted phrases, strips unmatched specials, collapses repeated asterisks, strips dangling boolean operators, auto-quotes hyphenated/dotted/underscored identifiers, restores phrases. Empty-after-sanitize is short-circuited at call sites (EC-3 fix) to avoid `MATCH ''` runtime errors. CJK detection deferred-routing helper for v1.4 trigram table.
+
+### Added (test infrastructure)
+
+- **Vitest hermetic test isolation** (`vitest.setup.ts`). Autouse `beforeEach` sets `THEOKIT_HOME` to a fresh tmpdir per test; `afterEach` cleans up + restores the original env value. Tests never touch the developer's real state.
+- **Lint test `tests/lint/no-hardcoded-theokit-path.test.ts`** that audits `.theokit` literal usage in `src/` and gates regressions (current debt allowlisted; new code MUST use `getTheokitHome(cwd)`).
+- **Integration E2E test** exercising the full persistence stack — env override → atomic-write → file-lock → schema migration → WAL → FTS5 sanitization — in a single hermetic test.
+
+### Changed
+
+- `agent-registry-store.ts` now reads/writes via `readVersionedJson` + `writeVersionedJson`. Legacy on-disk shape `{ schemaVersion: "1.0", agents: {...} }` is migrated transparently on next save to `{ _schemaVersion: 1, data: {...} }`.
+- `index-manager.ts:ftsSearch` now uses `sanitizeFts5Query` (replacing the previous coarse per-token quoter) and short-circuits when the sanitized result is empty.
+- `index-db.ts` calls `applyWalWithFallback` before applying schema; `MemoryDb` interface now exposes `pragma()`.
+- `index-schema.ts` PRAGMA_STATEMENTS no longer includes `journal_mode=WAL` (now applied via the helper for graceful fallback).
+- `transcript-store.ts` switched from non-atomic `writeFile` to `atomicWriteJson` (auto-mkdir + atomic rename).
+- `mcp/token-storage.ts` switched from sync `writeFileSync` to async `atomicWriteJson` (still followed by `chmodSync(0o600)` for POSIX permission tightening).
+
+### ADRs added
+
+- D59 — `internal/persistence/` is the home for cross-cutting state primitives; memory/ re-exports preserved for backward compat
+- D60 — `getTheokitHome(cwd)` returns `THEOKIT_HOME || join(cwd, ".theokit")` (single getter, env override optional)
+- D61 — file-lock via `proper-lockfile` optional peer dep with companion lockfile + graceful in-process fallback
+- D62 — schema versioning: SQLite `PRAGMA user_version` + JSON `_schemaVersion` envelope, forward-only migrations
+- D63 — WAL primary, DELETE journal fallback on NFS/SMB; warn once per label
+- D64 — FTS5 sanitizer 6-step + CJK auto-detection (trigram routing deferred to v1.4)
+
+### Added (v1.2 features — paridade técnica com Vercel AI / Mastra)
+
+- **`Agent.streamObject<T>({ schema, prompt, ... })`** — typed structured output WITH partial-object streaming via synthetic forced tool (ADR D39). Returns `AsyncIterator<StreamObjectEvent<T>>` emitting zero or more `{ type: "partial", partial: DeepPartial<T>, attempt }` events plus exactly one `{ type: "complete", object: z.infer<T>, ... }` at the end. Reuses 80% of `generateObject` infrastructure. EC-4 (cancellation cleanup), EC-5 (refine/transform fallback), EC-6 (parallel tool-use dedup) covered by tests.
+- **`@usetheo/react` v1.2.0 — family of 3 hooks** (ADR D40): `useTheoChat` (multi-turn, existing) + `useTheoCompletion` (single-shot text gen, equivalent to Vercel `useCompletion`) + `useTheoAssistant<T>` (object-shaped streaming, wraps `Agent.streamObject`). Each hook has a matching server-side handler: `streamTheoChat`, `streamCompletion`, `streamAssistant`. Shared SSE parser in `internal/sse-parser.ts` handles all wire codes including new `o:`/`O:` for object streaming (ADR D45).
+- **OAuth 2.1 PKCE for MCP HTTP servers** (ADR D41). `McpAuthConfig.oauth` opts into the flow. Two modes: `manual` (paste callback URL via stdin, SSH-friendly) and `localhost` (auto-spawned http.createServer on a free port). Token storage prefers OS keychain (`keytar`, optional peer dep) with `~/.theokit/mcp-tokens.json` (chmod 600) fallback. EC-2 (state CSRF validation), EC-9 (concurrent refresh serialization), EC-10 (default expires_in 3600s) covered.
+- **Auto-instrumentation of telemetry vendors** (ADR D42). `tracer.ts` feature-detects `@langfuse/node` v3+, `@sentry/node`, and `posthog-node` via `createRequire`. When present + `telemetry.enabled: true`, registers OTel exporter automatically. Opt-out via `telemetry.autoDetect: false` OR `telemetry.disable: ["langfuse"]`. EC-12 (double-billing prevention) covered.
+- **LanceDB backend for Memory.index** (ADR D43). `Memory.create({ index: { backend: "lance" } })` activates `@lancedb/lancedb` (optional peer dep). SQLite remains default. Lance scales to 100k+ facts. Filters use Lance's structured filter API — NO string interpolation, EC-1 MUST FIX. EC-8 (embedding dim mismatch) typed error.
+- **Migration CLI `theokit-migrate-memory`** (ADR D44). Migrates Memory.index from SQLite to Lance preserving 100% of facts. Atomic commit via rename (`lance-new/` → `lance/`); SQLite preserved by default for rollback. EC-3 MUST FIX: validation uses NFC unicode normalization on both sides so facts with accents/emojis migrate correctly.
+
+### Added (ADRs locked)
+
+- D39 — `Agent.streamObject<T>` returns AsyncIterator with partial+complete events
+- D40 — React hooks family: 3 separate hooks (useTheoChat / useTheoCompletion / useTheoAssistant)
+- D41 — OAuth 2.1 PKCE for MCP HTTP + token storage with keychain fallback
+- D42 — Auto-instrumentation via createRequire feature-detect
+- D43 — LanceDB backend behind same IndexManager interface
+- D44 — Migration SQLite → Lance is standalone CLI (theokit-migrate-memory)
+- D45 — `SDKObjectDelta` variant + wire codes `o:`/`O:`
+- D46 — Cross-agent shared memory deferred to v1.3 (threat-model own scope)
+
+### Deferred
+
+- **Cross-agent shared memory** (`MemoryOptions.scope: "global" | "team"`): postponed to v1.3 because the threat-model around write authorization across users requires its own ADR. Workaround in the meantime: `scope: "user"` with constant `userId` (e.g., `"team-shared"`).
+
+### Added (v1.1 features)
+
+- **`Agent.generateObject<T>({ schema, prompt })`** — typed structured output via synthetic forced tool (ADR D33). Returns `{ object: z.infer<T>, raw, usage, finishReason }`. Retry-on-parse-fail with `maxRetries` (default 1). Transient agent disposed AND hard-deleted from registry across retries (EC-3 no leak). Same provider routing/fallback as `agent.send`.
+- **`AgentOptions.telemetry`** — opt-in OpenTelemetry spans for `agent.send`, `llm.call`, `tool.call` (ADR D34). Privacy-by-default: NO content logged unless `includeContent: true`. `@opentelemetry/api` is OPTIONAL peer dep loaded via `createRequire`. All OTel calls wrapped in `safe()` so exporter errors NEVER propagate to `agent.send` (EC-1).
+- **`@usetheo/react` v1.0.0** — new workspace package (ADR D32). `useTheoChat` React hook (HTTP fetch + SSE parser, AbortController on unmount, EC-6 5xx handling, EC-8 graceful close). `streamTheoChat` Next.js-compatible SSE handler (EC-2 pre-stream typed errors return HTTP 400/401). Wire format = Vercel AI Data Stream v1 (drop-in `useChat` migration; no `ai` package runtime dep). React peer dep `^18 || ^19`.
+
+### Validations (v1.1 pillar audits)
+
+- **Persistence chaos** — 20/20 random-timed SIGKILL recoveries, 0 registry corruptions (snapshot: `persistence-chaos-2026-05-17.md`).
+- **MCP servers** — 4 distinct MCP servers operational across stdio+http (filesystem, mcp-http, tavily, puppeteer); snapshot: `mcp-audit-2026-05-17.md`.
+- **Memory at scale** — 12 facts → 12 clusters via `text-embedding-3-small`, 100% Active Memory recall on 4 thematic queries (snapshot: `memory-scale-2026-05-17.md`).
+- **Chat-bot DX portability** — N=2 examples using all 4 helpers: `telegram-pro` + new `cli-bot` (snapshot: `dx-chatbot-portability-cli-2026-05-17.md`).
+- **Adversarial safety** — 8/8 validation/permission/state scenarios blocked; 0 crashed (snapshot: `safety-adversarial-2026-05-17.md`).
+
 ### Added
 
 - Public `AgentOptions.tools` field for inline custom tools (#tools-inline). The SDK now exposes a `CustomTool` type — `{ name, description, inputSchema, handler }` — that consumers can pass at `Agent.create()` or `Agent.resume()`. Handlers are invoked locally when the model emits `tool_use`. Local runtime only; cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")` when `tools.length > 0`. Handlers are not persisted (allow-list strip in `stripSecretsFromOptions`) — re-pass on resume. Reserved-name collisions (`shell`, `memory_search`, `memory_get`, `mcp_*`) and duplicate names rejected at validation time.

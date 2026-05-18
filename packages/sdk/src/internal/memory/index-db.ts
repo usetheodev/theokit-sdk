@@ -2,6 +2,7 @@ import { mkdir, rename } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { applyWalWithFallback } from "../persistence/sqlite-wal.js";
 import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
 
 /**
@@ -23,6 +24,8 @@ export interface MemoryDb {
     get(...args: unknown[]): Record<string, unknown> | undefined;
     all(...args: unknown[]): Array<Record<string, unknown>>;
   };
+  /** SQLite `pragma()` access (used by `applyWalWithFallback`). */
+  pragma(statement: string, options?: { simple?: boolean }): unknown;
   close(): void;
   /** Load a SQLite loadable extension at the given path (used by sqlite-vec). */
   loadExtension(path: string): void;
@@ -52,6 +55,9 @@ export async function openMemoryDb(opts: OpenDbOptions): Promise<MemoryDb> {
 
 async function openConcrete(filePath: string): Promise<MemoryDb> {
   const db = await loadDriver(filePath);
+  // Apply WAL with NFS/SMB/FUSE fallback (ADR D63). Must run BEFORE
+  // schema statements so the journal mode is set for the entire session.
+  applyWalWithFallback(db, "memory-index");
   for (const pragma of PRAGMA_STATEMENTS) db.exec(pragma);
   for (const stmt of SCHEMA_STATEMENTS) db.exec(stmt);
   return db;
