@@ -95,8 +95,11 @@ describe("MarkdownMemoryStore", () => {
       text: "token=sk-abcdef0123456789ghijklmn",
     });
     const raw = await readFile(memoryMdPath(cwd), "utf8");
-    expect(raw).toContain("token=***");
+    // T0.2 (ADR D68/D71): canonical redaction uses two-bucket masking —
+    // long tokens keep prefix+suffix for debuggability instead of bare ***.
+    // Security property under test is no-leak of the original secret.
     expect(raw).not.toContain("sk-abcdef0123456789ghijklmn");
+    expect(raw).toMatch(/sk-[a-zA-Z0-9]{3}\.\.\.[a-zA-Z0-9]{4}/);
   });
 
   it("creates the ## Facts section when MEMORY.md exists without one (EC-5)", async () => {
