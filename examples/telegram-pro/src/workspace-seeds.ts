@@ -1,5 +1,26 @@
-import { mkdir, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join } from "node:path";
+
+/**
+ * Read the SKILL.md content of a named skill from `.theokit/skills/<name>/`.
+ * Used by the `/skill <name>` Telegram command (ADR D57). Sanitizes the
+ * skill name via regex to prevent path traversal (`../etc` → `etc` after
+ * sanitization → returns undefined as that skill doesn't exist).
+ *
+ * @returns the file content as UTF-8 string, or undefined if file missing
+ *   or name sanitized to empty.
+ */
+export async function readSkillFile(cwd: string, name: string): Promise<string | undefined> {
+  // EC-D57: strip anything that isn't [a-z0-9_-] (case-insensitive). Cannot
+  // accept `../`, `/`, `\\`, absolute paths, or any other escape sequence.
+  const safeName = name.replace(/[^a-z0-9_-]/gi, "");
+  if (safeName.length === 0) return undefined;
+  try {
+    return await readFile(join(cwd, ".theokit", "skills", safeName, "SKILL.md"), "utf8");
+  } catch {
+    return undefined;
+  }
+}
 
 /**
  * Idempotent workspace seeders.
