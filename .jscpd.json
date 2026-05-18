@@ -6,11 +6,14 @@
   "format": ["typescript", "javascript"],
   "ignore": [
     "**/dist/**",
+    "**/.next/**",
     "**/node_modules/**",
     "**/referencia/**",
     "**/tests/golden/**",
     "**/tests/fixtures/**",
-    "**/coverage/**"
+    "**/coverage/**",
+    "**/generate-object.ts",
+    "**/stream-object.ts"
   ],
   "absolute": true,
   "gitignore": true,
