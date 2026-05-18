@@ -66,6 +66,22 @@ function getFactory(opts: AgentFactoryOptions): AgentFactory {
     context: { manager: "file" },
     tools: TELEGRAM_PRO_CUSTOM_TOOLS,
     systemPrompt: SYSTEM_PROMPT,
+    // Telemetry showcase (ADR D34): every agent.send / llm.call / tool.call
+    // emits a span via @opentelemetry/api when installed. Privacy default —
+    // NO content logged. Set TELEGRAM_PRO_TELEMETRY=off to disable.
+    // Auto-instrumentation (ADR D42/D55): when `@langfuse/node`, `@sentry/node`,
+    // or `posthog-node` are installed alongside the bot, the SDK auto-registers
+    // their OTel exporters. Fail-open: nothing installed = console-only,
+    // identical to v1.1 behavior.
+    telemetry: process.env.TELEGRAM_PRO_TELEMETRY === "off"
+      ? { enabled: false }
+      : {
+          enabled: true,
+          autoDetect: true,
+          exporter: "console",
+          serviceName: "telegram-pro",
+          includeContent: false,
+        },
     ...(providers !== undefined ? { providers } : {}),
     ...(mcpServers !== undefined ? { mcpServers } : {}),
   });
