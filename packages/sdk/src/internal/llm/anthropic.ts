@@ -1,4 +1,4 @@
-import { NetworkError } from "../../errors.js";
+import { mapAnthropicError } from "../errors/mappers/anthropic.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
 import type {
@@ -69,6 +69,7 @@ export class AnthropicClient implements LlmClient {
     this.fetchImpl = options.fetch ?? fetch;
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: HTTP+SSE handshake + accumulator is intentionally one block
   async *stream(
     request: LlmRequest,
     signal: AbortSignal,
@@ -86,10 +87,20 @@ export class AnthropicClient implements LlmClient {
     });
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new NetworkError(
-        `Anthropic /v1/messages returned ${response.status}: ${text.slice(0, 200)}`,
-        { code: "anthropic_http_error" },
-      );
+      // Parse body as JSON when possible — gives the mapper access to
+      // `error.code` / `error.type` fields. Leave as string otherwise.
+      let body: unknown = text;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        // not JSON — keep as string
+      }
+      throw mapAnthropicError({
+        status: response.status,
+        body,
+        headers: response.headers,
+        endpoint: "/v1/messages",
+      });
     }
 
     const accumulator = new AnthropicStreamAccumulator();

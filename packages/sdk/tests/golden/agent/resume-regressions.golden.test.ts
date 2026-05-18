@@ -90,15 +90,17 @@ describe("Agent.resume regressions (live-demo bugs locked in)", () => {
     // + sandboxOptions. If the spread-overwrite bug regressed, settingSources
     // would be undefined here.
     const raw = await readFile(join(cwd, ".theokit", "agents", "registry.json"), "utf8");
+    // Post-D62: versioned envelope `{ _schemaVersion: 1, data: {...} }`.
     const reg = JSON.parse(raw) as {
-      agents: Record<
+      _schemaVersion: number;
+      data: Record<
         string,
         {
           options: { local?: { settingSources?: string[]; sandboxOptions?: { enabled: boolean } } };
         }
       >;
     };
-    const persistedLocal = reg.agents["agent-deep-merge-test"]?.options.local;
+    const persistedLocal = reg.data["agent-deep-merge-test"]?.options.local;
     expect(persistedLocal?.settingSources).toEqual(["project", "plugins"]);
     expect(persistedLocal?.sandboxOptions).toEqual({ enabled: true });
   });
@@ -135,8 +137,10 @@ describe("Agent.resume regressions (live-demo bugs locked in)", () => {
 
     // Read disk directly — verify the 3 fields persist (they vanished before this fix).
     const raw = await readFile(join(cwd, ".theokit", "agents", "registry.json"), "utf8");
+    // Post-D62: versioned envelope `{ _schemaVersion: 1, data: {...} }`.
     const reg = JSON.parse(raw) as {
-      agents: Record<
+      _schemaVersion: number;
+      data: Record<
         string,
         {
           options: {
@@ -147,7 +151,7 @@ describe("Agent.resume regressions (live-demo bugs locked in)", () => {
         }
       >;
     };
-    const opts = reg.agents["agent-fields-persist-test"]?.options;
+    const opts = reg.data["agent-fields-persist-test"]?.options;
     expect(opts?.context).toEqual({ manager: "file", maxTokens: 2000 });
     expect(opts?.providers?.fallback).toEqual(["anthropic", "openai", "openrouter"]);
     expect(opts?.providers?.routes).toHaveLength(1);
@@ -249,8 +253,10 @@ describe("Agent.resume regressions (live-demo bugs locked in)", () => {
     await a3.dispose();
 
     const raw = await readFile(join(cwd, ".theokit", "agents", "registry.json"), "utf8");
+    // Post-D62: versioned envelope `{ _schemaVersion: 1, data: {...} }`.
     const reg = JSON.parse(raw) as {
-      agents: Record<
+      _schemaVersion: number;
+      data: Record<
         string,
         {
           options: {
@@ -262,7 +268,7 @@ describe("Agent.resume regressions (live-demo bugs locked in)", () => {
         }
       >;
     };
-    const opts = reg.agents[id]?.options;
+    const opts = reg.data[id]?.options;
     expect(opts?.local?.settingSources).toEqual(["project", "plugins"]);
     expect(opts?.local?.sandboxOptions).toEqual({ enabled: true });
     expect(opts?.context).toEqual({ manager: "file" });

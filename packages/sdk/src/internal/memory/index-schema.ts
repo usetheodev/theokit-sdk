@@ -50,8 +50,12 @@ export const SCHEMA_STATEMENTS: ReadonlyArray<string> = [
   `CREATE INDEX IF NOT EXISTS idx_chunks_file_id ON chunks(file_id)`,
 ];
 
+/**
+ * Non-WAL pragmas. WAL is applied separately via
+ * `applyWalWithFallback` (T4.2, ADR D63) so NFS/SMB users get a graceful
+ * DELETE fallback instead of crashing.
+ */
 export const PRAGMA_STATEMENTS: ReadonlyArray<string> = [
-  "PRAGMA journal_mode=WAL",
   "PRAGMA synchronous=NORMAL",
   "PRAGMA foreign_keys=ON",
 ];
