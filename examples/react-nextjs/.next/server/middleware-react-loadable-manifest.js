@@ -1,0 +1,1 @@
+self.__REACT_LOADABLE_MANIFEST='{"../node_modules/.pnpm/@usetheo+sdk@file+..+..+packages+sdk_zod@4.4.3/node_modules/@usetheo/sdk/dist/index.js -> better-sqlite3":{"id":null,"files":[]},"../node_modules/.pnpm/@usetheo+sdk@file+..+..+packages+sdk_zod@4.4.3/node_modules/@usetheo/sdk/dist/index.js -> sqlite-vec":{"id":null,"files":[]}}';
