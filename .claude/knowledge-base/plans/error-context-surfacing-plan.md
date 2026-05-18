@@ -241,21 +241,21 @@ VERIFY:  pnpm exec vitest run tests/errors/error-metadata.test.ts && pnpm typech
 ```
 
 #### Acceptance Criteria
-- [ ] `ErrorCode` literal union com 10 codes exportado de `errors.ts`
-- [ ] `ErrorMetadata` interface exportado
-- [ ] `TheokitAgentError` aceita `metadata?` no constructor; ler via `err.metadata` é tipado
-- [ ] 7 RED tests passam após GREEN
-- [ ] `pnpm typecheck` passa (incluindo subclasses)
-- [ ] Existing tests (incluindo `errors-bound.test.ts` se exist) continuam passando — backward compat
-- [ ] Biome zero warnings em `errors.ts`
-- [ ] LoC adicionado em `errors.ts` <= 60
+- [x] `ErrorCode` literal union com 10 codes exportado de `errors.ts`
+- [x] `ErrorMetadata` interface exportado
+- [x] `TheokitAgentError` aceita `metadata?` no constructor; ler via `err.metadata` é tipado
+- [x] 7 RED tests passam após GREEN
+- [x] `pnpm typecheck` passa (incluindo subclasses)
+- [x] Existing tests (incluindo `errors-bound.test.ts` se exist) continuam passando — backward compat
+- [x] Biome zero warnings em `errors.ts`
+- [x] LoC adicionado em `errors.ts` <= 60
 
 #### DoD
-- [ ] Tasks completed
-- [ ] All tests green (`pnpm test`)
-- [ ] Zero biome warnings
-- [ ] Zero typecheck errors
-- [ ] Commit: `feat(sdk): add ErrorMetadata + ErrorCode types on base error class (T0.1, ADR D65/D66)`
+- [x] Tasks completed
+- [x] All tests green (`pnpm test`)
+- [x] Zero biome warnings
+- [x] Zero typecheck errors
+- [x] Commit: `feat(sdk): add ErrorMetadata + ErrorCode types on base error class (T0.1, ADR D65/D66)`
 
 ---
 
@@ -422,16 +422,16 @@ VERIFY:  pnpm exec vitest run tests/internal/errors/mappers/anthropic.test.ts
 ```
 
 #### Acceptance Criteria
-- [ ] `mapAnthropicError(args)` exported de `internal/errors/mappers/anthropic.ts`
-- [ ] 11/11 RED tests pass (9 base + EC-2 529 + EC-5 http-date)
-- [ ] Cyclomatic complexity de `mapAnthropicError` <= 10
-- [ ] `mapAnthropicStatusToCode` <= 8 cyclomatic
-- [ ] LoC do arquivo <= 130
-- [ ] Biome zero warnings
+- [x] `mapAnthropicError(args)` exported de `internal/errors/mappers/anthropic.ts`
+- [x] 11/11 RED tests pass (9 base + EC-2 529 + EC-5 http-date)
+- [x] Cyclomatic complexity de `mapAnthropicError` <= 10
+- [x] `mapAnthropicStatusToCode` <= 8 cyclomatic
+- [x] LoC do arquivo <= 130
+- [x] Biome zero warnings
 
 #### DoD
-- [ ] Tests green
-- [ ] Commit: `feat(sdk): add mapAnthropicError mapper (T1.1, ADR D67)`
+- [x] Tests green
+- [x] Commit: `feat(sdk): add mapAnthropicError mapper (T1.1, ADR D67)`
 
 ---
 
@@ -536,15 +536,15 @@ VERIFY:  pnpm exec vitest run tests/internal/errors/mappers/openai-compatible.te
 ```
 
 #### Acceptance Criteria
-- [ ] `mapOpenAICompatibleError(args)` exported
-- [ ] 11/11 RED tests pass (9 base + EC-3 no-error-field + EC-5 http-date)
-- [ ] Cyclomatic <= 10 per function
-- [ ] LoC <= 160
-- [ ] Biome zero warnings
+- [x] `mapOpenAICompatibleError(args)` exported
+- [x] 11/11 RED tests pass (9 base + EC-3 no-error-field + EC-5 http-date)
+- [x] Cyclomatic <= 10 per function
+- [x] LoC <= 160
+- [x] Biome zero warnings
 
 #### DoD
-- [ ] Tests green
-- [ ] Commit: `feat(sdk): add mapOpenAICompatibleError mapper (T1.2, ADR D67)`
+- [x] Tests green
+- [x] Commit: `feat(sdk): add mapOpenAICompatibleError mapper (T1.2, ADR D67)`
 
 ---
 
@@ -633,16 +633,16 @@ VERIFY:  pnpm exec vitest run tests/internal/llm/ tests/golden/llm/
 ```
 
 #### Acceptance Criteria
-- [ ] EC-1 audit grep executado, hits documentados em PR description
-- [ ] `anthropic.ts:89` usa `mapAnthropicError`
-- [ ] 4 RED tests pass
-- [ ] Existing Anthropic tests pass (golden + unit) — incluindo tests ajustados conforme audit
-- [ ] Biome zero warnings em arquivos modificados
-- [ ] CHANGELOG entry mencionando subclass refinement + lista de tests afetados
+- [x] EC-1 audit grep executado, hits documentados em PR description
+- [x] `anthropic.ts:89` usa `mapAnthropicError`
+- [x] 4 RED tests pass
+- [x] Existing Anthropic tests pass (golden + unit) — incluindo tests ajustados conforme audit
+- [x] Biome zero warnings em arquivos modificados
+- [x] CHANGELOG entry mencionando subclass refinement + lista de tests afetados
 
 #### DoD
-- [ ] Tests green
-- [ ] Commit: `refactor(sdk): wire mapAnthropicError in llm/anthropic.ts (T2.1)`
+- [x] Tests green
+- [x] Commit: `refactor(sdk): wire mapAnthropicError in llm/anthropic.ts (T2.1)`
 
 ---
 
@@ -716,15 +716,15 @@ VERIFY:  pnpm exec vitest run tests/internal/llm/ tests/golden/llm/
 ```
 
 #### Acceptance Criteria
-- [ ] Todos throws HTTP em `openai.ts` usam mapper
-- [ ] `router.ts` preserva metadata através do fallback chain (test direto)
-- [ ] 6 RED tests pass (5 base + EC-4 aggregate-failure-surfaces-metadata)
-- [ ] Existing tests pass
-- [ ] Biome zero warnings
+- [x] Todos throws HTTP em `openai.ts` usam mapper
+- [x] `router.ts` preserva metadata através do fallback chain (test direto)
+- [x] 6 RED tests pass (5 base + EC-4 aggregate-failure-surfaces-metadata)
+- [x] Existing tests pass
+- [x] Biome zero warnings
 
 #### DoD
-- [ ] Tests green
-- [ ] Commit: `refactor(sdk): wire mapOpenAICompatibleError in llm/openai + router (T2.2)`
+- [x] Tests green
+- [x] Commit: `refactor(sdk): wire mapOpenAICompatibleError in llm/openai + router (T2.2)`
 
 ---
 
@@ -832,15 +832,15 @@ VERIFY:  pnpm exec vitest run tests/internal/memory/ tests/golden/memory/
 ```
 
 #### Acceptance Criteria
-- [ ] `mapErrorStatus` local function removed
-- [ ] Calls switched to central `mapOpenAICompatibleError`
-- [ ] 4 RED tests pass
-- [ ] Existing memory tests pass
-- [ ] Biome zero warnings
+- [x] `mapErrorStatus` local function removed
+- [x] Calls switched to central `mapOpenAICompatibleError`
+- [x] 4 RED tests pass
+- [x] Existing memory tests pass
+- [x] Biome zero warnings
 
 #### DoD
-- [ ] Tests green
-- [ ] Commit: `refactor(sdk): use central error mapper in memory/adapters/openai-compatible (T2.3)`
+- [x] Tests green
+- [x] Commit: `refactor(sdk): use central error mapper in memory/adapters/openai-compatible (T2.3)`
 
 ---
 
@@ -932,12 +932,12 @@ Not applicable (docs only). Verify via:
 - Manual read of CHANGELOG follows Keep-a-Changelog format.
 
 #### Acceptance Criteria
-- [ ] CHANGELOG entry present + cites D65/D66/D67
-- [ ] docs.md section added or updated
-- [ ] README.md examples (if any) consistent with new shape
+- [x] CHANGELOG entry present + cites D65/D66/D67
+- [x] docs.md section added or updated
+- [x] README.md examples (if any) consistent with new shape
 
 #### DoD
-- [ ] Commit: `docs(sdk): document ErrorMetadata + provider mappers (T2.4)`
+- [x] Commit: `docs(sdk): document ErrorMetadata + provider mappers (T2.4)`
 
 ---
 
@@ -961,14 +961,14 @@ CLAUDE.md (EDIT — add 3 rows to "Decided ADRs" table + update roadmap)
 4. Sync `sdk-references/README.md` totals.
 
 #### Acceptance Criteria
-- [ ] 3 ADR files created
-- [ ] CLAUDE.md table has rows D65, D66, D67
-- [ ] CLAUDE.md roadmap shows `error-context-surfacing` ✅ DONE
-- [ ] Totals updated: 9 DONE (was 8)
-- [ ] sdk-references/README.md in sync
+- [x] 3 ADR files created
+- [x] CLAUDE.md table has rows D65, D66, D67
+- [x] CLAUDE.md roadmap shows `error-context-surfacing` ✅ DONE
+- [x] Totals updated: 9 DONE (was 8)
+- [x] sdk-references/README.md in sync
 
 #### DoD
-- [ ] Commit: `docs(sdk): add ADRs D65/D66/D67 + update roadmap (T3.1)`
+- [x] Commit: `docs(sdk): add ADRs D65/D66/D67 + update roadmap (T3.1)`
 
 ---
 
@@ -997,18 +997,18 @@ CLAUDE.md (EDIT — add 3 rows to "Decided ADRs" table + update roadmap)
 
 ## Global Definition of Done
 
-- [ ] Todas as phases (0, 1, 2, 3) completed
-- [ ] Phase 4 (Dogfood QA) PASS — telegram-pro 25/25 maintained
-- [ ] Todos tests passing (`pnpm test`)
-- [ ] Zero biome warnings em packages/sdk/
-- [ ] Zero typecheck errors (`pnpm typecheck`)
-- [ ] Backward compatibility preserved (`metadata` é optional; existing throws continuam funcionando)
-- [ ] CHANGELOG.md atualizado em `packages/sdk/CHANGELOG.md` sob `[Unreleased]`
-- [ ] `docs.md` atualizado com seção "Error context"
-- [ ] CLAUDE.md (theokit-sdk) roadmap: `error-context-surfacing` → ✅ DONE; totals atualizados
-- [ ] sdk-references/README.md em sync
-- [ ] ADRs D65/D66/D67 commitados em `.claude/knowledge-base/adrs/`
-- [ ] **Runtime-metric proof**: tests verificam que `metadata` é populated em real HTTP error paths (mock 401/429/etc.). Integration test confirma que callers que fazem `switch (err.metadata.code)` recebem corret code.
+- [x] Todas as phases (0, 1, 2, 3) completed
+- [x] Phase 4 (Dogfood QA) PASS — telegram-pro 25/25 maintained
+- [x] Todos tests passing (`pnpm test`)
+- [x] Zero biome warnings em packages/sdk/
+- [x] Zero typecheck errors (`pnpm typecheck`)
+- [x] Backward compatibility preserved (`metadata` é optional; existing throws continuam funcionando)
+- [x] CHANGELOG.md atualizado em `packages/sdk/CHANGELOG.md` sob `[Unreleased]`
+- [x] `docs.md` atualizado com seção "Error context"
+- [x] CLAUDE.md (theokit-sdk) roadmap: `error-context-surfacing` → ✅ DONE; totals atualizados
+- [x] sdk-references/README.md em sync
+- [x] ADRs D65/D66/D67 commitados em `.claude/knowledge-base/adrs/`
+- [x] **Runtime-metric proof**: tests verificam que `metadata` é populated em real HTTP error paths (mock 401/429/etc.). Integration test confirma que callers que fazem `switch (err.metadata.code)` recebem corret code.
 
 ## Final Phase: Dogfood QA (MANDATORY)
 
@@ -1033,10 +1033,10 @@ Baseline esperada: **25/25 PASS** (manter mesmo nível pré-plano). Lembrete: a 
 
 ### Acceptance Criteria
 
-- [ ] 25/25 PASS mantido OU proxy validation passa
-- [ ] Zero CRITICAL issues introduzidos pelos changes do plano
-- [ ] Zero HIGH issues em features modificadas
-- [ ] Qualquer issue pre-existente documentada como "não causada por este plano"
+- [x] 25/25 PASS mantido OU proxy validation passa
+- [x] Zero CRITICAL issues introduzidos pelos changes do plano
+- [x] Zero HIGH issues em features modificadas
+- [x] Qualquer issue pre-existente documentada como "não causada por este plano"
 
 ### If Dogfood Fails
 
