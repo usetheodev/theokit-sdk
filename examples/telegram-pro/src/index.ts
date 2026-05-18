@@ -14,6 +14,10 @@ import { shouldRespondInChat, stripBotMention, type PolicyContext } from "./grou
 import { ensureHooksPolicy } from "./hooks-setup.js";
 import { listLoops, scheduleLoop, stopAllLoopsForChat, stopLoop } from "./loops.js";
 import { listFacts } from "./memory-store.js";
+import type { z } from "zod";
+
+import { getStreamMode, setStreamMode, streamIntoTelegram } from "./streaming.js";
+import { readSkillFile } from "./workspace-seeds.js";
 import { buildMcpServers } from "./sdk-config.js";
 import { NoTranscriberError, transcribeAudio } from "./transcribe.js";
 import { describeImage } from "./vision.js";
@@ -89,6 +93,8 @@ bot.command("start", async (ctx) => {
         "• Forum topics — each topic is its own isolated thread",
         "",
         `Your user id: \`${resolveUserId(ctx)}\`. Agent id (this thread): \`${resolveAgentId(ctx)}\`.`,
+        "",
+        "💡 Try `/stream on` for ChatGPT-like incremental replies (Telegram editMessageText throttled).",
         "Send /help for commands.",
       ].join("\n"),
       { parse_mode: "Markdown" },
@@ -108,6 +114,13 @@ bot.command("help", async (ctx) => {
       "/wiki <q> — search the wiki corpus (`.theokit/memory/wiki/`)",
       "/agents — list subagent specialists I can delegate to",
       "/skills — list loaded skills (from `.theokit/skills/`)",
+      "/fact <topic> — structured fact card via Agent.generateObject (v1.1)",
+      "/factstream <topic> — like /fact but with streamObject + incremental edits (v1.2)",
+      "/migrate_memory — demo of theokit-migrate-memory CLI (dry-run, isolated tmpdir, v1.2)",
+      "/memory_lance — opt-in LanceDB backend config showcase (v1.2)",
+      "/notion — Notion MCP via OAuth 2.1 PKCE (requires NOTION_OAUTH_CLIENT_ID, v1.2)",
+      "/stream on|off — toggle incremental editMessageText streaming (v1.2)",
+      "/skill <name> — drill into a specific skill's SKILL.md content",
       "/summary — run dreaming sweep (dedup + cluster facts)",
       "/cron — list scheduled jobs",
       "/remind <cron> | <msg> — schedule a recurring reminder (cron syntax)",
@@ -220,6 +233,417 @@ bot.command("skills", async (ctx) => {
   }
 });
 
+// ────────────────────── /fact — Agent.generateObject showcase ──────────────────────
+//
+// Demonstrates the v1.1 `Agent.generateObject<T>` (ADR D33). Given a topic,
+// the model is forced to call a synthetic `output` tool whose handler captures
+// the structured value matching the Zod schema. No string parsing, no regex,
+// no JSON.parse — Zod enforces shape and types end-to-end.
+bot.command("fact", async (ctx) => {
+  const topic = ctx.match?.toString().trim() ?? "";
+  if (topic.length === 0) {
+    await ctx.reply(
+      [
+        "*Usage:* `/fact <topic>`",
+        "",
+        "Returns a structured fact card via `Agent.generateObject<T>`.",
+        "Example: `/fact corinthians` → `{ title, summary, year, sources[] }`",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+  try {
+    const { Agent } = await import("@usetheo/sdk");
+    const { z } = await import("zod");
+    const schema = z.object({
+      title: z.string().min(1).describe("Short title of the fact (1 line)."),
+      summary: z.string().min(20).describe("2-3 sentence summary."),
+      year: z.number().int().nullable().describe("Year of the event, or null if not applicable."),
+      sources: z.array(z.string()).min(1).max(3).describe("Up to 3 source descriptions (free text — no URLs needed)."),
+    });
+    const t0 = Date.now();
+    const out = await Agent.generateObject({
+      apiKey: API_KEY,
+      model: { id: "google/gemini-2.0-flash-001" },
+      local: { cwd: CWD, sandboxOptions: { enabled: false } },
+      schema,
+      systemPrompt:
+        "You produce a structured fact card. Match the schema exactly. Keep summary 2-3 sentences. Set year to null if unknown.",
+      prompt: `Produce a fact card about: ${topic}`,
+    });
+    const elapsed = Date.now() - t0;
+    const sources = out.object.sources.map((s, i) => `${i + 1}. ${s}`).join("\n");
+    const yearText = out.object.year === null ? "(n/a)" : String(out.object.year);
+    await ctx.reply(
+      [
+        `*${out.object.title}*`,
+        "",
+        out.object.summary,
+        "",
+        `*Year:* ${yearText}`,
+        "*Sources:*",
+        sources,
+        "",
+        `_generated in ${elapsed}ms · ${out.usage.inputTokens}/${out.usage.outputTokens} tokens · Agent.generateObject_`,
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Fact generation failed: ${msg.slice(0, 400)}`);
+  }
+});
+
+// ────────────────────── /factstream — Agent.streamObject showcase (v1.2) ──────────────────────
+//
+// Like /fact, but streams partials via Agent.streamObject<T> (ADR D39).
+// Some providers (Gemini/Anthropic) batch tool_use output — partials may
+// be zero; in that case only the final `complete` event arrives. The 500ms
+// throttle on editMessageText keeps Telegram rate-limit happy (ADR D52).
+bot.command("factstream", async (ctx) => {
+  const topic = ctx.match?.toString().trim() ?? "";
+  if (topic.length === 0) {
+    // Plain text — "Agent.streamObject<T>" and "tool_use" contain "_<" that
+    // breaks Markdown V1 entity parsing.
+    await ctx.reply(
+      [
+        "Usage: /factstream <topic>",
+        "",
+        "Like /fact but streams partials via Agent.streamObject<T> (v1.2 ADR D39).",
+        "Some providers (Gemini/Anthropic) batch tool_use output — you may see only the final object.",
+      ].join("\n"),
+    );
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+  let placeholder: Awaited<ReturnType<typeof ctx.reply>> | undefined;
+  try {
+    placeholder = await ctx.reply("⏳ Streaming object...");
+  } catch (err) {
+    console.error("[/factstream] initial reply failed:", err);
+    return;
+  }
+  if (placeholder?.message_id === undefined) return;
+  const msgId = placeholder.message_id;
+  const chatId = placeholder.chat.id;
+
+  try {
+    const { Agent } = await import("@usetheo/sdk");
+    const { z } = await import("zod");
+    const schema = z.object({
+      title: z.string().min(1),
+      summary: z.string().min(20),
+      year: z.number().int().nullable(),
+      sources: z.array(z.string()).min(1).max(3),
+    });
+    type FactCard = z.infer<typeof schema>;
+    const t0 = Date.now();
+    let partialCount = 0;
+    let lastEditAt = 0;
+    let final:
+      | {
+          object: FactCard;
+          usage: { inputTokens: number; outputTokens: number };
+        }
+      | undefined;
+
+    for await (const evt of Agent.streamObject({
+      apiKey: API_KEY,
+      model: { id: "google/gemini-2.0-flash-001" },
+      local: { cwd: CWD, sandboxOptions: { enabled: false } },
+      schema,
+      systemPrompt:
+        "Match schema exactly. Keep summary 2-3 sentences. year=null if unknown.",
+      prompt: `Produce a fact card about: ${topic}`,
+    })) {
+      if (evt.type === "partial") {
+        partialCount += 1;
+        // 500ms throttle (D52).
+        if (Date.now() - lastEditAt >= 500) {
+          // EC-5: drop parse_mode in preview — raw text avoids markdown parse
+          // failures on unescaped `_` `*` chars in partial JSON.
+          const preview = `⏳ Streaming (partial ${evt.attempt}):\n${JSON.stringify(evt.partial, null, 2).slice(0, 3500)}`;
+          try {
+            await ctx.api.editMessageText(chatId, msgId, preview);
+          } catch {
+            // ignore "not modified" / "message to edit not found"
+          }
+          lastEditAt = Date.now();
+        }
+      } else if (evt.type === "complete") {
+        final = evt;
+      }
+    }
+    const elapsed = Date.now() - t0;
+    if (final === undefined) {
+      await ctx.api.editMessageText(chatId, msgId, "❌ No complete event from streamObject.");
+      return;
+    }
+    const sources = final.object.sources.map((s, i) => `${i + 1}. ${s}`).join("\n");
+    const yearText = final.object.year === null ? "(n/a)" : String(final.object.year);
+    // Plain text — title/summary/sources are LLM output and may contain
+    // arbitrary "_*[]" that breaks Markdown V1 parsing.
+    await ctx.api.editMessageText(
+      chatId,
+      msgId,
+      [
+        final.object.title,
+        "",
+        final.object.summary,
+        "",
+        `Year: ${yearText}`,
+        "Sources:",
+        sources,
+        "",
+        `streamed in ${elapsed}ms · ${partialCount} partial(s) · ${final.usage.inputTokens}/${final.usage.outputTokens} tokens · Agent.streamObject`,
+      ].join("\n"),
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    try {
+      await ctx.api.editMessageText(chatId, msgId, `❌ Streaming failed: ${msg.slice(0, 400)}`);
+    } catch {
+      // best-effort
+    }
+  }
+});
+
+// ────────────────────── /migrate_memory — Migration CLI demo (v1.2) ──────────────────────
+//
+// Isolated dry-run demo: creates a tmpdir, seeds 3 fake facts, runs
+// migrateSqliteToLance({ dryRun: true }), reports result. NEVER touches
+// the bot's real .theokit/memory/ (ADR D56).
+bot.command("migrate_memory", async (ctx) => {
+  await ctx.replyWithChatAction("typing");
+  // Plain text — message contains "_" (migrateSqliteToLance, dryRun, etc.)
+  // that breaks Markdown V1 entity parsing.
+  await ctx.reply(
+    "🔄 Running migrateSqliteToLance({ dryRun: true }) in an isolated tmpdir (does NOT touch your bot's real memory).",
+  );
+
+  const { migrateSqliteToLance } = await import("@usetheo/sdk");
+  const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+
+  // EC-7: mkdtempSync may fail (ENOSPC, EACCES) on container/embedded
+  // with read-only or full /tmp.
+  let demoCwd: string;
+  try {
+    demoCwd = mkdtempSync(join(tmpdir(), "tg-migrate-demo-"));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Could not create demo workspace in /tmp: ${msg}. Skipping demo.`);
+    return;
+  }
+
+  mkdirSync(join(demoCwd, ".theokit", "memory"), { recursive: true });
+  writeFileSync(
+    join(demoCwd, ".theokit", "memory", "MEMORY.md"),
+    "# Memory\n\n- Demo fact 1\n- Demo fact 2\n- Demo fact 3\n",
+    "utf8",
+  );
+
+  const result = await migrateSqliteToLance({
+    cwd: demoCwd,
+    dryRun: true,
+  });
+
+  // Plain text — demoCwd contains "_" (tg-migrate-demo-...) and
+  // theokit-migrate-memory has "_" too. Markdown V1 entity parsing chokes
+  // on these. Plain text is the safe default for runtime-generated content.
+  await ctx.reply(
+    [
+      "Migration dry-run result:",
+      `• countSqlite: ${result.countSqlite}`,
+      `• countLance: ${result.countLance}`,
+      `• validated: ${result.validated ? "✅" : "❌"}`,
+      `• committed: ${result.committed ? "yes" : "no (dry-run)"}`,
+      "",
+      "For real migration of your bot's memory:",
+      "  pnpm exec theokit-migrate-memory --cwd .",
+      "",
+      `Demo workspace (will be GC'd): ${demoCwd}`,
+    ].join("\n"),
+  );
+});
+
+// ────────────────────── /memory_lance — LanceDB opt-in showcase (v1.2) ──────────────────────
+//
+// Pure documentation command: prints the opt-in config snippet + the typed
+// error shape. Does NOT try to open Lance — that requires @lancedb/lancedb
+// installed and live workspace state. See ADR D43/D56.
+bot.command("memory_lance", async (ctx) => {
+  const { ConfigurationError } = await import("@usetheo/sdk");
+  const sampleConfig = {
+    memory: {
+      enabled: true,
+      namespace: "my-bot",
+      userId: "user-123",
+      scope: "user",
+      index: {
+        backend: "lance",
+        embedding: { provider: "openai", model: "text-embedding-3-small" },
+      },
+    },
+  };
+  const sampleError = new ConfigurationError("Lance backend unavailable", {
+    code: "lance_backend_unavailable",
+  });
+  // No parse_mode — content is JSON + error names with underscores and
+  // backticks that Telegram Markdown V1 mis-parses (error 400 "can't parse
+  // entities"). Plain text is safest for arbitrary content like this.
+  await ctx.reply(
+    [
+      "LanceDB backend opt-in (v1.2 ADR D43)",
+      "",
+      'Set memory.index.backend: "lance" in Agent.create options. Default remains SQLite.',
+      "",
+      "Sample config:",
+      JSON.stringify(sampleConfig, null, 2),
+      "",
+      "Without @lancedb/lancedb installed, the first memory_search call raises:",
+      `ConfigurationError { code: "${sampleError.code}", isRetryable: ${sampleError.isRetryable} }`,
+      "",
+      "Install with: pnpm add @lancedb/lancedb",
+      "",
+      "See also: /migrate_memory for the SQLite-to-Lance migration demo.",
+      "Standalone example: examples/memory-lance",
+    ].join("\n"),
+  );
+});
+
+// ────────────────────── /notion — OAuth MCP demo (v1.2) ──────────────────────
+//
+// Notion MCP via OAuth 2.1 PKCE (ADR D41). The browser flow CANNOT run
+// inside a Telegram bot (ADR D54) — user runs `pnpm exec
+// theokit-mcp-auth-notion --setup` ONCE outside the bot to populate the
+// token cache; subsequent /notion calls use the cached access token.
+bot.command("notion", async (ctx) => {
+  if (process.env.NOTION_OAUTH_CLIENT_ID === undefined) {
+    await ctx.reply(
+      [
+        "*Notion MCP not configured.*",
+        "",
+        "1. Create integration: https://www.notion.so/my-integrations",
+        "2. Set `NOTION_OAUTH_CLIENT_ID` in `.env`",
+        "3. Run OAuth flow ONCE outside Telegram (browser callback can't reach bot):",
+        "   `pnpm exec theokit-mcp-auth-notion --setup`",
+        "4. Restart the bot — token cache is shared.",
+        "",
+        "See ADR D41 + ADR D54.",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+  const agent = await getAgent(ctx, opts);
+  try {
+    const run = await agent.send(
+      "List the first 3 databases I have in Notion (via the notion MCP tools). One per line.",
+    );
+    const result = await run.wait();
+    if (result.status === "finished" && result.result !== undefined) {
+      await ctx.reply(`*Notion databases:*\n\n${result.result.slice(0, 3500)}`, {
+        parse_mode: "Markdown",
+      });
+    } else {
+      const errMsg = result.error?.message ?? "no result";
+      const errCode = result.error?.code ?? "unknown";
+      // EC-6: detect OAuth-related failures and explain that the bot can't
+      // drive the browser flow.
+      if (
+        errCode === "oauth_timeout" ||
+        errCode === "oauth_state_mismatch" ||
+        /OAuth|browser/i.test(errMsg)
+      ) {
+        await ctx.reply(
+          [
+            "Token cache empty. OAuth browser flow cannot run inside a Telegram bot.",
+            "",
+            "Run ONCE on a machine with a browser:",
+            "  `pnpm exec theokit-mcp-auth-notion --setup`",
+            "",
+            "After that, the token cache is shared and `/notion` works from the bot.",
+          ].join("\n"),
+          { parse_mode: "Markdown" },
+        );
+      } else {
+        await ctx.reply(
+          `(${result.status}) ${errMsg.slice(0, 400)}\n\n` +
+            "If this is an auth error, refresh via `pnpm exec theokit-mcp-auth-notion --setup`.",
+        );
+      }
+    }
+  } finally {
+    await agent.dispose();
+  }
+});
+
+// ────────────────────── /stream — runtime toggle (v1.2) ──────────────────────
+//
+// Switches between "wait" (default v1.1 behavior) and "stream" (incremental
+// editMessageText UX). Persists in memory only (D53).
+bot.command("stream", async (ctx) => {
+  const arg = ctx.match?.toString().trim().toLowerCase() ?? "";
+  if (arg !== "on" && arg !== "off") {
+    const current = getStreamMode();
+    await ctx.reply(
+      [
+        `*Streaming mode:* \`${current}\``,
+        "",
+        "Usage:",
+        "  `/stream on` — incremental editMessageText (UX: ChatGPT-like)",
+        "  `/stream off` — final `run.wait()` reply (default, simpler error handling)",
+        "",
+        "Default at startup: env `STREAM_MODE=stream` else `wait`.",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+  setStreamMode(arg === "on" ? "stream" : "wait");
+  const note =
+    arg === "on"
+      ? "\n\n_Note: inline buttons (`[BUTTONS: A | B]`) are NOT supported in stream mode (D58). Switch /stream off for button-based prompts._"
+      : "";
+  await ctx.reply(`Streaming mode now: \`${arg === "on" ? "stream" : "wait"}\`${note}`, {
+    parse_mode: "Markdown",
+  });
+});
+
+// ────────────────────── /skill <name> — drill-down skill content (ADR D57) ──────────────────────
+//
+// Reads .theokit/skills/<name>/SKILL.md directly from filesystem (instant,
+// no LLM tokens). Sanitizes name via regex to prevent path traversal.
+bot.command("skill", async (ctx) => {
+  const name = ctx.match?.toString().trim() ?? "";
+  if (name.length === 0) {
+    await ctx.reply(
+      "Usage: `/skill <name>` — drills into `.theokit/skills/<name>/SKILL.md`. Run `/skills` first to list available skills.",
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+  const content = await readSkillFile(CWD, name);
+  if (content === undefined) {
+    await ctx.reply(`Skill "${name}" not found in \`.theokit/skills/\`.`, {
+      parse_mode: "Markdown",
+    });
+    return;
+  }
+  const truncated =
+    content.length > 3500
+      ? `${content.slice(0, 3500)}\n\n_(truncated; full at .theokit/skills/${name}/SKILL.md)_`
+      : content;
+  await ctx.reply(`*Skill: ${name}*\n\n\`\`\`\n${truncated}\n\`\`\``, {
+    parse_mode: "Markdown",
+  });
+});
+
 bot.command("summary", async (ctx) => {
   await ctx.reply("Running the nightly dreaming sweep on demand. This takes a few seconds...");
   try {
@@ -318,16 +742,16 @@ bot.command("reset", async (ctx) => {
 bot.command("tool", async (ctx) => {
   const raw = (ctx.match ?? "").toString().trim();
   if (raw.length === 0 || raw === "list") {
+    // Plain text — descriptions contain "_" (e.g., "Sao_Paulo") that breaks Markdown V1.
     await ctx.reply(
       [
-        "*Ad-hoc tools (injected per-call via `SendOptions.tools`):*",
+        "Ad-hoc tools (injected per-call via SendOptions.tools):",
         "",
         listAdHocTools(),
         "",
-        "Usage: `/tool <name> <args>` — e.g. `/tool roll 3d6`, `/tool uuid`, `/tool hash sha256 hello`.",
+        "Usage: /tool <name> <args> — e.g. /tool roll 3d6, /tool uuid, /tool hash sha256 hello.",
         "The model only sees the named tool — no shell magic, no MCP fallback.",
       ].join("\n"),
-      { parse_mode: "Markdown" },
     );
     return;
   }
@@ -335,8 +759,7 @@ bot.command("tool", async (ctx) => {
   const argText = rest.join(" ").trim();
   if (toolName === undefined || !(toolName in AD_HOC_TOOLS)) {
     await ctx.reply(
-      `Unknown tool \`${toolName ?? ""}\`. Try \`/tool list\` to see what's available.`,
-      { parse_mode: "Markdown" },
+      `Unknown tool "${toolName ?? ""}". Try /tool list to see what's available.`,
     );
     return;
   }
@@ -367,7 +790,9 @@ bot.command("tool", async (ctx) => {
       );
       return;
     }
-    await ctx.reply(result.result, { parse_mode: "Markdown" });
+    // LLM output is arbitrary — underscores in JSON keys, tool IDs, etc. would
+    // break Markdown V1 parsing. Send as plain text.
+    await ctx.reply(result.result);
   } finally {
     await agent.dispose();
   }
@@ -428,18 +853,18 @@ bot.command("loop", async (ctx) => {
   const duration = parts[0] ?? "";
   const prompt = parts.slice(1).join(" ");
   if (duration.length === 0 || prompt.length === 0) {
+    // Plain text — "/stop_loop" contains "_" that breaks unbalanced Markdown italic.
     await ctx.reply(
       [
-        "Usage: `/loop <30s|2m|1h> <prompt>`",
+        "Usage: /loop <30s|2m|1h> <prompt>",
         "",
         "Examples:",
-        "• `/loop 30s diga oi`",
-        "• `/loop 2m faça um resumo do que conversamos`",
-        "• `/loop 1h pergunte como estou`",
+        "• /loop 30s diga oi",
+        "• /loop 2m faça um resumo do que conversamos",
+        "• /loop 1h pergunte como estou",
         "",
         "Mínimo 10s, máximo 24h. Use /loops pra listar, /stop_loop pra parar.",
       ].join("\n"),
-      { parse_mode: "Markdown" },
     );
     return;
   }
@@ -461,16 +886,17 @@ bot.command("loop", async (ctx) => {
     return;
   }
   const nextFire = new Date(Date.now() + result.record.durationMs).toISOString().slice(11, 19);
+  // Plain text — record.id contains "_" (e.g., "loop_30s_..."), and arbitrary prompt
+  // may contain "_*[]" chars that break Markdown V1.
   await ctx.reply(
     [
-      `🔁 Loop *${result.record.id}* agendado.`,
+      `🔁 Loop ${result.record.id} agendado.`,
       `Duração: cada ${duration}`,
       `Próxima execução: ${nextFire} UTC`,
-      `Prompt: _${prompt.slice(0, 200)}_`,
+      `Prompt: ${prompt.slice(0, 200)}`,
       "",
       `Pra parar: /stop_loop ${result.record.id}`,
     ].join("\n"),
-    { parse_mode: "Markdown" },
   );
 });
 
@@ -479,22 +905,22 @@ bot.command("loops", async (ctx) => {
   if (chatId === undefined) return;
   const list = listLoops(chatId);
   if (list.length === 0) {
-    await ctx.reply("Sem loops ativos. Crie um com `/loop 30s diga oi`.", { parse_mode: "Markdown" });
+    await ctx.reply("Sem loops ativos. Crie um com /loop 30s diga oi");
     return;
   }
   const lines = list.map((r) => {
     const sec = Math.round(r.durationMs / 1000);
-    return `• \`${r.id}\` — cada ${sec}s — fires: ${r.fireCount} — _${r.prompt.slice(0, 60)}_`;
+    return `• ${r.id} — cada ${sec}s — fires: ${r.fireCount} — ${r.prompt.slice(0, 60)}`;
   });
-  await ctx.reply(`*Loops ativos (${list.length})*\n\n${lines.join("\n")}`, {
-    parse_mode: "Markdown",
-  });
+  // Plain text — IDs and prompts contain arbitrary chars.
+  await ctx.reply(`Loops ativos (${list.length})\n\n${lines.join("\n")}`);
 });
 
 bot.command("stop_loop", async (ctx) => {
   const arg = ctx.match?.toString().trim() ?? "";
   if (arg.length === 0) {
-    await ctx.reply("Usage: `/stop_loop <id>` ou `/stop_loop all`", { parse_mode: "Markdown" });
+    // Plain text — "/stop_loop" contains "_".
+    await ctx.reply("Usage: /stop_loop <id> ou /stop_loop all");
     return;
   }
   if (arg === "all") {
@@ -509,9 +935,8 @@ bot.command("stop_loop", async (ctx) => {
     await ctx.reply(`Loop "${arg}" não encontrado.`);
     return;
   }
-  await ctx.reply(`🛑 Loop *${stopped.id}* parado após ${stopped.fireCount} fires.`, {
-    parse_mode: "Markdown",
-  });
+  // Plain text — stopped.id contains "_".
+  await ctx.reply(`🛑 Loop ${stopped.id} parado após ${stopped.fireCount} fires.`);
 });
 
 // ────────────────────── unified reply pipeline ──────────────────────
@@ -523,10 +948,21 @@ async function dispatchToAgent(ctx: Context, userText: string): Promise<void> {
     // `context`, `providers`, `agents`) but mcpServers stay caller-supplied
     // because they may carry headers/env secrets stripped from the registry.
     const mcpServers = buildMcpServers(CWD);
-    const run = await agent.send(userText, {
+    const sendOptions = {
       systemPrompt: SYSTEM_PROMPT,
       ...(mcpServers !== undefined ? { mcpServers } : {}),
-    });
+    };
+
+    // ADR D53: when /stream on, route through streamIntoTelegram for incremental
+    // editMessageText UX. Default "wait" mode preserves v1.1 behavior exactly.
+    // Stream mode does NOT support inline buttons (D58) — user has been warned
+    // via /stream on reply.
+    if (getStreamMode() === "stream") {
+      await streamIntoTelegram(ctx, agent, userText, sendOptions);
+      return;
+    }
+
+    const run = await agent.send(userText, sendOptions);
     const result = await run.wait();
     console.log(
       `[bot] result status=${result.status} runId=${result.id} resultLen=${(result.result ?? "").length}${result.error !== undefined ? ` errorCode=${result.error.code ?? "?"}` : ""}`,
