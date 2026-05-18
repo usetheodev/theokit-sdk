@@ -145,20 +145,21 @@ que é proposed-but-not-wired. Auditado em 2026-05-18 contra
 | [error-context-surfacing](./error-context-surfacing.md) | ✅ DONE | `ErrorMetadata` + `ErrorCode` (D65/D66) typed fields on base error class. `mapAnthropicError` + `mapOpenAICompatibleError` (D67) provider mappers. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, embedding adapter, and `fallback-client.ts` (now falls back on Auth/RateLimit too). |
 | [graceful-degradation](./graceful-degradation.md) | ✅ DONE | ADR D42 (auto-detect telemetry via createRequire), D50 (lance dry-run), D55 (fail-open) todos implementados |
 
-### Totais (2026-05-18 — pós error-context-surfacing)
+### Totais (2026-05-18 — pós secret-redaction-discipline)
 
 ```
-✅ DONE         9 (39%)
+✅ DONE        11 (48%)
 ⚠️ PARTIAL      3 (13%)
-❌ PENDING      9 (39%)
+❌ PENDING      7 (30%)
 📚 CULTURAL    2  (9%)
               ───
               23 (100%)
 ```
 
 - **Persistence & State**: 6/6 DONE (was 5 PARTIAL / 1 PENDING at v1.2).
-- **Testing**: 1/3 DONE + 1/3 CULTURAL — hermetic-isolation landed via T6.1.
+- **Testing**: 2/3 DONE + 1/3 CULTURAL — hermetic-isolation via T6.1; property-based-testing landed with secret-redaction adversarial suite (`fast-check`).
 - **Error handling**: 2/2 DONE — both `error-context-surfacing` (D65/D66/D67) and `graceful-degradation` (D42/D50/D55) shipped.
+- **Security**: 1/3 DONE — `secret-redaction-discipline` (D68-D73) shipped; `path-traversal-vectors` + `toctou-race-prevention` remain.
 
 ### Como ler isso
 

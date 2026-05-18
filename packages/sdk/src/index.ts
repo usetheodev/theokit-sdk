@@ -12,7 +12,6 @@ export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
 // Cron façade
 export { Cron } from "./cron.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
-
 // Errors (runtime classes)
 export {
   AuthenticationError,
@@ -24,12 +23,33 @@ export {
   UnknownAgentError,
   UnsupportedRunOperationError,
 } from "./errors.js";
+// Structured output via synthetic forced tool (ADR D33)
+export {
+  GenerateObjectError,
+  type GenerateObjectOptions,
+  type GenerateObjectResult,
+} from "./generate-object.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,
   type DreamingSweepResult,
   Memory,
 } from "./memory.js";
+// Migration helper (ADR D44) — re-exported for use by the bin CLI.
+export {
+  type MigrateOptions,
+  type MigrateResult,
+  migrateSqliteToLance,
+} from "./migrate.js";
+// Security namespace (secret redaction; ADR D68)
+export { Security } from "./security.js";
+// Streamed structured output (ADR D39)
+export {
+  type DeepPartial,
+  StreamObjectError,
+  type StreamObjectEvent,
+  type StreamObjectOptions,
+} from "./stream-object.js";
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 

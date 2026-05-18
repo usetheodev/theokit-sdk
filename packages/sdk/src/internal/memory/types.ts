@@ -20,11 +20,10 @@ export interface MemoryFact {
   text: string;
 }
 
-const SECRET_PATTERN = /\b(?:sk-proj-[A-Za-z0-9-]+|ghp_[A-Za-z0-9-]+|sk-[A-Za-z0-9-]+)\b/g;
-
-export function redactSecrets(text: string): string {
-  return text.replace(SECRET_PATTERN, "***");
-}
+// `redactSecrets` is now re-exported from the canonical security module
+// (ADR D68). Pre-T0.2 it was a 3-pattern local fn; consolidated to avoid
+// drift with the central 12-pattern list.
+export { redactSecrets } from "../security/index.js";
 
 /**
  * Resolve the legacy JSON memory path used pre-ADR-D8 (kept for migration

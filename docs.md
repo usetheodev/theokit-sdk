@@ -1725,3 +1725,26 @@ local.settingSources (and the file-based MCP / subagent paths it gates) does not
 Hooks are file-based only (.Theo/hooks.json). No programmatic callbacks.
 Inline memory, context, and skill config should be treated as process-local unless documented otherwise. Durable behavior comes from memory stores and committed file-based context / skills.
 Skill prompt bodies are not stable public output. Use `agent.skills.list()` for metadata and avoid scraping streams for full skill text.
+
+## Security — secret redaction (v1.3+)
+
+Every output boundary the SDK controls — thrown errors (`metadata.raw`), telemetry span attributes, transcript JSONL appends, migration logger output — passes through a canonical redactor before persisting or emitting. Builtin patterns cover 12 well-known credential prefixes (OpenAI `sk-`, Anthropic `sk-ant-`, GitHub PAT classic + fine-grained, GitLab `glpat-`, AWS `AKIA`, Google `AIza`, Slack `xox*-`, Sentry `sntrys_`, Stripe `sk_live_` / `rk_live_`) plus a parametric `key=value` matcher that masks `access_token=`, `api_key=`, `password=`, `x-api-key=`, and `Authorization: Bearer <token>` in URLs, JSON bodies, and HTTP headers.
+
+```typescript
+import { Security } from "@usetheo/sdk";
+
+// Add a custom pattern (e.g., org-internal token shape):
+Security.addPattern(/MYORG-[A-Z0-9]{32}/g);
+
+// Subsequent error metadata, telemetry attrs, transcript lines, migration
+// logs containing `MYORG-AAAA...AAAA` will have it masked alongside
+// builtin patterns.
+```
+
+**Two-bucket masking.** Tokens shorter than 18 characters are fully replaced with `***`; longer tokens preserve a 6-character prefix and a 4-character suffix (`sk-abc...wxyz`). The preserved bookends help operators tell two leaked keys apart in incident reports without revealing the secret middle.
+
+**Default ON, opt-out via env.** Redaction is enabled by default. Set `THEOKIT_REDACT_SECRETS=false` to disable; the SDK prints a one-time warning to stderr so the operator knows the process is vulnerable. The env var is snapshotted at module init — runtime mutation (e.g., via a prompt-injection that runs `process.env.THEOKIT_REDACT_SECRETS = "false"`) cannot disable it.
+
+**What is NOT redacted.** Redaction applies on *egress*, never on storage. Agent runtime memory, in-process state, and files written with explicit acceptance (such as `.env` files the user creates) are left alone. The principle is "store originals; redact on each output".
+
+**Coverage limits.** Custom credentials that lack a structural marker (e.g., free-form passwords inside arbitrary prose like "the password is hunter2") are NOT detected. Add an `addPattern` matcher when you ship a new internal token shape. Base64-encoded or URL-encoded credentials may slip through built-in patterns; report a missed shape and we'll extend the list.

@@ -2,6 +2,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 import { replaceFileAtomic } from "../memory/atomic-write.js";
+import { redactSecrets } from "../security/index.js";
 import type { SessionMessage } from "./agent-session.js";
 
 /**
@@ -49,7 +50,10 @@ export async function appendToSessionFile(
   await mkdir(dirname(path), { recursive: true });
   // EC-6: JSON.stringify handles newlines, tabs, and quote escapes inside
   // text so a multi-line message stays one JSONL line on disk.
-  await appendFile(path, `${JSON.stringify(record)}\n`, "utf8");
+  // T1.3 (ADR D68): pass the serialized record through `redactSecrets` so
+  // tool results containing `env | grep API` style output, or assistant
+  // text that echoes a user-provided key, never persist verbatim on disk.
+  await appendFile(path, `${redactSecrets(JSON.stringify(record))}\n`, "utf8");
 }
 
 /**

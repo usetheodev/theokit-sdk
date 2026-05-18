@@ -234,6 +234,12 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D65 | `ErrorMetadata` is optional field on the existing base class (no new hierarchy) | [D65-error-metadata-optional-field.md](./.claude/knowledge-base/adrs/D65-error-metadata-optional-field.md) |
 | D66 | `ErrorCode` is a finite TS literal union for exhaustive `switch` checks | [D66-error-code-typed-enum.md](./.claude/knowledge-base/adrs/D66-error-code-typed-enum.md) |
 | D67 | Provider HTTP error mappers in `internal/errors/mappers/` (1 per dialect) | [D67-provider-error-mappers.md](./.claude/knowledge-base/adrs/D67-provider-error-mappers.md) |
+| D68 | Canonical `redactSecrets` in `internal/security/redact.ts`, single source of truth (replaces 2 duplicates) | [D68-redact-canonical-module.md](./.claude/knowledge-base/adrs/D68-redact-canonical-module.md) |
+| D69 | `THEOKIT_REDACT_SECRETS` env var snapshotted at module init (prompt-injection defense) | [D69-redact-env-snapshot.md](./.claude/knowledge-base/adrs/D69-redact-env-snapshot.md) |
+| D70 | Redaction ON by default; opt-out emits one-time stderr warning | [D70-redact-on-by-default.md](./.claude/knowledge-base/adrs/D70-redact-on-by-default.md) |
+| D71 | Two-bucket masking: short tokens (<18) → `***`; long → `prefix...suffix` | [D71-redact-two-bucket-masking.md](./.claude/knowledge-base/adrs/D71-redact-two-bucket-masking.md) |
+| D72 | `codeFile: true` opt-out skips PARAM_PATTERN to preserve `.env.example` placeholders | [D72-redact-codefile-optout.md](./.claude/knowledge-base/adrs/D72-redact-codefile-optout.md) |
+| D73 | Apply redaction at OUTPUT boundaries (logs, telemetry attrs, error.raw, transcript), NOT at storage | [D73-redact-output-boundaries-only.md](./.claude/knowledge-base/adrs/D73-redact-output-boundaries-only.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -286,7 +292,7 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 
 | Pattern | Status | Where in SDK |
 |---|---|---|
-| secret-redaction-discipline | ❌ PENDING | `internal/security/redact.ts` com prefix list + env snapshot |
+| secret-redaction-discipline | ✅ DONE | `packages/sdk/src/internal/security/redact.ts` — 12 builtin patterns + PARAM_PATTERN + BEARER_PATTERN, env snapshot at init, two-bucket masking (ADRs D68-D73). Public `Security.addPattern(re)` API. Wired at ErrorMetadata.raw (T1.1), telemetry tracer (T1.2), transcript JSONL (T1.3), migration logger (T1.4). CI gate `tests/lint/no-unredacted-sink.test.ts` prevents regression. Adversarial property tests via fast-check (~3000 randomized inputs). |
 | path-traversal-vectors | ❌ PENDING | `internal/security/path-guard.ts` (a criar) |
 | toctou-race-prevention | ⚠️ PARTIAL | `cwd-mutex.ts` cobre in-process; `withFileLock` (D61) cobre multi-process via `proper-lockfile` + companion lockfile; ainda falta CAS patterns SQLite + O_EXCL idiomático |
 
@@ -296,7 +302,7 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 |---|---|---|
 | testing-invariant-vs-snapshot | 📚 CULTURAL | Já praticado (sem `toMatchSnapshot`); manter via code review |
 | hermetic-test-isolation | ✅ DONE | `packages/sdk/vitest.setup.ts` autouse beforeEach/afterEach isola `THEOKIT_HOME` em tmpdir per-test (T6.1, ADR D60). `setupFiles` wired em `vitest.config.ts`. Lint test em `tests/lint/no-hardcoded-theokit-path.test.ts` audita regressões. |
-| property-based-testing | ❌ PENDING | Adicionar `fast-check` dev dep + property tests |
+| property-based-testing | ✅ DONE | `fast-check` ^3.x added as dev dep with secret-redaction-discipline plan. `tests/internal/security/redact.property.test.ts` exercises all 12 builtin patterns + PARAM + BEARER × 200 runs each; `tests/internal/security/sinks.adversarial.test.ts` covers the 4 output sinks. Same template can be applied to other modules incrementally. |
 
 ### Error handling (2) — ✅ Error Context Surfacing plan COMPLETED 2026-05-18
 
@@ -305,20 +311,21 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | error-context-surfacing | ✅ DONE | `packages/sdk/src/errors.ts` — `ErrorMetadata` + `ErrorCode` types (ADR D65/D66). Provider mappers `mapAnthropicError` + `mapOpenAICompatibleError` (ADR D67) in `internal/errors/mappers/`. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, `internal/memory/adapters/openai-compatible.ts`. `fallback-client.ts` also falls back on `AuthenticationError`/`RateLimitError`. |
 | graceful-degradation | ✅ DONE | ADR D42 (auto-detect telemetry), D50 (lance dry-run), D55 (fail-open) implementados |
 
-### Totais (2026-05-18 — pós Error Context Surfacing plan)
+### Totais (2026-05-18 — pós Secret Redaction Discipline plan)
 
 ```
-✅ DONE         9 (39%)
+✅ DONE        11 (48%)
 ⚠️ PARTIAL      3 (13%)
-❌ PENDING      9 (39%)
+❌ PENDING      7 (30%)
 📚 CULTURAL    2  (9%)
               ───
               23 (100%)
 ```
 
 - **Persistence & State block: 6/6 DONE** (was 0 DONE / 5 PARTIAL / 1 PENDING at v1.2).
-- **Testing block: 1/3 DONE + 1/3 CULTURAL** — hermetic-test-isolation landed via T6.1 (vitest.setup.ts + setupFiles). property-based ainda pending (precisa `fast-check` dev dep).
+- **Testing block: 2/3 DONE + 1/3 CULTURAL** — hermetic-test-isolation landed via T6.1 (vitest.setup.ts + setupFiles); property-based-testing now ✅ DONE via `fast-check` adversarial suite shipped with secret-redaction (12 builtin patterns × 200 runs + sink-level tests).
 - **Error handling block: 2/2 DONE** — graceful-degradation via D42/D50/D55; error-context-surfacing via D65/D66/D67 (ErrorMetadata + ErrorCode + provider mappers).
+- **Security block: 1/3 DONE** — secret-redaction-discipline via D68-D73 (canonical redactor + public `Security.addPattern` + 4 wired sinks + CI gate). `path-traversal-vectors` + `toctou-race-prevention` remain.
 
 > **Importante**: este é mapa, não plano. Não há commitment de implementar
 > todos os PENDING — cada um é proposta que precisa de ADR + plano formal
