@@ -1,3 +1,4 @@
+import { Security } from "@usetheo/sdk";
 import { Bot, type Context, GrammyError, HttpError, InputFile } from "grammy";
 
 import { AD_HOC_TOOLS, listAdHocTools } from "./ad-hoc-tools.js";
@@ -62,7 +63,13 @@ bot.use(async (ctx, next) => {
   const userId = resolveUserId(ctx);
   const ts = new Date().toISOString();
   const text = ctx.update.message?.text ?? ctx.update.message?.caption ?? "(non-text)";
-  console.log(`[${ts}] user=${userId} chat=${ctx.chat?.type ?? "?"} text=${text.slice(0, 80)}`);
+  // Redact known credential patterns before logging — covers the case where
+  // a user pastes a key into chat. The SDK's persistent storage (transcript
+  // JSONL) already redacts at write time (ADR D68/D73); this closes the same
+  // gap for the example's stdout logger.
+  console.log(
+    `[${ts}] user=${userId} chat=${ctx.chat?.type ?? "?"} text=${Security.redact(text).slice(0, 80)}`,
+  );
   if (ALLOWED_USERS.size > 0 && !ALLOWED_USERS.has(userId)) {
     await ctx.reply(
       `Sorry — this bot is restricted. Your user id is \`${userId}\`.`,
@@ -1014,7 +1021,9 @@ bot.on("message:voice", async (ctx) => {
     const audio = new Uint8Array(await (await fetch(url)).arrayBuffer());
     const result = await transcribeAudio({ audio, filename: `voice.${voice.mime_type?.includes("ogg") ? "ogg" : "mp4"}` });
     transcript = result.text;
-    console.log(`[voice] transcribed via ${result.provider} in ${result.durationMs}ms: ${transcript.slice(0, 100)}`);
+    console.log(
+      `[voice] transcribed via ${result.provider} in ${result.durationMs}ms: ${Security.redact(transcript).slice(0, 100)}`,
+    );
   } catch (err) {
     if (err instanceof NoTranscriberError) {
       await ctx.reply(
@@ -1045,7 +1054,9 @@ async function handleVisual(ctx: Context, fileId: string, cacheKey: string, kind
     const mime = file.file_path.endsWith(".webp") ? "image/webp" : "image/jpeg";
     const result = await describeImage({ image, mime, cacheKey, cwd: CWD });
     description = result.description;
-    console.log(`[${kind}] described (cached=${result.cached}) in ${result.durationMs}ms: ${description.slice(0, 100)}`);
+    console.log(
+      `[${kind}] described (cached=${result.cached}) in ${result.durationMs}ms: ${Security.redact(description).slice(0, 100)}`,
+    );
   } catch (err) {
     console.error(`[${kind}] vision failed:`, err);
     await ctx.reply(`Couldn't describe that ${kind}: ${err instanceof Error ? err.message.slice(0, 200) : String(err)}`);
