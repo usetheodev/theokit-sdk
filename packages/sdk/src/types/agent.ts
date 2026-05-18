@@ -231,8 +231,11 @@ export interface MemorySettings {
   index?: {
     /** Whether to register `memory_search` + `memory_get` tools. Default `true`. */
     tools?: boolean;
-    /** Vector index backend. Default and only supported value: `"sqlite-vec"`. */
-    backend?: "sqlite-vec";
+    /**
+     * Vector index backend (ADR D43). Default `"sqlite-vec"`. Set to
+     * `"lance"` to use `@lancedb/lancedb` (optional peer dep) for scale.
+     */
+    backend?: "sqlite-vec" | "lance";
     /** Embedding provider config. When omitted, the index runs in FTS-only mode. */
     embedding?: {
       provider: "openai" | "mistral" | "openrouter" | "voyage" | "deepinfra";
@@ -286,6 +289,43 @@ export interface CustomTool {
 }
 
 /**
+ * Telemetry configuration for an agent. When `enabled: true`, the SDK emits
+ * OpenTelemetry spans for `agent.send`, `llm.call`, `tool.call`, and
+ * `memory.search`. See ADR D34.
+ *
+ * Privacy: content (prompts, responses, tool args) is OMITTED by default —
+ * only timing/counts/IDs are recorded. Opt in via `includeContent: true`
+ * to add prompt/response/args events to the spans (consumer's
+ * responsibility to sanitize PII).
+ *
+ * `@opentelemetry/api` is an OPTIONAL peer dependency. Without it
+ * installed, telemetry is a no-op even when `enabled: true`.
+ *
+ * @public
+ */
+export interface TelemetrySettings {
+  /** Master switch. Default `false`. */
+  enabled: boolean;
+  /** Whether to include prompts/responses/tool args as span events. Default `false`. */
+  includeContent?: boolean;
+  /** Exporter selection. Default `"console"`. Custom exporters are passed-through. */
+  exporter?: "console" | "otlp" | unknown;
+  /** Service name on emitted spans. Default `"theokit-sdk"`. */
+  serviceName?: string;
+  /**
+   * Auto-detect and register OTel exporters for installed observability
+   * libs (Langfuse, Sentry, PostHog) via `createRequire` feature-detect.
+   * Default `true`. See ADR D42.
+   */
+  autoDetect?: boolean;
+  /**
+   * Per-adapter opt-out. Lowercase names: `"langfuse" | "sentry" | "posthog"`.
+   * Default `[]`.
+   */
+  disable?: string[];
+}
+
+/**
  * Top-level options accepted by `Agent.create()`.
  *
  * Pass either `local` or `cloud` to pick a runtime.
@@ -326,6 +366,11 @@ export interface AgentOptions {
    * See {@link CustomTool}.
    */
   tools?: CustomTool[];
+  /**
+   * Telemetry (OpenTelemetry) configuration. Default disabled. See
+   * {@link TelemetrySettings} and ADR D34.
+   */
+  telemetry?: TelemetrySettings;
 }
 
 /**

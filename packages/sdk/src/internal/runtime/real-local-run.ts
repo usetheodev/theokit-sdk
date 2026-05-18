@@ -5,6 +5,7 @@ import type { CustomToolSpec, MemoryToolSpec } from "../agent-loop/loop-types.js
 import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { resolveProviderChain } from "../llm/router.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
+import { createTelemetry } from "../telemetry/tracer.js";
 import type { SessionMessage } from "./agent-session.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { FixtureScript } from "./fixture-types.js";
@@ -99,6 +100,7 @@ function buildLoopInputs(
       ? { memoryTools: options.memoryTools }
       : {}),
     ...buildCustomToolsInput(options.agentOptions, options.sendOptions),
+    telemetry: createTelemetry(options.agentOptions.telemetry),
   };
 }
 
