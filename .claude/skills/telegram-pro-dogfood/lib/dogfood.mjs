@@ -110,7 +110,11 @@ const COMMANDS = [
   },
   // Exercises streamIntoTelegram (D52): edits a placeholder message incrementally
   // every 500ms with chunks. Final content lands in the same bubble.
-  { text: "Say jazz in one word.", expect: [/jazz|Jazz/i], waitMs: 30000 },
+  // Pattern only checks for ANY non-empty reply ending with timestamp (HH:MM
+  // is the streaming-mode footer pattern). LLM may return "Jazz", "Rhythm",
+  // "Improvisation", etc. — we care that streaming delivered SOMETHING, not
+  // which exact word the LLM chose.
+  { text: "Say jazz in one word.", expect: [/^\S+/m, /\d{2}:\d{2}/], waitMs: 30000 },
   { text: "/stream off", expect: [/Streaming mode now.*wait/i], waitMs: 5000 },
 
   // ── Loop family (don't wait for many fires) ──
