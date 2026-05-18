@@ -76,6 +76,8 @@ export interface AgentLoopInputs {
    * tool catalog after shell + MCP + memory, before the LLM call.
    */
   customTools?: ReadonlyArray<CustomToolSpec>;
+  /** Telemetry handle (D34). No-op when disabled. */
+  telemetry?: import("../telemetry/tracer.js").TelemetryHandle;
 }
 
 export interface AgentLoopOutput {

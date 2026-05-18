@@ -19,12 +19,12 @@ import {
   AuthenticationError,
   ConfigurationError,
   type ErrorCode,
-  type ErrorMetadata,
   NetworkError,
   RateLimitError,
   type TheokitAgentError,
   UnknownAgentError,
 } from "../../../errors.js";
+import { buildErrorMetadata } from "./shared.js";
 
 interface MapOpenAiErrorArgs {
   providerId: string;
@@ -34,23 +34,18 @@ interface MapOpenAiErrorArgs {
   endpoint: string;
 }
 
-const RAW_MAX_BYTES = 2048;
-
 export function mapOpenAICompatibleError(args: MapOpenAiErrorArgs): TheokitAgentError {
   const { providerId, status, body, headers, endpoint } = args;
   const code = mapOpenAiStatusToCode(status, body);
-  const retryAfter = parseRetryAfter(headers);
   const message = formatMessage(providerId, status, code);
-  const raw = truncateRaw(body);
-
-  const metadata: ErrorMetadata = {
+  const metadata = buildErrorMetadata({
     provider: providerId,
     endpoint,
     code,
-    statusCode: status,
-    ...(retryAfter !== undefined ? { retryAfter } : {}),
-    ...(raw !== undefined ? { raw } : {}),
-  };
+    status,
+    headers,
+    body,
+  });
 
   if (status === 401 || status === 403) {
     return new AuthenticationError(message, { code: `${providerId}_auth_failed`, metadata });
@@ -112,22 +107,6 @@ function mapOpenAiStatusToCode(status: number, body: unknown): ErrorCode {
   if (status === 400) return "invalid_request";
   if (status >= 500 && status < 600) return "server_error";
   return "unknown";
-}
-
-function parseRetryAfter(headers: Headers | undefined): number | undefined {
-  if (headers === undefined) return undefined;
-  const raw = headers.get("retry-after");
-  if (raw === null) return undefined;
-  const n = Number(raw);
-  if (Number.isFinite(n) && n >= 0) return Math.ceil(n);
-  return undefined;
-}
-
-function truncateRaw(body: unknown): unknown {
-  if (body === null || body === undefined) return undefined;
-  const s = typeof body === "string" ? body : JSON.stringify(body);
-  if (s.length <= RAW_MAX_BYTES) return body;
-  return `${s.slice(0, RAW_MAX_BYTES)}…`;
 }
 
 function formatMessage(providerId: string, status: number, code: ErrorCode): string {

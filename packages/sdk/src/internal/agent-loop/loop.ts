@@ -30,23 +30,41 @@ import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
 
 export type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: agent loop is the orchestrator — context build, LLM round trip, tool dispatch, stop condition, span lifecycle are deliberately co-located so the streaming contract stays linear.
 export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOutput> {
-  const ctx = await initLoopContext(inputs);
-  const maxIterations = inputs.maxIterations ?? 8;
-  for (let iteration = 0; iteration < maxIterations; iteration++) {
-    const decision = await runIteration(inputs, ctx);
-    if (decision === "done") break;
-    if (decision === "error") {
-      ctx.finalStatus = "error";
-      break;
-    }
+  // Root span for the entire send (D34). No-op when telemetry disabled.
+  const sendSpan = inputs.telemetry?.startSpan("agent.send", {
+    agentId: inputs.agentId,
+    runId: inputs.runId,
+    "model.id": inputs.model.id ?? "auto",
+  });
+  if (sendSpan !== undefined && inputs.telemetry?.includeContent === true) {
+    sendSpan.addEvent("prompt", { content: inputs.userMessage });
   }
-  return {
-    events: ctx.events,
-    finalStatus: ctx.finalStatus,
-    result: ctx.finalText,
-    conversation: ctx.conversation,
-  };
+  try {
+    const ctx = await initLoopContext(inputs);
+    const maxIterations = inputs.maxIterations ?? 8;
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+      const decision = await runIteration(inputs, ctx);
+      if (decision === "done") break;
+      if (decision === "error") {
+        ctx.finalStatus = "error";
+        break;
+      }
+    }
+    sendSpan?.setAttribute("status", ctx.finalStatus);
+    if (inputs.telemetry?.includeContent === true && ctx.finalText.length > 0) {
+      sendSpan?.addEvent("response", { content: ctx.finalText });
+    }
+    return {
+      events: ctx.events,
+      finalStatus: ctx.finalStatus,
+      result: ctx.finalText,
+      conversation: ctx.conversation,
+    };
+  } finally {
+    sendSpan?.end();
+  }
 }
 
 interface LoopContext {
@@ -161,6 +179,10 @@ interface LlmTurnOutput {
 }
 
 async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise<LlmTurnOutput> {
+  const llmSpan = inputs.telemetry?.startSpan("llm.call", {
+    "model.id": inputs.model.id ?? "auto",
+    provider: inputs.llm.name,
+  });
   const signal = new AbortController().signal;
   const generator = inputs.llm.stream(
     {
@@ -173,6 +195,8 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
   );
   const collected = await collectLlmEvents(generator, inputs, ctx);
   if (collected.errored || collected.finishValue === undefined) {
+    llmSpan?.setAttribute("stopReason", "error");
+    llmSpan?.end();
     return {
       text: collected.accumulatedText,
       toolCalls: [],
@@ -185,6 +209,12 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
   > extends AsyncGenerator<unknown, infer R, unknown>
     ? R
     : never;
+  llmSpan?.setAttributes({
+    stopReason: result.stopReason,
+    inputTokens: result.inputTokens ?? 0,
+    outputTokens: result.outputTokens ?? 0,
+  });
+  llmSpan?.end();
   return {
     text: collected.accumulatedText,
     toolCalls: result.toolCalls,

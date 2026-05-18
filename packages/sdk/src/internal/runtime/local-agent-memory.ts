@@ -37,7 +37,7 @@ export class LocalAgentMemory {
       const openOpts: {
         cwd: string;
         embedding?: EmbeddingRuntime;
-        backend?: "sqlite-vec";
+        backend?: "sqlite-vec" | "lance";
       } = { cwd: this.workspaceCwd };
       if (embedding !== undefined) openOpts.embedding = embedding;
       if (cfg?.backend !== undefined) openOpts.backend = cfg.backend;

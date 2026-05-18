@@ -166,6 +166,56 @@ export class Agent {
   }
 
   /**
+   * Generate a typed object matching a Zod schema via a synthetic forced
+   * tool call (ADR D33). One-shot: create transient agent → send prompt →
+   * model calls `output` tool → parse args via Zod → return typed.
+   *
+   * @public
+   */
+  static async generateObject<T extends import("zod").ZodType>(
+    options: import("./generate-object.js").GenerateObjectOptions<T>,
+  ): Promise<import("./generate-object.js").GenerateObjectResult<import("zod").z.infer<T>>> {
+    const { generateObjectImpl } = await import("./generate-object.js");
+    return generateObjectImpl(options, {
+      create: (opts) => Agent.create(opts),
+      delete: (agentId) => Agent.delete(agentId),
+    });
+  }
+
+  /**
+   * Stream a structured output object alongside intermediate `partial`
+   * deltas as the model accumulates its response (ADR D39). Returns an
+   * `AsyncIterator<StreamObjectEvent<T>>` that yields zero or more
+   * `partial` events and exactly one `complete` event at the end.
+   *
+   * The `complete` event carries the same `object: z.infer<T>` you would get
+   * from `Agent.generateObject` — same prompt + schema + model produces
+   * the same final object.
+   *
+   * @public
+   */
+  static streamObject<T extends import("zod").ZodType>(
+    options: import("./stream-object.js").StreamObjectOptions<T>,
+  ): AsyncGenerator<
+    import("./stream-object.js").StreamObjectEvent<import("zod").z.infer<T>>,
+    void,
+    void
+  > {
+    // Lazy-import the implementation so consumers that never call
+    // streamObject don't pay the import cost.
+    const deps = {
+      create: (opts: import("./types/agent.js").AgentOptions) => Agent.create(opts),
+      delete: (agentId: string) => Agent.delete(agentId),
+    };
+    // Async generator wrapper that defers the actual implementation import.
+    async function* wrapper() {
+      const { streamObjectImpl } = await import("./stream-object.js");
+      yield* streamObjectImpl(options, deps);
+    }
+    return wrapper();
+  }
+
+  /**
    * Get an existing agent by ID, or create one with the supplied options if
    * the ID is not yet registered. Eliminates the resume-vs-create boilerplate
    * common to chat bots and other long-running agent consumers. See ADR D22.
