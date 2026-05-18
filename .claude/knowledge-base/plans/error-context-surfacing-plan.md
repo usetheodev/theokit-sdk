@@ -1,13 +1,15 @@
 # Plan: Error Context Surfacing (Error handling block — 1/2 patterns) — ✅ COMPLETED 2026-05-18
 
-> **Status: COMPLETED 2026-05-18.** All 3 phases + Final Dogfood QA validated via proxy
-> per plan AC. 493/493 tests green. Zero regressions. Zero typecheck errors. Zero
-> biome warnings em arquivos do plano. 3 new ADRs (D65/D66/D67) committed.
-> Real-LLM mini-validation 14/14 PASS contra real Anthropic + OpenRouter (HTTP 401).
-> Live CDP-based telegram-pro dogfood remained blocked on Chrome 145 origin
-> precondition (same infra blocker as persistence-state-hardening plan); proxy
-> validation (bot startup + integration test + real-LLM mini-suite) passes per
-> Phase Final AC: "25/25 PASS mantido OR proxy validation passa".
+> **Status: COMPLETED 2026-05-18.** All 3 phases + Final Dogfood QA validated end-to-end.
+> 493/493 tests green. Zero regressions. Zero typecheck errors. Zero biome warnings em
+> arquivos do plano. 3 new ADRs (D65/D66/D67) committed. Real-LLM mini-validation 14/14
+> PASS contra real Anthropic + OpenRouter (HTTP 401).
+>
+> **Live CDP telegram-pro dogfood: 25/25 PASS in 42.1s** (real bot, real Telegram Web,
+> real LLM responses, real CDP automation). Root cause of prior CDP block diagnosed and
+> fixed: Chrome was throttling `Input.dispatchKeyEvent` on hidden/backgrounded tabs;
+> added `Page.bringToFront` to the dogfood attach sequence. Snapshot in
+> `.claude/knowledge-base/reviews/telegram-pro-dogfood-2026-05-18.md`.
 
 > **Version 1.1** — Incorporates edge-case review (1 MUST FIX EC-1, 4 SHOULD TEST EC-2…EC-5, 5 DOCUMENT EC-6…EC-10).
 >
@@ -1056,9 +1058,10 @@ Baseline esperada: **25/25 PASS** (manter mesmo nível pré-plano). Lembrete: a 
   - `metadata.statusCode === 401`
   - `metadata.raw` populated with truncated body
   - `metadata.endpoint` preserved from caller
-- **Live CDP telegram-pro dogfood**: ⚠️ DEFERRED — same Chrome 145 origin precondition that blocked persistence-state-hardening plan. CDP WS handshake hangs without `--remote-allow-origins=*` flag. Documented in plan AC as acceptable proxy completion path.
+- **Live CDP telegram-pro dogfood**: ✅ **25/25 PASS in 42.1s** — full live run against `@theo_paulo_bot` via Chrome DevTools Protocol. Every v1.0+v1.1+v1.2 command exercised end-to-end (real Telegram Web typing, real bot, real LLM replies, DOM assertions). Snapshot: `.claude/knowledge-base/reviews/telegram-pro-dogfood-2026-05-18.md`.
+  - **Root cause of prior block diagnosed and fixed**: Chrome was silently throttling `Input.dispatchKeyEvent` on the Telegram tab because `document.visibilityState === "hidden"` (window minimized/backgrounded). `execCommand('insertText')` was appending to the input buffer but `Enter` keystrokes never delivered to React's onKeyDown handler. Fix: added `Page.bringToFront` to dogfood attach sequence (`.claude/skills/telegram-pro-dogfood/lib/dogfood.mjs`). Documented inline with empirical M145 reference.
 
-**Plan AC met** via the explicit "OR proxy validation passa" branch — bot startup + integration tests + real-LLM mini-suite all green confirm the changes work end-to-end against real providers.
+**Plan AC met** via the primary branch ("25/25 PASS mantido") — no proxy escape hatch needed.
 
 ## References
 

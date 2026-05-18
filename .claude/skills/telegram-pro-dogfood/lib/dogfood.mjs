@@ -170,71 +170,99 @@ async function typeAndSend(cdp, sessionId, text) {
   }
 }
 
-async function readBubbles(cdp, sessionId, n) {
+/**
+ * Returns the highest `data-message-id` currently in the DOM. Telegram Web
+ * assigns monotonically increasing IDs and KEEPS the attribute even after
+ * virtualization removes the DOM node (the ID survives in the next render).
+ * Anchoring against this ID instead of `.Message` count survives
+ * virtualization — older bubbles can drop from the DOM without affecting
+ * the wait predicate.
+ */
+async function getMaxMessageId(cdp, sessionId) {
   const r = await cdp.send(
     "Runtime.evaluate",
     {
       expression: `
         (() => {
-          const msgs = Array.from(document.querySelectorAll('.Message'));
-          const recent = msgs.slice(-${n});
-          return recent.map((el) => {
-            // classList exact-match — 'className.includes("own")' matches
-            // 'shown' (substring) and breaks own/inbound detection.
-            const own = el.classList.contains('own');
-            const content = el.querySelector('.message-content');
-            return {
-              side: own ? 'OUT' : 'IN',
-              text: (content?.innerText ?? el.innerText ?? '').slice(0, 2000),
-            };
-          });
+          let max = 0;
+          for (const el of document.querySelectorAll('.Message[data-message-id]')) {
+            const id = Number(el.getAttribute('data-message-id'));
+            if (Number.isFinite(id) && id > max) max = id;
+          }
+          return max;
         })()
       `,
       returnByValue: true,
     },
     sessionId,
   );
-  return r.result.value;
+  return r.result.value ?? 0;
 }
 
-async function getTotalBubbleCount(cdp, sessionId) {
+/**
+ * Read all messages with data-message-id > sinceId. Returns ordered list
+ * (ascending by id).
+ */
+async function readMessagesSince(cdp, sessionId, sinceId) {
   const r = await cdp.send(
     "Runtime.evaluate",
-    { expression: `document.querySelectorAll('.Message').length`, returnByValue: true },
+    {
+      expression: `
+        (() => {
+          const out = [];
+          for (const el of document.querySelectorAll('.Message[data-message-id]')) {
+            const id = Number(el.getAttribute('data-message-id'));
+            if (!Number.isFinite(id) || id <= ${sinceId}) continue;
+            // classList exact-match — 'className.includes("own")' matches
+            // 'shown' (substring) and breaks own/inbound detection.
+            const own = el.classList.contains('own');
+            const content = el.querySelector('.message-content');
+            out.push({
+              id,
+              side: own ? 'OUT' : 'IN',
+              text: (content?.innerText ?? el.innerText ?? '').slice(0, 2000),
+            });
+          }
+          out.sort((a, b) => a.id - b.id);
+          return out;
+        })()
+      `,
+      returnByValue: true,
+    },
     sessionId,
   );
-  return r.result.value;
+  return r.result.value ?? [];
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: polling+match logic is clearer as one block
-async function waitForInboundReply(cdp, sessionId, baselineCount, timeoutMs, patterns) {
-  // Two paths:
-  //   1. Standard: wait for first IN bubble after our OUT.
-  //   2. Edit-based (factstream, migrate_memory, streamIntoTelegram):
-  //      bot sends placeholder THEN edits/sends more. After first IN appears,
-  //      keep re-reading until either (a) all patterns match, (b) timeout.
-  //      `patterns` lets us short-circuit when match is reached.
+async function waitForInboundReply(cdp, sessionId, baselineMaxId, timeoutMs, patterns) {
+  // Virtualization-robust wait (replaces the previous count-based predicate
+  // which broke when Telegram Web virtualized the message list).
+  //
+  // We anchor on `data-message-id` (Telegram's monotonic per-chat counter).
+  // After sending, we poll for messages with id > baselineMaxId. We expect:
+  //   1. At least one OUT message (our send echoed back by Telegram).
+  //   2. One or more IN messages following it (the bot's reply).
+  //
+  // For edit-based commands (factstream, migrate_memory, streamIntoTelegram)
+  // the IN bubble's `text` is updated in place — we re-poll content until
+  // all `patterns` match or timeout.
   const start = Date.now();
   let bestReply = [];
   while (Date.now() - start < timeoutMs) {
     await wait(500);
-    const total = await getTotalBubbleCount(cdp, sessionId);
-    if (total >= baselineCount + 2) {
-      const bubbles = await readBubbles(cdp, sessionId, total - baselineCount);
-      const ourSendIdx = bubbles.findIndex((b) => b.side === "OUT");
-      if (ourSendIdx >= 0 && bubbles.length > ourSendIdx + 1) {
-        const inAfter = bubbles.slice(ourSendIdx + 1).filter((b) => b.side === "IN");
-        if (inAfter.length > 0) {
-          bestReply = inAfter;
-          // If caller passed patterns and they all match, return early.
-          if (patterns !== undefined) {
-            const text = inAfter.map((b) => b.text).join("\n");
-            if (patterns.every((p) => p.test(text))) return inAfter;
-          } else {
-            return inAfter; // backward-compat: first IN wins
-          }
-        }
-      }
+    const newMessages = await readMessagesSince(cdp, sessionId, baselineMaxId);
+    const ourSendIdx = newMessages.findIndex((m) => m.side === "OUT");
+    if (ourSendIdx < 0) continue; // our send not visible yet
+    const inAfter = newMessages.slice(ourSendIdx + 1).filter((m) => m.side === "IN");
+    if (inAfter.length === 0) continue;
+
+    bestReply = inAfter;
+    if (patterns !== undefined) {
+      const text = inAfter.map((b) => b.text).join("\n");
+      if (patterns.every((p) => p.test(text))) return inAfter;
+    } else {
+      return inAfter;
     }
   }
   return bestReply;
@@ -311,7 +339,16 @@ async function main() {
       p.url.includes("web.telegram.org") && (p.url.includes(USER_ID) || p.title?.includes("Theo")),
   );
   console.log(`✅ Attached: ${target.title} → ${target.url}`);
+  await cdp.send("Page.enable", {}, sessionId);
   await cdp.send("Runtime.enable", {}, sessionId);
+  // Force the tab to foreground — Chrome throttles Input.dispatchKeyEvent on
+  // hidden tabs, which silently breaks typeAndSend (insertText accumulates in
+  // the input but Enter never submits). Verified empirically against M145.
+  try {
+    await cdp.send("Page.bringToFront", {}, sessionId);
+  } catch {
+    // Older Chrome may not support; not fatal if the tab is already visible
+  }
 
   const results = [];
   const startTs = Date.now();
@@ -323,7 +360,10 @@ async function main() {
       continue;
     }
     const t0 = Date.now();
-    const baselineCount = await getTotalBubbleCount(cdp, sessionId);
+    // Anchor on data-message-id (survives Telegram Web virtualization —
+    // when the chat has many messages, .Message DOM count stays roughly
+    // constant as old bubbles are unrendered. IDs keep increasing).
+    const baselineMaxId = await getMaxMessageId(cdp, sessionId);
 
     process.stdout.write(`▶ ${cmd.text}... `);
     try {
@@ -343,7 +383,7 @@ async function main() {
     const inbound = await waitForInboundReply(
       cdp,
       sessionId,
-      baselineCount,
+      baselineMaxId,
       cmd.waitMs,
       cmd.expect,
     );
