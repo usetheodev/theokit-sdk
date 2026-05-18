@@ -28,6 +28,24 @@ This example reproduces the five highest-value patterns from OpenClaw's 187-file
 | **Inline subagents** | `code_writer` + `researcher` declared (cloud-dispatchable). | [`subagents.ts`](./src/subagents.ts) |
 | **Wiki corpus** | `.theokit/memory/wiki/*.md`. `/wiki` does server-side search. | [`wiki-search.ts`](./src/wiki-search.ts) |
 | **`RunResult.error`** | `result.error.message` + `code` surfaced to the user on failures. | [`index.ts`](./src/index.ts) |
+| **v1.2 `Agent.streamObject<T>`** | `/factstream <topic>` streams partials via editMessageText with 500ms throttle (ADR D39/D52). | [`index.ts`](./src/index.ts) |
+| **v1.2 Migration CLI demo** | `/migrate_memory` runs `migrateSqliteToLance({ dryRun: true })` in isolated tmpdir (ADR D44/D56). | [`index.ts`](./src/index.ts) |
+| **v1.2 LanceDB opt-in** | `/memory_lance` shows the opt-in config + `ConfigurationError` shape (ADR D43). | [`index.ts`](./src/index.ts) |
+| **v1.2 OAuth MCP** | `/notion` uses cached PKCE tokens; setup flow runs ONCE outside bot (ADR D41/D54). | [`index.ts`](./src/index.ts) |
+| **v1.2 Auto-instrumentation** | `telemetry.autoDetect: true` registers Langfuse/Sentry/PostHog when installed (ADR D42/D55). | [`agent.ts`](./src/agent.ts) |
+| **v1.2 Streaming UX toggle** | `/stream on\|off` switches between incremental editMessageText and final `run.wait()` reply (ADR D52/D53). | [`streaming.ts`](./src/streaming.ts) |
+| **Skill drill-down** | `/skill <name>` reads `.theokit/skills/<name>/SKILL.md` directly (ADR D57). | [`workspace-seeds.ts`](./src/workspace-seeds.ts) |
+
+## v1.2 features showcase — quickref
+
+| Feature | Command(s) | Setup |
+|---|---|---|
+| `Agent.streamObject` | `/factstream <topic>` | any provider key |
+| Auto-instrumentation (Langfuse/Sentry/PostHog) | passive, on every reply | optional: `pnpm add @langfuse/node` + `LANGFUSE_PUBLIC_KEY` (Langfuse v3+; v4+ NOT tested) |
+| LanceDB backend | `/memory_lance` (info) | optional: `pnpm add @lancedb/lancedb` |
+| Migration CLI | `/migrate_memory` (dry-run demo in tmpdir) | none |
+| OAuth MCP PKCE | `/notion` | `NOTION_OAUTH_CLIENT_ID` + one-time `pnpm exec theokit-mcp-auth-notion --setup` outside the bot |
+| Incremental streaming UX | `/stream on\|off` | optional: `STREAM_MODE=stream` env for default |
 
 ### Telegram patterns (OpenClaw-inspired)
 
