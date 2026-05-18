@@ -5,6 +5,34 @@ Each example is its own package — independent `package.json`,
 independent install — so you can copy any folder out of this repo
 and have a working starting point.
 
+We ship **46 examples** covering every feature in the public API surface (`@usetheo/sdk` v1.2 + `@usetheo/react` v1.2). See the Feature matrix below.
+
+## Feature matrix
+
+| Feature | Example | Notes |
+|---|---|---|
+| `Agent.create` + `agent.send` | [quickstart](./quickstart) | Most basic flow |
+| `Agent.generateObject` | [telegram-pro](./telegram-pro) (`/fact` command) | Synthetic forced tool (ADR D33) |
+| **`Agent.streamObject`** | [stream-object](./stream-object) | Partial + complete events (ADR D39) |
+| `useTheoChat` + `streamTheoChat` | [react-nextjs](./react-nextjs) (`/chat` route) | Multi-turn chat |
+| **`useTheoCompletion`** | [react-nextjs](./react-nextjs) (`/completion` route) | Single-shot text gen |
+| **`useTheoAssistant<T>`** | [react-nextjs](./react-nextjs) (`/assistant` route) | Object-shaped streaming |
+| MCP stdio | [mcp-stdio](./mcp-stdio), [mcp-puppeteer](./mcp-puppeteer) | NPX-based servers |
+| MCP HTTP (static auth) | [mcp-http](./mcp-http), [cloud-with-mcp-http](./cloud-with-mcp-http) | Header-based auth |
+| **MCP OAuth 2.1 PKCE** | [mcp-oauth-notion](./mcp-oauth-notion) | Remote SaaS APIs (ADR D41) |
+| Memory (SQLite default) | [memory](./memory), [active-memory](./active-memory), [memory-search](./memory-search) | FTS5 + sqlite-vec |
+| **Memory (LanceDB)** | [memory-lance](./memory-lance) | Scale >100k facts (ADR D43) |
+| **Migration SQLite → Lance** | [memory-lance](./memory-lance) (`migrateSqliteToLance --dry-run`) | CLI: `theokit-migrate-memory` (ADR D44) |
+| Memory dreaming | [memory-dreaming](./memory-dreaming) | Dedup + cluster via `Memory.runDreamingSweep` |
+| Telemetry (manual OTel) | [telegram-pro](./telegram-pro) | `telemetry.enabled: true` (ADR D34) |
+| **Auto-instrumentation** | [telemetry-autoinstrument](./telemetry-autoinstrument) | Langfuse/Sentry/PostHog (ADR D42) |
+| Skills + hooks + sandbox | [skills](./skills), [hooks-policy](./hooks-policy), [shell-tool](./shell-tool) | "Ambient safety" bundle |
+| Subagents | [subagents](./subagents), [cloud-with-subagents](./cloud-with-subagents) | Cloud-only delegation |
+| Cron | [cron-schedule](./cron-schedule) | croner + JSON persistence (ADR D7/D8) |
+| DX helpers (factory + getOrCreate + defineTool + builder) | [cli-bot](./cli-bot), [telegram-pro](./telegram-pro) | 4 v1.1 helpers |
+
+**Bold rows** are the examples added by the `examples-100-coverage` plan (ADR D47-D51) — fechando o gap de coverage de v1.2.
+
 ## How to run an example
 
 ```bash
@@ -89,6 +117,9 @@ SDK feature isolated from helper sugar. See ADR D27 for the rationale.
 | [`send-mcp-override`](./send-mcp-override) | ✅ Full | Per-send `mcpServers` override via `SendOptions.mcpServers`. |
 | [`local-force-expire`](./local-force-expire) | ✅ Full | `local: { force: true }` expires a stuck previous run. |
 | [`plugins-walkthrough`](./plugins-walkthrough) | ✅ Full | `.theokit/plugins/<name>/plugin.json` discovery via `plugins.enabled`. |
+| [`stream-object`](./stream-object) | ✅ Full | `Agent.streamObject<T>` — partial + complete events via synthetic forced tool (ADR D39). |
+| [`react-nextjs`](./react-nextjs) | ✅ Full | Next.js 14 App Router demo with 3 routes — `/chat` (useTheoChat), `/completion` (useTheoCompletion), `/assistant` (useTheoAssistant). One app, three hooks (ADR D47/D49). |
+| [`telemetry-autoinstrument`](./telemetry-autoinstrument) | ✅ Full | Auto-instrumentation Langfuse / Sentry / PostHog via `createRequire` feature-detect (ADR D42). |
 
 ### Fixture mode (no PaaS / provider required)
 
@@ -104,6 +135,8 @@ SDK feature isolated from helper sugar. See ADR D27 for the rationale.
 | [`cloud-prerelease-guard`](./cloud-prerelease-guard) | `cloud_runtime_pre_release` typed error for non-fixture cloud calls. |
 | [`error-handling-full`](./error-handling-full) | All 8 SDK error classes: catch patterns + `instanceof` discrimination. |
 | [`agent-management`](./agent-management) | `Agent.list/get/listRuns/getRun/archive/unarchive/delete`. |
+| [`mcp-oauth-notion`](./mcp-oauth-notion) | OAuth 2.1 PKCE flow for MCP HTTP servers (ADR D41). Config-only mode without creds; real flow with `NOTION_OAUTH_CLIENT_ID` + provider key. |
+| [`memory-lance`](./memory-lance) | LanceDB backend opt-in + Migration CLI (ADR D43/D44). Dry-run migration always works without `@lancedb/lancedb`. |
 
 The fixture-mode examples use a `theo_test_*` API key so the SDK
 serves deterministic data without any backend. When Theo PaaS ships,
