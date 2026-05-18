@@ -25,12 +25,12 @@ import {
   AuthenticationError,
   ConfigurationError,
   type ErrorCode,
-  type ErrorMetadata,
   NetworkError,
   RateLimitError,
   type TheokitAgentError,
   UnknownAgentError,
 } from "../../../errors.js";
+import { buildErrorMetadata } from "./shared.js";
 
 interface MapAnthropicErrorArgs {
   status: number;
@@ -39,23 +39,18 @@ interface MapAnthropicErrorArgs {
   endpoint: string;
 }
 
-const RAW_MAX_BYTES = 2048;
-
 export function mapAnthropicError(args: MapAnthropicErrorArgs): TheokitAgentError {
   const { status, body, headers, endpoint } = args;
   const code = mapAnthropicStatusToCode(status, body);
-  const retryAfter = parseRetryAfter(headers);
   const message = formatMessage(status, code);
-  const raw = truncateRaw(body);
-
-  const metadata: ErrorMetadata = {
+  const metadata = buildErrorMetadata({
     provider: "anthropic",
     endpoint,
     code,
-    statusCode: status,
-    ...(retryAfter !== undefined ? { retryAfter } : {}),
-    ...(raw !== undefined ? { raw } : {}),
-  };
+    status,
+    headers,
+    body,
+  });
 
   if (status === 401 || status === 403) {
     return new AuthenticationError(message, { code: "anthropic_auth_failed", metadata });
@@ -102,28 +97,6 @@ function mapAnthropicStatusToCode(status: number, body: unknown): ErrorCode {
   }
   if (status >= 500 && status < 600) return "server_error";
   return "unknown";
-}
-
-function parseRetryAfter(headers: Headers | undefined): number | undefined {
-  if (headers === undefined) return undefined;
-  const raw = headers.get("retry-after");
-  if (raw === null) return undefined;
-  // Spec allows numeric seconds OR HTTP-date. We support seconds form only.
-  // `Number("Wed, 21 Oct 2026 07:28:00 GMT")` is NaN → undefined.
-  const n = Number(raw);
-  if (Number.isFinite(n) && n >= 0) return Math.ceil(n);
-  return undefined;
-}
-
-function truncateRaw(body: unknown): unknown {
-  if (body === null || body === undefined) return undefined;
-  const s = typeof body === "string" ? body : JSON.stringify(body);
-  if (s.length <= RAW_MAX_BYTES) return body;
-  // For string bodies, truncate with ellipsis. For objects, also stringify
-  // truncated so consumer sees a hint without ballooning logs.
-  return typeof body === "string"
-    ? `${s.slice(0, RAW_MAX_BYTES)}…`
-    : `${s.slice(0, RAW_MAX_BYTES)}…`;
 }
 
 function formatMessage(status: number, code: ErrorCode): string {

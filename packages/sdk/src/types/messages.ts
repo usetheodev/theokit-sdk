@@ -136,6 +136,21 @@ export interface SDKRequestMessage {
 }
 
 /**
+ * Partial object emitted during `Agent.streamObject<T>` streaming (ADR D45).
+ * `partial` is `DeepPartial<z.infer<T>>` at the typed iterator level but
+ * erased to `unknown` here because SDKMessage union is non-generic.
+ *
+ * @public
+ */
+export interface SDKObjectDelta {
+  type: "object_delta";
+  agent_id: string;
+  run_id: string;
+  partial: unknown;
+  attempt: number;
+}
+
+/**
  * Discriminated union of all stream events. Discriminate on `type`.
  *
  * All events include `agent_id` and `run_id`.
@@ -150,4 +165,5 @@ export type SDKMessage =
   | SDKToolUseMessage
   | SDKStatusMessage
   | SDKTaskMessage
-  | SDKRequestMessage;
+  | SDKRequestMessage
+  | SDKObjectDelta;

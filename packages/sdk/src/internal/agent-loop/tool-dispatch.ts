@@ -44,6 +44,7 @@ export async function dispatchTools(
   return out;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: tool dispatch must check 5 origins (custom/mcp/builtin/handler-tool/missing) and emit running+completed events for each — branching is mirroring the public taxonomy.
 async function dispatchSingleCall(
   inputs: AgentLoopInputs,
   tools: ResolvedTool[],
@@ -52,6 +53,14 @@ async function dispatchSingleCall(
 ): Promise<LlmContentPart> {
   const resolved = tools.find((tool) => tool.name === call.name);
   const callId = generateCallId();
+  const toolSpan = inputs.telemetry?.startSpan("tool.call", {
+    "tool.name": call.name,
+    "tool.origin": resolved?.origin ?? "unknown",
+    callId,
+  });
+  if (toolSpan !== undefined && inputs.telemetry?.includeContent === true) {
+    toolSpan.addEvent("args", { input: JSON.stringify(call.input) });
+  }
   events.push(buildToolUseRunning(inputs, callId, call));
   const preDecision = await inputs.hooks.run({
     event: "preToolUse",
@@ -79,6 +88,11 @@ async function dispatchSingleCall(
     };
   }
   const result = await executeTool(inputs, resolved, call);
+  toolSpan?.setAttribute("exitCode", result.exitCode ?? 0);
+  if (toolSpan !== undefined && inputs.telemetry?.includeContent === true) {
+    toolSpan.addEvent("result", { stdout: result.stdout.slice(0, 1000) });
+  }
+  toolSpan?.end();
   events.push(buildToolUseCompleted(inputs, callId, call, result));
   void inputs.hooks.run({
     event: "postToolUse",

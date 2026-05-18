@@ -61,7 +61,7 @@ export interface ProvidersRedacted {
 export interface MemoryPayload {
   enabled: boolean;
   index?: {
-    backend: "sqlite-vec";
+    backend: "sqlite-vec" | "lance";
     embedding?: { provider: string; model?: string };
   };
 }
