@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
+import { sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
 import { chunkMarkdown } from "./chunk-markdown.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
@@ -66,8 +67,8 @@ export interface SearchOptions {
   textWeight?: number;
 }
 
-/** Vector backend selector. Only `"sqlite-vec"` ships today. */
-export type MemoryBackend = "sqlite-vec";
+/** Vector backend selector. SQLite default; Lance opt-in (ADR D43). */
+export type MemoryBackend = "sqlite-vec" | "lance";
 
 export interface OpenIndexOptions {
   cwd: string;
@@ -182,6 +183,10 @@ export class IndexManager {
   // ───── search internals ──────────────────────────────────────────────
 
   private ftsSearch(query: string, limit: number): Array<MemorySearchHit & { chunkId: number }> {
+    // EC-3: short-circuit when sanitizer reduces input to empty string.
+    // Calling `MATCH ''` would error inside FTS5 on some SQLite versions.
+    const sanitized = sanitizeFts5Query(query);
+    if (sanitized.length === 0) return [];
     const stmt = this.db.prepare(
       `SELECT chunks.id as id, files.rel_path as rel_path, files.source as source,
               chunks.start_line as start_line, chunks.end_line as end_line,
@@ -195,7 +200,7 @@ export class IndexManager {
     );
     let rows: Array<Record<string, unknown>> = [];
     try {
-      rows = stmt.all(sanitizeFtsQuery(query), limit);
+      rows = stmt.all(sanitized, limit);
     } catch {
       return [];
     }
@@ -444,13 +449,7 @@ function truncateSnippet(text: string): string {
   return text.length <= max ? text : `${text.slice(0, max)}…`;
 }
 
-function sanitizeFtsQuery(query: string): string {
-  // FTS5 special chars: quote each token, drop empty terms. Keeps phrase semantics
-  // simple and avoids "unterminated string" errors.
-  return query
-    .split(/\s+/)
-    .map((t) => t.replace(/["']/g, ""))
-    .filter((t) => t.length > 0)
-    .map((t) => `"${t}"`)
-    .join(" ");
-}
+// Replaced by `sanitizeFts5Query` from `internal/persistence/fts5-sanitize.ts`
+// (T5.2, ADR D64). The new sanitizer is the 6-step port of Hermes'
+// `_sanitize_fts5_query` and handles hyphens/dots/underscores correctly
+// without quoting every token.
