@@ -29,14 +29,13 @@ import { HooksExecutor } from "./hooks-executor.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { extractCodePlugins } from "./local-agent-plugins.js";
-import { createLocalRun } from "./local-run.js";
 import {
-  appendMemoryFact,
-  extractMemoryFact,
-  isMemoryWritePrompt,
-  type MemoryFact,
-  readMemoryFacts,
-} from "./memory-store.js";
+  localAgentFork,
+  localAgentRunUntil,
+  persistMemoryFactIfWritePrompt,
+} from "./local-agent-runtime-extensions.js";
+import { createLocalRun } from "./local-run.js";
+import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
 import { type PluginMetadata, PluginsManager } from "./plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
 import { ProvidersManagerImpl } from "./providers-manager.js";
@@ -264,19 +263,9 @@ export class LocalAgent implements SDKAgent {
     return safeCall(() => readMemoryFacts(this.workspaceCwd, memoryConfig), [], "memory read");
   }
 
-  private async maybePersistMemoryFactFromUserMessage(userText: string): Promise<void> {
-    const memoryConfig = this.options.memory;
-    // Top-level gate: memory must be opt-in via memory.enabled === true (EC-4).
-    if (memoryConfig?.enabled !== true) return;
-    if (!isMemoryWritePrompt(userText)) return;
-    const fact = extractMemoryFact(userText);
-    // Skip empty facts so "Remember:   " doesn't pollute the recall block (EC-3).
-    if (fact.length === 0) return;
-    await safeCall(
-      () => appendMemoryFact(this.workspaceCwd, memoryConfig, { text: fact }),
-      undefined,
-      "memory write",
-    );
+  // Memory write helper extracted to `local-agent-runtime-extensions.ts` for G8.
+  private maybePersistMemoryFactFromUserMessage(userText: string): Promise<void> {
+    return persistMemoryFactIfWritePrompt(this.workspaceCwd, this.options.memory, userText);
   }
 
   private localAssemblyInputs(): LocalAssemblyInputs {
@@ -458,74 +447,21 @@ export class LocalAgent implements SDKAgent {
     );
   }
 
-  /**
-   * Public accessor for fork inheritance (T4.3 + ADR D110). Read-only by
-   * contract — mutating the returned object has no effect on the agent.
-   *
-   * @internal
-   */
-  getOptionsForFork(): AgentOptions {
-    return this.options;
-  }
-
-  /**
-   * Goal-driven Ralph loop (T4.2, ADRs D115-D121). See {@link SDKAgent.runUntil}.
-   *
-   * @public
-   */
-  runUntil(
-    goal: string,
-    options?: import("../../types/goal-events.js").GoalOptions,
-  ): AsyncGenerator<
-    import("../../types/goal-events.js").GoalEvent,
-    import("../../types/goal-events.js").GoalResult,
-    void
-  > {
-    const agent = this;
-    async function* wrap(): AsyncGenerator<
-      import("../../types/goal-events.js").GoalEvent,
-      import("../../types/goal-events.js").GoalResult,
-      void
-    > {
-      const { runUntilImpl } = await import("./run-until.js");
-      const { judgeCallImpl } = await import("../judge/judge-call.js");
-      const { getAgentCreate } = await import("./agent-factory-registry.js");
-      const create = getAgentCreate();
-      const deps = {
-        judge: async (
-          ctx: import("../judge/judge-call.js").JudgeContext,
-          opts?: import("../judge/judge-call.js").JudgeOptions,
-        ) => judgeCallImpl(ctx, opts, { create }),
-      };
-      return yield* runUntilImpl(agent, goal, options, deps);
-    }
-    return wrap();
-  }
-
-  /**
-   * Fork a short-lived sub-agent (T4.3, ADRs D110-D114).
-   *
-   * @public
-   */
-  async fork(
-    options: import("./fork-agent.js").ForkOptions,
-  ): Promise<import("./fork-agent.js").ForkResult> {
-    const { forkAgentImpl } = await import("./fork-agent.js");
-    const { getAgentCreate } = await import("./agent-factory-registry.js");
-    const create = getAgentCreate();
-    return forkAgentImpl({ agentId: this.agentId, options: this.options }, options, { create });
-  }
+  // biome-ignore format: G8 budget — both methods delegate to `local-agent-runtime-extensions.ts`; signatures kept as 1-line each.
+  runUntil(goal: string, options?: import("../../types/goal-events.js").GoalOptions): import("../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
+  // biome-ignore format: G8 budget — see runUntil comment above.
+  fork(options: import("./fork-agent.js").ForkOptions): Promise<import("./fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options }, options); }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {
-  if (Array.isArray(cwd)) return cwd[0] ?? process.cwd();
-  return cwd ?? process.cwd();
+  return (Array.isArray(cwd) ? cwd[0] : cwd) ?? process.cwd();
 }
 
 function includesSetting(options: AgentOptions, source: string): boolean {
   const sources = options.local?.settingSources;
-  if (sources === undefined) return false;
-  return sources.includes(source as never) || sources.includes("all" as never);
+  return (
+    sources !== undefined && (sources.includes(source as never) || sources.includes("all" as never))
+  );
 }
 
 async function readProjectMcpServers(cwd: string): Promise<Record<string, unknown>> {

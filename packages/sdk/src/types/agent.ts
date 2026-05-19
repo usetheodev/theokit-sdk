@@ -480,11 +480,7 @@ export interface SDKAgent {
   runUntil?(
     goal: string,
     options?: import("./goal-events.js").GoalOptions,
-  ): AsyncGenerator<
-    import("./goal-events.js").GoalEvent,
-    import("./goal-events.js").GoalResult,
-    void
-  >;
+  ): import("./goal-events.js").RunUntilIterator;
   /**
    * Fork a short-lived sub-agent with parent's credentials + system
    * prompt byte-identical (ADR D112 — cache hit) and a restricted tool
