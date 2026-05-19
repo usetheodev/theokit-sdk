@@ -489,12 +489,13 @@ export class LocalAgent implements SDKAgent {
     > {
       const { runUntilImpl } = await import("./run-until.js");
       const { judgeCallImpl } = await import("../judge/judge-call.js");
-      const { Agent } = await import("../../agent.js");
+      const { getAgentCreate } = await import("./agent-factory-registry.js");
+      const create = getAgentCreate();
       const deps = {
         judge: async (
           ctx: import("../judge/judge-call.js").JudgeContext,
           opts?: import("../judge/judge-call.js").JudgeOptions,
-        ) => judgeCallImpl(ctx, opts, { create: (o) => Agent.create(o) }),
+        ) => judgeCallImpl(ctx, opts, { create }),
       };
       return yield* runUntilImpl(agent, goal, options, deps);
     }
@@ -510,10 +511,9 @@ export class LocalAgent implements SDKAgent {
     options: import("./fork-agent.js").ForkOptions,
   ): Promise<import("./fork-agent.js").ForkResult> {
     const { forkAgentImpl } = await import("./fork-agent.js");
-    const { Agent } = await import("../../agent.js");
-    return forkAgentImpl({ agentId: this.agentId, options: this.options }, options, {
-      create: (o) => Agent.create(o),
-    });
+    const { getAgentCreate } = await import("./agent-factory-registry.js");
+    const create = getAgentCreate();
+    return forkAgentImpl({ agentId: this.agentId, options: this.options }, options, { create });
   }
 }
 
