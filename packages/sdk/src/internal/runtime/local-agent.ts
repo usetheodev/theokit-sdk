@@ -25,6 +25,7 @@ import {
 } from "./agent-session.js";
 import { FileContextManager } from "./context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
+import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { createLocalRun } from "./local-run.js";
 import {
@@ -71,6 +72,7 @@ export class LocalAgent implements SDKAgent {
   private readonly settingSourcesIncludePlugins: boolean;
   private resolvedSubagents: Record<string, AgentDefinition> = {};
   private disposed = false;
+  private invalidationPending: { reason: string; at: number } | undefined;
   private readonly skillsManager: SkillsManager | undefined;
   private readonly pluginsManager: PluginsManager | undefined;
   private readonly hooksExecutor: HooksExecutor;
@@ -200,6 +202,9 @@ export class LocalAgent implements SDKAgent {
     if (this.disposed) {
       throw new Error("Agent has been disposed");
     }
+    // biome-ignore format: keep one-liner to stay under G8 LoC.
+    // T4.3 (ADR D94): apply deferred cache invalidation BEFORE the run.
+    await consumePending(this.agentId, this.invalidationPending, () => { this.invalidationPending = undefined; }, () => this.reload());
     this.applyModelOverride(options.model);
 
     const userText = typeof message === "string" ? message : message.text;
@@ -419,6 +424,11 @@ export class LocalAgent implements SDKAgent {
   [Symbol.asyncDispose](): Promise<void> {
     return this.dispose();
   }
+
+  // biome-ignore format: multi-line layout would push file past G8 LoC cap.
+  /** T3.2 / ADR D94 — public `invalidateCache` API. @internal */
+  invalidateCache = (reason: string, opts: { applyNow?: boolean } = {}): Promise<void> =>
+    invalidateCacheImpl(this.agentId, reason, opts, this.disposed, () => this.dispose(), (p) => { this.invalidationPending = p; });
 
   listArtifacts(): Promise<SDKArtifact[]> {
     return Promise.resolve([]);

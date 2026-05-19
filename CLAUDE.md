@@ -252,6 +252,17 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D83 | `casUpdate` SQLite optimistic compare-and-swap helper | [D83-sqlite-cas-helper.md](./.claude/knowledge-base/adrs/D83-sqlite-cas-helper.md) |
 | D84 | Path-guard wiring is opt-in via explicit refactor (no monkey-patch) | [D84-path-guard-opt-in-refactor.md](./.claude/knowledge-base/adrs/D84-path-guard-opt-in-refactor.md) |
 | D85 | CI lint gate uses grep regex (not AST) — same pattern as no-unredacted-sink | [D85-lint-grep-not-ast.md](./.claude/knowledge-base/adrs/D85-lint-grep-not-ast.md) |
+| D86 | `internal/tool-dispatch/` is the new home for repair + strip-think + dispatch | [D86-tool-dispatch-module-home.md](./.claude/knowledge-base/adrs/D86-tool-dispatch-module-home.md) |
+| D87 | `repairToolCall` applies 3 idempotent repairs sequentially | [D87-repair-three-sequential-idempotent.md](./.claude/knowledge-base/adrs/D87-repair-three-sequential-idempotent.md) |
+| D88 | Repair does NOT do fuzzy tool name matching | [D88-no-fuzzy-tool-name-match.md](./.claude/knowledge-base/adrs/D88-no-fuzzy-tool-name-match.md) |
+| D89 | Tool errors return as `tool_result isError: true`, never throw | [D89-tool-errors-as-iserror-not-throw.md](./.claude/knowledge-base/adrs/D89-tool-errors-as-iserror-not-throw.md) |
+| D90 | `IterationBudget` is a stateful class, not a POJO | [D90-iteration-budget-stateful-class.md](./.claude/knowledge-base/adrs/D90-iteration-budget-stateful-class.md) |
+| D91 | Compression cap default 3, grace call default 1 | [D91-compression-cap-defaults.md](./.claude/knowledge-base/adrs/D91-compression-cap-defaults.md) |
+| D92 | Compression must reduce ≥10% tokens or throw `CompressionIneffectiveError` | [D92-compression-10-percent-reduction-floor.md](./.claude/knowledge-base/adrs/D92-compression-10-percent-reduction-floor.md) |
+| D93 | `validateResponse` detects empty-content + zero-toolCalls as bailout | [D93-empty-response-detection.md](./.claude/knowledge-base/adrs/D93-empty-response-detection.md) |
+| D94 | `Agent.invalidateCache(reason, options?)` defaults to deferred | [D94-invalidate-cache-deferred-default.md](./.claude/knowledge-base/adrs/D94-invalidate-cache-deferred-default.md) |
+| D95 | Cache-discipline guard runs only in dev mode (`shouldGuard()` function) | [D95-cache-discipline-guard-dev-only.md](./.claude/knowledge-base/adrs/D95-cache-discipline-guard-dev-only.md) |
+| D96 | Strip `<think>` blocks before appending to message history | [D96-strip-think-before-history.md](./.claude/knowledge-base/adrs/D96-strip-think-before-history.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -280,9 +291,9 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 
 | Pattern | Status | Where in SDK |
 |---|---|---|
-| prompt-cache-discipline | 📚 CULTURAL | `Agent.send` precisa enforcing `readonly` + `invalidateCache` API |
-| tool-call-failure-recovery | ❌ PENDING | `internal/tool-dispatch/repair-middleware.ts` (a criar) |
-| compression-death-spiral | ❌ PENDING | `internal/runtime/budget.ts` com `IterationBudget` cap (a criar) |
+| prompt-cache-discipline | ✅ DONE | `internal/cache-discipline-guard.ts` (dev-mode warn) + `Agent.invalidateCache(reason, { applyNow? })` public API (ADRs D94-D95). `LocalAgent.consumePendingInvalidation` em `sendLocked`; reload failure path safe (EC-7). |
+| tool-call-failure-recovery | ✅ DONE | `internal/tool-dispatch/repair-middleware.ts` — 3 repairs sequenciais (case-insensitive, JSON-string args, type coerce) + `strip-think.ts` + `dispatch.ts` validate-then-execute wrapper (ADRs D86-D89, D96). Wired em `agent-loop/tool-dispatch.ts` + `streamLlmTurn`. CI gate `no-history-mutation-outside-loop`. Adversarial fast-check 800+ inputs. |
+| compression-death-spiral | ✅ DONE | `internal/runtime/budget.ts` — `IterationBudget` class com cap 3 compressões + grace call (ADRs D90-D91). `validate-response.ts` empty-response detection. `compression-helpers.ts` window + 10% floor (ADRs D92-D93). Wired em `agent-loop/loop.ts`. Adversarial fast-check 600+ inputs. |
 
 ### Plugin & extension (3)
 
@@ -323,13 +334,13 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | error-context-surfacing | ✅ DONE | `packages/sdk/src/errors.ts` — `ErrorMetadata` + `ErrorCode` types (ADR D65/D66). Provider mappers `mapAnthropicError` + `mapOpenAICompatibleError` (ADR D67) in `internal/errors/mappers/`. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, `internal/memory/adapters/openai-compatible.ts`. `fallback-client.ts` also falls back on `AuthenticationError`/`RateLimitError`. |
 | graceful-degradation | ✅ DONE | ADR D42 (auto-detect telemetry), D50 (lance dry-run), D55 (fail-open) implementados |
 
-### Totais (2026-05-19 — pós Security Block Completion plan)
+### Totais (2026-05-19 — pós Agent Core Loop Completion plan)
 
 ```
-✅ DONE        13 (57%)
+✅ DONE        16 (70%)
 ⚠️ PARTIAL      2  (9%)
-❌ PENDING      6 (26%)
-📚 CULTURAL    2  (9%)
+❌ PENDING      4 (17%)
+📚 CULTURAL    1  (4%)
               ───
               23 (100%)
 ```

@@ -435,6 +435,32 @@ export interface SDKAgent {
   listArtifacts(): Promise<SDKArtifact[]>;
   /** Cloud-only. Local throws `UnsupportedRunOperationError`. */
   downloadArtifact(path: string): Promise<Buffer>;
+  /**
+   * Signal that prompt cache should be invalidated. By default deferred —
+   * applied at the start of the next `send()`. Pass `{ applyNow: true }` to
+   * force immediate disposal (caller must `Agent.create()` again to use).
+   *
+   * Cache invalidation is a cost regression (provider charges full price
+   * for the rebuilt cache; see ADRs D94-D95). Use sparingly and deliberately.
+   *
+   * Cloud agents: no-op (cloud runtime reconstructs state per request).
+   *
+   * @public
+   */
+  invalidateCache?(reason: string, options?: InvalidateCacheOptions): Promise<void>;
+}
+
+/**
+ * Options for {@link SDKAgent.invalidateCache}.
+ *
+ * @public
+ */
+export interface InvalidateCacheOptions {
+  /**
+   * When `true`, dispose the agent immediately so caller must recreate it
+   * to continue. Default `false` (deferred — applied on next `send()`).
+   */
+  applyNow?: boolean;
 }
 
 /**

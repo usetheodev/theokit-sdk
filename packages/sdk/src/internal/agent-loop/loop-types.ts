@@ -54,6 +54,12 @@ export interface AgentLoopInputs {
   shellCwd: string;
   shellSandbox: boolean;
   maxIterations?: number;
+  /**
+   * T4.2 (ADRs D90-D91): explicit iteration budget. When omitted, the loop
+   * constructs one from `maxIterations`. Tests can inject a pre-configured
+   * instance to verify grace-call / compression-cap semantics.
+   */
+  budget?: import("../runtime/budget.js").IterationBudget;
   /** Fires after each completed conversation step (text turn or tool batch). */
   onStep?: SendOptions["onStep"];
   /** Fires per raw incremental update (text-delta, …) — finer than onStep. */

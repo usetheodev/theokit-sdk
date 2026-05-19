@@ -2,6 +2,7 @@ import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/shell-tool.js";
+import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 
 /**
@@ -51,6 +52,18 @@ async function dispatchSingleCall(
   call: LlmToolCallPart,
   events: SDKMessage[],
 ): Promise<LlmContentPart> {
+  // T4.1 (ADRs D86-D88): apply repair middleware BEFORE the lookup so
+  // case-insensitive matches, JSON-stringified args, and type coercion all
+  // land before the registry check. Repairs are surfaced via telemetry.
+  const registryMap = buildRepairRegistry(tools);
+  const repaired = repairToolCall({ name: call.name, args: call.input, id: call.id }, registryMap);
+  if (repaired.repairs.length > 0) {
+    call = {
+      ...call,
+      name: repaired.call.name,
+      input: (repaired.call.args ?? {}) as Record<string, unknown>,
+    };
+  }
   const resolved = tools.find((tool) => tool.name === call.name);
   const callId = generateCallId();
   const toolSpan = inputs.telemetry?.startSpan("tool.call", {
@@ -58,6 +71,9 @@ async function dispatchSingleCall(
     "tool.origin": resolved?.origin ?? "unknown",
     callId,
   });
+  if (repaired.repairs.length > 0 && toolSpan !== undefined) {
+    toolSpan.setAttribute("tool.repairs", repaired.repairs.join("; "));
+  }
   if (toolSpan !== undefined && inputs.telemetry?.includeContent === true) {
     toolSpan.addEvent("args", { input: JSON.stringify(call.input) });
   }
@@ -219,6 +235,20 @@ function buildToolUseRunning(
     status: "running",
     args: call.input,
   };
+}
+
+/**
+ * T4.1 helper: project the agent-loop's ResolvedTool[] into a registry
+ * shape consumable by `repairToolCall`. Caller owns the Map lifetime
+ * (rebuilt each dispatchSingleCall — O(tools.length) overhead is negligible
+ * compared to the LLM round-trip).
+ */
+function buildRepairRegistry(tools: ResolvedTool[]): ReadonlyMap<string, RepairableTool> {
+  const out = new Map<string, RepairableTool>();
+  for (const t of tools) {
+    out.set(t.name, { name: t.name, inputSchema: t.inputSchema });
+  }
+  return out;
 }
 
 function buildToolUseCompleted(
