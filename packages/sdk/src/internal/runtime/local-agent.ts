@@ -15,6 +15,7 @@ import { resolveApiKey } from "../env.js";
 import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { PluginManager } from "../plugins/manager.js";
 import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import {
   appendSessionMessage,
@@ -27,6 +28,7 @@ import { FileContextManager } from "./context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
+import { extractCodePlugins } from "./local-agent-plugins.js";
 import { createLocalRun } from "./local-run.js";
 import {
   appendMemoryFact,
@@ -78,6 +80,8 @@ export class LocalAgent implements SDKAgent {
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
   private readonly memoryGlue: LocalAgentMemory;
+  /** T4.1 — PluginManager for code plugins (kind: general/model-provider/memory). @internal */
+  private readonly pluginManagerCode: PluginManager = new PluginManager();
 
   constructor(options: AgentOptions) {
     this.agentId = options.agentId ?? generateLocalAgentId();
@@ -148,6 +152,11 @@ export class LocalAgent implements SDKAgent {
     if (this.context !== undefined) await this.context.initialize();
     if (this.skillsManager !== undefined) await this.skillsManager.initialize();
     if (this.pluginsManager !== undefined) await this.pluginsManager.initialize();
+    // T4.1 (ADRs D97-D101 + EC-1): wire code plugins. extractCodePlugins
+    // discriminates new Plugin[] from legacy `{ enabled }` metadata; the
+    // latter returns empty so v1.2 callers continue to work.
+    const codePlugins = extractCodePlugins(this.options.plugins);
+    await this.pluginManagerCode.initialize(codePlugins);
     this.resolvedSubagents = await loadSubagents(
       this.workspaceCwd,
       this.settingSourcesIncludeProject,
@@ -156,6 +165,11 @@ export class LocalAgent implements SDKAgent {
     // ADR D18: hydrate persisted session history so a resumed agent sees
     // the conversation that occurred in the previous process.
     await hydrateSession(this.agentId, this.workspaceCwd);
+  }
+
+  /** T4.2 — expose PluginManager so agent-loop can fire pre_tool_call hooks. @internal */
+  pluginManager(): PluginManager {
+    return this.pluginManagerCode;
   }
 
   /** Expose the hooks executor so the agent loop can fire PreToolUse/etc. */
@@ -354,6 +368,7 @@ export class LocalAgent implements SDKAgent {
       sendOptions: options,
       workspaceCwd: this.workspaceCwd,
       hooks: this.hooksExecutor,
+      pluginManager: this.pluginManagerCode,
       ...(systemPrompt !== undefined ? { systemPrompt } : {}),
       ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
       ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),

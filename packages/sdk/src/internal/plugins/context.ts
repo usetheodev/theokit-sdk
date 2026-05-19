@@ -1,0 +1,96 @@
+/**
+ * PluginContext implementation + dev-mode seal (T1.2, ADR D99).
+ *
+ * `createPluginContext()` returns a fresh `{ ctx, registrations }` pair
+ * for each plugin. In dev mode (`NODE_ENV !== "production"`) the context
+ * is wrapped in a Proxy that throws on `set`/`delete` to catch plugin
+ * abuse early. In production the raw impl is returned (zero overhead).
+ *
+ * @internal
+ */
+
+import type { CustomTool } from "../../types/agent.js";
+import type {
+  CommandHandler,
+  CommandOptions,
+  HookHandler,
+  HookName,
+  PluginContext,
+} from "./types.js";
+
+interface CommandEntry {
+  name: string;
+  handler: CommandHandler;
+  description?: string;
+}
+
+interface InjectedMessage {
+  content: string;
+  role: "user" | "system";
+}
+
+export interface PluginRegistrations {
+  tools: CustomTool[];
+  commands: CommandEntry[];
+  hooks: Map<HookName, HookHandler[]>;
+  injected: InjectedMessage[];
+}
+
+export function createPluginContext(): {
+  ctx: PluginContext;
+  registrations: PluginRegistrations;
+} {
+  const registrations: PluginRegistrations = {
+    tools: [],
+    commands: [],
+    hooks: new Map(),
+    injected: [],
+  };
+
+  const impl: PluginContext = {
+    registerTool(tool) {
+      registrations.tools.push(tool);
+    },
+    registerCommand(name, handler, opts: CommandOptions = {}) {
+      const entry: CommandEntry = { name, handler };
+      if (opts.description !== undefined) entry.description = opts.description;
+      registrations.commands.push(entry);
+    },
+    on(hook, handler) {
+      // EC-2 fix: defense-in-depth. Plugin author can bypass TS via `as any`
+      // and pass null/undefined; ignore + warn rather than crash the loop
+      // downstream when `runPreToolCallHooks` tries to invoke the handler.
+      if (typeof handler !== "function") {
+        process.stderr.write(`[theokit-sdk] ignoring non-function handler for hook "${hook}"\n`);
+        return;
+      }
+      const existing = registrations.hooks.get(hook) ?? [];
+      existing.push(handler);
+      registrations.hooks.set(hook, existing);
+    },
+    injectMessage(content, role = "user") {
+      registrations.injected.push({ content, role });
+    },
+  };
+
+  const ctx = shouldSeal() ? sealContext(impl) : impl;
+  return { ctx, registrations };
+}
+
+function shouldSeal(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
+function sealContext(impl: PluginContext): PluginContext {
+  return new Proxy(impl, {
+    set(_target, prop) {
+      throw new Error(
+        `[theokit-sdk] PluginContext is sealed — cannot set ${String(prop)}. ` +
+          `Plugins must use registerTool, registerCommand, on, or injectMessage.`,
+      );
+    },
+    deleteProperty(_target, prop) {
+      throw new Error(`[theokit-sdk] PluginContext is sealed — cannot delete ${String(prop)}.`);
+    },
+  });
+}

@@ -30,6 +30,8 @@ export interface CreateRealLocalRunOptions {
   sendOptions: SendOptions;
   workspaceCwd: string;
   hooks: HooksExecutor;
+  /** T4.1 — PluginManager threaded from LocalAgent for plugin tools + pre_tool_call hooks. */
+  pluginManager?: import("../plugins/manager.js").PluginManager;
   /** Pre-resolved system prompt threaded by `LocalAgent.send`. */
   systemPrompt?: string;
   onStep?: SendOptions["onStep"];
@@ -69,6 +71,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   return handle;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: spread-conditional builders for optional fields (systemPrompt, onStep, onDelta, priorMessages, memoryTools, customTools, pluginManager) are the canonical pattern for shaping AgentLoopInputs; splitting hurts readability.
 function buildLoopInputs(
   options: CreateRealLocalRunOptions,
   runId: string,
@@ -99,7 +102,8 @@ function buildLoopInputs(
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
       : {}),
-    ...buildCustomToolsInput(options.agentOptions, options.sendOptions),
+    ...buildCustomToolsInput(options.agentOptions, options.sendOptions, options.pluginManager),
+    ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     telemetry: createTelemetry(options.agentOptions.telemetry),
   };
 }
@@ -115,10 +119,15 @@ function buildLoopInputs(
 function buildCustomToolsInput(
   agentOptions: AgentOptions,
   sendOptions: { tools?: CustomTool[] } | undefined,
+  pluginManager: import("../plugins/manager.js").PluginManager | undefined,
 ): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
-  const tools = sendOptions?.tools ?? agentOptions.tools;
-  if (tools === undefined || tools.length === 0) return {};
-  const customTools: CustomToolSpec[] = tools.map((tool) => ({
+  const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
+  // T4.1: concat plugin-registered tools onto the effective catalog. Plugin
+  // tools are merged unconditionally (no override semantics — name collision
+  // would be caught by the registry validator if used).
+  const pluginTools = pluginManager?.aggregated.tools ?? [];
+  if (baseTools.length === 0 && pluginTools.length === 0) return {};
+  const customTools: CustomToolSpec[] = [...baseTools, ...pluginTools].map((tool) => ({
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
