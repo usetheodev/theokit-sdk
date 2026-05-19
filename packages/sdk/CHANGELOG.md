@@ -2,6 +2,99 @@
 
 ## [Unreleased]
 
+### Added (v1.9 background-work-block-completion — ADRs D110-D122)
+
+- **`internal/runtime/async-local-storage.ts`** — per-fork tool whitelist
+  via `AsyncLocalStorage<Set<string>>` (ADR D111). Public helpers:
+  `withToolWhitelist(set, fn)`, `currentToolWhitelist()`,
+  `checkToolWhitelist(toolName)`. Parallel forks observe their own
+  whitelist; nested `withToolWhitelist` shadows the outer set (EC-F).
+- **`internal/runtime/fork-agent.ts`** — fork primitive (ADRs D110-D114):
+  - `forkAgentImpl(parent, options, deps)` — inherits parent system
+    prompt byte-identical (D112 — cache hit), credentials, model;
+    overrides `agentId`, `skills`, `metadata.forkOrigin`
+  - `filterMemoryPlugins(unknown)` — EC-B fix: preserves
+    `kind: "memory"` plugins so fork can write memory with provenance;
+    drops general/model-provider (redundant per-fork re-init)
+  - `LocalAgent.fork(options)` shorthand instance method
+- **`internal/judge/`** — judge primitives (ADRs D119-D121):
+  - `types.ts` — `Verdict` enum (`done | continue | skipped`),
+    `JudgeResult` interface
+  - `parse-verdict.ts` — pure prefix matcher with fail-safe `continue`
+    (ADR D121). Strict case-sensitive; documents EC-E (BOM trimmed,
+    U+200B not)
+  - `judge-call.ts` — `judgeCallImpl(ctx, opts, deps)` instantiates aux
+    agent (default `openai/gpt-4o-mini` via `OPENROUTER_API_KEY`,
+    `tools: []`, EC-A single-env-source); always disposes; folds errors
+    into fail-safe `JudgeResult`
+  - `verify-side-effect.ts` — `verifyClaim<T>(claims, oracle)`
+    hallucination-gate helper, generic over claim type
+- **`types/goal-events.ts`** — `GoalEvent` discriminated union (5
+  variants, ADR D115), `GoalResult` return value, `GoalOptions`
+  configuration (ADRs D117 AbortSignal, D119 judge model defaults).
+- **`internal/runtime/run-until.ts`** — Ralph loop (ADR D116
+  `AsyncGenerator<GoalEvent, GoalResult, void>`):
+  - Yields `status_change: active` + per-turn events + final
+    `status_change: completed | failed | paused`
+  - EC-C: pre-aborted signal yields only `[paused]` (no preceding
+    `active`)
+  - EC-D: `maxTurns: 0` is supported (vacuous active → failed)
+  - Counts consecutive judge parse failures; bails at
+    `maxConsecutiveJudgeFailures` (default 3)
+  - `LocalAgent.runUntil(goal, options)` instance method
+- **Public API** — `GoalEvent`, `GoalResult`, `GoalOptions`, `Plugin`
+  `kind: "memory"` Extract, re-exported via `packages/sdk/src/index.ts`.
+- **`AgentOptions.metadata?: Record<string, unknown>`** — new optional
+  field, used by fork (`metadata.forkOrigin` / `metadata.parentAgentId`)
+  and judge (`metadata.forkOrigin: "judge"`) for downstream attribution.
+
+### Changed (background-work-block-completion)
+
+- `internal/agent-loop/tool-dispatch.ts:dispatchSingleCall` — whitelist
+  gate fires FIRST (before plugin pre_tool_call hook and file hooks).
+  A tool not in the fork's `allowedTools` returns a `tool_result` with
+  `"Tool blocked by fork whitelist"` content; agent narrative continues
+  unimpeded. Cost: one import + one branch (microseconds per call).
+- `types/run.ts:RunOperation` — gains `"runUntil"` and `"fork"` so
+  `UnsupportedRunOperationError` on CloudAgent for these surfaces
+  satisfies type narrowing (ADR D122).
+- `CloudAgent.runUntil()` / `CloudAgent.fork()` — throw synchronously
+  with explicit messaging; documented as EC-G (sync throw despite
+  AsyncGenerator return type).
+
+### CI gates
+
+- **`tests/lint/no-global-tool-whitelist.test.ts`** — regex grep
+  test enforcing AsyncLocalStorage as the only path for per-fork
+  whitelist; bans `let _toolWhitelist`-style declarations.
+- **`tests/internal/judge/parse-verdict.property.test.ts`** —
+  4 properties × 200 fast-check runs = 800 randomized invariant
+  assertions.
+- **`tests/internal/runtime/async-local-storage.property.test.ts`** —
+  200 fast-check runs verifying parallel-fork whitelist isolation.
+
+### Edge-case review (referenced from `.claude/knowledge-base/plans/background-work-block-completion-plan.md` v1.1)
+
+- **EC-A (MUST FIX)**: judge defaults to `OPENROUTER_API_KEY` (single
+  source). No multi-provider auto-detect — caller passes
+  `judgeApiKey` for Anthropic-only or direct-OpenAI envs.
+- **EC-B (MUST FIX)**: `filterMemoryPlugins` preserves memory plugins
+  in fork; drops other kinds.
+- **EC-C (SHOULD TEST)**: pre-aborted signal yields paused only.
+- **EC-D (SHOULD TEST)**: `maxTurns: 0` test covered.
+- **EC-E (SHOULD TEST)**: parseVerdict + BOM/ZWSP edge documented.
+- **EC-F (SHOULD TEST)**: nested `withToolWhitelist` shadow test.
+- **EC-G/H/I/J (DOCUMENT)**: cloud sync throw, whitelist case
+  sensitivity, mid-iteration dispose, judge whitelist inheritance.
+
+### Test counts
+
+- 853 → 911 (+58 new tests; 1000+ fast-check runs).
+- 13 new ADRs (D110-D122).
+- Background work block: **3/3 ✅**. SDK roadmap totals: **19 → 22 (96%)** DONE.
+
+---
+
 ### Added (v1.8 plugin-extension-block-completion — ADRs D97-D109)
 
 - **`internal/plugins/`** — full Plugin contract (ADRs D97-D101):

@@ -155,6 +155,19 @@ const COMMANDS = [
   },
   { text: "/loops", expect: [/Loops ativos|Sem loops ativos/i], waitMs: 8000 },
   { text: "/stop_loop all", expect: [/Parados|Sem loops/i], waitMs: 8000 },
+
+  // ── v1.3 Background-work block — Agent.runUntil(goal) showcase ──
+  // Drives the Ralph loop primitive: yields turn_start, agent_response,
+  // judge_verdict, status_change events as the loop runs against a real LLM.
+  // Judge uses openai/gpt-4o-mini via OPENROUTER_API_KEY (ADR D119, EC-A).
+  {
+    text: "/goal write a one-line haiku about robots and stop when done",
+    expect: [
+      /(Status|turn|verdict).*?(completed|continue|done|failed|max turns)/i,
+      /via Agent\.runUntil/i,
+    ],
+    waitMs: 120000,
+  },
 ];
 
 // ─── Helpers ───

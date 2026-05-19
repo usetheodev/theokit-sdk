@@ -371,6 +371,16 @@ export interface AgentOptions {
    * {@link TelemetrySettings} and ADR D34.
    */
   telemetry?: TelemetrySettings;
+  /**
+   * Arbitrary metadata bag for caller-supplied provenance. Currently used by
+   * the fork primitive (ADR D114) to tag `metadata.forkOrigin` and
+   * `metadata.parentAgentId` so memory writes downstream can be attributed.
+   *
+   * Not persisted to the agent registry — informational only at runtime.
+   *
+   * @public
+   */
+  metadata?: Record<string, unknown>;
 }
 
 /**
@@ -448,6 +458,45 @@ export interface SDKAgent {
    * @public
    */
   invalidateCache?(reason: string, options?: InvalidateCacheOptions): Promise<void>;
+  /**
+   * Goal-driven Ralph loop (ADRs D115-D121). Iterates `agent.send` →
+   * judge → continuation until the auxiliary judge model returns `done`,
+   * the judge fails too many times in a row, max turns are exhausted,
+   * or the caller aborts via `AbortSignal`.
+   *
+   * Yields {@link import("./goal-events.js").GoalEvent} per state
+   * transition; returns a {@link import("./goal-events.js").GoalResult}
+   * summary as the generator's final value.
+   *
+   * Cloud agents throw {@link import("../errors.js").UnsupportedRunOperationError}
+   * **synchronously** (no AsyncGenerator returned) — wrap in try/catch
+   * if you support both runtimes.
+   *
+   * Caveat: do not call `agent.dispose()` mid-iteration; the next `send`
+   * propagates the disposal error through the generator to the consumer.
+   *
+   * @public
+   */
+  runUntil?(
+    goal: string,
+    options?: import("./goal-events.js").GoalOptions,
+  ): AsyncGenerator<
+    import("./goal-events.js").GoalEvent,
+    import("./goal-events.js").GoalResult,
+    void
+  >;
+  /**
+   * Fork a short-lived sub-agent with parent's credentials + system
+   * prompt byte-identical (ADR D112 — cache hit) and a restricted tool
+   * whitelist (ADR D111 — AsyncLocalStorage isolation).
+   *
+   * Cloud agents throw {@link import("../errors.js").UnsupportedRunOperationError}.
+   *
+   * @public
+   */
+  fork?(
+    options: import("../internal/runtime/fork-agent.js").ForkOptions,
+  ): Promise<import("../internal/runtime/fork-agent.js").ForkResult>;
 }
 
 /**

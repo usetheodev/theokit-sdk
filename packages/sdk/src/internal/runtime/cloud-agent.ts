@@ -1,4 +1,8 @@
-import { ConfigurationError, UnknownAgentError } from "../../errors.js";
+import {
+  ConfigurationError,
+  UnknownAgentError,
+  UnsupportedRunOperationError,
+} from "../../errors.js";
 import type {
   AgentOptions,
   ModelSelection,
@@ -215,6 +219,32 @@ export class CloudAgent implements SDKAgent {
       );
     }
     return Promise.resolve(Buffer.from(`fixture artifact content for ${path}\n`));
+  }
+
+  /**
+   * Cloud runtime manages goal loops server-side (ADR D122). The local
+   * fork pattern is also not available in cloud — both throw synchronously
+   * with `UnsupportedRunOperationError` so callers branch early (EC-G).
+   *
+   * @public
+   */
+  runUntil(): never {
+    throw new UnsupportedRunOperationError(
+      "Agent.runUntil() is not supported on cloud agents. Cloud runtime manages goal loops server-side. Use a local agent for autonomous Ralph loops.",
+      "runUntil",
+    );
+  }
+
+  /**
+   * Forked sub-agents are local-only (ADRs D110-D114).
+   *
+   * @public
+   */
+  fork(): never {
+    throw new UnsupportedRunOperationError(
+      "Agent.fork() is not supported on cloud agents. Fork inheritance requires local credential + system-prompt access. Use a local agent.",
+      "fork",
+    );
   }
 }
 
