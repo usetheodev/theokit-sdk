@@ -1,8 +1,8 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 
 import { replaceFileAtomic } from "../memory/atomic-write.js";
-import { redactSecrets } from "../security/index.js";
+import { redactSecrets, safePathJoin, sanitizeIdentifier } from "../security/index.js";
 import type { SessionMessage } from "./agent-session.js";
 
 /**
@@ -24,7 +24,12 @@ export interface PersistedSessionMessage {
 }
 
 export function sessionFilePath(cwd: string, agentId: string): string {
-  return join(cwd, ".theokit", "agents", agentId, "messages.jsonl");
+  // ADRs D79-D81: validate agentId grammar + safe-join. Agent IDs (local
+  // `agent-<uuid>` / cloud `bc-<uuid>`) fit the strict grammar; legacy IDs
+  // would throw `invalid_identifier` here, surfacing migration needs early
+  // rather than silently joining outside `.theokit/agents/`.
+  const safe = sanitizeIdentifier(agentId, { maxLen: 128 });
+  return safePathJoin(cwd, ".theokit", "agents", safe, "messages.jsonl");
 }
 
 /**

@@ -1,9 +1,10 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { isAbsolute, join } from "node:path";
+import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
 import { loadMarkdownEntities } from "../persistence/markdown-config-loader.js";
+import { safePathJoin } from "../security/path-guard.js";
 import { warnOnce } from "./hooks-source.js";
 import { type PluginFrontmatter, PluginFrontmatterSchema } from "./plugin-frontmatter.js";
 import { readWorkspaceDir } from "./workspace-dir.js";
@@ -90,15 +91,13 @@ export class PluginsManager {
   private async assertEntryFileExists(metadata: PluginMetadata, folderName: string): Promise<void> {
     const entry = metadata.entry;
     if (entry === undefined) return;
-    // EC-1 MUST FIX (edge-case review): reject path traversal segments AND
-    // absolute paths. Without this guard, a malicious PLUGIN.md or
-    // plugin.json could load `../../etc/passwd` or `/etc/shadow`.
-    if (entry.includes("..") || isAbsolute(entry)) {
-      throw new ConfigurationError(`Plugin ${folderName} entry escapes plugin dir: ${entry}`, {
-        code: "plugin_entry_escape",
-      });
-    }
-    const entryPath = join(this.cwd, ".theokit", "plugins", folderName, entry);
+    // ADRs D79-D80 (path-guard): safePathJoin resolves THEN prefix-checks,
+    // catching both literal ".." and normalized escape (e.g. "subdir/../../etc").
+    // Replaces the inline T3.2 markdown-config-migration guard that only handled
+    // the literal cases. PathTraversalError extends ConfigurationError (code:
+    // "path_traversal") so consumers catching ConfigurationError still see it.
+    const pluginRoot = join(this.cwd, ".theokit", "plugins", folderName);
+    const entryPath = safePathJoin(pluginRoot, entry);
     try {
       await readFile(entryPath, "utf8");
     } catch (cause) {

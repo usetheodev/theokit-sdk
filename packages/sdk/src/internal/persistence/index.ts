@@ -8,6 +8,8 @@
 export type { AtomicWriteJsonOptions } from "./atomic-write.js";
 export { atomicWriteJson, replaceFileAtomic } from "./atomic-write.js";
 export { withCwdMutex } from "./cwd-mutex.js";
+export type { CreateExclusiveOptions } from "./exclusive-create.js";
+export { createExclusive } from "./exclusive-create.js";
 export type { FileLockOptions } from "./file-lock.js";
 export { withFileLock } from "./file-lock.js";
 export { containsCjk, sanitizeFts5Query } from "./fts5-sanitize.js";
@@ -26,5 +28,6 @@ export {
   readVersionedJson,
   writeVersionedJson,
 } from "./schema-version.js";
+export { casUpdate } from "./sqlite-cas.js";
 export type { WalApplyResult } from "./sqlite-wal.js";
 export { applyWalWithFallback } from "./sqlite-wal.js";

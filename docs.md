@@ -1749,6 +1749,40 @@ Security.addPattern(/MYORG-[A-Z0-9]{32}/g);
 
 **Coverage limits.** Custom credentials that lack a structural marker (e.g., free-form passwords inside arbitrary prose like "the password is hunter2") are NOT detected. Add an `addPattern` matcher when you ship a new internal token shape. Base64-encoded or URL-encoded credentials may slip through built-in patterns; report a missed shape and we'll extend the list.
 
+## Security — path traversal + TOCTOU (v1.6+)
+
+Every callsite that joins user-supplied input with a path passes through a canonical guard (ADRs D79-D85). The SDK ships three primitives and one typed error in `internal/security/path-guard.ts`, and two TOCTOU primitives in `internal/persistence/`.
+
+**Path traversal defense:**
+
+- `safePathJoin(base, ...parts)` — resolves the path THEN prefix-checks against `base`. Throws `PathTraversalError` (extends `ConfigurationError` with code `"path_traversal"`) if the resolved target escapes. Defeats literal `..`, normalized escape (`subdir/.\\./..`), absolute segment overrides, and null-byte injection.
+- `assertNoSymlinkEscape(path, base)` — uses `realpathSync` to follow the entire symlink chain (multi-level A → B → C) and reject targets outside `base`.
+- `sanitizeIdentifier(input, { maxLen })` — strict grammar `^[a-z0-9][a-z0-9-_]*$` (case-insensitive on input, lowercase on output). Rejects path separators, `..`, leading `-`/`_`, control chars. Default `maxLen` is 64; agent IDs use 128.
+
+Wired in: `plugins-manager` (plugin entry files), `agent-session-store` (session JSONL paths), `skills-manager` (skill directory entries), `legacyMemoryJsonPath` (memory namespace/scope/userId), `mcp/client` (MCP stdio `cwd` for relative paths). CI lint gate `tests/lint/no-unguarded-path-input.test.ts` flags regressions.
+
+**TOCTOU defense:**
+
+- `createExclusive(path, data, { mode })` — atomic create-if-absent via `O_EXCL` (`open(path, "wx", mode)`). Default mode is `0o600` (owner-only) — token files, lockfiles, PID files must not default to world-readable. Returns `true` if created, `false` if it already existed.
+- `casUpdate(db, sql, params, expectedChanges)` — SQLite optimistic compare-and-swap. Caller writes the full SQL (including `WHERE version = ?` predicate); helper executes and returns boolean based on `result.changes`. Caller handles retry/backoff. Canonical pattern: `UPDATE registry SET status = ?, version = version + 1 WHERE id = ? AND version = ?`.
+
+```typescript
+import { Security } from "@usetheo/sdk";
+
+// Path guard primitives are internal; ConfigurationError surfaces them:
+try {
+  await agent.send("...");
+} catch (err) {
+  if (err.code === "path_traversal") {
+    // user input tried to escape the workspace
+  } else if (err.code === "invalid_identifier") {
+    // user input failed the grammar (e.g., contains "/" or "..")
+  }
+}
+```
+
+Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vector families + identifier grammar surface.
+
 ## Configuration files (v1.5+)
 
 User-edited config files in `.theokit/` use **markdown + YAML frontmatter** — same shape as `skills/<name>/SKILL.md`, Claude Code commands, and Cursor rules. One file per entity gives per-entity git diff, prose body for rationale ("why this hook exists"), and type-safe frontmatter via Zod.

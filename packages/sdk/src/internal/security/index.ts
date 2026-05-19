@@ -9,4 +9,10 @@
  * @internal
  */
 
+export {
+  assertNoSymlinkEscape,
+  PathTraversalError,
+  safePathJoin,
+  sanitizeIdentifier,
+} from "./path-guard.js";
 export { addPattern, maskToken, redactSecrets } from "./redact.js";

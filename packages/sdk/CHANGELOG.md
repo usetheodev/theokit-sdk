@@ -2,6 +2,54 @@
 
 ## [Unreleased]
 
+### Added (v1.6 security-block-completion — ADRs D79-D85)
+
+- **`internal/security/path-guard.ts`** is the canonical module for
+  path defense (ADR D79). Exports `safePathJoin` (resolve-then-check,
+  ADR D80), `assertNoSymlinkEscape` (realpath-based chain resolution),
+  `sanitizeIdentifier` (strict grammar `^[a-z0-9][a-z0-9-_]*$`, ADR D81),
+  and `PathTraversalError extends ConfigurationError` with code
+  `path_traversal` (ADR D65 — no new error hierarchy).
+- **`internal/persistence/exclusive-create.ts`** exports `createExclusive`
+  using O_EXCL semantics (ADR D82). Default mode `0o600` (owner-only) —
+  EC-2 fix prevents world-readable token/lock files under typical
+  umask 022.
+- **`internal/persistence/sqlite-cas.ts`** exports `casUpdate` for
+  optimistic concurrency in SQLite-backed stores (ADR D83). Canonical
+  `UPDATE ... WHERE version = ?` pattern from Hermes `kanban_db.py`.
+- **CI lint gate** `tests/lint/no-unguarded-path-input.test.ts`
+  (ADR D85) prevents regression by flagging any new
+  `join(cwd, ".theokit", ..., varName)` callsite that doesn't use
+  `safePathJoin` or `sanitizeIdentifier`.
+- **Adversarial property tests** for `safePathJoin` + `sanitizeIdentifier`
+  via `fast-check` (~1200 random inputs across 6 properties).
+
+### Changed (security-block-completion)
+
+- `plugins-manager.assertEntryFileExists` now uses canonical
+  `safePathJoin` (replaces inline T3.2 guard from
+  markdown-config-migration). Error code `plugin_entry_escape` →
+  `path_traversal`.
+- `agent-session-store.sessionFilePath` validates `agentId` via
+  `sanitizeIdentifier` (maxLen 128) + `safePathJoin`. Local
+  `agent-<uuid>`, cloud `bc-<uuid>`, and bot IDs like
+  `tg-dogfood-chat-A` pass natively.
+- `skills-manager.refresh` wraps `entry.name` joins with
+  `safePathJoin` + `assertNoSymlinkEscape` (defense-in-depth against
+  hostile symlinks inside `.theokit/skills/`).
+- `legacyMemoryJsonPath` (memory/types.ts) sanitizes `namespace`,
+  `scope`, `userId` before joining. `storePath` (programmatic) bypasses
+  sanitization (trusted).
+- `mcp/client.ts` resolves stdio MCP `cwd` field via `safePathJoin`
+  for relative paths; absolute paths trusted.
+
+### Fixed (security-block-completion)
+
+- Closes the Security block of the SDK Patterns Roadmap:
+  `path-traversal-vectors` (❌ PENDING → ✅ DONE) and
+  `toctou-race-prevention` (⚠️ PARTIAL → ✅ DONE). Roadmap totals
+  11 → 13 DONE (57%).
+
 ### Added (v1.5 markdown-config-migration — ADRs D74-D78)
 
 - **`.theokit/hooks/<name>.md`** is the new canonical format for hooks

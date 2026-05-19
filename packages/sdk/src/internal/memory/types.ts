@@ -6,7 +6,9 @@
  *
  * @internal
  */
-import { join, resolve as resolvePath } from "node:path";
+import { resolve as resolvePath } from "node:path";
+
+import { safePathJoin, sanitizeIdentifier } from "../security/path-guard.js";
 
 export interface MemoryConfig {
   enabled: boolean;
@@ -31,12 +33,17 @@ export { redactSecrets } from "../security/index.js";
  * `runtime/memory-store.ts` don't duplicate the path logic (jscpd cleanup).
  */
 export function legacyMemoryJsonPath(cwd: string, config: MemoryConfig): string {
-  const namespace = config.namespace ?? "default";
-  const scope = config.scope ?? "agent";
-  const userId = config.userId ?? "default";
-  const relativePath =
-    config.storePath ?? join(".theokit", "memory", namespace, `${scope}-${userId}.json`);
-  return resolvePath(cwd, relativePath);
+  // ADRs D79-D81: storePath is programmatic (trusted); namespace/scope/userId
+  // are user-shaped and pass sanitizeIdentifier. EC-7 (edge-case review):
+  // realistic userIds (UUIDs, hash IDs, "default") pass; "user@example.com"
+  // and similar need to be normalized by the caller before passing.
+  if (config.storePath !== undefined) {
+    return resolvePath(cwd, config.storePath);
+  }
+  const namespace = sanitizeIdentifier(config.namespace ?? "default");
+  const scope = sanitizeIdentifier(config.scope ?? "agent", { maxLen: 16 });
+  const userId = sanitizeIdentifier(config.userId ?? "default");
+  return safePathJoin(cwd, ".theokit", "memory", namespace, `${scope}-${userId}.json`);
 }
 
 /**
