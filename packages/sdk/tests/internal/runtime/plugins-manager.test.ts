@@ -79,7 +79,7 @@ describe("PluginsManager — path-traversal guard (EC-1 fix)", () => {
     });
     const mgr = new PluginsManager(dir, undefined, true, false, undefined);
     await expect(mgr.initialize()).rejects.toMatchObject({
-      code: "plugin_entry_escape",
+      code: "path_traversal",
     });
   });
 
@@ -89,7 +89,7 @@ describe("PluginsManager — path-traversal guard (EC-1 fix)", () => {
     });
     const mgr = new PluginsManager(dir, undefined, true, false, undefined);
     await expect(mgr.initialize()).rejects.toMatchObject({
-      code: "plugin_entry_escape",
+      code: "path_traversal",
     });
   });
 
@@ -102,7 +102,19 @@ describe("PluginsManager — path-traversal guard (EC-1 fix)", () => {
     });
     const mgr = new PluginsManager(dir, undefined, true, false, undefined);
     await expect(mgr.initialize()).rejects.toMatchObject({
-      code: "plugin_entry_escape",
+      code: "path_traversal",
+    });
+  });
+
+  it("rejects normalized escape (subdir/../../../etc/passwd)", async () => {
+    writePlugin("malicious-norm", {
+      "PLUGIN.md": ["---", "name: malicious-norm", "entry: subdir/../../../etc/passwd", "---"].join(
+        "\n",
+      ),
+    });
+    const mgr = new PluginsManager(dir, undefined, true, false, undefined);
+    await expect(mgr.initialize()).rejects.toMatchObject({
+      code: "path_traversal",
     });
   });
 });
