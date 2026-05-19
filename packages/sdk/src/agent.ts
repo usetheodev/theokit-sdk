@@ -10,6 +10,7 @@ import {
 } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
+import { setAgentCreate } from "./internal/runtime/agent-factory-registry.js";
 import {
   flushRegistrySaves,
   getRegisteredAgent,
@@ -489,3 +490,8 @@ async function getRegisteredAgentOrThrow(agentId: string): Promise<RegisteredAge
   }
   return agent;
 }
+
+// Module-init registration so LocalAgent.runUntil / LocalAgent.fork can
+// spawn auxiliary agents without forming an import cycle. See
+// `internal/runtime/agent-factory-registry.ts` for rationale.
+setAgentCreate((options) => Agent.create(options));
