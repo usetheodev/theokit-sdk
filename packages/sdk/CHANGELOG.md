@@ -2,6 +2,63 @@
 
 ## [Unreleased]
 
+### Added (v1.8 plugin-extension-block-completion — ADRs D97-D109)
+
+- **`internal/plugins/`** — full Plugin contract (ADRs D97-D101):
+  - `types.ts` — `Plugin` discriminated union (`general`/`model-provider`/`memory`),
+    `PluginContext`, `HookName` (8 fixed hooks), `definePlugin` helper
+  - `context.ts` — `createPluginContext()` with dev-mode Proxy seal (D99) +
+    `ctx.on()` defense-in-depth against non-function handlers (EC-2)
+  - `manager.ts` — `PluginManager` with `initialize` (once), dispatch by
+    kind, `runPreToolCallHooks` (first-block-wins, D101); EC-4 duplicate
+    plugin name surfaces stderr warn
+  - `lifecycle.ts` — `runFireAndForgetHooks` + `runTransformHooks` (EC-6:
+    null replaces; undefined keeps current)
+- **`internal/tool-registry/`** — 3-layer tool surface (ADRs D102-D104):
+  - `registry.ts` — `ToolRegistry` central + `ToolEntry` (with checkFn,
+    requiresEnv, emoji, maxResultSizeChars)
+  - `toolset.ts` — flat-list `Toolset` + `resolveToolset`/`resolveToolsetStrict`
+    (EC-7: duplicates kept, caller dedups)
+  - `check-fn-cache.ts` — 30s TTL per tool name + `requiresEnv` check
+    (EC-8: concurrent Promise.all idempotent)
+  - `result-cap.ts` — `applyResultCap` (default 100k chars)
+- **`internal/providers/`** — provider-as-plugin (ADRs D105-D107):
+  - `types.ts` — `ProviderProfile` data-only (D105), `ApiMode` literal union
+  - `registry.ts` — `registerProvider`/`getProviderProfile`/`listProviders`
+    + EC-5 alias collision warn
+  - `builtin/{anthropic,openai,openrouter,gemini}.ts` — 4 profiles
+    migrated from hardcoded switch
+  - `discovery.ts` — lazy scan of `~/.theokit/plugins/model-providers/`
+    via `pathToFileURL` (EC-9 Node 22 ESM support)
+- **Public API** — `Plugin`, `PluginContext`, `HookName`, `definePlugin`,
+  `ProviderProfile` re-exported via `packages/sdk/src/index.ts`.
+
+### Changed (plugin-extension-block-completion)
+
+- `internal/llm/router.ts:buildClient` — consults `getProviderProfile`
+  + `selectTransport(apiMode)` instead of hardcoded switch (T4.3).
+  EC-3: unsupported apiMode throws `transport_unavailable` with
+  actionable message. EC-10: `envVars` ordered fallback (OPENROUTER_API_KEY
+  then OPENAI_API_KEY for OpenRouter).
+- `LocalAgent.initialize` — wires `pluginManagerCode.initialize(codePlugins)`
+  via `extractCodePlugins` filter (EC-1 discriminates legacy `{ enabled }`
+  metadata from new `Plugin[]`); telegram-pro + 7 examples continue to
+  compile + run unchanged (D108).
+- `agent-loop/tool-dispatch.ts` — invokes plugin `pre_tool_call` hooks
+  BEFORE file-based hooks (T4.2). Author intent (code plugin) wins
+  early over operator policy (file hooks).
+- `real-local-run.ts` — `buildCustomToolsInput` concatenates plugin tools
+  onto the effective tool catalog without replacing user-supplied tools.
+
+### Fixed (plugin-extension-block-completion)
+
+- Closes Plugin & extension block of the SDK Patterns Roadmap:
+  `plugin-contract-design` (❌ → ✅), `tool-registry-pattern` (⚠️ → ✅),
+  `provider-as-plugin` (❌ → ✅). Roadmap totais 16 → 19 (83%) DONE.
+- Adding a new provider now requires zero code changes in `packages/sdk/`
+  — publish `@theokit-provider-X` with a `ProviderProfile` and drop in
+  `~/.theokit/plugins/model-providers/X/index.mjs`.
+
 ### Added (v1.7 agent-core-loop-completion — ADRs D86-D96)
 
 - **`internal/tool-dispatch/repair-middleware.ts`** — `repairToolCall`

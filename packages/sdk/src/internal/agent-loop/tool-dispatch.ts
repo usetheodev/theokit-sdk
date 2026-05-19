@@ -78,6 +78,29 @@ async function dispatchSingleCall(
     toolSpan.addEvent("args", { input: JSON.stringify(call.input) });
   }
   events.push(buildToolUseRunning(inputs, callId, call));
+  // T4.2 (ADR D101): plugin `pre_tool_call` hooks fire BEFORE file-based
+  // hooks. Plugins are author-supplied (code-level safety); file-based
+  // hooks are operator policy. Author intent wins early.
+  const pluginVeto = await inputs.pluginManager?.runPreToolCallHooks({
+    name: call.name,
+    args: call.input,
+    agentId: inputs.agentId,
+    runId: inputs.runId,
+  });
+  if (pluginVeto !== undefined) {
+    events.push(
+      buildToolUseCompleted(inputs, callId, call, {
+        stdout: "",
+        stderr: pluginVeto.message,
+        exitCode: 126,
+      }),
+    );
+    return {
+      type: "tool_result",
+      toolUseId: call.id,
+      content: `Plugin blocked this tool call: ${pluginVeto.message}`,
+    };
+  }
   const preDecision = await inputs.hooks.run({
     event: "preToolUse",
     tool: call.name,

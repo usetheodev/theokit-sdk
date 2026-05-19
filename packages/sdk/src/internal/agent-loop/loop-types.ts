@@ -51,6 +51,8 @@ export interface AgentLoopInputs {
   llm: LlmClient;
   mcp: Map<string, McpClient>;
   hooks: HooksExecutor;
+  /** T4.2 — PluginManager whose `pre_tool_call` hooks fire BEFORE file-based hooks. */
+  pluginManager?: import("../plugins/manager.js").PluginManager;
   shellCwd: string;
   shellSandbox: boolean;
   maxIterations?: number;

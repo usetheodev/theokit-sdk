@@ -263,6 +263,19 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D94 | `Agent.invalidateCache(reason, options?)` defaults to deferred | [D94-invalidate-cache-deferred-default.md](./.claude/knowledge-base/adrs/D94-invalidate-cache-deferred-default.md) |
 | D95 | Cache-discipline guard runs only in dev mode (`shouldGuard()` function) | [D95-cache-discipline-guard-dev-only.md](./.claude/knowledge-base/adrs/D95-cache-discipline-guard-dev-only.md) |
 | D96 | Strip `<think>` blocks before appending to message history | [D96-strip-think-before-history.md](./.claude/knowledge-base/adrs/D96-strip-think-before-history.md) |
+| D97 | `internal/plugins/` is the canonical home for the Plugin contract | [D97-plugins-internal-home.md](./.claude/knowledge-base/adrs/D97-plugins-internal-home.md) |
+| D98 | `Plugin` is a discriminated union by `kind` | [D98-plugin-discriminated-union.md](./.claude/knowledge-base/adrs/D98-plugin-discriminated-union.md) |
+| D99 | `PluginContext` is sealed via Proxy in dev mode | [D99-plugin-context-sealed.md](./.claude/knowledge-base/adrs/D99-plugin-context-sealed.md) |
+| D100 | `HookName` is a closed enum (8 fixed hooks) | [D100-hook-name-enum-fechado.md](./.claude/knowledge-base/adrs/D100-hook-name-enum-fechado.md) |
+| D101 | `pre_tool_call` veto returns `{ block: true, message }`, never throws | [D101-pre-tool-call-veto.md](./.claude/knowledge-base/adrs/D101-pre-tool-call-veto.md) |
+| D102 | `ToolRegistry` is 3-layer (registration / exposure / availability) | [D102-tool-registry-3-layers.md](./.claude/knowledge-base/adrs/D102-tool-registry-3-layers.md) |
+| D103 | `check_fn` results TTL-cached for 30 seconds | [D103-check-fn-ttl-cache.md](./.claude/knowledge-base/adrs/D103-check-fn-ttl-cache.md) |
+| D104 | `Toolset` is a flat list; no `extends` | [D104-toolset-flat-no-extends.md](./.claude/knowledge-base/adrs/D104-toolset-flat-no-extends.md) |
+| D105 | `ProviderProfile` is data-only, not an ABC | [D105-provider-profile-data-only.md](./.claude/knowledge-base/adrs/D105-provider-profile-data-only.md) |
+| D106 | Transport is orthogonal to Profile via `apiMode` | [D106-transport-abc-orthogonal.md](./.claude/knowledge-base/adrs/D106-transport-abc-orthogonal.md) |
+| D107 | Provider discovery is lazy + last-writer-wins (with WARN) | [D107-provider-lazy-discovery.md](./.claude/knowledge-base/adrs/D107-provider-lazy-discovery.md) |
+| D108 | V1.2 caller API is preserved byte-by-byte | [D108-v12-api-preserved.md](./.claude/knowledge-base/adrs/D108-v12-api-preserved.md) |
+| D109 | Refactor is incremental, not big-bang | [D109-incremental-refactor.md](./.claude/knowledge-base/adrs/D109-incremental-refactor.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -299,9 +312,9 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 
 | Pattern | Status | Where in SDK |
 |---|---|---|
-| plugin-contract-design | ❌ PENDING | `internal/plugins/manager.ts` + `Plugin` interface (a criar) |
-| tool-registry-pattern | ⚠️ PARTIAL | `defineTool` (D24) existe; falta `ToolRegistry` + `Toolset` |
-| provider-as-plugin | ❌ PENDING | Providers hardcoded; migrar para `ProviderProfile` lazy discovery |
+| plugin-contract-design | ✅ DONE | `packages/sdk/src/internal/plugins/` — `Plugin` discriminated union (general/model-provider/memory), `PluginContext` sealed-em-dev, `PluginManager` lifecycle (ADRs D97-D101). Hook system com enum fechado (D100); `pre_tool_call` veto pattern (D101). Wired em LocalAgent + agent-loop. |
+| tool-registry-pattern | ✅ DONE | `packages/sdk/src/internal/tool-registry/` — `ToolRegistry` central (D102) + flat `Toolset` (D104) + check_fn TTL 30s (D103) + result cap. `defineTool` (D24) continua o entry-point público; ToolRegistry consome via `fromCustomTool`. |
+| provider-as-plugin | ✅ DONE | `packages/sdk/src/internal/providers/` — `ProviderProfile` data-only (D105) + Transport ABC via `apiMode` (D106) + lazy discovery em `~/.theokit/plugins/model-providers/` (D107). 4 builtins migrados (Anthropic/OpenAI/OpenRouter/Gemini); router.ts consulta `getProviderProfile` em vez do switch hardcoded. V1.2 API preservada (D108). |
 
 ### Background work (3)
 
@@ -334,12 +347,12 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | error-context-surfacing | ✅ DONE | `packages/sdk/src/errors.ts` — `ErrorMetadata` + `ErrorCode` types (ADR D65/D66). Provider mappers `mapAnthropicError` + `mapOpenAICompatibleError` (ADR D67) in `internal/errors/mappers/`. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, `internal/memory/adapters/openai-compatible.ts`. `fallback-client.ts` also falls back on `AuthenticationError`/`RateLimitError`. |
 | graceful-degradation | ✅ DONE | ADR D42 (auto-detect telemetry), D50 (lance dry-run), D55 (fail-open) implementados |
 
-### Totais (2026-05-19 — pós Agent Core Loop Completion plan)
+### Totais (2026-05-19 — pós Plugin & Extension Block Completion plan)
 
 ```
-✅ DONE        16 (70%)
-⚠️ PARTIAL      2  (9%)
-❌ PENDING      4 (17%)
+✅ DONE        19 (83%)
+⚠️ PARTIAL      1  (4%)
+❌ PENDING      2  (9%)
 📚 CULTURAL    1  (4%)
               ───
               23 (100%)
