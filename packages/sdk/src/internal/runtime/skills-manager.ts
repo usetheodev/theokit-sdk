@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { assertNoSymlinkEscape, safePathJoin } from "../security/path-guard.js";
 import { parseSkillFrontmatter } from "./skill-frontmatter.js";
 import { readWorkspaceDir } from "./workspace-dir.js";
 
@@ -54,7 +55,19 @@ export class SkillsManager {
     const entries = await readWorkspaceDir(skillsRoot, "skills_read_error", "skills directory");
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      const skillPath = join(skillsRoot, entry.name, "SKILL.md");
+      // ADRs D79-D80: defense-in-depth — even though `entry.name` comes from
+      // fs.readdir (basename only, no traversal), use safePathJoin to keep
+      // the invariant uniform across the codebase. assertNoSymlinkEscape
+      // rejects symlinks in the skills dir that point outside (EC-1, Hermes
+      // v0.2 #386 #61 symlink boundary fixes).
+      let skillDir: string;
+      try {
+        skillDir = safePathJoin(skillsRoot, entry.name);
+        assertNoSymlinkEscape(skillDir, skillsRoot);
+      } catch {
+        continue;
+      }
+      const skillPath = join(skillDir, "SKILL.md");
       let raw: string;
       try {
         raw = await readFile(skillPath, "utf8");

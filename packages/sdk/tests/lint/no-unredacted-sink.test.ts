@@ -73,6 +73,7 @@ const WHITELIST = new Set<string>([
   "internal/runtime/agent-session-store.ts",
   "internal/memory/migrate-sqlite-to-lance.ts",
   "internal/persistence/atomic-write.ts",
+  "internal/persistence/exclusive-create.ts",
   "internal/persistence/file-lock.ts",
   "internal/persistence/schema-version.ts",
   "internal/memory/transcript-store.ts",

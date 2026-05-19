@@ -245,6 +245,13 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D76 | Frontmatter validado por Zod schema (mesmo pattern de D10) | [D76-frontmatter-zod-schema.md](./.claude/knowledge-base/adrs/D76-frontmatter-zod-schema.md) |
 | D77 | Loader fallback: MD-dir primeiro, JSON com deprecation warn (sunset v2.0 Q2 2027) | [D77-md-first-json-fallback.md](./.claude/knowledge-base/adrs/D77-md-first-json-fallback.md) |
 | D78 | `theokit-migrate-config` CLI standalone com atomic write + timestamped backup | [D78-migrate-config-cli.md](./.claude/knowledge-base/adrs/D78-migrate-config-cli.md) |
+| D79 | `internal/security/path-guard.ts` is the canonical module for path defense | [D79-path-guard-canonical-module.md](./.claude/knowledge-base/adrs/D79-path-guard-canonical-module.md) |
+| D80 | `safePathJoin` resolves THEN prefix-checks (defeats normalized escape) | [D80-resolve-then-prefix-check.md](./.claude/knowledge-base/adrs/D80-resolve-then-prefix-check.md) |
+| D81 | `sanitizeIdentifier` strict grammar `^[a-z0-9][a-z0-9-_]*$` | [D81-sanitize-identifier-grammar.md](./.claude/knowledge-base/adrs/D81-sanitize-identifier-grammar.md) |
+| D82 | `createExclusive` via O_EXCL with default mode 0o600 | [D82-create-exclusive-o-excl.md](./.claude/knowledge-base/adrs/D82-create-exclusive-o-excl.md) |
+| D83 | `casUpdate` SQLite optimistic compare-and-swap helper | [D83-sqlite-cas-helper.md](./.claude/knowledge-base/adrs/D83-sqlite-cas-helper.md) |
+| D84 | Path-guard wiring is opt-in via explicit refactor (no monkey-patch) | [D84-path-guard-opt-in-refactor.md](./.claude/knowledge-base/adrs/D84-path-guard-opt-in-refactor.md) |
+| D85 | CI lint gate uses grep regex (not AST) — same pattern as no-unredacted-sink | [D85-lint-grep-not-ast.md](./.claude/knowledge-base/adrs/D85-lint-grep-not-ast.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -298,8 +305,8 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | Pattern | Status | Where in SDK |
 |---|---|---|
 | secret-redaction-discipline | ✅ DONE | `packages/sdk/src/internal/security/redact.ts` — 12 builtin patterns + PARAM_PATTERN + BEARER_PATTERN, env snapshot at init, two-bucket masking (ADRs D68-D73). Public `Security.addPattern(re)` API. Wired at ErrorMetadata.raw (T1.1), telemetry tracer (T1.2), transcript JSONL (T1.3), migration logger (T1.4). CI gate `tests/lint/no-unredacted-sink.test.ts` prevents regression. Adversarial property tests via fast-check (~3000 randomized inputs). |
-| path-traversal-vectors | ❌ PENDING | `internal/security/path-guard.ts` (a criar) |
-| toctou-race-prevention | ⚠️ PARTIAL | `cwd-mutex.ts` cobre in-process; `withFileLock` (D61) cobre multi-process via `proper-lockfile` + companion lockfile; ainda falta CAS patterns SQLite + O_EXCL idiomático |
+| path-traversal-vectors | ✅ DONE | `packages/sdk/src/internal/security/path-guard.ts` — `safePathJoin` (resolve-then-check, ADR D80) + `assertNoSymlinkEscape` (realpath chain, EC-1 fix) + `sanitizeIdentifier` (strict grammar, ADR D81) + `PathTraversalError` (ADRs D79-D81). Wired em plugins-manager, agent-session-store, skills-manager, memory/types, mcp/client. CI gate `tests/lint/no-unguarded-path-input.test.ts` (ADR D85). Adversarial fast-check 1200+ inputs. |
+| toctou-race-prevention | ✅ DONE | `cwd-mutex` (in-process) + `withFileLock` (D61, multi-process via proper-lockfile) + `createExclusive` (D82, O_EXCL com mode 0o600 default) + `casUpdate` (D83, SQLite CAS). Integration demo em `agent-registry-cas-pattern.test.ts`. |
 
 ### Testing (3)
 
@@ -316,12 +323,12 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | error-context-surfacing | ✅ DONE | `packages/sdk/src/errors.ts` — `ErrorMetadata` + `ErrorCode` types (ADR D65/D66). Provider mappers `mapAnthropicError` + `mapOpenAICompatibleError` (ADR D67) in `internal/errors/mappers/`. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, `internal/memory/adapters/openai-compatible.ts`. `fallback-client.ts` also falls back on `AuthenticationError`/`RateLimitError`. |
 | graceful-degradation | ✅ DONE | ADR D42 (auto-detect telemetry), D50 (lance dry-run), D55 (fail-open) implementados |
 
-### Totais (2026-05-18 — pós Secret Redaction Discipline plan)
+### Totais (2026-05-19 — pós Security Block Completion plan)
 
 ```
-✅ DONE        11 (48%)
-⚠️ PARTIAL      3 (13%)
-❌ PENDING      7 (30%)
+✅ DONE        13 (57%)
+⚠️ PARTIAL      2  (9%)
+❌ PENDING      6 (26%)
 📚 CULTURAL    2  (9%)
               ───
               23 (100%)
@@ -330,7 +337,7 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 - **Persistence & State block: 6/6 DONE** (was 0 DONE / 5 PARTIAL / 1 PENDING at v1.2).
 - **Testing block: 2/3 DONE + 1/3 CULTURAL** — hermetic-test-isolation landed via T6.1 (vitest.setup.ts + setupFiles); property-based-testing now ✅ DONE via `fast-check` adversarial suite shipped with secret-redaction (12 builtin patterns × 200 runs + sink-level tests).
 - **Error handling block: 2/2 DONE** — graceful-degradation via D42/D50/D55; error-context-surfacing via D65/D66/D67 (ErrorMetadata + ErrorCode + provider mappers).
-- **Security block: 1/3 DONE** — secret-redaction-discipline via D68-D73 (canonical redactor + public `Security.addPattern` + 4 wired sinks + CI gate). `path-traversal-vectors` + `toctou-race-prevention` remain.
+- **Security block: 3/3 DONE** — secret-redaction-discipline (D68-D73), path-traversal-vectors (D79-D81 + D84-D85), toctou-race-prevention (D61 + D82 + D83). All wired sinks, CI gates, and adversarial property tests in place.
 
 > **Importante**: este é mapa, não plano. Não há commitment de implementar
 > todos os PENDING — cada um é proposta que precisa de ADR + plano formal
