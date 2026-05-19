@@ -1,7 +1,7 @@
 # cloud-with-skills
 
 Demonstrates that `AgentOptions.skills.enabled` is serialized into the cloud
-agent payload that TheoPaaS receives at `POST /v1/agents/{id}/runs`.
+agent payload that TheoCloud receives at `POST /v1/agents/{id}/runs`.
 
 ## Run
 
