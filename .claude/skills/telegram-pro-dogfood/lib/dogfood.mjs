@@ -115,12 +115,18 @@ const COMMANDS = [
   // "Improvisation", etc. — we care that streaming delivered SOMETHING, not
   // which exact word the LLM chose.
   { text: "Say jazz in one word.", expect: [/^\S+/m, /\d{2}:\d{2}/], waitMs: 30000 },
-  { text: "/stream off", expect: [/Streaming mode now.*wait/i], waitMs: 5000 },
+  { text: "/stream off", expect: [/Streaming mode now.*wait/i], waitMs: 10000 },
 
   // ── Loop family (don't wait for many fires) ──
-  { text: "/loop 30s diga oi em uma palavra", expect: [/Loop.*agendado|Pra parar/i], waitMs: 6000 },
-  { text: "/loops", expect: [/Loops ativos|Sem loops ativos/i], waitMs: 5000 },
-  { text: "/stop_loop all", expect: [/Parados|Sem loops/i], waitMs: 5000 },
+  // Loop reply contains 5 lines: emoji + id, duration, next fire, prompt,
+  // and "Pra parar: /stop_loop <id>". Pattern accepts any of them.
+  {
+    text: "/loop 30s diga oi em uma palavra",
+    expect: [/agendado|Próxima execução|Pra parar|🔁/i],
+    waitMs: 12000,
+  },
+  { text: "/loops", expect: [/Loops ativos|Sem loops ativos/i], waitMs: 8000 },
+  { text: "/stop_loop all", expect: [/Parados|Sem loops/i], waitMs: 8000 },
 ];
 
 // ─── Helpers ───
@@ -380,14 +386,24 @@ async function main() {
       continue;
     }
 
-    const inbound = await waitForInboundReply(
-      cdp,
-      sessionId,
-      baselineMaxId,
-      cmd.waitMs,
-      cmd.expect,
-    );
-    const reply = inbound.map((b) => b.text).join("\n");
+    let inbound = await waitForInboundReply(cdp, sessionId, baselineMaxId, cmd.waitMs, cmd.expect);
+    let reply = inbound.map((b) => b.text).join("\n");
+
+    // Auto-retry transient OpenRouter rate-limit (HTTP 429). The bot surfaces
+    // it as "(run error) openai API error: rate_limit (HTTP 429)". Wait a
+    // full window (75s) and resend the same command — succeeds when the
+    // free-tier minute bucket refills.
+    const RATE_LIMIT_RE = /\(run error\).*rate_limit \(HTTP 429\)/i;
+    let retryCount = 0;
+    while (RATE_LIMIT_RE.test(reply) && retryCount < 2) {
+      retryCount += 1;
+      process.stdout.write(`\n  ⏳ rate-limited, sleeping 75s before retry ${retryCount}... `);
+      await wait(75000);
+      const retryBaseline = await getMaxMessageId(cdp, sessionId);
+      await typeAndSend(cdp, sessionId, cmd.text);
+      inbound = await waitForInboundReply(cdp, sessionId, retryBaseline, cmd.waitMs, cmd.expect);
+      reply = inbound.map((b) => b.text).join("\n");
+    }
     const elapsed = Date.now() - t0;
 
     if (reply.length === 0) {
@@ -410,6 +426,13 @@ async function main() {
         reply: summarize(reply, 800),
       });
     }
+
+    // Inter-scenario gap to avoid OpenRouter free-tier rate-limit (~10 LLM
+    // calls/minute) and let Telegram Web DOM settle between commands. LLM-
+    // heavy commands (/fact, /factstream, /tool *, /loop, free-text) get a
+    // larger gap; cheap toggles run quickly.
+    const llmHeavy = /\/(tool|fact|factstream|loop|recall)|\?|^[^/]/.test(cmd.text);
+    await wait(llmHeavy ? 6000 : 1500);
   }
 
   cdp.close();

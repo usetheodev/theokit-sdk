@@ -3,6 +3,31 @@ name: telegram-pro-dogfood
 description: Run a fully automated end-to-end dogfood of examples/telegram-pro against a real Telegram chat via Chrome DevTools Protocol. Boots the bot, attaches to a running Chrome tab with Telegram Web, drives every v1.0+v1.1+v1.2 command, captures replies from the DOM, validates outputs, and reports pass/fail per command with regression detection.
 ---
 
+# Quickstart — DO NOT REINVENT
+
+**The script already exists.** Don't write your own CDP harness, don't synthesize Updates, don't refactor the bot to expose `bot.handleUpdate`. Use this exact two-line invocation:
+
+```bash
+# 1. Boot the bot in background (skip if `ps aux | grep tsx.*telegram-pro` shows it running)
+cd examples/telegram-pro && nohup pnpm tsx --env-file=.env src/index.ts > /tmp/tgpro-dogfood.log 2>&1 & disown
+sleep 8 && grep "Connected as @" /tmp/tgpro-dogfood.log
+
+# 2. Run the suite (this is the canonical dogfood entrypoint)
+cd /home/paulo/Projetos/usetheo/theokit-sdk
+node .claude/skills/telegram-pro-dogfood/lib/dogfood.mjs --user-id 7528967933
+```
+
+Required state before running:
+- Chrome with `chrome://inspect/#remote-debugging` ON (DevTools port file at `~/.config/google-chrome/DevToolsActivePort`)
+- A Telegram Web tab open at `https://web.telegram.org/a/#8982152421` (or wherever `@theo_paulo_bot` is)
+- Node 22+ active (`nvm use 22`)
+- `TELEGRAM_BOT_TOKEN` + `OPENROUTER_API_KEY` in `examples/telegram-pro/.env` (auto-loaded by tsx)
+- `--user-id <id>` if `TELEGRAM_ALLOWED_USERS` is empty in `.env`
+
+Expected output: `Total: 25 | PASS: 25 | FAIL: 0`. Snapshot at `.claude/knowledge-base/reviews/telegram-pro-dogfood-YYYY-MM-DD.md`.
+
+# Full reference (read only if quickstart fails)
+
 You are running the telegram-pro live dogfood. This skill validates the entire bot end-to-end as a real user would — typing commands in Telegram Web, watching replies arrive — but 100% automated via Chrome DevTools Protocol (CDP).
 
 ## Prerequisites (verify BEFORE running)
@@ -132,3 +157,19 @@ If any of these are missing from `lib/dogfood.mjs`, ADD them before running. The
 - **OAuth real flow** (`/notion` with `NOTION_OAUTH_CLIENT_ID` set) — browser callback can't reach a bot in headless mode. Skill tests config-only path; full flow requires `pnpm exec theokit-mcp-auth-notion --setup` outside the bot (one-time).
 - **`/remind <cron> | <msg>` scheduling** — would need to wait for cron fire (minimum 10s); covered in `/cron` listing instead.
 - **`/loop` long-running** — covered by triggering + checking initial confirmation; doesn't wait for N loop fires.
+
+## Known-good model pinning (2026-05-19)
+
+Two bot commands pin `openai/gpt-4o-mini` instead of the agent's default Gemini, due to provider-specific issues that broke the dogfood:
+
+1. **`/factstream`** uses `Agent.streamObject<T>` with a Zod schema. Gemini 2.0 Flash sometimes returns plain text instead of calling the structured `output` tool, producing `"Streaming failed: The model returned text instead of calling the output tool"`. GPT-4o-mini has reliable tool-call compliance with Zod schemas. Fix: `src/index.ts` `/factstream` handler pins `model: { id: "openai/gpt-4o-mini" }`.
+
+2. **`/tool <name>`** uses `agent.send(..., { tools: [singleTool] })` — single-tool ad-hoc calls require strict tool-calling. Gemini also (separate from the streamObject issue) hits OpenRouter free-tier rate-limit faster than gpt-4o-mini because the agent's default model is also Gemini, so multiple LLM-driven commands in the suite share one bucket. GPT-4o-mini lives on a different bucket. Fix: `src/index.ts` `/tool` handler pins `model: { id: "openai/gpt-4o-mini" }`.
+
+If a future dogfood shows similar tool-call or rate-limit failures on commands using the default model, consider the same pinning strategy.
+
+## Rate-limit retry (built into the dogfood script)
+
+`lib/dogfood.mjs` automatically retries any reply matching `(run error) ... rate_limit (HTTP 429)` up to 2 times with 75-second backoff per retry. This handles OpenRouter free-tier throttling without requiring user intervention. Inter-scenario gap is 6s for LLM-heavy commands (regex match: `/tool`, `/fact`, `/factstream`, `/loop`, `/recall`, free text), 1.5s otherwise.
+
+If a dogfood run still hits rate-limit after retries (rare; only when daily quota of ~200 req/day is exhausted), wait 1-2 hours and rerun. Do not skip or weaken the patterns — the retry logic is the correct mitigation.

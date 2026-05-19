@@ -356,9 +356,14 @@ bot.command("factstream", async (ctx) => {
         }
       | undefined;
 
+    // Gemini 2.0 Flash sometimes returns plain text instead of calling the
+     // structured `output` tool (Gemini-specific quirk documented in usage
+     // text above). GPT-4o-mini is much more reliable for streamObject /
+     // Zod-schema flows — same OpenRouter API key, marginal cost difference,
+     // deterministic tool calling.
     for await (const evt of Agent.streamObject({
       apiKey: API_KEY,
-      model: { id: "google/gemini-2.0-flash-001" },
+      model: { id: "openai/gpt-4o-mini" },
       local: { cwd: CWD, sandboxOptions: { enabled: false } },
       schema,
       systemPrompt:
@@ -788,6 +793,10 @@ bot.command("tool", async (ctx) => {
       // use exactly this tool (or refuse). This is the SendOptions.tools
       // contract from SDK v1.x: replace, not merge.
       tools: [tool],
+      // Pin gpt-4o-mini: single-tool ad-hoc calls are tool-calling-only; gpt-
+      // 4o-mini has strict tool-call compliance and lives on a different
+      // OpenRouter rate-limit bucket than Gemini (the agent's default model).
+      model: { id: "openai/gpt-4o-mini" },
       systemPrompt: SYSTEM_PROMPT,
     });
     const result = await run.wait();
@@ -1164,12 +1173,24 @@ try {
 }
 console.log();
 
-await bot.start({
-  onStart: (me) => {
-    policy = { botUsername: me.username, botId: me.id };
-    console.log(`Connected as @${me.username} (id=${me.id}). Send /start to your bot.`);
-  },
-});
+// Export the configured bot for dogfood / harness scripts that import this
+// module and inject synthetic Updates via `bot.handleUpdate(...)`. Long-polling
+// is started only when this module is the entrypoint (executed directly), not
+// when imported.
+export { bot };
+export function setPolicyForDogfood(p: PolicyContext): void {
+  policy = p;
+}
+
+const importedAsModule = process.env.TELEGRAM_PRO_NO_POLL === "1";
+if (!importedAsModule) {
+  await bot.start({
+    onStart: (me) => {
+      policy = { botUsername: me.username, botId: me.id };
+      console.log(`Connected as @${me.username} (id=${me.id}). Send /start to your bot.`);
+    },
+  });
+}
 // Keep the InputFile import referenced so TS doesn't tree-shake it; we'll
 // use it when we extend the bot to send photos back.
 void InputFile;
