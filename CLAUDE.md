@@ -334,6 +334,94 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 > acima). Theokit-SDK não tem ambição de paridade Hermes-equivalent;
 > compara-se a Vercel AI / Mastra / Claude Agent SDK.
 
+## Macro Roadmap — Priority Order (2026-05-18)
+
+> Síntese dos gaps abertos (7 PENDING + 3 PARTIAL do roadmap de patterns
+> acima + os 9 v1.3 features Hermes-class de [`hermes-deep-dive/99-implementation-guide.md`](./.claude/knowledge-base/hermes-deep-dive/99-implementation-guide.md)).
+> Ordenado por **alavancagem ÷ custo**, não por preferência. Cross-link:
+> cada linha aponta pra pattern em `sdk-references/` + Hermes primary
+> source via [`hermes-deep-dive/INDEX.md`](./.claude/knowledge-base/hermes-deep-dive/INDEX.md).
+
+Critérios de ranking:
+
+- **Foundation-first** — bloqueia outros gaps? Vai antes.
+- **Quick wins** — <1k LoC + baixo risco + impacto user-visible? Vai antes.
+- **User-facing > internal** — surface que devs vão usar antes de refactor arquitetural.
+- **Independent > coupled** — gaps que rodam isolados antes dos que dependem de N outros.
+
+LoC estimates do `99-implementation-guide.md`; risk = Hermes' próprio
+indicator de quanto deu trabalho lá.
+
+### Tier 1 — Quick wins (recomendado começar aqui)
+
+| # | Gap | Tipo | LoC est | Risco | Por quê primeiro |
+|---|---|---|---|---|---|
+| 1 | **`Agent.runUntil(goal)`** ([async-iterable-streaming](./.claude/knowledge-base/sdk-references/async-iterable-streaming.md) PARTIAL → DONE) | Feature | 600 | baixo | Ralph loop primitive. Foundation pra autonomous-skills (#9). User-visible, baixo blast radius. Já temos o skill na cli do Claude Code — trazer pro SDK é tradução direta. |
+| 2 | **`tool-call-failure-recovery`** ([pattern](./.claude/knowledge-base/sdk-references/tool-call-failure-recovery.md)) | Pattern | 800 | médio | Repair middleware em `internal/tool-dispatch/`. Hoje primeira tool call malformada termina o loop. LLMs frequentemente devolvem JSON malformado — high real-world impact. |
+| 3 | **`compression-death-spiral`** ([pattern](./.claude/knowledge-base/sdk-references/compression-death-spiral.md)) | Pattern | 400 | baixo | `IterationBudget` cap em `internal/runtime/budget.ts`. Safety net contra runaway loops. Pareia naturalmente com #2. |
+| 4 | **`tool-registry-pattern`** ([pattern](./.claude/knowledge-base/sdk-references/tool-registry-pattern.md) PARTIAL → DONE) | Pattern | 500 | baixo | Já temos `defineTool` (D24). Falta `ToolRegistry` + `Toolset` filtragem. Foundation pra plugin-contract-design (#5). |
+
+**Tier 1 total: ~2300 LoC, ~3 semanas com 1 dev.** Fecha 2 PENDING + 2 PARTIAL → roadmap vira **15 DONE / 1 PARTIAL / 5 PENDING / 2 CULTURAL**.
+
+### Tier 2 — Arquitetura extensível (depende de Tier 1)
+
+| # | Gap | Tipo | LoC est | Risco | Dependências |
+|---|---|---|---|---|---|
+| 5 | **`plugin-contract-design`** ([pattern](./.claude/knowledge-base/sdk-references/plugin-contract-design.md)) | Pattern | 1500 | médio | Depende de tool-registry-pattern (#4). |
+| 6 | **`provider-as-plugin`** / ProviderProfile ABC ([pattern](./.claude/knowledge-base/sdk-references/provider-as-plugin.md) + [v1.3 feature 7](./.claude/knowledge-base/hermes-deep-dive/07-provider-plugins.md)) | Pattern + Feature | 1500 | médio | Depende de plugin-contract-design (#5). Destrava ecosystem (`@theokit-provider-xyz`). |
+
+**Tier 2 total: ~3000 LoC, ~5 semanas.** Fecha 2 PENDING → **17 DONE / 0 PARTIAL / 3 PENDING / 2 CULTURAL** (assumindo Tier 1 done).
+
+### Tier 3 — Security hardening
+
+| # | Gap | Tipo | LoC est | Risco | Notas |
+|---|---|---|---|---|---|
+| 7 | **`path-traversal-vectors`** ([pattern](./.claude/knowledge-base/sdk-references/path-traversal-vectors.md)) | Pattern | 400 | baixo | `internal/security/path-guard.ts`. Hermes shipou 7 closures em v0.2 + zip-slip em v0.5. |
+| 8 | **`toctou-race-prevention`** ([pattern](./.claude/knowledge-base/sdk-references/toctou-race-prevention.md) PARTIAL → DONE) | Pattern | 600 | médio | Já temos cwd-mutex + withFileLock. Falta SQLite CAS patterns + O_EXCL idiomático. Hermes teve 3 recurrences em v0.13. |
+
+**Tier 3 total: ~1000 LoC, ~2 semanas.** Fecha 1 PENDING + 1 PARTIAL → **19 DONE / 0 PARTIAL / 2 PENDING / 2 CULTURAL**.
+
+### Tier 4 — Background work + cross-session
+
+| # | Gap | Tipo | LoC est | Risco | Cross-link Hermes |
+|---|---|---|---|---|---|
+| 9 | **`forked-agent-pattern`** | Pattern | 800 | médio | [run_agent.py:4230](./referencia/hermes-agent/run_agent.py#L4230) `_spawn_background_review`. Pareia com #11. |
+| 10 | **`judge-call-pattern`** | Pattern | 600 | médio | [goals.py:580](./referencia/hermes-agent/hermes_cli/goals.py#L580). Pareia com #1 (runUntil). |
+| 11 | **Cross-session FTS5 (SessionDB)** | Feature | 2000 | baixo | [04-cross-session-fts5.md](./.claude/knowledge-base/hermes-deep-dive/04-cross-session-fts5.md). FTS5 sanitizer já temos. |
+| 12 | **`no_agent` cron mode** | Feature | 800 | baixo | [09-no-agent-cron.md](./.claude/knowledge-base/hermes-deep-dive/09-no-agent-cron.md). Cron sem LLM (timer-only). |
+| 13 | **Dialectic user modeling** | Feature | 1200 | médio | [05-dialectic-user-model.md](./.claude/knowledge-base/hermes-deep-dive/05-dialectic-user-model.md). Honcho equivalent. |
+| 14 | **Checkpoints v2** | Feature | 1800 | médio | [08-checkpoints-v2.md](./.claude/knowledge-base/hermes-deep-dive/08-checkpoints-v2.md). Shells out to git, lazy probe. |
+
+**Tier 4 total: ~7200 LoC, ~12 semanas.** Fecha 2 PENDING patterns + 4 features novos.
+
+### Tier 5 — Big bets (alta ambição, alto custo)
+
+| # | Gap | Tipo | LoC est | Risco | Notas |
+|---|---|---|---|---|---|
+| 15 | **Autonomous Curator** | Feature | 2500 | alto | [03-autonomous-skills.md](./.claude/knowledge-base/hermes-deep-dive/03-autonomous-skills.md). Self-improving skills, depende de #9 + #11. |
+| 16 | **7 execution backends** (Daytona, Modal, Bedrock…) | Feature | 4000 | alto | [06-execution-backends.md](./.claude/knowledge-base/hermes-deep-dive/06-execution-backends.md). Cada backend é 500-800 LoC. |
+| 17 | **Multi-agent Kanban** | Feature | 4500 | muito alto | [01-kanban.md](./.claude/knowledge-base/hermes-deep-dive/01-kanban.md). Hermes precisou rewrite (v0.12 revertido, v0.13 re-landed). |
+
+**Tier 5 total: ~11000 LoC, ~6 meses.** Cada um é uma "feature flagship" — não comprometer sem strategic review.
+
+### Resumo de impacto
+
+```
+Tier 1 (quick wins)        2300 LoC   3 sem   →  15 DONE / 1 PARTIAL / 5 PENDING / 2 CULTURAL
+Tier 2 (arq extensível)    3000 LoC   5 sem   →  17 DONE / 0 PARTIAL / 3 PENDING / 2 CULTURAL
+Tier 3 (security)          1000 LoC   2 sem   →  19 DONE / 0 PARTIAL / 2 PENDING / 2 CULTURAL
+Tier 4 (cross-session)     7200 LoC  12 sem   →  21 DONE + 4 features novos
+Tier 5 (big bets)         11000 LoC   6 mês   →  paridade Hermes-class completa
+```
+
+**Recomendação Q3 2026**: comprometer com Tier 1 (3 semanas, alto leverage), revisar Tier 2 depois de #1 + #2 landed. Tiers 4 e 5 requerem strategic review (escopo > engenharia).
+
+### Anti-patterns documentados (não confundir com prioridade)
+
+- **NÃO começar por Tier 5** mesmo que pareça mais ambicioso — Kanban e Curator dependem de fork-agent (#9) e SessionDB (#11) que dependem de provider-as-plugin (#6) que depende de plugin-contract (#5). Pular tiers gera retrabalho.
+- **NÃO mexer no agent-loop antes do Tier 1.2 (tool-call-failure-recovery)** — sem repair middleware, qualquer mudança no loop precisa lidar com malformed-tool-call cases manualmente.
+- **NÃO shipar autonomous-skills (#15) sem Tier 3 security** — autonomous code execution + missing path guard + missing TOCTOU completeness = supply chain incident waiting to happen (lesson from Hermes v0.5 #2796 litellm removal).
+
 ## Inviolable rules (carried from root and global)
 
 1. **95% confidence gate.** Stop and ask if uncertain.
