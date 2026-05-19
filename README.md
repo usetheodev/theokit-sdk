@@ -5,13 +5,13 @@
 </p>
 
 <p align="center">
-  <p align="center"><code>@usetheo/sdk</code></p>
+  <p align="center"><code>@usetheo/sdk</code> · the <strong>Build</strong> (SDK) auxiliary of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
   <h1 align="center">Code your agent. Keep your runtime.</h1>
   <p align="center">
     <strong>A TypeScript SDK with an Apache-2.0 local runtime, multi-provider keys, and an opt-in cloud.</strong>
   </p>
   <p align="center">
-    Ship agents into your CI, your cron, your backend — and walk away whenever you want.
+    Ship agents into your CI, your cron, your backend — and walk away whenever you want. The build-your-own-agent verb of <strong>Chat. Build. Deploy.</strong>
   </p>
   <p align="center">
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
