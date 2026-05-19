@@ -29,6 +29,16 @@ export {
   type GenerateObjectOptions,
   type GenerateObjectResult,
 } from "./generate-object.js";
+// Plugin & extension system (v1.8 — ADRs D97-D109)
+export {
+  definePlugin,
+  type HookName,
+  type Plugin,
+  type PluginContext,
+  type PreToolCallContext,
+  type PreToolCallDecision,
+} from "./internal/plugins/types.js";
+export type { ProviderProfile } from "./internal/providers/types.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,
