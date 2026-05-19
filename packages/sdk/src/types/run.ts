@@ -26,7 +26,9 @@ export type RunOperation =
   | "cancel"
   | "conversation"
   | "listArtifacts"
-  | "downloadArtifact";
+  | "downloadArtifact"
+  | "runUntil"
+  | "fork";
 
 /**
  * Git metadata attached to cloud runs.

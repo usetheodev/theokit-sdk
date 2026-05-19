@@ -276,6 +276,19 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D107 | Provider discovery is lazy + last-writer-wins (with WARN) | [D107-provider-lazy-discovery.md](./.claude/knowledge-base/adrs/D107-provider-lazy-discovery.md) |
 | D108 | V1.2 caller API is preserved byte-by-byte | [D108-v12-api-preserved.md](./.claude/knowledge-base/adrs/D108-v12-api-preserved.md) |
 | D109 | Refactor is incremental, not big-bang | [D109-incremental-refactor.md](./.claude/knowledge-base/adrs/D109-incremental-refactor.md) |
+| D110 | `internal/runtime/fork-agent.ts` is the canonical fork primitive | [D110-fork-agent-canonical-home.md](./.claude/knowledge-base/adrs/D110-fork-agent-canonical-home.md) |
+| D111 | Tool whitelist propagated via `AsyncLocalStorage`, never global mutable | [D111-async-local-storage-whitelist.md](./.claude/knowledge-base/adrs/D111-async-local-storage-whitelist.md) |
+| D112 | Fork inherits parent system prompt byte-identical (cache hit) | [D112-byte-identical-system-prompt.md](./.claude/knowledge-base/adrs/D112-byte-identical-system-prompt.md) |
+| D113 | Forks effectively auto-deny approval-requiring tools | [D113-auto-deny-approval-fork.md](./.claude/knowledge-base/adrs/D113-auto-deny-approval-fork.md) |
+| D114 | Memory write provenance via `metadata.forkOrigin` | [D114-memory-write-provenance.md](./.claude/knowledge-base/adrs/D114-memory-write-provenance.md) |
+| D115 | `GoalEvent` is a discriminated union by `type` | [D115-goal-event-discriminated-union.md](./.claude/knowledge-base/adrs/D115-goal-event-discriminated-union.md) |
+| D116 | `Agent.runUntil` returns `AsyncGenerator<GoalEvent, GoalResult, void>` | [D116-run-until-async-generator.md](./.claude/knowledge-base/adrs/D116-run-until-async-generator.md) |
+| D117 | `runUntil` integrates `AbortSignal` at turn boundaries (EC-C: pre-abort yields paused only) | [D117-abort-signal-integration.md](./.claude/knowledge-base/adrs/D117-abort-signal-integration.md) |
+| D118 | Goal control via caller-supplied AbortController, not instance methods | [D118-pause-clear-goal-instance-methods.md](./.claude/knowledge-base/adrs/D118-pause-clear-goal-instance-methods.md) |
+| D119 | Judge default `openai/gpt-4o-mini` via `OPENROUTER_API_KEY` (EC-A single env source) | [D119-judge-model-default-gpt-4o-mini.md](./.claude/knowledge-base/adrs/D119-judge-model-default-gpt-4o-mini.md) |
+| D120 | Verdict is a closed enum `done \| continue \| skipped` | [D120-verdict-enum-three-values.md](./.claude/knowledge-base/adrs/D120-verdict-enum-three-values.md) |
+| D121 | Fail-safe `continue` on parse error + max-consecutive cap (default 3) | [D121-fail-safe-continue-max-cap.md](./.claude/knowledge-base/adrs/D121-fail-safe-continue-max-cap.md) |
+| D122 | `runUntil`/`fork` throw `UnsupportedRunOperationError` on CloudAgent | [D122-run-until-cloud-unsupported.md](./.claude/knowledge-base/adrs/D122-run-until-cloud-unsupported.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -316,13 +329,13 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | tool-registry-pattern | ✅ DONE | `packages/sdk/src/internal/tool-registry/` — `ToolRegistry` central (D102) + flat `Toolset` (D104) + check_fn TTL 30s (D103) + result cap. `defineTool` (D24) continua o entry-point público; ToolRegistry consome via `fromCustomTool`. |
 | provider-as-plugin | ✅ DONE | `packages/sdk/src/internal/providers/` — `ProviderProfile` data-only (D105) + Transport ABC via `apiMode` (D106) + lazy discovery em `~/.theokit/plugins/model-providers/` (D107). 4 builtins migrados (Anthropic/OpenAI/OpenRouter/Gemini); router.ts consulta `getProviderProfile` em vez do switch hardcoded. V1.2 API preservada (D108). |
 
-### Background work (3)
+### Background work (3) — ✅ Background Work Block Completion plan COMPLETED 2026-05-19
 
 | Pattern | Status | Where in SDK |
 |---|---|---|
-| forked-agent-pattern | ❌ PENDING | `internal/runtime/fork-agent.ts` (a criar) |
-| async-iterable-streaming | ⚠️ PARTIAL | `Agent.streamObject` (D39) usa; falta `Agent.runUntil(goal)` |
-| judge-call-pattern | ❌ PENDING | `internal/judge/` (a criar) |
+| forked-agent-pattern | ✅ DONE | `packages/sdk/src/internal/runtime/fork-agent.ts` — `forkAgentImpl` + `filterMemoryPlugins` (EC-B). `withToolWhitelist` via `internal/runtime/async-local-storage.ts` (ADR D111). `LocalAgent.fork(options)` shorthand. Byte-identical system prompt inheritance (D112). Memory provenance via `metadata.forkOrigin` (D114). |
+| async-iterable-streaming | ✅ DONE | `Agent.runUntil(goal, options)` retorna `AsyncGenerator<GoalEvent, GoalResult, void>` (ADR D116) em `internal/runtime/run-until.ts`. AbortSignal at turn boundaries (D117), pre-abort yields paused only (EC-C). 5-variant discriminated `GoalEvent` (D115). `streamObject` (D39) continua. |
+| judge-call-pattern | ✅ DONE | `packages/sdk/src/internal/judge/` — `parse-verdict.ts` (D120 enum + D121 fail-safe + max-cap), `judge-call.ts` (D119 default `openai/gpt-4o-mini` via `OPENROUTER_API_KEY` EC-A), `verify-side-effect.ts` (hallucination gate). Adversarial fast-check 800+ runs. |
 
 ### Security (3)
 
@@ -347,12 +360,12 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | error-context-surfacing | ✅ DONE | `packages/sdk/src/errors.ts` — `ErrorMetadata` + `ErrorCode` types (ADR D65/D66). Provider mappers `mapAnthropicError` + `mapOpenAICompatibleError` (ADR D67) in `internal/errors/mappers/`. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, `internal/memory/adapters/openai-compatible.ts`. `fallback-client.ts` also falls back on `AuthenticationError`/`RateLimitError`. |
 | graceful-degradation | ✅ DONE | ADR D42 (auto-detect telemetry), D50 (lance dry-run), D55 (fail-open) implementados |
 
-### Totais (2026-05-19 — pós Plugin & Extension Block Completion plan)
+### Totais (2026-05-19 — pós Background Work Block Completion plan)
 
 ```
-✅ DONE        19 (83%)
-⚠️ PARTIAL      1  (4%)
-❌ PENDING      2  (9%)
+✅ DONE        22 (96%)
+⚠️ PARTIAL      0  (0%)
+❌ PENDING      0  (0%)
 📚 CULTURAL    1  (4%)
               ───
               23 (100%)
@@ -362,6 +375,8 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 - **Testing block: 2/3 DONE + 1/3 CULTURAL** — hermetic-test-isolation landed via T6.1 (vitest.setup.ts + setupFiles); property-based-testing now ✅ DONE via `fast-check` adversarial suite shipped with secret-redaction (12 builtin patterns × 200 runs + sink-level tests).
 - **Error handling block: 2/2 DONE** — graceful-degradation via D42/D50/D55; error-context-surfacing via D65/D66/D67 (ErrorMetadata + ErrorCode + provider mappers).
 - **Security block: 3/3 DONE** — secret-redaction-discipline (D68-D73), path-traversal-vectors (D79-D81 + D84-D85), toctou-race-prevention (D61 + D82 + D83). All wired sinks, CI gates, and adversarial property tests in place.
+- **Plugin & Extension block: 3/3 DONE** — plugin-contract-design (D97-D101), tool-registry-pattern (D102-D104), provider-as-plugin (D105-D109). Tier 2 macro roadmap closed.
+- **Background Work block: 3/3 DONE** — forked-agent-pattern (D110-D114), async-iterable-streaming (D115-D118), judge-call-pattern (D119-D121). Tier 4 partial (cross-session/checkpoints/dialectic still pending). Ralph loop primitive `Agent.runUntil(goal)` shipped. 13 new ADRs (D110-D122). Tests 853 → 911 (+58). 1000+ fast-check runs.
 
 > **Importante**: este é mapa, não plano. Não há commitment de implementar
 > todos os PENDING — cada um é proposta que precisa de ADR + plano formal

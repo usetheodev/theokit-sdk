@@ -1,6 +1,7 @@
 import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
+import { checkToolWhitelist } from "../runtime/async-local-storage.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/shell-tool.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs } from "./loop-types.js";
@@ -64,8 +65,29 @@ async function dispatchSingleCall(
       input: (repaired.call.args ?? {}) as Record<string, unknown>,
     };
   }
-  const resolved = tools.find((tool) => tool.name === call.name);
+  // T4.1 (ADR D111): fork tool-whitelist gate fires FIRST — before plugin
+  // and file hooks. A fork's allowedTools set is the strictest contract;
+  // if the fork didn't authorize the tool, the model never gets to invoke
+  // it (no plugin observation, no file-hook trace). Returns a benign
+  // tool_result so the model can react in narrative — mirrors D101 veto.
   const callId = generateCallId();
+  const whitelistDecision = checkToolWhitelist(call.name);
+  if (!whitelistDecision.allowed) {
+    events.push(buildToolUseRunning(inputs, callId, call));
+    events.push(
+      buildToolUseCompleted(inputs, callId, call, {
+        stdout: "",
+        stderr: whitelistDecision.reason ?? "tool not available in fork",
+        exitCode: 126,
+      }),
+    );
+    return {
+      type: "tool_result",
+      toolUseId: call.id,
+      content: `Tool blocked by fork whitelist: ${whitelistDecision.reason}`,
+    };
+  }
+  const resolved = tools.find((tool) => tool.name === call.name);
   const toolSpan = inputs.telemetry?.startSpan("tool.call", {
     "tool.name": call.name,
     "tool.origin": resolved?.origin ?? "unknown",

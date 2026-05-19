@@ -457,6 +457,64 @@ export class LocalAgent implements SDKAgent {
       ),
     );
   }
+
+  /**
+   * Public accessor for fork inheritance (T4.3 + ADR D110). Read-only by
+   * contract — mutating the returned object has no effect on the agent.
+   *
+   * @internal
+   */
+  getOptionsForFork(): AgentOptions {
+    return this.options;
+  }
+
+  /**
+   * Goal-driven Ralph loop (T4.2, ADRs D115-D121). See {@link SDKAgent.runUntil}.
+   *
+   * @public
+   */
+  runUntil(
+    goal: string,
+    options?: import("../../types/goal-events.js").GoalOptions,
+  ): AsyncGenerator<
+    import("../../types/goal-events.js").GoalEvent,
+    import("../../types/goal-events.js").GoalResult,
+    void
+  > {
+    const agent = this;
+    async function* wrap(): AsyncGenerator<
+      import("../../types/goal-events.js").GoalEvent,
+      import("../../types/goal-events.js").GoalResult,
+      void
+    > {
+      const { runUntilImpl } = await import("./run-until.js");
+      const { judgeCallImpl } = await import("../judge/judge-call.js");
+      const { Agent } = await import("../../agent.js");
+      const deps = {
+        judge: async (
+          ctx: import("../judge/judge-call.js").JudgeContext,
+          opts?: import("../judge/judge-call.js").JudgeOptions,
+        ) => judgeCallImpl(ctx, opts, { create: (o) => Agent.create(o) }),
+      };
+      return yield* runUntilImpl(agent, goal, options, deps);
+    }
+    return wrap();
+  }
+
+  /**
+   * Fork a short-lived sub-agent (T4.3, ADRs D110-D114).
+   *
+   * @public
+   */
+  async fork(
+    options: import("./fork-agent.js").ForkOptions,
+  ): Promise<import("./fork-agent.js").ForkResult> {
+    const { forkAgentImpl } = await import("./fork-agent.js");
+    const { Agent } = await import("../../agent.js");
+    return forkAgentImpl({ agentId: this.agentId, options: this.options }, options, {
+      create: (o) => Agent.create(o),
+    });
+  }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {
