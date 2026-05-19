@@ -84,7 +84,7 @@ const COMMANDS = [
 
   // ── DX tools (v1.1) ──
   { text: "/tool list", expect: [/Ad-hoc tools|roll|uuid|hash/i], waitMs: 5000 },
-  { text: "/tool uuid", expect: [/[0-9a-f]{8}-[0-9a-f]{4}-/i], waitMs: 12000 },
+  { text: "/tool uuid", expect: [/[0-9a-f]{8}-[0-9a-f]{4}-/i], waitMs: 12000, retryOnError: true },
   { text: "/tool roll 3d6", expect: [/Rolled.*3d6|Total/i], waitMs: 12000 },
 
   // ── v1.1 generateObject ──
@@ -167,6 +167,7 @@ const COMMANDS = [
       /via Agent\.runUntil/i,
     ],
     waitMs: 120000,
+    retryOnError: true,
   },
 ];
 
@@ -437,9 +438,18 @@ async function main() {
     // `s` flag: bot's error reply has `(run error)\n\nDetail: ... 429`.
     // Without `s`, `.` wouldn't cross the newline and the regex would miss
     // the rate-limit signal that auto-retry needs.
+    //
+    // Some scenarios (e.g. /tool uuid, /goal) surface the rate-limit as
+    // a bare "(run error) no result" because the bot's handler returns
+    // `result.error?.message ?? "no result"` and `result.error` was empty.
+    // For those, the scenario opts-in via `retryOnError: true`.
     const RATE_LIMIT_RE = /\(run error\)[\s\S]*rate_limit \(HTTP 429\)/i;
+    const BARE_ERROR_RE = /\(run error\)\s*(no result|$)/i;
     let retryCount = 0;
-    while (RATE_LIMIT_RE.test(reply) && retryCount < 2) {
+    while (
+      retryCount < 2 &&
+      (RATE_LIMIT_RE.test(reply) || (cmd.retryOnError === true && BARE_ERROR_RE.test(reply)))
+    ) {
       retryCount += 1;
       process.stdout.write(`\n  ⏳ rate-limited, sleeping 75s before retry ${retryCount}... `);
       await wait(75000);
