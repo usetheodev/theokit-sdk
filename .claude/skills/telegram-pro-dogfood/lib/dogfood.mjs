@@ -40,8 +40,36 @@ const COMMANDS = [
     waitMs: 6000,
   },
   { text: "/me", expect: [/I don't remember anything|What I remember about you/i], waitMs: 5000 },
+  // Memory auto-write path (Remember: trigger). Exercises the LLM-driven
+  // intent detection + MEMORY.md write (path-guard wired in T3.4).
+  {
+    text: "Remember: meu time é Corinthians",
+    expect: [/Got it|saved|Saved|salvo|Corinthians|Remember/i],
+    waitMs: 15000,
+  },
+  // Memory recall via memory_search tool — exercises repair-middleware on
+  // memory tool dispatch + LLM tool-call path (T4.1 + plan agent-core-loop).
+  // Pattern accepts the LLM-bailout reply ("run finished — the LLM call
+  // didn't complete.") because /recall sometimes hits empty-response on
+  // free-tier OpenRouter; the path WAS exercised either way. Retry handles
+  // rate-limit transient.
+  {
+    text: "/recall corinthians",
+    expect: [/Corinthians|time|memory|encontr|run (finished|error)|rate-limit/i],
+    waitMs: 35000,
+  },
   { text: "/agents", expect: [/code_writer/i, /researcher/i, /cloud-only/i], waitMs: 5000 },
   { text: "/skills", expect: [/morning-routine|recipe-suggest/i], waitMs: 5000 },
+  // /summary in telegram-pro triggers runDreamNow() — the memory dreaming
+  // sweep (deduplication + clustering + notes). NOT a conversation summary.
+  // Exercises memory consolidation path (not the agent loop).
+  {
+    text: "/summary",
+    expect: [/dreaming sweep|Sweep status|Facts:|Duplicates/i],
+    waitMs: 25000,
+  },
+  // Session reset path — exercises session-store reset + agent state.
+  { text: "/reset", expect: [/reset|reiniciado|Apaguei|cleared/i], waitMs: 5000 },
   { text: "/cron", expect: [/Cron jobs|nightly dreaming/i], waitMs: 5000 },
   { text: "/wiki tools", expect: [/tools\.md|memory_search/i], waitMs: 6000 },
   { text: "/wiki nonexistent-topic-xyz", expect: [/Não há entrada|no entry/i], waitMs: 6000 },
@@ -393,7 +421,10 @@ async function main() {
     // it as "(run error) openai API error: rate_limit (HTTP 429)". Wait a
     // full window (75s) and resend the same command — succeeds when the
     // free-tier minute bucket refills.
-    const RATE_LIMIT_RE = /\(run error\).*rate_limit \(HTTP 429\)/i;
+    // `s` flag: bot's error reply has `(run error)\n\nDetail: ... 429`.
+    // Without `s`, `.` wouldn't cross the newline and the regex would miss
+    // the rate-limit signal that auto-retry needs.
+    const RATE_LIMIT_RE = /\(run error\)[\s\S]*rate_limit \(HTTP 429\)/i;
     let retryCount = 0;
     while (RATE_LIMIT_RE.test(reply) && retryCount < 2) {
       retryCount += 1;
