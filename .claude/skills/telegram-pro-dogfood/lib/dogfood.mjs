@@ -96,11 +96,14 @@ const COMMANDS = [
 
   // ── v1.2 streamObject ──
   // Sends placeholder THEN edits with final content. waitForInboundReply
-  // polls until patterns match or timeout (Gemini streamObject ~15-25s).
+  // polls until patterns match or timeout. gpt-4o-mini streamObject is
+  // usually 15-25s but can spike to 45s+ under OpenRouter free-tier load —
+  // 60s waitMs + retryOnError covers the long tail.
   {
     text: "/factstream jazz",
     expect: [/Jazz|Music/i, /Year/i, /streamed.*Agent\.streamObject/i],
-    waitMs: 35000,
+    waitMs: 60000,
+    retryOnError: true,
   },
 
   // ── v1.2 migration CLI demo ──
