@@ -75,3 +75,16 @@ export async function atomicWriteJson<T>(
   await mkdir(dirname(filePath), { recursive: true });
   await replaceFileAtomic(filePath, content);
 }
+
+/**
+ * Atomic text write. Same crash-safety guarantees as `replaceFileAtomic` +
+ * auto-mkdir of the parent directory. Used by `theokit-migrate-config`
+ * (T4.1, EC-2 MUST FIX) so a crash mid-migration leaves previous MD files
+ * intact rather than corrupting them.
+ *
+ * @internal
+ */
+export async function atomicWriteText(filePath: string, content: string): Promise<void> {
+  await mkdir(dirname(filePath), { recursive: true });
+  await replaceFileAtomic(filePath, content);
+}

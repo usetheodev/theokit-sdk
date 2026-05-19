@@ -58,6 +58,7 @@
     "LICENSE"
   ],
   "bin": {
+    "theokit-migrate-config": "./bin/theokit-migrate-config.mjs",
     "theokit-migrate-memory": "./bin/theokit-migrate-memory.mjs"
   },
   "sideEffects": false,

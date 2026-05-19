@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve as resolvePath } from "node:path";
 
@@ -9,6 +10,9 @@ import type {
   ContextSource,
   SDKContextManager,
 } from "../../types/context.js";
+import { loadMarkdownEntities } from "../persistence/markdown-config-loader.js";
+import { ContextSourceFrontmatterSchema } from "./context-frontmatter.js";
+import { warnOnce } from "./hooks-source.js";
 
 /**
  * File-based context manager. Reads `.theokit/context.json` from the
@@ -58,22 +62,7 @@ export class FileContextManager implements SDKContextManager {
   }
 
   async refresh(): Promise<void> {
-    const configPath = join(this.cwd, ".theokit", "context.json");
-    let raw: string;
-    try {
-      raw = await readFile(configPath, "utf8");
-    } catch (cause) {
-      const err = cause as NodeJS.ErrnoException;
-      if (err.code === "ENOENT") {
-        this.state = { config: { sources: [] }, loadedSources: [] };
-        return;
-      }
-      throw new ConfigurationError(`Failed to read context config: ${configPath}`, {
-        code: "context_read_error",
-        cause,
-      });
-    }
-    const config = parseConfig(raw, configPath);
+    const config = await loadContextConfig(this.cwd);
     const loadedSources = await loadSources(config, this.cwd);
     this.state = { config, loadedSources };
   }
@@ -116,6 +105,60 @@ export class FileContextManager implements SDKContextManager {
       maxTokens,
     };
   }
+}
+
+/**
+ * Load context config with MD-first fallback (ADR D77, T2.2).
+ *
+ *   1. `.theokit/context/<name>.md` (preferred).
+ *   2. `.theokit/context.json` (deprecated; emits warn).
+ *   3. Neither → empty sources.
+ *
+ * @internal
+ */
+async function loadContextConfig(cwd: string): Promise<FileContextConfig> {
+  const mdDir = join(cwd, ".theokit", "context");
+  const jsonPath = join(cwd, ".theokit", "context.json");
+
+  const mdEntities = await loadMarkdownEntities({
+    dir: mdDir,
+    schema: ContextSourceFrontmatterSchema,
+    pattern: "flat",
+    errorCodePrefix: "context",
+  });
+
+  if (mdEntities.length > 0) {
+    if (existsSync(jsonPath)) {
+      warnOnce(
+        "context-both-present",
+        "[theokit-sdk] both .theokit/context/ and .theokit/context.json detected — using markdown; remove context.json",
+      );
+    }
+    return {
+      sources: mdEntities
+        .filter((e) => e.frontmatter.enabled !== false)
+        .map((e) => ({ name: e.frontmatter.name ?? e.slug, path: e.frontmatter.path })),
+    };
+  }
+
+  // Fallback: JSON
+  if (!existsSync(jsonPath)) return { sources: [] };
+
+  warnOnce(
+    "context-json-deprecated",
+    "[theokit-sdk] .theokit/context.json is deprecated; migrate to .theokit/context/<name>.md via theokit-migrate-config",
+  );
+
+  let raw: string;
+  try {
+    raw = await readFile(jsonPath, "utf8");
+  } catch (cause) {
+    throw new ConfigurationError(`Failed to read context config: ${jsonPath}`, {
+      code: "context_read_error",
+      cause,
+    });
+  }
+  return parseConfig(raw, jsonPath);
 }
 
 function parseConfig(raw: string, configPath: string): FileContextConfig {

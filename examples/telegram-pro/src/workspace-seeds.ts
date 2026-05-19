@@ -89,41 +89,51 @@ Output:
 Tone: warm but brief. Never longer than 8 lines total.
 `;
 
-// ────────────────────── plugins ──────────────────────
-
-const PLUGINS_JSON = JSON.stringify(
-  {
-    plugins: [
-      {
-        name: "openrouter-routing",
-        type: "provider",
-        // Declarative manifest: tells the SDK that this plugin contributes
-        // an OpenRouter chat provider. The actual key still comes from env.
-        provider: { id: "openrouter", capability: "chat", priority: 1 },
-      },
-    ],
-  },
-  null,
-  2,
-);
+// ────────────────────── plugins (removed in markdown-config-migration) ──────────────────────
+//
+// The top-level .theokit/plugins.json was never consumed by the SDK — it
+// was a documentation-only seed. The real plugin loader reads
+// .theokit/plugins/<name>/PLUGIN.md (or legacy plugin.json) per-folder.
+// We no longer write plugins.json; if a user wants to declare a plugin,
+// they create .theokit/plugins/<name>/PLUGIN.md following ADR D74.
 
 // ────────────────────── context ──────────────────────
 
-const CONTEXT_JSON = JSON.stringify(
-  {
-    // Files listed here are read at agent.create / send time and injected
-    // into the system prompt as "<context_source name>...</context_source>".
-    // We point at our own README so the agent knows about its own commands.
-    sources: [
-      {
-        name: "bot-readme",
-        path: "README.md",
-      },
-    ],
-  },
-  null,
-  2,
-);
+const CONTEXT_MD = `---
+name: bot-readme
+path: README.md
+---
+
+# Bot README context
+
+The bot's own \`README.md\` is injected as context so the agent can answer
+"what can you do?" / "how do I use you?" questions from chat without us
+having to maintain a separate \`/help\` text duplicated from the README.
+
+Update both \`README.md\` and this file's prose together when the bot gains
+new commands.
+`;
+
+// ────────────────────── hooks (markdown — ADR D74) ──────────────────────
+
+const HOOK_SHELL_POLICY_MD = `---
+event: preToolUse
+matcher: ^shell$
+command: node .theokit/policy.js
+---
+
+# Shell tool policy gate
+
+Vets every \`shell\` tool invocation before it spawns. \`policy.js\` (committed
+alongside this file) inspects the command + args for destructive patterns
+(\`rm -rf\`, \`kill\`, force-push) and exits non-zero to block.
+
+## Why this exists
+
+Telegram chat is multi-user — anyone in the allowed-users list can ask the
+bot to "run a quick test command". Without a gate, we trust user prompts
+to shape shell calls. The gate enforces an allowlist.
+`;
 
 // ────────────────────── wiki seed ──────────────────────
 
@@ -169,8 +179,10 @@ export async function seedWorkspace(cwd: string): Promise<void> {
   const skills = join(cwd, ".theokit", "skills");
   await ensureFile(join(skills, "recipe-suggest", "SKILL.md"), RECIPE_SKILL);
   await ensureFile(join(skills, "morning-routine", "SKILL.md"), MORNING_SKILL);
-  await ensureFile(join(cwd, ".theokit", "plugins.json"), PLUGINS_JSON);
-  await ensureFile(join(cwd, ".theokit", "context.json"), CONTEXT_JSON);
+  // Markdown configs (ADR D74). ensureFile is idempotent — won't overwrite
+  // user edits (EC-10 fix).
+  await ensureFile(join(cwd, ".theokit", "context", "bot-readme.md"), CONTEXT_MD);
+  await ensureFile(join(cwd, ".theokit", "hooks", "shell-policy.md"), HOOK_SHELL_POLICY_MD);
   const wiki = join(cwd, ".theokit", "memory", "wiki");
   await ensureFile(join(wiki, "tools.md"), WIKI_TOOLS);
   await ensureFile(join(wiki, "deployment.md"), WIKI_DEPLOYMENT);

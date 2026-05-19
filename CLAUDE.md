@@ -240,6 +240,11 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D71 | Two-bucket masking: short tokens (<18) → `***`; long → `prefix...suffix` | [D71-redact-two-bucket-masking.md](./.claude/knowledge-base/adrs/D71-redact-two-bucket-masking.md) |
 | D72 | `codeFile: true` opt-out skips PARAM_PATTERN to preserve `.env.example` placeholders | [D72-redact-codefile-optout.md](./.claude/knowledge-base/adrs/D72-redact-codefile-optout.md) |
 | D73 | Apply redaction at OUTPUT boundaries (logs, telemetry attrs, error.raw, transcript), NOT at storage | [D73-redact-output-boundaries-only.md](./.claude/knowledge-base/adrs/D73-redact-output-boundaries-only.md) |
+| D74 | User-edited configs migrate to markdown + YAML frontmatter (espelha SKILL.md / Claude Code) | [D74-config-markdown-format.md](./.claude/knowledge-base/adrs/D74-config-markdown-format.md) |
+| D75 | 1 file = 1 entity (não 1 file = N entities); disable-by-rename | [D75-one-file-one-entity.md](./.claude/knowledge-base/adrs/D75-one-file-one-entity.md) |
+| D76 | Frontmatter validado por Zod schema (mesmo pattern de D10) | [D76-frontmatter-zod-schema.md](./.claude/knowledge-base/adrs/D76-frontmatter-zod-schema.md) |
+| D77 | Loader fallback: MD-dir primeiro, JSON com deprecation warn (sunset v2.0 Q2 2027) | [D77-md-first-json-fallback.md](./.claude/knowledge-base/adrs/D77-md-first-json-fallback.md) |
+| D78 | `theokit-migrate-config` CLI standalone com atomic write + timestamped backup | [D78-migrate-config-cli.md](./.claude/knowledge-base/adrs/D78-migrate-config-cli.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.

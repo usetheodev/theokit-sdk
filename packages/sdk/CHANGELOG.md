@@ -2,6 +2,62 @@
 
 ## [Unreleased]
 
+### Added (v1.5 markdown-config-migration — ADRs D74-D78)
+
+- **`.theokit/hooks/<name>.md`** is the new canonical format for hooks
+  (ADR D74). One file per hook with YAML frontmatter (event, matcher,
+  command, enabled, priority, timeoutMs) + optional markdown body for
+  rationale prose. Mirrors `skills/<name>/SKILL.md`.
+- **`.theokit/context/<name>.md`** is the new canonical format for
+  context sources (frontmatter: name, path, enabled, maxTokens).
+- **`.theokit/plugins/<name>/PLUGIN.md`** replaces `plugin.json` per
+  plugin (frontmatter: name, version, capabilities, entry).
+- **Zod schemas** type each frontmatter category (HookFrontmatter,
+  ContextSourceFrontmatter, PluginFrontmatter — ADR D76). Schema
+  errors surface as `ConfigurationError` with typed codes
+  (`hook_frontmatter_invalid`, etc.), same pattern as D10
+  SkillFrontmatter.
+- **Path-traversal guard** on plugin `entry` (T3.2, EC-1 MUST FIX
+  from edge-case review): rejects `..` segments and absolute paths
+  with `plugin_entry_escape` code. Closes a latent security gap that
+  predated the markdown migration.
+- **`theokit-migrate-config` CLI** in `packages/sdk/bin/` (ADR D78,
+  espelha D44 `theokit-migrate-memory`). Converts legacy JSON to MD
+  with timestamped `.bak` backups, atomic writes per file, pre-flight
+  abort on existing MD destination.
+- **`atomicWriteText` helper** in `internal/persistence/atomic-write.ts`
+  (T4.1, EC-2 MUST FIX). Same `tmpfile + rename` crash-safety as
+  `atomicWriteJson`, with auto-mkdir of parent dir.
+
+### Changed (markdown-config-migration)
+
+- **`parseSimpleYaml` return type widened** to
+  `Record<string, string | number | boolean | string[] | undefined>`.
+  Empty values now coerce to `undefined` so Zod `.optional().default(...)`
+  applies correctly (EC-3 fix). Skills and subagents loaders adapted
+  with narrow helpers (zero behavior change in their schemas).
+- **`HooksExecutor.initialize` + `loadProjectHooks`** delegate to new
+  shared `loadHookConfig(cwd)` in `internal/runtime/hooks-source.ts`.
+  Tries `.theokit/hooks/` first; falls back to `hooks.json` with
+  one-time stderr deprecation warn (ADR D77).
+- **`FileContextManager.refresh`** uses the same MD-first chain. Same
+  fallback + warn semantics.
+- **`PluginsManager.refresh`** detects `PLUGIN.md` per folder before
+  `plugin.json`. Warns on the JSON path; warns on conflict
+  ("both files detected — using markdown").
+- **`telegram-pro` example** migrated: `.theokit/hooks/shell-policy.md`
+  + `.theokit/context/bot-readme.md` replace the legacy JSONs.
+  `workspace-seeds.ts` writes the MD files (idempotent via `ensureFile`).
+  The seed-only `plugins.json` (never consumed by the SDK) was removed.
+
+### Deprecated (markdown-config-migration)
+
+- `.theokit/hooks.json`, `.theokit/context.json`,
+  `.theokit/plugins/<name>/plugin.json` — emit a one-time stderr warn
+  on each call to the loader. **Deprecated in v1.5 (warn). Removed in
+  v2.0 (planned Q2 2027)** — users must migrate via
+  `theokit-migrate-config` before v2.0 ships.
+
 ### Added (v1.3 secret-redaction-discipline — Security block 1/2 patterns)
 
 - **`Security` public namespace** (ADR D68). New top-level export `Security.addPattern(re: RegExp)` registers custom redaction patterns for org-internal token shapes. Additive — built-in patterns cannot be removed. Throws if `/g` flag is missing.
