@@ -348,7 +348,28 @@ Each match → audit: dynamic import + null fallback?
 
 ## Citações primárias
 
-- ADR D66 (proposto) — Checkpoints v2 shells out to git, lazy probe
-- ADR D42 (existente) — Auto-instrumentation via createRequire feature-detect
-- `.claude/knowledge-base/hermes-deep-dive/06-execution-backends.md` — backend probe patterns
-- v0.13 #21193 — security probe patterns
+- `referencia/hermes-agent/hermes_state.py:128-183` — `apply_wal_with_fallback()`,
+  the canonical "feature works on POSIX, degrades cleanly to DELETE
+  journal on NFS/SMB/FUSE" pattern. Logs once per path; never throws.
+- `referencia/hermes-agent/providers/__init__.py:186` — `except ImportError`
+  in provider plugin discovery. Failed import logs a warning and skips
+  the provider; the registry continues populating the rest.
+- `referencia/hermes-agent/hermes_cli/plugins.py:69,1222,1245` — three
+  lazy-import sites: yaml manifest parsing (optional), module spec
+  creation, and plugin loader. Each catches `ImportError` and emits a
+  user-readable degradation message.
+- v0.5 #2796 — supply chain hardening (removed compromised `litellm`,
+  replaced with native provider calls + fallback to ImportError-tolerant
+  discovery).
+- v0.13 #21193 — security probe pattern (redaction ON by default with
+  probe of env vars rather than crash on misconfig).
+
+SDK echo:
+
+- ADR D63 — `applyWalWithFallback()` mirrors Hermes' WAL→DELETE fallback.
+- ADR D42 — Auto-instrumentation via `createRequire` feature-detect
+  mirrors Hermes' optional plugin import pattern.
+- ADR D50 — Lance example default = dry-run with `lance_backend_unavailable`
+  typed error when `@lancedb/lancedb` isn't installed.
+- ADR D55 — telegram-pro auto-instrumentation is fail-open (no LangFuse/
+  Sentry/PostHog installed = console exporter, identical to v1.1).

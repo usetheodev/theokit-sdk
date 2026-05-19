@@ -25,6 +25,8 @@ Patterns/decisões que se aplicam a **um SDK** (framework). Filtro de inclusão:
 
 - **`referencia/hermes-agent/`** — codebase Python (Nous Research, MIT, 811k LoC).
   Deep-dive em `.claude/knowledge-base/hermes-deep-dive/` é o material primário.
+  Cross-reference matrix (23 patterns ↔ 16 deep-dive docs ↔ Hermes
+  primary source) em [`hermes-deep-dive/INDEX.md`](../hermes-deep-dive/INDEX.md).
 - **`referencia/openclaw/`** — TS monorepo (gitignored, study material).
 - **`referencia/mastra/`** — TS comparable, agent framework.
 - **`referencia/openai-agents-python/`** — OpenAI Agents Python SDK.
