@@ -120,7 +120,7 @@ const agent = await Agent.create({
 Context manager
 The context manager selects project context before a run starts. It is for working-set material: README files, architecture notes, generated summaries, and other documents that help the agent understand the current task. It is not durable user memory.
 
-Enable file-based context with `context.manager: "file"`. Local agents read `.theokit/context.json` from the workspace when `local.settingSources` includes `"project"`; cloud agents read committed project context from the cloned repo. Call `agent.context.snapshot()` to inspect the public, redacted context that will be offered to runs.
+Enable file-based context with `context.manager: "file"`. Local agents read `.theokit/context/<name>.md` from the workspace when `local.settingSources` includes `"project"` (legacy `.theokit/context.json` still works but is deprecated; see Configuration files section); cloud agents read committed project context from the cloned repo. Call `agent.context.snapshot()` to inspect the public, redacted context that will be offered to runs.
 
 
 const agent = await Agent.create({
@@ -133,9 +133,9 @@ const agent = await Agent.create({
   },
 });
 const snapshot = await agent.context.snapshot();
-await agent.reload(); // re-read .theokit/context.json and referenced files
+await agent.reload(); // re-read context (legacy .theokit/context.json or markdown form)
 
-`.theokit/context.json`:
+Legacy `.theokit/context.json` shape (deprecated since v1.5 — migrate via `theokit-migrate-config`):
 
 
 {
@@ -1087,7 +1087,7 @@ Subagents committed to the repo at .Theo/agents/*.md (with name, description, an
 Context, memory, and skills
 Context, memory, and skills are loaded before MCP tools and subagents are offered to a run:
 
-Context is task working-set. It is selected per agent from inline config or `.theokit/context.json`, bounded by `maxTokens`, and exposed through `agent.context.snapshot()`.
+Context is task working-set. It is selected per agent from inline config or `.theokit/context/<name>.md` (legacy `.theokit/context.json` still supported until v2.0 — see Configuration files / deprecation), bounded by `maxTokens`, and exposed through `agent.context.snapshot()`.
 Memory is durable recall. It persists facts by `{ namespace, userId, scope }`, rejects stores outside the workspace, and must redact credential material.
 Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL.md`, listed with `agent.skills.list()`, and only expose public metadata in streams and snapshots.
 
@@ -1096,8 +1096,8 @@ Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL
 Hooks
 Hooks are file-based only. There is no programmatic hook callback. Hooks are a project policy boundary, not a per-run knob.
 
-Local: Add .Theo/hooks.json to the repo passed as local.cwd, or add ~/.Theo/hooks.json for user-level hooks.
-Cloud: Commit .Theo/hooks.json and its scripts to the repo passed in cloud.repos. SDK-created cloud agents load project hooks automatically. On Enterprise plans, they also run team hooks and enterprise-managed hooks.
+Local: Add `.theokit/hooks/<name>.md` to the repo passed as local.cwd (one file per hook; legacy `.theokit/hooks.json` deprecated since v1.5), or add `~/.theokit/hooks/` for user-level hooks.
+Cloud: Commit `.theokit/hooks/` and its scripts to the repo passed in cloud.repos. SDK-created cloud agents load project hooks automatically. On Enterprise plans, they also run team hooks and enterprise-managed hooks.
 See Hooks for the configuration format and Cloud Agents hooks support for cloud behavior.
 
 Artifacts
@@ -1173,7 +1173,7 @@ interface ContextOptions {
   maxTokens?: number;
   sources?: Array<{ name: string; path?: string; content?: string; priority?: number }>;
 }
-`manager: "file"` reads `.theokit/context.json`; `manager: "inline"` uses `sources` passed directly in `Agent.create()`. File sources are resolved relative to the workspace. Secrets and excluded files must not appear in `agent.context.snapshot()`.
+`manager: "file"` reads `.theokit/context/<name>.md` (legacy `.theokit/context.json` deprecated; see Configuration files for migration); `manager: "inline"` uses `sources` passed directly in `Agent.create()`. File sources are resolved relative to the workspace. Secrets and excluded files must not appear in `agent.context.snapshot()`.
 
 SDKContextManager
 
@@ -1722,7 +1722,7 @@ Known limitations
 Inline mcpServers are not persisted across Agent.resume(). Pass them again on resume if needed.
 Artifact download is not implemented for local agents (agent.listArtifacts() returns an empty list and agent.downloadArtifact() throws).
 local.settingSources (and the file-based MCP / subagent paths it gates) does not apply to cloud agents. Cloud always loads project / team / plugins.
-Hooks are file-based only (.Theo/hooks.json). No programmatic callbacks.
+Hooks are file-based only (`.theokit/hooks/<name>.md`; legacy `.theokit/hooks.json` deprecated). No programmatic callbacks.
 Inline memory, context, and skill config should be treated as process-local unless documented otherwise. Durable behavior comes from memory stores and committed file-based context / skills.
 Skill prompt bodies are not stable public output. Use `agent.skills.list()` for metadata and avoid scraping streams for full skill text.
 
@@ -1748,3 +1748,59 @@ Security.addPattern(/MYORG-[A-Z0-9]{32}/g);
 **What is NOT redacted.** Redaction applies on *egress*, never on storage. Agent runtime memory, in-process state, and files written with explicit acceptance (such as `.env` files the user creates) are left alone. The principle is "store originals; redact on each output".
 
 **Coverage limits.** Custom credentials that lack a structural marker (e.g., free-form passwords inside arbitrary prose like "the password is hunter2") are NOT detected. Add an `addPattern` matcher when you ship a new internal token shape. Base64-encoded or URL-encoded credentials may slip through built-in patterns; report a missed shape and we'll extend the list.
+
+## Configuration files (v1.5+)
+
+User-edited config files in `.theokit/` use **markdown + YAML frontmatter** — same shape as `skills/<name>/SKILL.md`, Claude Code commands, and Cursor rules. One file per entity gives per-entity git diff, prose body for rationale ("why this hook exists"), and type-safe frontmatter via Zod.
+
+```
+.theokit/
+├── hooks/                         # one .md per hook (ADR D74)
+│   └── shell-policy.md
+├── context/                       # one .md per context source
+│   └── bot-readme.md
+├── plugins/<name>/                # PLUGIN.md per plugin (nested)
+│   └── PLUGIN.md
+└── skills/<name>/SKILL.md         # unchanged; already markdown
+```
+
+Example hook:
+
+```markdown
+---
+event: preToolUse
+matcher: ^shell$
+command: node .theokit/policy.js
+---
+
+# Shell tool policy gate
+
+Vets shell tool invocations before spawn. Reason: multi-user chat can't
+trust arbitrary shell calls.
+```
+
+**Migration.** A standalone CLI converts legacy `.theokit/hooks.json` /
+legacy `.theokit/context.json` / legacy `.theokit/plugins/<name>/plugin.json`
+to the markdown form:
+
+```bash
+npx theokit-migrate-config --apply
+```
+
+Dry-run by default; `--apply` writes. Backs up originals to
+`<file>.json.<unix-ts>.bak` and uses atomic writes (crash mid-write
+leaves previous MD files intact).
+
+**Backward compatibility.** The legacy JSON shape still works in v1.x —
+if the MD directory is absent or empty, the SDK falls back to the JSON
+file and emits a one-time stderr deprecation warn pointing at
+`theokit-migrate-config`. **JSON is removed in v2.0 (planned Q2 2027).**
+
+**Restart required after migration.** A long-running bot process holds
+the old config in memory until restarted. Run the CLI when the bot is
+stopped, or stop + start after migration.
+
+**Disabling an entry.** Rename `<name>.md` → `<name>.md.disabled`
+(suffix sits outside the `.md` match) — the loader silently skips it.
+Same effect as `enabled: false` in frontmatter but avoids editing the
+file.

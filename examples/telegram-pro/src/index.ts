@@ -1146,13 +1146,13 @@ console.log(`  vision: gemini-2.0-flash-001 via OpenRouter (cached at .theokit/c
 // the very first agent.send sees the full project state.
 try {
   await ensureHooksPolicy(CWD);
-  console.log("  shell tool: enabled (sandbox=on, policy=.theokit/hooks.json)");
+  console.log("  shell tool: enabled (sandbox=on, policy=.theokit/hooks/shell-policy.md)");
 } catch (err) {
   console.warn("  shell tool: policy setup failed:", err instanceof Error ? err.message : String(err));
 }
 try {
   await seedWorkspace(CWD);
-  console.log("  workspace seeded: skills, plugins.json, context.json, wiki/");
+  console.log("  workspace seeded: skills, hooks/, context/, wiki/");
 } catch (err) {
   console.warn("  workspace seed failed:", err instanceof Error ? err.message : String(err));
 }

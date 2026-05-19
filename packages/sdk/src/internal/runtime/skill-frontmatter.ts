@@ -1,5 +1,19 @@
 import { ConfigurationError } from "../../errors.js";
-import { parseSimpleYaml } from "./yaml-frontmatter.js";
+import { type FrontmatterValue, parseSimpleYaml } from "./yaml-frontmatter.js";
+
+type StringFields = Record<string, string | undefined>;
+
+/** Narrow a FrontmatterValue to string; non-strings + undefined → undefined. */
+function asString(v: FrontmatterValue | undefined): string | undefined {
+  return typeof v === "string" ? v : undefined;
+}
+
+/** Coerce parser output to legacy string-only shape (skill schema is all-string). */
+function toStringFields(raw: Record<string, FrontmatterValue | undefined>): StringFields {
+  const out: StringFields = {};
+  for (const [k, v] of Object.entries(raw)) out[k] = asString(v);
+  return out;
+}
 
 /**
  * Strict skill frontmatter schema (ADR D10).
@@ -38,7 +52,7 @@ export function parseSkillFrontmatter(raw: string, fallbackName: string): SkillF
   return buildFrontmatter(fields, name);
 }
 
-function extractAndParseFrontmatter(raw: string, fallbackName: string): Record<string, string> {
+function extractAndParseFrontmatter(raw: string, fallbackName: string): StringFields {
   const match = /^---\s*\n([\s\S]*?)\n---\s*\n/.exec(raw);
   if (match === null) {
     throw new ConfigurationError(`Skill ${fallbackName} is missing frontmatter`, {
@@ -49,7 +63,7 @@ function extractAndParseFrontmatter(raw: string, fallbackName: string): Record<s
   // EC-5: guard against syntactically invalid frontmatter so the loader
   // surfaces schema_invalid rather than crashing.
   try {
-    return parseSimpleYaml(frontmatter);
+    return toStringFields(parseSimpleYaml(frontmatter));
   } catch (cause) {
     const detail = cause instanceof Error ? cause.message : String(cause);
     throw new ConfigurationError(
@@ -59,15 +73,15 @@ function extractAndParseFrontmatter(raw: string, fallbackName: string): Record<s
   }
 }
 
-function resolveName(fields: Record<string, string>, fallbackName: string): string {
-  if (hasContent(fields.name)) return fields.name as string;
+function resolveName(fields: StringFields, fallbackName: string): string {
+  if (hasContent(fields.name)) return fields.name;
   if (hasContent(fallbackName)) return fallbackName;
   throw new ConfigurationError("Skill at unknown path is missing required field: name", {
     code: "schema_invalid",
   });
 }
 
-function ensureRequiredFields(fields: Record<string, string>, name: string): void {
+function ensureRequiredFields(fields: StringFields, name: string): void {
   if (!hasContent(fields.description)) {
     throw new ConfigurationError(`Skill ${name} is missing required field: description`, {
       code: "schema_invalid",
@@ -75,12 +89,14 @@ function ensureRequiredFields(fields: Record<string, string>, name: string): voi
   }
 }
 
-function buildFrontmatter(fields: Record<string, string>, name: string): SkillFrontmatter {
-  const result: SkillFrontmatter = {
-    name,
-    description: fields.description as string,
-  };
-  if (hasContent(fields.category)) result.category = fields.category as string;
+function buildFrontmatter(fields: StringFields, name: string): SkillFrontmatter {
+  const description = fields.description;
+  if (description === undefined) {
+    // ensureRequiredFields already threw; this is unreachable but satisfies TS
+    throw new ConfigurationError(`Skill ${name} missing description`, { code: "schema_invalid" });
+  }
+  const result: SkillFrontmatter = { name, description };
+  if (hasContent(fields.category)) result.category = fields.category;
   const deps = parseDependencies(fields.dependencies);
   if (deps !== undefined) result.dependencies = deps;
   return result;

@@ -8,11 +8,16 @@ import { join } from "node:path";
  *   - `.theokit/policy.js` — a small Node script the SDK runs as the
  *     `preToolUse` hook. Reads the tool payload on stdin, exits non-zero
  *     (= deny) when the shell command matches a danger pattern.
- *   - `.theokit/hooks.json` — the SDK's file-based hook config that wires
- *     the `preToolUse` event to the policy script for the `shell` tool.
+ *   - `.theokit/hooks/shell-policy.md` — the SDK's file-based hook config
+ *     (markdown + YAML frontmatter, ADR D74) that wires the `preToolUse`
+ *     event to the policy script for the `shell` tool.
  *
- * The SDK loads `.theokit/hooks.json` automatically when the agent is
- * created with `local.settingSources: ["project"]`.
+ * The SDK loads `.theokit/hooks/<name>.md` automatically when the agent
+ * is created with `local.settingSources: ["project"]`. Note:
+ * `workspace-seeds.ts` also writes the markdown shell-policy file via
+ * its own `HOOK_SHELL_POLICY_MD` constant — this setup runs first and
+ * ensureFile is idempotent, so the seed call later is a no-op when the
+ * file already exists.
  *
  * @internal to the example
  */
@@ -45,15 +50,24 @@ process.stdin.on("end", () => {
 });
 `;
 
-const HOOKS_JSON = JSON.stringify(
-  {
-    hooks: {
-      preToolUse: [{ matcher: "^shell$", command: "node .theokit/policy.js" }],
-    },
-  },
-  null,
-  2,
-);
+const SHELL_POLICY_MD = `---
+event: preToolUse
+matcher: ^shell$
+command: node .theokit/policy.js
+---
+
+# Shell tool policy gate
+
+Vets every \`shell\` tool invocation before it spawns. \`policy.js\` (committed
+alongside this file) inspects the command + args for destructive patterns
+(\`rm -rf\`, \`kill\`, force-push) and exits non-zero to block.
+
+## Why this exists
+
+Telegram chat is multi-user — anyone in the allowed-users list can ask the
+bot to "run a quick test command". Without a gate, we trust user prompts
+to shape shell calls. The gate enforces an allowlist.
+`;
 
 async function ensureFile(path: string, contents: string, mode?: number): Promise<void> {
   try {
@@ -68,6 +82,9 @@ async function ensureFile(path: string, contents: string, mode?: number): Promis
 export async function ensureHooksPolicy(cwd: string): Promise<void> {
   const dir = join(cwd, ".theokit");
   await mkdir(dir, { recursive: true });
+  await mkdir(join(dir, "hooks"), { recursive: true });
   await ensureFile(join(dir, "policy.js"), POLICY_SCRIPT, 0o755);
-  await ensureFile(join(dir, "hooks.json"), HOOKS_JSON);
+  // ADR D74: markdown config, 1 file per entity. Markdown wins via D77;
+  // any legacy .theokit/hooks.json next to it triggers a "remove" warn.
+  await ensureFile(join(dir, "hooks", "shell-policy.md"), SHELL_POLICY_MD);
 }

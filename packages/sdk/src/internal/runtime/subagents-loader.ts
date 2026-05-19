@@ -77,6 +77,12 @@ function splitFrontmatter(raw: string, filename: string): { frontmatter: string;
   return { frontmatter: match[1] ?? "", body: (match[2] ?? "").trim() };
 }
 
-function parseFrontmatterFields(frontmatter: string): Record<string, string> {
-  return parseSimpleYaml(frontmatter);
+function parseFrontmatterFields(frontmatter: string): Record<string, string | undefined> {
+  // Subagent schema is all-string; narrow non-string values to undefined.
+  const raw = parseSimpleYaml(frontmatter);
+  const out: Record<string, string | undefined> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    out[k] = typeof v === "string" ? v : undefined;
+  }
+  return out;
 }
