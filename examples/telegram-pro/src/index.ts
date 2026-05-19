@@ -135,6 +135,7 @@ bot.command("help", async (ctx) => {
       "/loops — list active loops",
       "/stop_loop <id> — stop one loop (or `/stop_loop all` to stop all)",
       "/tool <name> <args> — ad-hoc tool via per-call override (`/tool list` to see registry)",
+      "/goal <prompt> — Agent.runUntil(goal) Ralph loop with judge model (v1.3)",
       "/reset — clear this thread's history (memory facts stay)",
       "",
       "*Modes detected automatically:*",
@@ -809,6 +810,70 @@ bot.command("tool", async (ctx) => {
     // LLM output is arbitrary — underscores in JSON keys, tool IDs, etc. would
     // break Markdown V1 parsing. Send as plain text.
     await ctx.reply(result.result);
+  } finally {
+    await agent.dispose();
+  }
+});
+
+// ────────────────────── /goal — Agent.runUntil(goal) showcase ──────────────────────
+//
+// Drives the Ralph loop primitive shipped in the SDK background-work block
+// (ADRs D110-D122). The bot:
+//   1. Creates a transient agent (kept short to fit Telegram's rate limit)
+//   2. Calls `agent.runUntil(goal, { maxTurns: 3, judgeModel: "openai/gpt-4o-mini" })`
+//   3. Streams the discriminated `GoalEvent` updates back to the chat
+//   4. Disposes the agent at end
+//
+// Real-LLM only — OPENROUTER_API_KEY required (the judge auxiliary agent
+// reads it directly per ADR D119, EC-A).
+bot.command("goal", async (ctx) => {
+  const goal = (ctx.match ?? "").toString().trim();
+  if (goal.length === 0) {
+    await ctx.reply(
+      [
+        "Usage: /goal <goal description>",
+        "",
+        "Example: /goal write a haiku about robots and stop when done",
+        "",
+        "Drives Agent.runUntil(goal) with a judge model (openai/gpt-4o-mini).",
+        "Max 3 turns. Real-LLM only.",
+      ].join("\n"),
+    );
+    return;
+  }
+  const { Agent } = await import("@usetheo/sdk");
+  const agent = await Agent.create({
+    apiKey: API_KEY,
+    local: { cwd: CWD },
+    systemPrompt: "You are a concise assistant. Respond briefly. Stop when the user's goal is satisfied.",
+    model: { id: "openai/gpt-4o-mini" },
+  });
+  try {
+    await ctx.replyWithChatAction("typing");
+    if (agent.runUntil === undefined) {
+      await ctx.reply("Agent.runUntil is not available on this agent runtime.");
+      return;
+    }
+    const summary: string[] = [`Goal: ${goal}`];
+    let turnsSeen = 0;
+    for await (const event of agent.runUntil(goal, {
+      maxTurns: 3,
+      judgeModel: "openai/gpt-4o-mini",
+    })) {
+      if (event.type === "turn_start") {
+        turnsSeen = event.turn;
+        summary.push(`— turn ${event.turn} starting…`);
+      } else if (event.type === "judge_verdict") {
+        summary.push(`— turn ${event.turn} verdict: ${event.verdict} (${event.reason.slice(0, 60)})`);
+      } else if (event.type === "status_change") {
+        summary.push(`Status: ${event.status} — ${event.reason}`);
+      }
+    }
+    summary.push("", `(${turnsSeen} turn${turnsSeen === 1 ? "" : "s"} used; via Agent.runUntil)`);
+    await ctx.reply(summary.join("\n").slice(0, 3500));
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`(/goal error) ${msg.slice(0, 500)}`);
   } finally {
     await agent.dispose();
   }
