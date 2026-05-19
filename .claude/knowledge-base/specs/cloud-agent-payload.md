@@ -1,12 +1,12 @@
 # Cloud Agent Payload Spec (v1.0)
 
-> **Audience:** TheoPaaS implementation team.
+> **Audience:** TheoCloud implementation team.
 > **Status:** Locked. Plan: [`cloud-tool-parity-plan.md`](../plans/cloud-tool-parity-plan.md). ADRs: D15, D16.
 > **SDK source of truth:** `packages/sdk/src/internal/runtime/cloud-payload-types.ts` + `cloud-config-serializer.ts`.
 
 ## Purpose
 
-When a consumer calls `Agent.create({ cloud: ..., ...config })` in the SDK, the validator (ADR D15/D16) rejects cloud-incompatible inline configurations and the serializer produces a canonical JSON document — the **cloud agent payload**. This document is what TheoPaaS receives at `POST /v1/agents/{id}/runs` as the `agentConfig` field of the request body.
+When a consumer calls `Agent.create({ cloud: ..., ...config })` in the SDK, the validator (ADR D15/D16) rejects cloud-incompatible inline configurations and the serializer produces a canonical JSON document — the **cloud agent payload**. This document is what TheoCloud receives at `POST /v1/agents/{id}/runs` as the `agentConfig` field of the request body.
 
 PaaS reconstructs the agent's tool catalog from this payload + the cloned repo's `.theokit/` directory.
 

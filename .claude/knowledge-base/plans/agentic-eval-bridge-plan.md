@@ -202,7 +202,7 @@ Em ≤ 6-8 semanas, ter `pnpm eval:nightly` rodando localmente e em CI, executan
 
 **Decision:** Capacidades cloud (artifacts, autoCreatePR, envVars, git metadata) e cross-process (`Agent.resume()` entre máquinas) ficam **fora** do v2.0 e documentadas como gap conhecido no relatório de cobertura.
 
-**Rationale:** Cloud depende de Theo PaaS pre-release (root CLAUDE.md confirma estado pre-release 3.49/4.0). Não há ambiente real para testar. Forçar inclusão = stub/mock, viola `no-stubs-no-mocks-no-wired`. Quando PaaS for GA, adicionar Phase 16 dedicada.
+**Rationale:** Cloud depende de Theo PaaS pre-release (root CLAUDE.md confirma estado pre-release 3.49/4.0). Não há ambiente real para testar. Forçar inclusão = stub/mock, viola `no-stubs-no-mocks-no-wired`. Quando TheoCloud for GA, adicionar Phase 16 dedicada.
 
 **Consequences:** Relatório do plano tem seção "Out of scope (documented gap)" listando essas capacidades. Honestidade extrema: o número final de cobertura é "X de Y capacidades **localmente testáveis**", não "X de Y capacidades totais".
 
@@ -1944,7 +1944,7 @@ evals/README.md       (EDIT) — expandir para runbook completo + Risks & Mitiga
 
 | Capacidade | Razão | Quando entra |
 |---|---|---|
-| Cloud surface (artifacts, autoCreatePR, envVars, git metadata) | Theo PaaS pre-release (D17) | Phase 16 quando PaaS for GA |
+| Cloud surface (artifacts, autoCreatePR, envVars, git metadata) | Theo PaaS pre-release (D17) | Phase 16 quando TheoCloud for GA |
 | `Agent.resume()` cross-process | Requer infraestrutura de persistência compartilhada (D17) | Phase 16 ou futuro |
 | Comparação harness × harness (LangChain, OpenAI Agents SDK, Vercel AI) | Requer Inspect AI (D8) | `agentic-eval-bridge-v3` (plano futuro) |
 

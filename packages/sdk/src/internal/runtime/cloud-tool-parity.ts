@@ -6,7 +6,7 @@ import type { McpServerConfig } from "../../types/mcp.js";
  * Cloud tool parity validator (ADR D15 + D16).
  *
  * When `cloud:` is set on `AgentOptions`, this validator rejects
- * configurations that can't survive the trip to TheoPaaS. The goal: no
+ * configurations that can't survive the trip to TheoCloud. The goal: no
  * silent-drop. Either the feature serializes to JSON for PaaS (passes here)
  * or it's local-only and the caller hears about it immediately at
  * `Agent.create()` time, not at runtime.

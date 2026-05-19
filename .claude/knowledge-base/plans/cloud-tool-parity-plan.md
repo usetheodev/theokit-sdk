@@ -1,6 +1,6 @@
 # Plan: Cloud Tool Parity
 
-> **Version 1.0** — Extend the cloud-agent contract-first pattern to all tool surfaces. When `Agent.create({ cloud: ... })` is called, the SDK validates at create-time which features are cloud-compatible, rejecting incompatible inline closures (`hooks` JS functions, `mcpServers.stdio` with local binaries, inline `tools[].handler`) with typed errors AND serializes the rest as a JSON payload contract that TheoPaaS will consume when it ships. Outcome: the same SDK code runs on Local runtime OR Cloud runtime; the rejection rules make the local→cloud trip explicit; the JSON contract is locked BEFORE PaaS ships so PaaS implements against a written spec, not a moving target.
+> **Version 1.0** — Extend the cloud-agent contract-first pattern to all tool surfaces. When `Agent.create({ cloud: ... })` is called, the SDK validates at create-time which features are cloud-compatible, rejecting incompatible inline closures (`hooks` JS functions, `mcpServers.stdio` with local binaries, inline `tools[].handler`) with typed errors AND serializes the rest as a JSON payload contract that TheoCloud will consume when it ships. Outcome: the same SDK code runs on Local runtime OR Cloud runtime; the rejection rules make the local→cloud trip explicit; the JSON contract is locked BEFORE PaaS ships so PaaS implements against a written spec, not a moving target.
 
 ## Context
 

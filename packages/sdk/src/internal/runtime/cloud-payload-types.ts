@@ -1,5 +1,5 @@
 /**
- * Canonical JSON contract that the SDK posts to TheoPaaS at
+ * Canonical JSON contract that the SDK posts to TheoCloud at
  * `POST /v1/agents/{id}/runs`. PaaS reads this to reconstruct the agent's
  * tool catalog server-side (skills, plugins, hooks rules, MCP HTTP servers,
  * subagents, providers, memory, context).
