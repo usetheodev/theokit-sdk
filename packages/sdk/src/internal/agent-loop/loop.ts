@@ -15,7 +15,9 @@ import type {
   LlmToolCallPart,
 } from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
+import { IterationBudget } from "../runtime/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
+import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
 
@@ -43,14 +45,29 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
   }
   try {
     const ctx = await initLoopContext(inputs);
-    const maxIterations = inputs.maxIterations ?? 8;
-    for (let iteration = 0; iteration < maxIterations; iteration++) {
+    // T4.2 (ADRs D90-D91): IterationBudget replaces the bare counter so
+    // grace-call semantics, compression cap, and EC-4 NaN safety land in
+    // one canonical place. Caller-supplied `budget` overrides defaults.
+    const budget =
+      inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
+    while (budget.shouldContinue()) {
+      const usingGrace = budget.remaining <= 0 && !budget.graceCallUsed;
+      if (usingGrace) budget.useGraceCall();
       const decision = await runIteration(inputs, ctx);
       if (decision === "done") break;
       if (decision === "error") {
         ctx.finalStatus = "error";
         break;
       }
+      budget.consume();
+    }
+    if (
+      budget.shouldContinue() === false &&
+      ctx.finalStatus === "finished" &&
+      ctx.finalText === ""
+    ) {
+      // Budget + grace exhausted without final answer — surface as error.
+      ctx.finalStatus = "error";
     }
     sendSpan?.setAttribute("status", ctx.finalStatus);
     if (inputs.telemetry?.includeContent === true && ctx.finalText.length > 0) {
@@ -215,8 +232,12 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
     outputTokens: result.outputTokens ?? 0,
   });
   llmSpan?.end();
+  // T4.1 (ADR D96): strip `<think>` blocks BEFORE returning text. This
+  // prevents DeepSeek-R1 / Qwen-QwQ chain-of-thought from polluting the
+  // message history (Hermes v0.2 #174). Visible answer + tool calls only.
+  const stripped = stripThinkBlocks(collected.accumulatedText);
   return {
-    text: collected.accumulatedText,
+    text: stripped.visible,
     toolCalls: result.toolCalls,
     stopReason: result.stopReason,
     errored: false,

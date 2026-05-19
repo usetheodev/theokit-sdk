@@ -44,7 +44,6 @@ describe("lint: docs.md must not reference legacy hooks.json/context.json active
       offenders.push({ line: idx + 1, text: line.trim().slice(0, 120) });
     }
     if (offenders.length > 0) {
-      // biome-ignore lint: gate output is the point
       process.stderr.write(
         `\nLegacy JSON config refs in docs.md (active, not in deprecation context):\n` +
           offenders.map((o) => `  - docs.md:${o.line}  ${o.text}`).join("\n") +
