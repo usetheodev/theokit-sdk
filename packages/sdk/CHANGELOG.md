@@ -2,6 +2,67 @@
 
 ## [Unreleased]
 
+### Added (v1.7 agent-core-loop-completion — ADRs D86-D96)
+
+- **`internal/tool-dispatch/repair-middleware.ts`** — `repairToolCall`
+  applies 3 idempotent repairs (case-insensitive name match,
+  JSON-string-args parse, type coercion against schema). Fixes 10+
+  provider-specific failure modes catalogued in `sdk-references/
+  tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
+  v0.8 #5265, etc.).
+- **`internal/tool-dispatch/strip-think.ts`** — `stripThinkBlocks`
+  removes `<think>...</think>` chain-of-thought from LLM responses
+  BEFORE they enter the message history. Prevents prompt-cache
+  invalidation with DeepSeek-R1, Qwen-QwQ providers (Hermes v0.2 #174).
+- **`internal/tool-dispatch/dispatch.ts`** — `dispatchToolWithRepair`
+  validate-then-execute wrapper. NEVER throws; all errors return as
+  `DispatchResult { isError: true }` so the LLM can self-correct
+  (ADR D89).
+- **`internal/runtime/budget.ts`** — `IterationBudget` class with
+  iteration cap + compression cap (default 3) + grace-call semantics.
+  Closes the 4 compression death spirals Hermes shipped (v0.4 #1723,
+  v0.7 #4750, v0.11 #10065, v0.11 #10472). EC-4: NaN-safe `consume`.
+- **`internal/runtime/validate-response.ts`** — detects empty-content +
+  zero-toolCalls as a model-bailout signal.
+- **`internal/runtime/compression-helpers.ts`** — `selectCompressionWindow`
+  (preserve recent N) + `assertCompressionReduced` (≥10% floor, ADR D92).
+- **`internal/cache-discipline-guard.ts`** — dev-mode warns when system
+  prompt / toolset / history mutates mid-conversation. Zero production
+  overhead via `shouldGuard()` function (EC-1: not module-init constant).
+- **`Agent.invalidateCache(reason, options?)`** public API (ADR D94).
+  Default deferred — applied at next `agent.send()`. `{ applyNow: true }`
+  disposes immediately.
+- **CI lint gate** `tests/lint/no-history-mutation-outside-loop.test.ts`
+  (ADR D85 mirror) — prevents `ctx.messages.push` outside `agent-loop/`.
+  EC-8: bounded by contextual prefix to avoid false positives.
+- **Adversarial property tests** via fast-check (1400+ random inputs):
+  - `repair-middleware.property.test.ts` (4 properties × 200 runs)
+  - `budget.property.test.ts` (3 properties × 200 runs)
+- **`internal/agent-loop/strip-think-wiring.test.ts`** — integration
+  test with mock LLM client validating strip-think wiring end-to-end
+  (T7.2 / EC-2 fix).
+
+### Changed (agent-core-loop-completion)
+
+- `agent-loop/loop.ts` uses `IterationBudget` instead of a bare counter
+  (T4.2, ADRs D90-D91). Grace call permits one final iteration after
+  budget exhausted.
+- `agent-loop/loop.ts` strips `<think>` blocks via `stripThinkBlocks`
+  in `streamLlmTurn` before text returned (T4.1, ADR D96).
+- `agent-loop/tool-dispatch.ts` applies `repairToolCall` before the
+  registry lookup (T4.1, ADRs D86-D88). Repairs surface via telemetry
+  span attribute `tool.repairs`.
+- `LocalAgent` consumes pending invalidation at the start of every
+  `sendLocked` via `consumePendingInvalidation()`. EC-7: failure path
+  clears pending state so refresh doesn't get stuck retrying.
+
+### Fixed (agent-core-loop-completion)
+
+- Closes Agent core loop block of the SDK Patterns Roadmap:
+  `prompt-cache-discipline` (📚 → ✅), `tool-call-failure-recovery`
+  (❌ → ✅), `compression-death-spiral` (❌ → ✅). Roadmap totals
+  13 → 15 (65%) DONE.
+
 ### Added (v1.6 security-block-completion — ADRs D79-D85)
 
 - **`internal/security/path-guard.ts`** is the canonical module for
