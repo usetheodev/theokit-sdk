@@ -37,11 +37,14 @@ jobs:
       - name: Biome check
         run: pnpm check
 
+      - name: Build
+        # Build SDK first so packages/react typecheck can resolve
+        # `@usetheo/sdk` types from `packages/sdk/dist/index.d.ts`.
+        # Mirrors the `pnpm validate` script order in package.json.
+        run: pnpm build
+
       - name: Typecheck
         run: pnpm typecheck
-
-      - name: Build
-        run: pnpm build
 
       - name: Tests
         run: pnpm test
