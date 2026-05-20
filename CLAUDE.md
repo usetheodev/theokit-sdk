@@ -300,6 +300,13 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D131 | Fork inherits parent pool by reference via `withCredentialPool` AsyncLocalStorage | [D131-credential-pool-fork-inheritance.md](./.claude/knowledge-base/adrs/D131-credential-pool-fork-inheritance.md) |
 | D132 | Single-key shape (`apiKey: "..."`) takes the no-pool fast path | [D132-credential-pool-single-key-transparent.md](./.claude/knowledge-base/adrs/D132-credential-pool-single-key-transparent.md) |
 | D133 | `CredentialPoolExhaustedError extends TheokitAgentError` | [D133-credential-pool-exhausted-error.md](./.claude/knowledge-base/adrs/D133-credential-pool-exhausted-error.md) |
+| D134 | `Agent.batch(prompts, options)` is a static method on the façade | [D134-agent-batch-static-method.md](./.claude/knowledge-base/adrs/D134-agent-batch-static-method.md) |
+| D135 | Async semaphore primitive lives in-house (no `p-limit` / `p-queue` dep) | [D135-async-semaphore-inhouse.md](./.claude/knowledge-base/adrs/D135-async-semaphore-inhouse.md) |
+| D136 | `Agent.batch` default concurrency = 4 | [D136-batch-default-concurrency-4.md](./.claude/knowledge-base/adrs/D136-batch-default-concurrency-4.md) |
+| D137 | Failures isolated per-prompt; `Agent.batch` never throws on a single failure | [D137-batch-failure-isolation.md](./.claude/knowledge-base/adrs/D137-batch-failure-isolation.md) |
+| D138 | Fresh agent per prompt; credential pool shared via ALS (`withCredentialPool`) | [D138-batch-fresh-agent-per-prompt-shared-pool.md](./.claude/knowledge-base/adrs/D138-batch-fresh-agent-per-prompt-shared-pool.md) |
+| D139 | ShareGPT trajectory export is opt-in helper (`toShareGptTrajectory`) | [D139-sharegpt-trajectory-opt-in-helper.md](./.claude/knowledge-base/adrs/D139-sharegpt-trajectory-opt-in-helper.md) |
+| D140 | `AbortSignal` cancels pending prompts only; in-flight ones complete | [D140-batch-abort-pending-only.md](./.claude/knowledge-base/adrs/D140-batch-abort-pending-only.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -311,7 +318,7 @@ Open question that remained:
 | # | Feature | Score | Por quê é SDK |
 |---|---|---:|---|
 | ~~1~~ | ~~**Credential Pools** (Hermes #20)~~ ✅ DONE 2026-05-20 | ~~9~~ | Shipped via ADRs D123-D133. `internal/llm/credential-pool.ts` + `pool-aware-client.ts` + `credential-pool-store.ts`. 4 strategies, error-aware cooldown ladder, retry-then-rotate, fork inheritance, 100% backward compat. 1000+ fast-check runs. |
-| 2 | **Batch Processing** (Hermes #11) | 8 | Thin helper `Agent.batch(prompts[], { concurrency })`. Abre eval / training-data use case com ~3 dias de trabalho. |
+| ~~2~~ | ~~**Batch Processing** (Hermes #11)~~ ✅ DONE 2026-05-20 | ~~8~~ | Shipped via ADRs D134-D140. `Agent.batch(prompts, options)` static + `internal/runtime/async-semaphore.ts` (in-house, no `p-limit` dep) + `trajectory-helpers.ts` (opt-in ShareGPT exporter) + router ALS wiring so all in-flight batch agents share one CredentialPool (EC-A fix). Default concurrency 4. Failure isolation per-prompt. AbortSignal pending-only with `signal.reason` propagation. 55 new tests + 1600 fast-check runs. |
 | 3 | **Memory Providers built-in adapters** (Hermes #22) | 7 | Extension point já existe (ADR D98 `kind: "memory"`); falta shippar 2-3 adapters (Honcho / Mem0 / Supermemory) como pacotes `@theokit-memory-*`. |
 | 4 | **Context Files — coverage completo** (Hermes #4) | 6 | `FileContextManager` hoje lê CLAUDE.md / AGENTS.md. Falta: SOUL.md, .cursorrules, .hermes.md. Loader extension trivial. |
 | 5 | **Personality presets** (Hermes #26) | 5 | `systemPrompt` resolver layer (`/personality` preset switcher per session). Light shim sobre primitivo existente. |

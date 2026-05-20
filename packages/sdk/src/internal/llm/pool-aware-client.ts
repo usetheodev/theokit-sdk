@@ -67,8 +67,7 @@ export class PoolAwareLlmClient implements LlmClient {
       // EC-D: a failure inside buildClient (e.g., invalid baseUrl) is
       // a transport-config bug, NOT a credential failure. Propagate
       // without marking the entry exhausted.
-      let realClient: LlmClient;
-      realClient = this.buildClient(entry.accessToken);
+      const realClient: LlmClient = this.buildClient(entry.accessToken);
 
       const attempt = await tryFirstEvent(realClient, request, signal);
       if (attempt.kind === "ok") {

@@ -137,6 +137,7 @@ bot.command("help", async (ctx) => {
       "/tool <name> <args> — ad-hoc tool via per-call override (`/tool list` to see registry)",
       "/goal <prompt> — Agent.runUntil(goal) Ralph loop with judge model (v1.3)",
       "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
+      "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
       "/reset — clear this thread's history (memory facts stay)",
       "",
       "*Modes detected automatically:*",
@@ -302,6 +303,65 @@ bot.command("fact", async (ctx) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`Fact generation failed: ${msg.slice(0, 400)}`);
+  }
+});
+
+// ────────────────────── /batch — Agent.batch showcase (v1.11, ADRs D134-D140) ──────────────────────
+//
+// Fans out 3 mini-prompts (haiku, joke, fact) about a topic via
+// `Agent.batch(prompts, { concurrency: 3 })`. Validates the end-to-end
+// batch surface (semaphore + per-prompt isolation + result ordering)
+// against a real LLM. Failures-per-prompt are surfaced inline so the
+// user sees the discriminated-union contract in action.
+bot.command("batch", async (ctx) => {
+  const topic = ctx.match?.toString().trim() ?? "";
+  if (topic.length === 0) {
+    await ctx.reply(
+      [
+        "*Usage:* `/batch <topic>`",
+        "",
+        "Runs 3 mini-prompts in parallel via `Agent.batch` (concurrency 3):",
+        "• one-line haiku",
+        "• one-line joke",
+        "• one-line surprising fact",
+        "",
+        "Example: `/batch jazz`",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+  try {
+    const { Agent } = await import("@usetheo/sdk");
+    const t0 = Date.now();
+    const results = await Agent.batch(
+      [
+        `Write a one-line haiku (5-7-5 syllables joined with " / ") about ${topic}. Reply with only the haiku.`,
+        `Tell a one-line joke about ${topic}. Reply with only the joke.`,
+        `Share one surprising one-line fact about ${topic}. Reply with only the fact.`,
+      ],
+      {
+        apiKey: API_KEY,
+        model: { id: "openai/gpt-4o-mini" },
+        local: { cwd: CWD, sandboxOptions: { enabled: false } },
+        concurrency: 3,
+      },
+    );
+    const dt = Date.now() - t0;
+    const lines = results.map((r, i) => {
+      if (r.ok) {
+        const text = (r.result.result ?? "").trim().slice(0, 200);
+        return `${i + 1}. ${text}`;
+      }
+      return `${i + 1}. failed: ${r.error.message.slice(0, 80)}`;
+    });
+    await ctx.reply(
+      `Batch (${dt}ms, 3 prompts parallel via Agent.batch):\n${lines.join("\n")}`,
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Batch failed: ${msg.slice(0, 400)}`);
   }
 });
 
