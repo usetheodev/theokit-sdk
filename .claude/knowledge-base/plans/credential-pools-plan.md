@@ -1,6 +1,8 @@
 # Plan: Credential Pools — Same-Provider Key Rotation
 
-> **Version 1.1** (2026-05-20) — incorporates edge-case review: MUST FIX EC-A (persistence-failure-degrades-gracefully) + 5 SHOULD TEST (EC-B/C/D/E/F) + 4 DOCUMENT (EC-G/H/I/J).
+> **Version 1.2 — COMPLETED 2026-05-20.** All 7 phases shipped. 970/970 tests passing (913 → 970, +57). 11 ADRs D123-D133. Backward compat preserved. Dogfood telegram-pro pending Phase 7 verification.
+>
+> **Version 1.1** (2026-05-20) — incorporates edge-case review: MUST FIX EC-A + 5 SHOULD TEST + 4 DOCUMENT.
 >
 > **Version 1.0** — Adds same-provider API-key rotation to `@usetheo/sdk`. Today the SDK has cross-provider failover (`FallbackLlmClient`) but no way to register multiple keys for the same provider — when an OpenRouter key hits HTTP 429, the wrapper jumps straight to a different provider instead of trying a second OpenRouter key the developer already has. This plan ports the Hermes-Agent credential-pool primitive (`referencia/hermes-agent/agent/credential_pool.py`, 1603 LoC) into TypeScript, scoped to api-key authentication only, with persistent state in `~/.theokit/credential-pool.json`, four rotation strategies (fill_first/round_robin/least_used/random), and error-aware cooldowns (429→1h retry-then-rotate, 402→1h immediate-rotate, 401→5m). Backward compatible — single-key callers see no behavior change. Closes SDK Roadmap item #1 (score 9).
 

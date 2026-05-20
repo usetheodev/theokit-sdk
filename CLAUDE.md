@@ -289,6 +289,17 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D120 | Verdict is a closed enum `done \| continue \| skipped` | [D120-verdict-enum-three-values.md](./.claude/knowledge-base/adrs/D120-verdict-enum-three-values.md) |
 | D121 | Fail-safe `continue` on parse error + max-consecutive cap (default 3) | [D121-fail-safe-continue-max-cap.md](./.claude/knowledge-base/adrs/D121-fail-safe-continue-max-cap.md) |
 | D122 | `runUntil`/`fork` throw `UnsupportedRunOperationError` on CloudAgent | [D122-run-until-cloud-unsupported.md](./.claude/knowledge-base/adrs/D122-run-until-cloud-unsupported.md) |
+| D123 | Pool storage = single JSON file at `$THEOKIT_HOME/credential-pool.json` | [D123-credential-pool-storage-json.md](./.claude/knowledge-base/adrs/D123-credential-pool-storage-json.md) |
+| D124 | `CredentialPoolStrategy` is a closed enum (4 values) | [D124-credential-pool-strategy-enum.md](./.claude/knowledge-base/adrs/D124-credential-pool-strategy-enum.md) |
+| D125 | Cooldown ladder: 401→5min, 429→1h, 402→1h; provider `Retry-After` overrides | [D125-credential-pool-cooldown-ladder.md](./.claude/knowledge-base/adrs/D125-credential-pool-cooldown-ladder.md) |
+| D126 | 429 handling: retry same key once, rotate on second consecutive 429 | [D126-credential-pool-429-retry-then-rotate.md](./.claude/knowledge-base/adrs/D126-credential-pool-429-retry-then-rotate.md) |
+| D127 | `PoolAwareLlmClient` is a composition wrapper, not a base class | [D127-credential-pool-composition-wrapper.md](./.claude/knowledge-base/adrs/D127-credential-pool-composition-wrapper.md) |
+| D128 | In-process `withCwdMutex` for reads; `withFileLock` only on writes | [D128-credential-pool-in-process-mutex.md](./.claude/knowledge-base/adrs/D128-credential-pool-in-process-mutex.md) |
+| D129 | Persistence: lazy load on first use, debounced write (200 ms) | [D129-credential-pool-lazy-load-debounced-write.md](./.claude/knowledge-base/adrs/D129-credential-pool-lazy-load-debounced-write.md) |
+| D130 | Public API: `ProviderRoutingSettings.apiKeys: Record<string, string[]>` | [D130-credential-pool-api-keys-array.md](./.claude/knowledge-base/adrs/D130-credential-pool-api-keys-array.md) |
+| D131 | Fork inherits parent pool by reference via `withCredentialPool` AsyncLocalStorage | [D131-credential-pool-fork-inheritance.md](./.claude/knowledge-base/adrs/D131-credential-pool-fork-inheritance.md) |
+| D132 | Single-key shape (`apiKey: "..."`) takes the no-pool fast path | [D132-credential-pool-single-key-transparent.md](./.claude/knowledge-base/adrs/D132-credential-pool-single-key-transparent.md) |
+| D133 | `CredentialPoolExhaustedError extends TheokitAgentError` | [D133-credential-pool-exhausted-error.md](./.claude/knowledge-base/adrs/D133-credential-pool-exhausted-error.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -299,7 +310,7 @@ Open question that remained:
 
 | # | Feature | Score | Por quê é SDK |
 |---|---|---:|---|
-| 1 | **Credential Pools** (Hermes #20) | 9 | HTTP-layer concern — key rotation pertence ao provider client (`internal/llm/*`). Dor real em produção (rate-limit overflow). |
+| ~~1~~ | ~~**Credential Pools** (Hermes #20)~~ ✅ DONE 2026-05-20 | ~~9~~ | Shipped via ADRs D123-D133. `internal/llm/credential-pool.ts` + `pool-aware-client.ts` + `credential-pool-store.ts`. 4 strategies, error-aware cooldown ladder, retry-then-rotate, fork inheritance, 100% backward compat. 1000+ fast-check runs. |
 | 2 | **Batch Processing** (Hermes #11) | 8 | Thin helper `Agent.batch(prompts[], { concurrency })`. Abre eval / training-data use case com ~3 dias de trabalho. |
 | 3 | **Memory Providers built-in adapters** (Hermes #22) | 7 | Extension point já existe (ADR D98 `kind: "memory"`); falta shippar 2-3 adapters (Honcho / Mem0 / Supermemory) como pacotes `@theokit-memory-*`. |
 | 4 | **Context Files — coverage completo** (Hermes #4) | 6 | `FileContextManager` hoje lê CLAUDE.md / AGENTS.md. Falta: SOUL.md, .cursorrules, .hermes.md. Loader extension trivial. |

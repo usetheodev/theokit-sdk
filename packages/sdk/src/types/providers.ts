@@ -28,6 +28,34 @@ export interface ProviderRoutingSettings {
   routes: ProviderRoute[];
   /** Provider names to try in order when a route has no provider available. */
   fallback?: string[];
+  /**
+   * Multiple API keys per provider for same-provider key rotation
+   * (credential pool — ADRs D123-D133). When a key hits HTTP 429, 402,
+   * or 401, the SDK rotates to the next entry transparently before
+   * falling back to a different provider.
+   *
+   * Example:
+   * ```ts
+   * apiKeys: { openrouter: ["sk-or-...", "sk-or-..."], anthropic: ["..."] }
+   * ```
+   *
+   * Empty arrays and empty strings are filtered out. If a provider has
+   * exactly 1 effective key, the pool is transparent (no rotation behavior).
+   *
+   * Conflicts with the single-key shape `AgentOptions.apiKey: "..."` —
+   * use one OR the other, not both.
+   *
+   * @public
+   */
+  apiKeys?: Record<string, string[]>;
+  /**
+   * Rotation strategy per provider for the credential pool. Default is
+   * `"fill_first"` (use entries[0] until exhausted). Only consulted when
+   * `apiKeys[provider]` has ≥2 entries.
+   *
+   * @public
+   */
+  credentialPoolStrategy?: Record<string, "fill_first" | "round_robin" | "least_used" | "random">;
 }
 
 /**

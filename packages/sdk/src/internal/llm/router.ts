@@ -6,7 +6,10 @@ import {
   registerBuiltins,
 } from "../providers/index.js";
 import { AnthropicClient } from "./anthropic.js";
+import { CredentialPool, newPooledCredential } from "./credential-pool.js";
+import type { CredentialPoolStrategy } from "./credential-pool-types.js";
 import { OpenAIClient } from "./openai.js";
+import { PoolAwareLlmClient } from "./pool-aware-client.js";
 import type { LlmClient } from "./types.js";
 
 /**
@@ -25,6 +28,10 @@ export type ProviderName = "anthropic" | "openai" | "openrouter" | (string & {})
 export interface ProviderRouterOptions {
   primary: ProviderName;
   fallback?: ProviderName[];
+  /** Credential pools per provider (ADRs D123-D133). Optional. */
+  apiKeys?: Record<string, string[]>;
+  /** Pool rotation strategy per provider. Optional; default `"fill_first"`. */
+  credentialPoolStrategy?: Record<string, CredentialPoolStrategy>;
 }
 
 export async function resolveProviderChainAsync(
@@ -46,13 +53,16 @@ export function resolveProviderChain(options: ProviderRouterOptions): LlmClient[
 }
 
 function buildChain(options: ProviderRouterOptions): LlmClient[] {
+  // EC-B: warn (once) on apiKeys entries for providers we don't recognize.
+  warnUnknownProvidersInApiKeys(options.apiKeys);
+
   const seen = new Set<string>();
   const clients: LlmClient[] = [];
   const addClient = (name: ProviderName): void => {
     const lowered = name.toLowerCase();
     if (seen.has(lowered)) return;
     seen.add(lowered);
-    const client = buildClient(lowered);
+    const client = buildClient(lowered, options);
     if (client !== undefined) clients.push(client);
   };
   addClient(options.primary);
@@ -67,12 +77,51 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
   return clients;
 }
 
-function buildClient(name: string): LlmClient | undefined {
+function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmClient | undefined {
   const profile = getProviderProfile(name);
   if (profile === undefined) return undefined;
-  const apiKey = resolveApiKey(profile.envVars);
+
+  // Pool path: ≥2 effective keys → wrap in PoolAwareLlmClient.
+  const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
+  if (poolKeys !== undefined && poolKeys.length >= 2) {
+    const strategy = routerOptions.credentialPoolStrategy?.[name] ?? "fill_first";
+    const entries = poolKeys.map((accessToken, priority) =>
+      newPooledCredential({ provider: name, accessToken, priority, source: "manual" }),
+    );
+    const pool = new CredentialPool(name, entries, strategy);
+    return new PoolAwareLlmClient(pool, (apiKey) => selectTransport(profile, apiKey));
+  }
+
+  // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
+  const apiKey = poolKeys?.[0] ?? resolveApiKey(profile.envVars);
   if (apiKey === undefined) return undefined;
   return selectTransport(profile, apiKey);
+}
+
+function filterPoolKeys(keys: string[] | undefined): string[] | undefined {
+  if (keys === undefined) return undefined;
+  const cleaned = keys.filter((k) => typeof k === "string" && k.length > 0);
+  return cleaned.length === 0 ? undefined : cleaned;
+}
+
+const warnedProviders = new Set<string>();
+function warnUnknownProvidersInApiKeys(apiKeys: Record<string, string[]> | undefined): void {
+  if (apiKeys === undefined) return;
+  for (const name of Object.keys(apiKeys)) {
+    if (warnedProviders.has(name)) continue;
+    const profile = getProviderProfile(name);
+    if (profile === undefined) {
+      warnedProviders.add(name);
+      process.stderr.write(
+        `[theokit-sdk] credential-pool: unknown provider "${name}" in apiKeys (no profile registered)\n`,
+      );
+    }
+  }
+}
+
+/** Test-only reset. @internal */
+export function _resetCredentialPoolWarnings(): void {
+  warnedProviders.clear();
 }
 
 /**

@@ -1,4 +1,5 @@
-import { AuthenticationError, NetworkError, RateLimitError } from "../../errors.js";
+import { NetworkError } from "../../errors.js";
+import { relayStream, tryFirstEvent } from "./stream-relay.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
 
 /**
@@ -31,68 +32,17 @@ export class FallbackLlmClient implements LlmClient {
     let lastError: NetworkError | undefined;
     for (const client of this.clients) {
       if (signal.aborted) throw abortError(signal);
-      const attempt = await tryFirstEvent(client, request, signal);
+      const attempt = await tryFirstEvent(client, request, signal, true);
       if (attempt.kind === "handshake_error") {
-        lastError = attempt.error;
+        lastError = attempt.error as NetworkError;
         continue;
       }
-      return yield* relay(attempt.generator, attempt.firstResult);
+      return yield* relayStream(attempt.generator, attempt.firstResult);
     }
     if (lastError !== undefined) throw lastError;
     throw new NetworkError("FallbackLlmClient has no providers configured", {
       code: "fallback_empty_chain",
     });
-  }
-}
-
-type AttemptResult =
-  | {
-      kind: "ok";
-      generator: AsyncGenerator<LlmEvent, LlmFinish, void>;
-      firstResult: IteratorResult<LlmEvent, LlmFinish>;
-    }
-  | { kind: "handshake_error"; error: NetworkError };
-
-async function tryFirstEvent(
-  client: LlmClient,
-  request: LlmRequest,
-  signal: AbortSignal,
-): Promise<AttemptResult> {
-  const generator = client.stream(request, signal);
-  try {
-    const firstResult = await generator.next();
-    return { kind: "ok", generator, firstResult };
-  } catch (cause) {
-    // Post-T2.1 refinement: provider-mapped errors may surface as
-    // AuthenticationError (401/403) or RateLimitError (429) instead of
-    // NetworkError. All three categories indicate a provider-side
-    // pre-stream failure where falling back to the next provider is
-    // sensible (different provider → different key / no rate limit).
-    if (
-      cause instanceof NetworkError ||
-      cause instanceof RateLimitError ||
-      cause instanceof AuthenticationError
-    ) {
-      const errCode = cause.metadata?.code ?? cause.code ?? "unknown";
-      process.stderr.write(
-        `[theokit-sdk] provider ${client.name} failed (${errCode}): falling back\n`,
-      );
-      return { kind: "handshake_error", error: cause };
-    }
-    throw cause;
-  }
-}
-
-async function* relay(
-  generator: AsyncGenerator<LlmEvent, LlmFinish, void>,
-  firstResult: IteratorResult<LlmEvent, LlmFinish>,
-): AsyncGenerator<LlmEvent, LlmFinish, void> {
-  if (firstResult.done === true) return firstResult.value;
-  yield firstResult.value;
-  while (true) {
-    const next = await generator.next();
-    if (next.done === true) return next.value;
-    yield next.value;
   }
 }
 

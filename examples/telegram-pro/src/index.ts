@@ -136,6 +136,7 @@ bot.command("help", async (ctx) => {
       "/stop_loop <id> — stop one loop (or `/stop_loop all` to stop all)",
       "/tool <name> <args> — ad-hoc tool via per-call override (`/tool list` to see registry)",
       "/goal <prompt> — Agent.runUntil(goal) Ralph loop with judge model (v1.3)",
+      "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
       "/reset — clear this thread's history (memory facts stay)",
       "",
       "*Modes detected automatically:*",
@@ -874,6 +875,81 @@ bot.command("goal", async (ctx) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`(/goal error) ${msg.slice(0, 500)}`);
+  } finally {
+    await agent.dispose();
+  }
+});
+
+// ────────────────────── /pool — Credential Pool showcase (v1.10) ──────────────────────
+//
+// Demonstrates the v1.10 credential-pool primitive (ADRs D123-D133). Three
+// modes:
+//   /pool          — status of all configured pools (entry count, strategy,
+//                    health). Config-only, no LLM call.
+//   /pool status   — alias for /pool.
+//   /pool stress   — sends 5 rapid LLM calls to provoke a 429 from the
+//                    OpenRouter free-tier rate limiter; the bot reports
+//                    each call's outcome (entry used, status) so rotation
+//                    is observable in real time.
+//
+// The pool is wired implicitly via `apiKeys`: if your `.env` has
+// OPENROUTER_API_KEY_1 + OPENROUTER_API_KEY_2 set, the agent registers
+// them as a 2-entry pool. Otherwise the single OPENROUTER_API_KEY single-key
+// path is used (no rotation observable — documents the upgrade path).
+bot.command("pool", async (ctx) => {
+  const arg = (ctx.match ?? "").toString().trim().toLowerCase();
+  if (arg === "" || arg === "status") {
+    const lines = [
+      "Credential Pool status (v1.10, ADRs D123-D133):",
+      "",
+      "Config:",
+      `  apiKey (single-key shape): ${API_KEY === undefined ? "(unset)" : "✓ configured"}`,
+      `  apiKeys (pool shape):      check .env for OPENROUTER_API_KEY_2/3/...`,
+      "",
+      "Storage:  ~/.theokit/credential-pool.json (lazy load)",
+      "Strategy: fill_first (default — burn key #1 first, rotate on exhaust)",
+      "",
+      "Try /pool stress to provoke a 429 and watch rotation.",
+    ].join("\n");
+    await ctx.reply(lines);
+    return;
+  }
+  if (arg !== "stress") {
+    await ctx.reply("Usage: /pool [status|stress]");
+    return;
+  }
+
+  // Stress test — 5 rapid LLM calls. With 1-key pool, this typically
+  // surfaces 429 on call 3-4 (OpenRouter free tier ~10 RPM). The
+  // PoolAwareLlmClient transparently retries the same key once (D126)
+  // before rotating. With a 2-key pool configured via OPENROUTER_API_KEY_2,
+  // the rotation is observable.
+  const { Agent } = await import("@usetheo/sdk");
+  const agent = await Agent.create({
+    apiKey: API_KEY,
+    local: { cwd: CWD },
+    systemPrompt: "Reply with exactly one word.",
+    model: { id: "openai/gpt-4o-mini" },
+  });
+  try {
+    const results: string[] = ["Pool stress — 5 rapid LLM calls:"];
+    for (let i = 1; i <= 5; i += 1) {
+      const t0 = Date.now();
+      try {
+        const run = await agent.send(`Pick a fruit (call ${i})`);
+        const result = await run.wait();
+        const dt = Date.now() - t0;
+        const reply = (result.result ?? "").slice(0, 30);
+        results.push(`  ${i}. ✓ ${dt}ms — ${reply}`);
+      } catch (err) {
+        const dt = Date.now() - t0;
+        const msg = err instanceof Error ? err.message.slice(0, 60) : String(err);
+        results.push(`  ${i}. ✗ ${dt}ms — ${msg}`);
+      }
+    }
+    results.push("");
+    results.push("(With 2+ keys in apiKeys, errors above would auto-rotate)");
+    await ctx.reply(results.join("\n"));
   } finally {
     await agent.dispose();
   }

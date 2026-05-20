@@ -172,6 +172,13 @@ const COMMANDS = [
     waitMs: 120000,
     retryOnError: true,
   },
+
+  // ── v1.10 Credential Pools — config probe (no LLM call) ──
+  {
+    text: "/pool",
+    expect: [/Credential Pool status/i, /Strategy:.*fill_first/i],
+    waitMs: 8000,
+  },
 ];
 
 // ─── Helpers ───
@@ -387,7 +394,11 @@ async function main() {
 
   const { sessionId, target } = await cdp.attachToPage(
     (p) =>
-      p.url.includes("web.telegram.org") && (p.url.includes(USER_ID) || p.title?.includes("Theo")),
+      p.url.includes("web.telegram.org") &&
+      (p.url.includes(USER_ID) ||
+        p.url.includes("8982152421") || // bot chat id (Theo)
+        p.title?.includes("Theo") ||
+        p.title?.includes("notifications")), // unread chat — likely the bot
   );
   console.log(`✅ Attached: ${target.title} → ${target.url}`);
   await cdp.send("Page.enable", {}, sessionId);
