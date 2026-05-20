@@ -18,8 +18,12 @@
  * - `judge_verdict` — the auxiliary judge model evaluated the response.
  *   `parseFailed: true` indicates the judge returned a malformed reply
  *   (fail-safe verdict = `continue`, see ADR D121).
- * - `continuation` — the goal is not yet satisfied; carries the prompt
- *   that will be sent at the start of the next turn.
+ * - `continuation` — the judge ruled `continue`; carries the prompt that
+ *   was sent on THIS turn (i.e., the input that produced the agent
+ *   response just yielded). Useful for consumers who want to audit the
+ *   exact continuation message that drove each iteration. The prompt
+ *   for the NEXT turn is composed lazily at the start of that turn
+ *   from the latest `agent_response.content`.
  * - `status_change` — transition of the overall goal state. Always
  *   emitted once at start (`active`) and once at end
  *   (`completed | failed | paused`).
