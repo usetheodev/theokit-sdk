@@ -17,7 +17,7 @@ describe("engine context manager contract", () => {
     workspace = await createTempWorkspace("project-with-context");
     const options: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       context: {
         manager: "file",
@@ -42,7 +42,7 @@ describe("engine context manager contract", () => {
     workspace = await createTempWorkspace("project-with-context");
     const options: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       context: { manager: "file", maxTokens: 1200 },
     };

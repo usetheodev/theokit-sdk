@@ -18,7 +18,7 @@ describe("agent artifacts contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -31,7 +31,7 @@ describe("agent artifacts contract", () => {
   it("cloud agents list artifact metadata and download artifact bytes", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: { repos: [{ url: "https://github.com/usetheo/example" }] },
     });
 

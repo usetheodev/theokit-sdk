@@ -1,4 +1,5 @@
 import { type ChildProcessWithoutNullStreams, spawn } from "node:child_process";
+import { isAbsolute } from "node:path";
 
 import { ConfigurationError, NetworkError } from "../../errors.js";
 import type {
@@ -6,6 +7,7 @@ import type {
   McpServerConfig,
   McpStdioServerConfig,
 } from "../../types/mcp.js";
+import { safePathJoin } from "../security/path-guard.js";
 
 /**
  * Real MCP client implementing the subset of the 2024-11-05 spec used by the
@@ -119,8 +121,12 @@ class StdioMcpClient extends BaseMcpClient {
   }
 
   override async initialize(): Promise<void> {
+    // ADR D79-D80: relative MCP `cwd` paths must safe-join under process.cwd()
+    // so a malicious `.theokit/mcp.json` cannot point a server process at
+    // `../../../etc`. Absolute paths are trusted (user explicitly chose).
+    const resolvedCwd = resolveMcpCwd(this.config.cwd);
     const child = spawn(this.config.command, this.config.args ?? [], {
-      cwd: this.config.cwd ?? process.cwd(),
+      cwd: resolvedCwd,
       env: { ...process.env, ...(this.config.env ?? {}) },
     });
     this.child = child;
@@ -220,4 +226,17 @@ class HttpMcpClient extends BaseMcpClient {
     }
     return (await response.json()) as unknown;
   }
+}
+
+/**
+ * Resolve an MCP server `cwd` field safely. Absolute paths are returned
+ * as-is (user explicitly chose absolute); relative paths are joined under
+ * `process.cwd()` and prefix-checked via `safePathJoin`.
+ *
+ * @internal
+ */
+function resolveMcpCwd(configCwd: string | undefined): string {
+  if (configCwd === undefined) return process.cwd();
+  if (isAbsolute(configCwd)) return configCwd;
+  return safePathJoin(process.cwd(), configCwd);
 }

@@ -1,7 +1,4 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
-import { ConfigurationError } from "../../errors.js";
+import { loadHookConfig } from "./hooks-source.js";
 import { spawnAndCollect } from "./spawn-collect.js";
 
 /**
@@ -63,29 +60,9 @@ export class HooksExecutor {
       this.config = {};
       return;
     }
-    const hooksPath = join(this.cwd, ".theokit", "hooks.json");
-    let raw: string;
-    try {
-      raw = await readFile(hooksPath, "utf8");
-    } catch (cause) {
-      const err = cause as NodeJS.ErrnoException;
-      if (err.code === "ENOENT") {
-        this.config = {};
-        return;
-      }
-      throw new ConfigurationError(`Failed to read hooks config: ${hooksPath}`, {
-        code: "hooks_read_error",
-        cause,
-      });
-    }
-    try {
-      this.config = JSON.parse(raw) as HookConfig;
-    } catch (cause) {
-      throw new ConfigurationError(`Invalid JSON in hooks config: ${hooksPath}`, {
-        code: "hooks_json_invalid",
-        cause,
-      });
-    }
+    // ADR D77: try .theokit/hooks/*.md first; fallback .theokit/hooks.json
+    // with deprecation warn. Shared loader in hooks-source.ts.
+    this.config = await loadHookConfig(this.cwd);
   }
 
   /** Fire every hook registered for `event` and aggregate the decisions. */

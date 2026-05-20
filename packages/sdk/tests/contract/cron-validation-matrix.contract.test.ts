@@ -22,7 +22,7 @@ describe("Cron validation matrix contract", () => {
       message: `Run ${cron}`,
       agent: {
         apiKey: "theo_test_contract_key",
-        model: { id: "composer-2" },
+        model: { id: "google/gemini-2.0-flash-001" },
         local: { cwd: workspace.cwd },
       },
     });

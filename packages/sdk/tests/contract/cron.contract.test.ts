@@ -73,7 +73,11 @@ describe("Cron contract", () => {
         cron: "@daily",
         message: "bad",
         agentId: "agent-00000000-0000-4000-8000-000000000001",
-        agent: { apiKey: "theo_test_contract_key", model: { id: "composer-2" }, local: {} },
+        agent: {
+          apiKey: "theo_test_contract_key",
+          model: { id: "google/gemini-2.0-flash-001" },
+          local: {},
+        },
       }),
       /mutually exclusive|either agent or agentId/i,
     );

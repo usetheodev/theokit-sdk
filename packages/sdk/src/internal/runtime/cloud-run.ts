@@ -25,6 +25,8 @@ export interface CreateCloudRunOptions {
   message: string | SDKUserMessage;
   agentOptions: AgentOptions;
   sendOptions: SendOptions;
+  /** Accepted for API parity; fixture cloud path does not use it. */
+  systemPrompt?: string;
 }
 
 /**

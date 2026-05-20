@@ -24,7 +24,7 @@ describe("platform extension golden contracts", () => {
     workspace = await createTempWorkspace("project-with-context");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       context: {
         manager: "file",

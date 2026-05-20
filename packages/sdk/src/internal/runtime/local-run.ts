@@ -1,6 +1,7 @@
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { SessionMessage } from "./agent-session.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "./default-model.js";
 import { buildFixtureScript } from "./fixture-responder.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { MemoryFact } from "./memory-store.js";
@@ -24,6 +25,11 @@ export interface CreateLocalRunOptions {
   sessionMessages: SessionMessage[];
   projectMcpServers: Record<string, unknown>;
   persistMemoryFact?: (fact: MemoryFact) => Promise<void>;
+  /**
+   * Accepted for API parity with the real runtime; the fixture responder is
+   * deterministic and does not feed the prompt into its scripts.
+   */
+  systemPrompt?: string;
 }
 
 /**
@@ -38,7 +44,7 @@ export function createLocalRun(options: CreateLocalRunOptions): Run {
   const script = buildFixtureScript({
     agentId: options.agentId,
     runId: id,
-    model: options.model ?? { id: "composer-2" },
+    model: options.model ?? { id: DEFAULT_AGENTIC_MODEL_ID },
     userMessage: userText,
     runtime: "local",
     agentOptions: options.agentOptions,
@@ -83,14 +89,26 @@ class LocalRun extends FixtureRunBase {
 
   private async completeNaturally(): Promise<void> {
     if (this.terminated) return;
-    if (this.script.beforeComplete !== undefined) {
-      try {
-        await this.script.beforeComplete();
-      } catch {
-        this.transitionTo("error" satisfies RunStatus);
-        return;
-      }
-    }
+    const beforeOk = await this.runBeforeComplete();
+    if (!beforeOk) return;
     this.transitionTo(this.script.finalStatus);
+  }
+
+  /** Runs the optional beforeComplete hook. Returns false iff it failed and the run transitioned to error. */
+  private async runBeforeComplete(): Promise<boolean> {
+    if (this.script.beforeComplete === undefined) return true;
+    try {
+      await this.script.beforeComplete();
+      return true;
+    } catch (cause) {
+      // Capture the beforeComplete failure on the script so the wait()
+      // caller sees `result.error.message` instead of an opaque status.
+      if (this.script.errorDetail === undefined) {
+        const message = cause instanceof Error ? cause.message : String(cause);
+        this.script.errorDetail = { message, code: "before_complete_failed", cause };
+      }
+      this.transitionTo("error" satisfies RunStatus);
+      return false;
+    }
   }
 }

@@ -1,7 +1,9 @@
 import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
+import { checkToolWhitelist } from "../runtime/async-local-storage.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/shell-tool.js";
+import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 
 /**
@@ -16,9 +18,13 @@ export interface ResolvedTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  origin: "shell" | "mcp";
+  origin: "shell" | "mcp" | "memory" | "custom";
   mcpServerName?: string;
   mcpToolName?: string;
+  /** Direct handler for `origin === "memory"` tools — returns JSON-encoded result string. */
+  memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
+  /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`. */
+  customHandler?: (input: Record<string, unknown>) => string | Promise<string>;
 }
 
 interface ToolResult {
@@ -40,15 +46,83 @@ export async function dispatchTools(
   return out;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: tool dispatch must check 5 origins (custom/mcp/builtin/handler-tool/missing) and emit running+completed events for each — branching is mirroring the public taxonomy.
 async function dispatchSingleCall(
   inputs: AgentLoopInputs,
   tools: ResolvedTool[],
   call: LlmToolCallPart,
   events: SDKMessage[],
 ): Promise<LlmContentPart> {
-  const resolved = tools.find((tool) => tool.name === call.name);
+  // T4.1 (ADRs D86-D88): apply repair middleware BEFORE the lookup so
+  // case-insensitive matches, JSON-stringified args, and type coercion all
+  // land before the registry check. Repairs are surfaced via telemetry.
+  const registryMap = buildRepairRegistry(tools);
+  const repaired = repairToolCall({ name: call.name, args: call.input, id: call.id }, registryMap);
+  if (repaired.repairs.length > 0) {
+    call = {
+      ...call,
+      name: repaired.call.name,
+      input: (repaired.call.args ?? {}) as Record<string, unknown>,
+    };
+  }
+  // T4.1 (ADR D111): fork tool-whitelist gate fires FIRST — before plugin
+  // and file hooks. A fork's allowedTools set is the strictest contract;
+  // if the fork didn't authorize the tool, the model never gets to invoke
+  // it (no plugin observation, no file-hook trace). Returns a benign
+  // tool_result so the model can react in narrative — mirrors D101 veto.
   const callId = generateCallId();
+  const whitelistDecision = checkToolWhitelist(call.name);
+  if (!whitelistDecision.allowed) {
+    events.push(buildToolUseRunning(inputs, callId, call));
+    events.push(
+      buildToolUseCompleted(inputs, callId, call, {
+        stdout: "",
+        stderr: whitelistDecision.reason ?? "tool not available in fork",
+        exitCode: 126,
+      }),
+    );
+    return {
+      type: "tool_result",
+      toolUseId: call.id,
+      content: `Tool blocked by fork whitelist: ${whitelistDecision.reason}`,
+    };
+  }
+  const resolved = tools.find((tool) => tool.name === call.name);
+  const toolSpan = inputs.telemetry?.startSpan("tool.call", {
+    "tool.name": call.name,
+    "tool.origin": resolved?.origin ?? "unknown",
+    callId,
+  });
+  if (repaired.repairs.length > 0 && toolSpan !== undefined) {
+    toolSpan.setAttribute("tool.repairs", repaired.repairs.join("; "));
+  }
+  if (toolSpan !== undefined && inputs.telemetry?.includeContent === true) {
+    toolSpan.addEvent("args", { input: JSON.stringify(call.input) });
+  }
   events.push(buildToolUseRunning(inputs, callId, call));
+  // T4.2 (ADR D101): plugin `pre_tool_call` hooks fire BEFORE file-based
+  // hooks. Plugins are author-supplied (code-level safety); file-based
+  // hooks are operator policy. Author intent wins early.
+  const pluginVeto = await inputs.pluginManager?.runPreToolCallHooks({
+    name: call.name,
+    args: call.input,
+    agentId: inputs.agentId,
+    runId: inputs.runId,
+  });
+  if (pluginVeto !== undefined) {
+    events.push(
+      buildToolUseCompleted(inputs, callId, call, {
+        stdout: "",
+        stderr: pluginVeto.message,
+        exitCode: 126,
+      }),
+    );
+    return {
+      type: "tool_result",
+      toolUseId: call.id,
+      content: `Plugin blocked this tool call: ${pluginVeto.message}`,
+    };
+  }
   const preDecision = await inputs.hooks.run({
     event: "preToolUse",
     tool: call.name,
@@ -75,6 +149,11 @@ async function dispatchSingleCall(
     };
   }
   const result = await executeTool(inputs, resolved, call);
+  toolSpan?.setAttribute("exitCode", result.exitCode ?? 0);
+  if (toolSpan !== undefined && inputs.telemetry?.includeContent === true) {
+    toolSpan.addEvent("result", { stdout: result.stdout.slice(0, 1000) });
+  }
+  toolSpan?.end();
   events.push(buildToolUseCompleted(inputs, callId, call, result));
   void inputs.hooks.run({
     event: "postToolUse",
@@ -105,7 +184,39 @@ async function executeTool(
     return { stdout: "", stderr: `Unknown tool ${call.name}`, exitCode: 127 };
   }
   if (resolved.origin === "shell") return runShellTool(inputs, call);
+  if (resolved.origin === "memory") return runMemoryTool(resolved, call);
+  if (resolved.origin === "custom") return runCustomTool(resolved, call);
   return runMcpTool(inputs, resolved, call);
+}
+
+async function runMemoryTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
+  return runHandlerTool("memory", resolved.memoryHandler, call);
+}
+
+async function runCustomTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
+  return runHandlerTool("custom", resolved.customHandler, call);
+}
+
+/**
+ * Shared dispatch path for in-process handler tools (memory + custom). Wraps
+ * the handler call in try/catch and converts the result into the uniform
+ * stdout/stderr/exitCode shape the agent loop consumes.
+ */
+async function runHandlerTool(
+  kind: "memory" | "custom",
+  handler: ((input: Record<string, unknown>) => string | Promise<string>) | undefined,
+  call: LlmToolCallPart,
+): Promise<ToolResult> {
+  if (handler === undefined) {
+    return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
+  }
+  try {
+    const stdout = await handler(call.input);
+    return { stdout, stderr: "", exitCode: 0 };
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    return { stdout: "", stderr: message, exitCode: 1 };
+  }
 }
 
 async function runShellTool(inputs: AgentLoopInputs, call: LlmToolCallPart): Promise<ToolResult> {
@@ -169,6 +280,20 @@ function buildToolUseRunning(
     status: "running",
     args: call.input,
   };
+}
+
+/**
+ * T4.1 helper: project the agent-loop's ResolvedTool[] into a registry
+ * shape consumable by `repairToolCall`. Caller owns the Map lifetime
+ * (rebuilt each dispatchSingleCall — O(tools.length) overhead is negligible
+ * compared to the LLM round-trip).
+ */
+function buildRepairRegistry(tools: ResolvedTool[]): ReadonlyMap<string, RepairableTool> {
+  const out = new Map<string, RepairableTool>();
+  for (const t of tools) {
+    out.set(t.name, { name: t.name, inputSchema: t.inputSchema });
+  }
+  return out;
 }
 
 function buildToolUseCompleted(

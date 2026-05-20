@@ -12,7 +12,7 @@ Then any SDK call without an explicit `apiKey` will use it:
 
 ```typescript
 const agent = await Agent.create({
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 }); // pulls THEOKIT_API_KEY from env
 ```
@@ -22,7 +22,7 @@ Or pass per-call:
 ```typescript
 const agent = await Agent.create({
   apiKey: "your-key",
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
 ```

@@ -1,10 +1,28 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignore": ["referencia/**", "scripts/**", "examples/**"],
+  "ignore": [
+    "referencia/**",
+    "scripts/**",
+    "examples/**",
+    ".claude/**",
+    "tools/check-node.mjs",
+    "tools/audit-memory-scale.mjs",
+    "tools/audit-safety-adversarial.mjs",
+    "tools/chaos-persistence-victim.mjs",
+    "tools/validate-generateobject-real-llm.mjs",
+    "tools/validate-streamobject-real-llm.mjs",
+    "tools/validate-streaming-telegram-real-llm.mjs"
+  ],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
   "workspaces": {
     "packages/sdk": {
-      "entry": ["tests/**/*.test.ts", "tests/helpers/**/*.ts"],
+      "entry": ["tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"],
+      "ignore": ["src/internal/**"],
+      "ignoreDependencies": ["zod"]
+    },
+    "packages/react": {
+      "entry": ["tests/**/*.test.ts"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
       "ignore": ["src/internal/**"]
     }

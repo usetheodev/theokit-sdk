@@ -21,6 +21,12 @@ export interface FixtureScript {
   conversation: ConversationTurn[];
   /** Extra fields surfaced on the RunResult (e.g. provider routing info). */
   extraRunFields?: Record<string, unknown>;
+  /**
+   * Structured error attached to the final RunResult when finalStatus is
+   * `"error"`. Mirrors {@link RunResult.error} so callers that wait()
+   * instead of stream() can still surface the cause.
+   */
+  errorDetail?: { message: string; code?: string; cause?: unknown };
   /** Optional async hook executed before the run terminates. */
   beforeComplete?: () => Promise<void>;
 }

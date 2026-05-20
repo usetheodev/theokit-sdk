@@ -2,7 +2,7 @@ node_modules/
 dist/
 coverage/
 *.tsbuildinfo
-
+PITCH.md
 # Logs
 *.log
 npm-debug.log*
@@ -13,6 +13,8 @@ yarn-error.log*
 # OS
 .DS_Store
 Thumbs.db
+.theokit/
+dist-runtime/
 
 # Env
 .env
@@ -38,3 +40,19 @@ Thumbs.db
 
 # Tsup
 .tsup/
+
+# Study material (cloned for reference, not tracked as gitlinks)
+referencia/openclaw/
+
+# Third-party benchmark tool — not SDK code
+docs/evalscope/
+
+# Ralph loop local state
+.claude/ralph-loop.local.md
+
+# SDK runtime state generated at workspace cwd by Agent.create / Cron.create /
+# memory writes. Test fixtures under tests/fixtures/repos/*/.theokit are
+# explicitly tracked and exempt from this ignore.
+/packages/sdk/.theokit/
+/examples/*/.theokit/
+.gstack/

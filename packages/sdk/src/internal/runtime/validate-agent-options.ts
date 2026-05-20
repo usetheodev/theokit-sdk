@@ -1,5 +1,5 @@
 import { ConfigurationError } from "../../errors.js";
-import type { AgentDefinition, AgentOptions, CloudOptions } from "../../types/agent.js";
+import type { AgentDefinition, AgentOptions, CloudOptions, CustomTool } from "../../types/agent.js";
 import type { McpServerConfig } from "../../types/mcp.js";
 
 /**
@@ -14,6 +14,8 @@ import type { McpServerConfig } from "../../types/mcp.js";
  * - subagent inline definitions require `description` and `prompt`
  * - programmatic `hooks` are rejected (hooks are file-based only)
  * - memory `storePath`, when relative, must stay inside the workspace
+ * - custom `tools`: unique names, reserved-name collisions rejected,
+ *   schema shape valid, cloud agents reject any non-empty tools array
  *
  * @internal
  */
@@ -34,6 +36,7 @@ export function validateAgentOptions(options: AgentOptions): void {
   validateSubagents(options.agents);
   validateMemory(options);
   validatePlugins(options);
+  validateCustomTools(options);
 }
 
 function validatePlugins(options: AgentOptions): void {
@@ -112,6 +115,97 @@ function validateSubagents(agents: Record<string, AgentDefinition> | undefined):
         code: "subagent_missing_prompt",
       });
     }
+  }
+}
+
+const TOOL_NAME_PATTERN = /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/;
+const RESERVED_TOOL_NAMES: ReadonlySet<string> = new Set(["shell", "memory_search", "memory_get"]);
+
+/**
+ * Shared per-tool catalog validator used by both creation-time AgentOptions
+ * and per-call SendOptions paths. Runs the same name/schema/dedupe rules
+ * against any tools array. Does NOT enforce the cloud-runtime rejection —
+ * that lives in {@link validateCustomTools} (creation) and the
+ * per-runtime send paths (cloud agents reject at dispatch).
+ *
+ * @internal
+ */
+export function validateToolCatalog(tools: ReadonlyArray<CustomTool>): void {
+  const seen = new Set<string>();
+  for (const tool of tools) {
+    validateSingleTool(tool);
+    if (seen.has(tool.name)) {
+      throw new ConfigurationError(`Duplicate custom tool name "${tool.name}"`, {
+        code: "duplicate_tool_name",
+      });
+    }
+    seen.add(tool.name);
+  }
+}
+
+function validateCustomTools(options: AgentOptions): void {
+  const tools = options.tools;
+  if (tools === undefined || tools.length === 0) return;
+  if (options.cloud !== undefined) {
+    throw new ConfigurationError(
+      "Custom inline tools are local-only in SDK v1.0 — cloud agents cannot serialize handler functions",
+      { code: "cloud_custom_tools_rejected" },
+    );
+  }
+  validateToolCatalog(tools);
+}
+
+function validateSingleTool(tool: CustomTool): void {
+  validateToolName(tool);
+  validateToolDescription(tool);
+  validateToolSchema(tool);
+  if (typeof tool.handler !== "function") {
+    throw new ConfigurationError(`Custom tool "${tool.name}" requires a handler function`, {
+      code: "tool_missing_handler",
+    });
+  }
+}
+
+function validateToolName(tool: CustomTool): void {
+  if (typeof tool.name !== "string" || tool.name.length === 0) {
+    throw new ConfigurationError("Custom tool requires a non-empty name", {
+      code: "tool_missing_name",
+    });
+  }
+  if (!TOOL_NAME_PATTERN.test(tool.name)) {
+    throw new ConfigurationError(
+      `Custom tool name "${tool.name}" must match /^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/`,
+      { code: "tool_invalid_name" },
+    );
+  }
+  if (RESERVED_TOOL_NAMES.has(tool.name) || tool.name.startsWith("mcp_")) {
+    throw new ConfigurationError(
+      `Custom tool name "${tool.name}" collides with a reserved SDK tool name`,
+      { code: "tool_reserved_name" },
+    );
+  }
+}
+
+function validateToolDescription(tool: CustomTool): void {
+  if (typeof tool.description !== "string" || tool.description.length === 0) {
+    throw new ConfigurationError(`Custom tool "${tool.name}" requires a non-empty description`, {
+      code: "tool_missing_description",
+    });
+  }
+}
+
+function validateToolSchema(tool: CustomTool): void {
+  const schema = tool.inputSchema as { type?: unknown } | null | undefined;
+  if (schema === null || schema === undefined || typeof schema !== "object") {
+    throw new ConfigurationError(`Custom tool "${tool.name}" requires an inputSchema object`, {
+      code: "tool_missing_schema",
+    });
+  }
+  if (schema.type !== "object") {
+    throw new ConfigurationError(
+      `Custom tool "${tool.name}" inputSchema must declare \`type: "object"\``,
+      { code: "tool_invalid_schema_type" },
+    );
   }
 }
 

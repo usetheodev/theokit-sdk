@@ -3,6 +3,13 @@ Theo SDK
 Public beta
 The TypeScript SDK is in public beta. APIs may change before general availability.
 
+Stability & versioning
+- Architectural decisions are tracked under `.claude/knowledge-base/adrs/` in the repository (D1..D14).
+- Embedding provider unions are locked by ADR D11 (`openai`, `mistral`, `openrouter`, `voyage`, `deepinfra`).
+- The default model id `google/gemini-2.0-flash-001` is a runnable fallback; query `Theokit.models.list()` for the canonical catalog (ADR D4).
+- `await using agent = await Agent.create(...)` is supported (ADR D5).
+- Skill files require strict YAML frontmatter (`name`, `description`) (ADR D10).
+
 The @Theo/sdk package lets you call Theo's agent from your own code. The same agent that runs in the Theo IDE, CLI, and web app is now scriptable from TypeScript. You can also use Theo's native /sdk skill to help you start building.
 
 Overview
@@ -46,7 +53,7 @@ The fastest way in: a local agent against your current working tree, streaming e
 import { Agent } from "@Theo/sdk";
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
 const run = await agent.send("Summarize what this repository does");
@@ -64,13 +71,13 @@ Agent.create() validates options and returns a handle immediately. Pass either l
 // Local agent
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: "/path/to/repo" },
 });
 // Cloud agent
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   cloud: {
     repos: [{ url: "https://github.com/your-org/your-repo", startingRef: "main" }],
     autoCreatePR: true,
@@ -104,7 +111,7 @@ When a selected model requires Max Mode, Theo enables it automatically for the S
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
   model: {
-    id: "composer-2",
+    id: "google/gemini-2.0-flash-001",
     params: [{ id: "thinking", value: "high" }],
   },
   local: { cwd: process.cwd() },
@@ -113,12 +120,12 @@ const agent = await Agent.create({
 Context manager
 The context manager selects project context before a run starts. It is for working-set material: README files, architecture notes, generated summaries, and other documents that help the agent understand the current task. It is not durable user memory.
 
-Enable file-based context with `context.manager: "file"`. Local agents read `.theokit/context.json` from the workspace when `local.settingSources` includes `"project"`; cloud agents read committed project context from the cloned repo. Call `agent.context.snapshot()` to inspect the public, redacted context that will be offered to runs.
+Enable file-based context with `context.manager: "file"`. Local agents read `.theokit/context/<name>.md` from the workspace when `local.settingSources` includes `"project"` (legacy `.theokit/context.json` still works but is deprecated; see Configuration files section); cloud agents read committed project context from the cloned repo. Call `agent.context.snapshot()` to inspect the public, redacted context that will be offered to runs.
 
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
   context: {
     manager: "file",
@@ -126,9 +133,9 @@ const agent = await Agent.create({
   },
 });
 const snapshot = await agent.context.snapshot();
-await agent.reload(); // re-read .theokit/context.json and referenced files
+await agent.reload(); // re-read context (legacy .theokit/context.json or markdown form)
 
-`.theokit/context.json`:
+Legacy `.theokit/context.json` shape (deprecated since v1.5 — migrate via `theokit-migrate-config`):
 
 
 {
@@ -148,7 +155,7 @@ Memory stores durable facts across agent instances. It is keyed by namespace, us
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
   memory: {
     enabled: true,
@@ -169,7 +176,7 @@ Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
   skills: {
     enabled: ["code-review", "test-architect"],
@@ -224,7 +231,7 @@ One-shot convenience: creates an agent, sends a single prompt, waits for the run
 
 const result = await Agent.prompt("What does the auth middleware do?", {
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
 Sending messages
@@ -324,7 +331,7 @@ The model you pass to agent.send() overrides the agent's selection for that run,
 
 
 const run = await agent.send("Plan the refactor", {
-  model: { id: "composer-2", params: [{ id: "thinking", value: "high" }] },
+  model: { id: "google/gemini-2.0-flash-001", params: [{ id: "thinking", value: "high" }] },
 });
 console.log(agent.model);  // updated to the override after the send succeeds
 run.model and result.model reflect the selection that this specific run actually used and are immutable once the run starts.
@@ -347,10 +354,25 @@ The callbacks are awaited before the next update is processed, so you can apply 
 Per-send options
 Property	Type	Description
 model	ModelSelection	Per-send model override. If omitted, uses agent.model. Sticky: a successful send updates agent.model.
+systemPrompt	string	Per-call system prompt override. Wins over AgentOptions.systemPrompt. String only — for dynamic resolvers, configure on AgentOptions. An empty string is honoured (it explicitly clears the system context).
 mcpServers	Record<string, McpServerConfig>	Inline MCP server definitions. Fully replaces creation-time servers for this run.
+tools	CustomTool[]	Per-call inline custom tools. Fully replaces `AgentOptions.tools` for this run (not merged). `undefined` → fall back to agent tools; `[]` → explicit clear (no custom tools for this run); `[t1, t2]` → use exactly these. Local runtime only — cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")`.
 onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step (text, thinking, or tool batch).
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
+
+SystemPromptContext
+Passed to a systemPrompt resolver function (when AgentOptions.systemPrompt is a callable). Field order is a compatibility contract: new fields are appended, never reordered.
+
+interface SystemPromptContext {
+  agentId: string;
+  cwd: string | undefined;
+  model: ModelSelection | undefined;
+  skills: ReadonlyArray<{ name: string; description: string }>;
+  userMessage: string;
+}
+
+The resolver may be sync or async. Errors thrown propagate to the caller of agent.send(). The SDK does NOT impose a timeout — wrap your own Promise.race if you call into slow resources.
 The next three sections are detailed reference for SDKMessage, InteractionUpdate, and ConversationTurn. Skim or skip on a first read; Resuming agents picks up the narrative.
 
 Stream events
@@ -603,6 +625,91 @@ const run = await agent.send("Also update the changelog");
 await run.wait();
 agent.model is undefined on resume unless you pass model again. Inline mcpServers are not persisted across resume — they often carry secrets and live in memory only. Pass them again on resume, or use file-based MCP config (.Theo/mcp.json + local.settingSources) for servers that should survive.
 
+Agent.getOrCreate()
+
+function Agent.getOrCreate(agentId: string, options: AgentOptions): Promise<SDKAgent>;
+
+Consolidates the resume-or-create dance into a single call (ADR D22). Tries `Agent.resume(agentId, options)` first; on `UnknownAgentError` falls through to `Agent.create({ ...options, agentId })`. On same-process race (a second caller wins the create), retries `Agent.resume` once and returns the winner's handle. Any other error propagates verbatim.
+
+const agent = await Agent.getOrCreate(`tg-user-${userId}`, {
+  apiKey: process.env.Theo_API_KEY!,
+  model: { id: "claude-sonnet-4-6" },
+  local: { cwd: process.cwd() },
+  memory: { enabled: true, namespace: "tg-bot", scope: "user", userId },
+});
+
+Use when: chat bots, long-running agents, any consumer that wants idempotent "give me this agent" semantics without try/catch boilerplate.
+
+createAgentFactory()
+
+function createAgentFactory(common: Partial<AgentOptions>): AgentFactory;
+interface AgentFactory {
+  forSession(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
+  getOrCreate(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
+}
+
+Captures shared `AgentOptions` once and produces per-session agents with focused overrides (ADR D23). Merge rules: top-level shallow merge with overrides winning; deep merge for `local`, `memory`, `cloud`; total replace for collection-shaped fields (`mcpServers`, `agents`, `tools`, `providers`, `plugins`, `skills`, `context`). The function-level `agentId` always wins.
+
+const factory = createAgentFactory({
+  apiKey: process.env.Theo_API_KEY!,
+  model: { id: "claude-sonnet-4-6" },
+  local: { cwd: process.cwd(), settingSources: ["project"] },
+  systemPrompt: "You are a helpful assistant.",
+});
+
+const agent = await factory.getOrCreate(`tg-user-${userId}`, {
+  memory: { enabled: true, namespace: "tg-bot", scope: "user", userId },
+});
+
+Use when: chat-bot patterns where 90% of the config is identical across users and only a handful of fields change per session.
+
+defineTool()
+
+function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool;
+interface DefineToolSpec<T extends ZodType> {
+  name: string;
+  description: string;
+  inputSchema: T;
+  handler: (input: z.infer<T>) => string | Promise<string>;
+}
+
+Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
+
+import { z } from "zod";
+import { defineTool } from "@usetheo/sdk";
+
+const rollTool = defineTool({
+  name: "roll",
+  description: "Roll N dice with S sides each.",
+  inputSchema: z.object({
+    count: z.number().int().min(1).max(100),
+    sides: z.number().int().min(2).max(1000),
+  }),
+  handler: ({ count, sides }) => {
+    // count is inferred as number — no `as` cast needed.
+    const rolls = Array.from({ length: count }, () => 1 + Math.floor(Math.random() * sides));
+    return JSON.stringify({ rolls, total: rolls.reduce((a, b) => a + b, 0) });
+  },
+});
+
+Use when: custom tools whose handlers expect typed input and benefit from automatic runtime validation. Invalid input becomes `tool_result(isError)` with a Zod message instead of silent NaN/undefined.
+
+Agent.builder()
+
+function Agent.builder(): AgentBuilder;
+
+Fluent builder alternative to the options bag (ADR D25). Chainable setters mutate internal state and return `this`. Three terminals: `.build()` returns an `AgentOptions` snapshot; `.create()` calls `Agent.create`; `.getOrCreate(id)` calls `Agent.getOrCreate`. Validation runs inside the terminal — no half-built leaking.
+
+const agent = await Agent.builder()
+  .apiKey(process.env.Theo_API_KEY!)
+  .model({ id: "claude-sonnet-4-6" })
+  .local({ cwd: process.cwd() })
+  .systemPrompt("You are a helpful assistant.")
+  .tools([rollTool])
+  .getOrCreate(`tg-user-${userId}`);
+
+Use when: progressive construction, factory wiring where setters are called conditionally, or when fluent APIs are the team preference. Setters that overwrite silently are documented — last call wins.
+
 Inspecting agents and runs
 List, fetch, and reload past agents. List endpoints return { items, nextTheo? } for Theo-based pagination.
 
@@ -710,7 +817,7 @@ const job = await Cron.create({
   message: "Summarize yesterday's commits and post to #engineering",
   agent: {
     apiKey: process.env.THEOKIT_API_KEY!,
-    model: { id: "composer-2" },
+    model: { id: "google/gemini-2.0-flash-001" },
     local: { cwd: process.cwd() },
   },
 });
@@ -835,7 +942,7 @@ Use Theo.models.list() to discover valid model ids and per-model params before c
 
 
 const models = await Theo.models.list();
-const composer = models.find((model) => model.id === "composer-2");
+const composer = models.find((model) => model.id === "google/gemini-2.0-flash-001");
 console.log(composer?.parameters);
 // [
 //   {
@@ -853,7 +960,7 @@ Pass selected parameter values through model.params. Preset variants already con
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
   model: {
-    id: "composer-2",
+    id: "google/gemini-2.0-flash-001",
     params: [{ id: "thinking", value: "high" }],
   },
   local: { cwd: process.cwd() },
@@ -917,7 +1024,7 @@ Cloud agents can receive authenticated MCP configs inline too. Use HTTP auth whe
 
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   cloud: {
     repos: [{ url: "https://github.com/your-org/your-repo", startingRef: "main" }],
   },
@@ -960,7 +1067,7 @@ Define named subagents that the main agent spawns via the Agent tool. Pass them 
 
 
 const agent = await Agent.create({
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   apiKey: process.env.Theo_API_KEY!,
   local: { cwd: process.cwd() },
   agents: {
@@ -980,7 +1087,7 @@ Subagents committed to the repo at .Theo/agents/*.md (with name, description, an
 Context, memory, and skills
 Context, memory, and skills are loaded before MCP tools and subagents are offered to a run:
 
-Context is task working-set. It is selected per agent from inline config or `.theokit/context.json`, bounded by `maxTokens`, and exposed through `agent.context.snapshot()`.
+Context is task working-set. It is selected per agent from inline config or `.theokit/context/<name>.md` (legacy `.theokit/context.json` still supported until v2.0 — see Configuration files / deprecation), bounded by `maxTokens`, and exposed through `agent.context.snapshot()`.
 Memory is durable recall. It persists facts by `{ namespace, userId, scope }`, rejects stores outside the workspace, and must redact credential material.
 Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL.md`, listed with `agent.skills.list()`, and only expose public metadata in streams and snapshots.
 
@@ -989,8 +1096,8 @@ Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL
 Hooks
 Hooks are file-based only. There is no programmatic hook callback. Hooks are a project policy boundary, not a per-run knob.
 
-Local: Add .Theo/hooks.json to the repo passed as local.cwd, or add ~/.Theo/hooks.json for user-level hooks.
-Cloud: Commit .Theo/hooks.json and its scripts to the repo passed in cloud.repos. SDK-created cloud agents load project hooks automatically. On Enterprise plans, they also run team hooks and enterprise-managed hooks.
+Local: Add `.theokit/hooks/<name>.md` to the repo passed as local.cwd (one file per hook; legacy `.theokit/hooks.json` deprecated since v1.5), or add `~/.theokit/hooks/` for user-level hooks.
+Cloud: Commit `.theokit/hooks/` and its scripts to the repo passed in cloud.repos. SDK-created cloud agents load project hooks automatically. On Enterprise plans, they also run team hooks and enterprise-managed hooks.
 See Hooks for the configuration format and Cloud Agents hooks support for cloud behavior.
 
 Artifacts
@@ -1028,6 +1135,7 @@ Property	Type	Default	Description
 model	ModelSelection	Required for local; cloud falls back to the server-resolved default	Model to use. See ModelSelection.
 apiKey	string	Theo_API_KEY env	User API key or service account key. Team Admin keys are not yet supported.
 name	string	Auto-generated	Human-readable agent name surfaced as title in Agent.list() / Agent.get().
+systemPrompt	string \| (ctx: SystemPromptContext) => string \| Promise<string>	(none)	System prompt for the agent. Either a plain string or an async resolver that receives a SystemPromptContext. Priority order: SendOptions.systemPrompt (per-call override) > AgentOptions.systemPrompt (resolved if function) > undefined. An empty string in either slot is honoured (explicitly clears the system context). Subagents do NOT inherit this — they use AgentDefinition.prompt. The SDK does not impose a timeout on resolvers — wrap your own Promise.race if you call into slow resources.
 local	{ cwd?: string | string[]; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
 cloud	CloudOptions		Cloud agent config.
 mcpServers	Record<string, McpServerConfig>		Inline MCP server definitions.
@@ -1035,6 +1143,7 @@ agents	Record<string, AgentDefinition>		Subagent definitions.
 context	ContextOptions		Project context manager configuration.
 memory	MemoryOptions		Control durable memory for this agent.
 skills	SkillsOptions		Load named skills from project files or explicit paths.
+tools	CustomTool[]		Inline custom tools registered with the LLM. Local runtime only — cloud agents reject any non-empty tools array (ConfigurationError code `cloud_custom_tools_rejected`). Handlers are not persisted; re-pass on Agent.resume.
 agentId	string	Auto-generated	Durable agent ID. Pass to keep a stable ID across invocations.
 CloudOptions
 Property	Type	Default	Description
@@ -1049,6 +1158,14 @@ description	string	required	When to use this subagent. Shown to the parent agent
 prompt	string	required	System prompt for the subagent.
 model	ModelSelection | "inherit"	"inherit"	Model override. Pass "inherit" to use the parent's selection.
 mcpServers	Array<string | Record<string, McpServerConfig>>		MCP servers available to this subagent. Names reference servers from the parent's mcpServers.
+CustomTool
+Property	Type	Default	Description
+name	string	required	Tool name surfaced to the LLM. Must match `/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/`. Reserved (rejected): `shell`, `memory_search`, `memory_get`, anything `mcp_*`.
+description	string	required	Description surfaced to the LLM. Drives tool-selection accuracy.
+inputSchema	Record<string, unknown>	required	JSON Schema describing the `input` argument. Must declare `type: "object"`.
+handler	(input: Record<string, unknown>) => string \| Promise<string>	required	Local handler invoked when the model emits `tool_use`. Return value becomes `tool_result.content`. Throws → `tool_result` with `isError: true` (loop terminates as `status: "error"`, matching shell/MCP/memory behaviour).
+
+Tools are local-only in v1.0 — cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")` when `tools.length > 0`. Handlers are not persisted by `stripSecretsFromOptions`; re-pass them on `Agent.resume(id, { tools: [...] })` if you want the same tools active for the resumed agent.
 ContextOptions
 
 interface ContextOptions {
@@ -1056,7 +1173,7 @@ interface ContextOptions {
   maxTokens?: number;
   sources?: Array<{ name: string; path?: string; content?: string; priority?: number }>;
 }
-`manager: "file"` reads `.theokit/context.json`; `manager: "inline"` uses `sources` passed directly in `Agent.create()`. File sources are resolved relative to the workspace. Secrets and excluded files must not appear in `agent.context.snapshot()`.
+`manager: "file"` reads `.theokit/context/<name>.md` (legacy `.theokit/context.json` deprecated; see Configuration files for migration); `manager: "inline"` uses `sources` passed directly in `Agent.create()`. File sources are resolved relative to the workspace. Secrets and excluded files must not appear in `agent.context.snapshot()`.
 
 SDKContextManager
 
@@ -1111,7 +1228,7 @@ interface ModelParameterValue {
   id: string;
   value: string;
 }
-id is the model identifier (for example, "composer-2"). params carries per-model parameters such as reasoning effort. Use Theo.models.list() to discover valid ids, parameter definitions, and preset variants for your account.
+id is the model identifier (for example, "google/gemini-2.0-flash-001"). params carries per-model parameters such as reasoning effort. Use Theo.models.list() to discover valid ids, parameter definitions, and preset variants for your account.
 
 McpServerConfig
 
@@ -1182,23 +1299,410 @@ interface ListResult<T> {
 }
 Returned by Agent.list() and Agent.listRuns(). nextTheo is absent when there are no more pages.
 
+Agent.generateObject()
+Returns a typed value matching a Zod schema. The SDK creates a transient local agent under the hood, registers a single synthetic `output` tool whose JSON schema is derived from the Zod schema, and forces the model to call it exactly once. The handler captures the raw input, schema-parses it, and returns the typed object. The transient agent is disposed and hard-deleted from the registry across retries (see ADR D33).
+
+
+import { z } from "zod";
+import { Agent } from "@usetheo/sdk";
+
+const FactCard = z.object({
+  title: z.string().min(1),
+  summary: z.string().min(20),
+  year: z.number().int().nullable(),
+  sources: z.array(z.string()).min(1).max(3),
+});
+
+const { object, raw, usage, finishReason } = await Agent.generateObject({
+  apiKey: process.env.THEOKIT_API_KEY,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
+  schema: FactCard,
+  prompt: "Produce a fact card about: Brazilian samba.",
+  systemPrompt: "Match the schema exactly. Keep summary 2-3 sentences.",
+  maxRetries: 1,
+});
+// object is fully typed: z.infer<typeof FactCard>
+
+GenerateObjectOptions
+
+interface GenerateObjectOptions<T extends ZodType> {
+  schema: T;
+  prompt: string;
+  model: ModelSelection;
+  local: LocalOptions;
+  systemPrompt?: string;
+  apiKey?: string;
+  maxRetries?: number; // default 1 (initial attempt + 1 retry)
+}
+
+GenerateObjectResult
+
+interface GenerateObjectResult<T> {
+  object: T;                  // z.infer<schema>
+  raw: unknown;               // pre-parse capture
+  usage: { inputTokens: number; outputTokens: number };
+  finishReason: "tool_use" | "error";
+}
+
+GenerateObjectError
+
+class GenerateObjectError extends Error {
+  readonly code: "no_tool_call" | "parse_failed";
+  readonly cause?: unknown;
+}
+Thrown when (1) the model returns plain text instead of calling the `output` tool after all retries, or (2) the Zod parse fails after all retries. Always extends `Error`. `cause` carries the last `z.ZodError` for `parse_failed`.
+
+Notes:
+- `zod` is an OPTIONAL peer dependency. The SDK loads it lazily via `createRequire`; if missing, `ConfigurationError(code: "zod_not_installed")` is thrown.
+- Only the local runtime is supported in v1.1. The transient agent runs in your Node process — no cloud runtime is created.
+- The same provider routing and fallback as `agent.send` applies (configure via `local.providers` or env keys).
+- The schema can be `z.object(...)`, `z.array(...)`, `z.discriminatedUnion(...)`, etc. Anything Zod can stringify to JSON Schema works.
+
+AgentOptions.telemetry
+Opt-in OpenTelemetry instrumentation for `agent.send`, `llm.call`, and `tool.call` (ADR D34). Spans only emit when `@opentelemetry/api` is installed AND `telemetry.enabled === true`. Loaded lazily via `createRequire` — no runtime overhead and no peer-dep installation required to use the SDK.
+
+
+import { Agent } from "@usetheo/sdk";
+
+const agent = await Agent.create({
+  apiKey: process.env.THEOKIT_API_KEY,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd() },
+  telemetry: {
+    enabled: true,
+    exporter: "console",        // or "otlp" — or pass your own SDK
+    serviceName: "my-bot",       // default: "theokit-sdk"
+    includeContent: false,        // privacy default — only timing/counts emitted
+  },
+});
+
+TelemetrySettings
+
+interface TelemetrySettings {
+  enabled: boolean;
+  includeContent?: boolean;     // default false (privacy-by-default)
+  exporter?: "console" | "otlp" | unknown;
+  serviceName?: string;
+}
+
+Spans emitted:
+
+| Span | Attributes |
+|------|------------|
+| `agent.send` | `agent.id`, `agent.runtime` (local|cloud), `run.id` |
+| `llm.call`   | `llm.model`, `llm.provider`, `llm.stop_reason`, `llm.input_tokens`, `llm.output_tokens` |
+| `tool.call`  | `tool.name`, `tool.origin` (custom|mcp|builtin), `tool.exit_code` |
+
+Privacy contract:
+- `includeContent: false` (default) — span attributes carry counts, IDs, status codes, model name. NO prompt content, NO LLM completion text, NO tool input/output payloads.
+- `includeContent: true` — adds `llm.prompt`, `llm.completion`, `tool.input`, `tool.output` (truncated to 4 KB per attribute). Use with care; never enable in production logs without redaction at the exporter.
+
+Resilience:
+- All OTel calls are wrapped in a `safe()` helper. If the exporter throws or the OTel SDK misbehaves, the error is swallowed — `agent.send` NEVER fails because of telemetry.
+- Open spans owned by an agent are tracked per-handle and closed in `agent.dispose()` so a missing finish event from a cancelled run does not leak.
+
+React helpers (`@usetheo/react`)
+A separate workspace package — installs from npm as `@usetheo/react`, peer-deps `react ^18 || ^19` and `@usetheo/sdk ^1.1.0`. Provides two surfaces:
+
+useTheoChat — React hook that wires a `<form>` UI to a `/api/chat` endpoint, parses the SSE stream, and exposes message state.
+
+
+import { useTheoChat } from "@usetheo/react";
+
+function Chat() {
+  const { messages, input, setInput, send, isStreaming, error } = useTheoChat({
+    api: "/api/chat",            // your endpoint
+    initialMessages: [],
+  });
+  return (
+    <div>
+      {messages.map((m) => <div key={m.id}><b>{m.role}:</b> {m.content}</div>)}
+      <input value={input} onChange={(e) => setInput(e.target.value)} />
+      <button onClick={send} disabled={isStreaming}>{isStreaming ? "..." : "Send"}</button>
+      {error && <p>{error.message}</p>}
+    </div>
+  );
+}
+
+streamTheoChat — Next.js / framework-agnostic SSE handler. Takes a `Request`, calls `agent.send`, streams SDKMessages to the wire format below.
+
+
+import { streamTheoChat } from "@usetheo/react";
+import { Agent } from "@usetheo/sdk";
+
+export async function POST(req: Request) {
+  const agent = await Agent.getOrCreate("web-bot-shared", {
+    apiKey: process.env.THEOKIT_API_KEY,
+    model: { id: "google/gemini-2.0-flash-001" },
+    local: { cwd: process.cwd() },
+  });
+  return streamTheoChat({ agent, req });
+}
+
+Wire format — Vercel AI Data Stream v1 (compat: drop-in for `useChat`).
+
+| Code | Payload          | Meaning |
+|------|------------------|---------|
+| `0`  | string           | Text delta. Append to current assistant message. |
+| `9`  | `{ toolCallId, toolName, args? }` | Tool call started. |
+| `a`  | `{ toolCallId, result }` | Tool call completed. |
+| `d`  | `{ finishReason, usage? }` | Finish event (terminates the stream). |
+| `3`  | string           | Stream-level error (HTTP stays 200; protocol surfaces the error). |
+
+Notes:
+- Pre-stream `ConfigurationError` / `AuthenticationError` returned by `agent.send` are surfaced as HTTP 400 / 401 from `streamTheoChat`, NOT as `3:` events (they happen before the stream starts).
+- The hook attaches an `AbortController` and aborts the fetch on `useEffect` cleanup (unmount-safe).
+- The stream is considered finished when a `d:` record arrives OR the response body closes (graceful EOF).
+
+Agent.streamObject() (v1.2+)
+Streams a typed object alongside intermediate partial deltas as the model produces it. Same synthetic-forced-tool pattern as `Agent.generateObject` (ADR D33), but exposed as an `AsyncIterator<StreamObjectEvent<T>>` so consumers can render partial state as it arrives. ADR D39.
+
+
+import { z } from "zod";
+import { Agent } from "@usetheo/sdk";
+
+const FactCard = z.object({
+  title: z.string().min(1),
+  summary: z.string(),
+  year: z.number().nullable(),
+});
+
+for await (const evt of Agent.streamObject({
+  apiKey: process.env.THEOKIT_API_KEY,
+  model: { id: "google/gemini-2.0-flash-001" },
+  local: { cwd: process.cwd() },
+  schema: FactCard,
+  prompt: "Produce a fact card about: jazz music.",
+})) {
+  if (evt.type === "partial") render(evt.partial); // best-effort snapshot
+  if (evt.type === "complete") finalize(evt.object); // z.infer<typeof FactCard>
+}
+
+StreamObjectEvent
+
+type StreamObjectEvent<T> =
+  | { type: "partial"; partial: DeepPartial<T>; attempt: number }
+  | { type: "complete"; object: T; raw: unknown; usage; finishReason: "tool_use" | "error" };
+
+Notes:
+- The `complete` event always fires (or the iterator throws `StreamObjectError`). Partials are best-effort — providers that batch output (e.g., Anthropic in some modes) may emit zero partials.
+- The transient agent created behind the scenes is disposed AND hard-deleted from the registry in the iterator's `finally` block — including when the consumer calls `iter.return()` mid-stream (EC-4).
+- Same retry semantics as `generateObject`: `maxRetries` (default 1), `StreamObjectError(code: "no_tool_call" | "parse_failed")` taxonomy.
+- The `complete.object` is identical to what `Agent.generateObject` would return for the same input — verified by compat test.
+
+@usetheo/react hooks (v1.2+)
+The React package ships **three** complementary hooks. Each is single-purpose; do not conflate them (ADR D40).
+
+| Hook | Use case |
+|------|----------|
+| `useTheoChat` | Multi-turn chat with message history (v1.1) |
+| `useTheoCompletion` | Single-shot text generation (autocomplete, translation, summarization) |
+| `useTheoAssistant<T>` | Object-shaped streaming (wraps `Agent.streamObject<T>`) |
+
+Each hook has a matching server-side handler:
+
+| Hook | Server handler |
+|------|----------------|
+| `useTheoChat` | `streamTheoChat({ agent, body })` |
+| `useTheoCompletion` | `streamCompletion({ agent, body })` |
+| `useTheoAssistant` | `streamAssistant({ schema, body, model, local })` |
+
+Wire format codes (extension of Vercel AI Data Stream v1; see `packages/react/src/wire-format.md`):
+- `o:<json>` — partial object delta (only from `streamAssistant`)
+- `O:<json>` — complete object (only from `streamAssistant`)
+- Unknown codes are silently ignored by older clients (forward-compat, EC-11).
+
+MCP OAuth 2.1 (v1.2+)
+HTTP MCP servers can declare `auth.oauth` to opt into PKCE authentication. ADR D41.
+
+
+import type { McpServerConfig } from "@usetheo/sdk";
+
+const notionMcp: McpServerConfig = {
+  type: "http",
+  url: "https://mcp.notion.com/sse",
+  auth: {
+    CLIENT_ID: process.env.NOTION_OAUTH_CLIENT_ID!,
+    scopes: ["read"],
+    oauth: {
+      authorizationEndpoint: "https://api.notion.com/v1/oauth/authorize",
+      tokenEndpoint: "https://api.notion.com/v1/oauth/token",
+      redirectMode: "localhost", // or "manual" for SSH/headless dev
+    },
+  },
+};
+
+McpOAuthConfig
+
+interface McpOAuthConfig {
+  authorizationEndpoint: string;
+  tokenEndpoint: string;
+  redirectMode: "manual" | "localhost";
+  localhostPort?: number;  // 0 = random free port (default)
+  timeoutMs?: number;       // default 300_000 = 5min
+}
+
+Token storage:
+- Preferred: OS keychain via `keytar` (macOS Keychain / Windows Credential Manager / Linux libsecret). Install with `pnpm add keytar`.
+- Fallback: `~/.theokit/mcp-tokens.json` with `chmod 600` (POSIX). Windows file fallback has no chmod equivalent — documented gotcha (EC-14).
+
+CSRF protection:
+- `state` parameter is generated per flow and validated on callback. Mismatch → `ConfigurationError(code: "oauth_state_mismatch")`. (EC-2 MUST FIX)
+
+Refresh:
+- Automatic on 401 from the MCP endpoint. Concurrent refreshes are serialized per server name to avoid `invalid_grant` from duplicate exchanges (EC-9).
+- Token endpoint without `expires_in` → default conservative 3600s (RFC 6749 §5.1) (EC-10).
+
+Telemetry auto-instrumentation (v1.2+)
+When `telemetry.enabled: true`, the SDK feature-detects installed observability libs and auto-registers OTel exporters. Zero config required — install Langfuse/Sentry/PostHog, set their env keys, spans appear. ADR D42.
+
+Supported (auto-detected via `createRequire`):
+- `@langfuse/node` v3+ → `LangfuseSpanProcessor` (env: `LANGFUSE_PUBLIC_KEY` / `LANGFUSE_SECRET_KEY`)
+- `@sentry/node` → event processor enriching events with OTel trace context
+- `posthog-node` → custom SpanProcessor capturing `agent.send` / `llm.call` / `tool.call` events (env: `POSTHOG_API_KEY`)
+
+Opt-out:
+
+const agent = await Agent.create({
+  telemetry: {
+    enabled: true,
+    autoDetect: false,             // disable ALL auto-instrumentation
+    disable: ["langfuse"],          // OR per-adapter opt-out (case-insensitive)
+  },
+});
+
+EC-12 (double-billing prevention): if you've already wired Langfuse manually before creating the agent, auto-instrumentation detects the existing processor and skips.
+
+Memory backends (v1.2+)
+Memory.index now accepts `backend: "sqlite-vec" | "lance"` (default `"sqlite-vec"`). ADR D43.
+
+
+import { Memory } from "@usetheo/sdk";
+
+const memory = await Memory.create({
+  cwd: process.cwd(),
+  index: {
+    backend: "lance",  // use @lancedb/lancedb for >100k facts
+    embedding: { provider: "openai", model: "text-embedding-3-small" },
+  },
+});
+
+Notes:
+- `@lancedb/lancedb` is an OPTIONAL peer dep. If missing + `backend: "lance"` → `ConfigurationError(code: "lance_backend_unavailable")` with install instructions.
+- Filters use Lance's structured filter API (object form) — NEVER string interpolation. SQL injection via namespace is impossible (EC-1 MUST FIX).
+- Embedding dimension is validated when opening an existing Lance index. Mismatch (e.g., switching from OpenAI to Voyage) → `ConfigurationError(code: "embedding_dimension_mismatch")` (EC-8).
+
+Migration CLI: `theokit-migrate-memory` (v1.2+)
+Migrate an existing SQLite memory index to LanceDB without data loss. ADR D44.
+
+
+# Dry-run first (preview, no writes)
+pnpm exec theokit-migrate-memory --cwd . --dry-run
+
+# Real migration with confirmation prompt
+pnpm exec theokit-migrate-memory --cwd .
+
+Algorithm:
+1. Read all facts from `.theokit/memory/index.sqlite`.
+2. Write to staging dir `.theokit/memory/lance-new/`.
+3. Validate: count match + sample-of-10 NFC unicode-normalized text match (EC-3 MUST FIX — facts in pt-BR/zh/ja with accents/emojis migrate correctly).
+4. On success: rename `lance-new/` → `lance/` (atomic commit).
+5. Prompt to delete SQLite db (skip with `--keep-sqlite`).
+6. On validation failure: leave SQLite intact, remove `lance-new/`.
+
+Options:
+- `--cwd <path>` — workspace directory (default: cwd)
+- `--dry-run` — read SQLite, validate counts, but DO NOT write Lance
+- `--keep-sqlite` — skip the delete-SQLite prompt
+- `--batch-size <n>` — migration batch size (default: 100)
+
 Errors
 All SDK errors extend TheoAgentError. Use isRetryable to drive retry logic.
 
 
-class TheoAgentError extends Error {
+class TheokitAgentError extends Error {
   readonly isRetryable: boolean;
   readonly code?: string;
   readonly cause?: unknown;
   readonly protoErrorCode?: string;
+  readonly metadata?: ErrorMetadata; // populated for provider HTTP errors (v1.3+)
 }
+
+interface ErrorMetadata {
+  provider: string;          // "anthropic" | "openai" | "openrouter" | ...
+  endpoint: string;          // "/v1/messages" | "/v1/chat/completions" | ...
+  code: ErrorCode;           // finite enum — see below
+  statusCode?: number;       // HTTP status if applicable
+  retryAfter?: number;       // seconds (only when provider returns numeric retry-after)
+  raw?: unknown;             // raw response body (truncated to ~2KB)
+}
+
+type ErrorCode =
+  | "rate_limit"
+  | "auth_failed"
+  | "invalid_request"
+  | "timeout"
+  | "server_error"
+  | "context_too_long"
+  | "content_filtered"
+  | "model_unavailable"
+  | "network"
+  | "unknown";
+
 Error	When
-AuthenticationError	Invalid API key, not logged in, insufficient permissions.
-RateLimitError	Too many requests or usage limits exceeded.
-ConfigurationError	Invalid model, bad request parameters.
+AuthenticationError	Invalid API key, not logged in, insufficient permissions (HTTP 401/403).
+RateLimitError	Too many requests or usage limits exceeded (HTTP 429).
+ConfigurationError	Invalid model, bad request parameters (HTTP 400; covers context_too_long, content_filtered, model_unavailable).
 IntegrationNotConnectedError	Creating a cloud agent for a repo whose SCM provider is not connected.
-NetworkError	Service unavailable, timeout.
+NetworkError	Service unavailable, timeout (HTTP 5xx / 408).
 UnknownAgentError	Catch-all for unclassified server or runtime errors.
+
+### Error context (v1.3+)
+
+When an error originates from a provider HTTP call, the SDK populates a typed `metadata` field on the thrown error so callers can react programmatically without parsing strings:
+
+```typescript
+try {
+  await agent.send("...");
+} catch (err) {
+  if (err instanceof TheokitAgentError && err.metadata !== undefined) {
+    switch (err.metadata.code) {
+      case "rate_limit":
+        await wait(err.metadata.retryAfter ?? 60);
+        return retry();
+      case "auth_failed":
+        throw new Error(`Check your API key for ${err.metadata.provider}`);
+      case "context_too_long":
+        // trigger compression / shorter prompt
+        break;
+      case "content_filtered":
+      case "model_unavailable":
+      case "invalid_request":
+      case "timeout":
+      case "server_error":
+      case "network":
+      case "unknown":
+        throw err;
+    }
+  }
+  throw err;
+}
+```
+
+#### Scope and known caveats
+
+The following are documented design choices from the edge-case review (2026-05-18). Intentional limitations of v1.3:
+
+- **Mid-stream errors are NOT routed through provider mappers** (EC-7). The mapper only handles `!response.ok` (pre-stream HTTP errors). When an SSE stream fails AFTER the initial 200 OK (e.g., upstream timeout mid-token), the error path stays in the original streaming flow — no `metadata` populated. A separate mid-stream error surface lands in v1.4.
+
+- **`UnsupportedRunOperationError` does not carry `metadata`** (EC-10). This subclass is thrown when a consumer calls a `Run` operation not supported by the current runtime — not an HTTP error. `err.metadata` will be `undefined`. By design.
+
+- **`IntegrationNotConnectedError` has its own `provider` field separate from `metadata.provider`** (EC-9). Backward compat preserves the existing `err.provider` (public field, used by callers since pre-v1.3). The new `err.metadata?.provider` is populated when the error originated from an HTTP call. Two fields with similar name on one error instance — read `err.provider` first for connection-state semantics; `err.metadata?.provider` is HTTP-origin metadata.
+
+- **`cause` chain depth is not capped** (EC-6). Errors may wrap multiple times: fetch err → mapper err → router err → caller err. ES2022 `cause` is supported in Node 20+ and you can walk it manually. Stack traces can be long; no native limiter.
+
+- **Embedding `parseEmbedResponse` "no data" maps to `code: "invalid_request"`** (EC-8). Semantically it's "invalid response" from provider, but the `ErrorCode` enum does not yet have that exact label. Closest existing code wins. A future release may add `"invalid_response"` if usage justifies.
 IntegrationNotConnectedError
 
 class IntegrationNotConnectedError extends ConfigurationError {
@@ -1218,6 +1722,119 @@ Known limitations
 Inline mcpServers are not persisted across Agent.resume(). Pass them again on resume if needed.
 Artifact download is not implemented for local agents (agent.listArtifacts() returns an empty list and agent.downloadArtifact() throws).
 local.settingSources (and the file-based MCP / subagent paths it gates) does not apply to cloud agents. Cloud always loads project / team / plugins.
-Hooks are file-based only (.Theo/hooks.json). No programmatic callbacks.
+Hooks are file-based only (`.theokit/hooks/<name>.md`; legacy `.theokit/hooks.json` deprecated). No programmatic callbacks.
 Inline memory, context, and skill config should be treated as process-local unless documented otherwise. Durable behavior comes from memory stores and committed file-based context / skills.
 Skill prompt bodies are not stable public output. Use `agent.skills.list()` for metadata and avoid scraping streams for full skill text.
+
+## Security — secret redaction (v1.3+)
+
+Every output boundary the SDK controls — thrown errors (`metadata.raw`), telemetry span attributes, transcript JSONL appends, migration logger output — passes through a canonical redactor before persisting or emitting. Builtin patterns cover 12 well-known credential prefixes (OpenAI `sk-`, Anthropic `sk-ant-`, GitHub PAT classic + fine-grained, GitLab `glpat-`, AWS `AKIA`, Google `AIza`, Slack `xox*-`, Sentry `sntrys_`, Stripe `sk_live_` / `rk_live_`) plus a parametric `key=value` matcher that masks `access_token=`, `api_key=`, `password=`, `x-api-key=`, and `Authorization: Bearer <token>` in URLs, JSON bodies, and HTTP headers.
+
+```typescript
+import { Security } from "@usetheo/sdk";
+
+// Add a custom pattern (e.g., org-internal token shape):
+Security.addPattern(/MYORG-[A-Z0-9]{32}/g);
+
+// Subsequent error metadata, telemetry attrs, transcript lines, migration
+// logs containing `MYORG-AAAA...AAAA` will have it masked alongside
+// builtin patterns.
+```
+
+**Two-bucket masking.** Tokens shorter than 18 characters are fully replaced with `***`; longer tokens preserve a 6-character prefix and a 4-character suffix (`sk-abc...wxyz`). The preserved bookends help operators tell two leaked keys apart in incident reports without revealing the secret middle.
+
+**Default ON, opt-out via env.** Redaction is enabled by default. Set `THEOKIT_REDACT_SECRETS=false` to disable; the SDK prints a one-time warning to stderr so the operator knows the process is vulnerable. The env var is snapshotted at module init — runtime mutation (e.g., via a prompt-injection that runs `process.env.THEOKIT_REDACT_SECRETS = "false"`) cannot disable it.
+
+**What is NOT redacted.** Redaction applies on *egress*, never on storage. Agent runtime memory, in-process state, and files written with explicit acceptance (such as `.env` files the user creates) are left alone. The principle is "store originals; redact on each output".
+
+**Coverage limits.** Custom credentials that lack a structural marker (e.g., free-form passwords inside arbitrary prose like "the password is hunter2") are NOT detected. Add an `addPattern` matcher when you ship a new internal token shape. Base64-encoded or URL-encoded credentials may slip through built-in patterns; report a missed shape and we'll extend the list.
+
+## Security — path traversal + TOCTOU (v1.6+)
+
+Every callsite that joins user-supplied input with a path passes through a canonical guard (ADRs D79-D85). The SDK ships three primitives and one typed error in `internal/security/path-guard.ts`, and two TOCTOU primitives in `internal/persistence/`.
+
+**Path traversal defense:**
+
+- `safePathJoin(base, ...parts)` — resolves the path THEN prefix-checks against `base`. Throws `PathTraversalError` (extends `ConfigurationError` with code `"path_traversal"`) if the resolved target escapes. Defeats literal `..`, normalized escape (`subdir/.\\./..`), absolute segment overrides, and null-byte injection.
+- `assertNoSymlinkEscape(path, base)` — uses `realpathSync` to follow the entire symlink chain (multi-level A → B → C) and reject targets outside `base`.
+- `sanitizeIdentifier(input, { maxLen })` — strict grammar `^[a-z0-9][a-z0-9-_]*$` (case-insensitive on input, lowercase on output). Rejects path separators, `..`, leading `-`/`_`, control chars. Default `maxLen` is 64; agent IDs use 128.
+
+Wired in: `plugins-manager` (plugin entry files), `agent-session-store` (session JSONL paths), `skills-manager` (skill directory entries), `legacyMemoryJsonPath` (memory namespace/scope/userId), `mcp/client` (MCP stdio `cwd` for relative paths). CI lint gate `tests/lint/no-unguarded-path-input.test.ts` flags regressions.
+
+**TOCTOU defense:**
+
+- `createExclusive(path, data, { mode })` — atomic create-if-absent via `O_EXCL` (`open(path, "wx", mode)`). Default mode is `0o600` (owner-only) — token files, lockfiles, PID files must not default to world-readable. Returns `true` if created, `false` if it already existed.
+- `casUpdate(db, sql, params, expectedChanges)` — SQLite optimistic compare-and-swap. Caller writes the full SQL (including `WHERE version = ?` predicate); helper executes and returns boolean based on `result.changes`. Caller handles retry/backoff. Canonical pattern: `UPDATE registry SET status = ?, version = version + 1 WHERE id = ? AND version = ?`.
+
+```typescript
+import { Security } from "@usetheo/sdk";
+
+// Path guard primitives are internal; ConfigurationError surfaces them:
+try {
+  await agent.send("...");
+} catch (err) {
+  if (err.code === "path_traversal") {
+    // user input tried to escape the workspace
+  } else if (err.code === "invalid_identifier") {
+    // user input failed the grammar (e.g., contains "/" or "..")
+  }
+}
+```
+
+Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vector families + identifier grammar surface.
+
+## Configuration files (v1.5+)
+
+User-edited config files in `.theokit/` use **markdown + YAML frontmatter** — same shape as `skills/<name>/SKILL.md`, Claude Code commands, and Cursor rules. One file per entity gives per-entity git diff, prose body for rationale ("why this hook exists"), and type-safe frontmatter via Zod.
+
+```
+.theokit/
+├── hooks/                         # one .md per hook (ADR D74)
+│   └── shell-policy.md
+├── context/                       # one .md per context source
+│   └── bot-readme.md
+├── plugins/<name>/                # PLUGIN.md per plugin (nested)
+│   └── PLUGIN.md
+└── skills/<name>/SKILL.md         # unchanged; already markdown
+```
+
+Example hook:
+
+```markdown
+---
+event: preToolUse
+matcher: ^shell$
+command: node .theokit/policy.js
+---
+
+# Shell tool policy gate
+
+Vets shell tool invocations before spawn. Reason: multi-user chat can't
+trust arbitrary shell calls.
+```
+
+**Migration.** A standalone CLI converts legacy `.theokit/hooks.json` /
+legacy `.theokit/context.json` / legacy `.theokit/plugins/<name>/plugin.json`
+to the markdown form:
+
+```bash
+npx theokit-migrate-config --apply
+```
+
+Dry-run by default; `--apply` writes. Backs up originals to
+`<file>.json.<unix-ts>.bak` and uses atomic writes (crash mid-write
+leaves previous MD files intact).
+
+**Backward compatibility.** The legacy JSON shape still works in v1.x —
+if the MD directory is absent or empty, the SDK falls back to the JSON
+file and emits a one-time stderr deprecation warn pointing at
+`theokit-migrate-config`. **JSON is removed in v2.0 (planned Q2 2027).**
+
+**Restart required after migration.** A long-running bot process holds
+the old config in memory until restarted. Run the CLI when the bot is
+stopped, or stop + start after migration.
+
+**Disabling an entry.** Rename `<name>.md` → `<name>.md.disabled`
+(suffix sits outside the `.md` match) — the loader silently skips it.
+Same effect as `enabled: false` in frontmatter but avoids editing the
+file.

@@ -22,7 +22,7 @@ const job = await Cron.create({
   message: "Summarize yesterday's commits and post to #engineering",
   agent: {
     apiKey: process.env.THEOKIT_API_KEY!,
-    model: { id: "composer-2" },
+    model: { id: "google/gemini-2.0-flash-001" },
     local: { cwd: process.cwd() },
   },
 });
@@ -122,7 +122,7 @@ const job = await Cron.create({
   message: "Run the nightly health check",
   agent: {
     apiKey: process.env.THEOKIT_API_KEY!,
-    model: { id: "composer-2" },
+    model: { id: "google/gemini-2.0-flash-001" },
     cloud: {
       repos: [{ url: "https://github.com/your-org/your-repo", startingRef: "main" }],
     },

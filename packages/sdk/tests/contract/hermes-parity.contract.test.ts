@@ -17,7 +17,7 @@ describe("Hermes reference parity contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send("Run two shell commands: pwd and ls src.");
@@ -50,7 +50,7 @@ describe("Hermes reference parity contract", () => {
     workspace = await createTempWorkspace("project-with-theokit-mcp");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       mcpServers: {
         "github/tools.v1": {
@@ -81,7 +81,7 @@ describe("Hermes reference parity contract", () => {
     };
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       mcpServers: {
         secretServer: {
@@ -110,7 +110,7 @@ describe("Hermes reference parity contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       mcpServers: {
         ephemeral: {
@@ -125,7 +125,7 @@ describe("Hermes reference parity contract", () => {
 
     const resumed = await Agent.resume(agent.agentId, {
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const followup = await resumed.send("What answer did I ask you to remember?");

@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/sdk",
-  "version": "0.0.0",
+  "version": "1.0.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
@@ -52,10 +52,15 @@
   },
   "files": [
     "dist",
+    "bin",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "bin": {
+    "theokit-migrate-config": "./bin/theokit-migrate-config.mjs",
+    "theokit-migrate-memory": "./bin/theokit-migrate-memory.mjs"
+  },
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
@@ -65,9 +70,21 @@
     "clean": "rm -rf dist"
   },
   "peerDependencies": {
+    "better-sqlite3": "^12.0.0",
+    "proper-lockfile": "^4.1.2",
+    "sqlite-vec": "^0.1.0",
     "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "proper-lockfile": {
+      "optional": true
+    },
+    "sqlite-vec": {
+      "optional": true
+    },
     "zod": {
       "optional": true
     }
@@ -93,5 +110,13 @@
   ],
   "dependencies": {
     "croner": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/proper-lockfile": "^4.1.4",
+    "better-sqlite3": "^12.10.0",
+    "fast-check": "^4.8.0",
+    "proper-lockfile": "^4.1.2",
+    "sqlite-vec": "^0.1.9"
   }
 }

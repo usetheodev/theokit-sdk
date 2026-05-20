@@ -15,6 +15,9 @@ import type {
   LlmToolCallPart,
 } from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
+import { IterationBudget } from "../runtime/budget.js";
+import { safeCall } from "../runtime/system-prompt/safe-call.js";
+import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
 
@@ -29,23 +32,56 @@ import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
 
 export type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: agent loop is the orchestrator — context build, LLM round trip, tool dispatch, stop condition, span lifecycle are deliberately co-located so the streaming contract stays linear.
 export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOutput> {
-  const ctx = await initLoopContext(inputs);
-  const maxIterations = inputs.maxIterations ?? 8;
-  for (let iteration = 0; iteration < maxIterations; iteration++) {
-    const decision = await runIteration(inputs, ctx);
-    if (decision === "done") break;
-    if (decision === "error") {
-      ctx.finalStatus = "error";
-      break;
-    }
+  // Root span for the entire send (D34). No-op when telemetry disabled.
+  const sendSpan = inputs.telemetry?.startSpan("agent.send", {
+    agentId: inputs.agentId,
+    runId: inputs.runId,
+    "model.id": inputs.model.id ?? "auto",
+  });
+  if (sendSpan !== undefined && inputs.telemetry?.includeContent === true) {
+    sendSpan.addEvent("prompt", { content: inputs.userMessage });
   }
-  return {
-    events: ctx.events,
-    finalStatus: ctx.finalStatus,
-    result: ctx.finalText,
-    conversation: ctx.conversation,
-  };
+  try {
+    const ctx = await initLoopContext(inputs);
+    // T4.2 (ADRs D90-D91): IterationBudget replaces the bare counter so
+    // grace-call semantics, compression cap, and EC-4 NaN safety land in
+    // one canonical place. Caller-supplied `budget` overrides defaults.
+    const budget =
+      inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
+    while (budget.shouldContinue()) {
+      const usingGrace = budget.remaining <= 0 && !budget.graceCallUsed;
+      if (usingGrace) budget.useGraceCall();
+      const decision = await runIteration(inputs, ctx);
+      if (decision === "done") break;
+      if (decision === "error") {
+        ctx.finalStatus = "error";
+        break;
+      }
+      budget.consume();
+    }
+    if (
+      budget.shouldContinue() === false &&
+      ctx.finalStatus === "finished" &&
+      ctx.finalText === ""
+    ) {
+      // Budget + grace exhausted without final answer — surface as error.
+      ctx.finalStatus = "error";
+    }
+    sendSpan?.setAttribute("status", ctx.finalStatus);
+    if (inputs.telemetry?.includeContent === true && ctx.finalText.length > 0) {
+      sendSpan?.addEvent("response", { content: ctx.finalText });
+    }
+    return {
+      events: ctx.events,
+      finalStatus: ctx.finalStatus,
+      result: ctx.finalText,
+      conversation: ctx.conversation,
+    };
+  } finally {
+    sendSpan?.end();
+  }
 }
 
 interface LoopContext {
@@ -59,6 +95,24 @@ interface LoopContext {
 
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
   const tools = await collectTools(inputs.mcp);
+  for (const memTool of inputs.memoryTools ?? []) {
+    tools.push({
+      name: memTool.name,
+      description: memTool.description,
+      inputSchema: memTool.inputSchema,
+      origin: "memory",
+      memoryHandler: memTool.execute,
+    });
+  }
+  for (const customTool of inputs.customTools ?? []) {
+    tools.push({
+      name: customTool.name,
+      description: customTool.description,
+      inputSchema: customTool.inputSchema,
+      origin: "custom",
+      customHandler: customTool.handler,
+    });
+  }
   const events: SDKMessage[] = [
     buildSystemEvent(
       inputs,
@@ -66,10 +120,17 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
     ),
     buildUserEvent(inputs),
   ];
+  const priorMessages: LlmMessage[] = (inputs.priorMessages ?? []).map((msg) => ({
+    role: msg.role,
+    content: [{ type: "text", text: msg.text }],
+  }));
   return {
     events,
     conversation: [],
-    messages: [{ role: "user", content: [{ type: "text", text: inputs.userMessage }] }],
+    messages: [
+      ...priorMessages,
+      { role: "user", content: [{ type: "text", text: inputs.userMessage }] },
+    ],
     tools,
     finalText: "",
     finalStatus: "finished",
@@ -89,6 +150,14 @@ async function runIteration(
       turn: { steps: [{ type: "assistantMessage", message: { text: llmOutput.text } }] },
     });
     ctx.finalText = llmOutput.text;
+    if (inputs.onStep !== undefined) {
+      const cb = inputs.onStep;
+      await safeCall(
+        () => cb({ step: { type: "assistantMessage", message: { text: llmOutput.text } } }),
+        undefined,
+        "SendOptions.onStep",
+      );
+    }
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     ctx.finalStatus = "finished";
@@ -97,6 +166,22 @@ async function runIteration(
   ctx.messages.push(buildAssistantTurn(llmOutput.text, llmOutput.toolCalls));
   const toolResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
   ctx.messages.push({ role: "user", content: toolResults });
+  if (inputs.onStep !== undefined) {
+    const cb = inputs.onStep;
+    for (const call of llmOutput.toolCalls) {
+      await safeCall(
+        () =>
+          cb({
+            step: {
+              type: "toolCall",
+              message: { callId: call.id, name: call.name, args: call.input },
+            },
+          }),
+        undefined,
+        "SendOptions.onStep",
+      );
+    }
+  }
   if (toolResults.some((part) => part.type === "tool_result" && part.isError === true)) {
     return "error";
   }
@@ -111,6 +196,10 @@ interface LlmTurnOutput {
 }
 
 async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise<LlmTurnOutput> {
+  const llmSpan = inputs.telemetry?.startSpan("llm.call", {
+    "model.id": inputs.model.id ?? "auto",
+    provider: inputs.llm.name,
+  });
   const signal = new AbortController().signal;
   const generator = inputs.llm.stream(
     {
@@ -123,6 +212,8 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
   );
   const collected = await collectLlmEvents(generator, inputs, ctx);
   if (collected.errored || collected.finishValue === undefined) {
+    llmSpan?.setAttribute("stopReason", "error");
+    llmSpan?.end();
     return {
       text: collected.accumulatedText,
       toolCalls: [],
@@ -135,8 +226,18 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
   > extends AsyncGenerator<unknown, infer R, unknown>
     ? R
     : never;
+  llmSpan?.setAttributes({
+    stopReason: result.stopReason,
+    inputTokens: result.inputTokens ?? 0,
+    outputTokens: result.outputTokens ?? 0,
+  });
+  llmSpan?.end();
+  // T4.1 (ADR D96): strip `<think>` blocks BEFORE returning text. This
+  // prevents DeepSeek-R1 / Qwen-QwQ chain-of-thought from polluting the
+  // message history (Hermes v0.2 #174). Visible answer + tool calls only.
+  const stripped = stripThinkBlocks(collected.accumulatedText);
   return {
-    text: collected.accumulatedText,
+    text: stripped.visible,
     toolCalls: result.toolCalls,
     stopReason: result.stopReason,
     errored: false,
@@ -163,7 +264,18 @@ async function collectLlmEvents(
       finishValue = next;
       break;
     }
-    if (next.value.type === "text_delta") accumulatedText += next.value.text;
+    if (next.value.type === "text_delta") {
+      accumulatedText += next.value.text;
+      if (inputs.onDelta !== undefined) {
+        const cb = inputs.onDelta;
+        const text = next.value.text;
+        await safeCall(
+          () => cb({ update: { type: "text-delta", text } }),
+          undefined,
+          "SendOptions.onDelta",
+        );
+      }
+    }
     if (next.value.type === "error") {
       ctx.finalText = next.value.message;
       ctx.events.push(buildAssistantEvent(inputs, next.value.message));

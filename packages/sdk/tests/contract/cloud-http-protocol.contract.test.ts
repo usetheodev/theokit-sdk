@@ -25,7 +25,7 @@ describe("cloud HTTP protocol contract", () => {
         response.end(
           JSON.stringify({
             agentId: "bc-00000000-0000-4000-8000-000000000001",
-            model: { id: "composer-2" },
+            model: { id: "google/gemini-2.0-flash-001" },
           }),
         );
         return;
@@ -39,7 +39,7 @@ describe("cloud HTTP protocol contract", () => {
 
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: {
         repos: [{ url: "https://github.com/usetheo/example", startingRef: "main" }],
         autoCreatePR: true,
@@ -49,7 +49,7 @@ describe("cloud HTTP protocol contract", () => {
 
     expect(agent).toMatchObject({
       agentId: "bc-00000000-0000-4000-8000-000000000001",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       send: expect.any(Function),
     });
     expect(server.requests).toHaveLength(1);
@@ -60,7 +60,7 @@ describe("cloud HTTP protocol contract", () => {
         authorization: "Bearer theo_test_contract_key",
       }),
       body: expect.objectContaining({
-        model: { id: "composer-2" },
+        model: { id: "google/gemini-2.0-flash-001" },
         cloud: expect.objectContaining({
           autoCreatePR: true,
           repos: [{ url: "https://github.com/usetheo/example", startingRef: "main" }],

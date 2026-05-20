@@ -16,7 +16,7 @@ describe("run.conversation contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send("Run ls and explain src/index.js.");

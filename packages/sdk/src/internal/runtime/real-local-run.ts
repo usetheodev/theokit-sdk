@@ -1,8 +1,12 @@
-import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { AgentOptions, CustomTool, ModelSelection } from "../../types/agent.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
+import type { CustomToolSpec, MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { resolveProviderChain } from "../llm/router.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
+import { createTelemetry } from "../telemetry/tracer.js";
+import type { SessionMessage } from "./agent-session.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { FixtureScript } from "./fixture-types.js";
 import type { HooksExecutor } from "./hooks-executor.js";
@@ -26,12 +30,25 @@ export interface CreateRealLocalRunOptions {
   sendOptions: SendOptions;
   workspaceCwd: string;
   hooks: HooksExecutor;
+  /** T4.1 — PluginManager threaded from LocalAgent for plugin tools + pre_tool_call hooks. */
+  pluginManager?: import("../plugins/manager.js").PluginManager;
+  /** Pre-resolved system prompt threaded by `LocalAgent.send`. */
+  systemPrompt?: string;
+  onStep?: SendOptions["onStep"];
+  onDelta?: SendOptions["onDelta"];
+  /** Prior conversation history (excluding the current user message). */
+  priorMessages?: ReadonlyArray<SessionMessage>;
+  /** Memory tools to register with the LLM (Phase 6 of memory-system-openclaw-parity). */
+  memoryTools?: ReadonlyArray<MemoryToolSpec>;
 }
 
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   const { userText, id, startTime } = prepareRunContext(options.message);
   const supported = new Set<RunOperation>(["stream", "wait", "cancel", "conversation"]);
-  const placeholderScript: FixtureScript = {
+  // The base Run class accepts a FixtureScript for shape; the real LLM
+  // run never consumes it because `buildLoopInputs` drives the real agent
+  // loop instead of replaying events. Empty script keeps the type honest.
+  const unusedFixtureScript: FixtureScript = {
     events: [],
     finalStatus: "running",
     cancellable: false,
@@ -43,7 +60,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
       id,
       agentId: options.agentId,
       model: options.model,
-      script: placeholderScript,
+      script: unusedFixtureScript,
       supportedOps: supported,
       startTime,
     },
@@ -54,6 +71,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   return handle;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: spread-conditional builders for optional fields (systemPrompt, onStep, onDelta, priorMessages, memoryTools, customTools, pluginManager) are the canonical pattern for shaping AgentLoopInputs; splitting hurts readability.
 function buildLoopInputs(
   options: CreateRealLocalRunOptions,
   runId: string,
@@ -65,17 +83,57 @@ function buildLoopInputs(
     primary,
     ...(fallback !== undefined ? { fallback } : {}),
   });
+  const llm =
+    chain.length === 1 ? (chain[0] as (typeof chain)[number]) : new FallbackLlmClient(chain);
   return {
     agentId: options.agentId,
     runId,
     model: options.model ?? { id: "claude-sonnet-4-6" },
     userMessage: userText,
-    llm: chain[0] as (typeof chain)[number],
+    llm,
     mcp: buildMcpMap(options),
     hooks: options.hooks,
     shellCwd: options.workspaceCwd,
     shellSandbox: options.agentOptions.local?.sandboxOptions?.enabled === true,
+    ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
+    ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
+    ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
+    ...(options.priorMessages !== undefined ? { priorMessages: options.priorMessages } : {}),
+    ...(options.memoryTools !== undefined && options.memoryTools.length > 0
+      ? { memoryTools: options.memoryTools }
+      : {}),
+    ...buildCustomToolsInput(options.agentOptions, options.sendOptions, options.pluginManager),
+    ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
+    telemetry: createTelemetry(options.agentOptions.telemetry),
   };
+}
+
+/**
+ * Resolve the effective custom-tool catalog for this run.
+ *
+ * Precedence (matches the mcpServers semantics — "fully replaces, not merged"):
+ *  - `sendOptions.tools === undefined` → fall back to `agentOptions.tools`
+ *  - `sendOptions.tools = []`         → explicitly clear (no custom tools)
+ *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
+ */
+function buildCustomToolsInput(
+  agentOptions: AgentOptions,
+  sendOptions: { tools?: CustomTool[] } | undefined,
+  pluginManager: import("../plugins/manager.js").PluginManager | undefined,
+): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
+  const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
+  // T4.1: concat plugin-registered tools onto the effective catalog. Plugin
+  // tools are merged unconditionally (no override semantics — name collision
+  // would be caught by the registry validator if used).
+  const pluginTools = pluginManager?.aggregated.tools ?? [];
+  if (baseTools.length === 0 && pluginTools.length === 0) return {};
+  const customTools: CustomToolSpec[] = [...baseTools, ...pluginTools].map((tool) => ({
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    handler: tool.handler,
+  }));
+  return { customTools };
 }
 
 function detectPrimaryProvider(): string {
@@ -134,7 +192,7 @@ class RealLocalRun extends FixtureRunBase {
     try {
       return this.buildInputs();
     } catch (cause) {
-      this.emitErrorEvent(cause, "Failed to build agent loop inputs");
+      this.emitErrorEvent(cause, "Failed to build agent loop inputs", "", "build_inputs_failed");
       this.transitionTo("error" satisfies RunStatus);
       return undefined;
     }
@@ -149,6 +207,7 @@ class RealLocalRun extends FixtureRunBase {
           cause,
           `MCP server ${name} failed to initialize`,
           `MCP server ${name} failed to initialize: `,
+          "mcp_init_failed",
         );
       }
     }
@@ -165,7 +224,7 @@ class RealLocalRun extends FixtureRunBase {
       if (output.result.length > 0) this.script.result = output.result;
       this.transitionTo(output.finalStatus);
     } catch (cause) {
-      this.emitErrorEvent(cause, "Agent loop failed");
+      this.emitErrorEvent(cause, "Agent loop failed", "", "agent_loop_failed");
       this.transitionTo("error" satisfies RunStatus);
     } finally {
       for (const client of inputs.mcp.values()) {
@@ -174,20 +233,25 @@ class RealLocalRun extends FixtureRunBase {
     }
   }
 
-  private emitErrorEvent(cause: unknown, fallback: string, prefix = ""): void {
+  private emitErrorEvent(cause: unknown, fallback: string, prefix = "", code?: string): void {
     const message = cause instanceof Error ? cause.message : String(cause);
+    const display = prefix.length > 0 ? `${prefix}${message}` : message || fallback;
+    // Also stash structured detail on the script so wait() callers see the
+    // cause via `result.error` without having to drain the stream.
+    if (this.script.errorDetail === undefined) {
+      this.script.errorDetail = {
+        message: display,
+        ...(code !== undefined ? { code } : {}),
+        cause,
+      };
+    }
     this.script.events.push({
       type: "assistant",
       agent_id: this.agentId,
       run_id: this.id,
       message: {
         role: "assistant",
-        content: [
-          {
-            type: "text",
-            text: prefix.length > 0 ? `${prefix}${message}` : message || fallback,
-          },
-        ],
+        content: [{ type: "text", text: display }],
       },
     });
     this.notifyNewEvents();
