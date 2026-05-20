@@ -7,6 +7,7 @@ import {
 } from "../providers/index.js";
 import { AnthropicClient } from "./anthropic.js";
 import { CredentialPool, newPooledCredential } from "./credential-pool.js";
+import { currentCredentialPool } from "./credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./credential-pool-types.js";
 import { OpenAIClient } from "./openai.js";
 import { PoolAwareLlmClient } from "./pool-aware-client.js";
@@ -80,6 +81,15 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
 function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmClient | undefined {
   const profile = getProviderProfile(name);
   if (profile === undefined) return undefined;
+
+  // EC-A (batch / fork inheritance): ambient pool wins over per-agent build.
+  // When `withCredentialPool(pools, ...)` is active in the current async scope
+  // (Agent.batch or Agent.fork), every in-flight agent observes the SAME pool
+  // instance — required for cooldown sharing and rotation fairness.
+  const ambient = currentCredentialPool(name);
+  if (ambient !== undefined) {
+    return new PoolAwareLlmClient(ambient, (apiKey) => selectTransport(profile, apiKey));
+  }
 
   // Pool path: ≥2 effective keys → wrap in PoolAwareLlmClient.
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);

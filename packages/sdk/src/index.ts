@@ -62,6 +62,8 @@ export {
 } from "./stream-object.js";
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
+// Trajectory export (ADR D139) — opt-in ShareGPT converter
+export { toShareGptTrajectory } from "./trajectory-helpers.js";
 
 // Type contract
 export type * from "./types/index.js";
