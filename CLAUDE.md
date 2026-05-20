@@ -293,185 +293,40 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
 
-## SDK Patterns Roadmap
+## SDK Roadmap
 
-Curated patterns from `referencia/hermes-agent/` (and other study materials)
-filtered to **SDK scope only**. Detailed picks in
-[`.claude/knowledge-base/sdk-references/`](./.claude/knowledge-base/sdk-references/)
-(23 docs, 276KB). Status auditado contra `packages/sdk/src/` em 2026-05-18.
+> Hermes-Agent feature audit (2026-05-20). 28 features compared; **22/28 already implemented** in the SDK (FULL + PARTIAL). The 7 below are the SDK-scope gaps worth shipping next, ordered by leverage. Features that belong in TheoKit, TheoCloud, CLI, or standalone packages are deliberately excluded (see *Not-SDK* note at the end).
 
-Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
+| # | Feature | Score | Por quê é SDK |
+|---|---|---:|---|
+| 1 | **Credential Pools** (Hermes #20) | 9 | HTTP-layer concern — key rotation pertence ao provider client (`internal/llm/*`). Dor real em produção (rate-limit overflow). |
+| 2 | **Batch Processing** (Hermes #11) | 8 | Thin helper `Agent.batch(prompts[], { concurrency })`. Abre eval / training-data use case com ~3 dias de trabalho. |
+| 3 | **Memory Providers built-in adapters** (Hermes #22) | 7 | Extension point já existe (ADR D98 `kind: "memory"`); falta shippar 2-3 adapters (Honcho / Mem0 / Supermemory) como pacotes `@theokit-memory-*`. |
+| 4 | **Context Files — coverage completo** (Hermes #4) | 6 | `FileContextManager` hoje lê CLAUDE.md / AGENTS.md. Falta: SOUL.md, .cursorrules, .hermes.md. Loader extension trivial. |
+| 5 | **Personality presets** (Hermes #26) | 5 | `systemPrompt` resolver layer (`/personality` preset switcher per session). Light shim sobre primitivo existente. |
+| 6 | **Image generation contract** (Hermes #15) | 5 | Plugin `kind: "image-provider"` — extension point apenas, NÃO o adapter FAL.ai específico. Esse fica em `@theokit-image-fal`. |
+| 7 | **TTS contract** (Hermes #16) | 5 | Plugin `kind: "tts-provider"` — extension point apenas, NÃO o playback de áudio (que é UX layer). |
 
-### Persistence & state (6) — ✅ Persistence-State-Hardening plan COMPLETED 2026-05-18
+### Não-SDK (delegado a outras camadas)
 
-| Pattern | Status | Where in SDK |
-|---|---|---|
-| atomic-write-pattern | ✅ DONE | `packages/sdk/src/internal/persistence/atomic-write.ts` — `atomicWriteJson<T>` typed helper with auto-mkdir (EC-4 fix). Migrated callers: agent-registry, transcript-store, token-storage. |
-| file-lock-pattern | ✅ DONE | `packages/sdk/src/internal/persistence/file-lock.ts` — `withFileLock` cross-process via `proper-lockfile` peer dep + companion lockfile (EC-1 fix) + in-process cwd-mutex bridge. Optional peer-dep gracefully degrades. |
-| profile-isolation | ✅ DONE | `packages/sdk/src/internal/persistence/paths.ts` — `getTheokitHome(cwd)` honours `THEOKIT_HOME` env var; vitest autouse setup isolates per-test tmpdir; lint test gates `.theokit` literal regressions. |
-| schema-versioning | ✅ DONE | `packages/sdk/src/internal/persistence/schema-version.ts` — `migrateSchema` (SQLite `PRAGMA user_version`) + `readVersionedJson` / `writeVersionedJson` (JSON envelope with EC-2 full-parsed migrate callback). Agent registry migrated. |
-| sqlite-wal-fallback | ✅ DONE | `packages/sdk/src/internal/persistence/sqlite-wal.ts` — `applyWalWithFallback(db, label)` with DELETE fallback for NFS/SMB. Wired in `internal/memory/index-db.ts`. |
-| fts5-sanitization | ✅ DONE | `packages/sdk/src/internal/persistence/fts5-sanitize.ts` — 6-step `sanitizeFts5Query` + `containsCjk` detection. EC-3 empty-string short-circuit applied in `internal/memory/index-manager.ts`. |
+Os items abaixo apareceram na auditoria Hermes mas **não pertencem a `@usetheo/sdk`** — vão em outros pacotes do monorepo:
 
-### Agent core loop (3)
+| Hermes feature | Camada correta |
+|---|---|
+| API Server (OpenAI-compat HTTP) (#23) | **TheoKit** ou `@usetheo/api-server` (deployment concern) |
+| IDE Integration ACP (#24) | `@usetheo/acp-adapter` (protocol shim independente) |
+| Voice Mode live (#12) | Aplicação consumer (telegram-pro, TheoCode Desktop) |
+| Vision image paste (#14) | CLI / TheoCode (clipboard handling) |
+| Checkpoints `/rollback` (#6) | TheoCode (coding-agent vertical) |
+| Browser Automation (#13) | `@theokit/browser` plugin standalone |
+| Code Execution Python RPC (#9 partial) | TheoKit / autonomous-skills framework |
+| RL Training (#25) | Tool standalone (`theokit-rl-export`) |
+| Context References `@` (#5) | CLI / chat input layer |
+| Skins & Themes (#27) | CLI (não aplicável a uma library) |
 
-| Pattern | Status | Where in SDK |
-|---|---|---|
-| prompt-cache-discipline | ✅ DONE | `internal/cache-discipline-guard.ts` (dev-mode warn) + `Agent.invalidateCache(reason, { applyNow? })` public API (ADRs D94-D95). `LocalAgent.consumePendingInvalidation` em `sendLocked`; reload failure path safe (EC-7). |
-| tool-call-failure-recovery | ✅ DONE | `internal/tool-dispatch/repair-middleware.ts` — 3 repairs sequenciais (case-insensitive, JSON-string args, type coerce) + `strip-think.ts` + `dispatch.ts` validate-then-execute wrapper (ADRs D86-D89, D96). Wired em `agent-loop/tool-dispatch.ts` + `streamLlmTurn`. CI gate `no-history-mutation-outside-loop`. Adversarial fast-check 800+ inputs. |
-| compression-death-spiral | ✅ DONE | `internal/runtime/budget.ts` — `IterationBudget` class com cap 3 compressões + grace call (ADRs D90-D91). `validate-response.ts` empty-response detection. `compression-helpers.ts` window + 10% floor (ADRs D92-D93). Wired em `agent-loop/loop.ts`. Adversarial fast-check 600+ inputs. |
+### Patterns ship history (referência)
 
-### Plugin & extension (3)
-
-| Pattern | Status | Where in SDK |
-|---|---|---|
-| plugin-contract-design | ✅ DONE | `packages/sdk/src/internal/plugins/` — `Plugin` discriminated union (general/model-provider/memory), `PluginContext` sealed-em-dev, `PluginManager` lifecycle (ADRs D97-D101). Hook system com enum fechado (D100); `pre_tool_call` veto pattern (D101). Wired em LocalAgent + agent-loop. |
-| tool-registry-pattern | ✅ DONE | `packages/sdk/src/internal/tool-registry/` — `ToolRegistry` central (D102) + flat `Toolset` (D104) + check_fn TTL 30s (D103) + result cap. `defineTool` (D24) continua o entry-point público; ToolRegistry consome via `fromCustomTool`. |
-| provider-as-plugin | ✅ DONE | `packages/sdk/src/internal/providers/` — `ProviderProfile` data-only (D105) + Transport ABC via `apiMode` (D106) + lazy discovery em `~/.theokit/plugins/model-providers/` (D107). 4 builtins migrados (Anthropic/OpenAI/OpenRouter/Gemini); router.ts consulta `getProviderProfile` em vez do switch hardcoded. V1.2 API preservada (D108). |
-
-### Background work (3) — ✅ Background Work Block Completion plan COMPLETED 2026-05-19
-
-| Pattern | Status | Where in SDK |
-|---|---|---|
-| forked-agent-pattern | ✅ DONE | `packages/sdk/src/internal/runtime/fork-agent.ts` — `forkAgentImpl` + `filterMemoryPlugins` (EC-B). `withToolWhitelist` via `internal/runtime/async-local-storage.ts` (ADR D111). `LocalAgent.fork(options)` shorthand. Byte-identical system prompt inheritance (D112). Memory provenance via `metadata.forkOrigin` (D114). |
-| async-iterable-streaming | ✅ DONE | `Agent.runUntil(goal, options)` retorna `AsyncGenerator<GoalEvent, GoalResult, void>` (ADR D116) em `internal/runtime/run-until.ts`. AbortSignal at turn boundaries (D117), pre-abort yields paused only (EC-C). 5-variant discriminated `GoalEvent` (D115). `streamObject` (D39) continua. |
-| judge-call-pattern | ✅ DONE | `packages/sdk/src/internal/judge/` — `parse-verdict.ts` (D120 enum + D121 fail-safe + max-cap), `judge-call.ts` (D119 default `openai/gpt-4o-mini` via `OPENROUTER_API_KEY` EC-A), `verify-side-effect.ts` (hallucination gate). Adversarial fast-check 800+ runs. |
-
-### Security (3)
-
-| Pattern | Status | Where in SDK |
-|---|---|---|
-| secret-redaction-discipline | ✅ DONE | `packages/sdk/src/internal/security/redact.ts` — 12 builtin patterns + PARAM_PATTERN + BEARER_PATTERN, env snapshot at init, two-bucket masking (ADRs D68-D73). Public `Security.addPattern(re)` API. Wired at ErrorMetadata.raw (T1.1), telemetry tracer (T1.2), transcript JSONL (T1.3), migration logger (T1.4). CI gate `tests/lint/no-unredacted-sink.test.ts` prevents regression. Adversarial property tests via fast-check (~3000 randomized inputs). |
-| path-traversal-vectors | ✅ DONE | `packages/sdk/src/internal/security/path-guard.ts` — `safePathJoin` (resolve-then-check, ADR D80) + `assertNoSymlinkEscape` (realpath chain, EC-1 fix) + `sanitizeIdentifier` (strict grammar, ADR D81) + `PathTraversalError` (ADRs D79-D81). Wired em plugins-manager, agent-session-store, skills-manager, memory/types, mcp/client. CI gate `tests/lint/no-unguarded-path-input.test.ts` (ADR D85). Adversarial fast-check 1200+ inputs. |
-| toctou-race-prevention | ✅ DONE | `cwd-mutex` (in-process) + `withFileLock` (D61, multi-process via proper-lockfile) + `createExclusive` (D82, O_EXCL com mode 0o600 default) + `casUpdate` (D83, SQLite CAS). Integration demo em `agent-registry-cas-pattern.test.ts`. |
-
-### Testing (3)
-
-| Pattern | Status | Where in SDK |
-|---|---|---|
-| testing-invariant-vs-snapshot | ✅ DONE | CI lint gate `tests/lint/no-snapshot-tests.test.ts` bans `toMatchSnapshot` / `toMatchInlineSnapshot` / `toMatchFileSnapshot` (promoted CULTURAL → DONE 2026-05-19). Allowlist empty — 0 snapshot tests in repo, prática já respeitada empiricamente. |
-| hermetic-test-isolation | ✅ DONE | `packages/sdk/vitest.setup.ts` autouse beforeEach/afterEach isola `THEOKIT_HOME` em tmpdir per-test (T6.1, ADR D60). `setupFiles` wired em `vitest.config.ts`. Lint test em `tests/lint/no-hardcoded-theokit-path.test.ts` audita regressões. |
-| property-based-testing | ✅ DONE | `fast-check` ^3.x added as dev dep with secret-redaction-discipline plan. `tests/internal/security/redact.property.test.ts` exercises all 12 builtin patterns + PARAM + BEARER × 200 runs each; `tests/internal/security/sinks.adversarial.test.ts` covers the 4 output sinks. Same template can be applied to other modules incrementally. |
-
-### Error handling (2) — ✅ Error Context Surfacing plan COMPLETED 2026-05-18
-
-| Pattern | Status | Where in SDK |
-|---|---|---|
-| error-context-surfacing | ✅ DONE | `packages/sdk/src/errors.ts` — `ErrorMetadata` + `ErrorCode` types (ADR D65/D66). Provider mappers `mapAnthropicError` + `mapOpenAICompatibleError` (ADR D67) in `internal/errors/mappers/`. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, `internal/memory/adapters/openai-compatible.ts`. `fallback-client.ts` also falls back on `AuthenticationError`/`RateLimitError`. |
-| graceful-degradation | ✅ DONE | ADR D42 (auto-detect telemetry), D50 (lance dry-run), D55 (fail-open) implementados |
-
-### Totais (2026-05-19 — pós Background Work Block Completion plan + testing-invariant-vs-snapshot lint gate)
-
-```
-✅ DONE        23 (100%)
-⚠️ PARTIAL      0  (0%)
-❌ PENDING      0  (0%)
-📚 CULTURAL    0  (0%)
-              ───
-              23 (100%)
-```
-
-- **Persistence & State block: 6/6 DONE** (was 0 DONE / 5 PARTIAL / 1 PENDING at v1.2).
-- **Testing block: 3/3 DONE** — hermetic-test-isolation landed via T6.1 (vitest.setup.ts + setupFiles); property-based-testing now ✅ DONE via `fast-check` adversarial suite shipped with secret-redaction (12 builtin patterns × 200 runs + sink-level tests); testing-invariant-vs-snapshot promoted CULTURAL → DONE via lint gate `tests/lint/no-snapshot-tests.test.ts`.
-- **Error handling block: 2/2 DONE** — graceful-degradation via D42/D50/D55; error-context-surfacing via D65/D66/D67 (ErrorMetadata + ErrorCode + provider mappers).
-- **Security block: 3/3 DONE** — secret-redaction-discipline (D68-D73), path-traversal-vectors (D79-D81 + D84-D85), toctou-race-prevention (D61 + D82 + D83). All wired sinks, CI gates, and adversarial property tests in place.
-- **Plugin & Extension block: 3/3 DONE** — plugin-contract-design (D97-D101), tool-registry-pattern (D102-D104), provider-as-plugin (D105-D109). Tier 2 macro roadmap closed.
-- **Background Work block: 3/3 DONE** — forked-agent-pattern (D110-D114), async-iterable-streaming (D115-D118), judge-call-pattern (D119-D121). Tier 4 partial (cross-session/checkpoints/dialectic still pending). Ralph loop primitive `Agent.runUntil(goal)` shipped. 13 new ADRs (D110-D122). Tests 853 → 911 (+58). 1000+ fast-check runs.
-
-> **Importante**: este é mapa, não plano. Não há commitment de implementar
-> todos os PENDING — cada um é proposta que precisa de ADR + plano formal
-> antes de wirar. Hermes Agent (`referencia/hermes-agent/`) continua sendo
-> **read-only study material** (per "Working with `referencia/`" rule
-> acima). Theokit-SDK não tem ambição de paridade Hermes-equivalent;
-> compara-se a Vercel AI / Mastra / Claude Agent SDK.
-
-## Macro Roadmap — Priority Order (2026-05-18)
-
-> Síntese dos gaps abertos (7 PENDING + 3 PARTIAL do roadmap de patterns
-> acima + os 9 v1.3 features Hermes-class de [`hermes-deep-dive/99-implementation-guide.md`](./.claude/knowledge-base/hermes-deep-dive/99-implementation-guide.md)).
-> Ordenado por **alavancagem ÷ custo**, não por preferência. Cross-link:
-> cada linha aponta pra pattern em `sdk-references/` + Hermes primary
-> source via [`hermes-deep-dive/INDEX.md`](./.claude/knowledge-base/hermes-deep-dive/INDEX.md).
-
-Critérios de ranking:
-
-- **Foundation-first** — bloqueia outros gaps? Vai antes.
-- **Quick wins** — <1k LoC + baixo risco + impacto user-visible? Vai antes.
-- **User-facing > internal** — surface que devs vão usar antes de refactor arquitetural.
-- **Independent > coupled** — gaps que rodam isolados antes dos que dependem de N outros.
-
-LoC estimates do `99-implementation-guide.md`; risk = Hermes' próprio
-indicator de quanto deu trabalho lá.
-
-### Tier 1 — Quick wins (recomendado começar aqui)
-
-| # | Gap | Tipo | LoC est | Risco | Por quê primeiro |
-|---|---|---|---|---|---|
-| 1 | **`Agent.runUntil(goal)`** ([async-iterable-streaming](./.claude/knowledge-base/sdk-references/async-iterable-streaming.md) PARTIAL → DONE) | Feature | 600 | baixo | Ralph loop primitive. Foundation pra autonomous-skills (#9). User-visible, baixo blast radius. Já temos o skill na cli do Claude Code — trazer pro SDK é tradução direta. |
-| 2 | **`tool-call-failure-recovery`** ([pattern](./.claude/knowledge-base/sdk-references/tool-call-failure-recovery.md)) | Pattern | 800 | médio | Repair middleware em `internal/tool-dispatch/`. Hoje primeira tool call malformada termina o loop. LLMs frequentemente devolvem JSON malformado — high real-world impact. |
-| 3 | **`compression-death-spiral`** ([pattern](./.claude/knowledge-base/sdk-references/compression-death-spiral.md)) | Pattern | 400 | baixo | `IterationBudget` cap em `internal/runtime/budget.ts`. Safety net contra runaway loops. Pareia naturalmente com #2. |
-| 4 | **`tool-registry-pattern`** ([pattern](./.claude/knowledge-base/sdk-references/tool-registry-pattern.md) PARTIAL → DONE) | Pattern | 500 | baixo | Já temos `defineTool` (D24). Falta `ToolRegistry` + `Toolset` filtragem. Foundation pra plugin-contract-design (#5). |
-
-**Tier 1 total: ~2300 LoC, ~3 semanas com 1 dev.** Fecha 2 PENDING + 2 PARTIAL → roadmap vira **15 DONE / 1 PARTIAL / 5 PENDING / 2 CULTURAL**.
-
-### Tier 2 — Arquitetura extensível (depende de Tier 1)
-
-| # | Gap | Tipo | LoC est | Risco | Dependências |
-|---|---|---|---|---|---|
-| 5 | **`plugin-contract-design`** ([pattern](./.claude/knowledge-base/sdk-references/plugin-contract-design.md)) | Pattern | 1500 | médio | Depende de tool-registry-pattern (#4). |
-| 6 | **`provider-as-plugin`** / ProviderProfile ABC ([pattern](./.claude/knowledge-base/sdk-references/provider-as-plugin.md) + [v1.3 feature 7](./.claude/knowledge-base/hermes-deep-dive/07-provider-plugins.md)) | Pattern + Feature | 1500 | médio | Depende de plugin-contract-design (#5). Destrava ecosystem (`@theokit-provider-xyz`). |
-
-**Tier 2 total: ~3000 LoC, ~5 semanas.** Fecha 2 PENDING → **17 DONE / 0 PARTIAL / 3 PENDING / 2 CULTURAL** (assumindo Tier 1 done).
-
-### Tier 3 — Security hardening
-
-| # | Gap | Tipo | LoC est | Risco | Notas |
-|---|---|---|---|---|---|
-| 7 | **`path-traversal-vectors`** ([pattern](./.claude/knowledge-base/sdk-references/path-traversal-vectors.md)) | Pattern | 400 | baixo | `internal/security/path-guard.ts`. Hermes shipou 7 closures em v0.2 + zip-slip em v0.5. |
-| 8 | **`toctou-race-prevention`** ([pattern](./.claude/knowledge-base/sdk-references/toctou-race-prevention.md) PARTIAL → DONE) | Pattern | 600 | médio | Já temos cwd-mutex + withFileLock. Falta SQLite CAS patterns + O_EXCL idiomático. Hermes teve 3 recurrences em v0.13. |
-
-**Tier 3 total: ~1000 LoC, ~2 semanas.** Fecha 1 PENDING + 1 PARTIAL → **19 DONE / 0 PARTIAL / 2 PENDING / 2 CULTURAL**.
-
-### Tier 4 — Background work + cross-session
-
-| # | Gap | Tipo | LoC est | Risco | Cross-link Hermes |
-|---|---|---|---|---|---|
-| 9 | **`forked-agent-pattern`** | Pattern | 800 | médio | [run_agent.py:4230](./referencia/hermes-agent/run_agent.py#L4230) `_spawn_background_review`. Pareia com #11. |
-| 10 | **`judge-call-pattern`** | Pattern | 600 | médio | [goals.py:580](./referencia/hermes-agent/hermes_cli/goals.py#L580). Pareia com #1 (runUntil). |
-| 11 | **Cross-session FTS5 (SessionDB)** | Feature | 2000 | baixo | [04-cross-session-fts5.md](./.claude/knowledge-base/hermes-deep-dive/04-cross-session-fts5.md). FTS5 sanitizer já temos. |
-| 12 | **`no_agent` cron mode** | Feature | 800 | baixo | [09-no-agent-cron.md](./.claude/knowledge-base/hermes-deep-dive/09-no-agent-cron.md). Cron sem LLM (timer-only). |
-| 13 | **Dialectic user modeling** | Feature | 1200 | médio | [05-dialectic-user-model.md](./.claude/knowledge-base/hermes-deep-dive/05-dialectic-user-model.md). Honcho equivalent. |
-| 14 | **Checkpoints v2** | Feature | 1800 | médio | [08-checkpoints-v2.md](./.claude/knowledge-base/hermes-deep-dive/08-checkpoints-v2.md). Shells out to git, lazy probe. |
-
-**Tier 4 total: ~7200 LoC, ~12 semanas.** Fecha 2 PENDING patterns + 4 features novos.
-
-### Tier 5 — Big bets (alta ambição, alto custo)
-
-| # | Gap | Tipo | LoC est | Risco | Notas |
-|---|---|---|---|---|---|
-| 15 | **Autonomous Curator** | Feature | 2500 | alto | [03-autonomous-skills.md](./.claude/knowledge-base/hermes-deep-dive/03-autonomous-skills.md). Self-improving skills, depende de #9 + #11. |
-| 16 | **7 execution backends** (Daytona, Modal, Bedrock…) | Feature | 4000 | alto | [06-execution-backends.md](./.claude/knowledge-base/hermes-deep-dive/06-execution-backends.md). Cada backend é 500-800 LoC. |
-| 17 | **Multi-agent Kanban** | Feature | 4500 | muito alto | [01-kanban.md](./.claude/knowledge-base/hermes-deep-dive/01-kanban.md). Hermes precisou rewrite (v0.12 revertido, v0.13 re-landed). |
-
-**Tier 5 total: ~11000 LoC, ~6 meses.** Cada um é uma "feature flagship" — não comprometer sem strategic review.
-
-### Resumo de impacto
-
-```
-Tier 1 (quick wins)        2300 LoC   3 sem   →  15 DONE / 1 PARTIAL / 5 PENDING / 2 CULTURAL
-Tier 2 (arq extensível)    3000 LoC   5 sem   →  17 DONE / 0 PARTIAL / 3 PENDING / 2 CULTURAL
-Tier 3 (security)          1000 LoC   2 sem   →  19 DONE / 0 PARTIAL / 2 PENDING / 2 CULTURAL
-Tier 4 (cross-session)     7200 LoC  12 sem   →  21 DONE + 4 features novos
-Tier 5 (big bets)         11000 LoC   6 mês   →  paridade Hermes-class completa
-```
-
-**Recomendação Q3 2026**: comprometer com Tier 1 (3 semanas, alto leverage), revisar Tier 2 depois de #1 + #2 landed. Tiers 4 e 5 requerem strategic review (escopo > engenharia).
-
-### Anti-patterns documentados (não confundir com prioridade)
-
-- **NÃO começar por Tier 5** mesmo que pareça mais ambicioso — Kanban e Curator dependem de fork-agent (#9) e SessionDB (#11) que dependem de provider-as-plugin (#6) que depende de plugin-contract (#5). Pular tiers gera retrabalho.
-- **NÃO mexer no agent-loop antes do Tier 1.2 (tool-call-failure-recovery)** — sem repair middleware, qualquer mudança no loop precisa lidar com malformed-tool-call cases manualmente.
-- **NÃO shipar autonomous-skills (#15) sem Tier 3 security** — autonomous code execution + missing path guard + missing TOCTOU completeness = supply chain incident waiting to happen (lesson from Hermes v0.5 #2796 litellm removal).
+Auditoria Hermes-Agent 2026-05-19 — `referencia/hermes-agent/` + sdk-references — culminou com **23/23 SDK patterns DONE** (Persistence, Agent Core Loop, Plugin & Extension, Background Work, Security, Testing, Error Handling). 122 ADRs registradas em `.claude/knowledge-base/adrs/`. Esta seção foi removida do CLAUDE.md para reduzir ruído; conteúdo histórico permanece no git em `git show 0a97794:CLAUDE.md`.
 
 ## Inviolable rules (carried from root and global)
 
