@@ -1,5 +1,7 @@
 # Plan: Batch Processing — `Agent.batch(prompts[], options)`
 
+> **Version 1.2 — ✅ COMPLETED 2026-05-20** — TODAS AS TASKS, CRITÉRIOS DE ACEITE, DODs CONCLUÍDAS E VALIDADAS, TESTE DOGFOOD TELEGRAM-PRO 32/32 PASS (incluindo `/batch jazz` em 2.56s). 1032 SDK tests PASS (1021 baseline + 55 novos). 7 ADRs (D134-D140) escritos. Roadmap row #2 → ✅ DONE. EC-A fix wireado em router.ts:buildClient via `currentCredentialPool` ALS lookup; integration test confirma reference-identity.
+>
 > **Version 1.1** (2026-05-20) — incorporates edge-case review: MUST FIX EC-A (pool sharing claim mismatch — wrap `withCredentialPool` in batchImpl + check ALS in router) + 5 SHOULD TEST (EC-B/C/D/E/F) + 4 DOCUMENT (EC-G/H/I/J).
 >
 > **Version 1.0** — Adds a `Agent.batch(prompts, options)` static helper to `@usetheo/sdk` that runs N prompts in parallel with bounded concurrency, isolated failure-per-prompt, optional streaming output, and an opt-in ShareGPT trajectory exporter. Ports the Hermes-Agent `batch_runner.py` primitive (1302 LoC Python multiprocessing CLI) into a thin TypeScript helper (~250 LoC) backed by an in-house async semaphore. Closes SDK Roadmap item #2 (score 8); opens the **eval + training-data generation** use case the SDK currently leaves to consumers reinventing it. Backward compatible — pure additive surface.

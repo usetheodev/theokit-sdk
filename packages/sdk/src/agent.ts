@@ -217,6 +217,31 @@ export class Agent {
   }
 
   /**
+   * Run N prompts in parallel with bounded concurrency (ADRs D134-D140).
+   *
+   * Each prompt gets a fresh agent (create → send → wait → dispose). Failures
+   * are isolated per-prompt; the batch never throws on a single failure —
+   * inspect `result.ok` to discriminate success vs error. Default
+   * concurrency is 4. When `options.providers.apiKeys` has ≥2 keys per
+   * provider, all in-flight agents share a single credential pool via
+   * `AsyncLocalStorage` (EC-A) so rate-limit cooldowns are observed once
+   * instead of duplicated per agent.
+   *
+   * Streaming progress is opt-in via `onResult` / `onProgress`. `AbortSignal`
+   * cancels pending prompts; in-flight ones continue to completion (Node
+   * AbortSignal semantics). `signal.reason` propagates to `error` when set.
+   *
+   * @public
+   */
+  static async batch(
+    prompts: ReadonlyArray<string | import("./types/batch.js").BatchItem>,
+    options: import("./types/batch.js").BatchOptions,
+  ): Promise<import("./types/batch.js").BatchResult[]> {
+    const { batchImpl } = await import("./batch.js");
+    return batchImpl(prompts, options, { create: (opts) => Agent.create(opts) });
+  }
+
+  /**
    * Get an existing agent by ID, or create one with the supplied options if
    * the ID is not yet registered. Eliminates the resume-vs-create boilerplate
    * common to chat bots and other long-running agent consumers. See ADR D22.

@@ -2,6 +2,64 @@
 
 ## [Unreleased]
 
+### Added (v1.11 batch-processing — ADRs D134-D140)
+
+- **`Agent.batch(prompts, options)`** — new static method on the `Agent`
+  façade. Runs N prompts in parallel with bounded concurrency, isolated
+  per-prompt failures, optional `onResult` / `onProgress` callbacks, and
+  `AbortSignal` support. Default concurrency 4 (D136); capped to
+  `prompts.length` to avoid idle workers.
+- **`packages/sdk/src/batch.ts`** — `batchImpl(prompts, options, deps)`
+  core. Builds shared `CredentialPool` instances ONCE from
+  `options.providers.apiKeys` and wraps the entire batch in
+  `withCredentialPool(pools, ...)` (ALS) so every in-flight agent
+  observes the SAME pool — one 429 cools the key down once, not N
+  times (EC-A fix, D138).
+- **`packages/sdk/src/types/batch.ts`** — public types: `BatchItem`,
+  `BatchOptions extends AgentOptions`, `BatchResult` (discriminated
+  union by `ok`), `BatchProgress`. Re-exported from `types/index.ts`.
+- **`packages/sdk/src/trajectory-helpers.ts` + `types/trajectory.ts`** —
+  opt-in `toShareGptTrajectory(result, options?)` helper for fine-tuning
+  dataset generation (D139). Pure transformation; returns `null` for
+  failed results so callers can `.map(...).filter(Boolean)`.
+- **`packages/sdk/src/internal/runtime/async-semaphore.ts`** — in-house
+  N-permit FIFO semaphore (~50 LoC). No `p-limit` / `p-queue` dependency
+  added (D135). `createSemaphore(permits)` throws `ConfigurationError`
+  on zero / negative / non-integer.
+- **Router wiring** (`internal/llm/router.ts`) — `buildClient` now
+  consults `currentCredentialPool(name)` (ALS) before building a fresh
+  pool from `routerOptions.apiKeys`. Backward compatible: outside an
+  ALS scope, the existing per-agent pool path is unchanged.
+
+### Tests added
+
+- `tests/batch.test.ts` — 18 RED → GREEN (empty, parallel, concurrency,
+  failure isolation, order preservation, callbacks, abort, EC-A pool
+  reference, EC-C pre-aborted, EC-D `signal.reason`, EC-B slow
+  `onResult` parallel timing).
+- `tests/batch.property.test.ts` — 5 fast-check properties × 200 runs
+  each (1000+ randomized assertions): input order under random delays,
+  no prompt loss, failure isolation, filter discipline, bounded
+  concurrency.
+- `tests/agent-batch-wiring.test.ts` — 3 façade integration tests
+  (Agent.batch exists, empty array, BatchItem metadata round-trip).
+- `tests/integration/batch-with-pool.test.ts` — 3 integration scenarios
+  with 2-key pool + concurrency=2.
+- `tests/trajectory-helpers.test.ts` — 14 tests (EC-11..EC-14, EC-F
+  malformed messages, tool_use → tool_calls, completed=true).
+- `tests/internal/runtime/async-semaphore.test.ts` + `.property.test.ts`
+  — 9 unit + 3 properties × 200 runs (FIFO, peak in-flight bounded,
+  release idempotent).
+
+### Test counts
+
+- 1021 → **1032 PASS** baseline + batch surface in 7 new test files
+  (55 new tests + 1600 randomized fast-check assertions).
+- 7 new ADRs (D134-D140).
+- CLAUDE.md SDK Roadmap row #2 (Batch Processing, score 8) → ✅ DONE.
+
+---
+
 ### Added (v1.10 credential-pools — ADRs D123-D133)
 
 - **`internal/llm/credential-pool.ts`** — same-provider key rotation primitive

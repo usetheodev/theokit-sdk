@@ -106,6 +106,22 @@ const COMMANDS = [
     retryOnError: true,
   },
 
+  // ── v1.11 batch processing — Agent.batch (ADRs D134-D140) ──
+  // Fans out 3 mini-prompts in parallel via Agent.batch(concurrency: 3).
+  // Real LLM call × 3 — under OpenRouter free-tier load this can take
+  // 30-60s. retryOnError covers the long tail.
+  {
+    text: "/batch jazz",
+    expect: [
+      /Batch \(\d+ms, 3 prompts parallel via Agent\.batch\)/i,
+      /1\.\s+\S/,
+      /2\.\s+\S/,
+      /3\.\s+\S/,
+    ],
+    waitMs: 60000,
+    retryOnError: true,
+  },
+
   // ── v1.2 migration CLI demo ──
   // Sends placeholder + ~5s SQLite open + result reply (2 separate messages).
   {
@@ -499,7 +515,7 @@ async function main() {
     // calls/minute) and let Telegram Web DOM settle between commands. LLM-
     // heavy commands (/fact, /factstream, /tool *, /loop, free-text) get a
     // larger gap; cheap toggles run quickly.
-    const llmHeavy = /\/(tool|fact|factstream|loop|recall)|\?|^[^/]/.test(cmd.text);
+    const llmHeavy = /\/(tool|fact|factstream|batch|loop|recall)|\?|^[^/]/.test(cmd.text);
     await wait(llmHeavy ? 6000 : 1500);
   }
 
