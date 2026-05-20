@@ -7,5 +7,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@the-open-runtime-agent-core", "@the-open-runtime-ai", "@the-open-runtime-coding-agent", "@the-open-runtime-tui", "@the-open-runtime-web-ui"]
+  "ignore": []
 }

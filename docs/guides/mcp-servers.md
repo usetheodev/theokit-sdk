@@ -7,7 +7,7 @@ Agents pick up Model Context Protocol servers from several sources. Inline defin
 ```typescript
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
   mcpServers: {
     docs: {

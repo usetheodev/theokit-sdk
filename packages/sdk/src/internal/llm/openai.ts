@@ -1,4 +1,4 @@
-import { NetworkError } from "../../errors.js";
+import { mapOpenAICompatibleError } from "../errors/mappers/openai-compatible.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
 import type {
@@ -53,6 +53,7 @@ export class OpenAIClient implements LlmClient {
     this.fetchImpl = options.fetch ?? fetch;
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: HTTP+SSE handshake + accumulator is intentionally one block
   async *stream(
     request: LlmRequest,
     signal: AbortSignal,
@@ -72,10 +73,23 @@ export class OpenAIClient implements LlmClient {
     });
     if (!response.ok) {
       const text = await response.text().catch(() => "");
-      throw new NetworkError(
-        `OpenAI /v1/chat/completions returned ${response.status}: ${text.slice(0, 200)}`,
-        { code: "openai_http_error" },
-      );
+      let body: unknown = text;
+      try {
+        body = JSON.parse(text);
+      } catch {
+        // not JSON — keep as string for mapper raw field
+      }
+      // Use the openai-compatible mapper. For OpenAI proper the providerId
+      // is "openai"; OpenRouter is handled in its own client subclass (see
+      // OpenRouterClient if/when added). Providers tagged differently via
+      // wrapper clients can pass their own providerId by overriding.
+      throw mapOpenAICompatibleError({
+        providerId: this.name,
+        status: response.status,
+        body,
+        headers: response.headers,
+        endpoint: "/v1/chat/completions",
+      });
     }
 
     const accumulator = new OpenAIStreamAccumulator();

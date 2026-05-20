@@ -15,6 +15,9 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
+  // Native + optional peer deps that must not be inlined — they require
+  // runtime resolution against the host's node_modules.
+  external: ["better-sqlite3", "node:sqlite", "sqlite-vec"],
   outExtension({ format }) {
     return { js: format === "esm" ? ".js" : ".cjs" };
   },

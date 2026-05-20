@@ -1,0 +1,20 @@
+{
+  "name": "@usetheo/example-cli-bot",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bash ../../tools/dev.sh tsx --env-file=.env src/index.ts"
+  },
+  "dependencies": {
+    "@usetheo/sdk": "file:../../packages/sdk"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0",
+    "zod": "^4.0.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

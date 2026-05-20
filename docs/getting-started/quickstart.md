@@ -9,7 +9,7 @@ import { Agent } from "@usetheo/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
 
@@ -33,7 +33,7 @@ If you just want to run a prompt once and dispose, use `Agent.prompt()`:
 ```typescript
 const result = await Agent.prompt("What does the auth middleware do?", {
   apiKey: process.env.THEOKIT_API_KEY!,
-  model: { id: "composer-2" },
+  model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
 

@@ -1,0 +1,21 @@
+{
+  "name": "@usetheo/example-memory-dreaming",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file=.env src/index.ts"
+  },
+  "dependencies": {
+    "@usetheo/sdk": "file:../../packages/sdk"
+  },
+  "devDependencies": {
+    "better-sqlite3": "^12.10.0",
+    "sqlite-vec": "^0.1.9",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

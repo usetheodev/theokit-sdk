@@ -13,8 +13,11 @@ describe("per-run model override contract", () => {
 
   it("uses send override for that run and makes it sticky after success", async () => {
     workspace = await createTempWorkspace("simple-node-project");
-    const initialModel = { id: "composer-2" };
-    const overrideModel = { id: "composer-2", params: [{ id: "thinking", value: "high" }] };
+    const initialModel = { id: "google/gemini-2.0-flash-001" };
+    const overrideModel = {
+      id: "google/gemini-2.0-flash-001",
+      params: [{ id: "thinking", value: "high" }],
+    };
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
       model: initialModel,

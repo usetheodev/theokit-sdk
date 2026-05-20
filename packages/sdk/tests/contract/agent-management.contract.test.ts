@@ -19,7 +19,7 @@ describe("Agent management contract", () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
       name: "Contract Local Agent",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
 
@@ -37,7 +37,7 @@ describe("Agent management contract", () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
       name: "Contract Cloud Agent",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       cloud: {
         repos: [{ url: "https://github.com/usetheo/example" }],
         autoCreatePR: true,
@@ -89,7 +89,7 @@ describe("Agent management contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
     });
     const run = await agent.send("Summarize fixture for listRuns.");

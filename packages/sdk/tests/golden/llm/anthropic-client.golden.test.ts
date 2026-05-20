@@ -71,9 +71,13 @@ describe("real Anthropic client", () => {
     expect(result.outputTokens).toBe(3);
   });
 
-  it("surfaces HTTP errors as NetworkError", async () => {
+  it("surfaces HTTP 401 as AuthenticationError with full metadata (post-D67 mapper)", async () => {
     const stubFetch: typeof fetch = async () =>
-      new Response("bad key", { status: 401, statusText: "Unauthorized" });
+      new Response('{"error":{"type":"authentication_error","message":"bad key"}}', {
+        status: 401,
+        statusText: "Unauthorized",
+        headers: { "content-type": "application/json" },
+      });
     const client = new AnthropicClient({ apiKey: "bad", fetch: stubFetch });
     const controller = new AbortController();
     await expect(
@@ -87,6 +91,14 @@ describe("real Anthropic client", () => {
         );
         await gen.next();
       })(),
-    ).rejects.toMatchObject({ name: "NetworkError" });
+    ).rejects.toMatchObject({
+      name: "AuthenticationError",
+      metadata: {
+        provider: "anthropic",
+        endpoint: "/v1/messages",
+        code: "auth_failed",
+        statusCode: 401,
+      },
+    });
   });
 });

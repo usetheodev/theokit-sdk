@@ -53,8 +53,9 @@ async function main(): Promise<void> {
 
   for await (const event of run.stream()) {
     if (event.type === "tool_call" && event.status === "running") {
+      const args = event.args as Record<string, unknown> | undefined;
       const command =
-        typeof event.args.command === "string" ? event.args.command : JSON.stringify(event.args);
+        typeof args?.command === "string" ? args.command : JSON.stringify(args ?? {});
       console.log(`→ shell: ${command}`);
     } else if (event.type === "tool_call" && event.status === "completed") {
       const stdout = (event.result as { stdout?: string } | undefined)?.stdout ?? "";
