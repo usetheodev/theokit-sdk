@@ -11,8 +11,7 @@
     "tools/chaos-persistence-victim.mjs",
     "tools/validate-generateobject-real-llm.mjs",
     "tools/validate-streamobject-real-llm.mjs",
-    "tools/validate-streaming-telegram-real-llm.mjs",
-    "dist-runtime/**"
+    "tools/validate-streaming-telegram-real-llm.mjs"
   ],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
   "workspaces": {
@@ -23,7 +22,7 @@
       "ignoreDependencies": ["zod"]
     },
     "packages/react": {
-      "entry": ["tests/**/*.test.ts", "src/index.ts"],
+      "entry": ["tests/**/*.test.ts"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
       "ignore": ["src/internal/**"]
     }
