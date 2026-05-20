@@ -2,6 +2,81 @@
 
 ## [Unreleased]
 
+### Added (v1.13 context-files-coverage — ADRs D150-D159)
+
+- **`FileContextManager` auto-discovery extended** beyond `.theokit/context/*.md`
+  to the 2026 industry-standard set:
+  - `AGENTS.md` — Linux-Foundation-stewarded, 60k+ repo adoption.
+  - `CLAUDE.md` — Anthropic's house format, walk-up + `@import` syntax.
+  - `GEMINI.md` — Google Gemini CLI, same shape as CLAUDE.md.
+  - `.cursor/rules/*.mdc` — Cursor's current format with frontmatter
+    (globs/description/alwaysApply); legacy `.cursorrules` deliberately
+    skipped (deprecated by Cursor itself).
+  - `.theokit/THEO.md` — new SDK-specific override file (D153 placed
+    inside `.theokit/` for zero root pollution).
+- **Walk-up-to-git-root discovery** (D151) — pure `existsSync` checks,
+  no `.gitignore` parsing (EC-A KISS), no `.theokitignore` (EC-B scope
+  creep dropped). `realpathSync` dedupes symlink chains (EC-F). Git
+  worktrees work via `.git` as a file (EC-N).
+- **`@path` import resolver** (D156) — Anthropic/Gemini convention,
+  5-hop cap with cycle detection. EC-D: every imported file capped at
+  `maxBytesPerFile` BEFORE concatenation (prevents balloon from
+  multi-import). EC-Q: line-anchored (`^@\S+$`), inline references
+  preserved.
+- **MDC parser** (D154) — YAML frontmatter (`globs`/`description`/
+  `alwaysApply`), in-house glob → regex (no `minimatch` dep). EC-I: at
+  `agent.send()` time `touchedFiles=[]`, so only `alwaysApply: true`
+  rules activate in v1.
+- **Aggregate cap** (D155) — per-file 40_000 chars + total 120_000
+  chars. 70/20 head/tail truncation with `…[truncated by theokit]`
+  marker. EC-C guard: if `max ≤ MARKER.length`, return head-only slice
+  without marker. EC-J: same-priority sort tie-breaks by source path lex
+  for prompt-cache stability.
+- **EC-E privacy fix** — disambiguation uses `relative(gitRoot ?? cwd,
+  dirname(path))` for source names, NEVER absolute paths. Prevents
+  developer home dir / project name from leaking into LLM provider
+  logs.
+- **Telemetry counters** (D159) — `context_files_truncated` (per-file)
+  + `context_files_total_truncated` (aggregate drop). Lazy `tracer`
+  lookup via `globalThis.__theokit_tracer`; no-op when OTel not
+  installed (EC-L).
+- **Backward compat** (D158) — existing `.theokit/context/*.md` Zod
+  frontmatter sources keep working unchanged. Legacy `.theokit/
+  context.json` loads CONTENT and emits one-time deprecation warning
+  (EC-K verified).
+- **Public API additions** in `AgentOptions.context`:
+  - `maxBytesPerFile?: number` (default 40_000)
+  - `maxBytesTotal?: number` (default 120_000)
+
+### New internal modules
+
+- `internal/runtime/context-discovery.ts` — DiscoverySpec + `findGitRoot`
+  + `walkUpForFile` + `walkUpForGlob`.
+- `internal/runtime/context-loaders.ts` — `loadPlainMarkdown` +
+  `truncateWithMarker`.
+- `internal/runtime/context-import-resolver.ts` — `resolveImports`
+  with 5-hop + cycle detection + per-import cap.
+- `internal/runtime/context-mdc-parser.ts` — MDC frontmatter parser +
+  `shouldActivate`.
+- `internal/runtime/context-aggregator.ts` — `applyAggregateCap`.
+- `internal/runtime/context-discovery-runner.ts` — orchestrator over
+  all specs.
+
+### Test counts
+
+- 1062 → **1132 PASS** baseline + **70 new tests** across:
+  - `context-discovery.test.ts` (17)
+  - `context-loaders.test.ts` (15)
+  - `context-import-resolver.test.ts` (12)
+  - `context-mdc-parser.test.ts` (8)
+  - `context-aggregator.test.ts` (7)
+  - `context-manager-multi-format.test.ts` (11)
+  - `context-backward-compat.test.ts` (5) — 5 regression
+- 10 new ADRs (D150-D159).
+- CLAUDE.md SDK Roadmap row #4 → ✅ DONE.
+
+---
+
 ### Added (v1.12 memory-provider-adapters — ADRs D141-D149)
 
 - **`packages/sdk/src/types/memory-adapter.ts`** — public `MemoryAdapter`,

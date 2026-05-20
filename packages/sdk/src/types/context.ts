@@ -18,6 +18,24 @@ export interface ContextSettings {
   manager?: ContextManagerKind;
   /** Hard cap on tokens emitted into the agent's system prompt. */
   maxTokens?: number;
+  /**
+   * Per-file truncation cap in characters. Default 40_000 (~10k tokens).
+   * Larger files are truncated with 70%/20% head/tail + marker (ADR D155).
+   *
+   * @public
+   */
+  maxBytesPerFile?: number;
+  /**
+   * Aggregate cap across all context files in characters. Default 120_000.
+   * When total exceeds this, lower-priority sources are dropped (ADR D155).
+   *
+   * Note: context snapshot is **refresh-time** (EC-T); modifying context
+   * files mid-flight does not auto-update. Call `agent.reload()` to pick
+   * up changes.
+   *
+   * @public
+   */
+  maxBytesTotal?: number;
 }
 
 /**
