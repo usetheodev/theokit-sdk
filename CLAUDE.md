@@ -349,7 +349,7 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 
 | Pattern | Status | Where in SDK |
 |---|---|---|
-| testing-invariant-vs-snapshot | 📚 CULTURAL | Já praticado (sem `toMatchSnapshot`); manter via code review |
+| testing-invariant-vs-snapshot | ✅ DONE | CI lint gate `tests/lint/no-snapshot-tests.test.ts` bans `toMatchSnapshot` / `toMatchInlineSnapshot` / `toMatchFileSnapshot` (promoted CULTURAL → DONE 2026-05-19). Allowlist empty — 0 snapshot tests in repo, prática já respeitada empiricamente. |
 | hermetic-test-isolation | ✅ DONE | `packages/sdk/vitest.setup.ts` autouse beforeEach/afterEach isola `THEOKIT_HOME` em tmpdir per-test (T6.1, ADR D60). `setupFiles` wired em `vitest.config.ts`. Lint test em `tests/lint/no-hardcoded-theokit-path.test.ts` audita regressões. |
 | property-based-testing | ✅ DONE | `fast-check` ^3.x added as dev dep with secret-redaction-discipline plan. `tests/internal/security/redact.property.test.ts` exercises all 12 builtin patterns + PARAM + BEARER × 200 runs each; `tests/internal/security/sinks.adversarial.test.ts` covers the 4 output sinks. Same template can be applied to other modules incrementally. |
 
@@ -360,19 +360,19 @@ Status legend: ✅ DONE · ⚠️ PARTIAL · ❌ PENDING · 📚 CULTURAL
 | error-context-surfacing | ✅ DONE | `packages/sdk/src/errors.ts` — `ErrorMetadata` + `ErrorCode` types (ADR D65/D66). Provider mappers `mapAnthropicError` + `mapOpenAICompatibleError` (ADR D67) in `internal/errors/mappers/`. Wired in `internal/llm/anthropic.ts`, `internal/llm/openai.ts`, `internal/memory/adapters/openai-compatible.ts`. `fallback-client.ts` also falls back on `AuthenticationError`/`RateLimitError`. |
 | graceful-degradation | ✅ DONE | ADR D42 (auto-detect telemetry), D50 (lance dry-run), D55 (fail-open) implementados |
 
-### Totais (2026-05-19 — pós Background Work Block Completion plan)
+### Totais (2026-05-19 — pós Background Work Block Completion plan + testing-invariant-vs-snapshot lint gate)
 
 ```
-✅ DONE        22 (96%)
+✅ DONE        23 (100%)
 ⚠️ PARTIAL      0  (0%)
 ❌ PENDING      0  (0%)
-📚 CULTURAL    1  (4%)
+📚 CULTURAL    0  (0%)
               ───
               23 (100%)
 ```
 
 - **Persistence & State block: 6/6 DONE** (was 0 DONE / 5 PARTIAL / 1 PENDING at v1.2).
-- **Testing block: 2/3 DONE + 1/3 CULTURAL** — hermetic-test-isolation landed via T6.1 (vitest.setup.ts + setupFiles); property-based-testing now ✅ DONE via `fast-check` adversarial suite shipped with secret-redaction (12 builtin patterns × 200 runs + sink-level tests).
+- **Testing block: 3/3 DONE** — hermetic-test-isolation landed via T6.1 (vitest.setup.ts + setupFiles); property-based-testing now ✅ DONE via `fast-check` adversarial suite shipped with secret-redaction (12 builtin patterns × 200 runs + sink-level tests); testing-invariant-vs-snapshot promoted CULTURAL → DONE via lint gate `tests/lint/no-snapshot-tests.test.ts`.
 - **Error handling block: 2/2 DONE** — graceful-degradation via D42/D50/D55; error-context-surfacing via D65/D66/D67 (ErrorMetadata + ErrorCode + provider mappers).
 - **Security block: 3/3 DONE** — secret-redaction-discipline (D68-D73), path-traversal-vectors (D79-D81 + D84-D85), toctou-race-prevention (D61 + D82 + D83). All wired sinks, CI gates, and adversarial property tests in place.
 - **Plugin & Extension block: 3/3 DONE** — plugin-contract-design (D97-D101), tool-registry-pattern (D102-D104), provider-as-plugin (D105-D109). Tier 2 macro roadmap closed.
