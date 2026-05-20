@@ -381,6 +381,24 @@ export interface AgentOptions {
    * @public
    */
   metadata?: Record<string, unknown>;
+  /**
+   * Default `MemoryContext` for third-party memory adapter plugins
+   * (ADR D141). When set, `pre_user_send` / `post_assistant_reply`
+   * hooks receive this context unless the caller overrides it. The
+   * `agent.memory` direct API also defaults to it.
+   *
+   * @public
+   */
+  memoryContext?: import("./memory-adapter.js").MemoryContext;
+  /**
+   * Maximum byte length of the `<memory-context>` block injected by
+   * `pre_user_send` adapter hooks (EC-A). Larger recalls are sliced
+   * with `…[truncated]`. Default 16_000 (~4k tokens). Set lower for
+   * cheaper turns; higher for longer-context models.
+   *
+   * @public
+   */
+  maxRecallContextBytes?: number;
 }
 
 /**
@@ -493,6 +511,15 @@ export interface SDKAgent {
   fork?(
     options: import("../internal/runtime/fork-agent.js").ForkOptions,
   ): Promise<import("../internal/runtime/fork-agent.js").ForkResult>;
+  /**
+   * Direct API to third-party memory adapter(s) registered via
+   * `plugins: [...]` (ADR D141 / D142). Returns `null` when no adapter
+   * is registered. In multi-adapter setups `write` fans out to all;
+   * `recall` merges + dedupes; `delete` routes by `MemoryId` prefix.
+   *
+   * @public
+   */
+  memory?: import("./memory-adapter.js").AgentMemory;
 }
 
 /**

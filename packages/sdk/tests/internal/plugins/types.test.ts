@@ -43,7 +43,22 @@ describe("definePlugin (T1.1)", () => {
       name: "lance",
       version: "1.0.0",
       kind: "memory",
-      createProvider: (_cwd: string) => ({}),
+      createProvider: (_cwd: string) => ({
+        id: "lance",
+        capabilities: {
+          history: false,
+          sessions: false,
+          tenancy: false,
+          reasoning: false,
+          toolSchemas: false,
+          prefetch: false,
+        },
+        isAvailable: () => true,
+        write: async () =>
+          "lance:1" as unknown as import("../../../src/types/memory-adapter.js").MemoryId,
+        recall: async () => [],
+        delete: async () => {},
+      }),
     });
     expect(p.kind).toBe("memory");
   });

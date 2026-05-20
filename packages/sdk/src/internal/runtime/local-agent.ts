@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import { join } from "node:path";
-
 import { ConfigurationError, UnsupportedRunOperationError } from "../../errors.js";
 import type {
   AgentDefinition,
@@ -24,23 +21,26 @@ import {
   getSessionMessages,
   hydrateSession,
 } from "./agent-session.js";
-import { FileContextManager } from "./context-manager.js";
+import type { FileContextManager } from "./context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
+import { bootstrapSubmanagers } from "./local-agent-bootstrap.js";
+import { buildRealRunOptions, createFixtureRunHelper } from "./local-agent-dispatch.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
+import { buildAgentMemory } from "./local-agent-memory-direct.js";
+import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
 import { extractCodePlugins } from "./local-agent-plugins.js";
 import {
   localAgentFork,
   localAgentRunUntil,
   persistMemoryFactIfWritePrompt,
 } from "./local-agent-runtime-extensions.js";
-import { createLocalRun } from "./local-run.js";
 import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
-import { type PluginMetadata, PluginsManager } from "./plugins-manager.js";
+import type { PluginMetadata, PluginsManager } from "./plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
-import { ProvidersManagerImpl } from "./providers-manager.js";
+import type { ProvidersManagerImpl } from "./providers-manager.js";
 import { createRealLocalRun } from "./real-local-run.js";
-import { type SkillMetadata, SkillsManager } from "./skills-manager.js";
+import type { SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
 import {
   assembleSystemPromptForSend as assembleSystemPromptForSendHelper,
@@ -66,6 +66,7 @@ export class LocalAgent implements SDKAgent {
   providers?: ProvidersManagerImpl;
   skills?: { list: () => Promise<SkillMetadata[]> };
   plugins?: { list: () => Promise<PluginMetadata[]> };
+  memory?: import("../../types/memory-adapter.js").AgentMemory;
 
   private readonly options: AgentOptions;
   private readonly workspaceCwd: string;
@@ -90,46 +91,29 @@ export class LocalAgent implements SDKAgent {
     this.settingSourcesIncludeProject = includesSetting(options, "project");
     this.settingSourcesIncludePlugins = includesSetting(options, "plugins");
 
-    if (options.context !== undefined) {
-      this.context = new FileContextManager(
-        this.workspaceCwd,
-        options.context,
-        this.settingSourcesIncludeProject,
-      );
-    }
-
-    const providerCount =
-      (options.providers?.routes?.length ?? 0) + (options.plugins?.enabled?.length ?? 0);
-    if (providerCount > 0 || options.providers !== undefined) {
-      this.providers = new ProvidersManagerImpl(options.model, options.providers, options.plugins);
-    }
-
-    const skillsConfig = options.skills;
-    if (skillsConfig !== undefined || this.settingSourcesIncludeProject) {
-      this.skillsManager = new SkillsManager(
-        this.workspaceCwd,
-        skillsConfig?.enabled,
-        this.settingSourcesIncludeProject,
-      );
-      const localSkills = this.skillsManager;
-      this.skills = { list: () => localSkills.list() };
-    }
-
-    const pluginsConfig = options.plugins;
-    if (pluginsConfig !== undefined || this.settingSourcesIncludePlugins) {
-      this.pluginsManager = new PluginsManager(
-        this.workspaceCwd,
-        pluginsConfig?.enabled,
-        this.settingSourcesIncludePlugins,
-        false,
-        undefined,
-      );
-      const localPlugins = this.pluginsManager;
-      this.plugins = { list: () => localPlugins.list() };
-    }
+    const sub = bootstrapSubmanagers({
+      options,
+      workspaceCwd: this.workspaceCwd,
+      settingSourcesIncludeProject: this.settingSourcesIncludeProject,
+      settingSourcesIncludePlugins: this.settingSourcesIncludePlugins,
+    });
+    if (sub.context !== undefined) this.context = sub.context;
+    if (sub.providers !== undefined) this.providers = sub.providers;
+    this.skillsManager = sub.skillsManager;
+    if (sub.skills !== undefined) this.skills = sub.skills;
+    this.pluginsManager = sub.pluginsManager;
+    if (sub.plugins !== undefined) this.plugins = sub.plugins;
 
     this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
     this.memoryGlue = new LocalAgentMemory(options, this.workspaceCwd, this.agentId);
+    // ADR D141 / D142: `agent.memory.*` direct API over plugin-aggregated adapters.
+    // Built unconditionally; `requireAdapters` throws ConfigurationError when called
+    // without any registered memory plugin.
+    this.memory = buildAgentMemory(
+      this.pluginManagerCode,
+      this.workspaceCwd,
+      this.options.memoryContext,
+    );
 
     registerAgent({
       agentId: this.agentId,
@@ -222,6 +206,19 @@ export class LocalAgent implements SDKAgent {
 
     const userText = typeof message === "string" ? message : message.text;
     await this.runPreHook(userText);
+
+    // ADR D145 / EC-A: pre_user_send memory adapter hooks. Recalled context
+    // is capped at maxRecallContextBytes and injected as a <memory-context>
+    // fence BEFORE the user prompt reaches the LLM.
+    const adaptedMessage = await applyPreUserSendHook({
+      pluginManager: this.pluginManagerCode,
+      agentId: this.agentId,
+      options: this.options,
+      original: message,
+      userText,
+      sendOptions: options,
+    });
+
     // Capture prior history BEFORE appending the current user message so the
     // resumed/continuation agent loop sees the conversation up to (but not
     // including) the new send.
@@ -245,14 +242,22 @@ export class LocalAgent implements SDKAgent {
       activeMemorySummary,
     );
     const run = await this.dispatchRun(
-      message,
+      adaptedMessage,
       options,
       assembledSystemPrompt,
       memoryFacts,
       priorMessages,
       memoryTools,
     );
-    return run;
+    // ADR D145: wrap `wait()` so post_assistant_reply fires once after the run
+    // completes. Fire-and-forget (errors → stderr) so the caller never blocks.
+    return wrapRunWithPostReplyHook({
+      pluginManager: this.pluginManagerCode,
+      agentId: this.agentId,
+      options: this.options,
+      run,
+      userText,
+    });
   }
 
   private readMemoryForSend(): Promise<MemoryFact[]> {
@@ -333,66 +338,23 @@ export class LocalAgent implements SDKAgent {
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
     memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
   ): Promise<Run> {
+    const inputs = {
+      agentId: this.agentId,
+      model: this.model,
+      options: this.options,
+      workspaceCwd: this.workspaceCwd,
+      hooksExecutor: this.hooksExecutor,
+      pluginManager: this.pluginManagerCode,
+      resolvedSubagents: this.resolvedSubagents,
+      settingSourcesIncludeProject: this.settingSourcesIncludeProject,
+    };
     const apiKey = resolveApiKey(this.options.apiKey);
     if (shouldUseRealLocalRuntime(apiKey)) {
       return createRealLocalRun(
-        this.buildRealRunOptions(message, options, systemPrompt, priorMessages, memoryTools),
+        buildRealRunOptions({ inputs, message, options, systemPrompt, priorMessages, memoryTools }),
       );
     }
-    return this.createFixtureRun(message, options, systemPrompt, memoryFacts);
-  }
-
-  private buildRealRunOptions(
-    message: string | SDKUserMessage,
-    options: SendOptions,
-    systemPrompt: string | undefined,
-    priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
-    memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
-  ): Parameters<typeof createRealLocalRun>[0] {
-    return {
-      agentId: this.agentId,
-      model: this.model,
-      message,
-      agentOptions: this.options,
-      sendOptions: options,
-      workspaceCwd: this.workspaceCwd,
-      hooks: this.hooksExecutor,
-      pluginManager: this.pluginManagerCode,
-      ...(systemPrompt !== undefined ? { systemPrompt } : {}),
-      ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
-      ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
-      ...(priorMessages.length > 0 ? { priorMessages } : {}),
-      ...(memoryTools !== undefined && memoryTools.length > 0 ? { memoryTools } : {}),
-    };
-  }
-
-  private async createFixtureRun(
-    message: string | SDKUserMessage,
-    options: SendOptions,
-    systemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-  ): Promise<Run> {
-    // Memory write is now handled by maybePersistMemoryFactFromUserMessage in
-    // send() — no need to thread persistMemoryFact into the fixture run,
-    // which would cause a double-write (edge-case review EC-2).
-    const sessionMessages = getSessionMessages(this.agentId);
-    const projectMcpServers = this.settingSourcesIncludeProject
-      ? await readProjectMcpServers(this.workspaceCwd)
-      : {};
-    return createLocalRun({
-      agentId: this.agentId,
-      model: this.model,
-      message,
-      agentOptions: this.options,
-      sendOptions: options,
-      workspaceCwd: this.workspaceCwd,
-      subagents: this.resolvedSubagents,
-      settingSourcesIncludeProject: this.settingSourcesIncludeProject,
-      memoryFacts: [...memoryFacts],
-      sessionMessages,
-      projectMcpServers,
-      ...(systemPrompt !== undefined ? { systemPrompt } : {}),
-    });
+    return createFixtureRunHelper({ inputs, message, options, systemPrompt, memoryFacts });
   }
 
   close(): void {
@@ -462,15 +424,4 @@ function includesSetting(options: AgentOptions, source: string): boolean {
   return (
     sources !== undefined && (sources.includes(source as never) || sources.includes("all" as never))
   );
-}
-
-async function readProjectMcpServers(cwd: string): Promise<Record<string, unknown>> {
-  const path = join(cwd, ".theokit", "mcp.json");
-  try {
-    const raw = await readFile(path, "utf8");
-    const parsed = JSON.parse(raw) as { servers?: Record<string, unknown> };
-    return parsed.servers ?? {};
-  } catch {
-    return {};
-  }
 }

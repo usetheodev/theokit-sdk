@@ -137,6 +137,14 @@ export interface SendOptions {
   onDelta?: (args: { update: InteractionUpdate }) => void | Promise<void>;
   /** Local agents only. Expire a stuck active run before starting this message. */
   local?: { force?: boolean };
+  /**
+   * Optional `AbortSignal` propagated to memory adapter `pre_user_send`
+   * hooks (EC-H). Note: the LLM HTTP call itself is NOT cancellable
+   * mid-stream — same constraint as `Agent.batch` (ADR D140).
+   *
+   * @public
+   */
+  signal?: AbortSignal;
 }
 
 /**

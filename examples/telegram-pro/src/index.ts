@@ -138,6 +138,7 @@ bot.command("help", async (ctx) => {
       "/goal <prompt> — Agent.runUntil(goal) Ralph loop with judge model (v1.3)",
       "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
       "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
+      "/memory <provider> <topic> — third-party memory adapter (supermemory/honcho/mem0, v1.12)",
       "/reset — clear this thread's history (memory facts stay)",
       "",
       "*Modes detected automatically:*",
@@ -362,6 +363,105 @@ bot.command("batch", async (ctx) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`Batch failed: ${msg.slice(0, 400)}`);
+  }
+});
+
+// ────────────────────── /memory — third-party memory adapters (v1.12, ADRs D141-D149) ──────────────────────
+//
+// Demonstrates @usetheo/memory-{supermemory,honcho,mem0} adapters via
+// agent.memory.write/recall + LLM-driven pre_user_send context injection.
+// Each provider is env-gated — missing key → polite error, NOT a crash.
+bot.command("memory", async (ctx) => {
+  const args = (ctx.match ?? "").toString().trim().split(/\s+/);
+  const provider = args[0] ?? "";
+  const topic = args.slice(1).join(" ").trim();
+  if (provider === "" || topic === "") {
+    await ctx.reply(
+      [
+        "*Usage:* `/memory <provider> <topic>`",
+        "",
+        "Provider: `supermemory` · `honcho` · `mem0`",
+        "Example: `/memory supermemory jazz`",
+        "",
+        "Each provider is opt-in via env var (SUPERMEMORY_API_KEY / HONCHO_API_KEY / MEM0_API_KEY).",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+  const envName =
+    provider === "supermemory"
+      ? "SUPERMEMORY_API_KEY"
+      : provider === "honcho"
+        ? "HONCHO_API_KEY"
+        : provider === "mem0"
+          ? "MEM0_API_KEY"
+          : "";
+  if (envName === "") {
+    await ctx.reply(`Unknown provider: ${provider}. Use supermemory, honcho, or mem0.`);
+    return;
+  }
+  const apiKey = process.env[envName];
+  if (apiKey === undefined || apiKey === "") {
+    await ctx.reply(`Set ${envName} in .env to use the ${provider} adapter.`);
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+  try {
+    const { Agent } = await import("@usetheo/sdk");
+    let memoryPlugin: unknown;
+    if (provider === "supermemory") {
+      const { supermemoryMemory } = await import("@usetheo/memory-supermemory");
+      memoryPlugin = supermemoryMemory({
+        apiKey,
+        containerTagPrefix: `theokit-tg-${Date.now()}`,
+      });
+    } else if (provider === "honcho") {
+      const { honchoMemory } = await import("@usetheo/memory-honcho");
+      memoryPlugin = honchoMemory({ apiKey });
+    } else {
+      const { mem0Memory } = await import("@usetheo/memory-mem0");
+      memoryPlugin = mem0Memory({ apiKey });
+    }
+    const userId = String(ctx.from?.id ?? "demo-user");
+    const agent = await Agent.create({
+      apiKey: API_KEY,
+      model: { id: "openai/gpt-4o-mini" },
+      local: { cwd: CWD, sandboxOptions: { enabled: false } },
+      plugins: [memoryPlugin] as unknown as import("@usetheo/sdk").AgentOptions["plugins"],
+      memoryContext: { userId },
+    });
+    try {
+      // Write 3 facts about the topic
+      await agent.memory!.write(`User is curious about ${topic}.`);
+      await agent.memory!.write(`Three notable artists in ${topic}: A, B, C.`);
+      await agent.memory!.write(`Common terms in ${topic} discussions: rhythm, harmony.`);
+
+      // Recall
+      const facts = await agent.memory!.recall(`information about ${topic}`, undefined, 3);
+      const recallLines =
+        facts.length === 0
+          ? "(no facts recalled)"
+          : facts
+              .map((f, i) => `${i + 1}. [${f.score?.toFixed(2) ?? "?"}] ${f.content.slice(0, 100)}`)
+              .join("\n");
+
+      await ctx.reply(
+        [
+          `*Memory adapter:* ${provider}`,
+          "",
+          `*Wrote 3 facts* about ${topic}.`,
+          "",
+          `*Recalled (k=3):*\n${recallLines}`,
+        ].join("\n"),
+        { parse_mode: "Markdown" },
+      );
+    } finally {
+      await agent.dispose();
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`/memory ${provider} failed: ${msg.slice(0, 300)}`);
   }
 });
 

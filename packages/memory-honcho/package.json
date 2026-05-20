@@ -1,0 +1,47 @@
+{
+  "name": "@usetheo/memory-honcho",
+  "version": "0.1.0",
+  "description": "Honcho memory adapter for @usetheo/sdk — wraps @honcho-ai/sdk with the MemoryAdapter contract (ADR D141).",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@honcho-ai/sdk": "^2.1.0",
+    "@usetheo/sdk": "workspace:^"
+  },
+  "devDependencies": {
+    "@honcho-ai/sdk": "^2.1.1",
+    "@usetheo/sdk": "workspace:*",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}

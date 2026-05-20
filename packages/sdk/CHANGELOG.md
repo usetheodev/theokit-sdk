@@ -2,6 +2,64 @@
 
 ## [Unreleased]
 
+### Added (v1.12 memory-provider-adapters — ADRs D141-D149)
+
+- **`packages/sdk/src/types/memory-adapter.ts`** — public `MemoryAdapter`,
+  `MemoryContext`, `MemoryFact`, `MemoryId`, `MemoryRevision`,
+  `MemoryAdapterCapabilities`, `AgentMemory`, `MemoryToolSchema`,
+  `MemoryTurnMessage` types. `mkMemoryId(provider, raw)` +
+  `extractRawId(id, expected)` enforce cross-adapter id integrity
+  (EC-B: prevents `mem0.delete(supermemoryId)` footgun).
+- **`packages/sdk/src/errors.ts`** — new public `MemoryAdapterError`
+  + finite `MemoryAdapterErrorCode` literal union (`"auth_failed"`,
+  `"rate_limited"`, `"not_found"`, `"network"`, `"invalid_input"`,
+  `"unknown"`).
+- **`packages/sdk/src/internal/plugins/types.ts`** — narrows
+  `MemoryProviderFactory` return type from `unknown` to
+  `MemoryAdapter | Promise<MemoryAdapter>`. Adds `PreUserSendContext`,
+  `PreUserSendResult`, `PostAssistantReplyContext` interfaces and
+  the two new `HookName` entries.
+- **`packages/sdk/src/internal/plugins/manager.ts`** —
+  `runPreUserSendHooks(ctx, maxBytes)` concatenates handler results,
+  caps at `maxRecallContextBytes` (EC-A), isolates per-handler
+  failures to stderr. `runPostAssistantReplyHooks(ctx)` fire-and-forget.
+- **`packages/sdk/src/internal/runtime/local-agent.ts`** wires the new
+  hooks: `pre_user_send` injects `<memory-context>` fence around the
+  prompt (EC-G safe — only injected fence is trimmed); `post_assistant_reply`
+  fires after `run.wait()` via a wrapped `Run` proxy.
+- **`packages/sdk/src/internal/runtime/local-agent-memory-direct.ts`**
+  — `buildAgentMemory(pluginManager, cwd, defaultCtx)` builds the
+  `agent.memory.{write,recall,delete}` direct API. Lazy initialize
+  (EC-I, fires once on first call). Multi-adapter fan-out for writes;
+  merge + dedupe by content for recalls.
+- **`packages/sdk/src/types/agent.ts`** — extends `AgentOptions` with
+  `memoryContext` + `maxRecallContextBytes`; `SDKAgent` interface with
+  `memory: AgentMemory`. `SendOptions.signal: AbortSignal` for EC-H.
+
+### New workspace packages
+
+- **`@usetheo/memory-supermemory@0.1.0`** — Supermemory wrapper
+  (`supermemory@^4.21`, zero-dep MIT). EC-C identifier sanitization
+  on every containerTag component.
+- **`@usetheo/memory-honcho@0.1.0`** — Honcho wrapper
+  (`@honcho-ai/sdk@^2.1`). EC-D session namespaced under userId to
+  prevent cross-user leak. AGPL self-host disclosure in README.
+- **`@usetheo/memory-mem0@0.1.0`** — Mem0 cloud-only wrapper (D148:
+  no OSS local mode). Unique `history(id)` capability. Circuit
+  breaker (EC-K: 429 does NOT trip). CVSS 8.1 disclosure in README.
+
+### Test counts
+
+- 1032 → **1062 PASS** baseline + 9 new memory-adapter tests in SDK
+  (memory-adapter contract + aggregation + dispatch + direct API).
+- Adapter packages: Supermemory 21/21, Honcho 17/17, Mem0 18/18 =
+  **56 adapter-package tests**.
+- 9 new ADRs (D141-D149).
+- 3 real-LLM examples (`examples/memory-*-basic`).
+- CLAUDE.md SDK Roadmap row #3 (Memory Providers, score 7) → ✅ DONE.
+
+---
+
 ### Added (v1.11 batch-processing — ADRs D134-D140)
 
 - **`Agent.batch(prompts, options)`** — new static method on the `Agent`

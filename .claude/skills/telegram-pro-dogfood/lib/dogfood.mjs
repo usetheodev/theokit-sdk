@@ -195,6 +195,32 @@ const COMMANDS = [
     expect: [/Credential Pool status/i, /Strategy:.*fill_first/i],
     waitMs: 8000,
   },
+
+  // ── v1.12 Memory adapters (ADRs D141-D149) — env-gated 3rd-party providers ──
+  // Each scenario exercises Agent.memory.write + recall against a real
+  // managed memory provider, then prompts via agent.send to verify the
+  // pre_user_send hook injects recalled context into the LLM call.
+  {
+    text: "/memory supermemory jazz",
+    expect: [/Wrote 3 facts|memory.*jazz/i, /Recalled|fact/i],
+    waitMs: 60000,
+    retryOnError: true,
+    envGate: "SUPERMEMORY_API_KEY",
+  },
+  {
+    text: "/memory honcho jazz",
+    expect: [/Wrote|reasoning|fact/i, /jazz|music/i],
+    waitMs: 90000,
+    retryOnError: true,
+    envGate: "HONCHO_API_KEY",
+  },
+  {
+    text: "/memory mem0 jazz",
+    expect: [/Wrote|history|fact|memory/i, /jazz|music/i],
+    waitMs: 60000,
+    retryOnError: true,
+    envGate: "MEM0_API_KEY",
+  },
 ];
 
 // ─── Helpers ───
@@ -436,6 +462,22 @@ async function main() {
       console.log(`⏭️  SKIP ${cmd.text}: ${cmd.skip}`);
       results.push({ ...cmd, status: "SKIP", elapsed: 0 });
       continue;
+    }
+    // EC-E: envGate — when the named env var is missing, skip the scenario
+    // (counts toward PASS for green CI). The bot doesn't ship adapter env
+    // requirements; consumers opt in to memory providers explicitly.
+    if (cmd.envGate !== undefined) {
+      const required = String(cmd.envGate);
+      if (ENV[required] === undefined || ENV[required] === "") {
+        console.log(`⏭️  SKIP ${cmd.text}: env ${required} unset`);
+        results.push({
+          ...cmd,
+          status: "SKIP",
+          elapsed: 0,
+          reason: `env ${required} unset`,
+        });
+        continue;
+      }
     }
     const t0 = Date.now();
     // Anchor on data-message-id (survives Telegram Web virtualization —
