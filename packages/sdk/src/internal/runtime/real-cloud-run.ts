@@ -5,6 +5,7 @@ import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "
 import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl } from "../fixture-mode.js";
 import { parseSseStream } from "../llm/sse.js";
+import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { FixtureScript } from "./fixture-types.js";
 
@@ -29,6 +30,10 @@ export interface CreateRealCloudRunOptions {
   agentOptions: AgentOptions;
   sendOptions: SendOptions;
   fetch?: typeof fetch;
+  /** Pre-resolved system prompt threaded by `CloudAgent.send`. */
+  systemPrompt?: string;
+  /** Canonical cloud-agent payload (ADR D15) — embedded in POST body as `agentConfig`. */
+  agentConfig?: CloudAgentPayload;
 }
 
 export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
@@ -42,7 +47,9 @@ export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
     "downloadArtifact",
   ]);
 
-  const placeholderScript: FixtureScript = {
+  // FixtureScript shape required by the base Run class but never consumed
+  // by the real cloud run path (the cloud transport drives events instead).
+  const unusedFixtureScript: FixtureScript = {
     events: [],
     finalStatus: "running",
     cancellable: false,
@@ -56,7 +63,7 @@ export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
       id,
       agentId: options.agentId,
       model: options.model,
-      script: placeholderScript,
+      script: unusedFixtureScript,
       supportedOps: supported,
       startTime,
     },
@@ -66,6 +73,8 @@ export function createRealCloudRun(options: CreateRealCloudRunOptions): Run {
       userText,
       fetchImpl: options.fetch ?? fetch,
       sendOptions: options.sendOptions,
+      systemPrompt: options.systemPrompt,
+      agentConfig: options.agentConfig,
     },
   );
   handle.bootstrap();
@@ -78,6 +87,8 @@ interface RealCloudRunInputs {
   userText: string;
   fetchImpl: typeof fetch;
   sendOptions: SendOptions;
+  systemPrompt: string | undefined;
+  agentConfig: CloudAgentPayload | undefined;
 }
 
 class RealCloudRun extends FixtureRunBase {
@@ -133,6 +144,10 @@ class RealCloudRun extends FixtureRunBase {
       body: JSON.stringify({
         message: this.inputs.userText,
         mcpServers: this.inputs.sendOptions.mcpServers,
+        ...(this.inputs.systemPrompt !== undefined
+          ? { systemPrompt: this.inputs.systemPrompt }
+          : {}),
+        ...(this.inputs.agentConfig !== undefined ? { agentConfig: this.inputs.agentConfig } : {}),
       }),
     });
     if (!response.ok) {
@@ -202,11 +217,14 @@ class RealCloudRun extends FixtureRunBase {
     };
   }
 
-  private fail(message: string): void {
+  private fail(message: string, code?: string): void {
     const event: SDKAssistantMessage = this.buildAssistantEvent(message);
     this.script.events.push(event satisfies SDKMessage);
     this.notifyNewEvents();
     this.script.result = message;
+    if (this.script.errorDetail === undefined) {
+      this.script.errorDetail = { message, ...(code !== undefined ? { code } : {}) };
+    }
     this.transitionTo("error" satisfies RunStatus);
   }
 }

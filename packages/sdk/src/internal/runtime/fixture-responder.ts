@@ -1,5 +1,6 @@
 import type { SDKMessage } from "../../types/messages.js";
 import type { RunResult } from "../../types/run.js";
+import { redactSecrets } from "../security/index.js";
 import {
   buildCloudScript,
   contextAwareScript,
@@ -101,16 +102,17 @@ function buildLocalScript(request: FixtureRequest): FixtureScript {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Secret redaction — strips obvious provider tokens from event payloads
+// Secret redaction — strips obvious provider tokens + fixture sentinel
+// from event payloads. Canonical patterns come from `internal/security`;
+// the `fixture-search-secret` sentinel is local because:
+//   - EC-2 fix: registering it via `Security.addPattern` would be cleared
+//     by `_resetForTests({ clearExtras: true })` between tests (the module
+//     init only runs once per worker).
+//   - The sentinel is specific to fixture mode and shouldn't pollute the
+//     global redaction surface that other consumers see.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const SECRET_VALUE_PATTERNS: RegExp[] = [
-  /sk-proj-[A-Za-z0-9_-]+/g,
-  /ghp_[A-Za-z0-9_-]+/g,
-  /sk-[A-Za-z0-9_-]{20,}/g,
-  /Bearer\s+[A-Za-z0-9_-]{8,}/g,
-  /fixture-search-secret/g,
-];
+const FIXTURE_SENTINEL = /fixture-search-secret/g;
 
 function redactScriptSecrets(script: FixtureScript): FixtureScript {
   const events = script.events.map(redactEventSecrets);
@@ -119,10 +121,10 @@ function redactScriptSecrets(script: FixtureScript): FixtureScript {
 
 function redactEventSecrets(event: SDKMessage): SDKMessage {
   const serialized = JSON.stringify(event);
-  let redacted = serialized;
-  for (const pattern of SECRET_VALUE_PATTERNS) {
-    redacted = redacted.replace(pattern, "***");
-  }
+  // Step 1: local fixture sentinel — scoped to this module only.
+  const localStripped = serialized.replace(FIXTURE_SENTINEL, "***");
+  // Step 2: canonical redaction (12 builtin patterns + PARAM + user extras).
+  const redacted = redactSecrets(localStripped);
   if (redacted === serialized) return event;
   return JSON.parse(redacted) as SDKMessage;
 }

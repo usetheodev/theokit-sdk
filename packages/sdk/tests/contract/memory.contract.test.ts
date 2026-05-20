@@ -15,7 +15,7 @@ describe("memory contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const baseOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       memory: {
         enabled: true,
@@ -46,7 +46,7 @@ describe("memory contract", () => {
     workspace = await createTempWorkspace("simple-node-project");
     const userAOptions: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       memory: { enabled: true, namespace: "sdk-contract", userId: "user-a", scope: "user" },
     };
@@ -60,7 +60,7 @@ describe("memory contract", () => {
 
     const userBOptions: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
-      model: { id: "composer-2" },
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace.cwd },
       memory: { enabled: true, namespace: "sdk-contract", userId: "user-b", scope: "user" },
     };
@@ -80,7 +80,7 @@ describe("memory contract", () => {
     await expect(
       Agent.create({
         apiKey: "theo_test_contract_key",
-        model: { id: "composer-2" },
+        model: { id: "google/gemini-2.0-flash-001" },
         local: { cwd: workspace.cwd },
         memory: {
           enabled: true,

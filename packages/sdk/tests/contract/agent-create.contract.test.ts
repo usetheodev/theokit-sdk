@@ -4,7 +4,7 @@ import { Agent, type SDKAgent } from "../../src/index.js";
 import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspace.js";
 
 const apiKey = "theo_test_contract_key";
-const model = { id: "composer-2" };
+const model = { id: "google/gemini-2.0-flash-001" };
 const asyncDisposeSymbol = (Symbol as unknown as { asyncDispose: symbol }).asyncDispose;
 
 describe("Agent.create contract", () => {

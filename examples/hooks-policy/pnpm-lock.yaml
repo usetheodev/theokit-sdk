@@ -180,9 +180,16 @@ packages:
   '@usetheo/sdk@file:../../packages/sdk':
     resolution: {directory: ../../packages/sdk, type: directory}
     engines: {node: '>=22.12.0'}
+    hasBin: true
     peerDependencies:
+      better-sqlite3: ^12.0.0
+      sqlite-vec: ^0.1.0
       zod: ^3.25.0 || ^4.0.0
     peerDependenciesMeta:
+      better-sqlite3:
+        optional: true
+      sqlite-vec:
+        optional: true
       zod:
         optional: true
 
