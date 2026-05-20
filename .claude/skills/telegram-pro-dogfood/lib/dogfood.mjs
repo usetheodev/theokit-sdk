@@ -221,6 +221,15 @@ const COMMANDS = [
     retryOnError: true,
     envGate: "MEM0_API_KEY",
   },
+
+  // ── v1.13 Context Files coverage (ADRs D150-D159) ──
+  // Lists discovered context files (AGENTS.md, CLAUDE.md, .theokit/context/*).
+  // No LLM call — pure FileContextManager snapshot probe.
+  {
+    text: "/context",
+    expect: [/Context files discovered/i, /AGENTS\.md|CLAUDE\.md|bot-readme/],
+    waitMs: 10000,
+  },
 ];
 
 // ─── Helpers ───
