@@ -1,0 +1,12 @@
+# Changelog
+
+## 0.1.0
+
+### Added
+- Initial release. Implements `MemoryAdapter` (ADR D141) over `@honcho-ai/sdk@^2.1`.
+- `honchoMemory(options)` factory.
+- `write` → `session.addMessages([peer.message(text)])`.
+- `recall` → `peer.chat(query, { session })` → ONE synthesized fact (EC-J).
+- EC-D: session keys namespaced under userId to prevent cross-user leak.
+- EC-B: `MemoryId` prefix validation in `delete`.
+- AGPL-3.0 self-host disclosure in README.

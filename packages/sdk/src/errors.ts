@@ -247,3 +247,45 @@ export class CredentialPoolExhaustedError extends TheokitAgentError {
     this.nextRetryAt = options.nextRetryAt;
   }
 }
+
+/**
+ * Finite error codes specific to memory adapter operations (ADR D141).
+ *
+ * @public
+ */
+export type MemoryAdapterErrorCode =
+  | "auth_failed"
+  | "rate_limited"
+  | "not_found"
+  | "network"
+  | "invalid_input"
+  | "unknown";
+
+/**
+ * Error raised by `@theokit-memory-*` adapters. Carries `adapterId`
+ * so callers can branch on which provider failed (ADR D141).
+ *
+ * @public
+ */
+export class MemoryAdapterError extends TheokitAgentError {
+  override readonly name: string = "MemoryAdapterError";
+  readonly adapterId: string;
+
+  constructor(
+    message: string,
+    options: {
+      adapterId: string;
+      code: MemoryAdapterErrorCode;
+      cause?: unknown;
+      metadata?: ErrorMetadata;
+    },
+  ) {
+    super(message, {
+      isRetryable: options.code === "rate_limited" || options.code === "network",
+      code: options.code,
+      ...(options.cause !== undefined ? { cause: options.cause } : {}),
+      ...(options.metadata !== undefined ? { metadata: options.metadata } : {}),
+    });
+    this.adapterId = options.adapterId;
+  }
+}

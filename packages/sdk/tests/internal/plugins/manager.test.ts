@@ -119,7 +119,22 @@ describe("PluginManager (T1.3)", () => {
   });
 
   it("memory plugin collects factory", async () => {
-    const fac = (_cwd: string) => ({});
+    const fac = (_cwd: string) => ({
+      id: "lance",
+      capabilities: {
+        history: false,
+        sessions: false,
+        tenancy: false,
+        reasoning: false,
+        toolSchemas: false,
+        prefetch: false,
+      },
+      isAvailable: () => true,
+      write: async () =>
+        "lance:1" as unknown as import("../../../src/types/memory-adapter.js").MemoryId,
+      recall: async () => [],
+      delete: async () => {},
+    });
     const plugin: Plugin = {
       name: "lance",
       version: "1.0",

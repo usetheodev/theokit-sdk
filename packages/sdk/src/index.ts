@@ -17,6 +17,8 @@ export {
   AuthenticationError,
   ConfigurationError,
   IntegrationNotConnectedError,
+  MemoryAdapterError,
+  type MemoryAdapterErrorCode,
   NetworkError,
   RateLimitError,
   TheokitAgentError,
@@ -45,6 +47,8 @@ export {
   type DreamingSweepResult,
   Memory,
 } from "./memory.js";
+// Memory adapter helpers (ADR D141)
+export { extractRawId, mkMemoryId } from "./memory-adapter-helpers.js";
 // Migration helper (ADR D44) — re-exported for use by the bin CLI.
 export {
   type MigrateOptions,
@@ -64,6 +68,5 @@ export {
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 // Trajectory export (ADR D139) — opt-in ShareGPT converter
 export { toShareGptTrajectory } from "./trajectory-helpers.js";
-
 // Type contract
 export type * from "./types/index.js";

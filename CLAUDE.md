@@ -307,6 +307,15 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D138 | Fresh agent per prompt; credential pool shared via ALS (`withCredentialPool`) | [D138-batch-fresh-agent-per-prompt-shared-pool.md](./.claude/knowledge-base/adrs/D138-batch-fresh-agent-per-prompt-shared-pool.md) |
 | D139 | ShareGPT trajectory export is opt-in helper (`toShareGptTrajectory`) | [D139-sharegpt-trajectory-opt-in-helper.md](./.claude/knowledge-base/adrs/D139-sharegpt-trajectory-opt-in-helper.md) |
 | D140 | `AbortSignal` cancels pending prompts only; in-flight ones complete | [D140-batch-abort-pending-only.md](./.claude/knowledge-base/adrs/D140-batch-abort-pending-only.md) |
+| D141 | `MemoryAdapter` formal interface + EC-B `mkMemoryId`/`extractRawId` prefix scheme | [D141-memory-adapter-interface.md](./.claude/knowledge-base/adrs/D141-memory-adapter-interface.md) |
+| D142 | Memory adapters expose dual surface (API direta + LLM tool schemas) | [D142-memory-dual-surface.md](./.claude/knowledge-base/adrs/D142-memory-dual-surface.md) |
+| D143 | Each adapter is a separate workspace package (`@usetheo/memory-*`) | [D143-memory-workspace-packages.md](./.claude/knowledge-base/adrs/D143-memory-workspace-packages.md) |
+| D144 | Background prefetch is opt-in (default off) | [D144-memory-prefetch-opt-in.md](./.claude/knowledge-base/adrs/D144-memory-prefetch-opt-in.md) |
+| D145 | Agent loop integrates memory via 2 new hooks (`pre_user_send`/`post_assistant_reply`), not a parallel MemoryManager | [D145-memory-hooks-not-manager.md](./.claude/knowledge-base/adrs/D145-memory-hooks-not-manager.md) |
+| D146 | Memory adapter HTTP errors do NOT flow through CredentialPool | [D146-memory-no-credential-pool.md](./.claude/knowledge-base/adrs/D146-memory-no-credential-pool.md) |
+| D147 | `MemoryContext` is minimal; only `userId` is required | [D147-memory-context-minimal.md](./.claude/knowledge-base/adrs/D147-memory-context-minimal.md) |
+| D148 | `@usetheo/memory-mem0` ships cloud client only (no OSS local mode) | [D148-mem0-cloud-only.md](./.claude/knowledge-base/adrs/D148-mem0-cloud-only.md) |
+| D149 | Adapter READMEs carry mandatory AGPL/CVSS disclosure sections | [D149-memory-readme-disclosures.md](./.claude/knowledge-base/adrs/D149-memory-readme-disclosures.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -319,8 +328,8 @@ Open question that remained:
 |---|---|---:|---|
 | ~~1~~ | ~~**Credential Pools** (Hermes #20)~~ ✅ DONE 2026-05-20 | ~~9~~ | Shipped via ADRs D123-D133. `internal/llm/credential-pool.ts` + `pool-aware-client.ts` + `credential-pool-store.ts`. 4 strategies, error-aware cooldown ladder, retry-then-rotate, fork inheritance, 100% backward compat. 1000+ fast-check runs. |
 | ~~2~~ | ~~**Batch Processing** (Hermes #11)~~ ✅ DONE 2026-05-20 | ~~8~~ | Shipped via ADRs D134-D140. `Agent.batch(prompts, options)` static + `internal/runtime/async-semaphore.ts` (in-house, no `p-limit` dep) + `trajectory-helpers.ts` (opt-in ShareGPT exporter) + router ALS wiring so all in-flight batch agents share one CredentialPool (EC-A fix). Default concurrency 4. Failure isolation per-prompt. AbortSignal pending-only with `signal.reason` propagation. 55 new tests + 1600 fast-check runs. |
-| 3 | **Memory Providers built-in adapters** (Hermes #22) | 7 | Extension point já existe (ADR D98 `kind: "memory"`); falta shippar 2-3 adapters (Honcho / Mem0 / Supermemory) como pacotes `@theokit-memory-*`. |
-| 4 | **Context Files — coverage completo** (Hermes #4) | 6 | `FileContextManager` hoje lê CLAUDE.md / AGENTS.md. Falta: SOUL.md, .cursorrules, .hermes.md. Loader extension trivial. |
+| ~~3~~ | ~~**Memory Providers built-in adapters** (Hermes #22)~~ ✅ DONE 2026-05-20 | ~~7~~ | Shipped via ADRs D141-D149. Formal `MemoryAdapter` interface + 3 workspace packages: `@usetheo/memory-supermemory` (zero-dep MIT default), `@usetheo/memory-honcho` (dialectic reasoning + AGPL disclosure), `@usetheo/memory-mem0` (cloud-only D148, unique `history(id)`, CVSS disclosure). 2 new agent-loop hooks (`pre_user_send`/`post_assistant_reply`) with EC-A context-byte cap, EC-B cross-adapter id rejection, EC-C identifier sanitization, EC-D Honcho session namespacing, EC-K Mem0 breaker-ignores-429. `agent.memory.{write,recall,delete}` direct API with lazy `initialize()`. 30 SDK tests + 56 adapter-package tests + 3 real-LLM examples. |
+| 4 | **Context Files — coverage completo** (Hermes #4) | 6 | `FileContextManager` hoje lê CLAUDE.md / AGENTS.md. Falta: SOUL.md, .cursorrules, .hermes.md. Loader extension trivial. ANALSIE TEMOS QUE TER O THEO.md | 
 | 5 | **Personality presets** (Hermes #26) | 5 | `systemPrompt` resolver layer (`/personality` preset switcher per session). Light shim sobre primitivo existente. |
 | 6 | **Image generation contract** (Hermes #15) | 5 | Plugin `kind: "image-provider"` — extension point apenas, NÃO o adapter FAL.ai específico. Esse fica em `@theokit-image-fal`. |
 | 7 | **TTS contract** (Hermes #16) | 5 | Plugin `kind: "tts-provider"` — extension point apenas, NÃO o playback de áudio (que é UX layer). |

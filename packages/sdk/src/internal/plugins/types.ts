@@ -14,6 +14,7 @@
  */
 
 import type { CustomTool } from "../../types/agent.js";
+import type { MemoryAdapter } from "../../types/memory-adapter.js";
 import type { ProviderProfile } from "../providers/types.js";
 
 export type HookName =
@@ -24,7 +25,10 @@ export type HookName =
   | "on_session_start"
   | "on_session_end"
   | "transform_tool_result"
-  | "transform_llm_output";
+  | "transform_llm_output"
+  // Memory adapter hooks (ADRs D141 / D145).
+  | "pre_user_send"
+  | "post_assistant_reply";
 
 export interface PreToolCallContext {
   name: string;
@@ -36,6 +40,47 @@ export interface PreToolCallContext {
 export interface PreToolCallDecision {
   block: true;
   message: string;
+}
+
+/**
+ * Context passed to `pre_user_send` hook handlers (ADR D145).
+ *
+ * @public
+ */
+export interface PreUserSendContext {
+  prompt: string;
+  agentId: string;
+  runId: string;
+  /** Caller-supplied memory context, flowing through from `AgentOptions.memoryContext`. */
+  memoryContext?: import("../../types/memory-adapter.js").MemoryContext;
+  /** Forwarded `AbortSignal` so adapter recall HTTP can be cancelled mid-flight (EC-H). */
+  signal?: AbortSignal;
+}
+
+/**
+ * Optional result returned by `pre_user_send` handlers. The agent loop
+ * concatenates `recalledContext` from all handlers and injects it as a
+ * `<memory-context>...</memory-context>` block before the user prompt.
+ *
+ * @public
+ */
+export interface PreUserSendResult {
+  recalledContext?: string;
+}
+
+/**
+ * Context passed to `post_assistant_reply` hook handlers (ADR D145).
+ * Fire-and-forget — exceptions are caught and surfaced to stderr; the
+ * caller's `wait()` never blocks on this dispatch.
+ *
+ * @public
+ */
+export interface PostAssistantReplyContext {
+  prompt: string;
+  reply: string;
+  agentId: string;
+  runId: string;
+  memoryContext?: import("../../types/memory-adapter.js").MemoryContext;
 }
 
 export type HookHandler = (ctx: unknown) => unknown | Promise<unknown>;
@@ -63,13 +108,17 @@ interface BasePlugin {
 }
 
 /**
- * Memory provider factory shape. Forward declaration — full Memory plugin
- * support is out of scope for the agent-extension plan but the kind is
- * already in the union so the discriminator stays exhaustive.
+ * Memory provider factory shape (ADR D141). Returns a `MemoryAdapter`
+ * (sync) or a Promise resolving to one (lazy HTTP probe / config load).
+ *
+ * Adapters live in `@theokit-memory-*` packages; the SDK never imports
+ * them. Factory rejection is caught by the plugin manager and surfaced
+ * as `ConfigurationError(code: "plugin_factory_failed")` (EC-F) — never
+ * an unhandled rejection.
  *
  * @internal
  */
-export type MemoryProviderFactory = (cwd: string) => unknown;
+export type MemoryProviderFactory = (cwd: string) => MemoryAdapter | Promise<MemoryAdapter>;
 
 export type Plugin =
   | (BasePlugin & {
