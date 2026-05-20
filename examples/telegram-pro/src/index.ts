@@ -139,6 +139,7 @@ bot.command("help", async (ctx) => {
       "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
       "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
       "/memory <provider> <topic> — third-party memory adapter (supermemory/honcho/mem0, v1.12)",
+      "/context — list discovered context files (AGENTS.md, CLAUDE.md, etc., v1.13)",
       "/reset — clear this thread's history (memory facts stay)",
       "",
       "*Modes detected automatically:*",
@@ -462,6 +463,46 @@ bot.command("memory", async (ctx) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`/memory ${provider} failed: ${msg.slice(0, 300)}`);
+  }
+});
+
+// ────────────────────── /context — context-file discovery showcase (v1.13, ADRs D150-D159) ──────────────────────
+//
+// Lists every context file FileContextManager discovered from the
+// repo: AGENTS.md, CLAUDE.md, GEMINI.md, .cursor/rules/*.mdc,
+// .theokit/context/*.md, .theokit/THEO.md. Demonstrates walk-up,
+// @import resolution, and aggregate cap status.
+bot.command("context", async (ctx) => {
+  await ctx.replyWithChatAction("typing");
+  try {
+    const { Agent } = await import("@usetheo/sdk");
+    const agent = await Agent.create({
+      apiKey: API_KEY,
+      model: { id: "openai/gpt-4o-mini" },
+      local: { cwd: CWD, sandboxOptions: { enabled: false } },
+      context: { manager: "file" },
+    });
+    try {
+      const snap = await agent.context!.snapshot();
+      if (snap.sources.length === 0) {
+        await ctx.reply("Context files discovered: (none)");
+        return;
+      }
+      const lines = snap.sources.map((s) => {
+        const status = s.status === "summarized" ? " (truncated)" : "";
+        return `• ${s.name}${status}`;
+      });
+      const usedTokens = snap.budget?.usedTokens;
+      const tokenCount = Array.isArray(usedTokens) ? usedTokens.length : 0;
+      await ctx.reply(
+        `Context files discovered:\n${lines.join("\n")}\n\n(${tokenCount} token-chunks total)`,
+      );
+    } finally {
+      await agent.dispose();
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`/context failed: ${msg.slice(0, 300)}`);
   }
 });
 

@@ -11,7 +11,14 @@ import type {
   SDKContextManager,
 } from "../../types/context.js";
 import { loadMarkdownEntities } from "../persistence/markdown-config-loader.js";
+import {
+  type AggregatorSource,
+  applyAggregateCap,
+  DEFAULT_MAX_BYTES_TOTAL,
+} from "./context-aggregator.js";
+import { runDiscovery } from "./context-discovery-runner.js";
 import { ContextSourceFrontmatterSchema } from "./context-frontmatter.js";
+import { DEFAULT_MAX_BYTES_PER_FILE } from "./context-loaders.js";
 import { warnOnce } from "./hooks-source.js";
 
 /**
@@ -63,7 +70,40 @@ export class FileContextManager implements SDKContextManager {
 
   async refresh(): Promise<void> {
     const config = await loadContextConfig(this.cwd);
-    const loadedSources = await loadSources(config, this.cwd);
+    const legacy = await loadSources(config, this.cwd);
+
+    // Phase 5 (ADRs D150-D156): multi-format discovery for AGENTS.md,
+    // CLAUDE.md, GEMINI.md, .cursor/rules/*.mdc, .theokit/THEO.md.
+    // Existing `.theokit/context/*.md` legacy sources keep working via
+    // the path above; we feed them into the aggregator alongside the
+    // newly-discovered sources.
+    const maxBytesPerFile = this.settings.maxBytesPerFile ?? DEFAULT_MAX_BYTES_PER_FILE;
+    const maxBytesTotal = this.settings.maxBytesTotal ?? DEFAULT_MAX_BYTES_TOTAL;
+    const discovered = await runDiscovery({
+      cwd: this.cwd,
+      maxBytesPerFile,
+      skipLegacyTheokitContext: true,
+    });
+
+    const legacyAsAggregator: AggregatorSource[] = legacy.map((src) => ({
+      id: src.name,
+      source: src.path,
+      content: src.tokens.join(""),
+      priority: 50, // matches DEFAULT_DISCOVERY_SPECS theokit-context
+      truncated: false,
+    }));
+
+    const { kept } = applyAggregateCap([...discovered, ...legacyAsAggregator], maxBytesTotal);
+
+    // Materialize kept sources as InternalState entries. Public type
+    // `ContextSourceStatus` uses `"summarized"` for "trimmed to fit budget".
+    const loadedSources: InternalState["loadedSources"] = kept.map((s) => ({
+      name: s.id,
+      path: s.source,
+      status: s.truncated ? "summarized" : "included",
+      tokens: [s.content],
+    }));
+
     this.state = { config, loadedSources };
   }
 
