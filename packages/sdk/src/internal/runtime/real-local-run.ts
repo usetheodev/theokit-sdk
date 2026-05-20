@@ -79,9 +79,13 @@ function buildLoopInputs(
 ): AgentLoopInputs {
   const primary = options.agentOptions.providers?.routes?.[0]?.provider ?? detectPrimaryProvider();
   const fallback = options.agentOptions.providers?.fallback;
+  const apiKeys = options.agentOptions.providers?.apiKeys;
+  const credentialPoolStrategy = options.agentOptions.providers?.credentialPoolStrategy;
   const chain = resolveProviderChain({
     primary,
     ...(fallback !== undefined ? { fallback } : {}),
+    ...(apiKeys !== undefined ? { apiKeys } : {}),
+    ...(credentialPoolStrategy !== undefined ? { credentialPoolStrategy } : {}),
   });
   const llm =
     chain.length === 1 ? (chain[0] as (typeof chain)[number]) : new FallbackLlmClient(chain);

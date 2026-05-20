@@ -37,6 +37,31 @@ export function validateAgentOptions(options: AgentOptions): void {
   validateMemory(options);
   validatePlugins(options);
   validateCustomTools(options);
+  validateCredentialPoolShape(options);
+}
+
+/**
+ * EC-J: `apiKey: "k"` AND `apiKeys: { provider: [...] }` together is
+ * ambiguous — caller must pick exactly one shape. Throws
+ * `ConfigurationError(code: "credential_pool_ambiguous")` with an
+ * educational message.
+ *
+ * @internal
+ */
+function validateCredentialPoolShape(options: AgentOptions): void {
+  const apiKey = (options as { apiKey?: string }).apiKey;
+  const apiKeys = options.providers?.apiKeys;
+  if (apiKey === undefined || apiKey.length === 0) return;
+  if (apiKeys === undefined) return;
+  const populated = Object.entries(apiKeys).filter(
+    ([, arr]) => Array.isArray(arr) && arr.some((k) => typeof k === "string" && k.length > 0),
+  );
+  if (populated.length === 0) return;
+  throw new ConfigurationError(
+    "Ambiguous credential configuration: use either `apiKey: '...'` (single-key, simplest) " +
+      "OR `apiKeys: { provider: [...] }` (multi-key pool), not both.",
+    { code: "credential_pool_ambiguous" },
+  );
 }
 
 function validatePlugins(options: AgentOptions): void {

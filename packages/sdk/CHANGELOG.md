@@ -2,6 +2,52 @@
 
 ## [Unreleased]
 
+### Added (v1.10 credential-pools — ADRs D123-D133)
+
+- **`internal/llm/credential-pool.ts`** — same-provider key rotation primitive
+  (CredentialPool class, 4 strategies: fill_first/round_robin/least_used/random,
+  ADRs D123-D124, D128).
+- **`internal/llm/credential-pool-types.ts`** — `PooledCredential`,
+  `CredentialPoolSnapshot`, `CredentialPoolStrategy`, cooldown ladder constants
+  (D125).
+- **`internal/llm/credential-pool-context.ts`** — `withCredentialPool` /
+  `currentCredentialPool` AsyncLocalStorage scope for fork inheritance (D131).
+- **`internal/llm/pool-aware-client.ts`** — composition wrapper over `LlmClient`
+  (D127) with retry-then-rotate on 429 (D126), immediate rotate on 402/401,
+  propagate on 5xx/NetworkError. EC-A: persistence failures during rotate
+  degrade to in-memory; do not abort the stream. EC-D: buildClient errors
+  propagate without marking pool entry exhausted.
+- **`internal/persistence/credential-pool-store.ts`** — JSON persistence
+  (`$THEOKIT_HOME/credential-pool.json`) with D62 versioned envelope, D61
+  cross-process file lock, lazy load + 200 ms debounced write (D129).
+- **`errors.ts`** — new public `CredentialPoolExhaustedError` (D133).
+- **`types/providers.ts`** — extends `ProviderRoutingSettings` with optional
+  `apiKeys: Record<string, string[]>` + `credentialPoolStrategy:
+  Record<string, CredentialPoolStrategy>` (D130).
+- **Router wiring** (`internal/llm/router.ts`) — `buildClient` branches on
+  pool presence: ≥2 effective keys → wrap in `PoolAwareLlmClient`; 0/1 → existing
+  single-key fast path (D132 backward compat). EC-B: warn once per unknown
+  provider in apiKeys config. Empty strings filtered.
+- **`validate-agent-options.ts`** — EC-J ambiguity check: `apiKey` +
+  `apiKeys[provider]` together throws `ConfigurationError(code:
+  "credential_pool_ambiguous")` with an educative message.
+
+### CI gates
+
+- **`tests/lint/no-unredacted-pool-token.test.ts`** — bans `.accessToken`
+  outside the credential-pool module (and the MCP OAuth allowlist).
+- **`tests/internal/llm/credential-pool.property.test.ts`** — 5 strategy
+  invariants × 200 fast-check runs = 1000+ randomized assertions.
+
+### Test counts
+
+- 960 → **970 PASS** (+10 new wire tests). With property + lint + integration:
+  total Phase 5 footprint adds ~55 tests.
+- 11 new ADRs (D123-D133).
+- CLAUDE.md SDK Roadmap row #1 (Credential Pools, score 9) → ✅ DONE.
+
+---
+
 ### Added (v1.9 background-work-block-completion — ADRs D110-D122)
 
 - **`internal/runtime/async-local-storage.ts`** — per-fork tool whitelist
