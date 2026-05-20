@@ -120,14 +120,14 @@ Each gate has: **what it enforces**, **principle covered**, **tool**, **threshol
 
 ## Tier 2 — Soft gates
 
-Run with `pnpm quality:report` (Phase 2). Produces a report; does not block.
+Run with `pnpm quality:report`. Produces a report; does not block.
 
-| # | Gate | Tool | Threshold |
-| --- | --- | --- | --- |
-| S1 | Test coverage | `vitest --coverage` | ≥ 80% line coverage post-runtime-impl (today 100% stubs — skip until adapters ship) |
-| S2 | Bundle size | `size-limit` (Phase 2) | ESM ≤ 30 KB, CJS ≤ 35 KB |
-| S3 | TODO without ticket | grep | warn on `// TODO` lines without `(#xxx)` reference |
-| S4 | Dependency CVEs | `pnpm audit` | warn on high-severity advisories in prod deps |
+| # | Gate | Tool | Threshold | Status |
+| --- | --- | --- | --- | --- |
+| S1 | Test coverage | `pnpm quality:coverage` (vitest --coverage) | lines ≥ 80%, functions ≥ 80%, statements ≥ 80%, branches ≥ 75%. Excludes `src/internal/telemetry/adapters/**` (gated by optional peer-deps; ADR D42 graceful degradation). | ✅ Configured (2026-05-19). Currently 80.30% lines / 84.51% functions / 81.94% branches. |
+| S2 | Bundle size | `size-limit` (Phase 2) | ESM ≤ 30 KB, CJS ≤ 35 KB | Pending — needs real `dist/` from runtime adapters. |
+| S3 | TODO/FIXME markers in `src/` | `tests/lint/no-todo-fixme.test.ts` | 0 markers; allowlist requires tracking issue. | ✅ Configured (2026-05-19). Promoted manual grep → automated lint. |
+| S4 | Dependency CVEs | `pnpm quality:audit` (`pnpm audit --prod --audit-level=high`) | 0 high-severity advisories in prod deps | ✅ Configured (2026-05-19). Currently 0 known vulnerabilities. |
 
 ---
 
@@ -191,6 +191,11 @@ pnpm validate
        ├── pnpm quality:cycles       (G6, G7 — dep-cruiser)
        ├── pnpm quality:loc          (G8 — custom)
        └── pnpm quality:duplication  (G10 — jscpd)
+
+pnpm quality:report   (Tier 2 — informational, does not block)
+   ├── pnpm quality              (Tier 1 hard gates as warm-up)
+   ├── pnpm quality:coverage     (S1 — vitest --coverage with 80/75 thresholds)
+   └── pnpm quality:audit        (S4 — pnpm audit --prod --audit-level=high)
 ```
 
 `G9` (cognitive complexity) fires inside `pnpm check` because it is a Biome rule.
@@ -217,6 +222,6 @@ Never adjust a threshold to make a single failing gate pass — that defeats the
 | --- | --- | --- |
 | Q1 | When to wire `tools/check-docs-sync.mjs` to automate G11. | **Pending** — Phase 2. |
 | Q2 | Bundle size budgets (S2) once runtime adapters ship. | **Pending** — needs real `dist/`. |
-| Q3 | Coverage threshold (S1) post-impl. Suggested 80% lines, 75% branches. | **Pending**. |
+| Q3 | Coverage threshold (S1) post-impl. Suggested 80% lines, 75% branches. | **Resolved 2026-05-19** — threshold set at 80%/80%/80%/75% (lines/functions/statements/branches). Gated as Tier 2 soft (informational, via `pnpm quality:coverage`). Move to Tier 1 hard gate after one quarter of stable coverage data. |
 | Q4 | Should `.githooks/pre-commit` also run `quality:loc`? Currently NO (it's in pre-push). | **Pending** — adjust if commit cycle hits LoC overruns frequently. |
 | Q5 | Conventional commits + `commitlint`. Out of Phase 1 scope; revisit if release automation needs structured changelogs. | **Pending** — Phase 2. |
