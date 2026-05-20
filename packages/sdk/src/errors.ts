@@ -211,3 +211,39 @@ export class UnsupportedRunOperationError extends TheokitAgentError {
     this.operation = operation;
   }
 }
+
+/**
+ * Thrown when every credential in a per-provider pool is in cooldown
+ * and no healthy key is available (ADR D133). The caller's
+ * {@link import("./internal/llm/fallback-client.js").FallbackLlmClient}
+ * catches this and tries the next provider in the fallback chain.
+ *
+ * `metadata.nextRetryAt` (epoch ms) tells callers when the soonest
+ * pool entry resumes — useful for manual retry scheduling.
+ *
+ * @public
+ */
+export class CredentialPoolExhaustedError extends TheokitAgentError {
+  override readonly name: string = "CredentialPoolExhaustedError";
+  readonly provider: string;
+  readonly nextRetryAt: number | undefined;
+
+  constructor(
+    message: string,
+    options: {
+      provider: string;
+      nextRetryAt?: number;
+      code?: string;
+      cause?: unknown;
+      metadata?: ErrorMetadata;
+    },
+  ) {
+    super(message, {
+      ...options,
+      isRetryable: true,
+      code: options.code ?? "credential_pool_exhausted",
+    });
+    this.provider = options.provider;
+    this.nextRetryAt = options.nextRetryAt;
+  }
+}
