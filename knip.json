@@ -13,7 +13,7 @@
     "tools/validate-streamobject-real-llm.mjs",
     "tools/validate-streaming-telegram-real-llm.mjs"
   ],
-  "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
+  "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "tsx"],
   "workspaces": {
     "packages/sdk": {
       "entry": ["tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
