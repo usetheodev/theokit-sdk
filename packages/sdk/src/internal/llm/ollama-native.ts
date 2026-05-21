@@ -258,6 +258,10 @@ function buildOllamaChatBody(request: LlmRequest): Record<string, unknown> {
     model: request.model,
     stream: true,
     messages,
+    // ADR D192: 24h keep_alive prevents Ollama from evicting the chat model
+    // when other models (embeddings, judges) are loaded between turns.
+    // Cuts cold-load latency from 20-30s to single-digit ms per turn.
+    keep_alive: process.env.OLLAMA_KEEP_ALIVE ?? "24h",
   };
   if (tools.length > 0) body.tools = tools;
   const opts: Record<string, unknown> = {};
