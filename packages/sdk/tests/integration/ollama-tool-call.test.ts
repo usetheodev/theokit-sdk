@@ -46,6 +46,7 @@ if (!available) {
 }
 
 describe.skipIf(!available)("ollama tool calling integration (D182)", () => {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: defineTool + Agent.create + stream drain + EC-F skip-loud is one cohesive integration scenario
   it("agent.send invokes a registered customTool", async () => {
     let toolInvocations = 0;
     const getCurrentTime = defineTool({
