@@ -47,6 +47,7 @@ describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: end-to-end stream consume + assertion pipeline is intentionally inline for clarity in an integration test
   it("agent.send returns assistant message with non-empty content", async () => {
     const agent = await Agent.create({
+      apiKey: "local",
       model: { id: TEST_MODEL },
       local: { cwd: process.cwd() },
     });
@@ -70,6 +71,7 @@ describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
   it("onDelta callback receives text-delta updates", async () => {
     const deltas: string[] = [];
     const agent = await Agent.create({
+      apiKey: "local",
       model: { id: TEST_MODEL },
       local: { cwd: process.cwd() },
     });

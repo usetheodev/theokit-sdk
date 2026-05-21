@@ -47,9 +47,9 @@ function stubFetch(responses: Array<{ status: number; body?: unknown }>): {
 }
 
 describe("MEMORY_EMBEDDING_ADAPTERS catalog", () => {
-  it("exposes the 5 v1.0 providers (openai + mistral + openrouter + voyage + deepinfra) per ADR D11", () => {
+  it("exposes the v1.0 providers (D11) + ollama (D183)", () => {
     const ids = Object.keys(MEMORY_EMBEDDING_ADAPTERS).sort();
-    expect(ids).toEqual(["deepinfra", "mistral", "openai", "openrouter", "voyage"]);
+    expect(ids).toEqual(["deepinfra", "mistral", "ollama", "openai", "openrouter", "voyage"]);
     for (const [id, adapter] of Object.entries(MEMORY_EMBEDDING_ADAPTERS)) {
       expect(adapter.id).toBe(id);
       expect(typeof adapter.defaultModel).toBe("string");
