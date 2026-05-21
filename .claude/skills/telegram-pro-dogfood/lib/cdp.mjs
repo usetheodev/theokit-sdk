@@ -92,7 +92,10 @@ export class CDP {
           this.pending.delete(id);
           reject(new Error(`Timeout: ${method}`));
         }
-      }, 20000);
+        // 60s — Ollama-mode dogfood polls Chrome DOM repeatedly while
+        // bot processes slow LLM responses; bumped from 20s to absorb
+        // Chrome scheduling jitter under load.
+      }, 60000);
     });
   }
 

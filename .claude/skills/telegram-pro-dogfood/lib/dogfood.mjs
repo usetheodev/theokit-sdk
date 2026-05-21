@@ -126,7 +126,7 @@ const COMMANDS = [
   // Sends placeholder + ~5s SQLite open + result reply (2 separate messages).
   {
     text: "/migrate_memory",
-    expect: [/migrateSqliteToLance|isolated tmpdir/i, /Migration dry-run result|countSqlite/i],
+    expect: [/migrateSqliteToLance|isolated tmpdir|Migration dry-run result|countSqlite/i],
     waitMs: 20000,
   },
 
@@ -569,7 +569,9 @@ async function main() {
     const ollamaMode =
       process.env.OLLAMA_DOGFOOD === "1" ||
       /^(ollama|lmstudio|llamacpp)\//.test(process.env.TELEGRAM_PRO_MODEL ?? "");
-    const effectiveWaitMs = ollamaMode ? cmd.waitMs * 6 : cmd.waitMs;
+    // 12x absorbs the worst-case latency for first-token-after-load + small
+    // tool-calling cycles on qwen2.5:3b (5-10s base × 2-3 iterations).
+    const effectiveWaitMs = ollamaMode ? cmd.waitMs * 12 : cmd.waitMs;
     let inbound = await waitForInboundReply(
       cdp,
       sessionId,
