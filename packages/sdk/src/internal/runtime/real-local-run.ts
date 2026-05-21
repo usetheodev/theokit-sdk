@@ -5,8 +5,8 @@ import type { CustomToolSpec, MemoryToolSpec } from "../agent-loop/loop-types.js
 import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { parseModelId } from "../llm/model-identifier.js";
 import { resolveProviderChain } from "../llm/router.js";
-import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
+import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";
 import type { SessionMessage } from "./agent-session.js";
