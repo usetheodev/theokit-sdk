@@ -20,6 +20,26 @@ import type { McpServerConfig, ProviderRoutingSettings } from "@usetheo/sdk";
  * THEOKIT_API_KEY / OPENROUTER_API_KEY is set.
  */
 export function buildProviderRouting(): ProviderRoutingSettings | undefined {
+  // ADR D186: when TELEGRAM_PRO_MODEL is prefixed with a local-runtime
+  // provider (`ollama/...`, `lmstudio/...`, `llamacpp/...`), pin chat to
+  // that provider explicitly. Without this, the env-var heuristic below
+  // routes to OpenRouter even when the user asked for local Ollama —
+  // capturing the bug surfaced by the 2026-05-21 dogfood.
+  const modelId = process.env.TELEGRAM_PRO_MODEL ?? "";
+  const localMatch = modelId.match(/^(ollama|lmstudio|llamacpp|lm-studio|llama-cpp|llama\.cpp)\//);
+  if (localMatch !== null) {
+    const canonical: Record<string, string> = {
+      "lm-studio": "lmstudio",
+      "llama-cpp": "llamacpp",
+      "llama.cpp": "llamacpp",
+    };
+    const localProvider = canonical[localMatch[1] ?? ""] ?? localMatch[1] ?? "ollama";
+    return {
+      routes: [{ capability: "chat", provider: localProvider }],
+      fallback: [localProvider],
+    };
+  }
+
   const available: string[] = [];
   if (process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY.length > 0) {
     available.push("anthropic");

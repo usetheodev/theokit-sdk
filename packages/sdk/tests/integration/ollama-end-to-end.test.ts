@@ -66,7 +66,7 @@ describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
     }
     await run.wait();
     expect(assistantText.length).toBeGreaterThan(0);
-  }, 60_000); // EC-D: first request can take 10-60s while Ollama warms up.
+  }, 120_000); // EC-D: first request can take 10-60s while Ollama warms up; doubled to 120s for parallel-suite cold-load scenarios.
 
   it("onDelta callback receives text-delta updates", async () => {
     const deltas: string[] = [];
@@ -87,5 +87,5 @@ describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
     }
     await run.wait();
     expect(deltas.length).toBeGreaterThan(0);
-  }, 60_000);
+  }, 120_000);
 });
