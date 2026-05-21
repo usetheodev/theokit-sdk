@@ -46,51 +46,50 @@ if (!available) {
 }
 
 describe.skipIf(!available)("ollama tool calling integration (D182)", () => {
-  it(
-    "agent.send invokes a registered customTool",
-    async () => {
-      let toolInvocations = 0;
-      const getCurrentTime = defineTool({
-        name: "get_current_time",
-        description: "Returns the current time as an ISO-8601 string. Call this when the user asks what time it is.",
-        inputSchema: z.object({}),
-        handler: () => {
-          toolInvocations += 1;
-          return new Date().toISOString();
-        },
-      });
+  it("agent.send invokes a registered customTool", async () => {
+    let toolInvocations = 0;
+    const getCurrentTime = defineTool({
+      name: "get_current_time",
+      description:
+        "Returns the current time as an ISO-8601 string. Call this when the user asks what time it is.",
+      inputSchema: z.object({}),
+      handler: () => {
+        toolInvocations += 1;
+        return new Date().toISOString();
+      },
+    });
 
-      const agent = await Agent.create({
-        model: { id: TEST_MODEL },
-        local: { cwd: process.cwd() },
-        tools: [getCurrentTime],
-        systemPrompt:
-          "You are a helpful assistant with access to a `get_current_time` tool. " +
-          "Always use the tool when the user asks about time. After receiving the tool result, reply with the time.",
-      });
+    const agent = await Agent.create({
+      model: { id: TEST_MODEL },
+      local: { cwd: process.cwd() },
+      tools: [getCurrentTime],
+      systemPrompt:
+        "You are a helpful assistant with access to a `get_current_time` tool. " +
+        "Always use the tool when the user asks about time. After receiving the tool result, reply with the time.",
+    });
 
-      const run = await agent.send("Use the get_current_time tool to fetch the current time, then tell me the result.");
-      let assistantText = "";
-      for await (const event of run.stream()) {
-        if (event.type === "assistant") {
-          for (const part of event.message.content) {
-            if (part.type === "text") assistantText += part.text;
-          }
+    const run = await agent.send(
+      "Use the get_current_time tool to fetch the current time, then tell me the result.",
+    );
+    let assistantText = "";
+    for await (const event of run.stream()) {
+      if (event.type === "assistant") {
+        for (const part of event.message.content) {
+          if (part.type === "text") assistantText += part.text;
         }
       }
-      await run.wait();
+    }
+    await run.wait();
 
-      if (toolInvocations === 0) {
-        // EC-F: model refused tool call. Document as capability gap.
-        process.stderr.write(
-          `[ollama-tool-call] Model ${TEST_MODEL} did not invoke the tool; skipping assertion ` +
-            `(model capability gap, not SDK bug).\n`,
-        );
-        return;
-      }
-      expect(toolInvocations).toBeGreaterThan(0);
-      expect(assistantText.length).toBeGreaterThan(0);
-    },
-    120_000, // tool-using models are slower; first call may load model
-  );
+    if (toolInvocations === 0) {
+      // EC-F: model refused tool call. Document as capability gap.
+      process.stderr.write(
+        `[ollama-tool-call] Model ${TEST_MODEL} did not invoke the tool; skipping assertion ` +
+          `(model capability gap, not SDK bug).\n`,
+      );
+      return;
+    }
+    expect(toolInvocations).toBeGreaterThan(0);
+    expect(assistantText.length).toBeGreaterThan(0);
+  }, 120_000); // tool-using models are slower; first call may load model
 });

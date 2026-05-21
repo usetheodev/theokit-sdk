@@ -76,7 +76,9 @@ export async function listLocalModelsViaOpenAiCompat(baseUrl: string): Promise<S
   }
   const data = parsed.data ?? [];
   return data
-    .filter((entry): entry is { id: string } => typeof entry?.id === "string" && entry.id.length > 0)
+    .filter(
+      (entry): entry is { id: string } => typeof entry?.id === "string" && entry.id.length > 0,
+    )
     .map((entry) => ({
       id: entry.id,
       displayName: entry.id,

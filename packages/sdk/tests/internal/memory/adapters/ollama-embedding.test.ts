@@ -12,12 +12,11 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { MEMORY_EMBEDDING_ADAPTERS } from "../../../../src/internal/memory/adapters/catalog.js";
 import {
   DEFAULT_OLLAMA_EMBEDDING_MODEL,
   ollamaMemoryEmbeddingProviderAdapter,
 } from "../../../../src/internal/memory/adapters/ollama-embedding.js";
-import { MEMORY_EMBEDDING_ADAPTERS } from "../../../../src/internal/memory/adapters/catalog.js";
 
 const ORIG_ENV: Record<string, string | undefined> = {};
 const TRACKED_ENV = ["OLLAMA_HOST", "OLLAMA_API_KEY"];
@@ -39,9 +38,7 @@ describe("ollamaMemoryEmbeddingProviderAdapter (D183)", () => {
   it("descriptor shape matches MemoryEmbeddingProviderAdapter contract", () => {
     expect(ollamaMemoryEmbeddingProviderAdapter.id).toBe("ollama");
     expect(ollamaMemoryEmbeddingProviderAdapter.transport).toBe("local");
-    expect(ollamaMemoryEmbeddingProviderAdapter.defaultModel).toBe(
-      DEFAULT_OLLAMA_EMBEDDING_MODEL,
-    );
+    expect(ollamaMemoryEmbeddingProviderAdapter.defaultModel).toBe(DEFAULT_OLLAMA_EMBEDDING_MODEL);
     expect(ollamaMemoryEmbeddingProviderAdapter.authProviderId).toBe("ollama");
   });
 
