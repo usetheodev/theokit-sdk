@@ -9,6 +9,7 @@ import { AnthropicClient } from "./anthropic.js";
 import { CredentialPool, newPooledCredential } from "./credential-pool.js";
 import { currentCredentialPool } from "./credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./credential-pool-types.js";
+import { OllamaNativeClient } from "./ollama-native.js";
 import { OpenAIClient } from "./openai.js";
 import { PoolAwareLlmClient } from "./pool-aware-client.js";
 import type { LlmClient } from "./types.js";
@@ -214,8 +215,17 @@ function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
 /**
  * EC-3 fix: exhaustive switch with actionable error on unsupported apiMode.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4-mode transport ladder (chat_completions / anthropic_messages / responses_api / bedrock) + Ollama native dispatch (D191) + per-provider envOverride is one cohesive switch — splitting hurts readability and obscures the dispatch contract.
 function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
   if (profile.apiMode === "chat_completions") {
+    // ADR D191 (T8.1 dogfood fix): Ollama tool calling REQUIRES the native
+    // `/api/chat` endpoint. OpenAI-compat `/v1/chat/completions` causes
+    // models to emit raw tool JSON as plain text — confirmed via peer-project
+    // upstream warning and our own dogfood of telegram-pro.
+    if (profile.name === "ollama") {
+      const ollamaBase = process.env.OLLAMA_HOST ?? profile.baseUrl;
+      return new OllamaNativeClient({ apiKey, baseUrl: ollamaBase });
+    }
     const opts: ConstructorParameters<typeof OpenAIClient>[0] = { apiKey };
     opts.baseUrl = profile.baseUrl;
     // T1.1 (ADR D185): forward provider name so OpenAIClient can dispatch

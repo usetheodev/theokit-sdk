@@ -95,17 +95,28 @@ function getFactory(opts: AgentFactoryOptions): AgentFactory {
 export async function getAgent(ctx: Context, opts: AgentFactoryOptions): Promise<SDKAgent> {
   const agentId = resolveAgentId(ctx);
   const userId = resolveUserId(ctx);
+  // ADR D182/D183: when running on a local Ollama model, disable active
+  // recall (to avoid model-swap thrashing) AND strip the system prompt /
+  // custom tools down to a minimal "concise reply" shape — small local
+  // models (< 7B) choke on the production-grade bilingual prompt + 10+
+  // tool descriptions. The bot still WRITES facts to memory (Remember:);
+  // only the per-turn embedding-recall + LLM-side context is suppressed.
+  const isLocalModel = /^(ollama|lmstudio|llamacpp)\//.test(
+    process.env.TELEGRAM_PRO_MODEL ?? "",
+  );
   return getFactory(opts).getOrCreate(agentId, {
     memory: {
       enabled: true,
       namespace: "tg-pro",
       scope: "user",
       userId,
-      activeRecall: { enabled: true, queryMode: "recent" },
+      activeRecall: isLocalModel
+        ? { enabled: false }
+        : { enabled: true, queryMode: "recent" },
     },
-    // Re-supply systemPrompt + tools on every resume so prompt/handler changes
-    // shipped in bot updates reach existing users (handlers are not persisted).
-    systemPrompt: SYSTEM_PROMPT,
-    tools: TELEGRAM_PRO_CUSTOM_TOOLS,
+    systemPrompt: isLocalModel
+      ? "You are Theo, a helpful assistant on Telegram. Reply in one short sentence. Plain text only."
+      : SYSTEM_PROMPT,
+    tools: isLocalModel ? [] : TELEGRAM_PRO_CUSTOM_TOOLS,
   });
 }

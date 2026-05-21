@@ -110,7 +110,19 @@ export class GatewayRunner {
     }
 
     for (const a of this.opts.adapters) {
-      const unsub = a.onInbound((event) => this.dispatch(event));
+      // Fire-and-forget: grammy / discord.js await this callback. If we
+      // awaited dispatch synchronously, the platform's event loop would
+      // serialize all inbound messages behind whichever handler is
+      // currently running (dogfood-2026-05-21 bug). Wrap the dispatch
+      // promise in `inflight` synchronously so `stop()` still drains it.
+      const unsub = a.onInbound(async (event) => {
+        const p = this.dispatch(event);
+        this.inflight.add(p);
+        p.finally(() => this.inflight.delete(p));
+        // Resolve immediately so the platform's event loop continues to
+        // the next update. The real handler completes via the dispatch
+        // promise tracked in `inflight` (preserves EC-E drain semantics).
+      });
       this.unsubs.push(unsub);
     }
     this.connected = true;
@@ -165,6 +177,10 @@ export class GatewayRunner {
     const handler = slashHandler ?? this.opts.handler;
 
     // 3. Run handler with try/catch → on_error + redacted log (EC-F).
+    // Note: dispatch DOES await the work internally so the dispatch promise
+    // tracks completion (EC-E drain). The fire-and-forget happens at the
+    // CALLER level (start()'s onInbound wrapper) so grammy/discord.js are
+    // not serialized — see D192 (2026-05-21 dogfood discovery).
     const work = (async () => {
       try {
         await handler(event, ctx);
