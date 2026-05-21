@@ -6,6 +6,7 @@ import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { resolveProviderChain } from "../llm/router.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
 import { createTelemetry } from "../telemetry/tracer.js";
+import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";
 import type { SessionMessage } from "./agent-session.js";
 import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
 import type { FixtureScript } from "./fixture-types.js";
@@ -40,6 +41,14 @@ export interface CreateRealLocalRunOptions {
   priorMessages?: ReadonlyArray<SessionMessage>;
   /** Memory tools to register with the LLM (Phase 6 of memory-system-openclaw-parity). */
   memoryTools?: ReadonlyArray<MemoryToolSpec>;
+  /**
+   * Active personality tool whitelist (T4.1, ADR D167). When defined,
+   * `customTools` are filtered to this subset; missing entries log a
+   * one-shot warn. Undefined = no filter.
+   */
+  personalityToolWhitelist?: ReadonlyArray<string>;
+  /** Active personality slug — used in personality-filter warnings. */
+  personalityName?: string;
 }
 
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
@@ -106,7 +115,14 @@ function buildLoopInputs(
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
       : {}),
-    ...buildCustomToolsInput(options.agentOptions, options.sendOptions, options.pluginManager),
+    ...buildCustomToolsInput(
+      options.agentOptions,
+      options.sendOptions,
+      options.pluginManager,
+      options.personalityToolWhitelist,
+      options.agentId,
+      options.personalityName,
+    ),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     telemetry: createTelemetry(options.agentOptions.telemetry),
   };
@@ -124,6 +140,9 @@ function buildCustomToolsInput(
   agentOptions: AgentOptions,
   sendOptions: { tools?: CustomTool[] } | undefined,
   pluginManager: import("../plugins/manager.js").PluginManager | undefined,
+  personalityToolWhitelist: ReadonlyArray<string> | undefined,
+  agentId: string,
+  personalityName: string | undefined,
 ): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
   const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
   // T4.1: concat plugin-registered tools onto the effective catalog. Plugin
@@ -131,12 +150,18 @@ function buildCustomToolsInput(
   // would be caught by the registry validator if used).
   const pluginTools = pluginManager?.aggregated.tools ?? [];
   if (baseTools.length === 0 && pluginTools.length === 0) return {};
-  const customTools: CustomToolSpec[] = [...baseTools, ...pluginTools].map((tool) => ({
+  const merged: CustomToolSpec[] = [...baseTools, ...pluginTools].map((tool) => ({
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
     handler: tool.handler,
   }));
+  // Phase 4.1 / ADR D167 — advisory narrowing by active personality.
+  const customTools = applyPersonalityFilter(merged, personalityToolWhitelist, {
+    agentId,
+    personalityName,
+  }) as ReadonlyArray<CustomToolSpec>;
+  if (customTools.length === 0 && personalityToolWhitelist === undefined) return {};
   return { customTools };
 }
 

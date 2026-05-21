@@ -230,6 +230,59 @@ const COMMANDS = [
     expect: [/Context files discovered/i, /AGENTS\.md|CLAUDE\.md|bot-readme/],
     waitMs: 10000,
   },
+
+  // ── v1.14 Personality Presets (Hermes #26, ADRs D160-D169) ──
+  // Listing path (no arg) reads .theokit/personalities/*.md directly from
+  // disk — no LLM call. Validates `coder` and `poet` sample presets ship
+  // with the example.
+  {
+    text: "/personality",
+    expect: [/Available personalities/i, /coder/i, /poet/i],
+    waitMs: 8000,
+  },
+  // Activate `coder` preset and verify the persistent JSON reflects it.
+  // Switch lifecycle: store update + invalidateCache("personality-switch")
+  // + transcript marker injection (D164). save:true (the default in the
+  // /personality handler) persists per agentId under $THEOKIT_HOME.
+  {
+    text: "/personality coder",
+    expect: [/Activated.*coder/i, /Concise, technical, code-first|Send any message/i],
+    waitMs: 8000,
+  },
+  // Voice probe: with `coder` active, a free-text question should come
+  // back as code or pseudo-code first. Hits real LLM via OpenRouter.
+  // retryOnError handles transient rate-limit on the free tier.
+  {
+    text: "How do I reverse a string?",
+    expect: [/```|def |function |const |return/i],
+    waitMs: 45000,
+    retryOnError: true,
+  },
+  // Switch to `poet` — exercises the switch lifecycle a second time with
+  // a non-empty `prevSlug` and a different next slug (verifies D164's
+  // marker injection differentiates switch from clear).
+  {
+    text: "/personality poet",
+    expect: [/Activated.*poet/i, /Replies in compact verse|Send any message/i],
+    waitMs: 8000,
+  },
+  // Clear the preset. Returns null → handler emits "Personality cleared."
+  // EC-B is verified in unit tests (the JSON file delete-key invariant);
+  // the dogfood here exercises the user-facing message.
+  {
+    text: "/personality none",
+    expect: [/Personality cleared|default voice/i],
+    waitMs: 8000,
+  },
+  // Unknown preset → ConfigurationError(code: "personality_not_found")
+  // with the list of available names. The handler redacts + replies the
+  // raw error message (no parse_mode: "Markdown"), so the regex matches
+  // the literal substring.
+  {
+    text: "/personality ghost",
+    expect: [/not found|Available:.*coder.*poet|personality_not_found/i],
+    waitMs: 8000,
+  },
 ];
 
 // ─── Helpers ───

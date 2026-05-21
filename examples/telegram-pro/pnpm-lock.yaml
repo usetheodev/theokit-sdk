@@ -11,6 +11,12 @@ importers:
       '@honcho-ai/sdk':
         specifier: ^2.1.0
         version: 2.1.1
+      '@usetheo/gateway':
+        specifier: file:../../packages/gateway
+        version: file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3))
+      '@usetheo/gateway-telegram':
+        specifier: file:../../packages/gateway-telegram
+        version: file:../../packages/gateway-telegram(@usetheo/gateway@file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3)))(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3))(grammy@1.43.0)
       '@usetheo/memory-honcho':
         specifier: file:../../packages/memory-honcho
         version: file:../../packages/memory-honcho(@honcho-ai/sdk@2.1.1)(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3))
@@ -481,6 +487,20 @@ packages:
   '@typespec/ts-http-runtime@0.3.5':
     resolution: {integrity: sha512-yURCknZhvywvQItHMMmFSo+fq5arCUIyz/CVk7jD89MSai7dkaX8ufjCWp3NttLojoTVbcE72ri+be/TnEbMHw==}
     engines: {node: '>=20.0.0'}
+
+  '@usetheo/gateway-telegram@file:../../packages/gateway-telegram':
+    resolution: {directory: ../../packages/gateway-telegram, type: directory}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@usetheo/gateway': workspace:^
+      '@usetheo/sdk': workspace:^
+      grammy: ^1.30.0
+
+  '@usetheo/gateway@file:../../packages/gateway':
+    resolution: {directory: ../../packages/gateway, type: directory}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@usetheo/sdk': workspace:^
 
   '@usetheo/memory-honcho@file:../../packages/memory-honcho':
     resolution: {directory: ../../packages/memory-honcho, type: directory}
@@ -1942,6 +1962,16 @@ snapshots:
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
+
+  '@usetheo/gateway-telegram@file:../../packages/gateway-telegram(@usetheo/gateway@file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3)))(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3))(grammy@1.43.0)':
+    dependencies:
+      '@usetheo/gateway': file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3))
+      '@usetheo/sdk': file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3)
+      grammy: 1.43.0
+
+  '@usetheo/gateway@file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3))':
+    dependencies:
+      '@usetheo/sdk': file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3)
 
   '@usetheo/memory-honcho@file:../../packages/memory-honcho(@honcho-ai/sdk@2.1.1)(@usetheo/sdk@file:../../packages/sdk(better-sqlite3@12.10.0)(sqlite-vec@0.1.9)(zod@4.4.3))':
     dependencies:

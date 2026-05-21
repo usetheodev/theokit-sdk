@@ -50,13 +50,18 @@ export function localAgentRunUntil(
  * @internal
  */
 export async function localAgentFork(
-  parent: { agentId: string; options: AgentOptions },
+  parent: { agentId: string; options: AgentOptions; personalitySlugSnapshot: string | undefined },
   options: ForkOptions,
 ): Promise<ForkResult> {
   const { forkAgentImpl } = await import("./fork-agent.js");
   const { getAgentCreate } = await import("./agent-factory-registry.js");
+  const { withPersonalityContext } = await import("../personality/context.js");
   const create = getAgentCreate();
-  return forkAgentImpl(parent, options, { create });
+  // ADR D168 + EC-A — capture the slug ONCE at fork-construction time.
+  // Subsequent parent `usePersonality` calls do NOT mutate this snapshot.
+  return withPersonalityContext({ slug: parent.personalitySlugSnapshot, isFork: true }, () =>
+    forkAgentImpl(parent, options, { create }),
+  );
 }
 
 /**

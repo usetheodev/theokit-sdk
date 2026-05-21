@@ -12,6 +12,9 @@ import { resolveApiKey } from "../env.js";
 import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../memory/cwd-mutex.js";
+import type { PersonalityRegistry } from "../personality/registry.js";
+import { PersonalityStore } from "../personality/store.js";
+import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
 import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import {
@@ -29,6 +32,12 @@ import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
+import {
+  applyPersonalityOverlay,
+  ensurePersonalityRegistryIfNeeded,
+  localAgentUsePersonality,
+  resolveActivePersonalityPreset,
+} from "./local-agent-personality-extensions.js";
 import { extractCodePlugins } from "./local-agent-plugins.js";
 import {
   localAgentFork,
@@ -82,6 +91,9 @@ export class LocalAgent implements SDKAgent {
   private readonly memoryGlue: LocalAgentMemory;
   /** T4.1 — PluginManager for code plugins (kind: general/model-provider/memory). @internal */
   private readonly pluginManagerCode: PluginManager = new PluginManager();
+  /** Personality presets — lazy-loaded on first `usePersonality` call (ADRs D160-D164). @internal */
+  private personalityRegistry: PersonalityRegistry | undefined;
+  private readonly personalityStore: PersonalityStore;
 
   constructor(options: AgentOptions) {
     this.agentId = options.agentId ?? generateLocalAgentId();
@@ -106,6 +118,7 @@ export class LocalAgent implements SDKAgent {
 
     this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
     this.memoryGlue = new LocalAgentMemory(options, this.workspaceCwd, this.agentId);
+    this.personalityStore = new PersonalityStore(this.workspaceCwd);
     // ADR D141 / D142: `agent.memory.*` direct API over plugin-aggregated adapters.
     // Built unconditionally; `requireAdapters` throws ConfigurationError when called
     // without any registered memory plugin.
@@ -148,6 +161,8 @@ export class LocalAgent implements SDKAgent {
     // ADR D18: hydrate persisted session history so a resumed agent sees
     // the conversation that occurred in the previous process.
     await hydrateSession(this.agentId, this.workspaceCwd);
+    // ADR D163 — hydrate previously-active personality slug (no-op if none).
+    await this.personalityStore.hydrate(this.agentId);
   }
 
   /** T4.2 — expose PluginManager so agent-loop can fire pre_tool_call hooks. @internal */
@@ -300,15 +315,28 @@ export class LocalAgent implements SDKAgent {
     );
   }
 
-  private resolveSystemPromptForSend(
+  private async resolveSystemPromptForSend(
     userText: string,
     options: SendOptions,
     memoryFacts: ReadonlyArray<MemoryFact>,
   ): Promise<string | undefined> {
-    return resolveSystemPromptForSend(this.options.systemPrompt, options.systemPrompt, () =>
-      buildSystemPromptContextHelper(this.localAssemblyInputs(), userText, memoryFacts),
+    const base = await resolveSystemPromptForSend(
+      this.options.systemPrompt,
+      options.systemPrompt,
+      () => buildSystemPromptContextHelper(this.localAssemblyInputs(), userText, memoryFacts),
     );
+    this.personalityRegistry = await ensurePersonalityRegistryIfNeeded({
+      agentId: this.agentId,
+      workspaceCwd: this.workspaceCwd,
+      personalityStore: this.personalityStore,
+      personalityRegistry: this.personalityRegistry,
+    });
+    return applyPersonalityOverlay(this.activePreset(), base);
   }
+
+  /** @internal — read-only personality lookup (composes the helper, honors fork ALS). */
+  // biome-ignore format: keep one-liner so the personality lookup stays under G8.
+  private activePreset(): PersonalityPreset | undefined { return resolveActivePersonalityPreset({ agentId: this.agentId, personalityStore: this.personalityStore, personalityRegistry: this.personalityRegistry }); }
 
   private applyModelOverride(overrideModel: ModelSelection | undefined): void {
     if (overrideModel === undefined) return;
@@ -349,9 +377,21 @@ export class LocalAgent implements SDKAgent {
       settingSourcesIncludeProject: this.settingSourcesIncludeProject,
     };
     const apiKey = resolveApiKey(this.options.apiKey);
+    const activePreset = this.activePreset();
     if (shouldUseRealLocalRuntime(apiKey)) {
       return createRealLocalRun(
-        buildRealRunOptions({ inputs, message, options, systemPrompt, priorMessages, memoryTools }),
+        buildRealRunOptions({
+          inputs,
+          message,
+          options,
+          systemPrompt,
+          priorMessages,
+          memoryTools,
+          ...(activePreset?.tools !== undefined
+            ? { personalityToolWhitelist: activePreset.tools }
+            : {}),
+          ...(activePreset !== undefined ? { personalityName: activePreset.name } : {}),
+        }),
       );
     }
     return createFixtureRunHelper({ inputs, message, options, systemPrompt, memoryFacts });
@@ -396,6 +436,39 @@ export class LocalAgent implements SDKAgent {
   invalidateCache = (reason: string, opts: { applyNow?: boolean } = {}): Promise<void> =>
     invalidateCacheImpl(this.agentId, reason, opts, this.disposed, () => this.dispose(), (p) => { this.invalidationPending = p; });
 
+  /**
+   * Activate a personality preset (Hermes #26, ADRs D160-D164).
+   *
+   * Reserved names `none`, `default`, `neutral` clear the active preset.
+   *
+   * - `opts.save: true` → persist across process restarts (delete on clear,
+   *   never write null — EC-B).
+   * - `opts.reset: true` → also clear session history (preserves by default).
+   *
+   * Always invalidates the prompt cache (D94 deferred default).
+   *
+   * @public
+   */
+  usePersonality(
+    name: string,
+    opts?: { save?: boolean; reset?: boolean },
+  ): Promise<PersonalityPreset | null> {
+    const onRegistryLoaded = (reg: PersonalityRegistry): void => {
+      this.personalityRegistry = reg;
+    };
+    return localAgentUsePersonality({
+      agentId: this.agentId,
+      workspaceCwd: this.workspaceCwd,
+      disposed: this.disposed,
+      personalityStore: this.personalityStore,
+      personalityRegistry: this.personalityRegistry,
+      invalidateCache: (reason) => this.invalidateCache(reason),
+      onRegistryLoaded,
+      name,
+      ...(opts !== undefined ? { opts } : {}),
+    });
+  }
+
   listArtifacts(): Promise<SDKArtifact[]> {
     return Promise.resolve([]);
   }
@@ -412,7 +485,7 @@ export class LocalAgent implements SDKAgent {
   // biome-ignore format: G8 budget — both methods delegate to `local-agent-runtime-extensions.ts`; signatures kept as 1-line each.
   runUntil(goal: string, options?: import("../../types/goal-events.js").GoalOptions): import("../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
-  fork(options: import("./fork-agent.js").ForkOptions): Promise<import("./fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options }, options); }
+  fork(options: import("./fork-agent.js").ForkOptions): Promise<import("./fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {
