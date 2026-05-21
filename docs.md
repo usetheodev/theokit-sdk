@@ -1838,3 +1838,61 @@ stopped, or stop + start after migration.
 (suffix sits outside the `.md` match) — the loader silently skips it.
 Same effect as `enabled: false` in frontmatter but avoids editing the
 file.
+
+## Local models — Ollama (v1.14+)
+
+The SDK ships **Ollama as a builtin provider** (ADR D182). After
+`ollama serve` is running, point your agent at any local model with
+**zero configuration**:
+
+```typescript
+import { Agent } from "@usetheo/sdk";
+
+// 1) Start Ollama (one-time, in another terminal):
+//      ollama serve
+// 2) Pull a model:
+//      ollama pull llama3.2
+// 3) Use it from the SDK:
+const agent = await Agent.create({
+  model: "ollama/llama3.2",
+});
+
+await agent.send("Explain dependency injection in two sentences.");
+```
+
+No API key is required for local Ollama. The provider profile declares
+`authType: "none"` and the router forwards a placeholder bearer token —
+local Ollama ignores the `Authorization` header.
+
+**Overrides for advanced setups:**
+
+| Env var | Purpose | Default |
+| --- | --- | --- |
+| `OLLAMA_HOST` | Base URL of the Ollama server (use this when Ollama runs on a different machine). | `http://localhost:11434` |
+| `OLLAMA_API_KEY` | Bearer token forwarded in the `Authorization` header. Set this when you run Ollama Cloud or put Ollama behind a reverse-proxy with auth. | (none) |
+
+```bash
+# Point at a remote Ollama box:
+export OLLAMA_HOST=http://192.168.1.50:11434
+
+# Or use Ollama Cloud (paid tier with auth):
+export OLLAMA_API_KEY=sk-ollama-cloud-token
+```
+
+**Fallback chain.** Ollama works as a primary or a fallback provider:
+
+```typescript
+const agent = await Agent.create({
+  model: "anthropic/claude-3-5-sonnet-latest",
+  providerRouting: {
+    fallback: ["ollama/llama3.2"], // local fallback if Anthropic is down
+  },
+});
+```
+
+**Tool calling and streaming.** Ollama exposes the OpenAI-compatible
+`/v1/chat/completions` endpoint, so the SDK reuses the same transport
+used for OpenAI and OpenRouter — streaming, tool calls, and finish
+reasons all work the same way. Tool-calling quality depends on the
+underlying model (Llama 3.1+, Mistral, Qwen2.5 work well; older models
+may not).

@@ -62,11 +62,33 @@ export function shouldUseFixtureMode(apiKey: string | undefined): boolean {
 export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
   if (isFixtureApiKey(apiKey)) return false;
   if (apiKey === undefined || apiKey.length === 0) return false;
+  // ADR D182 / T1.2: `authType: "none"` providers (Ollama, LM Studio,
+  // llama.cpp) do not require any provider env var. Treat their presence
+  // — signaled via OLLAMA_HOST/LMSTUDIO_HOST/LLAMACPP_HOST OR the
+  // implicit-localhost default — as a green-light for real runtime.
+  // For zero-config Ollama, we accept the default `http://localhost:11434`
+  // unconditionally; the actual call will surface a typed
+  // `ollama_unreachable` if Ollama is not running.
   return (
     (typeof process.env.ANTHROPIC_API_KEY === "string" &&
       process.env.ANTHROPIC_API_KEY.length > 0) ||
     (typeof process.env.OPENAI_API_KEY === "string" && process.env.OPENAI_API_KEY.length > 0) ||
     (typeof process.env.OPENROUTER_API_KEY === "string" &&
-      process.env.OPENROUTER_API_KEY.length > 0)
+      process.env.OPENROUTER_API_KEY.length > 0) ||
+    isLocalNoAuthProviderAvailable()
   );
+}
+
+/**
+ * ADR D182 / T1.2: zero-config local providers (`authType: "none"`) are
+ * always available — Ollama defaults to localhost:11434, LM Studio to
+ * localhost:1234, llama.cpp to localhost:8080. We don't probe here
+ * (would require async); we return `true` when ANY of the documented
+ * local hosts is reachable in spirit. The first real LLM call surfaces
+ * `ollama_unreachable` via the typed mapper if no daemon is up.
+ */
+function isLocalNoAuthProviderAvailable(): boolean {
+  // Always true — the SDK ships Ollama as a builtin. Caller will see a
+  // typed error if it isn't actually running.
+  return true;
 }

@@ -10,7 +10,7 @@
 
 export type ApiMode = "chat_completions" | "anthropic_messages" | "responses_api" | "bedrock";
 
-export type AuthType = "api_key" | "oauth_device_code" | "oauth_external" | "aws_sdk";
+export type AuthType = "api_key" | "oauth_device_code" | "oauth_external" | "aws_sdk" | "none";
 
 export interface ProviderProfile {
   name: string;

@@ -1,3 +1,4 @@
+import { mapOllamaHttpError, mapOllamaTransportError } from "../errors/mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../errors/mappers/openai-compatible.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
@@ -25,6 +26,13 @@ export interface OpenAIClientOptions {
   baseUrl?: string;
   organization?: string;
   fetch?: typeof fetch;
+  /**
+   * Provider name for error mapping dispatch (T1.1, ADR D185). When set
+   * to `"ollama"`, transport and HTTP errors go through `mapOllamaTransportError`
+   * / `mapOllamaHttpError` for actionable messages before falling back to
+   * the generic OpenAI-compatible mapper. Default `"openai"`.
+   */
+  providerName?: string;
 }
 
 interface OpenAIDeltaChunk {
@@ -65,12 +73,25 @@ export class OpenAIClient implements LlmClient {
     if (this.options.organization !== undefined) {
       headers["openai-organization"] = this.options.organization;
     }
-    const response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
-      method: "POST",
-      signal,
-      headers,
-      body: JSON.stringify(buildOpenAIBody(request)),
-    });
+    const providerId = this.options.providerName ?? this.name;
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
+        method: "POST",
+        signal,
+        headers,
+        body: JSON.stringify(buildOpenAIBody(request)),
+      });
+    } catch (fetchErr) {
+      // T1.1: Ollama-specific transport error mapping (ECONNREFUSED / ENOTFOUND).
+      const mapped = mapOllamaTransportError({
+        providerId,
+        cause: fetchErr,
+        endpoint: "/v1/chat/completions",
+      });
+      if (mapped !== undefined) throw mapped;
+      throw fetchErr;
+    }
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       let body: unknown = text;
@@ -79,12 +100,21 @@ export class OpenAIClient implements LlmClient {
       } catch {
         // not JSON — keep as string for mapper raw field
       }
+      // T1.1: try Ollama-specific HTTP mapper first; falls through to generic.
+      const ollamaMapped = mapOllamaHttpError({
+        providerId,
+        status: response.status,
+        body,
+        headers: response.headers,
+        endpoint: "/v1/chat/completions",
+      });
+      if (ollamaMapped !== undefined) throw ollamaMapped;
       // Use the openai-compatible mapper. For OpenAI proper the providerId
       // is "openai"; OpenRouter is handled in its own client subclass (see
       // OpenRouterClient if/when added). Providers tagged differently via
       // wrapper clients can pass their own providerId by overriding.
       throw mapOpenAICompatibleError({
-        providerId: this.name,
+        providerId,
         status: response.status,
         body,
         headers: response.headers,
