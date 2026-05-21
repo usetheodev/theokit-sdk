@@ -43,6 +43,18 @@ export class TelegramAdapter extends BasePlatformAdapter {
     });
   }
 
+  /**
+   * Expose the underlying grammy `Bot` so consumers can register
+   * grammy-specific event handlers that don't fit the portable
+   * contract — `callbackQuery`, `bot.on(":voice")`, `bot.command(...)`,
+   * etc. Register BEFORE calling `runner.start()`.
+   *
+   * @public
+   */
+  getBot(): Bot {
+    return this.bot;
+  }
+
   override async connect(): Promise<boolean> {
     if (this.connected) return true;
     try {
