@@ -35,6 +35,8 @@ export function buildRealRunOptions(args: {
   systemPrompt: string | undefined;
   priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
   memoryTools: ReadonlyArray<MemoryToolSpec> | undefined;
+  personalityToolWhitelist?: ReadonlyArray<string>;
+  personalityName?: string;
 }): Parameters<typeof createRealLocalRun>[0] {
   return {
     agentId: args.inputs.agentId,
@@ -52,6 +54,10 @@ export function buildRealRunOptions(args: {
     ...(args.memoryTools !== undefined && args.memoryTools.length > 0
       ? { memoryTools: args.memoryTools }
       : {}),
+    ...(args.personalityToolWhitelist !== undefined
+      ? { personalityToolWhitelist: args.personalityToolWhitelist }
+      : {}),
+    ...(args.personalityName !== undefined ? { personalityName: args.personalityName } : {}),
   };
 }
 

@@ -55,6 +55,11 @@ export {
   type MigrateResult,
   migrateSqliteToLance,
 } from "./migrate.js";
+// Personality presets (Hermes #26, ADRs D160-D169)
+// `PersonalityPreset` is declared in `types/agent.ts` and reaches consumers
+// via the `types/*` star export below. The runtime registry class lives in
+// `internal/` because it owns filesystem I/O — public access is via the
+// `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
 // Streamed structured output (ADR D39)
