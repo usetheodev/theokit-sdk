@@ -1,15 +1,18 @@
 import { Security } from "@usetheo/sdk";
-// @usetheo/gateway integration (Phase 7 migration, ADRs D170-D181).
-// Group-policy + splitForTelegram now ship from @usetheo/gateway-telegram
-// (T5.1). This example consumes them as the contract validation —
-// any regression here is a regression in the gateway package.
+// @usetheo/gateway FULL migration (Phase 7, ADRs D170-D181).
+// The runner orchestrates lifecycle + slash dispatch + hook chain.
+// `adapter.getBot()` exposes grammy's Bot for non-portable events
+// (callback_query, bot.catch).
+import type { GatewayHook, MessageEvent } from "@usetheo/gateway";
+import { GatewayRunner } from "@usetheo/gateway";
 import {
+  type PolicyContext,
+  TelegramAdapter,
   shouldRespondInChat,
   splitForTelegram,
   stripBotMention,
-  type PolicyContext,
 } from "@usetheo/gateway-telegram";
-import { Bot, type Context, GrammyError, HttpError, InputFile } from "grammy";
+import { type Context, GrammyError, HttpError, InputFile } from "grammy";
 
 import { AD_HOC_TOOLS, listAdHocTools } from "./ad-hoc-tools.js";
 import { SYSTEM_PROMPT, getAgent, resolveAgentId, resolveUserId } from "./agent.js";
@@ -63,34 +66,63 @@ const ALLOWED_USERS = new Set(
     .filter((s) => s.length > 0),
 );
 
-const bot = new Bot(TOKEN);
+// Gateway wires under the hood. `adapter.getBot()` exposes grammy's Bot
+// for non-portable events (callback_query, bot.catch). The runner is what
+// we call `start()`/`stop()` on — it owns adapter lifecycle.
+const adapter = new TelegramAdapter({ token: TOKEN });
+const bot = adapter.getBot();
 const opts = { apiKey: API_KEY, cwd: CWD };
-let policy: PolicyContext | undefined; // initialized after bot.start()
+let policy: PolicyContext | undefined; // initialized after runner.start()
 
-bot.use(async (ctx, next) => {
-  const userId = resolveUserId(ctx);
-  const ts = new Date().toISOString();
-  const text = ctx.update.message?.text ?? ctx.update.message?.caption ?? "(non-text)";
-  // Redact known credential patterns before logging — covers the case where
-  // a user pastes a key into chat. The SDK's persistent storage (transcript
-  // JSONL) already redacts at write time (ADR D68/D73); this closes the same
-  // gap for the example's stdout logger.
-  console.log(
-    `[${ts}] user=${userId} chat=${ctx.chat?.type ?? "?"} text=${Security.redact(text).slice(0, 80)}`,
-  );
-  if (ALLOWED_USERS.size > 0 && !ALLOWED_USERS.has(userId)) {
-    await ctx.reply(
-      `Sorry — this bot is restricted. Your user id is \`${userId}\`.`,
-      { parse_mode: "Markdown" },
+// Allowlist + redact-log hook (replaces `bot.use(...)`). Fires before
+// every inbound event (text and media). `{ block: true, message }`
+// short-circuits + auto-replies (EC-D).
+const allowlistRedactHook: GatewayHook = {
+  name: "allowlist-redact",
+  pre_inbound: ({ event }) => {
+    if (event.platform !== "telegram") return undefined;
+    const userId = event.sender.id;
+    const ts = new Date().toISOString();
+    const text = event.text.length > 0 ? event.text : "(non-text)";
+    console.log(
+      `[${ts}] user=${userId} chat=${event.channel.type} text=${Security.redact(text).slice(0, 80)}`,
     );
-    return;
-  }
-  await next();
+    if (ALLOWED_USERS.size > 0 && !ALLOWED_USERS.has(userId)) {
+      return {
+        block: true,
+        message: `Sorry — this bot is restricted. Your user id is \`${userId}\`.`,
+      };
+    }
+    return undefined;
+  },
+};
+
+// Default handler — fires for inbound that DIDN'T match a runner.command.
+// Routes media (voice/photo/sticker/text) via the grammy Context escape
+// hatch (D180).
+async function defaultHandler(event: MessageEvent): Promise<void> {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const msg = ctx.message;
+  if (msg === undefined) return;
+  if (msg.voice !== undefined) return handleVoice(ctx);
+  if (msg.photo !== undefined) return handlePhoto(ctx);
+  if (msg.sticker !== undefined) return handleSticker(ctx);
+  if (msg.text !== undefined && !msg.text.startsWith("/")) return handleText(ctx);
+}
+
+const runner = new GatewayRunner({
+  adapters: [adapter],
+  handler: defaultHandler,
+  hooks: [allowlistRedactHook],
 });
 
 // ────────────────────── slash commands ──────────────────────
 
-bot.command("start", async (ctx) => {
+runner.command("start", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const agent = await getAgent(ctx, opts);
   try {
     await ctx.reply(
@@ -119,7 +151,10 @@ bot.command("start", async (ctx) => {
   }
 });
 
-bot.command("help", async (ctx) => {
+runner.command("help", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   await ctx.reply(
     [
       "*Theo Pro — commands*",
@@ -164,7 +199,10 @@ bot.command("help", async (ctx) => {
   );
 });
 
-bot.command("me", async (ctx) => {
+runner.command("me", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const facts = await listFacts(CWD);
   if (facts.length === 0) {
     await ctx.reply(
@@ -177,8 +215,11 @@ bot.command("me", async (ctx) => {
   await ctx.reply(`*What I remember about you*\n\n${lines}`, { parse_mode: "Markdown" });
 });
 
-bot.command("recall", async (ctx) => {
-  const query = ctx.match?.toString().trim() ?? "";
+runner.command("recall", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const query = match;
   if (query.length === 0) {
     await ctx.reply("Usage: `/recall vitest` — searches past conversations via corpus=\"sessions\".", {
       parse_mode: "Markdown",
@@ -192,8 +233,11 @@ bot.command("recall", async (ctx) => {
   );
 });
 
-bot.command("wiki", async (ctx) => {
-  const query = ctx.match?.toString().trim() ?? "";
+runner.command("wiki", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const query = match;
   if (query.length === 0) {
     await ctx.reply(
       "Usage: `/wiki tools` — searches `.theokit/memory/wiki/*.md` directly.",
@@ -218,7 +262,10 @@ bot.command("wiki", async (ctx) => {
   }
 });
 
-bot.command("agents", async (ctx) => {
+runner.command("agents", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   await ctx.reply(
     [
       "*Subagents declared* (`agents:` in Agent.create):",
@@ -235,7 +282,10 @@ bot.command("agents", async (ctx) => {
   );
 });
 
-bot.command("skills", async (ctx) => {
+runner.command("skills", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const agent = await getAgent(ctx, opts);
   try {
     type WithSkills = { skills?: { list: () => Promise<Array<{ name: string; description: string }>> } };
@@ -260,8 +310,11 @@ bot.command("skills", async (ctx) => {
 // the model is forced to call a synthetic `output` tool whose handler captures
 // the structured value matching the Zod schema. No string parsing, no regex,
 // no JSON.parse — Zod enforces shape and types end-to-end.
-bot.command("fact", async (ctx) => {
-  const topic = ctx.match?.toString().trim() ?? "";
+runner.command("fact", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const topic = match;
   if (topic.length === 0) {
     await ctx.reply(
       [
@@ -324,8 +377,11 @@ bot.command("fact", async (ctx) => {
 // batch surface (semaphore + per-prompt isolation + result ordering)
 // against a real LLM. Failures-per-prompt are surfaced inline so the
 // user sees the discriminated-union contract in action.
-bot.command("batch", async (ctx) => {
-  const topic = ctx.match?.toString().trim() ?? "";
+runner.command("batch", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const topic = match;
   if (topic.length === 0) {
     await ctx.reply(
       [
@@ -381,7 +437,10 @@ bot.command("batch", async (ctx) => {
 // Demonstrates @usetheo/memory-{supermemory,honcho,mem0} adapters via
 // agent.memory.write/recall + LLM-driven pre_user_send context injection.
 // Each provider is env-gated — missing key → polite error, NOT a crash.
-bot.command("memory", async (ctx) => {
+runner.command("memory", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const args = (ctx.match ?? "").toString().trim().split(/\s+/);
   const provider = args[0] ?? "";
   const topic = args.slice(1).join(" ").trim();
@@ -481,7 +540,10 @@ bot.command("memory", async (ctx) => {
 // repo: AGENTS.md, CLAUDE.md, GEMINI.md, .cursor/rules/*.mdc,
 // .theokit/context/*.md, .theokit/THEO.md. Demonstrates walk-up,
 // @import resolution, and aggregate cap status.
-bot.command("context", async (ctx) => {
+runner.command("context", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   await ctx.replyWithChatAction("typing");
   try {
     const { Agent } = await import("@usetheo/sdk");
@@ -521,8 +583,11 @@ bot.command("context", async (ctx) => {
 // Some providers (Gemini/Anthropic) batch tool_use output — partials may
 // be zero; in that case only the final `complete` event arrives. The 500ms
 // throttle on editMessageText keeps Telegram rate-limit happy (ADR D52).
-bot.command("factstream", async (ctx) => {
-  const topic = ctx.match?.toString().trim() ?? "";
+runner.command("factstream", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const topic = match;
   if (topic.length === 0) {
     // Plain text — "Agent.streamObject<T>" and "tool_use" contain "_<" that
     // breaks Markdown V1 entity parsing.
@@ -639,7 +704,10 @@ bot.command("factstream", async (ctx) => {
 // Isolated dry-run demo: creates a tmpdir, seeds 3 fake facts, runs
 // migrateSqliteToLance({ dryRun: true }), reports result. NEVER touches
 // the bot's real .theokit/memory/ (ADR D56).
-bot.command("migrate_memory", async (ctx) => {
+runner.command("migrate_memory", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   await ctx.replyWithChatAction("typing");
   // Plain text — message contains "_" (migrateSqliteToLance, dryRun, etc.)
   // that breaks Markdown V1 entity parsing.
@@ -699,7 +767,10 @@ bot.command("migrate_memory", async (ctx) => {
 // Pure documentation command: prints the opt-in config snippet + the typed
 // error shape. Does NOT try to open Lance — that requires @lancedb/lancedb
 // installed and live workspace state. See ADR D43/D56.
-bot.command("memory_lance", async (ctx) => {
+runner.command("memory_lance", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const { ConfigurationError } = await import("@usetheo/sdk");
   const sampleConfig = {
     memory: {
@@ -745,7 +816,10 @@ bot.command("memory_lance", async (ctx) => {
 // inside a Telegram bot (ADR D54) — user runs `pnpm exec
 // theokit-mcp-auth-notion --setup` ONCE outside the bot to populate the
 // token cache; subsequent /notion calls use the cached access token.
-bot.command("notion", async (ctx) => {
+runner.command("notion", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   if (process.env.NOTION_OAUTH_CLIENT_ID === undefined) {
     await ctx.reply(
       [
@@ -811,8 +885,11 @@ bot.command("notion", async (ctx) => {
 //
 // Switches between "wait" (default v1.1 behavior) and "stream" (incremental
 // editMessageText UX). Persists in memory only (D53).
-bot.command("stream", async (ctx) => {
-  const arg = ctx.match?.toString().trim().toLowerCase() ?? "";
+runner.command("stream", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const arg = match.toLowerCase() ?? "";
   if (arg !== "on" && arg !== "off") {
     const current = getStreamMode();
     await ctx.reply(
@@ -850,8 +927,11 @@ bot.command("stream", async (ctx) => {
 // slug regex enforced by Zod (D161 + EC-C). EC-H (first-token only) — only the
 // first whitespace-delimited token is honored; trailing args are ignored with
 // a polite "did you mean: <slug>?" if no exact match exists.
-bot.command("personality", async (ctx) => {
-  const raw = ctx.match?.toString() ?? "";
+runner.command("personality", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const raw = match;
   // EC-G + EC-H: trim, lowercase, take first whitespace-delimited token.
   const arg = raw.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
 
@@ -945,8 +1025,11 @@ bot.command("personality", async (ctx) => {
 //
 // Reads .theokit/skills/<name>/SKILL.md directly from filesystem (instant,
 // no LLM tokens). Sanitizes name via regex to prevent path traversal.
-bot.command("skill", async (ctx) => {
-  const name = ctx.match?.toString().trim() ?? "";
+runner.command("skill", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const name = match;
   if (name.length === 0) {
     await ctx.reply(
       "Usage: `/skill <name>` — drills into `.theokit/skills/<name>/SKILL.md`. Run `/skills` first to list available skills.",
@@ -970,7 +1053,10 @@ bot.command("skill", async (ctx) => {
   });
 });
 
-bot.command("summary", async (ctx) => {
+runner.command("summary", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   await ctx.reply("Running the nightly dreaming sweep on demand. This takes a few seconds...");
   try {
     const result = await runDreamNow(CWD);
@@ -990,7 +1076,10 @@ bot.command("summary", async (ctx) => {
   }
 });
 
-bot.command("cron", async (ctx) => {
+runner.command("cron", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const jobs = await listCronJobs();
   if (jobs.length === 0) {
     await ctx.reply("No cron jobs registered. The nightly dreaming sweep runs at 03:00 UTC by default.");
@@ -1005,10 +1094,13 @@ bot.command("cron", async (ctx) => {
   });
 });
 
-bot.command("remind", async (ctx) => {
+runner.command("remind", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   // Usage: /remind <cron-5fields> | <message text>
   // Example: /remind 0 9 * * 1 | pay the credit card
-  const raw = ctx.match?.toString().trim() ?? "";
+  const raw = match;
   if (raw.length === 0 || !raw.includes("|")) {
     await ctx.reply(
       [
@@ -1047,7 +1139,10 @@ bot.command("remind", async (ctx) => {
   }
 });
 
-bot.command("reset", async (ctx) => {
+runner.command("reset", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const agentId = resolveAgentId(ctx);
   const { rm } = await import("node:fs/promises");
   const { join } = await import("node:path");
@@ -1065,7 +1160,10 @@ bot.command("reset", async (ctx) => {
 // the LLM only sees that tool plus shell (the SDK's built-in). MCP, memory, and
 // agent-level custom tools (e.g. current_time) are EXCLUDED for the call. This
 // demonstrates per-call override (replace, not merge).
-bot.command("tool", async (ctx) => {
+runner.command("tool", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const raw = (ctx.match ?? "").toString().trim();
   if (raw.length === 0 || raw === "list") {
     // Plain text — descriptions contain "_" (e.g., "Sao_Paulo") that breaks Markdown V1.
@@ -1139,7 +1237,10 @@ bot.command("tool", async (ctx) => {
 //
 // Real-LLM only — OPENROUTER_API_KEY required (the judge auxiliary agent
 // reads it directly per ADR D119, EC-A).
-bot.command("goal", async (ctx) => {
+runner.command("goal", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const goal = (ctx.match ?? "").toString().trim();
   if (goal.length === 0) {
     await ctx.reply(
@@ -1208,7 +1309,10 @@ bot.command("goal", async (ctx) => {
 // OPENROUTER_API_KEY_1 + OPENROUTER_API_KEY_2 set, the agent registers
 // them as a 2-entry pool. Otherwise the single OPENROUTER_API_KEY single-key
 // path is used (no rotation observable — documents the upgrade path).
-bot.command("pool", async (ctx) => {
+runner.command("pool", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const arg = (ctx.match ?? "").toString().trim().toLowerCase();
   if (arg === "" || arg === "status") {
     const lines = [
@@ -1316,8 +1420,11 @@ async function fireForLoop(prompt: string, chatId: number): Promise<string> {
   }
 }
 
-bot.command("loop", async (ctx) => {
-  const raw = ctx.match?.toString().trim() ?? "";
+runner.command("loop", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const raw = match;
   const parts = raw.split(/\s+/);
   const duration = parts[0] ?? "";
   const prompt = parts.slice(1).join(" ");
@@ -1369,7 +1476,10 @@ bot.command("loop", async (ctx) => {
   );
 });
 
-bot.command("loops", async (ctx) => {
+runner.command("loops", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
   const chatId = ctx.chat?.id;
   if (chatId === undefined) return;
   const list = listLoops(chatId);
@@ -1385,8 +1495,11 @@ bot.command("loops", async (ctx) => {
   await ctx.reply(`Loops ativos (${list.length})\n\n${lines.join("\n")}`);
 });
 
-bot.command("stop_loop", async (ctx) => {
-  const arg = ctx.match?.toString().trim() ?? "";
+runner.command("stop_loop", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const arg = match;
   if (arg.length === 0) {
     // Plain text — "/stop_loop" contains "_".
     await ctx.reply("Usage: /stop_loop <id> ou /stop_loop all");
@@ -1471,10 +1584,10 @@ async function dispatchToAgent(ctx: Context, userText: string): Promise<void> {
 
 // ────────────────────── voice handler ──────────────────────
 
-bot.on("message:voice", async (ctx) => {
+async function handleVoice(ctx: Context): Promise<void> {
   if (policy !== undefined && !shouldRespondInChat(ctx, policy)) return;
   await ctx.replyWithChatAction("typing");
-  const voice = ctx.message.voice;
+  const voice = ctx.message?.voice;
   if (voice === undefined) return;
   let transcript: string;
   try {
@@ -1498,7 +1611,7 @@ bot.on("message:voice", async (ctx) => {
     return;
   }
   await dispatchToAgent(ctx, `[voice transcript: ${transcript}]`);
-});
+}
 
 // ────────────────────── photo + sticker handlers ──────────────────────
 
@@ -1531,26 +1644,26 @@ async function handleVisual(ctx: Context, fileId: string, cacheKey: string, kind
   await dispatchToAgent(ctx, userText);
 }
 
-bot.on("message:photo", async (ctx) => {
+async function handlePhoto(ctx: Context): Promise<void> {
   if (policy !== undefined && !shouldRespondInChat(ctx, policy)) return;
-  const photos = ctx.message.photo;
+  const photos = ctx.message?.photo;
   if (photos === undefined || photos.length === 0) return;
   // Telegram returns multiple thumbnail sizes — pick the largest.
   const largest = photos[photos.length - 1];
   if (largest === undefined) return;
   await handleVisual(ctx, largest.file_id, `photo-${largest.file_unique_id}`, "photo");
-});
+}
 
-bot.on("message:sticker", async (ctx) => {
+async function handleSticker(ctx: Context): Promise<void> {
   if (policy !== undefined && !shouldRespondInChat(ctx, policy)) return;
-  const sticker = ctx.message.sticker;
+  const sticker = ctx.message?.sticker;
   if (sticker === undefined) return;
   if (sticker.is_animated === true || sticker.is_video === true) {
     await ctx.reply("(Animated stickers aren't supported yet — the vision model needs a static frame.)");
     return;
   }
   await handleVisual(ctx, sticker.file_id, `sticker-${sticker.file_unique_id}`, "sticker");
-});
+}
 
 // ────────────────────── inline button callback ──────────────────────
 
@@ -1569,9 +1682,10 @@ bot.on("callback_query:data", async (ctx) => {
 
 // ────────────────────── regular text ──────────────────────
 
-bot.on("message:text", async (ctx) => {
+async function handleText(ctx: Context): Promise<void> {
   if (policy !== undefined && !shouldRespondInChat(ctx, policy)) return;
-  const raw = ctx.message.text;
+  const raw = ctx.message?.text;
+  if (raw === undefined) return;
   if (raw.startsWith("/")) return;
   const cleaned = policy !== undefined ? stripBotMention(raw, policy.botUsername) : raw;
   if (cleaned.length === 0) {
@@ -1579,7 +1693,7 @@ bot.on("message:text", async (ctx) => {
     return;
   }
   await dispatchToAgent(ctx, cleaned);
-});
+}
 
 // ────────────────────── error handling + startup ──────────────────────
 
@@ -1593,7 +1707,7 @@ bot.catch((err) => {
 
 process.on("SIGINT", async () => {
   console.log("\nShutting down — your data is safe on disk.");
-  await bot.stop();
+  await runner.stop();
   process.exit(0);
 });
 
@@ -1637,12 +1751,11 @@ export function setPolicyForDogfood(p: PolicyContext): void {
 
 const importedAsModule = process.env.TELEGRAM_PRO_NO_POLL === "1";
 if (!importedAsModule) {
-  await bot.start({
-    onStart: (me) => {
-      policy = { botUsername: me.username, botId: me.id };
-      console.log(`Connected as @${me.username} (id=${me.id}). Send /start to your bot.`);
-    },
-  });
+  await runner.start();
+  // Resolve bot identity AFTER connect for the group-policy.
+  const me = await bot.api.getMe();
+  policy = { botUsername: me.username, botId: me.id };
+  console.log(`Connected as @${me.username} (id=${me.id}). Send /start to your bot.`);
 }
 // Keep the InputFile import referenced so TS doesn't tree-shake it; we'll
 // use it when we extend the bot to send photos back.
