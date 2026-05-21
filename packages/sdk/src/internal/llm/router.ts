@@ -81,28 +81,42 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
 function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmClient | undefined {
   const profile = getProviderProfile(name);
   if (profile === undefined) return undefined;
-
-  // EC-A (batch / fork inheritance): ambient pool wins over per-agent build.
-  // When `withCredentialPool(pools, ...)` is active in the current async scope
-  // (Agent.batch or Agent.fork), every in-flight agent observes the SAME pool
-  // instance — required for cooldown sharing and rotation fairness.
   const ambient = currentCredentialPool(name);
   if (ambient !== undefined) {
     return new PoolAwareLlmClient(ambient, (apiKey) => selectTransport(profile, apiKey));
   }
-
-  // EC-C MUST FIX (ADR D187): `authType: "none"` providers ignore apiKeys.
-  // Building a CredentialPool against a runtime without auth is semantically
-  // meaningless; emit one-shot warn and route to the no-auth sentinel path.
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
-  if (profile.authType === "none" && poolKeys !== undefined && poolKeys.length > 0) {
-    warnNoAuthApiKeysIgnoredOnce(name);
-    const sentinel = sentinelForNoAuth(profile);
-    if (sentinel === undefined) return undefined;
-    return selectTransport(profile, sentinel);
-  }
+  const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys);
+  if (noAuthOverride !== undefined) return noAuthOverride;
+  return buildPoolOrSingle({ name, profile, poolKeys, routerOptions });
+}
 
-  // Pool path: ≥2 effective keys → wrap in PoolAwareLlmClient.
+/**
+ * EC-C MUST FIX (ADR D187): `authType: "none"` providers ignore apiKeys.
+ * Building a CredentialPool against a runtime without auth is semantically
+ * meaningless; emit one-shot warn and route to the sentinel transport.
+ */
+function maybeBuildNoAuthTransport(
+  profile: ProviderProfile,
+  poolKeys: string[] | undefined,
+): LlmClient | undefined {
+  if (profile.authType !== "none" || poolKeys === undefined || poolKeys.length === 0) {
+    return undefined;
+  }
+  warnNoAuthApiKeysIgnoredOnce(profile.name);
+  const sentinel = sentinelForNoAuth(profile);
+  if (sentinel === undefined) return undefined;
+  return selectTransport(profile, sentinel);
+}
+
+/** Pool path for ≥2 keys; single-key fast path otherwise; sentinel fallback. */
+function buildPoolOrSingle(args: {
+  name: string;
+  profile: ProviderProfile;
+  poolKeys: string[] | undefined;
+  routerOptions: ProviderRouterOptions;
+}): LlmClient | undefined {
+  const { name, profile, poolKeys, routerOptions } = args;
   if (poolKeys !== undefined && poolKeys.length >= 2) {
     const strategy = routerOptions.credentialPoolStrategy?.[name] ?? "fill_first";
     const entries = poolKeys.map((accessToken, priority) =>
@@ -111,11 +125,9 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     const pool = new CredentialPool(name, entries, strategy);
     return new PoolAwareLlmClient(pool, (apiKey) => selectTransport(profile, apiKey));
   }
-
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
-  // D182: `authType: "none"` providers (e.g., Ollama local) fall back to a
-  // sentinel placeholder when no key is set — transports that ignore the
-  // Authorization header still work.
+  // D182: `authType: "none"` providers fall back to a sentinel placeholder
+  // when no key is set — transports that ignore the Authorization header still work.
   const apiKey = poolKeys?.[0] ?? resolveApiKey(profile.envVars) ?? sentinelForNoAuth(profile);
   if (apiKey === undefined) return undefined;
   return selectTransport(profile, apiKey);
@@ -202,7 +214,6 @@ function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
 /**
  * EC-3 fix: exhaustive switch with actionable error on unsupported apiMode.
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4-mode transport ladder (chat_completions / anthropic_messages / responses_api / bedrock) is exhaustive by design — ApiMode union enforces compile-time completeness.
 function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
   if (profile.apiMode === "chat_completions") {
     const opts: ConstructorParameters<typeof OpenAIClient>[0] = { apiKey };

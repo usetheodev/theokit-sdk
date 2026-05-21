@@ -68,10 +68,7 @@ export const ollamaMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapte
     // Honor OLLAMA_API_KEY (Ollama Cloud / reverse-proxy auth), else use
     // sentinel that local Ollama silently ignores. This mirrors
     // `sentinelForNoAuth` in router.ts and OpenClaw's `resolveSyntheticAuth`.
-    const apiKey =
-      options.apiKey ??
-      process.env.OLLAMA_API_KEY ??
-      OLLAMA_LOCAL_SENTINEL_KEY;
+    const apiKey = options.apiKey ?? process.env.OLLAMA_API_KEY ?? OLLAMA_LOCAL_SENTINEL_KEY;
     return createOpenAiCompatibleRuntime(
       {
         id: "ollama",

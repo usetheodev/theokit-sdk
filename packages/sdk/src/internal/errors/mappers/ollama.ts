@@ -15,11 +15,7 @@
  * @internal
  */
 
-import {
-  ConfigurationError,
-  NetworkError,
-  type TheokitAgentError,
-} from "../../../errors.js";
+import { ConfigurationError, NetworkError, type TheokitAgentError } from "../../../errors.js";
 import { buildErrorMetadata } from "./shared.js";
 
 interface MapOllamaTransportArgs {
