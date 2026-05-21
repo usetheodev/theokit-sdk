@@ -1,4 +1,14 @@
 import { Security } from "@usetheo/sdk";
+// @usetheo/gateway integration (Phase 7 migration, ADRs D170-D181).
+// Group-policy + splitForTelegram now ship from @usetheo/gateway-telegram
+// (T5.1). This example consumes them as the contract validation —
+// any regression here is a regression in the gateway package.
+import {
+  shouldRespondInChat,
+  splitForTelegram,
+  stripBotMention,
+  type PolicyContext,
+} from "@usetheo/gateway-telegram";
 import { Bot, type Context, GrammyError, HttpError, InputFile } from "grammy";
 
 import { AD_HOC_TOOLS, listAdHocTools } from "./ad-hoc-tools.js";
@@ -10,8 +20,6 @@ import {
   runDreamNow,
   scheduleReminder,
 } from "./cron-setup.js";
-import { splitForTelegram } from "./format.js";
-import { shouldRespondInChat, stripBotMention, type PolicyContext } from "./group-policy.js";
 import { ensureHooksPolicy } from "./hooks-setup.js";
 import { listLoops, scheduleLoop, stopAllLoopsForChat, stopLoop } from "./loops.js";
 import { listFacts } from "./memory-store.js";
@@ -127,6 +135,7 @@ bot.command("help", async (ctx) => {
       "/memory_lance — opt-in LanceDB backend config showcase (v1.2)",
       "/notion — Notion MCP via OAuth 2.1 PKCE (requires NOTION_OAUTH_CLIENT_ID, v1.2)",
       "/stream on|off — toggle incremental editMessageText streaming (v1.2)",
+      "/personality [<name>|none] — activate a preset from `.theokit/personalities/` (v1.14, Hermes #26)",
       "/skill <name> — drill into a specific skill's SKILL.md content",
       "/summary — run dreaming sweep (dedup + cluster facts)",
       "/cron — list scheduled jobs",
@@ -828,6 +837,108 @@ bot.command("stream", async (ctx) => {
   await ctx.reply(`Streaming mode now: \`${arg === "on" ? "stream" : "wait"}\`${note}`, {
     parse_mode: "Markdown",
   });
+});
+
+// ────────────────────── /personality <name> — Hermes #26, ADRs D160-D169 ──────────────────────
+//
+// `/personality` (no arg) lists available presets from `.theokit/personalities/`.
+// `/personality <name>` activates the preset for the next send.
+// `/personality none` (or `default`/`neutral`) clears the active preset.
+// All switches persist per-user via `{ save: true }` so a restart preserves voice
+// (D163 + EC-B: clear path DELETES the JSON key, never writes `null`).
+// EC-G (input trim) — args are trimmed and lowercased to match the lowercase-only
+// slug regex enforced by Zod (D161 + EC-C). EC-H (first-token only) — only the
+// first whitespace-delimited token is honored; trailing args are ignored with
+// a polite "did you mean: <slug>?" if no exact match exists.
+bot.command("personality", async (ctx) => {
+  const raw = ctx.match?.toString() ?? "";
+  // EC-G + EC-H: trim, lowercase, take first whitespace-delimited token.
+  const arg = raw.trim().split(/\s+/, 1)[0]?.toLowerCase() ?? "";
+
+  if (arg.length === 0) {
+    // List available presets by reading the `.theokit/personalities/` dir
+    // directly. Cheaper than spinning the registry just to enumerate names
+    // (the registry is loaded lazily on the first `usePersonality` call).
+    const { readdir, readFile } = await import("node:fs/promises");
+    const { join } = await import("node:path");
+    const presetDir = join(CWD, ".theokit", "personalities");
+    let entries: string[] = [];
+    try {
+      entries = (await readdir(presetDir)).filter((f) => f.endsWith(".md"));
+    } catch {
+      entries = [];
+    }
+    if (entries.length === 0) {
+      await ctx.reply(
+        [
+          "*No personalities loaded.*",
+          "",
+          "Drop a `.theokit/personalities/<name>.md` with YAML frontmatter:",
+          "```",
+          "---",
+          "name: coder",
+          "description: Concise, technical, code-first replies.",
+          "---",
+          "You are in coder mode. ...",
+          "```",
+          "",
+          "Then `/personality coder` to activate.",
+        ].join("\n"),
+        { parse_mode: "Markdown" },
+      );
+      return;
+    }
+    const lines: string[] = [];
+    for (const file of entries) {
+      const raw = await readFile(join(presetDir, file), "utf8");
+      const fm = raw.match(/^---\n([\s\S]*?)\n---/);
+      const nameMatch = fm?.[1]?.match(/^name:\s*(.+)$/m);
+      const descMatch = fm?.[1]?.match(/^description:\s*(.+)$/m);
+      const name = nameMatch?.[1]?.trim() ?? file.replace(/\.md$/, "");
+      const desc = descMatch?.[1]?.trim() ?? "(no description)";
+      lines.push(`• *${name}* — ${desc}`);
+    }
+    await ctx.reply(
+      [
+        "*Available personalities*",
+        "",
+        ...lines,
+        "",
+        "`/personality <name>` — activate (persists per-user).",
+        "`/personality none` — clear active preset.",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+    return;
+  }
+
+  const agent = await getAgent(ctx, opts);
+  try {
+    if (agent.usePersonality === undefined) {
+      await ctx.reply(
+        "Personality presets require a local agent. This instance is cloud-only.",
+      );
+      return;
+    }
+    const result = await agent.usePersonality(arg, { save: true });
+    if (result === null) {
+      await ctx.reply("Personality cleared. Next reply uses the default voice.");
+    } else {
+      await ctx.reply(
+        [
+          `Activated *${result.name}*${result.description !== undefined ? ` — ${result.description}` : ""}.`,
+          "",
+          "Send any message to try it. `/personality none` to clear.",
+        ].join("\n"),
+        { parse_mode: "Markdown" },
+      );
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`\`${Security.redact(message)}\``, { parse_mode: "Markdown" });
+  } finally {
+    await agent.dispose();
+  }
 });
 
 // ────────────────────── /skill <name> — drill-down skill content (ADR D57) ──────────────────────

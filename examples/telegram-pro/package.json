@@ -11,6 +11,8 @@
     "@honcho-ai/sdk": "^2.1.0",
     "@usetheo/memory-honcho": "file:../../packages/memory-honcho",
     "@usetheo/memory-mem0": "file:../../packages/memory-mem0",
+    "@usetheo/gateway": "file:../../packages/gateway",
+    "@usetheo/gateway-telegram": "file:../../packages/gateway-telegram",
     "@usetheo/memory-supermemory": "file:../../packages/memory-supermemory",
     "@usetheo/sdk": "file:../../packages/sdk",
     "grammy": "^1.30.0",

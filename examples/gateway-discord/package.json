@@ -1,0 +1,23 @@
+{
+  "name": "@usetheo/example-gateway-discord",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx --env-file=.env src/index.ts"
+  },
+  "dependencies": {
+    "@usetheo/gateway": "file:../../packages/gateway",
+    "@usetheo/gateway-discord": "file:../../packages/gateway-discord",
+    "@usetheo/sdk": "file:../../packages/sdk",
+    "discord.js": "^14.16.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.0"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### Added (v1.14 personality-presets — Hermes #26, ADRs D160-D169)
+
+- **`Agent.usePersonality(name, opts?)`** public API on `SDKAgent`
+  (#roadmap-row-5). Activates a personality preset for the next `send`.
+  Reserved names `none` / `default` / `neutral` clear the active preset.
+  Returns the resolved `PersonalityPreset` (or `null` when cleared).
+  Cloud agents reject with `UnsupportedRunOperationError` (D169).
+- **`PersonalityRegistry`** + **`PersonalityPreset`** re-exported from
+  `@usetheo/sdk` (read-only). Reads from `<cwd>/.theokit/personalities/*.md`
+  (project) + `~/.theokit/personalities/*.md` (user) with project-wins-on-
+  collision (D162).
+- **Markdown + Zod frontmatter shape** (D161) — `name` (lowercase-only
+  slug, EC-C), `description?`, `tools?` (advisory whitelist), `model?`,
+  `tags?`, body = system-prompt overlay. Mirrors `.theokit/agents/*.md`.
+- **Session-default + persistent-opt-in state** (D163) — in-memory per
+  `agentId` by default; `{ save: true }` writes to
+  `$THEOKIT_HOME/personality.json`. **EC-B:** clear with save DELETES
+  the key (never `"agent-id": null`).
+- **Switch lifecycle** (D164) — preserves history by default
+  (`{ reset: true }` for opt-in clear), appends user-role transcript
+  marker (`[persona switched to <slug>]` or `[persona cleared]`), and
+  invalidates the prompt cache via D94 deferred (`reason:
+  "personality-switch"`).
+- **Tool whitelist filter** (D167) — `applyPersonalityFilter` narrows
+  the exposed `customTools` set; missing entries log a one-shot warn
+  with Levenshtein-distance-≤2 "did you mean" hint. Subtractive only
+  (D102 layer 4). MCP-style names (`mcp__server__tool`) matched as
+  exact strings (EC-I).
+- **Fork inheritance via `AsyncLocalStorage`** (D168) — fork captures
+  the parent's active slug **at construction time** as a primitive
+  snapshot (EC-A). Parent mid-flight `usePersonality` does NOT mutate
+  the fork's voice. `usePersonality` inside a fork = no-op + one-shot
+  warning.
+- **CloudAgent.usePersonality** throws `UnsupportedRunOperationError`
+  synchronously (D169, matches D122 pattern).
+
 ### Added (v1.13 context-files-coverage — ADRs D150-D159)
 
 - **`FileContextManager` auto-discovery extended** beyond `.theokit/context/*.md`

@@ -246,6 +246,22 @@ export class CloudAgent implements SDKAgent {
       "fork",
     );
   }
+
+  /**
+   * Personality presets require consistent server-side enforcement that
+   * the cloud runtime (pre-release) does not yet provide. Reject explicitly
+   * to avoid silent divergence between local and cloud behaviour (ADR D169).
+   *
+   * @public
+   */
+  usePersonality(): Promise<never> {
+    return Promise.reject(
+      new UnsupportedRunOperationError(
+        "Agent.usePersonality() is not supported on cloud agents (pre-release). Use a local agent or wait for cloud GA.",
+        "usePersonality",
+      ),
+    );
+  }
 }
 
 /**

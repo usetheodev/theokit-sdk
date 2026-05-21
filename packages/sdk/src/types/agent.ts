@@ -520,6 +520,44 @@ export interface SDKAgent {
    * @public
    */
   memory?: import("./memory-adapter.js").AgentMemory;
+  /**
+   * Activate a personality preset for the next `send` (Hermes #26).
+   * Reserved names `"none"`, `"default"`, and `"neutral"` clear the
+   * active preset. Returns the resolved preset (or `null` when cleared).
+   *
+   * Persistence: pass `{ save: true }` to persist across process
+   * restarts (stored under `$THEOKIT_HOME/personality.json`).
+   *
+   * History: by default the conversation history is preserved across
+   * the switch. Pass `{ reset: true }` to also clear the session.
+   *
+   * Cloud agents throw {@link import("../errors.js").UnsupportedRunOperationError}.
+   *
+   * @public
+   */
+  usePersonality?(
+    name: string,
+    opts?: { save?: boolean; reset?: boolean },
+  ): Promise<PersonalityPreset | null>;
+}
+
+/**
+ * Resolved personality preset surfaced via {@link SDKAgent.usePersonality}
+ * (Hermes #26, ADRs D160-D169). Re-declared here so the public DTS bundle
+ * never crosses the `internal/` path boundary. The implementation type in
+ * `internal/personality/types.ts` is structurally identical.
+ *
+ * @public
+ */
+export interface PersonalityPreset {
+  readonly name: string;
+  readonly description: string | undefined;
+  readonly tools: ReadonlyArray<string> | undefined;
+  readonly model: string | undefined;
+  readonly tags: ReadonlyArray<string> | undefined;
+  readonly systemPrompt: string;
+  readonly source: "project" | "user";
+  readonly sourcePath: string;
 }
 
 /**
