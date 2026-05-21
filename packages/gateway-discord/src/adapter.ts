@@ -84,6 +84,19 @@ export class DiscordAdapter extends BasePlatformAdapter {
     }
   }
 
+  /**
+   * Expose the underlying discord.js `Client` so consumers can register
+   * platform-specific events that don't fit the portable contract —
+   * `interactionCreate` (slash commands via Application Commands),
+   * `error` event boundary, presence updates, etc. Register BEFORE
+   * calling `runner.start()`.
+   *
+   * @public
+   */
+  getBot(): Client {
+    return this.client;
+  }
+
   override async sendMessage(out: OutboundMessage): Promise<SendResult> {
     if (out.text.length === 0) {
       return { ok: false, error: { code: "empty_text", message: "text is empty" } };
