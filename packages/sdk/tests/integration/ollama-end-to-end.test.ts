@@ -44,6 +44,7 @@ if (!ollamaAvailable) {
 }
 
 describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: end-to-end stream consume + assertion pipeline is intentionally inline for clarity in an integration test
   it("agent.send returns assistant message with non-empty content", async () => {
     const agent = await Agent.create({
       model: { id: TEST_MODEL },
