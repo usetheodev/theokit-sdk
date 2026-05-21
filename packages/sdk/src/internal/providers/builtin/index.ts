@@ -10,6 +10,9 @@
 import { registerProvider } from "../registry.js";
 import { ANTHROPIC } from "./anthropic.js";
 import { GEMINI } from "./gemini.js";
+import { LLAMACPP } from "./llamacpp.js";
+import { LMSTUDIO } from "./lmstudio.js";
+import { OLLAMA } from "./ollama.js";
 import { OPENAI } from "./openai.js";
 import { OPENROUTER } from "./openrouter.js";
 
@@ -22,6 +25,9 @@ export function registerBuiltins(): void {
   registerProvider(OPENAI);
   registerProvider(OPENROUTER);
   registerProvider(GEMINI);
+  registerProvider(OLLAMA);
+  registerProvider(LMSTUDIO);
+  registerProvider(LLAMACPP);
 }
 
 /** Test-only reset. @internal */
@@ -29,4 +35,4 @@ export function _resetBuiltinsRegistered(): void {
   registered = false;
 }
 
-export { ANTHROPIC, GEMINI, OPENAI, OPENROUTER };
+export { ANTHROPIC, GEMINI, LLAMACPP, LMSTUDIO, OLLAMA, OPENAI, OPENROUTER };

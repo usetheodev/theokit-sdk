@@ -5,9 +5,11 @@ import {
   FIXTURE_REPOSITORIES,
   FIXTURE_USER,
 } from "./internal/catalog/fixtures.js";
+import { listLocalModelsViaOpenAiCompat } from "./internal/catalog/local-models.js";
 import { resolveApiKey } from "./internal/env.js";
 import { isFixtureApiKey, shouldUseFixtureMode } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
+import { getProviderProfile, registerBuiltins } from "./internal/providers/index.js";
 import type { SDKProvider } from "./types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
 
@@ -19,6 +21,15 @@ import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
 export interface TheokitRequestOptions {
   /** Override the `THEOKIT_API_KEY` env var for this call. */
   apiKey?: string;
+  /**
+   * Target a specific provider for catalog reads. When set to a provider
+   * with `authType: "none"` (e.g. `"ollama"`, `"lmstudio"`, `"llamacpp"`),
+   * `Theokit.models.list({ provider })` reads from the provider's local
+   * `/v1/models` endpoint instead of the TheoCloud catalog. ADR D184.
+   *
+   * @public
+   */
+  provider?: string;
 }
 
 /**
@@ -53,12 +64,20 @@ export class Theokit {
   static readonly models: {
     list: (options?: TheokitRequestOptions) => Promise<SDKModel[]>;
   } = {
-    list: (options = {}) =>
-      executeCatalogRequest({
+    list: async (options = {}) => {
+      // ADR D184: when `provider` targets an `authType: "none"` provider,
+      // read locally instead of hitting TheoCloud. Cloud catalog path is
+      // unchanged when `provider` is undefined.
+      if (options.provider !== undefined) {
+        const localModels = await maybeListLocalModels(options.provider);
+        if (localModels !== undefined) return localModels;
+      }
+      return executeCatalogRequest({
         apiKey: options.apiKey,
         fixture: FIXTURE_MODELS,
         path: "/v1/models",
-      }),
+      });
+    },
   };
 
   /**
@@ -93,6 +112,29 @@ export class Theokit {
         path: "/v1/providers",
       }),
   };
+}
+
+/**
+ * ADR D184: when caller passed `{ provider }` targeting a profile with
+ * `authType: "none"`, fetch from the local provider's `/v1/models`.
+ * Returns `undefined` when the provider does not exist OR has auth —
+ * caller falls back to the cloud catalog path.
+ */
+async function maybeListLocalModels(providerName: string): Promise<SDKModel[] | undefined> {
+  registerBuiltins();
+  const profile = getProviderProfile(providerName);
+  if (profile === undefined) return undefined;
+  if (profile.authType !== "none") return undefined;
+  const baseUrl = resolveLocalProviderBaseUrl(profile.name, profile.baseUrl);
+  return listLocalModelsViaOpenAiCompat(baseUrl);
+}
+
+function resolveLocalProviderBaseUrl(providerName: string, fallback: string): string {
+  // Mirror the env override priority used in router.ts selectTransport.
+  if (providerName === "ollama" && process.env.OLLAMA_HOST !== undefined) {
+    return process.env.OLLAMA_HOST;
+  }
+  return fallback;
 }
 
 interface CatalogRequest<T> {

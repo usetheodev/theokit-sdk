@@ -40,9 +40,12 @@ function getFactory(opts: AgentFactoryOptions): AgentFactory {
   if (cachedFactory !== undefined) return cachedFactory;
   const providers = buildProviderRouting();
   const mcpServers = buildMcpServers(opts.cwd);
+  // ADR D182/D186: env override for fully-local Ollama operation
+  // (e.g. `DISCORD_PRO_MODEL=ollama/llama3.2:3b`).
+  const modelId = process.env.DISCORD_PRO_MODEL ?? "google/gemini-2.0-flash-001";
   cachedFactory = createAgentFactory({
     apiKey: opts.apiKey,
-    model: { id: "google/gemini-2.0-flash-001" },
+    model: { id: modelId },
     local: {
       cwd: opts.cwd,
       settingSources: ["project", "plugins"],

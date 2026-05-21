@@ -3,7 +3,9 @@ import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
 import type { CustomToolSpec, MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { FallbackLlmClient } from "../llm/fallback-client.js";
+import { parseModelId } from "../llm/model-identifier.js";
 import { resolveProviderChain } from "../llm/router.js";
+import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { createMcpClient, type McpClient } from "../mcp/client.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";
@@ -86,7 +88,28 @@ function buildLoopInputs(
   runId: string,
   userText: string,
 ): AgentLoopInputs {
-  const primary = options.agentOptions.providers?.routes?.[0]?.provider ?? detectPrimaryProvider();
+  // ADR D182 / T1.2: infer provider from model.id prefix (`ollama/...`)
+  // when caller didn't pass an explicit `providers.routes[0].provider`.
+  // Aligned with peer-project + Hermes patterns — explicit config wins, prefix
+  // inference is the zero-config fallback, env-var heuristics last.
+  // Builtins must be registered BEFORE the `getProviderProfile` lookup
+  // — `resolveProviderChain` triggers this lazily but the inference path
+  // above runs first.
+  registerBuiltins();
+  const parsedModel = parseModelId(options.model?.id);
+  const inferredProvider =
+    parsedModel.provider !== undefined && getProviderProfile(parsedModel.provider) !== undefined
+      ? parsedModel.provider
+      : undefined;
+  const primary =
+    options.agentOptions.providers?.routes?.[0]?.provider ??
+    inferredProvider ??
+    detectPrimaryProvider();
+  // When provider was inferred from the prefix, the model name passed to
+  // the LLM must be the stripped form (Ollama expects `llama3.2:3b`, not
+  // `ollama/llama3.2:3b`). When no prefix was found, pass id unchanged.
+  const effectiveModelId =
+    inferredProvider !== undefined ? parsedModel.name : (options.model?.id ?? "claude-sonnet-4-6");
   const fallback = options.agentOptions.providers?.fallback;
   const apiKeys = options.agentOptions.providers?.apiKeys;
   const credentialPoolStrategy = options.agentOptions.providers?.credentialPoolStrategy;
@@ -101,7 +124,7 @@ function buildLoopInputs(
   return {
     agentId: options.agentId,
     runId,
-    model: options.model ?? { id: "claude-sonnet-4-6" },
+    model: { id: effectiveModelId },
     userMessage: userText,
     llm,
     mcp: buildMcpMap(options),

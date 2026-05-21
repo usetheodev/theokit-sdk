@@ -91,8 +91,18 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     return new PoolAwareLlmClient(ambient, (apiKey) => selectTransport(profile, apiKey));
   }
 
-  // Pool path: ≥2 effective keys → wrap in PoolAwareLlmClient.
+  // EC-C MUST FIX (ADR D187): `authType: "none"` providers ignore apiKeys.
+  // Building a CredentialPool against a runtime without auth is semantically
+  // meaningless; emit one-shot warn and route to the no-auth sentinel path.
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
+  if (profile.authType === "none" && poolKeys !== undefined && poolKeys.length > 0) {
+    warnNoAuthApiKeysIgnoredOnce(name);
+    const sentinel = sentinelForNoAuth(profile);
+    if (sentinel === undefined) return undefined;
+    return selectTransport(profile, sentinel);
+  }
+
+  // Pool path: ≥2 effective keys → wrap in PoolAwareLlmClient.
   if (poolKeys !== undefined && poolKeys.length >= 2) {
     const strategy = routerOptions.credentialPoolStrategy?.[name] ?? "fill_first";
     const entries = poolKeys.map((accessToken, priority) =>
@@ -103,9 +113,53 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
   }
 
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
-  const apiKey = poolKeys?.[0] ?? resolveApiKey(profile.envVars);
+  // D182: `authType: "none"` providers (e.g., Ollama local) fall back to a
+  // sentinel placeholder when no key is set — transports that ignore the
+  // Authorization header still work.
+  const apiKey = poolKeys?.[0] ?? resolveApiKey(profile.envVars) ?? sentinelForNoAuth(profile);
   if (apiKey === undefined) return undefined;
   return selectTransport(profile, apiKey);
+}
+
+function resolveBaseUrlEnvOverride(providerName: string): string | undefined {
+  switch (providerName) {
+    case "openai":
+      return process.env.OPENAI_API_BASE_URL;
+    case "openrouter":
+      return process.env.OPENROUTER_API_BASE_URL;
+    case "ollama":
+      return process.env.OLLAMA_HOST;
+    case "lmstudio":
+      return process.env.LMSTUDIO_HOST;
+    case "llamacpp":
+      return process.env.LLAMACPP_HOST;
+    default:
+      return undefined;
+  }
+}
+
+// EC-C: one-shot warn keyed by provider name.
+const warnedNoAuthApiKeys = new Set<string>();
+function warnNoAuthApiKeysIgnoredOnce(provider: string): void {
+  if (warnedNoAuthApiKeys.has(provider)) return;
+  warnedNoAuthApiKeys.add(provider);
+  process.stderr.write(
+    `[theokit-sdk] provider "${provider}" has authType: "none" — apiKeys ignored (no auth required for local runtime).\n`,
+  );
+}
+
+/** Test-only reset. @internal */
+export function _resetNoAuthApiKeyWarnings(): void {
+  warnedNoAuthApiKeys.clear();
+}
+
+/**
+ * D182: providers declaring `authType: "none"` use a placeholder credential
+ * so the OpenAI-compat transport keeps working. The placeholder value is
+ * never sensitive — local runtimes ignore the Authorization header.
+ */
+function sentinelForNoAuth(profile: ProviderProfile): string | undefined {
+  return profile.authType === "none" ? profile.name : undefined;
 }
 
 function filterPoolKeys(keys: string[] | undefined): string[] | undefined {
@@ -153,16 +207,17 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
   if (profile.apiMode === "chat_completions") {
     const opts: ConstructorParameters<typeof OpenAIClient>[0] = { apiKey };
     opts.baseUrl = profile.baseUrl;
+    // T1.1 (ADR D185): forward provider name so OpenAIClient can dispatch
+    // Ollama-specific error mapping for ECONNREFUSED / 404-not-pulled / 503-loading.
+    opts.providerName = profile.name;
     if (profile.name === "openai" && process.env.OPENAI_ORGANIZATION !== undefined) {
       opts.organization = process.env.OPENAI_ORGANIZATION;
     }
-    // Honor explicit OPENAI/OPENROUTER base URL overrides for testing.
-    const envOverride =
-      profile.name === "openai"
-        ? process.env.OPENAI_API_BASE_URL
-        : profile.name === "openrouter"
-          ? process.env.OPENROUTER_API_BASE_URL
-          : undefined;
+    // Honor explicit base URL overrides for cloud providers + the local
+    // `authType: "none"` family (D182, D188, D189). All four `_HOST` /
+    // `_API_BASE_URL` vars are intentionally separate so users can mix
+    // remote-box pointing without disturbing the others.
+    const envOverride = resolveBaseUrlEnvOverride(profile.name);
     if (envOverride !== undefined) opts.baseUrl = envOverride;
     return new OpenAIClient(opts);
   }

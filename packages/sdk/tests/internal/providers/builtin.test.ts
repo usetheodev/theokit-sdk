@@ -53,6 +53,13 @@ describe("builtin providers (T3.3)", () => {
   it("registerBuiltins idempotent", () => {
     registerBuiltins();
     registerBuiltins();
-    expect(listProviders()).toHaveLength(4);
+    // anthropic, openai, openrouter, gemini, ollama (D182), lmstudio (D188), llamacpp (D189)
+    expect(listProviders()).toHaveLength(7);
+  });
+
+  it("ollama profile registered (D182)", () => {
+    const p = getProviderProfile("ollama");
+    expect(p?.apiMode).toBe("chat_completions");
+    expect(p?.authType).toBe("none");
   });
 });

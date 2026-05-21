@@ -2,6 +2,56 @@
 
 ## [Unreleased]
 
+### Added (Ollama integration complete — ADRs D182-D190)
+
+**Local-first LLM stack: chat, embeddings, RAG, models discovery, plus LM Studio
+and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
+
+- **Ollama builtin provider profile** (D182). `Agent.create({ model: "ollama/llama3.2:3b" })`
+  works zero-config after `ollama serve`. `authType: "none"` + sentinel
+  `"ollama-local"` Bearer token; local Ollama ignores the Authorization header.
+- **`Ollama embedding adapter`** (D183). Sixth entry in `MEMORY_EMBEDDING_ADAPTERS`,
+  targets `/v1/embeddings` (OpenAI-compat). Default model `nomic-embed-text`
+  (768 dim). First adapter with `transport: "local"` — `transport` union
+  extended from `"remote"` to `"remote" | "local"`. Supports `nomic-embed-text`,
+  `all-minilm`, `bge-large`, `bge-m3`, `mxbai-embed-large`.
+- **`Theokit.models.list({ provider: "ollama" })`** (D184). New optional
+  `provider` field on `TheokitRequestOptions` routes to the provider's local
+  `/v1/models` endpoint when targeted profile has `authType: "none"`. Cloud
+  catalog path unchanged when no `provider` is passed (backward compat).
+- **Typed actionable error mapping** (D185). New `mapOllamaTransportError`
+  (ECONNREFUSED/ENOTFOUND → "Run \`ollama serve\`") and `mapOllamaHttpError`
+  (404 → "Run \`ollama pull <model>\`"; 503 model-loading → retryable). Wired
+  into `OpenAIClient` via new optional `providerName` constructor option.
+- **Provider inference from model.id prefix** (D186). `model: "ollama/llama3.2:3b"`
+  routes to the Ollama profile and sends `llama3.2:3b` as the model name to the
+  LLM body. Aligned with OpenRouter / Hermes / a peer framework patterns. Aliases
+  `llama-cpp`/`llama.cpp` → `llamacpp`, `lm-studio` → `lmstudio`.
+- **CredentialPool no-op for `authType: "none"`** (D187). `apiKeys: { ollama: [...] }`
+  is silently ignored with one-shot stderr warn instead of building a meaningless
+  pool of sentinels.
+- **LM Studio builtin profile** (D188). `name: "lmstudio"`, aliases
+  `["lm-studio", "lm_studio"]`, default port 1234, `LMSTUDIO_HOST` override.
+- **llama.cpp server builtin profile** (D189). `name: "llamacpp"`, aliases
+  `["llama-cpp", "llama.cpp"]`, default port 8080, `LLAMACPP_HOST` override.
+- **OLLAMA_HOST / LMSTUDIO_HOST / LLAMACPP_HOST baseUrl overrides** wired in
+  `selectTransport` (alongside existing `OPENAI_API_BASE_URL` etc.).
+- **`OLLAMA_API_KEY`** env var override (optional) for Ollama Cloud or
+  reverse-proxy-with-auth setups.
+- **Memory.runDreamingSweep accepts `provider: "ollama"`** in its embedding
+  union — fully-local dreaming/clustering is now possible.
+- **`examples/ollama-hello/`** (D190) — minimal Agent.create + send + stream
+  against `ollama/llama3.2:3b`. Zero API keys.
+- **`examples/ollama-local-rag/`** (D190) — 100%-local RAG pipeline: embedding
+  via `nomic-embed-text`, cosine similarity ranking, context-augmented
+  `agent.send` against `llama3.2:3b`. Sample corpus included.
+- **Integration tests against real Ollama** (T1.2, T3.1, T5.1) under
+  `tests/integration/` with `skipIf` probes — silent when daemon absent,
+  proves end-to-end when present. Per `.claude/rules/real-llm-validation.md`.
+
+**Internal: `parseModelId`** sync helper for provider/name splitting; reused by
+`buildLoopInputs` and exported from `internal/llm/model-identifier.ts`.
+
 ### Added (v1.14 personality-presets — Hermes #26, ADRs D160-D169)
 
 - **`Agent.usePersonality(name, opts?)`** public API on `SDKAgent`
