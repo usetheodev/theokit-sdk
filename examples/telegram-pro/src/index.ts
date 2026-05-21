@@ -1748,6 +1748,38 @@ try {
 } catch (err) {
   console.warn("  cron: init failed:", err instanceof Error ? err.message : String(err));
 }
+
+// ADR D182/D183: when TELEGRAM_PRO_MODEL points at a local Ollama runtime,
+// pre-warm the model on boot so the FIRST agent.send doesn't pay 20-30s of
+// model-load latency. Subsequent calls hit a hot model. Also bumps Ollama
+// keep_alive to 24h so memory-recall queries (embed model swap) don't
+// evict the chat model.
+const localModelMatch = (process.env.TELEGRAM_PRO_MODEL ?? "").match(/^ollama\/(.+)$/);
+if (localModelMatch !== null) {
+  const modelName = localModelMatch[1] ?? "";
+  const ollamaHost = process.env.OLLAMA_HOST ?? "http://localhost:11434";
+  try {
+    const t = Date.now();
+    const r = await fetch(`${ollamaHost}/api/chat`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model: modelName,
+        stream: false,
+        keep_alive: "24h",
+        messages: [{ role: "user", content: "ok" }],
+      }),
+    });
+    console.log(
+      `  ollama: pre-warmed ${modelName} (${Date.now() - t}ms, keep_alive=24h, status=${r.status})`,
+    );
+  } catch (err) {
+    console.warn(
+      "  ollama: pre-warm failed:",
+      err instanceof Error ? err.message : String(err),
+    );
+  }
+}
 console.log();
 
 // Export the configured bot for dogfood / harness scripts that import this

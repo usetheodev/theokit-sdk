@@ -92,6 +92,23 @@ function getFactory(opts: AgentFactoryOptions): AgentFactory {
   return cachedFactory;
 }
 
+/**
+ * ADR D182/D183: in local-model mode, agents are LONG-LIVED. Returning an
+ * agent with a NO-OP `dispose()` keeps the cached agent alive across
+ * commands — re-creating per-handler costs 5-10s on Ollama (DB init,
+ * memory load, MCP servers). The bot lifecycle handles cleanup at SIGTERM.
+ */
+function makeNonDisposingProxy(agent: SDKAgent): SDKAgent {
+  return new Proxy(agent, {
+    get(target, prop, receiver) {
+      if (prop === "dispose") {
+        return async () => undefined;
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+}
+
 export async function getAgent(ctx: Context, opts: AgentFactoryOptions): Promise<SDKAgent> {
   const agentId = resolveAgentId(ctx);
   const userId = resolveUserId(ctx);
@@ -104,7 +121,7 @@ export async function getAgent(ctx: Context, opts: AgentFactoryOptions): Promise
   const isLocalModel = /^(ollama|lmstudio|llamacpp)\//.test(
     process.env.TELEGRAM_PRO_MODEL ?? "",
   );
-  return getFactory(opts).getOrCreate(agentId, {
+  const agent = await getFactory(opts).getOrCreate(agentId, {
     memory: {
       enabled: true,
       namespace: "tg-pro",
@@ -119,4 +136,7 @@ export async function getAgent(ctx: Context, opts: AgentFactoryOptions): Promise
       : SYSTEM_PROMPT,
     tools: isLocalModel ? [] : TELEGRAM_PRO_CUSTOM_TOOLS,
   });
+  // In local mode, suppress per-handler dispose() — keep agent warm across
+  // commands so memory/MCP init cost is amortized once at bot boot.
+  return isLocalModel ? makeNonDisposingProxy(agent) : agent;
 }
