@@ -562,7 +562,21 @@ async function main() {
       continue;
     }
 
-    let inbound = await waitForInboundReply(cdp, sessionId, baselineMaxId, cmd.waitMs, cmd.expect);
+    // When OLLAMA_DOGFOOD=1 is set OR TELEGRAM_PRO_MODEL points at a local
+    // runtime, multiply per-command timeouts by 6x to absorb the 4-8x latency
+    // gap between local Ollama (3-7B models, 5-30s/turn) and OpenRouter cloud
+    // (~1-3s/turn). Skill's baseline waitMs values are calibrated for cloud.
+    const ollamaMode =
+      process.env.OLLAMA_DOGFOOD === "1" ||
+      /^(ollama|lmstudio|llamacpp)\//.test(process.env.TELEGRAM_PRO_MODEL ?? "");
+    const effectiveWaitMs = ollamaMode ? cmd.waitMs * 6 : cmd.waitMs;
+    let inbound = await waitForInboundReply(
+      cdp,
+      sessionId,
+      baselineMaxId,
+      effectiveWaitMs,
+      cmd.expect,
+    );
     let reply = inbound.map((b) => b.text).join("\n");
 
     // Auto-retry transient OpenRouter rate-limit (HTTP 429). The bot surfaces
@@ -589,7 +603,13 @@ async function main() {
       await wait(75000);
       const retryBaseline = await getMaxMessageId(cdp, sessionId);
       await typeAndSend(cdp, sessionId, cmd.text);
-      inbound = await waitForInboundReply(cdp, sessionId, retryBaseline, cmd.waitMs, cmd.expect);
+      inbound = await waitForInboundReply(
+        cdp,
+        sessionId,
+        retryBaseline,
+        effectiveWaitMs,
+        cmd.expect,
+      );
       reply = inbound.map((b) => b.text).join("\n");
     }
     const elapsed = Date.now() - t0;

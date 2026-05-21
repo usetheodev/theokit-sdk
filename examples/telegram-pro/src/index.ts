@@ -441,7 +441,7 @@ runner.command("memory", async (event) => {
   if (event.platform !== "telegram") return;
   const ctx = event.telegram.raw as Context;
   const match = event.text.replace(/^\/\S+\s*/, "");
-  const args = (ctx.match ?? "").toString().trim().split(/\s+/);
+  const args = match.trim().split(/\s+/);
   const provider = args[0] ?? "";
   const topic = args.slice(1).join(" ").trim();
   if (provider === "" || topic === "") {
@@ -637,10 +637,18 @@ runner.command("factstream", async (event) => {
      // structured `output` tool (Gemini-specific quirk documented in usage
      // text above). GPT-4o-mini is much more reliable for streamObject /
      // Zod-schema flows — same OpenRouter API key, marginal cost difference,
-     // deterministic tool calling.
+     // deterministic tool calling. When TELEGRAM_PRO_MODEL is set to a local
+     // runtime (ollama/...), fall through to that model — small local models
+     // may not produce structured output reliably (capability gap, not bug).
+    const streamObjectModel = (() => {
+      const m = process.env.TELEGRAM_PRO_MODEL ?? "";
+      return /^(ollama|lmstudio|llamacpp|lm-studio|llama-cpp|llama\.cpp)\//.test(m)
+        ? m
+        : "openai/gpt-4o-mini";
+    })();
     for await (const evt of Agent.streamObject({
       apiKey: API_KEY,
-      model: { id: "openai/gpt-4o-mini" },
+      model: { id: streamObjectModel },
       local: { cwd: CWD, sandboxOptions: { enabled: false } },
       schema,
       systemPrompt:
@@ -1164,7 +1172,7 @@ runner.command("tool", async (event) => {
   if (event.platform !== "telegram") return;
   const ctx = event.telegram.raw as Context;
   const match = event.text.replace(/^\/\S+\s*/, "");
-  const raw = (ctx.match ?? "").toString().trim();
+  const raw = match.trim();
   if (raw.length === 0 || raw === "list") {
     // Plain text — descriptions contain "_" (e.g., "Sao_Paulo") that breaks Markdown V1.
     await ctx.reply(
@@ -1241,7 +1249,7 @@ runner.command("goal", async (event) => {
   if (event.platform !== "telegram") return;
   const ctx = event.telegram.raw as Context;
   const match = event.text.replace(/^\/\S+\s*/, "");
-  const goal = (ctx.match ?? "").toString().trim();
+  const goal = match.trim();
   if (goal.length === 0) {
     await ctx.reply(
       [
@@ -1256,11 +1264,13 @@ runner.command("goal", async (event) => {
     return;
   }
   const { Agent } = await import("@usetheo/sdk");
+  // Honor TELEGRAM_PRO_MODEL so /goal works in local Ollama mode.
+  const goalModelId = process.env.TELEGRAM_PRO_MODEL ?? "openai/gpt-4o-mini";
   const agent = await Agent.create({
     apiKey: API_KEY,
     local: { cwd: CWD },
     systemPrompt: "You are a concise assistant. Respond briefly. Stop when the user's goal is satisfied.",
-    model: { id: "openai/gpt-4o-mini" },
+    model: { id: goalModelId },
   });
   try {
     await ctx.replyWithChatAction("typing");
@@ -1313,7 +1323,7 @@ runner.command("pool", async (event) => {
   if (event.platform !== "telegram") return;
   const ctx = event.telegram.raw as Context;
   const match = event.text.replace(/^\/\S+\s*/, "");
-  const arg = (ctx.match ?? "").toString().trim().toLowerCase();
+  const arg = match.trim().toLowerCase();
   if (arg === "" || arg === "status") {
     const lines = [
       "Credential Pool status (v1.10, ADRs D123-D133):",
