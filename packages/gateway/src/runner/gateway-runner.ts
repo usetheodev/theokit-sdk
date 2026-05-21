@@ -46,9 +46,18 @@ export interface GatewayRunnerOptions {
   readonly hooks?: ReadonlyArray<GatewayHook>;
   /** Drain timeout for in-flight handlers on stop(). Default 10_000ms (EC-E). */
   readonly drainTimeoutMs?: number;
+  /**
+   * Prefixes that `runner.command(name, h)` matches on. Default `["/"]`
+   * (Telegram-style). Pass `["!"]` for Discord, `["/", "!"]` to accept
+   * both. Word-boundary match (EC-A) applies to every prefix.
+   *
+   * @public
+   */
+  readonly commandPrefixes?: ReadonlyArray<string>;
 }
 
 const DEFAULT_DRAIN_MS = 10_000;
+const DEFAULT_COMMAND_PREFIXES: ReadonlyArray<string> = ["/"];
 
 /**
  * Holds the registered adapters and dispatches inbound events through
@@ -176,15 +185,24 @@ export class GatewayRunner {
    * shadowing `/skills`. Returns the handler if a command matches,
    * undefined otherwise.
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: prefix-scan + word-boundary loop is one cohesive matcher; splitting hurts readability.
   private matchSlashCommand(event: GatewayMessageEvent): GatewayHandler | undefined {
     const text = event.text;
-    if (!text.startsWith("/")) return undefined;
+    const prefixes = this.opts.commandPrefixes ?? DEFAULT_COMMAND_PREFIXES;
+    let activePrefix: string | undefined;
+    for (const p of prefixes) {
+      if (text.startsWith(p)) {
+        activePrefix = p;
+        break;
+      }
+    }
+    if (activePrefix === undefined) return undefined;
 
     for (const [name, handler] of this.commands) {
-      const prefix = `/${name}`;
-      if (text === prefix) return handler;
-      if (text.startsWith(`${prefix} `)) return handler;
-      if (text.startsWith(`${prefix}@`)) return handler;
+      const full = `${activePrefix}${name}`;
+      if (text === full) return handler;
+      if (text.startsWith(`${full} `)) return handler;
+      if (text.startsWith(`${full}@`)) return handler;
     }
     return undefined;
   }
