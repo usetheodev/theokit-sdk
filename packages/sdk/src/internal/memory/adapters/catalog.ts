@@ -1,6 +1,7 @@
 import type { MemoryEmbeddingProviderAdapter } from "../embedding-adapter.js";
 import { deepinfraMemoryEmbeddingProviderAdapter } from "./deepinfra-embedding.js";
 import { mistralMemoryEmbeddingProviderAdapter } from "./mistral-embedding.js";
+import { ollamaMemoryEmbeddingProviderAdapter } from "./ollama-embedding.js";
 import { openAiMemoryEmbeddingProviderAdapter } from "./openai-embedding.js";
 import { openRouterMemoryEmbeddingProviderAdapter } from "./openrouter-embedding.js";
 import { voyageMemoryEmbeddingProviderAdapter } from "./voyage-embedding.js";
@@ -14,7 +15,9 @@ import { voyageMemoryEmbeddingProviderAdapter } from "./voyage-embedding.js";
  * `"openai/text-embedding-3-small"`, `"mistralai/mistral-embed"`).
  *
  * Locked by ADR D11: `openai`, `mistral`, `openrouter`, `voyage`, `deepinfra`
- * ship in v1.0. `lmstudio`, `google`, `bedrock` are deferred to v1.1.
+ * ship in v1.0. ADR D183: `ollama` added — first `transport: "local"`
+ * adapter, enables 100%-local RAG (no remote API key needed).
+ * `lmstudio`, `google`, `bedrock` are deferred to v1.1.
  *
  * @internal
  */
@@ -24,4 +27,5 @@ export const MEMORY_EMBEDDING_ADAPTERS: Readonly<Record<string, MemoryEmbeddingP
   openrouter: openRouterMemoryEmbeddingProviderAdapter,
   voyage: voyageMemoryEmbeddingProviderAdapter,
   deepinfra: deepinfraMemoryEmbeddingProviderAdapter,
+  ollama: ollamaMemoryEmbeddingProviderAdapter,
 };

@@ -2,9 +2,12 @@
  * Tests for refactored router (T4.3, ADRs D105-D107).
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { resolveProviderChain } from "../../../src/internal/llm/router.js";
+import {
+  _resetNoAuthApiKeyWarnings,
+  resolveProviderChain,
+} from "../../../src/internal/llm/router.js";
 import {
   _resetBuiltinsRegistered,
   registerBuiltins,
@@ -19,6 +22,7 @@ const ORIG_ENV: Record<string, string | undefined> = {};
 beforeEach(() => {
   _resetProvidersForTests();
   _resetBuiltinsRegistered();
+  _resetNoAuthApiKeyWarnings();
   for (const k of [
     "ANTHROPIC_API_KEY",
     "OPENAI_API_KEY",
@@ -95,5 +99,39 @@ describe("router (T4.3)", () => {
     const chain = resolveProviderChain({ primary: "openrouter" });
     // Resolved (key found via fallback in env list).
     expect(chain).toHaveLength(1);
+  });
+
+  it("EC-C (D187): authType: 'none' + apiKeys populated → no-op transport + one-shot warn", () => {
+    // Register builtins so 'ollama' (authType: "none") is resolvable.
+    registerBuiltins();
+    const stderrSpy = vi.spyOn(process.stderr, "write");
+    stderrSpy.mockClear();
+
+    // First call: 2 apiKeys against ollama → must NOT build a pool; must warn once.
+    const chain1 = resolveProviderChain({
+      primary: "ollama",
+      apiKeys: { ollama: ["k1", "k2"] },
+    });
+    expect(chain1).toHaveLength(1);
+    // Pool path would build PoolAwareLlmClient; non-pool path builds OpenAIClient directly.
+    // We assert via warn fire: any stderr call mentioning "authType" or "apiKeys ignored".
+    const warnCalls = stderrSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("apiKeys ignored"),
+    );
+    expect(warnCalls.length).toBe(1);
+
+    // Second call: warn must NOT re-fire (one-shot).
+    stderrSpy.mockClear();
+    const chain2 = resolveProviderChain({
+      primary: "ollama",
+      apiKeys: { ollama: ["k1", "k2"] },
+    });
+    expect(chain2).toHaveLength(1);
+    const warnCallsAgain = stderrSpy.mock.calls.filter((args) =>
+      String(args[0]).includes("apiKeys ignored"),
+    );
+    expect(warnCallsAgain.length).toBe(0);
+
+    stderrSpy.mockRestore();
   });
 });

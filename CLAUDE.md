@@ -348,6 +348,15 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D179 | Discord adapter uses WebSocket Gateway (discord.js), not HTTP webhooks | [D179-gateway-discord-websocket-not-webhooks.md](./.claude/knowledge-base/adrs/D179-gateway-discord-websocket-not-webhooks.md) |
 | D180 | Portable features are first-class (text + threads); platform-specific features via `event.{telegram,discord}?.raw` escape hatch | [D180-gateway-portable-vs-platform-specific.md](./.claude/knowledge-base/adrs/D180-gateway-portable-vs-platform-specific.md) |
 | D181 | Initial gateway packages ship at `0.1.0` (pre-1.0); breaking changes allowed within `0.x` | [D181-gateway-pre-1-0-version.md](./.claude/knowledge-base/adrs/D181-gateway-pre-1-0-version.md) |
+| D182 | Ollama ships as a builtin provider with `authType: "none"` + `OLLAMA_HOST` baseUrl override (zero-config local-LLM UX) | [D182-ollama-builtin-provider.md](./.claude/knowledge-base/adrs/D182-ollama-builtin-provider.md) |
+| D183 | Ollama embedding adapter via OpenAI-compat `/v1/embeddings`; first `transport: "local"` entry in catalog | [D183-ollama-embedding-adapter.md](./.claude/knowledge-base/adrs/D183-ollama-embedding-adapter.md) |
+| D184 | `Theokit.models.list({ provider })` reads locally for `authType: "none"` profiles | [D184-theokit-models-list-local-discovery.md](./.claude/knowledge-base/adrs/D184-theokit-models-list-local-discovery.md) |
+| D185 | Typed Ollama transport + HTTP error mapping with actionable messages | [D185-ollama-actionable-error-mapping.md](./.claude/knowledge-base/adrs/D185-ollama-actionable-error-mapping.md) |
+| D186 | Provider name inferred from `model.id` prefix when not declared | [D186-model-id-provider-inference.md](./.claude/knowledge-base/adrs/D186-model-id-provider-inference.md) |
+| D187 | `CredentialPool` is a no-op for `authType: "none"` providers + one-shot warn | [D187-credential-pool-noop-for-noauth.md](./.claude/knowledge-base/adrs/D187-credential-pool-noop-for-noauth.md) |
+| D188 | LM Studio ships as a builtin sibling profile (port 1234, `LMSTUDIO_HOST` override) | [D188-lmstudio-builtin-provider.md](./.claude/knowledge-base/adrs/D188-lmstudio-builtin-provider.md) |
+| D189 | llama.cpp server ships as a builtin sibling profile (port 8080, `LLAMACPP_HOST` override) | [D189-llamacpp-builtin-provider.md](./.claude/knowledge-base/adrs/D189-llamacpp-builtin-provider.md) |
+| D190 | Real-LLM examples are mandatory evidence for integration DONE | [D190-mandatory-examples-as-evidence.md](./.claude/knowledge-base/adrs/D190-mandatory-examples-as-evidence.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -386,6 +395,57 @@ Os items abaixo apareceram na auditoria Hermes mas **não pertencem a `@usetheo/
 ### Patterns ship history (referência)
 
 Auditoria Hermes-Agent 2026-05-19 — `referencia/hermes-agent/` + sdk-references — culminou com **23/23 SDK patterns DONE** (Persistence, Agent Core Loop, Plugin & Extension, Background Work, Security, Testing, Error Handling). 122 ADRs registradas em `.claude/knowledge-base/adrs/`. Esta seção foi removida do CLAUDE.md para reduzir ruído; conteúdo histórico permanece no git em `git show 0a97794:CLAUDE.md`.
+
+## Adoption Roadmap (v1.3 — post-Hermes parity)
+
+> Strategic gap analysis (2026-05-21). Hermes patterns complete (23/23); SDK Roadmap v1.2 complete (5/7 — rows 6-7 carry forward). Paridade técnica com Vercel AI SDK / Claude Agent SDK / OpenAI Agents SDK atingida. **A partir daqui o gargalo NÃO é mais "features de runtime"; é DX + observabilidade + paridade competitiva em primitivos de agente.** As 12 linhas abaixo estão ordenadas por **impacto-sobre-esforço** dentro de 3 tiers. Tier 1 bloqueia adoção — sem isso a SDK não sai do monorepo. Tier 2 fecha gaps onde Vercel AI, OpenAI Agents e Mastra hoje ganham por leverage de superfície (não de capacidade). Tier 3 é production hardening — enterprise não compra sem isso.
+
+| # | Tier | Feature | Score | Por quê é SDK |
+|---|---|---|---:|---|
+| 1 | T1 | **CLI `theokit`** (`init`, `dev`, `inspect`, `eval`) | 10 | A SDK não tem ponto de entrada além de `npm install`. Vercel AI e Mastra ganham 10x em onboarding por causa disso. `theokit init` scaffolds projeto; `theokit dev` roda agente em hot-reload; `theokit inspect` lista plugins/skills/providers; `theokit eval` dispara suite de eval. NÃO é TheoCode (coding agent) — é o developer-CLI da SDK. Pertence a este monorepo como workspace package `@usetheo/cli`. |
+| 2 | T1 | **Docs site** (Nextra/Mintlify — cookbook + API ref + tutorials + search) | 10 | `docs.md` é canonical mas é um único arquivo markdown — não escala. Cookbook navegável + API reference auto-gerada de TS + tutorials versionados + search são table-stakes para qualquer SDK em 2026. Sem isso, ninguém adopta sem screen-share. Pertence a este monorepo como `apps/docs/` (separado de `theo-website` — aquele é marketing). |
+| 3 | T1 | **Eval suite** (`Eval.create/run` + LLM-as-judge + métricas determinísticas) | 9 | Braintrust ($79M), LangSmith (LangChain), Helicone fazem disso negócio. Sem eval-as-code (not eval-as-dashboard) ninguém vai pra produção com confiança. API alvo: `Eval.create({ dataset, scorers, agent })` retorna `EvalRun` com aggregate metrics + per-row traces. Reutiliza `Telemetry` (D34) + `agent.batch` (D134). |
+| 4 | T2 | **Agent handoffs** (`Agent.handoffTo(other, { context })`) | 8 | OpenAI Agents SDK trata como primitivo de primeira classe. Hoje temos `fork()` (D110-D114) + subagents (Toolset) mas **não** handoff declarativo entre agentes pares com transferência de contexto + tool whitelist + conversation history. Mercado de multi-agent quente: CrewAI, AutoGen, Swarm. ADR alvo: D190-D195. |
+| 5 | T2 | **Workflows declarativos** (`Workflow.create({ steps, on_failure, retry })`) | 7 | Mastra ganha aqui — temos `runUntil` (D116) + AsyncGenerator (imperativo) mas não workflows shape declarativo: `step.parallel`, `step.conditional`, `step.retry_with_backoff`, persistência de estado entre steps. Inngest e Temporal são as referências. ADR alvo: D196-D201. |
+| 6 | T2 | **Computer use** (Anthropic `computer_20241022` + screenshot tool) | 7 | Mercado quente — Claude Computer Use, CUA, Devin, Manus. Anthropic já tem tool nativo; precisamos do contrato + adapter (X11/macOS screen capture + mouse/keyboard via robotjs ou similar). Plugin `kind: "computer-controller"` resolve. |
+| 7 | T2 | **Image generation + TTS contracts** (carry de SDK Roadmap rows 6-7) | 5 | Plugins `kind: "image-provider"` e `kind: "tts-provider"` — extension points, NÃO adapters específicos (FAL.ai, ElevenLabs ficam em `@theokit-image-*` / `@theokit-tts-*`). Carry-over honesto: já estavam ranqueados 5 antes; continuam 5 agora. |
+| 8 | T3 | **Semantic cache** (`Cache.semantic({ provider, threshold })`) | 6 | Helicone Cache e LangCache fazem isso. Reduz custo 30-70% em prod com queries repetitivas. Reusa `MemoryAdapter` (D141) como storage backend — embedding-based key match com cosine threshold. Plug-in via hook `pre_send` (interceptar antes de hit no LLM). |
+| 9 | T3 | **Cost tracking / budgets** (`agent.costSoFar`, `Budget.create({ daily_usd_limit })`) | 6 | Enterprise não compra sem. Anthropic, OpenAI e OpenRouter expõem usage em response — falta agregação + alert + hard-stop ao ultrapassar. Reusa `Telemetry` (D34) + novo `BudgetExceededError extends TheokitAgentError`. |
+| 10 | T3 | **Gateway Slack adapter** (`@usetheo/gateway-slack`) | 5 | Continuação natural pós-Telegram + Discord (D170-D181). Slack Bolt SDK + Socket Mode (não Events API webhook). Reutiliza `BasePlatformAdapter` (D172). ADR alvo: D202-D205. |
+| 11 | T3 | **Bedrock + Vertex profiles** (`ProviderProfile` para AWS Bedrock + GCP Vertex AI) | 5 | Bloqueia enterprise AWS/GCP. D11 deferiu; agora é hora. Reusa `ProviderProfile` data-only (D105) + `Transport` orthogonal (D106). Bedrock = SigV4 signing; Vertex = service-account JWT. |
+| ~~12~~ | ~~T3~~ | ~~**Local provider profiles first-class**~~ ✅ DONE 2026-05-21 (ADRs D182-D190) | ~~4~~ | Shipado: Ollama (D182) + embedding adapter D183 + models.list local D184 + actionable errors D185 + model.id prefix D186 + pool no-op D187 + LM Studio D188 + llama.cpp D189 + 2 examples reais D190. Stack 100% local end-to-end (chat + embedding + RAG + tools) sem nenhuma API key remota. |
+
+### Não-Roadmap-v1.3 (delegado a outras camadas)
+
+Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram na análise mas pertencem a outros lugares:
+
+| Item | Camada correta |
+|---|---|
+| Playground web (React) | `apps/docs/playground/` ou TheoCode Desktop (não é SDK runtime) |
+| Schema visualizer / DAG de subagents | `apps/docs/` (visualização sobre output do `theokit inspect`) |
+| Multi-tenancy primitives | TheoCloud (apex commercial — não OSS funnel) |
+| WhatsApp Business adapter | `@usetheo/gateway-whatsapp` separado (Meta App review fricção) |
+| Matrix / IRC adapters | Community-driven — pacotes terceiros via `BasePlatformAdapter` |
+| Agent marketplace / registry | TheoCloud (concern de hosting + monetização) |
+| Replay/trace UI inspector | `apps/docs/` ou TheoCode Desktop (consumidor de `Telemetry`) |
+| Voice live mode (WebRTC + Whisper streaming) | TheoCode Desktop / aplicação consumer (telegram-pro, etc.) |
+
+### Estratégia de execução
+
+**Sequência recomendada (NÃO ranking por score):**
+
+1. **CLI + Docs site primeiro (rows 1+2)** — tudo o resto compõe melhor com isso shipado. Eval suite (row 3) consome o CLI (`theokit eval`).
+2. **Handoffs (row 4) antes de Workflows (row 5)** — handoffs é o primitivo; workflows compõe handoffs + conditionals.
+3. **Computer use (row 6) em paralelo** — independente, time pequeno consegue ownership.
+4. **Carry-over rows 7 (image/TTS)** só depois de T1+T2 — são contratos baratos mas pertencem ao ecossistema, não ao caminho crítico de adoção.
+5. **T3 (rows 8-12) abre quando T1+T2 estabilizar** — production hardening sobre fundação estável, não sobre alvo móvel.
+
+**Critério de "DONE" continua o mesmo da SDK Roadmap original:**
+- Cobertura via ADRs registradas em `.claude/knowledge-base/adrs/`
+- Tests + real-LLM validation (regra `.claude/rules/real-llm-validation.md`)
+- Sem stubs/mocks no código de produção (regra `.claude/rules/no-stubs-no-mocks-no-wired.md`)
+- Dogfood real (telegram-pro / discord-pro / examples)
+- `CHANGELOG.md` entry no pacote afetado
 
 ## Inviolable rules (carried from root and global)
 

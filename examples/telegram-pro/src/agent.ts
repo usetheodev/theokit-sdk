@@ -54,9 +54,13 @@ function getFactory(opts: AgentFactoryOptions): AgentFactory {
   if (cachedFactory !== undefined) return cachedFactory;
   const providers = buildProviderRouting();
   const mcpServers = buildMcpServers(opts.cwd);
+  // ADR D182/D186: developers running locally can override the model id
+  // via `TELEGRAM_PRO_MODEL` (e.g. `ollama/llama3.2:3b` for fully-local
+  // operation). Default stays gemini-flash for the OpenRouter happy path.
+  const modelId = process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001";
   cachedFactory = createAgentFactory({
     apiKey: opts.apiKey,
-    model: { id: "google/gemini-2.0-flash-001" },
+    model: { id: modelId },
     local: {
       cwd: opts.cwd,
       settingSources: ["project", "plugins"],
