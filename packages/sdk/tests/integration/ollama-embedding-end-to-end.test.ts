@@ -38,45 +38,37 @@ if (!available) {
 }
 
 describe.skipIf(!available)("ollama embedding integration (D183)", () => {
-  it(
-    "embeds a single text and returns a 768-dim vector",
-    async () => {
-      const runtime = await ollamaMemoryEmbeddingProviderAdapter.create({
-        model: TEST_MODEL,
-      });
-      expect(runtime.dimension).toBe(768);
+  it("embeds a single text and returns a 768-dim vector", async () => {
+    const runtime = await ollamaMemoryEmbeddingProviderAdapter.create({
+      model: TEST_MODEL,
+    });
+    expect(runtime.dimension).toBe(768);
 
-      const vectors = await runtime.embed(["hello world"]);
-      expect(vectors).toHaveLength(1);
-      expect(vectors[0]).toHaveLength(768);
-      // Validate non-zero norm (cosine similarity would be NaN otherwise).
-      const norm = Math.sqrt(vectors[0]!.reduce((s, x) => s + x * x, 0));
-      expect(norm).toBeGreaterThan(0);
-    },
-    60_000,
-  );
+    const vectors = await runtime.embed(["hello world"]);
+    expect(vectors).toHaveLength(1);
+    expect(vectors[0]).toHaveLength(768);
+    // Validate non-zero norm (cosine similarity would be NaN otherwise).
+    const norm = Math.sqrt(vectors[0]!.reduce((s, x) => s + x * x, 0));
+    expect(norm).toBeGreaterThan(0);
+  }, 60_000);
 
-  it(
-    "embeds a batch of texts in order",
-    async () => {
-      const runtime = await ollamaMemoryEmbeddingProviderAdapter.create({
-        model: TEST_MODEL,
-      });
+  it("embeds a batch of texts in order", async () => {
+    const runtime = await ollamaMemoryEmbeddingProviderAdapter.create({
+      model: TEST_MODEL,
+    });
 
-      const vectors = await runtime.embed([
-        "dependency injection in TypeScript",
-        "cosine similarity in vector retrieval",
-        "ollama local llm runtime",
-      ]);
-      expect(vectors).toHaveLength(3);
-      for (const v of vectors) {
-        expect(v).toHaveLength(768);
-      }
-      // Adjacent queries about distinct topics should have meaningfully
-      // different vectors — at least one component differs measurably.
-      const diff = vectors[0]!.reduce((acc, x, i) => acc + Math.abs(x - vectors[1]![i]!), 0);
-      expect(diff).toBeGreaterThan(0.01);
-    },
-    60_000,
-  );
+    const vectors = await runtime.embed([
+      "dependency injection in TypeScript",
+      "cosine similarity in vector retrieval",
+      "ollama local llm runtime",
+    ]);
+    expect(vectors).toHaveLength(3);
+    for (const v of vectors) {
+      expect(v).toHaveLength(768);
+    }
+    // Adjacent queries about distinct topics should have meaningfully
+    // different vectors — at least one component differs measurably.
+    const diff = vectors[0]!.reduce((acc, x, i) => acc + Math.abs(x - vectors[1]![i]!), 0);
+    expect(diff).toBeGreaterThan(0.01);
+  }, 60_000);
 });

@@ -39,58 +39,50 @@ const ollamaAvailable = await probeOllama();
 if (!ollamaAvailable) {
   process.stderr.write(
     `[ollama-end-to-end] Skipping — Ollama not reachable at ${OLLAMA_HOST}. ` +
-      "Run \`ollama serve\` to enable this test.\n",
+      "Run `ollama serve` to enable this test.\n",
   );
 }
 
 describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
-  it(
-    "agent.send returns assistant message with non-empty content",
-    async () => {
-      const agent = await Agent.create({
-        model: { id: TEST_MODEL },
-        local: { cwd: process.cwd() },
-      });
+  it("agent.send returns assistant message with non-empty content", async () => {
+    const agent = await Agent.create({
+      model: { id: TEST_MODEL },
+      local: { cwd: process.cwd() },
+    });
 
-      const run = await agent.send("Reply with one short greeting.");
+    const run = await agent.send("Reply with one short greeting.");
 
-      // Collect text from stream — this is the load-bearing assertion for
-      // D182: real Ollama-driven content arrived through the SDK pipeline.
-      let assistantText = "";
-      for await (const event of run.stream()) {
-        if (event.type === "assistant") {
-          for (const part of event.message.content) {
-            if (part.type === "text") assistantText += part.text;
-          }
+    // Collect text from stream — this is the load-bearing assertion for
+    // D182: real Ollama-driven content arrived through the SDK pipeline.
+    let assistantText = "";
+    for await (const event of run.stream()) {
+      if (event.type === "assistant") {
+        for (const part of event.message.content) {
+          if (part.type === "text") assistantText += part.text;
         }
       }
-      await run.wait();
-      expect(assistantText.length).toBeGreaterThan(0);
-    },
-    60_000, // EC-D: first request can take 10-60s while Ollama warms up.
-  );
+    }
+    await run.wait();
+    expect(assistantText.length).toBeGreaterThan(0);
+  }, 60_000); // EC-D: first request can take 10-60s while Ollama warms up.
 
-  it(
-    "onDelta callback receives text-delta updates",
-    async () => {
-      const deltas: string[] = [];
-      const agent = await Agent.create({
-        model: { id: TEST_MODEL },
-        local: { cwd: process.cwd() },
-      });
+  it("onDelta callback receives text-delta updates", async () => {
+    const deltas: string[] = [];
+    const agent = await Agent.create({
+      model: { id: TEST_MODEL },
+      local: { cwd: process.cwd() },
+    });
 
-      const run = await agent.send("Reply with the word HELLO and nothing else.", {
-        onDelta: (event) => {
-          if (event.update.type === "text-delta") deltas.push(event.update.text);
-        },
-      });
-      // Drain the stream to ensure onDelta callbacks fire.
-      for await (const _event of run.stream()) {
-        // intentionally empty — drain only
-      }
-      await run.wait();
-      expect(deltas.length).toBeGreaterThan(0);
-    },
-    60_000,
-  );
+    const run = await agent.send("Reply with the word HELLO and nothing else.", {
+      onDelta: (event) => {
+        if (event.update.type === "text-delta") deltas.push(event.update.text);
+      },
+    });
+    // Drain the stream to ensure onDelta callbacks fire.
+    for await (const _event of run.stream()) {
+      // intentionally empty — drain only
+    }
+    await run.wait();
+    expect(deltas.length).toBeGreaterThan(0);
+  }, 60_000);
 });
