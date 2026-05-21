@@ -61,6 +61,7 @@ describe.skipIf(!available)("ollama tool calling integration (D182)", () => {
     });
 
     const agent = await Agent.create({
+      apiKey: "local",
       model: { id: TEST_MODEL },
       local: { cwd: process.cwd() },
       tools: [getCurrentTime],
