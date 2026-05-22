@@ -54,7 +54,7 @@ export async function runEvalSuite(config: EvalConfig): Promise<EvalRunResult> {
     }
 
     const output = item.result.result ?? "";
-    const scoreEntries: EvalRowResult["scores"] = [];
+    const scoreEntries: Array<EvalRowResult["scores"][number]> = [];
     for (const scorer of config.scorers) {
       const score = await applyScorer(scorer.score, output, expected);
       scoreEntries.push({

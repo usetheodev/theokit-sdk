@@ -3,6 +3,7 @@ import type { z as ZodNamespace, ZodType } from "zod";
 import { ConfigurationError } from "../errors.js";
 
 import type { AgentOptions, CustomTool, LocalOptions, ModelSelection } from "../types/agent.js";
+import type { ProviderRoutingSettings } from "../types/providers.js";
 
 /**
  * Shared helpers for `Agent.generateObject` (ADR D33) and
@@ -74,6 +75,7 @@ export function buildTransientAgentOptions(params: {
   outputTool: CustomTool;
   systemPrompt?: string;
   apiKey?: string;
+  providers?: ProviderRoutingSettings;
 }): AgentOptions {
   return {
     model: params.model,
@@ -83,6 +85,7 @@ export function buildTransientAgentOptions(params: {
       params.systemPrompt ??
       "You produce structured output by calling the `output` tool exactly once. Match the JSON schema.",
     ...(params.apiKey !== undefined ? { apiKey: params.apiKey } : {}),
+    ...(params.providers !== undefined ? { providers: params.providers } : {}),
   };
 }
 
