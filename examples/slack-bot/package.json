@@ -1,0 +1,19 @@
+{
+  "name": "example-slack-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx --env-file=.env run.ts"
+  },
+  "dependencies": {
+    "@usetheo/gateway": "file:../../packages/gateway",
+    "@usetheo/gateway-slack": "file:../../packages/gateway-slack",
+    "@usetheo/sdk": "file:../../packages/sdk",
+    "@slack/bolt": "^3.20.0",
+    "@slack/web-api": "^6.12.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
