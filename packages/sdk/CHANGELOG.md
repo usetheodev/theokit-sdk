@@ -2,6 +2,42 @@
 
 ## [Unreleased]
 
+### Fixed (`Agent.streamObject` / `Agent.generateObject` provider routing)
+
+- **`StreamObjectOptions.providers?` + `GenerateObjectOptions.providers?`** — new optional field forwarded to the transient agent. Without it, the transient agent infers provider from `model.id` prefix per ADR D186; users running `model: "openai/gpt-4o-mini"` with only `OPENROUTER_API_KEY` set hit `ConfigurationError(provider_unresolved)` because the SDK looks for `OPENAI_API_KEY`. Forwarding `providers: { routes: [{capability:"chat", provider:"openrouter"}], fallback: ["openrouter"] }` routes through OpenRouter as the user expects.
+- **Underlying-error surfacing** — when the transient agent fails BEFORE the LLM is called (e.g. `provider_unresolved`), both `StreamObjectError` and `GenerateObjectError` now wrap the original cause with a clear message ("Agent run failed before the model could reply: …") instead of the misleading "The model returned text instead of calling the `output` tool." Pre-fix users saw a tool-call diagnostic for what is actually a config error.
+- **Evidence:** real-LLM dogfood `examples/telegram-pro` → `/factstream jazz` failed deterministically with OpenRouter key + `openai/gpt-4o-mini` model. Bot's `/factstream` handler updated to forward `buildProviderRouting()` to `Agent.streamObject({ providers })`. Post-fix: `/factstream` PASSES consistently; full dogfood 40/42 (vs prior 39/42).
+
+### Added (`Agent.prompt` ergonomics — `throwOnError` + `AgentRunError`)
+
+- **`AgentRunError`** — new public error class (extends `TheokitAgentError`). Carries `code`, `provider`, `raw` fields from a failed `RunResult.error`. Exported from the package barrel.
+- **`AgentOptions.throwOnError?: boolean`** — opt-in flag (default `false`, non-breaking). When `true`, `Agent.prompt` rejects with `AgentRunError` instead of resolving with `{ status: 'error', error }`. Reduces idiomatic chat-handler snippets from ~10 lines (status branch) to ~6 lines (try/catch). Cancelled status (`'cancelled'`) does NOT throw — cancel ≠ error. Defensive guard skips throw when `result.error === undefined` (malformed RunResult).
+- **Tests:** 8 tests for `AgentRunError` shape (instanceof chain, fields, message preservation, cause chaining, barrel export). 7 tests for `throwOnError` semantics including EC-2 (cancelled doesn't throw) + EC-3 (defensive guard).
+
+### Security (defence-in-depth fix in `assertNoSymlinkEscape`)
+
+- **Intermediate-symlink escape closed.** Previous implementation called `lstatSync(path)` only on the **terminal** component. If an intermediate directory in the path was itself a symlink to a location outside `base` (`/project/inner → /outside`), accessing `/project/inner/file.txt` would physically read `/outside/file.txt` and the guard would NOT detect the escape — `lstat` followed the intermediate symlink and reported a regular file. **Fix:** walk to the deepest existing ancestor, `realpathSync` it, then re-attach the lexical suffix; compare against the canonical base. Two new tests pin the fix (terminal-not-yet-created variant included). All 27 existing consumer tests (`agent-session-store`, `persistence/paths`, `lint/no-unguarded-path-input`) remain green.
+
+### Added (`@usetheo/sdk/tools` sub-export — built-in tools for coding agents)
+
+**Drop-in toolkit any coding agent on top of `@usetheo/sdk` needs without reimplementing: read, list, search, diff, test.**
+
+- **`createReadFileTool({ projectRoot })`** — read a project-relative file as UTF-8. Refuses traversal, sensitive files (`.env*` / `.git/` / `node_modules/` / `.theo/` / lock files), binary files (null-byte detection in first 8 KB; EC-5), and files larger than 5 MB. Returns `{ ok, content, size }` or `{ ok: false, error }`. 12 tests.
+- **`createListDirTool({ projectRoot, max? })`** — list direct entries of a project-relative directory. Defaults to a 500-entry cap (EC-6: avoid 5 MB JSON payloads in 10k-file projects). Each entry exposes `{ name, type: 'file' | 'directory' }`. Result includes `{ truncated, totalCount }` so the agent can refine. 8 tests.
+- **`createSearchTextTool({ projectRoot, maxMatches?, maxFileSize? })`** — recursive literal-text search. Skips sensitive dirs, binary files, and files larger than 1 MB. Defaults to a 100-match cap. Returns `{ matches: [{ file, line, preview }], truncated, totalMatches }`. 8 tests.
+- **`createGitDiffTool({ projectRoot, timeoutMs?, maxStdoutBytes? })`** — `git diff` wrapper. Supports `{ path, cached }` scoping. 30s timeout (kills the whole process group on expiry; EC-7). 5 MB stdout cap. Returns `{ diff, truncated }` or `{ ok: false, error: 'not_a_repo' | 'timeout' | 'git_failed' }`. 7 tests.
+- **`createRunVitestTool({ projectRoot, timeoutMs?, maxStdoutBytes? })`** — vitest runner via `npx --no-install vitest`. **EC-12** fix: parser walks stdout bottom-up to extract the last valid JSON line — skips node deprecation warnings that vitest prepends. 120s timeout + process-group kill. Returns `{ ok, summary }` with `{ numTotalTests, numPassedTests, numFailedTests, success }`. Helper `extractTrailingJson` exported for direct testing. 6 tests.
+- **Public surface** at `@usetheo/sdk/tools`. Tsup entry `tools: "src/tools/index.ts"` produces `dist/tools.js` + `.d.ts`; package.json `exports["./tools"]` resolves both ESM + CJS + types. Sub-export smoke test (`tests/tools/sub-export-smoke.test.ts`) pins the 5 named exports.
+
+44 tests total in `tests/tools/` (12 + 8 + 8 + 7 + 6 + 5 smoke).
+
+### Added (`@usetheo/sdk/path-safety` sub-export — path-traversal primitives go public)
+
+- **`safePathJoin`, `assertNoSymlinkEscape`, `PathTraversalError`** now exported from `@usetheo/sdk/path-safety`. Previously `@internal`; promoted so consumer agents (TheoKit Studio, cli-bot, future coding agents) can validate user-supplied paths without reinventing the guard. Wire shape is unchanged — same signatures, same `ConfigurationError` code (`path_traversal`).
+- **`isForbiddenPath(input)`** — new public primitive shipping the universal sensitive-file blocklist (`.env*` except `.env.example`, `.git/**`, `node_modules/**`, `.theo/**`, lock files). Cross-platform path normalisation (backslashes folded to forward slashes). 15-case test suite covering each blocklist family. Companion error `ForbiddenPathError` (extends `ConfigurationError`, code `forbidden_path`).
+- **Dedicated sub-export** (`./path-safety` in package.json `exports`, separate from the main barrel). Architectural choice: the path-guard module reaches into `internal/runtime` via `errors.js`, which participates in a known import cycle `types/agent.ts ↔ fork-agent.ts`. The dedicated sub-export keeps DTS bundling decoupled — without it, rollup-plugin-dts surfaces a fatal "ForkOptions not exported" false positive on the main bundle.
+- **Public-API smoke test** (`tests/path-safety-public-api.test.ts`) pins the sub-export so a refactor cannot silently revert these to `@internal`.
+
 ### Added (Ollama integration complete — ADRs D182-D190)
 
 **Local-first LLM stack: chat, embeddings, RAG, models discovery, plus LM Studio

@@ -46,14 +46,7 @@ describe("Theokit.inspect (D201)", () => {
     const adapters = Theokit.inspect.embeddingAdapters();
     const ids = adapters.map((a) => a.id).sort();
     expect(ids).toEqual(
-      expect.arrayContaining([
-        "openai",
-        "mistral",
-        "openrouter",
-        "voyage",
-        "deepinfra",
-        "ollama",
-      ]),
+      expect.arrayContaining(["openai", "mistral", "openrouter", "voyage", "deepinfra", "ollama"]),
     );
   });
 

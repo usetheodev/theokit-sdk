@@ -338,6 +338,18 @@ export interface AgentOptions {
   apiKey?: string;
   name?: string;
   /**
+   * When `true`, `Agent.prompt` (and any helper that goes through `run.wait()`)
+   * rejects with `AgentRunError` instead of resolving with `{ status: 'error' }`.
+   * Cancelled runs (`status: 'cancelled'`) still resolve — cancel ≠ error.
+   * If `result.error` is undefined despite `status: 'error'` (malformed RunResult),
+   * the defensive guard resolves normally (no throw).
+   *
+   * Default `false` (backwards-compatible).
+   *
+   * @public
+   */
+  throwOnError?: boolean;
+  /**
    * System prompt for the agent. Either a plain string or a resolver
    * function that receives the {@link SystemPromptContext} and returns the
    * prompt dynamically. Override per-call via {@link SendOptions.systemPrompt}.

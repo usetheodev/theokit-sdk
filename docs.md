@@ -234,6 +234,28 @@ const result = await Agent.prompt("What does the auth middleware do?", {
   model: { id: "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd() },
 });
+
+**`throwOnError: true`** (v1.x+) — opt-in flag that makes `Agent.prompt` reject with `AgentRunError` (extends `TheokitAgentError`) instead of resolving with `{ status: 'error', error }`. Cancelled runs still resolve. Reduces idiomatic chat-handler snippets from ~10 lines (`if (result.status === 'error') yield ...`) to ~6 lines (`try { ... } catch (err) { yield ... }`).
+
+```typescript
+import { Agent, AgentRunError } from "@usetheo/sdk";
+
+try {
+  const result = await Agent.prompt("hi", {
+    apiKey: process.env.ANTHROPIC_API_KEY!,
+    model: { id: "claude-sonnet-4-5-20250929" },
+    throwOnError: true,
+  });
+  // result.status === 'finished' guaranteed here
+} catch (err) {
+  if (err instanceof AgentRunError && err.code === "auth_failed") {
+    // bad API key
+  }
+}
+```
+
+Default `false` (non-breaking). Defensive guard: if `result.error === undefined` despite `status: 'error'` (malformed RunResult), the option resolves normally without throwing.
+
 Sending messages
 Each agent.send() returns a Run. The agent retains conversation context across runs; the run is the unit of work for one prompt.
 
@@ -1751,13 +1773,14 @@ Security.addPattern(/MYORG-[A-Z0-9]{32}/g);
 
 ## Security — path traversal + TOCTOU (v1.6+)
 
-Every callsite that joins user-supplied input with a path passes through a canonical guard (ADRs D79-D85). The SDK ships three primitives and one typed error in `internal/security/path-guard.ts`, and two TOCTOU primitives in `internal/persistence/`.
+Every callsite that joins user-supplied input with a path passes through a canonical guard (ADRs D79-D85). The SDK ships four primitives and two typed errors. From v1.x they are part of the **public API** via the `@usetheo/sdk/path-safety` sub-export, so consumer agents (TheoKit Studio, cli-bot, custom coding agents) can validate user-supplied paths without reinventing the guard.
 
 **Path traversal defense:**
 
 - `safePathJoin(base, ...parts)` — resolves the path THEN prefix-checks against `base`. Throws `PathTraversalError` (extends `ConfigurationError` with code `"path_traversal"`) if the resolved target escapes. Defeats literal `..`, normalized escape (`subdir/.\\./..`), absolute segment overrides, and null-byte injection.
 - `assertNoSymlinkEscape(path, base)` — uses `realpathSync` to follow the entire symlink chain (multi-level A → B → C) and reject targets outside `base`.
-- `sanitizeIdentifier(input, { maxLen })` — strict grammar `^[a-z0-9][a-z0-9-_]*$` (case-insensitive on input, lowercase on output). Rejects path separators, `..`, leading `-`/`_`, control chars. Default `maxLen` is 64; agent IDs use 128.
+- `isForbiddenPath(input)` (v1.x+) — universal blocklist for coding agents. Returns `true` for `.env*` (except `.env.example`), `.git/**`, `node_modules/**`, `.theo/**`, and lock files (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `bun.lockb`). Cross-platform: backslashes normalised before matching.
+- `sanitizeIdentifier(input, { maxLen })` — strict grammar `^[a-z0-9][a-z0-9-_]*$` (case-insensitive on input, lowercase on output). Rejects path separators, `..`, leading `-`/`_`, control chars. Default `maxLen` is 64; agent IDs use 128. (Still `@internal` — used by SDK identifier surfaces.)
 
 Wired in: `plugins-manager` (plugin entry files), `agent-session-store` (session JSONL paths), `skills-manager` (skill directory entries), `legacyMemoryJsonPath` (memory namespace/scope/userId), `mcp/client` (MCP stdio `cwd` for relative paths). CI lint gate `tests/lint/no-unguarded-path-input.test.ts` flags regressions.
 
@@ -1767,21 +1790,86 @@ Wired in: `plugins-manager` (plugin entry files), `agent-session-store` (session
 - `casUpdate(db, sql, params, expectedChanges)` — SQLite optimistic compare-and-swap. Caller writes the full SQL (including `WHERE version = ?` predicate); helper executes and returns boolean based on `result.changes`. Caller handles retry/backoff. Canonical pattern: `UPDATE registry SET status = ?, version = version + 1 WHERE id = ? AND version = ?`.
 
 ```typescript
-import { Security } from "@usetheo/sdk";
+import {
+  safePathJoin,
+  assertNoSymlinkEscape,
+  isForbiddenPath,
+  PathTraversalError,
+  ForbiddenPathError,
+} from "@usetheo/sdk/path-safety";
 
-// Path guard primitives are internal; ConfigurationError surfaces them:
-try {
-  await agent.send("...");
-} catch (err) {
-  if (err.code === "path_traversal") {
-    // user input tried to escape the workspace
-  } else if (err.code === "invalid_identifier") {
-    // user input failed the grammar (e.g., contains "/" or "..")
+// Inside a custom tool handler:
+function readUserFile(projectRoot: string, userPath: string): string {
+  if (isForbiddenPath(userPath)) {
+    throw new ForbiddenPathError(userPath); // .env, .git/, etc.
   }
+  const safe = safePathJoin(projectRoot, userPath);
+  assertNoSymlinkEscape(safe, projectRoot); // EC-1 — symlink chain check
+  return readFileSync(safe, "utf-8");
+}
+
+// At the catch boundary:
+try { /* ... */ } catch (err) {
+  if (err.code === "path_traversal") { /* user input tried to escape */ }
+  else if (err.code === "forbidden_path") { /* sensitive file blocked */ }
+  else if (err.code === "invalid_identifier") { /* grammar failed */ }
 }
 ```
 
-Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vector families + identifier grammar surface.
+Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vector families + identifier grammar surface. `isForbiddenPath` adds a 15-case suite covering each blocklist family + cross-platform path normalisation.
+
+## Built-in tools for coding agents (v1.x+)
+
+Drop-in toolkit available at `@usetheo/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
+
+1. **Project-scoped.** Every I/O call passes through `safePathJoin` + `assertNoSymlinkEscape`.
+2. **Sensitive files refused.** `.env*` (except `.env.example`), `.git/`, `node_modules/`, `.theo/`, lock files via `isForbiddenPath`.
+3. **JSON returns, never throws on user mistakes.** Handlers always return a JSON string. Real exceptions reserved for SDK-side bugs (input parse errors).
+
+```typescript
+import { createAgentFactory } from "@usetheo/sdk";
+import {
+  createReadFileTool,
+  createListDirTool,
+  createSearchTextTool,
+  createGitDiffTool,
+  createRunVitestTool,
+} from "@usetheo/sdk/tools";
+
+const projectRoot = process.cwd();
+const factory = createAgentFactory({
+  apiKey: process.env.ANTHROPIC_API_KEY!,
+  model: { id: "claude-3-5-sonnet-20241022" },
+  systemPrompt: "You are a coding agent. Use the tools.",
+  tools: [
+    createReadFileTool({ projectRoot }),
+    createListDirTool({ projectRoot }),                       // default max=500
+    createSearchTextTool({ projectRoot, maxMatches: 100 }),
+    createGitDiffTool({ projectRoot, timeoutMs: 30_000 }),
+    createRunVitestTool({ projectRoot, timeoutMs: 120_000 }), // EC-12 stdout parser
+  ],
+});
+```
+
+**Tool reference:**
+
+| Tool | Returns |
+|---|---|
+| `read_file` | `{ ok, content, size }` or `{ ok: false, error: 'path_traversal' \| 'forbidden_path' \| 'binary_file' \| 'not_found' \| 'too_large' }` |
+| `list_dir` | `{ ok, entries: [{ name, type }], truncated, totalCount }` or `{ ok: false, error }` |
+| `search_text` | `{ ok, matches: [{ file, line, preview }], truncated, totalMatches }` or `{ ok: false, error }` |
+| `git_diff` | `{ ok, diff, truncated }` or `{ ok: false, error: 'not_a_repo' \| 'timeout' \| 'git_failed' \| 'path_traversal' }` |
+| `run_vitest` | `{ ok, summary: { numTotalTests, numPassedTests, numFailedTests, success } }` or `{ ok: false, error: 'no_vitest' \| 'timeout' \| 'unparseable_output' \| 'path_traversal' \| 'forbidden_path' }` |
+
+**Hardening notes:**
+
+- `read_file` rejects binary files via null-byte detection in the first 8 KB. Caps at 5 MB.
+- `list_dir` caps at 500 entries by default (`max` override available). Result carries `truncated + totalCount` so the agent can decide to refine.
+- `search_text` skips binary files (same 8 KB probe), files > 1 MB, and forbidden dirs (so the agent never burns context on `node_modules/`).
+- `git_diff` and `run_vitest` spawn in a detached process group (`detached: true`); on timeout they kill the whole group (`process.kill(-pid, SIGKILL)`) so vitest workers / git subprocesses don't survive as zombies.
+- `run_vitest` parses stdout bottom-up to extract the last valid JSON line — node deprecation warnings that vitest prepends are skipped.
+
+44 tests cover the five tools end-to-end (each tool's safety boundaries, happy paths, and hardening modes) + 5 smoke tests pinning the public barrel exports.
 
 ## Configuration files (v1.5+)
 

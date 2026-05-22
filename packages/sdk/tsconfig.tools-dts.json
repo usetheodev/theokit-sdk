@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": false,
+    "emitDeclarationOnly": true,
+    "declaration": true,
+    "declarationMap": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/tools/**/*",
+    "src/path-safety.ts",
+    "src/errors.ts",
+    "src/agent.ts",
+    "src/agent-factory.ts",
+    "src/agent-builder.ts",
+    "src/define-tool.ts",
+    "src/types/**/*",
+    "src/index.ts"
+  ]
+}

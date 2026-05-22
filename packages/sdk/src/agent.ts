@@ -1,7 +1,12 @@
 import { stat } from "node:fs/promises";
 
 import { AgentBuilder } from "./agent-builder.js";
-import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
+import {
+  AgentRunError,
+  AuthenticationError,
+  ConfigurationError,
+  UnknownAgentError,
+} from "./errors.js";
 import { resolveApiKey } from "./internal/env.js";
 import {
   getConfiguredBaseUrl,
@@ -84,13 +89,28 @@ export class Agent {
   /**
    * One-shot prompt: create an agent, send a single message, wait, dispose.
    *
+   * When `options.throwOnError === true`, rejects with `AgentRunError` if
+   * the run terminates with `status: 'error'` (instead of resolving with the
+   * error wrapped in the RunResult). Cancelled runs still resolve normally.
+   *
    * @public
    */
   static async prompt(message: string, options: AgentOptions): Promise<AgentPromptResult> {
     const agent = await Agent.create(options);
     try {
       const run = await agent.send(message);
-      return await run.wait();
+      const result = await run.wait();
+      if (
+        options.throwOnError === true &&
+        result.status === "error" &&
+        result.error !== undefined
+      ) {
+        throw new AgentRunError(result.error.message, {
+          code: result.error.code ?? "unknown",
+          cause: result.error.cause,
+        });
+      }
+      return result;
     } finally {
       await agent.dispose();
     }
