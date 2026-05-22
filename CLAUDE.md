@@ -436,13 +436,15 @@ Auditoria peer-agent 2026-05-19 — `referencia/peer-agent/` + sdk-references �
 ## Adoption Roadmap (v1.3 — post-Hermes parity)
 
 > Strategic gap analysis (2026-05-21, curado 2026-05-22). Hermes patterns complete (23/23); SDK Roadmap v1.2 complete (5/7). Paridade técnica com a peer framework / Claude Agent SDK / OpenAI Agents SDK atingida. **A partir daqui o gargalo NÃO é mais "features de runtime"; é DX + observabilidade + paridade competitiva em primitivos de agente.** As 8 linhas abaixo são o backlog curado — Tier 1 bloqueia adoção, Tier 2 fecha gaps de superfície vs a peer vendor AI / OpenAI Agents / a peer framework, Tier 3 é production hardening. Items removidos vs versão original (Computer use, Image gen + TTS, Cost tracking / budgets) ficam fora do roadmap atual — podem voltar quando houver pull-de-mercado claro.
+>
+> **Progresso 2026-05-22:** 3/8 shipados (#1 CLI, #2 Eval suite, #4 Agent handoffs). Restantes: 5 itens.
 
 | Tier | # | Item | Score | Status |
 |---|---|---|---:|---|
 | ~~T1~~ | ~~1~~ | ~~**CLI `theokit`**~~ ✅ DONE 2026-05-22 (ADRs D193-D201) | ~~10~~ | Shipado: `@usetheo/cli` workspace package + 4 subcommands (init, dev, inspect, eval) + 3 templates (minimal/ollama-local/telegram-bot) + `Theokit.inspect.*` public API. 60+ unit tests + 5 MUST FIX edge cases absorvidos (EC-A/B/C/E/F). |
-| T1 | 2 | **Eval suite** (`Eval.create/run` + LLM-as-judge + métricas determinísticas) | 9 | Pendente |
+| ~~T1~~ | ~~2~~ | ~~**Eval suite**~~ ✅ DONE 2026-05-22 (ADRs D202-D213) | ~~9~~ | Shipado: `Eval.create({ dataset, scorers, agent })` + `Eval.run()` static façade. `Scorers.{exactMatch, contains, jsonValid, lengthBetween, llmJudge}` namespace. Consome `Agent.batch` (D134) para paralelismo + isolamento por-prompt (D208). LLM judge com `apiKey` separado (D205); OTel spans via telemetry seam existente (D206). Aggregate p50/p95 + tokens-in/out totals (D211); iterable dataset (D210); single-flight por nome (D213). CLI `theokit eval` swapped pra `Eval.create + .run` (D212). 61 tests SDK + CLI runner.test.ts via fixture-mode. |
 | T1 | 3 | **Docs site** — vive em `../theo-opendocs` (Next.js + Fumadocs, source-of-truth para cookbook + API ref + tutorials + search) | 10 | Pendente |
-| T2 | 4 | **Agent handoffs** (`Agent.handoffTo(other, { context })`) | 8 | Pendente |
+| ~~T2~~ | ~~4~~ | ~~**Agent handoffs**~~ ✅ DONE 2026-05-22 (ADRs D214-D229) | ~~8~~ | Shipado: `Agent.create({ handoffs: [other] })` declarativo + `Handoff.create(target, opts)` factory + `RECOMMENDED_HANDOFF_PROMPT_PREFIX` constante. Synthesized `transfer_to_<name>` tools (handoff-as-tool, a peer SDK pattern; D214-D215). Peer-to-peer (D217), full-history default (D216), max chain depth 5 (D218), single-flight por (sender, receiver) pair (D221). `inputFilter` extension point (D219, D228 fallback); `inputType` Zod schema (D223); `onHandoff` throw aborta (D227); empty input aceito quando `inputType === undefined` (D229). 5 MUST FIX edges absorvidos (EC-1..EC-5). 29 handoff tests PASS + telegram-pro `/handoff_demo` validado em dogfood (5566ms PASS, 42/43 final). |
 | T2 | 5 | **Workflows declarativos** (`Workflow.create({ steps, on_failure, retry })`) | 7 | Pendente |
 | T3 | 6 | **Semantic cache** (`Cache.semantic({ provider, threshold })`) | 6 | Pendente |
 | T3 | 7 | **Gateway Slack adapter** (`@usetheo/gateway-slack`) | 5 | Pendente |
@@ -489,12 +491,14 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 
 ### Estratégia de execução
 
-**Sequência recomendada (NÃO ranking por score):**
+**Sequência recomendada — atualizada 2026-05-22:**
 
-1. **CLI `theokit` (#1) + Docs site (#3) em paralelo** — Docs vive em `../theo-opendocs` (repo dedicado), pode evoluir independente. CLI fecha o vão de onboarding. Tudo o resto compõe melhor com esses dois shipados.
-2. **Eval suite (#2)** — consome o CLI (`theokit eval`); só faz sentido depois que `@usetheo/cli` exista.
-3. **Handoffs (#4) antes de Workflows (#5)** — handoffs é o primitivo; workflows compõe handoffs + conditionals.
-4. **T3 (#6 / #7 / #8) abre quando T1+T2 estabilizar** — production hardening sobre fundação estável, não sobre alvo móvel.
+1. ~~**CLI `theokit` (#1)**~~ ✅ DONE 2026-05-22
+2. ~~**Eval suite (#2)**~~ ✅ DONE 2026-05-22 — consome `Agent.batch` direto; CLI `theokit eval` swapped pra `Eval.run`.
+3. ~~**Handoffs (#4)**~~ ✅ DONE 2026-05-22 — primitivo handoff-as-tool shipado antes de Workflows.
+4. **Docs site (#3) é o próximo Tier 1 pendente** — `../theo-opendocs` (Next.js + Fumadocs bootstrapped). Source-of-truth: `docs.md` deste repo. Cookbook + API ref + tutorials + search são table-stakes 2026.
+5. **Workflows (#5)** — composição declarativa sobre handoffs (já shipado) + conditionals. a peer framework/Inngest/Temporal como referência. ADR alvo: D230+.
+6. **T3 (#6 / #7 / #8) abre quando #3 e #5 estabilizarem** — production hardening sobre fundação estável.
 
 **Critério de "DONE" continua o mesmo da SDK Roadmap original:**
 - Cobertura via ADRs registradas em `.claude/knowledge-base/adrs/`
