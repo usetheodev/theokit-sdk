@@ -2193,3 +2193,146 @@ work excellently; local models < 7B params often skip the transfer tool. See
 When OTel is available and agent telemetry is enabled, each handoff emits a
 `handoff.transfer` span with attributes `handoff.from`, `handoff.to`,
 `handoff.reason`, `handoff.depth`, `handoff.tool_name`.
+
+## Workflows (v1.17+) — `Workflow.create / .run / .resume`
+
+Declarative multi-step orchestration over `Agent.send`, `Handoff`, `Agent.batch`
+and friends. ADRs D230-D248. Inspired by a peer framework workflows v1; uses explicit
+input/output state propagation (not a framework state-machine).
+
+```typescript
+import { Agent, Workflow, fn, agentStep } from "@usetheo/sdk";
+
+const classifier = await Agent.create({ /* ... */ });
+const billingExpert = await Agent.create({ /* ... */ });
+
+const wf = Workflow.create<{ claim: string }, string>({ name: "refund-pipeline" })
+  .then(fn("validate", (input) => {
+    if (!input.claim) throw new Error("missing claim");
+    return input;
+  }))
+  .then(agentStep("classify", classifier, (i) => `Classify: ${JSON.stringify(i)}`))
+  .branch([
+    [(out) => String(out).includes("BILLING"), [agentStep("resolve", billingExpert, "Handle it")]],
+  ], { fallback: [fn("escalate", () => "escalated")] })
+  .commit();
+
+const run = await wf.run({ claim: "I was charged twice" });
+console.log(run.status, run.output);
+```
+
+### Control-flow primitives (D233)
+
+| Primitive | Purpose | Example |
+|---|---|---|
+| `.then(step)` | Sequential | `.then(fn("a", ...))` |
+| `.parallel([branchA, branchB], { concurrency })` | Fan-out concurrent branches | `errorPolicy: "fail-fast" \| "collect"` |
+| `.branch([[pred, [...]], ...], { fallback })` | First-match-wins routing | EC-2: predicate throw → no-match |
+| `.foreach(srcStepId, step, { concurrency })` | Map over upstream array | default concurrency 4 |
+| `.dowhile(step, cond, { maxIterations })` | Loop until cond=false | default cap 100 |
+| `.sleep(durationMs, id?)` | Pause | abortable |
+| `.suspend({ payloadSchema })` | Pause until `Workflow.resume(...)` | human-in-the-loop |
+
+### Step types (D232)
+
+```typescript
+import { fn, agentStep } from "@usetheo/sdk";
+
+// fn step — pure function with optional Zod schemas + retry
+fn("validate", (input, ctx) => {...}, {
+  inputSchema: z.object({...}),
+  outputSchema: z.object({...}),
+  retry: { maxAttempts: 3, initialBackoffMs: 1000, backoffCoefficient: 2.0 },
+});
+
+// agent step — agent.send with rendered prompt + optional retry
+agentStep("classify", agent, (input) => `prompt: ${input}`, { retry: {...} });
+```
+
+### Retry policy (D237)
+
+```typescript
+retry: {
+  maxAttempts: 3,              // 1..20, REQUIRED if retry is set
+  initialBackoffMs: 1000,      // default 1000
+  backoffCoefficient: 2.0,     // default 2.0
+  maximumBackoffMs: 30_000,    // default 30s
+  nonRetryableErrors: ["ConfigurationError", "AbortError"], // default includes WorkflowSnapshotNotFoundError too
+}
+```
+
+Retry sleeps are abortable via `AbortSignal`; non-retryable errors skip the loop.
+
+### Suspend/resume (D236)
+
+```typescript
+const wf = Workflow.create({ name: "approval" })
+  .then(fn("draft", async () => "draft text"))
+  .then(fn("wait_for_approval", async (input, ctx) => {
+    await ctx.suspend({ awaiting: "human-approval", draft: input });
+    return "never returns"; // sentinel terminates this fn
+  }))
+  .then(fn("publish", async (payload) => `published with ${JSON.stringify(payload)}`))
+  .commit();
+
+const first = await wf.run(undefined);
+// first.status === "suspended", first.id is the runId
+
+// Later, after human approves:
+const resumed = await Workflow.resume({
+  runId: first.id,
+  workflow: wf,
+  payload: { approved: true, by: "manager" },
+});
+// resumed.status === "completed"
+```
+
+### Persistence (D235)
+
+| Backend | When | How |
+|---|---|---|
+| `memory` (default) | Same-process suspend/resume | `Workflow.create({ name })` |
+| `json` | Survive process restart | `Workflow.create({ name, persistence: { backend: "json", dir: ".theokit/workflows" } })` |
+
+SQLite/Postgres backends ship in v1.x. Snapshots are JSON-only — BigInt,
+circular refs, and class instances with cycles fail with
+`WorkflowNotSerializableError` (EC-4).
+
+### Cancellation (D245)
+
+```typescript
+const ctrl = new AbortController();
+const promise = wf.run(input, { signal: ctrl.signal });
+// somewhere else:
+ctrl.abort("user cancelled");
+const run = await promise;
+// run.status === "cancelled"
+```
+
+`AbortSignal` is checked at step boundaries AND mid-backoff sleep.
+`ctx.signal` is passed to step.fn so fetch/agent.send can be cancelled too.
+
+### Telemetry (D241)
+
+When OTel is installed, each `wf.run` emits a `workflow.run` root span and per-step
+`workflow.step.<id>` child spans with attributes `workflow.name`, `workflow.run_id`,
+`step.kind`, `step.attempts`, `step.status`. Zero cost when OTel is absent.
+
+### v1 limitations
+
+- **LocalAgent only** — `CloudAgent` workflow steps throw `UnsupportedRunOperationError` (D244).
+- **Saga compensation deferred to v1.2** — `compensate?` field reserved on `FnStep` but throws `WorkflowCompensateNotImplementedError` if set (D238).
+- **No cron-trigger integration** — wire workflows via `Cron.create({ task })` calling `wf.run` directly.
+
+### Errors (named)
+
+| Class | Cause |
+|---|---|
+| `WorkflowDuplicateStepIdError` | Two steps with same id at `.commit()` time |
+| `WorkflowAlreadyRunningError` | Concurrent `.run()` with same `(workflowId, runId)` |
+| `WorkflowSnapshotNotFoundError` | `Workflow.resume(runId)` with unknown runId |
+| `WorkflowMaxIterationsExceededError` | `.dowhile` over `maxIterations` |
+| `WorkflowNotSerializableError` | `ctx.suspend(payload)` with non-JSON value (EC-4) |
+| `WorkflowResumeStepNotFoundError` | Resume against a workflow whose definition diverged (EC-8) |
+| `WorkflowParallelError` | Aggregate of branch failures in fail-fast mode |
+| `WorkflowCompensateNotImplementedError` | Step declares `compensate` (saga deferred to v1.2) |

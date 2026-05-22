@@ -45,6 +45,21 @@ export {
   handoffTo,
   RECOMMENDED_HANDOFF_PROMPT_PREFIX,
 } from "./handoff.js";
+// Workflows (Adoption Roadmap #5; ADRs D230-D248)
+export {
+  agentStep,
+  fn,
+  Workflow,
+  WorkflowAlreadyRunningError,
+  WorkflowBuilder,
+  WorkflowCompensateNotImplementedError,
+  WorkflowDuplicateStepIdError,
+  WorkflowMaxIterationsExceededError,
+  WorkflowNotSerializableError,
+  WorkflowParallelError,
+  WorkflowResumeStepNotFoundError,
+  WorkflowSnapshotNotFoundError,
+} from "./workflow.js";
 // Plugin & extension system (v1.8 — ADRs D97-D109)
 export {
   definePlugin,

@@ -394,6 +394,25 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D227 | `onHandoff` throwing aborts the handoff | [D227-onhandoff-throw-aborts.md](./.claude/knowledge-base/adrs/D227-onhandoff-throw-aborts.md) |
 | D228 | `inputFilter` throw falls back to full history + stderr warn | [D228-inputfilter-throw-fallback.md](./.claude/knowledge-base/adrs/D228-inputfilter-throw-fallback.md) |
 | D229 | Empty/null `inputJson` accepted when `inputType === undefined` | [D229-empty-input-accepted.md](./.claude/knowledge-base/adrs/D229-empty-input-accepted.md) |
+| D230 | `Workflow` is static class with `.create / .run / .resume` (factory pattern) | [D230-workflow-class-factory.md](./.claude/knowledge-base/adrs/D230-workflow-class-factory.md) |
+| D231 | Builder mutates + returns immutable `Workflow` after `.commit()` | [D231-builder-mutable-commit.md](./.claude/knowledge-base/adrs/D231-builder-mutable-commit.md) |
+| D232 | `Step` is discriminated union by `kind` (8 variants) | [D232-step-discriminated-union.md](./.claude/knowledge-base/adrs/D232-step-discriminated-union.md) |
+| D233 | Control flow names mirror a peer framework (`.then/.parallel/.branch/.foreach/.dowhile/.sleep/.suspend`) | [D233-a peer framework-naming.md](./.claude/knowledge-base/adrs/D233-a peer framework-naming.md) |
+| D234 | State between steps is explicit input/output (no global state-machine) | [D234-explicit-input-output-state.md](./.claude/knowledge-base/adrs/D234-explicit-input-output-state.md) |
+| D235 | Persistence default in-memory; JSON opt-in via `persistence: { backend, dir }` | [D235-persistence-in-memory-default.md](./.claude/knowledge-base/adrs/D235-persistence-in-memory-default.md) |
+| D236 | Suspend/resume via `await ctx.suspend(payload?)` → `Workflow.resume({...})` | [D236-suspend-resume.md](./.claude/knowledge-base/adrs/D236-suspend-resume.md) |
+| D237 | Retry policy declarative per step, Temporal-shape (maxAttempts/backoffMs/coef) | [D237-retry-policy-temporal-shape.md](./.claude/knowledge-base/adrs/D237-retry-policy-temporal-shape.md) |
+| D238 | Saga `compensate?` reserved on interface; engine DEFERRED to v1.2 | [D238-compensate-deferred-v12.md](./.claude/knowledge-base/adrs/D238-compensate-deferred-v12.md) |
+| D239 | Step IDs user-provided, grammar `^[a-z0-9][a-z0-9_-]*$` (reuse D81) | [D239-step-id-grammar.md](./.claude/knowledge-base/adrs/D239-step-id-grammar.md) |
+| D240 | `.parallel`/`.foreach` reuse existing `AsyncSemaphore` (D135) | [D240-reuse-async-semaphore.md](./.claude/knowledge-base/adrs/D240-reuse-async-semaphore.md) |
+| D241 | Telemetry via existing OTel seam: spans `workflow.run` + `workflow.step.<id>` | [D241-telemetry-otel-seam.md](./.claude/knowledge-base/adrs/D241-telemetry-otel-seam.md) |
+| D242 | Single-flight per `(workflowId, runId)` → `WorkflowAlreadyRunningError` | [D242-single-flight-per-runId.md](./.claude/knowledge-base/adrs/D242-single-flight-per-runId.md) |
+| D243 | `.parallel` `errorPolicy: "fail-fast"` default; `"collect"` opt-in | [D243-parallel-error-fail-fast.md](./.claude/knowledge-base/adrs/D243-parallel-error-fail-fast.md) |
+| D244 | `CloudAgent` workflow steps throw `UnsupportedRunOperationError` | [D244-cloud-runworkflow-unsupported.md](./.claude/knowledge-base/adrs/D244-cloud-runworkflow-unsupported.md) |
+| D245 | Cancellation via AbortSignal at step boundaries + `ctx.signal` for step.fn | [D245-abort-signal-boundaries.md](./.claude/knowledge-base/adrs/D245-abort-signal-boundaries.md) |
+| D246 | Workflow composes over runUntil/handoffs/batch via public API only (no internal reach) | [D246-workflow-composes-not-replaces.md](./.claude/knowledge-base/adrs/D246-workflow-composes-not-replaces.md) |
+| D247 | `step.fn` signature `(input, ctx) => Promise<output>` where ctx = { runId, signal, log, suspend } | [D247-step-fn-signature.md](./.claude/knowledge-base/adrs/D247-step-fn-signature.md) |
+| D248 | v1 scope: 7 primitives shipped; saga + cloud + extra backends deferred | [D248-v1-scope.md](./.claude/knowledge-base/adrs/D248-v1-scope.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -437,7 +456,7 @@ Auditoria peer-agent 2026-05-19 — `referencia/peer-agent/` + sdk-references �
 
 > Strategic gap analysis (2026-05-21, curado 2026-05-22). Hermes patterns complete (23/23); SDK Roadmap v1.2 complete (5/7). Paridade técnica com a peer framework / Claude Agent SDK / OpenAI Agents SDK atingida. **A partir daqui o gargalo NÃO é mais "features de runtime"; é DX + observabilidade + paridade competitiva em primitivos de agente.** As 8 linhas abaixo são o backlog curado — Tier 1 bloqueia adoção, Tier 2 fecha gaps de superfície vs a peer vendor AI / OpenAI Agents / a peer framework, Tier 3 é production hardening. Items removidos vs versão original (Computer use, Image gen + TTS, Cost tracking / budgets) ficam fora do roadmap atual — podem voltar quando houver pull-de-mercado claro.
 >
-> **Progresso 2026-05-22:** 3/8 shipados (#1 CLI, #2 Eval suite, #4 Agent handoffs). Restantes: 5 itens.
+> **Progresso 2026-05-22:** 4/8 shipados (#1 CLI, #2 Eval suite, #4 Agent handoffs, #5 Workflows declarativos). Restantes: 4 itens.
 
 | Tier | # | Item | Score | Status |
 |---|---|---|---:|---|
@@ -445,7 +464,7 @@ Auditoria peer-agent 2026-05-19 — `referencia/peer-agent/` + sdk-references �
 | ~~T1~~ | ~~2~~ | ~~**Eval suite**~~ ✅ DONE 2026-05-22 (ADRs D202-D213) | ~~9~~ | Shipado: `Eval.create({ dataset, scorers, agent })` + `Eval.run()` static façade. `Scorers.{exactMatch, contains, jsonValid, lengthBetween, llmJudge}` namespace. Consome `Agent.batch` (D134) para paralelismo + isolamento por-prompt (D208). LLM judge com `apiKey` separado (D205); OTel spans via telemetry seam existente (D206). Aggregate p50/p95 + tokens-in/out totals (D211); iterable dataset (D210); single-flight por nome (D213). CLI `theokit eval` swapped pra `Eval.create + .run` (D212). 61 tests SDK + CLI runner.test.ts via fixture-mode. |
 | T1 | 3 | **Docs site** — vive em `../theo-opendocs` (Next.js + Fumadocs, source-of-truth para cookbook + API ref + tutorials + search) | 10 | Pendente |
 | ~~T2~~ | ~~4~~ | ~~**Agent handoffs**~~ ✅ DONE 2026-05-22 (ADRs D214-D229) | ~~8~~ | Shipado: `Agent.create({ handoffs: [other] })` declarativo + `Handoff.create(target, opts)` factory + `RECOMMENDED_HANDOFF_PROMPT_PREFIX` constante. Synthesized `transfer_to_<name>` tools (handoff-as-tool, a peer SDK pattern; D214-D215). Peer-to-peer (D217), full-history default (D216), max chain depth 5 (D218), single-flight por (sender, receiver) pair (D221). `inputFilter` extension point (D219, D228 fallback); `inputType` Zod schema (D223); `onHandoff` throw aborta (D227); empty input aceito quando `inputType === undefined` (D229). 5 MUST FIX edges absorvidos (EC-1..EC-5). 29 handoff tests PASS + telegram-pro `/handoff_demo` validado em dogfood (5566ms PASS, 42/43 final). |
-| T2 | 5 | **Workflows declarativos** (`Workflow.create({ steps, on_failure, retry })`) | 7 | Pendente |
+| ~~T2~~ | ~~5~~ | ~~**Workflows declarativos**~~ ✅ DONE 2026-05-22 (ADRs D230-D248) | ~~7~~ | Shipado: `Workflow.create({ name }).then(...).parallel(...).branch(...).foreach(...).dowhile(...).sleep(...).suspend().commit().run(input)` + `Workflow.resume({...})`. 7 control-flow primitives (a peer framework naming D233); discriminated union steps (D232); explicit input/output state (D234, no a framework global); in-memory + JSON snapshot stores (D235); Temporal-shape retry policy (D237); AbortSignal cancellation at step boundaries (D245); OTel spans via existing seam (D241); single-flight per (workflowId, runId) (D242); 5 MUST FIX edges absorvidos (EC-1..EC-5) + 5 SHOULD TEST validated. 38 tests SDK PASS + telegram-pro `/workflow_demo` validado em dogfood (6555ms PASS, 43/44 final). Saga `compensate?` deferido pra v1.2 (D238); CloudAgent throws `UnsupportedRunOperationError` (D244). |
 | T3 | 6 | **Semantic cache** (`Cache.semantic({ provider, threshold })`) | 6 | Pendente |
 | T3 | 7 | **Gateway Slack adapter** (`@usetheo/gateway-slack`) | 5 | Pendente |
 | T3 | 8 | **Bedrock + Vertex profiles** (`ProviderProfile` para AWS Bedrock + GCP Vertex AI) | 5 | Pendente |
@@ -496,9 +515,9 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 1. ~~**CLI `theokit` (#1)**~~ ✅ DONE 2026-05-22
 2. ~~**Eval suite (#2)**~~ ✅ DONE 2026-05-22 — consome `Agent.batch` direto; CLI `theokit eval` swapped pra `Eval.run`.
 3. ~~**Handoffs (#4)**~~ ✅ DONE 2026-05-22 — primitivo handoff-as-tool shipado antes de Workflows.
-4. **Docs site (#3) é o próximo Tier 1 pendente** — `../theo-opendocs` (Next.js + Fumadocs bootstrapped). Source-of-truth: `docs.md` deste repo. Cookbook + API ref + tutorials + search são table-stakes 2026.
-5. **Workflows (#5)** — composição declarativa sobre handoffs (já shipado) + conditionals. a peer framework/Inngest/Temporal como referência. ADR alvo: D230+.
-6. **T3 (#6 / #7 / #8) abre quando #3 e #5 estabilizarem** — production hardening sobre fundação estável.
+4. ~~**Workflows (#5)**~~ ✅ DONE 2026-05-22 — declarative DSL com 7 primitives (then/parallel/branch/foreach/dowhile/sleep/suspend), retry policy, suspend/resume, OTel spans, telegram-pro `/workflow_demo` validado.
+5. **Docs site (#3) é o próximo Tier 1 pendente** — `../theo-opendocs` (Next.js + Fumadocs bootstrapped). Source-of-truth: `docs.md` deste repo. Cookbook + API ref + tutorials + search são table-stakes 2026.
+6. **T3 (#6 / #7 / #8) abre quando #3 estabilizar** — production hardening sobre fundação estável.
 
 **Critério de "DONE" continua o mesmo da SDK Roadmap original:**
 - Cobertura via ADRs registradas em `.claude/knowledge-base/adrs/`

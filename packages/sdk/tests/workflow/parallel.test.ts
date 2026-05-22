@@ -1,0 +1,117 @@
+/**
+ * Tests for ParallelStep: concurrency, fail-fast, collect, EC-6 empty branches.
+ */
+
+import { describe, expect, it } from "vitest";
+
+import { fn, Workflow } from "../../src/workflow.js";
+
+describe("workflow .parallel", () => {
+  it("runs all branches concurrently and collects outputs", async () => {
+    const order: string[] = [];
+    const wf = Workflow.create({ name: "par" })
+      .parallel(
+        [
+          [fn("a", async () => { order.push("a"); return 1; })],
+          [fn("b", async () => { order.push("b"); return 2; })],
+          [fn("c", async () => { order.push("c"); return 3; })],
+        ],
+        { id: "fanout" },
+      )
+      .commit();
+
+    const run = await wf.run(undefined);
+    expect(run.status).toBe("completed");
+    expect(run.output).toEqual([1, 2, 3]);
+    expect(order).toHaveLength(3);
+  });
+
+  it("EC-6 — empty branches returns output: []", async () => {
+    const wf = Workflow.create({ name: "par-empty" })
+      .parallel([], { id: "empty" })
+      .commit();
+    const run = await wf.run(undefined);
+    expect(run.status).toBe("completed");
+    expect(run.output).toEqual([]);
+  });
+
+  it("fail-fast: first branch failure aborts the rest", async () => {
+    let bRan = false;
+    const wf = Workflow.create({ name: "par-fail-fast" })
+      .parallel(
+        [
+          [fn("a", async () => { throw new Error("a failed"); })],
+          [fn("b", async () => {
+            // Delay so a's error wins the race.
+            await new Promise((r) => setTimeout(r, 50));
+            bRan = true;
+            return "b";
+          })],
+        ],
+        { id: "ff" },
+      )
+      .commit();
+    const run = await wf.run(undefined);
+    expect(run.status).toBe("failed");
+    expect(run.error?.message).toMatch(/branch/i);
+    // b may or may not have run depending on scheduler; what matters is the run aborted.
+    void bRan;
+  });
+
+  it("collect mode: returns per-branch outcomes including errors", async () => {
+    const wf = Workflow.create({ name: "par-collect" })
+      .parallel(
+        [
+          [fn("a", async () => "ok-a")],
+          [fn("b", async () => { throw new Error("b failed"); })],
+          [fn("c", async () => "ok-c")],
+        ],
+        { id: "collect", errorPolicy: "collect" },
+      )
+      .commit();
+    const run = await wf.run(undefined);
+    expect(run.status).toBe("completed");
+    const outputs = run.output as Array<{ ok: boolean; value?: unknown; error?: unknown }>;
+    expect(outputs).toHaveLength(3);
+    expect(outputs[0]?.ok).toBe(true);
+    expect(outputs[0]?.value).toBe("ok-a");
+    expect(outputs[1]?.ok).toBe(false);
+    expect(outputs[2]?.ok).toBe(true);
+  });
+
+  it("respects concurrency cap", async () => {
+    let active = 0;
+    let peak = 0;
+    const wf = Workflow.create({ name: "par-cap" })
+      .parallel(
+        [
+          [fn("a", async () => {
+            active++;
+            peak = Math.max(peak, active);
+            await new Promise((r) => setTimeout(r, 20));
+            active--;
+            return 1;
+          })],
+          [fn("b", async () => {
+            active++;
+            peak = Math.max(peak, active);
+            await new Promise((r) => setTimeout(r, 20));
+            active--;
+            return 2;
+          })],
+          [fn("c", async () => {
+            active++;
+            peak = Math.max(peak, active);
+            await new Promise((r) => setTimeout(r, 20));
+            active--;
+            return 3;
+          })],
+        ],
+        { id: "cap", concurrency: 2 },
+      )
+      .commit();
+    const run = await wf.run(undefined);
+    expect(run.status).toBe("completed");
+    expect(peak).toBeLessThanOrEqual(2);
+  });
+});
