@@ -17,7 +17,7 @@ describe("workflow suspend/resume", () => {
   it("ctx.suspend pauses the run with status: 'suspended'", async () => {
     const wf = Workflow.create({ name: "susp" })
       .then(fn<unknown, string>("phase1", async () => "phase1-done"))
-      .then(fn<string, never>("wait-for-approval", async (_input, ctx) => {
+      .then(fn<string, string>("wait-for-approval", async (_input, ctx) => {
         await ctx.suspend({ awaiting: "approval" });
         // Unreachable
         return "never";
@@ -34,7 +34,7 @@ describe("workflow suspend/resume", () => {
 
   it("EC-4 — suspend with BigInt payload throws WorkflowNotSerializableError", async () => {
     const wf = Workflow.create({ name: "susp-bigint" })
-      .then(fn<unknown, never>("susp", async (_i, ctx) => {
+      .then(fn<unknown, string>("susp", async (_i, ctx) => {
         await ctx.suspend({ big: BigInt(123) });
         return "never";
       }))
@@ -47,7 +47,7 @@ describe("workflow suspend/resume", () => {
 
   it("EC-4 — suspend with circular ref throws WorkflowNotSerializableError", async () => {
     const wf = Workflow.create({ name: "susp-circ" })
-      .then(fn<unknown, never>("susp", async (_i, ctx) => {
+      .then(fn<unknown, string>("susp", async (_i, ctx) => {
         const obj: Record<string, unknown> = {};
         obj.self = obj;
         await ctx.suspend(obj);
@@ -74,7 +74,7 @@ describe("workflow suspend/resume", () => {
   it("resume continues from snapshot (in-memory store)", async () => {
     const wf = Workflow.create({ name: "resume-ok" })
       .then(fn("phase1", async () => "phase1-done"))
-      .then(fn<unknown, never>("susp", async (_i, ctx) => {
+      .then(fn<unknown, string>("susp", async (_i, ctx) => {
         await ctx.suspend({ awaiting: "approval" });
         return "never";
       }))
