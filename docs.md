@@ -2465,3 +2465,94 @@ with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic
 |---|---|
 | `CacheEmbedderError` | Embedder throw surfaced (rare; usually swallowed via EC-1 graceful degradation) |
 | `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
+
+## Slack gateway (v1.19+) — `@usetheo/gateway-slack`
+
+Slack platform adapter for `@usetheo/gateway`. ADRs D267-D285. Inspired by
+peer-project's `extensions/slack/` and peer-agent's `gateway/platforms/slack.py`;
+uses `@slack/bolt` for Socket Mode transport.
+
+### Install
+
+```bash
+pnpm add @usetheo/gateway-slack @usetheo/gateway @slack/bolt @slack/web-api
+```
+
+### Quickstart
+
+```typescript
+import { SlackAdapter } from "@usetheo/gateway-slack";
+import type { GatewayMessageEvent } from "@usetheo/gateway";
+
+const adapter = new SlackAdapter({
+  botToken: process.env.SLACK_BOT_TOKEN!,    // xoxb-...
+  appToken: process.env.SLACK_APP_TOKEN!,    // xapp-...
+  requireMention: true,                       // default — public channels need @bot
+});
+
+await adapter.connect();
+adapter.onInbound(async (event: GatewayMessageEvent) => {
+  if (event.platform !== "slack") return;
+  await adapter.sendMessage({
+    channel: event.channel,
+    text: `Echo: ${event.text}`,
+  });
+});
+```
+
+### Slack app setup
+
+1. <https://api.slack.com/apps> → **Create New App** → **From scratch**.
+2. **Socket Mode** → enable.
+3. **OAuth & Permissions** → add bot scopes: `chat:write`, `app_mentions:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `users:read`.
+4. **Event Subscriptions** → subscribe to `message.im`, `message.channels`, `message.groups`, `message.mpim`.
+5. **App-Level Tokens** → generate `connections:write` token (`xapp-...`).
+6. **Install App** to workspace → copy Bot Token (`xoxb-...`).
+
+### Channel type mapping (D270, D271)
+
+| Slack `channel_type` | Canonical `channel.type` | `channel.topicId` |
+|---|---|---|
+| `im` (DM) | `"dm"` | undefined |
+| `mpim` (multi-DM) | `"group"` | undefined |
+| `channel` (public) | `"group"` | undefined |
+| any with `thread_ts !== ts` | `"thread"` | `thread_ts` |
+
+### Mention guard (D285)
+
+By default, the adapter drops public-channel messages that don't `@mention` the
+bot. This prevents cost explosion when the bot is added to busy channels (Slack
+default is to deliver every channel message to the bot's event handler — unlike
+Telegram's privacy mode or Discord's `MessageContent` intent).
+
+```typescript
+new SlackAdapter({
+  botToken, appToken,
+  requireMention: false,   // FAQ bot style — bot hears every channel message
+});
+```
+
+DMs and mpim (multi-DM) always pass through regardless of the flag.
+
+### Error mapping (D273)
+
+| Slack code | Canonical `SendResult.error.code` |
+|---|---|
+| `rate_limited` | `rate_limit` |
+| `channel_not_found` | `channel_not_found` |
+| `not_in_channel` / `missing_scope` | `no_permission` |
+| `invalid_auth` / `token_revoked` / `account_inactive` | `auth_error` |
+| `msg_too_long` / `message_limit_exceeded` | `message_too_long` |
+| anything else | `platform_error` |
+
+### v1 limitations
+
+- **Socket Mode only** (D268). HTTP webhook deferred (D269).
+- **No file uploads** (D280); use `adapter.getApp().client.files.upload_v2(...)` escape hatch.
+- **No Block Kit** in `sendMessage` (D281); plain text + `mrkdwn` only. Use `getApp().client.chat.postMessage({ blocks })` for rich.
+- **No reactions / modals / slash commands** (D282); same escape-hatch pattern.
+- **Single account** per adapter instance; multi-workspace deferred.
+
+### Telemetry
+
+The adapter is transparent to OTel — caller wraps `agent.send` in their own spans. No `gateway-slack`-specific spans in v1.

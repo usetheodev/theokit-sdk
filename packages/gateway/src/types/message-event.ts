@@ -16,7 +16,7 @@
  */
 
 /** Closed enum of supported transport platforms. */
-export type PlatformName = "telegram" | "discord";
+export type PlatformName = "telegram" | "discord" | "slack";
 
 /** Fields common to every platform's inbound event. */
 export interface BaseMessageEvent {
@@ -68,5 +68,26 @@ export interface DiscordMessageEvent extends BaseMessageEvent {
   };
 }
 
+/** Slack-specific event variant (ADR D274). */
+export interface SlackMessageEvent extends BaseMessageEvent {
+  readonly platform: "slack";
+  readonly slack: {
+    /** Slack workspace id (a.k.a. team_id). May be `undefined` for some legacy events. */
+    readonly teamId: string | undefined;
+    /** Slack channel id (Cxxxxxxxx | Gxxxxxxxx | Dxxxxxxxx). */
+    readonly channelId: string;
+    /** Slack user id (Uxxxxxxxx) or `"anonymous"` if absent. */
+    readonly userId: string;
+    /** Message timestamp = canonical Slack message id. */
+    readonly ts: string;
+    /** Set only when the message belongs to a thread. */
+    readonly threadTs?: string;
+    /** Slack message subtype (e.g. `"thread_broadcast"`). */
+    readonly subtype?: string;
+    /** Raw Bolt event body — narrowed by the adapter package. */
+    readonly raw: unknown;
+  };
+}
+
 /** Discriminated union of all platform variants. */
-export type MessageEvent = TelegramMessageEvent | DiscordMessageEvent;
+export type MessageEvent = TelegramMessageEvent | DiscordMessageEvent | SlackMessageEvent;
