@@ -646,6 +646,13 @@ runner.command("factstream", async (event) => {
         ? m
         : "openai/gpt-4o-mini";
     })();
+    // Forward bot-level provider routing so streamObject's transient agent
+    // knows to use OpenRouter when `model.id` uses `openai/...` shape but the
+    // credential is OPENROUTER_API_KEY (not OPENAI_API_KEY). Without this the
+    // transient agent fails with `provider_unresolved` before the LLM is even
+    // called (see SDK fix surfacing this as a clearer error).
+    const { buildProviderRouting } = await import("./sdk-config.js");
+    const factstreamProviders = buildProviderRouting();
     for await (const evt of Agent.streamObject({
       apiKey: API_KEY,
       model: { id: streamObjectModel },
@@ -654,6 +661,7 @@ runner.command("factstream", async (event) => {
       systemPrompt:
         "Match schema exactly. Keep summary 2-3 sentences. year=null if unknown.",
       prompt: `Produce a fact card about: ${topic}`,
+      ...(factstreamProviders !== undefined ? { providers: factstreamProviders } : {}),
     })) {
       if (evt.type === "partial") {
         partialCount += 1;
