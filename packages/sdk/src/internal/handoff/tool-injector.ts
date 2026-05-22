@@ -10,16 +10,14 @@
  */
 
 import { z } from "zod";
-
-import type { CustomTool } from "../../types/agent.js";
-import type { SDKAgent } from "../../types/agent.js";
+import type { CustomTool, SDKAgent } from "../../types/agent.js";
 import {
+  type HandoffDescriptor,
   HandoffNameCollisionError,
   HandoffSelfReferenceError,
-  type HandoffDescriptor,
 } from "../../types/handoff.js";
-import { createChainState } from "./registry.js";
 import { dispatchHandoff } from "./dispatcher.js";
+import { createChainState } from "./registry.js";
 
 interface NormalizedHandoff {
   descriptor: HandoffDescriptor;
@@ -46,9 +44,7 @@ export function normalizeHandoffs(
       "target" in entry &&
       "options" in entry &&
       "resolvedToolName" in entry;
-    const descriptor = isDescriptor
-      ? (entry as HandoffDescriptor)
-      : autoWrap(entry as SDKAgent);
+    const descriptor = isDescriptor ? (entry as HandoffDescriptor) : autoWrap(entry as SDKAgent);
     if (descriptor.target.agentId === parentAgentId) {
       throw new HandoffSelfReferenceError(parentAgentId);
     }
@@ -73,18 +69,18 @@ function autoWrap(agent: SDKAgent): HandoffDescriptor {
 
 function resolveTargetName(agent: SDKAgent): string {
   // Prefer a `name` field if exposed; fall back to a short agentId slug.
-  const candidate =
-    (agent as unknown as { name?: string }).name ??
-    (agent.agentId ?? "anonymous");
+  const candidate = (agent as unknown as { name?: string }).name ?? agent.agentId ?? "anonymous";
   return slugify(candidate);
 }
 
 function slugify(input: string): string {
-  return input
-    .replace(/^agent-/i, "")
-    .replace(/[^a-zA-Z0-9_-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 64) || "anonymous";
+  return (
+    input
+      .replace(/^agent-/i, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 64) || "anonymous"
+  );
 }
 
 /**
@@ -110,10 +106,7 @@ export function buildHandoffTool(
   const inputZod =
     descriptor.options.inputType ??
     z.object({
-      reason: z
-        .string()
-        .optional()
-        .describe("Brief reason for the transfer (one short sentence)."),
+      reason: z.string().optional().describe("Brief reason for the transfer (one short sentence)."),
     });
   // CustomTool.inputSchema expects a JSON schema (Record<string, unknown>),
   // not the raw Zod type. Convert lazily so we don't fail when Zod is missing.

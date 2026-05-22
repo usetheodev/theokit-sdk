@@ -8,9 +8,7 @@
 
 import type { Dataset, DatasetEntry } from "../../types/eval.js";
 
-export async function* normalizeDataset(
-  d: Dataset,
-): AsyncGenerator<DatasetEntry, void, void> {
+export async function* normalizeDataset(d: Dataset): AsyncGenerator<DatasetEntry, void, void> {
   if (Array.isArray(d)) {
     for (const entry of d) yield entry;
     return;

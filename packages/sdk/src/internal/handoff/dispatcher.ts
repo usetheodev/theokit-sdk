@@ -14,9 +14,6 @@
  */
 
 import { z } from "zod";
-
-import { type HandoffChainState, recordHop } from "./registry.js";
-import { startHandoffSpan } from "./telemetry.js";
 import type { SDKAgent } from "../../types/agent.js";
 import type {
   HandoffContext,
@@ -25,6 +22,8 @@ import type {
   HandoffResult,
 } from "../../types/handoff.js";
 import { HandoffReceiverDisposedError } from "../../types/handoff.js";
+import { type HandoffChainState, recordHop } from "./registry.js";
+import { startHandoffSpan } from "./telemetry.js";
 
 /**
  * EC-2 / D228 — `safeFilter` wraps `inputFilter`. On exception, falls back
@@ -55,10 +54,7 @@ async function safeFilter(
  * no `inputType` set; returns parsed value otherwise (default to `{}` on
  * empty/null input before Zod refinements).
  */
-function parseHandoffInput(
-  descriptor: HandoffDescriptor,
-  raw: unknown,
-): unknown {
+function parseHandoffInput(descriptor: HandoffDescriptor, raw: unknown): unknown {
   const inputType = descriptor.options.inputType;
   if (inputType === undefined) return undefined;
   const candidate = raw === null || raw === undefined ? {} : raw;
@@ -130,7 +126,7 @@ export async function dispatchHandoff(args: {
     parsedInput = parseHandoffInput(descriptor, rawInputJson);
   } catch (err) {
     throw new Error(
-      `Handoff input validation failed: ${err instanceof z.ZodError ? err.issues[0]?.message ?? "schema_invalid" : err instanceof Error ? err.message : String(err)}`,
+      `Handoff input validation failed: ${err instanceof z.ZodError ? (err.issues[0]?.message ?? "schema_invalid") : err instanceof Error ? err.message : String(err)}`,
     );
   }
 
@@ -164,7 +160,10 @@ export async function dispatchHandoff(args: {
           if (typeof content === "string") return content;
           if (Array.isArray(content)) {
             const text = content
-              .filter((c): c is { type: "text"; text: string } => (c as { type?: string })?.type === "text")
+              .filter(
+                (c): c is { type: "text"; text: string } =>
+                  (c as { type?: string })?.type === "text",
+              )
               .map((c) => c.text)
               .join("\n");
             if (text.length > 0) return text;

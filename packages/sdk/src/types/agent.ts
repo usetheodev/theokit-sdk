@@ -422,7 +422,9 @@ export interface AgentOptions {
    *
    * @public
    */
-  handoffs?: ReadonlyArray<import("./agent.js").SDKAgent | import("./handoff.js").HandoffDescriptor>;
+  handoffs?: ReadonlyArray<
+    import("./agent.js").SDKAgent | import("./handoff.js").HandoffDescriptor
+  >;
   /**
    * Maximum chain depth across handoffs per `agent.send()` call (D218).
    * Default 5. Exceeding throws `HandoffLoopError`. Set to 0 to disable

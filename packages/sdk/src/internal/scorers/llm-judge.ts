@@ -10,8 +10,8 @@
 
 import { Agent } from "../../agent.js";
 import type { ModelSelection } from "../../types/agent.js";
-import type { ProviderRoutingSettings } from "../../types/providers.js";
 import type { Score } from "../../types/eval.js";
+import type { ProviderRoutingSettings } from "../../types/providers.js";
 
 export interface LlmJudgeOptions {
   readonly model: ModelSelection;
@@ -29,9 +29,7 @@ function buildPrompt(
   expected: unknown,
 ): string {
   const scoreHint =
-    rubric === "discrete"
-      ? "between 0 and 1 (use 0 for fail, 1 for pass)"
-      : "between 0.0 and 1.0";
+    rubric === "discrete" ? "between 0 and 1 (use 0 for fail, 1 for pass)" : "between 0.0 and 1.0";
   const expectedBlock =
     expected !== undefined ? `EXPECTED (reference): ${JSON.stringify(expected)}\n\n` : "";
   return [
@@ -94,7 +92,6 @@ export async function llmJudgeScore(
   if (!Number.isFinite(raw)) {
     return { score: 0, reason: "judge_score_not_finite" };
   }
-  const clamped =
-    rubric === "discrete" ? (raw >= 0.5 ? 1 : 0) : Math.max(0, Math.min(1, raw));
+  const clamped = rubric === "discrete" ? (raw >= 0.5 ? 1 : 0) : Math.max(0, Math.min(1, raw));
   return { score: clamped, reason: match[2] };
 }

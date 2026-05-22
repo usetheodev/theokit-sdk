@@ -13,12 +13,9 @@
  * @public
  */
 
-import type { z, ZodType } from "zod";
+import type { ZodType, z } from "zod";
 
-import {
-  llmJudgeScore,
-  type LlmJudgeOptions,
-} from "./internal/scorers/llm-judge.js";
+import { type LlmJudgeOptions, llmJudgeScore } from "./internal/scorers/llm-judge.js";
 import type { NamedScorer, Score } from "./types/eval.js";
 
 /** EC-2 fix: cap JSON parse input to bound memory. 1 MB is generous for structured output. */
@@ -122,9 +119,7 @@ export const Scorers = {
       name: "llm-judge",
       score: (output, expected) => {
         const callOpts: LlmJudgeOptions & { output: string; expected?: unknown } =
-          expected !== undefined
-            ? { ...opts, output, expected }
-            : { ...opts, output };
+          expected !== undefined ? { ...opts, output, expected } : { ...opts, output };
         return llmJudgeScore(callOpts);
       },
     };

@@ -164,7 +164,7 @@ function realpathOfDeepestExisting(path: string): string | undefined {
     try {
       const real = realpathSync(cursor);
       // Reconstruct: ancestor's realpath + remaining (still-lexical) suffix
-      return resolve(real, "." + suffix);
+      return resolve(real, `.${suffix}`);
     } catch {
       suffix = path.slice(dirname(cursor).length);
       cursor = dirname(cursor);
