@@ -16,6 +16,8 @@ import { describe, expect, it } from "vitest";
 import { ConfigurationError } from "../../../src/errors.js";
 import {
   assertNoSymlinkEscape,
+  ForbiddenPathError,
+  isForbiddenPath,
   PathTraversalError,
   safePathJoin,
   sanitizeIdentifier,
@@ -158,6 +160,51 @@ describe("assertNoSymlinkEscape (T1.2)", () => {
       teardown();
     }
   });
+
+  it("DEFENCE-IN-DEPTH: rejects symlink at INTERMEDIATE component (not just terminal)", () => {
+    // Real bug class: `base = /project`, `path = /project/inner/file.txt`
+    // where `/project/inner → /outside`. lstat on the terminal `file.txt`
+    // FOLLOWS the intermediate symlink and reports a regular file — so the
+    // old implementation returned without flagging the escape.
+    // Fix: realpath the full path (or walk to the nearest existing ancestor
+    // when the terminal doesn't exist) to catch symlinks at ANY depth.
+    setup();
+    try {
+      const outsideDir = join(tmpRoot, "outside-dir");
+      mkdirSync(outsideDir);
+      const secret = join(outsideDir, "secret.txt");
+      writeFileSync(secret, "forbidden");
+
+      // base/inner is itself a symlink to outsideDir
+      const inner = join(baseDir, "inner");
+      symlinkSync(outsideDir, inner);
+
+      // Accessing base/inner/secret.txt physically reads outsideDir/secret.txt
+      const escapePath = join(baseDir, "inner", "secret.txt");
+      expect(() => assertNoSymlinkEscape(escapePath, baseDir)).toThrow(PathTraversalError);
+    } finally {
+      teardown();
+    }
+  });
+
+  it("DEFENCE-IN-DEPTH: rejects intermediate symlink even for not-yet-created file", () => {
+    // Variant: the file doesn't exist YET, but an intermediate dir IS a symlink
+    // that escapes. An agent doing `write_file('inner/new.txt', ...)` would
+    // physically write to outside-dir/new.txt — must be blocked at validation.
+    setup();
+    try {
+      const outsideDir = join(tmpRoot, "outside-future");
+      mkdirSync(outsideDir);
+      const inner = join(baseDir, "future-inner");
+      symlinkSync(outsideDir, inner);
+
+      const willCreate = join(baseDir, "future-inner", "new.txt");
+      // file doesn't exist; intermediate symlink does
+      expect(() => assertNoSymlinkEscape(willCreate, baseDir)).toThrow(PathTraversalError);
+    } finally {
+      teardown();
+    }
+  });
 });
 
 describe("sanitizeIdentifier (T1.3)", () => {
@@ -216,5 +263,75 @@ describe("sanitizeIdentifier (T1.3)", () => {
     );
     expect(sanitizeIdentifier("cli-bot-paulo")).toBe("cli-bot-paulo");
     expect(sanitizeIdentifier("tg-dogfood-chat-A")).toBe("tg-dogfood-chat-a");
+  });
+});
+
+describe("isForbiddenPath — sensitive-file blocklist", () => {
+  // Universal blocklist for coding agents: secrets / VCS / build artefacts /
+  // dependency caches / lock files. TheoKit Studio is consumer #1; cli-bot
+  // and future agents share the same defaults.
+
+  it("Given .env at root, Then is forbidden", () => {
+    expect(isForbiddenPath(".env")).toBe(true);
+  });
+
+  it("Given .env.local, Then is forbidden", () => {
+    expect(isForbiddenPath(".env.local")).toBe(true);
+  });
+
+  it("Given .env.example, Then is NOT forbidden (template safe to read)", () => {
+    expect(isForbiddenPath(".env.example")).toBe(false);
+  });
+
+  it("Given .git/config, Then is forbidden", () => {
+    expect(isForbiddenPath(".git/config")).toBe(true);
+  });
+
+  it("Given node_modules/foo/index.js, Then is forbidden", () => {
+    expect(isForbiddenPath("node_modules/foo/index.js")).toBe(true);
+  });
+
+  it("Given .theo/manifest.json, Then is forbidden", () => {
+    expect(isForbiddenPath(".theo/manifest.json")).toBe(true);
+  });
+
+  it("Given pnpm-lock.yaml at root, Then is forbidden", () => {
+    expect(isForbiddenPath("pnpm-lock.yaml")).toBe(true);
+  });
+
+  it("Given package-lock.json at root, Then is forbidden", () => {
+    expect(isForbiddenPath("package-lock.json")).toBe(true);
+  });
+
+  it("Given yarn.lock at root, Then is forbidden", () => {
+    expect(isForbiddenPath("yarn.lock")).toBe(true);
+  });
+
+  it("Given bun.lockb at root, Then is forbidden", () => {
+    expect(isForbiddenPath("bun.lockb")).toBe(true);
+  });
+
+  it("Given app/page.tsx, Then is NOT forbidden", () => {
+    expect(isForbiddenPath("app/page.tsx")).toBe(false);
+  });
+
+  it("Given Windows-style backslash path, Then is normalized and forbidden", () => {
+    // Cross-platform: backslashes must not bypass the blocklist
+    expect(isForbiddenPath(".git\\config")).toBe(true);
+  });
+
+  it("Given leading ./, Then it is stripped before matching", () => {
+    expect(isForbiddenPath("./.env")).toBe(true);
+  });
+
+  it("Given empty string, Then is NOT forbidden (caller passes a normalized path)", () => {
+    expect(isForbiddenPath("")).toBe(false);
+  });
+
+  it("Given ForbiddenPathError is exported, Then it extends ConfigurationError", () => {
+    // Consumers can `catch (err) { if (err.code === 'forbidden_path') ... }`.
+    const err = new ForbiddenPathError(".env");
+    expect(err).toBeInstanceOf(ConfigurationError);
+    expect((err as { code?: string }).code).toBe("forbidden_path");
   });
 });

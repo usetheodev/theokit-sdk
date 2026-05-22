@@ -5,9 +5,21 @@ export default defineConfig({
     index: "src/index.ts",
     errors: "src/errors.ts",
     cron: "src/cron.ts",
+    tools: "src/tools/index.ts",
+    "path-safety": "src/path-safety.ts",
   },
   format: ["esm", "cjs"],
-  dts: true,
+  // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
+  // because rollup-plugin-dts trips on the `types/agent.ts ↔ fork-agent.ts`
+  // import cycle whenever a sub-entry reaches into `internal/runtime` —
+  // surfaces as a spurious "ForkOptions not exported" error.
+  dts: {
+    entry: {
+      index: "src/index.ts",
+      errors: "src/errors.ts",
+      cron: "src/cron.ts",
+    },
+  },
   sourcemap: true,
   clean: true,
   treeshake: true,
@@ -21,4 +33,6 @@ export default defineConfig({
   outExtension({ format }) {
     return { js: format === "esm" ? ".js" : ".cjs" };
   },
+  // Generate tools/*.d.ts via tsc (rollup-plugin-dts limitation workaround).
+  onSuccess: "tsc --project tsconfig.tools-dts.json",
 });
