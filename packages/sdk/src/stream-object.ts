@@ -9,6 +9,7 @@ import {
   setupStructuredOutput,
 } from "./internal/structured-output-helpers.js";
 import type { AgentOptions, LocalOptions, ModelSelection, SDKAgent } from "./types/agent.js";
+import type { ProviderRoutingSettings } from "./types/providers.js";
 
 /**
  * Options accepted by {@link Agent.streamObject}. Same shape as
@@ -25,6 +26,14 @@ export interface StreamObjectOptions<T extends ZodType> {
   apiKey?: string;
   local: LocalOptions;
   maxRetries?: number;
+  /**
+   * Optional provider routing forwarded to the transient agent. Required when
+   * `model.id` uses a prefix (e.g. `openai/gpt-4o-mini`) but the credential is
+   * for a unified gateway (e.g. OpenRouter). Without this, the SDK infers
+   * provider from the prefix and may fail with `provider_unresolved` even
+   * when the right env key is set under a different provider name.
+   */
+  providers?: ProviderRoutingSettings;
 }
 
 /**
@@ -117,6 +126,7 @@ export async function* streamObjectImpl<T extends ZodType>(
     outputTool,
     ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
     ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
+    ...(options.providers !== undefined ? { providers: options.providers } : {}),
   });
   const agent = await deps.create(agentOptions);
   const userMessage = buildToolPrompt(options.prompt);
@@ -155,6 +165,16 @@ export async function* streamObjectImpl<T extends ZodType>(
       lastUsage = extractUsage(result);
 
       if (capturedRaw === undefined) {
+        // EC: when the underlying run errored (e.g. provider_unresolved),
+        // surface the original cause instead of the misleading "model
+        // returned text" message — there was no model call at all.
+        if (result.status === "error" && result.error !== undefined) {
+          throw new StreamObjectError(
+            "no_tool_call",
+            `Agent run failed before the model could reply: ${result.error.message ?? "unknown error"} [${result.error.code ?? "?"}]`,
+            result.error,
+          );
+        }
         if (attempt === maxRetries) {
           throw new StreamObjectError(
             "no_tool_call",

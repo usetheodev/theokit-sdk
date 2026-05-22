@@ -1,6 +1,6 @@
 # Plan: CLI `theokit` — Developer Entry Point (Adoption Roadmap #1)
 
-> **Version 1.0 — STATUS: ✅ COMPLETE (2026-05-22).** Todos os 8 tasks (T0.1-T7.1) DONE, 9 ADRs (D193-D201) shipados, 5 MUST FIX edge cases absorvidos (EC-A/B/C/E/F), 60 unit tests PASS, dogfood real-LLM contra Ollama PASS (init + inspect + dev + eval — 2/2 eval rows com mean score 1.000).
+> **Version 1.0 — STATUS: ✅ COMPLETE (2026-05-22).** Todos os 8 tasks (T0.1-T7.1) DONE, 9 ADRs (D193-D201) shipados, **TODOS os 14 edge cases do review absorvidos**: 5 MUST FIX (EC-A/B/C/E/F) implementados no código + 6 SHOULD TEST (EC-G/H/I/J/K/L) cobertos por tests + 3 DOCUMENT (EC-M/N/O) anotados em READMEs. **62 unit tests PASS** (10 test files), typecheck clean, `pnpm pack` confirma `templates/` no tarball (15 entries). Dogfood real-LLM contra Ollama PASS (init + inspect + dev + eval — 2/2 eval rows com mean score 1.000). Edge-case evidence: `.claude/knowledge-base/reviews/edge-case/cli-theokit-edge-cases-2026-05-22.md` (Implementation Evidence section).
 >
 > **Version 1.0** — Ship a developer CLI (`theokit`) as a workspace package
 > `@usetheo/cli` that gives the SDK a first-class entry point beyond

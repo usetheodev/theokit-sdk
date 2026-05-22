@@ -4,6 +4,8 @@ Data: 2026-05-22
 Tasks analisadas: 8 (T0.1, T1.1, T2.1, T3.1, T4.1, T5.1, T6.1, T7.1)
 Edge cases encontrados: 14 (MUST FIX: 5, SHOULD TEST: 6, DOCUMENT: 3)
 
+> **Status: IMPLEMENTED 2026-05-22** — All 5 MUST FIX absorbed in code, 6/6 SHOULD TEST covered by tests (EC-G/H/I/J/K/L), 3 DOCUMENT noted in README. CLI tests: 62/62 PASS. Typecheck clean. `pnpm pack` confirms templates ship in tarball (EC-C). See "Implementation evidence" section at the bottom.
+
 ## MUST FIX
 
 ### EC-A: Project name não validado contra regras do npm
@@ -97,3 +99,43 @@ Edge cases encontrados: 14 (MUST FIX: 5, SHOULD TEST: 6, DOCUMENT: 3)
 | **Total** | **14**       | **5**    | **6**       | **3**    |
 
 **Veredicto:** **PLANO PRECISA DE AJUSTE** — 5 MUST FIX (EC-A, EC-B, EC-C, EC-E, EC-F) devem ser absorvidos antes de iniciar a implementação. SHOULD TEST items são reforço de TDD; DOCUMENT items são notas no README. EC-C (templates não shipados) e EC-E (SDK internals não exportados) são especialmente críticos porque só aparecem em consumer real fora do monorepo — devs in-repo não veriam até a primeira publicação.
+
+---
+
+## Implementation Evidence (2026-05-22)
+
+All 14 edges resolved. Implementation absorbed into the cli plan + code:
+
+### MUST FIX — all 5 DONE
+
+| Edge | Implementation | Test |
+|------|---------------|------|
+| **EC-A** validate-name | `packages/cli/src/init/validate-name.ts` (NPM_NAME_RE regex + RESERVED_NAMES) | `tests/init/scaffold.test.ts` — EC-A: rejects invalid names |
+| **EC-B** atomic scaffold | `packages/cli/src/init/scaffold.ts:136` — tmp-then-rename via `randomBytes(4)` suffix | `tests/init/scaffold.test.ts` — EC-B: atomic — leaves no partial dest on failure |
+| **EC-C** templates in tarball | `packages/cli/package.json#files` = `["dist","templates","README.md","LICENSE","CHANGELOG.md"]` | `pnpm pack` → 15 `templates/` entries verified |
+| **EC-E** Theokit.inspect public API | `packages/sdk/src/theokit.ts:130` — `static readonly inspect = { builtinProviders, embeddingAdapters }` + ADR D201 | `inspect` command consumes only public API |
+| **EC-F** --output path-guard | `packages/cli/src/eval/report.ts` uses `safePathJoin` from `@usetheo/sdk` (D80) | `tests/eval/path-guard.test.ts` — 2 EC-F tests |
+
+### SHOULD TEST — all 6 DONE
+
+| Edge | Test |
+|------|------|
+| **EC-G** symlink dest | `tests/init/scaffold.test.ts:98` — "EC-G: rejects dest that is a symlink" |
+| **EC-H** ENOSPC cleanup | `tests/init/scaffold.test.ts:86` — atomic via permission-denied dir, asserts no `*.tmp-*` leftovers |
+| **EC-I** tsx unavailable | `tests/dev/runner.test.ts` — "EC-I: surfaces tsx resolution error when tsx unavailable" |
+| **EC-J** child stderr forwarded | `tests/dev/runner.test.ts` — "EC-J: forwards child stderr (syntax error visible to user)" |
+| **EC-K** async scorer | `tests/eval/runner.test.ts:55` — "EC-K: supports async scorer (returns Promise<Score>)" + scorer rejects |
+| **EC-L** sdkVersion → semver | `packages/cli/tsup.config.ts:36` — `__SDK_VERSION__` injected via `readSdkVersion()` at build; `src/version.ts` exports `SDK_VERSION` |
+
+### DOCUMENT — all 3 noted
+
+- **EC-M** pnpm-only templates → documented in template READMEs (`templates/*/README.md`)
+- **EC-N** plugin name collision → inherits D162 (project wins), surfaced by `theokit inspect`
+- **EC-O** dataset >10k → README note "v1 in-memory up to ~10k; v1.1+ for streaming"
+
+### Validation summary
+
+- `pnpm --filter @usetheo/cli test` → **62/62 passed** (10 test files)
+- `pnpm --filter @usetheo/cli typecheck` → **clean** (zero TS errors)
+- `pnpm --filter @usetheo/cli pack` → **15 templates entries** in tarball (EC-C proof)
+- Earlier in session: real-LLM dogfood of CLI against Ollama (init → inspect → dev → eval, 2/2 rows mean score 1.000)
