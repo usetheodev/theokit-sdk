@@ -16,22 +16,20 @@
  */
 
 import { z } from "zod";
-
-import type { EvalOptions, EvalRun, EvalRunOptions } from "./types/eval.js";
 import { runEval } from "./internal/eval/runner.js";
+import type { EvalOptions, EvalRun, EvalRunOptions } from "./types/eval.js";
 
 const EvalOptionsSchema = z.object({
   name: z.string().min(1, "Eval.name must be non-empty"),
   // dataset / scorers / agent are validated lightly here; deep validation is
   // structural and lives in the runner (where it's cheap to do once).
   dataset: z.unknown().refine((v) => Array.isArray(v) || typeof v === "function", {
-    message: "dataset must be an array of DatasetEntry OR a factory returning Iterable/AsyncIterable",
+    message:
+      "dataset must be an array of DatasetEntry OR a factory returning Iterable/AsyncIterable",
   }),
-  scorers: z
-    .unknown()
-    .refine((v) => Array.isArray(v) && v.length >= 1, {
-      message: "scorers must be an array with at least one scorer",
-    }),
+  scorers: z.unknown().refine((v) => Array.isArray(v) && v.length >= 1, {
+    message: "scorers must be an array with at least one scorer",
+  }),
   agent: z.unknown().refine((v) => v !== undefined && v !== null, {
     message: "agent must be an SDKAgent, AgentOptions, or factory function",
   }),

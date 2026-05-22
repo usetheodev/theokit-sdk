@@ -14,8 +14,14 @@ interface OTelSpan {
 
 interface MinimalOTelApi {
   trace: {
-    getTracer(name: string, version?: string): {
-      startSpan(name: string, opts?: { attributes?: Record<string, string | number | boolean> }): OTelSpan;
+    getTracer(
+      name: string,
+      version?: string,
+    ): {
+      startSpan(
+        name: string,
+        opts?: { attributes?: Record<string, string | number | boolean> },
+      ): OTelSpan;
     };
   };
 }

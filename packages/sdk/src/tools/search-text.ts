@@ -140,7 +140,7 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
               matches.push({
                 file: relPath,
                 line: i + 1,
-                preview: line.length > PREVIEW_MAX ? line.slice(0, PREVIEW_MAX) + "…" : line,
+                preview: line.length > PREVIEW_MAX ? `${line.slice(0, PREVIEW_MAX)}…` : line,
               });
             } else {
               truncated = true;

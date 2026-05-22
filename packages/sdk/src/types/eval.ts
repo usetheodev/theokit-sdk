@@ -12,9 +12,7 @@
 import type { SDKAgent } from "./agent.js";
 
 /** Inferred `Agent.create` options shape — avoid cycling through `AgentOptions` directly. */
-export type EvalAgentOptions = Parameters<
-  typeof import("../agent.js").Agent.create
->[0];
+export type EvalAgentOptions = Parameters<typeof import("../agent.js").Agent.create>[0];
 
 /** A single dataset row — input prompt + optional reference + free-form metadata. */
 export interface DatasetEntry {

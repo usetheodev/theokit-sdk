@@ -12,20 +12,6 @@ export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
 // Cron façade
 export { Cron } from "./cron.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
-// Eval suite (Adoption Roadmap #2; ADRs D202-D213)
-export { Eval, EvalAlreadyRunningError } from "./eval.js";
-export { Scorers } from "./scorers.js";
-// Handoffs (Adoption Roadmap #4; ADRs D214-D229)
-export {
-  Handoff,
-  HandoffLoopError,
-  HandoffNameCollisionError,
-  HandoffPairLoopError,
-  HandoffReceiverDisposedError,
-  HandoffSelfReferenceError,
-  RECOMMENDED_HANDOFF_PROMPT_PREFIX,
-  handoffTo,
-} from "./handoff.js";
 // Errors (runtime classes)
 export {
   AgentRunError,
@@ -40,12 +26,25 @@ export {
   UnknownAgentError,
   UnsupportedRunOperationError,
 } from "./errors.js";
+// Eval suite (Adoption Roadmap #2; ADRs D202-D213)
+export { Eval, EvalAlreadyRunningError } from "./eval.js";
 // Structured output via synthetic forced tool (ADR D33)
 export {
   GenerateObjectError,
   type GenerateObjectOptions,
   type GenerateObjectResult,
 } from "./generate-object.js";
+// Handoffs (Adoption Roadmap #4; ADRs D214-D229)
+export {
+  Handoff,
+  HandoffLoopError,
+  HandoffNameCollisionError,
+  HandoffPairLoopError,
+  HandoffReceiverDisposedError,
+  HandoffSelfReferenceError,
+  handoffTo,
+  RECOMMENDED_HANDOFF_PROMPT_PREFIX,
+} from "./handoff.js";
 // Plugin & extension system (v1.8 — ADRs D97-D109)
 export {
   definePlugin,
@@ -70,6 +69,7 @@ export {
   type MigrateResult,
   migrateSqliteToLance,
 } from "./migrate.js";
+export { Scorers } from "./scorers.js";
 // Personality presets (Hermes #26, ADRs D160-D169)
 // `PersonalityPreset` is declared in `types/agent.ts` and reaches consumers
 // via the `types/*` star export below. The runtime registry class lives in
