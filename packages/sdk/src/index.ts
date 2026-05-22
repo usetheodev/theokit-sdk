@@ -12,6 +12,20 @@ export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
 // Cron façade
 export { Cron } from "./cron.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
+// Eval suite (Adoption Roadmap #2; ADRs D202-D213)
+export { Eval, EvalAlreadyRunningError } from "./eval.js";
+export { Scorers } from "./scorers.js";
+// Handoffs (Adoption Roadmap #4; ADRs D214-D229)
+export {
+  Handoff,
+  HandoffLoopError,
+  HandoffNameCollisionError,
+  HandoffPairLoopError,
+  HandoffReceiverDisposedError,
+  HandoffSelfReferenceError,
+  RECOMMENDED_HANDOFF_PROMPT_PREFIX,
+  handoffTo,
+} from "./handoff.js";
 // Errors (runtime classes)
 export {
   AgentRunError,

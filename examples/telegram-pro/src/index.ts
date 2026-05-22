@@ -182,6 +182,7 @@ runner.command("help", async (event) => {
       "/goal <prompt> — Agent.runUntil(goal) Ralph loop with judge model (v1.3)",
       "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
       "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
+      "/handoff_demo (question) — triage agent → billing/support via handoffs array (v1.16)",
       "/memory <provider> <topic> — third-party memory adapter (supermemory/honcho/mem0, v1.12)",
       "/context — list discovered context files (AGENTS.md, CLAUDE.md, etc., v1.13)",
       "/reset — clear this thread's history (memory facts stay)",
@@ -195,7 +196,9 @@ runner.command("help", async (event) => {
       "• 🌐 web search → Tavily MCP (when TAVILY_API_KEY is in .env)",
       "• complex code/research tasks → I delegate to subagents",
     ].join("\n"),
-    { parse_mode: "Markdown" },
+    // Plain text — command names with underscores (/migrate_memory, /handoff_demo)
+    // break Markdown V1 italic parsing. Help is a static list; markdown
+    // formatting is cosmetic, correctness > prettiness.
   );
 });
 
@@ -1437,6 +1440,100 @@ async function fireForLoop(prompt: string, chatId: number): Promise<string> {
     await agent.dispose();
   }
 }
+
+// ────────────────────── /handoff_demo — Agent handoff showcase (v1.16) ──────────────────────
+//
+// Demonstrates Adoption Roadmap #4 (ADRs D214-D229): a triage agent that
+// routes to one of two specialists (billing OR support) based on intent.
+// Each specialist replies; the triage's response carries that reply back.
+runner.command("handoff_demo", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const question = match.trim();
+  if (question.length === 0) {
+    await ctx.reply(
+      [
+        "Usage: /handoff_demo <question>",
+        "",
+        "Examples:",
+        "  /handoff_demo I was charged twice this month",
+        "  /handoff_demo How do I install the SDK?",
+        "",
+        "Triage routes to billing OR support based on intent (D214-D229).",
+      ].join("\n"),
+    );
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+
+  const { Agent, Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } = await import("@usetheo/sdk");
+
+  // Build 3 throwaway agents for this demo (disposed at end). Sharing the
+  // bot's main agent factory would mix telegram-pro's history with this
+  // demo's; isolate to keep the demo predictable.
+  const baseConfig = {
+    apiKey: API_KEY,
+    model: { id: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001" },
+    local: { cwd: CWD, sandboxOptions: { enabled: false } as const },
+  };
+
+  let triage: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  let billing: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  let support: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  try {
+    billing = await Agent.create({
+      ...baseConfig,
+      name: "billing",
+      systemPrompt:
+        "You are a billing specialist. Answer concisely about invoices, charges, payments.",
+    });
+    support = await Agent.create({
+      ...baseConfig,
+      name: "support",
+      systemPrompt:
+        "You are a technical support specialist. Answer concisely about installation, configuration, troubleshooting.",
+    });
+    triage = await Agent.create({
+      ...baseConfig,
+      name: "triage",
+      systemPrompt: `${RECOMMENDED_HANDOFF_PROMPT_PREFIX}
+
+You are a triage agent. Listen to the user's question and IMMEDIATELY
+transfer to the right specialist using exactly ONE transfer_to_* tool:
+  - billing / payment / invoice questions → transfer_to_billing
+  - install / config / how-to questions   → transfer_to_support
+
+Do NOT answer the user directly.`,
+      handoffs: [
+        billing,
+        Handoff.create(support, {
+          toolDescription: "Transfer to support for install/config/troubleshoot issues.",
+        }),
+      ],
+    });
+
+    const run = await triage.send(question);
+    const result = await run.wait();
+    const reply =
+      result.status === "finished" && result.result !== undefined
+        ? result.result
+        : `(triage run ${result.status}${result.error ? `: ${result.error.message}` : ""})`;
+    await ctx.reply(
+      [
+        `Handoff demo (D214-D229):`,
+        ``,
+        reply.slice(0, 3500),
+      ].join("\n"),
+    );
+  } catch (err) {
+    await ctx.reply(`/handoff_demo error: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    if (triage !== undefined) await triage.dispose();
+    if (billing !== undefined) await billing.dispose();
+    if (support !== undefined) await support.dispose();
+  }
+});
 
 runner.command("loop", async (event) => {
   if (event.platform !== "telegram") return;
