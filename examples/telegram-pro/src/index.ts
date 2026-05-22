@@ -183,6 +183,7 @@ runner.command("help", async (event) => {
       "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
       "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
       "/handoff_demo (question) — triage agent → billing/support via handoffs array (v1.16)",
+      "/workflow_demo (claim) — declarative 4-step pipeline: validate → classify → branch → resolve (v1.17)",
       "/memory <provider> <topic> — third-party memory adapter (supermemory/honcho/mem0, v1.12)",
       "/context — list discovered context files (AGENTS.md, CLAUDE.md, etc., v1.13)",
       "/reset — clear this thread's history (memory facts stay)",
@@ -1530,6 +1531,122 @@ Do NOT answer the user directly.`,
     await ctx.reply(`/handoff_demo error: ${err instanceof Error ? err.message : String(err)}`);
   } finally {
     if (triage !== undefined) await triage.dispose();
+    if (billing !== undefined) await billing.dispose();
+    if (support !== undefined) await support.dispose();
+  }
+});
+
+// ────────────────────── /workflow_demo — Declarative pipeline showcase (v1.17) ──────────────────────
+//
+// Demonstrates Adoption Roadmap #5 (ADRs D230-D248): declarative
+// multi-step pipeline. validate → classify (LLM) → branch (billing/support)
+// → resolve, with `WorkflowRun.stepResults` showing per-step breakdown.
+runner.command("workflow_demo", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const claim = match.trim();
+  if (claim.length === 0) {
+    await ctx.reply(
+      [
+        "Usage: /workflow_demo <claim>",
+        "",
+        "Examples:",
+        "  /workflow_demo I was charged twice this month",
+        "  /workflow_demo How do I install the SDK on Windows?",
+        "",
+        "Runs a 4-step declarative pipeline (D230-D248):",
+        "  validate -> classify (LLM) -> branch (billing/support) -> resolve",
+      ].join("\n"),
+    );
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+
+  const { Agent, Workflow, fn, agentStep } = await import("@usetheo/sdk");
+
+  const baseConfig = {
+    apiKey: API_KEY,
+    model: { id: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001" },
+    local: { cwd: CWD, sandboxOptions: { enabled: false } as const },
+  };
+
+  let classifier: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  let billing: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  let support: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  try {
+    classifier = await Agent.create({
+      ...baseConfig,
+      name: "classifier",
+      systemPrompt:
+        "You classify customer support requests. Reply with EXACTLY one word: BILLING, SUPPORT, or OTHER.",
+    });
+    billing = await Agent.create({
+      ...baseConfig,
+      name: "billing",
+      systemPrompt:
+        "You are a billing specialist. Answer concisely (1-2 sentences).",
+    });
+    support = await Agent.create({
+      ...baseConfig,
+      name: "support",
+      systemPrompt:
+        "You are a technical support specialist. Answer concisely (1-2 sentences).",
+    });
+
+    const wf = Workflow.create<{ claim: string }, string>({ name: "tg-workflow-demo" })
+      .then(
+        fn<{ claim: string }, { claim: string; ts: number }>("validate", (input) => {
+          if (!input.claim || input.claim.length < 3) {
+            throw new Error("claim must be at least 3 characters");
+          }
+          return { ...input, ts: Date.now() };
+        }),
+      )
+      .then(
+        agentStep(
+          "classify",
+          classifier,
+          (input) => `Classify: "${(input as { claim: string }).claim}"`,
+        ),
+      )
+      .branch(
+        [
+          [
+            (out) => String(out).toUpperCase().includes("BILLING"),
+            [agentStep("billing_resolve", billing, "Handle the billing question.")],
+          ],
+          [
+            (out) => String(out).toUpperCase().includes("SUPPORT"),
+            [agentStep("support_resolve", support, "Handle the support question.")],
+          ],
+        ],
+        {
+          id: "decide",
+          fallback: [fn("escalate", () => "Escalating to a human agent.")],
+        },
+      )
+      .commit();
+
+    const run = await wf.run({ claim });
+    const stepLines = run.stepResults
+      .map((sr) => `  [${sr.kind}] ${sr.stepId} -> ${sr.status} (${sr.durationMs}ms, ${sr.attempts} attempt)`)
+      .join("\n");
+    const finalOutput = run.status === "completed" ? String(run.output ?? "(empty)") : (run.error?.message ?? run.status);
+    await ctx.reply(
+      [
+        `Workflow demo (D230-D248):`,
+        `Status: ${run.status}`,
+        `Steps:`,
+        stepLines,
+        ``,
+        `Final: ${finalOutput.slice(0, 2500)}`,
+      ].join("\n"),
+    );
+  } catch (err) {
+    await ctx.reply(`/workflow_demo error: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    if (classifier !== undefined) await classifier.dispose();
     if (billing !== undefined) await billing.dispose();
     if (support !== undefined) await support.dispose();
   }

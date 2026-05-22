@@ -29,7 +29,8 @@ export type RunOperation =
   | "downloadArtifact"
   | "runUntil"
   | "fork"
-  | "usePersonality";
+  | "usePersonality"
+  | "workflow";
 
 /**
  * Git metadata attached to cloud runs.
