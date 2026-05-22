@@ -17,3 +17,4 @@ export type * from "./run.js";
 export type * from "./theokit.js";
 export type * from "./trajectory.js";
 export type * from "./updates.js";
+export type * from "./workflow.js";

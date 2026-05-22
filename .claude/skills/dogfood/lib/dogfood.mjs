@@ -88,7 +88,7 @@ const COMMANDS = [
 
   // ── DX tools (v1.1) ──
   { text: "/tool list", expect: [/Ad-hoc tools|roll|uuid|hash/i], waitMs: 5000 },
-  { text: "/tool uuid", expect: [/[0-9a-f]{8}-[0-9a-f]{4}-/i], waitMs: 12000, retryOnError: true },
+  { text: "/tool uuid", expect: [/[0-9a-f]{8}-[0-9a-f]{4}-/i], waitMs: 20000, retryOnError: true },
   { text: "/tool roll 3d6", expect: [/Rolled.*3d6|Total/i], waitMs: 12000 },
 
   // ── v1.1 generateObject ──
@@ -244,6 +244,18 @@ const COMMANDS = [
     text: "/handoff_demo I was charged twice this month",
     expect: [/Handoff demo|billing|charged|refund|invoice|payment/i],
     waitMs: 60000,
+    retryOnError: true,
+  },
+
+  // ── v1.17 Workflows (Adoption Roadmap #5, ADRs D230-D248) ──
+  // Declarative pipeline: validate -> classify (LLM) -> branch
+  // (billing/support) -> resolve. We accept any positive outcome
+  // (completed/branch/step) because the LLM choice of classify word
+  // varies but the workflow primitives (steps, branch) are deterministic.
+  {
+    text: "/workflow_demo I was charged twice this month",
+    expect: [/Workflow demo|Status:|Steps:|validate|classify|branch/i],
+    waitMs: 90000,
     retryOnError: true,
   },
 

@@ -1,0 +1,108 @@
+/**
+ * Execute a `BranchStep` — first-match-wins predicates + optional fallback.
+ *
+ * EC-2 absorbed: predicates that THROW are treated as "no match" + stderr
+ * warn — user-code bugs in predicates don't take down the whole workflow.
+ *
+ * @internal
+ */
+
+import type {
+  BranchStep,
+  Step,
+  StepContext,
+  StepResult,
+  WorkflowOptions,
+} from "../../types/workflow.js";
+import { errToShape } from "./error-shape.js";
+import type { DispatchFn } from "./step-parallel.js";
+
+export async function runBranchStep(
+  step: BranchStep,
+  input: unknown,
+  ctx: StepContext,
+  options: WorkflowOptions,
+  prevStepResults: ReadonlyArray<StepResult>,
+  dispatch: DispatchFn,
+): Promise<StepResult> {
+  const startedAt = Date.now();
+
+  for (let i = 0; i < step.predicates.length; i += 1) {
+    const pair = step.predicates[i]!;
+    const [predicate, branch] = pair;
+    // EC-2: predicate throw → warn + treat as no-match.
+    let matched = false;
+    try {
+      matched = await Promise.resolve(predicate(input));
+    } catch (err) {
+      console.warn(
+        `[workflow] branch "${step.id}" predicate ${i} threw, treating as no-match:`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+    if (matched) {
+      const r = await runInnerSequence(branch, input, ctx, options, prevStepResults, dispatch);
+      return {
+        ...r,
+        stepId: step.id,
+        kind: "branch",
+        durationMs: Date.now() - startedAt,
+      };
+    }
+  }
+
+  if (step.fallback !== undefined) {
+    const r = await runInnerSequence(step.fallback, input, ctx, options, prevStepResults, dispatch);
+    return {
+      ...r,
+      stepId: step.id,
+      kind: "branch",
+      durationMs: Date.now() - startedAt,
+    };
+  }
+
+  // No match, no fallback → pass input through unchanged.
+  return {
+    stepId: step.id,
+    kind: "branch",
+    status: "skipped",
+    attempts: 0,
+    durationMs: Date.now() - startedAt,
+    output: input,
+  };
+}
+
+async function runInnerSequence(
+  branch: ReadonlyArray<Step>,
+  input: unknown,
+  ctx: StepContext,
+  options: WorkflowOptions,
+  prevStepResults: ReadonlyArray<StepResult>,
+  dispatch: DispatchFn,
+): Promise<StepResult> {
+  let acc: unknown = input;
+  let lastAttempts = 1;
+  for (const inner of branch) {
+    const r = await dispatch(inner, acc, ctx, options, prevStepResults);
+    lastAttempts = r.attempts;
+    if (r.status === "failed") {
+      return {
+        stepId: inner.id,
+        kind: "branch",
+        status: "failed",
+        attempts: r.attempts,
+        durationMs: 0,
+        error: r.error ?? errToShape(new Error("branch inner step failed")),
+      };
+    }
+    acc = r.output;
+  }
+  return {
+    stepId: "__branch-completed__",
+    kind: "branch",
+    status: "completed",
+    attempts: lastAttempts,
+    durationMs: 0,
+    output: acc,
+  };
+}
