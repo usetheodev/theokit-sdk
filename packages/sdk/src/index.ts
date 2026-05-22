@@ -14,6 +14,7 @@ export { Cron } from "./cron.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
 // Errors (runtime classes)
 export {
+  AgentRunError,
   AuthenticationError,
   ConfigurationError,
   IntegrationNotConnectedError,
@@ -62,6 +63,11 @@ export {
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
+// Path safety primitives (ADRs D79-D85) live at `@usetheo/sdk/path-safety`,
+// not on the main barrel. That dedicated sub-export keeps the DTS bundle
+// for `index.ts` decoupled from the `internal/runtime` graph (which has
+// a known import cycle `types/agent.ts ↔ fork-agent.ts` that rollup-plugin-dts
+// trips on whenever a path-guard symbol reaches into the main bundle).
 // Streamed structured output (ADR D39)
 export {
   type DeepPartial,

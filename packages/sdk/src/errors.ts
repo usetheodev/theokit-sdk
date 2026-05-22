@@ -185,6 +185,52 @@ export class UnknownAgentError extends TheokitAgentError {
 }
 
 /**
+ * Thrown by `Agent.prompt` (and helpers that go through `run.wait()`) when
+ * the option `{ throwOnError: true }` is set and the run terminates with
+ * `status: 'error'`. Carries the structured `RunResult.error` fields so
+ * callers can `catch` once and branch on `code` / `provider` instead of
+ * unwrapping the run.
+ *
+ * Extends {@link TheokitAgentError} per ADR D65 — no new hierarchy.
+ *
+ * @example
+ *   try {
+ *     await Agent.prompt(msg, { apiKey, model, throwOnError: true });
+ *   } catch (err) {
+ *     if (err instanceof AgentRunError && err.code === 'auth_failed') {
+ *       // bad key
+ *     }
+ *   }
+ *
+ * @public
+ */
+export class AgentRunError extends TheokitAgentError {
+  override readonly name: string = "AgentRunError";
+  readonly provider?: string;
+  readonly raw?: string;
+
+  constructor(
+    message: string,
+    options: {
+      code: string;
+      provider?: string;
+      raw?: string;
+      cause?: unknown;
+      metadata?: ErrorMetadata;
+    },
+  ) {
+    super(message, {
+      code: options.code,
+      cause: options.cause,
+      metadata: options.metadata,
+      isRetryable: false,
+    });
+    if (options.provider !== undefined) this.provider = options.provider;
+    if (options.raw !== undefined) this.raw = options.raw;
+  }
+}
+
+/**
  * Thrown when a {@link Run} or agent operation is not available on the current
  * runtime. Check first with `run.supports(operation)`.
  *
