@@ -411,6 +411,26 @@ export interface AgentOptions {
    * @public
    */
   maxRecallContextBytes?: number;
+  /**
+   * Declarative handoff destinations (Adoption Roadmap #4; ADRs D214-D229).
+   * Each entry is either a raw `SDKAgent` (auto-wrapped with defaults) OR a
+   * `HandoffDescriptor` from `Handoff.create(target, opts?)`.
+   *
+   * Runtime injects synthetic `transfer_to_<receiver.name>` tools per
+   * destination (D214/D215). When the LLM invokes one, the receiver takes
+   * over the next turn (peer-to-peer, D217).
+   *
+   * @public
+   */
+  handoffs?: ReadonlyArray<import("./agent.js").SDKAgent | import("./handoff.js").HandoffDescriptor>;
+  /**
+   * Maximum chain depth across handoffs per `agent.send()` call (D218).
+   * Default 5. Exceeding throws `HandoffLoopError`. Set to 0 to disable
+   * the handoff tools entirely (EC-8 / handoffs never fire).
+   *
+   * @public
+   */
+  maxHandoffDepth?: number;
 }
 
 /**

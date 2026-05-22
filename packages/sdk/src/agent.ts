@@ -80,10 +80,14 @@ export class Agent {
         );
       }
     }
-    if (options.cloud !== undefined) {
-      return createCloudAgent(options);
+    // D214-D229: when `handoffs[]` is set, synthesize `transfer_to_<X>` tools
+    // and merge into options.tools. Validates uniqueness + self-reference
+    // before agent construction (EC-6).
+    const optionsWithHandoffs = await maybeInjectHandoffTools(options);
+    if (optionsWithHandoffs.cloud !== undefined) {
+      return createCloudAgent(optionsWithHandoffs);
     }
-    return createLocalAgent(options);
+    return createLocalAgent(optionsWithHandoffs);
   }
 
   /**
@@ -390,6 +394,36 @@ export class Agent {
  *
  * @internal
  */
+/**
+ * D214-D229 — when `options.handoffs` is non-empty, synthesize one
+ * `transfer_to_<receiver>` tool per destination and merge into options.tools.
+ *
+ * Skipped when `maxHandoffDepth === 0` (EC-8 — explicit disable).
+ *
+ * @internal
+ */
+async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOptions> {
+  const handoffs = options.handoffs;
+  if (handoffs === undefined || handoffs.length === 0) return options;
+  if (options.maxHandoffDepth === 0) return options;
+
+  // Lazy import to keep the cold path lean for non-handoff agents.
+  const { normalizeHandoffs, buildHandoffTool } = await import(
+    "./internal/handoff/tool-injector.js"
+  );
+  const parentAgentId = options.agentId ?? options.name ?? "anonymous";
+  const normalized = normalizeHandoffs(parentAgentId, handoffs);
+  const maxDepth = options.maxHandoffDepth ?? 5;
+  const handoffTools = normalized.map(({ descriptor }) =>
+    buildHandoffTool(parentAgentId, descriptor, maxDepth),
+  );
+  const existingTools = options.tools ?? [];
+  return {
+    ...options,
+    tools: [...existingTools, ...handoffTools],
+  };
+}
+
 function resolveAgentPersistenceCwd(options: Partial<AgentOptions>): string {
   const localCwd = options.local?.cwd;
   if (typeof localCwd === "string") return localCwd;

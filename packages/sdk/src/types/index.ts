@@ -6,6 +6,8 @@ export type * from "./batch.js";
 export type * from "./context.js";
 export type * from "./conversation.js";
 export type * from "./cron.js";
+export type * from "./eval.js";
+export type * from "./handoff.js";
 export type * from "./goal-events.js";
 export type * from "./mcp.js";
 export type * from "./memory-adapter.js";
