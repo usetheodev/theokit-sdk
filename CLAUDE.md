@@ -357,6 +357,15 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D188 | LM Studio ships as a builtin sibling profile (port 1234, `LMSTUDIO_HOST` override) | [D188-lmstudio-builtin-provider.md](./.claude/knowledge-base/adrs/D188-lmstudio-builtin-provider.md) |
 | D189 | llama.cpp server ships as a builtin sibling profile (port 8080, `LLAMACPP_HOST` override) | [D189-llamacpp-builtin-provider.md](./.claude/knowledge-base/adrs/D189-llamacpp-builtin-provider.md) |
 | D190 | Real-LLM examples are mandatory evidence for integration DONE | [D190-mandatory-examples-as-evidence.md](./.claude/knowledge-base/adrs/D190-mandatory-examples-as-evidence.md) |
+| D193 | `@usetheo/cli` ships as a separate workspace package | [D193-cli-workspace-package.md](./.claude/knowledge-base/adrs/D193-cli-workspace-package.md) |
+| D194 | `commander@12` for CLI subcommand routing | [D194-commander-routing.md](./.claude/knowledge-base/adrs/D194-commander-routing.md) |
+| D195 | CLI bin name is `theokit` (not `tk`, `theo`, etc.) | [D195-bin-name-theokit.md](./.claude/knowledge-base/adrs/D195-bin-name-theokit.md) |
+| D196 | `theokit init` templates are bundled, not git-cloned | [D196-init-bundled-templates.md](./.claude/knowledge-base/adrs/D196-init-bundled-templates.md) |
+| D197 | `theokit dev` shells out to `tsx --watch` | [D197-dev-via-tsx-watch.md](./.claude/knowledge-base/adrs/D197-dev-via-tsx-watch.md) |
+| D198 | `theokit inspect` is read-only; never executes user/plugin code | [D198-inspect-no-execution.md](./.claude/knowledge-base/adrs/D198-inspect-no-execution.md) |
+| D199 | `theokit eval` v1 wraps `Agent.batch`; swaps to `Eval.run` later | [D199-eval-v1-minimal.md](./.claude/knowledge-base/adrs/D199-eval-v1-minimal.md) |
+| D200 | Three initial `theokit init` templates: `minimal`, `ollama-local`, `telegram-bot` | [D200-init-three-templates.md](./.claude/knowledge-base/adrs/D200-init-three-templates.md) |
+| D201 | `Theokit.inspect.*` public namespace in `@usetheo/sdk` | [D201-theokit-inspect-public-api.md](./.claude/knowledge-base/adrs/D201-theokit-inspect-public-api.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -398,22 +407,42 @@ Auditoria Hermes-Agent 2026-05-19 — `referencia/hermes-agent/` + sdk-reference
 
 ## Adoption Roadmap (v1.3 — post-Hermes parity)
 
-> Strategic gap analysis (2026-05-21). Hermes patterns complete (23/23); SDK Roadmap v1.2 complete (5/7 — rows 6-7 carry forward). Paridade técnica com Vercel AI SDK / Claude Agent SDK / OpenAI Agents SDK atingida. **A partir daqui o gargalo NÃO é mais "features de runtime"; é DX + observabilidade + paridade competitiva em primitivos de agente.** As 12 linhas abaixo estão ordenadas por **impacto-sobre-esforço** dentro de 3 tiers. Tier 1 bloqueia adoção — sem isso a SDK não sai do monorepo. Tier 2 fecha gaps onde Vercel AI, OpenAI Agents e Mastra hoje ganham por leverage de superfície (não de capacidade). Tier 3 é production hardening — enterprise não compra sem isso.
+> Strategic gap analysis (2026-05-21, curado 2026-05-22). Hermes patterns complete (23/23); SDK Roadmap v1.2 complete (5/7). Paridade técnica com Vercel AI SDK / Claude Agent SDK / OpenAI Agents SDK atingida. **A partir daqui o gargalo NÃO é mais "features de runtime"; é DX + observabilidade + paridade competitiva em primitivos de agente.** As 8 linhas abaixo são o backlog curado — Tier 1 bloqueia adoção, Tier 2 fecha gaps de superfície vs Vercel AI / OpenAI Agents / Mastra, Tier 3 é production hardening. Items removidos vs versão original (Computer use, Image gen + TTS, Cost tracking / budgets) ficam fora do roadmap atual — podem voltar quando houver pull-de-mercado claro.
 
-| # | Tier | Feature | Score | Por quê é SDK |
+| Tier | # | Item | Score | Status |
 |---|---|---|---:|---|
-| 1 | T1 | **CLI `theokit`** (`init`, `dev`, `inspect`, `eval`) | 10 | A SDK não tem ponto de entrada além de `npm install`. Vercel AI e Mastra ganham 10x em onboarding por causa disso. `theokit init` scaffolds projeto; `theokit dev` roda agente em hot-reload; `theokit inspect` lista plugins/skills/providers; `theokit eval` dispara suite de eval. NÃO é TheoCode (coding agent) — é o developer-CLI da SDK. Pertence a este monorepo como workspace package `@usetheo/cli`. |
-| 2 | T1 | **Docs site** (Nextra/Mintlify — cookbook + API ref + tutorials + search) | 10 | `docs.md` é canonical mas é um único arquivo markdown — não escala. Cookbook navegável + API reference auto-gerada de TS + tutorials versionados + search são table-stakes para qualquer SDK em 2026. Sem isso, ninguém adopta sem screen-share. Pertence a este monorepo como `apps/docs/` (separado de `theo-website` — aquele é marketing). |
-| 3 | T1 | **Eval suite** (`Eval.create/run` + LLM-as-judge + métricas determinísticas) | 9 | Braintrust ($79M), LangSmith (LangChain), Helicone fazem disso negócio. Sem eval-as-code (not eval-as-dashboard) ninguém vai pra produção com confiança. API alvo: `Eval.create({ dataset, scorers, agent })` retorna `EvalRun` com aggregate metrics + per-row traces. Reutiliza `Telemetry` (D34) + `agent.batch` (D134). |
-| 4 | T2 | **Agent handoffs** (`Agent.handoffTo(other, { context })`) | 8 | OpenAI Agents SDK trata como primitivo de primeira classe. Hoje temos `fork()` (D110-D114) + subagents (Toolset) mas **não** handoff declarativo entre agentes pares com transferência de contexto + tool whitelist + conversation history. Mercado de multi-agent quente: CrewAI, AutoGen, Swarm. ADR alvo: D190-D195. |
-| 5 | T2 | **Workflows declarativos** (`Workflow.create({ steps, on_failure, retry })`) | 7 | Mastra ganha aqui — temos `runUntil` (D116) + AsyncGenerator (imperativo) mas não workflows shape declarativo: `step.parallel`, `step.conditional`, `step.retry_with_backoff`, persistência de estado entre steps. Inngest e Temporal são as referências. ADR alvo: D196-D201. |
-| 6 | T2 | **Computer use** (Anthropic `computer_20241022` + screenshot tool) | 7 | Mercado quente — Claude Computer Use, CUA, Devin, Manus. Anthropic já tem tool nativo; precisamos do contrato + adapter (X11/macOS screen capture + mouse/keyboard via robotjs ou similar). Plugin `kind: "computer-controller"` resolve. |
-| 7 | T2 | **Image generation + TTS contracts** (carry de SDK Roadmap rows 6-7) | 5 | Plugins `kind: "image-provider"` e `kind: "tts-provider"` — extension points, NÃO adapters específicos (FAL.ai, ElevenLabs ficam em `@theokit-image-*` / `@theokit-tts-*`). Carry-over honesto: já estavam ranqueados 5 antes; continuam 5 agora. |
-| 8 | T3 | **Semantic cache** (`Cache.semantic({ provider, threshold })`) | 6 | Helicone Cache e LangCache fazem isso. Reduz custo 30-70% em prod com queries repetitivas. Reusa `MemoryAdapter` (D141) como storage backend — embedding-based key match com cosine threshold. Plug-in via hook `pre_send` (interceptar antes de hit no LLM). |
-| 9 | T3 | **Cost tracking / budgets** (`agent.costSoFar`, `Budget.create({ daily_usd_limit })`) | 6 | Enterprise não compra sem. Anthropic, OpenAI e OpenRouter expõem usage em response — falta agregação + alert + hard-stop ao ultrapassar. Reusa `Telemetry` (D34) + novo `BudgetExceededError extends TheokitAgentError`. |
-| 10 | T3 | **Gateway Slack adapter** (`@usetheo/gateway-slack`) | 5 | Continuação natural pós-Telegram + Discord (D170-D181). Slack Bolt SDK + Socket Mode (não Events API webhook). Reutiliza `BasePlatformAdapter` (D172). ADR alvo: D202-D205. |
-| 11 | T3 | **Bedrock + Vertex profiles** (`ProviderProfile` para AWS Bedrock + GCP Vertex AI) | 5 | Bloqueia enterprise AWS/GCP. D11 deferiu; agora é hora. Reusa `ProviderProfile` data-only (D105) + `Transport` orthogonal (D106). Bedrock = SigV4 signing; Vertex = service-account JWT. |
-| ~~12~~ | ~~T3~~ | ~~**Local provider profiles first-class**~~ ✅ DONE 2026-05-21 (ADRs D182-D190) | ~~4~~ | Shipado: Ollama (D182) + embedding adapter D183 + models.list local D184 + actionable errors D185 + model.id prefix D186 + pool no-op D187 + LM Studio D188 + llama.cpp D189 + 2 examples reais D190. Stack 100% local end-to-end (chat + embedding + RAG + tools) sem nenhuma API key remota. |
+| ~~T1~~ | ~~1~~ | ~~**CLI `theokit`**~~ ✅ DONE 2026-05-22 (ADRs D193-D201) | ~~10~~ | Shipado: `@usetheo/cli` workspace package + 4 subcommands (init, dev, inspect, eval) + 3 templates (minimal/ollama-local/telegram-bot) + `Theokit.inspect.*` public API. 60+ unit tests + 5 MUST FIX edge cases absorvidos (EC-A/B/C/E/F). |
+| T1 | 2 | **Eval suite** (`Eval.create/run` + LLM-as-judge + métricas determinísticas) | 9 | Pendente |
+| T1 | 3 | **Docs site** — vive em `../theo-opendocs` (Next.js + Fumadocs, source-of-truth para cookbook + API ref + tutorials + search) | 10 | Pendente |
+| T2 | 4 | **Agent handoffs** (`Agent.handoffTo(other, { context })`) | 8 | Pendente |
+| T2 | 5 | **Workflows declarativos** (`Workflow.create({ steps, on_failure, retry })`) | 7 | Pendente |
+| T3 | 6 | **Semantic cache** (`Cache.semantic({ provider, threshold })`) | 6 | Pendente |
+| T3 | 7 | **Gateway Slack adapter** (`@usetheo/gateway-slack`) | 5 | Pendente |
+| T3 | 8 | **Bedrock + Vertex profiles** (`ProviderProfile` para AWS Bedrock + GCP Vertex AI) | 5 | Pendente |
+
+### Rationale por linha
+
+- **#1 CLI `theokit`** — A SDK não tem ponto de entrada além de `npm install`. Vercel AI e Mastra ganham 10x em onboarding. `theokit init` scaffolds projeto; `theokit dev` roda agente em hot-reload; `theokit inspect` lista plugins/skills/providers; `theokit eval` dispara suite. NÃO é TheoCode (coding agent) — é o developer-CLI da SDK. Pertence a este monorepo como workspace package `@usetheo/cli`.
+- **#2 Eval suite** — Braintrust ($79M), LangSmith, Helicone fazem disso negócio. Sem eval-as-code (not eval-as-dashboard) ninguém vai pra produção com confiança. API alvo: `Eval.create({ dataset, scorers, agent })` retorna `EvalRun` com aggregate metrics + per-row traces. Reutiliza `Telemetry` (D34) + `agent.batch` (D134).
+- **#3 Docs site** — `docs.md` é canonical mas é um único arquivo markdown — não escala. Cookbook navegável + API reference auto-gerada de TS + tutorials versionados + search são table-stakes para qualquer SDK em 2026. **Vive em repo separado `../theo-opendocs/`** (Next.js + Fumadocs já bootstrapped). O `docs.md` deste repo continua canonical; o site consome via build pipeline.
+- **#4 Agent handoffs** — OpenAI Agents SDK trata como primitivo de primeira classe. Hoje temos `fork()` (D110-D114) + subagents (Toolset) mas **não** handoff declarativo entre agentes pares com transferência de contexto + tool whitelist + conversation history. Mercado de multi-agent quente: CrewAI, AutoGen, Swarm. ADR alvo: D193-D198.
+- **#5 Workflows declarativos** — Mastra ganha aqui — temos `runUntil` (D116) + AsyncGenerator (imperativo) mas não workflows shape declarativo: `step.parallel`, `step.conditional`, `step.retry_with_backoff`, persistência de estado entre steps. Inngest e Temporal são as referências. ADR alvo: D199-D204.
+- **#6 Semantic cache** — Helicone Cache e LangCache fazem isso. Reduz custo 30-70% em prod com queries repetitivas. Reusa `MemoryAdapter` (D141) como storage backend — embedding-based key match com cosine threshold. Plug-in via hook `pre_send` (interceptar antes de hit no LLM).
+- **#7 Gateway Slack adapter** — Continuação natural pós-Telegram + Discord (D170-D181). Slack Bolt SDK + Socket Mode (não Events API webhook). Reutiliza `BasePlatformAdapter` (D172). ADR alvo: D205-D208.
+- **#8 Bedrock + Vertex profiles** — Bloqueia enterprise AWS/GCP. D11 deferiu; agora é hora. Reusa `ProviderProfile` data-only (D105) + `Transport` orthogonal (D106). Bedrock = SigV4 signing; Vertex = service-account JWT.
+
+### Itens shipados (referência histórica)
+
+- ~~Local provider profiles (Ollama + LM Studio + llama.cpp)~~ ✅ **DONE 2026-05-21** (ADRs D182-D192). Stack 100% local end-to-end (chat + embedding + RAG + tools) sem nenhuma API key remota. Gateway concurrency fix + Ollama native API client incluídos.
+
+### Itens removidos vs versão anterior
+
+| Item removido | Razão |
+|---|---|
+| Docs site Nextra/Mintlify (`apps/docs/`) | Substituído por `#12` que aponta para `../theo-opendocs/` — repo dedicado já bootstrapped. |
+| Computer use (Anthropic `computer_20241022`) | Sem pull-de-mercado claro ainda; mercado quente mas adoção real concentrada em poucos use-cases. Pode voltar. |
+| Image gen + TTS contracts | Plugin extension-points têm valor menor sem ecossistema. Volta quando primeiro adapter externo (FAL.ai/ElevenLabs) for solicitado. |
+| Cost tracking / budgets | Enterprise concern; relevante depois que B2B path estiver mais maduro. Telemetry (D34) já dá observabilidade de tokens — basta agregar quando alguém pedir. |
 
 ### Não-Roadmap-v1.3 (delegado a outras camadas)
 
@@ -434,11 +463,10 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 
 **Sequência recomendada (NÃO ranking por score):**
 
-1. **CLI + Docs site primeiro (rows 1+2)** — tudo o resto compõe melhor com isso shipado. Eval suite (row 3) consome o CLI (`theokit eval`).
-2. **Handoffs (row 4) antes de Workflows (row 5)** — handoffs é o primitivo; workflows compõe handoffs + conditionals.
-3. **Computer use (row 6) em paralelo** — independente, time pequeno consegue ownership.
-4. **Carry-over rows 7 (image/TTS)** só depois de T1+T2 — são contratos baratos mas pertencem ao ecossistema, não ao caminho crítico de adoção.
-5. **T3 (rows 8-12) abre quando T1+T2 estabilizar** — production hardening sobre fundação estável, não sobre alvo móvel.
+1. **CLI `theokit` (#1) + Docs site (#3) em paralelo** — Docs vive em `../theo-opendocs` (repo dedicado), pode evoluir independente. CLI fecha o vão de onboarding. Tudo o resto compõe melhor com esses dois shipados.
+2. **Eval suite (#2)** — consome o CLI (`theokit eval`); só faz sentido depois que `@usetheo/cli` exista.
+3. **Handoffs (#4) antes de Workflows (#5)** — handoffs é o primitivo; workflows compõe handoffs + conditionals.
+4. **T3 (#6 / #7 / #8) abre quando T1+T2 estabilizar** — production hardening sobre fundação estável, não sobre alvo móvel.
 
 **Critério de "DONE" continua o mesmo da SDK Roadmap original:**
 - Cobertura via ADRs registradas em `.claude/knowledge-base/adrs/`

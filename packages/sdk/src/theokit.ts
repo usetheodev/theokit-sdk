@@ -9,7 +9,12 @@ import { listLocalModelsViaOpenAiCompat } from "./internal/catalog/local-models.
 import { resolveApiKey } from "./internal/env.js";
 import { isFixtureApiKey, shouldUseFixtureMode } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
-import { getProviderProfile, registerBuiltins } from "./internal/providers/index.js";
+import { MEMORY_EMBEDDING_ADAPTERS } from "./internal/memory/adapters/catalog.js";
+import {
+  getProviderProfile,
+  listProviders,
+  registerBuiltins,
+} from "./internal/providers/index.js";
 import type { SDKProvider } from "./types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
 
@@ -111,6 +116,49 @@ export class Theokit {
         fixture: FIXTURE_PROVIDERS,
         path: "/v1/providers",
       }),
+  };
+
+  /**
+   * Local introspection of bundled SDK assets (ADR D201). Unlike the
+   * cloud-catalog `providers.list()` (which hits the TheoCloud HTTP API),
+   * `inspect.*` reads the SDK's own bundled registries — useful for
+   * tooling (e.g. `@usetheo/cli`'s `theokit inspect`) that needs to know
+   * what's available WITHOUT a network round-trip.
+   *
+   * @public
+   */
+  static readonly inspect: {
+    builtinProviders: () => Array<{
+      readonly name: string;
+      readonly apiMode: string;
+      readonly authType: string;
+      readonly baseUrl: string;
+      readonly aliases?: ReadonlyArray<string>;
+      readonly envVars: ReadonlyArray<string>;
+    }>;
+    embeddingAdapters: () => Array<{
+      readonly id: string;
+      readonly transport: string;
+      readonly defaultModel: string;
+    }>;
+  } = {
+    builtinProviders: () => {
+      registerBuiltins();
+      return listProviders().map((p) => ({
+        name: p.name,
+        apiMode: p.apiMode,
+        authType: p.authType,
+        baseUrl: p.baseUrl,
+        ...(p.aliases !== undefined ? { aliases: p.aliases } : {}),
+        envVars: p.envVars,
+      }));
+    },
+    embeddingAdapters: () =>
+      Object.entries(MEMORY_EMBEDDING_ADAPTERS).map(([id, adapter]) => ({
+        id,
+        transport: adapter.transport,
+        defaultModel: adapter.defaultModel,
+      })),
   };
 }
 
