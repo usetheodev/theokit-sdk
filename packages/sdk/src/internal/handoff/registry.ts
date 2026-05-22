@@ -7,10 +7,7 @@
  * @internal
  */
 
-import {
-  HandoffLoopError,
-  HandoffPairLoopError,
-} from "../../types/handoff.js";
+import { HandoffLoopError, HandoffPairLoopError } from "../../types/handoff.js";
 
 export interface HandoffChainState {
   /** Ordered chain of agentIds traversed so far (oldest first). */

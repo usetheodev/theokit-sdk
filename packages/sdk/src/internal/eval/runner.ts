@@ -9,6 +9,7 @@
 import { randomUUID } from "node:crypto";
 
 import { Agent } from "../../agent.js";
+import type { SDKAgent } from "../../types/agent.js";
 import type { BatchOptions, BatchResult } from "../../types/batch.js";
 import type {
   DatasetEntry,
@@ -22,7 +23,6 @@ import type {
   Score,
   Scorer,
 } from "../../types/eval.js";
-import type { SDKAgent } from "../../types/agent.js";
 import { clampScore, computeAggregate } from "./aggregate.js";
 import { materializeDataset } from "./dataset-iter.js";
 import { acquireSingleFlight, releaseSingleFlight } from "./single-flight.js";
@@ -33,7 +33,7 @@ import { startEvalRunSpan } from "./telemetry.js";
  * `afterRow` / `beforeRun` / `afterRun` is caught + warned once to stderr;
  * the run continues.
  */
-function safeHook(fn: () => void | undefined): void {
+function safeHook(fn: () => undefined | undefined): void {
   try {
     fn();
   } catch (err) {
@@ -130,7 +130,7 @@ function rowFromBatchResult(
  */
 function makeAgentForBatch(
   spec: EvalOptions["agent"],
-  entries: ReadonlyArray<DatasetEntry>,
+  _entries: ReadonlyArray<DatasetEntry>,
 ): BatchOptions {
   // BatchOptions extends AgentOptions; when caller provides an Agent instance,
   // we still need to pass SOMETHING to AgentOptions (model). For the instance
@@ -270,9 +270,7 @@ export async function runEval(
   });
   try {
     const hooks: EvalHooks | undefined = options.hooks;
-    safeHook(() =>
-      hooks?.beforeRun?.({ name: options.name, totalEstimate: entries.length }),
-    );
+    safeHook(() => hooks?.beforeRun?.({ name: options.name, totalEstimate: entries.length }));
 
     const onRow = (row: EvalRowResult, i: number): void => {
       safeHook(() => hooks?.afterRow?.(row, i));

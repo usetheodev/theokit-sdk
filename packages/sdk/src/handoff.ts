@@ -30,10 +30,7 @@
 import type { ZodType } from "zod";
 
 import type { SDKAgent } from "./types/agent.js";
-import type {
-  HandoffDescriptor,
-  HandoffOptions,
-} from "./types/handoff.js";
+import type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 
 /** Recommended system-prompt prefix for senders (D215 / EC-13). */
 export const RECOMMENDED_HANDOFF_PROMPT_PREFIX = `
@@ -64,8 +61,7 @@ export class Handoff {
     if (typeof target.send !== "function") {
       throw new Error("Handoff.create: target must be an SDKAgent instance");
     }
-    const resolvedToolName =
-      options.toolName ?? `transfer_to_${slugifyName(target)}`;
+    const resolvedToolName = options.toolName ?? `transfer_to_${slugifyName(target)}`;
     return {
       target,
       options,
@@ -75,13 +71,14 @@ export class Handoff {
 }
 
 function slugifyName(agent: SDKAgent): string {
-  const candidate =
-    (agent as unknown as { name?: string }).name ?? agent.agentId ?? "anonymous";
-  return candidate
-    .replace(/^agent-/i, "")
-    .replace(/[^a-zA-Z0-9_-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .slice(0, 64) || "anonymous";
+  const candidate = (agent as unknown as { name?: string }).name ?? agent.agentId ?? "anonymous";
+  return (
+    candidate
+      .replace(/^agent-/i, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 64) || "anonymous"
+  );
 }
 
 /**
@@ -115,14 +112,14 @@ export async function handoffTo(
 }
 
 export {
-  HandoffLoopError,
-  HandoffNameCollisionError,
-  HandoffPairLoopError,
-  HandoffReceiverDisposedError,
-  HandoffSelfReferenceError,
   type HandoffContext,
   type HandoffDescriptor,
   type HandoffHistory,
+  HandoffLoopError,
+  HandoffNameCollisionError,
   type HandoffOptions,
+  HandoffPairLoopError,
+  HandoffReceiverDisposedError,
   type HandoffResult,
+  HandoffSelfReferenceError,
 } from "./types/handoff.js";
