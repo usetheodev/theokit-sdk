@@ -184,6 +184,7 @@ runner.command("help", async (event) => {
       "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
       "/handoff_demo (question) — triage agent → billing/support via handoffs array (v1.16)",
       "/workflow_demo (claim) — declarative 4-step pipeline: validate → classify → branch → resolve (v1.17)",
+      "/cache_demo (question) — semantic cache: 2nd paraphrase hits without LLM call (v1.18)",
       "/memory <provider> <topic> — third-party memory adapter (supermemory/honcho/mem0, v1.12)",
       "/context — list discovered context files (AGENTS.md, CLAUDE.md, etc., v1.13)",
       "/reset — clear this thread's history (memory facts stay)",
@@ -1649,6 +1650,107 @@ runner.command("workflow_demo", async (event) => {
     if (classifier !== undefined) await classifier.dispose();
     if (billing !== undefined) await billing.dispose();
     if (support !== undefined) await support.dispose();
+  }
+});
+
+// ────────────────────── /cache_demo — Semantic cache showcase (v1.18) ──────────────────────
+//
+// Demonstrates Adoption Roadmap #6 (ADRs D249-D266): semantic cache via
+// `Cache.semantic + cache.consult/remember`. First query misses (LLM call);
+// a paraphrased second query hits the semantic layer (no LLM call); a
+// third "weather" query is bypassed by the exclude regex.
+runner.command("cache_demo", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const match = event.text.replace(/^\/\S+\s*/, "");
+  const question = match.trim();
+  if (question.length === 0) {
+    await ctx.reply(
+      [
+        "Usage: /cache_demo <question>",
+        "",
+        "Runs the SAME question twice + a paraphrase + a weather query to",
+        "exercise semantic cache (D249-D266). Stats printed at the end.",
+      ].join("\n"),
+    );
+    return;
+  }
+  await ctx.replyWithChatAction("typing");
+
+  const { Agent, Cache } = await import("@usetheo/sdk");
+
+  const toyEmbedder = {
+    id: "toy-letter",
+    model: "letter-bag-1",
+    dimension: 26,
+    async embed(texts: ReadonlyArray<string>): Promise<number[][]> {
+      return texts.map((t) => {
+        const v = new Array(26).fill(0);
+        const norm = t.toLowerCase().replace(/[^a-z]/g, "");
+        for (const ch of norm) {
+          const i = ch.charCodeAt(0) - 97;
+          if (i >= 0 && i < 26) v[i] += 1;
+        }
+        const sum = v.reduce((a: number, b: number) => a + b, 0) || 1;
+        return v.map((x: number) => x / sum);
+      });
+    },
+  };
+
+  const cache = Cache.semantic({
+    embedder: toyEmbedder,
+    threshold: 0.4,
+    ttl: { default: "1h", exclude: /\b(weather|today|now|current|stock)\b/i },
+    namespace: "tg-cache-demo",
+    modelId: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001",
+  });
+
+  let agent: Awaited<ReturnType<typeof Agent.create>> | undefined;
+  try {
+    agent = await Agent.create({
+      apiKey: API_KEY,
+      model: { id: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001" },
+      local: { cwd: CWD, sandboxOptions: { enabled: false } as const },
+      name: "cache-demo-agent",
+    });
+
+    const lines: string[] = [];
+
+    // Pass 1: miss (cold)
+    const m1 = await cache.consult(question);
+    if (m1.hit) {
+      lines.push("Pass 1: unexpected HIT (cache pre-populated?)");
+    } else {
+      const r1 = await agent.send(`${question} Answer in one short sentence.`);
+      const res1 = await r1.wait();
+      const text = res1.status === "finished" ? res1.result ?? "" : "(no answer)";
+      await cache.remember(question, text);
+      lines.push(`Pass 1: MISS → LLM → stored (${text.length} chars)`);
+    }
+
+    // Pass 2: paraphrase (expect semantic hit due to letter-bag similarity)
+    const paraphrase = `Could you tell me: ${question}`;
+    const m2 = await cache.consult(paraphrase);
+    if (m2.hit) {
+      lines.push(`Pass 2: HIT (${m2.source}${m2.distance !== undefined ? `, dist=${m2.distance.toFixed(3)}` : ""})`);
+    } else {
+      lines.push("Pass 2: miss (paraphrase too different for letter-bag embedder)");
+    }
+
+    // Pass 3: exclude regex bypass
+    const m3 = await cache.consult("What's the weather in SF right now?");
+    lines.push(`Pass 3 (weather query): hit=${m3.hit} — bypassed by exclude regex`);
+
+    const s = cache.stats();
+    const statsLine = `kvHits=${s.kvHits} semanticHits=${s.semanticHits} misses=${s.misses} excluded=${s.excluded} entries=${s.entries}`;
+    lines.push("");
+    lines.push(`Stats: ${statsLine}`);
+
+    await ctx.reply(["Cache demo (D249-D266):", "", ...lines].join("\n"));
+  } catch (err) {
+    await ctx.reply(`/cache_demo error: ${err instanceof Error ? err.message : String(err)}`);
+  } finally {
+    if (agent !== undefined) await agent.dispose();
   }
 });
 

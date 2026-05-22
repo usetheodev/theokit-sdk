@@ -45,6 +45,12 @@ export {
   handoffTo,
   RECOMMENDED_HANDOFF_PROMPT_PREFIX,
 } from "./handoff.js";
+// Semantic cache (Adoption Roadmap #6; ADRs D249-D266)
+export {
+  Cache,
+  CacheEmbedderError,
+  CacheInvalidTtlError,
+} from "./cache.js";
 // Workflows (Adoption Roadmap #5; ADRs D230-D248)
 export {
   agentStep,

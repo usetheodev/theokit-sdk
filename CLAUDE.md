@@ -413,6 +413,24 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D246 | Workflow composes over runUntil/handoffs/batch via public API only (no internal reach) | [D246-workflow-composes-not-replaces.md](./.claude/knowledge-base/adrs/D246-workflow-composes-not-replaces.md) |
 | D247 | `step.fn` signature `(input, ctx) => Promise<output>` where ctx = { runId, signal, log, suspend } | [D247-step-fn-signature.md](./.claude/knowledge-base/adrs/D247-step-fn-signature.md) |
 | D248 | v1 scope: 7 primitives shipped; saga + cloud + extra backends deferred | [D248-v1-scope.md](./.claude/knowledge-base/adrs/D248-v1-scope.md) |
+| D249 | `Cache` is static class with `.semantic` factory + `.asPlugin()` returning Plugin | [D249-cache-class-factory-asplugin.md](./.claude/knowledge-base/adrs/D249-cache-class-factory-asplugin.md) |
+| D250 | Cache is a Plugin (`kind: "cache"`), not Agent wrapper | [D250-cache-as-plugin-kind.md](./.claude/knowledge-base/adrs/D250-cache-as-plugin-kind.md) |
+| D251 | Reuse `MemoryEmbeddingProviderAdapter` (D11) — no new embedding layer | [D251-reuse-memory-embedding-adapter.md](./.claude/knowledge-base/adrs/D251-reuse-memory-embedding-adapter.md) |
+| D252 | Layered: KV exact pre-filter + vector semantic fallback | [D252-layered-kv-plus-semantic.md](./.claude/knowledge-base/adrs/D252-layered-kv-plus-semantic.md) |
+| D253 | Composite cache key `${namespace}:${embedderId}:${modelId}:hash(prompt)` | [D253-composite-cache-key.md](./.claude/knowledge-base/adrs/D253-composite-cache-key.md) |
+| D254 | Threshold default 0.85; no per-entry adaptive in v1 | [D254-threshold-default-0.85-no-adaptive.md](./.claude/knowledge-base/adrs/D254-threshold-default-0.85-no-adaptive.md) |
+| D255 | TTL per-category + exclude regex (default 1h) | [D255-ttl-per-category-exclude-regex.md](./.claude/knowledge-base/adrs/D255-ttl-per-category-exclude-regex.md) |
+| D256 | Streaming cache deferred to v1.x | [D256-streaming-cache-deferred.md](./.claude/knowledge-base/adrs/D256-streaming-cache-deferred.md) |
+| D257 | Cache per-Agent (via `plugins[]`), NOT global state | [D257-cache-per-agent-not-global.md](./.claude/knowledge-base/adrs/D257-cache-per-agent-not-global.md) |
+| D258 | Embedder change invalidates cache via namespace versioning | [D258-embedder-namespace-versioning.md](./.claude/knowledge-base/adrs/D258-embedder-namespace-versioning.md) |
+| D259 | KV exact pre-filter; semantic only on KV miss | [D259-kv-pre-filter-semantic-fallback.md](./.claude/knowledge-base/adrs/D259-kv-pre-filter-semantic-fallback.md) |
+| D260 | Hook points: lookup at `pre_user_send`, store at `post_assistant_reply` | [D260-hook-points-pre-user-post-reply.md](./.claude/knowledge-base/adrs/D260-hook-points-pre-user-post-reply.md) |
+| D261 | LRU eviction in-memory default 1000 entries | [D261-lru-eviction-default-1000.md](./.claude/knowledge-base/adrs/D261-lru-eviction-default-1000.md) |
+| D262 | Telemetry: `cache.lookup` + hit/miss events via OTel seam | [D262-telemetry-cache-spans.md](./.claude/knowledge-base/adrs/D262-telemetry-cache-spans.md) |
+| D263 | Composes with Anthropic prompt_caching (orthogonal layers) | [D263-compose-with-anthropic-prompt-caching.md](./.claude/knowledge-base/adrs/D263-compose-with-anthropic-prompt-caching.md) |
+| D264 | False positive risk documented; no automatic mitigation v1 | [D264-false-positive-risk-documented.md](./.claude/knowledge-base/adrs/D264-false-positive-risk-documented.md) |
+| D265 | Persistence: memory default; JSON disk opt-in | [D265-persistence-memory-default-json-optin.md](./.claude/knowledge-base/adrs/D265-persistence-memory-default-json-optin.md) |
+| D266 | Skip cache for runs that invoked tools (EC-10 absorbed) | [D266-skip-cache-when-tool-use.md](./.claude/knowledge-base/adrs/D266-skip-cache-when-tool-use.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
@@ -456,7 +474,7 @@ Auditoria Hermes-Agent 2026-05-19 — `referencia/hermes-agent/` + sdk-reference
 
 > Strategic gap analysis (2026-05-21, curado 2026-05-22). Hermes patterns complete (23/23); SDK Roadmap v1.2 complete (5/7). Paridade técnica com Vercel AI SDK / Claude Agent SDK / OpenAI Agents SDK atingida. **A partir daqui o gargalo NÃO é mais "features de runtime"; é DX + observabilidade + paridade competitiva em primitivos de agente.** As 8 linhas abaixo são o backlog curado — Tier 1 bloqueia adoção, Tier 2 fecha gaps de superfície vs Vercel AI / OpenAI Agents / Mastra, Tier 3 é production hardening. Items removidos vs versão original (Computer use, Image gen + TTS, Cost tracking / budgets) ficam fora do roadmap atual — podem voltar quando houver pull-de-mercado claro.
 >
-> **Progresso 2026-05-22:** 4/8 shipados (#1 CLI, #2 Eval suite, #4 Agent handoffs, #5 Workflows declarativos). Restantes: 4 itens.
+> **Progresso 2026-05-22:** 5/8 shipados (#1 CLI, #2 Eval suite, #4 Agent handoffs, #5 Workflows declarativos, #6 Semantic cache). Restantes: 3 itens.
 
 | Tier | # | Item | Score | Status |
 |---|---|---|---:|---|
@@ -465,7 +483,7 @@ Auditoria Hermes-Agent 2026-05-19 — `referencia/hermes-agent/` + sdk-reference
 | T1 | 3 | **Docs site** — vive em `../theo-opendocs` (Next.js + Fumadocs, source-of-truth para cookbook + API ref + tutorials + search) | 10 | Pendente |
 | ~~T2~~ | ~~4~~ | ~~**Agent handoffs**~~ ✅ DONE 2026-05-22 (ADRs D214-D229) | ~~8~~ | Shipado: `Agent.create({ handoffs: [other] })` declarativo + `Handoff.create(target, opts)` factory + `RECOMMENDED_HANDOFF_PROMPT_PREFIX` constante. Synthesized `transfer_to_<name>` tools (handoff-as-tool, openai-agents-python pattern; D214-D215). Peer-to-peer (D217), full-history default (D216), max chain depth 5 (D218), single-flight por (sender, receiver) pair (D221). `inputFilter` extension point (D219, D228 fallback); `inputType` Zod schema (D223); `onHandoff` throw aborta (D227); empty input aceito quando `inputType === undefined` (D229). 5 MUST FIX edges absorvidos (EC-1..EC-5). 29 handoff tests PASS + telegram-pro `/handoff_demo` validado em dogfood (5566ms PASS, 42/43 final). |
 | ~~T2~~ | ~~5~~ | ~~**Workflows declarativos**~~ ✅ DONE 2026-05-22 (ADRs D230-D248) | ~~7~~ | Shipado: `Workflow.create({ name }).then(...).parallel(...).branch(...).foreach(...).dowhile(...).sleep(...).suspend().commit().run(input)` + `Workflow.resume({...})`. 7 control-flow primitives (Mastra naming D233); discriminated union steps (D232); explicit input/output state (D234, no LangGraph global); in-memory + JSON snapshot stores (D235); Temporal-shape retry policy (D237); AbortSignal cancellation at step boundaries (D245); OTel spans via existing seam (D241); single-flight per (workflowId, runId) (D242); 5 MUST FIX edges absorvidos (EC-1..EC-5) + 5 SHOULD TEST validated. 38 tests SDK PASS + telegram-pro `/workflow_demo` validado em dogfood (6555ms PASS, 43/44 final). Saga `compensate?` deferido pra v1.2 (D238); CloudAgent throws `UnsupportedRunOperationError` (D244). |
-| T3 | 6 | **Semantic cache** (`Cache.semantic({ provider, threshold })`) | 6 | Pendente |
+| ~~T3~~ | ~~6~~ | ~~**Semantic cache**~~ ✅ DONE 2026-05-22 (ADRs D249-D266) | ~~6~~ | Shipado: `Cache.semantic({ embedder, threshold, ttl, namespace, modelId, maxEntries, persistence })` + `cache.asPlugin()` para plugin mode (recall+inject) + `cache.consult(prompt)` / `cache.remember(prompt, response)` para true short-circuit. Layered KV exact + vector semantic (D252, D259); composite key namespace:embedderId:modelId:hash (D253); LRU eviction default 1000 entries (D261); InMemory default + JSON disk opt-in (D265); telemetry OTel spans `cache.lookup`/`cache.store` (D262). 7 MUST FIX edges absorvidos (EC-1 embedder graceful degradation, EC-2 dim filter, EC-3 empty prompt bypass, EC-4 asPlugin memoization, EC-7 corrupt JSON recovery, EC-10/D266 skip tool-use runs, EC-13 single-source Map). 54/54 cache tests PASS + telegram-pro `/cache_demo` validado em dogfood (3664ms PASS, 43/45 final). v1 limitations documentadas: plugin mode é recall+inject (não zero-LLM); streaming/saga/adaptive-threshold deferidos pra v1.x. |
 | T3 | 7 | **Gateway Slack adapter** (`@usetheo/gateway-slack`) | 5 | Pendente |
 | T3 | 8 | **Bedrock + Vertex profiles** (`ProviderProfile` para AWS Bedrock + GCP Vertex AI) | 5 | Pendente |
 

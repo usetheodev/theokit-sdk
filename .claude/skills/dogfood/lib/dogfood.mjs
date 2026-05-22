@@ -259,6 +259,17 @@ const COMMANDS = [
     retryOnError: true,
   },
 
+  // ── v1.18 Semantic Cache (Adoption Roadmap #6, ADRs D249-D266) ──
+  // Runs 3 passes: miss (LLM call), paraphrase (semantic hit), weather
+  // (excluded by regex). Stats printed at end include `semanticHits=N`
+  // for runtime-metric proof (EC-11).
+  {
+    text: "/cache_demo What is the capital of France?",
+    expect: [/Cache demo|Pass 1|Stats:|kvHits|semanticHits|misses/i],
+    waitMs: 60000,
+    retryOnError: true,
+  },
+
   // ── v1.14 Personality Presets (Hermes #26, ADRs D160-D169) ──
   // Listing path (no arg) reads .theokit/personalities/*.md directly from
   // disk — no LLM call. Validates `coder` and `poet` sample presets ship
