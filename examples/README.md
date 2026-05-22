@@ -5,7 +5,13 @@ Each example is its own package — independent `package.json`,
 independent install — so you can copy any folder out of this repo
 and have a working starting point.
 
-We ship **46 examples** covering every feature in the public API surface (`@usetheo/sdk` v1.2 + `@usetheo/react` v1.2). See the Feature matrix below.
+We ship **36 examples** covering every feature in the public API surface (`@usetheo/sdk` v1.2+ + `@usetheo/react`). See the Feature matrix below.
+
+> **Cleanup pass (2026-05-22):** removed 18 examples that were either cloud
+> pre-release (won't run until TheoCloud GA), single-API smoke (covered
+> by `docs.md`), or duplicates (covered by `quickstart` + `mcp-stdio`).
+> A consolidated official demo `theo-studio` is in progress and will
+> replace the dispersed memory-* and plugin-walkthrough examples next.
 
 ## Feature matrix
 
@@ -18,7 +24,7 @@ We ship **46 examples** covering every feature in the public API surface (`@uset
 | **`useTheoCompletion`** | [react-nextjs](./react-nextjs) (`/completion` route) | Single-shot text gen |
 | **`useTheoAssistant<T>`** | [react-nextjs](./react-nextjs) (`/assistant` route) | Object-shaped streaming |
 | MCP stdio | [mcp-stdio](./mcp-stdio), [mcp-puppeteer](./mcp-puppeteer) | NPX-based servers |
-| MCP HTTP (static auth) | [mcp-http](./mcp-http), [cloud-with-mcp-http](./cloud-with-mcp-http) | Header-based auth |
+| MCP HTTP (static auth) | [mcp-http](./mcp-http) | Header-based auth |
 | **MCP OAuth 2.1 PKCE** | [mcp-oauth-notion](./mcp-oauth-notion) | Remote SaaS APIs (ADR D41) |
 | Memory (SQLite default) | [memory](./memory), [active-memory](./active-memory), [memory-search](./memory-search) | FTS5 + sqlite-vec |
 | **Memory (LanceDB)** | [memory-lance](./memory-lance) | Scale >100k facts (ADR D43) |
@@ -27,7 +33,7 @@ We ship **46 examples** covering every feature in the public API surface (`@uset
 | Telemetry (manual OTel) | [telegram-pro](./telegram-pro) | `telemetry.enabled: true` (ADR D34) |
 | **Auto-instrumentation** | [telemetry-autoinstrument](./telemetry-autoinstrument) | Langfuse/Sentry/PostHog (ADR D42) |
 | Skills + hooks + sandbox | [skills](./skills), [hooks-policy](./hooks-policy), [shell-tool](./shell-tool) | "Ambient safety" bundle |
-| Subagents | [subagents](./subagents), [cloud-with-subagents](./cloud-with-subagents) | Cloud-only delegation |
+| Subagents | [subagents](./subagents) | Local Toolset pattern (D102) |
 | Cron | [cron-schedule](./cron-schedule) | croner + JSON persistence (ADR D7/D8) |
 | DX helpers (factory + getOrCreate + defineTool + builder) | [cli-bot](./cli-bot), [telegram-pro](./telegram-pro) | 4 v1.1 helpers |
 
@@ -73,8 +79,8 @@ the same agent with or without them. Pick where you learn each:
 | Helper | Where to learn it |
 |---|---|
 | `Agent.create({...})` — options-bag (canonical) | [`quickstart`](./quickstart) |
-| `Agent.builder()` — fluent chain (ADR D25) | [`quickstart`](./quickstart) with `BUILDER=1 pnpm dev`, [`agent-management`](./agent-management) |
-| `Agent.getOrCreate(id, options)` — resume-or-create (ADR D22) | [`telegram-pro`](./telegram-pro), [`telegram-bot`](./telegram-bot), [`resume-agent`](./resume-agent), [`agent-management`](./agent-management), [`error-handling`](./error-handling), [`error-handling-full`](./error-handling-full) |
+| `Agent.builder()` — fluent chain (ADR D25) | [`quickstart`](./quickstart) with `BUILDER=1 pnpm dev` |
+| `Agent.getOrCreate(id, options)` — resume-or-create (ADR D22) | [`telegram-pro`](./telegram-pro), [`telegram-bot`](./telegram-bot) |
 | `createAgentFactory(common)` — factory closure (ADR D23) | [`telegram-pro`](./telegram-pro) |
 | `defineTool(spec)` — Zod-driven type-safe tool builder (ADR D24) | [`telegram-pro`](./telegram-pro) |
 
@@ -95,10 +101,7 @@ SDK feature isolated from helper sugar. See ADR D27 for the rationale.
 | [`mcp-stdio`](./mcp-stdio) | ✅ Full | Inline MCP stdio server + JSON-RPC tools/call. |
 | [`hooks-policy`](./hooks-policy) | ✅ Full | `.theokit/hooks.json` preToolUse policy blocks dangerous commands. |
 | [`cron-schedule`](./cron-schedule) | ✅ Full | Real cron scheduler + Cron.run() invokes real LLM. |
-| [`one-shot-prompt`](./one-shot-prompt) | ✅ Full | `Agent.prompt()` one-shot + `await using` resource disposal. |
-| [`send-overrides`](./send-overrides) | ✅ Full | Per-call `model` / `systemPrompt` overrides on the same agent. |
 | [`subagents`](./subagents) | ✅ Full | Inline `agents` map, subagent metadata exposed to parent. |
-| [`run-lifecycle`](./run-lifecycle) | ✅ Full | `run.supports()`, `onDidChangeStatus`, `run.conversation()`. |
 | [`streaming-callbacks`](./streaming-callbacks) | ✅ Full | `onStep` fires per assistant turn / tool batch; `onDelta` fires per token. |
 | [`provider-fallback`](./provider-fallback) | ✅ Full | Primary handshake failure falls over to the next entry in `providers.fallback`. |
 | [`context-manager`](./context-manager) | ✅ Full | Loaded sources appear as a `<context>` block in the LLM system prompt. |
@@ -110,12 +113,7 @@ SDK feature isolated from helper sugar. See ADR D27 for the rationale.
 | [`memory-dreaming`](./memory-dreaming) | ✅ Full | Dedup + cluster + dream-diary via `Memory.runDreamingSweep`. Requires an embedding provider. |
 | [`embedding-providers`](./embedding-providers) | ✅ Full | Switch across the 5 v1.0 embedding adapters (openai / mistral / openrouter / voyage / deepinfra). |
 | [`active-memory-query-modes`](./active-memory-query-modes) | ✅ Full | All 3 `queryMode` variants: `"message"`, `"recent"`, `"full"`. |
-| [`remember-prefix`](./remember-prefix) | ✅ Full | Auto-write memory facts via `Remember:` prefix. Secret redaction (sk-*, ghp_*) per ADR D9. |
-| [`provider-inspector`](./provider-inspector) | ✅ Full | `Theokit.providers.list()` (global catalog) + `agent.providers.routes()` (per-agent resolved routes). |
-| [`resume-agent`](./resume-agent) | ✅ Full | `Agent.resume(agentId)` reattaches in-process; session history continues. |
 | [`mcp-http`](./mcp-http) | ✅ Full | HTTP MCP transport (companion to `mcp-stdio`). |
-| [`send-mcp-override`](./send-mcp-override) | ✅ Full | Per-send `mcpServers` override via `SendOptions.mcpServers`. |
-| [`local-force-expire`](./local-force-expire) | ✅ Full | `local: { force: true }` expires a stuck previous run. |
 | [`plugins-walkthrough`](./plugins-walkthrough) | ✅ Full | `.theokit/plugins/<name>/plugin.json` discovery via `plugins.enabled`. |
 | [`stream-object`](./stream-object) | ✅ Full | `Agent.streamObject<T>` — partial + complete events via synthetic forced tool (ADR D39). |
 | [`react-nextjs`](./react-nextjs) | ✅ Full | Next.js 14 App Router demo with 3 routes — `/chat` (useTheoChat), `/completion` (useTheoCompletion), `/assistant` (useTheoAssistant). One app, three hooks (ADR D47/D49). |
@@ -125,16 +123,6 @@ SDK feature isolated from helper sugar. See ADR D27 for the rationale.
 
 | Example | What it shows |
 | --- | --- |
-| [`error-handling`](./error-handling) | Typed `try/catch` against `AuthenticationError`, `ConfigurationError`, `UnknownAgentError`. |
-| [`theokit-catalog`](./theokit-catalog) | `Theokit.me()`, `models.list()`, `repositories.list()`, `providers.list()`. |
-| [`cloud-agent`](./cloud-agent) | `cloud: { repos, autoCreatePR }` + `listArtifacts()` / `downloadArtifact()`. |
-| [`cloud-with-skills`](./cloud-with-skills) | Cloud agent + `skills.enabled` serialized into the cloud payload (ADR D15). |
-| [`cloud-with-mcp-http`](./cloud-with-mcp-http) | HTTP MCP transport for cloud; bare-command stdio MCP also accepted (ADR D15 + EC-3). |
-| [`cloud-with-subagents`](./cloud-with-subagents) | Inline `agents` map serialized into the cloud payload (ADR D15). |
-| [`cloud-await-using`](./cloud-await-using) | `await using` + idempotent `dispose()` on `CloudAgent` (ADR D5 + EC-3). |
-| [`cloud-prerelease-guard`](./cloud-prerelease-guard) | `cloud_runtime_pre_release` typed error for non-fixture cloud calls. |
-| [`error-handling-full`](./error-handling-full) | All 8 SDK error classes: catch patterns + `instanceof` discrimination. |
-| [`agent-management`](./agent-management) | `Agent.list/get/listRuns/getRun/archive/unarchive/delete`. |
 | [`mcp-oauth-notion`](./mcp-oauth-notion) | OAuth 2.1 PKCE flow for MCP HTTP servers (ADR D41). Config-only mode without creds; real flow with `NOTION_OAUTH_CLIENT_ID` + provider key. |
 | [`memory-lance`](./memory-lance) | LanceDB backend opt-in + Migration CLI (ADR D43/D44). Dry-run migration always works without `@lancedb/lancedb`. |
 
@@ -163,9 +151,9 @@ provider key (Anthropic, OpenAI, or OpenRouter).
 
 Not covered yet (out of scope by design):
 
-- Cloud Run end-to-end **against a live PaaS** (PaaS is pre-release;
-  cloud examples use fixture mode and the `cloud-prerelease-guard`
-  example demonstrates the typed errors for real keys)
+- Cloud Run end-to-end **against a live PaaS** — cloud surface throws
+  the typed `cloud_runtime_pre_release` error; cloud examples will
+  return when Theo PaaS reaches GA.
 - Cross-process `Agent.resume` (in-process flow demonstrated; persistent
   registry tracked as future work per ADR D8)
 
