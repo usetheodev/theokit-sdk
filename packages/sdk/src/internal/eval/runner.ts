@@ -33,7 +33,7 @@ import { startEvalRunSpan } from "./telemetry.js";
  * `afterRow` / `beforeRun` / `afterRun` is caught + warned once to stderr;
  * the run continues.
  */
-function safeHook(fn: () => undefined | undefined): void {
+function safeHook(fn: () => void): void {
   try {
     fn();
   } catch (err) {
