@@ -2336,3 +2336,132 @@ When OTel is installed, each `wf.run` emits a `workflow.run` root span and per-s
 | `WorkflowResumeStepNotFoundError` | Resume against a workflow whose definition diverged (EC-8) |
 | `WorkflowParallelError` | Aggregate of branch failures in fail-fast mode |
 | `WorkflowCompensateNotImplementedError` | Step declares `compensate` (saga deferred to v1.2) |
+
+## Semantic cache (v1.18+) — `Cache.semantic / .consult / .remember`
+
+LLM response cache with cosine-similarity matching. ADRs D249-D266.
+Inspired by Helicone (KV), LangCache (Redis Vector), GPTCache (layered architecture).
+
+### Quickstart
+
+```typescript
+import { Agent, Cache } from "@usetheo/sdk";
+
+// Reuse any MemoryEmbeddingProviderAdapter (D11) — openai / mistral / voyage / etc.
+// For a quick test, plug a deterministic toy embedder; production uses a real adapter.
+const embedder = {
+  id: "openai-text-embedding-3-small",
+  model: "text-embedding-3-small",
+  dimension: 1536,
+  embed: async (texts) => { /* call your provider */ return [/* vectors */]; },
+};
+
+const cache = Cache.semantic({
+  embedder,
+  threshold: 0.85,                            // cosine distance; lower = stricter
+  ttl: {
+    default: "1h",
+    exclude: /\b(weather|today|now|current|stock)\b/i,
+  },
+  namespace: "my-app",                         // multi-tenant isolation
+  modelId: "openai/gpt-4o-mini",               // cross-model isolation
+  maxEntries: 1000,                            // LRU eviction cap
+});
+
+// Plugin mode — registers pre_user_send / post_assistant_reply hooks
+const agent = await Agent.create({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  model: { id: "openai/gpt-4o-mini" },
+  plugins: [cache.asPlugin()],
+});
+```
+
+### Two integration modes
+
+**1. Plugin mode (transparent):**
+
+```typescript
+plugins: [cache.asPlugin()]
+```
+
+The cache registers `pre_user_send` (lookup) and `post_assistant_reply` (store)
+hooks. On semantic hit, the cached response is **injected as `<memory-context>`**
+into the LLM call (recall + inject). The LLM still runs but pre-loaded with the
+cached answer — usually echoes it cheaply.
+
+**2. Direct mode (true short-circuit):**
+
+```typescript
+const m = await cache.consult(prompt);
+if (m.hit) {
+  return m.response;            // zero LLM call
+}
+const run = await agent.send(prompt);
+const result = await run.wait();
+await cache.remember(prompt, result.result ?? "");
+```
+
+Use direct mode when you need to GUARANTEE the LLM is skipped on hit.
+
+### Composite cache key (D253)
+
+`${namespace}:${embedderId}:${modelId}:hash(prompt)`. Resolves multi-tenant
+isolation + cross-embedder invalidation + cross-model isolation in one decision
+(rationale documented in CacheAttack paper, arxiv 2601.23088).
+
+### TTL configuration (D255)
+
+```typescript
+ttl: {
+  default: "1h",                                  // "30s" | "15m" | "1h" | "7d" | "2w" | <seconds>
+  exclude: /\b(weather|today|now|current)\b/i,    // bypass cache for time-sensitive queries
+}
+```
+
+Exclusion regex makes the cache **always miss** for matching prompts (never stored, never recalled).
+
+### Composing with Anthropic prompt caching (D263)
+
+Cache.semantic resolves paraphrases BEFORE the LLM. Anthropic's prompt_caching gives
+**90% discount** on prefix-identical input AFTER hitting the LLM. They're orthogonal:
+
+```
+[user query]
+  → cache.consult() → HIT → return cached       (zero LLM call, ~10ms)
+                    → MISS → agent.send() with cache_control on system/tools
+                            → 90% input discount on subsequent identical prefixes
+```
+
+Compound savings reach ~95% in ideal workloads (FAQ, classify, summarize).
+
+### Persistence backends (D265)
+
+| Backend | When | How |
+|---|---|---|
+| `memory` (default) | Same-process; ephemeral | `Cache.semantic({ embedder })` |
+| `json` | Survive process restarts | `Cache.semantic({ embedder, persistence: { backend: "json", dir: ".theokit/cache" } })` |
+
+JSON file per namespace at `<dir>/<namespace>.json`. Atomic writes via D60.
+Corrupt files (EC-7) are treated as empty cache — no crash on startup.
+
+### Telemetry (D262)
+
+When `@opentelemetry/api` is installed, every lookup emits a `cache.lookup` span
+with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic|miss),
+`cache.distance` (semantic hits only), `cache.ttl_remaining_s`. Zero cost when OTel absent.
+
+### v1 limitations (D254 / D256 / D266)
+
+- **Plugin mode is recall+inject, not zero-LLM short-circuit** — use `cache.consult()` directly for that.
+- **No streaming cache** (D256) — only non-streaming `agent.send` is cached.
+- **No adaptive per-entry threshold** (D254) — tune the global threshold for high-stakes scenarios (0.95+).
+- **Tool-use runs are NEVER cached** (D266 / EC-10) — replay would lose side-effects (file delete, API call, etc.).
+- **Embedder change invalidates cache** (D258) — `embedder.id` is part of the key; no cross-embedder rerank.
+- **False positive risk** (D264) — dense embeddings collapse negation ("delete X" ≈ "don't delete X"). Use higher thresholds + exclude regex for safety-critical scenarios.
+
+### Errors (named)
+
+| Class | Cause |
+|---|---|
+| `CacheEmbedderError` | Embedder throw surfaced (rare; usually swallowed via EC-1 graceful degradation) |
+| `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
