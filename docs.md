@@ -1984,3 +1984,212 @@ used for OpenAI and OpenRouter — streaming, tool calls, and finish
 reasons all work the same way. Tool-calling quality depends on the
 underlying model (Llama 3.1+, Mistral, Qwen2.5 work well; older models
 may not).
+
+## Eval suite (v1.15+) — `Eval.create / .run`
+
+Eval-as-code primitive for production deploy gates. ADRs D202-D213.
+
+```typescript
+import { Eval, Scorers } from "@usetheo/sdk";
+
+const run = await Eval.create({
+  name: "qa-smoke",
+  dataset: [
+    { input: "Reply with the word: ok.", expected: "ok" },
+    { input: "Say jazz in one word.", expected: "jazz" },
+  ],
+  scorers: [
+    Scorers.containsExpected({ caseSensitive: false }),
+    Scorers.regex(/[a-zA-Z]/),
+  ],
+  agent: {
+    apiKey: process.env.OPENROUTER_API_KEY,
+    model: { id: "openai/gpt-4o-mini" },
+    local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
+  },
+  concurrency: 4,
+}).run();
+
+console.log(run.aggregate.meanScore);     // 0.95
+console.log(run.aggregate.passRatio);     // 1.0 (rows with meanScore >= 0.5)
+console.log(run.aggregate.tokensInTotal); // 142 (cost forecasting input)
+console.log(run.aggregate.durationMsP95); // 1830 (latency tail)
+```
+
+### Built-in scorers (`Scorers`)
+
+| Scorer | Purpose | EC notes |
+|---|---|---|
+| `Scorers.exactMatch({ caseSensitive? })` | `output.trim() === expected.trim()` | EC-1: refuses empty expected |
+| `Scorers.containsExpected({ caseSensitive? })` | `output.includes(expected)` | EC-1: refuses empty expected |
+| `Scorers.regex(pattern)` | `pattern.test(output)` | EC-10: user-supplied pattern; test against adversarial outputs to avoid ReDoS |
+| `Scorers.jsonShape(zodSchema, { strict? })` | `JSON.parse(output)` + Zod validation | EC-2: caps output at 1 MB before parse |
+| `Scorers.llmJudge({ model, apiKey, criteria, rubric? })` | Second LLM scores against criteria | EC-12: doubles per-row cost; requires SEPARATE apiKey (D205) |
+
+### `EvalRun` shape
+
+```typescript
+interface EvalRun {
+  id: string;
+  name: string;
+  startedAt: number;
+  endedAt: number;
+  durationMs: number;
+  aggregate: EvalAggregate;
+  rows: ReadonlyArray<EvalRowResult>;
+  metadata?: Record<string, unknown>;
+}
+
+interface EvalAggregate {
+  meanScore: number;
+  medianScore: number;
+  passRatio: number;          // rows where meanScore >= 0.5
+  perScorer: Record<string, { mean; median; min; max }>;
+  totalRows: number;
+  errorRows: number;
+  durationMsP50: number;
+  durationMsP95: number;
+  tokensInTotal: number;      // EVAL agent's tokens (not judge's)
+  tokensOutTotal: number;
+}
+```
+
+`EvalRun` is plain JSON (D209) — `JSON.stringify(run)` direct, no class methods.
+
+### Scale & cost
+
+- **Dataset size:** v1 materializes the dataset in memory before fanout.
+  Recommended ceiling: ~10k rows. For larger evals, partition into multiple
+  `Eval.run` calls or wait for streaming aggregate (v2). [EC-11]
+- **Cost forecasting:** `aggregate.tokensInTotal × provider_input_price`
+  + `aggregate.tokensOutTotal × provider_output_price`. With `llmJudge`,
+  add ~1 judge call per row (`gpt-4o-mini` baseline: $0.15/$0.60 per
+  million in/out tokens at 2026 rates). 1000 rows × gpt-4o-mini ≈ $1.50
+  base + $1.50 judge = $3.00 total.
+
+### Concurrency
+
+`EvalOptions.concurrency` defaults to 4 (matches `Agent.batch` D136).
+Allowed range: `[1, 64]` integer (EC-3 — 0 deadlocks the semaphore,
+Infinity DoSs the provider; both rejected at `Eval.create` time).
+
+### CLI integration
+
+The `theokit eval` CLI (D199 → D212) now invokes `Eval.run` internally.
+User-authored `eval.config.{ts,mjs}` files are forward-compatible — the
+public `EvalConfig` shape is a subset of `EvalOptions`.
+
+### Telemetry
+
+When `agent.telemetry.enabled === true`, `Eval.run` emits a parent
+`eval.run` OTel span; existing `agent.send` / `llm.call` spans nest
+under it (D206). OTel is loaded lazily via `@opentelemetry/api` peer
+dep — no install required when telemetry is off.
+
+### Concurrent runs
+
+Per-process single-flight per name (D213). Two `Eval.run` calls with the
+same `name` running at the same time throw `EvalAlreadyRunningError`.
+Use unique names per matrix run (e.g. include model id in name).
+
+## Agent handoffs (v1.16+) — `handoffs[]` + `Handoff.create`
+
+Peer-to-peer agent handoff primitive. ADRs D214-D229.
+
+```typescript
+import { Agent, Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "@usetheo/sdk";
+
+const billing = await Agent.create({
+  name: "billing",
+  systemPrompt: "You handle billing questions.",
+  model: { id: "openai/gpt-4o-mini" },
+  apiKey: process.env.OPENROUTER_API_KEY,
+});
+
+const triage = await Agent.create({
+  name: "triage",
+  systemPrompt: `${RECOMMENDED_HANDOFF_PROMPT_PREFIX}
+You classify the user's intent and transfer to the right specialist.`,
+  model: { id: "openai/gpt-4o-mini" },
+  apiKey: process.env.OPENROUTER_API_KEY,
+  handoffs: [
+    billing,                                                     // auto-wrapped
+    Handoff.create(supportAgent, { inputFilter: redactCC }),    // customized
+  ],
+  maxHandoffDepth: 5,
+});
+
+const run = await triage.send("Why was I charged twice?");
+const result = await run.wait();
+// result.result contains the receiver's reply (billing agent answered).
+```
+
+### Pattern: handoff-as-tool (D214)
+
+Each entry in `handoffs[]` becomes a synthetic `transfer_to_<name>` function
+tool exposed to the LLM (default name; override via `{ toolName }`). The LLM
+decides when to invoke based on the user's request; the runtime dispatches
+to the receiver, which produces the actual reply.
+
+### `Handoff.create(target, options?)` — D222
+
+| Option | Purpose |
+|---|---|
+| `toolName?` | Override the default `transfer_to_<receiver>` name |
+| `toolDescription?` | Override the synthetic tool description |
+| `onHandoff?(ctx, parsed)` | Side-effect callback **OR** validation gate — throw aborts (D227) |
+| `inputType?: ZodType` | Structured payload schema for the handoff tool call (D223) |
+| `inputFilter?(history)` | Filter conversation history passed to receiver (D219); throw → fallback to full history (D228) |
+| `tools?: string[]` | Restrict receiver tools for the post-handoff turn (D224) |
+| `isEnabled?: boolean \| (ctx) => boolean` | Dynamic enable/disable predicate |
+
+### Loop protection (D218 + D221)
+
+Two layers protect against runaway chains:
+
+- **`maxHandoffDepth`** (default 5): cumulative hops per `send()`. Throws `HandoffLoopError(depth, chain)` when exceeded. Set to `0` to disable handoffs entirely.
+- **Pair single-flight (D221)**: same `(sender, receiver)` pair within one `send()` throws `HandoffPairLoopError`. A→B→A is caught at the second hop with a clear diagnostic.
+
+### Cost tradeoff for long chains
+
+Default = full history transferred to receiver (D216). For depths > 2,
+add `inputFilter` to summarize / truncate — token cost multiplies per hop:
+
+```typescript
+Handoff.create(escalation, {
+  inputFilter: (h) => ({ messages: h.messages.slice(-3) }),  // last 3 only
+});
+```
+
+### Imperative escape hatch (D225)
+
+`handoffTo(sender, target, message, options?)` is the standalone helper for
+programmatic flows / tests:
+
+```typescript
+import { handoffTo } from "@usetheo/sdk";
+
+const reply = await handoffTo(triage, billing, "Why was I charged twice?");
+```
+
+### Errors
+
+| Error | When |
+|---|---|
+| `HandoffLoopError` | Chain depth exceeded `maxHandoffDepth` |
+| `HandoffPairLoopError` | Same `(sender, receiver)` pair invoked twice in one `send()` |
+| `HandoffSelfReferenceError` | Agent has itself in `handoffs[]` (caught at `Agent.create`) |
+| `HandoffNameCollisionError` | Two handoffs share the same resolved tool name |
+| `HandoffReceiverDisposedError` | Receiver disposed before dispatch attempt |
+
+### Model quality dependency
+
+Handoffs require reliable function-calling. `gpt-4o-mini` / `claude-3-5-haiku`
+work excellently; local models < 7B params often skip the transfer tool. See
+`examples/handoffs/README.md` for the full compatibility table.
+
+### Telemetry (D220)
+
+When OTel is available and agent telemetry is enabled, each handoff emits a
+`handoff.transfer` span with attributes `handoff.from`, `handoff.to`,
+`handoff.reason`, `handoff.depth`, `handoff.tool_name`.

@@ -366,6 +366,34 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D199 | `theokit eval` v1 wraps `Agent.batch`; swaps to `Eval.run` later | [D199-eval-v1-minimal.md](./.claude/knowledge-base/adrs/D199-eval-v1-minimal.md) |
 | D200 | Three initial `theokit init` templates: `minimal`, `ollama-local`, `telegram-bot` | [D200-init-three-templates.md](./.claude/knowledge-base/adrs/D200-init-three-templates.md) |
 | D201 | `Theokit.inspect.*` public namespace in `@usetheo/sdk` | [D201-theokit-inspect-public-api.md](./.claude/knowledge-base/adrs/D201-theokit-inspect-public-api.md) |
+| D202 | `Eval` is a static class with `Eval.create` factory + `.run()` method | [D202-eval-static-class.md](./.claude/knowledge-base/adrs/D202-eval-static-class.md) |
+| D203 | Built-in scorers live in a separate `Scorers` namespace | [D203-scorers-namespace.md](./.claude/knowledge-base/adrs/D203-scorers-namespace.md) |
+| D204 | Internally `Eval.run` consumes `Agent.batch` for parallelism | [D204-eval-consumes-batch.md](./.claude/knowledge-base/adrs/D204-eval-consumes-batch.md) |
+| D205 | `llmJudge` scorer requires its own apiKey, separate from the eval agent | [D205-llm-judge-separate-apikey.md](./.claude/knowledge-base/adrs/D205-llm-judge-separate-apikey.md) |
+| D206 | Eval traces piggyback on `Telemetry` (D34); no parallel tracer | [D206-eval-traces-via-telemetry.md](./.claude/knowledge-base/adrs/D206-eval-traces-via-telemetry.md) |
+| D207 | `Scorer` is `(output, expected?) => Score \| Promise<Score>` (async canonical) | [D207-scorer-async-canonical.md](./.claude/knowledge-base/adrs/D207-scorer-async-canonical.md) |
+| D208 | Error isolation per-row; one failed row NEVER aborts the run | [D208-eval-error-isolation.md](./.claude/knowledge-base/adrs/D208-eval-error-isolation.md) |
+| D209 | `EvalRun` is plain serializable JSON; no class methods on result | [D209-eval-run-plain-json.md](./.claude/knowledge-base/adrs/D209-eval-run-plain-json.md) |
+| D210 | Dataset accepts array OR factory-of-iterable | [D210-dataset-iterable-supported.md](./.claude/knowledge-base/adrs/D210-dataset-iterable-supported.md) |
+| D211 | `EvalAggregate` includes p50/p95 row duration + tokens-in/out totals | [D211-aggregate-p50-p95-tokens.md](./.claude/knowledge-base/adrs/D211-aggregate-p50-p95-tokens.md) |
+| D212 | CLI `packages/cli/src/eval/runner.ts` swaps to call `Eval.run()` | [D212-cli-swaps-to-eval-run.md](./.claude/knowledge-base/adrs/D212-cli-swaps-to-eval-run.md) |
+| D213 | `Eval.run` is single-flight per name per process | [D213-eval-single-flight-per-name.md](./.claude/knowledge-base/adrs/D213-eval-single-flight-per-name.md) |
+| D214 | Handoffs are tool-shaped (synthetic function tools) | [D214-handoff-as-tool.md](./.claude/knowledge-base/adrs/D214-handoff-as-tool.md) |
+| D215 | Default handoff tool name = `transfer_to_<receiver.name>` | [D215-tool-name-default.md](./.claude/knowledge-base/adrs/D215-tool-name-default.md) |
+| D216 | Full history passed to receiver by default | [D216-full-history-default.md](./.claude/knowledge-base/adrs/D216-full-history-default.md) |
+| D217 | Handoffs are peer-to-peer (not parent-child) | [D217-peer-to-peer.md](./.claude/knowledge-base/adrs/D217-peer-to-peer.md) |
+| D218 | Max handoff depth = 5 per send() (configurable) | [D218-max-handoff-depth.md](./.claude/knowledge-base/adrs/D218-max-handoff-depth.md) |
+| D219 | `inputFilter` is single extension point for history scoping | [D219-input-filter-single-extension.md](./.claude/knowledge-base/adrs/D219-input-filter-single-extension.md) |
+| D220 | Telemetry: emit `handoff.transfer` OTel span | [D220-telemetry-handoff-spans.md](./.claude/knowledge-base/adrs/D220-telemetry-handoff-spans.md) |
+| D221 | Single-flight per (sender, receiver) pair per send() | [D221-single-flight-per-pair.md](./.claude/knowledge-base/adrs/D221-single-flight-per-pair.md) |
+| D222 | `Handoff` is a class with `Handoff.create(target, opts?)` factory | [D222-handoff-class-factory.md](./.claude/knowledge-base/adrs/D222-handoff-class-factory.md) |
+| D223 | `inputType` is a Zod schema (lazy peer dep) | [D223-input-type-zod.md](./.claude/knowledge-base/adrs/D223-input-type-zod.md) |
+| D224 | Tool whitelist transfer scoped to post-handoff turn | [D224-tool-whitelist-transfer.md](./.claude/knowledge-base/adrs/D224-tool-whitelist-transfer.md) |
+| D225 | `Agent.handoffTo(other, opts?)` imperative API opt-in | [D225-imperative-handoffTo.md](./.claude/knowledge-base/adrs/D225-imperative-handoffTo.md) |
+| D226 | Parallel handoff tools in one turn: first wins; others rejected | [D226-parallel-handoff-first-wins.md](./.claude/knowledge-base/adrs/D226-parallel-handoff-first-wins.md) |
+| D227 | `onHandoff` throwing aborts the handoff | [D227-onhandoff-throw-aborts.md](./.claude/knowledge-base/adrs/D227-onhandoff-throw-aborts.md) |
+| D228 | `inputFilter` throw falls back to full history + stderr warn | [D228-inputfilter-throw-fallback.md](./.claude/knowledge-base/adrs/D228-inputfilter-throw-fallback.md) |
+| D229 | Empty/null `inputJson` accepted when `inputType === undefined` | [D229-empty-input-accepted.md](./.claude/knowledge-base/adrs/D229-empty-input-accepted.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.

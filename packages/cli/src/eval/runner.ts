@@ -1,17 +1,20 @@
 /**
- * Eval runner — wraps `Agent.batch` (D134) per ADR D199 (T5.1).
+ * Eval runner — D212 swap: now consumes `Eval.create + .run` from the SDK
+ * (Adoption Roadmap #2). The public `EvalConfig` shape is unchanged —
+ * D199 made this a forward-compatible move.
  *
- * EC-K (edge-case review): scorers may be sync OR async. The runner
- * always `await`s the return so both shapes work transparently.
+ * Why preserve the CLI's `EvalRunResult` shape: the markdown report
+ * generator + existing tests depend on it. The SDK's `EvalRun` is a
+ * superset; we adapt at the boundary.
  *
  * @internal
  */
 
-import { Agent } from "@usetheo/sdk";
+import { Eval, type EvalRun, type Scorer as SdkScorer } from "@usetheo/sdk";
+import { randomUUID } from "node:crypto";
 
-import type { EvalConfig, EvalRowResult, EvalRunResult, Score, Scorer } from "./types.js";
+import type { EvalConfig, EvalRowResult, EvalRunResult } from "./types.js";
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dataset iteration + scorer application + aggregation is one cohesive flow; splitting hurts readability.
 export async function runEvalSuite(config: EvalConfig): Promise<EvalRunResult> {
   if (config.dataset.length === 0) {
     return {
@@ -20,86 +23,46 @@ export async function runEvalSuite(config: EvalConfig): Promise<EvalRunResult> {
     };
   }
 
-  const prompts = config.dataset.map((d) => d.input);
+  // Translate CLI's EvalConfig → SDK's EvalOptions. Scorers map 1:1 because
+  // both surfaces use the same `Scorer` type per D207.
+  const sdkScorers = config.scorers.map((s) => ({
+    name: s.name,
+    score: s.score as SdkScorer,
+  }));
 
-  // Agent.batch reuses D134-D140 — concurrency, failure isolation,
-  // credential pool sharing. Returns BatchResult[] directly per D138.
-  const batchResults = await Agent.batch(prompts, {
-    ...config.agent,
-    concurrency: config.concurrency ?? 4,
-  });
+  const run: EvalRun = await Eval.create({
+    // Unique per-process name for telemetry correlation (D213). Use UUID
+    // so concurrent CLI invocations on different terminals don't collide.
+    name: `theokit-eval-${randomUUID().slice(0, 8)}`,
+    dataset: config.dataset,
+    scorers: sdkScorers,
+    agent: config.agent,
+    ...(config.concurrency !== undefined ? { concurrency: config.concurrency } : {}),
+  }).run();
 
-  const rows: EvalRowResult[] = [];
-  let totalScore = 0;
-  let passCount = 0;
-  let errorCount = 0;
-
-  for (let i = 0; i < config.dataset.length; i += 1) {
-    const entry = config.dataset[i];
-    const item = batchResults[i];
-    if (entry === undefined) continue;
-    const expected = entry.expected;
-
-    if (item === undefined || item.ok !== true) {
-      errorCount += 1;
-      rows.push({
-        input: entry.input,
-        output: "",
-        ...(expected !== undefined ? { expected } : {}),
-        scores: [],
-        meanScore: 0,
-        error: item !== undefined && item.ok === false ? item.error.message : "agent_run_error",
-      });
-      continue;
-    }
-
-    const output = item.result.result ?? "";
-    const scoreEntries: Array<EvalRowResult["scores"][number]> = [];
-    for (const scorer of config.scorers) {
-      const score = await applyScorer(scorer.score, output, expected);
-      scoreEntries.push({
-        name: scorer.name,
-        score: score.score,
-        ...(score.reason !== undefined ? { reason: score.reason } : {}),
-      });
-    }
-    const meanScore =
-      scoreEntries.length > 0
-        ? scoreEntries.reduce((acc, s) => acc + s.score, 0) / scoreEntries.length
-        : 0;
-    if (meanScore >= 0.5) passCount += 1;
-    totalScore += meanScore;
-    rows.push({
-      input: entry.input,
-      output,
-      ...(expected !== undefined ? { expected } : {}),
-      scores: scoreEntries,
-      meanScore,
-    });
-  }
+  // Adapt SDK's EvalRun to the CLI's existing EvalRunResult shape. The CLI
+  // shape is simpler (no p50/p95/tokens — those live in SDK aggregate);
+  // the markdown report consumes the simple shape.
+  const rows: EvalRowResult[] = run.rows.map((r) => ({
+    input: r.input,
+    output: r.output,
+    ...(r.expected !== undefined ? { expected: r.expected } : {}),
+    scores: r.scores.map((s) => ({
+      name: s.name,
+      score: s.score,
+      ...(s.reason !== undefined ? { reason: s.reason } : {}),
+    })),
+    meanScore: r.meanScore,
+    ...(r.error !== undefined ? { error: r.error } : {}),
+  }));
 
   return {
     rows,
     aggregate: {
-      meanScore: rows.length > 0 ? totalScore / rows.length : 0,
-      passRatio: rows.length > 0 ? passCount / rows.length : 0,
-      totalRows: rows.length,
-      errorRows: errorCount,
+      meanScore: run.aggregate.meanScore,
+      passRatio: run.aggregate.passRatio,
+      totalRows: run.aggregate.totalRows,
+      errorRows: run.aggregate.errorRows,
     },
   };
-}
-
-async function applyScorer(scorer: Scorer, output: string, expected?: unknown): Promise<Score> {
-  try {
-    const result = await scorer(output, expected);
-    if (typeof result.score !== "number" || Number.isNaN(result.score)) {
-      return { score: 0, reason: "scorer_returned_invalid_score" };
-    }
-    return result;
-  } catch (err) {
-    return {
-      score: 0,
-      reason: `scorer_error: ${err instanceof Error ? err.message : String(err)}`,
-    };
-  }
 }
