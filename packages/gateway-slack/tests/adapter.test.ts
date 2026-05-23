@@ -25,7 +25,9 @@ vi.mock("@slack/bolt", () => {
     start = startMock;
     stop = stopMock;
   }
-  return { App: MockApp };
+  // Adapter uses default import + destructure (`import bolt from "@slack/bolt";
+  // const { App } = bolt;`), matching Bolt v3's CommonJS shape.
+  return { default: { App: MockApp }, App: MockApp };
 });
 
 // Import AFTER vi.mock so the adapter resolves the mock.

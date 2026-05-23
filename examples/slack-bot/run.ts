@@ -33,9 +33,12 @@ const adapter = new SlackAdapter({
   // Default: requireMention=true. Public channel messages need to mention the bot.
 });
 
+// Model id with a "/" prefix routes through OpenRouter when only
+// OPENROUTER_API_KEY is set. `openai/gpt-4o-mini` would require an explicit
+// OpenAI key — use a Google model id since OpenRouter resells it cheaply.
 const agent = await Agent.create({
   apiKey: openrouter,
-  model: { id: "openai/gpt-4o-mini" },
+  model: { id: process.env.SLACK_BOT_MODEL ?? "google/gemini-2.0-flash-001" },
   local: { cwd: process.cwd(), sandboxOptions: { enabled: false } as const },
   name: "slack-bot",
   systemPrompt: "You are a friendly Slack assistant. Reply concisely (1-2 sentences).",
@@ -57,7 +60,15 @@ adapter.onInbound(async (event) => {
   try {
     const run = await agent.send(cleanText);
     const result = await run.wait();
-    const reply = result.status === "finished" ? result.result ?? "" : "(no reply)";
+    const errInfo = (result as { error?: { message?: string; name?: string } }).error;
+    console.log(
+      `[agent] status=${result.status} resultLen=${(result.result ?? "").length}` +
+        (errInfo !== undefined ? ` error=${errInfo.name}: ${errInfo.message}` : ""),
+    );
+    const reply =
+      result.status === "finished"
+        ? (result.result ?? "(empty result)")
+        : `(agent ${result.status}${errInfo !== undefined ? `: ${errInfo.message}` : ""})`;
     const sendResult = await adapter.sendMessage({
       channel: event.channel,
       text: reply,
@@ -65,6 +76,8 @@ adapter.onInbound(async (event) => {
     });
     if (!sendResult.ok) {
       console.error("[outbound] send failed:", sendResult.error);
+    } else {
+      console.log(`[outbound] sent ${reply.length} chars`);
     }
   } catch (err) {
     console.error("[handler]", err);

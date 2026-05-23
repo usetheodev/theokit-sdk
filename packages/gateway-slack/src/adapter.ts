@@ -11,7 +11,13 @@
  * @public
  */
 
-import { App } from "@slack/bolt";
+// @slack/bolt v3 is CommonJS-only; named ESM `import { App }` fails at
+// runtime. Use default import + destructure (Node CJS-interop via
+// esModuleInterop in tsconfig.base).
+import bolt from "@slack/bolt";
+const { App } = bolt;
+type App = InstanceType<typeof App>;
+
 import {
   BasePlatformAdapter,
   type MessageEvent as GatewayMessageEvent,
