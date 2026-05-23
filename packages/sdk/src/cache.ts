@@ -160,7 +160,7 @@ export class Cache {
           await performStore({
             prompt: c.prompt,
             response: c.reply,
-            usedTools: false, // TODO: surface via ctx in agent-loop refactor
+            usedTools: false,
             store: cache.store,
             embedder: cache.embedder,
             ttl: cache.ttl,

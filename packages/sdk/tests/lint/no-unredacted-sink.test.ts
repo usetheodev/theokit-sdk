@@ -65,6 +65,31 @@ const SINK_PATTERNS: Sink[] = [
  *   `internal/telemetry/tracer.ts`. The wrap routes every attr through
  *   `redactAttrValue`/`redactAttrs`. Direct callsites here are
  *   structurally safe.
+ * - `internal/workflow/telemetry.ts` — `setAttribute` here is a TYPE
+ *   definition on the `SpanLike` interface, not a runtime call. The
+ *   only span instances callers receive come from `@opentelemetry/api`
+ *   (when installed) or the local `noopSpan` (which does nothing). No
+ *   raw value ever flows out of this file. (ADR D241.)
+ * - `internal/cache/telemetry.ts`, `internal/eval/telemetry.ts`,
+ *   `internal/handoff/telemetry.ts` — same `SpanLike` type-only pattern
+ *   as workflow/telemetry. No runtime sink. (ADRs D262, D206, D220.)
+ * - `internal/cache/lookup.ts`, `internal/cache/store-handler.ts` —
+ *   `span.setAttribute(...)` calls on OTel spans returned by the
+ *   wrapped tracer. The wrapping in `internal/telemetry/tracer.ts`
+ *   routes every attribute through `redactAttrValue`/`redactAttrs`.
+ *   Same rationale as `internal/agent-loop/loop.ts`. The two
+ *   `console.warn(...)` callsites print static labels + an
+ *   `err.message` already shaped by the cache module itself, not
+ *   user-supplied data. (ADR D252.)
+ * - `internal/cache/store-json.ts` — `console.warn(...)` prints file
+ *   paths + `err.message`; paths live under `$THEOKIT_HOME/cache/`
+ *   (no secrets) and `err.message` originates from `node:fs`. No raw
+ *   user payload is logged. (ADR D265.)
+ * - `internal/eval/runner.ts`, `internal/workflow/executor.ts`,
+ *   `internal/workflow/ctx.ts` — `span.setAttribute(...)` on
+ *   tracer-wrapped spans (same rationale as agent-loop/loop.ts).
+ *   `console.warn(...)` callsites print static prefixes + sanitized
+ *   `err.message` only. (ADRs D206, D241.)
  */
 const WHITELIST = new Set<string>([
   "internal/security/redact.ts",
@@ -81,6 +106,16 @@ const WHITELIST = new Set<string>([
   "internal/runtime/agent-registry-store.ts",
   "internal/agent-loop/loop.ts",
   "internal/agent-loop/tool-dispatch.ts",
+  "internal/workflow/telemetry.ts",
+  "internal/workflow/executor.ts",
+  "internal/workflow/ctx.ts",
+  "internal/cache/telemetry.ts",
+  "internal/cache/lookup.ts",
+  "internal/cache/store-handler.ts",
+  "internal/cache/store-json.ts",
+  "internal/eval/telemetry.ts",
+  "internal/eval/runner.ts",
+  "internal/handoff/telemetry.ts",
 ]);
 
 interface Offender {

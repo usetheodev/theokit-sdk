@@ -7,6 +7,7 @@
  * @internal
  */
 
+import { redactSecrets } from "../security/redact.js";
 import type {
   BranchStep,
   Step,
@@ -35,9 +36,11 @@ export async function runBranchStep(
     try {
       matched = await Promise.resolve(predicate(input));
     } catch (err) {
+      const errText = err instanceof Error ? err.message : String(err);
       console.warn(
-        `[workflow] branch "${step.id}" predicate ${i} threw, treating as no-match:`,
-        err instanceof Error ? err.message : err,
+        redactSecrets(
+          `[workflow] branch "${step.id}" predicate ${i} threw, treating as no-match: ${errText}`,
+        ),
       );
     }
     if (matched) {

@@ -35,10 +35,19 @@ describe("resolveBedrockToken — env path", () => {
   });
 });
 
-describe("resolveBedrockToken — peer dep missing", () => {
-  it("returns undefined when env unset and @aws/bedrock-token-generator not installed", async () => {
+describe("resolveBedrockToken — peer dep path", () => {
+  // The peer deps `@aws/bedrock-token-generator` + `@aws-sdk/credential-providers`
+  // may be hoisted into the workspace root in dev. When they are AND AWS
+  // credentials are available, `resolveBedrockToken` returns a real Bearer token
+  // (string starting with `bedrock-api-key-`). When either peer is missing or
+  // the credential chain fails, it returns `undefined`. Both outcomes are valid.
+  it("returns either a generated token or undefined (depending on peer + creds availability)", async () => {
     delete process.env.AWS_BEARER_TOKEN_BEDROCK;
     const token = await resolveBedrockToken("us-east-1");
-    expect(token).toBeUndefined();
+    if (token !== undefined) {
+      expect(token).toMatch(/^bedrock-api-key-/);
+    } else {
+      expect(token).toBeUndefined();
+    }
   });
 });
