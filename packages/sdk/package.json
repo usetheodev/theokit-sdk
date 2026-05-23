@@ -87,7 +87,9 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "docs:json": "typedoc --options typedoc.json",
+    "docs:drift": "tsx scripts/check-docs-drift.ts"
   },
   "peerDependencies": {
     "better-sqlite3": "^12.0.0",
@@ -137,6 +139,7 @@
     "better-sqlite3": "^12.10.0",
     "fast-check": "^4.8.0",
     "proper-lockfile": "^4.1.2",
-    "sqlite-vec": "^0.1.9"
+    "sqlite-vec": "^0.1.9",
+    "typedoc": "^0.28.19"
   }
 }

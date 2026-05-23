@@ -1,0 +1,12 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPoints": ["src/index.ts", "src/errors.ts", "src/cron.ts"],
+  "out": "docs-json",
+  "json": "docs-json/api.json",
+  "excludePrivate": true,
+  "excludeInternal": true,
+  "excludeProtected": false,
+  "readme": "none",
+  "skipErrorChecking": true,
+  "tsconfig": "tsconfig.json"
+}
