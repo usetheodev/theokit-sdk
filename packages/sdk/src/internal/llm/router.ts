@@ -6,6 +6,7 @@ import {
   registerBuiltins,
 } from "../providers/index.js";
 import { AnthropicClient } from "./anthropic.js";
+import { BedrockAnthropicClient } from "./bedrock-anthropic.js";
 import { CredentialPool, newPooledCredential } from "./credential-pool.js";
 import { currentCredentialPool } from "./credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./credential-pool-types.js";
@@ -13,6 +14,7 @@ import { OllamaNativeClient } from "./ollama-native.js";
 import { OpenAIClient } from "./openai.js";
 import { PoolAwareLlmClient } from "./pool-aware-client.js";
 import type { LlmClient } from "./types.js";
+import { VertexRouterClient } from "./vertex-router.js";
 
 /**
  * Provider router (T4.3, ADRs D105-D107).
@@ -129,7 +131,13 @@ function buildPoolOrSingle(args: {
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
   // D182: `authType: "none"` providers fall back to a sentinel placeholder
   // when no key is set — transports that ignore the Authorization header still work.
-  const apiKey = poolKeys?.[0] ?? resolveApiKey(profile.envVars) ?? sentinelForNoAuth(profile);
+  // D286/D288: `aws_bearer` / `gcp_oauth` profiles use a lazy sentinel so the
+  // client can resolve real credentials at stream time (helpful error if missing).
+  const apiKey =
+    poolKeys?.[0] ??
+    resolveApiKey(profile.envVars) ??
+    sentinelForNoAuth(profile) ??
+    sentinelForLazyAuth(profile);
   if (apiKey === undefined) return undefined;
   return selectTransport(profile, apiKey);
 }
@@ -173,6 +181,20 @@ export function _resetNoAuthApiKeyWarnings(): void {
  */
 function sentinelForNoAuth(profile: ProviderProfile): string | undefined {
   return profile.authType === "none" ? profile.name : undefined;
+}
+
+/**
+ * D286 / D288: providers with lazy-resolved auth (Bedrock Bearer via
+ * `@aws/bedrock-token-generator`, Vertex via `google-auth-library`) may not
+ * have credentials available at construction time — the client resolves
+ * them per-request and throws helpful `ConfigurationError` if missing
+ * (EC-1, EC-6 absorbed). Use a placeholder so the router still builds
+ * the client; the user sees the helpful error on the first `agent.send`.
+ */
+function sentinelForLazyAuth(profile: ProviderProfile): string | undefined {
+  if (profile.authType === "aws_bearer") return "__bedrock_lazy_token__";
+  if (profile.authType === "gcp_oauth") return "__vertex_lazy_token__";
+  return undefined;
 }
 
 function filterPoolKeys(keys: string[] | undefined): string[] | undefined {
@@ -243,9 +265,24 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     return new OpenAIClient(opts);
   }
   if (profile.apiMode === "anthropic_messages") {
+    // Vertex sub-dispatch (D301): when profile.name === "vertex", route to
+    // VertexRouterClient which picks Gemini vs Anthropic at stream time.
+    // apiKey is either a real Bearer token (rare — caller passed it
+    // explicitly) or the lazy sentinel `__vertex_lazy_token__` — strip
+    // the latter so the client falls through to ADC discovery (D288).
+    if (profile.name === "vertex") {
+      const realKey = apiKey === "__vertex_lazy_token__" ? undefined : apiKey;
+      return new VertexRouterClient(realKey !== undefined ? { apiKey: realKey } : {});
+    }
     const opts: ConstructorParameters<typeof AnthropicClient>[0] = { apiKey };
     opts.baseUrl = process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
     return new AnthropicClient(opts);
+  }
+  if (profile.apiMode === "bedrock_anthropic") {
+    // D301: dedicated Bedrock InvokeModel client. apiKey from env when set;
+    // strip the lazy sentinel so client triggers @aws/bedrock-token-generator (D287).
+    const realKey = apiKey === "__bedrock_lazy_token__" ? undefined : apiKey;
+    return new BedrockAnthropicClient(realKey !== undefined ? { apiKey: realKey } : {});
   }
   throw new ConfigurationError(
     `Provider "${profile.name}" requires apiMode "${profile.apiMode}" but no transport is registered. ` +
