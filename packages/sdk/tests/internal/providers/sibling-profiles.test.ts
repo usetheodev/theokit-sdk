@@ -102,10 +102,10 @@ describe("llama.cpp profile (D189)", () => {
   });
 });
 
-describe("Builtin count after D188 + D189", () => {
-  it("listProviders includes anthropic, openai, openrouter, gemini, ollama, lmstudio, llamacpp", () => {
-    // 5 (D182 baseline) + 2 sibling profiles = 7.
-    expect(listProviders()).toHaveLength(7);
+describe("Builtin count after D188 + D189 + D286/D288", () => {
+  it("listProviders includes 9 builtins (baseline 5 + lmstudio + llamacpp + bedrock + vertex)", () => {
+    // 5 (D182 baseline) + 2 sibling profiles + 2 cloud profiles = 9.
+    expect(listProviders()).toHaveLength(9);
     const names = listProviders().map((p) => p.name);
     expect(names).toEqual(
       expect.arrayContaining([
@@ -116,6 +116,8 @@ describe("Builtin count after D188 + D189", () => {
         "ollama",
         "lmstudio",
         "llamacpp",
+        "bedrock",
+        "vertex",
       ]),
     );
   });

@@ -63,10 +63,16 @@ export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
   }
   if (
     args.status === 400 ||
+    args.status === 404 ||
     awsType.includes("ValidationException") ||
-    awsType.includes("ResourceNotFound")
+    awsType.includes("ResourceNotFound") ||
+    message.includes("use case details")
   ) {
-    return new ConfigurationError(`Bedrock validation: ${message}`, {
+    const isUseCaseGate = message.includes("use case details");
+    const friendly = isUseCaseGate
+      ? `Bedrock account setup required: ${message} (AWS Console → Bedrock → Model access → Anthropic → Submit use case form, then retry in 15 min.)`
+      : `Bedrock validation: ${message}`;
+    return new ConfigurationError(friendly, {
       metadata: buildErrorMetadata({
         provider: "bedrock",
         endpoint: args.endpoint,

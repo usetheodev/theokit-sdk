@@ -6,6 +6,8 @@
     "run": "tsx --env-file=.env run.ts"
   },
   "dependencies": {
+    "@aws-sdk/credential-providers": "^3.1053.0",
+    "@aws/bedrock-token-generator": "^1.1.0",
     "@usetheo/sdk": "file:../../packages/sdk",
     "zod": "^4.0.0"
   },

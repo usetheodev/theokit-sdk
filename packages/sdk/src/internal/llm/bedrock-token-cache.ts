@@ -3,8 +3,9 @@
  *
  * Two paths:
  *   1. Explicit env (`AWS_BEARER_TOKEN_BEDROCK`) wins; no refresh.
- *   2. Optional peer dep `@aws/bedrock-token-generator` (D287) auto-refreshes
- *      short-term tokens. Cached for 1.5h (75% of the generator's 2h max).
+ *   2. Optional peer dep `@aws/bedrock-token-generator` (D287) auto-generates
+ *      short-term tokens from the standard AWS credential chain
+ *      (`@aws-sdk/credential-providers`). Cached for 1.5h.
  *
  * `resolveBedrockToken` returns `undefined` only when BOTH paths produce no
  * token. Caller (router) is responsible for throwing a helpful error
@@ -22,18 +23,20 @@ interface CachedToken {
 
 let cachedToken: CachedToken | null = null;
 
-interface BedrockTokenGenerator {
-  provideBedrockToken: (opts: { region: string }) => Promise<string>;
+interface BedrockTokenGeneratorApi {
+  getToken: (opts: { credentials: unknown; region: string }) => Promise<string>;
+}
+
+interface CredentialProvidersApi {
+  fromNodeProviderChain: () => () => Promise<unknown>;
 }
 
 const CACHE_TTL_MS = 90 * 60 * 1000; // 1.5h
 
 export async function resolveBedrockToken(region: string): Promise<string | undefined> {
-  // Path 1: explicit env wins.
   const env = process.env.AWS_BEARER_TOKEN_BEDROCK;
   if (env !== undefined && env.length > 0) return env;
 
-  // Path 2: cached generator token (if peer dep installed).
   const now = Date.now();
   if (cachedToken !== null && cachedToken.expiresAt > now) {
     return cachedToken.value;
@@ -41,14 +44,17 @@ export async function resolveBedrockToken(region: string): Promise<string | unde
 
   try {
     const r = createRequire(import.meta.url);
-    const mod = r("@aws/bedrock-token-generator") as BedrockTokenGenerator;
-    if (typeof mod.provideBedrockToken !== "function") return undefined;
-    const token = await mod.provideBedrockToken({ region });
+    const gen = r("@aws/bedrock-token-generator") as BedrockTokenGeneratorApi;
+    if (typeof gen.getToken !== "function") return undefined;
+
+    const providers = r("@aws-sdk/credential-providers") as CredentialProvidersApi;
+    if (typeof providers.fromNodeProviderChain !== "function") return undefined;
+
+    const credentialProvider = providers.fromNodeProviderChain();
+    const token = await gen.getToken({ credentials: credentialProvider, region });
     cachedToken = { value: token, expiresAt: now + CACHE_TTL_MS };
     return token;
   } catch {
-    // Peer dep missing OR generator threw (no AWS creds available).
-    // Caller handles `undefined` with a helpful ConfigurationError.
     return undefined;
   }
 }
