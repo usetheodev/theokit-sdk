@@ -14,6 +14,8 @@
  * @internal
  */
 
+import { existsSync } from "node:fs";
+
 const FIXTURE_API_KEY_PREFIX = "theo_test_";
 
 /**
@@ -75,8 +77,68 @@ export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
     (typeof process.env.OPENAI_API_KEY === "string" && process.env.OPENAI_API_KEY.length > 0) ||
     (typeof process.env.OPENROUTER_API_KEY === "string" &&
       process.env.OPENROUTER_API_KEY.length > 0) ||
+    isAwsBedrockAuthAvailable() ||
+    isGcpVertexAuthAvailable() ||
     isLocalNoAuthProviderAvailable()
   );
+}
+
+/**
+ * ADRs D286-D287: Bedrock green-lights real runtime when EITHER
+ * `AWS_BEARER_TOKEN_BEDROCK` is set explicitly OR the standard AWS
+ * credential chain (`AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` /
+ * `AWS_PROFILE` / instance role) can mint a Bearer via
+ * `@aws/bedrock-token-generator`. We only check synchronous signals here;
+ * the actual token resolution happens lazily in
+ * `BedrockAnthropicClient.stream`.
+ */
+function isAwsBedrockAuthAvailable(): boolean {
+  if (typeof process.env.AWS_BEARER_TOKEN_BEDROCK === "string" && process.env.AWS_BEARER_TOKEN_BEDROCK.length > 0) {
+    return true;
+  }
+  if (typeof process.env.AWS_ACCESS_KEY_ID === "string" && process.env.AWS_ACCESS_KEY_ID.length > 0) {
+    return true;
+  }
+  if (typeof process.env.AWS_PROFILE === "string" && process.env.AWS_PROFILE.length > 0) {
+    return true;
+  }
+  // Default profile file (~/.aws/credentials). The credential chain will
+  // resolve it via fromNodeProviderChain() at stream time, or surface a
+  // helpful error if neither file nor IMDS is reachable.
+  return awsCredentialsFileExists();
+}
+
+function awsCredentialsFileExists(): boolean {
+  try {
+    const home = process.env.HOME ?? process.env.USERPROFILE;
+    if (home === undefined || home.length === 0) return false;
+    return existsSync(`${home}/.aws/credentials`) || existsSync(`${home}/.aws/config`);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * ADR D288: Vertex green-lights real runtime when EITHER
+ * `GOOGLE_APPLICATION_CREDENTIALS` is set OR `GOOGLE_CLOUD_PROJECT` is set
+ * (ADC will use gcloud user creds / metadata server). The actual token
+ * resolution happens lazily in `VertexAnthropicClient.stream` /
+ * `VertexGeminiClient.stream`.
+ */
+function isGcpVertexAuthAvailable(): boolean {
+  if (
+    typeof process.env.GOOGLE_APPLICATION_CREDENTIALS === "string" &&
+    process.env.GOOGLE_APPLICATION_CREDENTIALS.length > 0
+  ) {
+    return true;
+  }
+  if (
+    typeof process.env.GOOGLE_CLOUD_PROJECT === "string" &&
+    process.env.GOOGLE_CLOUD_PROJECT.length > 0
+  ) {
+    return true;
+  }
+  return false;
 }
 
 /**

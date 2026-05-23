@@ -58,8 +58,9 @@ describe("ollama builtin provider (D182)", () => {
   });
 
   it("ollama profile counted alongside other builtins", () => {
-    // anthropic, openai, openrouter, gemini, ollama (D182), lmstudio (D188), llamacpp (D189) = 7
-    expect(listProviders()).toHaveLength(7);
+    // anthropic, openai, openrouter, gemini, ollama (D182), lmstudio (D188),
+    // llamacpp (D189), bedrock (D286), vertex (D288) = 9
+    expect(listProviders()).toHaveLength(9);
   });
 
   it("ollama fallback models include a sensible default", () => {

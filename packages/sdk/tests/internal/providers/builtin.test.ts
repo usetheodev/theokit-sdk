@@ -44,7 +44,13 @@ describe("builtin providers (T3.3)", () => {
   });
 
   it("all builtins have valid apiMode", () => {
-    const validModes = ["chat_completions", "anthropic_messages", "responses_api", "bedrock"];
+    const validModes = [
+      "chat_completions",
+      "anthropic_messages",
+      "responses_api",
+      "bedrock",
+      "bedrock_anthropic",
+    ];
     for (const p of listProviders()) {
       expect(validModes).toContain(p.apiMode);
     }
@@ -53,8 +59,9 @@ describe("builtin providers (T3.3)", () => {
   it("registerBuiltins idempotent", () => {
     registerBuiltins();
     registerBuiltins();
-    // anthropic, openai, openrouter, gemini, ollama (D182), lmstudio (D188), llamacpp (D189)
-    expect(listProviders()).toHaveLength(7);
+    // anthropic, openai, openrouter, gemini, ollama (D182), lmstudio (D188),
+    // llamacpp (D189), bedrock (D286), vertex (D288)
+    expect(listProviders()).toHaveLength(9);
   });
 
   it("ollama profile registered (D182)", () => {
