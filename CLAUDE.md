@@ -580,6 +580,65 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 - Dogfood real (telegram-pro / discord-pro / examples)
 - `CHANGELOG.md` entry no pacote afetado
 
+## Adoption Roadmap (v1.4 — gateways expansion + Google Workspace)
+
+> Iniciado 2026-05-23 após auditoria das plataformas de gateway em `referencia/openclaw/extensions/` (10 plataformas) e `referencia/hermes-agent/gateway/platforms/` (~20 plataformas). Hoje temos 3 gateways shipados (`telegram`, `discord`, `slack` — D170-D285). A pergunta estratégica era: "qual gap maior do SDK pós-v1.3?" Resposta: **alcance**. Tier 1 (Docs site) continua sendo o gap #1 absoluto da v1.3 e NÃO é deslocado por esta v1.4 — é pré-requisito do site rankear novos gateways. Tier 2 desta v1.4 amplia o `@usetheo/gateway-*` para cobrir 90% do mercado endereçável de chat. Tier 3 traz Google Workspace via skills/MCP (NÃO gateway — camada de tools).
+>
+> Separação de camada explícita (decidida 2026-05-23):
+> - **Gateway** = canal de conversa in/out com o usuário (agente CHATEIA aqui).
+> - **Skill / MCP** = capacidade que o agente USA pra executar ações (Calendar, Drive, Sheets).
+> Misturar as duas no mesmo eixo de roadmap confunde adoption.
+
+| Tier | # | Item | Categoria | Score | Status |
+|---|---|---|---|---:|---|
+| T1 | 1 | **Docs site** (carry-over v1.3 #3) — `../theo-opendocs` (Next.js + Fumadocs, source-of-truth para cookbook + API ref + tutorials + search) | infra | 10 | Pendente |
+| T2 | 2 | **`@usetheo/gateway-whatsapp`** — Meta WhatsApp Business Cloud API. Suporte a 1:1 + grupos (Group v2), webhook signed, media handling, status receipts | gateway | 9 | Pendente |
+| T2 | 3 | **`@usetheo/gateway-teams`** — Microsoft Teams via Bot Framework SDK + msgraph webhook (espelha Hermes `msgraph_webhook.py` + OpenClaw `msteams`). Suporte a 1:1, channel, adaptive cards | gateway | 8 | Pendente |
+| T2 | 4 | **`@usetheo/gateway-email`** — IMAP inbound + SMTP outbound. Threading por `In-Reply-To`/`References`, attachment passthrough, optional spam filter hook | gateway | 7 | Pendente |
+| T3 | 5 | **`@usetheo/skills-google-workspace`** — pacote ÚNICO empacotando 3 MCP servers (Calendar + Drive + Sheets) + OAuth setup helper + cookbook recipes. NÃO reinventa MCP — usa os servers oficiais (`@modelcontextprotocol/server-gdrive` etc) com glue de credenciais e UX | skills/MCP | 6 | Pendente |
+
+### Rationale por linha
+
+- **#1 Docs site (T1, carry-over)** — Continua sendo o gap absoluto da SDK. Sete itens v1.3 shipados ficam invisíveis sem cookbook navegável + API ref + search. `theo-opendocs` já bootstrapped vazio. Bloqueia adoption mais que qualquer gateway novo.
+
+- **#2 WhatsApp (T2)** — ~2 bi usuários, **maior canal de mensageria do planeta**. Dominante em LATAM/Ásia/África. Empresas onboardam clientes via WhatsApp Business antes de Slack/Discord. Meta Cloud API (não Twilio) — webhook signed via `X-Hub-Signature-256`. Hermes tem (`gateway/platforms/whatsapp.py`); OpenClaw tem (`extensions/whatsapp`). Implementação não-trivial: Group v2 (2025) tem grupo de 1024 membros + ACL diferentes, media é upload-then-reference, status receipts (sent/delivered/read) precisam de webhook reverso. Reusa `BasePlatformAdapter` (D172). ADR alvo: D303-D314 (estimado).
+
+- **#3 Teams (T2)** — Enterprise default no Microsoft 365. Bot Framework SDK (Node) é caminho oficial; alternativa simples é `msgraph_webhook` (estilo Hermes). Adaptive Cards são primitivo de UI rico nativo, devemos expor isolado no `event.teams.raw` escape hatch (D180). Reusa `BasePlatformAdapter`. ADR alvo: D315-D324.
+
+- **#4 Email (T2)** — Canal mais universal possível, zero onboarding de cliente. Pattern: `nodemailer` (SMTP outbound, battle-tested) + `imapflow` (IMAP inbound, mantido). `topicId` = `Message-ID` da raiz da thread (via `In-Reply-To`/`References` chain — RFC 5322). Hermes tem (`gateway/platforms/email.py`); OpenClaw não. Pode ser surpreendentemente alto valor — entrypoint corporativo onde Slack/Teams não chegam. ADR alvo: D325-D332.
+
+- **#5 Google Workspace skills (T3)** — **NÃO É GATEWAY.** É um pacote consolidando 3 MCP servers oficiais + OAuth helper + cookbook. Google Workspace MCPs já existem (oficial Anthropic + 3rd-party). Trabalho real: (a) escolher os 3 melhores MCP servers, (b) embedar OAuth setup walkthrough no CLI (`theokit setup gworkspace`), (c) cookbook com 5-6 recipes (agendar reunião, criar planilha, ler doc, etc), (d) defaults seguros (read-only scopes por default). Reusa `MCP` machinery existente (D54, D41 OAuth). ADR alvo: D333-D338.
+
+### Não-Roadmap-v1.4 (delegado a outras camadas / deferido)
+
+| Item | Razão |
+|---|---|
+| Signal gateway | Demanda real em verticais regulados (saúde, jurídico) mas mercado nicho vs. WhatsApp/Teams/Email. Defere pra v1.5. |
+| Matrix gateway | Open source enterprise (Element). Demanda alta mas concentrada — devolve melhor como community-driven `@usetheo/gateway-matrix` por terceiro. |
+| Feishu / LINE / WeChat / Yuanbao | Plataformas asiáticas. Hermes tem; mercado real existe mas team usetheo não tem footprint local. Pacote third-party ou v2.x. |
+| SMS / Twilio | Notificação one-way mais que conversation. Pode entrar no roadmap como `@usetheo/gateway-sms` standalone se demanda aparecer. |
+| iMessage (Bluebubbles bridge) | Hermes tem; precisa hardware Mac dedicado rodando bridge. Nicho de macOS power users. |
+| Mattermost / Google Chat | Corporate self-hosted. Cobertura small market; community-driven é mais saudável. |
+| Cross-platform mirror (Hermes feature) | Mensagem do Telegram replicada no Slack etc. Feature complexa de pairing/dedup; volta como `@usetheo/gateway-mirror` opcional se demanda concreta aparecer. |
+| MS Outlook / Office 365 calendar (não-Google) | Espelho do #5 pro stack Microsoft. Mesmo padrão (MCP server + OAuth helper); pode entrar como `@usetheo/skills-ms-graph` em v1.5 se demanda. |
+
+### Estratégia de execução
+
+**Sequência recomendada:**
+
+1. **Docs site (#1, T1)** primeiro — desbloqueia visibilidade do que já foi shipado e cria o palco para anunciar os novos gateways. Estimativa: 1-2 semanas (conteúdo > código).
+2. **WhatsApp (#2)** segundo — maior leverage por usuário endereçável. Complexidade Group v2 + media é o maior risco técnico do roadmap; melhor encarar com energia fresca depois de Docs.
+3. **Teams (#3)** terceiro — fecha o triângulo enterprise (Slack ✅ + Teams + Discord ✅). Adaptive Cards é polimento; v1 pode ser texto plano.
+4. **Email (#4)** quarto — IMAP/SMTP é território conhecido; risco baixo, valor alto e estável. Bom item de "shipping rápido" depois de WhatsApp+Teams (mais densos).
+5. **Google Workspace (#5)** quinto — depende de Docs (#1) pra cookbook fazer sentido. Esforço de empacotamento + UX, não protocolo. Pode rodar em paralelo com Email se houver mão livre.
+
+**Critério de "DONE"** continua o mesmo da v1.3:
+- Cobertura via ADRs registradas em `.claude/knowledge-base/adrs/`
+- Tests + real-LLM validation (regra `.claude/rules/real-llm-validation.md`)
+- Sem stubs/mocks no código de produção (regra `.claude/rules/no-stubs-no-mocks-no-wired.md`)
+- Dogfood real (gateway-* tem que aparecer no `lib/dogfood.mjs` se passar pelo telegram-pro; ou ter `examples/{whatsapp,teams,email,gworkspace}-bot/` com live validation gravada)
+- `CHANGELOG.md` entry no pacote afetado
+
 ## Inviolable rules (carried from root and global)
 
 1. **95% confidence gate.** Stop and ask if uncertain.
