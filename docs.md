@@ -2556,3 +2556,132 @@ DMs and mpim (multi-DM) always pass through regardless of the flag.
 ### Telemetry
 
 The adapter is transparent to OTel — caller wraps `agent.send` in their own spans. No `gateway-slack`-specific spans in v1.
+
+## Bedrock provider (v1.20+) — Claude on AWS Bedrock
+
+AWS Bedrock provider via Bearer token + native `fetch`. ADRs D286-D302.
+No SigV4, no `@aws-sdk/client-bedrock-runtime` peer dep.
+
+### Quickstart
+
+```typescript
+import { Agent } from "@usetheo/sdk";
+
+const agent = await Agent.create({
+  apiKey: process.env.AWS_BEARER_TOKEN_BEDROCK,
+  model: { id: "bedrock/us.anthropic.claude-sonnet-4-5-v1:0" },
+});
+
+const run = await agent.send("Hello, Claude on Bedrock!");
+const result = await run.wait();
+console.log(result.result);
+```
+
+### Auth (3 paths)
+
+1. **Env var only** (zero peer dep): `AWS_BEARER_TOKEN_BEDROCK=<token>`. Generate via AWS Console (IAM → Users → Security credentials → Bedrock API keys) or `aws iam create-service-specific-credential`.
+2. **Caller-provided** (overrides env): `Agent.create({ apiKey: token })`.
+3. **Auto-refresh** (optional peer dep): `pnpm add @aws/bedrock-token-generator`. SDK lazy-loads it via `createRequire`; caches the short-term token for 1.5h.
+
+### Model ID convention (D290 + EC-13)
+
+Format: `bedrock/{regionPrefix}.anthropic.{model}-v{N}:{rev}`.
+
+| Region prefix | Resolved AWS region |
+|---|---|
+| `us.` | `AWS_REGION` env, default `us-east-1` |
+| `eu.` | `AWS_REGION` env, default `eu-west-1` |
+| `apac.` | `AWS_REGION` env, default `ap-southeast-1` |
+| `jp.` | hardcoded `ap-northeast-1` |
+| `global.` | `us-east-1` (AWS default entrypoint) |
+
+Examples: `bedrock/us.anthropic.claude-sonnet-4-5-v1:0`, `bedrock/global.anthropic.claude-opus-4-7-v1:0`.
+
+### Error mapping (D300)
+
+| AWS error / status | Canonical | Code |
+|---|---|---|
+| `429` / `ThrottlingException` | `RateLimitError` | `rate_limit` |
+| `401`/`403` / `AccessDeniedException` | `AuthenticationError` | `auth_failed` |
+| `400` / `ValidationException` | `ConfigurationError` | `invalid_request` |
+| `408` / `Timeout*` | `NetworkError` | `timeout` |
+| `5xx` | `NetworkError` | `server_error` |
+| other | `UnknownAgentError` | `unknown` |
+
+### v1 limitations
+
+- **Non-streaming only** (D302) — `/invoke-with-response-stream` (AWS Event Stream binary format) deferred to v1.x. Full response arrives at once.
+- **Bearer auth only** (D286, D298) — SigV4 deferred.
+- **Claude only** — Converse API + Llama / Cohere / Mistral deferred (D296).
+- **No Bedrock Agents / Knowledge Bases / Computer Use** (D282 escape-hatch pattern).
+
+## Vertex AI provider (v1.20+) — Gemini + Claude on GCP
+
+Vertex AI provider via OAuth (ADC) + native `fetch`. ADRs D286-D302.
+Required peer dep: `google-auth-library`.
+
+### Quickstart (Gemini)
+
+```typescript
+import { Agent } from "@usetheo/sdk";
+
+// `gcloud auth application-default login` first; GOOGLE_CLOUD_PROJECT in env.
+const agent = await Agent.create({
+  apiKey: "vertex-adc",   // placeholder — ADC resolves the real token
+  model: { id: "vertex/google/gemini-2.0-flash-001" },
+});
+
+const run = await agent.send("Hello, Gemini!");
+console.log((await run.wait()).result);
+```
+
+### Claude on Vertex
+
+```typescript
+const agent = await Agent.create({
+  apiKey: "vertex-adc",
+  model: { id: "vertex/anthropic/claude-sonnet-4-5@20250929" },
+});
+```
+
+### Auth (ADC chain, in order)
+
+1. `GOOGLE_APPLICATION_CREDENTIALS` env (path to Service Account JSON).
+2. `gcloud auth application-default login` cached credentials.
+3. Metadata server (running in GCE/GKE/Cloud Run/Cloud Functions).
+4. Workload Identity Federation (configured via SA JSON).
+
+`google-auth-library` handles all of these transparently. The SDK calls `getAccessToken()` per request — the library caches internally (TTL ~50min).
+
+### Model ID conventions
+
+- **Gemini (OpenAI-compat, D291):** `vertex/google/gemini-2.0-flash-001` — routes to `/endpoints/openapi/chat/completions`, reuses `OpenAIClient`.
+- **Claude (`:rawPredict`, D292):** `vertex/anthropic/claude-sonnet-4-5@20250929` — routes to `/publishers/anthropic/models/<id>:rawPredict` with body massage.
+
+### `global` location (D293)
+
+When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis.com/...` (no `global-` host prefix). Known fix for the `streamRawPredict` 404 bug at `global-aiplatform.googleapis.com` (a peer#10287).
+
+### Error mapping (D300)
+
+| GCP status | Canonical | Code |
+|---|---|---|
+| `429` / `RESOURCE_EXHAUSTED` | `RateLimitError` | `rate_limit` |
+| `401` / `UNAUTHENTICATED` | `AuthenticationError` | `auth_failed` |
+| `403` / `PERMISSION_DENIED` | `AuthenticationError` | `auth_failed` |
+| `400` / `INVALID_ARGUMENT` | `ConfigurationError` | `invalid_request` |
+| `408` / `DEADLINE_EXCEEDED` | `NetworkError` | `timeout` |
+| `5xx` | `NetworkError` | `server_error` |
+| other | `UnknownAgentError` | `unknown` |
+
+### v1 limitations
+
+- **`google-auth-library` required peer dep** (D288, 572KB). Repo archived Nov 2025 but security-patched.
+- **OpenAI-compat path drops unsupported params silently** (D291) — recursive JSON schemas, `detail` field in old multimodal, etc.
+- **Anthropic on Vertex is non-streaming in v1** — `:streamRawPredict` deferred.
+- **WIF walkthrough deferred to v1.x** (D297) — ADC resolves it transparently when configured GCP-side.
+- **No Service Account JSON tooling** (D299) — user provides via `GOOGLE_APPLICATION_CREDENTIALS`.
+
+### Composing Bedrock + Vertex with other features
+
+Both profiles work with all SDK features: handoffs (D214-D229), workflows (D230-D248), semantic cache (D249-D266), eval suite (D202-D213), batch (D134-D140). Pick the model id at agent construction; the rest of the SDK is provider-agnostic.

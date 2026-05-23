@@ -8,9 +8,21 @@
  * @public
  */
 
-export type ApiMode = "chat_completions" | "anthropic_messages" | "responses_api" | "bedrock";
+export type ApiMode =
+  | "chat_completions"
+  | "anthropic_messages"
+  | "responses_api"
+  | "bedrock"
+  | "bedrock_anthropic";
 
-export type AuthType = "api_key" | "oauth_device_code" | "oauth_external" | "aws_sdk" | "none";
+export type AuthType =
+  | "api_key"
+  | "oauth_device_code"
+  | "oauth_external"
+  | "aws_sdk"
+  | "aws_bearer"
+  | "gcp_oauth"
+  | "none";
 
 export interface ProviderProfile {
   name: string;

@@ -9,12 +9,14 @@
 
 import { registerProvider } from "../registry.js";
 import { ANTHROPIC } from "./anthropic.js";
+import { BEDROCK } from "./bedrock.js";
 import { GEMINI } from "./gemini.js";
 import { LLAMACPP } from "./llamacpp.js";
 import { LMSTUDIO } from "./lmstudio.js";
 import { OLLAMA } from "./ollama.js";
 import { OPENAI } from "./openai.js";
 import { OPENROUTER } from "./openrouter.js";
+import { VERTEX } from "./vertex.js";
 
 let registered = false;
 
@@ -28,6 +30,8 @@ export function registerBuiltins(): void {
   registerProvider(OLLAMA);
   registerProvider(LMSTUDIO);
   registerProvider(LLAMACPP);
+  registerProvider(BEDROCK);
+  registerProvider(VERTEX);
 }
 
 /** Test-only reset. @internal */
@@ -35,4 +39,14 @@ export function _resetBuiltinsRegistered(): void {
   registered = false;
 }
 
-export { ANTHROPIC, GEMINI, LLAMACPP, LMSTUDIO, OLLAMA, OPENAI, OPENROUTER };
+export {
+  ANTHROPIC,
+  BEDROCK,
+  GEMINI,
+  LLAMACPP,
+  LMSTUDIO,
+  OLLAMA,
+  OPENAI,
+  OPENROUTER,
+  VERTEX,
+};
