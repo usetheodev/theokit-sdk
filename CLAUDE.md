@@ -591,7 +591,7 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 
 | Tier | # | Item | Categoria | Score | Status |
 |---|---|---|---|---:|---|
-| T1 | 1 | **Docs site** (carry-over v1.3 #3) — `../theo-opendocs` (Next.js + Fumadocs, source-of-truth para cookbook + API ref + tutorials + search) | infra | 10 | Pendente |
+| ~~T1~~ | ~~1~~ | ~~**Docs site**~~ ✅ DONE 2026-05-23 (plano `docs-site-theokit-sdk`) — `../theo-opendocs/content/theokit-sdk/`: landing + 5 getting-started + 19 concepts + 249 API ref auto-gerada (TypeDoc) + 7 cookbook recipes auto-gerados (de `examples/`) + Orama search (5MB index, ~1500 entries) + drift CI gate (`docs:drift` script + workflow). Smoke 8/8 PASS + SDK dogfood 44/44 sem regressão. | infra | 10 | ✅ DONE |
 | T2 | 2 | **`@usetheo/gateway-whatsapp`** — Meta WhatsApp Business Cloud API. Suporte a 1:1 + grupos (Group v2), webhook signed, media handling, status receipts | gateway | 9 | Pendente |
 | T2 | 3 | **`@usetheo/gateway-teams`** — Microsoft Teams via Bot Framework SDK + msgraph webhook (espelha Hermes `msgraph_webhook.py` + OpenClaw `msteams`). Suporte a 1:1, channel, adaptive cards | gateway | 8 | Pendente |
 | T2 | 4 | **`@usetheo/gateway-email`** — IMAP inbound + SMTP outbound. Threading por `In-Reply-To`/`References`, attachment passthrough, optional spam filter hook | gateway | 7 | Pendente |
