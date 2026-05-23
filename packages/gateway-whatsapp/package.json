@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/gateway",
-  "version": "0.2.0",
-  "description": "Multi-platform messaging gateway core for @usetheo/sdk — transport-agnostic primitives (BasePlatformAdapter, MessageEvent, SessionRouter, DeliveryRouter, GatewayRunner, hooks). Inspired by peer-agent/gateway. ADRs D170-D181.",
+  "name": "@usetheo/gateway-whatsapp",
+  "version": "0.1.0",
+  "description": "WhatsApp platform adapter for @usetheo/gateway. Multi-backend (Meta Cloud API + whatsapp-web.js bridge). ADRs D303-D314.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -22,6 +22,7 @@
       }
     }
   },
+  "sideEffects": false,
   "files": [
     "dist",
     "README.md",
@@ -34,9 +35,17 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/sdk": "workspace:^"
+    "@usetheo/gateway": "workspace:^",
+    "@usetheo/sdk": "workspace:^",
+    "whatsapp-web.js": "^1.23.0"
+  },
+  "peerDependenciesMeta": {
+    "whatsapp-web.js": {
+      "optional": true
+    }
   },
   "devDependencies": {
+    "@usetheo/gateway": "workspace:*",
     "@usetheo/sdk": "workspace:*",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
