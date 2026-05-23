@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.2.0] - 2026-05-23
+
+### Added
+- `WhatsAppMessageEvent` variant added to the `MessageEvent` discriminated union (ADR D308). Required for `@usetheo/gateway-whatsapp`.
+- `PlatformName` union opened to include `"whatsapp"`.
+
+### Changed
+- Minor version bump (additive change — existing adapters / consumers unaffected).
+
 ## [0.1.0] — 2026-05-20
 
 ### Added

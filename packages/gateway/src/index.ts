@@ -43,4 +43,5 @@ export type {
   PlatformName,
   SlackMessageEvent,
   TelegramMessageEvent,
+  WhatsAppMessageEvent,
 } from "./types/message-event.js";
