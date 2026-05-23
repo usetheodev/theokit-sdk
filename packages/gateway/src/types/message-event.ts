@@ -16,7 +16,7 @@
  */
 
 /** Closed enum of supported transport platforms. */
-export type PlatformName = "telegram" | "discord" | "slack";
+export type PlatformName = "telegram" | "discord" | "slack" | "whatsapp";
 
 /** Fields common to every platform's inbound event. */
 export interface BaseMessageEvent {
@@ -89,5 +89,26 @@ export interface SlackMessageEvent extends BaseMessageEvent {
   };
 }
 
+/** WhatsApp-specific event variant (ADR D308). */
+export interface WhatsAppMessageEvent extends BaseMessageEvent {
+  readonly platform: "whatsapp";
+  readonly whatsapp: {
+    /** WhatsApp message id — `wamid.xxx` for cloud, `msg.id._serialized` for web. */
+    readonly wamid: string;
+    /** Meta-issued phone-number-id (cloud only; undefined for web bridge). */
+    readonly phoneNumberId?: string;
+    /** Contact's profile name when Meta provides it. */
+    readonly contactName?: string;
+    /** Which backend produced this event. */
+    readonly backend: "cloud" | "web";
+    /** Raw envelope — backend-specific, narrowed by the adapter package. */
+    readonly raw: unknown;
+  };
+}
+
 /** Discriminated union of all platform variants. */
-export type MessageEvent = TelegramMessageEvent | DiscordMessageEvent | SlackMessageEvent;
+export type MessageEvent =
+  | TelegramMessageEvent
+  | DiscordMessageEvent
+  | SlackMessageEvent
+  | WhatsAppMessageEvent;

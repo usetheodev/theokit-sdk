@@ -592,7 +592,7 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 | Tier | # | Item | Categoria | Score | Status |
 |---|---|---|---|---:|---|
 | ~~T1~~ | ~~1~~ | ~~**Docs site**~~ ✅ DONE 2026-05-23 (plano `docs-site-theokit-sdk`, PR theo-opendocs#1 merged) — `../theo-opendocs/content/theokit-sdk/`: landing + 5 getting-started + 19 concepts + 249 API ref auto-gerada (TypeDoc) + 7 cookbook recipes auto-gerados (de `examples/`) + Orama search (5MB index, ~1500 entries) + drift CI gate (`docs:drift` script + workflow). Smoke 8/8 PASS + SDK dogfood 44/44 sem regressão. **Live em Cloudflare Pages**: `https://2780c243.theo-opendocs.pages.dev/theokit-sdk/` (4118 arquivos enviados em 65s; CF Pages auto-deploy on `main` via wrangler). | infra | 10 | ✅ DONE |
-| T2 | 2 | **`@usetheo/gateway-whatsapp`** — Meta WhatsApp Business Cloud API. Suporte a 1:1 + grupos (Group v2), webhook signed, media handling, status receipts | gateway | 9 | Pendente |
+| ~~T2~~ | ~~2~~ | ~~**`@usetheo/gateway-whatsapp`**~~ ✅ DONE 2026-05-23 (plano `gateway-whatsapp`, ADRs D303-D314) — multi-backend (Meta Cloud API + `whatsapp-web.js` subprocess bridge, padrão Hermes), DMs + grupos + texto + status receipts, group mention filter com digits-only normalizer (D309 + EC-7), 85/85 unit tests, build verde, publint + attw 100% verde, `examples/whatsapp-bot/` com Express webhook server + env-gated smoke, drift checker clean. SDK telegram-pro dogfood 44/44 PASS (zero regressão). | gateway | 9 | ✅ DONE |
 | T2 | 3 | **`@usetheo/gateway-teams`** — Microsoft Teams via Bot Framework SDK + msgraph webhook (espelha Hermes `msgraph_webhook.py` + OpenClaw `msteams`). Suporte a 1:1, channel, adaptive cards | gateway | 8 | Pendente |
 | T2 | 4 | **`@usetheo/gateway-email`** — IMAP inbound + SMTP outbound. Threading por `In-Reply-To`/`References`, attachment passthrough, optional spam filter hook | gateway | 7 | Pendente |
 | T3 | 5 | **`@usetheo/skills-google-workspace`** — pacote ÚNICO empacotando 3 MCP servers (Calendar + Drive + Sheets) + OAuth setup helper + cookbook recipes. NÃO reinventa MCP — usa os servers oficiais (`@modelcontextprotocol/server-gdrive` etc) com glue de credenciais e UX | skills/MCP | 6 | Pendente |
@@ -627,8 +627,8 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 **Sequência recomendada — atualizada 2026-05-23:**
 
 1. ~~**Docs site (#1, T1)**~~ ✅ DONE 2026-05-23 — desbloqueou visibilidade do que já foi shipado. Live em `2780c243.theo-opendocs.pages.dev/theokit-sdk/`. Cookbook + reference auto-gen no place; futuras features só precisam de 1 page de concept + um example com README pra aparecer.
-2. **WhatsApp (#2) é o próximo Tier 2** — maior leverage por usuário endereçável. Complexidade Group v2 + media é o maior risco técnico do roadmap; abordar com energia fresca agora que Docs estabilizou.
-3. **Teams (#3)** terceiro — fecha o triângulo enterprise (Slack ✅ + Teams + Discord ✅). Adaptive Cards é polimento; v1 pode ser texto plano.
+2. ~~**WhatsApp (#2)**~~ ✅ DONE 2026-05-23 — maior leverage por usuário endereçável. Shipado multi-backend (Meta Cloud + Web bridge) com 85/85 unit tests + publint/attw verde + example com webhook server. Live validation aguarda Meta Business setup.
+3. **Teams (#3) é o próximo Tier 2** — fecha o triângulo enterprise (Slack ✅ + Teams + Discord ✅). Adaptive Cards é polimento; v1 pode ser texto plano.
 4. **Email (#4)** quarto — IMAP/SMTP é território conhecido; risco baixo, valor alto e estável. Bom item de "shipping rápido" depois de WhatsApp+Teams (mais densos).
 5. **Google Workspace (#5)** quinto — agora desbloqueado (Docs existe pra cookbook fazer sentido). Esforço de empacotamento + UX, não protocolo. Pode rodar em paralelo com Email se houver mão livre.
 

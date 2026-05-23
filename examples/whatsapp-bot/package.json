@@ -1,0 +1,21 @@
+{
+  "name": "example-whatsapp-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx --env-file=.env run.ts",
+    "smoke": "tsx --env-file=.env smoke.ts"
+  },
+  "dependencies": {
+    "@usetheo/gateway": "file:../../packages/gateway",
+    "@usetheo/gateway-whatsapp": "file:../../packages/gateway-whatsapp",
+    "@usetheo/sdk": "file:../../packages/sdk",
+    "express": "^4.19.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "tsx": "^4.22.0",
+    "typescript": "^5.8.0"
+  }
+}
