@@ -39,6 +39,7 @@ export {
 export type {
   BaseMessageEvent,
   DiscordMessageEvent,
+  EmailMessageEvent,
   MessageEvent,
   PlatformName,
   SlackMessageEvent,

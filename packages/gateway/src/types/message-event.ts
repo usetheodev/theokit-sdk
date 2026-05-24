@@ -16,7 +16,13 @@
  */
 
 /** Closed enum of supported transport platforms. */
-export type PlatformName = "telegram" | "discord" | "slack" | "whatsapp" | "teams";
+export type PlatformName =
+  | "telegram"
+  | "discord"
+  | "slack"
+  | "whatsapp"
+  | "teams"
+  | "email";
 
 /** Fields common to every platform's inbound event. */
 export interface BaseMessageEvent {
@@ -127,10 +133,36 @@ export interface TeamsMessageEvent extends BaseMessageEvent {
   };
 }
 
+/** Email-specific event variant (ADR D339). */
+export interface EmailMessageEvent extends BaseMessageEvent {
+  readonly platform: "email";
+  readonly email: {
+    /** Message-ID without `<>` braces. Use as `channel.topicId` for threading. */
+    readonly messageId: string;
+    /** Previous Message-ID this message replies to (without `<>`). */
+    readonly inReplyTo?: string;
+    /** Full References chain (oldest → newest, no braces). */
+    readonly references?: readonly string[];
+    /** Decoded Subject (fallback `"(no subject)"`). */
+    readonly subject: string;
+    /** Sender address (lowercased, normalized). */
+    readonly fromAddress: string;
+    /** Sender display name when present. */
+    readonly fromName?: string;
+    /** All To/Cc recipients lowercased; bot's own address EXCLUDED. */
+    readonly recipients: readonly string[];
+    /** Count of attachments (v0.1 drops payloads — see D335). */
+    readonly attachmentCount: number;
+    /** Raw `mailparser.ParsedMail` — escape hatch. */
+    readonly raw: unknown;
+  };
+}
+
 /** Discriminated union of all platform variants. */
 export type MessageEvent =
   | TelegramMessageEvent
   | DiscordMessageEvent
   | SlackMessageEvent
   | WhatsAppMessageEvent
-  | TeamsMessageEvent;
+  | TeamsMessageEvent
+  | EmailMessageEvent;
