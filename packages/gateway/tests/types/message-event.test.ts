@@ -112,11 +112,28 @@ describe("MessageEvent (T1.1)", () => {
         raw: {},
       },
     };
+    const emailEv: MessageEvent = {
+      id: "em-1",
+      platform: "email",
+      sender: { id: "alice@example.com" },
+      channel: { id: "alice@example.com", type: "dm", topicId: "msgid-1" },
+      text: "hi",
+      receivedAt: 0,
+      email: {
+        messageId: "msgid-1",
+        subject: "Hi",
+        fromAddress: "alice@example.com",
+        recipients: ["bot@example.com"],
+        attachmentCount: 0,
+        raw: {},
+      },
+    };
     const events: MessageEvent[] = [
       makeTelegramEvent(),
       makeDiscordEvent(),
       makeWhatsAppEvent(),
       teamsEv,
+      emailEv,
     ];
     const ids = events.map((e): string => {
       switch (e.platform) {
@@ -130,8 +147,35 @@ describe("MessageEvent (T1.1)", () => {
           return `wa:${e.whatsapp.wamid}`;
         case "teams":
           return `tm:${e.teams.conversationId}`;
+        case "email":
+          return `em:${e.email.messageId}`;
       }
     });
-    expect(ids).toEqual(["tg:200", "dc:cA", "wa:wamid.xxx", "tm:c"]);
+    expect(ids).toEqual(["tg:200", "dc:cA", "wa:wamid.xxx", "tm:c", "em:msgid-1"]);
+  });
+
+  it("platform field narrows to email variant (ADR D339)", () => {
+    const e: MessageEvent = {
+      id: "em-1",
+      platform: "email",
+      sender: { id: "alice@example.com" },
+      channel: { id: "alice@example.com", type: "dm" },
+      text: "hi",
+      receivedAt: 0,
+      email: {
+        messageId: "msgid-1",
+        subject: "Hi",
+        fromAddress: "alice@example.com",
+        recipients: [],
+        attachmentCount: 0,
+        raw: {},
+      },
+    };
+    if (e.platform === "email") {
+      expect(e.email.messageId).toBe("msgid-1");
+      expect(e.email.subject).toBe("Hi");
+    } else {
+      throw new Error("unreachable");
+    }
   });
 });
