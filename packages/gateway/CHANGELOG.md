@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.4.0] - 2026-05-24
+
+### Added
+- `EmailMessageEvent` variant added to the `MessageEvent` discriminated union (ADR D339). Required for `@usetheo/gateway-email`.
+- `PlatformName` union opened to include `"email"`.
+
+### Changed
+- Minor version bump (additive change — existing adapters / consumers unaffected).
+
 ## [0.3.0] - 2026-05-23
 
 ### Added

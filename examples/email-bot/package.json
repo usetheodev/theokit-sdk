@@ -1,0 +1,24 @@
+{
+  "name": "example-email-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx --env-file=.env run.ts",
+    "smoke": "tsx --env-file=.env smoke.ts"
+  },
+  "dependencies": {
+    "@usetheo/gateway": "file:../../packages/gateway",
+    "@usetheo/gateway-email": "file:../../packages/gateway-email",
+    "@usetheo/sdk": "file:../../packages/sdk",
+    "imapflow": "^1.0.165",
+    "mailparser": "^3.7.0",
+    "nodemailer": "^8.0.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/mailparser": "^3.4.0",
+    "@types/nodemailer": "^8.0.0",
+    "tsx": "^4.22.0",
+    "typescript": "^5.8.0"
+  }
+}
