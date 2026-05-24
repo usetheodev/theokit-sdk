@@ -16,7 +16,7 @@
  */
 
 /** Closed enum of supported transport platforms. */
-export type PlatformName = "telegram" | "discord" | "slack" | "whatsapp";
+export type PlatformName = "telegram" | "discord" | "slack" | "whatsapp" | "teams";
 
 /** Fields common to every platform's inbound event. */
 export interface BaseMessageEvent {
@@ -106,9 +106,31 @@ export interface WhatsAppMessageEvent extends BaseMessageEvent {
   };
 }
 
+/** Microsoft Teams-specific event variant (ADR D325). */
+export interface TeamsMessageEvent extends BaseMessageEvent {
+  readonly platform: "teams";
+  readonly teams: {
+    /** Teams activity id (`MessageActivity.id`). */
+    readonly activityId: string;
+    /** Teams conversation id. */
+    readonly conversationId: string;
+    /** Teams conversation classification — open string per SDK type. */
+    readonly conversationType: "personal" | "groupChat" | "channel" | (string & {});
+    /** Tenant id of the sender (Azure AD). */
+    readonly tenantId?: string;
+    /** Channel id (only when conversationType === "channel"). */
+    readonly channelId?: string;
+    /** Team id (only when conversationType === "channel"). */
+    readonly teamId?: string;
+    /** Raw Teams `MessageActivity` — narrowed by the adapter package. */
+    readonly raw: unknown;
+  };
+}
+
 /** Discriminated union of all platform variants. */
 export type MessageEvent =
   | TelegramMessageEvent
   | DiscordMessageEvent
   | SlackMessageEvent
-  | WhatsAppMessageEvent;
+  | WhatsAppMessageEvent
+  | TeamsMessageEvent;
