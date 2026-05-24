@@ -75,11 +75,48 @@ describe("MessageEvent (T1.1)", () => {
     }
   });
 
+  it("platform field narrows to teams variant (ADR D325)", () => {
+    const e: MessageEvent = {
+      id: "tm-1",
+      platform: "teams",
+      sender: { id: "user-1", displayName: "Alice" },
+      channel: { id: "conv-1", type: "dm" },
+      text: "hi",
+      receivedAt: 0,
+      teams: {
+        activityId: "act-1",
+        conversationId: "conv-1",
+        conversationType: "personal",
+        raw: {},
+      },
+    };
+    if (e.platform === "teams") {
+      expect(e.teams.conversationType).toBe("personal");
+    } else {
+      throw new Error("unreachable");
+    }
+  });
+
   it("exhaustive switch covers all platforms", () => {
+    const teamsEv: MessageEvent = {
+      id: "tm-1",
+      platform: "teams",
+      sender: { id: "u" },
+      channel: { id: "c", type: "dm" },
+      text: "hi",
+      receivedAt: 0,
+      teams: {
+        activityId: "act-1",
+        conversationId: "c",
+        conversationType: "personal",
+        raw: {},
+      },
+    };
     const events: MessageEvent[] = [
       makeTelegramEvent(),
       makeDiscordEvent(),
       makeWhatsAppEvent(),
+      teamsEv,
     ];
     const ids = events.map((e): string => {
       switch (e.platform) {
@@ -91,8 +128,10 @@ describe("MessageEvent (T1.1)", () => {
           return `sl:${e.slack.channelId}`;
         case "whatsapp":
           return `wa:${e.whatsapp.wamid}`;
+        case "teams":
+          return `tm:${e.teams.conversationId}`;
       }
     });
-    expect(ids).toEqual(["tg:200", "dc:cA", "wa:wamid.xxx"]);
+    expect(ids).toEqual(["tg:200", "dc:cA", "wa:wamid.xxx", "tm:c"]);
   });
 });

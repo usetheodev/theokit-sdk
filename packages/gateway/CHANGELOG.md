@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.3.0] - 2026-05-23
+
+### Added
+- `TeamsMessageEvent` variant added to the `MessageEvent` discriminated union (ADR D325). Required for `@usetheo/gateway-teams`.
+- `PlatformName` union opened to include `"teams"`.
+
+### Changed
+- Minor version bump (additive change — existing adapters / consumers unaffected).
+
 ## [0.2.0] - 2026-05-23
 
 ### Added
