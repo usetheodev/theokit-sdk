@@ -21,8 +21,11 @@ export { type DefineToolSpec, defineTool } from "./define-tool.js";
 // Errors (runtime classes)
 export {
   AgentRunError,
+  type AgentRunErrorCode,
   AuthenticationError,
   ConfigurationError,
+  type ErrorCode,
+  type ErrorMetadata,
   IntegrationNotConnectedError,
   MemoryAdapterError,
   type MemoryAdapterErrorCode,

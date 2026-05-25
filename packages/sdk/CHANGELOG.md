@@ -2,6 +2,29 @@
 
 ## [Unreleased]
 
+### Added/Changed (`AgentRunError` discriminated codes + retryAfterMs + requestId — Production-Readiness #3)
+
+Closes Gap 3 of the TheoKit cross-repo handoff. Makes `AgentRunError` consumer-branchable for proper UX (retry CTAs, billing upsell, cancel suppression) without parsing `.message` strings.
+
+**Added:**
+- **`AgentRunErrorCode`** discriminated union (16 codes) exported from `@usetheo/sdk`. Supersets `ErrorCode` with non-HTTP origins (`quota_exceeded`, `tool_runtime_error`, `aborted`, `invalid_model`, `safety_blocked`, `provider_unreachable`). Trailing `(string & {})` keeps autocomplete + accepts legacy provider-prefixed strings.
+- **`AgentRunError.requestId`** + **`AgentRunError.conversationId`** fields. Provider's `x-request-id` / `request-id` header parsed via `parseRequestId` helper in `internal/errors/mappers/shared.ts`. `conversationId` settable by caller for log correlation.
+- **`AgentRunError.retriable`** getter — alias for `isRetryable` (handoff contract; future v2 deprecates `isRetryable`).
+- **`AgentRunError.retryAfterMs`** computed getter — `metadata.retryAfter * 1000` so callers compose with `Date.now()` / `setTimeout` directly. Returns `0` (not `undefined`) when provider sent `Retry-After: 0` (EC-11).
+- **`AgentRunError.providerError`** getter — aliases `metadata.raw`. Anti-leak invariant: `.message` NEVER contains the raw body (D313).
+- **`DispatchResult.errorCode`** field — distinguishes tool dispatch failures: `tool_runtime_error` (handler throw), `invalid_request` (validate failure), `unknown` (registry miss). Consumers mapping DispatchResult → AgentRunError use this directly.
+- **`docs/error-codes.md`** standalone reference with provider mapping tables.
+
+**Changed:**
+- **OpenAI-compatible mapper** detects HTTP 402 + body `code: "insufficient_quota"` / `"quota_exceeded"` and maps to `invalid_request` (ErrorCode is HTTP-pure per D314 — quota_exceeded at AgentRunError layer).
+- **`buildErrorMetadata`** now exposes `parseRequestId` companion for mapper consumption (D314).
+
+**ADRs:** D311 (code union + escape hatch), D312 (retryAfterMs getter), D313 (providerError alias), D314 (mapper priorities).
+
+**Tests:** 20 new in `tests/errors/agent-run-error-fields.test.ts` (all 6 new codes accepted, getters compute correctly, EC-11 zero-retryAfter, anti-leak invariant). 4 new in `tests/tool-dispatch/tool-error-code.test.ts`. 5 new in `tests/internal/errors/mappers/shared.test.ts` for parseRequestId. 2 new in `tests/internal/errors/mappers/openai-compatible.test.ts` for 402 / insufficient_quota.
+
+**Backward compat:** existing `AgentRunError` callers unaffected — new fields are optional, getters compute on demand, `code: string` accepted via `& {}`.
+
 ### Added (`Agent.registry` — LRU + idle GC for live agents — Production-Readiness #2)
 
 Closes Gap 2 of the TheoKit cross-repo handoff. Eliminates OOM in 24/7 Node deploys that previously had no eviction for the live agent set (TheoKit's `dev-agent-gc.ts` only ran in dev mode; production servers accumulated agents until heap pressure crashed them).

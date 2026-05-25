@@ -32,6 +32,16 @@ export interface DispatchResult {
   content: string;
   /** Repairs applied during dispatch (case fix, args parse, type coerce). */
   repairs: string[];
+  /**
+   * Production-Readiness #3 / T3.4: when `isError === true`, the error code
+   * indicates the failure cause:
+   * - `"tool_runtime_error"` — handler threw (caught by dispatch try/catch)
+   * - `"invalid_request"` — schema validation failed (args malformed)
+   * - `"unknown"` — registry lookup miss (tool name not found)
+   *
+   * Consumers mapping DispatchResult → AgentRunError use this directly.
+   */
+  errorCode?: "tool_runtime_error" | "invalid_request" | "unknown";
 }
 
 /**
@@ -54,6 +64,7 @@ export async function dispatchToolWithRepair(
       isError: true,
       content: `Unknown tool: "${call.name}". Available: ${available}`,
       repairs,
+      errorCode: "unknown",
     };
   }
 
@@ -66,6 +77,7 @@ export async function dispatchToolWithRepair(
         isError: true,
         content: `Invalid arguments for "${call.name}": ${v.reason}`,
         repairs,
+        errorCode: "invalid_request",
       };
     }
     validatedArgs = v.value;
@@ -86,6 +98,7 @@ export async function dispatchToolWithRepair(
       isError: true,
       content: `Tool execution failed: ${message}`,
       repairs,
+      errorCode: "tool_runtime_error",
     };
   }
 }

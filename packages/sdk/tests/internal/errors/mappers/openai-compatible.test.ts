@@ -165,4 +165,31 @@ describe("mapOpenAICompatibleError", () => {
     expect(err).toBeInstanceOf(UnknownAgentError);
     expect(err.metadata?.code).toBe("unknown");
   });
+
+  // D314: Production-Readiness Phase 3 — billing-style codes
+  it("402 → ConfigurationError (mapped via invalid_request fallback)", () => {
+    const err = mapOpenAICompatibleError({
+      providerId: "openai",
+      status: 402,
+      body: { error: { type: "insufficient_quota" } },
+      headers: headers(),
+      endpoint: "/v1/chat/completions",
+    });
+    // Status 402 doesn't match the AuthenticationError/Rate/etc. branches so
+    // falls through to UnknownAgentError. metadata.code is invalid_request
+    // (D314 mapping). AgentRunError emitted at the top level uses D311
+    // quota_exceeded.
+    expect(err.metadata?.code).toBe("invalid_request");
+  });
+
+  it("body with insufficient_quota code → invalid_request (D314)", () => {
+    const err = mapOpenAICompatibleError({
+      providerId: "openai",
+      status: 400,
+      body: { error: { code: "insufficient_quota", message: "billing" } },
+      headers: headers(),
+      endpoint: "/v1/chat/completions",
+    });
+    expect(err.metadata?.code).toBe("invalid_request");
+  });
 });
