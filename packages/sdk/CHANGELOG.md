@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.1.0
+
+### Minor Changes
+
+- Production-readiness for serverless and multi-host deploys (6 gaps from TheoKit cross-repo handoff).
+
+  **Added:**
+
+  - **`ConversationStorageAdapter`** interface + `FileSystemConversationStorage` (default) + `InMemoryConversationStorage`. New `AgentOptions.conversationStorage` opt-in. Postgres + Redis recipes in `docs/recipes/`. Strict resume integrity check via `requiresCustomStorage` marker (D325).
+  - **`Agent.registry`** — LRU + idle-timeout GC for live `SDKAgent` instances. `configure / evict / evictAll / size / ids` + `onEvict` listener. Defaults: `maxAgents: 100`, `idleTimeoutMs: 30 min`. Eliminates OOM in 24/7 Node deploys.
+  - **`AgentRunErrorCode`** discriminated union (16 codes including `quota_exceeded`, `tool_runtime_error`, `aborted`, `invalid_model`, `safety_blocked`, `provider_unreachable`). Plus `AgentRunError.requestId` / `.conversationId` fields and `.retriable` / `.retryAfterMs` / `.providerError` getters. Anti-leak invariant: `providerError` never in `.message`.
+  - **`SendOptions.signal`** propagates end-to-end to LLM `fetch({ signal })`. Tokens stop billing on caller cancel. `anySignal` ponyfill for a peer vendor Edge subsets without native `AbortSignal.any`. `agent.dispose()` fires lifecycle abort. Aborted runs throw `AgentRunError({ code: "aborted" })`; no partial assistant message persists.
+  - **`AgentOptions.onToolStart` / `onToolEnd` / `onToolError`** — observation callbacks with `callId` pair correlation + `durationMs`. Hook errors swallowed (do not crash run).
+  - **`AgentOptions.onBeforeCreate` / `onBeforeSend`** — admission gates for multi-tenant quota. Errors propagate (NOT swallowed — these are blockers, not observers).
+
+  25 new ADRs (D303-D325). 113 new tests. 3 real-LLM examples in `examples/{conversation-storage,abort-mid-stream,tool-hooks-tracking}/`. Postgres + Redis recipes in `docs/recipes/`. Full `docs.md` sections: Conversation storage, Agent registry lifecycle, Error codes, Cancellation, Tool lifecycle hooks, Quota / abuse hooks.
+
+  **Backward compatibility:** all new fields opt-in with safe defaults. Existing apps (telegram-pro, slack-bot, whatsapp-bot, email-bot, teams-bot, vertex-bot, bedrock-bot, handoffs, workflows, cache, eval, skills-google-workspace) compile and run unmodified.
+
+  Closes Gaps 1-6 of `docs/handoffs/from-theokit/2026-05-25-production-readiness.md`.
+
 ## [Unreleased]
 
 ### Added (`onBeforeCreate` / `onBeforeSend` quota gates — Production-Readiness #6)
@@ -45,6 +66,7 @@ Closes Gap 5 of the TheoKit cross-repo handoff. Tokens stop billing the moment a
 Closes Gap 3 of the TheoKit cross-repo handoff. Makes `AgentRunError` consumer-branchable for proper UX (retry CTAs, billing upsell, cancel suppression) without parsing `.message` strings.
 
 **Added:**
+
 - **`AgentRunErrorCode`** discriminated union (16 codes) exported from `@usetheo/sdk`. Supersets `ErrorCode` with non-HTTP origins (`quota_exceeded`, `tool_runtime_error`, `aborted`, `invalid_model`, `safety_blocked`, `provider_unreachable`). Trailing `(string & {})` keeps autocomplete + accepts legacy provider-prefixed strings.
 - **`AgentRunError.requestId`** + **`AgentRunError.conversationId`** fields. Provider's `x-request-id` / `request-id` header parsed via `parseRequestId` helper in `internal/errors/mappers/shared.ts`. `conversationId` settable by caller for log correlation.
 - **`AgentRunError.retriable`** getter — alias for `isRetryable` (handoff contract; future v2 deprecates `isRetryable`).
@@ -54,6 +76,7 @@ Closes Gap 3 of the TheoKit cross-repo handoff. Makes `AgentRunError` consumer-b
 - **`docs/error-codes.md`** standalone reference with provider mapping tables.
 
 **Changed:**
+
 - **OpenAI-compatible mapper** detects HTTP 402 + body `code: "insufficient_quota"` / `"quota_exceeded"` and maps to `invalid_request` (ErrorCode is HTTP-pure per D314 — quota_exceeded at AgentRunError layer).
 - **`buildErrorMetadata`** now exposes `parseRequestId` companion for mapper consumption (D314).
 
@@ -201,7 +224,7 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
   (`{ reset: true }` for opt-in clear), appends user-role transcript
   marker (`[persona switched to <slug>]` or `[persona cleared]`), and
   invalidates the prompt cache via D94 deferred (`reason:
-  "personality-switch"`).
+"personality-switch"`).
 - **Tool whitelist filter** (D167) — `applyPersonalityFilter` narrows
   the exposed `customTools` set; missing entries log a one-shot warn
   with Levenshtein-distance-≤2 "did you mean" hint. Subtractive only
@@ -246,16 +269,16 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
   without marker. EC-J: same-priority sort tie-breaks by source path lex
   for prompt-cache stability.
 - **EC-E privacy fix** — disambiguation uses `relative(gitRoot ?? cwd,
-  dirname(path))` for source names, NEVER absolute paths. Prevents
+dirname(path))` for source names, NEVER absolute paths. Prevents
   developer home dir / project name from leaking into LLM provider
   logs.
 - **Telemetry counters** (D159) — `context_files_truncated` (per-file)
-  + `context_files_total_truncated` (aggregate drop). Lazy `tracer`
-  lookup via `globalThis.__theokit_tracer`; no-op when OTel not
-  installed (EC-L).
+  - `context_files_total_truncated` (aggregate drop). Lazy `tracer`
+    lookup via `globalThis.__theokit_tracer`; no-op when OTel not
+    installed (EC-L).
 - **Backward compat** (D158) — existing `.theokit/context/*.md` Zod
   frontmatter sources keep working unchanged. Legacy `.theokit/
-  context.json` loads CONTENT and emits one-time deprecation warning
+context.json` loads CONTENT and emits one-time deprecation warning
   (EC-K verified).
 - **Public API additions** in `AgentOptions.context`:
   - `maxBytesPerFile?: number` (default 40_000)
@@ -264,7 +287,7 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
 ### New internal modules
 
 - `internal/runtime/context-discovery.ts` — DiscoverySpec + `findGitRoot`
-  + `walkUpForFile` + `walkUpForGlob`.
+  - `walkUpForFile` + `walkUpForGlob`.
 - `internal/runtime/context-loaders.ts` — `loadPlainMarkdown` +
   `truncateWithMarker`.
 - `internal/runtime/context-import-resolver.ts` — `resolveImports`
@@ -299,9 +322,9 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
   `extractRawId(id, expected)` enforce cross-adapter id integrity
   (EC-B: prevents `mem0.delete(supermemoryId)` footgun).
 - **`packages/sdk/src/errors.ts`** — new public `MemoryAdapterError`
-  + finite `MemoryAdapterErrorCode` literal union (`"auth_failed"`,
-  `"rate_limited"`, `"not_found"`, `"network"`, `"invalid_input"`,
-  `"unknown"`).
+  - finite `MemoryAdapterErrorCode` literal union (`"auth_failed"`,
+    `"rate_limited"`, `"not_found"`, `"network"`, `"invalid_input"`,
+    `"unknown"`).
 - **`packages/sdk/src/internal/plugins/types.ts`** — narrows
   `MemoryProviderFactory` return type from `unknown` to
   `MemoryAdapter | Promise<MemoryAdapter>`. Adds `PreUserSendContext`,
@@ -427,14 +450,14 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
 - **`errors.ts`** — new public `CredentialPoolExhaustedError` (D133).
 - **`types/providers.ts`** — extends `ProviderRoutingSettings` with optional
   `apiKeys: Record<string, string[]>` + `credentialPoolStrategy:
-  Record<string, CredentialPoolStrategy>` (D130).
+Record<string, CredentialPoolStrategy>` (D130).
 - **Router wiring** (`internal/llm/router.ts`) — `buildClient` branches on
   pool presence: ≥2 effective keys → wrap in `PoolAwareLlmClient`; 0/1 → existing
   single-key fast path (D132 backward compat). EC-B: warn once per unknown
   provider in apiKeys config. Empty strings filtered.
 - **`validate-agent-options.ts`** — EC-J ambiguity check: `apiKey` +
   `apiKeys[provider]` together throws `ConfigurationError(code:
-  "credential_pool_ambiguous")` with an educative message.
+"credential_pool_ambiguous")` with an educative message.
 
 ### CI gates
 
@@ -568,7 +591,7 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
 - **`internal/providers/`** — provider-as-plugin (ADRs D105-D107):
   - `types.ts` — `ProviderProfile` data-only (D105), `ApiMode` literal union
   - `registry.ts` — `registerProvider`/`getProviderProfile`/`listProviders`
-    + EC-5 alias collision warn
+    - EC-5 alias collision warn
   - `builtin/{anthropic,openai,openrouter,gemini}.ts` — 4 profiles
     migrated from hardcoded switch
   - `discovery.ts` — lazy scan of `~/.theokit/plugins/model-providers/`
@@ -579,10 +602,10 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
 ### Changed (plugin-extension-block-completion)
 
 - `internal/llm/router.ts:buildClient` — consults `getProviderProfile`
-  + `selectTransport(apiMode)` instead of hardcoded switch (T4.3).
-  EC-3: unsupported apiMode throws `transport_unavailable` with
-  actionable message. EC-10: `envVars` ordered fallback (OPENROUTER_API_KEY
-  then OPENAI_API_KEY for OpenRouter).
+  - `selectTransport(apiMode)` instead of hardcoded switch (T4.3).
+    EC-3: unsupported apiMode throws `transport_unavailable` with
+    actionable message. EC-10: `envVars` ordered fallback (OPENROUTER_API_KEY
+    then OPENAI_API_KEY for OpenRouter).
 - `LocalAgent.initialize` — wires `pluginManagerCode.initialize(codePlugins)`
   via `extractCodePlugins` filter (EC-1 discriminates legacy `{ enabled }`
   metadata from new `Plugin[]`); telegram-pro + 7 examples continue to
@@ -608,7 +631,7 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
   applies 3 idempotent repairs (case-insensitive name match,
   JSON-string-args parse, type coercion against schema). Fixes 10+
   provider-specific failure modes catalogued in `sdk-references/
-  tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
+tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
   v0.8 #5265, etc.).
 - **`internal/tool-dispatch/strip-think.ts`** — `stripThinkBlocks`
   removes `<think>...</think>` chain-of-thought from LLM responses
@@ -755,9 +778,9 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
   `plugin.json`. Warns on the JSON path; warns on conflict
   ("both files detected — using markdown").
 - **`telegram-pro` example** migrated: `.theokit/hooks/shell-policy.md`
-  + `.theokit/context/bot-readme.md` replace the legacy JSONs.
-  `workspace-seeds.ts` writes the MD files (idempotent via `ensureFile`).
-  The seed-only `plugins.json` (never consumed by the SDK) was removed.
+  - `.theokit/context/bot-readme.md` replace the legacy JSONs.
+    `workspace-seeds.ts` writes the MD files (idempotent via `ensureFile`).
+    The seed-only `plugins.json` (never consumed by the SDK) was removed.
 
 ### Deprecated (markdown-config-migration)
 
@@ -803,6 +826,7 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
 ### Changed
 
 - **Refined subclass selection on HTTP errors** (breaking change for callers asserting on specific subclasses). Previously every non-OK HTTP response from Anthropic/OpenAI/OpenRouter/embedding adapters threw a `NetworkError` (or a coarse mapping). Now:
+
   - `401` / `403` → `AuthenticationError`
   - `429` → `RateLimitError`
   - `400` → `ConfigurationError` (with `code: "context_too_long" | "content_filtered" | "model_unavailable" | "invalid_request"` depending on body inspection)
