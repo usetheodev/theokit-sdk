@@ -81,7 +81,6 @@ function resolveTemplatesRoot(): string {
   );
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: scaffold flow is intentionally sequential: EC-A name check → EC-G symlink check → existing-dir check → atomic tmp+rename. Splitting blurs the error-code contract.
 export async function scaffold(opts: ScaffoldOptions): Promise<ScaffoldResult> {
   // EC-A: validate project name BEFORE any fs touch.
   const nameCheck = validateProjectName(opts.projectName);
@@ -177,7 +176,6 @@ function copyTreeWithSubstitution(srcDir: string, destDir: string, vars: Substit
   // For test-friendliness + substitution control, walk the tree ourselves
   // instead of using `cpSync` opaque copy.
   let count = 0;
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: inner walker is recursive by nature; dot-file substitution gate inline for visibility.
   function walk(src: string, dst: string): void {
     const entries = readdirSync(src, { withFileTypes: true });
     mkdirSync(dst, { recursive: true });

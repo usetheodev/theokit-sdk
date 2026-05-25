@@ -33,7 +33,6 @@ const adapter = new TelegramAdapter({ bot });
 
 const runner = new GatewayRunner({
   adapters: [adapter],
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: template handler — gate empty + resolve agent + stream reply is intentionally linear for didactics.
   handler: async (event, ctx) => {
     if (event.text.length === 0) return;
     const agentId = `${event.platform}-dm-${event.sender.id}`;

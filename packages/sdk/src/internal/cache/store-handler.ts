@@ -10,14 +10,11 @@
  * @internal
  */
 
-import type {
-  CacheEmbedderRuntime,
-  CacheTTLConfig,
-} from "../../types/cache.js";
+import type { CacheEmbedderRuntime, CacheTTLConfig } from "../../types/cache.js";
 import { computeCacheKey } from "./key.js";
 import type { LookupableStore } from "./lookup.js";
-import { parseTtlMs } from "./ttl.js";
 import { startCacheStoreSpan } from "./telemetry.js";
+import { parseTtlMs } from "./ttl.js";
 
 export interface StoreParams {
   prompt: string;
@@ -53,7 +50,7 @@ export async function performStore(p: StoreParams): Promise<void> {
       return;
     }
     // D255 exclude regex.
-    if (p.ttl.exclude !== undefined && p.ttl.exclude.test(p.prompt)) {
+    if (p.ttl.exclude?.test(p.prompt)) {
       span.setAttribute("cache.bypass_reason", "exclude_regex");
       return;
     }

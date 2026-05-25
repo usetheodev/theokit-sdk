@@ -8,10 +8,7 @@
  * @internal
  */
 
-import type {
-  CacheEmbedderRuntime,
-  CacheTTLConfig,
-} from "../../types/cache.js";
+import type { CacheEmbedderRuntime, CacheTTLConfig } from "../../types/cache.js";
 import { computeCacheKey } from "./key.js";
 import type { InMemoryCacheStore } from "./store.js";
 import type { JsonFileCacheStore } from "./store-json.js";
@@ -49,7 +46,7 @@ export async function performLookup(p: LookupParams): Promise<LookupResult> {
       return { cached: false };
     }
     // D255 exclude regex.
-    if (p.ttl.exclude !== undefined && p.ttl.exclude.test(p.prompt)) {
+    if (p.ttl.exclude?.test(p.prompt)) {
       p.store.incrementExcluded();
       span.setAttribute("cache.bypass_reason", "exclude_regex");
       return { cached: false };
@@ -93,7 +90,12 @@ export async function performLookup(p: LookupParams): Promise<LookupResult> {
       span.setAttribute("cache.hit", "semantic");
       span.setAttribute("cache.distance", match.distance);
       span.setAttribute("cache.ttl_remaining_s", Math.floor((match.entry.expiresAt - now) / 1000));
-      return { cached: true, response: match.entry.response, source: "semantic", distance: match.distance };
+      return {
+        cached: true,
+        response: match.entry.response,
+        source: "semantic",
+        distance: match.distance,
+      };
     }
 
     p.store.incrementMisses();

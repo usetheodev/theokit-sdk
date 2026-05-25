@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { Agent, type AgentOptions, AgentRunError } from "../src/index.js";
-import type { Run, RunResult, SDKAgent } from "../src/types/run.js";
+import type { SDKAgent } from "../src/types/agent.js";
+import type { Run, RunResult } from "../src/types/run.js";
 
 /**
  * T1.2 — `Agent.prompt` honors `AgentOptions.throwOnError`.
@@ -41,11 +42,9 @@ function makeFakeAgent(canned: Partial<RunResult>): {
 
 function stubAgentCreate(fakeAgent: SDKAgent): () => void {
   const original = Agent.create;
-  // @ts-expect-error — overriding static for tests
-  Agent.create = async (_opts: AgentOptions) => fakeAgent;
+  (Agent as { create: typeof Agent.create }).create = async (_opts: AgentOptions) => fakeAgent;
   return () => {
-    // @ts-expect-error — restore
-    Agent.create = original;
+    (Agent as { create: typeof Agent.create }).create = original;
   };
 }
 

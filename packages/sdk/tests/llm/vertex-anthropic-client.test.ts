@@ -3,14 +3,13 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
+import { ConfigurationError } from "../../src/errors.js";
+import type { LlmRequest } from "../../src/internal/llm/types.js";
 import { VertexAnthropicClient } from "../../src/internal/llm/vertex-anthropic.js";
 import {
   __resetVertexAuth,
   __setVertexAuthClientForTests,
 } from "../../src/internal/llm/vertex-auth.js";
-import { ConfigurationError } from "../../src/errors.js";
-import type { LlmRequest } from "../../src/internal/llm/types.js";
 
 const REQ: LlmRequest = {
   model: "vertex/anthropic/claude-sonnet-4-5@20250929",

@@ -16,13 +16,7 @@
  */
 
 /** Closed enum of supported transport platforms. */
-export type PlatformName =
-  | "telegram"
-  | "discord"
-  | "slack"
-  | "whatsapp"
-  | "teams"
-  | "email";
+export type PlatformName = "telegram" | "discord" | "slack" | "whatsapp" | "teams" | "email";
 
 /** Fields common to every platform's inbound event. */
 export interface BaseMessageEvent {

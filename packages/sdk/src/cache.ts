@@ -27,7 +27,18 @@
  */
 
 import { z } from "zod";
-
+import { type LookupableStore, performLookup } from "./internal/cache/lookup.js";
+import { InMemoryCacheStore } from "./internal/cache/store.js";
+import { performStore } from "./internal/cache/store-handler.js";
+import { JsonFileCacheStore } from "./internal/cache/store-json.js";
+import type {
+  Plugin,
+  PluginContext,
+  PostAssistantReplyContext,
+  PreUserSendContext,
+  PreUserSendResult,
+} from "./internal/plugins/types.js";
+import { definePlugin } from "./internal/plugins/types.js";
 import type {
   CacheEmbedderRuntime,
   CachePersistenceOptions,
@@ -35,25 +46,15 @@ import type {
   CacheStats,
   CacheTTLConfig,
 } from "./types/cache.js";
-import type {
-  PostAssistantReplyContext,
-  PluginContext,
-  PreUserSendContext,
-  PreUserSendResult,
-  Plugin,
-} from "./internal/plugins/types.js";
-import { definePlugin } from "./internal/plugins/types.js";
-import { performLookup, type LookupableStore } from "./internal/cache/lookup.js";
-import { performStore } from "./internal/cache/store-handler.js";
-import { InMemoryCacheStore } from "./internal/cache/store.js";
-import { JsonFileCacheStore } from "./internal/cache/store-json.js";
 
 const CacheSemanticOptionsSchema = z.object({
   embedder: z.unknown().refine(
     (v) => {
       if (v === null || typeof v !== "object") return false;
       const o = v as { id?: unknown; embed?: unknown; dimension?: unknown };
-      return typeof o.id === "string" && typeof o.embed === "function" && typeof o.dimension === "number";
+      return (
+        typeof o.id === "string" && typeof o.embed === "function" && typeof o.dimension === "number"
+      );
     },
     { message: "embedder must be a CacheEmbedderRuntime with { id, dimension, embed }" },
   ),
@@ -103,14 +104,7 @@ export class Cache {
     const modelId = options.modelId ?? "unknown";
     const maxEntries = options.maxEntries ?? DEFAULT_MAX_ENTRIES;
     const store = createStore(namespace, maxEntries, options.persistence);
-    return new Cache(
-      options.embedder,
-      threshold,
-      ttl,
-      namespace,
-      modelId,
-      store,
-    );
+    return new Cache(options.embedder, threshold, ttl, namespace, modelId, store);
   }
 
   /**
@@ -181,9 +175,10 @@ export class Cache {
    * v1 plugin mode provides recall + context-inject (LLM still called).
    * v1.x will add transparent short-circuit via an agent-loop refactor.
    */
-  async consult(prompt: string): Promise<
-    | { hit: false }
-    | { hit: true; response: string; source: "kv" | "semantic"; distance?: number }
+  async consult(
+    prompt: string,
+  ): Promise<
+    { hit: false } | { hit: true; response: string; source: "kv" | "semantic"; distance?: number }
   > {
     const result = await performLookup({
       prompt,
@@ -209,11 +204,7 @@ export class Cache {
    * Explicit cache store — pair with `consult()` to manually feed the
    * cache after dispatching the LLM call yourself.
    */
-  async remember(
-    prompt: string,
-    response: string,
-    opts?: { usedTools?: boolean },
-  ): Promise<void> {
+  async remember(prompt: string, response: string, opts?: { usedTools?: boolean }): Promise<void> {
     await performStore({
       prompt,
       response,
@@ -261,8 +252,8 @@ function createStore(
 /* ─── Re-exports for ergonomics ─── */
 
 export {
-  type CacheEmbedderRuntime,
   CacheEmbedderError,
+  type CacheEmbedderRuntime,
   type CacheEntry,
   CacheInvalidTtlError,
   type CachePersistenceOptions,

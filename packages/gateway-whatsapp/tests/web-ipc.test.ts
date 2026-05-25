@@ -42,7 +42,9 @@ describe("LineBuffer (EC-11)", () => {
     const buf = new LineBuffer();
     expect(buf.push('{"event":"mes')).toEqual([]);
     expect(buf.pending).toBe('{"event":"mes');
-    const lines = buf.push('sage","msgId":"x","from":"5511","body":"hi","isGroup":false,"chatId":"5511","timestamp":1}\n');
+    const lines = buf.push(
+      'sage","msgId":"x","from":"5511","body":"hi","isGroup":false,"chatId":"5511","timestamp":1}\n',
+    );
     expect(lines).toHaveLength(1);
     expect(parseEvent(lines[0]!)?.event).toBe("message");
     expect(buf.pending).toBe("");
@@ -50,7 +52,9 @@ describe("LineBuffer (EC-11)", () => {
 
   it("yields multiple lines from one chunk", () => {
     const buf = new LineBuffer();
-    const lines = buf.push('{"event":"ready","botPhone":"5511"}\n{"event":"error","message":"x"}\n');
+    const lines = buf.push(
+      '{"event":"ready","botPhone":"5511"}\n{"event":"error","message":"x"}\n',
+    );
     expect(lines).toHaveLength(2);
   });
 

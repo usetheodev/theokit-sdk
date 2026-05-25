@@ -3,7 +3,6 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { mapBedrockError } from "../../src/internal/errors/mappers/bedrock.js";
 import {
   AuthenticationError,
   ConfigurationError,
@@ -11,6 +10,7 @@ import {
   RateLimitError,
   UnknownAgentError,
 } from "../../src/errors.js";
+import { mapBedrockError } from "../../src/internal/errors/mappers/bedrock.js";
 
 describe("mapBedrockError", () => {
   it("429 maps to RateLimitError", () => {

@@ -125,7 +125,15 @@ describe("parseWebhookPayload + normalize (T2.2)", () => {
 
   it("test_normalize_extracts_text_messages", () => {
     const env = parseWebhookPayload(
-      makeTextEnvelope([{ from: "5511888", id: "wamid.x", timestamp: "1700000000", type: "text", text: { body: "hi" } }]),
+      makeTextEnvelope([
+        {
+          from: "5511888",
+          id: "wamid.x",
+          timestamp: "1700000000",
+          type: "text",
+          text: { body: "hi" },
+        },
+      ]),
     );
     expect(env).not.toBeNull();
     const events = normalizeInboundMessages(env!);
@@ -152,7 +160,20 @@ describe("parseWebhookPayload + normalize (T2.2)", () => {
   it("test_normalize_handles_empty_changes — no messages array yields empty []", () => {
     const env = parseWebhookPayload({
       object: "x",
-      entry: [{ id: "e", changes: [{ field: "messages", value: { messaging_product: "whatsapp", metadata: { display_phone_number: "", phone_number_id: "" } } }] }],
+      entry: [
+        {
+          id: "e",
+          changes: [
+            {
+              field: "messages",
+              value: {
+                messaging_product: "whatsapp",
+                metadata: { display_phone_number: "", phone_number_id: "" },
+              },
+            },
+          ],
+        },
+      ],
     });
     const events = normalizeInboundMessages(env!);
     expect(events).toEqual([]);
@@ -178,8 +199,18 @@ describe("parseWebhookPayload + normalize (T2.2)", () => {
                 messaging_product: "whatsapp",
                 metadata: { display_phone_number: "5511", phone_number_id: "PNID" },
                 statuses: [
-                  { id: "wamid.s1", status: "delivered", timestamp: "1700000001", recipient_id: "5511888" },
-                  { id: "wamid.s2", status: "read", timestamp: "1700000002", recipient_id: "5511888" },
+                  {
+                    id: "wamid.s1",
+                    status: "delivered",
+                    timestamp: "1700000001",
+                    recipient_id: "5511888",
+                  },
+                  {
+                    id: "wamid.s2",
+                    status: "read",
+                    timestamp: "1700000002",
+                    recipient_id: "5511888",
+                  },
                 ],
               },
             },

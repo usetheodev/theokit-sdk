@@ -16,7 +16,7 @@
     "check": "biome check .",
     "check:fix": "biome check --write .",
     "validate:publint": "pnpm --filter=@usetheo/sdk exec publint",
-    "validate:attw": "pnpm --filter=@usetheo/sdk exec attw --pack . --ignore-rules no-resolution",
+    "validate:attw": "pnpm --filter=@usetheo/sdk exec attw --pack . --ignore-rules no-resolution cjs-resolves-to-esm false-esm",
     "quality:dead": "knip",
     "quality:cycles": "depcruise --config .dependency-cruiser.cjs packages/sdk/src",
     "quality:loc": "node tools/check-loc.mjs",

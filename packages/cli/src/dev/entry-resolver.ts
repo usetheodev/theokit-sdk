@@ -25,7 +25,6 @@ const FALLBACK_CANDIDATES = [
   "index.js",
 ];
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4-step priority chain (explicit → package.main → src/index.* → index.*) is one cohesive resolver.
 export function resolveEntry(cwd: string, explicit?: string): string {
   // 1. Explicit flag.
   if (explicit !== undefined && explicit.length > 0) {

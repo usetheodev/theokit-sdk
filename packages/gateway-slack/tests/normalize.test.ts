@@ -4,11 +4,13 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { normalizeSlackEvent, type BoltMessageBody } from "../src/normalize.js";
+import { type BoltMessageBody, normalizeSlackEvent } from "../src/normalize.js";
 
 const BOT = "UBOT1234";
 
-function mkBody(event: Partial<BoltMessageBody["event"]> & { ts: string; channel: string }): BoltMessageBody {
+function mkBody(
+  event: Partial<BoltMessageBody["event"]> & { ts: string; channel: string },
+): BoltMessageBody {
   return {
     team_id: "T123",
     event: {
@@ -239,7 +241,13 @@ describe("normalizeSlackEvent — misc", () => {
 
   it("sets stable id of form slack-<team>-<channel>-<ts>", () => {
     const r = normalizeSlackEvent(
-      mkBody({ channel: "C1", ts: "100.1", user: "U1", text: `<@${BOT}>`, channel_type: "channel" }),
+      mkBody({
+        channel: "C1",
+        ts: "100.1",
+        user: "U1",
+        text: `<@${BOT}>`,
+        channel_type: "channel",
+      }),
       BOT,
     );
     expect(r?.id).toBe("slack-T123-C1-100.1");

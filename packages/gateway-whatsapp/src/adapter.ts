@@ -17,11 +17,7 @@ import {
   type WhatsAppMessageEvent,
 } from "@usetheo/gateway";
 
-import type {
-  WhatsAppBackend,
-  WhatsAppInboundEvent,
-  WhatsAppStatusReceipt,
-} from "./backend-types.js";
+import type { WhatsAppBackend, WhatsAppStatusReceipt } from "./backend-types.js";
 import { splitForWhatsApp } from "./split.js";
 
 /** Cloud (Meta WhatsApp Business Cloud API) backend config (ADR D304). */
@@ -121,7 +117,10 @@ export class WhatsAppAdapter extends BasePlatformAdapter {
     // EC-8: split filters empty parts internally.
     const parts = splitForWhatsApp(out.text);
     if (parts.length === 0) {
-      return { ok: false, error: { code: "empty_text", message: "Text reduced to zero parts after splitting." } };
+      return {
+        ok: false,
+        error: { code: "empty_text", message: "Text reduced to zero parts after splitting." },
+      };
     }
     let lastWamid: string | undefined;
     const isGroup = out.channel.type === "group";

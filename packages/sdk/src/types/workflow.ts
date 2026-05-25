@@ -59,10 +59,9 @@ export interface ParallelStep {
 export interface BranchStep {
   readonly kind: "branch";
   readonly id: string;
-  readonly predicates: ReadonlyArray<readonly [
-    (input: unknown) => boolean | Promise<boolean>,
-    ReadonlyArray<Step>,
-  ]>;
+  readonly predicates: ReadonlyArray<
+    readonly [(input: unknown) => boolean | Promise<boolean>, ReadonlyArray<Step>]
+  >;
   readonly fallback?: ReadonlyArray<Step>;
 }
 
@@ -208,9 +207,7 @@ export class WorkflowAlreadyRunningError extends Error {
 export class WorkflowSnapshotNotFoundError extends Error {
   override readonly name = "WorkflowSnapshotNotFoundError";
   constructor(public readonly runId: string) {
-    super(
-      `No snapshot found for runId "${runId}". Configure persistence to enable resume.`,
-    );
+    super(`No snapshot found for runId "${runId}". Configure persistence to enable resume.`);
   }
 }
 

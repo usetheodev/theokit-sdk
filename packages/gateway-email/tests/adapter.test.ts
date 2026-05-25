@@ -144,7 +144,6 @@ describe("EmailAdapter", () => {
     for (const key of ["address", "password", "imapHost", "smtpHost"] as const) {
       it(`throws TypeError when ${key} is empty`, () => {
         expect(() => {
-          // @ts-expect-error — deliberately invalid
           new EmailAdapter({ ...VALID_OPTS, [key]: "" });
         }).toThrow(TypeError);
       });
@@ -476,12 +475,11 @@ describe("EmailAdapter", () => {
       const { adapter, smtp } = mk();
       await adapter.connect();
       const res = await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm" },
         text: "",
       });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error.code).toBe("empty_text");
+      if (!res.ok) expect(res.error?.code).toBe("empty_text");
       expect(smtp.sent.length).toBe(0);
       await adapter.disconnect();
     });
@@ -489,12 +487,11 @@ describe("EmailAdapter", () => {
     it("rejects when not connected", async () => {
       const { adapter } = mk();
       const res = await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm" },
         text: "hi",
       });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error.code).toBe("not_connected");
+      if (!res.ok) expect(res.error?.code).toBe("not_connected");
     });
 
     it("returns messageId on success", async () => {
@@ -502,7 +499,6 @@ describe("EmailAdapter", () => {
       await adapter.connect();
       smtp.returnId = "new-out-1@example.com";
       const res = await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm" },
         text: "hi alice",
       });
@@ -516,7 +512,6 @@ describe("EmailAdapter", () => {
       const { adapter, smtp } = mk();
       await adapter.connect();
       await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm" },
         text: "hi",
       });
@@ -541,7 +536,6 @@ describe("EmailAdapter", () => {
       });
       await adapter._drainNow();
       await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm", topicId: "t1@x.com" },
         text: "reply",
       });
@@ -565,7 +559,6 @@ describe("EmailAdapter", () => {
       });
       await adapter._drainNow();
       await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm", topicId: "t2@x.com" },
         text: "reply2",
       });
@@ -590,7 +583,6 @@ describe("EmailAdapter", () => {
       });
       await adapter._drainNow();
       await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm", topicId: "t3@x.com" },
         text: "reply",
       });
@@ -609,12 +601,11 @@ describe("EmailAdapter", () => {
       await adapter.connect();
       smtp.sendError = Object.assign(new Error("Auth bad"), { code: "EAUTH" });
       const res = await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm" },
         text: "hi",
       });
       expect(res.ok).toBe(false);
-      if (!res.ok) expect(res.error.code).toBe("auth_failed");
+      if (!res.ok) expect(res.error?.code).toBe("auth_failed");
       await adapter.disconnect();
     });
 
@@ -622,7 +613,6 @@ describe("EmailAdapter", () => {
       const { adapter, smtp } = mk({ fromName: "TheoBot" });
       await adapter.connect();
       await adapter.sendMessage({
-        platform: "email",
         channel: { id: "alice@x.com", type: "dm" },
         text: "hi",
       });

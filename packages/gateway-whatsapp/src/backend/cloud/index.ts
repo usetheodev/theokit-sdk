@@ -85,11 +85,16 @@ export class WhatsAppCloudBackend implements WhatsAppBackend {
    * @returns `true` if signature valid + dispatched (or empty payload).
    *          `false` if signature invalid (route should return 401).
    */
-  async handleWebhookPayload(rawBody: Buffer | string, signatureHeader: string | undefined): Promise<boolean> {
+  async handleWebhookPayload(
+    rawBody: Buffer | string,
+    signatureHeader: string | undefined,
+  ): Promise<boolean> {
     if (!verifyWebhookSignature(rawBody, signatureHeader, this.appSecret)) {
       return false;
     }
-    const json = JSON.parse(typeof rawBody === "string" ? rawBody : rawBody.toString("utf8")) as unknown;
+    const json = JSON.parse(
+      typeof rawBody === "string" ? rawBody : rawBody.toString("utf8"),
+    ) as unknown;
     const envelope = parseWebhookPayload(json);
     if (envelope === null) return true; // valid signature, unrecognized shape — nothing to dispatch
     const inbounds = normalizeInboundMessages(envelope);

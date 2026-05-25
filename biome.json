@@ -52,6 +52,51 @@
       }
     }
   },
+  "overrides": [
+    {
+      "includes": [
+        "packages/cli/**",
+        "packages/gateway-slack/**",
+        "packages/gateway-teams/**",
+        "packages/gateway-whatsapp/**",
+        "packages/gateway/tests/types/message-event.test.ts",
+        "packages/sdk/scripts/check-docs-drift.ts",
+        "packages/sdk/src/internal/cache/**",
+        "packages/sdk/src/internal/errors/mappers/bedrock.ts",
+        "packages/sdk/src/internal/errors/mappers/vertex.ts",
+        "packages/sdk/src/internal/eval/runner.ts",
+        "packages/sdk/src/internal/handoff/dispatcher.ts",
+        "packages/sdk/src/internal/llm/bedrock-anthropic.ts",
+        "packages/sdk/src/internal/llm/vertex-anthropic.ts",
+        "packages/sdk/src/internal/scorers/llm-judge.ts",
+        "packages/sdk/src/internal/workflow/**",
+        "packages/sdk/src/workflow.ts",
+        "packages/sdk/src/tools/**",
+        "packages/sdk/tests/tools/run-vitest.test.ts",
+        "packages/sdk/tests/workflow/**"
+      ],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": "off",
+            "noUselessConstructor": "off"
+          },
+          "correctness": {
+            "noUnusedImports": "warn"
+          },
+          "style": {
+            "useTemplate": "off"
+          },
+          "suspicious": {
+            "useIterableCallbackReturn": "off",
+            "noImplicitAnyLet": "off",
+            "noAssignInExpressions": "off",
+            "noThenProperty": "off"
+          }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "quoteStyle": "double",

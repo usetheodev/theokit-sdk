@@ -32,7 +32,10 @@ interface TeamsAppLike {
   initialize(): Promise<void>;
   start(port?: number | string): Promise<void>;
   stop(): Promise<void>;
-  send(conversationId: string, activity: { type: "message"; text: string }): Promise<{ id: string }>;
+  send(
+    conversationId: string,
+    activity: { type: "message"; text: string },
+  ): Promise<{ id: string }>;
   on(name: "activity", cb: (event: unknown) => void | Promise<void>): void;
   on(name: string, cb: (event: unknown) => void | Promise<void>): void;
   // ExpressAdapter or other httpServerAdapter — opaque escape hatch.
@@ -87,9 +90,7 @@ export class TeamsAdapter extends BasePlatformAdapter {
     for (const k of ["clientId", "clientSecret", "tenantId"] as const) {
       const v = opts[k];
       if (typeof v !== "string" || v.length === 0) {
-        throw new TypeError(
-          `TeamsAdapter: ${k} is required and must be a non-empty string`,
-        );
+        throw new TypeError(`TeamsAdapter: ${k} is required and must be a non-empty string`);
       }
     }
     this.opts = opts;
@@ -109,10 +110,17 @@ export class TeamsAdapter extends BasePlatformAdapter {
     if (this.connected && this.app !== undefined) return true;
     try {
       const factory =
-        (this.opts.__appFactory as ((o: unknown) => Promise<TeamsAppLike> | TeamsAppLike) | undefined) ??
+        (this.opts.__appFactory as
+          | ((o: unknown) => Promise<TeamsAppLike> | TeamsAppLike)
+          | undefined) ??
         ((o: unknown) =>
           createDefaultTeamsApp(
-            o as { clientId: string; clientSecret: string; tenantId: string; httpServerAdapter?: unknown },
+            o as {
+              clientId: string;
+              clientSecret: string;
+              tenantId: string;
+              httpServerAdapter?: unknown;
+            },
           ));
       this.app = await Promise.resolve(
         factory({
@@ -130,10 +138,7 @@ export class TeamsAdapter extends BasePlatformAdapter {
       return true;
     } catch (err) {
       // EC-7 / D172: connect MUST NOT throw on platform errors.
-      console.error(
-        "[teams] connect failed:",
-        err instanceof Error ? err.message : err,
-      );
+      console.error("[teams] connect failed:", err instanceof Error ? err.message : err);
       this.app = undefined;
       this.connected = false;
       return false;
@@ -183,9 +188,7 @@ export class TeamsAdapter extends BasePlatformAdapter {
         return { ok: false, error: mapTeamsError(err) };
       }
     }
-    return lastActivityId !== undefined
-      ? { ok: true, messageId: lastActivityId }
-      : { ok: true };
+    return lastActivityId !== undefined ? { ok: true, messageId: lastActivityId } : { ok: true };
   }
 
   onInbound(handler: (event: GatewayMessageEvent) => Promise<void>): () => void {

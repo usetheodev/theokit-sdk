@@ -6,8 +6,8 @@
  */
 
 import type { SleepStep, StepContext, StepResult } from "../../types/workflow.js";
-import { abortableSleep } from "./retry-policy.js";
 import { errToShape } from "./error-shape.js";
+import { abortableSleep } from "./retry-policy.js";
 
 export async function runSleepStep(
   step: SleepStep,

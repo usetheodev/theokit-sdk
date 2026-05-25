@@ -9,11 +9,11 @@
  * @internal
  */
 
-import type { AgentStep, StepContext, StepResult } from "../../types/workflow.js";
 import { UnsupportedRunOperationError } from "../../errors.js";
-import { withRetry } from "./retry-policy.js";
-import { errToShape } from "./error-shape.js";
+import type { AgentStep, StepContext, StepResult } from "../../types/workflow.js";
 import { WorkflowSuspendedSentinel } from "./ctx.js";
+import { errToShape } from "./error-shape.js";
+import { withRetry } from "./retry-policy.js";
 
 export async function runAgentStep(
   step: AgentStep,
@@ -42,9 +42,8 @@ export async function runAgentStep(
 
   let prompt: string;
   try {
-    prompt = typeof step.promptTemplate === "string"
-      ? step.promptTemplate
-      : step.promptTemplate(input);
+    prompt =
+      typeof step.promptTemplate === "string" ? step.promptTemplate : step.promptTemplate(input);
   } catch (err) {
     return {
       stepId: step.id,
@@ -62,7 +61,9 @@ export async function runAgentStep(
       status: "failed",
       attempts: 0,
       durationMs: Date.now() - startedAt,
-      error: errToShape(new Error(`agentStep "${step.id}": rendered prompt must be a non-empty string`)),
+      error: errToShape(
+        new Error(`agentStep "${step.id}": rendered prompt must be a non-empty string`),
+      ),
     };
   }
 
@@ -79,9 +80,10 @@ export async function runAgentStep(
   };
 
   try {
-    const { value, attempts } = step.retry !== undefined
-      ? await withRetry(exec, step.retry, ctx.signal)
-      : { value: await exec(), attempts: 1 };
+    const { value, attempts } =
+      step.retry !== undefined
+        ? await withRetry(exec, step.retry, ctx.signal)
+        : { value: await exec(), attempts: 1 };
     return {
       stepId: step.id,
       kind: "agent",

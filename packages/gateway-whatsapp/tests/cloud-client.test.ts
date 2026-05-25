@@ -7,20 +7,25 @@ import { describe, expect, it, vi } from "vitest";
 import { WhatsAppCloudClient } from "../src/backend/cloud/client.js";
 
 function makeFetchOk(messageId = "wamid.abc"): typeof fetch {
-  return vi.fn(async () =>
-    new Response(JSON.stringify({ messaging_product: "whatsapp", messages: [{ id: messageId }] }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    }),
+  return vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({ messaging_product: "whatsapp", messages: [{ id: messageId }] }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
   ) as typeof fetch;
 }
 
 function makeFetchError(status: number, body: object): typeof fetch {
-  return vi.fn(async () =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { "content-type": "application/json" },
-    }),
+  return vi.fn(
+    async () =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
   ) as typeof fetch;
 }
 

@@ -4,10 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 import {
-  VERTEX,
   inferModelDialect,
   resolveVertexBaseUrl,
   stripVertexPrefix,
+  VERTEX,
 } from "../../src/internal/providers/builtin/vertex.js";
 
 describe("VERTEX profile shape", () => {
@@ -94,9 +94,7 @@ describe("stripVertexPrefix", () => {
   });
 
   it("strips vertex/google/ prefix", () => {
-    expect(stripVertexPrefix("vertex/google/gemini-2.0-flash-001")).toBe(
-      "gemini-2.0-flash-001",
-    );
+    expect(stripVertexPrefix("vertex/google/gemini-2.0-flash-001")).toBe("gemini-2.0-flash-001");
   });
 
   it("returns unchanged when no prefix", () => {

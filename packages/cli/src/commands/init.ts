@@ -18,7 +18,6 @@ export interface InitOptions {
   yes?: boolean;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: command handler — resolve name → resolve template → scaffold + error mapping is one cohesive flow.
 export async function runInit(projectName: string | undefined, opts: InitOptions): Promise<number> {
   const isTty = process.stdin.isTTY === true && process.stdout.isTTY === true;
   const skipPrompts = opts.yes === true || !isTty;

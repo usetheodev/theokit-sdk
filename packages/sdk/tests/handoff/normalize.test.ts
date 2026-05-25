@@ -7,11 +7,8 @@ import { describe, expect, it } from "vitest";
 
 import { Handoff } from "../../src/handoff.js";
 import { normalizeHandoffs } from "../../src/internal/handoff/tool-injector.js";
-import {
-  HandoffNameCollisionError,
-  HandoffSelfReferenceError,
-} from "../../src/types/handoff.js";
 import type { SDKAgent } from "../../src/types/agent.js";
+import { HandoffNameCollisionError, HandoffSelfReferenceError } from "../../src/types/handoff.js";
 
 function fakeAgent(name: string, agentId = `agent-${name}`): SDKAgent {
   return {
@@ -48,17 +45,13 @@ describe("normalizeHandoffs", () => {
 
   it("EC-6 — throws HandoffSelfReferenceError on self-reference", () => {
     const self = fakeAgent("self", "agent-self");
-    expect(() => normalizeHandoffs("agent-self", [self])).toThrow(
-      HandoffSelfReferenceError,
-    );
+    expect(() => normalizeHandoffs("agent-self", [self])).toThrow(HandoffSelfReferenceError);
   });
 
   it("D215 — throws HandoffNameCollisionError on duplicate tool name", () => {
     const a = fakeAgent("billing", "agent-a");
     const b = fakeAgent("billing", "agent-b");
-    expect(() => normalizeHandoffs("agent-parent", [a, b])).toThrow(
-      HandoffNameCollisionError,
-    );
+    expect(() => normalizeHandoffs("agent-parent", [a, b])).toThrow(HandoffNameCollisionError);
   });
 
   it("EC-9 — empty handoffs[] returns []", () => {

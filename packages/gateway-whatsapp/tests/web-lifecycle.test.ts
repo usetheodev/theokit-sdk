@@ -20,7 +20,7 @@ import {
 } from "../src/backend/web/lifecycle.js";
 
 let tmpHome: string;
-let cleanups: Array<() => void> = [];
+const cleanups: Array<() => void> = [];
 
 beforeEach(() => {
   tmpHome = fs.mkdtempSync(path.join(os.tmpdir(), "wa-test-"));

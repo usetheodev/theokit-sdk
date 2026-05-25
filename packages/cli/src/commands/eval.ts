@@ -40,7 +40,6 @@ function resolveOutputPath(cwd: string, output: string | undefined): string {
   }
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: command handler — validate output → load config → run suite → write report is one cohesive flow; splitting would scatter error handling.
 export async function runEval(opts: EvalOptions): Promise<number> {
   const cwd = process.cwd();
 
