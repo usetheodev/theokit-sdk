@@ -148,7 +148,38 @@ async function dispatchSingleCall(
       content: `Hook denied this tool call: ${preDecision.reason ?? "no reason given"}`,
     };
   }
+  // D315-D317 — fire onToolStart BEFORE handler runs. Errors swallowed.
+  const startAt = Date.now();
+  await safeEmitToolHook(inputs.onToolStart, {
+    toolName: call.name,
+    args: call.input,
+    conversationId: inputs.agentId,
+    callId,
+  });
   const result = await executeTool(inputs, resolved, call);
+  const durationMs = Date.now() - startAt;
+  // D315-D317 / EC-6 — fire onToolError when handler stderr/exit signals
+  // failure; otherwise onToolEnd. `error` is ALWAYS an Error instance.
+  if (result.exitCode !== undefined && result.exitCode !== 0 && result.exitCode !== null) {
+    await safeEmitToolHook(inputs.onToolError, {
+      toolName: call.name,
+      args: call.input,
+      error: new Error(result.stderr || `tool exited with code ${result.exitCode}`),
+      conversationId: inputs.agentId,
+      callId,
+      durationMs,
+      attempt: 1,
+    });
+  } else {
+    await safeEmitToolHook(inputs.onToolEnd, {
+      toolName: call.name,
+      args: call.input,
+      result: result.stdout,
+      conversationId: inputs.agentId,
+      callId,
+      durationMs,
+    });
+  }
   toolSpan?.setAttribute("exitCode", result.exitCode ?? 0);
   if (toolSpan !== undefined && inputs.telemetry?.includeContent === true) {
     toolSpan.addEvent("result", { stdout: result.stdout.slice(0, 1000) });
@@ -173,6 +204,27 @@ async function dispatchSingleCall(
     content: renderToolResult(result),
     ...(result.exitCode !== 0 && result.exitCode !== undefined ? { isError: true } : {}),
   };
+}
+
+/**
+ * D317 — fire-and-forget tool-lifecycle hook with error swallowed via
+ * stderr warn. Single chokepoint so all three callbacks (start/end/error)
+ * share the same hardening: a misbehaving listener cannot crash the agent
+ * loop.
+ *
+ * @internal
+ */
+async function safeEmitToolHook<E>(
+  callback: ((event: E) => void | Promise<void>) | undefined,
+  event: E,
+): Promise<void> {
+  if (callback === undefined) return;
+  try {
+    await callback(event);
+  } catch (cause) {
+    const msg = cause instanceof Error ? cause.message : String(cause);
+    process.stderr.write(`[theokit-sdk] tool lifecycle hook threw: ${msg}\n`);
+  }
 }
 
 async function executeTool(
