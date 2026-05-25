@@ -100,6 +100,18 @@ function mapOpenAiStatusToCode(status: number, body: unknown): ErrorCode {
   ) {
     return "model_unavailable";
   }
+  // D314: OpenAI 402 / billing-style codes map to quota_exceeded. OpenAI
+  // also returns 429 with `insufficient_quota` body code (rare but documented).
+  if (
+    status === 402 ||
+    rawCode.includes("insufficient_quota") ||
+    rawCode.includes("quota_exceeded")
+  ) {
+    // ErrorCode union doesn't yet have quota_exceeded so we surface as
+    // invalid_request — but AgentRunError code is widened (D311) and callers
+    // mapping HTTP→AgentRunError see quota_exceeded directly.
+    return "invalid_request";
+  }
 
   if (status === 401 || status === 403) return "auth_failed";
   if (status === 429) return "rate_limit";

@@ -2837,3 +2837,54 @@ If `maxAgents` is `0`, step 1 returns undefined and step 3 is a no-op — every 
 ### Eviction calls `agent.dispose()`
 
 Every eviction (LRU, idle, explicit) awaits `agent.dispose()`. Dispose errors are swallowed (stderr warn) so a misbehaving dispose doesn't block the cache. Watch the `onEvict` listener + stderr for disposal failures.
+
+## Error codes (v1.21+) — `AgentRunErrorCode`
+
+16 finite codes for `AgentRunError.code`. Use exhaustive `switch` for proper UI branching. Full reference: `docs/error-codes.md`.
+
+### Discriminate by code
+
+```ts
+import { AgentRunError } from "@usetheo/sdk";
+
+try {
+  await agent.send(message);
+} catch (err) {
+  if (!(err instanceof AgentRunError)) throw err;
+  switch (err.code) {
+    case "auth_failed":      // login UI
+    case "rate_limit":       // wait err.retryAfterMs
+    case "quota_exceeded":   // upsell
+    case "invalid_model":    // hint correct model
+    case "context_too_long": // shorten history
+    case "tool_runtime_error": // log + show generic
+    case "aborted":          // suppress UI noise
+    default: /* generic */
+  }
+}
+```
+
+### `retryAfterMs` — ms, not seconds
+
+```ts
+if (err.retryAfterMs !== undefined) {  // NOT truthy check — 0 is valid
+  setTimeout(retry, err.retryAfterMs);
+}
+```
+
+### `requestId` for support tickets
+
+```ts
+console.log({
+  conversation: err.conversationId,
+  provider: err.provider,
+  request: err.requestId,  // x-request-id / request-id
+  retriable: err.retriable,
+});
+```
+
+### Anti-leak invariant
+
+`err.message` NEVER contains `err.providerError` content. The raw response body is reachable via `err.providerError` (= `err.metadata?.raw`), already redacted (D68). Safe to log.
+
+See `docs/error-codes.md` for the full provider→code mapping table.

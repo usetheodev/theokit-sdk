@@ -20,6 +20,35 @@ export type ErrorCode =
   | "unknown";
 
 /**
+ * Codes used by {@link AgentRunError} (Production-Readiness #3, ADR D311).
+ *
+ * Superset of {@link ErrorCode} extended with codes that do NOT originate
+ * from a provider HTTP response:
+ *
+ * - `quota_exceeded` — billing limit hit (provider 402 or signalled error)
+ * - `tool_runtime_error` — custom tool handler threw inside dispatch
+ * - `aborted` — caller's `AbortSignal` fired (Phase 4)
+ * - `invalid_model` — model id rejected by provider (400 "model not found")
+ * - `safety_blocked` — provider safety filter blocked req or resp
+ * - `provider_unreachable` — DNS/TCP/timeout/5xx at transport boundary
+ *
+ * The `& {}` tail keeps the literal-union ergonomics (autocomplete) while
+ * accepting any string for forward compatibility with constructor calls
+ * that pass arbitrary code values (legacy callers).
+ *
+ * @public
+ */
+export type AgentRunErrorCode =
+  | ErrorCode
+  | "quota_exceeded"
+  | "tool_runtime_error"
+  | "aborted"
+  | "invalid_model"
+  | "safety_blocked"
+  | "provider_unreachable"
+  | (string & {});
+
+/**
  * Structured context for errors that originated from a provider HTTP
  * call (ADR D65). Lets callers retry with the right backoff (`retryAfter`),
  * surface actionable diagnostics (`provider`, `endpoint`), and inspect the
@@ -208,13 +237,20 @@ export class AgentRunError extends TheokitAgentError {
   override readonly name: string = "AgentRunError";
   readonly provider?: string;
   readonly raw?: string;
+  /** Provider's request id (`x-request-id` / `request-id` header). Useful for support tickets. */
+  readonly requestId?: string;
+  /** SDK conversation id this error was raised inside. */
+  readonly conversationId?: string;
 
   constructor(
     message: string,
     options: {
-      code: string;
+      code: AgentRunErrorCode;
       provider?: string;
       raw?: string;
+      requestId?: string;
+      conversationId?: string;
+      retriable?: boolean;
       cause?: unknown;
       metadata?: ErrorMetadata;
     },
@@ -223,10 +259,65 @@ export class AgentRunError extends TheokitAgentError {
       code: options.code,
       cause: options.cause,
       metadata: options.metadata,
-      isRetryable: false,
+      // D311: most AgentRunErrors are not retriable (auth, validation, abort).
+      // Provider mappers (D314) override per-status — explicit `retriable` wins
+      // over the implicit default when supplied.
+      isRetryable: options.retriable ?? defaultRetriableForCode(options.code),
     });
     if (options.provider !== undefined) this.provider = options.provider;
     if (options.raw !== undefined) this.raw = options.raw;
+    if (options.requestId !== undefined) this.requestId = options.requestId;
+    if (options.conversationId !== undefined) this.conversationId = options.conversationId;
+  }
+
+  /**
+   * Production-Readiness #3 (ADR D311): alias for `isRetryable` exposed as
+   * `retriable` to match the handoff contract. Future v2 will deprecate
+   * `isRetryable` in favor of this.
+   */
+  get retriable(): boolean {
+    return this.isRetryable;
+  }
+
+  /**
+   * D312: provider's `Retry-After` header in **milliseconds**. Mappers store
+   * the header value (seconds) in `metadata.retryAfter`; this getter
+   * multiplies by 1000 so the result composes with `Date.now()`/`setTimeout`.
+   *
+   * Returns `undefined` when no hint was provided. `0` is a legitimate value
+   * — use `=== undefined` check rather than truthy check.
+   */
+  get retryAfterMs(): number | undefined {
+    if (this.metadata?.retryAfter === undefined) return undefined;
+    return this.metadata.retryAfter * 1000;
+  }
+
+  /**
+   * D313: alias for `metadata.raw`. Provider response body for debugging.
+   * Available but NEVER serialized into `.message` (anti-leak invariant).
+   */
+  get providerError(): unknown {
+    return this.metadata?.raw;
+  }
+}
+
+/**
+ * D311 helper: choose a sensible default `isRetryable` value when the
+ * caller did not supply `retriable` explicitly. Conservative defaults —
+ * provider mappers override per-status when they know better.
+ *
+ * @internal
+ */
+function defaultRetriableForCode(code: AgentRunErrorCode): boolean {
+  switch (code) {
+    case "rate_limit":
+    case "timeout":
+    case "server_error":
+    case "network":
+    case "provider_unreachable":
+      return true;
+    default:
+      return false;
   }
 }
 

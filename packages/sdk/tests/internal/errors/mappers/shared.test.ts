@@ -7,7 +7,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { buildErrorMetadata, truncateRaw } from "../../../../src/internal/errors/mappers/shared.js";
+import {
+  buildErrorMetadata,
+  parseRequestId,
+  truncateRaw,
+} from "../../../../src/internal/errors/mappers/shared.js";
 
 describe("truncateRaw — secret redaction (T1.1)", () => {
   it("masks long sk-* tokens in string bodies", () => {
@@ -52,5 +56,30 @@ describe("buildErrorMetadata — wires redaction via truncateRaw", () => {
     expect(typeof meta.raw).toBe("string");
     expect(meta.raw).not.toContain(secret);
     expect(meta.provider).toBe("anthropic");
+  });
+});
+
+describe("parseRequestId — D314 Production-Readiness Phase 3", () => {
+  it("extracts x-request-id (OpenAI/most providers)", () => {
+    const h = new Headers({ "x-request-id": "req_abc123" });
+    expect(parseRequestId(h)).toBe("req_abc123");
+  });
+
+  it("extracts request-id (Anthropic)", () => {
+    const h = new Headers({ "request-id": "req_xyz789" });
+    expect(parseRequestId(h)).toBe("req_xyz789");
+  });
+
+  it("prefers x-request-id when both present", () => {
+    const h = new Headers({ "x-request-id": "x_first", "request-id": "fallback" });
+    expect(parseRequestId(h)).toBe("x_first");
+  });
+
+  it("returns undefined when neither header present", () => {
+    expect(parseRequestId(new Headers({}))).toBeUndefined();
+  });
+
+  it("returns undefined when headers parameter is undefined", () => {
+    expect(parseRequestId(undefined)).toBeUndefined();
   });
 });
