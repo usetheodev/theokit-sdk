@@ -2773,3 +2773,67 @@ This is intentional. Silent FS fallback would corrupt the conversation (read emp
 ### What does NOT serialize across resume
 
 `conversationStorage` is a runtime closure — not stored in `registry.json`. Same pattern as `AgentOptions.tools` handlers. The marker is the only thing that survives.
+
+## Agent registry lifecycle (v1.21+) — `Agent.registry`
+
+Live-agent cache for production deploys. Solves OOM in long-running Node servers by evicting idle agents and capping the working set.
+
+`Agent.registry` is **distinct from** the internal metadata registry (which persists `RegisteredAgent` to `registry.json`). The metadata registry is the address book; `Agent.registry` is the live working set.
+
+### Defaults
+
+| Option | Default | Meaning |
+|---|---|---|
+| `maxAgents` | 100 | LRU eviction kicks in above this |
+| `idleTimeoutMs` | 1_800_000 (30 min) | Agents not used in this window are evicted |
+| `sweepIntervalMs` | 60_000 (60s) | How often idle sweep runs |
+| `onEvict` | undefined | Observability listener `(id, reason) => void` |
+
+### Tune for production
+
+```ts
+import { Agent } from "@usetheo/sdk";
+
+// At app boot:
+Agent.registry.configure({
+  maxAgents: 1000,                  // high-traffic SaaS
+  idleTimeoutMs: 15 * 60 * 1000,    // 15 minutes
+  onEvict: (id, reason) => {
+    metrics.increment("agent.evicted", { reason });
+  },
+});
+
+// Graceful shutdown:
+process.on("SIGTERM", async () => {
+  await Agent.registry.evictAll();
+  process.exit(0);
+});
+```
+
+### Disable the cache
+
+```ts
+Agent.registry.configure({ maxAgents: 0 });
+// Every Agent.getOrCreate re-initializes — predictable memory at the cost of re-init time.
+```
+
+### Inspect
+
+```ts
+Agent.registry.size();   // current count
+Agent.registry.ids();    // ids in recency order (newest first)
+Agent.registry.evict("agent-42"); // explicit eviction
+```
+
+### How it interacts with `Agent.getOrCreate`
+
+`Agent.getOrCreate(id, options)`:
+1. Calls `Agent.registry.get(id)` — cache hit returns immediately, refreshes recency.
+2. On miss, calls `Agent.resume` → on UnknownAgentError, `Agent.create`.
+3. After successful resume/create, calls `Agent.registry.set(id, agent)`.
+
+If `maxAgents` is `0`, step 1 returns undefined and step 3 is a no-op — every call re-initializes.
+
+### Eviction calls `agent.dispose()`
+
+Every eviction (LRU, idle, explicit) awaits `agent.dispose()`. Dispose errors are swallowed (stderr warn) so a misbehaving dispose doesn't block the cache. Watch the `onEvict` listener + stderr for disposal failures.
