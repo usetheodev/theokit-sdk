@@ -18,7 +18,7 @@ import {
 const APP_SECRET = "test-app-secret";
 
 function signedHeader(body: string, secret = APP_SECRET): string {
-  return "sha256=" + crypto.createHmac("sha256", secret).update(body).digest("hex");
+  return `sha256=${crypto.createHmac("sha256", secret).update(body).digest("hex")}`;
 }
 
 beforeEach(() => __resetNonTextWarnings());

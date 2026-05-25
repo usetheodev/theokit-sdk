@@ -19,7 +19,6 @@ import {
   type MessageEvent as GatewayMessageEvent,
   type OutboundMessage,
   type SendResult,
-  type TeamsMessageEvent,
 } from "@usetheo/gateway";
 
 import { mapTeamsError } from "./errors.js";
@@ -199,12 +198,20 @@ export class TeamsAdapter extends BasePlatformAdapter {
     };
   }
 
+  /** EC-5 (downgraded): bound the seen-conversations Set with FIFO eviction. */
+  private trackConversation(convId: string | undefined): void {
+    if (typeof convId !== "string" || convId.length === 0) return;
+    if (this.seenConversations.size >= TeamsAdapter.MAX_SEEN_CONVERSATIONS) {
+      const first = this.seenConversations.values().next().value;
+      if (first !== undefined) this.seenConversations.delete(first);
+    }
+    this.seenConversations.add(convId);
+  }
+
   /** @internal — receives an SDK activity event; normalizes + dispatches. */
   private async _dispatchActivity(rawEvent: unknown): Promise<void> {
     if (this.handler === undefined) return;
-    // Extract the activity from the event envelope. SDK shape:
-    //   IActivityEvent { token, activity, conversationReference?, ... }
-    // We accept either shape (event with .activity OR a plain activity).
+    // Extract the activity from the event envelope (IActivityEvent or plain activity).
     const env = rawEvent as { activity?: unknown } | undefined;
     const activity = (env?.activity ?? rawEvent) as
       | { type?: string; conversation?: { id?: string } }
@@ -212,15 +219,7 @@ export class TeamsAdapter extends BasePlatformAdapter {
     if (activity === undefined || activity.type !== "message") return;
 
     const event = normalizeTeamsActivity(activity, this.opts.botDisplayName);
-    // EC-5 (downgraded): bound the seen-conversations Set.
-    const convId = activity.conversation?.id;
-    if (typeof convId === "string" && convId.length > 0) {
-      if (this.seenConversations.size >= TeamsAdapter.MAX_SEEN_CONVERSATIONS) {
-        const first = this.seenConversations.values().next().value;
-        if (first !== undefined) this.seenConversations.delete(first);
-      }
-      this.seenConversations.add(convId);
-    }
+    this.trackConversation(activity.conversation?.id);
     await this.handler(event);
   }
 
@@ -229,5 +228,3 @@ export class TeamsAdapter extends BasePlatformAdapter {
     return this.seenConversations.size;
   }
 }
-
-export type { TeamsMessageEvent };

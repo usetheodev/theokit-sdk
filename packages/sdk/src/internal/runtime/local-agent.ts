@@ -8,8 +8,6 @@ import type {
 } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
-import { resolveApiKey } from "../env.js";
-import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../memory/cwd-mutex.js";
 import type { PersonalityRegistry } from "../personality/registry.js";
@@ -17,7 +15,7 @@ import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
 import { anySignal } from "./abort-utils.js";
-import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
+import { flushRegistrySaves, updateRegisteredAgent } from "./agent-registry.js";
 import {
   appendSessionMessage,
   compactSession,
@@ -27,8 +25,8 @@ import {
 } from "./agent-session.js";
 import type { FileContextManager } from "./context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
-import { bootstrapSubmanagers } from "./local-agent-bootstrap.js";
-import { buildRealRunOptions, createFixtureRunHelper } from "./local-agent-dispatch.js";
+import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
+import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
@@ -49,7 +47,6 @@ import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
 import type { PluginMetadata, PluginsManager } from "./plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
 import type { ProvidersManagerImpl } from "./providers-manager.js";
-import { createRealLocalRun } from "./real-local-run.js";
 import type { SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
 import {
@@ -147,20 +144,11 @@ export class LocalAgent implements SDKAgent {
       this.options.memoryContext,
     );
 
-    registerAgent({
+    registerLocalAgent({
       agentId: this.agentId,
-      runtime: "local",
-      name: options.name,
-      summary: "Local contract fixture",
       model: this.model,
-      createdAt: Date.now(),
-      lastModified: Date.now(),
-      archived: false,
       options,
-      cwd: this.workspaceCwd,
-      status: "finished",
-      // EC-3 / D325: mark agent for resume-time integrity check.
-      ...(options.conversationStorage !== undefined ? { requiresCustomStorage: true } : {}),
+      workspaceCwd: this.workspaceCwd,
     });
   }
 
@@ -241,17 +229,11 @@ export class LocalAgent implements SDKAgent {
   }
 
   private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
-    if (this.disposed) {
-      throw new Error("Agent has been disposed");
-    }
+    if (this.disposed) throw new Error("Agent has been disposed");
     // biome-ignore format: keep one-liner to stay under G8 LoC.
-    // T4.3 (ADR D94): apply deferred cache invalidation BEFORE the run.
     await consumePending(this.agentId, this.invalidationPending, () => { this.invalidationPending = undefined; }, () => this.reload());
     this.applyModelOverride(options.model);
-
     const userText = typeof message === "string" ? message : message.text;
-    // D322/D323 — quota gate fires BEFORE pre_user_send hooks, BEFORE
-    // storage write, BEFORE LLM call. Throw propagates (NOT swallowed).
     if (this.options.onBeforeSend !== undefined) {
       await this.options.onBeforeSend({
         conversationId: this.agentId,
@@ -403,7 +385,7 @@ export class LocalAgent implements SDKAgent {
     }
   }
 
-  private async dispatchRun(
+  private dispatchRun(
     message: string | SDKUserMessage,
     options: SendOptions,
     systemPrompt: string | undefined,
@@ -411,35 +393,25 @@ export class LocalAgent implements SDKAgent {
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
     memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
   ): Promise<Run> {
-    const inputs = {
-      agentId: this.agentId,
-      model: this.model,
-      options: this.options,
-      workspaceCwd: this.workspaceCwd,
-      hooksExecutor: this.hooksExecutor,
-      pluginManager: this.pluginManagerCode,
-      resolvedSubagents: this.resolvedSubagents,
-      settingSourcesIncludeProject: this.settingSourcesIncludeProject,
-    };
-    const apiKey = resolveApiKey(this.options.apiKey);
-    const activePreset = this.activePreset();
-    if (shouldUseRealLocalRuntime(apiKey)) {
-      return createRealLocalRun(
-        buildRealRunOptions({
-          inputs,
-          message,
-          options,
-          systemPrompt,
-          priorMessages,
-          memoryTools,
-          ...(activePreset?.tools !== undefined
-            ? { personalityToolWhitelist: activePreset.tools }
-            : {}),
-          ...(activePreset !== undefined ? { personalityName: activePreset.name } : {}),
-        }),
-      );
-    }
-    return createFixtureRunHelper({ inputs, message, options, systemPrompt, memoryFacts });
+    return dispatchLocalRun({
+      inputs: {
+        agentId: this.agentId,
+        model: this.model,
+        options: this.options,
+        workspaceCwd: this.workspaceCwd,
+        hooksExecutor: this.hooksExecutor,
+        pluginManager: this.pluginManagerCode,
+        resolvedSubagents: this.resolvedSubagents,
+        settingSourcesIncludeProject: this.settingSourcesIncludeProject,
+      },
+      message,
+      sendOptions: options,
+      systemPrompt,
+      memoryFacts,
+      priorMessages,
+      memoryTools,
+      activePreset: this.activePreset(),
+    });
   }
 
   close(): void {
@@ -504,9 +476,6 @@ export class LocalAgent implements SDKAgent {
     name: string,
     opts?: { save?: boolean; reset?: boolean },
   ): Promise<PersonalityPreset | null> {
-    const onRegistryLoaded = (reg: PersonalityRegistry): void => {
-      this.personalityRegistry = reg;
-    };
     return localAgentUsePersonality({
       agentId: this.agentId,
       workspaceCwd: this.workspaceCwd,
@@ -515,7 +484,9 @@ export class LocalAgent implements SDKAgent {
       personalityStore: this.personalityStore,
       personalityRegistry: this.personalityRegistry,
       invalidateCache: (reason) => this.invalidateCache(reason),
-      onRegistryLoaded,
+      onRegistryLoaded: (reg) => {
+        this.personalityRegistry = reg;
+      },
       name,
       ...(opts !== undefined ? { opts } : {}),
     });

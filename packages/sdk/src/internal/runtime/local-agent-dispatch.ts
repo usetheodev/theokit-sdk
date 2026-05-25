@@ -10,12 +10,15 @@ import { join } from "node:path";
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { resolveApiKey } from "../env.js";
+import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
+import type { PersonalityPreset } from "../personality/types.js";
 import type { PluginManager } from "../plugins/manager.js";
 import { getSessionMessages } from "./agent-session.js";
 import type { HooksExecutor } from "./hooks-executor.js";
 import { createLocalRun } from "./local-run.js";
 import type { MemoryFact } from "./memory-store.js";
-import type { createRealLocalRun } from "./real-local-run.js";
+import { createRealLocalRun } from "./real-local-run.js";
 
 export interface DispatchInputs {
   agentId: string;
@@ -85,6 +88,42 @@ export async function createFixtureRunHelper(args: {
     sessionMessages,
     projectMcpServers,
     ...(args.systemPrompt !== undefined ? { systemPrompt: args.systemPrompt } : {}),
+  });
+}
+
+export async function dispatchLocalRun(args: {
+  inputs: DispatchInputs;
+  message: string | SDKUserMessage;
+  sendOptions: SendOptions;
+  systemPrompt: string | undefined;
+  memoryFacts: ReadonlyArray<MemoryFact>;
+  priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
+  memoryTools: ReadonlyArray<MemoryToolSpec> | undefined;
+  activePreset: PersonalityPreset | undefined;
+}): Promise<Run> {
+  const apiKey = resolveApiKey(args.inputs.options.apiKey);
+  if (shouldUseRealLocalRuntime(apiKey)) {
+    return createRealLocalRun(
+      buildRealRunOptions({
+        inputs: args.inputs,
+        message: args.message,
+        options: args.sendOptions,
+        systemPrompt: args.systemPrompt,
+        priorMessages: args.priorMessages,
+        memoryTools: args.memoryTools,
+        ...(args.activePreset?.tools !== undefined
+          ? { personalityToolWhitelist: args.activePreset.tools }
+          : {}),
+        ...(args.activePreset !== undefined ? { personalityName: args.activePreset.name } : {}),
+      }),
+    );
+  }
+  return createFixtureRunHelper({
+    inputs: args.inputs,
+    message: args.message,
+    options: args.sendOptions,
+    systemPrompt: args.systemPrompt,
+    memoryFacts: args.memoryFacts,
   });
 }
 

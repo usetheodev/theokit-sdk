@@ -1,9 +1,6 @@
 /**
  * OTel telemetry for semantic cache (ADR D262).
  *
- * Lazy load via `createRequire` — zero cost when `@opentelemetry/api` is
- * not installed (pattern from D34/D206/D220/D241).
- *
  * Spans:
  *   - `cache.lookup` — per `pre_user_send`. Attributes: namespace, embedder.id,
  *     hit (kv|semantic|miss), distance, ttl_remaining_s, bypass_reason.
@@ -12,49 +9,17 @@
  * @internal
  */
 
-import { createRequire } from "node:module";
+import {
+  getTracer,
+  noopSpan,
+  resetTracerCacheForTests,
+  type SpanLike,
+} from "../observability/tracer-loader.js";
 
-interface SpanLike {
-  setAttribute(key: string, value: string | number | boolean): SpanLike;
-  end(): void;
-}
-
-const noopSpan: SpanLike = {
-  setAttribute: () => noopSpan,
-  end: () => undefined,
-};
-
-interface TracerLike {
-  startSpan(
-    name: string,
-    options?: { attributes?: Record<string, string | number | boolean> },
-  ): SpanLike;
-}
-
-let cachedTracer: TracerLike | undefined | null;
-
-function getTracer(): TracerLike | undefined {
-  if (cachedTracer === null) return undefined;
-  if (cachedTracer !== undefined) return cachedTracer;
-  try {
-    const r = createRequire(import.meta.url);
-    const otel = r("@opentelemetry/api") as {
-      trace?: { getTracer: (name: string, version?: string) => TracerLike };
-    };
-    if (otel.trace?.getTracer === undefined) {
-      cachedTracer = null;
-      return undefined;
-    }
-    cachedTracer = otel.trace.getTracer("@usetheo/sdk/cache", "1.0.0");
-    return cachedTracer;
-  } catch {
-    cachedTracer = null;
-    return undefined;
-  }
-}
+const TRACER_NAME = "@usetheo/sdk/cache";
 
 export function startCacheLookupSpan(info: { namespace: string; embedderId: string }): SpanLike {
-  const tracer = getTracer();
+  const tracer = getTracer(TRACER_NAME);
   if (tracer === undefined) return noopSpan;
   return tracer.startSpan("cache.lookup", {
     attributes: {
@@ -65,7 +30,7 @@ export function startCacheLookupSpan(info: { namespace: string; embedderId: stri
 }
 
 export function startCacheStoreSpan(info: { namespace: string; embedderId: string }): SpanLike {
-  const tracer = getTracer();
+  const tracer = getTracer(TRACER_NAME);
   if (tracer === undefined) return noopSpan;
   return tracer.startSpan("cache.store", {
     attributes: {
@@ -77,5 +42,5 @@ export function startCacheStoreSpan(info: { namespace: string; embedderId: strin
 
 /** Test seam — reset tracer cache so a fresh require attempt happens. */
 export function __resetCacheTelemetryForTests(): void {
-  cachedTracer = undefined;
+  resetTracerCacheForTests();
 }

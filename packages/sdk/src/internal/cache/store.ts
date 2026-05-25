@@ -71,6 +71,20 @@ export class InMemoryCacheStore implements CacheStore {
     return this.map.get(key);
   }
 
+  private isEligibleForSearch(
+    e: CacheEntry,
+    embedderId: string,
+    namespace: string,
+    dim: number,
+    now: number,
+  ): boolean {
+    if (e.embedderId !== embedderId) return false;
+    if (e.namespace !== namespace) return false;
+    if (e.vector.length !== dim) return false;
+    if (e.expiresAt <= now) return false;
+    return true;
+  }
+
   semanticSearch(
     vector: ReadonlyArray<number>,
     threshold: number,
@@ -80,18 +94,13 @@ export class InMemoryCacheStore implements CacheStore {
   ): { entry: CacheEntry; distance: number } | undefined {
     let best: { entry: CacheEntry; distance: number } | undefined;
     for (const e of this.map.values()) {
-      // EC-2: filter by embedder + namespace + dim BEFORE cosine compare.
-      if (e.embedderId !== embedderId) continue;
-      if (e.namespace !== namespace) continue;
-      if (e.vector.length !== vector.length) continue;
-      if (e.expiresAt <= now) continue;
+      if (!this.isEligibleForSearch(e, embedderId, namespace, vector.length, now)) continue;
       const d = cosineDistance(e.vector, vector);
       if (d <= threshold && (best === undefined || d < best.distance)) {
         best = { entry: e, distance: d };
       }
     }
     if (best !== undefined) {
-      // Touch LRU.
       this.map.delete(best.entry.key);
       this.map.set(best.entry.key, {
         ...best.entry,

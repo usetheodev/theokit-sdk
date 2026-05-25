@@ -24,7 +24,7 @@ function makeFetchOk(): typeof fetch {
 }
 
 function signedHeader(body: string): string {
-  return "sha256=" + crypto.createHmac("sha256", APP_SECRET).update(body).digest("hex");
+  return `sha256=${crypto.createHmac("sha256", APP_SECRET).update(body).digest("hex")}`;
 }
 
 function makeBackend(fetchImpl: typeof fetch = makeFetchOk()): WhatsAppCloudBackend {

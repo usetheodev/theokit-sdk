@@ -22,6 +22,7 @@
  * present, but the JS path stays as the dependency-free fallback.
  */
 
+import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative as relativePath } from "node:path";
 import { z } from "zod";
@@ -77,87 +78,122 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
         .describe("Optional project-relative directory to scope the search."),
     }),
     handler: async ({ query, path }) => {
-      // Resolve scope
-      const scopeRel = path === undefined || path === "" || path === "." ? "." : path;
-      let scopeAbs: string;
-      try {
-        scopeAbs = scopeRel === "." ? projectRoot : safePathJoin(projectRoot, scopeRel);
-        assertNoSymlinkEscape(scopeAbs, projectRoot);
-      } catch (err) {
-        if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
-          return JSON.stringify({ ok: false, error: "path_traversal", path });
-        }
-        throw err;
-      }
-
-      const matches: Match[] = [];
-      let totalMatches = 0;
-      let truncated = false;
-
-      async function walk(absDir: string): Promise<void> {
-        if (truncated) return;
-        let entries;
-        try {
-          entries = await readdir(absDir, { withFileTypes: true });
-        } catch {
-          return; // ENOENT / EACCES — skip
-        }
-        for (const entry of entries) {
-          if (truncated) return;
-          const entryAbs = join(absDir, entry.name);
-          const entryRel = relativePath(projectRoot, entryAbs);
-          // Skip forbidden segments
-          if (isForbiddenPath(entryRel)) continue;
-          if (entry.isDirectory()) {
-            await walk(entryAbs);
-            continue;
-          }
-          if (!entry.isFile()) continue;
-          await scanFile(entryAbs, entryRel);
-        }
-      }
-
-      async function scanFile(absPath: string, relPath: string): Promise<void> {
-        // Size + binary guard
-        let buffer: Buffer;
-        try {
-          buffer = await readFile(absPath);
-        } catch {
-          return;
-        }
-        if (buffer.length > maxFileSize) return;
-        const probeEnd = Math.min(buffer.length, BINARY_PROBE_BYTES);
-        for (let i = 0; i < probeEnd; i += 1) {
-          if (buffer[i] === 0) return; // binary
-        }
-        const text = buffer.toString("utf-8");
-        const lines = text.split("\n");
-        for (let i = 0; i < lines.length; i += 1) {
-          const line = lines[i]!;
-          if (line.includes(query)) {
-            totalMatches += 1;
-            if (matches.length < maxMatches) {
-              matches.push({
-                file: relPath,
-                line: i + 1,
-                preview: line.length > PREVIEW_MAX ? `${line.slice(0, PREVIEW_MAX)}…` : line,
-              });
-            } else {
-              truncated = true;
-              return;
-            }
-          }
-        }
-      }
-
-      await walk(scopeAbs);
-
+      const scope = resolveSearchScope(path, projectRoot);
+      if ("error" in scope) return scope.error;
+      const state: SearchState = {
+        matches: [],
+        totalMatches: 0,
+        truncated: false,
+        query,
+        maxMatches,
+        maxFileSize,
+        projectRoot,
+      };
+      await walk(scope.scopeAbs, state);
       return JSON.stringify({
         ok: true,
-        matches,
-        truncated,
-        totalMatches,
+        matches: state.matches,
+        truncated: state.truncated,
+        totalMatches: state.totalMatches,
       });
     },
   });
+}
+
+interface SearchState {
+  matches: Match[];
+  totalMatches: number;
+  truncated: boolean;
+  query: string;
+  maxMatches: number;
+  maxFileSize: number;
+  projectRoot: string;
+}
+
+function resolveSearchScope(
+  path: string | undefined,
+  projectRoot: string,
+): { scopeAbs: string } | { error: string } {
+  const scopeRel = path === undefined || path === "" || path === "." ? "." : path;
+  try {
+    const scopeAbs = scopeRel === "." ? projectRoot : safePathJoin(projectRoot, scopeRel);
+    assertNoSymlinkEscape(scopeAbs, projectRoot);
+    return { scopeAbs };
+  } catch (err) {
+    if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
+      return { error: JSON.stringify({ ok: false, error: "path_traversal", path }) };
+    }
+    throw err;
+  }
+}
+
+async function handleEntry(entry: Dirent, absDir: string, state: SearchState): Promise<void> {
+  const entryAbs = join(absDir, entry.name);
+  const entryRel = relativePath(state.projectRoot, entryAbs);
+  if (isForbiddenPath(entryRel)) return;
+  if (entry.isDirectory()) {
+    await walk(entryAbs, state);
+    return;
+  }
+  if (entry.isFile()) await scanFile(entryAbs, entryRel, state);
+}
+
+async function walk(absDir: string, state: SearchState): Promise<void> {
+  if (state.truncated) return;
+  const entries = await readEntriesQuiet(absDir);
+  if (entries === null) return;
+  for (const entry of entries) {
+    if (state.truncated) return;
+    await handleEntry(entry, absDir, state);
+  }
+}
+
+async function readEntriesQuiet(absDir: string): Promise<Dirent[] | null> {
+  try {
+    return await readdir(absDir, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+}
+
+async function readBufferQuiet(absPath: string): Promise<Buffer | null> {
+  try {
+    return await readFile(absPath);
+  } catch {
+    return null;
+  }
+}
+
+function isBinaryBuffer(buffer: Buffer): boolean {
+  const probeEnd = Math.min(buffer.length, BINARY_PROBE_BYTES);
+  for (let i = 0; i < probeEnd; i += 1) {
+    if (buffer[i] === 0) return true;
+  }
+  return false;
+}
+
+function recordMatch(state: SearchState, file: string, line: number, lineText: string): boolean {
+  state.totalMatches += 1;
+  if (state.matches.length < state.maxMatches) {
+    state.matches.push({
+      file,
+      line,
+      preview: lineText.length > PREVIEW_MAX ? `${lineText.slice(0, PREVIEW_MAX)}…` : lineText,
+    });
+    return true;
+  }
+  state.truncated = true;
+  return false;
+}
+
+async function scanFile(absPath: string, relPath: string, state: SearchState): Promise<void> {
+  const buffer = await readBufferQuiet(absPath);
+  if (buffer === null || buffer.length > state.maxFileSize) return;
+  if (isBinaryBuffer(buffer)) return;
+  const lines = buffer.toString("utf-8").split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (!line.includes(state.query)) continue;
+    if (!recordMatch(state, relPath, i + 1, line)) return;
+  }
 }

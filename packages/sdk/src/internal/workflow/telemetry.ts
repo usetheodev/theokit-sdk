@@ -1,6 +1,5 @@
 /**
- * OTel telemetry for workflows (ADR D241). Lazy load via `createRequire`
- * so users without `@opentelemetry/api` installed pay zero cost.
+ * OTel telemetry for workflows (ADR D241).
  *
  * Spans:
  *   - `workflow.run` — root span per `Workflow.run` invocation
@@ -12,49 +11,17 @@
  * @internal
  */
 
-import { createRequire } from "node:module";
+import {
+  getTracer,
+  noopSpan,
+  resetTracerCacheForTests,
+  type SpanLike,
+} from "../observability/tracer-loader.js";
 
-interface SpanLike {
-  setAttribute(key: string, value: string | number | boolean): SpanLike;
-  end(): void;
-}
-
-const noopSpan: SpanLike = {
-  setAttribute: () => noopSpan,
-  end: () => undefined,
-};
-
-interface TracerLike {
-  startSpan(
-    name: string,
-    options?: { attributes?: Record<string, string | number | boolean> },
-  ): SpanLike;
-}
-
-let cachedTracer: TracerLike | undefined | null;
-
-function getTracer(): TracerLike | undefined {
-  if (cachedTracer === null) return undefined;
-  if (cachedTracer !== undefined) return cachedTracer;
-  try {
-    const r = createRequire(import.meta.url);
-    const otel = r("@opentelemetry/api") as {
-      trace?: { getTracer: (name: string, version?: string) => TracerLike };
-    };
-    if (otel.trace?.getTracer === undefined) {
-      cachedTracer = null;
-      return undefined;
-    }
-    cachedTracer = otel.trace.getTracer("@usetheo/sdk/workflow", "1.0.0");
-    return cachedTracer;
-  } catch {
-    cachedTracer = null;
-    return undefined;
-  }
-}
+const TRACER_NAME = "@usetheo/sdk/workflow";
 
 export function startWorkflowRunSpan(info: { workflowName: string; runId: string }): SpanLike {
-  const tracer = getTracer();
+  const tracer = getTracer(TRACER_NAME);
   if (tracer === undefined) return noopSpan;
   return tracer.startSpan("workflow.run", {
     attributes: {
@@ -69,7 +36,7 @@ export function startWorkflowStepSpan(info: {
   kind: string;
   attempt: number;
 }): SpanLike {
-  const tracer = getTracer();
+  const tracer = getTracer(TRACER_NAME);
   if (tracer === undefined) return noopSpan;
   return tracer.startSpan(`workflow.step.${info.stepId}`, {
     attributes: {
@@ -82,5 +49,5 @@ export function startWorkflowStepSpan(info: {
 
 /** Test seam — reset tracer cache so a fresh require attempt happens. */
 export function __resetTelemetryCacheForTests(): void {
-  cachedTracer = undefined;
+  resetTracerCacheForTests();
 }

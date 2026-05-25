@@ -20,13 +20,9 @@ import { join } from "node:path";
 import { z } from "zod";
 
 import { defineTool } from "../define-tool.js";
-import {
-  assertNoSymlinkEscape,
-  ForbiddenPathError,
-  PathTraversalError,
-  safePathJoin,
-} from "../internal/security/path-guard.js";
 import type { CustomTool } from "../types/agent.js";
+import { checkPathScope } from "./_path-scope.js";
+import { armTimeoutKill, attachChildSettlers } from "./_subprocess.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_STDOUT_BYTES = 5 * 1024 * 1024;
@@ -63,39 +59,31 @@ export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
         return JSON.stringify({ ok: false, error: "not_a_repo" });
       }
 
-      // Validate path scope if provided
-      if (path !== undefined && path !== "") {
-        try {
-          const abs = safePathJoin(projectRoot, path);
-          assertNoSymlinkEscape(abs, projectRoot);
-        } catch (err) {
-          if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
-            return JSON.stringify({ ok: false, error: "path_traversal", path });
-          }
-          throw err;
-        }
-      }
+      const scopeCheck = checkPathScope(path, projectRoot);
+      if (scopeCheck !== null) return scopeCheck;
 
-      const args = ["diff", "--no-color"];
-      if (cached === true) args.push("--cached");
-      if (path !== undefined && path !== "") {
-        args.push("--", path);
-      }
-
+      const args = buildDiffArgs(cached, path);
       const result = await runGitProcess(projectRoot, args, timeoutMs, maxStdoutBytes);
-      if (result.kind === "timeout") {
-        return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
-      }
-      if (result.kind === "error") {
-        return JSON.stringify({ ok: false, error: "git_failed", stderr: result.stderr });
-      }
-      return JSON.stringify({
-        ok: true,
-        diff: result.stdout,
-        truncated: result.truncated,
-      });
+      return formatGitResult(result, timeoutMs);
     },
   });
+}
+
+function buildDiffArgs(cached: boolean | undefined, path: string | undefined): string[] {
+  const args = ["diff", "--no-color"];
+  if (cached === true) args.push("--cached");
+  if (path !== undefined && path !== "") args.push("--", path);
+  return args;
+}
+
+function formatGitResult(result: GitProcessResult, timeoutMs: number): string {
+  if (result.kind === "timeout") {
+    return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
+  }
+  if (result.kind === "error") {
+    return JSON.stringify({ ok: false, error: "git_failed", stderr: result.stderr });
+  }
+  return JSON.stringify({ ok: true, diff: result.stdout, truncated: result.truncated });
 }
 
 type GitProcessResult =
@@ -116,22 +104,16 @@ function runGitProcess(
     const stderrChunks: Buffer[] = [];
     let stdoutBytes = 0;
     let truncated = false;
-    let settled = false;
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        // Kill the process group (PGID = -child.pid).
-        process.kill(-(child.pid ?? 0), "SIGKILL");
-      } catch {
-        /* already dead */
-      }
-      resolve({ kind: "timeout" });
-    }, timeoutMs);
+    const gate = armTimeoutKill<GitProcessResult>(
+      child,
+      timeoutMs,
+      () => ({ kind: "timeout" }),
+      resolve,
+    );
 
     child.stdout.on("data", (chunk: Buffer) => {
-      if (settled) return;
+      if (gate.settled()) return;
       if (stdoutBytes >= maxStdoutBytes) {
         truncated = true;
         return;
@@ -151,24 +133,16 @@ function runGitProcess(
       stderrChunks.push(chunk);
     });
 
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
-      const stderr = Buffer.concat(stderrChunks).toString("utf-8");
-      if (code === 0) {
-        resolve({ kind: "ok", stdout, truncated });
-      } else {
-        resolve({ kind: "error", stderr });
-      }
-    });
-
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ kind: "error", stderr: err.message });
-    });
+    attachChildSettlers<GitProcessResult>(
+      child,
+      gate,
+      (code) => {
+        const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
+        const stderr = Buffer.concat(stderrChunks).toString("utf-8");
+        return code === 0 ? { kind: "ok", stdout, truncated } : { kind: "error", stderr };
+      },
+      (err) => ({ kind: "error", stderr: err.message }),
+      resolve,
+    );
   });
 }

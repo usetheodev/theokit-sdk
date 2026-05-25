@@ -122,37 +122,39 @@ export class SlackAdapter extends BasePlatformAdapter {
     this.botUserId = undefined;
   }
 
+  private async postChunk(
+    out: OutboundMessage,
+    chunk: string,
+  ): Promise<string | undefined | SendResult> {
+    try {
+      const resp = await this.app?.client.chat.postMessage({
+        channel: out.channel.id,
+        text: chunk,
+        ...(out.channel.topicId !== undefined ? { thread_ts: out.channel.topicId } : {}),
+        // D281: plain | markdown only; Block Kit deferred to v1.x.
+        ...(out.format === "markdown" ? { mrkdwn: true } : {}),
+      });
+      return typeof resp?.ts === "string" ? resp.ts : undefined;
+    } catch (err) {
+      return mapSlackError(err);
+    }
+  }
+
   override async sendMessage(out: OutboundMessage): Promise<SendResult> {
     // EC-6: also gate on `connected` — `this.app` is set synchronously before
     // `app.start()` completes, so a send in-between would otherwise leak through.
     if (this.app === undefined || !this.connected) {
-      return {
-        ok: false,
-        error: { code: "not_connected", message: "adapter not connected" },
-      };
+      return { ok: false, error: { code: "not_connected", message: "adapter not connected" } };
     }
     if (out.text.length === 0) {
-      return {
-        ok: false,
-        error: { code: "empty_text", message: "text is empty" },
-      };
+      return { ok: false, error: { code: "empty_text", message: "text is empty" } };
     }
 
-    const chunks = splitForSlack(out.text);
     let lastId: string | undefined;
-    for (const chunk of chunks) {
-      try {
-        const resp = await this.app.client.chat.postMessage({
-          channel: out.channel.id,
-          text: chunk,
-          ...(out.channel.topicId !== undefined ? { thread_ts: out.channel.topicId } : {}),
-          // D281: plain | markdown only; Block Kit deferred to v1.x.
-          ...(out.format === "markdown" ? { mrkdwn: true } : {}),
-        });
-        lastId = typeof resp.ts === "string" ? resp.ts : undefined;
-      } catch (err) {
-        return mapSlackError(err);
-      }
+    for (const chunk of splitForSlack(out.text)) {
+      const result = await this.postChunk(out, chunk);
+      if (typeof result === "object" && result !== null) return result;
+      lastId = result;
     }
     return { ok: true, ...(lastId !== undefined ? { messageId: lastId } : {}) };
   }

@@ -29,7 +29,7 @@ async function probeEmbeddingModelAvailable(): Promise<boolean> {
   }
 }
 
-const available = await probeEmbeddingModelAvailable();
+const available = process.env.SKIP_OLLAMA_E2E !== "1" && (await probeEmbeddingModelAvailable());
 if (!available) {
   process.stderr.write(
     `[ollama-embedding] Skipping — model "${TEST_MODEL}" not pulled. ` +

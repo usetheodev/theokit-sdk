@@ -25,7 +25,7 @@ const NPM_NAME_RE = /^(?:@[a-z0-9-][a-z0-9._-]{0,213}\/)?[a-z0-9][a-z0-9._-]{0,2
 
 const RESERVED_NAMES = new Set(["node_modules", "favicon.ico", "..", "."]);
 
-export interface NameValidation {
+interface NameValidation {
   ok: boolean;
   reason?: string;
 }

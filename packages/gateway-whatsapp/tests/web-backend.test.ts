@@ -144,7 +144,7 @@ describe("WhatsAppWebBackend — send + IPC dispatch", () => {
 
     feed(
       child,
-      JSON.stringify({
+      `${JSON.stringify({
         event: "message",
         msgId: "wamid.in.1",
         from: "5511888",
@@ -152,7 +152,7 @@ describe("WhatsAppWebBackend — send + IPC dispatch", () => {
         isGroup: false,
         chatId: "5511888",
         timestamp: 1700_000_000_000,
-      }) + "\n",
+      })}\n`,
     );
     // Let microtasks run.
     await new Promise((r) => setTimeout(r, 20));
@@ -176,13 +176,13 @@ describe("WhatsAppWebBackend — send + IPC dispatch", () => {
 
     feed(
       child,
-      JSON.stringify({
+      `${JSON.stringify({
         event: "status",
         msgId: "wamid.s",
         status: "delivered",
         recipient: "5511",
         timestamp: 1700,
-      }) + "\n",
+      })}\n`,
     );
     await new Promise((r) => setTimeout(r, 20));
     expect(handler).toHaveBeenCalledTimes(1);

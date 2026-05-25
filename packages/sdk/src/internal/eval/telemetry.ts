@@ -1,55 +1,18 @@
 /**
- * D206 — minimal OTel piggyback for `Eval.run`. Lazy-loads `@opentelemetry/api`
- * and emits a parent `eval.run` span when available. Child `agent.send`
- * spans (existing per D34) nest correctly when OTel context is active.
- *
- * No-op when OTel is not installed OR consumer didn't enable telemetry —
- * Eval continues to return a full result regardless.
+ * D206 — minimal OTel piggyback for `Eval.run`. Emits a parent `eval.run`
+ * span when available; child `agent.send` spans (existing per D34) nest
+ * correctly when OTel context is active.
  *
  * @internal
  */
 
-import { createRequire } from "node:module";
+import {
+  getTracer,
+  resetTracerCacheForTests,
+  type SpanLike,
+} from "../observability/tracer-loader.js";
 
-interface OTelSpan {
-  setAttribute(key: string, value: string | number | boolean): void;
-  end(): void;
-}
-
-interface MinimalOTelApi {
-  trace: {
-    getTracer(
-      name: string,
-      version?: string,
-    ): {
-      startSpan(
-        name: string,
-        opts?: { attributes?: Record<string, string | number | boolean> },
-      ): OTelSpan;
-    };
-  };
-}
-
-let cachedOtel: MinimalOTelApi | null | undefined;
-
-function loadOtel(): MinimalOTelApi | null {
-  if (cachedOtel !== undefined) return cachedOtel;
-  try {
-    const r = createRequire(import.meta.url);
-    cachedOtel = r("@opentelemetry/api") as MinimalOTelApi;
-  } catch {
-    cachedOtel = null;
-  }
-  return cachedOtel;
-}
-
-function safe<T>(fn: () => T, fallback: T): T {
-  try {
-    return fn();
-  } catch {
-    return fallback;
-  }
-}
+const TRACER_NAME = "theokit-sdk-eval";
 
 export interface EvalTelemetryHandle {
   setAttribute(key: string, value: string | number | boolean): void;
@@ -61,10 +24,17 @@ const NOOP_HANDLE: EvalTelemetryHandle = {
   end: () => undefined,
 };
 
+function safe<T>(fn: () => T, fallback: T): T {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+}
+
 /**
  * Start an `eval.run` span. Returns a handle whose `end()` MUST be called
- * in `finally`. When OTel is unavailable, returns a no-op — Eval result
- * is unaffected.
+ * in `finally`. When OTel is unavailable, returns a no-op.
  */
 export function startEvalRunSpan(attrs: {
   name: string;
@@ -72,11 +42,9 @@ export function startEvalRunSpan(attrs: {
   rows: number;
   concurrency: number;
 }): EvalTelemetryHandle {
-  const otel = loadOtel();
-  if (otel === null) return NOOP_HANDLE;
-  const tracer = safe(() => otel.trace.getTracer("theokit-sdk-eval", "1.0.0"), undefined);
+  const tracer = getTracer(TRACER_NAME);
   if (tracer === undefined) return NOOP_HANDLE;
-  const span = safe(
+  const span: SpanLike | undefined = safe(
     () =>
       tracer.startSpan("eval.run", {
         attributes: {
@@ -95,7 +63,7 @@ export function startEvalRunSpan(attrs: {
   };
 }
 
-/** Test-only — clears the OTel cache so a re-load happens. */
+/** Test-only — clears the tracer cache so a re-load happens. */
 export function __resetEvalOtelCacheForTests(): void {
-  cachedOtel = undefined;
+  resetTracerCacheForTests();
 }

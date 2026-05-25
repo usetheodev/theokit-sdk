@@ -7,9 +7,14 @@
 
 import type { WhatsAppSendResult } from "../../backend-types.js";
 import { mapWhatsAppCloudError } from "../../errors.js";
-import type { MetaErrorEnvelope, MetaSendResponse, MetaSendTextRequest } from "./types.js";
+import type {
+  MetaErrorEnvelope,
+  MetaMarkReadRequest,
+  MetaSendResponse,
+  MetaSendTextRequest,
+} from "./types.js";
 
-export interface WhatsAppCloudClientOptions {
+interface WhatsAppCloudClientOptions {
   readonly accessToken: string;
   readonly phoneNumberId: string;
   readonly apiVersion?: string;
@@ -79,6 +84,11 @@ export class WhatsAppCloudClient {
 
   /** Mark an inbound message as read (status receipt back to user). */
   async markAsRead(wamid: string): Promise<boolean> {
+    const body: MetaMarkReadRequest = {
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: wamid,
+    };
     try {
       const response = await this.fetchImpl(`${this.baseUrl}/messages`, {
         method: "POST",
@@ -86,11 +96,7 @@ export class WhatsAppCloudClient {
           "content-type": "application/json",
           authorization: `Bearer ${this.opts.accessToken}`,
         },
-        body: JSON.stringify({
-          messaging_product: "whatsapp",
-          status: "read",
-          message_id: wamid,
-        }),
+        body: JSON.stringify(body),
       });
       return response.ok;
     } catch {

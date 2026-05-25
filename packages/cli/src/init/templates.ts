@@ -8,7 +8,7 @@
  * @internal
  */
 
-export interface TemplateMeta {
+interface TemplateMeta {
   readonly name: string;
   readonly description: string;
   readonly hint: string;
@@ -31,8 +31,6 @@ export const TEMPLATES: ReadonlyArray<TemplateMeta> = [
     hint: "Get a bot token from @BotFather, set TELEGRAM_BOT_TOKEN in .env.",
   },
 ] as const;
-
-export const TEMPLATE_NAMES: ReadonlyArray<string> = TEMPLATES.map((t) => t.name);
 
 export function findTemplate(name: string): TemplateMeta | undefined {
   return TEMPLATES.find((t) => t.name === name);

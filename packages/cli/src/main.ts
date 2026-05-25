@@ -20,24 +20,7 @@ import { type InspectOptions, runInspect } from "./commands/inspect.js";
 import { runSetup, type SetupOptions } from "./commands/setup.js";
 import { CLI_VERSION, SDK_VERSION } from "./version.js";
 
-export async function main(argv: ReadonlyArray<string>): Promise<number> {
-  const program = new Command();
-  program
-    .name("theokit")
-    .description("Developer CLI for @usetheo/sdk — init, dev, inspect, eval.")
-    .version(CLI_VERSION, "-v, --version", "Print the CLI version and exit.")
-    .addHelpText(
-      "after",
-      `\nBundled SDK version: ${SDK_VERSION}\n` +
-        `Adoption Roadmap #1. See https://github.com/usetheo/theokit-sdk for docs.\n` +
-        `\nExit codes: 0=success · 1=unknown error · 2=user error.\n`,
-    );
-
-  let exitCode = 0;
-  const setExit = (code: number): void => {
-    exitCode = code;
-  };
-
+function registerSubcommands(program: Command, setExit: (n: number) => void): void {
   program
     .command("init [project-name]")
     .description("Scaffold a new agent project from a bundled template.")
@@ -82,8 +65,7 @@ export async function main(argv: ReadonlyArray<string>): Promise<number> {
   program
     .command("setup <domain>")
     .description(
-      "Stage credentials + connectivity probe for a third-party integration. " +
-        "Domains: gworkspace (Google Workspace).",
+      "Stage credentials + connectivity probe for a third-party integration. Domains: gworkspace (Google Workspace).",
     )
     .option(
       "--writable <products>",
@@ -98,6 +80,31 @@ export async function main(argv: ReadonlyArray<string>): Promise<number> {
     .action(async (domain: string, opts: SetupOptions) => {
       setExit(await runSetup(domain, opts));
     });
+}
+
+function mapCommanderExitCode(code: string | undefined, fallback: number): number {
+  if (code === "commander.help" || code === "commander.helpDisplayed") return 0;
+  if (code === "commander.version") return 0;
+  if (code === "commander.unknownCommand" || code === "commander.unknownOption") return 2;
+  return fallback > 0 ? fallback : 2;
+}
+
+export async function main(argv: ReadonlyArray<string>): Promise<number> {
+  const program = new Command();
+  program
+    .name("theokit")
+    .description("Developer CLI for @usetheo/sdk — init, dev, inspect, eval.")
+    .version(CLI_VERSION, "-v, --version", "Print the CLI version and exit.")
+    .addHelpText(
+      "after",
+      `\nBundled SDK version: ${SDK_VERSION}\nAdoption Roadmap #1. See https://github.com/usetheo/theokit-sdk for docs.\n\nExit codes: 0=success · 1=unknown error · 2=user error.\n`,
+    );
+
+  let exitCode = 0;
+  const setExit = (code: number): void => {
+    exitCode = code;
+  };
+  registerSubcommands(program, setExit);
 
   // Commander throws CommanderError after `exitOverride` runs (by design)
   // to interrupt further processing. We set exitCode in the callback and
@@ -105,17 +112,7 @@ export async function main(argv: ReadonlyArray<string>): Promise<number> {
   let commanderHandledIt = false;
   program.exitOverride((err) => {
     commanderHandledIt = true;
-    const code = err.code;
-    if (code === "commander.help" || code === "commander.helpDisplayed") {
-      exitCode = 0;
-    } else if (code === "commander.version") {
-      exitCode = 0;
-    } else if (code === "commander.unknownCommand" || code === "commander.unknownOption") {
-      exitCode = 2;
-    } else {
-      // Other commander codes (missingArgument, etc.) → user error.
-      exitCode = err.exitCode > 0 ? err.exitCode : 2;
-    }
+    exitCode = mapCommanderExitCode(err.code, err.exitCode);
   });
 
   try {

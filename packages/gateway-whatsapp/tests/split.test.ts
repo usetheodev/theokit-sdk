@@ -44,7 +44,7 @@ describe("splitForWhatsApp", () => {
     // Pad with regular chars, then put an emoji exactly at the 4096-th char position.
     // 4094 'a' + 😀 (2 UTF-16 code units) = position 4094+2=4096, which is fine.
     // We test: 4095 'a' + 😀 → splitter should not cut between high/low surrogate.
-    const text = "a".repeat(4095) + "😀" + "b".repeat(100);
+    const text = `${"a".repeat(4095)}😀${"b".repeat(100)}`;
     const out = splitForWhatsApp(text);
     // Each part should not start with a low surrogate (orphan).
     for (const part of out) {

@@ -33,7 +33,7 @@ export async function runSetup(domain: string, opts: SetupOptions): Promise<numb
     return await runGworkspaceSetup(gworkspaceOpts);
   }
   process.stderr.write(
-    `${pc.red("error: ")}unknown setup domain '${domain}'. ` + `Supported domains: gworkspace.\n`,
+    `${pc.red("error: ")}unknown setup domain '${domain}'. Supported domains: gworkspace.\n`,
   );
   return 2;
 }

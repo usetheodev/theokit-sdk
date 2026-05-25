@@ -14,6 +14,38 @@ import { WorkflowSuspendedSentinel } from "./ctx.js";
 import { errToShape } from "./error-shape.js";
 import { withRetry } from "./retry-policy.js";
 
+function failedFnResult(
+  stepId: string,
+  attempts: number,
+  startedAt: number,
+  err: unknown,
+): StepResult {
+  return {
+    stepId,
+    kind: "fn",
+    status: "failed",
+    attempts,
+    durationMs: Date.now() - startedAt,
+    error: errToShape(err),
+  };
+}
+
+function validate(schema: { parse: (v: unknown) => unknown } | undefined, value: unknown): unknown {
+  if (schema === undefined) return undefined;
+  schema.parse(value);
+  return undefined;
+}
+
+async function execWithRetry(
+  step: FnStep,
+  input: unknown,
+  ctx: StepContext,
+): Promise<{ value: unknown; attempts: number }> {
+  const exec = async (): Promise<unknown> => step.fn(input, ctx);
+  if (step.retry !== undefined) return withRetry(exec, step.retry, ctx.signal);
+  return { value: await exec(), attempts: 1 };
+}
+
 export async function runFnStep(
   step: FnStep,
   input: unknown,
@@ -22,51 +54,25 @@ export async function runFnStep(
   const startedAt = Date.now();
   // D238: saga engine not implemented in v1 — surface intent loudly.
   if (step.compensate !== undefined) {
-    return {
-      stepId: step.id,
-      kind: "fn",
-      status: "failed",
-      attempts: 0,
-      durationMs: Date.now() - startedAt,
-      error: errToShape(new WorkflowCompensateNotImplementedError(step.id)),
-    };
+    return failedFnResult(
+      step.id,
+      0,
+      startedAt,
+      new WorkflowCompensateNotImplementedError(step.id),
+    );
   }
-
-  if (step.inputSchema !== undefined) {
-    try {
-      step.inputSchema.parse(input);
-    } catch (err) {
-      return {
-        stepId: step.id,
-        kind: "fn",
-        status: "failed",
-        attempts: 0,
-        durationMs: Date.now() - startedAt,
-        error: errToShape(err),
-      };
-    }
-  }
-
-  const exec = async (): Promise<unknown> => step.fn(input, ctx);
   try {
-    const { value, attempts } =
-      step.retry !== undefined
-        ? await withRetry(exec, step.retry, ctx.signal)
-        : { value: await exec(), attempts: 1 };
+    validate(step.inputSchema, input);
+  } catch (err) {
+    return failedFnResult(step.id, 0, startedAt, err);
+  }
 
-    if (step.outputSchema !== undefined) {
-      try {
-        step.outputSchema.parse(value);
-      } catch (err) {
-        return {
-          stepId: step.id,
-          kind: "fn",
-          status: "failed",
-          attempts,
-          durationMs: Date.now() - startedAt,
-          error: errToShape(err),
-        };
-      }
+  try {
+    const { value, attempts } = await execWithRetry(step, input, ctx);
+    try {
+      validate(step.outputSchema, value);
+    } catch (err) {
+      return failedFnResult(step.id, attempts, startedAt, err);
     }
     return {
       stepId: step.id,
@@ -77,15 +83,7 @@ export async function runFnStep(
       output: value,
     };
   } catch (err) {
-    // Re-throw suspend sentinel so the executor can persist a snapshot.
     if (err instanceof WorkflowSuspendedSentinel) throw err;
-    return {
-      stepId: step.id,
-      kind: "fn",
-      status: "failed",
-      attempts: 1,
-      durationMs: Date.now() - startedAt,
-      error: errToShape(err),
-    };
+    return failedFnResult(step.id, 1, startedAt, err);
   }
 }

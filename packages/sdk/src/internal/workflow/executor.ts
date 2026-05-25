@@ -34,6 +34,178 @@ import { runParallelStep } from "./step-parallel.js";
 import { runSleepStep } from "./step-sleep.js";
 import { startWorkflowRunSpan, startWorkflowStepSpan } from "./telemetry.js";
 
+interface SuspendOutcome<T> {
+  kind: "suspended" | "failed";
+  run: WorkflowRun<T>;
+}
+
+async function handleSuspend<T>(
+  err: WorkflowSuspendedSentinel,
+  ctx: {
+    runId: string;
+    name: string;
+    step: Step;
+    stepResults: StepResult[];
+    acc: unknown;
+    options: WorkflowOptions;
+    startedAt: number;
+    stepSpan: ReturnType<typeof startWorkflowStepSpan>;
+  },
+): Promise<SuspendOutcome<T>> {
+  try {
+    await saveSnapshot({
+      runId: ctx.runId,
+      workflowName: ctx.options.name,
+      currentStepId: ctx.step.id,
+      suspendedPayload: err.payload,
+      stepResults: ctx.stepResults,
+      accumulatedInput: ctx.acc,
+      options: ctx.options,
+    });
+  } catch (snapErr) {
+    ctx.stepSpan.setAttribute("step.status", "failed");
+    ctx.stepSpan.end();
+    return {
+      kind: "failed",
+      run: assembleRun<T>({
+        runId: ctx.runId,
+        name: ctx.name,
+        status: "failed",
+        stepResults: ctx.stepResults,
+        startedAt: ctx.startedAt,
+        error: errToShape(snapErr),
+      }),
+    };
+  }
+  ctx.stepSpan.setAttribute("step.status", "suspended");
+  ctx.stepSpan.end();
+  return {
+    kind: "suspended",
+    run: assembleRun<T>({
+      runId: ctx.runId,
+      name: ctx.name,
+      status: "suspended",
+      stepResults: [
+        ...ctx.stepResults,
+        {
+          stepId: ctx.step.id,
+          kind: ctx.step.kind,
+          status: "suspended",
+          attempts: 1,
+          durationMs: 0,
+          output: undefined,
+        },
+      ],
+      startedAt: ctx.startedAt,
+    }),
+  };
+}
+
+async function runOneStep<T>(args: {
+  step: Step;
+  acc: unknown;
+  ctx: StepContext;
+  options: WorkflowOptions;
+  stepResults: StepResult[];
+  runId: string;
+  name: string;
+  startedAt: number;
+}): Promise<{ kind: "ok"; result: StepResult } | { kind: "terminal"; run: WorkflowRun<T> }> {
+  const stepSpan = startWorkflowStepSpan({
+    stepId: args.step.id,
+    kind: args.step.kind,
+    attempt: 1,
+  });
+  let result: StepResult;
+  try {
+    result = await dispatchStep(args.step, args.acc, args.ctx, args.options, args.stepResults);
+  } catch (err) {
+    if (err instanceof WorkflowSuspendedSentinel) {
+      const outcome = await handleSuspend<T>(err, { ...args, stepSpan });
+      return { kind: "terminal", run: outcome.run };
+    }
+    result = {
+      stepId: args.step.id,
+      kind: args.step.kind,
+      status: "failed",
+      attempts: 1,
+      durationMs: 0,
+      error: errToShape(err),
+    };
+  }
+  stepSpan.setAttribute("step.status", result.status);
+  stepSpan.setAttribute("step.attempts", result.attempts);
+  stepSpan.end();
+  return { kind: "ok", result };
+}
+
+function abortRun<T>(
+  name: string,
+  runId: string,
+  startedAt: number,
+  stepResults: StepResult[],
+  signal: AbortSignal,
+): WorkflowRun<T> {
+  return assembleRun<T>({
+    runId,
+    name,
+    status: "cancelled",
+    stepResults,
+    startedAt,
+    error: { name: "AbortError", message: String(signal.reason ?? "Aborted") },
+  });
+}
+
+interface LoopParams {
+  options: WorkflowOptions;
+  steps: ReadonlyArray<Step>;
+  input: unknown;
+  ctx: StepContext;
+  runId: string;
+  startedAt: number;
+  signal: AbortSignal;
+}
+
+async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
+  const { options, steps, ctx, runId, startedAt, signal } = params;
+  const stepResults: StepResult[] = [];
+  let acc: unknown = params.input;
+  for (const step of steps) {
+    if (signal.aborted) return abortRun<TO>(options.name, runId, startedAt, stepResults, signal);
+    const outcome = await runOneStep<TO>({
+      step,
+      acc,
+      ctx,
+      options,
+      stepResults,
+      runId,
+      name: options.name,
+      startedAt,
+    });
+    if (outcome.kind === "terminal") return outcome.run;
+    stepResults.push(outcome.result);
+    if (outcome.result.status === "failed") {
+      return assembleRun<TO>({
+        runId,
+        name: options.name,
+        status: "failed",
+        stepResults,
+        startedAt,
+        error: outcome.result.error,
+      });
+    }
+    acc = outcome.result.output;
+  }
+  return assembleRun<TO>({
+    runId,
+    name: options.name,
+    status: "completed",
+    output: acc as TO,
+    stepResults,
+    startedAt,
+  });
+}
+
 export async function executeWorkflow<TInput, TOutput>(
   options: WorkflowOptions,
   steps: ReadonlyArray<Step>,
@@ -47,123 +219,23 @@ export async function executeWorkflow<TInput, TOutput>(
   const signal = combineSignals(runOpts?.signal, flight.signal);
   const runSpan = startWorkflowRunSpan({ workflowName: options.name, runId });
 
-  // EC-1 absorbed: fail fast if signal already aborted at entry.
   if (signal.aborted) {
     flight.release();
     runSpan.setAttribute("workflow.status", "cancelled");
     runSpan.end();
-    return assembleRun<TOutput>({
-      runId,
-      name: options.name,
-      status: "cancelled",
-      stepResults: [],
-      startedAt,
-      error: { name: "AbortError", message: String(signal.reason ?? "Aborted") },
-    });
+    return abortRun<TOutput>(options.name, runId, startedAt, [], signal);
   }
 
   const ctx: StepContext = makeStepContext(runId, signal);
-  const stepResults: StepResult[] = [];
-  let acc: unknown = input;
-
   try {
-    for (const step of steps) {
-      if (signal.aborted) {
-        return assembleRun<TOutput>({
-          runId,
-          name: options.name,
-          status: "cancelled",
-          stepResults,
-          startedAt,
-          error: { name: "AbortError", message: String(signal.reason ?? "Aborted") },
-        });
-      }
-      const stepSpan = startWorkflowStepSpan({
-        stepId: step.id,
-        kind: step.kind,
-        attempt: 1,
-      });
-      let result: StepResult;
-      try {
-        result = await dispatchStep(step, acc, ctx, options, stepResults);
-      } catch (err) {
-        if (err instanceof WorkflowSuspendedSentinel) {
-          // Persist snapshot + return suspended (EC-4 absorbed inside saveSnapshot).
-          try {
-            await saveSnapshot({
-              runId,
-              workflowName: options.name,
-              currentStepId: step.id,
-              suspendedPayload: err.payload,
-              stepResults,
-              accumulatedInput: acc,
-              options,
-            });
-          } catch (snapErr) {
-            stepSpan.setAttribute("step.status", "failed");
-            stepSpan.end();
-            return assembleRun<TOutput>({
-              runId,
-              name: options.name,
-              status: "failed",
-              stepResults,
-              startedAt,
-              error: errToShape(snapErr),
-            });
-          }
-          stepSpan.setAttribute("step.status", "suspended");
-          stepSpan.end();
-          return assembleRun<TOutput>({
-            runId,
-            name: options.name,
-            status: "suspended",
-            stepResults: [
-              ...stepResults,
-              {
-                stepId: step.id,
-                kind: step.kind,
-                status: "suspended",
-                attempts: 1,
-                durationMs: 0,
-                output: undefined,
-              },
-            ],
-            startedAt,
-          });
-        }
-        // Other throw — wrap as failed step.
-        result = {
-          stepId: step.id,
-          kind: step.kind,
-          status: "failed",
-          attempts: 1,
-          durationMs: 0,
-          error: errToShape(err),
-        };
-      }
-      stepSpan.setAttribute("step.status", result.status);
-      stepSpan.setAttribute("step.attempts", result.attempts);
-      stepSpan.end();
-      stepResults.push(result);
-      if (result.status === "failed") {
-        return assembleRun<TOutput>({
-          runId,
-          name: options.name,
-          status: "failed",
-          stepResults,
-          startedAt,
-          error: result.error,
-        });
-      }
-      acc = result.output;
-    }
-    return assembleRun<TOutput>({
+    return await runStepsLoop<TOutput>({
+      options,
+      steps,
+      input,
+      ctx,
       runId,
-      name: options.name,
-      status: "completed",
-      output: acc as TOutput,
-      stepResults,
       startedAt,
+      signal,
     });
   } finally {
     runSpan.end();

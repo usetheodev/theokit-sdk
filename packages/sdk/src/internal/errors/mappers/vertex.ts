@@ -33,98 +33,82 @@ export interface MapVertexErrorArgs {
   endpoint: string;
 }
 
+type VertexCode =
+  | "rate_limit"
+  | "auth_unauthenticated"
+  | "auth_permission"
+  | "invalid_request"
+  | "timeout"
+  | "server_error"
+  | "unknown";
+
+const VERTEX_RULES: ReadonlyArray<{ test: (s: number, e: string) => boolean; code: VertexCode }> = [
+  { test: (s, e) => s === 429 || e === "RESOURCE_EXHAUSTED", code: "rate_limit" },
+  { test: (s, e) => s === 401 || e === "UNAUTHENTICATED", code: "auth_unauthenticated" },
+  { test: (s, e) => s === 403 || e === "PERMISSION_DENIED", code: "auth_permission" },
+  {
+    test: (s, e) =>
+      s === 400 || e === "INVALID_ARGUMENT" || e === "FAILED_PRECONDITION" || e === "NOT_FOUND",
+    code: "invalid_request",
+  },
+  { test: (s, e) => s === 408 || e === "DEADLINE_EXCEEDED", code: "timeout" },
+  { test: (s) => s >= 500, code: "server_error" },
+];
+
+function classifyVertexError(args: MapVertexErrorArgs, errStatus: string): VertexCode {
+  for (const rule of VERTEX_RULES) {
+    if (rule.test(args.status, errStatus)) return rule.code;
+  }
+  return "unknown";
+}
+
+function vertexMetadata(args: MapVertexErrorArgs, code: string) {
+  return buildErrorMetadata({
+    provider: "vertex",
+    endpoint: args.endpoint,
+    code: code as Parameters<typeof buildErrorMetadata>[0]["code"],
+    status: args.status,
+    headers: args.headers,
+    body: args.body,
+  });
+}
+
+const VERTEX_ERROR_BUILDERS: Record<
+  VertexCode,
+  (args: MapVertexErrorArgs, msg: string) => TheokitAgentError
+> = {
+  rate_limit: (args, msg) =>
+    new RateLimitError(`Vertex quota exhausted: ${msg}`, {
+      metadata: vertexMetadata(args, "rate_limit"),
+    }),
+  auth_unauthenticated: (args, msg) =>
+    new AuthenticationError(`Vertex unauthenticated: ${msg}`, {
+      metadata: vertexMetadata(args, "auth_failed"),
+    }),
+  auth_permission: (args, msg) =>
+    new AuthenticationError(`Vertex permission denied: ${msg}`, {
+      metadata: vertexMetadata(args, "auth_failed"),
+    }),
+  invalid_request: (args, msg) =>
+    new ConfigurationError(`Vertex validation: ${msg}`, {
+      metadata: vertexMetadata(args, "invalid_request"),
+    }),
+  timeout: (args, msg) =>
+    new NetworkError(`Vertex timeout: ${msg}`, { metadata: vertexMetadata(args, "timeout") }),
+  server_error: (args, msg) =>
+    new NetworkError(`Vertex server error: ${msg}`, {
+      metadata: vertexMetadata(args, "server_error"),
+    }),
+  unknown: (args, msg) =>
+    new UnknownAgentError(`Vertex unknown: ${msg}`, { metadata: vertexMetadata(args, "unknown") }),
+};
+
 export function mapVertexError(args: MapVertexErrorArgs): TheokitAgentError {
   const parsed = parseBody(args.body);
   const errStatus = parsed.error?.status ?? "";
   const message = parsed.error?.message ?? "Vertex request failed";
-
-  if (args.status === 429 || errStatus === "RESOURCE_EXHAUSTED") {
-    return new RateLimitError(`Vertex quota exhausted: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "vertex",
-        endpoint: args.endpoint,
-        code: "rate_limit",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  if (args.status === 401 || errStatus === "UNAUTHENTICATED") {
-    return new AuthenticationError(`Vertex unauthenticated: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "vertex",
-        endpoint: args.endpoint,
-        code: "auth_failed",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  if (args.status === 403 || errStatus === "PERMISSION_DENIED") {
-    return new AuthenticationError(`Vertex permission denied: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "vertex",
-        endpoint: args.endpoint,
-        code: "auth_failed",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  if (
-    args.status === 400 ||
-    errStatus === "INVALID_ARGUMENT" ||
-    errStatus === "FAILED_PRECONDITION" ||
-    errStatus === "NOT_FOUND"
-  ) {
-    return new ConfigurationError(`Vertex validation: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "vertex",
-        endpoint: args.endpoint,
-        code: "invalid_request",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  if (args.status === 408 || errStatus === "DEADLINE_EXCEEDED") {
-    return new NetworkError(`Vertex timeout: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "vertex",
-        endpoint: args.endpoint,
-        code: "timeout",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  if (args.status >= 500) {
-    return new NetworkError(`Vertex server error: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "vertex",
-        endpoint: args.endpoint,
-        code: "server_error",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  return new UnknownAgentError(`Vertex unknown: ${message}`, {
-    metadata: buildErrorMetadata({
-      provider: "vertex",
-      endpoint: args.endpoint,
-      code: "unknown",
-      status: args.status,
-      headers: args.headers,
-      body: args.body,
-    }),
-  });
+  const code = classifyVertexError(args, errStatus);
+  return VERTEX_ERROR_BUILDERS[code](args, message);
 }
 
 function parseBody(body: unknown): VertexErrorBody {

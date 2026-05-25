@@ -38,7 +38,7 @@ describe("splitForTeams", () => {
   });
 
   it("test_split_preserves_surrogate_pairs — no orphan low surrogate", () => {
-    const text = "a".repeat(7999) + "😀" + "b".repeat(100);
+    const text = `${"a".repeat(7999)}😀${"b".repeat(100)}`;
     const out = splitForTeams(text);
     for (const part of out) {
       const firstCode = part.charCodeAt(0);

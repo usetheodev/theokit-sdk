@@ -6,9 +6,13 @@
  * @internal
  */
 
-/** Sentinel runtime export — prevents rollup-plugin-dts from treating this
+/**
+ * Sentinel runtime export — prevents rollup-plugin-dts from treating this
  * file as a pure-types module (workaround for a bundler quirk with deeply
- * re-exported types). Not used at runtime. */
+ * re-exported types). Not used at runtime.
+ *
+ * @knipignore
+ */
 export const __backendTypesMarker: unique symbol = Symbol("backend-types");
 
 /** Normalized inbound event — cloud + web both produce this shape. */

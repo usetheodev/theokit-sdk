@@ -9,6 +9,7 @@
  */
 
 import type { CacheEmbedderRuntime, CacheTTLConfig } from "../../types/cache.js";
+import { embedOrDegrade } from "./embed-helper.js";
 import { computeCacheKey } from "./key.js";
 import type { InMemoryCacheStore } from "./store.js";
 import type { JsonFileCacheStore } from "./store-json.js";
@@ -70,19 +71,8 @@ export async function performLookup(p: LookupParams): Promise<LookupResult> {
     }
 
     // Step 2: semantic — EC-1: embedder failure degrades to miss.
-    let vec: number[];
-    try {
-      const result = await p.embedder.embed([p.prompt]);
-      vec = result[0]!;
-    } catch (err) {
-      p.store.incrementEmbedderFailures();
-      console.warn(
-        `[cache] embedder failed during lookup, degrading to miss:`,
-        err instanceof Error ? err.message : err,
-      );
-      span.setAttribute("cache.bypass_reason", "embedder_failure");
-      return { cached: false };
-    }
+    const vec = await embedOrDegrade(p.embedder, p.prompt, p.store, span, "lookup");
+    if (vec === undefined) return { cached: false };
 
     const match = p.store.semanticSearch(vec, p.threshold, p.embedder.id, p.namespace, now);
     if (match !== undefined) {

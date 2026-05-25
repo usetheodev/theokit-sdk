@@ -31,6 +31,7 @@ import { type LookupableStore, performLookup } from "./internal/cache/lookup.js"
 import { InMemoryCacheStore } from "./internal/cache/store.js";
 import { performStore } from "./internal/cache/store-handler.js";
 import { JsonFileCacheStore } from "./internal/cache/store-json.js";
+import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import type {
   Plugin,
   PluginContext,
@@ -68,15 +69,7 @@ const CacheSemanticOptionsSchema = z.object({
   namespace: z.string().min(1).max(64).optional(),
   modelId: z.string().min(1).max(128).optional(),
   maxEntries: z.number().int().min(1).max(1_000_000).optional(),
-  persistence: z
-    .object({
-      backend: z.enum(["memory", "json"]),
-      dir: z.string().optional(),
-    })
-    .refine((p) => p.backend !== "json" || (typeof p.dir === "string" && p.dir.length > 0), {
-      message: 'persistence.dir is required when backend = "json"',
-    })
-    .optional(),
+  persistence: PersistenceSchema,
 });
 
 const DEFAULT_THRESHOLD = 0.85;
@@ -249,15 +242,6 @@ function createStore(
   return new InMemoryCacheStore(maxEntries);
 }
 
-/* ─── Re-exports for ergonomics ─── */
+/* ─── Re-exports for ergonomics (errors only — public types come from `types/cache.js` via `types/index.ts`). ─── */
 
-export {
-  CacheEmbedderError,
-  type CacheEmbedderRuntime,
-  type CacheEntry,
-  CacheInvalidTtlError,
-  type CachePersistenceOptions,
-  type CacheSemanticOptions,
-  type CacheStats,
-  type CacheTTLConfig,
-} from "./types/cache.js";
+export { CacheEmbedderError, CacheInvalidTtlError } from "./types/cache.js";

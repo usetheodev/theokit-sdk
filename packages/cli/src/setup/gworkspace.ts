@@ -40,7 +40,7 @@ export interface GworkspaceSetupOptions {
   credentialsPath?: string;
 }
 
-export type CredentialsCheckOutcome =
+type CredentialsCheckOutcome =
   | { kind: "ok"; path: string }
   | { kind: "missing"; path: string }
   | { kind: "malformed"; path: string; reason: string }
@@ -56,43 +56,33 @@ export type CredentialsCheckOutcome =
  *
  * @internal
  */
-export function checkCredentialsFile(credentialsPath: string): CredentialsCheckOutcome {
-  // Path traversal: reject any RAW input containing `..` segments before
-  // resolving. (`resolve()` would collapse them, masking the intent.)
-  // Defense in depth — D80 pattern.
-  if (
-    credentialsPath.includes("../") ||
-    credentialsPath.includes("..\\") ||
-    credentialsPath === ".." ||
-    credentialsPath.startsWith("../") ||
-    credentialsPath.startsWith("..\\")
-  ) {
-    return { kind: "rejected_path", path: credentialsPath, reason: "path traversal" };
-  }
-  const resolved = resolve(credentialsPath);
-  if (!existsSync(resolved)) {
-    return { kind: "missing", path: resolved };
-  }
+function isPathTraversal(p: string): boolean {
+  return (
+    p.includes("../") ||
+    p.includes("..\\") ||
+    p === ".." ||
+    p.startsWith("../") ||
+    p.startsWith("..\\")
+  );
+}
+
+function readAndParseJson(
+  resolved: string,
+): { kind: "ok"; parsed: unknown } | { kind: "malformed"; reason: string } {
   let raw: string;
   try {
     raw = readFileSync(resolved, "utf8");
   } catch (err) {
-    return {
-      kind: "malformed",
-      path: resolved,
-      reason: err instanceof Error ? err.message : String(err),
-    };
+    return { kind: "malformed", reason: err instanceof Error ? err.message : String(err) };
   }
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(raw);
+    return { kind: "ok", parsed: JSON.parse(raw) };
   } catch (err) {
-    return {
-      kind: "malformed",
-      path: resolved,
-      reason: err instanceof Error ? err.message : String(err),
-    };
+    return { kind: "malformed", reason: err instanceof Error ? err.message : String(err) };
   }
+}
+
+function validateOAuthShape(parsed: unknown, resolved: string): CredentialsCheckOutcome {
   if (parsed === null || typeof parsed !== "object") {
     return { kind: "malformed", path: resolved, reason: "expected JSON object" };
   }
@@ -108,6 +98,20 @@ export function checkCredentialsFile(credentialsPath: string): CredentialsCheckO
     };
   }
   return { kind: "ok", path: resolved };
+}
+
+export function checkCredentialsFile(credentialsPath: string): CredentialsCheckOutcome {
+  if (isPathTraversal(credentialsPath)) {
+    return { kind: "rejected_path", path: credentialsPath, reason: "path traversal" };
+  }
+  const resolved = resolve(credentialsPath);
+  if (!existsSync(resolved)) return { kind: "missing", path: resolved };
+
+  const parseResult = readAndParseJson(resolved);
+  if (parseResult.kind === "malformed") {
+    return { kind: "malformed", path: resolved, reason: parseResult.reason };
+  }
+  return validateOAuthShape(parseResult.parsed, resolved);
 }
 
 function describeOutcome(o: CredentialsCheckOutcome): string {
@@ -137,13 +141,47 @@ function describeOutcome(o: CredentialsCheckOutcome): string {
   }
 }
 
+function resolveCredentialsPath(opts: GworkspaceSetupOptions): string {
+  if (opts.credentialsPath !== undefined && opts.credentialsPath.length > 0) {
+    return isAbsolute(opts.credentialsPath) ? opts.credentialsPath : resolve(opts.credentialsPath);
+  }
+  return join(DEFAULT_CONFIG_DIR, DEFAULT_CREDS_FILENAME);
+}
+
+async function runProbeMode(): Promise<number> {
+  process.stdout.write(`\n${pc.cyan("[probe]")} running upstream connectivity check...\n`);
+  const code = await spawnUpstream(["status"], PROBE_TIMEOUT_MS);
+  if (code !== 0) {
+    process.stderr.write(
+      `${pc.yellow("warn: ")}upstream status reported a non-zero exit (${code}). Run \`npx ${UPSTREAM_PACKAGE} accounts list\` to inspect.\n`,
+    );
+    return code;
+  }
+  return 0;
+}
+
+async function runInteractiveSetup(): Promise<number> {
+  process.stdout.write(
+    `\n${pc.cyan("→")} delegating to upstream installer (${UPSTREAM_PACKAGE})...\n`,
+  );
+  const setupCode = await spawnUpstream(["setup"]);
+  if (setupCode !== 0) {
+    process.stderr.write(`${pc.red("error: ")}upstream setup exited with code ${setupCode}.\n`);
+    return setupCode;
+  }
+  process.stdout.write(`\n${pc.cyan("→")} adding default account...\n`);
+  const addCode = await spawnUpstream(["accounts", "add", "default"]);
+  if (addCode !== 0) {
+    process.stderr.write(
+      `${pc.red("error: ")}upstream \`accounts add\` exited with code ${addCode}.\n`,
+    );
+    return addCode;
+  }
+  return 0;
+}
+
 export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<number> {
-  const credentialsPath =
-    opts.credentialsPath !== undefined && opts.credentialsPath.length > 0
-      ? isAbsolute(opts.credentialsPath)
-        ? opts.credentialsPath
-        : resolve(opts.credentialsPath)
-      : join(DEFAULT_CONFIG_DIR, DEFAULT_CREDS_FILENAME);
+  const credentialsPath = resolveCredentialsPath(opts);
 
   // Ensure parent dir exists (mode 0700 where POSIX honored).
   try {
@@ -167,52 +205,20 @@ export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<
   }
 
   process.stdout.write(
-    `${pc.green("✓")} credentials validated: ${outcome.path}\n` +
-      `${pc.dim("  shape: Desktop OAuth client (installed block present)")}\n`,
+    `${pc.green("✓")} credentials validated: ${outcome.path}\n${pc.dim("  shape: Desktop OAuth client (installed block present)")}\n`,
   );
 
-  // Probe mode runs upstream status + permission tests.
-  if (opts.probe === true) {
-    process.stdout.write(`\n${pc.cyan("[probe]")} running upstream connectivity check...\n`);
-    const code = await spawnUpstream(["status"], PROBE_TIMEOUT_MS);
-    if (code !== 0) {
-      process.stderr.write(
-        `${pc.yellow("warn: ")}upstream status reported a non-zero exit (${code}). ` +
-          `Run \`npx ${UPSTREAM_PACKAGE} accounts list\` to inspect.\n`,
-      );
-      return code;
-    }
-    return 0;
-  }
+  if (opts.probe === true) return runProbeMode();
 
-  // Non-interactive flow: stop here — caller has staged the creds.
   if (opts.nonInteractive === true) {
     process.stdout.write(
-      `${pc.dim("non-interactive mode: credentials staged. Next step (manual):")}\n` +
-        `  ${pc.cyan(`npx ${UPSTREAM_PACKAGE} accounts add default`)}\n`,
+      `${pc.dim("non-interactive mode: credentials staged. Next step (manual):")}\n  ${pc.cyan(`npx ${UPSTREAM_PACKAGE} accounts add default`)}\n`,
     );
     return 0;
   }
 
-  // Interactive: shell out to upstream `setup` (verifies creds + prints hints),
-  // then to `accounts add default` (opens browser, captures consent).
-  process.stdout.write(
-    `\n${pc.cyan("→")} delegating to upstream installer ` + `(${UPSTREAM_PACKAGE})...\n`,
-  );
-  const setupCode = await spawnUpstream(["setup"]);
-  if (setupCode !== 0) {
-    process.stderr.write(`${pc.red("error: ")}upstream setup exited with code ${setupCode}.\n`);
-    return setupCode;
-  }
-
-  process.stdout.write(`\n${pc.cyan("→")} adding default account...\n`);
-  const addCode = await spawnUpstream(["accounts", "add", "default"]);
-  if (addCode !== 0) {
-    process.stderr.write(
-      `${pc.red("error: ")}upstream \`accounts add\` exited with code ${addCode}.\n`,
-    );
-    return addCode;
-  }
+  const interactiveCode = await runInteractiveSetup();
+  if (interactiveCode !== 0) return interactiveCode;
 
   if (typeof opts.writable === "string" && opts.writable.length > 0) {
     process.stdout.write(
@@ -230,7 +236,7 @@ export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<
 }
 
 /** Spawn `npx <UPSTREAM_PACKAGE> ...args` with an optional timeout. Returns exit code. @internal */
-export function spawnUpstream(args: string[], timeoutMs?: number): Promise<number> {
+function spawnUpstream(args: string[], timeoutMs?: number): Promise<number> {
   return new Promise((resolveExit) => {
     const child = spawn("npx", ["-y", UPSTREAM_PACKAGE, ...args], {
       stdio: "inherit",

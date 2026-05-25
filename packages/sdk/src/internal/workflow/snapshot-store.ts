@@ -103,32 +103,39 @@ class JsonFileWorkflowSnapshotStore implements WorkflowSnapshotStore {
     }
   }
 
-  async list(
-    workflowName?: string,
-  ): Promise<ReadonlyArray<{ runId: string; workflowName: string; suspendedAt: number }>> {
-    let entries: string[];
+  private async readEntriesOrEmpty(): Promise<string[]> {
     try {
-      entries = await readdir(this.dir);
+      return await readdir(this.dir);
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
       throw err;
     }
+  }
+
+  private async readSnapshotSafe(file: string): Promise<WorkflowSnapshot | undefined> {
+    try {
+      const raw = await readFile(join(this.dir, file), "utf8");
+      return JSON.parse(raw) as WorkflowSnapshot;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async list(
+    workflowName?: string,
+  ): Promise<ReadonlyArray<{ runId: string; workflowName: string; suspendedAt: number }>> {
+    const entries = await this.readEntriesOrEmpty();
     const results: Array<{ runId: string; workflowName: string; suspendedAt: number }> = [];
     for (const file of entries) {
       if (!file.endsWith(".json")) continue;
-      try {
-        const raw = await readFile(join(this.dir, file), "utf8");
-        const snap = JSON.parse(raw) as WorkflowSnapshot;
-        if (workflowName === undefined || snap.workflowName === workflowName) {
-          results.push({
-            runId: snap.runId,
-            workflowName: snap.workflowName,
-            suspendedAt: snap.suspendedAt,
-          });
-        }
-      } catch {
-        // Skip malformed files.
-      }
+      const snap = await this.readSnapshotSafe(file);
+      if (snap === undefined) continue;
+      if (workflowName !== undefined && snap.workflowName !== workflowName) continue;
+      results.push({
+        runId: snap.runId,
+        workflowName: snap.workflowName,
+        suspendedAt: snap.suspendedAt,
+      });
     }
     return results;
   }

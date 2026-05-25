@@ -54,7 +54,7 @@
         "default": "./dist/tools.js"
       },
       "require": {
-        "types": "./dist/tools/index.d.ts",
+        "types": "./dist/tools/index.d.cts",
         "default": "./dist/tools.cjs"
       }
     },
@@ -64,7 +64,7 @@
         "default": "./dist/path-safety.js"
       },
       "require": {
-        "types": "./dist/path-safety.d.ts",
+        "types": "./dist/path-safety.d.cts",
         "default": "./dist/path-safety.cjs"
       }
     },
