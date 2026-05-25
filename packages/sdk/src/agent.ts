@@ -26,6 +26,10 @@ import {
 } from "./internal/runtime/agent-registry.js";
 import { CloudAgent } from "./internal/runtime/cloud-agent.js";
 import { validateCloudToolParity } from "./internal/runtime/cloud-tool-parity.js";
+import {
+  type LiveAgentRegistry,
+  liveAgentRegistry,
+} from "./internal/runtime/live-agent-registry.js";
 import { LocalAgent } from "./internal/runtime/local-agent.js";
 import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
 import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
@@ -58,6 +62,29 @@ export class Agent {
   private constructor() {
     // Static-only façade.
   }
+
+  /**
+   * Live-agent cache for production deploys (Production-Readiness #2, ADRs D307-D310).
+   *
+   * Caches `SDKAgent` instances by id with LRU eviction (when `size > maxAgents`)
+   * and an idle-timeout sweep. Solves the OOM failure mode for long-running
+   * Node servers spawning fresh agents per conversation.
+   *
+   * Defaults: `maxAgents: 100`, `idleTimeoutMs: 30 min`, sweep `60s`.
+   * Configure for high-traffic SaaS:
+   *
+   * ```ts
+   * Agent.registry.configure({ maxAgents: 1000, idleTimeoutMs: 15 * 60_000 });
+   * process.on("SIGTERM", () => Agent.registry.evictAll());
+   * ```
+   *
+   * Cache hits are automatic in `Agent.getOrCreate` (T2.6). Disable the cache
+   * entirely via `configure({ maxAgents: 0 })` — every getOrCreate then
+   * re-initializes.
+   *
+   * @public
+   */
+  static readonly registry: LiveAgentRegistry = liveAgentRegistry;
 
   /**
    * Create a new agent. Pass either `local` or `cloud` to pick a runtime.
@@ -264,22 +291,15 @@ export class Agent {
    * @public
    */
   static async getOrCreate(agentId: string, options: AgentOptions): Promise<SDKAgent> {
-    try {
-      return await Agent.resume(agentId, options);
-    } catch (err) {
-      if (!(err instanceof UnknownAgentError)) throw err;
-    }
-    try {
-      return await Agent.create({ ...options, agentId });
-    } catch (err) {
-      // EC-1: another caller in the same process won the create race between
-      // our resume miss and our create attempt. Reuse their handle instead of
-      // surfacing the conflict to the caller.
-      if (err instanceof ConfigurationError && err.code === "agent_id_already_exists") {
-        return await Agent.resume(agentId, options);
-      }
-      throw err;
-    }
+    // T2.6: live-agent cache hit. `get` refreshes lastUsedAt so the entry
+    // resists LRU eviction. Cache disabled via `Agent.registry.configure({ maxAgents: 0 })`
+    // — set is no-op, get always returns undefined, so re-initialization runs.
+    const cached = Agent.registry.get(agentId);
+    if (cached !== undefined) return cached;
+
+    const fresh = await getOrCreateUncached(agentId, options);
+    Agent.registry.set(agentId, fresh);
+    return fresh;
   }
 
   /**
@@ -380,6 +400,33 @@ export class Agent {
  *
  * @internal
  */
+/**
+ * Wraps the previous `getOrCreate` body — try resume, on UnknownAgentError
+ * fall through to create, on `agent_id_already_exists` race retry resume.
+ * Extracted so `Agent.getOrCreate` can short-circuit on cache hit before
+ * incurring the resume disk read.
+ *
+ * @internal
+ */
+async function getOrCreateUncached(agentId: string, options: AgentOptions): Promise<SDKAgent> {
+  try {
+    return await Agent.resume(agentId, options);
+  } catch (err) {
+    if (!(err instanceof UnknownAgentError)) throw err;
+  }
+  try {
+    return await Agent.create({ ...options, agentId });
+  } catch (err) {
+    // EC-1: another caller in the same process won the create race between
+    // our resume miss and our create attempt. Reuse their handle instead of
+    // surfacing the conflict to the caller.
+    if (err instanceof ConfigurationError && err.code === "agent_id_already_exists") {
+      return await Agent.resume(agentId, options);
+    }
+    throw err;
+  }
+}
+
 async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOptions> {
   const handoffs = options.handoffs;
   if (handoffs === undefined || handoffs.length === 0) return options;
