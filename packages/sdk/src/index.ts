@@ -64,6 +64,13 @@ export {
   type PreToolCallDecision,
 } from "./internal/plugins/types.js";
 export type { ProviderProfile } from "./internal/providers/types.js";
+// Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
+// the runtime singleton is reached via `Agent.registry`.
+export type {
+  AgentRegistryOptions,
+  EvictReason,
+  LiveAgentRegistry,
+} from "./internal/runtime/live-agent-registry.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,

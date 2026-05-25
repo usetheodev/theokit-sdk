@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added (`Agent.registry` — LRU + idle GC for live agents — Production-Readiness #2)
+
+Closes Gap 2 of the TheoKit cross-repo handoff. Eliminates OOM in 24/7 Node deploys that previously had no eviction for the live agent set (TheoKit's `dev-agent-gc.ts` only ran in dev mode; production servers accumulated agents until heap pressure crashed them).
+
+- **`Agent.registry`** static property exposes the process-wide `LiveAgentRegistry` singleton (ADR D310). Surface: `configure`, `evict`, `evictAll`, `size`, `ids`.
+- **LRU eviction** when `size > maxAgents`. Sync `set` path; eviction runs fire-and-forget (caller doesn't await `dispose`).
+- **Idle timeout sweep** drops agents whose `lastUsedAt < now - idleTimeoutMs`. Configurable sweep interval (default 60s). `setInterval` is `unref()`'d so it does not keep the event loop alive at process exit.
+- **`onEvict(id, reason)`** observability listener. Reason is `"lru" | "idle" | "explicit"`. Listener errors are swallowed with stderr warn (D309 — eviction must not block).
+- **Defaults** (ADR D308): `maxAgents: 100`, `idleTimeoutMs: 30 min`, `sweepIntervalMs: 60_000`. Calibrated for indie/small-team deploys. High-traffic SaaS sets larger; `maxAgents: 0` disables the cache entirely.
+- **`agent.dispose()` called on every eviction** (D309). Errors caught + swallowed so a stuck dispose doesn't block subsequent evictions.
+- **`Agent.getOrCreate` cache hit** (T2.6): consults `Agent.registry.get(id)` before resume/create. `get` refreshes `lastUsedAt` so frequently-used agents resist eviction.
+- **EC-4 absorbed**: `set(id, newAgent)` when `id` already maps to a different agent disposes the old before overwriting (prevents leak under racing `getOrCreate` calls). Idempotent when same instance.
+- **EC-8 absorbed**: idle sweep re-checks entry identity after the dispose await; a `set` that landed mid-sweep is not deleted.
+- **ADRs:** D307 (live vs metadata registry separation), D308 (default tuning), D309 (dispose swallow on eviction), D310 (process-wide singleton).
+- **Tests:** 22 new (16 unit + 6 integration). Coverage: LRU recency, refresh saves, dispose-on-overwrite, dispose-error-swallow, idle sweep eviction, onEvict reasons, maxAgents=0 disables cache.
+
 ### Added (`ConversationStorageAdapter` — pluggable conversation persistence — Production-Readiness #1)
 
 Closes Gap 1 of the TheoKit cross-repo production-readiness handoff (`docs/handoffs/from-theokit/2026-05-25-production-readiness.md`). Unblocks serverless (a peer vendor, Cloudflare Workers, Lambda) and multi-host (K8s replicas, TheoCloud canary) deploys that cannot use the default `<cwd>/.theokit/agents/<id>/messages.jsonl` filesystem persistence.
