@@ -2934,3 +2934,66 @@ When `Agent.registry` evicts an agent (LRU / idle), or when you `await agent.dis
 ### Runtimes without native `AbortSignal.any`
 
 The SDK ships a ponyfill (`anySignal`, D324). Vercel Edge consumers + older Bun get correct behavior without polyfill installation.
+
+## Tool lifecycle hooks (v1.21+) — `onToolStart` / `onToolEnd` / `onToolError`
+
+Observe every tool dispatch for cost tracking, audit log, latency telemetry (Production-Readiness #4, ADRs D315-D317).
+
+```ts
+const agent = await Agent.create({
+  apiKey, model,
+  onToolStart: ({ toolName, callId, args, conversationId }) => {
+    metrics.recordToolStart({ toolName, callId, conversationId });
+  },
+  onToolEnd: ({ toolName, callId, durationMs, result }) => {
+    metrics.recordToolEnd({ toolName, callId, durationMs });
+  },
+  onToolError: ({ toolName, callId, error, durationMs, attempt }) => {
+    metrics.recordToolError({ toolName, callId, error: error.message, durationMs });
+  },
+});
+```
+
+### Semantics
+
+- `callId` is the same value across the start/end (or start/error) pair — correlate logs without managing your own counter.
+- `durationMs` is wall-clock from start hook → end (or error) hook fire.
+- `event.error` in `onToolError` is ALWAYS an `Error` instance (validation reasons wrapped in `new Error(reason)`).
+- `attempt` is always `1` in v1 — reserved for future tool retry policy.
+- **Hook errors are SWALLOWED** with stderr warn. Listener bugs do NOT crash the agent run.
+
+## Quota / abuse hooks (v1.21+) — `onBeforeCreate` / `onBeforeSend`
+
+Multi-tenant SaaS quota enforcement at the SDK boundary (Production-Readiness #6, ADRs D322-D323).
+
+```ts
+const agent = await Agent.create({
+  apiKey, model,
+  agentId: `user-${userId}`,
+  metadata: { userId },
+  onBeforeCreate: async ({ conversationId, userId }) => {
+    const count = await db.countConversations(userId);
+    if (count >= 100) {
+      throw new Error("100 conversations per user max");
+    }
+  },
+  onBeforeSend: async ({ conversationId, previousMessageCount }) => {
+    if (previousMessageCount >= 50) {
+      throw new Error("conversation too long — start a new one");
+    }
+  },
+});
+```
+
+### Distinction from tool hooks
+
+These hooks are **admission gates**, not observers. Their throws **propagate** as rejection on `Agent.create` / `agent.send` — they are designed to block operations (quota, abuse, policy).
+
+### Order
+
+- `onBeforeCreate` fires AFTER `validateAgentOptions` but BEFORE registry insert + storage write. Rejected hooks leave zero orphan state.
+- `onBeforeSend` fires AFTER cache invalidation check but BEFORE `pre_user_send`, storage write, and LLM call.
+
+### Cache hit semantics
+
+`Agent.getOrCreate` cache hit (`Agent.registry`) skips `onBeforeCreate` — cache is per-process, so cold path always runs the hook. Per-user quotas backed by an external DB survive process restart.

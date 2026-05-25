@@ -250,6 +250,14 @@ export class LocalAgent implements SDKAgent {
     this.applyModelOverride(options.model);
 
     const userText = typeof message === "string" ? message : message.text;
+    // D322/D323 — quota gate fires BEFORE pre_user_send hooks, BEFORE
+    // storage write, BEFORE LLM call. Throw propagates (NOT swallowed).
+    if (this.options.onBeforeSend !== undefined) {
+      await this.options.onBeforeSend({
+        conversationId: this.agentId,
+        previousMessageCount: getSessionMessages(this.agentId).length,
+      });
+    }
     await this.runPreHook(userText);
 
     // ADR D145 / EC-A: pre_user_send memory adapter hooks. Recalled context

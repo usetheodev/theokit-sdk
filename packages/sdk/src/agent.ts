@@ -107,6 +107,16 @@ export class Agent {
         );
       }
     }
+    // D322/D323 — quota gate fires BEFORE any side effects (registry insert,
+    // disk persist, MCP boot). Errors propagate (NOT swallowed — gates block).
+    if (options.onBeforeCreate !== undefined) {
+      const userId =
+        typeof options.metadata?.userId === "string" ? options.metadata.userId : undefined;
+      await options.onBeforeCreate({
+        conversationId: options.agentId ?? "auto",
+        ...(userId !== undefined ? { userId } : {}),
+      });
+    }
     // D214-D229: when `handoffs[]` is set, synthesize `transfer_to_<X>` tools
     // and merge into options.tools. Validates uniqueness + self-reference
     // before agent construction (EC-6).

@@ -67,6 +67,15 @@ export interface AgentLoopInputs {
    */
   signal?: AbortSignal;
   /**
+   * Production-Readiness #4 (ADRs D315-D317): tool lifecycle observability
+   * callbacks forwarded from `AgentOptions`. Wrapped around tool dispatch
+   * so cost-tracking + audit log can correlate start/end/error events via
+   * `callId`. Errors thrown by callbacks are swallowed.
+   */
+  onToolStart?: import("../../types/agent.js").AgentOptions["onToolStart"];
+  onToolEnd?: import("../../types/agent.js").AgentOptions["onToolEnd"];
+  onToolError?: import("../../types/agent.js").AgentOptions["onToolError"];
+  /**
    * T4.2 (ADRs D90-D91): explicit iteration budget. When omitted, the loop
    * constructs one from `maxIterations`. Tests can inject a pre-configured
    * instance to verify grace-call / compression-cap semantics.

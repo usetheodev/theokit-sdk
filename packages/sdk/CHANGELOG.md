@@ -2,6 +2,31 @@
 
 ## [Unreleased]
 
+### Added (`onBeforeCreate` / `onBeforeSend` quota gates — Production-Readiness #6)
+
+Closes Gap 6 of the TheoKit cross-repo handoff. Lets multi-tenant SaaS deploys enforce per-user / per-conversation quotas at the SDK boundary.
+
+- **`AgentOptions.onBeforeCreate`** fires BEFORE the agent is registered or persisted. Receives `{ conversationId, userId? }`. Throwing blocks creation — error propagates as `Agent.create` rejection.
+- **`AgentOptions.onBeforeSend`** fires BEFORE each `agent.send` (before LLM call, before storage append). Receives `{ conversationId, previousMessageCount }`. Throwing blocks the send.
+- **Errors are NOT swallowed (D322).** Unlike tool lifecycle hooks (observation), quota hooks are admission gates — their throws propagate by design.
+- **Order: validate → quota gate → side effects (D323).** Rejected hooks leave zero orphan state on disk or in memory.
+- **`onBeforeCreate` skipped on `Agent.registry` cache hit** — caching is per-process, cold-path always runs the hook.
+- **ADRs:** D322 (errors propagate), D323 (fire before side effects).
+- **Tests:** 8 new in `tests/agent-quota-hooks.test.ts` covering resolve/reject paths, `userId` propagation, no-orphan-on-reject, `previousMessageCount` semantics.
+
+### Added (`onToolStart` / `onToolEnd` / `onToolError` tool lifecycle hooks — Production-Readiness #4)
+
+Closes Gap 4 of the TheoKit cross-repo handoff. Cost tracking, audit log, per-tool retry/alerting without writing a plugin.
+
+- **`AgentOptions.onToolStart`**, **`onToolEnd`**, **`onToolError`** callbacks accepted in `AgentOptions` (top-level — no plugin needed; D315). Match Vercel AI SDK `onChunk`/`onFinish` ergonomics.
+- **`callId` propagated** through the start/end (or start/error) pair from the existing `generateCallId()` in dispatch (D316). Consumers correlate without managing their own counter.
+- **`durationMs`** measured between start hook fire and end/error hook fire — handler latency.
+- **Hook errors swallowed** via single `safeEmitToolHook` chokepoint (D317). Listener throws logged to stderr but never crash the run.
+- **`onToolError.event.error` is ALWAYS an `Error` instance** (EC-6 absorbed) — stderr-string-only failures wrapped in `new Error(stderr)`.
+- **`attempt: 1`** always in v1 (D317 placeholder — reserved for future tool retry policy).
+- **ADRs:** D315 (AgentOptions surface), D316 (callId reuse), D317 (hook errors swallowed — EC-6 absorbed).
+- **Tests:** 3 new in `tests/agent-tool-hooks.test.ts` (surface acceptance + listener-throw safety).
+
 ### Added (`AbortSignal` end-to-end propagation — Production-Readiness #5)
 
 Closes Gap 5 of the TheoKit cross-repo handoff. Tokens stop billing the moment a caller (browser, route handler, `agent.dispose`) signals cancellation.

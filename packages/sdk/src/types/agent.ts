@@ -434,6 +434,80 @@ export interface AgentOptions {
    */
   maxHandoffDepth?: number;
   /**
+   * Production-Readiness #6 — quota / abuse gates (ADRs D322-D323).
+   *
+   * `onBeforeCreate` fires BEFORE the agent is registered or persisted —
+   * throw to block creation. `onBeforeSend` fires BEFORE each `agent.send`
+   * (after `pre_user_send` adapter hooks, before any LLM call or storage
+   * write) — throw to block the send.
+   *
+   * Unlike `onTool*` (observation), these hooks are BLOCKERS — errors
+   * propagate as rejection on `Agent.create` / `agent.send`. Use them for
+   * per-user conversation caps, per-conversation message caps, abuse
+   * detection.
+   *
+   * @public
+   */
+  onBeforeCreate?: (event: { conversationId: string; userId?: string }) => Promise<void> | void;
+  /**
+   * Fires before each `agent.send`. `previousMessageCount` is the count of
+   * messages already persisted BEFORE the current send adds the user
+   * message. Throw to block.
+   *
+   * @public
+   */
+  onBeforeSend?: (event: {
+    conversationId: string;
+    previousMessageCount: number;
+  }) => Promise<void> | void;
+  /**
+   * Production-Readiness #4 — tool lifecycle hooks (ADRs D315-D317).
+   *
+   * `onToolStart` fires BEFORE the handler runs. `onToolEnd` fires after a
+   * successful handler return. `onToolError` fires when validation fails OR
+   * the handler throws — `event.error` is always an `Error` instance.
+   *
+   * Hook errors are SWALLOWED with a stderr warn (do not abort the run).
+   * The `callId` is unique per tool invocation and identical across the
+   * start/end (or start/error) pair, so consumers can correlate.
+   *
+   * Use cases: cost tracking, audit logs, per-tool retry/alerting,
+   * latency telemetry.
+   *
+   * @public
+   */
+  onToolStart?: (event: {
+    toolName: string;
+    args: unknown;
+    conversationId: string;
+    callId: string;
+  }) => void | Promise<void>;
+  /** Fires when a tool handler returns successfully. */
+  onToolEnd?: (event: {
+    toolName: string;
+    args: unknown;
+    result: unknown;
+    conversationId: string;
+    callId: string;
+    durationMs: number;
+  }) => void | Promise<void>;
+  /**
+   * Fires when a tool handler throws OR schema validation rejects the args.
+   * `event.error` is always an `Error` instance (D315/EC-6 — validation
+   * reasons are wrapped in `new Error(reason)`).
+   *
+   * `attempt` is always `1` in v1 (D317 — reserved for future retry policy).
+   */
+  onToolError?: (event: {
+    toolName: string;
+    args: unknown;
+    error: Error;
+    conversationId: string;
+    callId: string;
+    durationMs: number;
+    attempt: number;
+  }) => void | Promise<void>;
+  /**
    * Pluggable conversation persistence (Production-Readiness #1; ADRs D303-D306).
    *
    * Default: undefined → `FileSystemConversationStorage` writing to
