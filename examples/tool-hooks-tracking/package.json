@@ -1,0 +1,15 @@
+{
+  "name": "example-tool-hooks-tracking",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx run.ts"
+  },
+  "dependencies": {
+    "@usetheo/sdk": "file:../../packages/sdk",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
