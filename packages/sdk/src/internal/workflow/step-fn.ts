@@ -10,9 +10,9 @@
 
 import type { FnStep, StepContext, StepResult } from "../../types/workflow.js";
 import { WorkflowCompensateNotImplementedError } from "../../types/workflow.js";
-import { withRetry } from "./retry-policy.js";
-import { errToShape } from "./error-shape.js";
 import { WorkflowSuspendedSentinel } from "./ctx.js";
+import { errToShape } from "./error-shape.js";
+import { withRetry } from "./retry-policy.js";
 
 export async function runFnStep(
   step: FnStep,
@@ -49,9 +49,10 @@ export async function runFnStep(
 
   const exec = async (): Promise<unknown> => step.fn(input, ctx);
   try {
-    const { value, attempts } = step.retry !== undefined
-      ? await withRetry(exec, step.retry, ctx.signal)
-      : { value: await exec(), attempts: 1 };
+    const { value, attempts } =
+      step.retry !== undefined
+        ? await withRetry(exec, step.retry, ctx.signal)
+        : { value: await exec(), attempts: 1 };
 
     if (step.outputSchema !== undefined) {
       try {

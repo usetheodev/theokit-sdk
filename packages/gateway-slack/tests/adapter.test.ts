@@ -80,7 +80,10 @@ describe("SlackAdapter — connect/disconnect (D277/D278/D279)", () => {
   it("EC-2: concurrent connect() calls share one in-flight start", async () => {
     let resolveStart: ((v: undefined) => void) | undefined;
     startMock.mockImplementationOnce(
-      () => new Promise<undefined>((r) => { resolveStart = r; }),
+      () =>
+        new Promise<undefined>((r) => {
+          resolveStart = r;
+        }),
     );
     const a = new SlackAdapter({ botToken: "xoxb-x", appToken: "xapp-x" });
     const p1 = a.connect();
@@ -157,9 +160,7 @@ describe("SlackAdapter — sendMessage", () => {
       channel: { id: "C1", type: "thread", topicId: "100.5" },
       text: "reply",
     });
-    expect(postMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({ thread_ts: "100.5" }),
-    );
+    expect(postMessageMock).toHaveBeenCalledWith(expect.objectContaining({ thread_ts: "100.5" }));
   });
 
   it("sets mrkdwn for markdown format (D281)", async () => {
@@ -170,9 +171,7 @@ describe("SlackAdapter — sendMessage", () => {
       text: "*bold*",
       format: "markdown",
     });
-    expect(postMessageMock).toHaveBeenCalledWith(
-      expect.objectContaining({ mrkdwn: true }),
-    );
+    expect(postMessageMock).toHaveBeenCalledWith(expect.objectContaining({ mrkdwn: true }));
   });
 
   it("chunks long text (D272)", async () => {
@@ -217,7 +216,10 @@ describe("SlackAdapter — sendMessage", () => {
     // should report not_connected.
     let resolveStart: ((v: undefined) => void) | undefined;
     startMock.mockImplementationOnce(
-      () => new Promise<undefined>((r) => { resolveStart = r; }),
+      () =>
+        new Promise<undefined>((r) => {
+          resolveStart = r;
+        }),
     );
     const a = new SlackAdapter({ botToken: "xoxb-x", appToken: "xapp-x" });
     void a.connect();
@@ -234,7 +236,9 @@ describe("SlackAdapter — onInbound (D276 / EC-H)", () => {
     const handler = vi.fn(async () => undefined);
     a.onInbound(handler);
     // Bolt calls our event handler with { body: ... } shape.
-    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: { body: unknown }) => Promise<void>;
+    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: {
+      body: unknown;
+    }) => Promise<void>;
     await boltHandler({
       body: {
         team_id: "T",
@@ -249,9 +253,10 @@ describe("SlackAdapter — onInbound (D276 / EC-H)", () => {
       },
     });
     expect(handler).toHaveBeenCalledOnce();
-    const event = handler.mock.calls[0]?.[0] as { platform: string; text: string };
-    expect(event.platform).toBe("slack");
-    expect(event.text).toBe("hello");
+    const calls = handler.mock.calls as unknown as Array<[{ platform: string; text: string }]>;
+    const event = calls[0]?.[0];
+    expect(event?.platform).toBe("slack");
+    expect(event?.text).toBe("hello");
   });
 
   it("D276: second onInbound call replaces previous handler", async () => {
@@ -261,7 +266,9 @@ describe("SlackAdapter — onInbound (D276 / EC-H)", () => {
     const h2 = vi.fn(async () => undefined);
     a.onInbound(h1);
     a.onInbound(h2);
-    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: { body: unknown }) => Promise<void>;
+    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: {
+      body: unknown;
+    }) => Promise<void>;
     await boltHandler({
       body: {
         team_id: "T",
@@ -285,7 +292,9 @@ describe("SlackAdapter — onInbound (D276 / EC-H)", () => {
     const handler = vi.fn(async () => undefined);
     const off = a.onInbound(handler);
     off();
-    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: { body: unknown }) => Promise<void>;
+    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: {
+      body: unknown;
+    }) => Promise<void>;
     await boltHandler({
       body: {
         team_id: "T",
@@ -308,7 +317,9 @@ describe("SlackAdapter — onInbound (D276 / EC-H)", () => {
     a.onInbound(async () => {
       throw new Error("handler kaboom");
     });
-    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: { body: unknown }) => Promise<void>;
+    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: {
+      body: unknown;
+    }) => Promise<void>;
     await expect(
       boltHandler({
         body: {
@@ -331,7 +342,9 @@ describe("SlackAdapter — onInbound (D276 / EC-H)", () => {
     await a.connect();
     const handler = vi.fn(async () => undefined);
     a.onInbound(handler);
-    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: { body: unknown }) => Promise<void>;
+    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: {
+      body: unknown;
+    }) => Promise<void>;
     await boltHandler({
       body: {
         team_id: "T",
@@ -357,7 +370,9 @@ describe("SlackAdapter — onInbound (D276 / EC-H)", () => {
     await a.connect();
     const handler = vi.fn(async () => undefined);
     a.onInbound(handler);
-    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: { body: unknown }) => Promise<void>;
+    const boltHandler = eventRegistrationMock.mock.calls[0]?.[1] as (args: {
+      body: unknown;
+    }) => Promise<void>;
     await boltHandler({
       body: {
         team_id: "T",

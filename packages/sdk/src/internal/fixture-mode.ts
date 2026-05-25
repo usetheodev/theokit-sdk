@@ -93,10 +93,16 @@ export function shouldUseRealLocalRuntime(apiKey: string | undefined): boolean {
  * `BedrockAnthropicClient.stream`.
  */
 function isAwsBedrockAuthAvailable(): boolean {
-  if (typeof process.env.AWS_BEARER_TOKEN_BEDROCK === "string" && process.env.AWS_BEARER_TOKEN_BEDROCK.length > 0) {
+  if (
+    typeof process.env.AWS_BEARER_TOKEN_BEDROCK === "string" &&
+    process.env.AWS_BEARER_TOKEN_BEDROCK.length > 0
+  ) {
     return true;
   }
-  if (typeof process.env.AWS_ACCESS_KEY_ID === "string" && process.env.AWS_ACCESS_KEY_ID.length > 0) {
+  if (
+    typeof process.env.AWS_ACCESS_KEY_ID === "string" &&
+    process.env.AWS_ACCESS_KEY_ID.length > 0
+  ) {
     return true;
   }
   if (typeof process.env.AWS_PROFILE === "string" && process.env.AWS_PROFILE.length > 0) {

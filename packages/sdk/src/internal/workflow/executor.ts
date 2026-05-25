@@ -12,13 +12,13 @@ import {
   type Step,
   type StepContext,
   type StepResult,
-  WorkflowResumeStepNotFoundError,
-  WorkflowSnapshotNotFoundError,
   type WorkflowOptions,
   type WorkflowResumeOptions,
+  WorkflowResumeStepNotFoundError,
   type WorkflowRun,
   type WorkflowRunOptions,
   type WorkflowSnapshot,
+  WorkflowSnapshotNotFoundError,
 } from "../../types/workflow.js";
 import { combineSignals, makeStepContext, WorkflowSuspendedSentinel } from "./ctx.js";
 import { errToShape } from "./error-shape.js";
@@ -257,9 +257,7 @@ async function saveSnapshot(p: SnapshotParams): Promise<void> {
 
 /* ─── Resume ─── */
 
-export async function resumeWorkflow<TO>(
-  opts: WorkflowResumeOptions,
-): Promise<WorkflowRun<TO>> {
+export async function resumeWorkflow<TO>(opts: WorkflowResumeOptions): Promise<WorkflowRun<TO>> {
   // We need access to the workflow's internal options/steps. The public
   // resume API hands us a `workflow` reference exposing `.run` only — for
   // v1 we accept the user re-running the same workflow with the snapshot's
@@ -308,10 +306,8 @@ export async function resumeWorkflow<TO>(
   // Drop snapshot once we begin (single-shot semantics).
   await store.delete(opts.runId);
 
-  return executeWorkflow<unknown, TO>(
-    options,
-    remainingSteps,
-    resumeInput,
-    { signal: opts.signal, runId: opts.runId },
-  );
+  return executeWorkflow<unknown, TO>(options, remainingSteps, resumeInput, {
+    signal: opts.signal,
+    runId: opts.runId,
+  });
 }

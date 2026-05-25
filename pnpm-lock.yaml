@@ -325,9 +325,6 @@ importers:
       croner:
         specifier: ^9.0.0
         version: 9.1.0
-      zod:
-        specifier: ^3.25.0 || ^4.0.0
-        version: 4.4.3
     devDependencies:
       '@types/better-sqlite3':
         specifier: ^7.6.13
@@ -350,6 +347,9 @@ importers:
       typedoc:
         specifier: ^0.28.19
         version: 0.28.19(typescript@5.9.3)
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
 
   packages/skills-google-workspace:
     devDependencies:

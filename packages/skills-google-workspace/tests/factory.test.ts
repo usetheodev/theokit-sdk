@@ -60,7 +60,7 @@ describe("googleWorkspace()", () => {
 
   it("test_npm_package_override_threads_to_args", () => {
     const cfg = googleWorkspace({ npmPackage: "google-workspace-mcp@2.3.6" }).gworkspace;
-    expect(cfg?.args[1]).toBe("google-workspace-mcp@2.3.6");
+    expect(cfg?.args?.[1]).toBe("google-workspace-mcp@2.3.6");
   });
 
   it("test_config_dir_threads_as_env_var", () => {
@@ -69,7 +69,6 @@ describe("googleWorkspace()", () => {
   });
 
   it("test_empty_string_account_throws_TypeError (EC-5b)", () => {
-    // @ts-expect-error — deliberately invalid
     expect(() => googleWorkspace({ account: "" })).toThrow(TypeError);
   });
 

@@ -9,8 +9,6 @@
  */
 
 import * as path from "node:path";
-
-import { WhatsAppConnectTimeoutError, mapWhatsAppWebError } from "../../errors.js";
 import type {
   WhatsAppBackend,
   WhatsAppInboundEvent,
@@ -18,17 +16,9 @@ import type {
   WhatsAppSendResult,
   WhatsAppStatusReceipt,
 } from "../../backend-types.js";
-import {
-  formatCommand,
-  type IpcEvent,
-  LineBuffer,
-  parseEvent,
-} from "./ipc.js";
-import {
-  type BridgeHandle,
-  spawnBridge,
-  terminateBridge,
-} from "./lifecycle.js";
+import { mapWhatsAppWebError, WhatsAppConnectTimeoutError } from "../../errors.js";
+import { formatCommand, type IpcEvent, LineBuffer, parseEvent } from "./ipc.js";
+import { type BridgeHandle, spawnBridge, terminateBridge } from "./lifecycle.js";
 
 export interface WhatsAppWebBackendOptions {
   readonly sessionId: string;
@@ -146,7 +136,10 @@ export class WhatsAppWebBackend implements WhatsAppBackend {
     return new Promise<WhatsAppSendResult>((resolve) => {
       const timer = setTimeout(() => {
         this.pending.delete(msgId);
-        resolve({ ok: false, error: { code: "timeout", message: `Bridge send timed out after ${timeoutMs}ms.` } });
+        resolve({
+          ok: false,
+          error: { code: "timeout", message: `Bridge send timed out after ${timeoutMs}ms.` },
+        });
       }, timeoutMs);
       this.pending.set(msgId, { resolve, timer });
       try {
@@ -206,7 +199,9 @@ export class WhatsAppWebBackend implements WhatsAppBackend {
         this.pending.delete(event.msgId);
         clearTimeout(pending.timer);
         if (event.success) {
-          pending.resolve(event.wamid !== undefined ? { ok: true, wamid: event.wamid } : { ok: true });
+          pending.resolve(
+            event.wamid !== undefined ? { ok: true, wamid: event.wamid } : { ok: true },
+          );
         } else {
           pending.resolve({ ok: false, error: mapWhatsAppWebError(event.error) });
         }

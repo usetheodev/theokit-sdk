@@ -5,7 +5,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { fn, Workflow, WorkflowMaxIterationsExceededError } from "../../src/workflow.js";
+import { fn, Workflow } from "../../src/workflow.js";
 
 describe("workflow .branch", () => {
   it("first matching predicate runs", async () => {
@@ -46,10 +46,7 @@ describe("workflow .branch", () => {
   it("no match + no fallback passes input through unchanged (skipped)", async () => {
     const wf = Workflow.create({ name: "br-skip" })
       .then(fn("seed", async () => 42))
-      .branch(
-        [[(i) => (i as number) < 0, [fn("never", async () => "never")]]],
-        { id: "decide" },
-      )
+      .branch([[(i) => (i as number) < 0, [fn("never", async () => "never")]]], { id: "decide" })
       .commit();
     const run = await wf.run(undefined);
     expect(run.status).toBe("completed");
@@ -60,10 +57,10 @@ describe("workflow .branch", () => {
   it("runs fallback when no predicate matches", async () => {
     const wf = Workflow.create({ name: "br-fb" })
       .then(fn("seed", async () => 0))
-      .branch(
-        [[(i) => (i as number) > 100, [fn("never", async () => "never")]]],
-        { id: "decide", fallback: [fn("fb", async () => "fallback-ran")] },
-      )
+      .branch([[(i) => (i as number) > 100, [fn("never", async () => "never")]]], {
+        id: "decide",
+        fallback: [fn("fb", async () => "fallback-ran")],
+      })
       .commit();
     const run = await wf.run(undefined);
     expect(run.output).toBe("fallback-ran");
@@ -74,7 +71,11 @@ describe("workflow .foreach", () => {
   it("maps a step over upstream array output", async () => {
     const wf = Workflow.create({ name: "fe" })
       .then(fn("seed", async () => [1, 2, 3]))
-      .foreach("seed", fn("double", async (i) => (i as number) * 2), { id: "mapper" })
+      .foreach(
+        "seed",
+        fn("double", async (i) => (i as number) * 2),
+        { id: "mapper" },
+      )
       .commit();
     const run = await wf.run(undefined);
     expect(run.status).toBe("completed");
@@ -84,7 +85,11 @@ describe("workflow .foreach", () => {
   it("EC-7 — iterableFrom referencing missing step fails with helpful error", async () => {
     const wf = Workflow.create({ name: "fe-bad" })
       .then(fn("seed", async () => [1, 2, 3]))
-      .foreach("nonexistent", fn("noop", async (i) => i), { id: "mapper" })
+      .foreach(
+        "nonexistent",
+        fn("noop", async (i) => i),
+        { id: "mapper" },
+      )
       .commit();
     const run = await wf.run(undefined);
     expect(run.status).toBe("failed");
@@ -94,7 +99,11 @@ describe("workflow .foreach", () => {
   it("fails helpfully when source output is not an array", async () => {
     const wf = Workflow.create({ name: "fe-not-array" })
       .then(fn("seed", async () => "not-array"))
-      .foreach("seed", fn("noop", async (i) => i), { id: "mapper" })
+      .foreach(
+        "seed",
+        fn("noop", async (i) => i),
+        { id: "mapper" },
+      )
       .commit();
     const run = await wf.run(undefined);
     expect(run.status).toBe("failed");
@@ -104,7 +113,11 @@ describe("workflow .foreach", () => {
   it("empty array completes with output: []", async () => {
     const wf = Workflow.create({ name: "fe-empty" })
       .then(fn("seed", async () => [] as number[]))
-      .foreach("seed", fn("noop", async (i) => i), { id: "mapper" })
+      .foreach(
+        "seed",
+        fn("noop", async (i) => i),
+        { id: "mapper" },
+      )
       .commit();
     const run = await wf.run(undefined);
     expect(run.status).toBe("completed");

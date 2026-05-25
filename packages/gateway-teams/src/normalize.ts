@@ -18,10 +18,7 @@ export const __normalizeMarker: unique symbol = Symbol("normalize");
  * is set on `AppOptions`. We keep this helper as a fallback / explicit cleanup
  * path for tests + callers who consume the raw text directly.
  */
-export function stripTeamsMentions(
-  text: string,
-  botDisplayName?: string,
-): string {
+export function stripTeamsMentions(text: string, botDisplayName?: string): string {
   // `<at ATTRS?>NAME</at>` — strip outer tags (with optional attributes), keep inner text.
   let cleaned = text.replace(/<at(?:\s+[^>]*)?>([^<]*)<\/at>/gi, "$1");
   if (botDisplayName !== undefined && botDisplayName.length > 0) {
@@ -67,8 +64,7 @@ function channelMapping(
     case "groupChat":
       return { type: "group" };
     case "channel": {
-      const topicId =
-        channelData?.channel?.id ?? channelData?.teamsChannelId;
+      const topicId = channelData?.channel?.id ?? channelData?.teamsChannelId;
       return topicId !== undefined ? { type: "group", topicId } : { type: "group" };
     }
     default:

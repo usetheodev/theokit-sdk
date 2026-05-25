@@ -7,7 +7,6 @@
  * @internal
  */
 
-import { redactSecrets } from "../security/redact.js";
 import type {
   BranchStep,
   Step,
@@ -15,6 +14,7 @@ import type {
   StepResult,
   WorkflowOptions,
 } from "../../types/workflow.js";
+import { redactSecrets } from "../security/redact.js";
 import { errToShape } from "./error-shape.js";
 import type { DispatchFn } from "./step-parallel.js";
 

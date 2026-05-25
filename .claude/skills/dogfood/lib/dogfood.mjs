@@ -59,7 +59,9 @@ const COMMANDS = [
     // LLM responds in any language — gemini sometimes says "Nothing matches",
     // others say "encontrei", others "no facts" etc.). What we're really
     // testing is that the agent loop completed and replied.
-    expect: [/Corinthians|time|memory|encontr|run (finished|error)|rate-limit|nothing|no match|no fact|not found|fail|sem|nenhum|tampouco/i],
+    expect: [
+      /Corinthians|time|memory|encontr|run (finished|error)|rate-limit|nothing|no match|no fact|not found|fail|sem|nenhum|tampouco/i,
+    ],
     waitMs: 35000,
   },
   { text: "/agents", expect: [/code_writer/i, /researcher/i, /cloud-only/i], waitMs: 5000 },

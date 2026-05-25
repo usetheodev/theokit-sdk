@@ -3,11 +3,10 @@
  * D302 non-streaming, EC-6 helpful error.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { AuthenticationError, ConfigurationError, RateLimitError } from "../../src/errors.js";
 import { BedrockAnthropicClient } from "../../src/internal/llm/bedrock-anthropic.js";
 import { __resetBedrockTokenCache } from "../../src/internal/llm/bedrock-token-cache.js";
-import { AuthenticationError, ConfigurationError, RateLimitError } from "../../src/errors.js";
 import type { LlmRequest } from "../../src/internal/llm/types.js";
 
 const REQ: LlmRequest = {
@@ -24,7 +23,7 @@ afterEach(() => {
   process.env = originalEnv;
 });
 
-function mockFetch(response: Partial<Response> & { body: unknown; status?: number }): typeof fetch {
+function mockFetch(response: { body: unknown; status?: number }): typeof fetch {
   return (async (_url: unknown, _init: unknown) => {
     const init = _init as RequestInit;
     void init;
@@ -112,9 +111,9 @@ describe("BedrockAnthropicClient — body massage", () => {
 
   it("sends Authorization: Bearer header", async () => {
     process.env.AWS_BEARER_TOKEN_BEDROCK = "tok-secret";
-    let capturedHeaders: HeadersInit | undefined;
+    let capturedHeaders: Record<string, string> | undefined;
     const fetchImpl = (async (_url: string, init: RequestInit) => {
-      capturedHeaders = init.headers;
+      capturedHeaders = init.headers as Record<string, string>;
       return {
         ok: true,
         status: 200,
@@ -129,8 +128,7 @@ describe("BedrockAnthropicClient — body massage", () => {
     for await (const _ of iter) {
       void _;
     }
-    const headers = capturedHeaders as Record<string, string>;
-    expect(headers.authorization).toBe("Bearer tok-secret");
+    expect(capturedHeaders?.authorization).toBe("Bearer tok-secret");
   });
 });
 
@@ -146,7 +144,7 @@ describe("BedrockAnthropicClient — helpful errors", () => {
     process.env.AWS_BEARER_TOKEN_BEDROCK = "env-token";
     let capturedAuth = "";
     const fetchImpl = (async (_url: string, init: RequestInit) => {
-      capturedAuth = (init.headers as Record<string, string>).authorization;
+      capturedAuth = (init.headers as Record<string, string>).authorization ?? "";
       return {
         ok: true,
         status: 200,

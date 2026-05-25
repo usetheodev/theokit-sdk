@@ -95,6 +95,8 @@ export class CacheEmbedderError extends Error {
 export class CacheInvalidTtlError extends Error {
   override readonly name = "CacheInvalidTtlError";
   constructor(public readonly input: string | number) {
-    super(`Invalid TTL value: "${String(input)}". Expected number (seconds) or string like "1h" / "30m" / "7d".`);
+    super(
+      `Invalid TTL value: "${String(input)}". Expected number (seconds) or string like "1h" / "30m" / "7d".`,
+    );
   }
 }

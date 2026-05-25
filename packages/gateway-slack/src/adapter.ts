@@ -15,6 +15,7 @@
 // runtime. Use default import + destructure (Node CJS-interop via
 // esModuleInterop in tsconfig.base).
 import bolt from "@slack/bolt";
+
 const { App } = bolt;
 type App = InstanceType<typeof App>;
 
@@ -156,9 +157,7 @@ export class SlackAdapter extends BasePlatformAdapter {
     return { ok: true, ...(lastId !== undefined ? { messageId: lastId } : {}) };
   }
 
-  override onInbound(
-    handler: (event: GatewayMessageEvent) => Promise<void>,
-  ): () => void {
+  override onInbound(handler: (event: GatewayMessageEvent) => Promise<void>): () => void {
     // D276 / EC-H: second call replaces previous.
     this.handler = handler;
     return () => {
@@ -168,11 +167,9 @@ export class SlackAdapter extends BasePlatformAdapter {
 
   private async handleMessage(args: { body: unknown }): Promise<void> {
     if (this.handler === undefined) return;
-    const event = normalizeSlackEvent(
-      args.body as BoltMessageBody,
-      this.botUserId,
-      { requireMention: this.opts.requireMention ?? true },
-    );
+    const event = normalizeSlackEvent(args.body as BoltMessageBody, this.botUserId, {
+      requireMention: this.opts.requireMention ?? true,
+    });
     if (event === undefined) return;
     try {
       await this.handler(event);

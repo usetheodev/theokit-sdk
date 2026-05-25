@@ -144,11 +144,9 @@ describe("stripTeamsMentions", () => {
   });
 
   it("test_strip_mentions_handles_html_attributes (EC-9)", () => {
-    expect(
-      stripTeamsMentions(
-        '<at type="user" mri="29:1abc">Bot</at> hi how are you',
-      ),
-    ).toBe("Bot hi how are you");
+    expect(stripTeamsMentions('<at type="user" mri="29:1abc">Bot</at> hi how are you')).toBe(
+      "Bot hi how are you",
+    );
   });
 
   it("test_strip_mentions_removes_bot_display_name", () => {
@@ -160,8 +158,6 @@ describe("stripTeamsMentions", () => {
   });
 
   it("collapses whitespace + trims", () => {
-    expect(stripTeamsMentions("  <at>Bot</at>    hello   world  ", "Bot")).toBe(
-      "hello world",
-    );
+    expect(stripTeamsMentions("  <at>Bot</at>    hello   world  ", "Bot")).toBe("hello world");
   });
 });

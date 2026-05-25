@@ -4,9 +4,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-
-import { performStore } from "../../src/internal/cache/store-handler.js";
 import { InMemoryCacheStore } from "../../src/internal/cache/store.js";
+import { performStore } from "../../src/internal/cache/store-handler.js";
 
 const fakeEmbedder = {
   id: "fake",

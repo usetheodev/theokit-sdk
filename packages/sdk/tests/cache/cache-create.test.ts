@@ -9,8 +9,7 @@ const fakeEmbedder = {
   id: "fake",
   model: "fake-1",
   dimension: 4,
-  embed: async (texts: ReadonlyArray<string>) =>
-    texts.map(() => [0.1, 0.2, 0.3, 0.4]),
+  embed: async (texts: ReadonlyArray<string>) => texts.map(() => [0.1, 0.2, 0.3, 0.4]),
 };
 
 describe("Cache.semantic", () => {

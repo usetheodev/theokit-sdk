@@ -16,9 +16,6 @@ export default defineConfig({
   onSuccess: async () => {
     // Copy the bridge subprocess script alongside the dist so `dist/bridge/whatsapp-web-bridge.mjs` is shipped.
     mkdirSync("dist/bridge", { recursive: true });
-    copyFileSync(
-      "src/bridge/whatsapp-web-bridge.mjs",
-      "dist/bridge/whatsapp-web-bridge.mjs",
-    );
+    copyFileSync("src/bridge/whatsapp-web-bridge.mjs", "dist/bridge/whatsapp-web-bridge.mjs");
   },
 });

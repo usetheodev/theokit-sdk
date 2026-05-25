@@ -5,10 +5,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import {
-  Handoff,
-  RECOMMENDED_HANDOFF_PROMPT_PREFIX,
-} from "../../src/handoff.js";
+import { Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "../../src/handoff.js";
 import type { SDKAgent } from "../../src/types/agent.js";
 
 function fakeAgent(name: string): SDKAgent {
@@ -60,9 +57,7 @@ describe("Handoff.create (D222)", () => {
   });
 
   it("throws when target is not an SDKAgent (no .send)", () => {
-    expect(() => Handoff.create({ agentId: "x" } as unknown as SDKAgent)).toThrow(
-      /SDKAgent/,
-    );
+    expect(() => Handoff.create({ agentId: "x" } as unknown as SDKAgent)).toThrow(/SDKAgent/);
   });
 });
 

@@ -22,9 +22,10 @@
  * @public
  */
 
+import type { ZodType } from "zod";
 import { z } from "zod";
-
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
+import type { SDKAgent } from "./types/agent.js";
 import type {
   AgentStep,
   BranchStep,
@@ -42,11 +43,7 @@ import type {
   WorkflowRun,
   WorkflowRunOptions,
 } from "./types/workflow.js";
-import {
-  WorkflowDuplicateStepIdError,
-} from "./types/workflow.js";
-import type { SDKAgent } from "./types/agent.js";
-import type { ZodType } from "zod";
+import { WorkflowDuplicateStepIdError } from "./types/workflow.js";
 
 /* ─── Zod validation schemas ─── */
 
@@ -70,10 +67,9 @@ const WorkflowOptionsSchema = z.object({
       backend: z.enum(["memory", "json"]),
       dir: z.string().optional(),
     })
-    .refine(
-      (p) => p.backend !== "json" || (typeof p.dir === "string" && p.dir.length > 0),
-      { message: 'persistence.dir is required when backend = "json"' },
-    )
+    .refine((p) => p.backend !== "json" || (typeof p.dir === "string" && p.dir.length > 0), {
+      message: 'persistence.dir is required when backend = "json"',
+    })
     .optional(),
 });
 
@@ -259,9 +255,7 @@ export class Workflow<TInput = unknown, TOutput = unknown> {
    * `WorkflowBuilder` for fluent chaining. Call `.commit()` to obtain the
    * immutable `Workflow`.
    */
-  static create<TI = unknown, TO = unknown>(
-    options: WorkflowOptions,
-  ): WorkflowBuilder<TI, TO> {
+  static create<TI = unknown, TO = unknown>(options: WorkflowOptions): WorkflowBuilder<TI, TO> {
     WorkflowOptionsSchema.parse(options);
     return new WorkflowBuilder<TI, TO>(options);
   }
@@ -281,9 +275,7 @@ export class Workflow<TInput = unknown, TOutput = unknown> {
    * Resume a suspended workflow from its snapshot. Throws
    * `WorkflowSnapshotNotFoundError` if `runId` is unknown.
    */
-  static async resume<TO = unknown>(
-    opts: WorkflowResumeOptions,
-  ): Promise<WorkflowRun<TO>> {
+  static async resume<TO = unknown>(opts: WorkflowResumeOptions): Promise<WorkflowRun<TO>> {
     const { resumeWorkflow } = await import("./internal/workflow/executor.js");
     return resumeWorkflow<TO>(opts);
   }

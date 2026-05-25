@@ -8,23 +8,22 @@
  * @internal
  */
 
-import { mkdir, readFile, readdir } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-
-import { atomicWriteText } from "../persistence/atomic-write.js";
 import {
+  WorkflowNotSerializableError,
   type WorkflowOptions,
   type WorkflowSnapshot,
-  WorkflowNotSerializableError,
 } from "../../types/workflow.js";
+import { atomicWriteText } from "../persistence/atomic-write.js";
 
 export interface WorkflowSnapshotStore {
   save(snapshot: WorkflowSnapshot): Promise<void>;
   load(runId: string): Promise<WorkflowSnapshot | undefined>;
   delete(runId: string): Promise<void>;
-  list(workflowName?: string): Promise<
-    ReadonlyArray<{ runId: string; workflowName: string; suspendedAt: number }>
-  >;
+  list(
+    workflowName?: string,
+  ): Promise<ReadonlyArray<{ runId: string; workflowName: string; suspendedAt: number }>>;
 }
 
 /* ─── InMemory backend (default) ─── */

@@ -100,7 +100,12 @@ export class VertexGeminiClient implements LlmClient {
     const rewriteFetch: typeof fetch = (input, init) => {
       // OpenAIClient calls `${baseUrl}/v1/chat/completions`. We rewrite that to
       // the actual Vertex URL.
-      const requested = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      const requested =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
       const targetUrl = requested.endsWith("/v1/chat/completions") ? url : requested;
       return innerFetch(targetUrl, init);
     };

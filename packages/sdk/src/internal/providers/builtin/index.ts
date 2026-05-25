@@ -39,14 +39,4 @@ export function _resetBuiltinsRegistered(): void {
   registered = false;
 }
 
-export {
-  ANTHROPIC,
-  BEDROCK,
-  GEMINI,
-  LLAMACPP,
-  LMSTUDIO,
-  OLLAMA,
-  OPENAI,
-  OPENROUTER,
-  VERTEX,
-};
+export { ANTHROPIC, BEDROCK, GEMINI, LLAMACPP, LMSTUDIO, OLLAMA, OPENAI, OPENROUTER, VERTEX };

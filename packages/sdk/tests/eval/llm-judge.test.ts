@@ -18,8 +18,7 @@ import { describe, expect, it } from "vitest";
 describe("llmJudge parser shape (EC-8)", () => {
   // Inline the regex for unit testing the EC-8 fix. Mirror the one in
   // src/internal/scorers/llm-judge.ts.
-  const SCORE_REGEX =
-    /\{\s*"score"\s*:\s*([0-9]*\.?[0-9]+)\s*,\s*"reason"\s*:\s*"([^"]*)"\s*\}/;
+  const SCORE_REGEX = /\{\s*"score"\s*:\s*([0-9]*\.?[0-9]+)\s*,\s*"reason"\s*:\s*"([^"]*)"\s*\}/;
 
   it("matches bare JSON", () => {
     const m = SCORE_REGEX.exec('{"score": 0.7, "reason": "ok"}');

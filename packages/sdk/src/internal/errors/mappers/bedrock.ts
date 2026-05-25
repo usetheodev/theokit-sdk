@@ -37,7 +37,11 @@ export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
   const message = parsed.message ?? parsed.Message ?? "Bedrock request failed";
 
   // Throttling first — AWS uses 400 with __type for many errors, so status alone is unreliable.
-  if (args.status === 429 || awsType.includes("Throttling") || awsType.includes("TooManyRequests")) {
+  if (
+    args.status === 429 ||
+    awsType.includes("Throttling") ||
+    awsType.includes("TooManyRequests")
+  ) {
     return new RateLimitError(`Bedrock throttled: ${message}`, {
       metadata: buildErrorMetadata({
         provider: "bedrock",
@@ -49,7 +53,12 @@ export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
       }),
     });
   }
-  if (args.status === 401 || args.status === 403 || awsType.includes("AccessDenied") || awsType.includes("UnauthorizedOperation")) {
+  if (
+    args.status === 401 ||
+    args.status === 403 ||
+    awsType.includes("AccessDenied") ||
+    awsType.includes("UnauthorizedOperation")
+  ) {
     return new AuthenticationError(`Bedrock auth: ${message}`, {
       metadata: buildErrorMetadata({
         provider: "bedrock",

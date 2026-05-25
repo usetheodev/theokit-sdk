@@ -31,7 +31,7 @@ interface TracerLike {
   ): SpanLike;
 }
 
-let cachedTracer: TracerLike | undefined | null = undefined;
+let cachedTracer: TracerLike | undefined | null;
 
 function getTracer(): TracerLike | undefined {
   if (cachedTracer === null) return undefined;
@@ -53,10 +53,7 @@ function getTracer(): TracerLike | undefined {
   }
 }
 
-export function startWorkflowRunSpan(info: {
-  workflowName: string;
-  runId: string;
-}): SpanLike {
+export function startWorkflowRunSpan(info: { workflowName: string; runId: string }): SpanLike {
   const tracer = getTracer();
   if (tracer === undefined) return noopSpan;
   return tracer.startSpan("workflow.run", {

@@ -7,7 +7,11 @@ import { describe, expect, it } from "vitest";
 import { clampScore, computeAggregate } from "../../src/internal/eval/aggregate.js";
 import type { EvalRowResult } from "../../src/types/eval.js";
 
-function row(meanScore: number, durationMs: number, opts: Partial<EvalRowResult> = {}): EvalRowResult {
+function row(
+  meanScore: number,
+  durationMs: number,
+  opts: Partial<EvalRowResult> = {},
+): EvalRowResult {
   return {
     index: 0,
     input: "x",

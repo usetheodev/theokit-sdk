@@ -9,9 +9,8 @@ import { EventEmitter } from "node:events";
 import { Readable, Writable } from "node:stream";
 
 import { describe, expect, it, vi } from "vitest";
-
-import type { BridgeHandle } from "../src/backend/web/lifecycle.js";
 import { WhatsAppWebBackend } from "../src/backend/web/index.js";
+import type { BridgeHandle } from "../src/backend/web/lifecycle.js";
 import { WhatsAppConnectTimeoutError } from "../src/errors.js";
 
 /** A fake `ChildProcess` we can drive from tests. */
@@ -98,7 +97,11 @@ describe("WhatsAppWebBackend — send + IPC dispatch", () => {
     await new Promise((r) => setTimeout(r, 10));
     const written = child.stdin.written[0]!;
     const cmd = JSON.parse(written) as { msgId: string };
-    feed(child, JSON.stringify({ event: "send_ack", msgId: cmd.msgId, success: true, wamid: "wamid.acked" }) + "\n");
+    feed(
+      child,
+      JSON.stringify({ event: "send_ack", msgId: cmd.msgId, success: true, wamid: "wamid.acked" }) +
+        "\n",
+    );
 
     const r = await sendP;
     expect(r.ok).toBe(true);

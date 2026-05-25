@@ -46,7 +46,6 @@ function collect(filter: string | undefined, cwd: string): InspectResult {
   return result;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4 stable section renderers (providers/adapters/gateways/plugins) inline; splitting hurts readability of the human output shape.
 function formatHuman(r: InspectResult): string {
   const lines: string[] = [];
   if (r.providers.length > 0) {

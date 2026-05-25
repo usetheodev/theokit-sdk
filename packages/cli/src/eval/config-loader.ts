@@ -13,7 +13,6 @@ import { pathToFileURL } from "node:url";
 
 import type { EvalConfig } from "./types.js";
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: existence + dynamic import + 3 shape checks is one cohesive loader; splitting hurts the error-mapping clarity.
 export async function loadEvalConfig(cwd: string, configPath?: string): Promise<EvalConfig> {
   const relPath = configPath ?? "./eval.config.ts";
   const abs = isAbsolute(relPath) ? relPath : resolve(cwd, relPath);

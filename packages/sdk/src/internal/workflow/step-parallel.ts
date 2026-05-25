@@ -38,7 +38,7 @@ export async function runParallelStep(
   input: unknown,
   ctx: StepContext,
   options: WorkflowOptions,
-  prevStepResults: ReadonlyArray<StepResult>,
+  _prevStepResults: ReadonlyArray<StepResult>,
   dispatch: DispatchFn,
 ): Promise<StepResult> {
   const startedAt = Date.now();
@@ -62,9 +62,8 @@ export async function runParallelStep(
 
   // Derived signal for fail-fast: aborts on first branch failure.
   const failFastCtrl = policy === "fail-fast" ? new AbortController() : undefined;
-  const branchSignal = policy === "fail-fast"
-    ? mergeSignals(ctx.signal, failFastCtrl!.signal)
-    : ctx.signal;
+  const branchSignal =
+    policy === "fail-fast" ? mergeSignals(ctx.signal, failFastCtrl!.signal) : ctx.signal;
 
   // Gate each branch through the semaphore — acquire BEFORE running so the
   // permit cap is honored. (Eager-start would defeat concurrency limits.)
