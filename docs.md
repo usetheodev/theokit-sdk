@@ -2888,3 +2888,49 @@ console.log({
 `err.message` NEVER contains `err.providerError` content. The raw response body is reachable via `err.providerError` (= `err.metadata?.raw`), already redacted (D68). Safe to log.
 
 See `docs/error-codes.md` for the full provider→code mapping table.
+
+## Cancellation (v1.21+) — `SendOptions.signal`
+
+Wire `AbortSignal` from your route handler / job runner so token billing stops the moment the caller disconnects (Production-Readiness #5, ADRs D318-D321).
+
+### Pass user signal
+
+```ts
+import { Agent, AgentRunError } from "@usetheo/sdk";
+
+// Express + Node: request.on('close') fires AbortSignal on disconnect
+const agent = await Agent.getOrCreate(conversationId, { apiKey, model });
+try {
+  const run = await agent.send(message, { signal: request.signal });
+  return run.stream();
+} catch (err) {
+  if (err instanceof AgentRunError && err.code === "aborted") {
+    // user cancelled — no UI noise
+    return;
+  }
+  throw err;
+}
+```
+
+### Compose with timeout
+
+```ts
+const timeout = AbortSignal.timeout(30_000);
+const composed = AbortSignal.any([request.signal, timeout]);
+await agent.send(message, { signal: composed });
+```
+
+### What happens on abort
+
+1. `fetch()` to the LLM provider is canceled at the transport layer — tokens stop billing mid-stream
+2. The user message persists in conversation storage; the assistant message does NOT (D320 — history invariant)
+3. `agent.send()` rejects with `AgentRunError({ code: "aborted", retriable: false, cause: DOMException })`
+4. Tools in mid-execution still complete (their handlers don't see the signal unless they accept it explicitly)
+
+### Cleanup via `agent.dispose()` also aborts
+
+When `Agent.registry` evicts an agent (LRU / idle), or when you `await agent.dispose()` explicitly, the agent's lifecycle controller fires and in-flight `send()` calls are aborted with the same `code: "aborted"`. The `err.cause.message` carries the dispose context.
+
+### Runtimes without native `AbortSignal.any`
+
+The SDK ships a ponyfill (`anySignal`, D324). a peer vendor Edge consumers + older Bun get correct behavior without polyfill installation.
