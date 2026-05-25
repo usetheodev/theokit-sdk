@@ -16,6 +16,7 @@ import type { PersonalityRegistry } from "../personality/registry.js";
 import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
+import { anySignal } from "./abort-utils.js";
 import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import {
   appendSessionMessage,
@@ -90,6 +91,12 @@ export class LocalAgent implements SDKAgent {
   private readonly conversationStorage:
     | import("../../types/conversation-storage.js").ConversationStorageAdapter
     | undefined;
+  /**
+   * D319: lifecycle AbortController fired on `dispose()`. Composed with the
+   * caller's `SendOptions.signal` via `anySignal` so the LLM `fetch()`
+   * aborts on either signal (user cancel OR dispose).
+   */
+  private readonly lifecycleAbortController = new AbortController();
   private readonly settingSourcesIncludeProject: boolean;
   private readonly settingSourcesIncludePlugins: boolean;
   private resolvedSubagents: Record<string, AgentDefinition> = {};
@@ -279,9 +286,16 @@ export class LocalAgent implements SDKAgent {
       memoryFacts,
       activeMemorySummary,
     );
+    // D319 — compose user signal + lifecycle signal so either source aborts
+    // the in-flight LLM stream. Pass the composed signal downstream via a
+    // shallow-cloned options object (does NOT mutate the caller's SendOptions).
+    const composedOptions: SendOptions = {
+      ...options,
+      signal: anySignal([options.signal, this.lifecycleAbortController.signal]),
+    };
     const run = await this.dispatchRun(
       adaptedMessage,
-      options,
+      composedOptions,
       assembledSystemPrompt,
       memoryFacts,
       priorMessages,
@@ -438,6 +452,12 @@ export class LocalAgent implements SDKAgent {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    // D319: fire the lifecycle abort so any in-flight LLM `fetch()` cancels.
+    // `dispose` from `Agent.registry` eviction then sees a fast unwind
+    // instead of blocking on a long-running stream.
+    if (!this.lifecycleAbortController.signal.aborted) {
+      this.lifecycleAbortController.abort();
+    }
     // Wait for any in-flight send + post-run lifecycle to release the
     // per-agent send mutex. Without this, `dispose()` could return before
     // `writeSessionSummary` finishes, leaving the caller to read a

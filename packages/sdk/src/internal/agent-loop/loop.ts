@@ -200,7 +200,10 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
     "model.id": inputs.model.id ?? "auto",
     provider: inputs.llm.name,
   });
-  const signal = new AbortController().signal;
+  // D318 — propagate caller's AbortSignal down to the LLM transport. The LLM
+  // clients already accept `signal` via `fetch({ signal })`; the bug fixed
+  // here is that production paths used a fresh, never-aborting controller.
+  const signal = inputs.signal ?? new AbortController().signal;
   const generator = inputs.llm.stream(
     {
       model: inputs.model.id ?? "auto",
@@ -258,6 +261,38 @@ async function collectLlmEvents(
   let accumulatedText = "";
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
+  try {
+    const result = await runCollectorLoop(generator, inputs, ctx);
+    accumulatedText = result.accumulatedText;
+    errored = result.errored;
+    finishValue = result.finishValue;
+  } catch (cause) {
+    // D318/D321 — mid-stream abort or transport error.
+    const text =
+      inputs.signal?.aborted === true
+        ? "[aborted]"
+        : cause instanceof Error
+          ? cause.message
+          : String(cause);
+    ctx.finalText = text;
+    ctx.events.push(buildAssistantEvent(inputs, text));
+    errored = true;
+  }
+  return { accumulatedText, errored, finishValue };
+}
+
+async function runCollectorLoop(
+  generator: ReturnType<LlmClient["stream"]>,
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+): Promise<{
+  accumulatedText: string;
+  errored: boolean;
+  finishValue: CollectedEvents["finishValue"];
+}> {
+  let accumulatedText = "";
+  let errored = false;
+  let finishValue: CollectedEvents["finishValue"];
   while (true) {
     const next = await generator.next();
     if (next.done === true) {
@@ -266,15 +301,7 @@ async function collectLlmEvents(
     }
     if (next.value.type === "text_delta") {
       accumulatedText += next.value.text;
-      if (inputs.onDelta !== undefined) {
-        const cb = inputs.onDelta;
-        const text = next.value.text;
-        await safeCall(
-          () => cb({ update: { type: "text-delta", text } }),
-          undefined,
-          "SendOptions.onDelta",
-        );
-      }
+      await emitTextDeltaCallback(inputs, next.value.text);
     }
     if (next.value.type === "error") {
       ctx.finalText = next.value.message;
@@ -284,6 +311,16 @@ async function collectLlmEvents(
     }
   }
   return { accumulatedText, errored, finishValue };
+}
+
+async function emitTextDeltaCallback(inputs: AgentLoopInputs, text: string): Promise<void> {
+  if (inputs.onDelta === undefined) return;
+  const cb = inputs.onDelta;
+  await safeCall(
+    () => cb({ update: { type: "text-delta", text } }),
+    undefined,
+    "SendOptions.onDelta",
+  );
 }
 
 async function collectTools(mcp: Map<string, McpClient>): Promise<ResolvedTool[]> {

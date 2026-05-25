@@ -147,6 +147,9 @@ function buildLoopInputs(
       options.personalityName,
     ),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
+    // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
+    // can attach it to the LLM `fetch({ signal })` call.
+    ...(options.sendOptions.signal !== undefined ? { signal: options.sendOptions.signal } : {}),
     telemetry: createTelemetry(options.agentOptions.telemetry),
   };
 }

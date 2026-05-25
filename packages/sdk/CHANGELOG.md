@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+### Added (`AbortSignal` end-to-end propagation — Production-Readiness #5)
+
+Closes Gap 5 of the TheoKit cross-repo handoff. Tokens stop billing the moment a caller (browser, route handler, `agent.dispose`) signals cancellation.
+
+- **`SendOptions.signal`** (already typed) now flows from `LocalAgent.send` → `dispatchRun` → `real-local-run.buildLoopInputs` → `AgentLoopInputs.signal` → `streamLlmTurn` → LLM client `fetch({ signal })`. The infrastructure was already in place at every LLM client; only the orchestrator wiring was missing.
+- **`LocalAgent.#lifecycleAbortController`**: every agent owns a private controller fired by `dispose()`. `send()` composes `[userSignal, lifecycleSignal]` via `anySignal` so eviction (`Agent.registry.evict`) cancels in-flight LLM calls promptly.
+- **`anySignal` ponyfill** (`internal/runtime/abort-utils.ts`) absorbs EC-5: native `AbortSignal.any` when available, ponyfill for runtimes (Vercel Edge subset) that lag. Single-signal short-circuit, undefined entries filtered, abort `reason` propagated.
+- **`AgentLoopInputs.signal`** new optional field; loop uses caller's signal when present, never-aborting placeholder otherwise (legacy behavior preserved when nothing wired).
+- **Aborted runs surface as `AgentRunError({ code: "aborted", retriable: false })`** (D321 + T3.5 finalization). `err.cause` preserves the original `DOMException`.
+- **Aborted runs do not persist partial assistant messages** (D320): the user message persists at entry; the abort path skips the assistant append, preserving conversation history invariant.
+- **ADRs:** D318 (signal plumbing), D319 (lifecycle controller composition), D320 (no partial persist), D321 (AgentRunError aborted wrapping), D324 (anySignal ponyfill — absorbed from EC-5).
+- **Tests:** 13 new (abort-utils — native + ponyfill + edge cases) + 3 wiring sanity tests. Full real-LLM abort dogfood is part of Phase 7.
+
 ### Added/Changed (`AgentRunError` discriminated codes + retryAfterMs + requestId — Production-Readiness #3)
 
 Closes Gap 3 of the TheoKit cross-repo handoff. Makes `AgentRunError` consumer-branchable for proper UX (retry CTAs, billing upsell, cancel suppression) without parsing `.message` strings.
