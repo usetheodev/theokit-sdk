@@ -1,43 +1,23 @@
 /**
- * D220 — Lazy-loaded OTel `handoff.transfer` span emitter. Mirrors
- * `internal/eval/telemetry.ts`. No-op when @opentelemetry/api absent.
+ * D220 — Lazy-loaded OTel `handoff.transfer` span emitter.
  *
  * @internal
  */
 
-import { createRequire } from "node:module";
+import {
+  getTracer,
+  resetTracerCacheForTests,
+  type SpanLike,
+} from "../observability/tracer-loader.js";
 
-interface OTelSpan {
+const TRACER_NAME = "theokit-sdk-handoff";
+
+export interface HandoffSpanHandle {
   setAttribute(key: string, value: string | number | boolean): void;
   end(): void;
 }
 
-interface MinimalOTelApi {
-  trace: {
-    getTracer(
-      name: string,
-      version?: string,
-    ): {
-      startSpan(
-        name: string,
-        opts?: { attributes?: Record<string, string | number | boolean> },
-      ): OTelSpan;
-    };
-  };
-}
-
-let cachedOtel: MinimalOTelApi | null | undefined;
-
-function loadOtel(): MinimalOTelApi | null {
-  if (cachedOtel !== undefined) return cachedOtel;
-  try {
-    const r = createRequire(import.meta.url);
-    cachedOtel = r("@opentelemetry/api") as MinimalOTelApi;
-  } catch {
-    cachedOtel = null;
-  }
-  return cachedOtel;
-}
+const NOOP: HandoffSpanHandle = { setAttribute: () => undefined, end: () => undefined };
 
 function safe<T>(fn: () => T, fallback: T): T {
   try {
@@ -47,13 +27,6 @@ function safe<T>(fn: () => T, fallback: T): T {
   }
 }
 
-export interface HandoffSpanHandle {
-  setAttribute(key: string, value: string | number | boolean): void;
-  end(): void;
-}
-
-const NOOP: HandoffSpanHandle = { setAttribute: () => undefined, end: () => undefined };
-
 export function startHandoffSpan(attrs: {
   from: string;
   to: string;
@@ -61,11 +34,9 @@ export function startHandoffSpan(attrs: {
   depth: number;
   toolName: string;
 }): HandoffSpanHandle {
-  const otel = loadOtel();
-  if (otel === null) return NOOP;
-  const tracer = safe(() => otel.trace.getTracer("theokit-sdk-handoff", "1.0.0"), undefined);
+  const tracer = getTracer(TRACER_NAME);
   if (tracer === undefined) return NOOP;
-  const span = safe(
+  const span: SpanLike | undefined = safe(
     () =>
       tracer.startSpan("handoff.transfer", {
         attributes: {
@@ -87,5 +58,5 @@ export function startHandoffSpan(attrs: {
 
 /** Test-only — reset cached OTel handle. */
 export function __resetHandoffOtelCacheForTests(): void {
-  cachedOtel = undefined;
+  resetTracerCacheForTests();
 }

@@ -105,32 +105,42 @@ function checkConcepts(report: DriftReport): void {
   }
 }
 
-function checkReference(report: DriftReport): void {
-  if (!fs.existsSync(TYPEDOC_JSON)) {
-    report.warnings.push(`typedoc JSON missing: ${TYPEDOC_JSON} (run \`pnpm docs:json\` first)`);
-    return;
-  }
-  const json = JSON.parse(fs.readFileSync(TYPEDOC_JSON, "utf8")) as {
+const INTERESTING_KINDS = new Set([128, 256, 2097152, 4194304, 64, 32]);
+
+function collectInterestingSymbols(typedocJson: string): Set<string> {
+  const json = JSON.parse(typedocJson) as {
     children?: Array<{ children?: Array<{ name: string; kind: number }> }>;
   };
-  const symbolNames = new Set<string>();
-  const INTERESTING = new Set([128, 256, 2097152, 4194304, 64, 32]);
+  const symbols = new Set<string>();
   for (const mod of json.children ?? []) {
     for (const sym of mod.children ?? []) {
-      if (INTERESTING.has(sym.kind)) symbolNames.add(sym.name);
+      if (INTERESTING_KINDS.has(sym.kind)) symbols.add(sym.name);
     }
   }
-  const refDir = path.join(OPENDOCS_DIR, "reference");
-  if (!fs.existsSync(refDir)) {
-    report.warnings.push(`reference/ missing entirely`);
-    return;
-  }
-  const refFiles = new Set(
+  return symbols;
+}
+
+function readRefFiles(refDir: string): Set<string> {
+  return new Set(
     fs
       .readdirSync(refDir)
       .filter((f) => f.endsWith(".mdx") && !f.startsWith("_"))
       .map((f) => f.replace(/\.mdx$/, "")),
   );
+}
+
+function checkReference(report: DriftReport): void {
+  if (!fs.existsSync(TYPEDOC_JSON)) {
+    report.warnings.push(`typedoc JSON missing: ${TYPEDOC_JSON} (run \`pnpm docs:json\` first)`);
+    return;
+  }
+  const symbolNames = collectInterestingSymbols(fs.readFileSync(TYPEDOC_JSON, "utf8"));
+  const refDir = path.join(OPENDOCS_DIR, "reference");
+  if (!fs.existsSync(refDir)) {
+    report.warnings.push(`reference/ missing entirely`);
+    return;
+  }
+  const refFiles = readRefFiles(refDir);
   for (const name of symbolNames) {
     const safe = name.replace(/[/\\:<>|?*]/g, "-");
     if (!refFiles.has(safe)) {
@@ -139,6 +149,12 @@ function checkReference(report: DriftReport): void {
       );
     }
   }
+}
+
+function isCookbookEligible(entryName: string): boolean {
+  if (entryName.startsWith(".") || entryName === "node_modules") return false;
+  if (EXAMPLE_EXCLUDED.has(entryName)) return false;
+  return fs.existsSync(path.join(EXAMPLES_DIR, entryName, "README.md"));
 }
 
 function checkCookbook(report: DriftReport): void {
@@ -159,14 +175,22 @@ function checkCookbook(report: DriftReport): void {
   );
   for (const entry of fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    if (entry.name.startsWith(".") || entry.name === "node_modules") continue;
-    if (EXAMPLE_EXCLUDED.has(entry.name)) continue;
-    // Must have README to be eligible for cookbook
-    if (!fs.existsSync(path.join(EXAMPLES_DIR, entry.name, "README.md"))) continue;
+    if (!isCookbookEligible(entry.name)) continue;
     if (!cookFiles.has(entry.name)) {
       report.cookbookMissing.push(`example "${entry.name}" missing cookbook/${entry.name}.mdx`);
     }
   }
+}
+
+function printSection(title: string, items: ReadonlyArray<string>, limit?: number): void {
+  if (items.length === 0) return;
+  console.warn(`== ${title} ==`);
+  const slice = limit !== undefined ? items.slice(0, limit) : items;
+  for (const m of slice) console.warn("  -", m);
+  if (limit !== undefined && items.length > limit) {
+    console.warn(`  ... and ${items.length - limit} more`);
+  }
+  console.warn("");
 }
 
 function printReport(report: DriftReport): number {
@@ -190,29 +214,14 @@ function printReport(report: DriftReport): number {
   }
 
   console.warn(`[docs-drift] ${total} drift entries detected (v1 SOFT gate — warning only):\n`);
-
-  if (report.conceptsMissing.length > 0) {
-    console.warn("== Concepts missing ==");
-    for (const m of report.conceptsMissing) console.warn("  -", m);
-    console.warn("");
-  }
-  if (report.conceptsUnmapped.length > 0) {
-    console.warn("== Concepts unmapped (need entry in SECTION_TO_SLUG) ==");
-    for (const m of report.conceptsUnmapped) console.warn("  -", m);
-    console.warn("");
-  }
-  if (report.referenceMissing.length > 0) {
-    console.warn(`== Reference missing (${report.referenceMissing.length} symbols) ==`);
-    for (const m of report.referenceMissing.slice(0, 20)) console.warn("  -", m);
-    if (report.referenceMissing.length > 20)
-      console.warn(`  ... and ${report.referenceMissing.length - 20} more`);
-    console.warn("");
-  }
-  if (report.cookbookMissing.length > 0) {
-    console.warn("== Cookbook missing ==");
-    for (const m of report.cookbookMissing) console.warn("  -", m);
-    console.warn("");
-  }
+  printSection("Concepts missing", report.conceptsMissing);
+  printSection("Concepts unmapped (need entry in SECTION_TO_SLUG)", report.conceptsUnmapped);
+  printSection(
+    `Reference missing (${report.referenceMissing.length} symbols)`,
+    report.referenceMissing,
+    20,
+  );
+  printSection("Cookbook missing", report.cookbookMissing);
   return 1; // soft warning
 }
 

@@ -158,63 +158,92 @@ async function runRowsManually(
   onRow: (row: EvalRowResult, index: number) => void,
 ): Promise<EvalRowResult[]> {
   const rows: EvalRowResult[] = new Array(entries.length);
-  let cursor = 0;
-  async function worker(): Promise<void> {
-    while (cursor < entries.length) {
+  const state = { cursor: 0 };
+
+  const worker = async (): Promise<void> => {
+    while (state.cursor < entries.length) {
       if (signal?.aborted === true) return;
-      const idx = cursor;
-      cursor += 1;
+      const idx = state.cursor;
+      state.cursor += 1;
       const entry = entries[idx];
       if (entry === undefined) continue;
-      const t0 = Date.now();
-      let output = "";
-      let errorMsg: string | undefined;
-      try {
-        const agent = isAgentInstance(spec) ? spec : await spec(entry);
-        const run = await agent.send(entry.input);
-        const result = await run.wait();
-        if (result.status === "finished") {
-          output = result.result ?? "";
-        } else {
-          errorMsg = result.error?.message ?? `run ${result.status}`;
-        }
-      } catch (err) {
-        errorMsg = err instanceof Error ? err.message : String(err);
-      }
-      const durationMs = Date.now() - t0;
-      const scoreEntries: Array<{ name: string; score: number; reason?: string }> = [];
-      if (errorMsg === undefined) {
-        for (const scorer of scorers) {
-          scoreEntries.push(await applyScorer(scorer, output, entry.expected));
-        }
-      }
-      const meanScore =
-        scoreEntries.length === 0
-          ? 0
-          : scoreEntries.reduce((acc, s) => acc + s.score, 0) / scoreEntries.length;
-      const row: EvalRowResult = {
-        index: idx,
-        input: entry.input,
-        output,
-        ...(entry.expected !== undefined ? { expected: entry.expected } : {}),
-        scores: scoreEntries,
-        meanScore: errorMsg === undefined ? meanScore : 0,
-        durationMs,
-        ...(errorMsg !== undefined ? { error: errorMsg } : {}),
-        ...(entry.metadata !== undefined ? { metadata: entry.metadata } : {}),
-      };
+      const row = await runOneEntry(spec, entry, idx, scorers);
       rows[idx] = row;
       onRow(row, idx);
     }
-  }
+  };
+
   const workers = Array.from({ length: Math.min(concurrency, entries.length) }, () => worker());
   await Promise.all(workers);
   return rows.filter((r): r is EvalRowResult => r !== undefined);
 }
 
+type AgentSpec = SDKAgent | ((entry: DatasetEntry) => SDKAgent | Promise<SDKAgent>);
+
+async function executeAgent(
+  spec: AgentSpec,
+  entry: DatasetEntry,
+): Promise<{ output: string; errorMsg?: string }> {
+  try {
+    const agent = isAgentInstance(spec) ? spec : await spec(entry);
+    const run = await agent.send(entry.input);
+    const result = await run.wait();
+    if (result.status === "finished") return { output: result.result ?? "" };
+    return { output: "", errorMsg: result.error?.message ?? `run ${result.status}` };
+  } catch (err) {
+    return { output: "", errorMsg: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function runOneEntry(
+  spec: AgentSpec,
+  entry: DatasetEntry,
+  idx: number,
+  scorers: ReadonlyArray<NormalizedScorer>,
+): Promise<EvalRowResult> {
+  const t0 = Date.now();
+  const { output, errorMsg } = await executeAgent(spec, entry);
+  const durationMs = Date.now() - t0;
+  const scoreEntries: Array<{ name: string; score: number; reason?: string }> = [];
+  if (errorMsg === undefined) {
+    for (const scorer of scorers) {
+      scoreEntries.push(await applyScorer(scorer, output, entry.expected));
+    }
+  }
+  const meanScore =
+    scoreEntries.length === 0
+      ? 0
+      : scoreEntries.reduce((acc, s) => acc + s.score, 0) / scoreEntries.length;
+  return {
+    index: idx,
+    input: entry.input,
+    output,
+    ...(entry.expected !== undefined ? { expected: entry.expected } : {}),
+    scores: scoreEntries,
+    meanScore: errorMsg === undefined ? meanScore : 0,
+    durationMs,
+    ...(errorMsg !== undefined ? { error: errorMsg } : {}),
+    ...(entry.metadata !== undefined ? { metadata: entry.metadata } : {}),
+  };
+}
+
 /**
  * AgentOptions path: use Agent.batch for fanout, then apply scorers per result.
  */
+async function scoreBatchOutput(
+  br: { ok: boolean; result?: { result?: string } } | undefined,
+  expected: unknown,
+  scorers: ReadonlyArray<NormalizedScorer>,
+): Promise<Array<{ name: string; score: number; reason?: string }>> {
+  const scoreEntries: Array<{ name: string; score: number; reason?: string }> = [];
+  if (br?.ok !== true) return scoreEntries;
+  const output = br.result?.result ?? "";
+  for (const scorer of scorers) {
+    scoreEntries.push(await applyScorer(scorer, output, expected));
+  }
+  return scoreEntries;
+}
+
 async function runRowsViaBatch(
   entries: ReadonlyArray<DatasetEntry>,
   agentOptions: BatchOptions,
@@ -235,13 +264,7 @@ async function runRowsViaBatch(
     const entry = entries[i];
     const br = batchResults[i];
     if (entry === undefined || br === undefined) continue;
-    const scoreEntries: Array<{ name: string; score: number; reason?: string }> = [];
-    if (br.ok === true) {
-      const output = br.result.result ?? "";
-      for (const scorer of scorers) {
-        scoreEntries.push(await applyScorer(scorer, output, entry.expected));
-      }
-    }
+    const scoreEntries = await scoreBatchOutput(br, entry.expected, scorers);
     const row = rowFromBatchResult(entry, br, scoreEntries, i);
     rows.push(row);
     onRow(row, i);

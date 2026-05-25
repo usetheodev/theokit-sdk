@@ -8,10 +8,28 @@
  * @internal
  */
 
-/** Sentinel runtime export — workaround for rollup-plugin-dts deep type-only re-export bug. */
+/**
+ * Sentinel runtime export — workaround for rollup-plugin-dts deep type-only
+ * re-export bug. The marker is INTENTIONALLY orphan: it forces rollup-plugin-dts
+ * to keep the module in the bundle so re-exports from `index.ts` resolve.
+ *
+ * @knipignore
+ */
 export const __splitMarker: unique symbol = Symbol("split");
 
 const TEAMS_MAX_TEXT = 8000;
+
+function findCut(remaining: string): number {
+  let cut = remaining.lastIndexOf("\n\n", TEAMS_MAX_TEXT);
+  if (cut < TEAMS_MAX_TEXT * 0.5) cut = remaining.lastIndexOf("\n", TEAMS_MAX_TEXT);
+  if (cut < TEAMS_MAX_TEXT * 0.5) cut = remaining.lastIndexOf(" ", TEAMS_MAX_TEXT);
+  if (cut <= 0) cut = TEAMS_MAX_TEXT;
+  if (cut < remaining.length) {
+    const code = remaining.charCodeAt(cut);
+    if (code >= 0xdc00 && code <= 0xdfff) cut -= 1;
+  }
+  return cut <= 0 ? TEAMS_MAX_TEXT : cut;
+}
 
 export function splitForTeams(text: string): string[] {
   if (text.length <= TEAMS_MAX_TEXT) {
@@ -21,16 +39,7 @@ export function splitForTeams(text: string): string[] {
   const chunks: string[] = [];
   let remaining = text;
   while (remaining.length > TEAMS_MAX_TEXT) {
-    let cut = remaining.lastIndexOf("\n\n", TEAMS_MAX_TEXT);
-    if (cut < TEAMS_MAX_TEXT * 0.5) cut = remaining.lastIndexOf("\n", TEAMS_MAX_TEXT);
-    if (cut < TEAMS_MAX_TEXT * 0.5) cut = remaining.lastIndexOf(" ", TEAMS_MAX_TEXT);
-    if (cut <= 0) cut = TEAMS_MAX_TEXT;
-    // UTF-16 surrogate guard.
-    if (cut < remaining.length) {
-      const code = remaining.charCodeAt(cut);
-      if (code >= 0xdc00 && code <= 0xdfff) cut -= 1;
-    }
-    if (cut <= 0) cut = TEAMS_MAX_TEXT;
+    const cut = findCut(remaining);
     chunks.push(remaining.slice(0, cut));
     remaining = remaining.slice(cut).replace(/^[\s]+/, "");
   }

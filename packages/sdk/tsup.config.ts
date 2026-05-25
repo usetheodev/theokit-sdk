@@ -34,5 +34,8 @@ export default defineConfig({
     return { js: format === "esm" ? ".js" : ".cjs" };
   },
   // Generate tools/*.d.ts via tsc (rollup-plugin-dts limitation workaround).
-  onSuccess: "tsc --project tsconfig.tools-dts.json",
+  // Then mirror the resulting `.d.ts` into `.d.cts` so the CJS condition in
+  // package.json `exports` resolves to a real `.d.cts` (eliminates attw's
+  // "Masquerading as ESM" warning for `@usetheo/sdk/tools` + `/path-safety`).
+  onSuccess: "tsc --project tsconfig.tools-dts.json && node scripts/mirror-dts-to-cts.mjs",
 });

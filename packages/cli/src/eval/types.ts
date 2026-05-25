@@ -11,7 +11,7 @@
 import type { Agent } from "@usetheo/sdk";
 
 /** Outcome of a single scoring decision. */
-export interface Score {
+interface Score {
   /** Numeric score in [0, 1]. Use 1.0 for "pass", 0.0 for "fail". */
   readonly score: number;
   /** Optional human-readable reason for the score (shown in the report). */

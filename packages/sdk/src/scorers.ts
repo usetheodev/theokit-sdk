@@ -36,24 +36,32 @@ interface JsonShapeOptions {
   strict?: boolean;
 }
 
+function makeStringScorer(
+  name: string,
+  caseSensitive: boolean,
+  compare: (output: string, expected: string) => Score,
+): NamedScorer {
+  return {
+    name,
+    score: (output, expected): Score => {
+      if (typeof expected !== "string") return { score: 0, reason: "expected_not_string" };
+      if (expected.length === 0) return { score: 0, reason: "expected_empty" };
+      const o = caseSensitive ? output : output.toLowerCase();
+      const e = caseSensitive ? expected : expected.toLowerCase();
+      return compare(o, e);
+    },
+  };
+}
+
 export const Scorers = {
   /**
    * `output.trim() === expected.trim()`. Refuses empty `expected` (EC-1
    * — two empties would otherwise pass silently).
    */
   exactMatch(opts: ExactMatchOptions = {}): NamedScorer {
-    const cs = opts.caseSensitive ?? true;
-    return {
-      name: "exact-match",
-      score: (output, expected): Score => {
-        if (typeof expected !== "string") return { score: 0, reason: "expected_not_string" };
-        if (expected.length === 0) return { score: 0, reason: "expected_empty" };
-        const o = cs ? output : output.toLowerCase();
-        const e = cs ? expected : expected.toLowerCase();
-        const ok = o.trim() === e.trim();
-        return ok ? { score: 1 } : { score: 0, reason: "mismatch" };
-      },
-    };
+    return makeStringScorer("exact-match", opts.caseSensitive ?? true, (o, e) =>
+      o.trim() === e.trim() ? { score: 1 } : { score: 0, reason: "mismatch" },
+    );
   },
 
   /**
@@ -61,17 +69,9 @@ export const Scorers = {
    * `"".includes("")` is always `true`, would inflate pass ratio).
    */
   containsExpected(opts: ContainsExpectedOptions = {}): NamedScorer {
-    const cs = opts.caseSensitive ?? false;
-    return {
-      name: "contains-expected",
-      score: (output, expected): Score => {
-        if (typeof expected !== "string") return { score: 0, reason: "expected_not_string" };
-        if (expected.length === 0) return { score: 0, reason: "expected_empty" };
-        const o = cs ? output : output.toLowerCase();
-        const e = cs ? expected : expected.toLowerCase();
-        return o.includes(e) ? { score: 1 } : { score: 0, reason: "not_found" };
-      },
-    };
+    return makeStringScorer("contains-expected", opts.caseSensitive ?? false, (o, e) =>
+      o.includes(e) ? { score: 1 } : { score: 0, reason: "not_found" },
+    );
   },
 
   /**

@@ -27,14 +27,10 @@ import { spawn } from "node:child_process";
 import { z } from "zod";
 
 import { defineTool } from "../define-tool.js";
-import {
-  assertNoSymlinkEscape,
-  ForbiddenPathError,
-  isForbiddenPath,
-  PathTraversalError,
-  safePathJoin,
-} from "../internal/security/path-guard.js";
+import { isForbiddenPath } from "../internal/security/path-guard.js";
 import type { CustomTool } from "../types/agent.js";
+import { checkPathScope } from "./_path-scope.js";
+import { armTimeoutKill, attachChildSettlers } from "./_subprocess.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_STDOUT_BYTES = 10 * 1024 * 1024;
@@ -73,45 +69,41 @@ export function createRunVitestTool(opts: CreateRunVitestToolOptions): CustomToo
         .describe("Optional vitest pattern or file path (project-relative)."),
     }),
     handler: async ({ path }) => {
-      // Path scope validation
-      if (path !== undefined && path !== "") {
-        if (isForbiddenPath(path)) {
-          return JSON.stringify({ ok: false, error: "forbidden_path", path });
-        }
-        try {
-          const abs = safePathJoin(projectRoot, path);
-          assertNoSymlinkEscape(abs, projectRoot);
-        } catch (err) {
-          if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
-            return JSON.stringify({ ok: false, error: "path_traversal", path });
-          }
-          throw err;
-        }
-      }
+      const scopeError = validateVitestScope(path, projectRoot);
+      if (scopeError !== null) return scopeError;
 
       const args = ["--no-install", "vitest", "run", "--reporter=json"];
       if (path !== undefined && path !== "") args.push(path);
 
       const result = await runProcess(projectRoot, "npx", args, timeoutMs, maxStdoutBytes);
-
-      if (result.kind === "timeout") {
-        return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
-      }
-      if (result.kind === "spawn_error") {
-        return JSON.stringify({ ok: false, error: "no_vitest", detail: result.message });
-      }
-
-      const summary = extractTrailingJson(result.stdout) as VitestSummary | null;
-      if (summary === null) {
-        return JSON.stringify({
-          ok: false,
-          error: "unparseable_output",
-          stderrPreview: result.stderr.slice(0, 500),
-        });
-      }
-      return JSON.stringify({ ok: true, summary });
+      return formatVitestResult(result, timeoutMs);
     },
   });
+}
+
+function validateVitestScope(path: string | undefined, projectRoot: string): string | null {
+  if (path !== undefined && path !== "" && isForbiddenPath(path)) {
+    return JSON.stringify({ ok: false, error: "forbidden_path", path });
+  }
+  return checkPathScope(path, projectRoot);
+}
+
+function formatVitestResult(result: ProcessResult, timeoutMs: number): string {
+  if (result.kind === "timeout") {
+    return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
+  }
+  if (result.kind === "spawn_error") {
+    return JSON.stringify({ ok: false, error: "no_vitest", detail: result.message });
+  }
+  const summary = extractTrailingJson(result.stdout) as VitestSummary | null;
+  if (summary === null) {
+    return JSON.stringify({
+      ok: false,
+      error: "unparseable_output",
+      stderrPreview: result.stderr.slice(0, 500),
+    });
+  }
+  return JSON.stringify({ ok: true, summary });
 }
 
 /**
@@ -137,6 +129,17 @@ export function extractTrailingJson(stdout: string): unknown {
   return null;
 }
 
+function appendCapped(chunks: Buffer[], chunk: Buffer, current: number, cap: number): number {
+  if (current >= cap) return current;
+  const remaining = cap - current;
+  if (chunk.length > remaining) {
+    chunks.push(chunk.subarray(0, remaining));
+    return cap;
+  }
+  chunks.push(chunk);
+  return current + chunk.length;
+}
+
 type ProcessResult =
   | { kind: "ok"; stdout: string; stderr: string; exitCode: number }
   | { kind: "timeout" }
@@ -158,54 +161,34 @@ function runProcess(
     const stdoutChunks: Buffer[] = [];
     const stderrChunks: Buffer[] = [];
     let stdoutBytes = 0;
-    let settled = false;
 
-    const timer = setTimeout(() => {
-      if (settled) return;
-      settled = true;
-      try {
-        process.kill(-(child.pid ?? 0), "SIGKILL");
-      } catch {
-        /* already dead */
-      }
-      resolve({ kind: "timeout" });
-    }, timeoutMs);
+    const gate = armTimeoutKill<ProcessResult>(
+      child,
+      timeoutMs,
+      () => ({ kind: "timeout" }),
+      resolve,
+    );
 
     child.stdout.on("data", (chunk: Buffer) => {
-      if (settled) return;
-      if (stdoutBytes < maxStdoutBytes) {
-        const remaining = maxStdoutBytes - stdoutBytes;
-        if (chunk.length > remaining) {
-          stdoutChunks.push(chunk.subarray(0, remaining));
-          stdoutBytes = maxStdoutBytes;
-        } else {
-          stdoutChunks.push(chunk);
-          stdoutBytes += chunk.length;
-        }
-      }
+      if (gate.settled()) return;
+      stdoutBytes = appendCapped(stdoutChunks, chunk, stdoutBytes, maxStdoutBytes);
     });
 
     child.stderr.on("data", (chunk: Buffer) => {
       stderrChunks.push(chunk);
     });
 
-    child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({
+    attachChildSettlers<ProcessResult>(
+      child,
+      gate,
+      (code) => ({
         kind: "ok",
         stdout: Buffer.concat(stdoutChunks).toString("utf-8"),
         stderr: Buffer.concat(stderrChunks).toString("utf-8"),
         exitCode: code ?? 0,
-      });
-    });
-
-    child.on("error", (err) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      resolve({ kind: "spawn_error", message: err.message });
-    });
+      }),
+      (err) => ({ kind: "spawn_error", message: err.message }),
+      resolve,
+    );
   });
 }

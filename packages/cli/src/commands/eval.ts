@@ -40,6 +40,38 @@ function resolveOutputPath(cwd: string, output: string | undefined): string {
   }
 }
 
+function reportError(err: unknown, prefix = "error:"): { message: string; code: string } {
+  const message = err instanceof Error ? err.message : String(err);
+  const code = (err as { code?: string }).code ?? "unknown";
+  process.stderr.write(`${pc.red(prefix)} ${message}\n  ${pc.gray(`(code: ${code})`)}\n`);
+  return { message, code };
+}
+
+async function loadAndValidateConfig(
+  cwd: string,
+  configPath: string | undefined,
+): Promise<Awaited<ReturnType<typeof loadEvalConfig>> | { failureExit: number }> {
+  try {
+    return await loadEvalConfig(cwd, configPath);
+  } catch (err) {
+    const { code } = reportError(err);
+    return { failureExit: code.startsWith("config_") ? 2 : 1 };
+  }
+}
+
+function writeReport(outputAbs: string, report: string): boolean {
+  try {
+    void dirname; // path is already resolved; dirname imported for future use
+    writeFileSync(outputAbs, report, "utf8");
+    return true;
+  } catch (err) {
+    process.stderr.write(
+      `${pc.red("error:")} could not write report to ${outputAbs} — ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+    return false;
+  }
+}
+
 export async function runEval(opts: EvalOptions): Promise<number> {
   const cwd = process.cwd();
 
@@ -48,22 +80,13 @@ export async function runEval(opts: EvalOptions): Promise<number> {
   try {
     outputAbs = resolveOutputPath(cwd, opts.output);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const code = (err as { code?: string }).code ?? "unknown";
-    process.stderr.write(`${pc.red("error:")} ${message}\n  ${pc.gray(`(code: ${code})`)}\n`);
+    reportError(err);
     return 2;
   }
 
-  // Load + validate config.
-  let config: Awaited<ReturnType<typeof loadEvalConfig>>;
-  try {
-    config = await loadEvalConfig(cwd, opts.config);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const code = (err as { code?: string }).code ?? "unknown";
-    process.stderr.write(`${pc.red("error:")} ${message}\n  ${pc.gray(`(code: ${code})`)}\n`);
-    return code.startsWith("config_") ? 2 : 1;
-  }
+  const configOrErr = await loadAndValidateConfig(cwd, opts.config);
+  if ("failureExit" in configOrErr) return configOrErr.failureExit;
+  const config = configOrErr;
 
   process.stdout.write(
     `${pc.cyan("[eval]")} running ${config.dataset.length} prompt(s) with ${config.scorers.length} scorer(s)...\n`,
@@ -79,17 +102,7 @@ export async function runEval(opts: EvalOptions): Promise<number> {
     return 1;
   }
 
-  // Write markdown report.
-  const report = formatReport(result);
-  try {
-    void dirname; // path is already resolved; dirname imported for future use
-    writeFileSync(outputAbs, report, "utf8");
-  } catch (err) {
-    process.stderr.write(
-      `${pc.red("error:")} could not write report to ${outputAbs} — ${err instanceof Error ? err.message : String(err)}\n`,
-    );
-    return 1;
-  }
+  if (!writeReport(outputAbs, formatReport(result))) return 1;
 
   process.stdout.write(
     `\n${pc.green("✓")} ${result.aggregate.totalRows} rows · mean score ${result.aggregate.meanScore.toFixed(3)} · ` +

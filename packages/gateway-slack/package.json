@@ -36,14 +36,12 @@
   "peerDependencies": {
     "@usetheo/gateway": "workspace:^",
     "@usetheo/sdk": "workspace:^",
-    "@slack/bolt": "^3.20.0",
-    "@slack/web-api": "^6.12.0"
+    "@slack/bolt": "^3.20.0"
   },
   "devDependencies": {
     "@usetheo/gateway": "workspace:*",
     "@usetheo/sdk": "workspace:*",
     "@slack/bolt": "^3.20.0",
-    "@slack/web-api": "^6.12.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"

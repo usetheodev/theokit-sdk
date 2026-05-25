@@ -37,7 +37,8 @@ async function probeModelAvailable(modelTag: string): Promise<boolean> {
 
 // `ollama/qwen2.5-coder:7b` → server-side name is `qwen2.5-coder:7b`.
 const rawModel = TEST_MODEL.replace(/^ollama\//, "");
-const available = await probeModelAvailable(rawModel.split(":")[0] ?? "");
+const available =
+  process.env.SKIP_OLLAMA_E2E !== "1" && (await probeModelAvailable(rawModel.split(":")[0] ?? ""));
 if (!available) {
   process.stderr.write(
     `[ollama-tool-call] Skipping — model "${rawModel}" not pulled. ` +

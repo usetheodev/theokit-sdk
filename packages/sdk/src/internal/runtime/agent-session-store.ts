@@ -83,15 +83,24 @@ export async function appendToSessionFile(
  *
  * @internal
  */
-export async function readSessionFile(cwd: string, agentId: string): Promise<SessionMessage[]> {
+async function readJsonlLines(cwd: string, agentId: string): Promise<string[]> {
   const path = sessionFilePath(cwd, agentId);
-  let raw: string;
   try {
-    raw = await readFile(path, "utf8");
+    const raw = await readFile(path, "utf8");
+    return raw.split("\n").filter((line) => line.length > 0);
   } catch {
     return [];
   }
-  const lines = raw.split("\n").filter((line) => line.length > 0);
+}
+
+function warnMalformed(agentId: string, line: string): void {
+  process.stderr.write(
+    `[theokit-sdk] skipping malformed line in messages.jsonl (${agentId}): ${line.slice(0, 80)}...\n`,
+  );
+}
+
+export async function readSessionFile(cwd: string, agentId: string): Promise<SessionMessage[]> {
+  const lines = await readJsonlLines(cwd, agentId);
   const messages: SessionMessage[] = [];
   for (const line of lines) {
     try {
@@ -106,9 +115,7 @@ export async function readSessionFile(cwd: string, agentId: string): Promise<Ses
         messages.push({ role: parsed.role, text: parsed.text });
       }
     } catch {
-      process.stderr.write(
-        `[theokit-sdk] skipping malformed line in messages.jsonl (${agentId}): ${line.slice(0, 80)}...\n`,
-      );
+      warnMalformed(agentId, line);
     }
   }
   return messages;
@@ -126,14 +133,7 @@ export async function readAllPersistedMessages(
   cwd: string,
   agentId: string,
 ): Promise<PersistedSessionMessage[]> {
-  const path = sessionFilePath(cwd, agentId);
-  let raw: string;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch {
-    return [];
-  }
-  const lines = raw.split("\n").filter((line) => line.length > 0);
+  const lines = await readJsonlLines(cwd, agentId);
   const messages: PersistedSessionMessage[] = [];
   for (const line of lines) {
     try {
@@ -150,9 +150,7 @@ export async function readAllPersistedMessages(
         });
       }
     } catch {
-      process.stderr.write(
-        `[theokit-sdk] skipping malformed line in messages.jsonl (${agentId}): ${line.slice(0, 80)}...\n`,
-      );
+      warnMalformed(agentId, line);
     }
   }
   return messages;

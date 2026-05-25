@@ -37,14 +37,12 @@
   "peerDependencies": {
     "@usetheo/gateway": "workspace:^",
     "@usetheo/sdk": "workspace:^",
-    "@microsoft/teams.apps": "^2.0.0",
-    "@microsoft/teams.api": "^2.0.0"
+    "@microsoft/teams.apps": "^2.0.0"
   },
   "devDependencies": {
     "@usetheo/gateway": "workspace:*",
     "@usetheo/sdk": "workspace:*",
     "@microsoft/teams.apps": "^2.0.0",
-    "@microsoft/teams.api": "^2.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"

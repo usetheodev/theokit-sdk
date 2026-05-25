@@ -1,0 +1,187 @@
+/**
+ * Shared helpers for Anthropic Messages wire format across direct API
+ * (anthropic.ts), Vertex (vertex-anthropic.ts), and Bedrock (bedrock-anthropic.ts)
+ * clients. Extracted to remove cross-module clones flagged by jscpd.
+ *
+ * @internal
+ */
+
+import { parseToolArguments } from "./finish.js";
+import type { LlmMessage, LlmRequest, LlmStopReason, LlmToolCallPart } from "./types.js";
+
+export interface AnthropicResponseLike {
+  content?: Array<
+    | { type: "text"; text: string }
+    | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
+  >;
+  stop_reason?: string | null;
+  usage?: { input_tokens?: number; output_tokens?: number };
+}
+
+export function extractAnthropicText(response: AnthropicResponseLike): string {
+  return (response.content ?? [])
+    .filter((c): c is { type: "text"; text: string } => c.type === "text")
+    .map((c) => c.text)
+    .join("");
+}
+
+export function extractAnthropicToolCalls(response: AnthropicResponseLike): LlmToolCallPart[] {
+  return (response.content ?? [])
+    .filter(
+      (c): c is { type: "tool_use"; id: string; name: string; input: Record<string, unknown> } =>
+        c.type === "tool_use",
+    )
+    .map((c) => ({
+      type: "tool_use" as const,
+      id: c.id,
+      name: c.name,
+      input: parseToolArguments(JSON.stringify(c.input)),
+    }));
+}
+
+export function mapAnthropicStopReason(reason: string | null): LlmStopReason {
+  switch (reason) {
+    case "tool_use":
+      return "tool_use";
+    case "max_tokens":
+      return "max_tokens";
+    case "stop_sequence":
+      return "stop_sequence";
+    case "end_turn":
+    case null:
+      return "end_turn";
+    default:
+      return "end_turn";
+  }
+}
+
+/**
+ * Convert an SDK `LlmMessage` to the Anthropic Messages wire shape.
+ * Identical across the three Anthropic-compatible clients (D289/D292).
+ */
+export function toAnthropicWireMessage(message: LlmMessage): Record<string, unknown> {
+  const role = message.role === "system" ? "user" : message.role;
+  const content = message.content.map((part) => {
+    if (part.type === "text") return { type: "text", text: part.text };
+    if (part.type === "tool_use") {
+      return { type: "tool_use", id: part.id, name: part.name, input: part.input };
+    }
+    return {
+      type: "tool_result",
+      tool_use_id: part.toolUseId,
+      content: part.content,
+      ...(part.isError === true ? { is_error: true } : {}),
+    };
+  });
+  return { role, content };
+}
+
+/**
+ * Build the common body shape for Anthropic Messages requests. Caller
+ * is responsible for adding wire-specific fields (`anthropic_version`,
+ * `model`, `stream`, etc.).
+ */
+/**
+ * Issue a POST to an Anthropic-compatible Messages endpoint with the
+ * standard auth + content-type headers. Caller maps non-2xx via its own
+ * dialect-specific error mapper.
+ */
+export function postAnthropicRequest(args: {
+  fetchImpl: typeof fetch;
+  url: string;
+  token: string;
+  body: Record<string, unknown>;
+  signal: AbortSignal;
+}): Promise<Response> {
+  return args.fetchImpl(args.url, {
+    method: "POST",
+    signal: args.signal,
+    headers: {
+      "content-type": "application/json",
+      accept: "application/json",
+      authorization: `Bearer ${args.token}`,
+    },
+    body: JSON.stringify(args.body),
+  });
+}
+
+/**
+ * Map non-2xx response to a typed error via the dialect mapper; consume
+ * 2xx body into the Anthropic-shape result. Shared by Bedrock + Vertex
+ * Anthropic clients to remove the ~15-line clone (jscpd).
+ */
+export async function handleAnthropicResponse(args: {
+  response: Response;
+  endpoint: string;
+  errorMapper: (info: {
+    status: number;
+    body: unknown;
+    headers: Headers;
+    endpoint: string;
+  }) => Error;
+}): Promise<{
+  text: string;
+  toolCalls: LlmToolCallPart[];
+  stopReason: LlmStopReason;
+  inputTokens?: number;
+  outputTokens?: number;
+}> {
+  if (!args.response.ok) {
+    throw args.errorMapper({
+      status: args.response.status,
+      body: await parseHttpErrorBody(args.response),
+      headers: args.response.headers,
+      endpoint: args.endpoint,
+    });
+  }
+  return consumeAnthropicResponse(args.response);
+}
+
+export async function consumeAnthropicResponse(response: Response): Promise<{
+  text: string;
+  toolCalls: LlmToolCallPart[];
+  stopReason: LlmStopReason;
+  inputTokens?: number;
+  outputTokens?: number;
+}> {
+  const data = (await response.json()) as AnthropicResponseLike;
+  return {
+    text: extractAnthropicText(data),
+    toolCalls: extractAnthropicToolCalls(data),
+    stopReason: mapAnthropicStopReason(data.stop_reason ?? null),
+    inputTokens: data.usage?.input_tokens,
+    outputTokens: data.usage?.output_tokens,
+  };
+}
+
+export async function parseHttpErrorBody(response: Response): Promise<unknown> {
+  const text = await response.text().catch(() => "");
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+export function buildAnthropicCommonBody(request: LlmRequest): {
+  max_tokens: number;
+  messages: Array<Record<string, unknown>>;
+  system?: string;
+  temperature?: number;
+  tools?: Array<{ name: string; description: string; input_schema: unknown }>;
+} {
+  const body: ReturnType<typeof buildAnthropicCommonBody> = {
+    max_tokens: request.maxTokens ?? 4096,
+    messages: request.messages.map(toAnthropicWireMessage),
+  };
+  if (request.system !== undefined) body.system = request.system;
+  if (request.temperature !== undefined) body.temperature = request.temperature;
+  if (request.tools !== undefined && request.tools.length > 0) {
+    body.tools = request.tools.map((tool) => ({
+      name: tool.name,
+      description: tool.description,
+      input_schema: tool.inputSchema,
+    }));
+  }
+  return body;
+}

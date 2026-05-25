@@ -25,41 +25,48 @@ const FALLBACK_CANDIDATES = [
   "index.js",
 ];
 
-export function resolveEntry(cwd: string, explicit?: string): string {
-  // 1. Explicit flag.
-  if (explicit !== undefined && explicit.length > 0) {
-    const abs = isAbsolute(explicit) ? explicit : resolve(cwd, explicit);
-    if (!existsSync(abs)) {
-      const err = new Error(`Entry file not found: ${explicit}`) as Error & { code?: string };
-      err.code = "entry_not_found";
-      throw err;
-    }
-    return abs;
-  }
+function entryNotFoundError(message: string): Error & { code?: string } {
+  const err = new Error(message) as Error & { code?: string };
+  err.code = "entry_not_found";
+  return err;
+}
 
-  // 2. package.json main.
+function resolveFromExplicit(cwd: string, explicit: string): string {
+  const abs = isAbsolute(explicit) ? explicit : resolve(cwd, explicit);
+  if (!existsSync(abs)) throw entryNotFoundError(`Entry file not found: ${explicit}`);
+  return abs;
+}
+
+function resolveFromPackageJson(cwd: string): string | undefined {
   const pkgPath = join(cwd, "package.json");
-  if (existsSync(pkgPath)) {
-    try {
-      const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { main?: string };
-      if (typeof pkg.main === "string" && pkg.main.length > 0) {
-        const abs = resolve(cwd, pkg.main);
-        if (existsSync(abs)) return abs;
-      }
-    } catch {
-      // Malformed package.json — fall through to candidates.
+  if (!existsSync(pkgPath)) return undefined;
+  try {
+    const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { main?: string };
+    if (typeof pkg.main === "string" && pkg.main.length > 0) {
+      const abs = resolve(cwd, pkg.main);
+      if (existsSync(abs)) return abs;
     }
+  } catch {
+    // Malformed package.json — fall through to candidates.
   }
+  return undefined;
+}
 
-  // 3-4. Conventional locations.
+function resolveFromCandidates(cwd: string): string | undefined {
   for (const candidate of FALLBACK_CANDIDATES) {
     const abs = join(cwd, candidate);
     if (existsSync(abs)) return abs;
   }
+  return undefined;
+}
 
-  const err = new Error(
+export function resolveEntry(cwd: string, explicit?: string): string {
+  if (explicit !== undefined && explicit.length > 0) return resolveFromExplicit(cwd, explicit);
+  const fromPkg = resolveFromPackageJson(cwd);
+  if (fromPkg !== undefined) return fromPkg;
+  const fromCandidate = resolveFromCandidates(cwd);
+  if (fromCandidate !== undefined) return fromCandidate;
+  throw entryNotFoundError(
     `No entry file found. Pass --entry <path> or create one of: ${FALLBACK_CANDIDATES.join(", ")}`,
-  ) as Error & { code?: string };
-  err.code = "entry_not_found";
-  throw err;
+  );
 }

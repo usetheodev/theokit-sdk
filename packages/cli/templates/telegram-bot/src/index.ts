@@ -31,27 +31,29 @@ const factory = createAgentFactory({
 const bot = new Bot(TELEGRAM_BOT_TOKEN);
 const adapter = new TelegramAdapter({ bot });
 
+async function collectReply(
+  run: Awaited<ReturnType<Awaited<ReturnType<typeof factory.getOrCreate>>["send"]>>,
+): Promise<string> {
+  let reply = "";
+  for await (const e of run.stream()) {
+    if (e.type !== "assistant") continue;
+    for (const part of e.message.content) {
+      if (part.type === "text") reply += part.text;
+    }
+  }
+  await run.wait();
+  return reply;
+}
+
 const runner = new GatewayRunner({
   adapters: [adapter],
   handler: async (event, ctx) => {
     if (event.text.length === 0) return;
     const agentId = `${event.platform}-dm-${event.sender.id}`;
     const agent = await factory.getOrCreate(agentId);
-    try {
-      const run = await agent.send(event.text);
-      let reply = "";
-      for await (const e of run.stream()) {
-        if (e.type === "assistant") {
-          for (const part of e.message.content) {
-            if (part.type === "text") reply += part.text;
-          }
-        }
-      }
-      await run.wait();
-      if (reply.length > 0) await ctx.reply(reply);
-    } finally {
-      // Long-lived agent — don't dispose per-message.
-    }
+    const run = await agent.send(event.text);
+    const reply = await collectReply(run);
+    if (reply.length > 0) await ctx.reply(reply);
   },
 });
 

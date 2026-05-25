@@ -4,7 +4,13 @@
  * @internal
  */
 
-/** Sentinel runtime export — workaround for rollup-plugin-dts deep type-only re-export bug. */
+/**
+ * Sentinel runtime export — workaround for rollup-plugin-dts deep type-only
+ * re-export bug. The marker is INTENTIONALLY orphan: it forces rollup-plugin-dts
+ * to keep the module in the bundle so re-exports from `index.ts` resolve.
+ *
+ * @knipignore
+ */
 export const __filtersMarker: unique symbol = Symbol("email-filters");
 
 const NOREPLY_RE =

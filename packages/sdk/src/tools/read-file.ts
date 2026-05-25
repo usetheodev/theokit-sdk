@@ -24,7 +24,7 @@
  * mistakes that should crash the agent loop (input parse errors).
  */
 
-import { open } from "node:fs/promises";
+import { type FileHandle, open } from "node:fs/promises";
 import { z } from "zod";
 
 import { defineTool } from "../define-tool.js";
@@ -63,65 +63,79 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
       path: z.string().min(1).describe("Project-relative file path."),
     }),
     handler: async ({ path }) => {
-      // 1. Sensitive-file gate (cheap string check first)
       if (isForbiddenPath(path)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });
       }
-
-      // 2. Boundary gate (resolves + checks)
-      let absolutePath: string;
+      const boundary = resolveBoundary(path, projectRoot);
+      if ("error" in boundary) return boundary.error;
+      const opened = await openHandleSafe(boundary.absolutePath, path);
+      if ("error" in opened) return opened.error;
       try {
-        absolutePath = safePathJoin(projectRoot, path);
-        assertNoSymlinkEscape(absolutePath, projectRoot);
-      } catch (err) {
-        if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
-          return JSON.stringify({ ok: false, error: "path_traversal", path });
-        }
-        throw err;
-      }
-
-      // 3. Open, probe for binary, return content
-      let handle;
-      try {
-        handle = await open(absolutePath, "r");
-      } catch (err) {
-        const e = err as { code?: string };
-        if (e.code === "ENOENT") {
-          return JSON.stringify({ ok: false, error: "not_found", path });
-        }
-        throw err;
-      }
-
-      try {
-        const stat = await handle.stat();
-        if (stat.size > MAX_FILE_SIZE) {
-          return JSON.stringify({
-            ok: false,
-            error: "too_large",
-            path,
-            size: stat.size,
-            limit: MAX_FILE_SIZE,
-          });
-        }
-
-        // 4. Binary detection: peek at first 8 KB and look for null bytes.
-        const probeLen = Math.min(BINARY_PROBE_BYTES, Number(stat.size));
-        if (probeLen > 0) {
-          const probe = Buffer.alloc(probeLen);
-          const { bytesRead } = await handle.read(probe, 0, probeLen, 0);
-          for (let i = 0; i < bytesRead; i += 1) {
-            if (probe[i] === 0) {
-              return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
-            }
-          }
-        }
-
-        // 5. Read full contents as UTF-8 (re-seeks via readFile to keep semantics simple)
-        const content = await handle.readFile({ encoding: "utf-8" });
-        return JSON.stringify({ ok: true, content, size: stat.size });
+        return await readContent(opened.handle, path);
       } finally {
-        await handle.close();
+        await opened.handle.close();
       }
     },
   });
+}
+
+function resolveBoundary(
+  path: string,
+  projectRoot: string,
+): { absolutePath: string } | { error: string } {
+  try {
+    const absolutePath = safePathJoin(projectRoot, path);
+    assertNoSymlinkEscape(absolutePath, projectRoot);
+    return { absolutePath };
+  } catch (err) {
+    if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
+      return { error: JSON.stringify({ ok: false, error: "path_traversal", path }) };
+    }
+    throw err;
+  }
+}
+
+async function openHandleSafe(
+  absolutePath: string,
+  path: string,
+): Promise<{ handle: FileHandle } | { error: string }> {
+  try {
+    const handle = await open(absolutePath, "r");
+    return { handle };
+  } catch (err) {
+    const e = err as { code?: string };
+    if (e.code === "ENOENT") {
+      return { error: JSON.stringify({ ok: false, error: "not_found", path }) };
+    }
+    throw err;
+  }
+}
+
+async function readContent(handle: FileHandle, path: string): Promise<string> {
+  const stat = await handle.stat();
+  if (stat.size > MAX_FILE_SIZE) {
+    return JSON.stringify({
+      ok: false,
+      error: "too_large",
+      path,
+      size: stat.size,
+      limit: MAX_FILE_SIZE,
+    });
+  }
+  if (await isBinaryProbe(handle, Number(stat.size))) {
+    return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
+  }
+  const content = await handle.readFile({ encoding: "utf-8" });
+  return JSON.stringify({ ok: true, content, size: stat.size });
+}
+
+async function isBinaryProbe(handle: FileHandle, size: number): Promise<boolean> {
+  const probeLen = Math.min(BINARY_PROBE_BYTES, size);
+  if (probeLen <= 0) return false;
+  const probe = Buffer.alloc(probeLen);
+  const { bytesRead } = await handle.read(probe, 0, probeLen, 0);
+  for (let i = 0; i < bytesRead; i += 1) {
+    if (probe[i] === 0) return true;
+  }
+  return false;
 }

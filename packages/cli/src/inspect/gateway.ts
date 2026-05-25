@@ -11,7 +11,7 @@
 
 import { createRequire } from "node:module";
 
-export interface GatewayInfo {
+interface GatewayInfo {
   readonly name: string;
   readonly packageName: string;
   readonly installed: boolean;

@@ -10,6 +10,17 @@ import { Agent } from "@usetheo/sdk";
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const MODEL = process.env.OLLAMA_MODEL ?? "ollama/llama3.2:3b";
 
+async function streamAssistantText(
+  run: Awaited<ReturnType<Awaited<ReturnType<typeof Agent.create>>["send"]>>,
+): Promise<void> {
+  for await (const event of run.stream()) {
+    if (event.type !== "assistant") continue;
+    for (const part of event.message.content) {
+      if (part.type === "text") process.stdout.write(part.text);
+    }
+  }
+}
+
 async function main(): Promise<void> {
   const agent = await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "local",
@@ -24,14 +35,7 @@ async function main(): Promise<void> {
   console.log(`Host:  ${OLLAMA_HOST}\n`);
 
   const run = await agent.send("Explain what dependency injection is, in one sentence.");
-
-  for await (const event of run.stream()) {
-    if (event.type === "assistant") {
-      for (const part of event.message.content) {
-        if (part.type === "text") process.stdout.write(part.text);
-      }
-    }
-  }
+  await streamAssistantText(run);
   await run.wait();
   process.stdout.write("\n");
 }

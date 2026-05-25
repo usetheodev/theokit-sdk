@@ -31,27 +31,25 @@ export interface MapBedrockErrorArgs {
   endpoint: string;
 }
 
-export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
-  const parsed = parseBody(args.body);
-  const awsType = parsed.__type ?? "";
-  const message = parsed.message ?? parsed.Message ?? "Bedrock request failed";
+type BedrockCode =
+  | "rate_limit"
+  | "auth_failed"
+  | "invalid_request"
+  | "timeout"
+  | "server_error"
+  | "unknown";
 
-  // Throttling first — AWS uses 400 with __type for many errors, so status alone is unreliable.
+function classifyBedrockError(
+  args: MapBedrockErrorArgs,
+  awsType: string,
+  message: string,
+): BedrockCode {
   if (
     args.status === 429 ||
     awsType.includes("Throttling") ||
     awsType.includes("TooManyRequests")
   ) {
-    return new RateLimitError(`Bedrock throttled: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "bedrock",
-        endpoint: args.endpoint,
-        code: "rate_limit",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
+    return "rate_limit";
   }
   if (
     args.status === 401 ||
@@ -59,16 +57,7 @@ export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
     awsType.includes("AccessDenied") ||
     awsType.includes("UnauthorizedOperation")
   ) {
-    return new AuthenticationError(`Bedrock auth: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "bedrock",
-        endpoint: args.endpoint,
-        code: "auth_failed",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
+    return "auth_failed";
   }
   if (
     args.status === 400 ||
@@ -77,55 +66,49 @@ export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
     awsType.includes("ResourceNotFound") ||
     message.includes("use case details")
   ) {
-    const isUseCaseGate = message.includes("use case details");
-    const friendly = isUseCaseGate
-      ? `Bedrock account setup required: ${message} (AWS Console → Bedrock → Model access → Anthropic → Submit use case form, then retry in 15 min.)`
-      : `Bedrock validation: ${message}`;
-    return new ConfigurationError(friendly, {
-      metadata: buildErrorMetadata({
-        provider: "bedrock",
-        endpoint: args.endpoint,
-        code: "invalid_request",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
+    return "invalid_request";
   }
-  if (args.status === 408 || awsType.includes("Timeout")) {
-    return new NetworkError(`Bedrock timeout: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "bedrock",
-        endpoint: args.endpoint,
-        code: "timeout",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  if (args.status >= 500) {
-    return new NetworkError(`Bedrock server error: ${message}`, {
-      metadata: buildErrorMetadata({
-        provider: "bedrock",
-        endpoint: args.endpoint,
-        code: "server_error",
-        status: args.status,
-        headers: args.headers,
-        body: args.body,
-      }),
-    });
-  }
-  return new UnknownAgentError(`Bedrock unknown: ${message}`, {
-    metadata: buildErrorMetadata({
-      provider: "bedrock",
-      endpoint: args.endpoint,
-      code: "unknown",
-      status: args.status,
-      headers: args.headers,
-      body: args.body,
-    }),
+  if (args.status === 408 || awsType.includes("Timeout")) return "timeout";
+  if (args.status >= 500) return "server_error";
+  return "unknown";
+}
+
+function buildBedrockMetadata(args: MapBedrockErrorArgs, code: BedrockCode) {
+  return buildErrorMetadata({
+    provider: "bedrock",
+    endpoint: args.endpoint,
+    code,
+    status: args.status,
+    headers: args.headers,
+    body: args.body,
   });
+}
+
+export function mapBedrockError(args: MapBedrockErrorArgs): TheokitAgentError {
+  const parsed = parseBody(args.body);
+  const awsType = parsed.__type ?? "";
+  const message = parsed.message ?? parsed.Message ?? "Bedrock request failed";
+  const code = classifyBedrockError(args, awsType, message);
+  const metadata = buildBedrockMetadata(args, code);
+
+  switch (code) {
+    case "rate_limit":
+      return new RateLimitError(`Bedrock throttled: ${message}`, { metadata });
+    case "auth_failed":
+      return new AuthenticationError(`Bedrock auth: ${message}`, { metadata });
+    case "invalid_request": {
+      const friendly = message.includes("use case details")
+        ? `Bedrock account setup required: ${message} (AWS Console → Bedrock → Model access → Anthropic → Submit use case form, then retry in 15 min.)`
+        : `Bedrock validation: ${message}`;
+      return new ConfigurationError(friendly, { metadata });
+    }
+    case "timeout":
+      return new NetworkError(`Bedrock timeout: ${message}`, { metadata });
+    case "server_error":
+      return new NetworkError(`Bedrock server error: ${message}`, { metadata });
+    default:
+      return new UnknownAgentError(`Bedrock unknown: ${message}`, { metadata });
+  }
 }
 
 function parseBody(body: unknown): BedrockErrorBody {

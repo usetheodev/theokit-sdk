@@ -6,7 +6,11 @@
  * @internal
  */
 
-/** Sentinel runtime export — see `backend-types.ts` for rationale. */
+/**
+ * Sentinel runtime export — see `backend-types.ts` for rationale.
+ *
+ * @knipignore
+ */
 export const __ipcMarker: unique symbol = Symbol("ipc");
 
 /** Commands the adapter sends to the bridge. */
@@ -71,10 +75,11 @@ export class LineBuffer {
   push(chunk: string): string[] {
     this.buffer += chunk;
     const out: string[] = [];
-    let idx;
-    while ((idx = this.buffer.indexOf("\n")) !== -1) {
+    let idx = this.buffer.indexOf("\n");
+    while (idx !== -1) {
       out.push(this.buffer.slice(0, idx));
       this.buffer = this.buffer.slice(idx + 1);
+      idx = this.buffer.indexOf("\n");
     }
     return out;
   }

@@ -11,6 +11,7 @@
  */
 
 import type { CacheEmbedderRuntime, CacheTTLConfig } from "../../types/cache.js";
+import { embedOrDegrade } from "./embed-helper.js";
 import { computeCacheKey } from "./key.js";
 import type { LookupableStore } from "./lookup.js";
 import { startCacheStoreSpan } from "./telemetry.js";
@@ -63,19 +64,8 @@ export async function performStore(p: StoreParams): Promise<void> {
     });
 
     // EC-1: embedder failure during store is silent.
-    let vec: number[];
-    try {
-      const result = await p.embedder.embed([p.prompt]);
-      vec = result[0]!;
-    } catch (err) {
-      p.store.incrementEmbedderFailures();
-      console.warn(
-        `[cache] embedder failed during store, skipping cache write:`,
-        err instanceof Error ? err.message : err,
-      );
-      span.setAttribute("cache.bypass_reason", "embedder_failure");
-      return;
-    }
+    const vec = await embedOrDegrade(p.embedder, p.prompt, p.store, span, "store");
+    if (vec === undefined) return;
 
     const now = Date.now();
     const ttlMs = parseTtlMs(p.ttl.default);

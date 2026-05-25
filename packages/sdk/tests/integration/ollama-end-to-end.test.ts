@@ -35,7 +35,9 @@ async function probeOllama(): Promise<boolean> {
 // Top-level await: evaluated BEFORE `describe.skipIf` so the condition is
 // known at describe-time. Without this, vitest skips the suite even when
 // Ollama is up (because beforeAll runs AFTER describe registration).
-const ollamaAvailable = await probeOllama();
+// `SKIP_OLLAMA_E2E=1` lets CI/loaded-machine runs skip the suite even
+// when ollama is up but too slow to respond within the test timeout.
+const ollamaAvailable = process.env.SKIP_OLLAMA_E2E !== "1" && (await probeOllama());
 if (!ollamaAvailable) {
   process.stderr.write(
     `[ollama-end-to-end] Skipping — Ollama not reachable at ${OLLAMA_HOST}. ` +

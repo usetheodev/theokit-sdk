@@ -36,41 +36,48 @@ export interface NormalizeOptions {
   readonly requireMention?: boolean;
 }
 
+function shouldSkipEvent(e: BoltMessageBody["event"], botUserId: string | undefined): boolean {
+  if (e.type !== "message") return true;
+  // D275 bot loop guard
+  if (e.user !== undefined && botUserId !== undefined && e.user === botUserId) return true;
+  if (e.bot_id !== undefined && e.subtype === "bot_message") return true;
+  // Skip subtypes that aren't user messages — but keep "thread_broadcast".
+  if (e.subtype !== undefined && e.subtype !== "thread_broadcast") return true;
+  return false;
+}
+
+function resolveChannelType(e: BoltMessageBody["event"]): "dm" | "group" | "thread" {
+  if (e.thread_ts !== undefined && e.thread_ts !== e.ts) return "thread";
+  if (e.channel_type === "im") return "dm";
+  return "group";
+}
+
+function isMentionGated(
+  e: BoltMessageBody["event"],
+  channelType: "dm" | "group" | "thread",
+  botUserId: string | undefined,
+  requireMention: boolean,
+): boolean {
+  return (
+    requireMention &&
+    channelType === "group" &&
+    e.channel_type === "channel" &&
+    botUserId !== undefined &&
+    !(e.text ?? "").includes(`<@${botUserId}>`)
+  );
+}
+
 export function normalizeSlackEvent(
   body: BoltMessageBody,
   botUserId: string | undefined,
   opts: NormalizeOptions = {},
 ): SlackMessageEvent | undefined {
   const e = body.event;
-  if (e.type !== "message") return undefined;
-  // D275 bot loop guard
-  if (e.user !== undefined && botUserId !== undefined && e.user === botUserId) return undefined;
-  if (e.bot_id !== undefined && e.subtype === "bot_message") return undefined;
-  // Skip subtypes that aren't user messages — but keep "thread_broadcast"
-  // (a reply explicitly broadcast to the parent channel).
-  if (e.subtype !== undefined && e.subtype !== "thread_broadcast") return undefined;
+  if (shouldSkipEvent(e, botUserId)) return undefined;
 
-  // D270 channel type
-  let channelType: "dm" | "group" | "thread";
-  if (e.thread_ts !== undefined && e.thread_ts !== e.ts) {
-    channelType = "thread";
-  } else if (e.channel_type === "im") {
-    channelType = "dm";
-  } else {
-    channelType = "group";
-  }
-
-  // EC-3 / D285: mention guard for public channels (default required).
+  const channelType = resolveChannelType(e);
   const requireMention = opts.requireMention ?? true;
-  if (
-    requireMention &&
-    channelType === "group" &&
-    e.channel_type === "channel" &&
-    botUserId !== undefined &&
-    !(e.text ?? "").includes(`<@${botUserId}>`)
-  ) {
-    return undefined;
-  }
+  if (isMentionGated(e, channelType, botUserId, requireMention)) return undefined;
 
   const userId = e.user ?? "anonymous";
   const event: SlackMessageEvent = {

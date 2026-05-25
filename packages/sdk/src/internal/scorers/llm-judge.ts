@@ -55,13 +55,10 @@ function buildPrompt(
  */
 const SCORE_REGEX = /\{\s*"score"\s*:\s*([0-9]*\.?[0-9]+)\s*,\s*"reason"\s*:\s*"([^"]*)"\s*\}/;
 
-export async function llmJudgeScore(
-  options: LlmJudgeOptions & { output: string; expected?: unknown },
-): Promise<Score> {
-  const rubric = options.rubric ?? "continuous";
-  const message = buildPrompt(options.output, options.criteria, rubric, options.expected);
-
-  let text = "";
+async function callJudge(
+  message: string,
+  options: LlmJudgeOptions,
+): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   try {
     const result = await Agent.prompt(message, {
       apiKey: options.apiKey,
@@ -69,29 +66,31 @@ export async function llmJudgeScore(
       local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
       ...(options.providers !== undefined ? { providers: options.providers } : {}),
     });
-    if (result.status === "finished") {
-      text = result.result ?? "";
-    } else {
-      return {
-        score: 0,
-        reason: `judge_run_failed: ${result.error?.message ?? result.status}`,
-      };
-    }
+    if (result.status === "finished") return { ok: true, text: result.result ?? "" };
+    return { ok: false, reason: `judge_run_failed: ${result.error?.message ?? result.status}` };
   } catch (err) {
     return {
-      score: 0,
+      ok: false,
       reason: `judge_threw: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
+}
 
+function parseScore(text: string, rubric: "continuous" | "discrete"): Score {
   const match = SCORE_REGEX.exec(text);
-  if (match === null) {
-    return { score: 0, reason: "judge_parse_failed" };
-  }
+  if (match === null) return { score: 0, reason: "judge_parse_failed" };
   const raw = Number(match[1]);
-  if (!Number.isFinite(raw)) {
-    return { score: 0, reason: "judge_score_not_finite" };
-  }
+  if (!Number.isFinite(raw)) return { score: 0, reason: "judge_score_not_finite" };
   const clamped = rubric === "discrete" ? (raw >= 0.5 ? 1 : 0) : Math.max(0, Math.min(1, raw));
   return { score: clamped, reason: match[2] };
+}
+
+export async function llmJudgeScore(
+  options: LlmJudgeOptions & { output: string; expected?: unknown },
+): Promise<Score> {
+  const rubric = options.rubric ?? "continuous";
+  const message = buildPrompt(options.output, options.criteria, rubric, options.expected);
+  const judgement = await callJudge(message, options);
+  if (!judgement.ok) return { score: 0, reason: judgement.reason };
+  return parseScore(judgement.text, rubric);
 }

@@ -1,11 +1,11 @@
 import { mapAnthropicError } from "../errors/mappers/anthropic.js";
+import { buildAnthropicCommonBody, mapAnthropicStopReason } from "./anthropic-shared.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
 import type {
   LlmClient,
   LlmEvent,
   LlmFinish,
-  LlmMessage,
   LlmRequest,
   LlmStopReason,
   LlmToolCallPart,
@@ -165,7 +165,7 @@ class AnthropicStreamAccumulator {
   }
 
   private handleMessageDelta(md: AnthropicMessageDelta): void {
-    this.stopReason = mapStopReason(md.delta.stop_reason);
+    this.stopReason = mapAnthropicStopReason(md.delta.stop_reason);
     if (md.usage?.input_tokens !== undefined) this.inputTokens = md.usage.input_tokens;
     if (md.usage?.output_tokens !== undefined) this.outputTokens = md.usage.output_tokens;
   }
@@ -188,54 +188,10 @@ class AnthropicStreamAccumulator {
   }
 }
 
-function mapStopReason(reason: string | null): LlmStopReason {
-  switch (reason) {
-    case "tool_use":
-      return "tool_use";
-    case "max_tokens":
-      return "max_tokens";
-    case "stop_sequence":
-      return "stop_sequence";
-    case "end_turn":
-    case null:
-      return "end_turn";
-    default:
-      return "end_turn";
-  }
-}
-
 function buildAnthropicBody(request: LlmRequest): Record<string, unknown> {
-  const body: Record<string, unknown> = {
+  return {
     model: request.model,
-    max_tokens: request.maxTokens ?? 4096,
     stream: true,
-    messages: request.messages.map(toAnthropicMessage),
+    ...buildAnthropicCommonBody(request),
   };
-  if (request.system !== undefined) body.system = request.system;
-  if (request.temperature !== undefined) body.temperature = request.temperature;
-  if (request.tools !== undefined && request.tools.length > 0) {
-    body.tools = request.tools.map((tool) => ({
-      name: tool.name,
-      description: tool.description,
-      input_schema: tool.inputSchema,
-    }));
-  }
-  return body;
-}
-
-function toAnthropicMessage(message: LlmMessage): Record<string, unknown> {
-  const role = message.role === "system" ? "user" : message.role;
-  const content = message.content.map((part) => {
-    if (part.type === "text") return { type: "text", text: part.text };
-    if (part.type === "tool_use") {
-      return { type: "tool_use", id: part.id, name: part.name, input: part.input };
-    }
-    return {
-      type: "tool_result",
-      tool_use_id: part.toolUseId,
-      content: part.content,
-      ...(part.isError === true ? { is_error: true } : {}),
-    };
-  });
-  return { role, content };
 }
