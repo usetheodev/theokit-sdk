@@ -78,3 +78,14 @@ export function buildErrorMetadata(args: {
     ...(raw !== undefined ? { raw } : {}),
   };
 }
+
+/**
+ * D314: extract the provider's request id (`x-request-id` is OpenAI/most;
+ * `request-id` is Anthropic). Returns `undefined` when neither is present.
+ *
+ * @internal
+ */
+export function parseRequestId(headers: Headers | undefined): string | undefined {
+  if (headers === undefined) return undefined;
+  return headers.get("x-request-id") ?? headers.get("request-id") ?? undefined;
+}
