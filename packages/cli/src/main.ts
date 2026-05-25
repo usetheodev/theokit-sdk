@@ -17,6 +17,7 @@ import { type DevOptions, runDev } from "./commands/dev.js";
 import { type EvalOptions, runEval } from "./commands/eval.js";
 import { type InitOptions, runInit } from "./commands/init.js";
 import { type InspectOptions, runInspect } from "./commands/inspect.js";
+import { type SetupOptions, runSetup } from "./commands/setup.js";
 import { CLI_VERSION, SDK_VERSION } from "./version.js";
 
 export async function main(argv: ReadonlyArray<string>): Promise<number> {
@@ -76,6 +77,20 @@ export async function main(argv: ReadonlyArray<string>): Promise<number> {
     .option("-o, --output <path>", "Report output path (default: ./eval-report.md)")
     .action(async (opts: EvalOptions) => {
       setExit(await runEval(opts));
+    });
+
+  program
+    .command("setup <domain>")
+    .description(
+      "Stage credentials + connectivity probe for a third-party integration. " +
+        "Domains: gworkspace (Google Workspace).",
+    )
+    .option("--writable <products>", "Comma-separated products to grant write access (e.g., 'drive,calendar')")
+    .option("--probe", "Run upstream connectivity check after staging credentials")
+    .option("--credentials-path <path>", "Override path to credentials.json (default: ~/.google-mcp/credentials.json)")
+    .option("--non-interactive", "Refuse interactive prompts; suitable for CI")
+    .action(async (domain: string, opts: SetupOptions) => {
+      setExit(await runSetup(domain, opts));
     });
 
   // Commander throws CommanderError after `exitOverride` runs (by design)

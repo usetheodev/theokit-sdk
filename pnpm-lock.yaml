@@ -351,6 +351,21 @@ importers:
         specifier: ^0.28.19
         version: 0.28.19(typescript@5.9.3)
 
+  packages/skills-google-workspace:
+    devDependencies:
+      '@usetheo/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0)
+
 packages:
 
   '@ampproject/remapping@2.3.0':
