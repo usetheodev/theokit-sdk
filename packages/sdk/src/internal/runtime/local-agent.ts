@@ -79,6 +79,17 @@ export class LocalAgent implements SDKAgent {
 
   private readonly options: AgentOptions;
   private readonly workspaceCwd: string;
+  /**
+   * Production-Readiness #1 (ADR D304): conversation storage routing.
+   * - `undefined` → fall back to default `FileSystemConversationStorage` at
+   *   `workspaceCwd` (zero-config behavior; existing apps unaffected).
+   * - non-undefined → caller provided a custom adapter. The registry marker
+   *   `requiresCustomStorage` is set so `Agent.resume` refuses to silently
+   *   fall back to FS on the next process (EC-3, ADR D325).
+   */
+  private readonly conversationStorage:
+    | import("../../types/conversation-storage.js").ConversationStorageAdapter
+    | undefined;
   private readonly settingSourcesIncludeProject: boolean;
   private readonly settingSourcesIncludePlugins: boolean;
   private resolvedSubagents: Record<string, AgentDefinition> = {};
@@ -100,6 +111,7 @@ export class LocalAgent implements SDKAgent {
     this.model = options.model;
     this.options = options;
     this.workspaceCwd = resolveCwd(options.local?.cwd);
+    this.conversationStorage = options.conversationStorage;
     this.settingSourcesIncludeProject = includesSetting(options, "project");
     this.settingSourcesIncludePlugins = includesSetting(options, "plugins");
 
@@ -140,7 +152,16 @@ export class LocalAgent implements SDKAgent {
       options,
       cwd: this.workspaceCwd,
       status: "finished",
+      // EC-3 / D325: mark agent for resume-time integrity check.
+      ...(options.conversationStorage !== undefined ? { requiresCustomStorage: true } : {}),
     });
+  }
+
+  /** Resolve the storage handle for session helpers (custom adapter or cwd). */
+  private storageHandle():
+    | import("../../types/conversation-storage.js").ConversationStorageAdapter
+    | string {
+    return this.conversationStorage ?? this.workspaceCwd;
   }
 
   async initialize(): Promise<void> {
@@ -158,9 +179,10 @@ export class LocalAgent implements SDKAgent {
       this.settingSourcesIncludeProject,
       this.options.agents,
     );
-    // ADR D18: hydrate persisted session history so a resumed agent sees
-    // the conversation that occurred in the previous process.
-    await hydrateSession(this.agentId, this.workspaceCwd);
+    // ADR D18 + D304: hydrate persisted session history so a resumed agent
+    // sees the conversation that occurred in the previous process. Storage
+    // routes via the custom adapter when set, else default FS at cwd.
+    await hydrateSession(this.agentId, this.storageHandle());
     // ADR D163 — hydrate previously-active personality slug (no-op if none).
     await this.personalityStore.hydrate(this.agentId);
   }
@@ -203,6 +225,7 @@ export class LocalAgent implements SDKAgent {
           userText,
           agentId: this.agentId,
           workspaceCwd: this.workspaceCwd,
+          storageHandle: this.storageHandle(),
           hooksExecutor: this.hooksExecutor,
           memoryGlue: this.memoryGlue,
         });
@@ -238,7 +261,7 @@ export class LocalAgent implements SDKAgent {
     // resumed/continuation agent loop sees the conversation up to (but not
     // including) the new send.
     const priorMessages = [...getSessionMessages(this.agentId)];
-    appendSessionMessage(this.agentId, { role: "user", text: userText }, this.workspaceCwd);
+    appendSessionMessage(this.agentId, { role: "user", text: userText }, this.storageHandle());
 
     // Auto-write-on-send: opt-in via the user typing "Remember: <fact>". Persist
     // BEFORE the LLM call so the new fact is durable even if the LLM call fails.
@@ -423,7 +446,7 @@ export class LocalAgent implements SDKAgent {
     // Now flush any remaining disk writes so the on-disk state matches the
     // in-memory state before the caller proceeds (ADR D17 + D18).
     await flushSessionWrites();
-    await compactSession(this.agentId, this.workspaceCwd);
+    await compactSession(this.agentId, this.storageHandle());
     await flushRegistrySaves(this.workspaceCwd);
   }
 
@@ -459,6 +482,7 @@ export class LocalAgent implements SDKAgent {
     return localAgentUsePersonality({
       agentId: this.agentId,
       workspaceCwd: this.workspaceCwd,
+      storageHandle: this.storageHandle(),
       disposed: this.disposed,
       personalityStore: this.personalityStore,
       personalityRegistry: this.personalityRegistry,

@@ -433,6 +433,24 @@ export interface AgentOptions {
    * @public
    */
   maxHandoffDepth?: number;
+  /**
+   * Pluggable conversation persistence (Production-Readiness #1; ADRs D303-D306).
+   *
+   * Default: undefined → `FileSystemConversationStorage` writing to
+   * `<cwd>/.theokit/agents/<id>/messages.jsonl` (byte-identical to pre-D303
+   * behavior). Pass `InMemoryConversationStorage` for tests, or a custom
+   * adapter (Postgres/Redis/Durable Objects) for serverless and multi-host
+   * deploys.
+   *
+   * NOTE: not persisted in the registry snapshot — closures don't serialize.
+   * On `Agent.resume`, pass the adapter again. If the agent was originally
+   * created with a custom `conversationStorage`, resume without it throws
+   * `ConfigurationError(code: "conversation_storage_required")` (D325) to
+   * avoid silent FS fallback that would lose history.
+   *
+   * @public
+   */
+  conversationStorage?: import("./conversation-storage.js").ConversationStorageAdapter;
 }
 
 /**

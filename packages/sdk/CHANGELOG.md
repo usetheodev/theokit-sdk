@@ -2,6 +2,20 @@
 
 ## [Unreleased]
 
+### Added (`ConversationStorageAdapter` — pluggable conversation persistence — Production-Readiness #1)
+
+Closes Gap 1 of the TheoKit cross-repo production-readiness handoff (`docs/handoffs/from-theokit/2026-05-25-production-readiness.md`). Unblocks serverless (Vercel, Cloudflare Workers, Lambda) and multi-host (K8s replicas, TheoCloud canary) deploys that cannot use the default `<cwd>/.theokit/agents/<id>/messages.jsonl` filesystem persistence.
+
+- **`ConversationStorageAdapter`** interface exported from `@usetheo/sdk`. 5 methods (`getMessages`, `appendMessage`, `deleteConversation`, optional `listConversationIds`, optional `compact`, optional `dispose`). Implementations return `Promise<>` uniformly for adapter polymorphism (ADR D306).
+- **`FileSystemConversationStorage`** exported. Default when `AgentOptions.conversationStorage` is unset (zero migration — existing apps unaffected). Wraps the pre-D303 byte-identical behavior including redaction (D68) + compaction every 50 appends (D18). Path-traversal guard re-applied in `deleteConversation` (EC-1, ADR D304); ENOENT swallowed in `listConversationIds` for first-run deploys (EC-2).
+- **`InMemoryConversationStorage`** exported. `Map<conversationId, StoredMessage[]>` for tests + ephemeral dev. Returns defensive copies from `getMessages`.
+- **`StoredMessage`** widened from `user|assistant` to 5 roles (`user|assistant|system|tool_call|tool_result`) for forward compat with tool-shaped messages flowing through the adapter (EC-10, ADR D304). Legacy JSONL files continue to parse — `readSessionFile` filters defensively.
+- **`AgentOptions.conversationStorage?`** opt-in field. Backward compatible: undefined → default FS adapter at `local.cwd`.
+- **Strict resume integrity (EC-3, ADR D325)** — when an agent is created with a custom `conversationStorage`, the registry stores a `requiresCustomStorage: true` marker. `Agent.resume` throws `ConfigurationError(code: "conversation_storage_required")` if the marker is set and the caller did not pass `conversationStorage` again. Prevents silent FS fallback that would lose Postgres/Redis history.
+- **Recipes** at `docs/recipes/conversation-storage-postgres.md` and `docs/recipes/conversation-storage-redis.md`. Both ship Node (pg / ioredis) + Edge (`@neondatabase/serverless` / `@upstash/redis`) flavors. SDK keeps these out of core deps to stay light (ADR D305).
+- **Tests:** 33 new tests in `tests/internal/persistence/conversation-storage-*.test.ts` + `tests/agent-conversation-storage.test.ts`. Contract suite runs against both InMemory + FS via `describe.each`. Coverage includes: lazy create, insertion order, 50× concurrent appends, idempotent delete, defensive copy, path-traversal rejection, ENOENT empty list, tool_call/tool_result roles, redaction, FS-restart persistence, EC-3 marker round-trip + strict-resume throw.
+- **ADRs:** D303 (main barrel export), D304 (FS default + InMemory primary), D305 (Postgres/Redis as recipes), D306 (Promise-uniform interface), D325 (requiresCustomStorage marker).
+
 ### Fixed (`Agent.streamObject` / `Agent.generateObject` provider routing)
 
 - **`StreamObjectOptions.providers?` + `GenerateObjectOptions.providers?`** — new optional field forwarded to the transient agent. Without it, the transient agent infers provider from `model.id` prefix per ADR D186; users running `model: "openai/gpt-4o-mini"` with only `OPENROUTER_API_KEY` set hit `ConfigurationError(provider_unresolved)` because the SDK looks for `OPENAI_API_KEY`. Forwarding `providers: { routes: [{capability:"chat", provider:"openrouter"}], fallback: ["openrouter"] }` routes through OpenRouter as the user expects.

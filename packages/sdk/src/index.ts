@@ -9,6 +9,12 @@ export { Agent, type AgentPromptResult } from "./agent.js";
 // DX helpers — agent construction patterns (ADR D22-D26)
 export { AgentBuilder } from "./agent-builder.js";
 export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
+// Semantic cache (Adoption Roadmap #6; ADRs D249-D266)
+export {
+  Cache,
+  CacheEmbedderError,
+  CacheInvalidTtlError,
+} from "./cache.js";
 // Cron façade
 export { Cron } from "./cron.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
@@ -45,27 +51,9 @@ export {
   handoffTo,
   RECOMMENDED_HANDOFF_PROMPT_PREFIX,
 } from "./handoff.js";
-// Semantic cache (Adoption Roadmap #6; ADRs D249-D266)
-export {
-  Cache,
-  CacheEmbedderError,
-  CacheInvalidTtlError,
-} from "./cache.js";
-// Workflows (Adoption Roadmap #5; ADRs D230-D248)
-export {
-  agentStep,
-  fn,
-  Workflow,
-  WorkflowAlreadyRunningError,
-  WorkflowBuilder,
-  WorkflowCompensateNotImplementedError,
-  WorkflowDuplicateStepIdError,
-  WorkflowMaxIterationsExceededError,
-  WorkflowNotSerializableError,
-  WorkflowParallelError,
-  WorkflowResumeStepNotFoundError,
-  WorkflowSnapshotNotFoundError,
-} from "./workflow.js";
+export { FileSystemConversationStorage } from "./internal/persistence/conversation-storage-fs.js";
+// Conversation storage adapters (Production-Readiness #1; ADRs D303-D306)
+export { InMemoryConversationStorage } from "./internal/persistence/conversation-storage-memory.js";
 // Plugin & extension system (v1.8 — ADRs D97-D109)
 export {
   definePlugin,
@@ -116,3 +104,18 @@ export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // Type contract
 export type * from "./types/index.js";
+// Workflows (Adoption Roadmap #5; ADRs D230-D248)
+export {
+  agentStep,
+  fn,
+  Workflow,
+  WorkflowAlreadyRunningError,
+  WorkflowBuilder,
+  WorkflowCompensateNotImplementedError,
+  WorkflowDuplicateStepIdError,
+  WorkflowMaxIterationsExceededError,
+  WorkflowNotSerializableError,
+  WorkflowParallelError,
+  WorkflowResumeStepNotFoundError,
+  WorkflowSnapshotNotFoundError,
+} from "./workflow.js";

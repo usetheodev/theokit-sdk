@@ -1,3 +1,4 @@
+import type { ConversationStorageAdapter } from "../../types/conversation-storage.js";
 import type { Run } from "../../types/run.js";
 import { writeSessionSummary } from "../memory/session-summary-writer.js";
 import { appendSessionMessage, flushSessionWrites } from "./agent-session.js";
@@ -8,6 +9,10 @@ import type { LocalAgentMemory } from "./local-agent-memory.js";
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
  * caller (LocalAgent.send) doesn't carry a long positional argument list.
  *
+ * `storageHandle` is the unified routing key (D304): either a
+ * {@link ConversationStorageAdapter} or the raw `workspaceCwd` string when
+ * no custom adapter is configured.
+ *
  * @internal
  */
 export interface PostRunLifecycleInputs {
@@ -15,6 +20,7 @@ export interface PostRunLifecycleInputs {
   userText: string;
   agentId: string;
   workspaceCwd: string;
+  storageHandle: ConversationStorageAdapter | string;
   hooksExecutor: HooksExecutor;
   memoryGlue: LocalAgentMemory;
 }
@@ -37,7 +43,7 @@ export interface PostRunLifecycleInputs {
  * @internal
  */
 export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promise<void> {
-  const { run, userText, agentId, workspaceCwd, hooksExecutor, memoryGlue } = inputs;
+  const { run, userText, agentId, workspaceCwd, storageHandle, hooksExecutor, memoryGlue } = inputs;
   let result: Awaited<ReturnType<Run["wait"]>>;
   try {
     result = await run.wait();
@@ -49,7 +55,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   }
 
   if (result.result !== undefined) {
-    appendSessionMessage(agentId, { role: "assistant", text: result.result }, workspaceCwd);
+    appendSessionMessage(agentId, { role: "assistant", text: result.result }, storageHandle);
   }
 
   // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
