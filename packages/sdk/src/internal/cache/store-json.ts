@@ -16,10 +16,9 @@
 
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-
-import { atomicWriteText } from "../persistence/atomic-write.js";
 import type { CacheEntry, CacheStats } from "../../types/cache.js";
-import { InMemoryCacheStore, type CacheStore } from "./store.js";
+import { atomicWriteText } from "../persistence/atomic-write.js";
+import { type CacheStore, InMemoryCacheStore } from "./store.js";
 
 interface SerializedSnapshot {
   readonly _schemaVersion: 1;
@@ -58,7 +57,9 @@ export class JsonFileCacheStore implements CacheStore {
         return;
       }
       if (parsed._schemaVersion !== 1) {
-        console.warn(`[cache] unsupported schema v${parsed._schemaVersion} at ${file}, starting fresh`);
+        console.warn(
+          `[cache] unsupported schema v${parsed._schemaVersion} at ${file}, starting fresh`,
+        );
         return;
       }
       // Only load entries for this namespace (defensive).

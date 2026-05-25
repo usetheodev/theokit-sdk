@@ -10,7 +10,6 @@ import { Agent } from "@usetheo/sdk";
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const MODEL = process.env.OLLAMA_MODEL ?? "ollama/llama3.2:3b";
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: template demo flow — create + send + stream + error mapping is intentionally linear for didactics.
 async function main(): Promise<void> {
   const agent = await Agent.create({
     apiKey: process.env.THEOKIT_API_KEY ?? "local",

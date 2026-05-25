@@ -59,8 +59,18 @@ describe("computeCacheKey", () => {
   });
 
   it("normalizes whitespace + case", () => {
-    const a = computeCacheKey({ namespace: "n", embedderId: "e", modelId: "m", prompt: "  Hello  WORLD  " });
-    const b = computeCacheKey({ namespace: "n", embedderId: "e", modelId: "m", prompt: "hello world" });
+    const a = computeCacheKey({
+      namespace: "n",
+      embedderId: "e",
+      modelId: "m",
+      prompt: "  Hello  WORLD  ",
+    });
+    const b = computeCacheKey({
+      namespace: "n",
+      embedderId: "e",
+      modelId: "m",
+      prompt: "hello world",
+    });
     expect(a).toBe(b);
   });
 });

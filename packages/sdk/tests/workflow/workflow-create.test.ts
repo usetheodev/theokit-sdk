@@ -7,11 +7,11 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  __resetSnapshotStoresForTests,
   agentStep,
   fn,
   Workflow,
   WorkflowDuplicateStepIdError,
-  __resetSnapshotStoresForTests,
 } from "../../src/workflow.js";
 
 describe("Workflow.create", () => {
@@ -35,8 +35,12 @@ describe("Workflow.create", () => {
   });
 
   it("EC-5 — commit mints a unique workflowId per Workflow instance", async () => {
-    const wf1 = Workflow.create({ name: "same-name" }).then(fn("a", async () => 1)).commit();
-    const wf2 = Workflow.create({ name: "same-name" }).then(fn("a", async () => 1)).commit();
+    const wf1 = Workflow.create({ name: "same-name" })
+      .then(fn("a", async () => 1))
+      .commit();
+    const wf2 = Workflow.create({ name: "same-name" })
+      .then(fn("a", async () => 1))
+      .commit();
     // Both should be runnable concurrently without single-flight collision.
     const [r1, r2] = await Promise.all([wf1.run(undefined), wf2.run(undefined)]);
     expect(r1.status).toBe("completed");
@@ -65,7 +69,9 @@ describe("Workflow.create", () => {
       send: async () => ({ wait: async () => ({ status: "finished" as const, result: "ok" }) }),
     } as never;
     expect(() => agentStep("classify", fakeAgent, "static prompt")).not.toThrow();
-    expect(() => agentStep("classify2", fakeAgent, (i) => `dynamic ${JSON.stringify(i)}`)).not.toThrow();
+    expect(() =>
+      agentStep("classify2", fakeAgent, (i) => `dynamic ${JSON.stringify(i)}`),
+    ).not.toThrow();
   });
 
   it("supports Zod input/output schemas on fn step", () => {

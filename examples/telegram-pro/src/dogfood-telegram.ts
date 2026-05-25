@@ -11,6 +11,8 @@
 //   - What this proves: bot token works + Telegram Bot API roundtrip OK.
 //   - What still needs you: typing each command in your Telegram client.
 
+export {};
+
 const TOKEN = process.env.TELEGRAM_BOT_TOKEN;
 if (TOKEN === undefined || TOKEN.length === 0) {
   console.error("Missing TELEGRAM_BOT_TOKEN");

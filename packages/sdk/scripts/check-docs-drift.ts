@@ -88,7 +88,10 @@ function checkConcepts(report: DriftReport): void {
     return;
   }
   const conceptFiles = new Set(
-    fs.readdirSync(conceptsDir).filter((f) => f.endsWith(".mdx") && !f.startsWith("_")).map((f) => f.replace(/\.mdx$/, "")),
+    fs
+      .readdirSync(conceptsDir)
+      .filter((f) => f.endsWith(".mdx") && !f.startsWith("_"))
+      .map((f) => f.replace(/\.mdx$/, "")),
   );
   for (const { raw, key } of sections) {
     const slug = SECTION_TO_SLUG[key];
@@ -107,7 +110,9 @@ function checkReference(report: DriftReport): void {
     report.warnings.push(`typedoc JSON missing: ${TYPEDOC_JSON} (run \`pnpm docs:json\` first)`);
     return;
   }
-  const json = JSON.parse(fs.readFileSync(TYPEDOC_JSON, "utf8")) as { children?: Array<{ children?: Array<{ name: string; kind: number }> }> };
+  const json = JSON.parse(fs.readFileSync(TYPEDOC_JSON, "utf8")) as {
+    children?: Array<{ children?: Array<{ name: string; kind: number }> }>;
+  };
   const symbolNames = new Set<string>();
   const INTERESTING = new Set([128, 256, 2097152, 4194304, 64, 32]);
   for (const mod of json.children ?? []) {
@@ -121,12 +126,17 @@ function checkReference(report: DriftReport): void {
     return;
   }
   const refFiles = new Set(
-    fs.readdirSync(refDir).filter((f) => f.endsWith(".mdx") && !f.startsWith("_")).map((f) => f.replace(/\.mdx$/, "")),
+    fs
+      .readdirSync(refDir)
+      .filter((f) => f.endsWith(".mdx") && !f.startsWith("_"))
+      .map((f) => f.replace(/\.mdx$/, "")),
   );
   for (const name of symbolNames) {
-    const safe = name.replace(/[\/\\:<>|?*]/g, "-");
+    const safe = name.replace(/[/\\:<>|?*]/g, "-");
     if (!refFiles.has(safe)) {
-      report.referenceMissing.push(`symbol "${name}" missing reference/${safe}.mdx (run \`pnpm generate:sdk-reference\` in theo-opendocs)`);
+      report.referenceMissing.push(
+        `symbol "${name}" missing reference/${safe}.mdx (run \`pnpm generate:sdk-reference\` in theo-opendocs)`,
+      );
     }
   }
 }
@@ -142,7 +152,10 @@ function checkCookbook(report: DriftReport): void {
     return;
   }
   const cookFiles = new Set(
-    fs.readdirSync(cookDir).filter((f) => f.endsWith(".mdx") && !f.startsWith("_")).map((f) => f.replace(/\.mdx$/, "")),
+    fs
+      .readdirSync(cookDir)
+      .filter((f) => f.endsWith(".mdx") && !f.startsWith("_"))
+      .map((f) => f.replace(/\.mdx$/, "")),
   );
   for (const entry of fs.readdirSync(EXAMPLES_DIR, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
@@ -170,7 +183,9 @@ function printReport(report: DriftReport): number {
   }
 
   if (total === 0) {
-    console.log("[docs-drift] OK — no drift detected between docs.md / dist / examples and theo-opendocs/.");
+    console.log(
+      "[docs-drift] OK — no drift detected between docs.md / dist / examples and theo-opendocs/.",
+    );
     return 0;
   }
 
@@ -189,7 +204,8 @@ function printReport(report: DriftReport): number {
   if (report.referenceMissing.length > 0) {
     console.warn(`== Reference missing (${report.referenceMissing.length} symbols) ==`);
     for (const m of report.referenceMissing.slice(0, 20)) console.warn("  -", m);
-    if (report.referenceMissing.length > 20) console.warn(`  ... and ${report.referenceMissing.length - 20} more`);
+    if (report.referenceMissing.length > 20)
+      console.warn(`  ... and ${report.referenceMissing.length - 20} more`);
     console.warn("");
   }
   if (report.cookbookMissing.length > 0) {

@@ -5,9 +5,9 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
-  EvalAlreadyRunningError,
   __resetSingleFlightForTests,
   acquireSingleFlight,
+  EvalAlreadyRunningError,
   releaseSingleFlight,
 } from "../../src/internal/eval/single-flight.js";
 

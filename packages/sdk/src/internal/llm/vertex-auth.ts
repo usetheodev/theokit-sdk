@@ -23,7 +23,9 @@ interface GoogleAuthClient {
 }
 
 interface GoogleAuthLib {
-  GoogleAuth: new (opts: { scopes: string[] }) => {
+  GoogleAuth: new (opts: {
+    scopes: string[];
+  }) => {
     getClient: () => Promise<GoogleAuthClient>;
   };
 }
@@ -88,11 +90,7 @@ export function resolveVertexProjectId(): string | undefined {
 
 /** Resolve Vertex location (region) from env; defaults to `us-central1`. */
 export function resolveVertexLocation(): string {
-  return (
-    process.env.GOOGLE_CLOUD_LOCATION ??
-    process.env.CLOUD_ML_REGION ??
-    "us-central1"
-  );
+  return process.env.GOOGLE_CLOUD_LOCATION ?? process.env.CLOUD_ML_REGION ?? "us-central1";
 }
 
 /** Test seam — reset cached auth client. */

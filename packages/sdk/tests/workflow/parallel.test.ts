@@ -12,9 +12,24 @@ describe("workflow .parallel", () => {
     const wf = Workflow.create({ name: "par" })
       .parallel(
         [
-          [fn("a", async () => { order.push("a"); return 1; })],
-          [fn("b", async () => { order.push("b"); return 2; })],
-          [fn("c", async () => { order.push("c"); return 3; })],
+          [
+            fn("a", async () => {
+              order.push("a");
+              return 1;
+            }),
+          ],
+          [
+            fn("b", async () => {
+              order.push("b");
+              return 2;
+            }),
+          ],
+          [
+            fn("c", async () => {
+              order.push("c");
+              return 3;
+            }),
+          ],
         ],
         { id: "fanout" },
       )
@@ -27,9 +42,7 @@ describe("workflow .parallel", () => {
   });
 
   it("EC-6 — empty branches returns output: []", async () => {
-    const wf = Workflow.create({ name: "par-empty" })
-      .parallel([], { id: "empty" })
-      .commit();
+    const wf = Workflow.create({ name: "par-empty" }).parallel([], { id: "empty" }).commit();
     const run = await wf.run(undefined);
     expect(run.status).toBe("completed");
     expect(run.output).toEqual([]);
@@ -40,13 +53,19 @@ describe("workflow .parallel", () => {
     const wf = Workflow.create({ name: "par-fail-fast" })
       .parallel(
         [
-          [fn("a", async () => { throw new Error("a failed"); })],
-          [fn("b", async () => {
-            // Delay so a's error wins the race.
-            await new Promise((r) => setTimeout(r, 50));
-            bRan = true;
-            return "b";
-          })],
+          [
+            fn("a", async () => {
+              throw new Error("a failed");
+            }),
+          ],
+          [
+            fn("b", async () => {
+              // Delay so a's error wins the race.
+              await new Promise((r) => setTimeout(r, 50));
+              bRan = true;
+              return "b";
+            }),
+          ],
         ],
         { id: "ff" },
       )
@@ -63,7 +82,11 @@ describe("workflow .parallel", () => {
       .parallel(
         [
           [fn("a", async () => "ok-a")],
-          [fn("b", async () => { throw new Error("b failed"); })],
+          [
+            fn("b", async () => {
+              throw new Error("b failed");
+            }),
+          ],
           [fn("c", async () => "ok-c")],
         ],
         { id: "collect", errorPolicy: "collect" },
@@ -85,27 +108,33 @@ describe("workflow .parallel", () => {
     const wf = Workflow.create({ name: "par-cap" })
       .parallel(
         [
-          [fn("a", async () => {
-            active++;
-            peak = Math.max(peak, active);
-            await new Promise((r) => setTimeout(r, 20));
-            active--;
-            return 1;
-          })],
-          [fn("b", async () => {
-            active++;
-            peak = Math.max(peak, active);
-            await new Promise((r) => setTimeout(r, 20));
-            active--;
-            return 2;
-          })],
-          [fn("c", async () => {
-            active++;
-            peak = Math.max(peak, active);
-            await new Promise((r) => setTimeout(r, 20));
-            active--;
-            return 3;
-          })],
+          [
+            fn("a", async () => {
+              active++;
+              peak = Math.max(peak, active);
+              await new Promise((r) => setTimeout(r, 20));
+              active--;
+              return 1;
+            }),
+          ],
+          [
+            fn("b", async () => {
+              active++;
+              peak = Math.max(peak, active);
+              await new Promise((r) => setTimeout(r, 20));
+              active--;
+              return 2;
+            }),
+          ],
+          [
+            fn("c", async () => {
+              active++;
+              peak = Math.max(peak, active);
+              await new Promise((r) => setTimeout(r, 20));
+              active--;
+              return 3;
+            }),
+          ],
         ],
         { id: "cap", concurrency: 2 },
       )

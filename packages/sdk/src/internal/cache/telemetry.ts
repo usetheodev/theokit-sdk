@@ -31,7 +31,7 @@ interface TracerLike {
   ): SpanLike;
 }
 
-let cachedTracer: TracerLike | undefined | null = undefined;
+let cachedTracer: TracerLike | undefined | null;
 
 function getTracer(): TracerLike | undefined {
   if (cachedTracer === null) return undefined;
@@ -53,10 +53,7 @@ function getTracer(): TracerLike | undefined {
   }
 }
 
-export function startCacheLookupSpan(info: {
-  namespace: string;
-  embedderId: string;
-}): SpanLike {
+export function startCacheLookupSpan(info: { namespace: string; embedderId: string }): SpanLike {
   const tracer = getTracer();
   if (tracer === undefined) return noopSpan;
   return tracer.startSpan("cache.lookup", {
@@ -67,10 +64,7 @@ export function startCacheLookupSpan(info: {
   });
 }
 
-export function startCacheStoreSpan(info: {
-  namespace: string;
-  embedderId: string;
-}): SpanLike {
+export function startCacheStoreSpan(info: { namespace: string; embedderId: string }): SpanLike {
   const tracer = getTracer();
   if (tracer === undefined) return noopSpan;
   return tracer.startSpan("cache.store", {

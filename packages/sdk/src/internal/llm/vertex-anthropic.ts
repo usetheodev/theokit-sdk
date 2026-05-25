@@ -19,16 +19,8 @@
 
 import { ConfigurationError } from "../../errors.js";
 import { mapVertexError } from "../errors/mappers/vertex.js";
-import {
-  resolveVertexBaseUrl,
-  stripVertexPrefix,
-} from "../providers/builtin/vertex.js";
+import { resolveVertexBaseUrl, stripVertexPrefix } from "../providers/builtin/vertex.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
-import {
-  resolveVertexAccessToken,
-  resolveVertexLocation,
-  resolveVertexProjectId,
-} from "./vertex-auth.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -38,6 +30,11 @@ import type {
   LlmStopReason,
   LlmToolCallPart,
 } from "./types.js";
+import {
+  resolveVertexAccessToken,
+  resolveVertexLocation,
+  resolveVertexProjectId,
+} from "./vertex-auth.js";
 
 export interface VertexAnthropicClientOptions {
   /** When undefined, resolved lazily via `resolveVertexProjectId()`. */

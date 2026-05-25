@@ -14,15 +14,8 @@
 
 import * as crypto from "node:crypto";
 
-import type {
-  WhatsAppInboundEvent,
-  WhatsAppStatusReceipt,
-} from "../../backend-types.js";
-import type {
-  MetaIncomingMessage,
-  MetaStatusUpdate,
-  MetaWebhookEnvelope,
-} from "./types.js";
+import type { WhatsAppInboundEvent, WhatsAppStatusReceipt } from "../../backend-types.js";
+import type { MetaIncomingMessage, MetaStatusUpdate, MetaWebhookEnvelope } from "./types.js";
 
 const warnedNonTextTypes = new Set<string>();
 

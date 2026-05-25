@@ -56,7 +56,6 @@ export type CredentialsCheckOutcome =
  *
  * @internal
  */
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: credential validation is intentionally a single-pass guard ladder — path traversal → exists → read → parse → shape — splitting hurts the "one validation site" locality.
 export function checkCredentialsFile(credentialsPath: string): CredentialsCheckOutcome {
   // Path traversal: reject any RAW input containing `..` segments before
   // resolving. (`resolve()` would collapse them, masking the intent.)
@@ -138,7 +137,6 @@ function describeOutcome(o: CredentialsCheckOutcome): string {
   }
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: setup orchestrates path resolve → mkdir → guard ladder → chmod → probe-vs-non-interactive-vs-interactive branches; each is a single-responsibility short circuit and splitting hurts the "one setup transaction" locality (matches `theokit init` precedent).
 export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<number> {
   const credentialsPath =
     opts.credentialsPath !== undefined && opts.credentialsPath.length > 0

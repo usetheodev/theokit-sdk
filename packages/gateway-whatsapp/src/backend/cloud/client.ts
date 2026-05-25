@@ -5,13 +5,9 @@
  * @internal
  */
 
-import { mapWhatsAppCloudError } from "../../errors.js";
 import type { WhatsAppSendResult } from "../../backend-types.js";
-import type {
-  MetaErrorEnvelope,
-  MetaSendResponse,
-  MetaSendTextRequest,
-} from "./types.js";
+import { mapWhatsAppCloudError } from "../../errors.js";
+import type { MetaErrorEnvelope, MetaSendResponse, MetaSendTextRequest } from "./types.js";
 
 export interface WhatsAppCloudClientOptions {
   readonly accessToken: string;

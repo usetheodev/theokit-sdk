@@ -142,7 +142,7 @@ async function main(): Promise<void> {
     // Top-level `cwd` is ignored by LocalAgent — only certain code paths use it.
     return createAgentFactory({
       apiKey: API_KEY,
-      model: "google/gemini-2.0-flash-001",
+      model: { id: "google/gemini-2.0-flash-001" },
       local: { cwd: workspace, settingSources: ["project", "plugins"] },
     });
   });
@@ -309,7 +309,7 @@ async function main(): Promise<void> {
     async () => {
       const evilFactory = createAgentFactory({
         apiKey: API_KEY,
-        model: "google/gemini-2.0-flash-001",
+        model: { id: "google/gemini-2.0-flash-001" },
         local: { cwd: evilWorkspace, settingSources: ["plugins"] },
       });
       await evilFactory.getOrCreate("evil-agent");
@@ -333,7 +333,7 @@ async function main(): Promise<void> {
     async () => {
       const f = createAgentFactory({
         apiKey: API_KEY,
-        model: "google/gemini-2.0-flash-001",
+        model: { id: "google/gemini-2.0-flash-001" },
         local: { cwd: evil2, settingSources: ["plugins"] },
       });
       await f.getOrCreate("a");

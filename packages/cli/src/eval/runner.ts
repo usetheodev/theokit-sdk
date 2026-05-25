@@ -10,8 +10,8 @@
  * @internal
  */
 
-import { Eval, type EvalRun, type Scorer as SdkScorer } from "@usetheo/sdk";
 import { randomUUID } from "node:crypto";
+import { Eval, type EvalRun, type Scorer as SdkScorer } from "@usetheo/sdk";
 
 import type { EvalConfig, EvalRowResult, EvalRunResult } from "./types.js";
 

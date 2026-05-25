@@ -37,9 +37,10 @@ export function resolveVertexBaseUrl(opts: {
   location: string;
   modelDialect: "anthropic" | "gemini";
 }): string {
-  const host = opts.location === "global"
-    ? "aiplatform.googleapis.com"
-    : `${opts.location}-aiplatform.googleapis.com`;
+  const host =
+    opts.location === "global"
+      ? "aiplatform.googleapis.com"
+      : `${opts.location}-aiplatform.googleapis.com`;
   if (opts.modelDialect === "gemini") {
     // OpenAI-compat endpoint (D291) — the client appends `/chat/completions`.
     return `https://${host}/v1/projects/${opts.projectId}/locations/${opts.location}/endpoints/openapi`;

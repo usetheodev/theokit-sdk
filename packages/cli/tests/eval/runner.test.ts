@@ -92,7 +92,7 @@ describe("runEvalSuite (post-D212 swap)", () => {
         {
           name: "varies",
           // Round-robin: 1, 0.5, 0 based on input
-          score: (out, expected): { score: number } => {
+          score: (_out, _expected): { score: number } => {
             // Output is fixture-determined; we score independently on input identity by passing
             // expected. But scorer doesn't see input; we just emit a fixed pattern.
             return { score: 0.5 };

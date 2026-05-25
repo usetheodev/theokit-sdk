@@ -34,7 +34,6 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
   return out;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dir-exists + entries-iter + manifest-parse + fallback-name is one read-only walker; D198 requires no plugin execution.
 function walkPluginDir(root: string, source: PluginInfo["source"]): PluginInfo[] {
   if (!existsSync(root) || !lstatSync(root).isDirectory()) return [];
   const out: PluginInfo[] = [];

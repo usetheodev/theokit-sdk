@@ -80,9 +80,7 @@ export function normalizeSlackEvent(
     channel: {
       id: e.channel,
       type: channelType,
-      ...(channelType === "thread" && e.thread_ts !== undefined
-        ? { topicId: e.thread_ts }
-        : {}),
+      ...(channelType === "thread" && e.thread_ts !== undefined ? { topicId: e.thread_ts } : {}),
     },
     text: e.text ?? "",
     receivedAt: Math.floor(Number(e.ts) * 1000),

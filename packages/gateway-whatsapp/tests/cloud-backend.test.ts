@@ -11,11 +11,15 @@ import { WhatsAppCloudBackend } from "../src/backend/cloud/index.js";
 const APP_SECRET = "test-secret";
 
 function makeFetchOk(): typeof fetch {
-  return vi.fn(async () =>
-    new Response(JSON.stringify({ messaging_product: "whatsapp", messages: [{ id: "wamid.x" }] }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    }),
+  return vi.fn(
+    async () =>
+      new Response(
+        JSON.stringify({ messaging_product: "whatsapp", messages: [{ id: "wamid.x" }] }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      ),
   ) as typeof fetch;
 }
 
@@ -44,7 +48,13 @@ const TEXT_ENVELOPE = JSON.stringify({
             messaging_product: "whatsapp",
             metadata: { display_phone_number: "5511", phone_number_id: "PNID" },
             messages: [
-              { from: "5511888", id: "wamid.in.1", timestamp: "1700", type: "text", text: { body: "hi" } },
+              {
+                from: "5511888",
+                id: "wamid.in.1",
+                timestamp: "1700",
+                type: "text",
+                text: { body: "hi" },
+              },
             ],
           },
         },

@@ -85,9 +85,7 @@ export async function runForeachStep(
       try {
         const r = await dispatch(step.step, item, ctx, options, prevStepResults);
         if (r.status === "failed") {
-          failures.push(
-            new Error(`foreach item ${idx} failed: ${r.error?.message ?? "unknown"}`),
-          );
+          failures.push(new Error(`foreach item ${idx} failed: ${r.error?.message ?? "unknown"}`));
         } else {
           outputs[idx] = r.output;
         }
@@ -104,7 +102,9 @@ export async function runForeachStep(
       status: "failed",
       attempts: 1,
       durationMs: Date.now() - startedAt,
-      error: errToShape(new AggregateError(failures, `foreach "${step.id}" had ${failures.length} failure(s)`)),
+      error: errToShape(
+        new AggregateError(failures, `foreach "${step.id}" had ${failures.length} failure(s)`),
+      ),
     };
   }
 
