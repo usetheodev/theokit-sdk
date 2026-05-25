@@ -57,6 +57,16 @@ export interface AgentLoopInputs {
   shellSandbox: boolean;
   maxIterations?: number;
   /**
+   * Production-Readiness #5 (ADR D318): caller-supplied `AbortSignal` from
+   * `SendOptions.signal`, plus the agent's lifecycle controller. When fired
+   * (user cancel, dispose, SIGTERM), the LLM `fetch()` is aborted at
+   * transport level — tokens stop billing mid-stream.
+   *
+   * When undefined the loop uses a never-aborting placeholder signal
+   * (legacy behavior).
+   */
+  signal?: AbortSignal;
+  /**
    * T4.2 (ADRs D90-D91): explicit iteration budget. When omitted, the loop
    * constructs one from `maxIterations`. Tests can inject a pre-configured
    * instance to verify grace-call / compression-cap semantics.
