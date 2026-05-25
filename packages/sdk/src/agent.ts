@@ -135,29 +135,7 @@ export class Agent {
       existing = getRegisteredAgent(agentId);
     }
     if (existing !== undefined) {
-      await validateRehydratedAgent(agentId, existing);
-      // Strip inline mcpServers — they don't persist across resume.
-      // Deep-merge `local` so callers passing `local: { cwd }` keep the
-      // persisted `settingSources` and `sandboxOptions`. The previous
-      // shallow spread silently wiped these fields, which broke long-running
-      // agents that depended on file-based hooks/skills.
-      const mergedLocal =
-        options.local !== undefined && existing.options.local !== undefined
-          ? { ...existing.options.local, ...options.local }
-          : (options.local ?? existing.options.local);
-      const mergedOptions: AgentOptions = {
-        ...existing.options,
-        ...options,
-        ...(mergedLocal !== undefined ? { local: mergedLocal } : {}),
-        mcpServers: undefined,
-        agentId,
-      };
-      if (existing.runtime === "cloud") {
-        return new CloudAgent(mergedOptions, agentId);
-      }
-      const agent = new LocalAgent({ ...mergedOptions, model: existing.options.model });
-      await agent.initialize();
-      return agent;
+      return await rehydrateExistingAgent(agentId, existing, options);
     }
     // Cold miss: throw UnknownAgentError so chat-assistant bots can
     // explicitly branch to `Agent.create({ agentId, ...full options })` on
@@ -439,6 +417,51 @@ function resolveAgentPersistenceCwd(options: Partial<AgentOptions>): string {
  *
  * @internal
  */
+/**
+ * Rehydration helper extracted from `Agent.resume` to keep cyclomatic
+ * complexity under the 10-cap (G2). Validates the persisted entry, enforces
+ * the EC-3 `requiresCustomStorage` integrity check, deep-merges options, then
+ * constructs the right runtime class.
+ *
+ * @internal
+ */
+async function rehydrateExistingAgent(
+  agentId: string,
+  existing: RegisteredAgent,
+  options: Partial<AgentOptions>,
+): Promise<SDKAgent> {
+  await validateRehydratedAgent(agentId, existing);
+  // EC-3 / D325: refuse silent FS fallback when the agent was created with a
+  // custom conversationStorage. Reading an empty `.theokit/agents/<id>/messages.jsonl`
+  // for a Postgres-backed agent would corrupt the conversation.
+  if (existing.requiresCustomStorage === true && options.conversationStorage === undefined) {
+    throw new ConfigurationError(
+      `Agent "${agentId}" was created with a custom conversationStorage adapter; pass conversationStorage again on resume to avoid losing history.`,
+      { code: "conversation_storage_required" },
+    );
+  }
+  // Strip inline mcpServers — they don't persist across resume. Deep-merge
+  // `local` so callers passing `local: { cwd }` keep persisted settingSources
+  // and sandboxOptions (shallow spread previously wiped these).
+  const mergedLocal =
+    options.local !== undefined && existing.options.local !== undefined
+      ? { ...existing.options.local, ...options.local }
+      : (options.local ?? existing.options.local);
+  const mergedOptions: AgentOptions = {
+    ...existing.options,
+    ...options,
+    ...(mergedLocal !== undefined ? { local: mergedLocal } : {}),
+    mcpServers: undefined,
+    agentId,
+  };
+  if (existing.runtime === "cloud") {
+    return new CloudAgent(mergedOptions, agentId);
+  }
+  const agent = new LocalAgent({ ...mergedOptions, model: existing.options.model });
+  await agent.initialize();
+  return agent;
+}
+
 async function validateRehydratedAgent(
   agentId: string,
   entry: { runtime: "local" | "cloud"; cwd?: string; options: AgentOptions },

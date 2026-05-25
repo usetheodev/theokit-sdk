@@ -6,6 +6,7 @@ export type * from "./batch.js";
 export type * from "./cache.js";
 export type * from "./context.js";
 export type * from "./conversation.js";
+export type * from "./conversation-storage.js";
 export type * from "./cron.js";
 export type * from "./eval.js";
 export type * from "./goal-events.js";

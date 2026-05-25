@@ -17,11 +17,26 @@ import type { SessionMessage } from "./agent-session.js";
  * @internal
  */
 
+/**
+ * Persisted message shape on disk. Role is the broader 5-role union after
+ * Production-Readiness EC-10 (forward-compat with tool-shaped messages flowing
+ * through `ConversationStorageAdapter.appendMessage`). Legacy JSONL files
+ * containing only user/assistant continue to parse — `readSessionFile`
+ * filters unknown roles defensively.
+ */
 export interface PersistedSessionMessage {
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system" | "tool_call" | "tool_result";
   text: string;
   at: number;
 }
+
+const VALID_ROLES = new Set<PersistedSessionMessage["role"]>([
+  "user",
+  "assistant",
+  "system",
+  "tool_call",
+  "tool_result",
+]);
 
 export function sessionFilePath(cwd: string, agentId: string): string {
   // ADRs D79-D81: validate agentId grammar + safe-join. Agent IDs (local
@@ -81,6 +96,9 @@ export async function readSessionFile(cwd: string, agentId: string): Promise<Ses
   for (const line of lines) {
     try {
       const parsed = JSON.parse(line) as Partial<PersistedSessionMessage>;
+      // Backward compat: legacy JSONL only had user/assistant. New: 5 roles
+      // (EC-10). `SessionMessage` in-memory cache still narrows to
+      // user/assistant — broader roles round-trip through the storage adapter.
       if (
         (parsed.role === "user" || parsed.role === "assistant") &&
         typeof parsed.text === "string"
@@ -94,6 +112,65 @@ export async function readSessionFile(cwd: string, agentId: string): Promise<Ses
     }
   }
   return messages;
+}
+
+/**
+ * Read EVERY persisted record (any role) — used by the
+ * {@link ConversationStorageAdapter} surface that exposes the full StoredMessage
+ * shape. Same defensive parsing as `readSessionFile` but returns the broader
+ * `PersistedSessionMessage[]` without narrowing to user/assistant.
+ *
+ * @internal
+ */
+export async function readAllPersistedMessages(
+  cwd: string,
+  agentId: string,
+): Promise<PersistedSessionMessage[]> {
+  const path = sessionFilePath(cwd, agentId);
+  let raw: string;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch {
+    return [];
+  }
+  const lines = raw.split("\n").filter((line) => line.length > 0);
+  const messages: PersistedSessionMessage[] = [];
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line) as Partial<PersistedSessionMessage>;
+      if (
+        parsed.role !== undefined &&
+        VALID_ROLES.has(parsed.role) &&
+        typeof parsed.text === "string"
+      ) {
+        messages.push({
+          role: parsed.role,
+          text: parsed.text,
+          at: typeof parsed.at === "number" ? parsed.at : Date.now(),
+        });
+      }
+    } catch {
+      process.stderr.write(
+        `[theokit-sdk] skipping malformed line in messages.jsonl (${agentId}): ${line.slice(0, 80)}...\n`,
+      );
+    }
+  }
+  return messages;
+}
+
+/**
+ * Append a persisted record carrying an arbitrary role (EC-10 expansion).
+ *
+ * @internal
+ */
+export async function appendAnyPersistedMessage(
+  cwd: string,
+  agentId: string,
+  record: PersistedSessionMessage,
+): Promise<void> {
+  const path = sessionFilePath(cwd, agentId);
+  await mkdir(dirname(path), { recursive: true });
+  await appendFile(path, `${redactSecrets(JSON.stringify(record))}\n`, "utf8");
 }
 
 /**

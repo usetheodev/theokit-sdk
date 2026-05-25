@@ -100,6 +100,7 @@ export function applyPersonalityOverlay(
 export async function localAgentUsePersonality(args: {
   agentId: string;
   workspaceCwd: string;
+  storageHandle: import("../../types/conversation-storage.js").ConversationStorageAdapter | string;
   disposed: boolean;
   personalityStore: PersonalityStore;
   personalityRegistry: PersonalityRegistry | undefined;
@@ -128,7 +129,7 @@ export async function localAgentUsePersonality(args: {
       registry: registry as PersonalityRegistry,
       store: args.personalityStore,
       invalidateCache: (reason) => args.invalidateCache(reason),
-      appendSessionMessage: (msg) => appendSessionMessage(args.agentId, msg, args.workspaceCwd),
+      appendSessionMessage: (msg) => appendSessionMessage(args.agentId, msg, args.storageHandle),
       clearSession: () => clearSession(args.agentId),
       opts: args.opts ?? {},
     }),

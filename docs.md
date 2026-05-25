@@ -2685,3 +2685,91 @@ When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis
 ### Composing Bedrock + Vertex with other features
 
 Both profiles work with all SDK features: handoffs (D214-D229), workflows (D230-D248), semantic cache (D249-D266), eval suite (D202-D213), batch (D134-D140). Pick the model id at agent construction; the rest of the SDK is provider-agnostic.
+
+## Conversation storage (v1.21+) — `ConversationStorageAdapter`
+
+Pluggable conversation persistence. Default behavior is unchanged (`<cwd>/.theokit/agents/<id>/messages.jsonl`). For serverless deploys (a peer vendor, Cloudflare Workers, Lambda) and multi-host setups (K8s replicas, TheoCloud canary), pass a custom adapter.
+
+### Interface
+
+```ts
+interface ConversationStorageAdapter {
+  getMessages(conversationId: string): Promise<readonly StoredMessage[]>;
+  appendMessage(conversationId: string, message: StoredMessage): Promise<void>;
+  deleteConversation(conversationId: string): Promise<void>;
+  listConversationIds?(opts?: { limit?: number }): Promise<readonly string[] | undefined>;
+  compact?(conversationId: string, maxTurns: number): Promise<void>;
+  dispose?(): Promise<void>;
+}
+
+interface StoredMessage {
+  role: "user" | "assistant" | "system" | "tool_call" | "tool_result";
+  content: string;
+  at?: number; // epoch ms
+}
+```
+
+### Default behavior (no configuration)
+
+```ts
+// Existing apps unchanged — FS adapter at cwd
+const agent = await Agent.create({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  model: { id: "openai/gpt-4o-mini" },
+  local: { cwd: process.cwd() },
+});
+// writes to <cwd>/.theokit/agents/<id>/messages.jsonl
+```
+
+### Built-in adapters
+
+```ts
+import {
+  Agent,
+  FileSystemConversationStorage,
+  InMemoryConversationStorage,
+} from "@usetheo/sdk";
+
+// Tests / ephemeral dev
+const ephemeral = new InMemoryConversationStorage();
+
+// Explicit FS (same as default but with custom root)
+const fs = new FileSystemConversationStorage({ root: "/var/lib/myapp" });
+
+const agent = await Agent.create({
+  apiKey,
+  model,
+  conversationStorage: ephemeral, // or fs
+});
+```
+
+### Postgres / Redis / Durable Objects
+
+See `docs/recipes/conversation-storage-postgres.md` and `docs/recipes/conversation-storage-redis.md` for copy-paste templates. Both ship Node + Edge variants.
+
+### Strict resume integrity (D325)
+
+When `Agent.create({ conversationStorage })` is used, the registry marks the agent with `requiresCustomStorage: true`. **`Agent.resume` REJECTS** with `ConfigurationError(code: "conversation_storage_required")` if the marker is set and the caller does not pass `conversationStorage` again.
+
+```ts
+// First call (creates + marks):
+await Agent.create({
+  agentId: "user-42",
+  conversationStorage: pgAdapter,
+  apiKey,
+  model,
+});
+
+// Process restart later:
+// ❌ throws — silently falling back to FS would lose Postgres history
+await Agent.resume("user-42");
+
+// ✓ correct — pass adapter again
+await Agent.resume("user-42", { conversationStorage: pgAdapter });
+```
+
+This is intentional. Silent FS fallback would corrupt the conversation (read empty `messages.jsonl`, continue as if fresh). Wire the adapter at the route-handler level so every request reaches `getOrCreate` with the storage in place.
+
+### What does NOT serialize across resume
+
+`conversationStorage` is a runtime closure — not stored in `registry.json`. Same pattern as `AgentOptions.tools` handlers. The marker is the only thing that survives.
