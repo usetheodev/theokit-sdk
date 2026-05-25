@@ -150,6 +150,16 @@ function buildLoopInputs(
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
     // can attach it to the LLM `fetch({ signal })` call.
     ...(options.sendOptions.signal !== undefined ? { signal: options.sendOptions.signal } : {}),
+    // D315-D317 — tool lifecycle hooks (cost tracking + audit + retry/alert)
+    ...(options.agentOptions.onToolStart !== undefined
+      ? { onToolStart: options.agentOptions.onToolStart }
+      : {}),
+    ...(options.agentOptions.onToolEnd !== undefined
+      ? { onToolEnd: options.agentOptions.onToolEnd }
+      : {}),
+    ...(options.agentOptions.onToolError !== undefined
+      ? { onToolError: options.agentOptions.onToolError }
+      : {}),
     telemetry: createTelemetry(options.agentOptions.telemetry),
   };
 }
