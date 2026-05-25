@@ -12,7 +12,7 @@ import { existsSync, lstatSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
-export interface PluginInfo {
+interface PluginInfo {
   readonly name: string;
   readonly source: "user-global" | "project";
   readonly description?: string;
@@ -34,25 +34,34 @@ function parseFrontmatter(content: string): { name?: string; description?: strin
   return out;
 }
 
+function loadPluginManifest(
+  root: string,
+  name: string,
+  source: PluginInfo["source"],
+): PluginInfo | undefined {
+  const manifestPath = join(root, name, "PLUGIN.md");
+  if (!existsSync(manifestPath)) return undefined;
+  try {
+    const fm = parseFrontmatter(readFileSync(manifestPath, "utf8"));
+    return {
+      name: fm.name ?? name,
+      source,
+      ...(fm.description !== undefined ? { description: fm.description } : {}),
+      path: manifestPath,
+    };
+  } catch {
+    // Malformed manifest — skip silently (per D198 invariant).
+    return undefined;
+  }
+}
+
 function walkPluginDir(root: string, source: PluginInfo["source"]): PluginInfo[] {
   if (!existsSync(root) || !lstatSync(root).isDirectory()) return [];
   const out: PluginInfo[] = [];
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const manifestPath = join(root, entry.name, "PLUGIN.md");
-    if (!existsSync(manifestPath)) continue;
-    try {
-      const content = readFileSync(manifestPath, "utf8");
-      const fm = parseFrontmatter(content);
-      out.push({
-        name: fm.name ?? entry.name,
-        source,
-        ...(fm.description !== undefined ? { description: fm.description } : {}),
-        path: manifestPath,
-      });
-    } catch {
-      // Malformed manifest — skip silently (per D198 invariant).
-    }
+    const info = loadPluginManifest(root, entry.name, source);
+    if (info !== undefined) out.push(info);
   }
   return out.sort((a, b) => a.name.localeCompare(b.name));
 }

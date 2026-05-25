@@ -20,7 +20,6 @@ vi.mock("@slack/bolt", () => {
       auth: { test: authTestMock },
       chat: { postMessage: postMessageMock },
     };
-    constructor(_opts: unknown) {}
     event = eventRegistrationMock;
     start = startMock;
     stop = stopMock;

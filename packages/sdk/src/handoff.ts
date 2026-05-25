@@ -112,14 +112,9 @@ export async function handoffTo(
 }
 
 export {
-  type HandoffContext,
-  type HandoffDescriptor,
-  type HandoffHistory,
   HandoffLoopError,
   HandoffNameCollisionError,
-  type HandoffOptions,
   HandoffPairLoopError,
   HandoffReceiverDisposedError,
-  type HandoffResult,
   HandoffSelfReferenceError,
 } from "./types/handoff.js";

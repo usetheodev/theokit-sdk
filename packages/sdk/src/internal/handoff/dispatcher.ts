@@ -83,6 +83,72 @@ function isAgentDisposed(agent: SDKAgent): boolean {
  *   9. Receiver: build the user-facing message and `await receiver.send(msg).then(wait)`.
  *  10. Close span + return reply.
  */
+async function assertHandoffEnabled(
+  descriptor: HandoffDescriptor,
+  ctx: HandoffContext,
+  receiverAgentId: string,
+): Promise<void> {
+  const opt = descriptor.options.isEnabled;
+  let enabled = true;
+  if (typeof opt === "boolean") enabled = opt;
+  else if (typeof opt === "function") {
+    const r = opt(ctx);
+    enabled = r instanceof Promise ? await r : r;
+  }
+  if (!enabled) {
+    throw new Error(`Handoff to ${receiverAgentId} is disabled (isEnabled returned false)`);
+  }
+}
+
+function parseAndValidate(descriptor: HandoffDescriptor, rawInputJson: unknown): unknown {
+  try {
+    return parseHandoffInput(descriptor, rawInputJson);
+  } catch (err) {
+    const detail =
+      err instanceof z.ZodError
+        ? (err.issues[0]?.message ?? "schema_invalid")
+        : err instanceof Error
+          ? err.message
+          : String(err);
+    throw new Error(`Handoff input validation failed: ${detail}`);
+  }
+}
+
+async function runOnHandoff(
+  descriptor: HandoffDescriptor,
+  ctx: HandoffContext,
+  parsedInput: unknown,
+): Promise<void> {
+  const onHandoff = descriptor.options.onHandoff;
+  if (onHandoff === undefined) return;
+  // biome-ignore lint/suspicious/noExplicitAny: parsedInput is typed unknown by design.
+  const result = onHandoff(ctx, parsedInput as any);
+  if (result instanceof Promise) await result;
+}
+
+function extractUserText(content: unknown): string | undefined {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return undefined;
+  const text = content
+    .filter((c): c is { type: "text"; text: string } => (c as { type?: string })?.type === "text")
+    .map((c) => c.text)
+    .join("\n");
+  return text.length > 0 ? text : undefined;
+}
+
+function extractLastUserMessage(history: HandoffHistory, senderAgentId: string): string {
+  for (let i = history.messages.length - 1; i >= 0; i -= 1) {
+    const m = history.messages[i] as {
+      type?: string;
+      message?: { role?: string; content?: unknown };
+    };
+    if (m?.type !== "user" || m.message?.role !== "user") continue;
+    const text = extractUserText(m.message.content);
+    if (text !== undefined) return text;
+  }
+  return `(Handoff from ${senderAgentId} — no prior user message in history.)`;
+}
+
 export async function dispatchHandoff(args: {
   descriptor: HandoffDescriptor;
   senderAgentId: string;
@@ -108,35 +174,9 @@ export async function dispatchHandoff(args: {
     chain: [...chainState.chain, receiver.agentId],
   };
 
-  // isEnabled gate
-  const isEnabledOpt = descriptor.options.isEnabled;
-  let enabled = true;
-  if (typeof isEnabledOpt === "boolean") enabled = isEnabledOpt;
-  else if (typeof isEnabledOpt === "function") {
-    const r = isEnabledOpt(ctx);
-    enabled = r instanceof Promise ? await r : r;
-  }
-  if (!enabled) {
-    throw new Error(`Handoff to ${receiver.agentId} is disabled (isEnabled returned false)`);
-  }
-
-  // Parse input payload (D229)
-  let parsedInput: unknown;
-  try {
-    parsedInput = parseHandoffInput(descriptor, rawInputJson);
-  } catch (err) {
-    throw new Error(
-      `Handoff input validation failed: ${err instanceof z.ZodError ? (err.issues[0]?.message ?? "schema_invalid") : err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  // Run onHandoff callback (D227 — throw aborts)
-  const onHandoff = descriptor.options.onHandoff;
-  if (onHandoff !== undefined) {
-    // biome-ignore lint/suspicious/noExplicitAny: `parsedInput` is typed unknown by design; cast at the callback boundary
-    const result = onHandoff(ctx, parsedInput as any);
-    if (result instanceof Promise) await result;
-  }
+  await assertHandoffEnabled(descriptor, ctx, receiver.agentId);
+  const parsedInput = parseAndValidate(descriptor, rawInputJson);
+  await runOnHandoff(descriptor, ctx, parsedInput);
 
   // Filter history (D228 — resilient)
   const filteredHistory = await safeFilter(descriptor.options.inputFilter, history);
@@ -144,42 +184,13 @@ export async function dispatchHandoff(args: {
   // Record hop — may throw HandoffLoopError or HandoffPairLoopError
   recordHop(chainState, senderAgentId, receiver.agentId);
 
-  // Build message for receiver
-  // v1 contract: pass the last user message as the new turn. Filtered history
-  // is stored but not yet replayed (proper history-replay requires loop refactor;
-  // deferred). Document this in the example README.
-  const lastUserMessage =
-    messageOverride ??
-    (() => {
-      const msgs = filteredHistory.messages;
-      // Find last user message; fall back to a structured handoff notice.
-      for (let i = msgs.length - 1; i >= 0; i -= 1) {
-        const m = msgs[i] as { type?: string; message?: { role?: string; content?: unknown } };
-        if (m?.type === "user" && m.message?.role === "user") {
-          const content = m.message.content;
-          if (typeof content === "string") return content;
-          if (Array.isArray(content)) {
-            const text = content
-              .filter(
-                (c): c is { type: "text"; text: string } =>
-                  (c as { type?: string })?.type === "text",
-              )
-              .map((c) => c.text)
-              .join("\n");
-            if (text.length > 0) return text;
-          }
-        }
-      }
-      return `(Handoff from ${senderAgentId} — no prior user message in history.)`;
-    })();
+  const lastUserMessage = messageOverride ?? extractLastUserMessage(filteredHistory, senderAgentId);
+  const reason = extractReason(parsedInput);
 
   const span = startHandoffSpan({
     from: senderAgentId,
     to: receiver.agentId,
-    reason:
-      typeof parsedInput === "object" && parsedInput !== null && "reason" in parsedInput
-        ? String((parsedInput as { reason: unknown }).reason ?? "")
-        : "",
+    reason,
     depth: depthAfterThisHop,
     toolName: descriptor.resolvedToolName,
   });
@@ -187,10 +198,7 @@ export async function dispatchHandoff(args: {
   try {
     const run = await receiver.send(lastUserMessage);
     const result = await run.wait();
-    const reply =
-      result.status === "finished" && result.result !== undefined
-        ? result.result
-        : `(Handoff target ${receiver.agentId} returned status=${result.status}${result.error ? `: ${result.error.message}` : ""})`;
+    const reply = buildReply(result, receiver.agentId);
     return {
       reply,
       result: {
@@ -198,12 +206,25 @@ export async function dispatchHandoff(args: {
         to: receiver.agentId,
         depth: depthAfterThisHop,
         toolName: descriptor.resolvedToolName,
-        ...(typeof parsedInput === "object" && parsedInput !== null && "reason" in parsedInput
-          ? { reasonFromLlm: String((parsedInput as { reason: unknown }).reason ?? "") }
-          : {}),
+        ...(reason !== "" ? { reasonFromLlm: reason } : {}),
       },
     };
   } finally {
     span.end();
   }
+}
+
+function extractReason(parsedInput: unknown): string {
+  if (typeof parsedInput !== "object" || parsedInput === null) return "";
+  if (!("reason" in parsedInput)) return "";
+  return String((parsedInput as { reason: unknown }).reason ?? "");
+}
+
+function buildReply(
+  result: { status: string; result?: string; error?: { message: string } },
+  receiverAgentId: string,
+): string {
+  if (result.status === "finished" && result.result !== undefined) return result.result;
+  const suffix = result.error !== undefined ? `: ${result.error.message}` : "";
+  return `(Handoff target ${receiverAgentId} returned status=${result.status}${suffix})`;
 }

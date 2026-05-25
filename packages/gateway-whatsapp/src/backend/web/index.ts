@@ -57,36 +57,43 @@ export class WhatsAppWebBackend implements WhatsAppBackend {
 
   constructor(private readonly opts: WhatsAppWebBackendOptions) {}
 
-  async connect(): Promise<boolean> {
-    if (this.connected) return true;
-
-    this.handle = this.opts.spawnFactory
+  private spawnBridgeHandle(): NonNullable<typeof this.handle> {
+    return this.opts.spawnFactory
       ? this.opts.spawnFactory()
       : spawnBridge({
           sessionId: this.opts.sessionId,
           bridgeScriptPath: this.opts.bridgeScriptPath ?? defaultBridgeScriptPath(),
           ...(this.opts.theokitHome !== undefined ? { theokitHome: this.opts.theokitHome } : {}),
         });
+  }
 
-    if (this.handle.child.stdout !== null) {
-      this.handle.child.stdout.setEncoding("utf8");
-      this.handle.child.stdout.on("data", (chunk: string) => {
-        const lines = this.buffer.push(chunk);
-        for (const line of lines) {
-          const event = parseEvent(line);
-          if (event !== null) this.dispatch(event);
-        }
-      });
-    }
+  private wireStdout(): void {
+    if (this.handle?.child.stdout === null || this.handle === undefined) return;
+    this.handle.child.stdout.setEncoding("utf8");
+    this.handle.child.stdout.on("data", (chunk: string) => {
+      for (const line of this.buffer.push(chunk)) {
+        const event = parseEvent(line);
+        if (event !== null) this.dispatch(event);
+      }
+    });
+  }
+
+  private async cleanupHandle(): Promise<void> {
+    if (this.handle === undefined) return;
+    await terminateBridge(this.handle).catch(() => {});
+    this.handle = undefined;
+  }
+
+  async connect(): Promise<boolean> {
+    if (this.connected) return true;
+    this.handle = this.spawnBridgeHandle();
+    this.wireStdout();
 
     const timeoutMs = this.opts.connectTimeoutMs ?? DEFAULT_CONNECT_TIMEOUT_MS;
-    // EC-6: race ready against a hard timeout.
     const ready = new Promise<string>((resolve) => this.readyResolvers.push(resolve));
     let timer: NodeJS.Timeout | undefined;
     const timeout = new Promise<never>((_resolve, reject) => {
-      timer = setTimeout(() => {
-        reject(new WhatsAppConnectTimeoutError(timeoutMs));
-      }, timeoutMs);
+      timer = setTimeout(() => reject(new WhatsAppConnectTimeoutError(timeoutMs)), timeoutMs);
     });
 
     try {
@@ -97,11 +104,7 @@ export class WhatsAppWebBackend implements WhatsAppBackend {
       return true;
     } catch (err) {
       if (timer !== undefined) clearTimeout(timer);
-      // Cleanup the spawned bridge on connect failure.
-      if (this.handle !== undefined) {
-        await terminateBridge(this.handle).catch(() => {});
-        this.handle = undefined;
-      }
+      await this.cleanupHandle();
       throw err;
     }
   }
@@ -171,53 +174,63 @@ export class WhatsAppWebBackend implements WhatsAppBackend {
     };
   }
 
+  private handleReady(event: Extract<IpcEvent, { event: "ready" }>): void {
+    for (const r of this.readyResolvers) r(event.botPhone);
+    this.readyResolvers = [];
+  }
+
+  private handleMessage(event: Extract<IpcEvent, { event: "message" }>): void {
+    if (this.inboundHandler === undefined) return;
+    const normalized: WhatsAppInboundEvent = {
+      wamid: event.msgId,
+      fromPhone: event.from,
+      contactName: event.contactName,
+      conversationType: event.isGroup ? "group" : "dm",
+      channelId: event.chatId,
+      text: event.body,
+      receivedAt: event.timestamp || Date.now(),
+      backend: "web",
+      raw: event,
+    };
+    void this.inboundHandler(normalized);
+  }
+
+  private handleSendAck(event: Extract<IpcEvent, { event: "send_ack" }>): void {
+    const pending = this.pending.get(event.msgId);
+    if (pending === undefined) return;
+    this.pending.delete(event.msgId);
+    clearTimeout(pending.timer);
+    if (event.success) {
+      pending.resolve(event.wamid !== undefined ? { ok: true, wamid: event.wamid } : { ok: true });
+    } else {
+      pending.resolve({ ok: false, error: mapWhatsAppWebError(event.error) });
+    }
+  }
+
+  private handleStatus(event: Extract<IpcEvent, { event: "status" }>): void {
+    if (this.statusHandler === undefined) return;
+    void this.statusHandler({
+      wamid: event.msgId,
+      status: event.status,
+      recipient: event.recipient,
+      timestamp: event.timestamp || Date.now(),
+    });
+  }
+
   private dispatch(event: IpcEvent): void {
     switch (event.event) {
       case "ready":
-        for (const r of this.readyResolvers) r(event.botPhone);
-        this.readyResolvers = [];
+        this.handleReady(event);
         return;
-      case "message": {
-        if (this.inboundHandler === undefined) return;
-        const normalized: WhatsAppInboundEvent = {
-          wamid: event.msgId,
-          fromPhone: event.from,
-          contactName: event.contactName,
-          conversationType: event.isGroup ? "group" : "dm",
-          channelId: event.chatId,
-          text: event.body,
-          receivedAt: event.timestamp || Date.now(),
-          backend: "web",
-          raw: event,
-        };
-        void this.inboundHandler(normalized);
+      case "message":
+        this.handleMessage(event);
         return;
-      }
-      case "send_ack": {
-        const pending = this.pending.get(event.msgId);
-        if (pending === undefined) return;
-        this.pending.delete(event.msgId);
-        clearTimeout(pending.timer);
-        if (event.success) {
-          pending.resolve(
-            event.wamid !== undefined ? { ok: true, wamid: event.wamid } : { ok: true },
-          );
-        } else {
-          pending.resolve({ ok: false, error: mapWhatsAppWebError(event.error) });
-        }
+      case "send_ack":
+        this.handleSendAck(event);
         return;
-      }
-      case "status": {
-        if (this.statusHandler === undefined) return;
-        const receipt: WhatsAppStatusReceipt = {
-          wamid: event.msgId,
-          status: event.status,
-          recipient: event.recipient,
-          timestamp: event.timestamp || Date.now(),
-        };
-        void this.statusHandler(receipt);
+      case "status":
+        this.handleStatus(event);
         return;
-      }
       case "error":
         process.stderr.write(`[whatsapp-web bridge] ${event.message}\n`);
         return;

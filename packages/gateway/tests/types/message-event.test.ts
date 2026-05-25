@@ -149,6 +149,10 @@ describe("MessageEvent (T1.1)", () => {
           return `tm:${e.teams.conversationId}`;
         case "email":
           return `em:${e.email.messageId}`;
+        default: {
+          const _exhaustive: never = e;
+          throw new Error(`unhandled platform: ${JSON.stringify(_exhaustive)}`);
+        }
       }
     });
     expect(ids).toEqual(["tg:200", "dc:cA", "wa:wamid.xxx", "tm:c", "em:msgid-1"]);

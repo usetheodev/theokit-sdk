@@ -13,18 +13,27 @@
     "tools/validate-streamobject-real-llm.mjs",
     "tools/validate-streaming-telegram-real-llm.mjs"
   ],
-  "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "tsx"],
+  "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
+  "tags": ["-knipignore"],
   "workspaces": {
     "packages/sdk": {
       "entry": ["tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": ["src/internal/**"],
-      "ignoreDependencies": ["zod"]
+      "ignore": ["src/internal/**"]
     },
     "packages/react": {
       "entry": ["tests/**/*.test.ts"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
       "ignore": ["src/internal/**"]
+    },
+    "packages/cli": {
+      "entry": ["tests/**/*.test.ts"],
+      "project": ["src/**/*.ts", "tests/**/*.ts"]
+    },
+    "packages/gateway-whatsapp": {
+      "entry": ["tests/**/*.test.ts", "src/bridge/whatsapp-web-bridge.mjs"],
+      "project": ["src/**/*.{ts,mjs}", "tests/**/*.ts"],
+      "ignoreDependencies": ["whatsapp-web.js"]
     }
   }
 }

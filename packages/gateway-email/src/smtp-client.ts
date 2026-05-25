@@ -6,10 +6,16 @@
 
 import { createTransport, type SendMailOptions, type Transporter } from "nodemailer";
 
-/** Sentinel runtime export — workaround for rollup-plugin-dts deep type-only re-export bug. */
+/**
+ * Sentinel runtime export — workaround for rollup-plugin-dts deep type-only
+ * re-export bug. The marker is INTENTIONALLY orphan: it forces rollup-plugin-dts
+ * to keep the module in the bundle so re-exports from `index.ts` resolve.
+ *
+ * @knipignore
+ */
 export const __smtpMarker: unique symbol = Symbol("smtp");
 
-export interface SmtpClientConfig {
+interface SmtpClientConfig {
   readonly host: string;
   readonly port: number;
   readonly secure: boolean;

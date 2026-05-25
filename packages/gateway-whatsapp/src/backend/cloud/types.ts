@@ -50,12 +50,12 @@ export interface MetaWebhookEntry {
   readonly changes: ReadonlyArray<MetaWebhookChange>;
 }
 
-export interface MetaWebhookChange {
+interface MetaWebhookChange {
   readonly value: MetaWebhookValue;
   readonly field: string;
 }
 
-export interface MetaWebhookValue {
+interface MetaWebhookValue {
   readonly messaging_product: "whatsapp";
   readonly metadata: { readonly display_phone_number: string; readonly phone_number_id: string };
   readonly contacts?: ReadonlyArray<{

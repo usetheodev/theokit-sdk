@@ -207,7 +207,7 @@ describe("WhatsAppAdapter — sendMessage", () => {
     // First send fails.
     backend.sendResults.push({ ok: false, error: { code: "rate_limit", message: "slow" } });
     const adapter = new WhatsAppAdapter(backend);
-    const text = "a".repeat(4096) + "\n\n" + "b".repeat(4096);
+    const text = `${"a".repeat(4096)}\n\n${"b".repeat(4096)}`;
     const r = await adapter.sendMessage({ channel: { id: "5511", type: "dm" }, text });
     expect(r.ok).toBe(false);
     expect(r.error?.code).toBe("rate_limit");

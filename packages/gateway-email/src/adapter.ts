@@ -11,7 +11,6 @@
 
 import {
   BasePlatformAdapter,
-  type EmailMessageEvent,
   type MessageEvent as GatewayMessageEvent,
   type OutboundMessage,
   type SendResult,
@@ -275,5 +274,3 @@ export class EmailAdapter extends BasePlatformAdapter {
     await this.dispatchQueue;
   }
 }
-
-export type { EmailMessageEvent };

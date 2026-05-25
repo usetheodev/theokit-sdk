@@ -46,45 +46,63 @@ function collect(filter: string | undefined, cwd: string): InspectResult {
   return result;
 }
 
-function formatHuman(r: InspectResult): string {
-  const lines: string[] = [];
-  if (r.providers.length > 0) {
-    lines.push(pc.bold(pc.cyan("Builtin LLM providers")));
-    for (const p of r.providers) {
-      const aliases =
-        p.aliases !== undefined && p.aliases.length > 0
-          ? ` (aliases: ${p.aliases.join(", ")})`
-          : "";
-      lines.push(
-        `  • ${pc.green(p.name)}${aliases} — ${p.apiMode} · auth: ${p.authType} · ${p.baseUrl}`,
-      );
-    }
-    lines.push("");
+function formatProviders(providers: InspectResult["providers"]): string[] {
+  if (providers.length === 0) return [];
+  const lines = [pc.bold(pc.cyan("Builtin LLM providers"))];
+  for (const p of providers) {
+    const aliases =
+      p.aliases !== undefined && p.aliases.length > 0 ? ` (aliases: ${p.aliases.join(", ")})` : "";
+    lines.push(
+      `  • ${pc.green(p.name)}${aliases} — ${p.apiMode} · auth: ${p.authType} · ${p.baseUrl}`,
+    );
   }
-  if (r.embeddingAdapters.length > 0) {
-    lines.push(pc.bold(pc.cyan("Memory embedding adapters")));
-    for (const a of r.embeddingAdapters) {
-      lines.push(`  • ${pc.green(a.id)} — ${a.transport} · default model: ${a.defaultModel}`);
-    }
-    lines.push("");
+  lines.push("");
+  return lines;
+}
+
+function formatEmbeddings(adapters: InspectResult["embeddingAdapters"]): string[] {
+  if (adapters.length === 0) return [];
+  const lines = [pc.bold(pc.cyan("Memory embedding adapters"))];
+  for (const a of adapters) {
+    lines.push(`  • ${pc.green(a.id)} — ${a.transport} · default model: ${a.defaultModel}`);
   }
-  if (r.gateways.length > 0) {
-    lines.push(pc.bold(pc.cyan("Gateway adapters")));
-    for (const g of r.gateways) {
-      const status = g.installed ? pc.green("installed") : pc.gray("not installed");
-      lines.push(`  • ${pc.green(g.name)} (${g.packageName}) — ${status}`);
-    }
-    lines.push("");
+  lines.push("");
+  return lines;
+}
+
+function formatGateways(gateways: InspectResult["gateways"]): string[] {
+  if (gateways.length === 0) return [];
+  const lines = [pc.bold(pc.cyan("Gateway adapters"))];
+  for (const g of gateways) {
+    const status = g.installed ? pc.green("installed") : pc.gray("not installed");
+    lines.push(`  • ${pc.green(g.name)} (${g.packageName}) — ${status}`);
   }
+  lines.push("");
+  return lines;
+}
+
+function formatPlugins(r: InspectResult): string[] {
   if (r.plugins.length > 0) {
-    lines.push(pc.bold(pc.cyan("User plugins")));
+    const lines = [pc.bold(pc.cyan("User plugins"))];
     for (const pl of r.plugins) {
       const desc = pl.description !== undefined ? ` — ${pl.description}` : "";
       lines.push(`  • ${pc.green(pl.name)} [${pl.source}]${desc}`);
     }
-  } else if (r.plugins.length === 0 && (r.providers.length > 0 || r.embeddingAdapters.length > 0)) {
-    lines.push(pc.gray("(no user plugins found in ~/.theokit/plugins/ or ./.theokit/plugins/)"));
+    return lines;
   }
+  if (r.providers.length > 0 || r.embeddingAdapters.length > 0) {
+    return [pc.gray("(no user plugins found in ~/.theokit/plugins/ or ./.theokit/plugins/)")];
+  }
+  return [];
+}
+
+function formatHuman(r: InspectResult): string {
+  const lines = [
+    ...formatProviders(r.providers),
+    ...formatEmbeddings(r.embeddingAdapters),
+    ...formatGateways(r.gateways),
+    ...formatPlugins(r),
+  ];
   return `${lines.join("\n")}\n`;
 }
 

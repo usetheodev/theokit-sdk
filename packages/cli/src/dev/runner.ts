@@ -9,7 +9,7 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
-export interface RunnerOptions {
+interface RunnerOptions {
   entry: string;
   cwd: string;
   envFile?: string;
@@ -17,7 +17,7 @@ export interface RunnerOptions {
   watch?: boolean;
 }
 
-export interface RunnerHandle {
+interface RunnerHandle {
   child: ChildProcess;
   exited: Promise<number>;
 }

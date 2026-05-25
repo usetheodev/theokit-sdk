@@ -13,7 +13,7 @@ import * as path from "node:path";
 /** Marker substring our bridge process MUST carry in its argv (EC-5). */
 export const BRIDGE_PROCESS_TAG = "whatsapp-web-bridge";
 
-export interface SpawnBridgeOptions {
+interface SpawnBridgeOptions {
   readonly sessionId: string;
   readonly bridgeScriptPath: string;
   readonly theokitHome?: string;
@@ -62,32 +62,32 @@ export function pidBelongsToOurBridge(pid: number): boolean {
  * Acquire the PID lock for a session — kill any stale bridge (cmdline-verified),
  * then return the lock-file path (caller writes its own PID after spawn).
  */
+/** EC-5: kill `stalePid` ONLY if cmdline confirms ownership. */
+function killIfOurBridge(stalePid: number): void {
+  if (!Number.isFinite(stalePid) || stalePid <= 0) return;
+  if (!pidBelongsToOurBridge(stalePid)) return;
+  try {
+    process.kill(stalePid, "SIGTERM");
+  } catch {
+    // Process already gone — fine.
+  }
+}
+
+function cleanupStaleLock(lockFile: string): void {
+  const raw = fs.readFileSync(lockFile, "utf8").trim();
+  killIfOurBridge(Number.parseInt(raw, 10));
+  try {
+    fs.unlinkSync(lockFile);
+  } catch {
+    /* ignore */
+  }
+}
+
 export function acquirePidLock(sessionId: string, theokitHome?: string): string {
   const home = theokitHome ?? defaultTheokitHome();
   fs.mkdirSync(home, { recursive: true });
   const lockFile = pidFilePath(home, sessionId);
-
-  if (fs.existsSync(lockFile)) {
-    const raw = fs.readFileSync(lockFile, "utf8").trim();
-    const stalePid = Number.parseInt(raw, 10);
-    if (Number.isFinite(stalePid) && stalePid > 0) {
-      // EC-5: ONLY kill if cmdline confirms ownership.
-      if (pidBelongsToOurBridge(stalePid)) {
-        try {
-          process.kill(stalePid, "SIGTERM");
-        } catch {
-          // Process already gone — fine.
-        }
-      }
-      // If cmdline doesn't match, we silently overwrite the file — we don't
-      // touch the foreign process.
-    }
-    try {
-      fs.unlinkSync(lockFile);
-    } catch {
-      /* ignore */
-    }
-  }
+  if (fs.existsSync(lockFile)) cleanupStaleLock(lockFile);
   return lockFile;
 }
 

@@ -24,6 +24,7 @@
 
 import type { ZodType } from "zod";
 import { z } from "zod";
+import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
 import type { SDKAgent } from "./types/agent.js";
 import type {
@@ -62,15 +63,7 @@ const RetryPolicySchema = z.object({
 
 const WorkflowOptionsSchema = z.object({
   name: z.string().min(1).max(128),
-  persistence: z
-    .object({
-      backend: z.enum(["memory", "json"]),
-      dir: z.string().optional(),
-    })
-    .refine((p) => p.backend !== "json" || (typeof p.dir === "string" && p.dir.length > 0), {
-      message: 'persistence.dir is required when backend = "json"',
-    })
-    .optional(),
+  persistence: PersistenceSchema,
 });
 
 /* ─── Builder ─── */
@@ -87,6 +80,7 @@ export class WorkflowBuilder<TInput = unknown, TOutput = unknown> {
     return this._steps;
   }
 
+  // biome-ignore lint/suspicious/noThenProperty: D233 locks the Mastra-style `.then(step)` builder DSL. The method is fluent, never awaited.
   then<TO = unknown>(step: Step): WorkflowBuilder<TInput, TO> {
     this.assertNotCommitted();
     validateStepId(step.id);
@@ -209,20 +203,7 @@ export class WorkflowBuilder<TInput = unknown, TOutput = unknown> {
 
   private validateUniqueIds(): void {
     const seen = new Set<string>();
-    const walk = (steps: ReadonlyArray<Step>): void => {
-      for (const s of steps) {
-        if (seen.has(s.id)) throw new WorkflowDuplicateStepIdError(s.id);
-        seen.add(s.id);
-        if (s.kind === "parallel") for (const b of s.branches) walk(b);
-        if (s.kind === "branch") {
-          for (const [, branch] of s.predicates) walk(branch);
-          if (s.fallback !== undefined) walk(s.fallback);
-        }
-        if (s.kind === "foreach") walk([s.step]);
-        if (s.kind === "dowhile") walk([s.step]);
-      }
-    };
-    walk(this._steps);
+    walkStepsValidating(this._steps, seen);
   }
 
   private assertNotCommitted(): void {
@@ -328,34 +309,16 @@ export function agentStep(
 
 export { __resetSnapshotStoresForTests } from "./internal/workflow/snapshot-store.js";
 
-/* ─── Re-exports for ergonomics ─── */
+/* ─── Re-exports for ergonomics (errors only — public types come from `types/workflow.js` via `types/index.ts`). ─── */
 
 export {
-  type AgentStep,
-  type BranchStep,
-  type DowhileStep,
-  type FnStep,
-  type ForeachStep,
-  type ParallelStep,
-  type RetryPolicy,
-  type SleepStep,
-  type Step,
-  type StepContext,
-  type StepResult,
-  type SuspendStep,
   WorkflowAlreadyRunningError,
   WorkflowCompensateNotImplementedError,
   WorkflowDuplicateStepIdError,
   WorkflowMaxIterationsExceededError,
   WorkflowNotSerializableError,
-  type WorkflowOptions,
   WorkflowParallelError,
-  type WorkflowPersistenceOptions,
-  type WorkflowResumeOptions,
   WorkflowResumeStepNotFoundError,
-  type WorkflowRun,
-  type WorkflowRunOptions,
-  type WorkflowSnapshot,
   WorkflowSnapshotNotFoundError,
 } from "./types/workflow.js";
 
@@ -368,4 +331,24 @@ function validateStepId(id: string): void {
 
 function mintShortId(): string {
   return globalThis.crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+}
+
+function nestedStepsOf(s: Step): ReadonlyArray<ReadonlyArray<Step>> {
+  if (s.kind === "parallel") return s.branches;
+  if (s.kind === "branch") {
+    const groups = s.predicates.map(([, branch]) => branch);
+    return s.fallback !== undefined ? [...groups, s.fallback] : groups;
+  }
+  if (s.kind === "foreach" || s.kind === "dowhile") return [[s.step]];
+  return [];
+}
+
+function walkStepsValidating(steps: ReadonlyArray<Step>, seen: Set<string>): void {
+  for (const s of steps) {
+    if (seen.has(s.id)) throw new WorkflowDuplicateStepIdError(s.id);
+    seen.add(s.id);
+    for (const nested of nestedStepsOf(s)) {
+      walkStepsValidating(nested, seen);
+    }
+  }
 }

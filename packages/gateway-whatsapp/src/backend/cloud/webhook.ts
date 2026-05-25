@@ -78,23 +78,32 @@ export function parseWebhookPayload(json: unknown): MetaWebhookEnvelope | null {
  * EC-4 absorbed: filters `message.type !== "text"` (v1 text-only). Non-text
  * types emit a one-shot stderr warn per type.
  */
+function buildContactMap(
+  value: NonNullable<MetaWebhookEnvelope["entry"][number]["changes"][number]["value"]>,
+): Map<string, string | undefined> {
+  const map = new Map<string, string | undefined>();
+  for (const c of value.contacts ?? []) map.set(c.wa_id, c.profile?.name);
+  return map;
+}
+
+function processChange(
+  change: MetaWebhookEnvelope["entry"][number]["changes"][number],
+  out: WhatsAppInboundEvent[],
+): void {
+  const value = change.value;
+  if (value === undefined || value === null) return;
+  const phoneNumberId = value.metadata?.phone_number_id;
+  const contactByWaId = buildContactMap(value);
+  for (const msg of value.messages ?? []) {
+    const normalized = normalizeOneMessage(msg, phoneNumberId, contactByWaId);
+    if (normalized !== null) out.push(normalized);
+  }
+}
+
 export function normalizeInboundMessages(envelope: MetaWebhookEnvelope): WhatsAppInboundEvent[] {
   const out: WhatsAppInboundEvent[] = [];
   for (const entry of envelope.entry) {
-    for (const change of entry.changes) {
-      const value = change.value;
-      if (value === undefined || value === null) continue;
-      const messages = value.messages ?? [];
-      const phoneNumberId = value.metadata?.phone_number_id;
-      const contactByWaId = new Map<string, string | undefined>();
-      for (const c of value.contacts ?? []) {
-        contactByWaId.set(c.wa_id, c.profile?.name);
-      }
-      for (const msg of messages) {
-        const normalized = normalizeOneMessage(msg, phoneNumberId, contactByWaId);
-        if (normalized !== null) out.push(normalized);
-      }
-    }
+    for (const change of entry.changes) processChange(change, out);
   }
   return out;
 }

@@ -17,7 +17,11 @@ import {
   type WhatsAppMessageEvent,
 } from "@usetheo/gateway";
 
-import type { WhatsAppBackend, WhatsAppStatusReceipt } from "./backend-types.js";
+import type {
+  WhatsAppBackend,
+  WhatsAppInboundEvent,
+  WhatsAppStatusReceipt,
+} from "./backend-types.js";
 import { splitForWhatsApp } from "./split.js";
 
 /** Cloud (Meta WhatsApp Business Cloud API) backend config (ADR D304). */
@@ -137,6 +141,32 @@ export class WhatsAppAdapter extends BasePlatformAdapter {
     return lastWamid !== undefined ? { ok: true, messageId: lastWamid } : { ok: true };
   }
 
+  /** D309 + EC-7: group filter with digit-only normalization. */
+  private shouldDropGroupMessage(inbound: WhatsAppInboundEvent): boolean {
+    if (inbound.conversationType !== "group" || !this.requireMention) return false;
+    if (this.botPhoneId.length === 0) return true; // misconfigured — drop silently
+    const textDigits = digitsOnly(inbound.text);
+    return !textDigits.includes(this.botPhoneId);
+  }
+
+  private toMessageEvent(inbound: WhatsAppInboundEvent): WhatsAppMessageEvent {
+    return {
+      id: inbound.wamid,
+      platform: "whatsapp",
+      sender: { id: inbound.fromPhone, displayName: inbound.contactName },
+      channel: { id: inbound.channelId, type: inbound.conversationType },
+      text: inbound.text,
+      receivedAt: inbound.receivedAt,
+      whatsapp: {
+        wamid: inbound.wamid,
+        phoneNumberId: inbound.phoneNumberId,
+        contactName: inbound.contactName,
+        backend: inbound.backend,
+        raw: inbound.raw,
+      },
+    };
+  }
+
   onInbound(handler: (event: GatewayMessageEvent) => Promise<void>): () => void {
     // EC-H: replace any previous subscription.
     this.inboundUnsubscribe?.();
@@ -144,28 +174,8 @@ export class WhatsAppAdapter extends BasePlatformAdapter {
 
     this.inboundUnsubscribe = this.backendImpl.onInbound(async (inbound) => {
       if (!this.handler) return;
-      // D309 + EC-7: group filter with digit-only normalization.
-      if (inbound.conversationType === "group" && this.requireMention) {
-        if (this.botPhoneId.length === 0) return; // misconfigured — drop silently
-        const textDigits = digitsOnly(inbound.text);
-        if (!textDigits.includes(this.botPhoneId)) return;
-      }
-      const event: WhatsAppMessageEvent = {
-        id: inbound.wamid,
-        platform: "whatsapp",
-        sender: { id: inbound.fromPhone, displayName: inbound.contactName },
-        channel: { id: inbound.channelId, type: inbound.conversationType },
-        text: inbound.text,
-        receivedAt: inbound.receivedAt,
-        whatsapp: {
-          wamid: inbound.wamid,
-          phoneNumberId: inbound.phoneNumberId,
-          contactName: inbound.contactName,
-          backend: inbound.backend,
-          raw: inbound.raw,
-        },
-      };
-      await this.handler(event);
+      if (this.shouldDropGroupMessage(inbound)) return;
+      await this.handler(this.toMessageEvent(inbound));
     });
 
     return () => {

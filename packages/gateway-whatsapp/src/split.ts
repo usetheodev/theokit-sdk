@@ -11,29 +11,30 @@
 
 const WHATSAPP_MAX_TEXT = 4096;
 
+function findWhatsAppCutPoint(remaining: string): number {
+  let cut = remaining.lastIndexOf("\n\n", WHATSAPP_MAX_TEXT);
+  if (cut < WHATSAPP_MAX_TEXT * 0.5) cut = remaining.lastIndexOf("\n", WHATSAPP_MAX_TEXT);
+  if (cut < WHATSAPP_MAX_TEXT * 0.5) cut = remaining.lastIndexOf(" ", WHATSAPP_MAX_TEXT);
+  if (cut <= 0) cut = WHATSAPP_MAX_TEXT;
+  if (cut < remaining.length) {
+    const code = remaining.charCodeAt(cut);
+    if (code >= 0xdc00 && code <= 0xdfff) cut -= 1;
+  }
+  return cut <= 0 ? WHATSAPP_MAX_TEXT : cut;
+}
+
 export function splitForWhatsApp(text: string): string[] {
-  const trimmed = text;
-  if (trimmed.length <= WHATSAPP_MAX_TEXT) {
-    const single = trimmed.trim();
+  if (text.length <= WHATSAPP_MAX_TEXT) {
+    const single = text.trim();
     return single.length > 0 ? [single] : [];
   }
   const chunks: string[] = [];
-  let remaining = trimmed;
+  let remaining = text;
   while (remaining.length > WHATSAPP_MAX_TEXT) {
-    let cut = remaining.lastIndexOf("\n\n", WHATSAPP_MAX_TEXT);
-    if (cut < WHATSAPP_MAX_TEXT * 0.5) cut = remaining.lastIndexOf("\n", WHATSAPP_MAX_TEXT);
-    if (cut < WHATSAPP_MAX_TEXT * 0.5) cut = remaining.lastIndexOf(" ", WHATSAPP_MAX_TEXT);
-    if (cut <= 0) cut = WHATSAPP_MAX_TEXT;
-    // UTF-16 surrogate-pair guard: don't split inside an emoji.
-    if (cut < remaining.length) {
-      const code = remaining.charCodeAt(cut);
-      if (code >= 0xdc00 && code <= 0xdfff) cut -= 1;
-    }
-    if (cut <= 0) cut = WHATSAPP_MAX_TEXT;
+    const cut = findWhatsAppCutPoint(remaining);
     chunks.push(remaining.slice(0, cut));
     remaining = remaining.slice(cut).replace(/^[\s]+/, "");
   }
   if (remaining.length > 0) chunks.push(remaining);
-  // EC-8: filter empty / whitespace-only parts.
   return chunks.map((p) => p.trim()).filter((p) => p.length > 0);
 }

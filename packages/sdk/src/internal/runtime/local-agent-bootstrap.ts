@@ -8,11 +8,34 @@
  * @internal
  */
 
-import type { AgentOptions } from "../../types/agent.js";
+import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import { registerAgent } from "./agent-registry.js";
 import { FileContextManager } from "./context-manager.js";
 import { type PluginMetadata, PluginsManager } from "./plugins-manager.js";
 import { ProvidersManagerImpl } from "./providers-manager.js";
 import { type SkillMetadata, SkillsManager } from "./skills-manager.js";
+
+export function registerLocalAgent(args: {
+  agentId: string;
+  model: ModelSelection | undefined;
+  options: AgentOptions;
+  workspaceCwd: string;
+}): void {
+  registerAgent({
+    agentId: args.agentId,
+    runtime: "local",
+    name: args.options.name,
+    summary: "Local contract fixture",
+    model: args.model,
+    createdAt: Date.now(),
+    lastModified: Date.now(),
+    archived: false,
+    options: args.options,
+    cwd: args.workspaceCwd,
+    status: "finished",
+    ...(args.options.conversationStorage !== undefined ? { requiresCustomStorage: true } : {}),
+  });
+}
 
 export interface BootstrappedSubmanagers {
   context?: FileContextManager;

@@ -52,20 +52,19 @@ describe("splitForSlack", () => {
   });
 
   it("EC-4: avoids cutting inside a UTF-16 surrogate pair (emoji)", () => {
-    // Build text where char 3999/4000 is a surrogate pair (🎉).
     const prefix = "a".repeat(3998);
-    const text = `${prefix}🎉${"b".repeat(100)}`; // surrogate spans positions 3998-3999
+    const text = `${prefix}🎉${"b".repeat(100)}`;
     const chunks = splitForSlack(text);
-    // No chunk should contain a lone surrogate.
-    for (const c of chunks) {
-      for (let i = 0; i < c.length; i += 1) {
-        const code = c.charCodeAt(i);
-        if (code >= 0xd800 && code <= 0xdbff) {
-          // High surrogate → must be followed by low surrogate.
-          const next = c.charCodeAt(i + 1);
-          expect(next >= 0xdc00 && next <= 0xdfff).toBe(true);
-        }
-      }
-    }
+    for (const c of chunks) assertNoLoneSurrogate(c);
   });
 });
+
+/** Assert every high surrogate in `c` is followed by a low surrogate. */
+function assertNoLoneSurrogate(c: string): void {
+  for (let i = 0; i < c.length; i += 1) {
+    const code = c.charCodeAt(i);
+    if (code < 0xd800 || code > 0xdbff) continue;
+    const next = c.charCodeAt(i + 1);
+    expect(next >= 0xdc00 && next <= 0xdfff).toBe(true);
+  }
+}

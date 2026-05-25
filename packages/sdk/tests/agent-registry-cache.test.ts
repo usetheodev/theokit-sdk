@@ -8,9 +8,16 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+// EC-flake: Agent.registry is a process-wide singleton (D310). When this
+// file runs in parallel with other tests that touch Agent.registry, the
+// global state gets stomped. Force serial execution within this file's
+// describes — vitest's `concurrent` option's inverse is `sequential` (default)
+// but file-level parallelism is what we need to control.
+
 import { Agent } from "../src/agent.js";
 import {
   clearAgentRegistry,
+  flushRegistrySaves,
   invalidateRegistryHydration,
 } from "../src/internal/runtime/agent-registry.js";
 import { clearAllSessions } from "../src/internal/runtime/agent-session.js";
@@ -51,7 +58,13 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
     clearAllSessions();
     invalidateRegistryHydration();
     await Agent.registry.evictAll();
-    Agent.registry.configure({ maxAgents: 100 });
+    // Reset to defaults explicitly so a prior test that set onEvict listeners
+    // or extreme maxAgents/idleTimeoutMs does not leak into this test.
+    Agent.registry.configure({
+      maxAgents: 100,
+      idleTimeoutMs: 30 * 60 * 1000,
+      sweepIntervalMs: 60_000,
+    });
     root = await mkdtemp(join(tmpdir(), "theokit-cache-"));
   });
 
@@ -60,6 +73,10 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
     clearAllSessions();
     invalidateRegistryHydration();
     await Agent.registry.evictAll();
+    // EC-flake: wait for any in-flight registry persistence to complete
+    // before removing the tmp dir, otherwise `rm` races the atomic-write
+    // rename and ENOTEMPTYs.
+    await flushRegistrySaves();
     await rm(root, { recursive: true, force: true });
   });
 
@@ -95,13 +112,16 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
 
   it("maxAgents=0 disables the cache (always re-initializes)", async () => {
     Agent.registry.configure({ maxAgents: 0 });
-    const first = await Agent.getOrCreate("agent-no-cache", {
+    // Use unique id per test invocation so a parallel-test interleaving cannot
+    // pre-populate the agent metadata registry with our id.
+    const uniqueId = `agent-no-cache-${Math.random().toString(36).slice(2, 10)}`;
+    const first = await Agent.getOrCreate(uniqueId, {
       apiKey: FIXTURE_KEY,
       model: MODEL,
       local: { cwd: root },
     });
     expect(Agent.registry.size()).toBe(0);
-    const second = await Agent.getOrCreate("agent-no-cache", {
+    const second = await Agent.getOrCreate(uniqueId, {
       apiKey: FIXTURE_KEY,
       model: MODEL,
       local: { cwd: root },
@@ -115,18 +135,20 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
       maxAgents: 1,
       onEvict: (id) => evicted.push(id),
     });
-    await Agent.getOrCreate("agent-a", {
+    const aid = `agent-a-${Math.random().toString(36).slice(2, 10)}`;
+    const bid = `agent-b-${Math.random().toString(36).slice(2, 10)}`;
+    await Agent.getOrCreate(aid, {
       apiKey: FIXTURE_KEY,
       model: MODEL,
       local: { cwd: root },
     });
-    await new Promise((r) => setTimeout(r, 5));
-    await Agent.getOrCreate("agent-b", {
+    await new Promise((r) => setTimeout(r, 10));
+    await Agent.getOrCreate(bid, {
       apiKey: FIXTURE_KEY,
       model: MODEL,
       local: { cwd: root },
     });
-    await new Promise((r) => setTimeout(r, 30));
-    expect(evicted).toContain("agent-a");
+    await new Promise((r) => setTimeout(r, 100));
+    expect(evicted).toContain(aid);
   });
 });

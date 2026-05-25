@@ -27,25 +27,25 @@ export class WhatsAppConnectTimeoutError extends Error {
   }
 }
 
+function cloudErrorCode(
+  status: number,
+  errCode: number,
+): "auth_failed" | "rate_limit" | "invalid_request" | "server_error" | "unknown" {
+  if (errCode === 190 || status === 401) return "auth_failed";
+  if (errCode === 130 || errCode === 131 || status === 429) return "rate_limit";
+  if (status === 400 || errCode === 100) return "invalid_request";
+  if (status >= 500) return "server_error";
+  return "unknown";
+}
+
 export function mapWhatsAppCloudError(status: number, body: unknown): ErrorPayload {
   const parsed = (body !== null && typeof body === "object" ? body : {}) as MetaErrorBody;
   const errCode = parsed.error?.code ?? 0;
   const errMsg = parsed.error?.message ?? `HTTP ${status}`;
-
-  // Meta-specific codes first.
-  if (errCode === 190 || status === 401) {
-    return { code: "auth_failed", message: `Bearer token rejected: ${errMsg}` };
-  }
-  if (errCode === 130 || errCode === 131 || status === 429) {
-    return { code: "rate_limit", message: `Throttled: ${errMsg}` };
-  }
-  if (status === 400 || errCode === 100) {
-    return { code: "invalid_request", message: errMsg };
-  }
-  if (status >= 500) {
-    return { code: "server_error", message: errMsg };
-  }
-  return { code: "unknown", message: errMsg };
+  const code = cloudErrorCode(status, errCode);
+  if (code === "auth_failed") return { code, message: `Bearer token rejected: ${errMsg}` };
+  if (code === "rate_limit") return { code, message: `Throttled: ${errMsg}` };
+  return { code, message: errMsg };
 }
 
 export function mapWhatsAppWebError(ipcError: string | undefined): ErrorPayload {
