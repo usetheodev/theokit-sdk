@@ -22,6 +22,13 @@ fi
 echo "→ pre-push: pnpm validate (full quality gates, ~30-60s)"
 echo ""
 
+# Skip env-gated live LLM integration tests in pre-push. They require
+# `ollama serve` + specific models pulled, and even when available are
+# slow (60-120s each) and prone to system-load timeouts. Run them
+# explicitly via `pnpm --filter=@usetheo/sdk exec vitest run tests/integration/`
+# when you need to validate the Ollama path.
+export SKIP_OLLAMA_E2E="${SKIP_OLLAMA_E2E:-1}"
+
 if ! pnpm -w run validate; then
   echo ""
   echo "✗ One or more hard gates failed. See .claude/quality-gates.md."
