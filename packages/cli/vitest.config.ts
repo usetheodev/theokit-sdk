@@ -18,6 +18,11 @@ export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
+    // CLI tests spawn tsx subprocesses, run pnpm exec, and exercise file
+    // IO under parallel workspace load. The default 5s timeout flakes
+    // when SDK tests (1700+) share the CPU. 30s is generous for any
+    // CLI surface without masking genuine hangs.
+    testTimeout: 30_000,
   },
   define: {
     __SDK_VERSION__: JSON.stringify(sdkPkg.version),
