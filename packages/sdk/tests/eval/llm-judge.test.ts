@@ -8,6 +8,8 @@
 
 import { describe, expect, it } from "vitest";
 
+import { Scorers } from "../../src/scorers.js";
+
 // We test the parser by exporting a tiny shim — but since SCORE_REGEX is
 // private to llm-judge.ts, we exercise it via the public surface by stubbing
 // Agent.prompt. Vitest's vi.mock would do that, but for simplicity we test
@@ -61,8 +63,7 @@ describe("llmJudge parser shape (EC-8)", () => {
 });
 
 describe("Scorers.llmJudge integration (typecheck-only)", () => {
-  it("exposes a `llmJudge` factory on the Scorers namespace", async () => {
-    const { Scorers } = await import("../../src/scorers.js");
+  it("exposes a `llmJudge` factory on the Scorers namespace", () => {
     expect(typeof Scorers.llmJudge).toBe("function");
     const scorer = Scorers.llmJudge({
       model: { id: "openai/gpt-4o-mini" },
