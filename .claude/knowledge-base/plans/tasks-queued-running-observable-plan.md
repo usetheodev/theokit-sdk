@@ -4,14 +4,14 @@
 >
 > **v1.1 changelog** — Absorveu 7 MUST FIX + 6 SHOULD TEST + 3 DOCUMENT do edge-case review (EC-1..EC-16). Adições principais: auto-mkdir do JsonFileTaskStore, validação de ID grammar defense-in-depth no store, wrap sync throws, abort-no-submit short-circuit, prefixo namespaced de taskId nos adapters (`wf-`/`b-`/`cron-`), ENOENT-as-empty no list, e flag `cancelRequested` para cross-process best-effort cancel via CLI.
 >
-> **v1.3 status update (Phase 3.2-3.5 adapters)** — 3 dos 4 adapters integrados shipados:
+> **v1.4 status update (Phase 3.2-3.5 adapters)** — **TODOS os 4 adapters integrados shipados**:
 >
 > - ✅ **T3.2 `Agent.send({ task })`** — `LocalAgent.send` registra a Run no registry quando `options.task` é truthy; cancel via `Task.cancel(id)` propaga pra `run.cancel()` via AbortController. CloudAgent rejeita com `UnsupportedTaskOperationError` (D370). 4 tests em `tests/integration/send-with-task.test.ts`.
 > - ✅ **T3.3 `Agent.batch({ task })`** — registra o batch inteiro como 1 task `kind: "batch"` com prefixo `b-`. v1 emite parent only (per-prompt children diferidos pra v0.2). 4 tests em `tests/integration/batch-with-task.test.ts`.
 > - ✅ **T3.4 `Workflow.run({ task })`** — registra como `kind: "workflow"` com prefixo `wf-{runId}`. 4 tests em `tests/integration/workflow-with-task.test.ts`.
-> - ⏳ **T3.5 `Cron` task fires** — DIFERIDO para v0.2. Requer hookar no dispatcher do croner pra registrar cada fire como Task individual; mais invasivo que os outros 3. Pattern user-side continua funcionando (cron handler chama `Task.submit("cron", ...)` internamente).
+> - ✅ **T3.5 `Cron` timer-driven fires** — o handler default instalado por `Cron.start()` envolve cada disparo do timer como Task `kind: "cron"` com id `cron-{jobId}-{fireEpochMs}` (D368/EC-5). 2 tests em `tests/integration/cron-with-task.test.ts`. Falha gracefully pra path legado se o registry rejeitar (fail-open). `Cron.run` manual (off-schedule) intencionalmente NÃO wrappa — caller já recebe `Run` direto.
 >
-> Esse delta: (a) preserva 100% da backward-compat (default behavior absolutely unchanged); (b) entrega os 3 adapters de maior leverage; (c) deixa porta aberta pra cron adapter em v0.2 com dispatcher hook. Integration tests `task-user-side-wrap.test.ts` continuam cobrindo o pattern user-side pra qualquer runtime async (incluindo cron handlers).
+> Esse delta: (a) preserva 100% da backward-compat (default behavior idêntico nos 3 primeiros; cron fire handler adiciona observabilidade additive — `theokit tasks list` agora mostra fires que antes eram invisíveis, mas não quebra nenhum caller); (b) entrega TODOS os 4 adapters de uma vez; (c) zero scope cut remanescente exceto per-prompt batch children (v0.2). Integration tests `task-user-side-wrap.test.ts` continuam cobrindo o pattern user-side para casos avançados.
 
 ## Context
 
