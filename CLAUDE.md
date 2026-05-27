@@ -481,6 +481,20 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D372 | `Task.subscribe` ring buffer (cap 64) for late-attach replay | [D372-task-subscribe-replay-buffer.md](./.claude/knowledge-base/adrs/D372-task-subscribe-replay-buffer.md) |
 | D373 | Auto-eviction (1h InMemory, 7d JsonFile defaults) | [D373-task-auto-eviction-retention.md](./.claude/knowledge-base/adrs/D373-task-auto-eviction-retention.md) |
 | D374 | Runtime adapters (Run/Batch/Workflow/Cron) are thin wrappers over `Task.submit` | [D374-task-runtime-adapters-thin.md](./.claude/knowledge-base/adrs/D374-task-runtime-adapters-thin.md) |
+| D375 | `Budget` is static class with private constructor | [D375-budget-static-class.md](./.claude/knowledge-base/adrs/D375-budget-static-class.md) |
+| D376 | `TokenUsage` shape: 5 closed buckets (input/output/cacheRead/cacheWrite/reasoning) | [D376-token-usage-5-bucket-enum.md](./.claude/knowledge-base/adrs/D376-token-usage-5-bucket-enum.md) |
+| D377 | `CostStatus` 4-value closed enum (actual/estimated/included/unknown) | [D377-cost-status-closed-enum.md](./.claude/knowledge-base/adrs/D377-cost-status-closed-enum.md) |
+| D378 | Pricing canonical unit: USD per million tokens | [D378-per-million-pricing-canonical.md](./.claude/knowledge-base/adrs/D378-per-million-pricing-canonical.md) |
+| D379 | Pricing snapshot bundled (LiteLLM JSON); manual refresh | [D379-pricing-snapshot-bundled.md](./.claude/knowledge-base/adrs/D379-pricing-snapshot-bundled.md) |
+| D380 | `gpt-tokenizer` is optional peer dep | [D380-gpt-tokenizer-optional-peer.md](./.claude/knowledge-base/adrs/D380-gpt-tokenizer-optional-peer.md) |
+| D381 | Claude tokens NEVER local-counted (Anthropic tokenizer stale 2023) | [D381-claude-no-local-count.md](./.claude/knowledge-base/adrs/D381-claude-no-local-count.md) |
+| D382 | Budget windows UTC calendar-aligned | [D382-budget-window-utc-aligned.md](./.claude/knowledge-base/adrs/D382-budget-window-utc-aligned.md) |
+| D383 | 3 budget modes: audit/warn/block | [D383-three-modes-audit-warn-block.md](./.claude/knowledge-base/adrs/D383-three-modes-audit-warn-block.md) |
+| D384 | Stacked budget limits; ANY exceeded blocks | [D384-stacked-budget-limits.md](./.claude/knowledge-base/adrs/D384-stacked-budget-limits.md) |
+| D385 | In-process ledger mutex-protected; persistence deferred to v0.2 | [D385-in-process-ledger-mutex.md](./.claude/knowledge-base/adrs/D385-in-process-ledger-mutex.md) |
+| D386 | `BudgetExceededError extends TheokitAgentError` (with `mode` field, EC-1) | [D386-budget-exceeded-error.md](./.claude/knowledge-base/adrs/D386-budget-exceeded-error.md) |
+| D387 | `RunResult.usage?` + `RunResult.cost?` optional; populated on partial-failure | [D387-runresult-usage-cost-optional.md](./.claude/knowledge-base/adrs/D387-runresult-usage-cost-optional.md) |
+| D388 | `CloudAgent.send({ budget })` throws `UnsupportedBudgetOperationError` | [D388-budget-cloud-unsupported.md](./.claude/knowledge-base/adrs/D388-budget-cloud-unsupported.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
