@@ -4,12 +4,14 @@
 >
 > **v1.1 changelog** — Absorveu 7 MUST FIX + 6 SHOULD TEST + 3 DOCUMENT do edge-case review (EC-1..EC-16). Adições principais: auto-mkdir do JsonFileTaskStore, validação de ID grammar defense-in-depth no store, wrap sync throws, abort-no-submit short-circuit, prefixo namespaced de taskId nos adapters (`wf-`/`b-`/`cron-`), ENOENT-as-empty no list, e flag `cancelRequested` para cross-process best-effort cancel via CLI.
 >
-> **v1.2 scope cut (Phase 3.2-3.5 adapters)** — Os adapters integrados que adicionariam `{ task: true }` em `Agent.send` / `Agent.batch` / `Workflow.run` / `Cron.register` foram **diferidos para v0.2**. A SDK ship com:
-> 1. Public `Task` namespace completo (submit/list/get/cancel/subscribe/configure)
-> 2. Persistência pluggável (InMemory + JsonFile)
-> 3. Pattern user-side documentado em concept + cookbook: caller envolve sua própria async work via `Task.submit("run", async (ctx) => agent.send(prompt, { signal: ctx.signal }), {...})` — 2-3 linhas, sem precisar modificar options de Agent/Workflow/Batch/Cron.
+> **v1.3 status update (Phase 3.2-3.5 adapters)** — 3 dos 4 adapters integrados shipados:
 >
-> Esse scope cut: (a) preserva 100% da backward-compat (zero linhas em Agent/Workflow/Batch/Cron tocadas); (b) entrega o primitivo end-to-end pra uso real hoje; (c) deixa porta aberta pra adapter sugar em v0.2 sem dívida arquitetural. Integration tests `task-user-side-wrap.test.ts` cobrem os 4 patterns (run/batch fan-out/cron-like/workflow-like).
+> - ✅ **T3.2 `Agent.send({ task })`** — `LocalAgent.send` registra a Run no registry quando `options.task` é truthy; cancel via `Task.cancel(id)` propaga pra `run.cancel()` via AbortController. CloudAgent rejeita com `UnsupportedTaskOperationError` (D370). 4 tests em `tests/integration/send-with-task.test.ts`.
+> - ✅ **T3.3 `Agent.batch({ task })`** — registra o batch inteiro como 1 task `kind: "batch"` com prefixo `b-`. v1 emite parent only (per-prompt children diferidos pra v0.2). 4 tests em `tests/integration/batch-with-task.test.ts`.
+> - ✅ **T3.4 `Workflow.run({ task })`** — registra como `kind: "workflow"` com prefixo `wf-{runId}`. 4 tests em `tests/integration/workflow-with-task.test.ts`.
+> - ⏳ **T3.5 `Cron` task fires** — DIFERIDO para v0.2. Requer hookar no dispatcher do croner pra registrar cada fire como Task individual; mais invasivo que os outros 3. Pattern user-side continua funcionando (cron handler chama `Task.submit("cron", ...)` internamente).
+>
+> Esse delta: (a) preserva 100% da backward-compat (default behavior absolutely unchanged); (b) entrega os 3 adapters de maior leverage; (c) deixa porta aberta pra cron adapter em v0.2 com dispatcher hook. Integration tests `task-user-side-wrap.test.ts` continuam cobrindo o pattern user-side pra qualquer runtime async (incluindo cron handlers).
 
 ## Context
 

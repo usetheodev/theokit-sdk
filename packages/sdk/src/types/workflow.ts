@@ -176,6 +176,16 @@ export interface WorkflowRunOptions {
   readonly signal?: AbortSignal;
   /** Override run ID for deterministic resume (advanced; default = mintRunId). */
   readonly runId?: string;
+  /**
+   * Opt-in Task wrapping (ADRs D363, D374). Registers the workflow run
+   * as a `Task` (kind="workflow") with a `wf-` namespaced id (D368,
+   * EC-5). The task transitions terminal when `Workflow.run` resolves.
+   *
+   * Auto-id: `wf-{runId}`.
+   *
+   * @public
+   */
+  readonly task?: true | { id?: string; meta?: Record<string, unknown> };
 }
 
 export interface WorkflowResumeOptions<TI = unknown> {

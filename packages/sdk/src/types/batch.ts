@@ -59,6 +59,23 @@ export interface BatchOptions extends AgentOptions {
    * "aborted" error is used.
    */
   signal?: AbortSignal;
+  /**
+   * Opt-in Task wrapping (ADRs D363, D374). When set, the batch is
+   * registered as a `Task` (kind="batch") in the SDK's observable
+   * registry. The parent task transitions `finished` when every
+   * prompt is resolved (success OR failure).
+   *
+   * Use cases: surfacing a long-running batch in the `theokit tasks
+   * list` CLI, programmatic `Task.cancel(id)` aborting the batch, or
+   * binding a user-facing job dashboard. v1 does NOT yet emit one
+   * task PER prompt (single parent only); per-prompt tasks land in
+   * v0.2.
+   *
+   * Auto-generated id uses the `b-` reserved prefix (D368, EC-5).
+   *
+   * @public
+   */
+  task?: true | { id?: string; meta?: Record<string, unknown> };
 }
 
 /**
