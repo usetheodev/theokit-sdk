@@ -1,7 +1,7 @@
 /**
  * Top-level CLI dispatcher via commander (ADR D194).
  *
- * Subcommands: `init`, `dev`, `inspect`, `eval`.
+ * Subcommands: `init`, `dev`, `inspect`, `eval`, `setup`, `acp`.
  *
  * Exit codes:
  *  - 0  → success
@@ -13,6 +13,7 @@
 
 import { Command } from "commander";
 
+import { type AcpOptions, runAcp } from "./commands/acp.js";
 import { type DevOptions, runDev } from "./commands/dev.js";
 import { type EvalOptions, runEval } from "./commands/eval.js";
 import { type InitOptions, runInit } from "./commands/init.js";
@@ -60,6 +61,19 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
     .option("-o, --output <path>", "Report output path (default: ./eval-report.md)")
     .action(async (opts: EvalOptions) => {
       setExit(await runEval(opts));
+    });
+
+  program
+    .command("acp")
+    .description(
+      "Launch a stdio Agent Client Protocol (ACP) server pointing at the entry file's default-exported agent. Used by Zed/Cursor/Claude Desktop. ADRs D349-D360.",
+    )
+    .option("--entry <path>", "Entry file (default: src/index.ts or package.main)")
+    .option("--permission <mode>", "Tool permission mode: ask | auto | deny (default: ask)")
+    .option("--trusted-tools <list>", "Comma-separated tool names that bypass ask")
+    .option("--permission-timeout-ms <ms>", "Permission request timeout in ms (default: 60000)")
+    .action(async (opts: AcpOptions) => {
+      setExit(await runAcp(opts));
     });
 
   program

@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@usetheo/acp@0.1.0` (ACP server adapter, ADRs D349-D360)
+- New `@usetheo/acp` workspace package exposing any `@usetheo/sdk` `SDKAgent` as
+  an Agent Client Protocol (ACP) server over stdio JSON-RPC, using the official
+  `@agentclientprotocol/sdk@^0.22`. Zed, Cursor, Claude Desktop, and any
+  ACP-compatible host can drive our SDK as a coding agent.
+- 12 new ADRs (D349-D360). 6 edge case fixes absorbed (EC-1 dispose-on-shutdown,
+  EC-2 permission-timeout, EC-3 CloudAgent fork rejection, EC-4 CJS/ESM
+  interop, EC-5 cwd absolute resolve, EC-6 storage hint).
+- `theokit acp` CLI subcommand + standalone `theokit-acp` bin shim.
+- `agent.json` registry manifest at `packages/acp/registry/` for the ACP marketplace.
+- 57 new tests across session-store, agent-resolver, lifecycle, prompt-extract,
+  translator, permission-plugin, plus a programmatic stdio smoke (`serve-smoke.test.ts`)
+  that drives the full protocol end-to-end.
+- Concept page + cookbook recipe in `theo-opendocs/content/theokit-sdk/`.
+- `examples/acp-server/` real-LLM example.
+
 ### Added
 - Initial workspace structure: pnpm workspaces, Biome 2.4, Changesets, tsup 8, Vitest 3, TypeScript 5.8+, Node 22.12+ engines (initial scaffold).
 - `@usetheo/sdk` package skeleton at `packages/sdk/` (initial scaffold).

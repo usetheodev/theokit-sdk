@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/cli",
+  "name": "@usetheo/acp",
   "version": "0.1.0",
-  "description": "Developer CLI for @usetheo/sdk — init, dev, inspect, eval. Adoption Roadmap #1.",
+  "description": "Agent Client Protocol (ACP) server adapter for @usetheo/sdk. Exposes an SDKAgent over stdio JSON-RPC so Zed/Cursor/Claude Desktop can drive it. ADRs D349-D360.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -10,9 +10,6 @@
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "theokit": "./dist/bin/theokit.js"
-  },
   "exports": {
     ".": {
       "import": {
@@ -25,9 +22,13 @@
       }
     }
   },
+  "bin": {
+    "theokit-acp": "./bin/theokit-acp.mjs"
+  },
   "files": [
     "dist",
-    "templates",
+    "bin",
+    "registry",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
@@ -37,27 +38,19 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@clack/prompts": "^0.7.0",
-    "@usetheo/sdk": "workspace:^",
-    "commander": "^12.1.0",
-    "picocolors": "^1.0.0",
-    "tsx": "^4.19.0",
-    "zod": "^3.25.0"
-  },
   "peerDependencies": {
-    "@usetheo/acp": "workspace:^"
-  },
-  "peerDependenciesMeta": {
-    "@usetheo/acp": {
-      "optional": true
-    }
+    "@usetheo/sdk": "workspace:^",
+    "@agentclientprotocol/sdk": "^0.22.1"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "@usetheo/acp": "workspace:*",
+    "@usetheo/sdk": "workspace:*",
+    "@agentclientprotocol/sdk": "~0.22.1",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": false
   }
 }
