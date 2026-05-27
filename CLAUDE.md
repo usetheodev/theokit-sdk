@@ -653,6 +653,23 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 - Dogfood real (gateway-* tem que aparecer no `lib/dogfood.mjs` se passar pelo telegram-pro; ou ter `examples/{whatsapp,teams,email,gworkspace}-bot/` com live validation gravada)
 - `CHANGELOG.md` entry no pacote afetado
 
+## Adoption Roadmap (v1.5 — closing the peer-project + Hermes gaps)
+
+> Pós-v1.4, análise vs `referencia/peer-project` + `referencia/peer-agent` revelou 2 gaps remanescentes ao nível do harness SDK: **ACP** (Agent Communication Protocol — Hermes/peer-project expõem agentes ao Zed/Cursor) e **Tasks** (Hermes tem registry observable via SQLite kanban; SDK tinha apenas `Run` transient).
+
+| # | Item | Status |
+|---|---|---|
+| ~~1~~ | ~~**ACP server adapter (`@usetheo/acp`)**~~ ✅ DONE 2026-05-27 (ADRs D349-D360) — Server-first stdio JSON-RPC via `@agentclientprotocol/sdk@^0.22.1`. `serveAcp({ agent })` API + `theokit acp` CLI verb + `agent.json` registry manifest + real-LLM dogfood (Ollama qwen2.5:3b → "pong" em 25.7s, EC-1 dispose log confirmado). 6 MUST FIX edges absorvidos. `@usetheo/acp@0.1.0` + `@usetheo/cli@0.1.1` publicados em npm. telegram-pro CDP dogfood 44/45 PASS (zero regressões). |
+| ~~2~~ | ~~**Tasks observability registry (`@usetheo/sdk` Task namespace)**~~ ✅ DONE 2026-05-27 (ADRs D361-D374) — 5-state closed enum (queued/running/finished/error/cancelled) + pluggable `TaskStore` (InMemory default + JsonFile opt-in; SQLite v0.2) + ring buffer 64 events (D372 late-attach replay) + idempotent cancel via AbortController + cross-process best-effort via `cancelRequested` flag (EC-7) + 3 OTel spans (D371). Public surface: `Task.submit / list / get / cancel / subscribe / configure`. CLI: `theokit tasks {list,inspect,cancel}`. Sub-export `@usetheo/sdk/task-store` para o CLI ler cross-process. 7 MUST FIX edges + 6 SHOULD TEST + 3 DOCUMENT absorvidos (EC-1..EC-16). 74 tests verde (62 SDK + 12 CLI). Example `examples/tasks/` runs offline + cookbook page + concept doc shipados. **Scope cut v1.2 documentado**: auto-wrap via `{ task: true }` em Agent.send/batch/Workflow.run/Cron.register diferido pra v0.2; user-side pattern `Task.submit("kind", workFn)` é o caminho v1. |
+
+### Não-Roadmap-v1.5 (delegado / diferido)
+
+| Item | Razão |
+|---|---|
+| Auto-wrap `{ task: true }` options nos 4 runtimes | Scope cut em v1.2 — exige editar Agent.send/batch/Workflow.run/Cron.register + suas suites. Diferido pra v0.2 do Task package. |
+| SQLite cross-process TaskStore | v0.2 — exige peer dep `better-sqlite3` + file lock D61. |
+| ACP `unstable_forkSession` | D350 — diferido pra v0.2 do ACP package; v1 retorna `invalid_request`. |
+
 ## Inviolable rules (carried from root and global)
 
 1. **95% confidence gate.** Stop and ask if uncertain.

@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+### Added (`theokit tasks` — observable async work registry, ADRs D361-D374)
+
+- New top-level subcommand `theokit tasks {list|inspect|cancel}` reads the
+  `JsonFileTaskStore` at `$THEOKIT_HOME/tasks/` (fallback: `cwd/.theokit/tasks`).
+  Reports CLI exit codes: 0 success, 2 permission/IO, 3 invalid id grammar,
+  4 task not found.
+- `theokit tasks list [--state S] [--kind K] [--json]` — table or JSON view.
+- `theokit tasks inspect <id> [--json]` — full handle dump.
+- `theokit tasks cancel <id> [--reason R]` — cross-process best-effort cancel via
+  the `cancelRequested` flag on the JSON-backed handle. The owning Node process
+  (the one that submitted the task) honors the flag at the next checkpoint
+  (EC-7). Queued tasks transition directly to `cancelled`. Terminal tasks
+  print `task already terminal` and exit 0.
+- 12 unit tests under `tests/commands/tasks.test.ts` covering fresh-install
+  ENOENT (EC-6), invalid id grammar, not-found, and the 3 cancel paths.
+
 ### Added (`theokit acp` — ACP server adapter, ADRs D349-D360)
 
 - New top-level subcommand `theokit acp` launches a stdio ACP server pointing at
