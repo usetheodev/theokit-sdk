@@ -48,6 +48,24 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0)
 
+  packages/acp:
+    devDependencies:
+      '@agentclientprotocol/sdk':
+        specifier: ~0.22.1
+        version: 0.22.1(zod@4.4.3)
+      '@usetheo/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0)
+
   packages/cli:
     dependencies:
       '@clack/prompts':
@@ -72,6 +90,9 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.19.19
+      '@usetheo/acp':
+        specifier: workspace:*
+        version: link:../acp
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
@@ -156,9 +177,6 @@ importers:
       '@slack/bolt':
         specifier: ^3.20.0
         version: 3.22.0
-      '@slack/web-api':
-        specifier: ^6.12.0
-        version: 6.13.0
       '@usetheo/gateway':
         specifier: workspace:*
         version: link:../gateway
@@ -177,9 +195,6 @@ importers:
 
   packages/gateway-teams:
     devDependencies:
-      '@microsoft/teams.api':
-        specifier: ^2.0.0
-        version: 2.0.11
       '@microsoft/teams.apps':
         specifier: ^2.0.0
         version: 2.0.11
@@ -367,6 +382,11 @@ importers:
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0)
 
 packages:
+
+  '@agentclientprotocol/sdk@0.22.1':
+    resolution: {integrity: sha512-DfqXtl/8gO9NImq094MTaCXEU2vkhh6v7q/kT+9UjZxUqj8hYaya2OjLVIqn16MzNHcXEpShTR2RIauLSYeDQQ==}
+    peerDependencies:
+      zod: ^3.25.0 || ^4.0.0
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -5337,6 +5357,10 @@ packages:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
 snapshots:
+
+  '@agentclientprotocol/sdk@0.22.1(zod@4.4.3)':
+    dependencies:
+      zod: 4.4.3
 
   '@ampproject/remapping@2.3.0':
     dependencies:

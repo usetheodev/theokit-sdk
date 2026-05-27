@@ -1,0 +1,15 @@
+{
+  "name": "example-acp-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "serve": "theokit-acp --entry ./src/index.ts"
+  },
+  "dependencies": {
+    "@usetheo/acp": "file:../../packages/acp",
+    "@usetheo/sdk": "file:../../packages/sdk"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
