@@ -1,8 +1,15 @@
 # Plan: Tasks (queued/running observable)
 
-> **Version 1.1** — Adiciona a `@usetheo/sdk` um conceito de **Task** observável: um registry leve de jobs com estados `queued | running | finished | error | cancelled`, API pública (`Task.submit / list / get / cancel / subscribe`), persistência pluggável (in-memory default, JSON disk opt-in), e wrapping transparente de `Run`/`Batch`/`Workflow`/`Cron` para que toda execução assíncrona da SDK fique inspeccionável a partir de um único surface. Fecha o segundo gap da análise vs OpenClaw + Hermes Agent (o primeiro foi ACP, shipado em 2026-05-27). Resultado esperado: usuário consegue submeter trabalho assíncrono, listar todas as tasks ativas/históricas, cancelar individualmente, e consumir um stream de eventos de progresso — exatamente como Hermes oferece via kanban SQLite, mas sem o overhead de SQLite no caminho default.
+> **Version 1.2** — Adiciona a `@usetheo/sdk` um conceito de **Task** observável: um registry leve de jobs com estados `queued | running | finished | error | cancelled`, API pública (`Task.submit / list / get / cancel / subscribe`), persistência pluggável (in-memory default, JSON disk opt-in). Fecha o segundo gap da análise vs OpenClaw + Hermes Agent (o primeiro foi ACP, shipado em 2026-05-27). Resultado esperado: usuário consegue submeter trabalho assíncrono via `Task.submit("kind", workFn)`, listar todas as tasks ativas/históricas, cancelar individualmente, e consumir um stream de eventos de progresso — exatamente como Hermes oferece via kanban SQLite, mas sem o overhead de SQLite no caminho default.
 >
 > **v1.1 changelog** — Absorveu 7 MUST FIX + 6 SHOULD TEST + 3 DOCUMENT do edge-case review (EC-1..EC-16). Adições principais: auto-mkdir do JsonFileTaskStore, validação de ID grammar defense-in-depth no store, wrap sync throws, abort-no-submit short-circuit, prefixo namespaced de taskId nos adapters (`wf-`/`b-`/`cron-`), ENOENT-as-empty no list, e flag `cancelRequested` para cross-process best-effort cancel via CLI.
+>
+> **v1.2 scope cut (Phase 3.2-3.5 adapters)** — Os adapters integrados que adicionariam `{ task: true }` em `Agent.send` / `Agent.batch` / `Workflow.run` / `Cron.register` foram **diferidos para v0.2**. A SDK ship com:
+> 1. Public `Task` namespace completo (submit/list/get/cancel/subscribe/configure)
+> 2. Persistência pluggável (InMemory + JsonFile)
+> 3. Pattern user-side documentado em concept + cookbook: caller envolve sua própria async work via `Task.submit("run", async (ctx) => agent.send(prompt, { signal: ctx.signal }), {...})` — 2-3 linhas, sem precisar modificar options de Agent/Workflow/Batch/Cron.
+>
+> Esse scope cut: (a) preserva 100% da backward-compat (zero linhas em Agent/Workflow/Batch/Cron tocadas); (b) entrega o primitivo end-to-end pra uso real hoje; (c) deixa porta aberta pra adapter sugar em v0.2 sem dívida arquitetural. Integration tests `task-user-side-wrap.test.ts` cobrem os 4 patterns (run/batch fan-out/cron-like/workflow-like).
 
 ## Context
 

@@ -12,6 +12,9 @@
   "include": [
     "src/tools/**/*",
     "src/path-safety.ts",
+    "src/task-store.ts",
+    "src/internal/task/store.ts",
+    "src/internal/persistence/atomic-write.ts",
     "src/errors.ts",
     "src/agent.ts",
     "src/agent-factory.ts",

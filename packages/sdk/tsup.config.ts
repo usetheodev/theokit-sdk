@@ -7,6 +7,7 @@ export default defineConfig({
     cron: "src/cron.ts",
     tools: "src/tools/index.ts",
     "path-safety": "src/path-safety.ts",
+    "task-store": "src/task-store.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
