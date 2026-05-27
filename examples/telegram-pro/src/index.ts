@@ -182,6 +182,7 @@ runner.command("help", async (event) => {
       "/goal <prompt> — Agent.runUntil(goal) Ralph loop with judge model (v1.3)",
       "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
       "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
+      "/tasks — list recent Task handles from Agent.batch/send + cron fires (v1.15, ADRs D361-D374)",
       "/handoff_demo (question) — triage agent → billing/support via handoffs array (v1.16)",
       "/workflow_demo (claim) — declarative 4-step pipeline: validate → classify → branch → resolve (v1.17)",
       "/cache_demo (question) — semantic cache: 2nd paraphrase hits without LLM call (v1.18)",
@@ -407,6 +408,9 @@ runner.command("batch", async (event) => {
   try {
     const { Agent } = await import("@usetheo/sdk");
     const t0 = Date.now();
+    // T3.3: opt-in Task wrapping (D363/D374). The whole batch is
+    // registered as a `kind: "batch"` Task with `b-` prefix — visible
+    // via `/tasks` and `theokit tasks list`.
     const results = await Agent.batch(
       [
         `Write a one-line haiku (5-7-5 syllables joined with " / ") about ${topic}. Reply with only the haiku.`,
@@ -418,6 +422,7 @@ runner.command("batch", async (event) => {
         model: { id: "openai/gpt-4o-mini" },
         local: { cwd: CWD, sandboxOptions: { enabled: false } },
         concurrency: 3,
+        task: { meta: { userId: event.sender.id, topic } },
       },
     );
     const dt = Date.now() - t0;
@@ -434,6 +439,43 @@ runner.command("batch", async (event) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`Batch failed: ${msg.slice(0, 400)}`);
+  }
+});
+
+// ────────────────────── /tasks — Task observability registry (v1.15, ADRs D361-D374) ──────────────────────
+//
+// Lists the most recent Task handles registered via `{ task: true }` on
+// `Agent.send` / `Agent.batch` / `Workflow.run` / `Cron`. Useful for
+// inspecting `/batch` fan-outs and timer-driven cron fires.
+runner.command("tasks", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  try {
+    const { Task } = await import("@usetheo/sdk");
+    const handles = await Task.list({ limit: 10 });
+    if (handles.length === 0) {
+      await ctx.reply(
+        "No tasks registered yet. Try `/batch jazz` to see a Task appear.",
+        { parse_mode: "Markdown" },
+      );
+      return;
+    }
+    const lines = handles.map((h) => {
+      const ageS = Math.floor((Date.now() - h.submittedAt) / 1000);
+      return `• \`${h.id.slice(0, 36)}\` — ${h.kind}/${h.state} (${ageS}s ago)`;
+    });
+    await ctx.reply(
+      [
+        `*Tasks (${handles.length}):*`,
+        ...lines,
+        "",
+        "Run `/tasks cancel <id>` to cancel a queued/running task.",
+      ].join("\n"),
+      { parse_mode: "Markdown" },
+    );
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`Tasks list failed: ${msg.slice(0, 400)}`);
   }
 });
 
