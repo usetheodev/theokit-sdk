@@ -13,7 +13,8 @@
     "tools/validate-streamobject-real-llm.mjs",
     "tools/validate-streaming-telegram-real-llm.mjs",
     "tools/validate-acp-real-llm.mjs",
-    "tools/validate-tasks-real-llm.mjs"
+    "tools/validate-tasks-real-llm.mjs",
+    "tools/validate-budget-real-llm.mjs"
   ],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
   "tags": ["-knipignore"],

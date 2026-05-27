@@ -3,6 +3,7 @@ import type { ConversationStep, ConversationTurn } from "./conversation.js";
 import type { McpServerConfig } from "./mcp.js";
 import type { SDKMessage } from "./messages.js";
 import type { InteractionUpdate } from "./updates.js";
+import type { CostBreakdown, TokenUsage } from "./usage.js";
 
 /**
  * Lifecycle status of a {@link Run}.
@@ -63,6 +64,23 @@ export interface RunResult {
    * @public
    */
   error?: RunErrorDetail;
+  /**
+   * Token usage observed for this run (ADR D376). Populated in every
+   * status where ≥1 LLM call completed — including partial-failure
+   * runs (EC-5). `undefined` only when zero LLM calls executed (e.g.,
+   * abort before send).
+   *
+   * @public
+   */
+  usage?: TokenUsage;
+  /**
+   * Estimated/actual USD cost for this run (ADR D377). Always paired
+   * with `usage` when populated. `cost.status` tells caller how to
+   * trust the figure.
+   *
+   * @public
+   */
+  cost?: CostBreakdown;
 }
 
 /**

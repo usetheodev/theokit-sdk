@@ -490,3 +490,65 @@ export class UnsupportedTaskOperationError extends TheokitAgentError {
     this.operation = operation;
   }
 }
+
+/**
+ * Thrown by `Budget` enforcement (ADR D386) when a `mode: "block"`
+ * budget would be exceeded by the upcoming LLM call. Caller pega
+ * tipado para retry-after-window-reset or surface to the user.
+ *
+ * @public
+ */
+export class BudgetExceededError extends TheokitAgentError {
+  override readonly name: string = "BudgetExceededError";
+  readonly budgetName: string;
+  readonly window: import("./types/budget.js").BudgetWindow;
+  readonly spentUsd: number;
+  readonly limitUsd: number;
+  readonly mode: import("./types/budget.js").BudgetMode;
+
+  constructor(args: {
+    budgetName: string;
+    window: import("./types/budget.js").BudgetWindow;
+    spentUsd: number;
+    limitUsd: number;
+    mode: import("./types/budget.js").BudgetMode;
+    cause?: unknown;
+  }) {
+    super(
+      `Budget "${args.budgetName}" exceeded for window ${args.window}: spent $${args.spentUsd.toFixed(4)} > limit $${args.limitUsd.toFixed(4)}`,
+      {
+        ...(args.cause !== undefined ? { cause: args.cause } : {}),
+        isRetryable: false,
+        code: "budget_exceeded",
+      },
+    );
+    this.budgetName = args.budgetName;
+    this.window = args.window;
+    this.spentUsd = args.spentUsd;
+    this.limitUsd = args.limitUsd;
+    this.mode = args.mode;
+  }
+}
+
+/**
+ * Thrown when `CloudAgent.send({ budget })` is invoked (D388). Cloud
+ * budget surface waits for Theo PaaS GA.
+ *
+ * @public
+ */
+export class UnsupportedBudgetOperationError extends TheokitAgentError {
+  override readonly name: string = "UnsupportedBudgetOperationError";
+  readonly operation: string;
+
+  constructor(operation: string, options: { cause?: unknown } = {}) {
+    super(
+      `Budget operation "${operation}" is not supported on CloudAgent (pre-release; see ADR D388)`,
+      {
+        ...options,
+        isRetryable: false,
+        code: "budget_op_unsupported",
+      },
+    );
+    this.operation = operation;
+  }
+}

@@ -9,6 +9,18 @@ export { Agent, type AgentPromptResult } from "./agent.js";
 // DX helpers — agent construction patterns (ADR D22-D26)
 export { AgentBuilder } from "./agent-builder.js";
 export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
+// Task observability registry (Adoption Roadmap gap #2; ADRs D361-D374)
+// Token budget + cost tracker (Adoption Roadmap gap #1 post-Tasks; ADRs D375-D388)
+export {
+  Budget,
+  chargeAndCheckThresholds,
+  computeCost,
+  getPricingEntry,
+  inferApiMode,
+  normalizeUsage,
+  preflightCheck,
+  UsageAccumulator,
+} from "./budget.js";
 // Semantic cache (Adoption Roadmap #6; ADRs D249-D266)
 export {
   Cache,
@@ -23,6 +35,7 @@ export {
   AgentRunError,
   type AgentRunErrorCode,
   AuthenticationError,
+  BudgetExceededError,
   ConfigurationError,
   type ErrorCode,
   type ErrorMetadata,
@@ -35,6 +48,7 @@ export {
   TaskNotFoundError,
   TheokitAgentError,
   UnknownAgentError,
+  UnsupportedBudgetOperationError,
   UnsupportedRunOperationError,
   UnsupportedTaskOperationError,
 } from "./errors.js";
@@ -111,7 +125,6 @@ export {
   type StreamObjectEvent,
   type StreamObjectOptions,
 } from "./stream-object.js";
-// Task observability registry (Adoption Roadmap gap #2; ADRs D361-D374)
 export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn } from "./task.js";
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";

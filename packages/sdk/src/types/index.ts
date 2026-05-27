@@ -3,6 +3,7 @@
 
 export type * from "./agent.js";
 export type * from "./batch.js";
+export type * from "./budget.js";
 export type * from "./cache.js";
 export type * from "./context.js";
 export type * from "./conversation.js";
@@ -20,4 +21,5 @@ export type * from "./task.js";
 export type * from "./theokit.js";
 export type * from "./trajectory.js";
 export type * from "./updates.js";
+export type * from "./usage.js";
 export type * from "./workflow.js";
