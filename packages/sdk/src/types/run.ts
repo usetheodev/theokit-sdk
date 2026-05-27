@@ -147,6 +147,25 @@ export interface SendOptions {
    * @public
    */
   signal?: AbortSignal;
+  /**
+   * Opt-in task wrapping (ADRs D363, D374). When truthy, the entire
+   * run is registered as a `Task` in the SDK's observable registry —
+   * caller can list / inspect / cancel / subscribe via the `Task`
+   * namespace. Default behavior (no `task` option) is byte-identical
+   * to v1.1 (no Task overhead).
+   *
+   * Accepts:
+   * - `true` — auto-generate task id; no extra metadata.
+   * - `{ id, meta }` — user-supplied id (D368 grammar enforced) and/or
+   *   metadata attached to the handle's `meta` field.
+   *
+   * The work-fn `signal` is **merged** with `options.signal` (whichever
+   * aborts first wins). Local agents only — CloudAgent throws
+   * `UnsupportedTaskOperationError` (D370).
+   *
+   * @public
+   */
+  task?: true | { id?: string; meta?: Record<string, unknown> };
 }
 
 /**

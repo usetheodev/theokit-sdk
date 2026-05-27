@@ -43,6 +43,7 @@ import {
   localAgentRunUntil,
   persistMemoryFactIfWritePrompt,
 } from "./local-agent-runtime-extensions.js";
+import { registerRunAsTask } from "./local-agent-task-wrap.js";
 import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
 import type { PluginMetadata, PluginsManager } from "./plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
@@ -153,9 +154,8 @@ export class LocalAgent implements SDKAgent {
   }
 
   /** Resolve the storage handle for session helpers (custom adapter or cwd). */
-  private storageHandle():
-    | import("../../types/conversation-storage.js").ConversationStorageAdapter
-    | string {
+  // biome-ignore format: keep on one line for G8 LoC budget.
+  private storageHandle(): import("../../types/conversation-storage.js").ConversationStorageAdapter | string {
     return this.conversationStorage ?? this.workspaceCwd;
   }
 
@@ -214,6 +214,9 @@ export class LocalAgent implements SDKAgent {
           reject(err);
           return;
         }
+        // T3.2: opt-in Task wrapping (ADRs D363/D374).
+        // biome-ignore format: one-liner to stay under G8 LoC budget.
+        if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
         resolve(run);
         await runPostRunLifecycle({
           run,

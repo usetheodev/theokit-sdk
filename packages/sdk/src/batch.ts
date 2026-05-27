@@ -9,11 +9,13 @@
  * @internal
  */
 
+import { randomUUID } from "node:crypto";
 import { TheokitAgentError } from "./errors.js";
 import { CredentialPool, newPooledCredential } from "./internal/llm/credential-pool.js";
 import { withCredentialPool } from "./internal/llm/credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./internal/llm/credential-pool-types.js";
 import { createSemaphore } from "./internal/runtime/async-semaphore.js";
+import { get as taskRegistryGet, submit as taskRegistrySubmit } from "./internal/task/registry.js";
 import type { AgentOptions, SDKAgent } from "./types/agent.js";
 import type { BatchItem, BatchOptions, BatchProgress, BatchResult } from "./types/batch.js";
 
@@ -42,10 +44,49 @@ export async function batchImpl(
     options.providers?.apiKeys,
     options.providers?.credentialPoolStrategy,
   );
-  if (sharedPools.size > 0) {
-    return withCredentialPool(sharedPools, () => runBatch(prompts, options, deps));
+  const exec = (): Promise<BatchResult[]> => runBatch(prompts, options, deps);
+  const withPool = (): Promise<BatchResult[]> =>
+    sharedPools.size > 0 ? withCredentialPool(sharedPools, exec) : exec();
+  // T3.3: opt-in Task wrapping (ADRs D363, D374). Register the whole
+  // batch as a single Task (kind="batch") with `b-` prefix (D368/EC-5).
+  if (options.task !== undefined) {
+    return wrapBatchAsTask(prompts.length, options.task, withPool);
   }
-  return runBatch(prompts, options, deps);
+  return withPool();
+}
+
+async function wrapBatchAsTask(
+  total: number,
+  taskOpt: true | { id?: string; meta?: Record<string, unknown> },
+  exec: () => Promise<BatchResult[]>,
+): Promise<BatchResult[]> {
+  const opts = taskOpt === true ? {} : taskOpt;
+  const id = opts.id ?? `b-${randomUUID()}`;
+  const meta: Record<string, unknown> = {
+    total,
+    ...(opts.meta ?? {}),
+  };
+  let results: BatchResult[] = [];
+  await taskRegistrySubmit({
+    kind: "batch",
+    work: async (ctx) => {
+      results = await exec();
+      const succeeded = results.filter((r) => r.ok).length;
+      const failed = results.length - succeeded;
+      ctx.emit({ total: results.length, succeeded, failed });
+      return { total: results.length, succeeded, failed };
+    },
+    id,
+    meta,
+    allowReservedPrefix: true,
+  });
+  // submit returns immediately with a queued handle. Wait for terminal.
+  for (let i = 0; i < 5000; i++) {
+    const h = await taskRegistryGet(id);
+    if (h?.state === "finished" || h?.state === "error" || h?.state === "cancelled") break;
+    await new Promise((r) => setTimeout(r, 5));
+  }
+  return results;
 }
 
 async function runBatch(
@@ -155,6 +196,7 @@ function buildAgentOptions(item: BatchItem, options: BatchOptions): AgentOptions
     onResult: _or,
     onProgress: _op,
     signal: _s,
+    task: _t,
     ...rest
   } = options;
   void _c;
@@ -162,6 +204,7 @@ function buildAgentOptions(item: BatchItem, options: BatchOptions): AgentOptions
   void _or;
   void _op;
   void _s;
+  void _t;
   const agentOpts = rest as AgentOptions;
   if (item.systemPrompt !== undefined) {
     return { ...agentOpts, systemPrompt: item.systemPrompt };

@@ -89,6 +89,11 @@ export class CloudAgent implements SDKAgent {
         { code: "cloud_custom_tools_rejected" },
       );
     }
+    // D370: Task wrapping is local-only in v1 (cloud runtime pre-release).
+    if (options.task !== undefined) {
+      const { UnsupportedTaskOperationError } = await import("../../errors.js");
+      throw new UnsupportedTaskOperationError("send", { cause: undefined });
+    }
     // ADR D19: same per-agent send mutex as LocalAgent. Holds until the run
     // completes so concurrent sends to the same agentId serialize end-to-end.
     return new Promise<Run>((resolve, reject) => {
