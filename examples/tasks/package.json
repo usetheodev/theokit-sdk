@@ -1,0 +1,14 @@
+{
+  "name": "example-tasks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx --env-file=.env run.ts"
+  },
+  "dependencies": {
+    "@usetheo/sdk": "file:../../packages/sdk"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
