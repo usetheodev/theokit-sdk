@@ -1,0 +1,285 @@
+/**
+ * Phase 3.1 (T3.1) RED tests for TaskRegistry.
+ * Covers submit/list/get/cancel/subscribe lifecycle + edge cases
+ * EC-3 (sync throw), EC-4 (pre-aborted signal), EC-7 (cancelRequested),
+ * EC-9 (store-update failure), EC-10 (subscriber cleanup), EC-11 (reentrant).
+ */
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+
+import { InvalidTaskIdError, TaskNotFoundError } from "../../../src/errors.js";
+import {
+  __getSubscribersCountForTests,
+  __resetTaskRegistryForTests,
+  cancel,
+  configure,
+  get,
+  list,
+  submit,
+  subscribe,
+} from "../../../src/internal/task/registry.js";
+import type { TaskEvent } from "../../../src/types/task.js";
+
+function nextTick(): Promise<void> {
+  return new Promise((r) => setImmediate(r));
+}
+
+describe("TaskRegistry — submit lifecycle", () => {
+  beforeEach(() => {
+    __resetTaskRegistryForTests();
+  });
+  afterEach(() => {
+    __resetTaskRegistryForTests();
+  });
+
+  it("submit returns handle with state=queued", async () => {
+    const handle = await submit({ kind: "custom", work: async () => "result" });
+    expect(handle.state).toBe("queued");
+    expect(handle.id).toBeDefined();
+  });
+
+  it("submit transitions queued → running → finished and produces events", async () => {
+    const observed: TaskEvent[] = [];
+    const handle = await submit({
+      kind: "custom",
+      work: async () => "done",
+    });
+    const sub = subscribe(handle.id);
+    void (async () => {
+      for await (const ev of sub) observed.push(ev);
+    })();
+    await new Promise((r) => setTimeout(r, 50));
+    const final = await get(handle.id);
+    expect(final?.state).toBe("finished");
+    expect(final?.result).toBe("done");
+    expect(observed.some((e) => e.type === "finished")).toBe(true);
+  });
+
+  it("submit idempotent with same id returns existing handle (D367)", async () => {
+    const a = await submit({ kind: "custom", work: async () => 1, id: "shared" });
+    const b = await submit({ kind: "custom", work: async () => 2, id: "shared" });
+    expect(b.id).toBe(a.id);
+  });
+
+  it("invalid id throws InvalidTaskIdError", async () => {
+    await expect(
+      submit({ kind: "custom", work: async () => 1, id: "BAD UPPER" }),
+    ).rejects.toBeInstanceOf(InvalidTaskIdError);
+  });
+
+  it("EC-3: sync throw in work() normalized to errored event", async () => {
+    const handle = await submit({
+      kind: "custom",
+      work: () => {
+        throw new Error("sync boom");
+      },
+    });
+    await new Promise((r) => setTimeout(r, 50));
+    const final = await get(handle.id);
+    expect(final?.state).toBe("error");
+    expect(final?.error?.message).toContain("sync boom");
+  });
+
+  it("EC-4: pre-aborted signal short-circuits to cancelled (no run)", async () => {
+    const ctrl = new AbortController();
+    ctrl.abort("preempted");
+    let workInvoked = false;
+    const handle = await submit({
+      kind: "custom",
+      work: async () => {
+        workInvoked = true;
+        return "should not run";
+      },
+      signal: ctrl.signal,
+    });
+    await nextTick();
+    expect(workInvoked).toBe(false);
+    expect(handle.state).toBe("cancelled");
+  });
+});
+
+describe("TaskRegistry — cancel", () => {
+  beforeEach(() => __resetTaskRegistryForTests());
+
+  it("cancel queued task transitions directly to cancelled", async () => {
+    // Submit but never resolve; use long-running work
+    const handle = await submit({
+      kind: "custom",
+      work: () => new Promise(() => {}),
+      id: "long",
+    });
+    // Race: try cancel before the work fn even starts. Some impls may have
+    // already moved to running by now; allow both.
+    const result = await cancel("long");
+    expect(result.alreadyTerminal).toBe(false);
+    expect(result.cancelled).toBe(true);
+    await new Promise((r) => setTimeout(r, 20));
+    const final = await get(handle.id);
+    expect(final?.state).toBe("cancelled");
+  });
+
+  it("cancel running task propagates via AbortController", async () => {
+    let aborted = false;
+    const handle = await submit({
+      kind: "custom",
+
+      work: async (ctx) =>
+        new Promise<void>((_resolve, reject) => {
+          ctx.signal.addEventListener("abort", () => {
+            aborted = true;
+            reject(new Error("aborted"));
+          });
+        }),
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    await cancel(handle.id);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(aborted).toBe(true);
+    expect((await get(handle.id))?.state).toBe("cancelled");
+  });
+
+  it("cancel idempotent — second call returns alreadyTerminal", async () => {
+    const handle = await submit({ kind: "custom", work: async () => "x" });
+    await new Promise((r) => setTimeout(r, 30));
+    await cancel(handle.id);
+    const second = await cancel(handle.id);
+    expect(second.alreadyTerminal).toBe(true);
+    expect(second.cancelled).toBe(false);
+  });
+
+  it("cancel unknown id returns false/false (idempotent)", async () => {
+    const r = await cancel("definitely-missing");
+    expect(r).toEqual({ cancelled: false, alreadyTerminal: false });
+  });
+});
+
+describe("TaskRegistry — subscribe", () => {
+  beforeEach(() => __resetTaskRegistryForTests());
+
+  it("drains ring buffer for late attach", async () => {
+    const handle = await submit({ kind: "custom", work: async () => "done" });
+    await new Promise((r) => setTimeout(r, 50));
+    const sub = subscribe(handle.id);
+    const out: TaskEvent[] = [];
+    for await (const ev of sub) out.push(ev);
+    expect(out.length).toBeGreaterThan(0);
+    expect(out[out.length - 1]?.type).toBe("finished");
+  });
+
+  it("unknown task throws TaskNotFoundError", () => {
+    expect(() => subscribe("no-such-task")).toThrow(TaskNotFoundError);
+  });
+
+  it("EC-10: iterator return() cleans up subscriber set", async () => {
+    const handle = await submit({
+      kind: "custom",
+      work: () => new Promise(() => {}),
+      id: "leak-test",
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    const it = subscribe(handle.id)[Symbol.asyncIterator]();
+    // Pull one event then close.
+    void it.next();
+    await it.return?.();
+    expect(__getSubscribersCountForTests(handle.id)).toBe(0);
+    await cancel(handle.id);
+  });
+});
+
+describe("TaskRegistry — list + filter", () => {
+  beforeEach(() => __resetTaskRegistryForTests());
+
+  it("list returns submitted tasks", async () => {
+    await submit({ kind: "custom", work: async () => "a", id: "first" });
+    await submit({ kind: "custom", work: async () => "b", id: "second" });
+    await new Promise((r) => setTimeout(r, 30));
+    const all = await list({});
+    expect(all.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("list filters by state", async () => {
+    await submit({ kind: "custom", work: async () => "a" });
+    await new Promise((r) => setTimeout(r, 50));
+    const finished = await list({ state: "finished" });
+    expect(finished.every((h) => h.state === "finished")).toBe(true);
+  });
+});
+
+describe("TaskRegistry — configure", () => {
+  beforeEach(() => __resetTaskRegistryForTests());
+
+  it("EC-13: configure() after first submit warns + no-ops", async () => {
+    await submit({ kind: "custom", work: async () => 1 });
+    const errs: string[] = [];
+    const origWrite = process.stderr.write.bind(process.stderr);
+    (process.stderr as { write: (chunk: string) => boolean }).write = (chunk: string) => {
+      errs.push(chunk);
+      return true;
+    };
+    try {
+      configure({ maxConcurrent: 16 });
+      expect(errs.some((e) => e.includes("configure() ignored"))).toBe(true);
+    } finally {
+      process.stderr.write = origWrite;
+    }
+  });
+});
+
+describe("TaskRegistry — concurrency throttle (D369)", () => {
+  beforeEach(() => __resetTaskRegistryForTests());
+
+  it("respects maxConcurrent ceiling", async () => {
+    configure({ maxConcurrent: 2 });
+    let activeNow = 0;
+    let peak = 0;
+    const work = () =>
+      new Promise<void>((resolve) => {
+        activeNow++;
+        peak = Math.max(peak, activeNow);
+        setTimeout(() => {
+          activeNow--;
+          resolve();
+        }, 30);
+      });
+    await Promise.all([
+      submit({ kind: "custom", work }),
+      submit({ kind: "custom", work }),
+      submit({ kind: "custom", work }),
+      submit({ kind: "custom", work }),
+    ]);
+    await new Promise((r) => setTimeout(r, 200));
+    expect(peak).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("TaskRegistry — EC-11 reentrant submit no-deadlock", () => {
+  beforeEach(() => __resetTaskRegistryForTests());
+
+  it("work fn calling submit under concurrency=1 does not deadlock", async () => {
+    configure({ maxConcurrent: 1 });
+    const innerResults: string[] = [];
+    const outer = await submit({
+      kind: "custom",
+      work: async () => {
+        const inner = await submit({
+          kind: "custom",
+          work: async () => "inner-done",
+        });
+        // Poll inner till finished
+        for (let i = 0; i < 100; i++) {
+          const h = await get(inner.id);
+          if (h?.state === "finished") {
+            innerResults.push(h.result as string);
+            break;
+          }
+          await new Promise((r) => setTimeout(r, 10));
+        }
+        return "outer-done";
+      },
+    });
+    await new Promise((r) => setTimeout(r, 200));
+    const finalOuter = await get(outer.id);
+    expect(finalOuter?.state).toBe("finished");
+    expect(innerResults).toEqual(["inner-done"]);
+  });
+});

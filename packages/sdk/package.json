@@ -68,6 +68,16 @@
         "default": "./dist/path-safety.cjs"
       }
     },
+    "./task-store": {
+      "import": {
+        "types": "./dist/task-store.d.ts",
+        "default": "./dist/task-store.js"
+      },
+      "require": {
+        "types": "./dist/task-store.d.cts",
+        "default": "./dist/task-store.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [

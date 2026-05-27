@@ -1,7 +1,7 @@
 /**
  * Top-level CLI dispatcher via commander (ADR D194).
  *
- * Subcommands: `init`, `dev`, `inspect`, `eval`, `setup`, `acp`.
+ * Subcommands: `init`, `dev`, `inspect`, `eval`, `setup`, `acp`, `tasks`.
  *
  * Exit codes:
  *  - 0  → success
@@ -19,6 +19,14 @@ import { type EvalOptions, runEval } from "./commands/eval.js";
 import { type InitOptions, runInit } from "./commands/init.js";
 import { type InspectOptions, runInspect } from "./commands/inspect.js";
 import { runSetup, type SetupOptions } from "./commands/setup.js";
+import {
+  runTasksCancel,
+  runTasksInspect,
+  runTasksList,
+  type TasksCancelOptions,
+  type TasksInspectOptions,
+  type TasksListOptions,
+} from "./commands/tasks.js";
 import { CLI_VERSION, SDK_VERSION } from "./version.js";
 
 function registerSubcommands(program: Command, setExit: (n: number) => void): void {
@@ -93,6 +101,36 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
     .option("--non-interactive", "Refuse interactive prompts; suitable for CI")
     .action(async (domain: string, opts: SetupOptions) => {
       setExit(await runSetup(domain, opts));
+    });
+
+  const tasks = program
+    .command("tasks")
+    .description("Observe SDK Task registry (list / inspect / cancel)");
+
+  tasks
+    .command("list")
+    .description("List tasks in the local JsonFileTaskStore")
+    .option("--state <state>", "Filter by state (queued|running|finished|error|cancelled)")
+    .option("--kind <kind>", "Filter by kind (run|batch|workflow|cron|custom)")
+    .option("--json", "Emit machine-readable JSON instead of the table view")
+    .action(async (opts: TasksListOptions) => {
+      setExit(await runTasksList(opts));
+    });
+
+  tasks
+    .command("inspect <id>")
+    .description("Inspect a single task by id")
+    .option("--json", "Emit machine-readable JSON")
+    .action(async (id: string, opts: TasksInspectOptions) => {
+      setExit(await runTasksInspect(id, opts));
+    });
+
+  tasks
+    .command("cancel <id>")
+    .description("Cancel a task (best-effort cross-process via cancelRequested flag)")
+    .option("--reason <reason>", "Cancellation reason recorded in the registry")
+    .action(async (id: string, opts: TasksCancelOptions) => {
+      setExit(await runTasksCancel(id, opts));
     });
 }
 
