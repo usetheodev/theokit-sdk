@@ -2,6 +2,23 @@
 
 ## [Unreleased]
 
+### Added (`theokit acp` — ACP server adapter, ADRs D349-D360)
+
+- New top-level subcommand `theokit acp` launches a stdio ACP server pointing at
+  the entry file's default-exported `SDKAgent` or factory. Used by Zed,
+  Cursor, Claude Desktop, and any [Agent Client Protocol](https://agentclientprotocol.com)
+  host.
+- `--entry <path>` reuses the same resolver as `theokit dev` (D357). Default:
+  `src/index.ts` or `package.main`.
+- `--permission ask|auto|deny` controls tool gate (default `ask`). `--trusted-tools`
+  bypass list. `--permission-timeout-ms` overrides the 60 s default (EC-2 absorbed).
+- CJS/ESM interop fallback (`mod.default ?? mod`) so consumers using
+  `module.exports = factory` work without contortions (EC-4).
+- `@usetheo/acp` listed as an OPTIONAL peer dependency — install only when you
+  need the subcommand: `npm i @usetheo/acp`.
+- 4 new tests in `tests/commands/acp.test.ts` covering entry resolution, default
+  export fallback, permission flag validation.
+
 ### Added (Roadmap v1.4 #5 — `theokit setup gworkspace`, ADRs D340-D348)
 
 - New top-level subcommand `theokit setup <domain>` (ADR D346) with `gworkspace`

@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "name": "usetheo-sdk",
+  "display_name": "Theokit SDK",
+  "description": "Run your @usetheo/sdk agent as an ACP server — drives a TypeScript SDKAgent with multi-provider, multi-platform, memory + workflows + skills. Apache-2.0.",
+  "icon": "icon.svg",
+  "distribution": {
+    "type": "command",
+    "command": "npx",
+    "args": ["theokit-acp", "--entry", "${ZED_PROJECT_ROOT}/src/index.ts"]
+  }
+}
