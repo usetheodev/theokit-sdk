@@ -249,7 +249,32 @@ export class Workflow<TInput = unknown, TOutput = unknown> {
   async run(input: TInput, opts?: WorkflowRunOptions): Promise<WorkflowRun<TOutput>> {
     // Lazy import to keep the public façade lean.
     const { executeWorkflow } = await import("./internal/workflow/executor.js");
-    return executeWorkflow<TInput, TOutput>(this._options, this._steps, input, opts);
+    const result = await executeWorkflow<TInput, TOutput>(this._options, this._steps, input, opts);
+    // T3.4: opt-in Task wrapping (ADRs D363, D374). Workflows are
+    // observable via Task.list/get/subscribe; the underlying run is
+    // already terminal here (executor returned), so the Task just
+    // records the outcome for inspection.
+    if (opts?.task !== undefined) {
+      const { submit: taskSubmit } = await import("./internal/task/registry.js");
+      const taskOpts = opts.task === true ? {} : opts.task;
+      const id = taskOpts.id ?? `wf-${result.id}`;
+      await taskSubmit({
+        kind: "workflow",
+        work: async (ctx) => {
+          ctx.emit({ status: result.status, runId: result.id });
+          return { status: result.status, runId: result.id, output: result.output };
+        },
+        id,
+        meta: {
+          workflowName: this._options.name,
+          runId: result.id,
+          status: result.status,
+          ...(taskOpts.meta ?? {}),
+        },
+        allowReservedPrefix: true,
+      });
+    }
+    return result;
   }
 
   /**
