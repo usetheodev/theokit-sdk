@@ -16,6 +16,7 @@ import {
 } from "./internal/cron/validate.js";
 import { resolveApiKey } from "./internal/env.js";
 import { generateCronId } from "./internal/ids.js";
+import { submit as taskRegistrySubmit } from "./internal/task/registry.js";
 import type { AgentOptions, ListResult } from "./types/agent.js";
 import type {
   CronCreateOptions,
@@ -131,7 +132,31 @@ export class Cron {
     // real agent run. Users can override via `setCronFireHandler` from
     // `@usetheo/sdk/internal` (test-mode hook).
     setCronFireHandler(async (job) => {
-      await runCronJob(job).then((run) => run.wait());
+      // T3.5 (ADRs D363/D374): every fire registers as a Task so callers
+      // can observe via `theokit tasks list` / `Task.subscribe`. The
+      // task id namespace `cron-{jobId}-{fireEpochMs}` honors D368/EC-5.
+      const fireTs = Date.now();
+      const taskId = `cron-${job.id}-${fireTs}`;
+      try {
+        await taskRegistrySubmit({
+          kind: "cron",
+          id: taskId,
+          allowReservedPrefix: true,
+          meta: { jobId: job.id, jobName: job.name, schedule: job.cron, firedAt: fireTs },
+          work: async (ctx) => {
+            const run = await runCronJob(job);
+            ctx.signal.addEventListener("abort", () => void run.cancel().catch(() => {}), {
+              once: true,
+            });
+            const result = await run.wait();
+            ctx.emit({ status: result.status, runId: run.id });
+            return { status: result.status, runId: run.id };
+          },
+        });
+      } catch {
+        // Task registry must not break cron — fall through to legacy path.
+        await runCronJob(job).then((run) => run.wait());
+      }
     });
     startScheduler(options.cwd);
     return Promise.resolve();
