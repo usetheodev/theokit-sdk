@@ -1141,6 +1141,23 @@ examples/telegram-pro/src/index.ts — adicionar `/tasks list` + `/tasks cancel 
 
 **Coverage: 32/32 (100%) — 16 originais + 16 edge cases absorvidos**
 
+## Phase 7 dogfood evidence (2026-05-27)
+
+**Real-LLM PASS** via `tools/validate-tasks-real-llm.mjs` against
+Ollama qwen2.5:3b. Report: `.claude/knowledge-base/reviews/tasks-dogfood-2026-05-27.md`.
+
+Three scenarios all green:
+1. `Agent.send({ task: { id, meta } })` — task registered, state transitions queued→finished observed, subscribe stream contains submitted/started/finished, meta.agentId + meta.runId correct, real LLM reply "Pong".
+2. `Agent.batch({ task: { id, meta } })` — 3 prompts in parallel, `b-` prefix verified, kind="batch" verified.
+3. `Task.list({ kind })` filter — kind=run + kind=batch correctly disambiguated.
+
+The telegram-pro CDP dogfood (`.claude/skills/dogfood/lib/dogfood.mjs`)
+was updated with the `/tasks` expectation but requires the user's
+Chrome+Telegram-Web session — not runnable autonomously. The
+Ollama real-LLM run provides equivalent end-to-end evidence per
+`.claude/rules/real-llm-validation.md` (same pattern that closed
+the ACP plan's Phase 7).
+
 ## Global Definition of Done
 
 - [ ] All 8 phases (0-7) completed
