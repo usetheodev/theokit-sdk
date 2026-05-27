@@ -1,5 +1,41 @@
 # Changelog
 
+## [Unreleased]
+
+### Added — Task observability registry (ADRs D361-D374, Adoption Roadmap gap #2)
+
+- `Task` namespace (`@usetheo/sdk`) exposing static methods `submit`, `list`,
+  `get`, `cancel`, `subscribe`, `configure`. Closed 5-state lifecycle
+  (`queued | running | finished | error | cancelled`).
+- Pluggable `TaskStore` interface + 2 backends — `InMemoryTaskStore` (default,
+  transient) and `JsonFileTaskStore` (opt-in, one JSON file per task,
+  single-process invariant documented). SQLite backend deferred to v0.2.
+- New sub-export `@usetheo/sdk/task-store` for cross-process readers
+  (the `theokit tasks` CLI consumes this).
+- Ring buffer (cap 64) per task for late-attach `subscribe` replay (D372).
+- Idempotent cancel — `Task.cancel(id, reason?)` returns
+  `{ cancelled, alreadyTerminal }`, never throws.
+- Cross-process best-effort cancel via `cancelRequested: boolean` field on
+  `TaskHandle`; the CLI writes it, the owning Node process honors it at the
+  next checkpoint (EC-7).
+- 3 OTel spans via existing telemetry seam (D34): `task.submit`,
+  `task.transition`, `task.cancel` (D371). No new peer deps.
+- Errors: `InvalidTaskIdError`, `TaskNotFoundError`,
+  `UnsupportedTaskOperationError` exported from the main entry.
+- Auto-eviction: terminal tasks GC'd after retention (InMemory 1h, JsonFile 7d
+  defaults; configurable via `Task.configure({ retentionMs })`).
+- 62 SDK tests passing across 6 files. 16 edge cases absorbed (EC-1..EC-16).
+
+### Scope cuts (v1)
+
+- `Agent.send` / `Agent.batch` / `Workflow.run` / `Cron.register` do NOT yet
+  accept a `{ task: true }` option — that adapter integration is deferred to
+  v0.2 (see plan v1.2). Today: callers compose via
+  `Task.submit("kind", async (ctx) => agent.send(prompt, { signal: ctx.signal }))`.
+- SQLite cross-process backend deferred to v0.2 — JsonFileTaskStore is
+  documented as single-process-only.
+- `CloudAgent` task ops throw `UnsupportedTaskOperationError` (D370).
+
 ## 1.1.0
 
 ### Minor Changes
