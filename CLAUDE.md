@@ -467,6 +467,20 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D300 | Error mappers per dialect (Bedrock + Vertex) — D67 pattern | [D300-error-mappers-per-dialect.md](./.claude/knowledge-base/adrs/D300-error-mappers-per-dialect.md) |
 | D301 | `ApiMode` extended: `bedrock_anthropic` new; Vertex reuses existing modes | [D301-apimode-bedrock-anthropic-extended.md](./.claude/knowledge-base/adrs/D301-apimode-bedrock-anthropic-extended.md) |
 | D302 | Bedrock streaming deferred to v1.x (binary parser scope) | [D302-bedrock-streaming-deferred.md](./.claude/knowledge-base/adrs/D302-bedrock-streaming-deferred.md) |
+| D361 | `Task` is static class with private constructor | [D361-task-static-class.md](./.claude/knowledge-base/adrs/D361-task-static-class.md) |
+| D362 | `TaskState` is 5-value closed enum (queued/running/finished/error/cancelled) | [D362-task-five-state-enum.md](./.claude/knowledge-base/adrs/D362-task-five-state-enum.md) |
+| D363 | Task wrapping is opt-in via `{ task: true }` option | [D363-task-wrapping-opt-in.md](./.claude/knowledge-base/adrs/D363-task-wrapping-opt-in.md) |
+| D364 | `TaskStore` pluggable (InMemory default + JsonFile opt-in; SQLite deferred v0.2) | [D364-task-store-pluggable.md](./.claude/knowledge-base/adrs/D364-task-store-pluggable.md) |
+| D365 | `Task.cancel` idempotent + propagates via AbortController | [D365-task-cancel-idempotent.md](./.claude/knowledge-base/adrs/D365-task-cancel-idempotent.md) |
+| D366 | `TaskEvent` discriminated union (6 arms) | [D366-task-event-discriminated-union.md](./.claude/knowledge-base/adrs/D366-task-event-discriminated-union.md) |
+| D367 | Single-flight per `taskId` (duplicate submit returns existing handle) | [D367-task-single-flight-per-id.md](./.claude/knowledge-base/adrs/D367-task-single-flight-per-id.md) |
+| D368 | Task IDs grammar `^[a-z0-9][a-z0-9_-]*$` + reserved prefixes (wf-/b-/cron-) | [D368-task-id-grammar.md](./.claude/knowledge-base/adrs/D368-task-id-grammar.md) |
+| D369 | Concurrency via existing `AsyncSemaphore` (D135), default 8 | [D369-task-async-semaphore-reuse.md](./.claude/knowledge-base/adrs/D369-task-async-semaphore-reuse.md) |
+| D370 | `CloudAgent` task ops throw `UnsupportedTaskOperationError` | [D370-task-cloud-unsupported.md](./.claude/knowledge-base/adrs/D370-task-cloud-unsupported.md) |
+| D371 | 3 OTel spans (`task.submit/transition/cancel`) via D34 seam | [D371-task-telemetry-spans.md](./.claude/knowledge-base/adrs/D371-task-telemetry-spans.md) |
+| D372 | `Task.subscribe` ring buffer (cap 64) for late-attach replay | [D372-task-subscribe-replay-buffer.md](./.claude/knowledge-base/adrs/D372-task-subscribe-replay-buffer.md) |
+| D373 | Auto-eviction (1h InMemory, 7d JsonFile defaults) | [D373-task-auto-eviction-retention.md](./.claude/knowledge-base/adrs/D373-task-auto-eviction-retention.md) |
+| D374 | Runtime adapters (Run/Batch/Workflow/Cron) are thin wrappers over `Task.submit` | [D374-task-runtime-adapters-thin.md](./.claude/knowledge-base/adrs/D374-task-runtime-adapters-thin.md) |
 
 Open question that remained:
 - **Supported cloud SCM providers at GA** — out of scope for v1.0 because cloud runtime is pre-release. Will be decided alongside Theo PaaS release.
