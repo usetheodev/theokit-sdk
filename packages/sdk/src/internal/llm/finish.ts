@@ -28,6 +28,9 @@ export function makeLlmFinish(state: {
   toolCalls: LlmToolCallPart[];
   inputTokens?: number;
   outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
 }): LlmFinish {
   const finish: LlmFinish = {
     stopReason: state.stopReason,
@@ -36,5 +39,8 @@ export function makeLlmFinish(state: {
   };
   if (state.inputTokens !== undefined) finish.inputTokens = state.inputTokens;
   if (state.outputTokens !== undefined) finish.outputTokens = state.outputTokens;
+  if (state.cacheReadTokens !== undefined) finish.cacheReadTokens = state.cacheReadTokens;
+  if (state.cacheWriteTokens !== undefined) finish.cacheWriteTokens = state.cacheWriteTokens;
+  if (state.reasoningTokens !== undefined) finish.reasoningTokens = state.reasoningTokens;
   return finish;
 }

@@ -62,6 +62,12 @@ export interface LlmFinish {
   toolCalls: LlmToolCallPart[];
   inputTokens?: number;
   outputTokens?: number;
+  /** Cache read tokens (Anthropic prompt caching / OpenAI cached). ADR D376. */
+  cacheReadTokens?: number;
+  /** Cache creation tokens (Anthropic only). ADR D376. */
+  cacheWriteTokens?: number;
+  /** Reasoning tokens (OpenAI o-series). ADR D376. */
+  reasoningTokens?: number;
 }
 
 export interface LlmClient {
