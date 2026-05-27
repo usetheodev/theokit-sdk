@@ -11,7 +11,8 @@
     "tools/chaos-persistence-victim.mjs",
     "tools/validate-generateobject-real-llm.mjs",
     "tools/validate-streamobject-real-llm.mjs",
-    "tools/validate-streaming-telegram-real-llm.mjs"
+    "tools/validate-streaming-telegram-real-llm.mjs",
+    "tools/validate-acp-real-llm.mjs"
   ],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
   "tags": ["-knipignore"],
