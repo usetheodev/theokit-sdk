@@ -116,6 +116,7 @@ const COMMANDS = [
   // Fans out 3 mini-prompts in parallel via Agent.batch(concurrency: 3).
   // Real LLM call × 3 — under OpenRouter free-tier load this can take
   // 30-60s. retryOnError covers the long tail.
+  // v1.15: now registers as a `kind: "batch"` Task (D363/D374, b- prefix).
   {
     text: "/batch jazz",
     expect: [
@@ -126,6 +127,15 @@ const COMMANDS = [
     ],
     waitMs: 60000,
     retryOnError: true,
+  },
+
+  // ── v1.15 Tasks observability — Task.list (ADRs D361-D374) ──
+  // After /batch, the registry has at least 1 `kind: "batch"` task with
+  // `b-` prefix. /tasks lists the most recent 10 handles.
+  {
+    text: "/tasks",
+    expect: [/Tasks \(\d+\)|No tasks registered yet/i],
+    waitMs: 5000,
   },
 
   // ── v1.2 migration CLI demo ──
