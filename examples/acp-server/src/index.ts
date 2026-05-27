@@ -3,22 +3,36 @@
  * spawns one process per session and calls `factory(sessionId)` to get a
  * fresh `SDKAgent` for each session (D351 — per-session isolation).
  *
- * Wired with OPENROUTER_API_KEY → gpt-4o-mini. Override via env to taste.
+ * Provider precedence:
+ *   1. `OPENROUTER_API_KEY` → openrouter/<model> (default `openai/gpt-4o-mini`)
+ *   2. else falls through to Ollama at `OLLAMA_HOST` (default `localhost:11434`)
+ *      with `ACP_OLLAMA_MODEL` (default `qwen2.5:3b`)
+ *
+ * Override either via env: `ACP_EXAMPLE_MODEL`, `ACP_OLLAMA_MODEL`, `OLLAMA_HOST`.
  */
 
 import { Agent, type SDKAgent } from "@usetheo/sdk";
 
 export default async function createAgentForSession(sessionId: string): Promise<SDKAgent> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
-  if (apiKey === undefined || apiKey.length === 0) {
-    throw new Error(
-      "OPENROUTER_API_KEY not set — required to run the ACP example. " +
-        "Set it in your environment or .env before running theokit-acp.",
-    );
+  const openrouterKey = process.env.OPENROUTER_API_KEY;
+  if (typeof openrouterKey === "string" && openrouterKey.length > 0) {
+    return Agent.create({
+      apiKey: openrouterKey,
+      model: { id: process.env.ACP_EXAMPLE_MODEL ?? "openai/gpt-4o-mini" },
+      providers: {
+        routes: [{ capability: "chat", provider: "openrouter" }],
+        fallback: ["openrouter"],
+      },
+      local: { cwd: process.cwd() },
+      name: `acp-${sessionId}`,
+    });
   }
+
+  // Ollama fallback — 100% local, no remote provider needed.
+  const ollamaModel = process.env.ACP_OLLAMA_MODEL ?? "qwen2.5:3b";
   return Agent.create({
-    apiKey,
-    model: { id: process.env.ACP_EXAMPLE_MODEL ?? "openai/gpt-4o-mini" },
+    apiKey: "local",
+    model: { id: `ollama/${ollamaModel}` },
     local: { cwd: process.cwd() },
     name: `acp-${sessionId}`,
   });
