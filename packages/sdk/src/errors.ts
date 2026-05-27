@@ -426,3 +426,67 @@ export class MemoryAdapterError extends TheokitAgentError {
     this.adapterId = options.adapterId;
   }
 }
+
+/**
+ * Thrown when a user-supplied task ID violates the grammar
+ * `^[a-z0-9][a-z0-9_-]*$` (D368) OR starts with a reserved adapter
+ * prefix (`wf-` / `b-` / `cron-`, EC-5).
+ *
+ * @public
+ */
+export class InvalidTaskIdError extends TheokitAgentError {
+  override readonly name: string = "InvalidTaskIdError";
+  readonly taskId: string;
+
+  constructor(message: string, taskId: string, options: { cause?: unknown } = {}) {
+    super(message, {
+      ...options,
+      isRetryable: false,
+      code: "invalid_task_id",
+    });
+    this.taskId = taskId;
+  }
+}
+
+/**
+ * Thrown when `Task.subscribe(id)` is called for a task that has been
+ * evicted, never submitted, or evicted after retention (D373).
+ *
+ * @public
+ */
+export class TaskNotFoundError extends TheokitAgentError {
+  override readonly name: string = "TaskNotFoundError";
+  readonly taskId: string;
+
+  constructor(taskId: string, options: { cause?: unknown } = {}) {
+    super(`Task not found: ${taskId}`, {
+      ...options,
+      isRetryable: false,
+      code: "task_not_found",
+    });
+    this.taskId = taskId;
+  }
+}
+
+/**
+ * Thrown when `CloudAgent` is asked to wrap a task (D370). Cloud
+ * task observability is deferred until Theo PaaS GA.
+ *
+ * @public
+ */
+export class UnsupportedTaskOperationError extends TheokitAgentError {
+  override readonly name: string = "UnsupportedTaskOperationError";
+  readonly operation: string;
+
+  constructor(operation: string, options: { cause?: unknown } = {}) {
+    super(
+      `Task operation "${operation}" is not supported on CloudAgent (pre-release; see ADR D370)`,
+      {
+        ...options,
+        isRetryable: false,
+        code: "task_op_unsupported",
+      },
+    );
+    this.operation = operation;
+  }
+}

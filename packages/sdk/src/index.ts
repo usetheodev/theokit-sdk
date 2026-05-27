@@ -27,13 +27,16 @@ export {
   type ErrorCode,
   type ErrorMetadata,
   IntegrationNotConnectedError,
+  InvalidTaskIdError,
   MemoryAdapterError,
   type MemoryAdapterErrorCode,
   NetworkError,
   RateLimitError,
+  TaskNotFoundError,
   TheokitAgentError,
   UnknownAgentError,
   UnsupportedRunOperationError,
+  UnsupportedTaskOperationError,
 } from "./errors.js";
 // Eval suite (Adoption Roadmap #2; ADRs D202-D213)
 export { Eval, EvalAlreadyRunningError } from "./eval.js";
@@ -108,6 +111,8 @@ export {
   type StreamObjectEvent,
   type StreamObjectOptions,
 } from "./stream-object.js";
+// Task observability registry (Adoption Roadmap gap #2; ADRs D361-D374)
+export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn } from "./task.js";
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 // Trajectory export (ADR D139) — opt-in ShareGPT converter

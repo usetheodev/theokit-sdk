@@ -27,7 +27,11 @@ async function* walkDts(dir) {
   }
 }
 
-const targets = [join(DIST, "tools"), join(DIST, "path-safety.d.ts")];
+const targets = [
+  join(DIST, "tools"),
+  join(DIST, "path-safety.d.ts"),
+  join(DIST, "task-store.d.ts"),
+];
 
 for (const target of targets) {
   const dtsFiles = [];
