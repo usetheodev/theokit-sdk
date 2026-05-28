@@ -1,5 +1,18 @@
 # Changelog
 
+## [Unreleased]
+
+### Added — Tier 1 Expansion variants (T0.1, ADRs D389/D397/D405/D413)
+
+- `SMSMessageEvent` variant added to the `MessageEvent` discriminated union. Required for `@usetheo/gateway-sms`.
+- `MattermostMessageEvent` variant added to the `MessageEvent` discriminated union. Required for `@usetheo/gateway-mattermost`.
+- `LineMessageEvent` variant added to the `MessageEvent` discriminated union. Required for `@usetheo/gateway-line`.
+- `MatrixMessageEvent` variant added to the `MessageEvent` discriminated union. Required for `@usetheo/gateway-matrix`.
+- `PlatformName` union opened to include `"sms" | "mattermost" | "line" | "matrix"` (10 platforms total).
+
+### Changed
+- Backward-compatible additive change — existing adapters / consumers continue to compile. The single `exhaustive switch` test was updated to cover the new 4 cases (EC-5 absorbed).
+
 ## [0.4.0] - 2026-05-24
 
 ### Added

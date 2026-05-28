@@ -16,7 +16,17 @@
  */
 
 /** Closed enum of supported transport platforms. */
-export type PlatformName = "telegram" | "discord" | "slack" | "whatsapp" | "teams" | "email";
+export type PlatformName =
+  | "telegram"
+  | "discord"
+  | "slack"
+  | "whatsapp"
+  | "teams"
+  | "email"
+  | "sms"
+  | "mattermost"
+  | "line"
+  | "matrix";
 
 /** Fields common to every platform's inbound event. */
 export interface BaseMessageEvent {
@@ -152,6 +162,76 @@ export interface EmailMessageEvent extends BaseMessageEvent {
   };
 }
 
+/** SMS-specific event variant (ADR D389). */
+export interface SMSMessageEvent extends BaseMessageEvent {
+  readonly platform: "sms";
+  readonly sms: {
+    /** Which backend processed this inbound. */
+    readonly backend: "twilio" | "plivo" | "vonage";
+    /** Provider message id (Twilio MessageSid, Plivo MessageUuid, Vonage messageId). */
+    readonly messageId: string;
+    /** Sender phone in E.164 format (D391). */
+    readonly from: string;
+    /** Recipient phone in E.164 format (D391). */
+    readonly to: string;
+    /** Raw webhook payload — backend-specific, narrowed by the adapter package. */
+    readonly raw: unknown;
+  };
+}
+
+/** Mattermost-specific event variant (ADR D397). */
+export interface MattermostMessageEvent extends BaseMessageEvent {
+  readonly platform: "mattermost";
+  readonly mattermost: {
+    /** Mattermost post id. */
+    readonly postId: string;
+    /** Channel id (Mattermost internal id). */
+    readonly channelId: string;
+    /** Team id the channel belongs to. */
+    readonly teamId: string;
+    /** When set, the message is a thread reply rooted at this post id (D399). */
+    readonly rootId?: string;
+    /** Original Mattermost channel type (`D`/`G`/`O`/`P`) before normalization (D402). */
+    readonly channelType: "D" | "G" | "O" | "P" | (string & {});
+    /** Raw `@mattermost/client` Post — escape hatch. */
+    readonly raw: unknown;
+  };
+}
+
+/** LINE-specific event variant (ADR D405). */
+export interface LineMessageEvent extends BaseMessageEvent {
+  readonly platform: "line";
+  readonly line: {
+    /** LINE source classification (D410). */
+    readonly sourceType: "user" | "group" | "room";
+    /** LINE source id (userId / groupId / roomId). */
+    readonly sourceId: string;
+    /** LINE message id. */
+    readonly messageId: string;
+    /** UserIds mentioned in the message (D409 — never inline). */
+    readonly mentionees: ReadonlyArray<string>;
+    /** Reply token (one-shot, 60s TTL). Adapter manages cache — caller should not use directly. */
+    readonly replyToken?: string;
+    /** Raw LINE webhook event — escape hatch. */
+    readonly raw: unknown;
+  };
+}
+
+/** Matrix-specific event variant (ADR D413). */
+export interface MatrixMessageEvent extends BaseMessageEvent {
+  readonly platform: "matrix";
+  readonly matrix: {
+    /** Matrix room id (`!xxx:server`). */
+    readonly roomId: string;
+    /** Matrix event id (`$xxx:server`). */
+    readonly eventId: string;
+    /** Number of joined members in the room — used for DM detection (D416). */
+    readonly memberCount: number;
+    /** Raw `matrix-js-sdk` `MatrixEvent` — escape hatch (D421). */
+    readonly raw: unknown;
+  };
+}
+
 /** Discriminated union of all platform variants. */
 export type MessageEvent =
   | TelegramMessageEvent
@@ -159,4 +239,8 @@ export type MessageEvent =
   | SlackMessageEvent
   | WhatsAppMessageEvent
   | TeamsMessageEvent
-  | EmailMessageEvent;
+  | EmailMessageEvent
+  | SMSMessageEvent
+  | MattermostMessageEvent
+  | LineMessageEvent
+  | MatrixMessageEvent;
