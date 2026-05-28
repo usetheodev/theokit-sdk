@@ -18,6 +18,7 @@
 
 import type { MattermostPost } from "./types.js";
 
+/** @knipignore — input shape for `shouldRespond`; useful for callers wrapping the filter pipeline. */
 export interface ShouldRespondOptions {
   readonly post: MattermostPost;
   readonly channelType: "dm" | "group" | "thread";

@@ -24,7 +24,3 @@ export function createBackend(opts: SMSAdapterOptions): SMSBackend {
     }
   }
 }
-
-export { PlivoBackend } from "./plivo.js";
-export { TwilioBackend } from "./twilio.js";
-export { VonageBackend } from "./vonage.js";
