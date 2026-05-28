@@ -112,4 +112,17 @@ export interface AgentLoopOutput {
   finalStatus: RunStatus;
   result: string;
   conversation: ConversationTurn[];
+  /**
+   * Aggregated token usage across every LLM call in this loop (ADR D376).
+   * Populated whenever ≥1 LLM call completed — including partial-failure
+   * runs (EC-5). Undefined when zero LLM calls fired (e.g., abort before
+   * first send, or fixture-mode path that bypasses this loop).
+   */
+  usage?: import("../../types/usage.js").TokenUsage;
+  /**
+   * Inferred pricing-based cost matching `usage` (ADR D377). Set when the
+   * model has a pricing entry in the registry; `cost.status` is
+   * `"estimated"` / `"unknown"` / `"included"` per D377.
+   */
+  cost?: import("../../types/usage.js").CostBreakdown;
 }

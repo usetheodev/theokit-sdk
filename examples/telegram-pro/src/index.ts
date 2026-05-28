@@ -183,6 +183,8 @@ runner.command("help", async (event) => {
       "/pool [status|stress] — credential pool status + 5-call stress test (v1.10)",
       "/batch <topic> — 3 parallel prompts via Agent.batch (concurrency 3, v1.11)",
       "/tasks — list recent Task handles from Agent.batch/send + cron fires (v1.15, ADRs D361-D374)",
+      "/budget — show per-chat USD spend tracked via Budget (v1.19, ADRs D375-D388)",
+      "/budget_demo <prompt> — agent.send + auto-cost charge to the per-chat Budget (v1.19)",
       "/handoff_demo (question) — triage agent → billing/support via handoffs array (v1.16)",
       "/workflow_demo (claim) — declarative 4-step pipeline: validate → classify → branch → resolve (v1.17)",
       "/cache_demo (question) — semantic cache: 2nd paraphrase hits without LLM call (v1.18)",
@@ -476,6 +478,151 @@ runner.command("tasks", async (event) => {
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     await ctx.reply(`Tasks list failed: ${msg.slice(0, 400)}`);
+  }
+});
+
+// ────────────────────── /budget — Token Budget + Cost Tracker (v1.19, ADRs D375-D388) ──────────────────────
+//
+// Per-chat USD spend tracking. The first `/budget` call creates a Budget in
+// `warn` mode with stacked 1d ($1) + 30d ($10) limits, so the LLM call charge
+// just lands without blocking the user. `/budget_demo <prompt>` runs agent.send,
+// reads the auto-populated `result.usage` + `result.cost`, charges the per-chat
+// Budget, and surfaces the cost line. `/budget reset` clears the ledger.
+function budgetNameForChat(chatId: number): string {
+  return `chat-${chatId}`;
+}
+
+async function ensureChatBudget(chatId: number): Promise<void> {
+  const { Budget } = await import("@usetheo/sdk");
+  const name = budgetNameForChat(chatId);
+  if (Budget.get(name) === undefined) {
+    Budget.create({
+      name,
+      scope: "process",
+      mode: "warn",
+      limits: [
+        { window: "1d", limitUsd: 1 },
+        { window: "30d", limitUsd: 10 },
+      ],
+    });
+  }
+}
+
+runner.command("budget", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const chatId = ctx.chat?.id;
+  if (chatId === undefined) {
+    await ctx.reply("Missing chat id.");
+    return;
+  }
+  const arg = event.text.replace(/^\/\S+\s*/, "").trim();
+  const { Budget } = await import("@usetheo/sdk");
+
+  if (arg === "reset") {
+    const name = budgetNameForChat(chatId);
+    if (Budget.get(name) !== undefined) Budget.delete(name);
+    await ctx.reply(`Budget reset for this chat. Next /budget_demo recreates it.`);
+    return;
+  }
+
+  await ensureChatBudget(chatId);
+  const snapshot = Budget.snapshot().filter((s) => s.name === budgetNameForChat(chatId));
+  if (snapshot.length === 0) {
+    await ctx.reply("No budget entries yet. Try `/budget_demo Tell me a fact about jazz`.");
+    return;
+  }
+  const lines = [
+    `*Budget for this chat:* \`${budgetNameForChat(chatId)}\``,
+    "",
+  ];
+  for (const entry of snapshot) {
+    const spent = entry.spentUsd.toFixed(6);
+    const limit = entry.limitUsd !== undefined ? `$${entry.limitUsd.toFixed(2)}` : "n/a";
+    const ratio = entry.ratio !== undefined ? `${(entry.ratio * 100).toFixed(2)}%` : "n/a";
+    lines.push(`• ${entry.window} → \`$${spent}\` / ${limit} (${ratio})`);
+  }
+  lines.push("");
+  lines.push("Try `/budget_demo <prompt>` to add real spend, or `/budget reset` to clear.");
+  await ctx.reply(lines.join("\n"), { parse_mode: "Markdown" });
+});
+
+runner.command("budget_demo", async (event) => {
+  if (event.platform !== "telegram") return;
+  const ctx = event.telegram.raw as Context;
+  const chatId = ctx.chat?.id;
+  if (chatId === undefined) {
+    await ctx.reply("Missing chat id.");
+    return;
+  }
+  const prompt = event.text.replace(/^\/\S+\s*/, "").trim();
+  if (prompt === "") {
+    await ctx.reply("Usage: `/budget_demo <prompt>`", { parse_mode: "Markdown" });
+    return;
+  }
+  await ensureChatBudget(chatId);
+  const budgetName = budgetNameForChat(chatId);
+
+  const { Agent, Budget, chargeAndCheckThresholds } = await import("@usetheo/sdk");
+  const { buildProviderRouting } = await import("./sdk-config.js");
+  const providers = buildProviderRouting();
+
+  try {
+    // Pin gpt-4o-mini so cost stays predictable + we hit a model with bundled
+    // pricing (status="estimated"). Gemini default has no entry in the 2026-05
+    // snapshot → cost.status="unknown" defeats the demo.
+    const agent = await Agent.create({
+      apiKey: API_KEY,
+      model: { id: "openai/gpt-4o-mini" },
+      ...(providers !== undefined ? { providers } : {}),
+      local: { cwd: CWD, sandboxOptions: { enabled: false } },
+      name: `budget-demo-chat-${chatId}`,
+    });
+    try {
+      const t0 = Date.now();
+      const run = await agent.send(prompt);
+      const result = await run.wait();
+      const elapsed = Date.now() - t0;
+
+      if (result.status !== "finished") {
+        await ctx.reply(
+          `Run did not finish: status=${result.status} ${result.error?.message ?? ""}`,
+        );
+        return;
+      }
+
+      const reply = (result.result ?? "").slice(0, 2500);
+      const lines = [reply, ""];
+      lines.push("---");
+      lines.push(`⏱ ${elapsed}ms · model=openai/gpt-4o-mini`);
+
+      if (result.usage !== undefined) {
+        lines.push(
+          `📊 usage: input=${result.usage.inputTokens} output=${result.usage.outputTokens} total=${result.usage.totalTokens}`,
+        );
+      } else {
+        lines.push("📊 usage: not surfaced by provider");
+      }
+
+      if (result.cost !== undefined && result.cost.amountUsd !== undefined) {
+        await chargeAndCheckThresholds(budgetName, result.cost.amountUsd);
+        const handle = Budget.get(budgetName);
+        const spent1d = handle?.spentIn("1d") ?? 0;
+        lines.push(
+          `💵 cost: $${result.cost.amountUsd.toFixed(6)} (${result.cost.status}) → 1d total $${spent1d.toFixed(6)}`,
+        );
+      } else if (result.cost !== undefined) {
+        lines.push(`💵 cost: status="${result.cost.status}" (no charge)`);
+      }
+
+      // Plain text — markdown can break on prompt content.
+      await ctx.reply(lines.join("\n"));
+    } finally {
+      await agent.dispose();
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await ctx.reply(`/budget_demo failed: ${msg.slice(0, 400)}`);
   }
 });
 

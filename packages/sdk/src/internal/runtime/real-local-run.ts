@@ -287,6 +287,10 @@ class RealLocalRun extends FixtureRunBase {
       }
       this.script.conversation.push(...output.conversation);
       if (output.result.length > 0) this.script.result = output.result;
+      // D376/D377: surface aggregated usage + cost on the script so
+      // RunResult.usage / RunResult.cost are populated by buildResult().
+      if (output.usage !== undefined) this.script.usage = output.usage;
+      if (output.cost !== undefined) this.script.cost = output.cost;
       this.transitionTo(output.finalStatus);
     } catch (cause) {
       this.emitErrorEvent(cause, "Agent loop failed", "", "agent_loop_failed");

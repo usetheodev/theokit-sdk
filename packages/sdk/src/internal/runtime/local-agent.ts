@@ -25,6 +25,7 @@ import {
 } from "./agent-session.js";
 import type { FileContextManager } from "./context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
+import { liveAgentRegistry } from "./live-agent-registry.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
@@ -435,12 +436,11 @@ export class LocalAgent implements SDKAgent {
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
+    // Evict from live cache so the next Agent.getOrCreate(id) builds fresh.
+    liveAgentRegistry.forget(this.agentId);
     // D319: fire the lifecycle abort so any in-flight LLM `fetch()` cancels.
-    // `dispose` from `Agent.registry` eviction then sees a fast unwind
-    // instead of blocking on a long-running stream.
-    if (!this.lifecycleAbortController.signal.aborted) {
-      this.lifecycleAbortController.abort();
-    }
+    // `abort()` is idempotent — safe to call even when already aborted.
+    this.lifecycleAbortController.abort();
     // Wait for any in-flight send + post-run lifecycle to release the
     // per-agent send mutex. Without this, `dispose()` could return before
     // `writeSessionSummary` finishes, leaving the caller to read a

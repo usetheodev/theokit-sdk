@@ -2,6 +2,59 @@
 
 ## [Unreleased]
 
+### Fixed — `Agent.getOrCreate` no longer returns disposed cached agents
+
+Pre-existing race: any caller that did `await agent.dispose()` followed by
+`Agent.getOrCreate(sameId, opts)` received the DISPOSED instance from
+`Agent.registry`; the subsequent `agent.send()` threw
+`"Agent has been disposed"`. Surfaced as 9/48 failures in the telegram-pro
+2026-05-28 dogfood (`Remember:`, `/recall`, `/tool uuid`, `/tool roll`,
+`/personality coder/poet/none/ghost`, post-personality text).
+
+Fix:
+
+- `LiveAgentRegistry.forget(id)` — new internal helper that removes a cache
+  entry WITHOUT calling `dispose()` or `onEvict` (idempotent on unknown ids).
+- `LocalAgent.dispose()` now calls `liveAgentRegistry.forget(this.agentId)`
+  inside the `disposed = true` block, so a subsequent `Agent.getOrCreate(id)`
+  always builds a fresh instance.
+
+Regression tests:
+
+- `tests/agent-registry-cache.test.ts` —
+  `dispose() self-evicts so next getOrCreate returns a fresh agent`.
+- `tests/internal/runtime/live-agent-registry.test.ts` —
+  `forget(id) removes from cache without calling dispose` +
+  `forget(id) is idempotent for unknown ids`.
+
+Verified end-to-end by the telegram-pro 2026-05-28 dogfood after the fix:
+**47/48 PASS, 1 SKIP (HONCHO_API_KEY env unset), 0 FAIL** (vs 38/48 PASS, 9
+FAIL before the fix).
+
+### Added — Auto-populated `RunResult.usage` + `RunResult.cost` (ADRs D375-D388, T4.2 scope-cut lifted)
+
+- `agent.send`-driven runs now expose aggregated token usage on
+  `RunResult.usage` (5-bucket `TokenUsage` per D376) and an inferred
+  `RunResult.cost` (`CostBreakdown` per D377) automatically. No caller-side
+  composition required for the read side — callers still wrap with
+  `preflightCheck` / `chargeAndCheckThresholds` for budget enforcement.
+- OpenAI / OpenRouter SSE accumulator parses 5 token buckets:
+  `prompt_tokens_details.cached_tokens` → `cacheReadTokens`,
+  `completion_tokens_details.reasoning_tokens` → `reasoningTokens`, plus the
+  a peer#10266 top-level `cache_read_input_tokens` /
+  `cache_creation_input_tokens` fallback for Anthropic-on-OpenRouter.
+- `stream_options: { include_usage: true }` is now sent on every
+  Chat Completions request so the final usage chunk arrives reliably.
+- Agent loop carries a `UsageAccumulator` per send; each LLM turn merges in,
+  the totals land on `AgentLoopOutput.usage` / `AgentLoopOutput.cost`.
+- `FixtureScript` extended with `usage?` / `cost?` so non-fixture runs (the
+  real local runtime) plumb the values into `RunResult` via
+  `buildResult` in `FixtureRunBase` — fixture mode remains unchanged.
+- Validated end-to-end against OpenRouter (`openai/gpt-4o-mini`): real
+  reply, real tokens (`input=68 output=2`), real cost (`$0.000011 estimated`),
+  ledger reconciles bit-identical. Report:
+  `.claude/knowledge-base/reviews/budget-dogfood-2026-05-28.md`.
+
 ### Added — Task observability registry (ADRs D361-D374, Adoption Roadmap gap #2)
 
 - `Task` namespace (`@usetheo/sdk`) exposing static methods `submit`, `list`,
