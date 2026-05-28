@@ -149,6 +149,14 @@ describe("MessageEvent (T1.1)", () => {
           return `tm:${e.teams.conversationId}`;
         case "email":
           return `em:${e.email.messageId}`;
+        case "sms":
+          return `sm:${e.sms.messageId}`;
+        case "mattermost":
+          return `mm:${e.mattermost.postId}`;
+        case "line":
+          return `ln:${e.line.messageId}`;
+        case "matrix":
+          return `mx:${e.matrix.eventId}`;
         default: {
           const _exhaustive: never = e;
           throw new Error(`unhandled platform: ${JSON.stringify(_exhaustive)}`);
@@ -178,6 +186,105 @@ describe("MessageEvent (T1.1)", () => {
     if (e.platform === "email") {
       expect(e.email.messageId).toBe("msgid-1");
       expect(e.email.subject).toBe("Hi");
+    } else {
+      throw new Error("unreachable");
+    }
+  });
+
+  // ── T0.1 Phase 0 — gateway-tier-1-expansion ──
+
+  it("SMS variant narrows on platform discriminator", () => {
+    const e: MessageEvent = {
+      id: "sm-1",
+      platform: "sms",
+      sender: { id: "+5511999999999" },
+      channel: { id: "+5511999999999", type: "dm" },
+      text: "hi",
+      receivedAt: 0,
+      sms: {
+        backend: "twilio",
+        messageId: "SMabc",
+        from: "+5511999999999",
+        to: "+15551234567",
+        raw: {},
+      },
+    };
+    if (e.platform === "sms") {
+      expect(e.sms.backend).toBe("twilio");
+      expect(e.sms.from).toBe("+5511999999999");
+    } else {
+      throw new Error("unreachable");
+    }
+  });
+
+  it("Mattermost variant narrows + rootId optional (D399)", () => {
+    const e: MessageEvent = {
+      id: "mm-1",
+      platform: "mattermost",
+      sender: { id: "uX" },
+      channel: { id: "cX", type: "thread", topicId: "rootPostX" },
+      text: "reply",
+      receivedAt: 0,
+      mattermost: {
+        postId: "pX",
+        channelId: "cX",
+        teamId: "tX",
+        rootId: "rootPostX",
+        channelType: "O",
+        raw: {},
+      },
+    };
+    if (e.platform === "mattermost") {
+      expect(e.mattermost.rootId).toBe("rootPostX");
+      expect(e.mattermost.channelType).toBe("O");
+    } else {
+      throw new Error("unreachable");
+    }
+  });
+
+  it("LINE variant narrows + mentionees array (D409)", () => {
+    const e: MessageEvent = {
+      id: "ln-1",
+      platform: "line",
+      sender: { id: "Uabc" },
+      channel: { id: "Cgrp", type: "group" },
+      text: "hi @bot",
+      receivedAt: 0,
+      line: {
+        sourceType: "group",
+        sourceId: "Cgrp",
+        messageId: "Mabc",
+        mentionees: ["Ubot"],
+        replyToken: "rtok",
+        raw: {},
+      },
+    };
+    if (e.platform === "line") {
+      expect(e.line.sourceType).toBe("group");
+      expect(e.line.mentionees).toEqual(["Ubot"]);
+    } else {
+      throw new Error("unreachable");
+    }
+  });
+
+  it("Matrix variant narrows + member count (D416)", () => {
+    const e: MessageEvent = {
+      id: "mx-1",
+      platform: "matrix",
+      sender: { id: "@alice:matrix.org" },
+      channel: { id: "!room:matrix.org", type: "dm" },
+      text: "hi",
+      receivedAt: 0,
+      matrix: {
+        roomId: "!room:matrix.org",
+        eventId: "$evt:matrix.org",
+        memberCount: 2,
+        raw: {},
+      },
+    };
+    if (e.platform === "matrix") {
+      expect(e.matrix.memberCount).toBe(2);
+      expect(e.matrix.roomId).toBe("!room:matrix.org");
     } else {
       throw new Error("unreachable");
     }
