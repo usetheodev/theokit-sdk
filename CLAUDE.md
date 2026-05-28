@@ -685,6 +685,38 @@ Continuamos delegando — a roadmap acima é apenas SDK. Items abaixo apareceram
 | SQLite cross-process TaskStore | v0.2 — exige peer dep `better-sqlite3` + file lock D61. |
 | ACP `unstable_forkSession` | D350 — diferido pra v0.2 do ACP package; v1 retorna `invalid_request`. |
 
+## Adoption Roadmap (v1.5 — Gateway Tier 1 Expansion)
+
+> Iniciado 2026-05-28 após análise SDK vs `referencia/peer-project` + `referencia/peer-agent` (auditoria competitiva). Conclusão: somos competitivos em **18/23** primitivos SDK; vencemos em workflows declarativos, eval, budget USD-grade, telemetry, gateways modulares; perdemos em multimodal + browser + checkpoints + RL. Esta v1.5 ataca o gap de **alcance de plataforma** sem inflar a contagem irrealisticamente (não copiamos os 31 platforms do Hermes — China-regional + iMessage Mac-hardware + IRC legacy ficam para community templates).
+
+| # | Item | Status |
+|---|---|---|
+| ~~1~~ | ~~**`@usetheo/gateway-sms@0.1.0`**~~ ✅ DONE 2026-05-28 (ADRs D389-D396) — Twilio + Plivo + Vonage backends (multi-backend opt-in, D389). Webhook server com raw-body capture + per-backend HMAC validation BEFORE handler (D392 — EC-1 absorvido, refuse insecure mode at construction). E.164 normalization via libphonenumber-js (D391, EC-6 toll-free OK). 1600-char multipart `(i/N)` prefix grapheme-safe Intl.Segmenter (D393, EC-7). 32/32 unit tests + `examples/sms-bot/` + env-gated live smoke. publint clean + attw 4/4. |
+| ~~2~~ | ~~**`@usetheo/gateway-mattermost@0.1.0`**~~ ✅ DONE 2026-05-28 (ADRs D397-D404) — `@mattermost/client@^9` WebSocket gateway + REST v4 (D397, D398). Thread reply bidirectional via `root_id` ↔ `topicId` (D399). Channel-type mapping D→dm, G/O/P→group (D402). EC-2 absorvido: filter pipeline prioriza `metadata.mentions` array + word-boundary regex fallback — `@theory_dept` não disparou bot `theo` (D403). PAT auth (D401, OAuth diferido). 53/53 unit tests + `examples/mattermost-bot/`. |
+| ~~3~~ | ~~**`@usetheo/gateway-line@0.1.0`**~~ ✅ DONE 2026-05-28 (ADRs D405-D412) — `@line/bot-sdk@^9` webhook-only (D406). HMAC-SHA256 signature com `crypto.timingSafeEqual` (D408 — refuse empty channelSecret at construction). Reply token first + Push API fallback com `ReplyTokenCache` LRU 1000/60s/one-shot (D407). EC-4 absorvido: webhook entrega 9 event types — adapter filtra non-message + non-text no topo (sem TypeError em `event.message.text`). Mentionees array out-of-band (D409). 5000-char split grapheme-safe (D411). 55/55 unit tests + `examples/line-bot/`. |
+| ~~4~~ | ~~**`@usetheo/gateway-matrix@0.1.0`**~~ ✅ DONE 2026-05-28 (ADRs D413-D421) — `matrix-js-sdk@^32` (lazy ~2MB peer-dep, D413). Sync long-poll com `initialSyncLimit: 10` (D415). DM detection via `memberCount === 2` (D416). **EC-3 absorvido**: filter events older than 60s (50-room bot poderia disparar 500 LLM calls no boot). Alias `#general:server` resolução + cache (D419). E2EE rooms refused com one-shot stderr warn (D418, diferido v0.2). Federação transparente via SDK (D420). 44/44 unit tests + `examples/matrix-bot/`. |
+
+**Saímos de 6 → 10 gateways oficiais.** Cobertura mercado endereçável:
+- OCDE chat: 100% (Telegram, Discord, Slack, Teams, WhatsApp).
+- Self-hosted enterprise: ✅ (Slack, Teams, Email, Mattermost).
+- Vertical telecom/SMS: ✅ (SMS).
+- APAC consumer: ~30% (LINE — Japão/Taiwan/Tailândia; resto delegado a community templates).
+- Decentralized federation: ✅ (Matrix).
+- Universal email: ✅ (Email v1.4).
+
+Total: **184 novos unit tests** (Phases 1-4), **33 ADRs** (D389-D421), **5 MUST FIX edges absorvidos inline** (EC-1 a EC-5 do edge-case review 2026-05-28).
+
+### Não-Roadmap-v1.5 / community templates
+
+| Item | Razão |
+|---|---|
+| Signal | Regulado nicho (saúde/jurídico); v1.6 candidate if pull-de-mercado. |
+| iMessage (Bluebubbles) | Requer Mac hardware dedicado; community-driven. |
+| WeChat / Feishu / Dingtalk | China-regional + regulatório; sem footprint local do team. |
+| IRC | Legacy open source comunidades; community-driven. |
+| Matrix E2EE / threads (MSC4140) | v0.2 do `@usetheo/gateway-matrix`. |
+| SMS MMS | v0.2 do `@usetheo/gateway-sms` (D395). |
+
 ## Inviolable rules (carried from root and global)
 
 1. **95% confidence gate.** Stop and ask if uncertain.
