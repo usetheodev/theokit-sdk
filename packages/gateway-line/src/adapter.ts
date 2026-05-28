@@ -16,7 +16,6 @@ import { type LineSdkClient, loadLineSdk, makeClient } from "./client.js";
 import { ConfigurationError } from "./errors.js";
 import { lineEventToMessageEvent } from "./normalize.js";
 import { ReplyTokenCache } from "./reply-cache.js";
-import { computeLineSignature } from "./signature.js";
 import { splitForLine } from "./split.js";
 import type { LineAdapterOptions, LineWebhookEnvelope, LineWebhookEvent } from "./types.js";
 
@@ -207,5 +206,5 @@ function mapLineError(err: unknown): SendResult {
   };
 }
 
-// Re-export for tests + webhook server.
-export { computeLineSignature };
+// `computeLineSignature` is already re-exported at the package root via `index.ts`;
+// no need to duplicate here.

@@ -14,6 +14,7 @@
  * @internal — re-exported by `src/index.ts`.
  */
 
+/** @knipignore — public input shape for `ConfigurationError` constructor (caller-extensible). */
 export interface ConfigurationErrorOptions {
   readonly message?: string;
   readonly code: string;

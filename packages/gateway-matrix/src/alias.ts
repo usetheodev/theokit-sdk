@@ -10,6 +10,7 @@
 
 import { ConfigurationError } from "./errors.js";
 
+/** @knipignore — minimal Client interface `AliasCache.resolve` accepts; useful for callers building their own resolver. */
 export interface AliasResolverClient {
   getRoomIdForAlias(alias: string): Promise<{ room_id: string }>;
 }
