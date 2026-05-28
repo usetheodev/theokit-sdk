@@ -1,0 +1,58 @@
+{
+  "name": "@usetheo/gateway-mattermost",
+  "version": "0.1.0",
+  "description": "Mattermost platform adapter for @usetheo/gateway. WebSocket gateway + REST. ADRs D397-D404.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "peerDependencies": {
+    "@mattermost/client": "^9.0.0",
+    "@usetheo/gateway": "workspace:^",
+    "@usetheo/sdk": "workspace:^",
+    "ws": "^8.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@mattermost/client": {
+      "optional": true
+    },
+    "ws": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@usetheo/gateway": "workspace:*",
+    "@usetheo/sdk": "workspace:*",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.0.0"
+  }
+}
