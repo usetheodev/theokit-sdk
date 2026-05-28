@@ -1,0 +1,22 @@
+{
+  "name": "example-mattermost-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx --env-file=.env run.ts",
+    "smoke": "tsx --env-file=.env smoke.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mattermost/client": "^9.0.0",
+    "@usetheo/gateway": "file:../../packages/gateway",
+    "@usetheo/gateway-mattermost": "file:../../packages/gateway-mattermost",
+    "@usetheo/sdk": "file:../../packages/sdk",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.0",
+    "tsx": "^4.22.0",
+    "typescript": "^5.8.0"
+  }
+}
