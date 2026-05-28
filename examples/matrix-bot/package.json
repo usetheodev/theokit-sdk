@@ -1,0 +1,20 @@
+{
+  "name": "example-matrix-bot",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx --env-file=.env run.ts",
+    "smoke": "tsx --env-file=.env smoke.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@usetheo/gateway": "file:../../packages/gateway",
+    "@usetheo/gateway-matrix": "file:../../packages/gateway-matrix",
+    "@usetheo/sdk": "file:../../packages/sdk",
+    "matrix-js-sdk": "^32.0.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.22.0",
+    "typescript": "^5.8.0"
+  }
+}
