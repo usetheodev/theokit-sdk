@@ -6,6 +6,7 @@ import type {
   SDKUserMessageEvent,
 } from "../../types/messages.js";
 import type { RunStatus } from "../../types/run.js";
+import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import { generateRequestId } from "../ids.js";
 import type {
   LlmClient,
@@ -20,6 +21,7 @@ import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
+import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
 /**
  * The real agent loop. Given an LLM client, MCP clients, hooks, and a shell
@@ -73,11 +75,24 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
     if (inputs.telemetry?.includeContent === true && ctx.finalText.length > 0) {
       sendSpan?.addEvent("response", { content: ctx.finalText });
     }
+    // D376 / D377: surface aggregated token usage + cost on the loop output
+    // so RunResult.usage / RunResult.cost can be populated by the runtime.
+    const usage = ctx.usage.hasAny() ? ctx.usage.toTokenUsage() : undefined;
+    const cost = usage !== undefined ? computeUsageCost(inputs, usage) : undefined;
+    if (usage !== undefined) {
+      sendSpan?.setAttributes({
+        totalInputTokens: usage.inputTokens,
+        totalOutputTokens: usage.outputTokens,
+        ...(cost?.amountUsd !== undefined ? { totalCostUsd: cost.amountUsd } : {}),
+      });
+    }
     return {
       events: ctx.events,
       finalStatus: ctx.finalStatus,
       result: ctx.finalText,
       conversation: ctx.conversation,
+      ...(usage !== undefined ? { usage } : {}),
+      ...(cost !== undefined ? { cost } : {}),
     };
   } finally {
     sendSpan?.end();
@@ -91,6 +106,8 @@ interface LoopContext {
   tools: ResolvedTool[];
   finalText: string;
   finalStatus: RunStatus;
+  /** D376: per-loop UsageAccumulator merging every LLM step. */
+  usage: UsageAccumulator;
 }
 
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
@@ -134,6 +151,7 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
     tools,
     finalText: "",
     finalStatus: "finished",
+    usage: new UsageAccumulator(),
   };
 }
 
@@ -142,6 +160,15 @@ async function runIteration(
   ctx: LoopContext,
 ): Promise<"continue" | "done" | "error"> {
   const llmOutput = await streamLlmTurn(inputs, ctx);
+  accumulateUsage(ctx.usage, llmOutput);
+  return continueOrTerminate(inputs, ctx, llmOutput);
+}
+
+async function continueOrTerminate(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+  llmOutput: LlmTurnOutput,
+): Promise<"continue" | "done" | "error"> {
   if (llmOutput.errored) return "error";
   if (llmOutput.text.length > 0) {
     ctx.events.push(buildAssistantEvent(inputs, llmOutput.text));
@@ -193,6 +220,12 @@ interface LlmTurnOutput {
   toolCalls: LlmToolCallPart[];
   stopReason: string;
   errored: boolean;
+  /** D376: per-turn token counts (5 buckets). */
+  inputTokens?: number;
+  outputTokens?: number;
+  cacheReadTokens?: number;
+  cacheWriteTokens?: number;
+  reasoningTokens?: number;
 }
 
 async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise<LlmTurnOutput> {
@@ -244,6 +277,11 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
     toolCalls: result.toolCalls,
     stopReason: result.stopReason,
     errored: false,
+    inputTokens: result.inputTokens,
+    outputTokens: result.outputTokens,
+    cacheReadTokens: result.cacheReadTokens,
+    cacheWriteTokens: result.cacheWriteTokens,
+    reasoningTokens: result.reasoningTokens,
   };
 }
 
