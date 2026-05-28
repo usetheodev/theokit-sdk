@@ -110,6 +110,28 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
     expect(second).not.toBe(first);
   });
 
+  it("dispose() self-evicts so next getOrCreate returns a fresh agent (dispose-cache fix)", async () => {
+    // Reproduces the telegram-pro 2026-05-28 dogfood bug: handler calls
+    // `agent.dispose()`, next handler calls `Agent.getOrCreate(sameId)` and
+    // used to receive the DISPOSED instance — subsequent `send()` threw
+    // "Agent has been disposed". The fix evicts the cache entry inside
+    // `LocalAgent.dispose()` via `liveAgentRegistry.forget(this.agentId)`.
+    const first = await Agent.getOrCreate("agent-self-evict-on-dispose", {
+      apiKey: FIXTURE_KEY,
+      model: MODEL,
+      local: { cwd: root },
+    });
+    expect(Agent.registry.size()).toBe(1);
+    await first.dispose();
+    expect(Agent.registry.size()).toBe(0);
+    const second = await Agent.getOrCreate("agent-self-evict-on-dispose", {
+      apiKey: FIXTURE_KEY,
+      model: MODEL,
+      local: { cwd: root },
+    });
+    expect(second).not.toBe(first);
+  });
+
   it("maxAgents=0 disables the cache (always re-initializes)", async () => {
     Agent.registry.configure({ maxAgents: 0 });
     // Use unique id per test invocation so a parallel-test interleaving cannot

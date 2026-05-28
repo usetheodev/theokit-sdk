@@ -48,7 +48,20 @@ interface OpenAIDeltaChunk {
     };
     finish_reason?: string | null;
   }>;
-  usage?: { prompt_tokens?: number; completion_tokens?: number };
+  usage?: {
+    prompt_tokens?: number;
+    completion_tokens?: number;
+    /**
+     * OpenAI + OpenRouter extended usage (D376). Anthropic prompt caching
+     * surfaces as `prompt_tokens_details.cached_tokens` on OpenRouter passthrough;
+     * native OpenAI exposes the same field on `chatcmpl-*` responses.
+     */
+    prompt_tokens_details?: { cached_tokens?: number };
+    completion_tokens_details?: { reasoning_tokens?: number };
+    /** Anthropic-on-OpenRouter passes cache_creation_tokens top-level (cline#10266). */
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
 }
 
 export class OpenAIClient implements LlmClient {
@@ -143,6 +156,9 @@ class OpenAIStreamAccumulator {
   private stopReason: LlmStopReason = "end_turn";
   private inputTokens?: number;
   private outputTokens?: number;
+  private cacheReadTokens?: number;
+  private cacheWriteTokens?: number;
+  private reasoningTokens?: number;
   private readonly toolCalls = new Map<number, { id: string; name: string; args: string }>();
 
   consume(chunk: OpenAIDeltaChunk): LlmEvent[] {
@@ -160,6 +176,18 @@ class OpenAIStreamAccumulator {
   private applyUsage(usage: OpenAIDeltaChunk["usage"]): void {
     if (usage?.prompt_tokens !== undefined) this.inputTokens = usage.prompt_tokens;
     if (usage?.completion_tokens !== undefined) this.outputTokens = usage.completion_tokens;
+    // D376: cache + reasoning buckets via OpenRouter passthrough + OpenAI native.
+    const cachedDetail = usage?.prompt_tokens_details?.cached_tokens;
+    if (cachedDetail !== undefined) this.cacheReadTokens = cachedDetail;
+    const reasoningDetail = usage?.completion_tokens_details?.reasoning_tokens;
+    if (reasoningDetail !== undefined) this.reasoningTokens = reasoningDetail;
+    // cline#10266 top-level fallback for Anthropic-on-OpenRouter.
+    if (usage?.cache_read_input_tokens !== undefined) {
+      this.cacheReadTokens = usage.cache_read_input_tokens;
+    }
+    if (usage?.cache_creation_input_tokens !== undefined) {
+      this.cacheWriteTokens = usage.cache_creation_input_tokens;
+    }
   }
 
   private applyContentDelta(content: string | undefined): LlmEvent | undefined {
@@ -197,6 +225,9 @@ class OpenAIStreamAccumulator {
       toolCalls,
       inputTokens: this.inputTokens,
       outputTokens: this.outputTokens,
+      cacheReadTokens: this.cacheReadTokens,
+      cacheWriteTokens: this.cacheWriteTokens,
+      reasoningTokens: this.reasoningTokens,
     });
   }
 }
@@ -223,6 +254,9 @@ function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
   const body: Record<string, unknown> = {
     model: request.model,
     stream: true,
+    // D376: opt-in to OpenAI's final-chunk usage record (no-op for providers
+    // that don't honor it; OpenRouter / OpenAI both respect it).
+    stream_options: { include_usage: true },
     messages,
   };
   if (request.maxTokens !== undefined) body.max_tokens = request.maxTokens;

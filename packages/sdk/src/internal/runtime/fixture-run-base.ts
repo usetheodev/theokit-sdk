@@ -156,6 +156,10 @@ export abstract class FixtureRunBase implements Run {
     if (status === "error" && this.script.errorDetail !== undefined) {
       base.error = this.script.errorDetail;
     }
+    // D376/D377: usage + cost flow through RunResult regardless of status
+    // (partial-failure runs that observed ≥1 LLM step still report tokens).
+    if (this.script.usage !== undefined) base.usage = this.script.usage;
+    if (this.script.cost !== undefined) base.cost = this.script.cost;
     return this.extendRunResult(applyExtraRunFields(base, this.script));
   }
 

@@ -2,6 +2,7 @@ import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/
 import type { ConversationTurn } from "../../types/conversation.js";
 import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus, SendOptions } from "../../types/run.js";
+import type { CostBreakdown, TokenUsage } from "../../types/usage.js";
 import type { SessionMessage } from "./agent-session.js";
 import type { MemoryFact } from "./memory-store.js";
 
@@ -27,6 +28,17 @@ export interface FixtureScript {
    * instead of stream() can still surface the cause.
    */
   errorDetail?: { message: string; code?: string; cause?: unknown };
+  /**
+   * Aggregated token usage observed during the run (ADR D376). Populated
+   * by the real agent loop from `AgentLoopOutput.usage`; left undefined
+   * by fixture responders unless they explicitly fabricate a value.
+   */
+  usage?: TokenUsage;
+  /**
+   * Cost breakdown matching `usage` (ADR D377). `cost.status` indicates
+   * how to trust the figure (`estimated` / `unknown` / `included`).
+   */
+  cost?: CostBreakdown;
   /** Optional async hook executed before the run terminates. */
   beforeComplete?: () => Promise<void>;
 }

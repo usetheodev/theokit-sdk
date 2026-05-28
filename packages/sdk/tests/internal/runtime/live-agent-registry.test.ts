@@ -48,6 +48,20 @@ describe("LiveAgentRegistry — core (T2.1)", () => {
     expect(reg.get("missing")).toBeUndefined();
   });
 
+  it("forget(id) removes from cache without calling dispose (dispose-cache fix)", async () => {
+    const agent = stubAgent("a");
+    reg.set("a", agent);
+    expect(reg.get("a")).toBe(agent);
+    reg.forget("a");
+    expect(reg.get("a")).toBeUndefined();
+    // dispose was NEVER called by forget — only by an explicit evict/evictAll.
+    expect((agent.dispose as unknown as { mock: { calls: unknown[] } }).mock.calls).toHaveLength(0);
+  });
+
+  it("forget(id) is idempotent for unknown ids", () => {
+    expect(() => reg.forget("never-cached")).not.toThrow();
+  });
+
   it("size reflects set count", () => {
     reg.configure({ maxAgents: 10 });
     reg.set("a", stubAgent("a"));

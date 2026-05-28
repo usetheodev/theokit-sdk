@@ -138,6 +138,22 @@ const COMMANDS = [
     waitMs: 5000,
   },
 
+  // ── v1.19 Token Budget + Cost Tracker (ADRs D375-D388) ──
+  // /budget creates a per-chat Budget lazily, then /budget_demo drives a
+  // real OpenRouter call → result.cost auto-populated → ledger charged.
+  // Pattern: cost line includes `$0.000` followed by digits.
+  {
+    text: "/budget",
+    expect: [/Budget for this chat|No budget entries yet/i, /chat-\d+|budget_demo/i],
+    waitMs: 5000,
+  },
+  {
+    text: "/budget_demo Reply with the single word 'pong'.",
+    expect: [/pong/i, /usage:.*input=\d+.*output=\d+/i, /cost:.*\$0\.\d+.*estimated/i],
+    waitMs: 30000,
+    retryOnError: true,
+  },
+
   // ── v1.2 migration CLI demo ──
   // Sends placeholder + ~5s SQLite open + result reply (2 separate messages).
   {

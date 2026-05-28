@@ -118,6 +118,18 @@ export class LiveAgentRegistry {
   }
 
   /**
+   * Remove the entry from the cache WITHOUT calling `dispose()` or
+   * `onEvict`. Used by `LocalAgent.dispose()` itself so the disposed
+   * instance can never be returned by a subsequent `get(id)` (dispose-cache
+   * race fix). Idempotent — calling on an unknown id is a no-op.
+   *
+   * @internal
+   */
+  forget(id: string): void {
+    this.#agents.delete(id);
+  }
+
+  /**
    * Explicitly evict an agent by id. Returns `true` when the entry was
    * present (false = already gone). Calls `agent.dispose()` + `onEvict`
    * with reason `"explicit"`.
