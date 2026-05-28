@@ -172,6 +172,34 @@ importers:
         specifier: ^3.0.0
         version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0)
 
+  packages/gateway-line:
+    dependencies:
+      '@line/bot-sdk':
+        specifier: ^9.0.0
+        version: 9.9.0
+      express:
+        specifier: ^4.18.0
+        version: 4.22.2
+    devDependencies:
+      '@types/express':
+        specifier: ^4.17.0
+        version: 4.17.25
+      '@usetheo/gateway':
+        specifier: workspace:*
+        version: link:../gateway
+      '@usetheo/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.8.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.4(@types/debug@4.1.13)(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0)
+
   packages/gateway-mattermost:
     dependencies:
       '@mattermost/client':
@@ -1230,6 +1258,10 @@ packages:
   '@langchain/core@1.1.47':
     resolution: {integrity: sha512-+fiPu6ZFnJMrZyKeM77OIVPoMPAY6OKWacnPlojHtXTbMMzb2cEOKAJV0U07cDl86NHSCIYYa0i4CyKZzXbHQQ==}
     engines: {node: '>=20'}
+
+  '@line/bot-sdk@9.9.0':
+    resolution: {integrity: sha512-/jVjH7k2uMWY1O0F/zkwYD3dqDH/pWbawvDtR6DV/scruH86w9zZrMwknZLt1unUWdK+V9eX4UVP/gLAzqUocg==}
+    engines: {node: '>=18'}
 
   '@loaderkit/resolve@1.0.5':
     resolution: {integrity: sha512-fhkdGM57xhJ7CO91MUgbQlb0ClP0AJ9vB3yoVnBTslYJqrJOCVEbOprZcxZlexdMbmTBPQqVcQYr+j4oRRtIZA==}
@@ -6701,6 +6733,15 @@ snapshots:
       - '@opentelemetry/sdk-trace-base'
       - openai
       - ws
+
+  '@line/bot-sdk@9.9.0':
+    dependencies:
+      '@types/node': 22.19.19
+    optionalDependencies:
+      axios: 1.16.1
+    transitivePeerDependencies:
+      - debug
+      - supports-color
 
   '@loaderkit/resolve@1.0.5':
     dependencies:
