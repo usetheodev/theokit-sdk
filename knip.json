@@ -1,11 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
   "ignore": [
-    "referencia/**",
     "scripts/**",
     "examples/**",
     ".claude/**",
     "tools/check-node.mjs",
+    "tools/preflight-native-bindings.d.mts",
     "tools/audit-memory-scale.mjs",
     "tools/audit-safety-adversarial.mjs",
     "tools/chaos-persistence-victim.mjs",

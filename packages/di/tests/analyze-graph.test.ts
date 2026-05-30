@@ -48,12 +48,10 @@ describe("Container.analyze() — debug dependency graph", () => {
   it("detects a cycle in unused providers (lazy resolve never triggers)", () => {
     @Injectable()
     class A {
-      // biome-ignore lint/correctness/noUnusedVariables: dep field triggers DI
       constructor(@Inject("B") readonly b: unknown) {}
     }
     @Injectable()
     class B {
-      // biome-ignore lint/correctness/noUnusedVariables: dep field triggers DI
       constructor(@Inject("A") readonly a: unknown) {}
     }
     const c = new Container();

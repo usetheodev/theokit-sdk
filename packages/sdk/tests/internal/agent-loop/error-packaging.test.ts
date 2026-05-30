@@ -24,6 +24,7 @@ import { HooksExecutor } from "../../../src/internal/runtime/hooks-executor.js";
 function makeThrowingLlm(err: Error): LlmClient {
   return {
     name: "mock",
+    // biome-ignore lint/correctness/useYield: intentional non-yielding generator mock — throws before any chunk is emitted to exercise the error-packaging path
     async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
       throw err;
     },
@@ -146,6 +147,7 @@ describe("agent-loop error packaging (Finding B)", () => {
     let callCount = 0;
     const llm: LlmClient = {
       name: "two-failure-mock",
+      // biome-ignore lint/correctness/useYield: intentional non-yielding generator mock — throws before any chunk to test multi-turn error preservation
       async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
         callCount++;
         if (callCount === 1) {

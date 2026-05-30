@@ -9,7 +9,7 @@
   "packageManager": "pnpm@9.15.0",
   "scripts": {
     "build": "pnpm --filter=./packages/* run build",
-    "test": "pnpm --filter=./packages/* run test",
+    "test": "pnpm -r --workspace-concurrency=1 --filter=./packages/* run test",
     "test:watch": "pnpm --filter=./packages/* run test:watch",
     "test:roadmap": "pnpm --filter=@usetheo/sdk exec vitest run --config vitest.roadmap.config.ts",
     "typecheck": "pnpm --filter=./packages/* run typecheck",

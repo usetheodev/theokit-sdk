@@ -263,7 +263,6 @@ describe("Container — sync cycle detection", () => {
   it("self-dependency throws CyclicDependencyError", () => {
     @Injectable()
     class Self {
-      // biome-ignore lint/correctness/noUnusedVariables: dep field is here only to trigger DI
       constructor(@Inject("SELF") readonly dep: unknown) {}
     }
     const c = new Container();
@@ -307,7 +306,6 @@ describe("Container — Optional decorator", () => {
   it("does NOT swallow non-TokenNotFoundError errors", () => {
     @Injectable()
     class Foo {
-      // biome-ignore lint/correctness/noUnusedVariables: dep triggers DI
       constructor(@Optional() @Inject("THROWING") readonly dep: unknown) {}
     }
     const c = new Container();

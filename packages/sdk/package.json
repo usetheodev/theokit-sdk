@@ -94,7 +94,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "test": "vitest run",
+    "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",

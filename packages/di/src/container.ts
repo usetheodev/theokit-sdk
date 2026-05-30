@@ -385,22 +385,11 @@ export class Container {
       token: provider.provide,
       scope: provider.scope ?? Scope.SINGLETON,
       factory: (ctx) => {
-        // Try sync first — fast path when all deps are sync.
-        const args: unknown[] = [];
-        let needsAsync = false;
-        for (const dep of injectTokens) {
-          try {
-            args.push(ctx.resolve(dep));
-          } catch (err) {
-            if (err instanceof AsyncProviderInSyncResolveError) {
-              needsAsync = true;
-              break;
-            }
-            throw err;
-          }
-        }
-        if (!needsAsync) {
-          return provider.useFactory(...args);
+        // Refactored via Extract Method (D422): delegate sync attempt
+        // to tryResolveSyncDeps to keep this lambda below complexity-10.
+        const result = this.tryResolveSyncDeps(injectTokens, ctx);
+        if ("args" in result) {
+          return provider.useFactory(...result.args);
         }
         // Async fallback: await every dep, then invoke factory.
         return Promise.all(injectTokens.map((dep) => ctx.resolveAsync(dep))).then((asyncArgs) =>
@@ -409,6 +398,30 @@ export class Container {
       },
       injectTokens,
     };
+  }
+
+  /**
+   * Attempt sync resolution of a flat dep list (factory provider shape).
+   * Returns `{ args }` on success or `{ needsAsync: true }` if any dep
+   * raised AsyncProviderInSyncResolveError. Throws for any other error.
+   * Extracted via D422 to keep fromFactoryProvider.factory below complexity 10.
+   */
+  private tryResolveSyncDeps(
+    injectTokens: ReadonlyArray<Token>,
+    ctx: ResolutionContext,
+  ): { args: unknown[] } | { needsAsync: true } {
+    const args: unknown[] = [];
+    for (const dep of injectTokens) {
+      try {
+        args.push(ctx.resolve(dep));
+      } catch (err) {
+        if (err instanceof AsyncProviderInSyncResolveError) {
+          return { needsAsync: true };
+        }
+        throw err;
+      }
+    }
+    return { args };
   }
 
   private fromValueProvider<T>(provider: ValueProvider<T>): Registration<T> {
@@ -431,6 +444,11 @@ export class Container {
   /**
    * Resolve constructor params + build instance. Tries sync first; if any
    * dep is async, falls back to awaiting via `resolveAsync`.
+   *
+   * Refactored via Extract Method (ADR D422): orchestrates 3 helpers:
+   *   - validateMetadata: EC-12 detect emitDecoratorMetadata off
+   *   - tryResolveSync: sync resolution loop with AsyncProvider bailout
+   *   - resolveAllAsync: Promise.all fallback when any dep is async
    */
   private constructClassWithAsyncFallback<T>(
     target: ClassConstructor<T>,
@@ -443,61 +461,105 @@ export class Container {
     const injectTokens = readInjectTokens(target);
     const optionalFlags = readOptionalFlags(target);
 
-    // EC-12 detection: zero paramTypes for a class that declares a non-empty
-    // constructor strongly suggests emitDecoratorMetadata is off.
+    this.validateMetadata(target, paramTypes);
+
+    const syncResult = this.tryResolveSync(target, paramTypes, injectTokens, optionalFlags, ctx);
+    if ("args" in syncResult) {
+      return new target(...syncResult.args);
+    }
+
+    return this.resolveAllAsync(target, paramTypes, injectTokens, optionalFlags, ctx);
+  }
+
+  /**
+   * EC-12 detection: zero paramTypes for a class that declares a non-empty
+   * constructor strongly suggests emitDecoratorMetadata is off.
+   */
+  private validateMetadata<T>(target: ClassConstructor<T>, paramTypes: readonly unknown[]): void {
     if (paramTypes.length === 0 && target.length > 0) {
       throw new TypeError(
         `Class ${target.name} has @Injectable() but no constructor metadata. ` +
           'Add `"emitDecoratorMetadata": true` to your tsconfig.json.',
       );
     }
+  }
 
-    // Try sync path first.
-    const syncArgs: unknown[] = [];
-    let needsAsync = false;
+  /**
+   * Handle a single primitive-marker param (e.g. `param: string` without
+   * explicit @Inject). Returns `undefined` for optional, throws for required.
+   * Extracted to keep tryResolveSync below the complexity-10 cap (D422).
+   */
+  private handlePrimitiveParam<T>(
+    target: ClassConstructor<T>,
+    paramType: unknown,
+    index: number,
+    isOptional: boolean,
+  ): undefined {
+    if (isOptional) return undefined;
+    throw new TypeError(
+      `Class ${target.name} has a primitive/interface constructor parameter at index ${index} ` +
+        `(emitted as ${(paramType as { name?: string }).name ?? "<unknown>"}). ` +
+        "Primitives and interfaces cannot be auto-resolved — use `@Inject('SOME_STRING_TOKEN')` to provide an explicit token.",
+    );
+  }
 
+  /**
+   * Attempt sync resolution. Returns `{ args }` on success, `{ needsAsync: true }`
+   * if any dep raised AsyncProviderInSyncResolveError. Throws for any other error.
+   */
+  private tryResolveSync<T>(
+    target: ClassConstructor<T>,
+    paramTypes: readonly unknown[],
+    injectTokens: ReadonlyMap<number, Token>,
+    optionalFlags: ReadonlySet<number>,
+    ctx: ResolutionContext,
+  ): { args: unknown[] } | { needsAsync: true } {
+    const args: unknown[] = [];
     for (let index = 0; index < paramTypes.length; index += 1) {
       const paramType = paramTypes[index];
       const explicit = injectTokens.get(index);
       const isOptional = optionalFlags.has(index);
-
       const tokenForParam = explicit ?? (paramType as Token);
 
       if (explicit === undefined && isPrimitiveTypeMarker(paramType)) {
-        if (isOptional) {
-          syncArgs.push(undefined);
-          continue;
-        }
-        throw new TypeError(
-          `Class ${target.name} has a primitive/interface constructor parameter at index ${index} ` +
-            `(emitted as ${(paramType as { name?: string }).name ?? "<unknown>"}). ` +
-            "Primitives and interfaces cannot be auto-resolved — use `@Inject('SOME_STRING_TOKEN')` to provide an explicit token.",
-        );
+        args.push(this.handlePrimitiveParam(target, paramType, index, isOptional));
+        continue;
       }
 
       try {
-        syncArgs.push(this.resolveOrOptional(tokenForParam, ctx, isOptional));
+        args.push(this.resolveOrOptional(tokenForParam, ctx, isOptional));
       } catch (err) {
         if (err instanceof AsyncProviderInSyncResolveError) {
-          needsAsync = true;
-          break;
+          return { needsAsync: true };
         }
         throw err;
       }
     }
+    return { args };
+  }
 
-    if (!needsAsync) {
-      return new target(...syncArgs);
-    }
-
-    // Async fallback — resolve every dep via resolveAsync, then construct.
+  /**
+   * Async fallback: resolve every dep via resolveAsync, then construct.
+   * Called when tryResolveSync returned `{ needsAsync: true }`.
+   */
+  private resolveAllAsync<T>(
+    target: ClassConstructor<T>,
+    paramTypes: readonly unknown[],
+    injectTokens: ReadonlyMap<number, Token>,
+    optionalFlags: ReadonlySet<number>,
+    ctx: ResolutionContext,
+  ): Promise<T> {
     const argPromises: Promise<unknown>[] = paramTypes.map((paramType, index) => {
       const explicit = injectTokens.get(index);
       const isOptional = optionalFlags.has(index);
       const tokenForParam = explicit ?? (paramType as Token);
 
       if (explicit === undefined && isPrimitiveTypeMarker(paramType)) {
-        // Already rejected above in sync pass for non-optional; here it's optional.
+        // Primitive marker without explicit token: tryResolveSync would have
+        // either pushed undefined (optional) or thrown (non-optional). When
+        // we reach here, the sync pass bailed early on an unrelated index;
+        // primitives at this index are necessarily optional (non-optional
+        // would have thrown). Mirror sync behavior: resolve to undefined.
         return Promise.resolve(undefined);
       }
 

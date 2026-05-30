@@ -1,25 +1,20 @@
 import type { ConversationTurn } from "../../types/conversation.js";
-import type {
-  SDKAssistantMessage,
-  SDKMessage,
-  SDKSystemMessage,
-  SDKUserMessageEvent,
-} from "../../types/messages.js";
+import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import { generateRequestId } from "../ids.js";
-import type {
-  LlmClient,
-  LlmContentPart,
-  LlmMessage,
-  LlmTool,
-  LlmToolCallPart,
-} from "../llm/types.js";
+import type { LlmClient, LlmMessage, LlmTool, LlmToolCallPart } from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import { IterationBudget } from "../runtime/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { AgentLoopErrorDetail, AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
+import {
+  buildAssistantEvent,
+  buildAssistantTurn,
+  buildSystemEvent,
+  buildUserEvent,
+} from "./message-builders.js";
 import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
 import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
@@ -446,42 +441,6 @@ async function safeListTools(client: McpClient): Promise<McpTool[]> {
 
 function toLlmTool(tool: ResolvedTool): LlmTool {
   return { name: tool.name, description: tool.description, inputSchema: tool.inputSchema };
-}
-
-function buildSystemEvent(inputs: AgentLoopInputs, toolNames: string[]): SDKSystemMessage {
-  return {
-    type: "system",
-    subtype: "init",
-    agent_id: inputs.agentId,
-    run_id: inputs.runId,
-    model: inputs.model,
-    tools: toolNames,
-  };
-}
-
-function buildUserEvent(inputs: AgentLoopInputs): SDKUserMessageEvent {
-  return {
-    type: "user",
-    agent_id: inputs.agentId,
-    run_id: inputs.runId,
-    message: { role: "user", content: [{ type: "text", text: inputs.userMessage }] },
-  };
-}
-
-function buildAssistantEvent(inputs: AgentLoopInputs, text: string): SDKAssistantMessage {
-  return {
-    type: "assistant",
-    agent_id: inputs.agentId,
-    run_id: inputs.runId,
-    message: { role: "assistant", content: [{ type: "text", text }] },
-  };
-}
-
-function buildAssistantTurn(text: string, toolCalls: LlmToolCallPart[]): LlmMessage {
-  const content: LlmContentPart[] = [];
-  if (text.length > 0) content.push({ type: "text", text });
-  for (const call of toolCalls) content.push(call);
-  return { role: "assistant", content };
 }
 
 function sanitize(name: string): string {

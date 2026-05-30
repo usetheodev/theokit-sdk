@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+### Patch Changes
+
+- Refactored `RealLocalRun.executeAgentLoop` (complexity 11 → ≤10) via Extract Method: introduced `applyAgentLoopOutput` private helper that copies events/conversation/result/usage/cost/error onto the script. Behavior preserved byte-for-byte. (theokit-sdk-biome-cleanup)
+- Removed redundant `// biome-ignore` directive from `internal/llm/fault-injection.ts` that no longer applied after the workspace enabled `javascript.parser.unsafeParameterDecoratorsEnabled`. (theokit-sdk-biome-cleanup)
+- Extracted message-builder helpers (`buildSystemEvent`, `buildUserEvent`, `buildAssistantEvent`, `buildAssistantTurn`) from `internal/agent-loop/loop.ts` into a new sibling `message-builders.ts` to bring `loop.ts` back under the G8 file-size budget (400 LoC). Pure refactor — no behavior change. (theokit-sdk-biome-cleanup)
+- Removed redundant `export` on `GraphSnapshot` interface (internal-only). (theokit-sdk-biome-cleanup)
+- Added inline `// biome-ignore lint/correctness/useYield` on two intentional non-yielding async-generator mocks in `tests/internal/agent-loop/error-packaging.test.ts` (legitimate test seam — throws before yielding). (theokit-sdk-biome-cleanup)
+- Vitest configuration: switched `pool` to `forks` (top-level) with `singleFork: false` so each test file runs in its own subprocess. This is the only reliable way to isolate `process.env.HOME` mutations across the discovery / context-import-resolver / personality test files, which were producing 5 flaky failures under parallel-package validate. Stack-keyed `process.env.HOME` save/restore added to `vitest.setup.ts` for additional safety. (theokit-sdk-biome-cleanup)
+
 ## 1.3.0
 
 ### Minor Changes
