@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.3.0
+  - @usetheo/acp@2.0.0
+
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.2.0
+  - @usetheo/acp@1.0.0
+
 ## [Unreleased]
 
 ### Added (`theokit tasks` — observable async work registry, ADRs D361-D374)

@@ -1,8 +1,25 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.3.0
+  - @usetheo/gateway@2.0.0
+
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.2.0
+  - @usetheo/gateway@1.0.0
+
 ## [Unreleased]
 
 ### Added
+
 - Initial package skeleton (Roadmap v1.4 #2).
 - `WhatsAppAdapter` extending `BasePlatformAdapter` with multi-backend support (ADRs D303-D314).
 - `WhatsAppCloudBackend` for Meta WhatsApp Business Cloud API (D304).

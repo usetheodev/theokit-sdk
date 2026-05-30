@@ -46,6 +46,16 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # dogfood-regressions-fix-plan v1.1 T4.2 — defense in depth against
+      # NODE_MODULE_VERSION mismatch (better-sqlite3 ABI). The preflight
+      # auto-runs in vitest setup (T1.1), but CI=true makes it fail-fast
+      # WITHOUT attempting rebuild — so we rebuild explicitly here.
+      # The `|| true` is intentional: if rebuild fails (runner missing
+      # build-essential), preflight surfaces the actionable error at test
+      # time. We never silently swallow the test failure downstream.
+      - name: Rebuild native bindings (better-sqlite3 ABI guard)
+        run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
+
       - name: Tests
         run: pnpm test
 

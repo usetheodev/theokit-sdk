@@ -12,11 +12,24 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
+import { FaultInjectingLlmClient } from "../../../src/internal/llm/fault-injection.js";
 import { PoolAwareLlmClient } from "../../../src/internal/llm/pool-aware-client.js";
 import {
   _resetCredentialPoolWarnings,
   resolveProviderChain,
 } from "../../../src/internal/llm/router.js";
+import type { LlmClient } from "../../../src/internal/llm/types.js";
+
+/**
+ * D14 wired router-side: every client returned by `resolveProviderChain` is
+ * wrapped with `FaultInjectingLlmClient` (a transparent passthrough unless
+ * the activation gate is on). Existing layered-transport assertions walk
+ * one level deep — same pattern PoolAware uses for its inner transport.
+ */
+function unwrapFaultInjection(client: LlmClient): LlmClient {
+  return client instanceof FaultInjectingLlmClient ? client.inner : client;
+}
+
 import {
   _resetBuiltinsRegistered,
   registerBuiltins,
@@ -55,14 +68,14 @@ describe("router pool wiring (T4.1)", () => {
       apiKeys: { openrouter: ["k1", "k2"] },
     });
     expect(chain).toHaveLength(1);
-    expect(chain[0]).toBeInstanceOf(PoolAwareLlmClient);
+    expect(unwrapFaultInjection(chain[0]!)).toBeInstanceOf(PoolAwareLlmClient);
   });
 
   it("falls back to single-key path when apiKeys undefined", () => {
     process.env.OPENROUTER_API_KEY = "from-env";
     const chain = resolveProviderChain({ primary: "openrouter" });
     expect(chain).toHaveLength(1);
-    expect(chain[0]).not.toBeInstanceOf(PoolAwareLlmClient);
+    expect(unwrapFaultInjection(chain[0]!)).not.toBeInstanceOf(PoolAwareLlmClient);
   });
 
   it("falls back to single-key path when apiKeys array is empty", () => {
@@ -72,7 +85,7 @@ describe("router pool wiring (T4.1)", () => {
       apiKeys: { openrouter: [] },
     });
     expect(chain).toHaveLength(1);
-    expect(chain[0]).not.toBeInstanceOf(PoolAwareLlmClient);
+    expect(unwrapFaultInjection(chain[0]!)).not.toBeInstanceOf(PoolAwareLlmClient);
   });
 
   it("uses 1-entry pool fast-path (no PoolAware wrap) when only 1 effective key", () => {
@@ -81,7 +94,7 @@ describe("router pool wiring (T4.1)", () => {
       apiKeys: { openrouter: ["solo"] },
     });
     expect(chain).toHaveLength(1);
-    expect(chain[0]).not.toBeInstanceOf(PoolAwareLlmClient);
+    expect(unwrapFaultInjection(chain[0]!)).not.toBeInstanceOf(PoolAwareLlmClient);
   });
 
   it("filters empty string keys before counting", () => {
@@ -92,7 +105,7 @@ describe("router pool wiring (T4.1)", () => {
     });
     expect(chain).toHaveLength(1);
     // Only 1 effective key → single-key path
-    expect(chain[0]).not.toBeInstanceOf(PoolAwareLlmClient);
+    expect(unwrapFaultInjection(chain[0]!)).not.toBeInstanceOf(PoolAwareLlmClient);
   });
 
   // EC-B: warn on unknown provider in apiKeys
@@ -113,7 +126,7 @@ describe("router pool wiring (T4.1)", () => {
       apiKeys: { openrouter: ["a", "b", "c"] },
       // no credentialPoolStrategy
     });
-    expect(chain[0]).toBeInstanceOf(PoolAwareLlmClient);
+    expect(unwrapFaultInjection(chain[0]!)).toBeInstanceOf(PoolAwareLlmClient);
     // Default strategy used — we verify behavior by selecting and getting "a" twice.
   });
 
