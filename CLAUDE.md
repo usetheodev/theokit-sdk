@@ -92,6 +92,37 @@ Resolved 2026-05-14 with research backing in [the SOTA validation report](#sota-
 | Streaming | `AsyncGenerator` of discriminated `SDKMessage` | — | Matches `@anthropic-ai/claude-agent-sdk`. |
 | Resource disposal | `dispose()` method + `[Symbol.asyncDispose]` (implementation-side) | — | Skeleton interface uses `dispose()` until lib bump to `ESNext.Disposable`. |
 
+## Native bindings discipline
+
+Some dependencies ship native binaries (currently: `better-sqlite3`). Each is compiled against a specific Node.js ABI (`NODE_MODULE_VERSION`). When the installed Node version differs from the ABI the binary was built against, every `require()` of that module throws `Module did not self-register` or `NODE_MODULE_VERSION X required, got Y`.
+
+**How we prevent this:**
+
+1. `engines.node = ">=22.12.0"` in every package.json — pnpm warns on mismatch (does NOT block).
+2. `.nvmrc` pins the canonical Node version — `nvm use` switches.
+3. `tools/preflight-native-bindings.mjs` runs as the SDK's vitest setup — detects ABI mismatch + auto-rebuilds (one-shot, sentinel-cached at `node_modules/.cache/preflight-native-{abi}.ok`).
+4. CI workflows ship an explicit `pnpm rebuild better-sqlite3 --workspace-root` step before tests (defense in depth).
+
+**If you hit the error locally:**
+- First: `nvm use` (or `nvm install` if you don't have the pinned version). 95% of cases.
+- If you can't switch Node: `pnpm rebuild better-sqlite3 --filter @usetheo/sdk`. The preflight does this automatically on first test run.
+- If both fail: `node-gyp` prerequisites missing (python3, make, C++ compiler). Install build-essential / Xcode CLI tools.
+
+**If you hit it in CI:**
+- Check the workflow ran the rebuild step. If yes and it failed, the runner image lacks build prerequisites.
+- `CI=true` is auto-set by GitHub Actions — preflight then fails fast (no auto-rebuild) so the explicit CI step's failure is what users see.
+
+**Do not:**
+- Pin a specific binary version — pnpm store deduplicates; use `pnpm rebuild`.
+- Add fresh `try/catch` around `require('better-sqlite3')` to "handle" the failure — that masks the bug. Fix the root cause.
+
+**Convention notes:**
+- The preflight covers both the SDK's own `node_modules/.pnpm/better-sqlite3@*/...` AND any binding loaded via a workspace-link symlink to a sibling repo (EC-1 — `findRebuildCwd` walks the realpath to route rebuild correctly).
+- `NATIVE_DEPS` in the preflight is hardcoded (`['better-sqlite3']`). When shipping a new native dep, add it to that array AND its `exerciseDep()` case so the probe actually triggers dlopen.
+- Tests placed under `tests/integration/**` run in a `forks + singleFork` pool (vitest poolMatchGlobs) to avoid contention with the threads pool. New tests there must be process-isolation-tolerant.
+
+ADR D01 (this repo): `node-22-mandatory`. Plan: [`../.claude/knowledge-base/plans/dogfood-regressions-fix-plan.md`](../.claude/knowledge-base/plans/dogfood-regressions-fix-plan.md) v1.1.
+
 ## Voice and Tone
 
 **Locked 2026-05-15.** TheoKit-SDK has adopted the aspirational voice originally scoped to TheoKit. The operational guide — three communication layers (HERO / BODY / DEEP DIVE), vocabulary translation, banned terms list, storytelling rules, before/after examples — lives in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md). Read it before writing any public copy for this project. This file does not duplicate it.
@@ -716,6 +747,16 @@ Total: **184 novos unit tests** (Phases 1-4), **33 ADRs** (D389-D421), **5 MUST 
 | IRC | Legacy open source comunidades; community-driven. |
 | Matrix E2EE / threads (MSC4140) | v0.2 do `@usetheo/gateway-matrix`. |
 | SMS MMS | v0.2 do `@usetheo/gateway-sms` (D395). |
+
+## Roadmap — Backend DX packages (agent-aware NestJS-equivalent stack)
+
+> Decisão 2026-05-29: ship em 3 packages incrementais (não monolítico). Cada um é útil isolado e pode parar no meio do caminho se o uso real provar que não vale a pena. Target B2B enterprise (times de engenharia que aceleram desenvolvimento backend). Wedge: agent-first (`@usetheo/sdk` é cidadão de primeira classe em todos os 3).
+
+| Package | Description | Priority |
+|---|---|---|
+| `@usetheo/di` + `@usetheo/di-agent` | Lightweight DI container — `Container`, `@Injectable()`, `@Inject()`, `@Module()`, `@Optional()`, 3 scopes (SINGLETON/TRANSIENT/REQUEST). Agent-first wedge via `@usetheo/di-agent` (separate package per ADR D8). **DONE 2026-05-29** — shipped as `0.1.0-next.0` on `next` tag. Plan: [`usetheo-di-v1-implementation-plan.md`](../../../.claude/knowledge-base/plans/usetheo-di-v1-implementation-plan.md). **P2/P3 plans MUST read ADR D11 of that plan for polyglot strategy (schema export + OpenAPI emit) — without it, polyglot drifts silently to TS-only.** | ✅ **P1 DONE** |
+| `@usetheo/orm` | Entity + Repository pattern sobre Drizzle, com migrations e agent-aware columns (agentId/runId). `@InjectRepository(User)` decorator consome `@usetheo/di`. Substitui `useDatabase` bruto por DX tipo TypeORM. **MUST emit JSON Schema + SQL migrations directory** (Python ORM consumes the same schemas) — see ADR D11 of P1 plan. | **P2** (next) |
+| `@usetheo/http-decorators` | `@Controller` / `@Get` / `@Post` / Guards / Interceptors / Filters EM CIMA do `defineRoute` existente (NÃO substituindo). Opt-in pra times que vêm de NestJS. Coexiste com `define*` functions. **MUST emit OpenAPI 3.x spec** from decorators (Python client via `openapi-python-client`) — see ADR D11 of P1 plan. | **P3** (depois de orm) |
 
 ## Inviolable rules (carried from root and global)
 

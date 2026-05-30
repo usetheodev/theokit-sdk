@@ -19,7 +19,7 @@ import type { McpClient, McpTool } from "../mcp/client.js";
 import { IterationBudget } from "../runtime/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
-import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
+import type { AgentLoopErrorDetail, AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
 import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
@@ -93,6 +93,9 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       conversation: ctx.conversation,
       ...(usage !== undefined ? { usage } : {}),
       ...(cost !== undefined ? { cost } : {}),
+      // Finding-B fix: surface structured error so runtime can package
+      // it as RunResult.error instead of leaking it as assistant content.
+      ...(ctx.error !== undefined ? { error: ctx.error } : {}),
     };
   } finally {
     sendSpan?.end();
@@ -108,6 +111,12 @@ interface LoopContext {
   finalStatus: RunStatus;
   /** D376: per-loop UsageAccumulator merging every LLM step. */
   usage: UsageAccumulator;
+  /**
+   * Finding-B fix: structured transport/provider error. Set-once invariant
+   * (first-error-wins, ADR D3). When set, the loop returns with
+   * `finalStatus: "error"` and copies this verbatim onto `AgentLoopOutput.error`.
+   */
+  error?: AgentLoopErrorDetail;
 }
 
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
@@ -305,18 +314,52 @@ async function collectLlmEvents(
     errored = result.errored;
     finishValue = result.finishValue;
   } catch (cause) {
-    // D318/D321 — mid-stream abort or transport error.
-    const text =
-      inputs.signal?.aborted === true
-        ? "[aborted]"
-        : cause instanceof Error
-          ? cause.message
-          : String(cause);
-    ctx.finalText = text;
-    ctx.events.push(buildAssistantEvent(inputs, text));
+    // Finding-B fix (sdk-error-packaging-fix-plan v1.1):
+    // Split the two paths the previous single-text branch collapsed.
+    //   1. Abort → preserve `"[aborted]"` SDKAssistantMessage (UX seam).
+    //   2. Transport / provider error → populate ctx.error so the error
+    //      surfaces structured on AgentLoopOutput.error and downstream
+    //      RunResult.error. NEVER emit an assistant message — that was
+    //      the leak Finding B exposed.
+    // EC-7 DOCUMENT: non-Error throws (e.g., `throw "boom"`) stringify
+    //   via `String(cause)` — accepted (matches Node convention).
+    if (inputs.signal?.aborted === true) {
+      ctx.finalText = "[aborted]";
+      ctx.events.push(buildAssistantEvent(inputs, "[aborted]"));
+    } else {
+      registerLoopError(ctx, cause);
+      ctx.finalText = "";
+    }
     errored = true;
   }
   return { accumulatedText, errored, finishValue };
+}
+
+/**
+ * Set-once invariant (ADR D3, EC-3-A): first error wins. Once `ctx.error`
+ * is populated, subsequent transport / provider errors in the same run are
+ * dropped — they DO NOT overwrite the first error. EC-1 MUST FIX:
+ * `cause.code` is typeof-guarded so a non-string value never lands on the
+ * wire as the literal `"undefined"`.
+ *
+ * Accepts either a thrown `Error` (catch path) or an `LlmEvent` of shape
+ * `{ type: "error", message, code? }` (in-stream error event) — both
+ * carry `.message` so we extract it before falling back to `String(...)`.
+ *
+ * @internal — finding-b fix
+ */
+function registerLoopError(ctx: LoopContext, cause: unknown): void {
+  if (ctx.error !== undefined) return;
+  const rawMessage = (cause as { message?: unknown } | null | undefined)?.message;
+  const message =
+    typeof rawMessage === "string"
+      ? rawMessage
+      : cause instanceof Error
+        ? cause.message
+        : String(cause);
+  const rawCode = (cause as { code?: unknown } | null | undefined)?.code;
+  const code = typeof rawCode === "string" ? rawCode : undefined;
+  ctx.error = code !== undefined ? { message, code, cause } : { message, cause };
 }
 
 async function runCollectorLoop(
@@ -342,8 +385,11 @@ async function runCollectorLoop(
       await emitTextDeltaCallback(inputs, next.value.text);
     }
     if (next.value.type === "error") {
-      ctx.finalText = next.value.message;
-      ctx.events.push(buildAssistantEvent(inputs, next.value.message));
+      // Finding-B fix: LLM in-stream error event MUST surface via
+      // ctx.error (set-once), NEVER as an assistant message. EC-1
+      // typeof guard inside registerLoopError covers `next.value.code`.
+      registerLoopError(ctx, next.value);
+      ctx.finalText = "";
       errored = true;
       break;
     }

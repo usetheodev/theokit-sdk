@@ -1,8 +1,23 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.3.0
+
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.2.0
+
 ## 0.1.0
 
 ### Added
+
 - Initial release. Implements `MemoryAdapter` (ADR D141) over `@honcho-ai/sdk@^2.1`.
 - `honchoMemory(options)` factory.
 - `write` → `session.addMessages([peer.message(text)])`.

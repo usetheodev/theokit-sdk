@@ -4,6 +4,7 @@ import { ConfigurationError } from "../errors.js";
 
 import type { AgentOptions, CustomTool, LocalOptions, ModelSelection } from "../types/agent.js";
 import type { ProviderRoutingSettings } from "../types/providers.js";
+import { toJsonSchema } from "./zod/to-json-schema.js";
 
 /**
  * Shared helpers for `Agent.generateObject` (ADR D33) and
@@ -117,9 +118,8 @@ export function setupStructuredOutput<T extends ZodType>(
   maxRetries: number | undefined,
 ) {
   const z = requireZod();
-  const jsonSchema = z.toJSONSchema(schema, {
-    unrepresentable: "any",
-  }) as Record<string, unknown>;
+  // Universal Zod 3+4 conversion (feature-detects native v4, falls back to lib on v3).
+  const jsonSchema = toJsonSchema(schema, { unrepresentable: "any" });
   return {
     z,
     jsonSchema,

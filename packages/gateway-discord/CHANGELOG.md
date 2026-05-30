@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.3.0
+  - @usetheo/gateway@2.0.0
+
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.2.0
+  - @usetheo/gateway@1.0.0
+
 ## [0.1.0] — 2026-05-20
 
 ### Added

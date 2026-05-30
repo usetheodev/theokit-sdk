@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/skills-google-workspace",
-  "version": "0.1.0",
+  "version": "2.0.0",
   "description": "Google Workspace skill bundle for @usetheo/sdk — single factory that wires the combined `google-workspace-mcp` server (Calendar + Drive + Sheets + Docs + Gmail + Slides + Forms) into Agent.create({ mcpServers }) with read-only-by-default. ADRs D340-D348.",
   "license": "Apache-2.0",
   "type": "module",

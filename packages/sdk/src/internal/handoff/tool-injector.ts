@@ -16,6 +16,7 @@ import {
   HandoffNameCollisionError,
   HandoffSelfReferenceError,
 } from "../../types/handoff.js";
+import { toJsonSchema } from "../zod/to-json-schema.js";
 import { dispatchHandoff } from "./dispatcher.js";
 import { createChainState } from "./registry.js";
 
@@ -110,7 +111,8 @@ export function buildHandoffTool(
     });
   // CustomTool.inputSchema expects a JSON schema (Record<string, unknown>),
   // not the raw Zod type. Convert lazily so we don't fail when Zod is missing.
-  const inputSchema = z.toJSONSchema(inputZod) as Record<string, unknown>;
+  // Universal Zod 3+4 conversion (feature-detects native v4, falls back to lib on v3).
+  const inputSchema = toJsonSchema(inputZod);
 
   return {
     name: descriptor.resolvedToolName,

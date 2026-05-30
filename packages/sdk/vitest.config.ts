@@ -12,7 +12,22 @@ export default defineConfig({
     include: ["tests/**/*.test.ts"],
     // Autouse setup: isolates THEOKIT_HOME per-test in a fresh tmpdir
     // (T6.1, ADR D60). Tests never write to the developer's real state.
+    // Also runs native-bindings preflight (T1.1, dogfood-regressions-fix v1.1).
     setupFiles: ["./vitest.setup.ts"],
+    // dogfood-regressions-fix-plan v1.1 T3.1 — integration tests run in
+    // forks with singleFork=true to isolate them from the threads pool used
+    // by unit tests. Integration tests with real I/O (Ollama HTTP, etc.) +
+    // long timeouts (120s) contend with libuv async pool when sharing
+    // threads — fork process isolation eliminates the race.
+    // EC-7 DOCUMENT: any new test placed under `tests/integration/**`
+    // must be process-isolation-tolerant (no shared in-process state,
+    // module cache observation, or thread-only vitest mocks).
+    poolMatchGlobs: [["tests/integration/**", "forks"]],
+    poolOptions: {
+      forks: {
+        singleFork: true,
+      },
+    },
     exclude: [
       "**/node_modules/**",
       "tests/contract/**",

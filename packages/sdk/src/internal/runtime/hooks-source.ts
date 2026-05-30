@@ -111,8 +111,13 @@ export async function loadHookConfig(cwd: string): Promise<HookConfig> {
   }
 }
 
+// `z.input` matches what `loadMarkdownEntities` actually returns — Zod's
+// `ZodType<T>` is variant on INPUT, so the generic T resolves to the pre-default
+// shape (`enabled?: boolean | undefined`). `buildConfigFromMarkdown` already
+// handles `?? 0` for priority and `=== false` for enabled, so the loose shape
+// is the right contract here.
 type HookEntities = Awaited<
-  ReturnType<typeof loadMarkdownEntities<z.infer<typeof HookFrontmatterSchema>>>
+  ReturnType<typeof loadMarkdownEntities<z.input<typeof HookFrontmatterSchema>>>
 >;
 
 function buildConfigFromMarkdown(entities: HookEntities): HookConfig {

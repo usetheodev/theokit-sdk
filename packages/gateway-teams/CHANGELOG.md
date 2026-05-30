@@ -1,8 +1,25 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.3.0
+  - @usetheo/gateway@2.0.0
+
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.2.0
+  - @usetheo/gateway@1.0.0
+
 ## [Unreleased]
 
 ### Added
+
 - Initial package skeleton (Roadmap v1.4 #3).
 - `TeamsAdapter` extending `BasePlatformAdapter` (ADRs D315-D326).
 - Built on `@microsoft/teams.apps@^2.0` SDK (D315). Modern Microsoft-published library replacing legacy `botbuilder`.

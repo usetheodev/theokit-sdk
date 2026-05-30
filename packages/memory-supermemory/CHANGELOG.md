@@ -1,8 +1,23 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.3.0
+
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.2.0
+
 ## 0.1.0
 
 ### Added
+
 - Initial release. Implements the `MemoryAdapter` contract (ADR D141) over
   the `supermemory@^4.21.0` SDK. Exposes:
   - `supermemoryMemory(options)` plugin factory.
