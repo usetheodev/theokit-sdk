@@ -5,6 +5,13 @@ All notable changes to `@usetheo/di-agent` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Removed obsolete `// biome-ignore lint/correctness/noUnusedVariables` directives from `tests/{analyze-graph,async-resolution,container-core,inject-agent,integration/real-agent}.test.ts`. They were flagged as `suppressions/unused` after the workspace enabled `javascript.parser.unsafeParameterDecoratorsEnabled` in `biome.json` (D422). (theokit-sdk-biome-cleanup)
+- Dropped unused `@vitest/coverage-v8` devDependency. (theokit-sdk-biome-cleanup)
+
 ## [0.1.0-next.0] - 2026-05-29
 
 ### Added

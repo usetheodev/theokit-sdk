@@ -5,6 +5,15 @@ All notable changes to `@usetheo/di` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Refactored `Container.constructClassWithAsyncFallback<T>` (complexity 18 → ≤10) via Extract Method: introduced 4 private helpers (`validateMetadata`, `handlePrimitiveParam`, `tryResolveSync`, `resolveAllAsync`). Behavior preserved; reflect-metadata error ordering + async-fallback semantics unchanged. (theokit-sdk-biome-cleanup)
+- Refactored `Container.fromFactoryProvider` (complexity 11 → ≤10) via Extract Method: introduced `tryResolveSyncDeps` private helper returning a discriminated union for sync/async dispatch. (theokit-sdk-biome-cleanup)
+- Removed redundant `export` on `MODULE_METADATA_KEY` (internal-only — never part of public surface). (theokit-sdk-biome-cleanup)
+- See ADR D422 for the consolidated rationale (parameter decorators enabled in biome + container Extract Method refactor).
+
 ## [0.1.0-next.0] - 2026-05-29
 
 ### Added

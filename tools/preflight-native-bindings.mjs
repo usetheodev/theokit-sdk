@@ -51,7 +51,7 @@ function isAbiError(err) {
   if (err === null || err === undefined) return false;
   const msg = String(err.message ?? err);
   const cause = err.cause !== undefined ? String(err.cause.message ?? err.cause) : "";
-  return /NODE_MODULE_VERSION|did not self-register|was compiled against/.test(msg + " " + cause);
+  return /NODE_MODULE_VERSION|did not self-register|was compiled against/.test(`${msg} ${cause}`);
 }
 
 function probeRequire(dep) {
@@ -126,7 +126,7 @@ function extractBindingPath(err) {
   // Parse error message for the .node binary path. Format examples:
   //   "The module '.../better-sqlite3/build/Release/better_sqlite3.node'"
   //   "Module did not self-register: '.../better_sqlite3.node'"
-  const msg = String(err.message ?? err) + " " + String(err.cause?.message ?? "");
+  const msg = `${String(err.message ?? err)} ${String(err.cause?.message ?? "")}`;
   const m = msg.match(/['"]([^'"]+\.node)['"]/);
   return m ? m[1] : undefined;
 }
@@ -191,6 +191,39 @@ function formatActionableError(dep, err, currentNode) {
   ].join("\n");
 }
 
+/**
+ * Handle a single native dep that failed probeRequire. Refactored out of
+ * ensureNativeBindings to keep that function below the complexity-10 cap
+ * (D422). Returns true if the dep was successfully rebuilt (caller should
+ * throw the dlopen-cache restart error); false if the dep was fine and no
+ * action was needed (probe ok branch — caller can skip).
+ */
+function recoverNativeDep(dep, result, inCi) {
+  // Unknown error (not ABI) — surface immediately, don't try to rebuild.
+  if (!isAbiError(result.error)) {
+    throw result.error;
+  }
+
+  if (inCi) {
+    process.stderr.write(formatActionableError(dep, result.error, process.versions.node));
+    process.stderr.write(
+      "\n[preflight-native-bindings] CI=true — skipping auto-rebuild. Workflow must ship an explicit `pnpm rebuild` step (T4.2).\n",
+    );
+    process.exit(1);
+  }
+
+  const rebuild = runRebuild(dep, result.bindingPath);
+  if (rebuild.exitCode !== 0) {
+    process.stderr.write(
+      `\n[preflight-native-bindings] pnpm rebuild exited with code ${rebuild.exitCode}${rebuild.signal !== null ? ` (signal ${rebuild.signal})` : ""}.\n`,
+    );
+    process.stderr.write(
+      formatActionableError(dep, rebuild.error ?? result.error, process.versions.node),
+    );
+    process.exit(1);
+  }
+}
+
 export async function ensureNativeBindings() {
   // CI fail-fast: CI workflows ship an explicit `pnpm rebuild` step before
   // tests (T4.2). If we still get an ABI mismatch in CI, build prerequisites
@@ -203,29 +236,7 @@ export async function ensureNativeBindings() {
     const result = probeRequire(dep);
     if (result.ok) continue;
 
-    // Unknown error (not ABI) — surface immediately, don't try to rebuild.
-    if (!isAbiError(result.error)) {
-      throw result.error;
-    }
-
-    if (inCi) {
-      process.stderr.write(formatActionableError(dep, result.error, process.versions.node));
-      process.stderr.write(
-        "\n[preflight-native-bindings] CI=true — skipping auto-rebuild. Workflow must ship an explicit `pnpm rebuild` step (T4.2).\n",
-      );
-      process.exit(1);
-    }
-
-    const rebuild = runRebuild(dep, result.bindingPath);
-    if (rebuild.exitCode !== 0) {
-      process.stderr.write(
-        `\n[preflight-native-bindings] pnpm rebuild exited with code ${rebuild.exitCode}${rebuild.signal !== null ? " (signal " + rebuild.signal + ")" : ""}.\n`,
-      );
-      process.stderr.write(
-        formatActionableError(dep, rebuild.error ?? result.error, process.versions.node),
-      );
-      process.exit(1);
-    }
+    recoverNativeDep(dep, result, inCi);
 
     // Node.js dlopen has a cache that survives even after a binary file is
     // replaced on disk. The failed dlopen at first probe leaves a corrupt

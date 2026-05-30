@@ -281,26 +281,7 @@ class RealLocalRun extends FixtureRunBase {
   private async executeAgentLoop(inputs: AgentLoopInputs): Promise<void> {
     try {
       const output = await runAgentLoop(inputs);
-      for (const event of output.events) {
-        this.script.events.push(event);
-        this.notifyNewEvents();
-      }
-      this.script.conversation.push(...output.conversation);
-      if (output.result.length > 0) this.script.result = output.result;
-      // D376/D377: surface aggregated usage + cost on the script so
-      // RunResult.usage / RunResult.cost are populated by buildResult().
-      if (output.usage !== undefined) this.script.usage = output.usage;
-      if (output.cost !== undefined) this.script.cost = output.cost;
-      // Finding-B fix (sdk-error-packaging-fix-plan v1.1): copy the
-      // structured error from the loop catch path so RunResult.error
-      // is populated. Set-once: never overwrite an existing detail.
-      if (output.error !== undefined && this.script.errorDetail === undefined) {
-        this.script.errorDetail = {
-          message: output.error.message,
-          ...(output.error.code !== undefined ? { code: output.error.code } : {}),
-          cause: output.error.cause,
-        };
-      }
+      this.applyAgentLoopOutput(output);
       this.transitionTo(output.finalStatus);
     } catch (cause) {
       this.emitErrorEvent(cause, "Agent loop failed", "", "agent_loop_failed");
@@ -309,6 +290,32 @@ class RealLocalRun extends FixtureRunBase {
       for (const client of inputs.mcp.values()) {
         await client.close().catch(() => undefined);
       }
+    }
+  }
+
+  /**
+   * Copy runAgentLoop output into the script (events + conversation +
+   * usage/cost + errorDetail). Extracted to keep executeAgentLoop below
+   * the complexity-10 cap (D422 / sdk-biome-cleanup-plan).
+   *
+   * D376/D377: usage/cost surfaced for RunResult.usage / RunResult.cost.
+   * Finding-B fix (sdk-error-packaging v1.1): set-once errorDetail copy.
+   */
+  private applyAgentLoopOutput(output: Awaited<ReturnType<typeof runAgentLoop>>): void {
+    for (const event of output.events) {
+      this.script.events.push(event);
+      this.notifyNewEvents();
+    }
+    this.script.conversation.push(...output.conversation);
+    if (output.result.length > 0) this.script.result = output.result;
+    if (output.usage !== undefined) this.script.usage = output.usage;
+    if (output.cost !== undefined) this.script.cost = output.cost;
+    if (output.error !== undefined && this.script.errorDetail === undefined) {
+      this.script.errorDetail = {
+        message: output.error.message,
+        ...(output.error.code !== undefined ? { code: output.error.code } : {}),
+        cause: output.error.cause,
+      };
     }
   }
 
