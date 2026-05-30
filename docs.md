@@ -2997,3 +2997,53 @@ These hooks are **admission gates**, not observers. Their throws **propagate** a
 ### Cache hit semantics
 
 `Agent.getOrCreate` cache hit (`Agent.registry`) skips `onBeforeCreate` — cache is per-process, so cold path always runs the hook. Per-user quotas backed by an external DB survive process restart.
+
+## Test fault injection (v1.22+) — `THEOKIT_TEST_RESPONSE_OVERRIDE`
+
+Deterministic chaos testing without burning provider quota or hitting the network. Every LLM client returned by the internal router is wrapped with a fault-injection decorator that short-circuits the real call when both gates are satisfied:
+
+1. `process.env.NODE_ENV === "test"` (fail-safe — production deployments are unaffected; the wrapper is a cheap noop)
+2. `process.env.THEOKIT_TEST_RESPONSE_OVERRIDE` is a non-empty JSON string of shape `{"status": number, "body": object | string}`
+
+```bash
+# 429 rate-limit — deterministic, zero quota burn
+export NODE_ENV=test
+export THEOKIT_TEST_RESPONSE_OVERRIDE='{"status":429,"body":{"error":{"code":"rate_limit_exceeded","message":"Rate limit hit; retry in 60s"}}}'
+
+# Now `agent.send(...)` throws RateLimitError without any HTTP roundtrip.
+```
+
+### Supported status classes (errors)
+
+| HTTP status | Thrown error class | Use case |
+|---|---|---|
+| 401 / 403 | `AuthenticationError` | Invalid-key scenarios |
+| 408 | `NetworkError` (timeout) | Timeout handling |
+| 400 | `ConfigurationError` | Bad-request scenarios |
+| 429 | `RateLimitError` | Rate-limit handling without quota burn |
+| 5xx | `NetworkError` (server_error) | Retry / circuit-breaker tests |
+
+Error mapping reuses `mapOpenAICompatibleError` — the injected errors are byte-equal to what the real provider would raise.
+
+### Supported body shapes (status 200)
+
+| Body shape | Behavior |
+|---|---|
+| `{"choices":[{"message":{"content":"hello"}}]}` (OpenAI shape) | yields `text_delta` with `"hello"` + `stop: "end_turn"` |
+| `"raw string"` | yields the string verbatim |
+| `{"text":"hello"}` | yields `text_delta` with `"hello"` |
+| anything else | yields empty text + `stop: "end_turn"` |
+
+### Graceful degradation
+
+If the env var is set but the JSON is malformed (parse error, missing `status`, wrong type), the wrapper emits a one-shot stderr warn AND falls through to the real LLM client. The feature never throws on bad config.
+
+### When to use this
+
+- **Chaos tests** — exercise `RateLimitError` / `AuthenticationError` retry paths without OpenRouter quota burn.
+- **Snapshot tests** — pin a deterministic LLM reply for golden-file comparison.
+- **CI fault injection** — verify your app handles 5xx upstream gracefully.
+
+### When NOT to use this
+
+This is NOT a replacement for `fixture-mode` (the `theo_test_*` API key path). Fixture mode is a product feature for SDK consumers' tests; `THEOKIT_TEST_RESPONSE_OVERRIDE` is a chaos seam for the SDK + framework's own test pipelines. Per the `real-llm-validation.md` rule, **fixture mode and `THEOKIT_TEST_RESPONSE_OVERRIDE` are both insufficient evidence for "validated against real LLM"** claims.

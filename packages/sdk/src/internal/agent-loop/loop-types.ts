@@ -107,6 +107,19 @@ export interface AgentLoopInputs {
   telemetry?: import("../telemetry/tracer.js").TelemetryHandle;
 }
 
+/**
+ * Structured error surfaced from the loop catch/error-event paths
+ * (transport/provider failures). Set-once invariant — the first reaching
+ * error wins; later errors in the same run are ignored (ADR D3, EC-3-A).
+ *
+ * @internal — finding-b fix (sdk-error-packaging-fix-plan v1.1)
+ */
+export interface AgentLoopErrorDetail {
+  message: string;
+  code?: string;
+  cause?: unknown;
+}
+
 export interface AgentLoopOutput {
   events: SDKMessage[];
   finalStatus: RunStatus;
@@ -125,4 +138,11 @@ export interface AgentLoopOutput {
    * `"estimated"` / `"unknown"` / `"included"` per D377.
    */
   cost?: import("../../types/usage.js").CostBreakdown;
+  /**
+   * Structured error from transport / provider failure (Finding B fix).
+   * When set, `finalStatus === "error"`. Downstream surfaces (runtime,
+   * `RunResult.error`) copy this verbatim. NEVER leaks as an assistant
+   * message (the previous bug — sdk-error-packaging-fix-plan).
+   */
+  error?: AgentLoopErrorDetail;
 }

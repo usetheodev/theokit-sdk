@@ -19,7 +19,7 @@ importers:
         version: file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3))
       '@usetheo/gateway-teams':
         specifier: file:../../packages/gateway-teams
-        version: file:../../packages/gateway-teams(@microsoft/teams.api@2.0.11)(@microsoft/teams.apps@2.0.11)(@usetheo/gateway@file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3)))(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3))
+        version: file:../../packages/gateway-teams(@microsoft/teams.apps@2.0.11)(@usetheo/gateway@file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3)))(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3))
       '@usetheo/sdk':
         specifier: file:../../packages/sdk
         version: file:../../packages/sdk(zod@4.4.3)
@@ -272,7 +272,6 @@ packages:
     resolution: {directory: ../../packages/gateway-teams, type: directory}
     engines: {node: '>=22.12.0'}
     peerDependencies:
-      '@microsoft/teams.api': ^2.0.0
       '@microsoft/teams.apps': ^2.0.0
       '@usetheo/gateway': workspace:^
       '@usetheo/sdk': workspace:^
@@ -1013,9 +1012,8 @@ snapshots:
       '@types/node': 25.9.1
       '@types/send': 0.17.6
 
-  '@usetheo/gateway-teams@file:../../packages/gateway-teams(@microsoft/teams.api@2.0.11)(@microsoft/teams.apps@2.0.11)(@usetheo/gateway@file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3)))(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3))':
+  '@usetheo/gateway-teams@file:../../packages/gateway-teams(@microsoft/teams.apps@2.0.11)(@usetheo/gateway@file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3)))(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3))':
     dependencies:
-      '@microsoft/teams.api': 2.0.11
       '@microsoft/teams.apps': 2.0.11
       '@usetheo/gateway': file:../../packages/gateway(@usetheo/sdk@file:../../packages/sdk(zod@4.4.3))
       '@usetheo/sdk': file:../../packages/sdk(zod@4.4.3)

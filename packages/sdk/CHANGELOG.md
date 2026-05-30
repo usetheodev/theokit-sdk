@@ -1,6 +1,93 @@
 # Changelog
 
+## 1.3.0
+
+### Minor Changes
+
+- Fix Finding B: provider/transport errors no longer leak as `SDKAssistantMessage` content. They surface structured on `RunResult.error` (`{ message, code?, cause? }`).
+
+  **Background.** Previously, the agent loop's stream catch block (`internal/agent-loop/loop.ts`) and the runtime's `emitErrorEvent` (`internal/runtime/real-local-run.ts`) both pushed an `SDKAssistantMessage` carrying the error text. Downstream surfaces (notably `theokit`'s `streamAgentRun`) then yielded `{ type: 'message' }` events instead of `{ type: 'error' }`, hiding the failure from consumers' typed error handling and from chaos tests.
+
+  **What changed.**
+
+  - `AgentLoopOutput` now carries an optional `error?: AgentLoopErrorDetail` field.
+  - The loop catch path and the in-stream `{ type: "error" }` event both populate `ctx.error` via a single `registerLoopError(ctx, cause)` helper that enforces the set-once invariant (first-error-wins, ADR D3) and EC-1 typeof-guards `cause.code` so a non-string code never lands on the wire as the literal `"undefined"`.
+  - The abort path (`signal.aborted === true`) still emits `"[aborted]"` as an `SDKAssistantMessage` — that is a UX seam, not an error.
+  - `executeAgentLoop` copies `output.error` onto `script.errorDetail`, which `buildResult()` already surfaces as `RunResult.error` (set-once invariant preserved).
+  - `emitErrorEvent` (used by MCP-init / build-inputs / outer-catch paths) no longer pushes an assistant message — those errors flow exclusively via `script.errorDetail` → `RunResult.error`.
+
+  **Migration (EC-8).** If your code grepped for the error inside `for await (const msg of run.stream()) { if (msg.type === 'assistant' && /401|API error/.test(...)) }`, switch to `const result = await run.wait(); if (result.status === 'error') { result.error.message; result.error.code; }`. The abort case still arrives as an assistant message with content `"[aborted]"` — distinct from errors.
+
+  **Tests added.** `tests/internal/agent-loop/error-packaging.test.ts` (5 unit tests covering auth, transport, abort UX preservation, first-error-wins, happy-path sanity). `tests/runtime/error-packaging-e2e.test.ts` (2 E2E tests covering full `Agent.create → send → wait → result.error` pipeline with mocked 401 fetch and the EC-6 double-negative invariant).
+
+## 1.2.0
+
+### Minor Changes
+
+- **D14 — Test fault injection via `THEOKIT_TEST_RESPONSE_OVERRIDE` env var.**
+
+  Adds a deterministic chaos-testing seam at the LLM transport layer. When `NODE_ENV=test` AND `THEOKIT_TEST_RESPONSE_OVERRIDE` is set to a JSON string of shape `{"status": number, "body": object | string}`, every provider client returned by `resolveProviderChain` short-circuits the real network call and synthesizes the configured response.
+
+  **Use cases (replaces flaky chaos patterns):**
+
+  ```bash
+  # 429 rate-limit — deterministic, zero quota burn
+  export NODE_ENV=test
+  export THEOKIT_TEST_RESPONSE_OVERRIDE='{"status":429,"body":{"error":{"code":"rate_limit_exceeded","message":"Rate limit hit"}}}'
+
+  # 500 server error — for retry / circuit-breaker tests
+  export THEOKIT_TEST_RESPONSE_OVERRIDE='{"status":500,"body":{"error":{"code":"internal_error"}}}'
+
+  # 200 happy path — deterministic text for snapshot tests
+  export THEOKIT_TEST_RESPONSE_OVERRIDE='{"status":200,"body":{"choices":[{"message":{"content":"hello"}}]}}'
+  ```
+
+  **Design (FAANG-grade fail-safe):**
+
+  - **Two-gate activation.** Both `NODE_ENV === "test"` AND a non-empty env var must be present. Production deployments are unaffected (cheap noop in the hot path).
+  - **Decorator pattern** (`FaultInjectingLlmClient`) wraps every resolved transport. Composes cleanly with `PoolAwareLlmClient` (credential pools D123-D133) and per-provider transports without modifying them.
+  - **Graceful degradation on malformed JSON** — one-shot stderr warn + fall-through to the real client. Never throws on bad config.
+  - **Error parity** — injected non-200 statuses go through the existing `mapOpenAICompatibleError` mapper, so the error class hierarchy (`RateLimitError`, `AuthenticationError`, `NetworkError`, `ConfigurationError`) is byte-equal to what the real provider would raise.
+  - **Transparent passthrough** when override is absent — the wrapper preserves `client.name` for telemetry and exposes `inner` so layered-transport assertions (router pool-wiring tests, telemetry inspectors) can walk one level deep.
+
+  **Tests:** 12 unit tests (`tests/llm-fault-injection.test.ts`) + 3 wiring tests (`tests/llm-fault-injection-router-wiring.test.ts`) — gate negative + active for each status class + idempotence + name preservation.
+
+  **Rejects the anti-patterns:** "50 parallel requests to force 429" (flaky + quota burn + cost overrun), `nock`/`msw` (violates stranger persona), conditional code in templates (Strategy pattern instead).
+
+  Inspired by Stripe test-mode + AWS SDK `AWS_SDK_LOAD_CONFIG=0`. Documented in dogfood-stranger Phase 13 (theokit plan `dogfood-fixes-and-coverage-expansion-plan.md` ADR D14).
+
 ## [Unreleased]
+
+### Added — `THEOKIT_TEST_RESPONSE_OVERRIDE` env var (D14 fault injection)
+
+Deterministic chaos-testing seam at the LLM transport layer. When both
+`NODE_ENV=test` AND `THEOKIT_TEST_RESPONSE_OVERRIDE` are set to a JSON string
+of shape `{"status": number, "body": object | string}`, every provider client
+returned by `resolveProviderChain` short-circuits the real network call and
+synthesizes the configured response.
+
+Replaces flaky chaos patterns like "50 parallel requests to force 429" with
+zero quota burn + zero network. Composes with credential pools (D123-D133)
+and per-provider transports without modification (decorator pattern).
+
+Use cases:
+
+- Inject 429 for rate-limit handling tests
+- Inject 5xx for retry / circuit-breaker tests
+- Inject 200 with deterministic content for snapshot tests
+
+See `docs.md` § "Test fault injection (v1.22+)" for the full contract,
+supported status classes / body shapes, and graceful-degradation semantics.
+
+Implementation:
+
+- `src/internal/llm/fault-injection.ts` — `FaultInjectingLlmClient` decorator
+  - parser + activation gate + one-shot stderr warn on malformed JSON
+- `src/internal/llm/router.ts` — wraps every resolved client (1-line wire)
+- `tests/llm-fault-injection.test.ts` — 12 unit tests (gate negative + active
+  per status class + idempotence + name preservation)
+- `tests/llm-fault-injection-router-wiring.test.ts` — 3 wiring tests proving
+  end-to-end the override reaches `Agent.send` via the router
 
 ### Fixed — `Agent.getOrCreate` no longer returns disposed cached agents
 

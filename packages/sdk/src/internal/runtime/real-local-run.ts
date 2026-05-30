@@ -291,6 +291,16 @@ class RealLocalRun extends FixtureRunBase {
       // RunResult.usage / RunResult.cost are populated by buildResult().
       if (output.usage !== undefined) this.script.usage = output.usage;
       if (output.cost !== undefined) this.script.cost = output.cost;
+      // Finding-B fix (sdk-error-packaging-fix-plan v1.1): copy the
+      // structured error from the loop catch path so RunResult.error
+      // is populated. Set-once: never overwrite an existing detail.
+      if (output.error !== undefined && this.script.errorDetail === undefined) {
+        this.script.errorDetail = {
+          message: output.error.message,
+          ...(output.error.code !== undefined ? { code: output.error.code } : {}),
+          cause: output.error.cause,
+        };
+      }
       this.transitionTo(output.finalStatus);
     } catch (cause) {
       this.emitErrorEvent(cause, "Agent loop failed", "", "agent_loop_failed");
@@ -303,26 +313,21 @@ class RealLocalRun extends FixtureRunBase {
   }
 
   private emitErrorEvent(cause: unknown, fallback: string, prefix = "", code?: string): void {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    const display = prefix.length > 0 ? `${prefix}${message}` : message || fallback;
-    // Also stash structured detail on the script so wait() callers see the
-    // cause via `result.error` without having to drain the stream.
+    // Finding-B fix (sdk-error-packaging-fix-plan v1.1): surface infra
+    // failures (MCP init, build-inputs, agent_loop_failed outer-catch) via
+    // the structured `errorDetail` channel ONLY — never as assistant
+    // content. Downstream `buildResult()` copies this onto RunResult.error,
+    // and `Run.stream()` will emit a typed `{ type: "error" }` event when
+    // the runtime observes errorDetail (Phase 2). Set-once.
     if (this.script.errorDetail === undefined) {
+      const message = cause instanceof Error ? cause.message : String(cause);
+      const display = prefix.length > 0 ? `${prefix}${message}` : message || fallback;
       this.script.errorDetail = {
         message: display,
         ...(code !== undefined ? { code } : {}),
         cause,
       };
     }
-    this.script.events.push({
-      type: "assistant",
-      agent_id: this.agentId,
-      run_id: this.id,
-      message: {
-        role: "assistant",
-        content: [{ type: "text", text: display }],
-      },
-    });
     this.notifyNewEvents();
   }
 }

@@ -1,8 +1,23 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.3.0
+
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @usetheo/sdk@1.2.0
+
 ## [0.1.0] - 2026-05-25
 
 ### Added
+
 - Initial release. Google Workspace skill bundle for `@usetheo/sdk` (Roadmap v1.4 #5).
 - `googleWorkspace(opts)` factory returns one `McpServerConfig` running
   `npx google-workspace-mcp@^2.3.0 serve [--read-only] [--account <name>]`.

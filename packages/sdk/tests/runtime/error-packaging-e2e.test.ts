@@ -1,0 +1,158 @@
+/**
+ * T2.1 — Finding B end-to-end gate (`sdk-error-packaging-fix-plan` v1.1).
+ *
+ * Validates the FULL pipeline:
+ *   Agent.create({ apiKey, model }) → agent.send(...) → run.wait() →
+ *   result.error populated  ∧  zero SDKAssistantMessage carries error content.
+ *
+ * Where the unit tests in `tests/internal/agent-loop/error-packaging.test.ts`
+ * pin the loop catch path surgically, this one exercises the runtime wire:
+ *   - `runAgentLoop` returns `{ error }`
+ *   - `executeAgentLoop` copies it to `script.errorDetail`
+ *   - `fixture-run-base.buildResult` exposes it as `RunResult.error`
+ *   - `Run.stream()` never yields a typed-error-shaped assistant message
+ *
+ * Transport is intercepted via `vi.stubGlobal("fetch", …)` so we do not
+ * touch the network and the test stays deterministic.
+ */
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { Agent } from "../../src/agent.js";
+import {
+  clearAgentRegistry,
+  invalidateRegistryHydration,
+} from "../../src/internal/runtime/agent-registry.js";
+import { clearAllSessions } from "../../src/internal/runtime/agent-session.js";
+
+const REAL_KEY_SHAPE = "sk-or-v1-error-packaging-e2e-1234567890abcdef";
+const MODEL = { id: "openai/gpt-4o-mini" };
+
+function mockFetch401(): typeof fetch {
+  return vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => {
+    return new Response(
+      JSON.stringify({
+        error: {
+          message: "Invalid API key provided",
+          type: "invalid_request_error",
+          code: "invalid_api_key",
+        },
+      }),
+      {
+        status: 401,
+        statusText: "Unauthorized",
+        headers: { "content-type": "application/json" },
+      },
+    ) as Response;
+  }) as unknown as typeof fetch;
+}
+
+function findLeakedErrorAssistant(events: ReadonlyArray<unknown>): unknown | undefined {
+  return events.find((e): boolean => {
+    if (typeof e !== "object" || e === null) return false;
+    const ev = e as { type?: string };
+    if (ev.type !== "assistant") return false;
+    const json = JSON.stringify(e);
+    return /Invalid API key|HTTP 401|invalid_api_key|auth_failed|Unauthorized/i.test(json);
+  });
+}
+
+describe("RunResult.error end-to-end (Finding B — full pipeline)", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    clearAgentRegistry();
+    clearAllSessions();
+    invalidateRegistryHydration();
+    await Agent.registry.evictAll();
+    root = await mkdtemp(join(tmpdir(), "theokit-error-pkg-e2e-"));
+  });
+
+  afterEach(async () => {
+    clearAgentRegistry();
+    clearAllSessions();
+    invalidateRegistryHydration();
+    await Agent.registry.evictAll();
+    await rm(root, { recursive: true, force: true });
+    vi.unstubAllGlobals();
+  });
+
+  it("provider 401 → RunResult.error populated + no leaked assistant", async () => {
+    // Stub env so the router builds an OpenAI-compat client and our mocked
+    // fetch fires. Without this, `resolveProviderChain` throws a
+    // ConfigurationError BEFORE the loop catch path (which is also
+    // captured via `result.error` but doesn't exercise the loop seam).
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-v1-test-fixture-key");
+    vi.stubGlobal("fetch", mockFetch401());
+    const agent = await Agent.create({
+      apiKey: REAL_KEY_SHAPE,
+      model: MODEL,
+      local: { cwd: root },
+      providers: { routes: [{ capability: "chat", provider: "openrouter" }] },
+    });
+    try {
+      const run = await agent.send("hi");
+      const result = await run.wait();
+
+      // FINDING B INVARIANT 1: result.status === "error" + structured error set
+      expect(result.status).toBe("error");
+      expect(result.error).toBeDefined();
+      expect(result.error?.message).toMatch(/401|Invalid API key|Unauthorized/i);
+
+      // FINDING B INVARIANT 2: NO assistant message in the stream carries
+      // the error text — that was exactly the leak pre-fix.
+      const events: unknown[] = [];
+      for await (const event of run.stream()) {
+        events.push(event);
+      }
+      const leaked = findLeakedErrorAssistant(events);
+      expect(leaked, "Finding B: error MUST NOT leak as assistant content").toBeUndefined();
+    } finally {
+      await agent.dispose();
+    }
+  });
+
+  it("EC-6 double-negative: chaos consumer can rely on (a)+(b) jointly", async () => {
+    // EC-6 MUST FIX — chaos tests can fail with weak single-check
+    // "status === 'error'" — assertion. The fix lets consumers assert
+    // both "error.code populated" AND "no assistant leak" — i.e., the
+    // contract the patched SDK promises.
+    vi.stubEnv("OPENROUTER_API_KEY", "sk-or-v1-test-fixture-key");
+    vi.stubGlobal("fetch", mockFetch401());
+    const agent = await Agent.create({
+      apiKey: REAL_KEY_SHAPE,
+      model: MODEL,
+      local: { cwd: root },
+      providers: { routes: [{ capability: "chat", provider: "openrouter" }] },
+    });
+    try {
+      const run = await agent.send("hi");
+      const result = await run.wait();
+
+      // (a) structured detail exists
+      expect(result.error?.message.length).toBeGreaterThan(0);
+
+      // (b) no leak — drain stream and prove negative
+      const events: unknown[] = [];
+      for await (const event of run.stream()) {
+        events.push(event);
+      }
+      const assistantTexts = events
+        .filter((e): e is { type: "assistant"; message: { content: Array<{ text?: string }> } } => {
+          if (typeof e !== "object" || e === null) return false;
+          return (e as { type?: string }).type === "assistant";
+        })
+        .flatMap((e) => e.message.content.map((p) => p.text ?? ""));
+
+      // None of the assistant payloads should contain the verbatim error.
+      for (const text of assistantTexts) {
+        expect(text).not.toMatch(/Invalid API key|401|invalid_api_key/i);
+      }
+    } finally {
+      await agent.dispose();
+    }
+  });
+});

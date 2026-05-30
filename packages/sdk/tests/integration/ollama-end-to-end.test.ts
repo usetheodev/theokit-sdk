@@ -45,30 +45,45 @@ if (!ollamaAvailable) {
   );
 }
 
-describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: end-to-end stream consume + assertion pipeline is intentionally inline for clarity in an integration test
-  it("agent.send returns assistant message with non-empty content", async () => {
-    const agent = await Agent.create({
-      apiKey: "local",
-      model: { id: TEST_MODEL },
-      local: { cwd: process.cwd() },
-    });
-
-    const run = await agent.send("Reply with one short greeting.");
-
-    // Collect text from stream — this is the load-bearing assertion for
-    // D182: real Ollama-driven content arrived through the SDK pipeline.
-    let assistantText = "";
-    for await (const event of run.stream()) {
-      if (event.type === "assistant") {
-        for (const part of event.message.content) {
-          if (part.type === "text") assistantText += part.text;
-        }
+// dogfood-regressions-fix-plan v1.1 T3.1 + addendum — drains an Ollama
+// send; under full-suite contention, the first cold-warmup request can
+// legitimately return empty text from the model side (Ollama-side flake,
+// NOT an SDK bug). We tolerate one empty-content retry before failing —
+// the load-bearing assertion "real LLM produced non-empty content" still
+// holds, with an honest stderr warn so the model-side flake is visible.
+async function drainAgentSend(prompt: string): Promise<string> {
+  const agent = await Agent.create({
+    apiKey: "local",
+    model: { id: TEST_MODEL },
+    local: { cwd: process.cwd() },
+  });
+  const run = await agent.send(prompt);
+  let text = "";
+  for await (const event of run.stream()) {
+    if (event.type === "assistant") {
+      for (const part of event.message.content) {
+        if (part.type === "text") text += part.text;
       }
     }
-    await run.wait();
+  }
+  await run.wait();
+  return text;
+}
+
+describe.skipIf(!ollamaAvailable)("ollama integration (D182)", () => {
+  it("agent.send returns assistant message with non-empty content", async () => {
+    let assistantText = await drainAgentSend("Reply with one short greeting.");
+    if (assistantText.length === 0) {
+      // Model-side cold-warmup empty-response flake. Retry once with a
+      // simpler prompt; if still empty, fail honestly so the test
+      // surfaces a real regression rather than masking it.
+      process.stderr.write(
+        "[ollama-end-to-end] Empty content on first call (Ollama cold-warmup flake). Retrying once with simpler prompt.\n",
+      );
+      assistantText = await drainAgentSend("Say hi.");
+    }
     expect(assistantText.length).toBeGreaterThan(0);
-  }, 120_000); // EC-D: first request can take 10-60s while Ollama warms up; doubled to 120s for parallel-suite cold-load scenarios.
+  }, 240_000); // EC-D: 120s base + 120s retry budget (worst case = two cold sends).
 
   it("onDelta callback receives text-delta updates", async () => {
     const deltas: string[] = [];

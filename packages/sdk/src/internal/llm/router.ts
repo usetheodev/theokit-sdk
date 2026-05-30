@@ -10,6 +10,7 @@ import { BedrockAnthropicClient } from "./bedrock-anthropic.js";
 import { CredentialPool, newPooledCredential } from "./credential-pool.js";
 import { currentCredentialPool } from "./credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./credential-pool-types.js";
+import { maybeWrapWithFaultInjection } from "./fault-injection.js";
 import { OllamaNativeClient } from "./ollama-native.js";
 import { OpenAIClient } from "./openai.js";
 import { PoolAwareLlmClient } from "./pool-aware-client.js";
@@ -67,7 +68,10 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
     if (seen.has(lowered)) return;
     seen.add(lowered);
     const client = buildClient(lowered, options);
-    if (client !== undefined) clients.push(client);
+    // D14: wrap every resolved client with the fault-injection decorator.
+    // The wrapper is a cheap noop unless `NODE_ENV=test` AND
+    // `THEOKIT_TEST_RESPONSE_OVERRIDE` are both set — production is unaffected.
+    if (client !== undefined) clients.push(maybeWrapWithFaultInjection(client));
   };
   addClient(options.primary);
   for (const fallback of options.fallback ?? []) addClient(fallback);
