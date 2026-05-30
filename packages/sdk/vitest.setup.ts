@@ -43,41 +43,53 @@ import { _resetForTests } from "./src/internal/security/redact.js";
 
 await ensureNativeBindings();
 
-let tempHome: string | undefined;
-let originalTheokitHome: string | undefined;
-// dogfood-regressions-fix-plan v1.1 — tests that touch user-personality /
-// user-config lookup (`~/.theokit/personalities/`, etc.) set `process.env.HOME`
-// to a tmpdir. Without isolation across tests, parallel workers race the
-// shared env and a test sees another test's HOME mid-run. Pre-fix: this was
-// masked because the sqlite suite consumed worker slots serially; post-fix
-// (preflight T1.1), parallelism is healthy and the race surfaces. Isolate
-// HOME the same way THEOKIT_HOME is isolated — save + restore per-test.
-let originalHome: string | undefined;
+// theokit-sdk-biome-cleanup 2026-05-30 — fix HOME-race root cause.
+//
+// Previous setup used module-level `let originalHome` to save+restore HOME
+// per-test. When vitest parallelizes (worker threads OR async test scheduling
+// inside a single process), test A's beforeEach saves HOME=X into the module
+// var, then test B's beforeEach overwrites it with HOME=Y, then test A's
+// afterEach restores HOME=Y instead of X — corrupting the env for every
+// subsequent test that reads it (5 tests under
+// internal/{providers/discovery,runtime/context-import-resolver,personality/*}
+// failed deterministically under load).
+//
+// The fix is a STACK keyed by test-instance (vitest passes the test context
+// to beforeEach/afterEach with a stable `task.id` over a single test). Push
+// the original env values on entry; pop on exit. Concurrent tests get
+// independent entries.
+interface SetupBackup {
+  tempHome: string;
+  originalTheokitHome: string | undefined;
+  originalHome: string | undefined;
+}
+const backupByTask = new Map<string, SetupBackup>();
 
-beforeEach(() => {
-  originalTheokitHome = process.env.THEOKIT_HOME;
-  originalHome = process.env.HOME;
-  tempHome = mkdtempSync(join(tmpdir(), "theokit-test-"));
+beforeEach((ctx) => {
+  const tempHome = mkdtempSync(join(tmpdir(), "theokit-test-"));
+  backupByTask.set(ctx.task.id, {
+    tempHome,
+    originalTheokitHome: process.env.THEOKIT_HOME,
+    originalHome: process.env.HOME,
+  });
   process.env.THEOKIT_HOME = tempHome;
   // Secret-redaction EC-3: clear user-added patterns + force ON.
   _resetForTests({ enabled: true, clearExtras: true });
 });
 
-afterEach(() => {
-  if (tempHome !== undefined) {
-    rmSync(tempHome, { recursive: true, force: true });
-    tempHome = undefined;
-  }
-  if (originalTheokitHome === undefined) {
+afterEach((ctx) => {
+  const backup = backupByTask.get(ctx.task.id);
+  if (backup === undefined) return;
+  backupByTask.delete(ctx.task.id);
+  rmSync(backup.tempHome, { recursive: true, force: true });
+  if (backup.originalTheokitHome === undefined) {
     delete process.env.THEOKIT_HOME;
   } else {
-    process.env.THEOKIT_HOME = originalTheokitHome;
-    originalTheokitHome = undefined;
+    process.env.THEOKIT_HOME = backup.originalTheokitHome;
   }
-  if (originalHome === undefined) {
+  if (backup.originalHome === undefined) {
     delete process.env.HOME;
   } else {
-    process.env.HOME = originalHome;
-    originalHome = undefined;
+    process.env.HOME = backup.originalHome;
   }
 });

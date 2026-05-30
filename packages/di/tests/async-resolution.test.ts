@@ -72,7 +72,6 @@ describe("Container.resolve — async chain defensive check", () => {
   it("sync resolve on class whose dep is async also throws", () => {
     @Injectable()
     class WithAsyncDep {
-      // biome-ignore lint/correctness/noUnusedVariables: dep field is here only to trigger DI
       constructor(readonly num: number) {}
     }
     const c = new Container();

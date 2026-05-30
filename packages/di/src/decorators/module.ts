@@ -21,7 +21,7 @@ export interface ModuleMetadata {
  * Kept here (not in internal/metadata.ts) so the import graph stays tidy:
  * module decorator depends only on its own key.
  */
-export const MODULE_METADATA_KEY = "usetheo:di:module";
+const MODULE_METADATA_KEY = "usetheo:di:module";
 
 /**
  * Mark a class as a DI module. The class itself never gets instantiated —

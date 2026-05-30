@@ -1,9 +1,14 @@
 /**
  * T3.1 TDD (v1.1 EC-4) — Vitest config shape sanity.
  *
- * Pins the `poolMatchGlobs` shape so a future vitest major-bump that
+ * Pins the pool configuration so a future vitest major-bump that
  * renames/restructures the API surfaces here as a build failure instead of
  * being silently ignored (running everything in `threads` again).
+ *
+ * theokit-sdk-biome-cleanup 2026-05-30 — `poolMatchGlobs` is deprecated in
+ * vitest 3.x. The whole SDK suite now runs in the forks pool via top-level
+ * `pool: "forks"` + `poolOptions.forks.singleFork: true` + `fileParallelism:
+ * false`. The deprecated `poolMatchGlobs` is kept for backward visibility.
  */
 
 import { resolve } from "node:path";
@@ -12,43 +17,37 @@ import { describe, expect, it } from "vitest";
 
 const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
-describe("vitest config — poolMatchGlobs (T3.1)", () => {
+describe("vitest config — pool configuration (T3.1)", () => {
   it("loads the SDK vitest config without throwing", async () => {
     const mod = await import(resolve(__dirname, "../../vitest.config.ts"));
     expect(mod.default).toBeDefined();
   });
 
-  it("declares poolMatchGlobs as [pattern, pool] tuple array (vitest 3.x shape)", async () => {
+  it("declares pool: 'forks' at top level (HOME-race + libuv-saturation fix)", async () => {
     const mod = await import(resolve(__dirname, "../../vitest.config.ts"));
     const config = mod.default as {
-      test?: {
-        poolMatchGlobs?: ReadonlyArray<readonly [string, string]>;
-      };
+      test?: { pool?: string };
     };
-    const globs = config.test?.poolMatchGlobs;
-    expect(Array.isArray(globs)).toBe(true);
-    if (!Array.isArray(globs)) return;
-    expect(globs.length).toBeGreaterThan(0);
-    for (const entry of globs) {
-      expect(Array.isArray(entry)).toBe(true);
-      expect(entry.length).toBe(2);
-      expect(typeof entry[0]).toBe("string");
-      expect(typeof entry[1]).toBe("string");
-    }
+    expect(config.test?.pool).toBe("forks");
   });
 
-  it("routes tests/integration/** to forks", async () => {
+  it("declares singleFork: false for per-file process isolation", async () => {
     const mod = await import(resolve(__dirname, "../../vitest.config.ts"));
     const config = mod.default as {
-      test?: {
-        poolMatchGlobs?: ReadonlyArray<readonly [string, string]>;
-        poolOptions?: { forks?: { singleFork?: boolean } };
-      };
+      test?: { poolOptions?: { forks?: { singleFork?: boolean } } };
     };
-    const integration = config.test?.poolMatchGlobs?.find(
-      ([pattern]) => pattern === "tests/integration/**",
-    );
-    expect(integration?.[1]).toBe("forks");
-    expect(config.test?.poolOptions?.forks?.singleFork).toBe(true);
+    // theokit-sdk-biome-cleanup 2026-05-30 — flipped from `true` to `false`
+    // so each test file gets its own subprocess. This is the only reliable
+    // way to isolate `process.env.HOME` mutations across files. The whole
+    // suite still runs in the forks pool (separate from threads).
+    expect(config.test?.poolOptions?.forks?.singleFork).toBe(false);
+  });
+
+  it("declares fileParallelism: false for strict file-level serial execution", async () => {
+    const mod = await import(resolve(__dirname, "../../vitest.config.ts"));
+    const config = mod.default as {
+      test?: { fileParallelism?: boolean };
+    };
+    expect(config.test?.fileParallelism).toBe(false);
   });
 });

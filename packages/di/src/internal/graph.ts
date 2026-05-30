@@ -19,7 +19,7 @@ export interface GraphEdge {
   readonly to: Token;
 }
 
-export interface GraphSnapshot {
+interface GraphSnapshot {
   readonly nodes: ReadonlyArray<GraphNode>;
   readonly edges: ReadonlyArray<GraphEdge>;
 }

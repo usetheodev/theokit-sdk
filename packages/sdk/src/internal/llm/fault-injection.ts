@@ -67,7 +67,6 @@ export class FaultInjectingLlmClient implements LlmClient {
     this.name = inner.name;
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: explicit gate → parse → branch is clearer than splitting
   async *stream(
     request: LlmRequest,
     signal: AbortSignal,
