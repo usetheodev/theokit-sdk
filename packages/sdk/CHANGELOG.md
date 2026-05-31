@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1
+
+### Patch Changes
+
+- **`defineTool` now works on zod v3 + v4 (universal converter).** Before this patch, `defineTool({ inputSchema: z.object(...) })` failed at runtime with `z.toJSONSchema is not a function` whenever the consumer's resolved `zod` was v3 (which is the case for `theokit` and `dogfood-app` today — both pin `^3.25.0`). The SDK delegates conversion to the existing universal `internal/zod/to-json-schema.ts` adapter (feature-detect zod 4 native `toJSONSchema` → fallback to `zod-to-json-schema` peer lib). Caught end-to-end via Chrome MCP dogfood — `/api/tools`, `/api/admin/sdk-config`, `POST /api/chat` all 500'd before the fix; all 200 after.
+- **`internal/zod/to-json-schema.ts` cross-version safety net:** when the SDK runs under a dev-server (Vite SSR), `createRequire("zod")` resolves to the SDK's OWN `node_modules/zod` (v4 in devDeps), while the schema was built by the consumer's zod v3 instance. Calling v4's `toJSONSchema(v3Schema)` throws. The native path now catches that error and falls through to `zod-to-json-schema` (which understands both v3 and v4 schemas). Mode toggled in cache so subsequent calls go directly to the working path.
+- Added `zod-to-json-schema: "^3.24.0"` as optional `peerDependency` (already silently required by zod-3 consumers; now declared explicitly so `pnpm install` resolves it deterministically).
+
 ## 1.4.0
 
 ### Minor Changes

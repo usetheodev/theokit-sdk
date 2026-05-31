@@ -1,14 +1,14 @@
-import { createRequire } from "node:module";
-
 // `zod` referenced only as a TYPE — `import type` is erased by tsc/tsup, so
 // the compiled `dist/index.js` does NOT have a top-level `import "zod"`.
 // Consumers who don't call `defineTool` don't need `zod` installed (the peer
-// dependency stays truly optional per ADR D24). The runtime `z` namespace
-// is loaded SYNCHRONOUSLY via `createRequire` on the first defineTool call;
-// this preserves the sync API contract from D25 (defineTool is not async)
-// while keeping the zod import lazy.
+// dependency stays truly optional per ADR D24). The runtime JSON-Schema
+// conversion is delegated to `zodToJsonSchema` (internal/zod/to-json-schema)
+// which feature-detects zod 4 native `toJSONSchema` vs zod 3 +
+// `zod-to-json-schema` peer dep — supporting the SDK's declared peer range
+// `zod: "^3.25.0 || ^4.0.0"`.
 import type { z as ZodNamespace, ZodType } from "zod";
 
+import { toJsonSchema } from "./internal/zod/to-json-schema.js";
 import type { CustomTool } from "./types/agent.js";
 
 /**
@@ -28,36 +28,6 @@ export interface DefineToolSpec<T extends ZodType> {
   handler: (input: ZodNamespace.infer<T>) => string | Promise<string>;
 }
 
-/** Cached zod namespace after the first `require("zod")`. */
-let cachedZ: typeof ZodNamespace | undefined;
-
-/**
- * Synchronously load `zod` on demand. Uses `createRequire` so the call works
- * in both ESM and CJS dist output. Throws a clear error if `zod` isn't
- * installed — meaning the consumer used `defineTool` without adding the peer
- * dep to their `package.json`.
- */
-function requireZod(): typeof ZodNamespace {
-  if (cachedZ !== undefined) return cachedZ;
-  // import.meta.url is the SDK's own module URL — createRequire here resolves
-  // `zod` against the SDK's node_modules tree, which is exactly what we want.
-  const r = createRequire(import.meta.url);
-  let mod: { z?: typeof ZodNamespace } & typeof ZodNamespace;
-  try {
-    mod = r("zod") as typeof mod;
-  } catch (cause) {
-    throw new Error(
-      "defineTool() requires the optional peer dependency `zod` to be installed. " +
-        'Add `"zod": "^3.25.0 || ^4.0.0"` to your package.json and reinstall. ' +
-        `Cause: ${cause instanceof Error ? cause.message : String(cause)}`,
-    );
-  }
-  // Zod 4 exposes `z` as a namespace export AND re-exports schema constructors
-  // at the module root. Prefer `z` if present.
-  cachedZ = (mod.z ?? mod) as typeof ZodNamespace;
-  return cachedZ;
-}
-
 /**
  * Type-safe builder for {@link CustomTool}. Converts a Zod schema to JSON
  * Schema (for the LLM-facing `inputSchema` field), wraps the handler with a
@@ -75,13 +45,18 @@ function requireZod(): typeof ZodNamespace {
  * @public
  */
 export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool {
-  const z = requireZod();
+  // Universal Zod → JSON Schema converter (feature-detects zod 4 native
+  // `z.toJSONSchema` vs zod 3 + `zod-to-json-schema` peer). Fixes the bug
+  // where consumers pinned to `zod@^3.25.0` (no native `toJSONSchema`) hit
+  // `z.toJSONSchema is not a function` at runtime. The SDK declares
+  // peer `zod: "^3.25.0 || ^4.0.0"` — both must work.
+  //
   // `unrepresentable: "any"` lets transforms / refinements / branded types
   // round-trip to JSON Schema as `{}` (effectively `any`). The runtime parse
   // still enforces the full Zod contract; the LLM just sees a looser hint.
-  const inputSchema = z.toJSONSchema(spec.inputSchema, {
+  const inputSchema = toJsonSchema(spec.inputSchema, {
     unrepresentable: "any",
-  }) as Record<string, unknown>;
+  });
   return {
     name: spec.name,
     description: spec.description,

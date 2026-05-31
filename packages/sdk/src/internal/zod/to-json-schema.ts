@@ -72,8 +72,18 @@ function tryNativeZod4(
     cachedZodHasNativeApi = false;
     return undefined;
   }
-  cachedZodHasNativeApi = true;
-  return z.toJSONSchema(schema, options) as Record<string, unknown>;
+  // Cross-version safety net: when the SDK source runs under a dev-server
+  // (Vite SSR), `requireSdk("zod")` resolves to the SDK's OWN node_modules
+  // (zod 4 in our devDeps), while the schema was built by the CONSUMER's
+  // zod (often v3 — see dogfood-app pinned to ^3.25.0). Calling zod 4's
+  // `toJSONSchema` with a zod 3 schema throws. Catch + fall through to
+  // `zod-to-json-schema` (which understands both v3 and v4 schemas).
+  try {
+    return z.toJSONSchema(schema, options) as Record<string, unknown>;
+  } catch {
+    cachedZodHasNativeApi = false;
+    return undefined;
+  }
 }
 
 function tryFallbackLib(schema: AnyZodSchema): Record<string, unknown> | undefined {
