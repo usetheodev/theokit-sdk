@@ -6,7 +6,9 @@ import { sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
 import { chunkMarkdown } from "./chunk-markdown.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
+import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
 import { memoryDir, memoryMdPath, notesDir } from "./markdown-store.js";
+import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { discoverSessionFiles } from "./session-loader.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
 import {
@@ -79,7 +81,7 @@ export interface OpenIndexOptions {
   backend?: MemoryBackend;
 }
 
-export class IndexManager {
+export class IndexManager implements MemoryIndex {
   private lastSyncMs: number | undefined;
   private vectorReady = false;
 
@@ -89,7 +91,24 @@ export class IndexManager {
     private readonly embedding: EmbeddingRuntime | undefined,
   ) {}
 
-  static async open(opts: OpenIndexOptions): Promise<IndexManager> {
+  /**
+   * Open a memory index. Dispatches to SQLite (default) or Lance (opt-in
+   * via `backend: "lance"`). See `openLanceInternal` for Lance-specific
+   * preconditions + typed errors.
+   */
+  static async open(opts: OpenIndexOptions & { backend: "lance" }): Promise<MemoryIndex>;
+  static async open(
+    opts: Omit<OpenIndexOptions, "backend"> | (OpenIndexOptions & { backend?: "sqlite-vec" }),
+  ): Promise<IndexManager>;
+  static async open(opts: OpenIndexOptions): Promise<MemoryIndex> {
+    const backend = opts.backend ?? "sqlite-vec";
+    assertValidBackend(backend);
+    if (backend === "lance") return await openLanceIndex(opts);
+    return await IndexManager.openSqliteInternal(opts);
+  }
+
+  /** Internal SQLite-path open. Renamed from previous public `open`. */
+  private static async openSqliteInternal(opts: OpenIndexOptions): Promise<IndexManager> {
     const filePath = opts.filePath ?? defaultIndexPath(opts.cwd);
     const db = await openMemoryDb({ filePath });
     const manager = new IndexManager(opts.cwd, db, opts.embedding);
@@ -157,8 +176,7 @@ export class IndexManager {
 
   async search(query: string, options: SearchOptions = {}): Promise<MemorySearchHit[]> {
     if (query.trim().length === 0) return [];
-    const maxResults = Math.max(1, options.maxResults ?? 10);
-    const minScore = options.minScore ?? 0;
+    const { maxResults, minScore } = parseSearchOptions(options);
     const textHits = this.ftsSearch(query, maxResults * 2);
     const vectorHitsById = await this.vectorSearchById(query, maxResults * 2);
     const combined = this.combineHybridScores(textHits, vectorHitsById, options);

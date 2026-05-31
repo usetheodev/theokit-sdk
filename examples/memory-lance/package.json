@@ -1,0 +1,15 @@
+{
+  "name": "example-memory-lance",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx run.ts",
+    "run:real": "tsx --env-file=.env run.ts"
+  },
+  "dependencies": {
+    "@usetheo/sdk": "file:../../packages/sdk"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

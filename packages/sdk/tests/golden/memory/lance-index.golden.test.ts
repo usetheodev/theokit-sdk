@@ -67,19 +67,24 @@ describe("LanceIndex (ADR D43)", () => {
     expect(err.code).toBe("embedding_dimension_mismatch");
   });
 
-  it("EC-1 MUST FIX: source code uses structured filter, NEVER string interpolation", () => {
-    // Static analysis sentinel: this test verifies that the source code
-    // does not concatenate user input into a where() string. We grep the
-    // implementation for the dangerous pattern; if a future refactor
-    // introduces string interpolation, this test fails immediately.
+  it("EC-1 MUST FIX: source code escapes user input in SQL predicates, NEVER raw interpolation", () => {
+    // Static analysis sentinel: Lance 0.30.0's `.where()` accepts SQL string
+    // ONLY (object filter rejected; discovered 2026-05-31 via integration
+    // test under lancedb-backend-ship-v1-1 plan). EC-1 is preserved via
+    // the `escapeSqlValue()` helper that doubles single-quotes — standard
+    // SQL string-literal escape; bind parameters are not supported in
+    // Lance's predicate API. This test fails if a future refactor drops
+    // the escape OR re-introduces raw `${variable}` interpolation.
     const srcPath = resolve(here, "../../../src/internal/memory/lance-index.ts");
     const src = readFileSync(srcPath, "utf8");
-    // Disallow: .where(`...${...}...`) or .where("..." + ...) for filters.
-    expect(src).not.toMatch(/\.where\(`[^`]*\$\{[^`]*namespace[^`]*\}/);
-    expect(src).not.toMatch(/\.where\(`[^`]*\$\{[^`]*scope[^`]*\}/);
-    // Positive assertion: structured filter object form is used.
-    expect(src).toMatch(/\.where\(filter\)/);
-    expect(src).toMatch(/filter\[?:.\s*?Record<string,/);
+    // Disallow: raw .where(`...${variable}...`) interpolation without escape.
+    expect(src).not.toMatch(/\.where\(`[^`]*\$\{opts\.namespace[^`]*\}/);
+    expect(src).not.toMatch(/\.where\(`[^`]*\$\{opts\.scope[^`]*\}/);
+    // Positive: escapeSqlValue() helper exists AND is invoked on both
+    // namespace and scope in the search() implementation.
+    expect(src).toMatch(/function escapeSqlValue\(/);
+    expect(src).toMatch(/escapeSqlValue\(opts\.namespace\)/);
+    expect(src).toMatch(/escapeSqlValue\(opts\.scope\)/);
   });
 
   it("EC-8: dimension mismatch produces typed error message", () => {

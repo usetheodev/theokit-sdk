@@ -6,6 +6,7 @@
     ".claude/**",
     "tools/check-node.mjs",
     "tools/preflight-native-bindings.d.mts",
+    "tools/benchmark-memory-backends.mjs",
     "tools/audit-memory-scale.mjs",
     "tools/audit-safety-adversarial.mjs",
     "tools/chaos-persistence-victim.mjs",

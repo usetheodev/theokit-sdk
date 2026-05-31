@@ -1,8 +1,9 @@
 import { resolve as resolvePath } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
-import type { IndexManager, MemorySearchHit } from "./index-manager.js";
+import type { MemorySearchHit } from "./index-manager.js";
 import { memoryDir } from "./markdown-store.js";
+import type { MemoryIndex } from "./memory-index.js";
 import { readMemoryFileBounded } from "./reader.js";
 
 /**
@@ -59,7 +60,7 @@ const MEMORY_GET_SCHEMA: Record<string, unknown> = {
 const DEFAULT_MAX_TOTAL_CHARS = 16384;
 
 export interface MemorySearchToolOptions {
-  index: IndexManager;
+  index: MemoryIndex;
   /** Cap on the JSON response size (EC-10 of edge-case review). Default 16384. */
   maxTotalChars?: number;
 }
