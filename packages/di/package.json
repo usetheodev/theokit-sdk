@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/di",
-  "version": "0.1.0-next.0",
+  "version": "0.1.0",
   "description": "Lightweight TypeScript dependency injection container for the theokit ecosystem (foundation for @usetheo/orm + @usetheo/http-decorators). NestJS-compatible API with @Injectable, @Inject, @Module + 3 scopes (SINGLETON/TRANSIENT/REQUEST) + agent-aware via @usetheo/di-agent.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
