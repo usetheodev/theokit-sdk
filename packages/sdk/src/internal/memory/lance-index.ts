@@ -38,7 +38,14 @@ interface LanceTable {
   delete: (predicate: string) => Promise<void>;
   countRows: () => Promise<number>;
   // EC-8: schema introspection for dimension check.
-  schema: () => Promise<{ fields: ReadonlyArray<{ name: string; type: { fixedSize?: number } }> }>;
+  schema: () => Promise<{
+    fields: ReadonlyArray<{
+      name: string;
+      // Lance 0.30 returns Apache Arrow Field. FixedSizeList type has
+      // `listSize`, not `fixedSize`. typeId=16 = FixedSizeList in Arrow.
+      type: { listSize?: number; fixedSize?: number };
+    }>;
+  }>;
 }
 
 interface LanceQuery {
@@ -125,9 +132,12 @@ export class LanceIndex {
     if (existing.includes(tableName)) {
       table = await conn.openTable(tableName);
       // EC-8: validate embedding dimension matches what's in storage.
+      // Lance 0.30 uses Apache Arrow FixedSizeList type — the size lives
+      // in `type.listSize` (older API used `fixedSize`; we read both for
+      // forward/backward safety).
       const schema = await table.schema();
       const embField = schema.fields.find((f) => f.name === "embedding");
-      const existingDim = embField?.type?.fixedSize;
+      const existingDim = embField?.type?.listSize ?? embField?.type?.fixedSize;
       if (typeof existingDim === "number" && existingDim !== dim) {
         throw new ConfigurationError(
           `Embedding dimension mismatch in Lance index: storage has ${existingDim}-dim vectors, current provider yields ${dim}-dim. Run \`theokit-migrate-memory\` after switching providers, or use a different storagePath.`,
@@ -171,11 +181,18 @@ export class LanceIndex {
   async search(query: string, opts: LanceSearchOptions): Promise<LanceSearchHit[]> {
     const [embedding] = await this.embedding.embed([query]);
     if (embedding === undefined) return [];
-    // EC-1 MUST FIX: structured filter object. Lance escapes values
-    // internally; we cannot accidentally inject SQL via namespace.
-    const filter: Record<string, unknown> = { namespace: opts.namespace };
-    if (opts.scope !== undefined) filter.scope = opts.scope;
-    let q = this.table.search(embedding).where(filter);
+    // EC-1 (lancedb-backend-ship-v1-1 integration test caught this 2026-05-31):
+    // Lance 0.30.0's `.where()` accepts SQL STRING only, NOT object filter —
+    // contrary to D43's original assumption. We build the SQL string with
+    // single-quote escaping (`'` → `''`) to neutralize injection. This is
+    // the standard SQL string-literal escape; bind parameters are not
+    // supported in Lance's predicate API. Backed by integration test
+    // `injection attempt in namespace does not break filter` (test 7).
+    const predicates: string[] = [`namespace = '${escapeSqlValue(opts.namespace)}'`];
+    if (opts.scope !== undefined) {
+      predicates.push(`scope = '${escapeSqlValue(opts.scope)}'`);
+    }
+    let q = this.table.search(embedding).where(predicates.join(" AND "));
     if (opts.limit !== undefined) q = q.limit(opts.limit);
     const results = await q.toArray();
     return results
@@ -213,6 +230,18 @@ export class LanceIndex {
   async close(): Promise<void> {
     // Lance auto-closes on GC; no explicit shutdown needed.
   }
+}
+
+/**
+ * Escape a value for safe SQL string interpolation in Lance predicates.
+ * Lance does not support bind parameters — string-quote escape is the
+ * only injection-safe option. Standard SQL: replace single quotes with
+ * doubled single quotes.
+ *
+ * @internal
+ */
+function escapeSqlValue(value: string): string {
+  return value.replace(/'/g, "''");
 }
 
 /**

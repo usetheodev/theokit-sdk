@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/sdk",
-  "version": "1.1.0",
+  "version": "1.4.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
@@ -102,12 +102,16 @@
     "docs:drift": "tsx scripts/check-docs-drift.ts"
   },
   "peerDependencies": {
+    "@lancedb/lancedb": "^0.30.0",
     "better-sqlite3": "^12.0.0",
     "proper-lockfile": "^4.1.2",
     "sqlite-vec": "^0.1.0",
     "zod": "^3.25.0 || ^4.0.0"
   },
   "peerDependenciesMeta": {
+    "@lancedb/lancedb": {
+      "optional": true
+    },
     "better-sqlite3": {
       "optional": true
     },
