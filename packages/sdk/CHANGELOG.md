@@ -1,8 +1,51 @@
 # Changelog
 
-## Unreleased
+## 1.4.0
+
+### Minor Changes
+
+- **`Memory.create({ index: { backend: "lance" } })` is now wired end-to-end.** The `LanceIndex` implementation existed since 2026-05-17 (ADR D43) but `IndexManager.open` did not dispatch — public API accepted `backend: "lance"` silently and always fell through to SQLite. Fix: factory dispatcher in `IndexManager.open` + new portable `MemoryIndex` interface + new `LanceMemoryAdapter` wrapper + `@lancedb/lancedb` declared as optional `peerDependency` (`^0.30.0`).
+
+  **Migration path:** consumer that wants Lance:
+  ```bash
+  pnpm add @lancedb/lancedb apache-arrow@^18.1.0
+  ```
+  ```ts
+  await Memory.create({
+    index: { backend: "lance" },
+    embedding: { provider: "openai", apiKey: process.env.OPENAI_API_KEY },
+  });
+  ```
+  Default keeps SQLite (zero added deps, zero breaking change vs 1.3.0).
+
+  **When to opt-in (benchmark evidence — `.claude/knowledge-base/benchmarks/memory-backends-2026-05-31.md`):**
+  - Lance wins **43x** ingest throughput at 100k facts (59849 ops/s vs SQLite-vec 1875 ops/s).
+  - Lance uses **65% less disk** at 100k (33.8 MB vs 93.5 MB).
+  - SQLite-vec recall p95 stays competitive up to 100k (~25 ms). Use Lance when ingest velocity or disk pressure matters; SQLite handles latency well below 1M facts.
+
+  **EC-1 hardening:** new `ConfigurationError({code:"invalid_memory_backend"})` for typo-protection — `backend: "lancedb"` (typo) now throws instead of silently falling back to SQLite. Same hardening for `lance_requires_embedding` and `lance_backend_unavailable` typed errors.
+
+  **Gotchas:**
+  - `@lancedb/lancedb` ships prebuilds for linux-x64-gnu, darwin-arm64, darwin-x64, win32-x64-msvc. Alpine/musl/ARM-Linux require `node-gyp` toolchain. SQLite default covers those cases.
+  - Bundlers (Next.js/Vite/webpack/rollup) must externalize `@lancedb/lancedb`:
+    - Next.js: `experimental.serverComponentsExternalPackages: ["@lancedb/lancedb"]`
+    - Vite: `optimizeDeps.exclude: ["@lancedb/lancedb"]` + `ssr.external: ["@lancedb/lancedb"]`
+    - webpack/rollup: add to `externals` array
+
+  Closes ADR D12 ("LanceDB deferred to v1.1") via fulfillment of D43.
+
+- **EC-1/EC-8 fixes shipped atomically** (caught by the new integration test against real `@lancedb/lancedb@0.30.0`):
+  - `LanceIndex.search` now uses SQL string predicate with `escapeSqlValue()` (single-quote doubling) instead of object filter — Lance 0.30 only accepts SQL string in `.where()`, contrary to D43's original assumption.
+  - `LanceIndex.open` dim-mismatch detection now reads `schema().fields.type.listSize` (Apache Arrow `FixedSizeList` typeId=16 layout in Lance 0.30) — previously checked `fixedSize` which never matched.
 
 ### Patch Changes
+
+- Refactored `RealLocalRun.executeAgentLoop` (complexity 11 → ≤10) via Extract Method: introduced `applyAgentLoopOutput` private helper that copies events/conversation/result/usage/cost/error onto the script. Behavior preserved byte-for-byte. (theokit-sdk-biome-cleanup)
+- Removed redundant `// biome-ignore` directive from `internal/llm/fault-injection.ts` that no longer applied after the workspace enabled `javascript.parser.unsafeParameterDecoratorsEnabled`. (theokit-sdk-biome-cleanup)
+- Extracted message-builder helpers (`buildSystemEvent`, `buildUserEvent`, `buildAssistantEvent`, `buildAssistantTurn`) from `internal/agent-loop/loop.ts` into a new sibling `message-builders.ts` to bring `loop.ts` back under the G8 file-size budget (400 LoC). Pure refactor — no behavior change. (theokit-sdk-biome-cleanup)
+- Removed redundant `export` on `GraphSnapshot` interface (internal-only). (theokit-sdk-biome-cleanup)
+- Added inline `// biome-ignore lint/correctness/useYield` on two intentional non-yielding async-generator mocks in `tests/internal/agent-loop/error-packaging.test.ts` (legitimate test seam — throws before yielding). (theokit-sdk-biome-cleanup)
+- Vitest configuration: switched `pool` to `forks` (top-level) with `singleFork: false` so each test file runs in its own subprocess. This is the only reliable way to isolate `process.env.HOME` mutations across the discovery / context-import-resolver / personality test files, which were producing 5 flaky failures under parallel-package validate. Stack-keyed `process.env.HOME` save/restore added to `vitest.setup.ts` for additional safety. (theokit-sdk-biome-cleanup)
 
 - Refactored `RealLocalRun.executeAgentLoop` (complexity 11 → ≤10) via Extract Method: introduced `applyAgentLoopOutput` private helper that copies events/conversation/result/usage/cost/error onto the script. Behavior preserved byte-for-byte. (theokit-sdk-biome-cleanup)
 - Removed redundant `// biome-ignore` directive from `internal/llm/fault-injection.ts` that no longer applied after the workspace enabled `javascript.parser.unsafeParameterDecoratorsEnabled`. (theokit-sdk-biome-cleanup)

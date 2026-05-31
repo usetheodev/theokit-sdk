@@ -1,6 +1,7 @@
 import type { ActiveMemoryCache } from "./active-memory-cache.js";
 import type { CircuitBreaker } from "./circuit-breaker.js";
-import type { IndexManager, MemorySearchHit } from "./index-manager.js";
+import type { MemorySearchHit } from "./index-manager.js";
+import type { MemoryIndex } from "./memory-index.js";
 import { persistActiveMemoryTranscript } from "./transcript-store.js";
 
 /**
@@ -43,7 +44,7 @@ export interface ActiveMemoryOptions {
 export interface RunActiveMemoryArgs {
   userText: string;
   priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>;
-  index: IndexManager | undefined;
+  index: MemoryIndex | undefined;
   options: ActiveMemoryOptions;
   /** Per-agent circuit breaker (Phase 8). */
   breaker?: CircuitBreaker;

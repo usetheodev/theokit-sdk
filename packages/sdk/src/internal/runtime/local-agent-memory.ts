@@ -6,6 +6,7 @@ import { MEMORY_EMBEDDING_ADAPTERS } from "../memory/adapters/catalog.js";
 import { CircuitBreaker } from "../memory/circuit-breaker.js";
 import type { EmbeddingRuntime } from "../memory/embedding-adapter.js";
 import { IndexManager } from "../memory/index-manager.js";
+import type { MemoryIndex } from "../memory/memory-index.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../memory/tools.js";
 
 /**
@@ -16,7 +17,7 @@ import { createMemoryGetTool, createMemorySearchTool } from "../memory/tools.js"
  * @internal
  */
 export class LocalAgentMemory {
-  private index: IndexManager | undefined;
+  private index: MemoryIndex | undefined;
   private toolsCache: ReadonlyArray<MemoryToolSpec> | undefined;
   private breaker: CircuitBreaker | undefined;
   private cache: ActiveMemoryCache | undefined;
