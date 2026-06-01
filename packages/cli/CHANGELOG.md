@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Added
+
+- `theokit db` subcommand wrapping drizzle-kit (Plan `usetheo-orm-v1` Phase 6.5). Subcommands: `generate`, `migrate`, `studio`, `push`, `export-schema`, `check-schema-drift`. Schema commands consume `orm.config.ts` (default-exports `{ schema }`) and invoke `@usetheo/orm/schema-export` to emit JSON Schema 7 per entity to `.theokit/schema/{entity}.schema.json`. `check-schema-drift` diffs fresh vs committed schemas and exits 1 on drift — wires into CI as a polyglot-safety gate.
+
 ## 2.0.0
 
 ### Patch Changes
