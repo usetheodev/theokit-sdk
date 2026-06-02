@@ -57,6 +57,67 @@ function isInteger(dataType: string, columnType: string): boolean {
   return false;
 }
 
+type ColumnMatcher = (meta: ColumnInternal, dt: string, ct: string) => JsonSchema7Property | null;
+
+const matchEnum: ColumnMatcher = (meta) =>
+  Array.isArray(meta.enumValues) && meta.enumValues.length > 0
+    ? { type: "string", enum: [...meta.enumValues] }
+    : null;
+
+const matchUuid: ColumnMatcher = (_m, _dt, ct) =>
+  /uuid/.test(ct) ? { type: "string", format: "uuid" } : null;
+
+const matchNumeric: ColumnMatcher = (meta, _dt, ct) => {
+  if (!/numeric|decimal/.test(ct)) return null;
+  const out: JsonSchema7Property = { type: "string", format: "decimal" };
+  if (typeof meta.scale === "number" && meta.scale >= 0) {
+    out.multipleOf = 10 ** -meta.scale;
+  }
+  return out;
+};
+
+const matchBigint: ColumnMatcher = (_m, _dt, ct) =>
+  /bigint/.test(ct) ? { type: "string", format: "int64" } : null;
+
+const matchDate: ColumnMatcher = (_m, dt, ct) =>
+  dt === "date" || /timestamp|date/.test(ct) ? { type: "string", format: "date-time" } : null;
+
+const matchBlob: ColumnMatcher = (_m, _dt, ct) =>
+  /blob|bytea|binary/.test(ct) ? { type: "string", contentEncoding: "base64" } : null;
+
+const matchBoolean: ColumnMatcher = (_m, dt, ct) =>
+  dt === "boolean" || /boolean|bool/.test(ct) ? { type: "boolean" } : null;
+
+const matchJson: ColumnMatcher = (_m, dt, ct) =>
+  dt === "json" || /json/.test(ct) ? { type: "object" } : null;
+
+const matchInteger: ColumnMatcher = (_m, dt, ct) =>
+  isInteger(dt, ct) ? { type: "integer" } : null;
+
+const matchFloat: ColumnMatcher = (_m, dt, ct) =>
+  dt === "number" || /real|double|float/.test(ct) ? { type: "number" } : null;
+
+const matchString: ColumnMatcher = (meta, dt, ct) => {
+  if (!(dt === "string" || /text|varchar|char/.test(ct))) return null;
+  const out: JsonSchema7Property = { type: "string" };
+  if (typeof meta.length === "number" && meta.length > 0) out.maxLength = meta.length;
+  return out;
+};
+
+const COLUMN_MATCHERS: readonly ColumnMatcher[] = [
+  matchEnum,
+  matchUuid,
+  matchNumeric,
+  matchBigint,
+  matchDate,
+  matchBlob,
+  matchBoolean,
+  matchJson,
+  matchInteger,
+  matchFloat,
+  matchString,
+];
+
 function mapColumnToJsonSchema(
   colName: string,
   col: Column,
@@ -66,54 +127,9 @@ function mapColumnToJsonSchema(
   const dt = lower(meta.dataType);
   const ct = lower(meta.columnType);
 
-  if (Array.isArray(meta.enumValues) && meta.enumValues.length > 0) {
-    return { type: "string", enum: [...meta.enumValues] };
-  }
-
-  if (/uuid/.test(ct)) {
-    return { type: "string", format: "uuid" };
-  }
-
-  if (/numeric|decimal/.test(ct)) {
-    const out: JsonSchema7Property = { type: "string", format: "decimal" };
-    if (typeof meta.scale === "number" && meta.scale >= 0) {
-      out.multipleOf = 10 ** -meta.scale;
-    }
-    return out;
-  }
-
-  if (/bigint/.test(ct)) {
-    return { type: "string", format: "int64" };
-  }
-
-  if (dt === "date" || /timestamp|date/.test(ct)) {
-    return { type: "string", format: "date-time" };
-  }
-
-  if (/blob|bytea|binary/.test(ct)) {
-    return { type: "string", contentEncoding: "base64" };
-  }
-
-  if (dt === "boolean" || /boolean|bool/.test(ct)) {
-    return { type: "boolean" };
-  }
-
-  if (dt === "json" || /json/.test(ct)) {
-    return { type: "object" };
-  }
-
-  if (isInteger(dt, ct)) {
-    return { type: "integer" };
-  }
-
-  if (dt === "number" || /real|double|float/.test(ct)) {
-    return { type: "number" };
-  }
-
-  if (dt === "string" || /text|varchar|char/.test(ct)) {
-    const out: JsonSchema7Property = { type: "string" };
-    if (typeof meta.length === "number" && meta.length > 0) out.maxLength = meta.length;
-    return out;
+  for (const matcher of COLUMN_MATCHERS) {
+    const result = matcher(meta, dt, ct);
+    if (result !== null) return result;
   }
 
   throw new OrmSchemaExportError(

@@ -21,7 +21,7 @@ function readDataSourceFromInstance(instance: object): DataSource | undefined {
   return (v as DataSource | undefined) ?? undefined;
 }
 
-export interface TransactionalOptions {
+interface TransactionalOptions {
   isolationLevel?: "read uncommitted" | "read committed" | "repeatable read" | "serializable";
 }
 

@@ -32,16 +32,16 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export interface DbCommandOptions {
+interface DbCommandOptions {
   readonly cwd?: string;
 }
 
-export interface DbExportSchemaOptions extends DbCommandOptions {
+interface DbExportSchemaOptions extends DbCommandOptions {
   readonly out?: string;
   readonly config?: string;
 }
 
-export interface DbCheckDriftOptions extends DbExportSchemaOptions {}
+type DbCheckDriftOptions = DbExportSchemaOptions;
 
 interface OrmConfig {
   schema: Record<string, unknown>;
@@ -126,48 +126,72 @@ function atomicWrite(filePath: string, content: string): void {
   renameSync(tmp, filePath);
 }
 
-export async function runDbExportSchema(opts: DbExportSchemaOptions = {}): Promise<number> {
-  const cwd = opts.cwd ?? process.cwd();
-  const configPath = resolve(cwd, opts.config ?? "orm.config.ts");
-  const outDir = resolve(cwd, opts.out ?? ".theokit/schema");
-
-  let config: OrmConfig;
+async function loadConfigOrError(
+  configPath: string,
+): Promise<{ ok: true; value: OrmConfig } | { ok: false; code: number }> {
   try {
-    config = await loadOrmConfig(configPath);
+    return { ok: true, value: await loadOrmConfig(configPath) };
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-    return 2;
+    return { ok: false, code: 2 };
   }
+}
 
-  let exporter: SchemaExportModule;
+async function loadExporterOrError(
+  cwd: string,
+): Promise<{ ok: true; value: SchemaExportModule } | { ok: false; code: number }> {
   try {
-    exporter = await loadSchemaExporter(cwd);
+    return { ok: true, value: await loadSchemaExporter(cwd) };
   } catch (err) {
     process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-    return 2;
+    return { ok: false, code: 2 };
   }
+}
 
-  let schemas: Record<string, unknown>;
+function exportSchemasOrError(
+  exporter: SchemaExportModule,
+  schema: OrmConfig["schema"],
+): { ok: true; value: Record<string, unknown> } | { ok: false; code: number } {
   try {
-    schemas = exporter.exportSchemas(config.schema);
+    return { ok: true, value: exporter.exportSchemas(schema) };
   } catch (err) {
     process.stderr.write(
       `theokit db: schema export failed: ${err instanceof Error ? err.message : String(err)}\n`,
     );
-    return 1;
+    return { ok: false, code: 1 };
   }
+}
 
+function writeSchemasToOutDir(schemas: Record<string, unknown>, outDir: string): void {
   mkdirSync(outDir, { recursive: true });
   // Clean existing .schema.json files (so renamed/dropped entities don't linger)
   for (const f of readdirSync(outDir).filter((n) => n.endsWith(".schema.json"))) {
     unlinkSync(join(outDir, f));
   }
-
   for (const [name, schema] of Object.entries(schemas)) {
     const target = join(outDir, `${name}.schema.json`);
     atomicWrite(target, `${JSON.stringify(schema, null, 2)}\n`);
   }
-  process.stdout.write(`theokit db: wrote ${Object.keys(schemas).length} schema(s) to ${outDir}\n`);
+}
+
+export async function runDbExportSchema(opts: DbExportSchemaOptions = {}): Promise<number> {
+  const cwd = opts.cwd ?? process.cwd();
+  const configPath = resolve(cwd, opts.config ?? "orm.config.ts");
+  const outDir = resolve(cwd, opts.out ?? ".theokit/schema");
+
+  const configResult = await loadConfigOrError(configPath);
+  if (!configResult.ok) return configResult.code;
+
+  const exporterResult = await loadExporterOrError(cwd);
+  if (!exporterResult.ok) return exporterResult.code;
+
+  const schemasResult = exportSchemasOrError(exporterResult.value, configResult.value.schema);
+  if (!schemasResult.ok) return schemasResult.code;
+
+  writeSchemasToOutDir(schemasResult.value, outDir);
+  process.stdout.write(
+    `theokit db: wrote ${Object.keys(schemasResult.value).length} schema(s) to ${outDir}\n`,
+  );
   return 0;
 }
 
@@ -181,53 +205,52 @@ function readCommittedSchemas(outDir: string): Record<string, unknown> {
   return out;
 }
 
-export async function runDbCheckSchemaDrift(opts: DbCheckDriftOptions = {}): Promise<number> {
-  const cwd = opts.cwd ?? process.cwd();
-  const configPath = resolve(cwd, opts.config ?? "orm.config.ts");
-  const outDir = resolve(cwd, opts.out ?? ".theokit/schema");
+interface SchemaDrift {
+  added: string[];
+  removed: string[];
+  changed: string[];
+}
 
-  let config: OrmConfig;
-  try {
-    config = await loadOrmConfig(configPath);
-  } catch (err) {
-    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-    return 2;
-  }
-
-  let exporter: SchemaExportModule;
-  try {
-    exporter = await loadSchemaExporter(cwd);
-  } catch (err) {
-    process.stderr.write(`${err instanceof Error ? err.message : String(err)}\n`);
-    return 2;
-  }
-
-  const fresh = exporter.exportSchemas(config.schema);
-  const committed = readCommittedSchemas(outDir);
-
+function computeSchemaDrift(
+  fresh: Record<string, unknown>,
+  committed: Record<string, unknown>,
+): SchemaDrift {
   const freshKeys = new Set(Object.keys(fresh));
   const committedKeys = new Set(Object.keys(committed));
+  const added = [...freshKeys].filter((k) => !committedKeys.has(k));
+  const removed = [...committedKeys].filter((k) => !freshKeys.has(k));
+  const changed = [...freshKeys].filter(
+    (k) => committedKeys.has(k) && JSON.stringify(fresh[k]) !== JSON.stringify(committed[k]),
+  );
+  return { added, removed, changed };
+}
 
-  const added: string[] = [...freshKeys].filter((k) => !committedKeys.has(k));
-  const removed: string[] = [...committedKeys].filter((k) => !freshKeys.has(k));
-  const changed: string[] = [];
-  for (const k of freshKeys) {
-    if (committedKeys.has(k)) {
-      if (JSON.stringify(fresh[k]) !== JSON.stringify(committed[k])) {
-        changed.push(k);
-      }
-    }
-  }
-
+function reportSchemaDrift(drift: SchemaDrift): number {
+  const { added, removed, changed } = drift;
   if (added.length === 0 && removed.length === 0 && changed.length === 0) {
     process.stdout.write("theokit db: schema in sync (no drift)\n");
     return 0;
   }
-
   process.stderr.write("theokit db: schema drift detected\n");
   if (added.length > 0) process.stderr.write(`  added:   ${added.join(", ")}\n`);
   if (removed.length > 0) process.stderr.write(`  removed: ${removed.join(", ")}\n`);
   if (changed.length > 0) process.stderr.write(`  changed: ${changed.join(", ")}\n`);
   process.stderr.write("Run `theokit db export-schema` to refresh.\n");
   return 1;
+}
+
+export async function runDbCheckSchemaDrift(opts: DbCheckDriftOptions = {}): Promise<number> {
+  const cwd = opts.cwd ?? process.cwd();
+  const configPath = resolve(cwd, opts.config ?? "orm.config.ts");
+  const outDir = resolve(cwd, opts.out ?? ".theokit/schema");
+
+  const configResult = await loadConfigOrError(configPath);
+  if (!configResult.ok) return configResult.code;
+
+  const exporterResult = await loadExporterOrError(cwd);
+  if (!exporterResult.ok) return exporterResult.code;
+
+  const fresh = exporterResult.value.exportSchemas(configResult.value.schema);
+  const committed = readCommittedSchemas(outDir);
+  return reportSchemaDrift(computeSchemaDrift(fresh, committed));
 }
