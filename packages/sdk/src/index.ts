@@ -52,8 +52,6 @@ export {
   UnsupportedRunOperationError,
   UnsupportedTaskOperationError,
 } from "./errors.js";
-// Eval suite (Adoption Roadmap #2; ADRs D202-D213)
-export { Eval, EvalAlreadyRunningError } from "./eval.js";
 // Structured output via synthetic forced tool (ADR D33)
 export {
   GenerateObjectError,
@@ -105,7 +103,6 @@ export {
   type MigrateResult,
   migrateSqliteToLance,
 } from "./migrate.js";
-export { Scorers } from "./scorers.js";
 // Personality presets (Hermes #26, ADRs D160-D169)
 // `PersonalityPreset` is declared in `types/agent.ts` and reaches consumers
 // via the `types/*` star export below. The runtime registry class lives in
@@ -132,18 +129,3 @@ export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // Type contract
 export type * from "./types/index.js";
-// Workflows (Adoption Roadmap #5; ADRs D230-D248)
-export {
-  agentStep,
-  fn,
-  Workflow,
-  WorkflowAlreadyRunningError,
-  WorkflowBuilder,
-  WorkflowCompensateNotImplementedError,
-  WorkflowDuplicateStepIdError,
-  WorkflowMaxIterationsExceededError,
-  WorkflowNotSerializableError,
-  WorkflowParallelError,
-  WorkflowResumeStepNotFoundError,
-  WorkflowSnapshotNotFoundError,
-} from "./workflow.js";

@@ -31,6 +31,8 @@ const targets = [
   join(DIST, "tools"),
   join(DIST, "path-safety.d.ts"),
   join(DIST, "task-store.d.ts"),
+  join(DIST, "workflow.d.ts"),
+  join(DIST, "eval.d.ts"),
 ];
 
 for (const target of targets) {

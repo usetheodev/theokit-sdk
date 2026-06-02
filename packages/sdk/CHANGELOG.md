@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.5.0
+
+### Breaking Changes
+
+- **`Workflow` and `Eval` moved out of the main barrel into dedicated sub-paths.** The migration is mechanical (rewrite the `from` string); no behavior changes. `@usetheo/sdk` main barrel no longer exports:
+  - From workflow: `Workflow`, `WorkflowBuilder`, `agentStep`, `fn`, `WorkflowAlreadyRunningError`, `WorkflowCompensateNotImplementedError`, `WorkflowDuplicateStepIdError`, `WorkflowMaxIterationsExceededError`, `WorkflowNotSerializableError`, `WorkflowParallelError`, `WorkflowResumeStepNotFoundError`, `WorkflowSnapshotNotFoundError` — **import from `@usetheo/sdk/workflow` instead**.
+  - From eval: `Eval`, `EvalAlreadyRunningError`, `Scorers` — **import from `@usetheo/sdk/eval` instead**.
+  - From `types/*`: type aliases for workflow + eval (e.g., `EvalRun`, `Scorer`, `Score`, `EvalOptions`, `EvalAggregate`, `Step`, `FnStep`, etc.) no longer reach the main barrel via `types/index.ts`; surface only through the new sub-paths.
+
+  Rationale: Interface Segregation. The barrel exported 17+ feature areas, forcing consumers to pay the DTS cost of `Workflow`+`Eval` even if they only used `Agent`+`Memory`. Sub-paths reduce DTS surface and align with the existing pattern (`@usetheo/sdk/cron`, `/tools`, `/path-safety`, `/task-store`, `/errors`).
+
+  **Migration:**
+  ```ts
+  // Before
+  import { Workflow, Eval, Scorers } from "@usetheo/sdk";
+
+  // After
+  import { Workflow } from "@usetheo/sdk/workflow";
+  import { Eval, Scorers } from "@usetheo/sdk/eval";
+  ```
+
+### Added
+
+- `@usetheo/sdk/workflow` sub-path entry (with full ESM + CJS conditions, `.d.ts` + `.d.cts` mirror for attw compliance).
+- `@usetheo/sdk/eval` sub-path entry (same shape; `Scorers` co-located here per locality of reference).
+
 ## 1.4.1
 
 ### Patch Changes

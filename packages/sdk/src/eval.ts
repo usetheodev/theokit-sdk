@@ -3,7 +3,7 @@
  *
  * Usage:
  *
- *   import { Eval, Scorers } from "@usetheo/sdk";
+ *   import { Eval, Scorers } from "@usetheo/sdk/eval";
  *   const run = await Eval.create({
  *     name: "qa-smoke",
  *     dataset: [{ input: "Say ok", expected: "ok" }],
@@ -75,3 +75,5 @@ export class Eval {
 }
 
 export { EvalAlreadyRunningError } from "./internal/eval/single-flight.js";
+export { Scorers } from "./scorers.js";
+export type * from "./types/eval.js";
