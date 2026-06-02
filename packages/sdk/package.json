@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/sdk",
-  "version": "1.4.1",
+  "version": "1.5.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
@@ -76,6 +76,26 @@
       "require": {
         "types": "./dist/task-store.d.cts",
         "default": "./dist/task-store.cjs"
+      }
+    },
+    "./workflow": {
+      "import": {
+        "types": "./dist/workflow.d.ts",
+        "default": "./dist/workflow.js"
+      },
+      "require": {
+        "types": "./dist/workflow.d.cts",
+        "default": "./dist/workflow.cjs"
+      }
+    },
+    "./eval": {
+      "import": {
+        "types": "./dist/eval.d.ts",
+        "default": "./dist/eval.js"
+      },
+      "require": {
+        "types": "./dist/eval.d.cts",
+        "default": "./dist/eval.cjs"
       }
     },
     "./package.json": "./package.json"

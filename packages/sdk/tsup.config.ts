@@ -8,6 +8,8 @@ export default defineConfig({
     tools: "src/tools/index.ts",
     "path-safety": "src/path-safety.ts",
     "task-store": "src/task-store.ts",
+    workflow: "src/workflow.ts",
+    eval: "src/eval.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
