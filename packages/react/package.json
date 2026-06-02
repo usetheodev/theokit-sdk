@@ -1,6 +1,6 @@
 {
   "name": "@usetheo/react",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "React hooks + Next.js helpers for @usetheo/sdk — useTheoChat (SSE streaming) and streamTheoChat (server-side route handler).",
   "type": "module",
   "main": "./dist/index.cjs",
