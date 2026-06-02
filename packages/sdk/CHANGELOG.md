@@ -26,7 +26,9 @@
 - `@usetheo/sdk/workflow` sub-path entry (with full ESM + CJS conditions, `.d.ts` + `.d.cts` mirror for attw compliance).
 - `@usetheo/sdk/eval` sub-path entry (same shape; `Scorers` co-located here per locality of reference).
 
-## 1.4.1
+## 1.4.1 (workspace-only — NOT published to npm)
+
+> **Drift note (2026-06-02):** versions 1.4.0 and 1.4.1 landed in workspace and were merged to develop, but never reached the `@latest` npm dist-tag. npm `@usetheo/sdk@latest` remains at **1.3.0** (last shipped 2026-05-30). The 1.4.x patch chain will be consolidated into the next published release (1.5.0 or higher) — consumers who need the LanceDB wiring fix (1.4.0) or the zod v3/v4 universal converter (1.4.1) must install `@usetheo/sdk@1.5.0-next.X` (when published on `next`) or wait for the consolidated `latest` cut. Drift root cause: 1.4.0 sub-paths extraction work changed the publish requirements (workspace `pnpm changeset version` chain was bumped but `pnpm changeset publish` was deferred while 1.5.0 sub-path API surface stabilized). All entries below reflect REAL code changes that DID land on develop.
 
 ### Patch Changes
 
@@ -34,7 +36,9 @@
 - **`internal/zod/to-json-schema.ts` cross-version safety net:** when the SDK runs under a dev-server (Vite SSR), `createRequire("zod")` resolves to the SDK's OWN `node_modules/zod` (v4 in devDeps), while the schema was built by the consumer's zod v3 instance. Calling v4's `toJSONSchema(v3Schema)` throws. The native path now catches that error and falls through to `zod-to-json-schema` (which understands both v3 and v4 schemas). Mode toggled in cache so subsequent calls go directly to the working path.
 - Added `zod-to-json-schema: "^3.24.0"` as optional `peerDependency` (already silently required by zod-3 consumers; now declared explicitly so `pnpm install` resolves it deterministically).
 
-## 1.4.0
+## 1.4.0 (workspace-only — NOT published to npm)
+
+> See drift note at the top of the 1.4.1 section. Code landed; npm `@latest` still at 1.3.0.
 
 ### Minor Changes
 
