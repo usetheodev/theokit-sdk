@@ -2,6 +2,10 @@
 
 ## 1.5.0
 
+### Changed
+
+- **`publishConfig.provenance` removed (alinhado com política do monorepo).** Esta era a única `package.json` de 11 pacotes publicáveis com `provenance: true`; drift arquitetural — a flag prometia attestation criptográfica mas nenhum repo do monorepo tem release.yml com `id-token: write` permission para mintar OIDC token contra o npm registry. Resultado: publishes locais falhavam com `EUSAGE: Automatic provenance generation not supported for provider: null`. Decisão: alinhar intent à infra atual (10/11 outros pacotes não declaram provenance). **Follow-up estratégico:** adicionar release.yml com `id-token: write` em todos os repos (theokit-sdk + theokit + theokit-plugins + theo-ui) habilita provenance universal — escopo separado.
+
 ### Breaking Changes
 
 - **`Workflow` and `Eval` moved out of the main barrel into dedicated sub-paths.** The migration is mechanical (rewrite the `from` string); no behavior changes. `@usetheo/sdk` main barrel no longer exports:
