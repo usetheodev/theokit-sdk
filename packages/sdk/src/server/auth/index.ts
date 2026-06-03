@@ -5,9 +5,18 @@
  * NOT main `@theokit/sdk` barrel. Tree-shaking + allows breaking changes in
  * auth surface without affecting Agent runtime consumers.
  *
- * T1.1 ships types-only. T1.2 adds defineAuth() runtime + error classes.
+ * T1.1 shipped types-only.
+ * T1.2 adds runtime: defineAuth() + 4 typed error classes + validateReturnTo helper.
  */
 
+export {
+  AuthCallbackError,
+  AuthCancelledError,
+  AuthConfigError,
+  AuthProviderNotFoundError,
+} from "./errors.js";
+
+export { defineAuth } from "./orchestrator.js";
 export type {
   AuthOrchestrator,
   AuthProvider,
@@ -16,3 +25,4 @@ export type {
   OAuthTransaction,
   SessionManager,
 } from "./types.js";
+export { validateReturnTo } from "./validate-return-to.js";
