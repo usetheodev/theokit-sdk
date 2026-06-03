@@ -1,25 +1,25 @@
-# @usetheo/memory-mem0
+# @theokit/memory-mem0
 
-Mem0 **cloud** memory adapter for [`@usetheo/sdk`](../sdk).
+Mem0 **cloud** memory adapter for [`@theokit/sdk`](../sdk).
 
 Wraps [`mem0ai`](https://www.npmjs.com/package/mem0ai) `MemoryClient` with the
 `MemoryAdapter` contract from ADR D141. Cloud-only path per ADR D148 (the
-OSS local mode duplicates work already shipped in `@usetheo/sdk` Memory).
+OSS local mode duplicates work already shipped in `@theokit/sdk` Memory).
 
-**Unique among `@usetheo/memory-*` adapters:** Mem0 supports
+**Unique among `@theokit/memory-*` adapters:** Mem0 supports
 `history(id)` — version tracking per memory as facts evolve.
 
 ## Install
 
 ```bash
-pnpm add @usetheo/memory-mem0 mem0ai
+pnpm add @theokit/memory-mem0 mem0ai
 ```
 
 ## Usage
 
 ```ts
-import { Agent } from "@usetheo/sdk";
-import { mem0Memory } from "@usetheo/memory-mem0";
+import { Agent } from "@theokit/sdk";
+import { mem0Memory } from "@theokit/memory-mem0";
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
@@ -55,7 +55,7 @@ unaffected by the disclosure.
   regardless — defense in depth.
 
 This adapter (D148) explicitly does NOT support the OSS local mode to
-avoid this surface entirely. For local persistence, use `@usetheo/sdk`'s
+avoid this surface entirely. For local persistence, use `@theokit/sdk`'s
 built-in Memory + Active Memory subsystems.
 
 ## Options

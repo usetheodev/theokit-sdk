@@ -1,13 +1,13 @@
 # Architecture
 
-`theokit-sdk` is a TypeScript monorepo with one publishable package (`@usetheo/sdk`) at `packages/sdk/`. Everything else is configuration, documentation, or read-only reference material.
+`theokit-sdk` is a TypeScript monorepo with one publishable package (`@theokit/sdk`) at `packages/sdk/`. Everything else is configuration, documentation, or read-only reference material.
 
 ## Monorepo layout
 
 ```
 theokit-sdk/
 ├── packages/
-│   └── sdk/                    # @usetheo/sdk — the publishable package
+│   └── sdk/                    # @theokit/sdk — the publishable package
 ├── docs/                       # this folder — human-friendly documentation
 ├── docs.md                     # canonical machine-readable API contract
 ├── referencia/                 # read-only reference projects (pi, a peer SDK, ...)
@@ -27,7 +27,7 @@ theokit-sdk/
 
 ```
 packages/sdk/
-├── package.json                # @usetheo/sdk
+├── package.json                # @theokit/sdk
 ├── tsconfig.json               # extends ../../tsconfig.base.json
 ├── tsup.config.ts              # dual ESM + CJS build config
 ├── vitest.config.ts            # test runner config
@@ -103,9 +103,9 @@ Three publishable subpaths today:
 
 | Subpath | Source | What it exports |
 | --- | --- | --- |
-| `@usetheo/sdk` | `src/index.ts` | Everything — main barrel |
-| `@usetheo/sdk/cron` | `src/cron.ts` | `Cron` only (tree-shaking) |
-| `@usetheo/sdk/errors` | `src/errors.ts` | Error classes only (tree-shaking) |
+| `@theokit/sdk` | `src/index.ts` | Everything — main barrel |
+| `@theokit/sdk/cron` | `src/cron.ts` | `Cron` only (tree-shaking) |
+| `@theokit/sdk/errors` | `src/errors.ts` | Error classes only (tree-shaking) |
 
 To add a subpath:
 

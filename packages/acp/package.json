@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/acp",
+  "name": "@theokit/acp",
   "version": "0.1.0",
-  "description": "Agent Client Protocol (ACP) server adapter for @usetheo/sdk. Exposes an SDKAgent over stdio JSON-RPC so Zed/Cursor/Claude Desktop can drive it. ADRs D349-D360.",
+  "description": "Agent Client Protocol (ACP) server adapter for @theokit/sdk. Exposes an SDKAgent over stdio JSON-RPC so Zed/Cursor/Claude Desktop can drive it. ADRs D349-D360.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -39,11 +39,11 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "@agentclientprotocol/sdk": "^0.22.1"
   },
   "devDependencies": {
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "@agentclientprotocol/sdk": "~0.22.1",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",

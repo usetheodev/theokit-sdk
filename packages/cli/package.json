@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/cli",
+  "name": "@theokit/cli",
   "version": "0.1.1",
-  "description": "Developer CLI for @usetheo/sdk — init, dev, inspect, eval. Adoption Roadmap #1.",
+  "description": "Developer CLI for @theokit/sdk — init, dev, inspect, eval. Adoption Roadmap #1.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -39,23 +39,23 @@
   },
   "dependencies": {
     "@clack/prompts": "^0.7.0",
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "commander": "^12.1.0",
     "picocolors": "^1.0.0",
     "tsx": "^4.19.0",
     "zod": "^3.25.0"
   },
   "peerDependencies": {
-    "@usetheo/acp": "workspace:^"
+    "@theokit/acp": "workspace:^"
   },
   "peerDependenciesMeta": {
-    "@usetheo/acp": {
+    "@theokit/acp": {
       "optional": true
     }
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
-    "@usetheo/acp": "workspace:*",
+    "@theokit/acp": "workspace:*",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"

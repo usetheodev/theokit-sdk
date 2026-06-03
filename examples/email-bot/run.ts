@@ -1,5 +1,5 @@
 /**
- * Email bot example — built on `@usetheo/gateway-email`.
+ * Email bot example — built on `@theokit/gateway-email`.
  *
  * Listens on IMAP IDLE (or polls when IDLE is unavailable), forwards inbound
  * messages to an SDK agent, and replies via SMTP with RFC 5322 threading
@@ -13,8 +13,8 @@
 import {
   EmailAdapter,
   type EmailMessageEvent,
-} from "@usetheo/gateway-email";
-import { Agent } from "@usetheo/sdk";
+} from "@theokit/gateway-email";
+import { Agent } from "@theokit/sdk";
 
 function required(name: string): string {
   const v = process.env[name];

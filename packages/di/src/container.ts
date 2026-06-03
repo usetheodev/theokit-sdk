@@ -128,7 +128,7 @@ export class Container {
     if (this.registrations.has(registration.token)) {
       // NestJS behavior: last write wins. Single stderr warn.
       process.stderr.write(
-        `[@usetheo/di] Warning: provider for token ${describeToken(registration.token)} replaced.\n`,
+        `[@theokit/di] Warning: provider for token ${describeToken(registration.token)} replaced.\n`,
       );
     }
     this.registrations.set(registration.token, registration);

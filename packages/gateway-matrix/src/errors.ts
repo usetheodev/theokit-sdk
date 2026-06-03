@@ -1,5 +1,5 @@
 /**
- * Typed errors for `@usetheo/gateway-matrix`.
+ * Typed errors for `@theokit/gateway-matrix`.
  */
 
 /** @knipignore — public input shape for `ConfigurationError` constructor (caller-extensible). */

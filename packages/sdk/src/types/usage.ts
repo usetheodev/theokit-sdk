@@ -3,7 +3,7 @@
  *
  * Surfaces via `RunResult.usage` + `RunResult.cost` after every Run.
  * Re-exported through the package barrel; consumers import from
- * `@usetheo/sdk`.
+ * `@theokit/sdk`.
  *
  * @public
  */

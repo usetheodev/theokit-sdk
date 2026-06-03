@@ -2,7 +2,7 @@
  * Tests for translate.ts — containerTag building + EC-C sanitization.
  */
 
-import { MemoryAdapterError } from "@usetheo/sdk";
+import { MemoryAdapterError } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 
 import { buildContainerTags, primaryContainerTag, sanitizeIdentifier } from "../src/translate.js";

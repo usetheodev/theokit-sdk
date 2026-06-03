@@ -11,8 +11,8 @@
  *   # then DM your bot in Slack OR /invite + @mention in a channel
  */
 
-import { Agent } from "@usetheo/sdk";
-import { SlackAdapter } from "@usetheo/gateway-slack";
+import { Agent } from "@theokit/sdk";
+import { SlackAdapter } from "@theokit/gateway-slack";
 
 const botToken = process.env.SLACK_BOT_TOKEN;
 const appToken = process.env.SLACK_APP_TOKEN;

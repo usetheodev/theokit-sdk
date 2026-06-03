@@ -8,9 +8,9 @@
     "start": "tsx --env-file=.env src/index.ts"
   },
   "dependencies": {
-    "@usetheo/sdk": "^{{sdkVersion}}",
-    "@usetheo/gateway": "^{{sdkVersion}}",
-    "@usetheo/gateway-telegram": "^{{sdkVersion}}",
+    "@theokit/sdk": "^{{sdkVersion}}",
+    "@theokit/gateway": "^{{sdkVersion}}",
+    "@theokit/gateway-telegram": "^{{sdkVersion}}",
     "grammy": "^1.30.0",
     "zod": "^3.25.0"
   },

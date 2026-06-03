@@ -27,7 +27,7 @@ import Redis from "ioredis";
 import type {
   ConversationStorageAdapter,
   StoredMessage,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 export class RedisConversationStorage implements ConversationStorageAdapter {
   constructor(
@@ -87,7 +87,7 @@ import { Redis } from "@upstash/redis";
 import type {
   ConversationStorageAdapter,
   StoredMessage,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 export class UpstashConversationStorage implements ConversationStorageAdapter {
   constructor(
@@ -122,7 +122,7 @@ export class UpstashConversationStorage implements ConversationStorageAdapter {
 ## Usage with `Agent.create`
 
 ```ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 import Redis from "ioredis";
 import { RedisConversationStorage } from "./redis-conversation-storage.js";
 

@@ -1,7 +1,7 @@
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 import type { Context } from "grammy";
 
-import { splitForTelegram } from "@usetheo/gateway-telegram";
+import { splitForTelegram } from "@theokit/gateway-telegram";
 
 /**
  * Incremental streaming primitive for Telegram (ADR D52, D58).

@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/di-agent",
+  "name": "@theokit/di-agent",
   "version": "0.1.0",
-  "description": "Agent-first DI integration for @usetheo/di. Ships @InjectAgent() decorator + createAgentProvider() helper that produces a REQUEST-scoped Agent factory — so every HTTP request gets an isolated @usetheo/sdk Agent automatically.",
+  "description": "Agent-first DI integration for @theokit/di. Ships @InjectAgent() decorator + createAgentProvider() helper that produces a REQUEST-scoped Agent factory — so every HTTP request gets an isolated @theokit/sdk Agent automatically.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
   "bugs": "https://github.com/usetheo/theokit-sdk/issues",
@@ -49,14 +49,14 @@
     "usetheo"
   ],
   "peerDependencies": {
-    "@usetheo/di": "^0.1.0-next.0",
-    "@usetheo/sdk": "^1.3.0",
+    "@theokit/di": "^0.1.0-next.0",
+    "@theokit/sdk": "^1.3.0",
     "reflect-metadata": "^0.2.0"
   },
   "devDependencies": {
     "@swc/core": "^1.15.40",
-    "@usetheo/di": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/di": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "reflect-metadata": "^0.2.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",

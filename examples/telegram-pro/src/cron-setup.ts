@@ -1,4 +1,4 @@
-import { Cron, Memory, type CronJob } from "@usetheo/sdk";
+import { Cron, Memory, type CronJob } from "@theokit/sdk";
 
 /**
  * Cron wiring: nightly dreaming sweep + reminder support.

@@ -1,5 +1,5 @@
 /**
- * RED tests for T4.1 — @usetheo/react useAction hook (state machine).
+ * RED tests for T4.1 — @theokit/react useAction hook (state machine).
  *
  * Per plan g3-server-actions-and-useaction v1.2 § Phase 4 / T4.1 + ADR D2.
  *

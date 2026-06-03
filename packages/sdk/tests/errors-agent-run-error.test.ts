@@ -14,11 +14,11 @@ import { AgentRunError, TheokitAgentError } from "../src/index.js";
  *   - extends `TheokitAgentError` (no new hierarchy — ADR D65 of the SDK)
  *   - exposes `provider` + `raw` as public readonly fields
  *   - `code` is the standard SDK code (surface in catch via `.code`)
- *   - exported from the package barrel (consumers `import { AgentRunError } from '@usetheo/sdk'`)
+ *   - exported from the package barrel (consumers `import { AgentRunError } from '@theokit/sdk'`)
  */
 
 describe("AgentRunError — class shape", () => {
-  it("is exported from the @usetheo/sdk barrel", () => {
+  it("is exported from the @theokit/sdk barrel", () => {
     expect(typeof AgentRunError).toBe("function");
   });
 

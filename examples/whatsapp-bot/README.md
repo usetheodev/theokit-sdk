@@ -1,6 +1,6 @@
 # `examples/whatsapp-bot`
 
-Reference WhatsApp bot using `@usetheo/gateway-whatsapp` (Meta WhatsApp Business Cloud API backend).
+Reference WhatsApp bot using `@theokit/gateway-whatsapp` (Meta WhatsApp Business Cloud API backend).
 
 ## What you'll need
 

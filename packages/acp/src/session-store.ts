@@ -6,7 +6,7 @@
  * @internal
  */
 
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 
 export interface AcpSession {
   readonly sessionId: string;

@@ -18,7 +18,7 @@ import {
   type SpanLike,
 } from "../observability/tracer-loader.js";
 
-const TRACER_NAME = "@usetheo/sdk/workflow";
+const TRACER_NAME = "@theokit/sdk/workflow";
 
 export function startWorkflowRunSpan(info: { workflowName: string; runId: string }): SpanLike {
   const tracer = getTracer(TRACER_NAME);

@@ -10,7 +10,7 @@ import {
   type MessageEvent as GatewayMessageEvent,
   type OutboundMessage,
   type SendResult,
-} from "@usetheo/gateway";
+} from "@theokit/gateway";
 
 import {
   type ConnectOptions,

@@ -1,5 +1,5 @@
 /**
- * Built-in tools for `@usetheo/sdk` agents (`@usetheo/sdk/tools`).
+ * Built-in tools for `@theokit/sdk` agents (`@theokit/sdk/tools`).
  *
  * Each factory returns a `CustomTool` ready to drop into `Agent.create`
  * or `createAgentFactory({ tools: [...] })`. All five share three
@@ -20,7 +20,7 @@
  *
  * Consumers: TheoKit Studio (the embedded coding agent), `cli-bot`
  * (the SDK's reference example), and any future coding-agent built on
- * `@usetheo/sdk`.
+ * `@theokit/sdk`.
  */
 
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";

@@ -11,5 +11,5 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/gateway", "@usetheo/sdk", "nodemailer", "imapflow", "mailparser"],
+  external: ["@theokit/gateway", "@theokit/sdk", "nodemailer", "imapflow", "mailparser"],
 });

@@ -1,6 +1,6 @@
 # email-bot
 
-Minimal example of an email-driven agent using `@usetheo/gateway-email`.
+Minimal example of an email-driven agent using `@theokit/gateway-email`.
 
 The agent listens on IMAP IDLE (or polls if the server doesn't advertise IDLE),
 forwards every inbound message to the SDK, and replies via SMTP with RFC 5322

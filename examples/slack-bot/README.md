@@ -1,8 +1,8 @@
 # example: slack-bot
 
-Demonstrates `@usetheo/gateway-slack` (Adoption Roadmap #7; ADRs D267-D285) — a
+Demonstrates `@theokit/gateway-slack` (Adoption Roadmap #7; ADRs D267-D285) — a
 Slack bot that DMs back and echoes mentions in channels, with replies generated
-by `@usetheo/sdk` Agent.
+by `@theokit/sdk` Agent.
 
 ## Setup
 
@@ -53,6 +53,6 @@ implications — every channel message will trigger an LLM call.
 
 ## Dogfood (env-gated per D284)
 
-This example is the canonical dogfood path for `@usetheo/gateway-slack`. It is
+This example is the canonical dogfood path for `@theokit/gateway-slack`. It is
 NOT automated in CI because we don't have a shared test workspace. Run manually
 with your own Slack app tokens.

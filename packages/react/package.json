@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/react",
+  "name": "@theokit/react",
   "version": "1.1.0",
-  "description": "React hooks + Next.js helpers for @usetheo/sdk — useTheoChat (SSE streaming) and streamTheoChat (server-side route handler).",
+  "description": "React hooks + Next.js helpers for @theokit/sdk — useTheoChat (SSE streaming) and streamTheoChat (server-side route handler).",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -31,7 +31,7 @@
   },
   "peerDependencies": {
     "react": "^18 || ^19",
-    "@usetheo/sdk": "^1.1.0",
+    "@theokit/sdk": "^1.1.0",
     "zod": "^3.25 || ^4"
   },
   "peerDependenciesMeta": {
@@ -41,7 +41,7 @@
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "react": "^18.3.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",

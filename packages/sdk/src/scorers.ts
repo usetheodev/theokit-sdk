@@ -4,7 +4,7 @@
  * Each scorer is a CURRIED FACTORY: call with config, get back a
  * `NamedScorer` ready to drop into `EvalOptions.scorers[]`.
  *
- *   import { Scorers } from "@usetheo/sdk/eval";
+ *   import { Scorers } from "@theokit/sdk/eval";
  *   const scorers = [
  *     Scorers.containsExpected({ caseSensitive: false }),
  *     Scorers.regex(/jazz|blues/i),

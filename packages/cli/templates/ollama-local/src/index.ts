@@ -5,7 +5,7 @@
  * pre-warms the model, sends a prompt, streams the reply.
  */
 
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const MODEL = process.env.OLLAMA_MODEL ?? "ollama/llama3.2:3b";

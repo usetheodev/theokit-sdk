@@ -1,6 +1,6 @@
 # Changesets
 
-In-flight changesets for `@usetheo/sdk` and other workspace packages.
+In-flight changesets for `@theokit/sdk` and other workspace packages.
 
 ## Quickstart
 
@@ -20,7 +20,7 @@ Each changeset is a markdown file with frontmatter:
 
 ```markdown
 ---
-"@usetheo/sdk": minor
+"@theokit/sdk": minor
 ---
 
 Short description of the user-visible change.

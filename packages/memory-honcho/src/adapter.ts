@@ -1,5 +1,5 @@
 /**
- * HonchoAdapter — `@usetheo/memory-honcho` core (T4.1, ADR D141).
+ * HonchoAdapter — `@theokit/memory-honcho` core (T4.1, ADR D141).
  *
  * Wraps `@honcho-ai/sdk@^2`. Implements `MemoryAdapter` over Honcho's
  * peer + session model with a dialectic-reasoning flavor of recall
@@ -20,7 +20,7 @@ import {
   type MemoryToolSchema,
   type MemoryTurnMessage,
   mkMemoryId,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 import { honchoPeerKey, honchoSessionKey } from "./translate.js";
 

@@ -10,8 +10,8 @@
  * @internal
  */
 
-import type { MemoryContext } from "@usetheo/sdk";
-import { MemoryAdapterError } from "@usetheo/sdk";
+import type { MemoryContext } from "@theokit/sdk";
+import { MemoryAdapterError } from "@theokit/sdk";
 
 const SAFE_IDENT = /^[a-zA-Z0-9_-]+$/;
 const ADAPTER_ID = "supermemory";

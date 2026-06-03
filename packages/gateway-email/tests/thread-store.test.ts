@@ -2,7 +2,7 @@
  * `ThreadStore` tests (T3.2 + D337).
  */
 
-import type { EmailMessageEvent } from "@usetheo/gateway";
+import type { EmailMessageEvent } from "@theokit/gateway";
 import { describe, expect, it } from "vitest";
 
 import { ThreadStore } from "../src/thread-store.js";

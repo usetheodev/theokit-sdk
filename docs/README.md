@@ -1,6 +1,6 @@
-# `@usetheo/sdk` documentation
+# `@theokit/sdk` documentation
 
-Official documentation for `@usetheo/sdk` — the TypeScript SDK for the Theo agent harness.
+Official documentation for `@theokit/sdk` — the TypeScript SDK for the Theo agent harness.
 
 > **Public beta.** APIs may change before general availability. The canonical machine-readable contract lives at [`../docs.md`](../docs.md); this folder is the human-friendly version.
 
@@ -47,12 +47,12 @@ Official documentation for `@usetheo/sdk` — the TypeScript SDK for the Theo ag
 
 ## Where this fits
 
-`@usetheo/sdk` is the **Harness** pillar of the [usetheo stack](../../README.md). The full stack:
+`@theokit/sdk` is the **Harness** pillar of the [usetheo stack](../../README.md). The full stack:
 
 | Pillar | Project | What it does |
 | --- | --- | --- |
-| UI | `@usetheo/ui` | Component primitives for AI surfaces |
-| **Harness** | **`@usetheo/sdk`** | Agent runtime, local or cloud |
+| UI | `@theokit/ui` | Component primitives for AI surfaces |
+| **Harness** | **`@theokit/sdk`** | Agent runtime, local or cloud |
 | Skills | `theokit` | Full-stack TypeScript framework |
 | Runtime | Theo PaaS | Managed deploy target *(pre-release)* |
 

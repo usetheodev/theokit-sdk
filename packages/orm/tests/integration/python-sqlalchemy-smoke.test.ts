@@ -75,7 +75,7 @@ if (!probe.ok) {
 
 describe("Python SQLAlchemy polyglot smoke (ADR D11)", () => {
   itSkippable(
-    "loads JSON Schema 7 emitted by @usetheo/orm into SQLAlchemy + create_all succeeds",
+    "loads JSON Schema 7 emitted by @theokit/orm into SQLAlchemy + create_all succeeds",
     () => {
       const schemas = exportSchemas({
         users: dogfoodLikeUsers,

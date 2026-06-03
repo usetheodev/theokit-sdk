@@ -44,8 +44,8 @@ jobs:
         working-directory: theokit-sdk
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter @usetheo/sdk run build
-          pnpm --filter @usetheo/sdk run docs:json
+          pnpm --filter @theokit/sdk run build
+          pnpm --filter @theokit/sdk run docs:json
 
       - name: Run drift check
         id: drift

@@ -118,7 +118,7 @@ export class Theokit {
    * Local introspection of bundled SDK assets (ADR D201). Unlike the
    * cloud-catalog `providers.list()` (which hits the TheoCloud HTTP API),
    * `inspect.*` reads the SDK's own bundled registries — useful for
-   * tooling (e.g. `@usetheo/cli`'s `theokit inspect`) that needs to know
+   * tooling (e.g. `@theokit/cli`'s `theokit inspect`) that needs to know
    * what's available WITHOUT a network round-trip.
    *
    * @public

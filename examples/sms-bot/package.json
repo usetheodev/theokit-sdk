@@ -8,9 +8,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@usetheo/gateway": "file:../../packages/gateway",
-    "@usetheo/gateway-sms": "file:../../packages/gateway-sms",
-    "@usetheo/sdk": "file:../../packages/sdk",
+    "@theokit/gateway": "file:../../packages/gateway",
+    "@theokit/gateway-sms": "file:../../packages/gateway-sms",
+    "@theokit/sdk": "file:../../packages/sdk",
     "express": "^4.19.0",
     "libphonenumber-js": "^1.10.0",
     "twilio": "^5.0.0"

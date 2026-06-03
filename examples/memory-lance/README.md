@@ -1,6 +1,6 @@
-# memory-lance — `@usetheo/sdk` LanceDB backend example
+# memory-lance — `@theokit/sdk` LanceDB backend example
 
-> Ships with `@usetheo/sdk@1.4.0` (lancedb-backend-ship-v1-1 plan). Closes
+> Ships with `@theokit/sdk@1.4.0` (lancedb-backend-ship-v1-1 plan). Closes
 > ADR D12 ("LanceDB deferred to v1.1") via fulfillment of D43.
 
 ## What this shows
@@ -22,7 +22,7 @@ Two modes:
 ## Setup (real mode)
 
 ```bash
-# 1. Install the peer deps (NOT bundled in @usetheo/sdk — opt-in).
+# 1. Install the peer deps (NOT bundled in @theokit/sdk — opt-in).
 pnpm add @lancedb/lancedb apache-arrow@^18.1.0
 
 # 2. Get a free OpenRouter key at https://openrouter.ai/keys and copy
@@ -37,7 +37,7 @@ pnpm run
 Expected output:
 
 ```
-=== @usetheo/sdk Lance backend example — REAL MODE ===
+=== @theokit/sdk Lance backend example — REAL MODE ===
 [1/4] Opening Lance index with real embedder...
 [2/4] Seeding 3 synthetic facts...
 [3/4] Recalling via semantic search...
@@ -64,7 +64,7 @@ toolchain. **Workaround:** stay on SQLite default (omit `backend: "lance"`).
 
 ### Bundler externalization (consumers of SDK)
 
-If your consumer app bundles `@usetheo/sdk` (Next.js, Vite, webpack,
+If your consumer app bundles `@theokit/sdk` (Next.js, Vite, webpack,
 rollup), you MUST externalize `@lancedb/lancedb`:
 
 - **Next.js:**
@@ -107,7 +107,7 @@ in the SDK repo for the numerical methodology behind these thresholds.
 If you already have an SQLite memory index and want to migrate:
 
 ```bash
-# Built-in CLI (shipped with @usetheo/sdk).
+# Built-in CLI (shipped with @theokit/sdk).
 npx theokit-migrate-memory --from sqlite --to lance
 ```
 

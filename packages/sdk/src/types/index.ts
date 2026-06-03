@@ -1,4 +1,4 @@
-// Type contract for @usetheo/sdk.
+// Type contract for @theokit/sdk.
 // Single source of truth: docs.md at the repository root.
 
 export type * from "./agent.js";

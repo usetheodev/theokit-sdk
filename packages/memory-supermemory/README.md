@@ -1,6 +1,6 @@
-# @usetheo/memory-supermemory
+# @theokit/memory-supermemory
 
-Supermemory memory adapter for [`@usetheo/sdk`](../sdk).
+Supermemory memory adapter for [`@theokit/sdk`](../sdk).
 
 Wraps [`supermemory@^4`](https://www.npmjs.com/package/supermemory) (zero-dep,
 MIT-licensed, native fetch) with the `MemoryAdapter` contract from ADR D141.
@@ -8,14 +8,14 @@ MIT-licensed, native fetch) with the `MemoryAdapter` contract from ADR D141.
 ## Install
 
 ```bash
-pnpm add @usetheo/memory-supermemory supermemory
+pnpm add @theokit/memory-supermemory supermemory
 ```
 
 ## Usage
 
 ```ts
-import { Agent } from "@usetheo/sdk";
-import { supermemoryMemory } from "@usetheo/memory-supermemory";
+import { Agent } from "@theokit/sdk";
+import { supermemoryMemory } from "@theokit/memory-supermemory";
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,

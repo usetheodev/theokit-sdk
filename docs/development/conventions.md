@@ -1,6 +1,6 @@
 # Conventions
 
-Code style and discipline for `@usetheo/sdk`. The TL;DR: match what's already in `src/` and the inviolable rules from [`CLAUDE.md`](../../CLAUDE.md).
+Code style and discipline for `@theokit/sdk`. The TL;DR: match what's already in `src/` and the inviolable rules from [`CLAUDE.md`](../../CLAUDE.md).
 
 ## TypeScript strictness
 

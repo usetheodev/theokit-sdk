@@ -5,20 +5,20 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.3.0
+  - @theokit/sdk@1.3.0
 
 ## 1.0.0
 
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.2.0
+  - @theokit/sdk@1.2.0
 
 ## 0.1.0
 
 ### Minor Changes
 
-- Initial release: ACP server adapter for `@usetheo/sdk`. ADRs D349-D360.
+- Initial release: ACP server adapter for `@theokit/sdk`. ADRs D349-D360.
 
   **Added:**
 
@@ -34,7 +34,7 @@
   - **Permission timeout** — `permissionTimeoutMs` default 60_000; prevents prompt-hang on unresponsive client (EC-2).
   - **Helpful `load_session` error** — "session not found" message hints at `conversationStorage` for serverless (EC-6).
   - **CWD validation** — absolute path resolved before factory invocation (EC-5).
-  - **Bin shim** — `npx theokit-acp` works without installing `@usetheo/cli`.
+  - **Bin shim** — `npx theokit-acp` works without installing `@theokit/cli`.
   - **Registry manifest** — `packages/acp/registry/agent.json` for the ACP marketplace.
 
   **Deferred to v0.2:**

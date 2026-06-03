@@ -1,11 +1,11 @@
 # Installation
 
 ```bash
-npm install @usetheo/sdk
+npm install @theokit/sdk
 # or
-pnpm add @usetheo/sdk
+pnpm add @theokit/sdk
 # or
-yarn add @usetheo/sdk
+yarn add @theokit/sdk
 ```
 
 ## Requirements
@@ -25,7 +25,7 @@ yarn add @usetheo/sdk
 ## Verifying the install
 
 ```typescript
-import { Agent, Cron, Theokit } from "@usetheo/sdk";
+import { Agent, Cron, Theokit } from "@theokit/sdk";
 
 console.log({ Agent, Cron, Theokit });
 ```
@@ -34,13 +34,13 @@ If the imports resolve and your editor surfaces full type information on hover, 
 
 ## Package format
 
-`@usetheo/sdk` ships dual ESM + CJS with subpath exports:
+`@theokit/sdk` ships dual ESM + CJS with subpath exports:
 
 | Entry | Import path |
 | --- | --- |
-| Main API | `@usetheo/sdk` |
-| Cron-only | `@usetheo/sdk/cron` |
-| Errors-only | `@usetheo/sdk/errors` |
+| Main API | `@theokit/sdk` |
+| Cron-only | `@theokit/sdk/cron` |
+| Errors-only | `@theokit/sdk/errors` |
 
 Use the subpath imports when you want minimal bundles or to make dependencies explicit.
 

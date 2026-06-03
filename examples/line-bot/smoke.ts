@@ -7,7 +7,7 @@
  * Without LINE_LIVE_SMOKE=1, dry-mode only (constructor validation).
  */
 
-import { LineAdapter } from "@usetheo/gateway-line";
+import { LineAdapter } from "@theokit/gateway-line";
 
 const live = process.env.LINE_LIVE_SMOKE === "1";
 

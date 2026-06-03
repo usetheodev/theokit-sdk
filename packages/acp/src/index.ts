@@ -1,5 +1,5 @@
 /**
- * `@usetheo/acp` — Agent Client Protocol (ACP) server adapter for `@usetheo/sdk`.
+ * `@theokit/acp` — Agent Client Protocol (ACP) server adapter for `@theokit/sdk`.
  *
  * Public API:
  *   - `serveAcp({ agent })` — blocks on stdio JSON-RPC until disconnect (D356).

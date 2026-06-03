@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@usetheo/di` are documented in this file.
+All notable changes to `@theokit/di` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial release of `@usetheo/di` — lightweight TypeScript dependency injection container.
+- Initial release of `@theokit/di` — lightweight TypeScript dependency injection container.
 - `Container` class with `register()` / `registerModule()` / `resolve()` / `resolveAsync()` / `analyze()` / `dispose()`.
 - 5 decorators: `@Injectable()`, `@Inject(token)`, `@Optional()`, `@Module({...})` — NestJS-compatible API.
 - 4 provider types: `useClass`, `useFactory`, `useValue`, `useExisting`.
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Module loading with cycle detection (DFS), export validation at register-time, BFS-style transitive provider import.
 - Typed errors: `TokenNotFoundError`, `CyclicDependencyError`, `AsyncProviderInSyncResolveError`, `ScopeViolationError`, `MissingInjectableError`, `ContainerDisposedError`, `ContainerFrozenError`, `InvalidModuleError`, `InvalidExportError`, `CyclicModuleImportError`, `ReflectMetadataMissingError`.
 - Disposal lifecycle: `dispose()` calls `Symbol.asyncDispose` (preferred) or `dispose()` on each instance in reverse construction order; aggregates errors via `AggregateError`.
-- Foundation for `@usetheo/orm` (P2) and `@usetheo/http-decorators` (P3). Agent-first integration ships as separate `@usetheo/di-agent` package (zero coupling per ADR D8).
+- Foundation for `@theokit/orm` (P2) and `@theokit/http-decorators` (P3). Agent-first integration ships as separate `@theokit/di-agent` package (zero coupling per ADR D8).
 
 ### Bundle / Coverage
 
@@ -43,4 +43,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Polyglot strategy (read ADR D11)
 
-`@usetheo/di` is **intentionally TS-only**. DI containers are intrinsically language-specific runtime constructs. The polyglot story for the theokit ecosystem lives in the contract layer — `@usetheo/orm` (P2, schema export to JSON Schema + SQL migrations) and `@usetheo/http-decorators` (P3, OpenAPI 3.x emit from `@Controller` decorators). Python/Go SDKs will be generated from those specs (Supabase/Appwrite pattern), NOT by porting the DI container.
+`@theokit/di` is **intentionally TS-only**. DI containers are intrinsically language-specific runtime constructs. The polyglot story for the theokit ecosystem lives in the contract layer — `@theokit/orm` (P2, schema export to JSON Schema + SQL migrations) and `@theokit/http-decorators` (P3, OpenAPI 3.x emit from `@Controller` decorators). Python/Go SDKs will be generated from those specs (Supabase/Appwrite pattern), NOT by porting the DI container.

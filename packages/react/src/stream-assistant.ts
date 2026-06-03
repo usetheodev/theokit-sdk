@@ -5,7 +5,7 @@ import {
   type LocalOptions,
   type ModelSelection,
   StreamObjectError,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 import type { ZodType } from "zod";
 
 /**

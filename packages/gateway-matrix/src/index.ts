@@ -1,4 +1,4 @@
-// Public API for @usetheo/gateway-matrix (ADRs D413-D421).
+// Public API for @theokit/gateway-matrix (ADRs D413-D421).
 
 export { MatrixAdapter } from "./adapter.js";
 export { AliasCache } from "./alias.js";

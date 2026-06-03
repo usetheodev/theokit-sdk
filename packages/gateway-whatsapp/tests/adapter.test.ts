@@ -2,7 +2,7 @@
  * `WhatsAppAdapter` tests (T1.4 + EC-7, EC-8 absorbed).
  */
 
-import { BasePlatformAdapter } from "@usetheo/gateway";
+import { BasePlatformAdapter } from "@theokit/gateway";
 import { describe, expect, it, vi } from "vitest";
 
 import { digitsOnly, WhatsAppAdapter } from "../src/adapter.js";

@@ -1,5 +1,5 @@
 /**
- * `TeamsAdapter` — Microsoft Teams platform adapter for `@usetheo/gateway`
+ * `TeamsAdapter` — Microsoft Teams platform adapter for `@theokit/gateway`
  * (Adoption Roadmap v1.4 #3; ADRs D315-D326).
  *
  * Built on the modern `@microsoft/teams.apps` v2 SDK (D315). The SDK handles
@@ -19,7 +19,7 @@ import {
   type MessageEvent as GatewayMessageEvent,
   type OutboundMessage,
   type SendResult,
-} from "@usetheo/gateway";
+} from "@theokit/gateway";
 
 import { mapTeamsError } from "./errors.js";
 import { normalizeTeamsActivity } from "./normalize.js";

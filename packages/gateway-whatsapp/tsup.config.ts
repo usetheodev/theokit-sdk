@@ -12,7 +12,7 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/gateway", "@usetheo/sdk", "whatsapp-web.js"],
+  external: ["@theokit/gateway", "@theokit/sdk", "whatsapp-web.js"],
   onSuccess: async () => {
     // Copy the bridge subprocess script alongside the dist so `dist/bridge/whatsapp-web-bridge.mjs` is shipped.
     mkdirSync("dist/bridge", { recursive: true });

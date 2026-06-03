@@ -49,8 +49,8 @@ describe("findRebuildCwd (v1.1 EC-1 MUST FIX — workspace-link routing)", () =>
     linkedRepo = join(sandbox, "consumer-repo");
     mkdirSync(join(linkedRepo, "node_modules/@usetheo"), { recursive: true });
     // Symlink that mimics how pnpm workspace link puts the sibling under
-    // node_modules/@usetheo/sdk in the consumer.
-    symlinkSync(realRepo, join(linkedRepo, "node_modules/@usetheo/sdk"));
+    // node_modules/@theokit/sdk in the consumer.
+    symlinkSync(realRepo, join(linkedRepo, "node_modules/@theokit/sdk"));
   });
 
   afterEach(() => {
@@ -58,10 +58,10 @@ describe("findRebuildCwd (v1.1 EC-1 MUST FIX — workspace-link routing)", () =>
   });
 
   it("resolves symlink to sibling repo (EC-1)", () => {
-    // Given: a binding path under the symlinked @usetheo/sdk in the consumer
+    // Given: a binding path under the symlinked @theokit/sdk in the consumer
     const failingBindingPath = join(
       linkedRepo,
-      "node_modules/@usetheo/sdk/node_modules/.pnpm/better-sqlite3@12.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
+      "node_modules/@theokit/sdk/node_modules/.pnpm/better-sqlite3@12.10.0/node_modules/better-sqlite3/build/Release/better_sqlite3.node",
     );
 
     // When: findRebuildCwd is called with a default cwd of the consumer repo

@@ -101,7 +101,7 @@ For bug fixes specifically: **always** add a regression test BEFORE the fix land
 Vitest's V8 coverage is configured in `vitest.config.ts`. Run with:
 
 ```bash
-pnpm --filter=@usetheo/sdk exec vitest run --coverage
+pnpm --filter=@theokit/sdk exec vitest run --coverage
 ```
 
 We don't currently enforce a coverage threshold — focus on critical paths first. Once the runtime adapters ship, we'll set a floor.
@@ -123,7 +123,7 @@ expectTypeOf<Parameters<typeof Agent.create>[0]>().toEqualTypeOf<AgentOptions>()
 Mark integration tests with a `.integration.test.ts` suffix and skip them by default in `vitest.config.ts`. Run explicitly when needed:
 
 ```bash
-THEOKIT_API_KEY=... pnpm --filter=@usetheo/sdk exec vitest run tests/integration
+THEOKIT_API_KEY=... pnpm --filter=@theokit/sdk exec vitest run tests/integration
 ```
 
 Never commit real API keys. Use a local `.env` (gitignored) or your CI's secrets store.

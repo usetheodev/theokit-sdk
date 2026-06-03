@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to `@usetheo/di-agent` are documented in this file.
+All notable changes to `@theokit/di-agent` are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Initial release of `@usetheo/di-agent` — agent-first DI integration for `@usetheo/di`.
+- Initial release of `@theokit/di-agent` — agent-first DI integration for `@theokit/di`.
 - `@InjectAgent()` parameter decorator (sugar over `@Inject(AGENT_TOKEN)`).
 - `createAgentProvider({ factory, scope? })` helper producing a `FactoryProvider` with default `Scope.REQUEST`.
 - `AGENT_TOKEN` exported constant for advanced wiring (custom providers under the same token).
@@ -29,6 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Peer dependencies
 
-- `@usetheo/di` `workspace:^` (kept in lockstep — Changesets `linked` config).
-- `@usetheo/sdk` `workspace:^` (the actual Agent runtime).
-- `reflect-metadata` `^0.2.0` (transitive via `@usetheo/di`).
+- `@theokit/di` `workspace:^` (kept in lockstep — Changesets `linked` config).
+- `@theokit/sdk` `workspace:^` (the actual Agent runtime).
+- `reflect-metadata` `^0.2.0` (transitive via `@theokit/di`).

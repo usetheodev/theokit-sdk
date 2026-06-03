@@ -20,7 +20,7 @@ informed: theokit-maintainers
 
 Decisão tomada antes do plano `cross-repo-integration-coesao`. Edição local no SDK reflete imediatamente em `theokit/` via Vite HMR.
 
-O plano introduz workspace-link OPT-IN para `@usetheo/ui` (ADR 0020 do theokit). Surge a questão: SDK deveria seguir o mesmo modelo (opt-in)?
+O plano introduz workspace-link OPT-IN para `@theokit/ui` (ADR 0020 do theokit). Surge a questão: SDK deveria seguir o mesmo modelo (opt-in)?
 
 ## Decision Drivers
 

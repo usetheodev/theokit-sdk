@@ -1,4 +1,4 @@
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 import { vi } from "vitest";
 
 export const makeFakeAgent = (overrides: Partial<SDKAgent> = {}): SDKAgent =>

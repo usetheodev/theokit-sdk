@@ -5,7 +5,7 @@
  * @internal
  */
 
-import type { TeamsMessageEvent } from "@usetheo/gateway";
+import type { TeamsMessageEvent } from "@theokit/gateway";
 
 /**
  * Sentinel runtime export — workaround for rollup-plugin-dts deep type-only

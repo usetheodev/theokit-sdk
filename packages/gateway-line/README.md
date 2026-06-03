@@ -1,22 +1,22 @@
-# @usetheo/gateway-line
+# @theokit/gateway-line
 
-LINE Messaging API platform adapter for [`@usetheo/gateway`](../gateway).
+LINE Messaging API platform adapter for [`@theokit/gateway`](../gateway).
 
 APAC consumer dominant — Japan (~85M MAU), Taiwan, Thailand. Webhook-only inbound (LINE doesn't offer a WebSocket gateway). HMAC-SHA256 signature validation on every POST.
 
 ## Install
 
 ```bash
-pnpm add @usetheo/sdk @usetheo/gateway @usetheo/gateway-line
+pnpm add @theokit/sdk @theokit/gateway @theokit/gateway-line
 pnpm add @line/bot-sdk express
 ```
 
 ## Quick start
 
 ```ts
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner } from "@usetheo/gateway";
-import { LineAdapter, createWebhookServer } from "@usetheo/gateway-line";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { LineAdapter, createWebhookServer } from "@theokit/gateway-line";
 
 const adapter = new LineAdapter({
   channelSecret: process.env.LINE_CHANNEL_SECRET!,
