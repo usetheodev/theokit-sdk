@@ -61,7 +61,7 @@
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "unplugin-swc": "^1.5.9",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   },
   "publishConfig": {
     "access": "public"

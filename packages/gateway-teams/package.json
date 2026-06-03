@@ -35,16 +35,16 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@microsoft/teams.apps": "^2.0.0",
     "@theokit/gateway": "workspace:^",
-    "@theokit/sdk": "workspace:^",
-    "@microsoft/teams.apps": "^2.0.0"
+    "@theokit/sdk": "workspace:^"
   },
   "devDependencies": {
+    "@microsoft/teams.apps": "^2.0.0",
     "@theokit/gateway": "workspace:*",
     "@theokit/sdk": "workspace:*",
-    "@microsoft/teams.apps": "^2.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   }
 }

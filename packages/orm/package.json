@@ -75,16 +75,16 @@
   },
   "devDependencies": {
     "@swc/core": "^1.15.40",
-    "@types/better-sqlite3": "^7.6.13",
     "@theokit/di": "workspace:*",
-    "@vitest/coverage-v8": "^3.0.0",
+    "@types/better-sqlite3": "^7.6.13",
+    "@vitest/coverage-v8": "^4.1.8",
     "better-sqlite3": "^11.10.0",
     "drizzle-orm": "^0.36.4",
     "reflect-metadata": "^0.2.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "unplugin-swc": "^1.5.9",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   },
   "publishConfig": {
     "access": "public"
