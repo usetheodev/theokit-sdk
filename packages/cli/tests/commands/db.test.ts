@@ -7,7 +7,7 @@ import { runDbCheckSchemaDrift, runDbExportSchema, runDbGenerate } from "../../s
 let sandbox: string;
 
 function writeStubExporter(sandbox: string, behavior: "ok" | "throw"): void {
-  const stubDir = join(sandbox, "node_modules", "@usetheo", "orm", "dist");
+  const stubDir = join(sandbox, "node_modules", "@theokit", "orm", "dist");
   mkdirSync(stubDir, { recursive: true });
   if (behavior === "throw") {
     writeFileSync(

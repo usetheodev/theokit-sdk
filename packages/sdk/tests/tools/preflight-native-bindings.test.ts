@@ -47,7 +47,7 @@ describe("findRebuildCwd (v1.1 EC-1 MUST FIX — workspace-link routing)", () =>
 
     // Simulate: linkedRepo (consumer) symlinks the sibling
     linkedRepo = join(sandbox, "consumer-repo");
-    mkdirSync(join(linkedRepo, "node_modules/@usetheo"), { recursive: true });
+    mkdirSync(join(linkedRepo, "node_modules/@theokit"), { recursive: true });
     // Symlink that mimics how pnpm workspace link puts the sibling under
     // node_modules/@theokit/sdk in the consumer.
     symlinkSync(realRepo, join(linkedRepo, "node_modules/@theokit/sdk"));

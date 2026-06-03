@@ -59,7 +59,7 @@ Resolved 2026-05-14. Changing any requires updating `docs.md`, `README.md`, and 
 
 | Item | Value | Notes |
 | --- | --- | --- |
-| npm package | `@theokit/sdk` | Under the `@usetheo` scope, alongside `@theokit/ui`. |
+| npm package | `@theokit/sdk` | Under the `@theokit` scope, alongside `@theokit/ui`. |
 | Env var (API key) | `THEOKIT_API_KEY` | All SDK env vars namespace under `THEOKIT_` to leave `THEO_` available for future Theo PaaS tooling. |
 | API namespace object | `Theokit` | E.g. `Theokit.me()`, `Theokit.models.list()`, `Theokit.repositories.list()`. |
 | Error base class | `TheokitAgentError` | All errors extend this. |
