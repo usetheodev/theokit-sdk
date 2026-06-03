@@ -108,8 +108,8 @@ interface SchemaExportModule {
 
 async function loadSchemaExporter(cwd: string): Promise<SchemaExportModule> {
   const candidates = [
-    join(cwd, "node_modules", "@usetheo", "orm", "dist", "schema-export.js"),
-    join(cwd, "node_modules", "@usetheo", "orm", "schema-export.js"),
+    join(cwd, "node_modules", "@theokit", "orm", "dist", "schema-export.js"),
+    join(cwd, "node_modules", "@theokit", "orm", "schema-export.js"),
   ];
   for (const c of candidates) {
     if (existsSync(c)) {
