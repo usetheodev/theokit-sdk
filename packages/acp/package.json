@@ -39,15 +39,15 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@theokit/sdk": "workspace:^",
-    "@agentclientprotocol/sdk": "^0.22.1"
+    "@agentclientprotocol/sdk": "^0.22.1",
+    "@theokit/sdk": "workspace:^"
   },
   "devDependencies": {
-    "@theokit/sdk": "workspace:*",
     "@agentclientprotocol/sdk": "~0.22.1",
+    "@theokit/sdk": "workspace:*",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   },
   "publishConfig": {
     "access": "public",
