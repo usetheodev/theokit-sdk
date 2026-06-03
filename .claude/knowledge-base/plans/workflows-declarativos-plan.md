@@ -1696,7 +1696,7 @@ Seção mínima cobrindo:
 ```bash
 # 1. Rebuild SDK + refresh telegram-pro link
 pnpm -F @theokit/sdk build
-PNP_DIR=examples/telegram-pro/node_modules/.pnpm/@usetheo+sdk@*/node_modules/@theokit/sdk
+PNP_DIR=examples/telegram-pro/node_modules/.pnpm/@theokit+sdk@*/node_modules/@theokit/sdk
 rm -rf $PNP_DIR/dist && cp -r packages/sdk/dist $PNP_DIR/dist
 
 # 2. Restart bot fresh

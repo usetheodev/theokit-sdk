@@ -1181,7 +1181,7 @@ VERIFY:  tools/typecheck-examples.sh exit 0 (fail count == 0)
 
 - [ ] `tools/typecheck-examples.sh` exits 0
 - [ ] No new failures tied to `examples/eval/run.ts`
-- [ ] **(v1.1, EC-6 SHOULD TEST)** Fresh-dist resolution verified — after the sweep, `examples/eval/node_modules/.pnpm/@usetheo+sdk@*/node_modules/@theokit/sdk/dist/eval.d.ts` exists AND contains the `Scorers` export (proves pnpm resolved against the just-built dist, not a stale cache). If absent: `rm -rf examples/eval/node_modules examples/eval/pnpm-lock.yaml && tools/typecheck-examples.sh` to force fresh resolution.
+- [ ] **(v1.1, EC-6 SHOULD TEST)** Fresh-dist resolution verified — after the sweep, `examples/eval/node_modules/.pnpm/@theokit+sdk@*/node_modules/@theokit/sdk/dist/eval.d.ts` exists AND contains the `Scorers` export (proves pnpm resolved against the just-built dist, not a stale cache). If absent: `rm -rf examples/eval/node_modules examples/eval/pnpm-lock.yaml && tools/typecheck-examples.sh` to force fresh resolution.
 
 #### DoD
 

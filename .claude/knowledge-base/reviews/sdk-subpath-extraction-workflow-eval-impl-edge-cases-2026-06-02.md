@@ -43,7 +43,7 @@ Spot-checks rodados antes do report (evidência empírica):
 ### EC-6: T4.3 `tools/typecheck-examples.sh` runs `pnpm install --ignore-workspace` — may still resolve to stale dist despite T4.0 rebuild
 
 - **Task affected:** T4.3 (typecheck-examples sweep)
-- **Halt-loop checkpoint sugerido:** Add to T4.3 verify step: "After running `tools/typecheck-examples.sh`, check the auto-generated `examples/<name>/node_modules/.pnpm/@usetheo+sdk@.../node_modules/@theokit/sdk/dist/workflow.d.ts` exists for `examples/eval/`. If absent, the `--ignore-workspace --no-frozen-lockfile` may have resolved against a stale cache. Workaround: `rm -rf examples/eval/node_modules examples/eval/pnpm-lock.yaml && tools/typecheck-examples.sh` to force fresh resolution."
+- **Halt-loop checkpoint sugerido:** Add to T4.3 verify step: "After running `tools/typecheck-examples.sh`, check the auto-generated `examples/<name>/node_modules/.pnpm/@theokit+sdk@.../node_modules/@theokit/sdk/dist/workflow.d.ts` exists for `examples/eval/`. If absent, the `--ignore-workspace --no-frozen-lockfile` may have resolved against a stale cache. Workaround: `rm -rf examples/eval/node_modules examples/eval/pnpm-lock.yaml && tools/typecheck-examples.sh` to force fresh resolution."
 - **Cenário:** pnpm's `file:` link resolution + `--ignore-workspace` is mutually-correct but the lockfile may pin a hash. The plan's D4 mandate ensures dist is fresh; T4.3 trusts pnpm to re-resolve. If pnpm caches, the example tsc reads a stale dist that lacks the new sub-paths.
 
 ---
