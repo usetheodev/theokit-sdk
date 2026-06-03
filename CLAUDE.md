@@ -1,6 +1,6 @@
 # CLAUDE.md — theokit-sdk
 
-Contract between Claude and the **`@theokit/sdk`** project (the **Harness** pillar of [usetheo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
+Contract between Claude and the **`@theokit/sdk`** project (the **Harness** pillar of [Theo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
 
 This file complements `/home/user/Projetos/usetheo/CLAUDE.md` and `/home/user/.claude/CLAUDE.md`. Root rules apply unconditionally. SDK-specific rules layer on top.
 
@@ -70,7 +70,7 @@ Resolved 2026-05-14. Changing any requires updating `docs.md`, `README.md`, and 
 | Pagination cursor field | `nextCursor` | Renamed from the `nextTheo` placeholder in the original `docs.md`. |
 | Top-level API namespaces | `Agent`, `Cron`, `Theokit` | Static classes with private constructors. |
 
-> **Naming note.** The agent itself is "the Theo agent" in prose (matches the locked usetheo narrative). The **SDK surface** uses the `Theokit` prefix for consistency with the env var and project name. Two different things — don't collapse them.
+> **Naming note.** The agent itself is "the Theo agent" in prose (matches the locked Theo narrative). The **SDK surface** uses the `Theokit` prefix for consistency with the env var and project name. Two different things — don't collapse them.
 
 ## Locked toolchain
 
@@ -141,10 +141,10 @@ ADR D01 (this repo): `node-22-mandatory`. Plan: [`../.claude/knowledge-base/plan
 
 **Cross-project narrative anchors that must hold (regardless of voice):**
 
-- "Harness pillar of usetheo" — the SDK is the harness, not the framework (TheoKit) and not the runtime (Theo PaaS).
+- "Harness pillar of Theo" — the SDK is the harness, not the framework (TheoKit) and not the runtime (Theo PaaS).
 - "Open stack underneath" — the load-bearing differentiator. Apache-2.0 SDK, Apache-2.0 local runtime via `pi/`, multi-provider keys, opt-in cloud, walk-away cost zero.
 - "Pre-release honesty" — cloud runtime depends on Theo PaaS, currently pre-release. Cloud-only features must be labeled.
-- "No invented integration" — never claim wiring with other usetheo pillars that does not yet exist (Cross-Project Rule 2).
+- "No invented integration" — never claim wiring with other Theo pillars that does not yet exist (Cross-Project Rule 2).
 
 If a piece of TheoKit-SDK copy contradicts the locked narrative in [`../CLAUDE.md`](../CLAUDE.md) or the operational rules in [`../theokit/CLAUDE.md`](../theokit/CLAUDE.md), the root and TheoKit rules win — surface the conflict before publishing.
 
@@ -564,7 +564,7 @@ Full text: `/home/user/.claude/CLAUDE.md`. Cross-project rules: `/home/user/Proj
 - [ ] Updated `README.md` if the change is user-visible.
 - [ ] Added or updated tests covering the new contract (TDD: regression test first when fixing a bug).
 - [ ] `CHANGELOG.md` entry under `[Unreleased]` in `packages/sdk/CHANGELOG.md` (or root `CHANGELOG.md` for workspace changes).
-- [ ] No reference to "Theo IDE" or other surfaces that do not exist in the usetheo stack.
+- [ ] No reference to "Theo IDE" or other surfaces that do not exist in the Theo stack.
 - [ ] No promise of cloud-only features as GA.
 - [ ] No silent integration claims with `@theokit/ui` or `theokit` — verify the import exists.
 - [ ] No imports from `referencia/*` — that tree is read-only study material.

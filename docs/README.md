@@ -47,7 +47,7 @@ Official documentation for `@theokit/sdk` — the TypeScript SDK for the Theo ag
 
 ## Where this fits
 
-`@theokit/sdk` is the **Harness** pillar of the [usetheo stack](../../README.md). The full stack:
+`@theokit/sdk` is the **Harness** pillar of the [Theo stack](../../README.md). The full stack:
 
 | Pillar | Project | What it does |
 | --- | --- | --- |
