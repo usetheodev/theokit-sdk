@@ -61,7 +61,7 @@
     "transactional",
     "typescript",
     "theokit",
-    "usetheo"
+    "Theo"
   ],
   "peerDependencies": {
     "@theokit/di": "^0.1.0",

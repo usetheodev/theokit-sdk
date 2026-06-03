@@ -50,7 +50,7 @@
     "ioc",
     "typescript",
     "theokit",
-    "usetheo"
+    "Theo"
   ],
   "peerDependencies": {
     "reflect-metadata": "^0.2.0"

@@ -27,7 +27,7 @@ There is a version of your agent that does not sit in a chat window.
 
 You don't open a panel. You don't type a prompt. You commit code, and the agent runs — the same way every other piece of your stack runs. It writes a PR description after every merge. It summarizes yesterday's incidents at 9 AM. It refactors a module overnight. It answers questions in Slack about the codebase it knows by heart.
 
-That agent is built with `@theokit/sdk` — and when you decide to leave, the runtime leaves with you. A community auxiliary of the [usetheo](https://usetheo.dev) ecosystem, inspired by the Claude SDK, Cursor SDK, and the open runtime.
+That agent is built with `@theokit/sdk` — and when you decide to leave, the runtime leaves with you. A community auxiliary of the [Theo](https://usetheo.dev) ecosystem, inspired by the Claude SDK, Cursor SDK, and the open runtime.
 
 ## Overview
 
@@ -611,7 +611,7 @@ Honest claims only. Production-ready is not the same as "every feature shipped".
 
 ## Where this fits
 
-`@theokit/sdk` is the **Harness** pillar of the [usetheo stack](../README.md):
+`@theokit/sdk` is the **Harness** pillar of the [Theo stack](../README.md):
 
 | Pillar | Project | What it does |
 | --- | --- | --- |
