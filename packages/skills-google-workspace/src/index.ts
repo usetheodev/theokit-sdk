@@ -1,8 +1,8 @@
 /**
- * `@usetheo/skills-google-workspace` — public API.
+ * `@theokit/skills-google-workspace` — public API.
  *
  * Spawns the combined `google-workspace-mcp` server (pm990320, MIT) as a
- * stdio MCP child of `@usetheo/sdk`. Covers Calendar + Drive + Sheets +
+ * stdio MCP child of `@theokit/sdk`. Covers Calendar + Drive + Sheets +
  * Docs + Gmail + Slides + Forms. ADRs D340-D348.
  *
  * @public

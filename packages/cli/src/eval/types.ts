@@ -8,7 +8,7 @@
  * @public
  */
 
-import type { Agent } from "@usetheo/sdk";
+import type { Agent } from "@theokit/sdk";
 
 /** Outcome of a single scoring decision. */
 interface Score {

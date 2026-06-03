@@ -1,4 +1,4 @@
-// Public API surface for @usetheo/sdk.
+// Public API surface for @theokit/sdk.
 //
 // Single source of truth for the contract: docs.md at the repository root.
 // Locked names: see CLAUDE.md.
@@ -110,7 +110,7 @@ export {
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
-// Path safety primitives (ADRs D79-D85) live at `@usetheo/sdk/path-safety`,
+// Path safety primitives (ADRs D79-D85) live at `@theokit/sdk/path-safety`,
 // not on the main barrel. That dedicated sub-export keeps the DTS bundle
 // for `index.ts` decoupled from the `internal/runtime` graph (which has
 // a known import cycle `types/agent.ts ↔ fork-agent.ts` that rollup-plugin-dts

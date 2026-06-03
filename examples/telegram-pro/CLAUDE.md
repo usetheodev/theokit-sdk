@@ -1,7 +1,7 @@
 # CLAUDE.md — Theo Pro Telegram Bot
 
 Claude-specific extension on top of AGENTS.md. Theo Pro uses
-`@usetheo/sdk` agents that can run against any OpenRouter-compatible
+`@theokit/sdk` agents that can run against any OpenRouter-compatible
 provider including Claude.
 
 ## Claude-flavored conventions

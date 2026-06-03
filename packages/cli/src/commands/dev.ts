@@ -38,7 +38,7 @@ export async function runDev(opts: DevOptions): Promise<number> {
   } catch (err) {
     process.stderr.write(
       `${pc.red("error:")} could not spawn tsx — ${err instanceof Error ? err.message : String(err)}\n` +
-        `  ${pc.gray("Hint: try `pnpm install` to repair @usetheo/cli.")}\n`,
+        `  ${pc.gray("Hint: try `pnpm install` to repair @theokit/cli.")}\n`,
     );
     return 1;
   }

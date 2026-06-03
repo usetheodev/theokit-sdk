@@ -4,7 +4,7 @@
  *
  * Usage:
  *
- *   import { Agent, Handoff } from "@usetheo/sdk";
+ *   import { Agent, Handoff } from "@theokit/sdk";
  *
  *   const billing = await Agent.create({
  *     name: "billing",

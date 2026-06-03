@@ -1,7 +1,7 @@
 /**
  * Tests for `Theokit.inspect.*` public API (ADR D201).
  *
- * Critical: this API exists BECAUSE `@usetheo/cli`'s `inspect` command
+ * Critical: this API exists BECAUSE `@theokit/cli`'s `inspect` command
  * needs to enumerate builtin providers + embedding adapters from a
  * PUBLISHED install — internal/* paths are not in `package.json#exports`
  * (EC-E from cli-theokit edge-case review 2026-05-22).

@@ -7,7 +7,7 @@
  * @internal
  */
 
-import type { EmailMessageEvent } from "@usetheo/gateway";
+import type { EmailMessageEvent } from "@theokit/gateway";
 import { simpleParser } from "mailparser";
 
 /**

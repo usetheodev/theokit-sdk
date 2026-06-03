@@ -1,13 +1,13 @@
 /**
- * `@usetheo/gateway-email` — public API.
+ * `@theokit/gateway-email` — public API.
  *
- * Email adapter for `@usetheo/gateway`, built on `nodemailer` + `imapflow` + `mailparser`.
+ * Email adapter for `@theokit/gateway`, built on `nodemailer` + `imapflow` + `mailparser`.
  *
  * @public
  */
 
 // Re-export the MessageEvent variant.
-export type { EmailMessageEvent } from "@usetheo/gateway";
+export type { EmailMessageEvent } from "@theokit/gateway";
 export { EmailAdapter } from "./adapter.js";
 export { mapEmailError } from "./errors.js";
 export { extractAddr, isAllowedSender, isAutomatedSender } from "./filters.js";

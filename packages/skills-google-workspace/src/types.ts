@@ -1,5 +1,5 @@
 /**
- * Public option types for `@usetheo/skills-google-workspace` (ADRs D340-D348).
+ * Public option types for `@theokit/skills-google-workspace` (ADRs D340-D348).
  *
  * @public
  */

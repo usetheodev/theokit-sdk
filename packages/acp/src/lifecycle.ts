@@ -17,7 +17,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import * as acp from "@agentclientprotocol/sdk";
-import { Agent, type SDKAgent } from "@usetheo/sdk";
+import { Agent, type SDKAgent } from "@theokit/sdk";
 import type { AcpSession, SessionStore } from "./session-store.js";
 import type { AcpCapabilities, AgentFactory } from "./types.js";
 
@@ -223,7 +223,7 @@ export async function handleForkSession(
     error: {
       code: ACP_ERR.INVALID_REQUEST,
       message:
-        "session/fork is deferred to @usetheo/acp v0.2 — current SDK fork is a one-shot sub-run, not a session split",
+        "session/fork is deferred to @theokit/acp v0.2 — current SDK fork is a one-shot sub-run, not a session split",
     },
   };
 }

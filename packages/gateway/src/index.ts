@@ -1,4 +1,4 @@
-// Public API for @usetheo/gateway (Hermes #gateway-port, ADRs D170-D181).
+// Public API for @theokit/gateway (Hermes #gateway-port, ADRs D170-D181).
 
 // Adapter contract
 export {

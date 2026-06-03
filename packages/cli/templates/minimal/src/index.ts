@@ -1,10 +1,10 @@
 /**
- * {{projectName}} — a minimal @usetheo/sdk agent.
+ * {{projectName}} — a minimal @theokit/sdk agent.
  *
  * Sends one prompt, streams the reply, exits.
  */
 
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const API_KEY = process.env.THEOKIT_API_KEY ?? "local";
 const MODEL = process.env.AGENT_MODEL ?? "anthropic/claude-3-5-sonnet-latest";

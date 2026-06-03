@@ -1,4 +1,4 @@
-import type { MessageEvent, OutboundMessage } from "@usetheo/gateway";
+import type { MessageEvent, OutboundMessage } from "@theokit/gateway";
 import { describe, expect, it, vi } from "vitest";
 
 import { MattermostAdapter, parsePostFromWS } from "../src/adapter.js";

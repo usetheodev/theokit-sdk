@@ -72,7 +72,7 @@ export interface ErrorMetadata {
 }
 
 /**
- * Base class for all errors thrown by `@usetheo/sdk`.
+ * Base class for all errors thrown by `@theokit/sdk`.
  *
  * Use `isRetryable` to drive retry/backoff logic. `code` and `protoErrorCode`
  * are populated for server-originated errors when available. `metadata`

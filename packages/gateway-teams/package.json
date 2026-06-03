@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/gateway-teams",
+  "name": "@theokit/gateway-teams",
   "version": "0.1.0",
-  "description": "Microsoft Teams platform adapter for @usetheo/gateway. Built on @microsoft/teams.apps v2 SDK. ADRs D315-D326.",
+  "description": "Microsoft Teams platform adapter for @theokit/gateway. Built on @microsoft/teams.apps v2 SDK. ADRs D315-D326.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -35,13 +35,13 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/gateway": "workspace:^",
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/gateway": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "@microsoft/teams.apps": "^2.0.0"
   },
   "devDependencies": {
-    "@usetheo/gateway": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/gateway": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "@microsoft/teams.apps": "^2.0.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",

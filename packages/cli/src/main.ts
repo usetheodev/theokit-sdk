@@ -196,7 +196,7 @@ export async function main(argv: ReadonlyArray<string>): Promise<number> {
   const program = new Command();
   program
     .name("theokit")
-    .description("Developer CLI for @usetheo/sdk — init, dev, inspect, eval.")
+    .description("Developer CLI for @theokit/sdk — init, dev, inspect, eval.")
     .version(CLI_VERSION, "-v, --version", "Print the CLI version and exit.")
     .addHelpText(
       "after",

@@ -4,7 +4,7 @@
  * @public
  */
 
-import type { MatrixMessageEvent } from "@usetheo/gateway";
+import type { MatrixMessageEvent } from "@theokit/gateway";
 
 import { detectChannelType } from "./room-state.js";
 import type { MatrixEventLike, MatrixRoomLike } from "./types.js";

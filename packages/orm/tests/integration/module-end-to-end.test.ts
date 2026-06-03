@@ -1,4 +1,4 @@
-import { Container, Injectable } from "@usetheo/di";
+import { Container, Injectable } from "@theokit/di";
 import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/better-sqlite3";
 import { sqliteTable, text } from "drizzle-orm/sqlite-core";

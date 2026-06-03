@@ -14,5 +14,5 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["reflect-metadata", "drizzle-orm", "drizzle-kit", "@usetheo/di"],
+  external: ["reflect-metadata", "drizzle-orm", "drizzle-kit", "@theokit/di"],
 });

@@ -11,5 +11,5 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/di", "@usetheo/sdk", "reflect-metadata"],
+  external: ["@theokit/di", "@theokit/sdk", "reflect-metadata"],
 });

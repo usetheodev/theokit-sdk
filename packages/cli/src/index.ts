@@ -1,5 +1,5 @@
 /**
- * @usetheo/cli — developer CLI for @usetheo/sdk (Adoption Roadmap #1).
+ * @theokit/cli — developer CLI for @theokit/sdk (Adoption Roadmap #1).
  *
  * Subcommands at v1: `init`, `dev`, `inspect`, `eval`.
  *

@@ -1,6 +1,6 @@
 # sms-bot example
 
-End-to-end Twilio SMS echo bot using [`@usetheo/gateway-sms`](../../packages/gateway-sms).
+End-to-end Twilio SMS echo bot using [`@theokit/gateway-sms`](../../packages/gateway-sms).
 
 ## Setup
 

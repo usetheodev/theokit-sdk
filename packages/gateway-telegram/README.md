@@ -1,13 +1,13 @@
-# @usetheo/gateway-telegram
+# @theokit/gateway-telegram
 
-Telegram platform adapter for `@usetheo/gateway`. Wraps [grammy](https://grammy.dev/) in the `BasePlatformAdapter` contract.
+Telegram platform adapter for `@theokit/gateway`. Wraps [grammy](https://grammy.dev/) in the `BasePlatformAdapter` contract.
 
 > **Status: 0.1.0 — pre-release.**
 
 ## Install
 
 ```bash
-pnpm add @usetheo/gateway-telegram @usetheo/gateway @usetheo/sdk grammy
+pnpm add @theokit/gateway-telegram @theokit/gateway @theokit/sdk grammy
 ```
 
 `grammy` is a peer dep — install the version your bot needs.
@@ -15,8 +15,8 @@ pnpm add @usetheo/gateway-telegram @usetheo/gateway @usetheo/sdk grammy
 ## Usage
 
 ```typescript
-import { GatewayRunner } from "@usetheo/gateway";
-import { TelegramAdapter } from "@usetheo/gateway-telegram";
+import { GatewayRunner } from "@theokit/gateway";
+import { TelegramAdapter } from "@theokit/gateway-telegram";
 
 const adapter = new TelegramAdapter({
   token: process.env.TELEGRAM_BOT_TOKEN!,

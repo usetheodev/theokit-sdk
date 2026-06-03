@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Standalone bin shim — `npx theokit-acp` works without installing `@usetheo/cli`.
+ * Standalone bin shim — `npx theokit-acp` works without installing `@theokit/cli`.
  *
  * Resolves entry, dynamic-imports, picks default export with CJS fallback
  * (EC-4), and calls `serveAcp`.
@@ -89,13 +89,13 @@ if (timeoutMs !== undefined && (!Number.isFinite(timeoutMs) || timeoutMs <= 0)) 
 
 let serveAcp;
 try {
-  ({ serveAcp } = await import("@usetheo/acp"));
+  ({ serveAcp } = await import("@theokit/acp"));
 } catch {
   // running from the package itself (link-time), fall back to local dist.
   try {
     ({ serveAcp } = await import("../dist/index.js"));
   } catch (err) {
-    process.stderr.write(`theokit-acp: cannot resolve @usetheo/acp: ${err?.message ?? err}\n`);
+    process.stderr.write(`theokit-acp: cannot resolve @theokit/acp: ${err?.message ?? err}\n`);
     process.exit(1);
   }
 }

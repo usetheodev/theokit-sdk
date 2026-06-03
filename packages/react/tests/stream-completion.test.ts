@@ -1,4 +1,4 @@
-import { AuthenticationError, ConfigurationError, type SDKAgent } from "@usetheo/sdk";
+import { AuthenticationError, ConfigurationError, type SDKAgent } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 
 import { streamCompletion } from "../src/stream-completion.js";

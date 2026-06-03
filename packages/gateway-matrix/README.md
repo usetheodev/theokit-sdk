@@ -1,22 +1,22 @@
-# @usetheo/gateway-matrix
+# @theokit/gateway-matrix
 
-Matrix protocol platform adapter for [`@usetheo/gateway`](../gateway).
+Matrix protocol platform adapter for [`@theokit/gateway`](../gateway).
 
 Decentralized federation. Works with matrix.org, element.io, self-hosted Synapse/Dendrite, etc. Bot in `@bot:matrix.org` can receive from `@alice:element.io` via federation built-in.
 
 ## Install
 
 ```bash
-pnpm add @usetheo/sdk @usetheo/gateway @usetheo/gateway-matrix
+pnpm add @theokit/sdk @theokit/gateway @theokit/gateway-matrix
 pnpm add matrix-js-sdk  # ~2MB peer-dep
 ```
 
 ## Quick start
 
 ```ts
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner } from "@usetheo/gateway";
-import { MatrixAdapter } from "@usetheo/gateway-matrix";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { MatrixAdapter } from "@theokit/gateway-matrix";
 
 const adapter = new MatrixAdapter({
   homeserverUrl: "https://matrix.org",

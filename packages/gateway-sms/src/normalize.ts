@@ -8,7 +8,7 @@
  * @internal
  */
 
-import type { SMSMessageEvent } from "@usetheo/gateway";
+import type { SMSMessageEvent } from "@theokit/gateway";
 
 import type { SMSInbound } from "./backend-types.js";
 

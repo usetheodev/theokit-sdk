@@ -4,7 +4,7 @@
  *
  * Usage:
  *
- *   import { Agent, Cache, definePlugin } from "@usetheo/sdk";
+ *   import { Agent, Cache, definePlugin } from "@theokit/sdk";
  *
  *   const cache = Cache.semantic({
  *     embedder: myEmbedderRuntime,    // EmbeddingRuntime (D11)

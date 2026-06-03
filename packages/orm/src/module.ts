@@ -1,4 +1,4 @@
-import type { Provider } from "@usetheo/di";
+import type { Provider } from "@theokit/di";
 import { OrmConfigurationError } from "./errors.js";
 import { createDataSource } from "./internal/data-source.js";
 import { Repository } from "./repository.js";

@@ -20,7 +20,7 @@ import {
   type MemoryToolSchema,
   type MemoryTurnMessage,
   mkMemoryId,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 import type Supermemory from "supermemory";
 import SupermemoryClient from "supermemory";
 

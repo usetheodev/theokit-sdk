@@ -9,9 +9,9 @@
  * 5. `pnpm run`.
  */
 
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner } from "@usetheo/gateway";
-import { MatrixAdapter } from "@usetheo/gateway-matrix";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { MatrixAdapter } from "@theokit/gateway-matrix";
 
 const required = ["MATRIX_HOMESERVER_URL", "MATRIX_ACCESS_TOKEN", "MATRIX_USER_ID"];
 for (const k of required) {

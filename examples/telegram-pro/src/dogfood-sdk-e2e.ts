@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createAgentFactory, type SDKAgent } from "@usetheo/sdk";
+import { createAgentFactory, type SDKAgent } from "@theokit/sdk";
 
 // Capture stderr to verify path-guard fires inside fire-and-forget catches.
 const stderrLines: string[] = [];

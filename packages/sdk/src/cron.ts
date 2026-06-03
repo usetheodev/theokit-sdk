@@ -130,7 +130,7 @@ export class Cron {
   static start(options: CronStartOptions = {}): Promise<void> {
     // Install the default fire handler so timer ticks actually drive a
     // real agent run. Users can override via `setCronFireHandler` from
-    // `@usetheo/sdk/internal` (test-mode hook).
+    // `@theokit/sdk/internal` (test-mode hook).
     setCronFireHandler(async (job) => {
       // T3.5 (ADRs D363/D374): every fire registers as a Task so callers
       // can observe via `theokit tasks list` / `Task.subscribe`. The

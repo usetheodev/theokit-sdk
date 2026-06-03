@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/memory-mem0",
+  "name": "@theokit/memory-mem0",
   "version": "0.1.0",
-  "description": "Mem0 cloud memory adapter for @usetheo/sdk — wraps mem0ai MemoryClient with the MemoryAdapter contract (ADR D141).",
+  "description": "Mem0 cloud memory adapter for @theokit/sdk — wraps mem0ai MemoryClient with the MemoryAdapter contract (ADR D141).",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -34,11 +34,11 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "mem0ai": "^3.0.0"
   },
   "devDependencies": {
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "mem0ai": "^3.0.3",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",

@@ -14,7 +14,7 @@ import {
   Agent,
   Handoff,
   RECOMMENDED_HANDOFF_PROMPT_PREFIX,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 const useCloud = typeof process.env.OPENROUTER_API_KEY === "string";
 

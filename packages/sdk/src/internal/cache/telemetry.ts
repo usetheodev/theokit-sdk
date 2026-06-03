@@ -16,7 +16,7 @@ import {
   type SpanLike,
 } from "../observability/tracer-loader.js";
 
-const TRACER_NAME = "@usetheo/sdk/cache";
+const TRACER_NAME = "@theokit/sdk/cache";
 
 export function startCacheLookupSpan(info: { namespace: string; embedderId: string }): SpanLike {
   const tracer = getTracer(TRACER_NAME);

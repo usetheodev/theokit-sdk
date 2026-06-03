@@ -19,7 +19,7 @@ import {
   type MessageEvent as GatewayMessageEvent,
   type OutboundMessage,
   type SendResult,
-} from "@usetheo/gateway";
+} from "@theokit/gateway";
 import { createBackend } from "./backend/index.js";
 import type { SignatureContext, SMSBackend } from "./backend-types.js";
 import { ConfigurationError } from "./errors.js";

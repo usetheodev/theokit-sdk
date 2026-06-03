@@ -1,11 +1,11 @@
-# @usetheo/gateway-slack
+# @theokit/gateway-slack
 
-Slack platform adapter for `@usetheo/gateway`. Adoption Roadmap #7; ADRs D267-D285.
+Slack platform adapter for `@theokit/gateway`. Adoption Roadmap #7; ADRs D267-D285.
 
 ## Install
 
 ```bash
-pnpm add @usetheo/gateway-slack @usetheo/gateway @usetheo/sdk @slack/bolt @slack/web-api
+pnpm add @theokit/gateway-slack @theokit/gateway @theokit/sdk @slack/bolt @slack/web-api
 ```
 
 ## Setup
@@ -19,8 +19,8 @@ pnpm add @usetheo/gateway-slack @usetheo/gateway @usetheo/sdk @slack/bolt @slack
 ## Usage
 
 ```typescript
-import { SlackAdapter } from "@usetheo/gateway-slack";
-import type { GatewayMessageEvent } from "@usetheo/gateway";
+import { SlackAdapter } from "@theokit/gateway-slack";
+import type { GatewayMessageEvent } from "@theokit/gateway";
 
 const adapter = new SlackAdapter({
   botToken: process.env.SLACK_BOT_TOKEN!,    // xoxb-...

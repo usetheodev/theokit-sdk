@@ -1,5 +1,5 @@
 /**
- * @usetheo/sdk — Lance backend memory example.
+ * @theokit/sdk — Lance backend memory example.
  *
  * Mode A (default — dry-run, no install required): prints a walkthrough
  * of what the real path WOULD do. Exit 0.
@@ -18,7 +18,7 @@ const LANCE_REAL = process.env.LANCE_REAL === "1";
 const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY;
 
 function dryRun(): void {
-  console.log("=== @usetheo/sdk Lance backend example — DRY-RUN MODE ===\n");
+  console.log("=== @theokit/sdk Lance backend example — DRY-RUN MODE ===\n");
   console.log("This run did NOT touch a real LLM or write to a Lance index.\n");
   console.log("In real mode (LANCE_REAL=1 + OPENROUTER_API_KEY), the script:");
   console.log("  1. Confirms `@lancedb/lancedb` peer dep is installed.");
@@ -61,7 +61,7 @@ async function realRun(): Promise<void> {
     process.exit(1);
   }
 
-  console.log("=== @usetheo/sdk Lance backend example — REAL MODE ===\n");
+  console.log("=== @theokit/sdk Lance backend example — REAL MODE ===\n");
   console.log("Peer dep present + OPENROUTER_API_KEY set. Proceeding...\n");
 
   // Dynamic imports so the dry-run path never executes any of this.
@@ -69,7 +69,7 @@ async function realRun(): Promise<void> {
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const { IndexManager } = await import(
-    "@usetheo/sdk/internal/memory/index-manager.js" as string
+    "@theokit/sdk/internal/memory/index-manager.js" as string
   ).catch(async () => {
     // The SDK does not (yet) expose IndexManager as a public sub-export.
     // For this example we use the public Memory facade if available, OR

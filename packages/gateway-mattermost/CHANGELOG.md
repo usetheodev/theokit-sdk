@@ -5,22 +5,22 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.3.0
-  - @usetheo/gateway@2.0.0
+  - @theokit/sdk@1.3.0
+  - @theokit/gateway@2.0.0
 
 ## 1.0.0
 
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.2.0
-  - @usetheo/gateway@1.0.0
+  - @theokit/sdk@1.2.0
+  - @theokit/gateway@1.0.0
 
 ## [Unreleased]
 
-### Added — `@usetheo/gateway-mattermost@0.1.0` (ADRs D397-D404)
+### Added — `@theokit/gateway-mattermost@0.1.0` (ADRs D397-D404)
 
-- Initial release of the Mattermost platform adapter for `@usetheo/gateway`.
+- Initial release of the Mattermost platform adapter for `@theokit/gateway`.
 - `@mattermost/client@^9.0.0` peer-dep (modern v4 REST + WebSocket gateway).
 - `MattermostAdapter` extending `BasePlatformAdapter`:
   - `connect()` initializes Client4 + WebSocketClient; caches bot userId via `getMe()`.

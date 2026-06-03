@@ -3,7 +3,7 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk";
-import type { SDKMessage } from "@usetheo/sdk";
+import type { SDKMessage } from "@theokit/sdk";
 import { describe, expect, it, vi } from "vitest";
 import { toolKind, translateStream } from "../src/translator.js";
 

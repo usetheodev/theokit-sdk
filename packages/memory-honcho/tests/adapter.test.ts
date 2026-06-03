@@ -2,7 +2,7 @@
  * HonchoAdapter — vi.mock-driven unit tests.
  */
 
-import { MemoryAdapterError, mkMemoryId } from "@usetheo/sdk";
+import { MemoryAdapterError, mkMemoryId } from "@theokit/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { HonchoAdapter } from "../src/adapter.js";
 import { honchoMemory } from "../src/index.js";
@@ -183,7 +183,7 @@ describe("HonchoAdapter (T4.1)", () => {
   it("factory returns a valid Plugin", () => {
     const plugin = honchoMemory({ apiKey: "sk-test" });
     expect(plugin.kind).toBe("memory");
-    expect(plugin.name).toBe("@usetheo/memory-honcho");
+    expect(plugin.name).toBe("@theokit/memory-honcho");
   });
 
   // EC-CI: README disclosure presence — grep-style lint

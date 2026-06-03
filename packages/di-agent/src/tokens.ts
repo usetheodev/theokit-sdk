@@ -3,4 +3,4 @@
  * this directly (instead of using the decorator) lets you register a
  * custom factory under the same token.
  */
-export const AGENT_TOKEN = "@usetheo/di-agent:Agent";
+export const AGENT_TOKEN = "@theokit/di-agent:Agent";

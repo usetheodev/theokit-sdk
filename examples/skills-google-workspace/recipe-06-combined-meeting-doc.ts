@@ -1,15 +1,15 @@
 /**
  * Recipe 06 — COMBINED: find next meeting in Calendar → draft agenda in Drive.
  *
- * The cross-product value-add of `@usetheo/skills-google-workspace` over
+ * The cross-product value-add of `@theokit/skills-google-workspace` over
  * three independent servers. Read-only Calendar + writable Drive (via
  * the agent's single MCP server in writable mode).
  *
  * EC-4: catches and surfaces Drive 403 with a clear scope hint.
  */
 
-import { Agent } from "@usetheo/sdk";
-import { googleWorkspace } from "@usetheo/skills-google-workspace";
+import { Agent } from "@theokit/sdk";
+import { googleWorkspace } from "@theokit/skills-google-workspace";
 
 import { requireCreds } from "./lib/scope-gate.js";
 

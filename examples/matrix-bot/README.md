@@ -1,6 +1,6 @@
 # matrix-bot example
 
-End-to-end Matrix echo bot using [`@usetheo/gateway-matrix`](../../packages/gateway-matrix).
+End-to-end Matrix echo bot using [`@theokit/gateway-matrix`](../../packages/gateway-matrix).
 
 ## Setup
 

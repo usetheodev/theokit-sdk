@@ -8,7 +8,7 @@
     "start": "tsx --env-file=.env src/index.ts"
   },
   "dependencies": {
-    "@usetheo/sdk": "^{{sdkVersion}}",
+    "@theokit/sdk": "^{{sdkVersion}}",
     "zod": "^3.25.0"
   },
   "devDependencies": {

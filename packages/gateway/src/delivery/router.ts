@@ -3,7 +3,7 @@
  *
  * The router holds a map of `platform → adapter` and forwards
  * `DeliveryRequest` to the right adapter's `sendMessage`. Composes
- * with `Cron` from `@usetheo/sdk` for scheduled delivery — the
+ * with `Cron` from `@theokit/sdk` for scheduled delivery — the
  * router is the "WHERE to send", Cron is the "WHEN to fire".
  *
  * @public

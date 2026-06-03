@@ -1,4 +1,4 @@
-// Public surface of `@usetheo/di`. See README.md for usage examples and
+// Public surface of `@theokit/di`. See README.md for usage examples and
 // `.claude/knowledge-base/plans/usetheo-di-v1-implementation-plan.md` for
 // the ADRs behind each design choice.
 

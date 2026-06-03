@@ -22,7 +22,7 @@ import { type MemoryConfig, type MemoryFact, redactSecrets } from "./types.js";
  */
 
 const MEMORY_MD_HEADER =
-  "# Memory\n\n> Auto-managed by @usetheo/sdk. Edit freely — the SDK reads from here.\n";
+  "# Memory\n\n> Auto-managed by @theokit/sdk. Edit freely — the SDK reads from here.\n";
 const FACTS_HEADING = "## Facts";
 
 export function memoryDir(cwd: string): string {

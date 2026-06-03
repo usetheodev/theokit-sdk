@@ -5,7 +5,7 @@ The SDK can route each model capability (`chat`, `web_search`, `image`, `embeddi
 ## Declaring routes
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
@@ -57,7 +57,7 @@ The output is **public and secret-free** by design — API keys, headers, and to
 ## Listing the catalog
 
 ```typescript
-import { Theokit } from "@usetheo/sdk";
+import { Theokit } from "@theokit/sdk";
 
 const providers = await Theokit.providers.list({ apiKey: process.env.THEOKIT_API_KEY });
 

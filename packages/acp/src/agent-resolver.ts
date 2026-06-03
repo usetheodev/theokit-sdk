@@ -9,7 +9,7 @@
  * @internal
  */
 
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 import type { AgentFactory, AgentOrFactory } from "./types.js";
 
 function looksLikeSDKAgent(value: unknown): value is SDKAgent {
