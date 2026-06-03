@@ -2,7 +2,7 @@ import { OrmConfigurationError } from "./errors.js";
 import { withTxContext } from "./internal/tx-context.js";
 import type { DataSource } from "./types.js";
 
-const DATA_SOURCE_KEY = Symbol.for("usetheo:orm:dataSource");
+const DATA_SOURCE_KEY = Symbol.for("Theo:orm:dataSource");
 
 /**
  * Internal: any class containing @Transactional methods must have its

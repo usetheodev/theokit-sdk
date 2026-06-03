@@ -427,7 +427,7 @@ examples/ollama-vision/ (NEW workspace) — exemplo end-to-end
 #### Tasks
 1. Unit test serialization payload (offline) com image content block.
 2. Integration test contra Ollama com modelo vision puxado.
-3. Example `ollama-vision/` com README + foto sample (e.g., logo do usetheo) + script `pnpm run start`.
+3. Example `ollama-vision/` com README + foto sample (e.g., logo do Theo) + script `pnpm run start`.
 
 #### TDD
 ```

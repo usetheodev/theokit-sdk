@@ -46,7 +46,7 @@
     "di",
     "agent",
     "theokit",
-    "usetheo"
+    "Theo"
   ],
   "peerDependencies": {
     "@theokit/di": "^0.1.0-next.0",

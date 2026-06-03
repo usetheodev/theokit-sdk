@@ -1120,7 +1120,7 @@ Create the registry manifest per ACP spec, validate it, and add a cookbook + con
 #### Files to edit
 ```
 packages/acp/registry/agent.json (NEW)
-packages/acp/registry/icon.svg (NEW) — usetheo logo
+packages/acp/registry/icon.svg (NEW) — Theo logo
 packages/acp/registry/README.md (NEW) — registry installation docs
 theo-opendocs/content/theokit-sdk/concepts/acp-server.mdx (NEW)
 theo-opendocs/content/theokit-sdk/cookbook/serve-as-acp-agent.mdx (NEW)
