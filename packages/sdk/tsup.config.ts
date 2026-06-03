@@ -10,6 +10,7 @@ export default defineConfig({
     "task-store": "src/task-store.ts",
     workflow: "src/workflow.ts",
     eval: "src/eval.ts",
+    "server/auth/index": "src/server/auth/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
@@ -21,6 +22,7 @@ export default defineConfig({
       index: "src/index.ts",
       errors: "src/errors.ts",
       cron: "src/cron.ts",
+      "server/auth/index": "src/server/auth/index.ts",
     },
   },
   sourcemap: true,

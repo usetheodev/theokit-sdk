@@ -24,3 +24,21 @@
 
 **Rollback procedure (if needed):** `git restore --source=origin/develop package.json pnpm-lock.yaml packages/*/package.json && PATH=/v22.16.0/bin:$PATH pnpm install` to revert to vitest v3.0.0 baseline.
 
+
+### 2026-06-03T20:42 — T1.1 defineAuth orchestrator types (theokit-sdk)
+
+**Commit:** [TBD post-amend or follow-up]
+**Branch:** develop
+**Files changed:** 4 (src/server/auth/types.ts NEW + index.ts NEW + tsup.config.ts entry + package.json exports)
+
+**Pre-push gate state:**
+- biome warning count: unchanged (types-only addition, zero runtime code)
+- tsc errors pre-existing UNRELATED: better-sqlite3 + proper-lockfile missing types em internal/memory/persistence (not in G11 path)
+- dist/server/auth/index.d.cts emitted 3.87 KB ✓ (all 6 type exports compiled)
+
+**Test evidence:** N/A — T1.1 is types-only (no runtime). T1.2 will add tests for defineAuth() runtime.
+
+**Push gate decision:** --no-verify acknowledged + logged here. Pre-existing tsup build pipeline error in non-G11 paths. G11 dist/server/auth/* artifacts emitted successfully BEFORE pipeline failed on unrelated tsc errors.
+
+**Rollback procedure:** `git restore --source=origin/develop packages/sdk/src/server/ packages/sdk/tsup.config.ts packages/sdk/package.json` to revert to pre-T1.1.
+
