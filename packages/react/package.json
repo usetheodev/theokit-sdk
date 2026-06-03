@@ -30,8 +30,8 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "react": "^18 || ^19",
     "@theokit/sdk": "^1.1.0",
+    "react": "^18 || ^19",
     "zod": "^3.25 || ^4"
   },
   "peerDependenciesMeta": {
@@ -40,12 +40,12 @@
     }
   },
   "devDependencies": {
-    "@types/react": "^18.0.0",
     "@theokit/sdk": "workspace:*",
+    "@types/react": "^18.0.0",
     "react": "^18.3.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0",
+    "vitest": "^4.1.8",
     "zod": "^4.0.0"
   },
   "engines": {
