@@ -98,6 +98,16 @@
         "default": "./dist/eval.cjs"
       }
     },
+    "./server/auth": {
+      "import": {
+        "types": "./dist/server/auth/index.d.ts",
+        "default": "./dist/server/auth/index.js"
+      },
+      "require": {
+        "types": "./dist/server/auth/index.d.cts",
+        "default": "./dist/server/auth/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
