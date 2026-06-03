@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.6.0 - 2026-06-03
+
+### Added
+
+- **`@theokit/sdk/server/auth` sub-path** (per ADR D6 of plan g11-auth-architecture-implementation v1.4) — orchestrator-only auth surface ships `defineAuth<TSession>(opts)` factory + 5 supporting types. Implements **Caminho C (Hybrid)** from discovery blueprint `g11-auth-architecture-decision` (SHIPPABLE 97.9). Providers ship as opt-in `@theokit/auth-*` packages (Tier 1: Google + GitHub + Magic Link — separate packages, semver-independent). Aligned with `AUTH-DELEGATION` lock in `theokit/CLAUDE.md:217-225` (lock's own escape-hatch clause "If we do adopt later: ship providers as separate optional packages under `@theokit/auth-*`, NEVER in the framework core").
+- **6 type exports** at `@theokit/sdk/server/auth`:
+  - `defineAuth<TSession>(opts): AuthOrchestrator<TSession>` factory
+  - `DefineAuthOptions<TSession>` config shape
+  - `AuthOrchestrator<TSession>` 5-method surface (`startSignIn`, `finishSignIn`, `signIn`, `signOut`, `getSession`)
+  - `AuthProvider<TProfile, TName>` provider contract
+  - `AuthResult<TProfile, TName>` callback return shape
+  - `OAuthTransaction` cookie-state transaction shape
+- **4 typed error classes:** `AuthConfigError`, `AuthProviderNotFoundError`, `AuthCallbackError`, `AuthCancelledError` (extends `AuthCallbackError`).
+- **`validateReturnTo(returnTo, baseUrl)` helper** — same-origin validation for OWASP A01:2021 open-redirect mitigation.
+
+### Edge cases absorbed inline (from plan v1.1 edge-case-plan)
+
+- **EC-1** — `AuthCancelledError` thrown on OAuth `?error=access_denied` callback (RFC 6749 §4.1.2.1) BEFORE attempting code-exchange. Apps catch distinctly to render "Login cancelled" UX vs opaque "callback failed".
+- **EC-2** — `validateReturnTo` rejects protocol-relative URLs (`//evil.com`), cross-origin absolute URLs, and bare strings. Defaults to `/` when unsafe.
+- **EC-10** — `rotateSession()` called BEFORE `createSession()` in `finishSignIn` + `signIn` per OWASP A07:2021 session-fixation mitigation.
+- **EC-6** — Typed `oauth_transaction_expired` code on `AuthCallbackError` for expired cookie-state transactions (≥ 10min old).
+- **D5** — OAuth transaction stored in encrypted cookie (`theo_oauth_tx`, AES-256-GCM, 10-min expiry, HttpOnly + Secure + SameSite=Lax).
+
+### Notes
+
+- v1.6.0 is **additive** — no breaking changes. Existing consumers of `createSessionManager` (from `theokit/server/auth`) unaffected.
+- Providers (`@theokit/auth-google`, `@theokit/auth-github`, `@theokit/auth-magic-link`) ship in separate npm packages (Phase 2-4 of plan G11). They will publish to `@next` tag first per ADR D3 (4-6 week telemetry observation window before promote to `@latest`).
+- Tests: 16/16 GREEN in `tests/server-auth.test.ts` covering config validation, EC-1, EC-2, EC-10, Caminho A signIn, expired transaction, unknown provider.
+
 ## 1.5.0
 
 ### Changed
