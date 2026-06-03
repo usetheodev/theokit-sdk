@@ -1,5 +1,5 @@
 /**
- * Public API for `@usetheo/gateway-slack`.
+ * Public API for `@theokit/gateway-slack`.
  *
  * @public
  */

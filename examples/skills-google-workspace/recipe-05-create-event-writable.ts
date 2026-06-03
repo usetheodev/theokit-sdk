@@ -6,8 +6,8 @@
  * surface a clear scope-upgrade hint.
  */
 
-import { Agent } from "@usetheo/sdk";
-import { googleWorkspace } from "@usetheo/skills-google-workspace";
+import { Agent } from "@theokit/sdk";
+import { googleWorkspace } from "@theokit/skills-google-workspace";
 
 import { requireCreds } from "./lib/scope-gate.js";
 

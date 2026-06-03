@@ -18,7 +18,7 @@
  *    because Lance does not track file provenance per-row.
  *
  * Ships with the lancedb-backend-ship-v1-1 plan (close D12, supersede via
- * D43). v1.4.0 of `@usetheo/sdk`.
+ * D43). v1.4.0 of `@theokit/sdk`.
  *
  * @internal
  */

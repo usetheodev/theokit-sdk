@@ -11,7 +11,7 @@
  *   pnpm run run
  */
 
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 if (process.env.GOOGLE_CLOUD_PROJECT === undefined) {
   console.error(

@@ -11,7 +11,7 @@
  * OpenRouter provider. Set OPENROUTER_API_KEY before running.
  *
  * Run from repo root:
- *   OPENROUTER_API_KEY=sk-or-... pnpm --filter @usetheo/example-telegram-pro \
+ *   OPENROUTER_API_KEY=sk-or-... pnpm --filter @theokit/example-telegram-pro \
  *     exec tsx src/dogfood-personality.ts
  */
 

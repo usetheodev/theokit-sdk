@@ -3,25 +3,25 @@
 > **Version 1.0 — STATUS: ✅ COMPLETE (2026-05-22).** Todos os 8 tasks (T0.1-T7.1) DONE, 9 ADRs (D193-D201) shipados, **TODOS os 14 edge cases do review absorvidos**: 5 MUST FIX (EC-A/B/C/E/F) implementados no código + 6 SHOULD TEST (EC-G/H/I/J/K/L) cobertos por tests + 3 DOCUMENT (EC-M/N/O) anotados em READMEs. **62 unit tests PASS** (10 test files), typecheck clean, `pnpm pack` confirma `templates/` no tarball (15 entries). Dogfood real-LLM contra Ollama PASS (init + inspect + dev + eval — 2/2 eval rows com mean score 1.000). Edge-case evidence: `.claude/knowledge-base/reviews/edge-case/cli-theokit-edge-cases-2026-05-22.md` (Implementation Evidence section).
 >
 > **Version 1.0** — Ship a developer CLI (`theokit`) as a workspace package
-> `@usetheo/cli` that gives the SDK a first-class entry point beyond
+> `@theokit/cli` that gives the SDK a first-class entry point beyond
 > `npm install`. Four subcommands at v1: `init` (scaffold a project from
 > templates), `dev` (run agent in watch mode), `inspect` (list registered
 > providers / plugins / skills / memory adapters), and `eval` (minimal
 > eval runner that bridges to the future `Eval.*` API in Roadmap #2).
-> Outcome: a new developer goes from `npx @usetheo/cli init my-bot` to a
+> Outcome: a new developer goes from `npx @theokit/cli init my-bot` to a
 > running agent in under 60 seconds without reading `docs.md`.
 
 ## Context
 
 **What exists today:**
-- `@usetheo/sdk` is feature-complete (169+ ADRs, 23/23 Hermes patterns,
+- `@theokit/sdk` is feature-complete (169+ ADRs, 23/23 Hermes patterns,
   Ollama integration, Memory layer, Gateway, Personality presets).
 - 30+ examples in `examples/` but **no scaffolder** — new developers
   must copy/paste from an example dir manually.
 - Two existing bins in `packages/sdk/bin/`:
   `theokit-migrate-memory.mjs` and `theokit-migrate-config.mjs`
   (single-purpose utilities, not a CLI surface).
-- The SDK's only entry point is `npm install @usetheo/sdk`.
+- The SDK's only entry point is `npm install @theokit/sdk`.
 
 **What's broken / missing:**
 - **Zero onboarding affordance**. Adoption Roadmap header (CLAUDE.md
@@ -48,10 +48,10 @@
 
 ## Objective
 
-**Done = `npx @usetheo/cli init my-bot && cd my-bot && pnpm install && pnpm dev` produces a working agent against Ollama OR OpenRouter in under 60s, with zero `docs.md` reading required.**
+**Done = `npx @theokit/cli init my-bot && cd my-bot && pnpm install && pnpm dev` produces a working agent against Ollama OR OpenRouter in under 60s, with zero `docs.md` reading required.**
 
 Specific measurable goals:
-- `@usetheo/cli` ships as a workspace package with a `theokit` bin.
+- `@theokit/cli` ships as a workspace package with a `theokit` bin.
 - 4 subcommands work: `init`, `dev`, `inspect`, `eval` (eval minimal v1).
 - `theokit init` ships 3 templates: `minimal`, `ollama-local`, `telegram-bot`.
 - `theokit inspect` enumerates: providers, embedding adapters, gateway
@@ -68,7 +68,7 @@ Specific measurable goals:
 
 ## ADRs
 
-- **D193 — `@usetheo/cli` is a workspace package, NOT embedded in `@usetheo/sdk`.**
+- **D193 — `@theokit/cli` is a workspace package, NOT embedded in `@theokit/sdk`.**
   *Rationale:* The SDK is a library (consumers `import`); the CLI is an
   executable (consumers `npx`/`pnpm exec`). Mixing concerns inflates SDK
   install size for non-CLI users and forces the SDK to ship `commander`
@@ -76,7 +76,7 @@ Specific measurable goals:
   `packages/cli` separate from `@mastra/core`) is the proven pattern.
   *Consequences:* Enables: independent versioning, smaller SDK tree-shake
   surface, CI can publish CLI without bumping SDK. Constrains: CLI must
-  declare `@usetheo/sdk` as a dep (regular, not peer) so `init` templates
+  declare `@theokit/sdk` as a dep (regular, not peer) so `init` templates
   can pin a known-good version.
 
 - **D194 — `commander@12` for subcommand routing.**
@@ -148,7 +148,7 @@ Specific measurable goals:
   #2. Constrains: v1 eval is hand-rolled — no UI, no aggregation
   dashboard, no trace viewer. Documented as v1 limitation.
 
-- **D201 — Expose `Theokit.inspect.*` public namespace in `@usetheo/sdk`.**
+- **D201 — Expose `Theokit.inspect.*` public namespace in `@theokit/sdk`.**
   *Rationale:* `theokit inspect` (T3.1) needs to enumerate builtin
   providers + embedding adapters. These live in `internal/*` modules
   that are NOT in the SDK's `package.json#exports` map — deep imports
@@ -202,7 +202,7 @@ Phase 0 → 1 sequential. Phases 2-5 parallel after 1. Phases 6-7 final.
 
 ## Phase 0: Workspace Scaffolding ✅ DONE (2026-05-22)
 
-**Objective:** Add `@usetheo/cli` as a new workspace package with build/test/typecheck wired into the monorepo.
+**Objective:** Add `@theokit/cli` as a new workspace package with build/test/typecheck wired into the monorepo.
 
 ### T0.1 — Bootstrap `packages/cli/`
 
@@ -231,10 +231,10 @@ package.json                             (root — add `cli:*` proxy scripts if 
 ```
 
 #### Deep file dependency analysis
-- **`packages/cli/package.json`** (NEW): declares `name: "@usetheo/cli"`,
+- **`packages/cli/package.json`** (NEW): declares `name: "@theokit/cli"`,
   `bin: { theokit: "./dist/bin/theokit.js" }`, deps on `commander@^12`,
   `@clack/prompts@^0.7`, `picocolors@^1`, `tsx@^4` (regular deps per
-  D194/D197), `@usetheo/sdk: workspace:*`.
+  D194/D197), `@theokit/sdk: workspace:*`.
 - **`tsup.config.ts`**: two entries — `src/index.ts` (library API for
   programmatic use) and `src/bin/theokit.ts` (executable). Both ESM + CJS
   per workspace convention.
@@ -246,14 +246,14 @@ package.json                             (root — add `cli:*` proxy scripts if 
   tsup preserves shebangs via `shims: false` + manual top-of-file shebang.
 - **Executable bit:** post-build, `chmod +x dist/bin/theokit.js` via a
   `tsup` `onSuccess` hook OR a `prepack` script.
-- **Invariant:** `pnpm --filter @usetheo/cli build` must succeed before
+- **Invariant:** `pnpm --filter @theokit/cli build` must succeed before
   any subsequent phase begins.
 - **Edge case:** existing `packages/sdk/bin/theokit-migrate-*` MUST keep
   working — they live in SDK package, not CLI. Don't move them in this phase.
 
 #### Tasks
 1. Create `packages/cli/` directory with package.json, tsconfig, tsup, vitest configs.
-2. **EC-C MUST FIX:** In `packages/cli/package.json`, set `"files": ["dist", "templates", "README.md", "CHANGELOG.md"]` so `npm publish` includes the bundled templates. Without this, `npx @usetheo/cli init` fails for consumers because the tarball ships dist but not templates.
+2. **EC-C MUST FIX:** In `packages/cli/package.json`, set `"files": ["dist", "templates", "README.md", "CHANGELOG.md"]` so `npm publish` includes the bundled templates. Without this, `npx @theokit/cli init` fails for consumers because the tarball ships dist but not templates.
 3. Add `src/index.ts` exporting `export function main(argv: string[]): Promise<number>;` stub returning `0`.
 4. Add `src/bin/theokit.ts` with shebang + minimal `process.exit(await main(process.argv))`.
 5. Wire `tsup` to emit `dist/index.{js,cjs,d.ts}` + `dist/bin/theokit.{js,cjs}` with shebang preserved.
@@ -264,7 +264,7 @@ package.json                             (root — add `cli:*` proxy scripts if 
 #### TDD
 ```
 RED:     test_package_exports_main()
-         — import { main } from "@usetheo/cli"; expect typeof main === "function"
+         — import { main } from "@theokit/cli"; expect typeof main === "function"
 RED:     test_main_returns_zero_on_empty_argv()
          — main([]) resolves to 0
 RED:     test_bin_file_exists_with_shebang()
@@ -273,12 +273,12 @@ RED:     test_pack_includes_templates()                                    [EC-C
          — pnpm pack --dry-run output contains "templates/minimal/package.json"
 GREEN:   Implement empty stubs returning 0.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/cli build && pnpm --filter @usetheo/cli test
+VERIFY:  pnpm --filter @theokit/cli build && pnpm --filter @theokit/cli test
 ```
 
 #### Acceptance Criteria
-- [ ] `pnpm -r build` includes `@usetheo/cli` and succeeds.
-- [ ] `pnpm --filter @usetheo/cli test` passes 3/3.
+- [ ] `pnpm -r build` includes `@theokit/cli` and succeeds.
+- [ ] `pnpm --filter @theokit/cli test` passes 3/3.
 - [ ] `node packages/cli/dist/bin/theokit.js` runs and exits 0.
 - [ ] Bin file is executable (`chmod +x` applied post-build).
 - [ ] Pass: biome lint zero warnings on touched files.
@@ -366,7 +366,7 @@ RED:     test_version_flag() — main(["--version"]) prints package version
 RED:     test_unknown_subcommand_exits_nonzero() — main(["does-not-exist"]) returns ≥1
 GREEN:   Implement main.ts + stubs.
 REFACTOR: Extract common stub shape if duplication ≥ 3 lines.
-VERIFY:  pnpm --filter @usetheo/cli test tests/commands/
+VERIFY:  pnpm --filter @theokit/cli test tests/commands/
 ```
 
 #### Acceptance Criteria
@@ -483,14 +483,14 @@ RED:     test_init_rejects_npm_invalid_names()                              [EC-
 RED:     test_init_atomic_on_crash_midwrite()                                [EC-B MUST FIX]
          — mock fs.writeFile to throw on 2nd file → assert <dest> does NOT exist (tmp cleaned up)
 RED:     test_init_sdk_version_resolves_to_semver()                          [EC-L]
-         — scaffold; read scaffolded package.json; assert deps["@usetheo/sdk"] matches /^\d+\.\d+\.\d+/
+         — scaffold; read scaffolded package.json; assert deps["@theokit/sdk"] matches /^\d+\.\d+\.\d+/
 RED:     test_init_rejects_symlink_dest()                                    [EC-G]
          — lstatSync(dest).isSymbolicLink() → reject before write
 RED:     test_init_handles_enospc_gracefully()                               [EC-H]
          — mock writeFile to throw ENOSPC → error with code "disk_full" + dest cleaned up
 GREEN:   Implement scaffold + templates.
 REFACTOR: Extract substitution helper if used in 3+ places.
-VERIFY:  pnpm --filter @usetheo/cli test tests/init/
+VERIFY:  pnpm --filter @theokit/cli test tests/init/
 ```
 
 #### Acceptance Criteria
@@ -542,10 +542,10 @@ packages/cli/tests/inspect/format.test.ts    (NEW)
 
 #### Deep file dependency analysis
 - **`inspect/providers.ts`**: calls `registerBuiltins()` from
-  `@usetheo/sdk` internals, then `listProviders()` — returns the
+  `@theokit/sdk` internals, then `listProviders()` — returns the
   7 builtin profiles + their aliases + envVars.
 - **`inspect/adapters.ts`**: imports `MEMORY_EMBEDDING_ADAPTERS` from
-  `@usetheo/sdk` internals — emits id + transport + defaultModel +
+  `@theokit/sdk` internals — emits id + transport + defaultModel +
   dimension.
 - **`inspect/plugins.ts`**: walks `~/.theokit/plugins/model-providers/`
   and `<cwd>/.theokit/plugins/<name>/PLUGIN.md` per ADR D77 + D97.
@@ -554,7 +554,7 @@ packages/cli/tests/inspect/format.test.ts    (NEW)
   2-space indent OR `picocolors`-decorated tree view.
 
 #### Deep Dives
-- **SDK internals access:** importing `internal/*` from `@usetheo/sdk`
+- **SDK internals access:** importing `internal/*` from `@theokit/sdk`
   is normally discouraged (it's `@internal`). The CLI is a sibling
   workspace package so monorepo-relative import is acceptable. Document
   in package.json comment: "CLI is monorepo-internal consumer of SDK
@@ -572,7 +572,7 @@ packages/cli/tests/inspect/format.test.ts    (NEW)
   - `--json` + tty → JSON to stdout (machine-readable always wins).
 
 #### Tasks
-1. **EC-E MUST FIX (ADR D201):** Expose a public `Theokit.inspect` namespace in `@usetheo/sdk/src/theokit.ts` that wraps the internal registries. Specifically:
+1. **EC-E MUST FIX (ADR D201):** Expose a public `Theokit.inspect` namespace in `@theokit/sdk/src/theokit.ts` that wraps the internal registries. Specifically:
    ```ts
    static readonly inspect = {
      builtinProviders: () => { registerBuiltins(); return listProviders(); },
@@ -582,7 +582,7 @@ packages/cli/tests/inspect/format.test.ts    (NEW)
    Add tests in `packages/sdk/tests/theokit-inspect.test.ts`. This unblocks T3.1 against the **published** package, not just the monorepo dev path.
 2. Implement `inspect/providers.ts` calling `Theokit.inspect.builtinProviders()`.
 3. Implement `inspect/adapters.ts` calling `Theokit.inspect.embeddingAdapters()`.
-4. Implement `inspect/gateway.ts` querying gateway adapters by package presence (`@usetheo/gateway-telegram`, `@usetheo/gateway-discord`).
+4. Implement `inspect/gateway.ts` querying gateway adapters by package presence (`@theokit/gateway-telegram`, `@theokit/gateway-discord`).
 5. Implement `inspect/plugins.ts` with fs walk + manifest parse.
 6. Implement `inspect/format.ts` (human + JSON).
 7. Wire `commands/inspect.ts` to compose all 4 + format.
@@ -604,7 +604,7 @@ RED:     test_theokit_inspect_embeddingAdapters_works_against_dist()         [EC
          — Same shape, asserts ≥ 6 entries (Ollama + 5 cloud adapters)
 GREEN:   Implement files.
 REFACTOR: Extract YAML parsing helper if shared with init.
-VERIFY:  pnpm --filter @usetheo/cli test tests/inspect/
+VERIFY:  pnpm --filter @theokit/cli test tests/inspect/
 ```
 
 #### Acceptance Criteria
@@ -690,7 +690,7 @@ RED:     test_runner_forwards_signals() — send SIGINT → child receives SIGTE
 RED:     test_runner_uses_env_file_when_present() — .env exists → args contain --env-file=.env
 GREEN:   Implement runner + resolver.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/cli test tests/dev/
+VERIFY:  pnpm --filter @theokit/cli test tests/dev/
 ```
 
 #### Acceptance Criteria
@@ -764,7 +764,7 @@ packages/cli/tests/eval/report.test.ts        (NEW)
 1. Define `eval/types.ts` with `EvalConfig`, `Scorer`, `EvalResult`. **EC-K SHOULD TEST coverage**: `Scorer = (output: string, expected?: unknown) => Score | Promise<Score>` — async permitted (LLM-as-judge use case).
 2. Implement `eval/config-loader.ts` with dynamic import + Zod validation.
 3. Implement `eval/runner.ts` invoking `Agent.batch` + scoring. **EC-K**: `await` scorer return so async scorers work transparently; sync scorers return synchronous Promise.resolve wrapper.
-4. **EC-F MUST FIX:** in `commands/eval.ts` (or `report.ts`), validate `--output` path BEFORE write: `import { safePathJoin } from "@usetheo/sdk/path-safety"; const resolved = safePathJoin(process.cwd(), opts.output); if (resolved === undefined) throw new ConfigurationError("--output path must be inside cwd (no traversal)", { code: "invalid_output_path" });`. Reusa o `path-safety` export que JÁ existe no SDK (D80).
+4. **EC-F MUST FIX:** in `commands/eval.ts` (or `report.ts`), validate `--output` path BEFORE write: `import { safePathJoin } from "@theokit/sdk/path-safety"; const resolved = safePathJoin(process.cwd(), opts.output); if (resolved === undefined) throw new ConfigurationError("--output path must be inside cwd (no traversal)", { code: "invalid_output_path" });`. Reusa o `path-safety` export que JÁ existe no SDK (D80).
 5. Implement `eval/report.ts` markdown emitter.
 6. Wire `commands/eval.ts`.
 7. Write 4 tests (config load, runner, report, output-path-guard).
@@ -787,7 +787,7 @@ RED:     test_eval_supports_async_scorer()                                  [EC-
          — async scorer rejects → score=0 with reason="scorer_error"
 GREEN:   Implement files.
 REFACTOR: Extract markdown table builder if reused (Phase 6 docs may use it).
-VERIFY:  pnpm --filter @usetheo/cli test tests/eval/
+VERIFY:  pnpm --filter @theokit/cli test tests/eval/
 ```
 
 #### Acceptance Criteria
@@ -811,7 +811,7 @@ VERIFY:  pnpm --filter @usetheo/cli test tests/eval/
 
 #### Objective
 - `packages/cli/README.md` with quickstart for each subcommand.
-- Root `README.md` mentions `npx @usetheo/cli init` as the
+- Root `README.md` mentions `npx @theokit/cli init` as the
   recommended path.
 - ADRs D193-D200 committed to `.claude/knowledge-base/adrs/`.
 
@@ -835,7 +835,7 @@ CLAUDE.md                                            (add D193-D200 to ADR table
 1. Write package README with 4 subcommand sections + flags.
 2. Write 8 ADRs (D193-D200), one per decision above.
 3. Update root README "Getting Started" section to recommend
-   `npx @usetheo/cli init`.
+   `npx @theokit/cli init`.
 4. Update CLAUDE.md ADR table.
 5. Update Adoption Roadmap row #1 to `~~1~~ T1 ~~**CLI `theokit`**~~ ✅ DONE` when this plan completes.
 
@@ -896,7 +896,7 @@ pnpm exec theokit eval   # against sample dataset
 | 2 | No `dev` watch wrapper; devs wire `tsx --watch` ad-hoc | T4.1 | `theokit dev` shells to `tsx --watch` |
 | 3 | No `inspect` discovery; debugging registry requires source reading | T3.1 | `theokit inspect` lists providers/adapters/gateways/plugins |
 | 4 | No `eval` runner; eval suite (Roadmap #2) has no invocation surface | T5.1 | `theokit eval` v1 wraps `Agent.batch`, swaps to `Eval.run` later |
-| 5 | CLI package shape unclear vs SDK | T0.1, ADR D193 | `@usetheo/cli` workspace package, separate from SDK |
+| 5 | CLI package shape unclear vs SDK | T0.1, ADR D193 | `@theokit/cli` workspace package, separate from SDK |
 | 6 | Subcommand routing must be standard | T1.1, ADR D194 | `commander@12` |
 | 7 | Bin name must avoid collisions | ADR D195 | `theokit` (consistent with env vars + namespace) |
 | 8 | Templates must work offline (no `degit` git clone) | T2.1, ADR D196 | Bundled `templates/<name>/` inside the package |
@@ -917,17 +917,17 @@ pnpm exec theokit eval   # against sample dataset
 ## Global Definition of Done
 
 - [ ] All phases (0-7) completed.
-- [ ] All tests passing: `pnpm --filter @usetheo/cli test`.
+- [ ] All tests passing: `pnpm --filter @theokit/cli test`.
 - [ ] Zero Biome lint warnings on `packages/cli/**`.
 - [ ] Backward compatibility preserved: existing `theokit-migrate-memory`,
       `theokit-migrate-config` bins keep working.
 - [ ] code-audit checks passing across `packages/cli/`.
 - [ ] **Plan-specific criteria:**
-  - [ ] `@usetheo/cli` builds clean with `pnpm -r build`.
+  - [ ] `@theokit/cli` builds clean with `pnpm -r build`.
   - [ ] 4 subcommands implemented and tested.
   - [ ] 3 templates ship and `tsc --noEmit` cleanly.
   - [ ] 8 new ADRs (D193-D200) registered.
-  - [ ] Root README points to `npx @usetheo/cli init`.
+  - [ ] Root README points to `npx @theokit/cli init`.
   - [ ] Adoption Roadmap row #1 marked DONE in CLAUDE.md.
 - [ ] **Dogfood QA PASS** (T7.1): end-to-end flow against real Ollama.
 - [ ] **Runtime-metric proof:** `theokit init` measured at ≤ 5s; `theokit

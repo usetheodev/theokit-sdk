@@ -4,7 +4,7 @@
 >
 > **Version 1.1** — Edge case review 2026-05-22 absorved 5 MUST FIX (EC-1 abort-at-entry, EC-2 predicate throw, EC-3 maxAttempts Zod min, EC-4 non-serializable snapshot, EC-5 workflowId in lock key) + 5 SHOULD TEST added to TDD blocks. See `.claude/knowledge-base/reviews/edge-case/workflows-declarativos-edge-cases-2026-05-22.md` for full review.
 >
-> **Version 1.0** — Adiciona ao `@usetheo/sdk` uma primitiva de orquestração multi-step declarativa que compõe sobre `Agent.send`, `Handoff` (D214-D229) e `Agent.batch` (D134-D140), preenchendo o gap de paridade competitiva vs Mastra workflows e Inngest. API alvo: `Workflow.create({ id, input, steps }).then(stepA).parallel([b, c]).branch(...).commit()` + `.run(input, { signal })`. Persistência de snapshots em-memória por default (opt-in para JSON via `internal/persistence/`), suspend/resume nativo, retry policy declarativo por step (Temporal-shape), zero overhead operacional (sem cluster, sem worker pool). Outcome esperado: shippar o item #5 do Adoption Roadmap com ADRs D230-D248 + integração ao telegram-pro (`/workflow_demo`) + cobertura via dogfood.
+> **Version 1.0** — Adiciona ao `@theokit/sdk` uma primitiva de orquestração multi-step declarativa que compõe sobre `Agent.send`, `Handoff` (D214-D229) e `Agent.batch` (D134-D140), preenchendo o gap de paridade competitiva vs Mastra workflows e Inngest. API alvo: `Workflow.create({ id, input, steps }).then(stepA).parallel([b, c]).branch(...).commit()` + `.run(input, { signal })`. Persistência de snapshots em-memória por default (opt-in para JSON via `internal/persistence/`), suspend/resume nativo, retry policy declarativo por step (Temporal-shape), zero overhead operacional (sem cluster, sem worker pool). Outcome esperado: shippar o item #5 do Adoption Roadmap com ADRs D230-D248 + integração ao telegram-pro (`/workflow_demo`) + cobertura via dogfood.
 
 ## Context
 
@@ -602,7 +602,7 @@ RED: types/workflow.test.ts → expectType / expectError compile-time checks
   - WorkflowRun<TOutput> generic propagado
 GREEN: define types
 REFACTOR: garantir nenhum import circular (workflow.ts → agent.ts OK; agent.ts ↛ workflow.ts)
-VERIFY: pnpm -F @usetheo/sdk typecheck
+VERIFY: pnpm -F @theokit/sdk typecheck
 ```
 
 #### Acceptance Criteria
@@ -612,8 +612,8 @@ VERIFY: pnpm -F @usetheo/sdk typecheck
 - [ ] Zero import cycles (verificar `madge --circular packages/sdk/src/`).
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk typecheck` verde.
-- [ ] `pnpm -F @usetheo/sdk biome check src/types/workflow.ts` zero warnings.
+- [ ] `pnpm -F @theokit/sdk typecheck` verde.
+- [ ] `pnpm -F @theokit/sdk biome check src/types/workflow.ts` zero warnings.
 
 ---
 
@@ -741,7 +741,7 @@ RED:
   - EC-5: workflow_commit_mints_unique_workflowId
 GREEN: implement class + builder
 REFACTOR: ensure no executor logic leaked into workflow.ts
-VERIFY: pnpm -F @usetheo/sdk test tests/workflow/workflow-create.test.ts
+VERIFY: pnpm -F @theokit/sdk test tests/workflow/workflow-create.test.ts
 ```
 
 #### Acceptance Criteria
@@ -751,7 +751,7 @@ VERIFY: pnpm -F @usetheo/sdk test tests/workflow/workflow-create.test.ts
 - [ ] 6+ tests verde em `tests/workflow/workflow-create.test.ts`.
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk test tests/workflow/workflow-create.test.ts` verde.
+- [ ] `pnpm -F @theokit/sdk test tests/workflow/workflow-create.test.ts` verde.
 - [ ] Biome zero warnings.
 - [ ] `index.ts` re-exporta `Workflow`, `WorkflowBuilder`, `fn`, `agentStep`, 5 error classes, RetryPolicy, todos os Step types.
 
@@ -919,10 +919,10 @@ VERIFY: pnpm test tests/workflow/executor.test.ts tests/workflow/parallel.test.t
 - [ ] 11 tests verde.
 - [ ] `executor.ts` ≤ 200 LoC.
 - [ ] Cada `step-*.ts` ≤ 100 LoC.
-- [ ] `pnpm -F @usetheo/sdk biome check` zero warnings.
+- [ ] `pnpm -F @theokit/sdk biome check` zero warnings.
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk test tests/workflow/` 11/11 verde.
+- [ ] `pnpm -F @theokit/sdk test tests/workflow/` 11/11 verde.
 - [ ] Build CJS+ESM+DTS verde.
 
 ---
@@ -1411,7 +1411,7 @@ function getTracer(): Tracer | undefined {
   try {
     const r = createRequire(import.meta.url);
     const otel = r("@opentelemetry/api");
-    cachedTracer = otel.trace.getTracer("@usetheo/sdk/workflow", "1.0.0");
+    cachedTracer = otel.trace.getTracer("@theokit/sdk/workflow", "1.0.0");
     return cachedTracer;
   } catch { return undefined; }
 }
@@ -1530,7 +1530,7 @@ examples/workflows/README.md (NEW)
 **run.ts** demonstra 4 primitives core:
 
 ```typescript
-import { Agent, Workflow, fn, agentStep } from "@usetheo/sdk";
+import { Agent, Workflow, fn, agentStep } from "@theokit/sdk";
 
 const classifier = await Agent.create({ /* ... */ });
 const billingExpert = await Agent.create({ /* ... */ });
@@ -1598,7 +1598,7 @@ runner.command("workflow_demo", async (event) => {
     return;
   }
   await ctx.replyWithChatAction("typing");
-  const { Agent, Workflow, fn, agentStep } = await import("@usetheo/sdk");
+  const { Agent, Workflow, fn, agentStep } = await import("@theokit/sdk");
 
   const classifier = await Agent.create({ /* ... */ });
   const summarizer = await Agent.create({ /* ... */ });
@@ -1695,8 +1695,8 @@ Seção mínima cobrindo:
 
 ```bash
 # 1. Rebuild SDK + refresh telegram-pro link
-pnpm -F @usetheo/sdk build
-PNP_DIR=examples/telegram-pro/node_modules/.pnpm/@usetheo+sdk@*/node_modules/@usetheo/sdk
+pnpm -F @theokit/sdk build
+PNP_DIR=examples/telegram-pro/node_modules/.pnpm/@usetheo+sdk@*/node_modules/@theokit/sdk
 rm -rf $PNP_DIR/dist && cp -r packages/sdk/dist $PNP_DIR/dist
 
 # 2. Restart bot fresh

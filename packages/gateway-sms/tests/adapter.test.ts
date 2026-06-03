@@ -1,4 +1,4 @@
-import type { MessageEvent } from "@usetheo/gateway";
+import type { MessageEvent } from "@theokit/gateway";
 import { describe, expect, it, vi } from "vitest";
 
 import { SMSAdapter } from "../src/adapter.js";

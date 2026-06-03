@@ -1,4 +1,4 @@
-# D305 — Postgres + Redis adapters as `docs/recipes/`, NOT in `@usetheo/sdk`
+# D305 — Postgres + Redis adapters as `docs/recipes/`, NOT in `@theokit/sdk`
 
 **Status:** Accepted
 **Date:** 2026-05-25
@@ -6,7 +6,7 @@
 
 ## Decision
 
-`PostgresConversationStorage` and `RedisConversationStorage` are documented as copy-paste templates in `docs/recipes/`, not shipped as classes in `@usetheo/sdk` or as separate `@usetheo/storage-*` packages.
+`PostgresConversationStorage` and `RedisConversationStorage` are documented as copy-paste templates in `docs/recipes/`, not shipped as classes in `@theokit/sdk` or as separate `@theokit/storage-*` packages.
 
 ## Rationale
 
@@ -18,7 +18,7 @@
 ## Alternatives considered
 
 - **In-core classes** — rejected. Bundle weight + dep surface unjustified for 30% of users.
-- **Separate `@usetheo/storage-postgres` + `@usetheo/storage-redis` workspace packages** — rejected. Same number of packages would need to ship for Edge variants (4 total). Maintenance overhead disproportionate to value. Recipe pattern is simpler.
+- **Separate `@theokit/storage-postgres` + `@theokit/storage-redis` workspace packages** — rejected. Same number of packages would need to ship for Edge variants (4 total). Maintenance overhead disproportionate to value. Recipe pattern is simpler.
 
 ## Consequences
 

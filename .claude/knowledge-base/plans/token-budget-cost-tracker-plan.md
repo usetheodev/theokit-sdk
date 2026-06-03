@@ -1,6 +1,6 @@
 # Plan: Token Budget / Cost Tracker
 
-> **Version 1.2** — Adiciona ao `@usetheo/sdk` token usage observável + estimativa de custo USD + enforcement de budget por window (1h / 1d / 1w / 30d / 365d).
+> **Version 1.2** — Adiciona ao `@theokit/sdk` token usage observável + estimativa de custo USD + enforcement de budget por window (1h / 1d / 1w / 30d / 365d).
 >
 > **v1.1 changelog** — Absorveu 9 MUST FIX + 7 SHOULD TEST + 6 DOCUMENT do edge-case review (EC-1..EC-22).
 >
@@ -39,7 +39,7 @@ Hermes ([`agent/usage_pricing.py`](../../../referencia/hermes-agent/agent/usage_
 
 Goals:
 
-1. `TokenUsage` + `CostBreakdown` + `CostStatus` tipos públicos no namespace `@usetheo/sdk` (re-exportados via `types/index.ts`).
+1. `TokenUsage` + `CostBreakdown` + `CostStatus` tipos públicos no namespace `@theokit/sdk` (re-exportados via `types/index.ts`).
 2. `RunResult.usage?` e `RunResult.cost?` opcionais (backward compat absoluto) — populados após stream terminal.
 3. `normalizeUsage(rawUsage, { provider, apiMode })` cobre 3 shapes (Anthropic Messages / OpenAI Chat / OpenAI Responses) + edge case `cline#10266` (proxies Anthropic-style top-level).
 4. `Budget.create / list / get / delete / snapshot` static facade.
@@ -54,7 +54,7 @@ Goals:
 
 | ID | Decisão | Rationale | Consequência |
 |---|---|---|---|
-| **D375** | `Budget` é static class com private constructor; namespace público (`Budget.create/list/get/delete/snapshot`) | Mirror exato de `Agent`/`Cron`/`Workflow`/`Eval`/`Task` (D361). Consistência da API surface | Caller usa `import { Budget } from "@usetheo/sdk"`; sem instanciação |
+| **D375** | `Budget` é static class com private constructor; namespace público (`Budget.create/list/get/delete/snapshot`) | Mirror exato de `Agent`/`Cron`/`Workflow`/`Eval`/`Task` (D361). Consistência da API surface | Caller usa `import { Budget } from "@theokit/sdk"`; sem instanciação |
 | **D376** | `TokenUsage` shape com 5 buckets fechados: `inputTokens / outputTokens / cacheReadTokens? / cacheWriteTokens? / reasoningTokens?` + `totalTokens` derivado | Convergent pattern (Mastra 10-bucket / Hermes 5 / OpenAI Agents 4): 5 cobre 100% dos providers conhecidos 2026 (Anthropic prompt-caching + OpenAI o-series). 10-bucket é tradeoff de noise vs. signal | Audio/image/text breakdown ficam para v0.2; multi-modal apps ainda recebem total correto |
 | **D377** | `CostBreakdown.status` é closed enum `actual | estimated | included | unknown` (mirror Hermes) | Caller branchea explicitamente — `"estimated"` exibe `~$1.23`, `"unknown"` exibe `n/a` (NÃO $0), `"included"` exibe `included`. Mostrar 0 sem pricing data é mentira | `unknown` é resposta válida e visível; UI tem que tratar |
 | **D378** | Per-million-tokens USD canônico em `PricingEntry.{input,output,cacheRead,cacheWrite,reasoning}CostPerMillion: number` | Convenção universal pós-2024 (Hermes Decimal, OpenRouter normaliza × 1M, LiteLLM divides para ler `*_cost_per_token`). Mais legível que `*_per_token`-style fracções | API surface usa números entre $0.01 e $100 em vez de `5e-6` |
@@ -259,7 +259,7 @@ export class UnsupportedBudgetOperationError extends TheokitAgentError {
 4. Modificar `types/index.ts` adicionando 2 re-exports.
 5. Modificar `errors.ts` adicionando 2 error classes.
 6. Modificar `index.ts` (apenas re-exports de errors agora; Budget facade vem em Phase 5).
-7. `pnpm -F @usetheo/sdk run typecheck` verde.
+7. `pnpm -F @theokit/sdk run typecheck` verde.
 
 #### TDD
 ```
@@ -275,18 +275,18 @@ RED: test_unsupported_budget_op_error_code — code === "budget_op_unsupported"
 RED: test_token_usage_total_equals_input_plus_output — EC-10 consistency invariant
 GREEN: implementar types + errors
 REFACTOR: None expected
-VERIFY: pnpm -F @usetheo/sdk run typecheck && pnpm -F @usetheo/sdk exec vitest run tests/types/usage.test.ts tests/types/budget.test.ts
+VERIFY: pnpm -F @theokit/sdk run typecheck && pnpm -F @theokit/sdk exec vitest run tests/types/usage.test.ts tests/types/budget.test.ts
 ```
 
 #### Acceptance Criteria
-- [ ] `import { TokenUsage, CostBreakdown, BudgetOptions, BudgetWindow, BudgetExceededError } from "@usetheo/sdk"` resolve
+- [ ] `import { TokenUsage, CostBreakdown, BudgetOptions, BudgetWindow, BudgetExceededError } from "@theokit/sdk"` resolve
 - [ ] 8 RED tests GREEN
 - [ ] `RunResult.usage?` é opcional (existing RunResult callers continuam compilando)
 - [ ] BudgetExceededError + UnsupportedBudgetOperationError extendem TheokitAgentError
 - [ ] Pass: complexity ≤ 10 / size ≤ 200 LoC por file / coverage ≥ 90%
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk run typecheck` exit 0
+- [ ] `pnpm -F @theokit/sdk run typecheck` exit 0
 - [ ] biome zero warnings em new files
 
 ---
@@ -361,7 +361,7 @@ RED: test_pricing_data_json_loads_lazy — first call triggers require
 RED: test_pricing_version_field_present_in_snapshot
 GREEN: implementar pricing-registry + scripts/refresh
 REFACTOR: extract normalize helpers if complexity > 10
-VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/internal/budget/pricing-registry.test.ts
+VERIFY: pnpm -F @theokit/sdk exec vitest run tests/internal/budget/pricing-registry.test.ts
 ```
 
 #### Acceptance Criteria
@@ -436,7 +436,7 @@ RED: test_compute_cost_treats_negative_pricing_as_invalid — EC-13: entry corru
 RED: test_compute_cost_reasoning_falls_back_to_output_rate — EC-14: reasoningCostPerMillion undefined mas outputCostPerMillion defined → soma reasoning em output
 GREEN: implementar computeCost
 REFACTOR: None expected
-VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/internal/budget/compute-cost.test.ts
+VERIFY: pnpm -F @theokit/sdk exec vitest run tests/internal/budget/compute-cost.test.ts
 ```
 
 #### Acceptance Criteria
@@ -538,7 +538,7 @@ RED: test_infer_mode_from_provider_openai
 RED: test_infer_mode_from_provider_unknown_falls_back_to_openai_chat
 GREEN: implementar normalize + inferMode
 REFACTOR: extract 3 branches into private helpers if complexity > 10
-VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/internal/budget/normalize-usage.test.ts
+VERIFY: pnpm -F @theokit/sdk exec vitest run tests/internal/budget/normalize-usage.test.ts
 ```
 
 #### Acceptance Criteria
@@ -620,7 +620,7 @@ RED: test_openai_user_explicit_include_usage_false_respected — EC-4 opt-out me
 RED: test_llm_finish_5_bucket_round_trip
 GREEN: extend types + clients
 REFACTOR: extract usage-parser helpers if duplicated
-VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/internal/llm/
+VERIFY: pnpm -F @theokit/sdk exec vitest run tests/internal/llm/
 ```
 
 #### Acceptance Criteria
@@ -715,7 +715,7 @@ RED: test_run_result_usage_populated_on_cancelled_mid_stream — EC-5: cancel ap
 RED: test_run_result_usage_undefined_only_when_zero_llm_calls — EC-5: abort antes de qualquer send
 GREEN: implementar accumulator + wire run-impl
 REFACTOR: None expected (extract was preventive)
-VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/internal/runtime/usage-accumulator.test.ts tests/integration/run-result-usage.test.ts
+VERIFY: pnpm -F @theokit/sdk exec vitest run tests/internal/runtime/usage-accumulator.test.ts tests/integration/run-result-usage.test.ts
 ```
 
 #### Acceptance Criteria
@@ -816,7 +816,7 @@ RED: test_ledger_charge_uses_call_timestamp_for_window_attribution — EC-15 cal
 RED: test_ledger_reset_clears_all_budgets
 GREEN: implementar both
 REFACTOR: None expected
-VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/internal/budget/ledger.test.ts tests/internal/budget/calendar-window.test.ts
+VERIFY: pnpm -F @theokit/sdk exec vitest run tests/internal/budget/ledger.test.ts tests/internal/budget/calendar-window.test.ts
 ```
 
 #### Acceptance Criteria
@@ -952,7 +952,7 @@ RED: test_empty_limits_array_charges_but_never_enforces — EC-19
 RED: test_zero_limit_block_mode_blocks_all_sends — EC-18 kill switch
 GREEN: implementar registry + enforcement + facade + run-impl wire
 REFACTOR: extract threshold-callback dispatch if duplicated
-VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/budget-facade.test.ts tests/integration/budget-enforcement.test.ts
+VERIFY: pnpm -F @theokit/sdk exec vitest run tests/budget-facade.test.ts tests/integration/budget-enforcement.test.ts
 ```
 
 #### Acceptance Criteria
@@ -972,7 +972,7 @@ VERIFY: pnpm -F @usetheo/sdk exec vitest run tests/budget-facade.test.ts tests/i
 
 #### DoD
 - [ ] 25 tests passing
-- [ ] `import { Budget } from "@usetheo/sdk"` exposed via barrel
+- [ ] `import { Budget } from "@theokit/sdk"` exposed via barrel
 - [ ] Backward compat: full 1700+ tests verde
 
 ---
@@ -1008,7 +1008,7 @@ RED: test_cli_budget_list_no_active_budgets_prints_empty
 RED: test_cli_budget_inspect_unknown_exits_4
 RED: test_cli_budget_snapshot_json_format
 GREEN: implement
-VERIFY: pnpm -F @usetheo/cli exec vitest run tests/commands/budget.test.ts
+VERIFY: pnpm -F @theokit/cli exec vitest run tests/commands/budget.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1132,10 +1132,10 @@ knip.json (MODIFY) — add to ignore
 - [ ] 14 ADRs (D375-D388) commited
 - [ ] All RED tests (~100 across phases — 75 originais + ~25 absorvidos via EC-1..EC-22) now GREEN
 - [ ] All 22 edge cases (EC-1..EC-22) absorvidos OR documentados no plano
-- [ ] Zero biome/publint/attw warnings em `@usetheo/sdk` + `@usetheo/cli`
+- [ ] Zero biome/publint/attw warnings em `@theokit/sdk` + `@theokit/cli`
 - [ ] Zero regressions: `pnpm validate` exit 0
 - [ ] `RunResult.usage` + `RunResult.cost` opcionais (backward compat absoluto preservado)
-- [ ] `Budget` namespace exposto via `@usetheo/sdk` barrel
+- [ ] `Budget` namespace exposto via `@theokit/sdk` barrel
 - [ ] `BudgetExceededError` + `UnsupportedBudgetOperationError` exposto
 - [ ] Pricing snapshot ≤ 100 KB gzipped, `pricingVersion` field present
 - [ ] `gpt-tokenizer` é optional peer dep (caller sem ele recebe `Budget.preflightCheck()` graceful undefined)

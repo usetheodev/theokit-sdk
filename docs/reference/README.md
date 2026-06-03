@@ -25,7 +25,7 @@ import {
   Agent,
   Cron,
   Theokit,
-  // Errors (also at @usetheo/sdk/errors)
+  // Errors (also at @theokit/sdk/errors)
   AuthenticationError,
   ConfigurationError,
   IntegrationNotConnectedError,
@@ -50,10 +50,10 @@ import {
   type SDKUserMessage,
   type SettingSource,
   type TheokitRequestOptions,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 ```
 
-The full type contract is exported as named types from `@usetheo/sdk` — see `docs.md` for every interface.
+The full type contract is exported as named types from `@theokit/sdk` — see `docs.md` for every interface.
 
 ## Static namespaces
 

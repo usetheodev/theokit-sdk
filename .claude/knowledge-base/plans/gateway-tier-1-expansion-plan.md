@@ -1,6 +1,6 @@
 # Plan: Gateway Tier 1 Expansion — SMS + Mattermost + LINE + Matrix
 
-> **Version 1.0** — Adicionar 4 novos workspace packages `@usetheo/gateway-{sms,mattermost,line,matrix}` seguindo o pattern D170-D181 já estabelecido (peer-dep packages, `BasePlatformAdapter`, `MessageEvent` variant). Saímos de **6 gateways oficiais (telegram/discord/slack/teams/email/whatsapp)** para **10**, fechando os gaps de mercado endereçável: vertical telecom (SMS), self-hosted enterprise (Mattermost), APAC consumer (LINE), e open-source federation (Matrix). Cada gateway entrega: package + 60-90 unit tests + example app + live smoke env-gated + concept page em `theo-opendocs`. v1.5 oficial completa quando os 4 estão verdes na dogfood.
+> **Version 1.0** — Adicionar 4 novos workspace packages `@theokit/gateway-{sms,mattermost,line,matrix}` seguindo o pattern D170-D181 já estabelecido (peer-dep packages, `BasePlatformAdapter`, `MessageEvent` variant). Saímos de **6 gateways oficiais (telegram/discord/slack/teams/email/whatsapp)** para **10**, fechando os gaps de mercado endereçável: vertical telecom (SMS), self-hosted enterprise (Mattermost), APAC consumer (LINE), e open-source federation (Matrix). Cada gateway entrega: package + 60-90 unit tests + example app + live smoke env-gated + concept page em `theo-opendocs`. v1.5 oficial completa quando os 4 estão verdes na dogfood.
 
 ## Context
 
@@ -10,14 +10,14 @@
 
 | Pacote | ADRs | Status |
 |---|---|---|
-| `@usetheo/gateway-telegram` | D170-D181 | Production (telegram-pro é o canary) |
-| `@usetheo/gateway-discord` | D179 | Production |
-| `@usetheo/gateway-slack` | D267-D285 | Production (Socket Mode, env-gated smoke) |
-| `@usetheo/gateway-teams` | D315-D326 | Production (@microsoft/teams.apps v2) |
-| `@usetheo/gateway-email` | D327-D339 | Production (IMAP IDLE + SMTP, threading) |
-| `@usetheo/gateway-whatsapp` | D303-D314 | Production (multi-backend Cloud+Web) |
+| `@theokit/gateway-telegram` | D170-D181 | Production (telegram-pro é o canary) |
+| `@theokit/gateway-discord` | D179 | Production |
+| `@theokit/gateway-slack` | D267-D285 | Production (Socket Mode, env-gated smoke) |
+| `@theokit/gateway-teams` | D315-D326 | Production (@microsoft/teams.apps v2) |
+| `@theokit/gateway-email` | D327-D339 | Production (IMAP IDLE + SMTP, threading) |
+| `@theokit/gateway-whatsapp` | D303-D314 | Production (multi-backend Cloud+Web) |
 
-`packages/gateway/src/` (`@usetheo/gateway` core) expõe:
+`packages/gateway/src/` (`@theokit/gateway` core) expõe:
 - `BasePlatformAdapter` (abstract) — `packages/gateway/src/adapter/base.ts`
 - `MessageEvent` discriminated union — `packages/gateway/src/types/message-event.ts` (atual `PlatformName = "telegram" | "discord" | "slack" | "whatsapp" | "teams" | "email"`)
 - `GatewayRunner` — `packages/gateway/src/runner/gateway-runner.ts` (handler dispatch + hooks)
@@ -36,7 +36,7 @@ Auditoria 2026-05-28 contra `referencia/openclaw/` e `referencia/hermes-agent/` 
 | **Mattermost** | ✅ | ✅ | Self-hosted enterprise (GitLab, Wikimedia); compliance/air-gapped | Important |
 | **LINE** | ⚠️ | ✅ | APAC consumer dominante (JP ~85M MAU / TW / TH) | Important |
 
-OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de manutenção que rejeitamos em D171). Nossa proposta: shipar como **packages peer-dep** seguindo exatamente o pattern dos 6 existentes — cada package = workspace independente, opt-in via `pnpm add @usetheo/gateway-{name}`, peer-dep do SDK + transport library oficial.
+OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de manutenção que rejeitamos em D171). Nossa proposta: shipar como **packages peer-dep** seguindo exatamente o pattern dos 6 existentes — cada package = workspace independente, opt-in via `pnpm add @theokit/gateway-{name}`, peer-dep do SDK + transport library oficial.
 
 ### Por que agora
 
@@ -47,11 +47,11 @@ OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de m
 
 ## Objective
 
-**Done definition (uma frase):** ao final, `pnpm add @usetheo/gateway-{sms,mattermost,line,matrix}` faz o consumidor ter exatamente o mesmo formato de uso dos 6 existentes — `new XxxAdapter(opts)` → `adapter.connect()` → `runner.handler(event)` → `adapter.sendMessage(out)`.
+**Done definition (uma frase):** ao final, `pnpm add @theokit/gateway-{sms,mattermost,line,matrix}` faz o consumidor ter exatamente o mesmo formato de uso dos 6 existentes — `new XxxAdapter(opts)` → `adapter.connect()` → `runner.handler(event)` → `adapter.sendMessage(out)`.
 
 ### Metas mensuráveis
 
-- [ ] 4 novos workspace packages publicáveis via Changesets (`@usetheo/gateway-sms@0.1.0`, `@usetheo/gateway-mattermost@0.1.0`, `@usetheo/gateway-line@0.1.0`, `@usetheo/gateway-matrix@0.1.0`)
+- [ ] 4 novos workspace packages publicáveis via Changesets (`@theokit/gateway-sms@0.1.0`, `@theokit/gateway-mattermost@0.1.0`, `@theokit/gateway-line@0.1.0`, `@theokit/gateway-matrix@0.1.0`)
 - [ ] Cada package: ≥60 unit tests, build CJS+ESM+DTS verde, publint clean, attw 100% verde, `pnpm typecheck` workspace clean, lint zero erros
 - [ ] `PlatformName` union em `packages/gateway/src/types/message-event.ts` estendida para 10 platforms: `"telegram" | "discord" | "slack" | "whatsapp" | "teams" | "email" | "sms" | "mattermost" | "line" | "matrix"`
 - [ ] 4 example apps em `examples/{sms,mattermost,line,matrix}-bot/` com `README` walkthrough (config + env vars + smoke command)
@@ -63,7 +63,7 @@ OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de m
 
 ## ADRs
 
-### SMS — `@usetheo/gateway-sms`
+### SMS — `@theokit/gateway-sms`
 
 - **D389** — **Multi-backend opt-in (Twilio + Plivo + Vonage)**.
   - **Decisão:** package expõe discriminated union `SMSBackendKind = "twilio" | "plivo" | "vonage"` selecionado via `new SMSAdapter({ backend: "twilio", ... })`. Apenas o backend escolhido tem peer-dep import; outros são lazy.
@@ -105,7 +105,7 @@ OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de m
   - **Rationale:** Budget primitive (D375-D388) é token-based, não message-based. Adaptar exige modelo de pricing por-platform — escopo separado.
   - **Consequences:** v0.2 do package pode adicionar `chargePerMessage: true` opt-in.
 
-### Mattermost — `@usetheo/gateway-mattermost`
+### Mattermost — `@theokit/gateway-mattermost`
 
 - **D397** — **SDK choice = `@mattermost/client` (oficial v4 REST + WebSocket)**.
   - **Decisão:** Usar `@mattermost/client` (peer-dep, MIT, mantido pelo Mattermost). NÃO `mattermost-redux` (depreciado).
@@ -147,7 +147,7 @@ OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de m
   - **Rationale:** Mesma justificativa de D280 (Slack) e D404 (SMS) — escopo 90/50.
   - **Consequences:** Caller que precisa upload usa `adapter.getClient()` (escape hatch).
 
-### LINE — `@usetheo/gateway-line`
+### LINE — `@theokit/gateway-line`
 
 - **D405** — **SDK choice = `@line/bot-sdk` (oficial)**.
   - **Decisão:** Peer-dep `@line/bot-sdk@^9.0.0`. Bot Server class + WebhookEvent types.
@@ -189,7 +189,7 @@ OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de m
   - **Rationale:** Mesma justificativa de Slack Block Kit (D281). Rich rendering é vertical-específico — caller que precisar usa escape hatch.
   - **Consequences:** Documentar no README do example.
 
-### Matrix — `@usetheo/gateway-matrix`
+### Matrix — `@theokit/gateway-matrix`
 
 - **D413** — **SDK choice = `matrix-js-sdk` (oficial Element)**.
   - **Decisão:** Peer-dep `matrix-js-sdk@^32.0.0`. SDK oficial mantido pela Element/Matrix Foundation.
@@ -284,7 +284,7 @@ OpenClaw e Hermes bundlam essas plataformas no monorepo deles (anti-pattern de m
 
 ## Phase 0: Shared Groundwork — Estender PlatformName + MessageEvent Union
 
-**Objective:** Adicionar os 4 novos discriminators (`"sms" | "mattermost" | "line" | "matrix"`) na union `PlatformName` em `@usetheo/gateway` core ANTES de qualquer package novo importar dele.
+**Objective:** Adicionar os 4 novos discriminators (`"sms" | "mattermost" | "line" | "matrix"`) na union `PlatformName` em `@theokit/gateway` core ANTES de qualquer package novo importar dele.
 
 ### T0.1 — Estender PlatformName + adicionar variant interfaces stub
 
@@ -302,7 +302,7 @@ packages/gateway/CHANGELOG.md — entry sob [Unreleased]
 ```
 
 #### Deep file dependency analysis
-- `message-event.ts` é importado por TODOS os 6 packages gateway existentes (`packages/gateway-*/src/adapter.ts` faz `import type { MessageEvent } from "@usetheo/gateway"`). Adicionar variants é backward-compatible — exhaustive switches em adapters existentes continuam corretos (TypeScript não força handling de novos union members em código que importa, só em código que pattern-matches sobre o union).
+- `message-event.ts` é importado por TODOS os 6 packages gateway existentes (`packages/gateway-*/src/adapter.ts` faz `import type { MessageEvent } from "@theokit/gateway"`). Adicionar variants é backward-compatible — exhaustive switches em adapters existentes continuam corretos (TypeScript não força handling de novos union members em código que importa, só em código que pattern-matches sobre o union).
 - `packages/gateway/src/runner/gateway-runner.ts` consome `MessageEvent.platform` em dispatch — adicionar discriminators é additive (default handler ainda funciona).
 
 #### Deep Dives
@@ -380,17 +380,17 @@ RED:     test_platform_name_includes_matrix() — same
 RED:     test_sms_message_event_shape() — interface compatibility check (no exhaustive switch break)
 GREEN:   Adicionar os 4 discriminators + 4 variant interfaces
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway typecheck && pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway typecheck && pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
 
 - [ ] `PlatformName` union tem 10 strings
-- [ ] 4 novas interface variants exportadas de `@usetheo/gateway`
+- [ ] 4 novas interface variants exportadas de `@theokit/gateway`
 - [ ] `pnpm typecheck` workspace verde (zero erro nos 6 packages existentes)
-- [ ] `pnpm --filter @usetheo/gateway test` verde
-- [ ] `pnpm --filter @usetheo/gateway build` produz CJS+ESM+DTS válidos
-- [ ] `pnpm publint --filter @usetheo/gateway` clean
+- [ ] `pnpm --filter @theokit/gateway test` verde
+- [ ] `pnpm --filter @theokit/gateway build` produz CJS+ESM+DTS válidos
+- [ ] `pnpm publint --filter @theokit/gateway` clean
 - [ ] CHANGELOG.md entry sob `[Unreleased]` adicionada
 
 #### DoD
@@ -402,9 +402,9 @@ VERIFY:  pnpm --filter @usetheo/gateway typecheck && pnpm --filter @usetheo/gate
 
 ---
 
-## Phase 1: SMS — `@usetheo/gateway-sms`
+## Phase 1: SMS — `@theokit/gateway-sms`
 
-**Objective:** Shipar `@usetheo/gateway-sms@0.1.0` com 3 backends (Twilio + Plivo + Vonage), two-way webhook server, signature verification, E.164 normalization, e 1600-char multipart split. Vertical: telecom/healthcare/banking.
+**Objective:** Shipar `@theokit/gateway-sms@0.1.0` com 3 backends (Twilio + Plivo + Vonage), two-way webhook server, signature verification, E.164 normalization, e 1600-char multipart split. Vertical: telecom/healthcare/banking.
 
 ### T1.1 — Scaffold package + multi-backend skeleton
 
@@ -432,7 +432,7 @@ pnpm-workspace.yaml — adicionar packages/gateway-sms (já glob? confirmar)
 
 #### Deep file dependency analysis
 - `pnpm-workspace.yaml` provavelmente tem `packages/*` glob — adicionar package novo é detectado automaticamente.
-- `packages/gateway-sms/package.json` declara peer-deps opcionais: `twilio`, `plivo`, `@vonage/server-sdk`, `libphonenumber-js`. Apenas `@usetheo/gateway` + `@usetheo/sdk` são required.
+- `packages/gateway-sms/package.json` declara peer-deps opcionais: `twilio`, `plivo`, `@vonage/server-sdk`, `libphonenumber-js`. Apenas `@theokit/gateway` + `@theokit/sdk` são required.
 - `src/index.ts` re-exporta `SMSAdapter`, `SMSAdapterOptions`, `SMSBackendKind`, `SMSMessageEvent` (já existe no gateway core via Phase 0).
 - Module augmentation em `src/types.ts` re-declara `SMSMessageEvent.sms.raw` para narrowing por backend.
 
@@ -478,18 +478,18 @@ export function normalizeE164(input: string, defaultCountry?: string): string {
 
 #### Tasks
 0. **(EC-1 absorvido)** Constructor `SMSAdapter` valida `signingSecret` (Twilio `authToken` / Plivo `authToken` / Vonage `signatureSecret`) — lança `ConfigurationError({ code: "signing_secret_required" })` se vazio/undefined. Webhook público SEM signature = security hole; package recusa modo inseguro mesmo opt-in.
-1. Criar `packages/gateway-sms/package.json` com name=`@usetheo/gateway-sms`, version `0.1.0`, peer-deps `{ "@usetheo/gateway": "workspace:^", "@usetheo/sdk": "workspace:^", "twilio": "^5.0.0", "plivo": "^4.0.0", "@vonage/server-sdk": "^3.0.0", "libphonenumber-js": "^1.10.0", "express": "^4.18.0" }`, todos marcados optional exceto `@usetheo/gateway` + `@usetheo/sdk`
+1. Criar `packages/gateway-sms/package.json` com name=`@theokit/gateway-sms`, version `0.1.0`, peer-deps `{ "@theokit/gateway": "workspace:^", "@theokit/sdk": "workspace:^", "twilio": "^5.0.0", "plivo": "^4.0.0", "@vonage/server-sdk": "^3.0.0", "libphonenumber-js": "^1.10.0", "express": "^4.18.0" }`, todos marcados optional exceto `@theokit/gateway` + `@theokit/sdk`
 2. `tsconfig.json` extends `../../tsconfig.base.json` com `outDir: "./dist"`
 3. `tsup.config.ts` — CJS+ESM+DTS dual export (copy from whatsapp)
 4. `biome.json` — extends workspace root
-5. `src/types.ts` — module augmentation `declare module "@usetheo/gateway"` para narrow `sms.raw` por backend
+5. `src/types.ts` — module augmentation `declare module "@theokit/gateway"` para narrow `sms.raw` por backend
 6. `src/backend-types.ts` — interface `SMSBackend`, `SMSInbound`
 7. `src/errors.ts` — `ConfigurationError`, `BackendNotInstalledError` (lança quando peer-dep não está)
 8. `src/phone.ts` — `normalizeE164(input, defaultCountry?)` + tests
 9. `src/index.ts` — re-exports placeholder
 10. `README.md` — quickstart skeleton (preencher depois)
 11. `CHANGELOG.md` — `[Unreleased]` skeleton
-12. Rodar `pnpm install` (detecta novo workspace), `pnpm --filter @usetheo/gateway-sms build` deve produzir dist vazio mas válido
+12. Rodar `pnpm install` (detecta novo workspace), `pnpm --filter @theokit/gateway-sms build` deve produzir dist vazio mas válido
 
 #### TDD
 
@@ -502,16 +502,16 @@ RED:     test_normalize_e164_toll_free_us_accepted() — (EC-6) "+18001234567" �
 RED:     test_adapter_constructor_throws_without_signing_secret() — (EC-1) new SMSAdapter({ backend: "twilio", authToken: "" }) → ConfigurationError
 GREEN:   Implementar phone.ts com libphonenumber-js (aceitando MOBILE + TOLL_FREE types)
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-sms test
+VERIFY:  pnpm --filter @theokit/gateway-sms test
 ```
 
 #### Acceptance Criteria
 
 - [ ] `packages/gateway-sms/` existe com 11 arquivos (lista acima)
-- [ ] `pnpm --filter @usetheo/gateway-sms typecheck` clean
-- [ ] `pnpm --filter @usetheo/gateway-sms build` produz CJS+ESM+DTS
-- [ ] `pnpm --filter @usetheo/gateway-sms test` passa (4 phone tests)
-- [ ] `pnpm publint --filter @usetheo/gateway-sms` clean
+- [ ] `pnpm --filter @theokit/gateway-sms typecheck` clean
+- [ ] `pnpm --filter @theokit/gateway-sms build` produz CJS+ESM+DTS
+- [ ] `pnpm --filter @theokit/gateway-sms test` passa (4 phone tests)
+- [ ] `pnpm publint --filter @theokit/gateway-sms` clean
 - [ ] `node tools/check-loc.mjs` — todos os arquivos ≤400 LoC
 - [ ] Peer-deps marcados optional exceto gateway+sdk
 
@@ -578,7 +578,7 @@ RED:     test_twilio_send_message_rate_limit_returns_send_result_not_throw() —
 RED:     [equivalentes para plivo + vonage = ~5 tests cada]
 GREEN:   Implementar 3 backends com SDK lazy import + signature + parse + send
 REFACTOR: Extract common error mapping (mapHttpToSendResult) se duplicação aparecer
-VERIFY:  pnpm --filter @usetheo/gateway-sms test
+VERIFY:  pnpm --filter @theokit/gateway-sms test
 ```
 
 #### Acceptance Criteria
@@ -714,7 +714,7 @@ RED:     test_adapter_onInbound_replaces_previous_handler() — EC-H mirror
 RED:     test_adapter_empty_text_returns_send_result_not_throw() — base contract
 GREEN:   Implementar adapter + webhook + normalize + split
 REFACTOR: Extract logBackendError helper se duplica
-VERIFY:  pnpm --filter @usetheo/gateway-sms test
+VERIFY:  pnpm --filter @theokit/gateway-sms test
 ```
 
 #### Acceptance Criteria
@@ -793,7 +793,7 @@ Mesmo pattern de D284 (Slack) — vive como teste pero só roda quando env expl�
 3. Live smoke test env-gated (`SMS_LIVE_SMOKE=1` + Twilio test creds)
 4. Concept page MDX em `theo-opendocs/content/theokit-sdk/concepts/gateway-sms.mdx`
 5. Cookbook recipe `sms-reminder.mdx` (agente que dispara SMS via cron)
-6. `packages/gateway-sms/CHANGELOG.md` — entrada `Added — @usetheo/gateway-sms@0.1.0`
+6. `packages/gateway-sms/CHANGELOG.md` — entrada `Added — @theokit/gateway-sms@0.1.0`
 7. `CHANGELOG.md` workspace — entrada idem
 
 #### TDD
@@ -804,7 +804,7 @@ RED:     test_example_app_starts() — programmatically import index.ts, no thro
 RED:     test_live_smoke_skipped_when_env_unset() — SMS_LIVE_SMOKE=undefined → describe.skip
 GREEN:   Escrever example + live smoke + docs
 REFACTOR: None
-VERIFY:  pnpm typecheck && pnpm --filter @usetheo/gateway-sms test
+VERIFY:  pnpm typecheck && pnpm --filter @theokit/gateway-sms test
 ```
 
 #### Acceptance Criteria
@@ -823,9 +823,9 @@ VERIFY:  pnpm typecheck && pnpm --filter @usetheo/gateway-sms test
 
 ---
 
-## Phase 2: Mattermost — `@usetheo/gateway-mattermost`
+## Phase 2: Mattermost — `@theokit/gateway-mattermost`
 
-**Objective:** Shipar `@usetheo/gateway-mattermost@0.1.0` com WebSocket gateway, root-id thread mapping, channel-type normalization, requireMention default true. Vertical: self-hosted enterprise.
+**Objective:** Shipar `@theokit/gateway-mattermost@0.1.0` com WebSocket gateway, root-id thread mapping, channel-type normalization, requireMention default true. Vertical: self-hosted enterprise.
 
 ### T2.1 — Scaffold package + WebSocket client setup
 
@@ -869,7 +869,7 @@ RED:     test_client_connect_caches_bot_user_id() — após connect, botUserId a
 RED:     test_client_connect_returns_false_on_invalid_token()
 RED:     test_client_disconnect_idempotent()
 GREEN:   Implementar client.ts
-VERIFY:  pnpm --filter @usetheo/gateway-mattermost test
+VERIFY:  pnpm --filter @theokit/gateway-mattermost test
 ```
 
 #### Acceptance Criteria
@@ -941,7 +941,7 @@ RED:     test_adapter_send_to_dm_no_root_id()
 RED:     test_adapter_onInbound_replaces_handler()
 GREEN:   Implementar adapter + normalize + filters
 REFACTOR: Extract channelTypeFromMattermost helper se útil
-VERIFY:  pnpm --filter @usetheo/gateway-mattermost test
+VERIFY:  pnpm --filter @theokit/gateway-mattermost test
 ```
 
 #### Acceptance Criteria
@@ -989,7 +989,7 @@ README walkthrough estrutura: criar Mattermost server (Docker compose ou Matterm
 RED:     test_example_typechecks()
 RED:     test_live_smoke_skipped_default()
 GREEN:   Escrever example + docs
-VERIFY:  pnpm typecheck && pnpm --filter @usetheo/gateway-mattermost test
+VERIFY:  pnpm typecheck && pnpm --filter @theokit/gateway-mattermost test
 ```
 
 #### Acceptance Criteria
@@ -1003,9 +1003,9 @@ VERIFY:  pnpm typecheck && pnpm --filter @usetheo/gateway-mattermost test
 
 ---
 
-## Phase 3: LINE — `@usetheo/gateway-line`
+## Phase 3: LINE — `@theokit/gateway-line`
 
-**Objective:** Shipar `@usetheo/gateway-line@0.1.0` com webhook server, reply-token-vs-push API switching, signature HMAC-SHA256, mentionee array handling. Vertical: APAC consumer.
+**Objective:** Shipar `@theokit/gateway-line@0.1.0` com webhook server, reply-token-vs-push API switching, signature HMAC-SHA256, mentionee array handling. Vertical: APAC consumer.
 
 ### T3.1 — Scaffold + LINE bot SDK + signature
 
@@ -1055,7 +1055,7 @@ RED:     test_signature_invalid_rejects()
 RED:     test_signature_empty_rejects()
 RED:     test_signature_uses_timing_safe_equal() — não strcmp
 GREEN:   Implementar signature
-VERIFY:  pnpm --filter @usetheo/gateway-line test
+VERIFY:  pnpm --filter @theokit/gateway-line test
 ```
 
 #### Acceptance Criteria
@@ -1158,7 +1158,7 @@ RED:     test_adapter_signature_invalid_rejects_401()
 RED:     test_adapter_onInbound_replaces_handler()
 GREEN:   Implementar
 REFACTOR: None
-VERIFY:  pnpm --filter @usetheo/gateway-line test
+VERIFY:  pnpm --filter @theokit/gateway-line test
 ```
 
 #### Acceptance Criteria
@@ -1214,9 +1214,9 @@ VERIFY:  pnpm typecheck
 
 ---
 
-## Phase 4: Matrix — `@usetheo/gateway-matrix`
+## Phase 4: Matrix — `@theokit/gateway-matrix`
 
-**Objective:** Shipar `@usetheo/gateway-matrix@0.1.0` com `matrix-js-sdk` sync loop, room state, DM detection via member count, alias resolution, E2EE deferred. Vertical: open-source federation.
+**Objective:** Shipar `@theokit/gateway-matrix@0.1.0` com `matrix-js-sdk` sync loop, room state, DM detection via member count, alias resolution, E2EE deferred. Vertical: open-source federation.
 
 ### T4.1 — Scaffold + matrix-js-sdk client + sync loop
 
@@ -1314,7 +1314,7 @@ RED:     test_detect_channel_type_dm_with_2_members()
 RED:     test_detect_channel_type_group_with_3_members()
 RED:     test_encrypted_room_rejected_with_warn() — D418
 GREEN:   Implementar
-VERIFY:  pnpm --filter @usetheo/gateway-matrix test
+VERIFY:  pnpm --filter @theokit/gateway-matrix test
 ```
 
 #### Acceptance Criteria
@@ -1398,7 +1398,7 @@ RED:     test_adapter_send_to_alias_resolves_then_sends()
 RED:     test_adapter_inbound_dispatch_filters_encrypted_room()
 RED:     test_adapter_onInbound_replaces_handler()
 GREEN:   Implementar
-VERIFY:  pnpm --filter @usetheo/gateway-matrix test
+VERIFY:  pnpm --filter @theokit/gateway-matrix test
 ```
 
 #### Acceptance Criteria
@@ -1467,7 +1467,7 @@ CLAUDE.md — fechar v1.5 "Gateway Expansion" no Adoption Roadmap, marcar 4 iten
 ```
 
 #### Tasks
-1. CHANGELOG workspace `[Unreleased]` — 4 entries `Added — @usetheo/gateway-{name}@0.1.0`
+1. CHANGELOG workspace `[Unreleased]` — 4 entries `Added — @theokit/gateway-{name}@0.1.0`
 2. CLAUDE.md — adicionar seção "Adoption Roadmap v1.5 — Gateway Expansion" abaixo de v1.4, marcar 4 itens DONE com data 2026-XX-XX
 3. Listar nos blocos "Não-Roadmap-v1.5" itens deferidos (Signal/iMessage/WeChat/Feishu/Dingtalk com motivo)
 
@@ -1540,10 +1540,10 @@ Este plano NÃO tem dogfood telegram-style (não há "matrix-pro" bot equivalent
 
 | # | Gap / Requirement | Task(s) | Resolution |
 |---|---|---|---|
-| 1 | Vertical telecom/SMS ausente | T0.1, T1.1, T1.2, T1.3, T1.4 | `@usetheo/gateway-sms` shipado com 3 backends + multipart |
-| 2 | Self-hosted enterprise sem option | T0.1, T2.1, T2.2, T2.3 | `@usetheo/gateway-mattermost` shipado com WebSocket + threads |
-| 3 | APAC consumer (LINE) descoberto | T0.1, T3.1, T3.2, T3.3 | `@usetheo/gateway-line` shipado com reply-token cache + push fallback |
-| 4 | Decentralized/federation sem option | T0.1, T4.1, T4.2, T4.3 | `@usetheo/gateway-matrix` shipado com sync loop + alias resolution |
+| 1 | Vertical telecom/SMS ausente | T0.1, T1.1, T1.2, T1.3, T1.4 | `@theokit/gateway-sms` shipado com 3 backends + multipart |
+| 2 | Self-hosted enterprise sem option | T0.1, T2.1, T2.2, T2.3 | `@theokit/gateway-mattermost` shipado com WebSocket + threads |
+| 3 | APAC consumer (LINE) descoberto | T0.1, T3.1, T3.2, T3.3 | `@theokit/gateway-line` shipado com reply-token cache + push fallback |
+| 4 | Decentralized/federation sem option | T0.1, T4.1, T4.2, T4.3 | `@theokit/gateway-matrix` shipado com sync loop + alias resolution |
 | 5 | `PlatformName` união precisa estender | T0.1 | 10 platforms na união (era 6) |
 | 6 | `MessageEvent` variants precisam compilar | T0.1 | 4 novas interfaces stub em gateway core |
 | 7 | Caller precisa de exemplos | T1.4, T2.3, T3.3, T4.3 | 4 example apps com README walkthrough |

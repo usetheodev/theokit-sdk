@@ -5,7 +5,7 @@
 
 ## Decision
 
-The `@usetheo/react` SSE endpoint emits messages in the **Vercel AI SDK
+The `@theokit/react` SSE endpoint emits messages in the **Vercel AI SDK
 Data Stream v1** format. Each event is a single line prefixed by a
 type code and followed by a JSON payload:
 
@@ -49,7 +49,7 @@ Alternatives considered:
   with a breaking change, we either follow (and document the migration
   for our consumers) or fork (and accept the divergence cost).
 - We do NOT depend on the `ai` npm package at runtime — we only
-  implement the wire format ourselves. This keeps `@usetheo/react`
+  implement the wire format ourselves. This keeps `@theokit/react`
   light and avoids transitive deps from the Vercel package.
 - The inline spec at `packages/react/src/wire-format.md` is the
   source of truth at our release version. If Vercel changes the

@@ -1,5 +1,5 @@
 {
-  "name": "@usetheo/sdk",
+  "name": "@theokit/sdk",
   "version": "1.5.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",

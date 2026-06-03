@@ -1335,7 +1335,7 @@ examples/run-until-goal/README.md (NEW)
 #### Deep Dives
 **index.ts:**
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,

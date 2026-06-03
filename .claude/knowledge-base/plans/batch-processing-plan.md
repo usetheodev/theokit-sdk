@@ -4,7 +4,7 @@
 >
 > **Version 1.1** (2026-05-20) — incorporates edge-case review: MUST FIX EC-A (pool sharing claim mismatch — wrap `withCredentialPool` in batchImpl + check ALS in router) + 5 SHOULD TEST (EC-B/C/D/E/F) + 4 DOCUMENT (EC-G/H/I/J).
 >
-> **Version 1.0** — Adds a `Agent.batch(prompts, options)` static helper to `@usetheo/sdk` that runs N prompts in parallel with bounded concurrency, isolated failure-per-prompt, optional streaming output, and an opt-in ShareGPT trajectory exporter. Ports the Hermes-Agent `batch_runner.py` primitive (1302 LoC Python multiprocessing CLI) into a thin TypeScript helper (~250 LoC) backed by an in-house async semaphore. Closes SDK Roadmap item #2 (score 8); opens the **eval + training-data generation** use case the SDK currently leaves to consumers reinventing it. Backward compatible — pure additive surface.
+> **Version 1.0** — Adds a `Agent.batch(prompts, options)` static helper to `@theokit/sdk` that runs N prompts in parallel with bounded concurrency, isolated failure-per-prompt, optional streaming output, and an opt-in ShareGPT trajectory exporter. Ports the Hermes-Agent `batch_runner.py` primitive (1302 LoC Python multiprocessing CLI) into a thin TypeScript helper (~250 LoC) backed by an in-house async semaphore. Closes SDK Roadmap item #2 (score 8); opens the **eval + training-data generation** use case the SDK currently leaves to consumers reinventing it. Backward compatible — pure additive surface.
 
 ## Context
 
@@ -1002,7 +1002,7 @@ examples/telegram-pro/src/index.ts — add /batch command
 ```typescript
 bot.command("batch", async (ctx) => {
   const topic = (ctx.match ?? "robots").toString().trim();
-  const { Agent } = await import("@usetheo/sdk");
+  const { Agent } = await import("@theokit/sdk");
   const t0 = Date.now();
   const results = await Agent.batch(
     [

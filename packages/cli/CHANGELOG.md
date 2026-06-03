@@ -4,23 +4,23 @@
 
 ### Added
 
-- `theokit db` subcommand wrapping drizzle-kit (Plan `usetheo-orm-v1` Phase 6.5). Subcommands: `generate`, `migrate`, `studio`, `push`, `export-schema`, `check-schema-drift`. Schema commands consume `orm.config.ts` (default-exports `{ schema }`) and invoke `@usetheo/orm/schema-export` to emit JSON Schema 7 per entity to `.theokit/schema/{entity}.schema.json`. `check-schema-drift` diffs fresh vs committed schemas and exits 1 on drift — wires into CI as a polyglot-safety gate.
+- `theokit db` subcommand wrapping drizzle-kit (Plan `usetheo-orm-v1` Phase 6.5). Subcommands: `generate`, `migrate`, `studio`, `push`, `export-schema`, `check-schema-drift`. Schema commands consume `orm.config.ts` (default-exports `{ schema }`) and invoke `@theokit/orm/schema-export` to emit JSON Schema 7 per entity to `.theokit/schema/{entity}.schema.json`. `check-schema-drift` diffs fresh vs committed schemas and exits 1 on drift — wires into CI as a polyglot-safety gate.
 
 ## 2.0.0
 
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.3.0
-  - @usetheo/acp@2.0.0
+  - @theokit/sdk@1.3.0
+  - @theokit/acp@2.0.0
 
 ## 1.0.0
 
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.2.0
-  - @usetheo/acp@1.0.0
+  - @theokit/sdk@1.2.0
+  - @theokit/acp@1.0.0
 
 ## [Unreleased]
 
@@ -52,8 +52,8 @@
   bypass list. `--permission-timeout-ms` overrides the 60 s default (EC-2 absorbed).
 - CJS/ESM interop fallback (`mod.default ?? mod`) so consumers using
   `module.exports = factory` work without contortions (EC-4).
-- `@usetheo/acp` listed as an OPTIONAL peer dependency — install only when you
-  need the subcommand: `npm i @usetheo/acp`.
+- `@theokit/acp` listed as an OPTIONAL peer dependency — install only when you
+  need the subcommand: `npm i @theokit/acp`.
 - 4 new tests in `tests/commands/acp.test.ts` covering entry resolution, default
   export fallback, permission flag validation.
 
@@ -72,7 +72,7 @@
 
 ### Added (T0.1 — workspace scaffolding, Adoption Roadmap #1)
 
-- New workspace package `@usetheo/cli` — developer CLI for `@usetheo/sdk`.
+- New workspace package `@theokit/cli` — developer CLI for `@theokit/sdk`.
 - `bin: theokit` registered; executable shim at `src/bin/theokit.ts`.
 - Programmatic API: `main(argv): Promise<number>` returns exit code.
 - Build-time constants `SDK_VERSION` / `CLI_VERSION` injected via tsup

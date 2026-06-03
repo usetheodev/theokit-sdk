@@ -51,7 +51,7 @@ describe("scaffold (T2.1)", () => {
     const pkg = JSON.parse(readFileSync(join(workDir, "ver", "package.json"), "utf8")) as {
       dependencies: Record<string, string>;
     };
-    const sdkDep = pkg.dependencies["@usetheo/sdk"];
+    const sdkDep = pkg.dependencies["@theokit/sdk"];
     expect(sdkDep).toBeDefined();
     expect(sdkDep).not.toContain("workspace");
     // Match `^X.Y.Z` or `^X.Y.Z-prerelease`.
@@ -145,7 +145,7 @@ describe("scaffold (T2.1)", () => {
       dependencies: Record<string, string>;
     };
     expect(pkg.dependencies.grammy).toBeDefined();
-    expect(pkg.dependencies["@usetheo/gateway-telegram"]).toBeDefined();
+    expect(pkg.dependencies["@theokit/gateway-telegram"]).toBeDefined();
   });
 
   it("rejects unknown template", async () => {

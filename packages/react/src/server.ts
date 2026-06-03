@@ -1,6 +1,6 @@
-// Server-only entry: handlers that consume @usetheo/sdk (Agent runtime).
+// Server-only entry: handlers that consume @theokit/sdk (Agent runtime).
 // Importing this from a client module is a bug — node:fs / node:path will
-// leak into the browser bundle. Use the default `@usetheo/react` entry for
+// leak into the browser bundle. Use the default `@theokit/react` entry for
 // client hooks.
 //
 // Pattern: mirrors Next.js `next/server` and Remix loader split.

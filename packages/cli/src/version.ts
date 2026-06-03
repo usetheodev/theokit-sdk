@@ -1,7 +1,7 @@
 /**
- * Build-time version constants for @usetheo/cli.
+ * Build-time version constants for @theokit/cli.
  *
- * `__SDK_VERSION__` is the sibling `@usetheo/sdk` semver (NEVER
+ * `__SDK_VERSION__` is the sibling `@theokit/sdk` semver (NEVER
  * `workspace:*` — resolved at build time via tsup `define`). Used by
  * `init` templates to pin the SDK dep in scaffolded projects (EC-L
  * fix from edge-case review).

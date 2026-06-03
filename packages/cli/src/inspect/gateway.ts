@@ -3,7 +3,7 @@
  *
  * Unlike LLM providers (registry-based) and embedding adapters (single
  * catalog), gateway adapters live in separate workspace packages
- * (`@usetheo/gateway-telegram`, `@usetheo/gateway-discord`). We detect
+ * (`@theokit/gateway-telegram`, `@theokit/gateway-discord`). We detect
  * presence by attempting to resolve the package; absent = not installed.
  *
  * @internal
@@ -18,8 +18,8 @@ interface GatewayInfo {
 }
 
 const KNOWN_GATEWAYS = [
-  { name: "telegram", packageName: "@usetheo/gateway-telegram" },
-  { name: "discord", packageName: "@usetheo/gateway-discord" },
+  { name: "telegram", packageName: "@theokit/gateway-telegram" },
+  { name: "discord", packageName: "@theokit/gateway-discord" },
 ] as const;
 
 export function listGatewayAdapters(): GatewayInfo[] {

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <h1 align="center">@usetheo/sdk</h1>
+  <h1 align="center">@theokit/sdk</h1>
   <p align="center">
     <strong>TypeScript SDK for the Theo agent harness</strong>
   </p>
@@ -29,13 +29,13 @@ For the full reference, see the [root README](../../README.md) and [`docs.md`](.
 ## Install
 
 ```bash
-npm install @usetheo/sdk
+npm install @theokit/sdk
 ```
 
 ## Quick start
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
@@ -53,7 +53,7 @@ for await (const event of run.stream()) {
 ## Schedule with cron
 
 ```typescript
-import { Cron } from "@usetheo/sdk";
+import { Cron } from "@theokit/sdk";
 
 await Cron.create({
   cron: "0 9 * * *",

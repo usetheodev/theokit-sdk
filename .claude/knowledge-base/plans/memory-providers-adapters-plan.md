@@ -54,12 +54,12 @@ Measurable goals:
 |---|---|---|---|
 | **D141** | `MemoryAdapter` is a new formal interface in `packages/sdk/src/types/memory-adapter.ts`. `MemoryProviderFactory` type is updated from `(cwd) => unknown` to `(cwd) => MemoryAdapter \| Promise<MemoryAdapter>`. | The current `unknown` return is explicitly a forward declaration. Typing it now is backward compatible (no third-party plugin returns `unknown` today since no one ships them). Promise return supports lazy initialization (HTTP probe, config load). | **Enables:** type-safe consumer code; capability introspection; compile-time tool schema validation. **Constrains:** the type becomes a public API — any future shape change needs a major bump. |
 | **D142** | Memory adapters expose a **dual surface**: (a) **API direta** via `agent.memory.write(content, ctx)` / `agent.memory.recall(query, ctx)` — caller-controlled; (b) **LLM-driven** via `getToolSchemas()` returning OpenAI-format function-calling schemas the LLM can invoke. | Hermes does (b) only. Our SDK adds (a) because TS consumers expect typed methods (Mastra / Vercel AI ergonomics). Both backed by the same adapter — no duplication. | **Enables:** chat-assistant flows use (b) automatically; deterministic eval scripts use (a). **Constrains:** adapter must implement both — but `getToolSchemas` defaults to wrapping (a) calls. |
-| **D143** | Each adapter is a **separate workspace package** under `packages/memory-{name}` published as `@theokit-memory-{name}`. NOT subpath exports of `@usetheo/sdk` (e.g. NOT `@usetheo/sdk/memory/honcho`). | Subpacotes externos = (i) independent versioning per adapter; (ii) consumers pay for what they use (`pnpm i @theokit-memory-honcho` adds ~10KB; Mem0 axios+openai+18 peers stays out of `@usetheo/sdk`); (iii) AGPL Honcho stays isolated from the MIT/Apache core. | **Enables:** clean dep boundaries; cancel-friendly (drop adapter = drop dep). **Constrains:** 3 new workspace members = 3 publish lanes + 3 CHANGELOGs. |
+| **D143** | Each adapter is a **separate workspace package** under `packages/memory-{name}` published as `@theokit-memory-{name}`. NOT subpath exports of `@theokit/sdk` (e.g. NOT `@theokit/sdk/memory/honcho`). | Subpacotes externos = (i) independent versioning per adapter; (ii) consumers pay for what they use (`pnpm i @theokit-memory-honcho` adds ~10KB; Mem0 axios+openai+18 peers stays out of `@theokit/sdk`); (iii) AGPL Honcho stays isolated from the MIT/Apache core. | **Enables:** clean dep boundaries; cancel-friendly (drop adapter = drop dep). **Constrains:** 3 new workspace members = 3 publish lanes + 3 CHANGELOGs. |
 | **D144** | Background **prefetch is opt-in** (`enablePrefetch: false` default). When enabled, recall runs in parallel with the user's input collection for the NEXT turn. | Hermes default is `on`. Risk: latency budget hidden from caller (a 2s recall blocks turn N+1 silently). Defaulting off is safer; consumers who measure their latency and want the win opt in explicitly. | **Enables:** predictable latency by default. **Constrains:** consumers wanting prefetch need 1 extra config field — documented. |
 | **D145** | Agent loop integrates via **2 new hook names** added to the existing `HookName` union: `pre_user_send` (recall) + `post_assistant_reply` (sync). NOT a new plugin lifecycle subsystem. | The hook infrastructure (`HookName` enum + `PluginContext.on()` + dispatch via `internal/plugins/manager.ts`) already exists from D100. Reusing it costs ~30 LoC vs ~200 LoC for a parallel `MemoryManager` system. | **Enables:** memory adapters use the same dispatcher non-memory plugins use; consumers can write their own non-memory hook handlers that read/write the same SDKMessage stream. **Constrains:** memory adapters can't have private state beyond what the hook handler closure captures — they need to be self-contained. |
 | **D146** | Memory adapter HTTP errors do **NOT** flow through `CredentialPool` rotation (D123-D133). Each adapter implements its own retry policy with a simple exponential-backoff helper. | The credential pool exists for LLM provider keys (high-volume, high-cost rotation). Memory providers are low-volume, single-key — pool overhead is unnecessary complexity. Hermes uses circuit breaker (Mem0 5-failure-then-2min-pause) which is simpler. | **Enables:** adapter author owns retry semantics; less surprise. **Constrains:** if a user wants pool semantics for a memory provider, they wrap it themselves — documented as non-goal. |
 | **D147** | `MemoryContext` is **minimal** — `userId` is the only required field. All others (`agentId`, `sessionId`, `tenantId`, `tags`, `metadata`) are optional. Each adapter translates this to its provider's primitive (Mem0 `user_id`, Honcho `peer`, Supermemory `containerTags`). | All 3 providers have `userId` as first-class. Anything else diverges (Hermes #22 research). Minimum-viable shared context = caller writes once, all 3 adapters work. | **Enables:** portability — same `MemoryContext` works for all 3 + future adapters. **Constrains:** provider-specific features (Mem0 `history(id)`, Honcho dialectic depth, Supermemory profile facts) need adapter-side options structs — documented. |
-| **D148** | `@theokit-memory-mem0` ships **cloud client only**. The local OSS Mem0 mode (Qdrant + own LLM) is NOT supported. | The OSS local mode duplicates work already shipped in `@usetheo/sdk` (Active Memory + Lance backend D43). It would pull `axios` + `openai` + `mem0ai`'s 18 peer deps into the adapter — fights with our "no surprise deps" posture. Cloud-only keeps the adapter ~200 LoC. | **Enables:** Mem0 adapter as thin HTTP wrapper; lighter surface. **Constrains:** local-only consumers stay on our built-in memory — fine, that's already the better path. |
+| **D148** | `@theokit-memory-mem0` ships **cloud client only**. The local OSS Mem0 mode (Qdrant + own LLM) is NOT supported. | The OSS local mode duplicates work already shipped in `@theokit/sdk` (Active Memory + Lance backend D43). It would pull `axios` + `openai` + `mem0ai`'s 18 peer deps into the adapter — fights with our "no surprise deps" posture. Cloud-only keeps the adapter ~200 LoC. | **Enables:** Mem0 adapter as thin HTTP wrapper; lighter surface. **Constrains:** local-only consumers stay on our built-in memory — fine, that's already the better path. |
 | **D149** | Each adapter's `README.md` carries a **legal/security disclosure section** when applicable: `@theokit-memory-honcho` notes Honcho AGPL-3.0 self-host implications; `@theokit-memory-mem0` notes CVSS 8.1 SQL/Cypher injection (2026-04-17, KEV-tracked) affecting OSS backends pgvector/MySQL/Neptune. | Honest disclosure is part of our Inviolable Rule #3 (extreme honesty). Hiding AGPL or CVSS exposes downstream consumers to legal/security risk they didn't sign up for. | **Enables:** consumers make informed choice. **Constrains:** README space; CI lint rule to ensure disclosure section exists on those two adapters. |
 
 ## Edge Case Integration (v1.1)
@@ -331,7 +331,7 @@ VERIFY:  pnpm typecheck && pnpm vitest run tests/types/memory-adapter.test.ts te
 - [ ] 9 RED tests GREEN (was 6 — +3 from EC-B prefix scheme)
 - [ ] File ≤250 LoC
 - [ ] Zero biome warnings
-- [ ] All public types + `mkMemoryId`/`extractRawId` helpers re-exported from `@usetheo/sdk` barrel
+- [ ] All public types + `mkMemoryId`/`extractRawId` helpers re-exported from `@theokit/sdk` barrel
 - [ ] knip clean (no orphan exports)
 
 #### DoD
@@ -637,7 +637,7 @@ packages/memory-supermemory/src/index.ts (NEW)
 ```
 
 #### Deep file dependency analysis
-- `package.json` declares `peerDependencies`: `@usetheo/sdk: ^1.x`, `supermemory: ^4.21.0`.
+- `package.json` declares `peerDependencies`: `@theokit/sdk: ^1.x`, `supermemory: ^4.21.0`.
 - `tsconfig.json` extends root `tsconfig.base.json` (already used by sdk + react packages).
 - `tsup.config.ts` matches sdk pattern (dual ESM + CJS + .d.ts).
 
@@ -662,7 +662,7 @@ packages/memory-supermemory/src/index.ts (NEW)
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "supermemory": "^4.21.0"
   },
   "license": "Apache-2.0"
@@ -715,7 +715,7 @@ packages/memory-supermemory/tests/translate.test.ts (NEW)
 ```
 
 #### Deep file dependency analysis
-- `adapter.ts` imports `Supermemory` from `supermemory` (peer dep) + `MemoryAdapter`/types from `@usetheo/sdk`.
+- `adapter.ts` imports `Supermemory` from `supermemory` (peer dep) + `MemoryAdapter`/types from `@theokit/sdk`.
 - `translate.ts` is pure — no I/O, no deps.
 
 #### Deep Dives
@@ -724,7 +724,7 @@ packages/memory-supermemory/tests/translate.test.ts (NEW)
 
 ```typescript
 // src/index.ts
-import { definePlugin, type MemoryAdapter, type Plugin } from "@usetheo/sdk";
+import { definePlugin, type MemoryAdapter, type Plugin } from "@theokit/sdk";
 import { SupermemoryAdapter, type SupermemoryAdapterOptions } from "./adapter.js";
 
 export function supermemoryMemory(options: SupermemoryAdapterOptions): Plugin {
@@ -821,7 +821,7 @@ export class SupermemoryAdapter implements MemoryAdapter {
 > **EC-C fix:** every identifier component goes through `sanitizeIdentifier` (D81 canonical helper) before joining. Rejects with `MemoryAdapterError(code: "invalid_input")` if any component contains `:`, whitespace, or non-alphanumeric (except `_`/`-`). Prevents silent cross-bucket leak from `userId: "user:123"` mis-parsing as `theokit:user:user` + `123` sub-key.
 
 ```typescript
-import { sanitizeIdentifier } from "@usetheo/sdk/internal/security/path-guard";
+import { sanitizeIdentifier } from "@theokit/sdk/internal/security/path-guard";
 
 export function buildContainerTags(ctx: MemoryContext, prefix: string): string[] {
   // EC-C: every component must match ^[a-zA-Z0-9_-]+$ — `:` is the tag separator
@@ -909,13 +909,13 @@ examples/memory-supermemory-basic/.env.example (NEW)
 ```
 
 #### Deep file dependency analysis
-- Example consumes `@theokit-memory-supermemory` (workspace dep) + `@usetheo/sdk`.
+- Example consumes `@theokit-memory-supermemory` (workspace dep) + `@theokit/sdk`.
 
 #### Deep Dives
 
 ```typescript
 // examples/memory-supermemory-basic/src/index.ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 import { supermemoryMemory } from "@theokit-memory-supermemory";
 
 async function main() {
@@ -1441,7 +1441,7 @@ bot.command("memory", async (ctx) => {
     return;
   }
 
-  const { Agent } = await import("@usetheo/sdk");
+  const { Agent } = await import("@theokit/sdk");
   let memoryPlugin;
   switch (provider) {
     case "supermemory": {
@@ -1578,7 +1578,7 @@ node .claude/skills/telegram-pro-dogfood/lib/dogfood.mjs --user-id 7528967933
 - [ ] All tests passing across workspace (≥1120 total — v1.1 adds ~13 new tests from edge-case review)
 - [ ] Zero biome warnings; zero knip warnings
 - [ ] Three new npm packages publishable (`@theokit-memory-supermemory@0.1.0`, `@theokit-memory-honcho@0.1.0`, `@theokit-memory-mem0@0.1.0`)
-- [ ] `@usetheo/sdk` SemVer compatible (1.x — additive surface only)
+- [ ] `@theokit/sdk` SemVer compatible (1.x — additive surface only)
 - [ ] 9 ADRs (D141-D149) written
 - [ ] 4 CHANGELOGs updated
 - [ ] CLAUDE.md SDK Roadmap row #3 → ✅ DONE

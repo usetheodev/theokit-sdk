@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/orm",
+  "name": "@theokit/orm",
   "version": "0.1.0-next.1",
-  "description": "Repository pattern + @InjectRepository decorator + agent-aware columns + @Transactional + schema export polyglot over drizzle-orm, consuming @usetheo/di for inversion of control. NestJS TypeORM-equivalent DX for the theokit ecosystem.",
+  "description": "Repository pattern + @InjectRepository decorator + agent-aware columns + @Transactional + schema export polyglot over drizzle-orm, consuming @theokit/di for inversion of control. NestJS TypeORM-equivalent DX for the theokit ecosystem.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
   "bugs": "https://github.com/usetheo/theokit-sdk/issues",
@@ -64,7 +64,7 @@
     "usetheo"
   ],
   "peerDependencies": {
-    "@usetheo/di": "^0.1.0",
+    "@theokit/di": "^0.1.0",
     "drizzle-orm": ">=0.36.0",
     "reflect-metadata": "^0.2.0"
   },
@@ -76,7 +76,7 @@
   "devDependencies": {
     "@swc/core": "^1.15.40",
     "@types/better-sqlite3": "^7.6.13",
-    "@usetheo/di": "workspace:*",
+    "@theokit/di": "workspace:*",
     "@vitest/coverage-v8": "^3.0.0",
     "better-sqlite3": "^11.10.0",
     "drizzle-orm": "^0.36.4",

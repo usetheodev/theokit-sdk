@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/memory-*` adapters implement their own per-adapter retry
+`@theokit/memory-*` adapters implement their own per-adapter retry
 policy. They do NOT integrate with `CredentialPool` (D123-D133), the
 LLM key-rotation primitive. Each adapter ships its own minimal retry
 strategy:

@@ -1,6 +1,6 @@
 # Plan: Agentic Eval Bridge — Full SDK Coverage Maturity Gate
 
-> **Version 2.1** — Régua objetiva de maturidade do `@usetheo/sdk` cobrindo **toda a surface area** declarada em `docs.md`: tool-use, multi-turn, memory, context manager, MCP servers, hooks, skills, subagents, streaming, provider fallback, multi-modelo, e capacidades não-eval (Cron, Theokit namespace). Combina três técnicas em camadas: **(a) benchmarks padrão externos** (BFCL v3, τ²-bench, LoCoMo, NIAH adaptado) para o que existe na literatura; **(b) mini-suites comportamentais proprietárias** para capacidades sem benchmark padrão (hooks, skills, subagents, MCP); **(c) testes E2E binários** para infraestrutura (Cron, namespace, fallback chaos). Toda capacidade pública vira sinal medível antes de liberar o SDK para usuários. Mantém princípio de v1.1: bridge externa stateless por design (D9), sem invadir `packages/sdk/src/`. **Versão 2.1** incorpora 5 MUST FIX + 17 SHOULD TEST + 11 DOCUMENT do edge case review v2.0: registry pattern para hooks/subagents (D14 extendido, EC-18), Docker sandbox para HumanEval (D18, EC-19), Cron cleanup com namespace isolado (EC-20), nightly continue-on-error (EC-21), e schema multi-step para casos active-recall (EC-22). Versão 2.0 era válida mas tinha gaps conceituais críticos — v2.1 os fecha.
+> **Version 2.1** — Régua objetiva de maturidade do `@theokit/sdk` cobrindo **toda a surface area** declarada em `docs.md`: tool-use, multi-turn, memory, context manager, MCP servers, hooks, skills, subagents, streaming, provider fallback, multi-modelo, e capacidades não-eval (Cron, Theokit namespace). Combina três técnicas em camadas: **(a) benchmarks padrão externos** (BFCL v3, τ²-bench, LoCoMo, NIAH adaptado) para o que existe na literatura; **(b) mini-suites comportamentais proprietárias** para capacidades sem benchmark padrão (hooks, skills, subagents, MCP); **(c) testes E2E binários** para infraestrutura (Cron, namespace, fallback chaos). Toda capacidade pública vira sinal medível antes de liberar o SDK para usuários. Mantém princípio de v1.1: bridge externa stateless por design (D9), sem invadir `packages/sdk/src/`. **Versão 2.1** incorpora 5 MUST FIX + 17 SHOULD TEST + 11 DOCUMENT do edge case review v2.0: registry pattern para hooks/subagents (D14 extendido, EC-18), Docker sandbox para HumanEval (D18, EC-19), Cron cleanup com namespace isolado (EC-20), nightly continue-on-error (EC-21), e schema multi-step para casos active-recall (EC-22). Versão 2.0 era válida mas tinha gaps conceituais críticos — v2.1 os fecha.
 
 ## Context
 
@@ -11,7 +11,7 @@
 - Para `mesmo Claude Opus 4.6`, leaderboard 2026 mostra variação de **14.7% a 72.0%** apenas trocando o scaffold (Awesome Agents).
 - Princeton HAL (arXiv:2510.11977, out/2025) consolidou que "agent scaffold afeta drasticamente accuracy e custo".
 
-**Estado atual do `@usetheo/sdk`** (commit `2b7d89a`, branch `feat/sdk-implementation`):
+**Estado atual do `@theokit/sdk`** (commit `2b7d89a`, branch `feat/sdk-implementation`):
 
 - 166 testes (`tests/golden/**`, `tests/contract/**`, `tests/smoke.test.ts`) — todos verdes.
 - Quality gates G1-G10 ativos (`.claude/quality-gates.md`).
@@ -58,11 +58,11 @@ Em ≤ 6-8 semanas, ter `pnpm eval:nightly` rodando localmente e em CI, executan
 
 ### D1 — Bridge externa, fora de `packages/sdk/src/`
 
-**Decision:** Tudo do sistema de eval vive em `evals/` no workspace root, NÃO em `packages/sdk/src/`. Não exportado pelo `@usetheo/sdk`. Não aparece em `docs.md`.
+**Decision:** Tudo do sistema de eval vive em `evals/` no workspace root, NÃO em `packages/sdk/src/`. Não exportado pelo `@theokit/sdk`. Não aparece em `docs.md`.
 
 **Rationale:** A regra `no-stubs-no-mocks-no-wired.md` proíbe código de produção não-wired. Bridge HTTP e runners de eval são tooling de QA — se entrassem em `src/`, seriam código órfão (sem caller real no contrato público). Manter fora do bundle também evita inflar o tamanho do SDK publicado no npm. KISS: o bridge é um servidor independente, não uma abstração interna do SDK.
 
-**Consequences:** Permite usar dependências pesadas (Python via subprocess, fastify, etc.) sem afetar o bundle. Bridge pode evoluir independentemente do versionamento do SDK. Custo: o bridge depende de imports de `@usetheo/sdk` via workspace path, então quebras de API do SDK quebram o bridge — coberto pelo CI.
+**Consequences:** Permite usar dependências pesadas (Python via subprocess, fastify, etc.) sem afetar o bundle. Bridge pode evoluir independentemente do versionamento do SDK. Custo: o bridge depende de imports de `@theokit/sdk` via workspace path, então quebras de API do SDK quebram o bridge — coberto pelo CI.
 
 ### D2 — Bridge em TypeScript, runners de benchmark em Python
 
@@ -116,7 +116,7 @@ Em ≤ 6-8 semanas, ter `pnpm eval:nightly` rodando localmente e em CI, executan
 
 **Decision:** Adoção de Inspect AI como orquestrador unificado fica para um plano separado, após Fase 1 completar.
 
-**Rationale:** Inspect AI permite comparações cabeça-a-cabeça `@usetheo/sdk` × LangChain × OpenAI Agents SDK no mesmo benchmark — mas isso é Fase 2 (diferenciação competitiva). Fase 1 é gate de maturidade interna: precisamos do número primeiro. Adicionar Inspect AI aqui infla escopo de 2 semanas para 1-2 meses. YAGNI: o problema de Fase 1 é "o SDK está maduro?", não "o SDK ganha de LangChain?".
+**Rationale:** Inspect AI permite comparações cabeça-a-cabeça `@theokit/sdk` × LangChain × OpenAI Agents SDK no mesmo benchmark — mas isso é Fase 2 (diferenciação competitiva). Fase 1 é gate de maturidade interna: precisamos do número primeiro. Adicionar Inspect AI aqui infla escopo de 2 semanas para 1-2 meses. YAGNI: o problema de Fase 1 é "o SDK está maduro?", não "o SDK ganha de LangChain?".
 
 **Consequences:** Fase 1 fica focada e entregável. Fase 2 (Inspect AI + matriz 3×3×2) ganha plano próprio com escopo claro. Risco: investir em runners proprietários (BFCL/τ² wrappers) que depois sejam substituídos por Inspect AI — mitigado: BFCL e τ² já rodam nativamente dentro do Inspect AI; o investimento em "rodar contra a bridge" não se perde.
 
@@ -359,8 +359,8 @@ Scripts a adicionar (12 scripts cobrindo Phases 1-15):
   "eval:nightly": "tsx evals/scripts/nightly.ts",
   "eval:matrix": "tsx evals/scripts/matrix.ts",
   "eval:report": "tsx evals/scripts/report.ts",
-  "test:contract": "pnpm --filter @usetheo/sdk exec vitest run evals/contract/",
-  "test:suites": "pnpm --filter @usetheo/sdk exec vitest run evals/suites/tests/"
+  "test:contract": "pnpm --filter @theokit/sdk exec vitest run evals/contract/",
+  "test:suites": "pnpm --filter @theokit/sdk exec vitest run evals/suites/tests/"
 }
 ```
 
@@ -414,7 +414,7 @@ evals/bridge/types.ts            (NEW) — tipos OpenAI minimal (Pydantic-like)
 ```
 
 #### Deep file dependency analysis
-- `server.ts` importa de `@usetheo/sdk` (via workspace path resolution). Mudanças no `Agent.send` API quebram aqui — coberto pelo `pnpm typecheck`.
+- `server.ts` importa de `@theokit/sdk` (via workspace path resolution). Mudanças no `Agent.send` API quebram aqui — coberto pelo `pnpm typecheck`.
 - `translate.ts` mapeia:
   - Input: `{ messages, tools, model, ...openai_fields }` → `Agent.create({ tools, model, ... })` + `agent.send({ messages })`.
   - Output: `Run` final → `{ choices: [{ message: { role, content, tool_calls } }], usage: { ... } }`.
@@ -426,7 +426,7 @@ evals/bridge/types.ts            (NEW) — tipos OpenAI minimal (Pydantic-like)
 **Estrutura do server (≤ 200 linhas — sobe de 150 para acomodar fail-fast e EADDRINUSE):**
 ```ts
 import { createServer } from 'node:http';
-import { Agent } from '@usetheo/sdk';
+import { Agent } from '@theokit/sdk';
 import { translateRequest, translateResponse } from './translate.js';
 import { buildAgent } from './agent-factory.js';
 
@@ -530,7 +530,7 @@ RED:     test_server_handles_concurrent_requests — (EC-5) 10 requests paralelo
 ```
 GREEN:   Implementar translate.ts, agent-factory.ts e server.ts cobrindo todos os RED tests acima
 REFACTOR: extrair helpers se duplicação aparecer (KISS — provavelmente nenhuma na Fase 1)
-VERIFY:  pnpm --filter @usetheo/sdk exec vitest run evals/bridge/tests/
+VERIFY:  pnpm --filter @theokit/sdk exec vitest run evals/bridge/tests/
 ```
 
 Nota: tests do bridge vivem em `evals/bridge/tests/` e rodam via `vitest` invocado pelo workspace SDK (mais simples que criar workspace separado para evals).
@@ -845,7 +845,7 @@ RED:     compare.test.ts::test_baseline_missing_required_keys — (EC-7) baselin
 RED:     compare.test.ts::test_inconsistent_timestamps — (EC-8) results/ tem t1/bfcl-v3/ e t0/tau2-retail/ (t0<t1); usa t1 para os dois e reporta τ² como "missing" em vez de comparar contra t0
 GREEN:   Implementar compare.ts
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/sdk exec vitest run evals/scripts/tests/compare.test.ts
+VERIFY:  pnpm --filter @theokit/sdk exec vitest run evals/scripts/tests/compare.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1104,7 +1104,7 @@ RED:     nightly.test.ts::test_report_generated_with_partial_results — REPORT.
 RED:     nightly.test.ts::test_exit_1_only_at_end — runner 1 falha; runners 2-11 ainda executam; processo só exit 1 após o último
 GREEN:   Implementar nightly.ts
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/sdk exec vitest run evals/scripts/tests/nightly.test.ts
+VERIFY:  pnpm --filter @theokit/sdk exec vitest run evals/scripts/tests/nightly.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1217,7 +1217,7 @@ RED:     sse.test.ts::test_sse_cancels_on_client_disconnect — (EC-24) client f
 RED:     sse.test.ts::test_sse_server_timeout_5min — (EC-25) agent que demora > 5min é abortado; conexão fechada com erro 504; reduce timeout via env EVAL_SSE_TIMEOUT_MS para testar em segundos
 GREEN:   Implementar extensões cobrindo todos os RED
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/sdk exec vitest run evals/bridge/tests/extensions.test.ts evals/bridge/tests/sse.test.ts
+VERIFY:  pnpm --filter @theokit/sdk exec vitest run evals/bridge/tests/extensions.test.ts evals/bridge/tests/sse.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1890,7 +1890,7 @@ evals/README.md       (EDIT) — expandir para runbook completo + Risks & Mitiga
 
 ## Coverage Matrix
 
-### Surface area do `@usetheo/sdk` (mapeada contra `docs.md`)
+### Surface area do `@theokit/sdk` (mapeada contra `docs.md`)
 
 | # | Capacidade do SDK | Camada | Fase(s) | Sinal |
 |---|---|---|---|---|
@@ -1929,7 +1929,7 @@ evals/README.md       (EDIT) — expandir para runbook completo + Risks & Mitiga
 | 28 | CI nightly que falha em regressão | T5.1 | Workflow GitHub Actions + `nightly.ts` |
 | 29 | Documentação operacional | T5.2 | `evals/README.md` runbook |
 | 30 | Sem impacto no bundle do SDK publicado | D1, T0.1 | Tudo fora de `packages/sdk/src/` |
-| 31 | Sem violação de `no-stubs-no-mocks-no-wired` | D1 | Bridge não exporta nada via `@usetheo/sdk` |
+| 31 | Sem violação de `no-stubs-no-mocks-no-wired` | D1 | Bridge não exporta nada via `@theokit/sdk` |
 | 32 | Custo controlado (≤ US$ 80/run nightly) | Phases 2-13 | Medido por fase no relatório |
 | 33 | Sem novas deps no SDK | D3 | `node:http` nativo, sem fastify/hono |
 | 34 | **(EC-1)** Concorrência sem cross-contamination | D9, T1.1, T1.1.b | `memory: undefined` por default; override explícito em Phase 6 |
@@ -2080,6 +2080,6 @@ pnpm eval:matrix
 
 - [ ] Matriz 3×N produz `evals/results/matrix/{date}/REPORT.md` sem erros.
 - [ ] Custo da matriz ≤ US$ 240.
-- [ ] `REPORT.md` linkado no README do `@usetheo/sdk` na entrada de release notes.
+- [ ] `REPORT.md` linkado no README do `@theokit/sdk` na entrada de release notes.
 
 Sem esse passo, **não há gate de maturidade pré-launch** — o release fica restrito ao baseline do nightly (1 modelo).

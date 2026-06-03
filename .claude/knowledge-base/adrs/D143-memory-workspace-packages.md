@@ -6,24 +6,24 @@
 ## Decision
 
 Each third-party memory adapter is a workspace package under
-`packages/memory-{name}` published as `@usetheo/memory-{name}` —
-NOT a subpath export of `@usetheo/sdk` (NOT `@usetheo/sdk/memory/honcho`).
+`packages/memory-{name}` published as `@theokit/memory-{name}` —
+NOT a subpath export of `@theokit/sdk` (NOT `@theokit/sdk/memory/honcho`).
 
 Shipped:
-- `@usetheo/memory-supermemory`
-- `@usetheo/memory-honcho`
-- `@usetheo/memory-mem0`
+- `@theokit/memory-supermemory`
+- `@theokit/memory-honcho`
+- `@theokit/memory-mem0`
 
 (Original plan text said `@theokit-memory-*` but that violates npm
 scope syntax — scopes require `@scope/name`. Per locked names in
-`CLAUDE.md` the project uses `@usetheo/` as the canonical scope.)
+`CLAUDE.md` the project uses `@theokit/` as the canonical scope.)
 
 ## Rationale
 
 - **Independent versioning per adapter.** A bug in Supermemory ≠
   blocked release for Honcho.
-- **Consumers pay for what they use.** `pnpm i @usetheo/memory-honcho`
-  adds ~10KB; `mem0ai`'s 18 transitive peers stay out of `@usetheo/sdk`'s
+- **Consumers pay for what they use.** `pnpm i @theokit/memory-honcho`
+  adds ~10KB; `mem0ai`'s 18 transitive peers stay out of `@theokit/sdk`'s
   install graph for consumers who never use Mem0.
 - **License isolation.** Honcho's AGPL-3.0 self-host implications stay
   in the adapter's README; the MIT/Apache core SDK is unaffected.

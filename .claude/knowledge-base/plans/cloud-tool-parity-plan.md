@@ -142,7 +142,7 @@ RED:  reject-local-cwd-with-cloud (EC-5)    — local: { cwd } + cloud: {} throw
 RED:  accept-compatible-config              — all rules satisfied: no throw
 GREEN: Implement validator + wire to Agent.create + migrate old error code
 REFACTOR: Extract isLocalPath() + isHookClosure() helpers
-VERIFY: pnpm --filter @usetheo/sdk test tests/golden/agent/cloud-tool-parity
+VERIFY: pnpm --filter @theokit/sdk test tests/golden/agent/cloud-tool-parity
 ```
 
 #### Acceptance Criteria
@@ -273,7 +273,7 @@ RED:  serialize-strips-mcp-env                      — mcpServers.x.env = { TOK
 RED:  serialize-warns-on-large-payload (EC-7)       — payload >1 MB triggers stderr warning (no throw)
 GREEN: Implement serializer + canonicalize() + per-feature allow-lists + size-warning + 8 shape fixtures
 REFACTOR: Extract per-feature serializers (serializeHooks, serializeMcp, etc.) for readability
-VERIFY: pnpm --filter @usetheo/sdk test tests/golden/agent/cloud-payload
+VERIFY: pnpm --filter @theokit/sdk test tests/golden/agent/cloud-payload
 ```
 
 #### Acceptance Criteria
@@ -334,7 +334,7 @@ RED:  fixture-cloud-run-echoes-payload                — fixture mode emits a "
 RED:  reload-repopulates-from-filesystem (EC-6)       — write .theokit/skills/new/SKILL.md to cwd after Agent.create; call agent.reload(); assert agent.cloudPayload.skills.enabled now includes "new". Asserts the full reload chain: re-read FS → update in-memory skills list → re-serialize.
 GREEN: Wire validator + serializer + payload threading + reload chain
 REFACTOR: None expected
-VERIFY: pnpm --filter @usetheo/sdk test tests/golden/agent/cloud-agent-payload-wiring
+VERIFY: pnpm --filter @theokit/sdk test tests/golden/agent/cloud-agent-payload-wiring
 ```
 
 #### Acceptance Criteria

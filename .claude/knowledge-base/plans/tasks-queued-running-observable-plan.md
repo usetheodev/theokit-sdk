@@ -1,6 +1,6 @@
 # Plan: Tasks (queued/running observable)
 
-> **Version 1.2** — Adiciona a `@usetheo/sdk` um conceito de **Task** observável: um registry leve de jobs com estados `queued | running | finished | error | cancelled`, API pública (`Task.submit / list / get / cancel / subscribe`), persistência pluggável (in-memory default, JSON disk opt-in). Fecha o segundo gap da análise vs OpenClaw + Hermes Agent (o primeiro foi ACP, shipado em 2026-05-27). Resultado esperado: usuário consegue submeter trabalho assíncrono via `Task.submit("kind", workFn)`, listar todas as tasks ativas/históricas, cancelar individualmente, e consumir um stream de eventos de progresso — exatamente como Hermes oferece via kanban SQLite, mas sem o overhead de SQLite no caminho default.
+> **Version 1.2** — Adiciona a `@theokit/sdk` um conceito de **Task** observável: um registry leve de jobs com estados `queued | running | finished | error | cancelled`, API pública (`Task.submit / list / get / cancel / subscribe`), persistência pluggável (in-memory default, JSON disk opt-in). Fecha o segundo gap da análise vs OpenClaw + Hermes Agent (o primeiro foi ACP, shipado em 2026-05-27). Resultado esperado: usuário consegue submeter trabalho assíncrono via `Task.submit("kind", workFn)`, listar todas as tasks ativas/históricas, cancelar individualmente, e consumir um stream de eventos de progresso — exatamente como Hermes oferece via kanban SQLite, mas sem o overhead de SQLite no caminho default.
 >
 > **v1.1 changelog** — Absorveu 7 MUST FIX + 6 SHOULD TEST + 3 DOCUMENT do edge-case review (EC-1..EC-16). Adições principais: auto-mkdir do JsonFileTaskStore, validação de ID grammar defense-in-depth no store, wrap sync throws, abort-no-submit short-circuit, prefixo namespaced de taskId nos adapters (`wf-`/`b-`/`cron-`), ENOENT-as-empty no list, e flag `cancelRequested` para cross-process best-effort cancel via CLI.
 >
@@ -65,7 +65,7 @@ Goals:
 
 | ID | Decisão | Rationale | Consequência |
 |---|---|---|---|
-| **D361** | `Task` é static class com private constructor; namespace público `Task` (`Task.submit/list/get/cancel/subscribe`) | Mirror do `Agent`, `Cron`, `Eval`, `Workflow` — consistência da API surface da SDK | Caller usa `import { Task } from "@usetheo/sdk"`; não precisa instanciar |
+| **D361** | `Task` é static class com private constructor; namespace público `Task` (`Task.submit/list/get/cancel/subscribe`) | Mirror do `Agent`, `Cron`, `Eval`, `Workflow` — consistência da API surface da SDK | Caller usa `import { Task } from "@theokit/sdk"`; não precisa instanciar |
 | **D362** | 5 estados closed enum: `queued \| running \| finished \| error \| cancelled` (NÃO Hermes's 7) | Hermes's 7 (triage/todo/ready/running/blocked/done/archived) carrega kanban semantics que não pertencem à SDK (são UI concerns). 5 estados cobrem 100% do lifecycle de qualquer Run/Batch/Workflow/Cron-fire | `triage/blocked/archived` não existem; usuário que precisa de kanban constrói por cima |
 | **D363** | Wrapping é OPT-IN via `{ task: true }` ou `{ taskId: "auto" }` — `agent.send(prompt)` sem opção segue 100% backward compatible | Backward compat absoluto (mesma régua de D108 v1.2 caller API preserved). Caller que não quer overhead de registry não paga | Default behaviour permanece transient. Quem quer observabilidade pede explicitamente |
 | **D364** | `TaskStore` é interface pluggável: `InMemoryTaskStore` (default) + `JsonFileTaskStore` (opt-in). SQLite cross-process diferido pra v0.2 | Espelha exatamente o padrão de `WorkflowSnapshotStore` (D235) — mesma curva de aprendizado pro usuário. SQLite traz nova dep peer + cross-process locking (custo alto pra valor incerto em v1) | v1 não cobre tasks visíveis entre múltiplos processos Node; v0.2 pode adicionar SQLite |
@@ -264,7 +264,7 @@ export interface TaskSubmitOptions {
 1. Criar `packages/sdk/src/types/task.ts` com os 6 tipos públicos.
 2. Adicionar 3 error classes em `packages/sdk/src/errors.ts`.
 3. Re-exportar do `packages/sdk/src/index.ts` (apenas types, sem `Task` namespace ainda).
-4. `pnpm -F @usetheo/sdk run typecheck` verde.
+4. `pnpm -F @theokit/sdk run typecheck` verde.
 
 #### TDD
 ```
@@ -275,19 +275,19 @@ RED:     test_task_handle_optional_cancelRequested_field() — EC-7 shape
 RED:     test_validate_task_id_rejects_reserved_prefix_wf_b_cron() — EC-5
 GREEN:   Implementar types em task.ts + 3 errors em errors.ts + validator de id grammar
 REFACTOR: None expected
-VERIFY:  pnpm -F @usetheo/sdk run typecheck && pnpm -F @usetheo/sdk exec vitest run tests/types/task.test.ts
+VERIFY:  pnpm -F @theokit/sdk run typecheck && pnpm -F @theokit/sdk exec vitest run tests/types/task.test.ts
 ```
 
 #### Acceptance Criteria
-- [ ] `import { TaskState, TaskEvent, TaskHandle, TaskFilter, TaskSubmitOptions, TaskKind } from "@usetheo/sdk"` resolve em consumer test
+- [ ] `import { TaskState, TaskEvent, TaskHandle, TaskFilter, TaskSubmitOptions, TaskKind } from "@theokit/sdk"` resolve em consumer test
 - [ ] Exhaustive switch em `TaskEvent.type` compila com `as never` no default arm
 - [ ] 3 error classes extend `TheokitAgentError` com `code` literal correto
 - [ ] Pass: complexity check (todos files ≤ 10)
 - [ ] Pass: size check (task.ts ≤ 200 lines)
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk run typecheck` exit 0
-- [ ] `pnpm -F @usetheo/sdk exec vitest run tests/types/task.test.ts` 3+ tests passing
+- [ ] `pnpm -F @theokit/sdk run typecheck` exit 0
+- [ ] `pnpm -F @theokit/sdk exec vitest run tests/types/task.test.ts` 3+ tests passing
 - [ ] biome zero warnings
 
 ---
@@ -379,7 +379,7 @@ RED:     test_jsonfile_list_returns_empty_on_enoent() — EC-6: fresh-install fr
 RED:     test_jsonfile_list_ignores_orphan_tmp_files() — EC-8: atomic-write crash residue
 GREEN:   Implementar InMemoryTaskStore + JsonFileTaskStore + factory
 REFACTOR: Extract shared atomic-write helper para internal/persistence/ se útil
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/internal/task/store.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/internal/task/store.test.ts
 ```
 
 #### Acceptance Criteria
@@ -399,7 +399,7 @@ VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/internal/task/store.test.ts
 - [ ] Pass: size check (store.ts ≤ 400 lines)
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk exec vitest run tests/internal/task/store.test.ts` 13+ tests passing (9 originais + 4 edge cases EC-1/EC-2/EC-6/EC-8)
+- [ ] `pnpm -F @theokit/sdk exec vitest run tests/internal/task/store.test.ts` 13+ tests passing (9 originais + 4 edge cases EC-1/EC-2/EC-6/EC-8)
 - [ ] biome zero warnings em internal/task/
 - [ ] knip zero unused exports
 
@@ -523,7 +523,7 @@ RED:     test_registry_reentrant_submit_under_concurrency_1_does_not_deadlock() 
 RED:     test_registry_cancel_requested_flag_picked_up_at_next_checkpoint() — EC-7
 GREEN:   Implementar registry.ts + ring-buffer.ts
 REFACTOR: Extract submit-flow into private helper if cyclomatic > 10
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/internal/task/registry.test.ts tests/internal/task/ring-buffer.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/internal/task/registry.test.ts tests/internal/task/ring-buffer.test.ts
 ```
 
 #### Acceptance Criteria
@@ -545,7 +545,7 @@ VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/internal/task/registry.test.
 - [ ] Pass: size ≤ 500 lines registry.ts
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk exec vitest run tests/internal/task/` 31+ tests passing (25 originais + 6 EC)
+- [ ] `pnpm -F @theokit/sdk exec vitest run tests/internal/task/` 31+ tests passing (25 originais + 6 EC)
 - [ ] Zero warnings biome
 - [ ] Singleton reset helper `__resetTaskRegistryForTests()` exposto
 - [ ] Test helpers `__getSubscribersCountForTests(taskId)` + `__getCancelRequestedForTests(taskId)` expostos para verificação interna
@@ -615,7 +615,7 @@ RED:     test_send_with_task_finishes_emits_finished_event_with_result()
 RED:     test_concurrent_submit_same_id_second_caller_sees_existing_run()
 GREEN:   Implementar branch task-aware no LocalAgent.send + RunImpl.onProgress hook
 REFACTOR: Extract task-wrapping helper se LocalAgent.send virar >50 linhas
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/integration/run-as-task.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/integration/run-as-task.test.ts
 ```
 
 #### Acceptance Criteria
@@ -629,7 +629,7 @@ VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/integration/run-as-task.test
 
 #### DoD
 - [ ] 7 RED tests passam
-- [ ] `pnpm -F @usetheo/sdk run typecheck` exit 0
+- [ ] `pnpm -F @theokit/sdk run typecheck` exit 0
 - [ ] Zero regressions em testes de Run existentes (run-full all 1700+)
 
 ---
@@ -690,7 +690,7 @@ RED:     test_batch_parent_id_uses_b_prefix() — EC-5 namespace
 RED:     test_batch_parent_state_consistent_under_concurrent_child_transitions() — EC-12 monotonic
 GREEN:   Wire registry no batch-impl
 REFACTOR: None expected
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/integration/batch-as-tasks.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/integration/batch-as-tasks.test.ts
 ```
 
 #### Acceptance Criteria
@@ -750,7 +750,7 @@ RED:     test_workflow_runId_prefixed_with_wf_in_taskId() — EC-5 namespace
 RED:     test_task_submit_with_reserved_wf_prefix_throws_invalid_task_id_error() — EC-5 user-side reject
 GREEN:   Wire executor.ts + adicionar prefix validation em D368 grammar
 REFACTOR: None expected
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/integration/workflow-as-task.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/integration/workflow-as-task.test.ts
 ```
 
 #### Acceptance Criteria
@@ -807,7 +807,7 @@ RED:     test_cron_task_id_uses_cron_prefix() — EC-5 namespace
 RED:     test_cron_per_job_retention_override_respected() — EC-16 mitigation
 GREEN:   Wire dispatcher
 REFACTOR: None expected
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/integration/cron-as-task.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/integration/cron-as-task.test.ts
 ```
 
 #### Acceptance Criteria
@@ -890,12 +890,12 @@ RED:     test_task_configure_resets_singleton_state()
 RED:     test_task_configure_after_first_submit_warns_to_stderr() — EC-13 no-op after-submit
 GREEN:   Implementar facade
 REFACTOR: None expected
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/task-facade.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/task-facade.test.ts
 ```
 
 #### Acceptance Criteria
 - [ ] 7 RED tests GREEN
-- [ ] `import { Task } from "@usetheo/sdk"` resolves
+- [ ] `import { Task } from "@theokit/sdk"` resolves
 - [ ] Cada método delega corretamente ao registry
 - [ ] Pass: complexity ≤ 10
 - [ ] Pass: size ≤ 200 lines
@@ -937,7 +937,7 @@ RED:     test_cancel_emits_task_cancel_span()
 RED:     test_telemetry_noop_when_otel_absent()
 GREEN:   Implementar telemetry hooks
 REFACTOR: None expected
-VERIFY:  pnpm -F @usetheo/sdk exec vitest run tests/internal/task/telemetry.test.ts
+VERIFY:  pnpm -F @theokit/sdk exec vitest run tests/internal/task/telemetry.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1006,7 +1006,7 @@ RED:     test_cli_tasks_unknown_id_exits_4()
 RED:     test_cli_tasks_invalid_id_grammar_exits_3()
 GREEN:   Implementar subcommand
 REFACTOR: Extract output formatters se complexity > 10
-VERIFY:  pnpm -F @usetheo/cli exec vitest run tests/tasks.test.ts
+VERIFY:  pnpm -F @theokit/cli exec vitest run tests/tasks.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1163,10 +1163,10 @@ the ACP plan's Phase 7).
 - [ ] All 8 phases (0-7) completed
 - [ ] 14 ADRs (D361-D374) commited
 - [ ] All RED tests (≥ 85 across phases — 60 originais + 25 absorvidos via EC-1..EC-16) now GREEN
-- [ ] Zero biome/publint/attw warnings on `@usetheo/sdk` and `@usetheo/cli`
+- [ ] Zero biome/publint/attw warnings on `@theokit/sdk` and `@theokit/cli`
 - [ ] Zero regressions: full `pnpm -w run validate` exit 0
 - [ ] telegram-pro CDP dogfood ≥ 47/47 PASS (0 FAIL); new `/tasks` commands real-LLM validated
-- [ ] `Task` namespace exposed from `@usetheo/sdk` index barrel
+- [ ] `Task` namespace exposed from `@theokit/sdk` index barrel
 - [ ] `theokit tasks` subcommand documented in `theokit --help`
 - [ ] `JsonFileTaskStore` opt-in cross-restart validated (test + cookbook)
 - [ ] Backward compat: existing tests for Run/Batch/Workflow/Cron all green without change

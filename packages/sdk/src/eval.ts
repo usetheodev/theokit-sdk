@@ -3,7 +3,7 @@
  *
  * Usage:
  *
- *   import { Eval, Scorers } from "@usetheo/sdk/eval";
+ *   import { Eval, Scorers } from "@theokit/sdk/eval";
  *   const run = await Eval.create({
  *     name: "qa-smoke",
  *     dataset: [{ input: "Say ok", expected: "ok" }],

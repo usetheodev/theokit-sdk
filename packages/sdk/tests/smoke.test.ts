@@ -14,7 +14,7 @@ import {
   UnsupportedRunOperationError,
 } from "../src/index.js";
 
-describe("@usetheo/sdk public surface", () => {
+describe("@theokit/sdk public surface", () => {
   it("exports Agent, Cron, and Theokit façades", () => {
     expect(typeof Agent.create).toBe("function");
     expect(typeof Agent.prompt).toBe("function");

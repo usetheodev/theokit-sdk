@@ -8,7 +8,7 @@
 
 ## Executive summary
 
-v1.3 ships 9 Hermes-class features inside `@usetheo/sdk`, behind a
+v1.3 ships 9 Hermes-class features inside `@theokit/sdk`, behind a
 single npm package. Implementation order is dictated by dependency
 graph: state persistence + tool registry first (cross-cutting), then
 provider plugins (replaces hardcoded v1.2 providers), then the seven
@@ -130,13 +130,13 @@ Each ADR follows the format in `theokit-sdk/.claude/knowledge-base/adrs/`.
 
 ### D62 — Execution backends as separate npm packages
 
-- **Decision**: Each of the 7 backends ships as a separate `@usetheo/sdk-backend-<name>` peer-dep package. Core ships only the `local` backend by default. Users install `@usetheo/sdk-backend-docker` if they want Docker.
+- **Decision**: Each of the 7 backends ships as a separate `@theokit/sdk-backend-<name>` peer-dep package. Core ships only the `local` backend by default. Users install `@theokit/sdk-backend-docker` if they want Docker.
 - **Rationale**: 4925 LoC across 7 backends is too heavy for a core install. Most users will use one or two backends. Per-package installs keep the core small and let backend-specific deps (`dockerode`, `modal`, `@daytonaio/sdk`, etc.) stay opt-in.
 - **Consequences**: Slightly more friction on user setup ("install the backend package you want"). Cleaner footprint.
 
 ### D63 — Memory providers as community packages, only Honcho official
 
-- **Decision**: We ship one official memory-provider adapter (`@usetheo/sdk-memory-honcho`) and define the `MemoryProvider` interface in core. Hindsight, Mem0, Supermemory, ByteRover, RetainDB are community-maintained.
+- **Decision**: We ship one official memory-provider adapter (`@theokit/sdk-memory-honcho`) and define the `MemoryProvider` interface in core. Hindsight, Mem0, Supermemory, ByteRover, RetainDB are community-maintained.
 - **Rationale**: Hermes has 8 in-tree providers but closed the policy in May 2026 (AGENTS.md:515-525). Greenfield TheoKit starts with the lesson learned: one reference implementation, rest as plugins.
 - **Consequences**: Faster surface stabilization. Community grows the ecosystem.
 
@@ -160,7 +160,7 @@ Each ADR follows the format in `theokit-sdk/.claude/knowledge-base/adrs/`.
 
 ### D67 — Kanban dispatcher runs in-process OR as a CLI sidecar
 
-- **Decision**: Two activation modes for the dispatcher: (a) in-process via `kanban.startDispatcher()`, (b) standalone via `npx @usetheo/sdk kanban dispatch`. Default to in-process for typical Node service users.
+- **Decision**: Two activation modes for the dispatcher: (a) in-process via `kanban.startDispatcher()`, (b) standalone via `npx @theokit/sdk kanban dispatch`. Default to in-process for typical Node service users.
 - **Rationale**: Hermes runs the dispatcher in the gateway by default; sidecar for standalone (per AGENTS.md:817-820). Mirroring this gives us both shapes for free.
 - **Consequences**: Users in serverless environments use the CLI sidecar plus their own cron. In-process works for long-running services.
 
@@ -258,7 +258,7 @@ Goals (doc 02):
 
 Dialectic user model (doc 05):
 - `MemoryProvider` interface in core
-- `@usetheo/sdk-memory-honcho` separate package
+- `@theokit/sdk-memory-honcho` separate package
 
 Autonomous skills (doc 03):
 - `Skills` namespace
@@ -416,7 +416,7 @@ These cannot be resolved by reading source alone. They came up across all 16 pri
 9. **Per-user vs per-profile peer scoping**: gateway use case where one agent serves many users. Honcho handles it via per-user peer_id. Our SDK API: `Agent.create({ userId })` plumbed through to provider.
 10. **Schema version compat**: Hermes is at SCHEMA_VERSION 11. Start fresh at 1 for TheoKit (incompatible DBs, easier maintenance)? Recommend yes.
 11. **`state_meta` table**: internal-only or public? Hermes uses for goals + future state. Recommend internal.
-12. **Provider package naming**: `@usetheo/sdk-backend-docker` or `@usetheo/backend-docker`? Keep `sdk-` prefix for consistency.
+12. **Provider package naming**: `@theokit/sdk-backend-docker` or `@theokit/backend-docker`? Keep `sdk-` prefix for consistency.
 13. **Backend bundle vs peer-deps split**: D62 says split. Confirm with user.
 14. **Migration assistance from Hermes**: do we offer `theokit migrate-from-hermes`? Probably yes but out of v1.3 scope.
 

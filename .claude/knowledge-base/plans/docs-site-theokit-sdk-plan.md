@@ -1,6 +1,6 @@
-# Plan: Docs Site for `@usetheo/sdk` (Roadmap v1.4 #1)
+# Plan: Docs Site for `@theokit/sdk` (Roadmap v1.4 #1)
 
-> **Version 1.1** (2026-05-23) — Sai do estado "1 página esqueleto" para um site de documentação navegável e completo do `@usetheo/sdk`, vivendo em `theo-opendocs/content/theokit-sdk/`. Inspirado de forma absoluta pelas referências (Mastra IA + OpenAI Agents conciseness + Hermes operational depth). Inclui: getting-started, conceitos, API reference auto-gerada (TypeDoc → MDX), cookbook auto-gerado de `examples/`, drift detection no CI, busca, deploy Cloudflare Pages. Resultado esperado: ao final do plano, qualquer pessoa que chegar em `usetheo.dev/theokit-sdk/` consegue ler quickstart, navegar a API completa do SDK v1.20+ (todos os 7 itens shipados v1.3 + Bedrock/Vertex), copiar cookbook recipes que funcionam, e buscar texto. `docs.md` continua canonical mas deixa de ser o único front-door.
+> **Version 1.1** (2026-05-23) — Sai do estado "1 página esqueleto" para um site de documentação navegável e completo do `@theokit/sdk`, vivendo em `theo-opendocs/content/theokit-sdk/`. Inspirado de forma absoluta pelas referências (Mastra IA + OpenAI Agents conciseness + Hermes operational depth). Inclui: getting-started, conceitos, API reference auto-gerada (TypeDoc → MDX), cookbook auto-gerado de `examples/`, drift detection no CI, busca, deploy Cloudflare Pages. Resultado esperado: ao final do plano, qualquer pessoa que chegar em `usetheo.dev/theokit-sdk/` consegue ler quickstart, navegar a API completa do SDK v1.20+ (todos os 7 itens shipados v1.3 + Bedrock/Vertex), copiar cookbook recipes que funcionam, e buscar texto. `docs.md` continua canonical mas deixa de ser o único front-door.
 
 > **Edge-case review 2026-05-23 absorbed (v1.1):** 6 MUST FIX e 3 SHOULD TEST identificados pela skill `edge-case-plan` foram incorporados nos tasks:
 > - **EC-1** (T1.1) — `_placeholder.mdx` em subfolders novos pra Fumadocs não quebrar build entre Phase 1 e Phase 3-5.
@@ -179,7 +179,7 @@ Garantir que `pnpm build` no `theo-opendocs` passa hoje, antes de qualquer mudan
 
 #### Deep Dives
 - Comando: `cd ../theo-opendocs && pnpm install && pnpm types:check && pnpm build`
-- Erros típicos: peer dep `@usetheo/ui@0.6.1-next.0` pode estar drift; checar `node_modules/.pnpm/`
+- Erros típicos: peer dep `@theokit/ui@0.6.1-next.0` pode estar drift; checar `node_modules/.pnpm/`
 - Resultado esperado: `out/` populado, sem `[Error]` no stderr
 
 #### Tasks
@@ -376,11 +376,11 @@ theo-opendocs/content/theokit-sdk/getting-started/install.mdx (NEW)
 - Não depende de outras pages — pode ser a primeira a escrever
 
 #### Deep Dives
-- Frontmatter: `title: Install`, `description: Get @usetheo/sdk installed in your project`
+- Frontmatter: `title: Install`, `description: Get @theokit/sdk installed in your project`
 - Sections:
   1. Requirements (Node 22+, package manager)
   2. Install (`<Tabs>` com npm/pnpm/yarn/bun)
-  3. Verify install (`node -e "console.log(require('@usetheo/sdk').Agent)"`)
+  3. Verify install (`node -e "console.log(require('@theokit/sdk').Agent)"`)
   4. Troubleshoot (link p/ providers if creds fail)
 - Cita ADR D1 do SDK CLAUDE.md (Node 22+ mandatory)
 
@@ -434,7 +434,7 @@ theo-opendocs/content/theokit-sdk/getting-started/quickstart.mdx (NEW)
 - Frontmatter: `title: Quickstart`, `description: Build and run your first agent in 30 seconds`
 - Conteúdo:
   ```ts
-  import { Agent } from "@usetheo/sdk";
+  import { Agent } from "@theokit/sdk";
 
   const agent = await Agent.create({
     apiKey: process.env.OPENROUTER_API_KEY,

@@ -131,7 +131,7 @@ export interface ProviderPlugin {
 
 // User code:
 // packages/provider-anthropic/src/index.ts
-import type { ProviderPlugin } from "@usetheo/sdk";
+import type { ProviderPlugin } from "@theokit/sdk";
 
 export const anthropicProvider: ProviderPlugin = {
   name: "anthropic",

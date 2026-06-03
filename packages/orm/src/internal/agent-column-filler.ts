@@ -29,7 +29,7 @@ export function fillAgentColumns<T extends Record<string, unknown>>(table: unkno
     ) {
       warnedTables.add(table);
       console.warn(
-        `[@usetheo/orm] Table has agentId/runId/conversationId column(s) but no AgentContext set. Wrap calls with withAgentContext({...}, () => ...) to auto-fill.`,
+        `[@theokit/orm] Table has agentId/runId/conversationId column(s) but no AgentContext set. Wrap calls with withAgentContext({...}, () => ...) to auto-fill.`,
       );
     }
     return row;

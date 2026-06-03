@@ -25,7 +25,7 @@ Edge cases encontrados: 14 (MUST FIX: 5, SHOULD TEST: 6, DOCUMENT: 3)
 ### EC-C: Templates não incluídos no published tarball
 - **Task afetada:** T2.1 / T0.1 (`package.json` config)
 - **Família:** Boundary / Format
-- **Cenário:** `templates/<name>/` são arquivos no source. Por padrão `npm publish` inclui apenas `dist/` + `README.md` + `package.json`. Se `package.json` não tem `"files": ["dist", "templates"]`, o tarball publicado **NÃO inclui templates**, e `npx @usetheo/cli init` falha em consumers com "template path not found".
+- **Cenário:** `templates/<name>/` são arquivos no source. Por padrão `npm publish` inclui apenas `dist/` + `README.md` + `package.json`. Se `package.json` não tem `"files": ["dist", "templates"]`, o tarball publicado **NÃO inclui templates**, e `npx @theokit/cli init` falha em consumers com "template path not found".
 - **Impacto:** TODO o produto quebra em consumers reais (passa em monorepo dev por causa do workspace link). Bug invisível até primeira publicação real.
 - **Fix:** Em `packages/cli/package.json`, adicionar:
   ```json
@@ -36,7 +36,7 @@ Edge cases encontrados: 14 (MUST FIX: 5, SHOULD TEST: 6, DOCUMENT: 3)
 ### EC-E: SDK internals (`internal/*`) não são exportados pelo `package.json#exports`
 - **Task afetada:** T3.1 (`theokit inspect`)
 - **Família:** Integration / Boundary
-- **Cenário:** Plano diz "inspect importa de `@usetheo/sdk` internals — `listProviders()`, `MEMORY_EMBEDDING_ADAPTERS`". Mas SDK `package.json` `exports` map só expõe `.`, `./cron`, `./errors`, `./tools`, `./path-safety`. `import { listProviders } from "@usetheo/sdk/internal/providers/registry"` quebra em runtime (ERR_PACKAGE_PATH_NOT_EXPORTED). Funciona em dev (monorepo source) mas falha em consumer install.
+- **Cenário:** Plano diz "inspect importa de `@theokit/sdk` internals — `listProviders()`, `MEMORY_EMBEDDING_ADAPTERS`". Mas SDK `package.json` `exports` map só expõe `.`, `./cron`, `./errors`, `./tools`, `./path-safety`. `import { listProviders } from "@theokit/sdk/internal/providers/registry"` quebra em runtime (ERR_PACKAGE_PATH_NOT_EXPORTED). Funciona em dev (monorepo source) mas falha em consumer install.
 - **Impacto:** `theokit inspect` crasha com erro de import em todo install público.
 - **Fix:** Adicionar uma API pública na SDK (`Theokit.inspect.builtins()` ou similar) que retorna `{ providers: [...], embeddingAdapters: [...], gatewayAdapters: [...] }`. Sub-task em T3.1: ADR D201 (novo) + `packages/sdk/src/theokit.ts` ganha `static readonly inspect = { builtins: () => ... }`. CLI consome a API pública. ≤15 linhas no SDK.
 
@@ -45,7 +45,7 @@ Edge cases encontrados: 14 (MUST FIX: 5, SHOULD TEST: 6, DOCUMENT: 3)
 - **Família:** Permission / Security
 - **Cenário:** Usuário roda `theokit eval --output /etc/passwd-report.md` OR `--output ../../../etc/passwd`. Plano texto diz "user-provided path must be inside cwd" mas nenhum task lista `safePathJoin` (D80) sendo chamado.
 - **Impacto:** Sobrescreve arquivos fora do projeto. CI rodando CLI escala privilégios. Security hole.
-- **Fix:** Em `eval/report.ts` (ou no command handler), antes de escrever: `const resolved = safePathJoin(process.cwd(), opts.output); if (resolved === undefined) throw new ConfigurationError("Output path must be inside cwd", { code: "invalid_output_path" });`. Reusa `safePathJoin` exportado de `@usetheo/sdk` (D79-D80). Test EC-F em TDD do T5.1.
+- **Fix:** Em `eval/report.ts` (ou no command handler), antes de escrever: `const resolved = safePathJoin(process.cwd(), opts.output); if (resolved === undefined) throw new ConfigurationError("Output path must be inside cwd", { code: "invalid_output_path" });`. Reusa `safePathJoin` exportado de `@theokit/sdk` (D79-D80). Test EC-F em TDD do T5.1.
 
 ## SHOULD TEST
 
@@ -59,7 +59,7 @@ Edge cases encontrados: 14 (MUST FIX: 5, SHOULD TEST: 6, DOCUMENT: 3)
 
 ### EC-I: `tsx` bin não resolve (CLI install corrupted)
 - **Task afetada:** T4.1
-- **Teste sugerido:** `test_dev_actionable_error_when_tsx_missing()` — mock `require.resolve("tsx/cli")` para throw `MODULE_NOT_FOUND`. Assert: erro com mensagem "tsx not found — try `pnpm install` to repair @usetheo/cli", exit code 2.
+- **Teste sugerido:** `test_dev_actionable_error_when_tsx_missing()` — mock `require.resolve("tsx/cli")` para throw `MODULE_NOT_FOUND`. Assert: erro com mensagem "tsx not found — try `pnpm install` to repair @theokit/cli", exit code 2.
 
 ### EC-J: Entry file com syntax error → tsx-watch loop infinito de restarts
 - **Task afetada:** T4.1
@@ -71,7 +71,7 @@ Edge cases encontrados: 14 (MUST FIX: 5, SHOULD TEST: 6, DOCUMENT: 3)
 
 ### EC-L: `{{sdkVersion}}` substitui para `"workspace:*"` em dev mas precisa semver para publish
 - **Task afetada:** T2.1
-- **Teste sugerido:** `test_init_resolves_sdk_version_to_semver()` — quando CLI rodando do monorepo dev, `package.json` lista `@usetheo/sdk: workspace:*`. Scaffolded project NÃO pode receber `workspace:*` (quebra fora do monorepo). Resolver via `npm view @usetheo/sdk version` no build OU hard-code via tsup `define` na build da CLI. Test asserta que substituted package.json tem semver-string válido (`/^\d+\.\d+\.\d+/`).
+- **Teste sugerido:** `test_init_resolves_sdk_version_to_semver()` — quando CLI rodando do monorepo dev, `package.json` lista `@theokit/sdk: workspace:*`. Scaffolded project NÃO pode receber `workspace:*` (quebra fora do monorepo). Resolver via `npm view @theokit/sdk version` no build OU hard-code via tsup `define` na build da CLI. Test asserta que substituted package.json tem semver-string válido (`/^\d+\.\d+\.\d+/`).
 
 ## DOCUMENT
 
@@ -114,7 +114,7 @@ All 14 edges resolved. Implementation absorbed into the cli plan + code:
 | **EC-B** atomic scaffold | `packages/cli/src/init/scaffold.ts:136` — tmp-then-rename via `randomBytes(4)` suffix | `tests/init/scaffold.test.ts` — EC-B: atomic — leaves no partial dest on failure |
 | **EC-C** templates in tarball | `packages/cli/package.json#files` = `["dist","templates","README.md","LICENSE","CHANGELOG.md"]` | `pnpm pack` → 15 `templates/` entries verified |
 | **EC-E** Theokit.inspect public API | `packages/sdk/src/theokit.ts:130` — `static readonly inspect = { builtinProviders, embeddingAdapters }` + ADR D201 | `inspect` command consumes only public API |
-| **EC-F** --output path-guard | `packages/cli/src/eval/report.ts` uses `safePathJoin` from `@usetheo/sdk` (D80) | `tests/eval/path-guard.test.ts` — 2 EC-F tests |
+| **EC-F** --output path-guard | `packages/cli/src/eval/report.ts` uses `safePathJoin` from `@theokit/sdk` (D80) | `tests/eval/path-guard.test.ts` — 2 EC-F tests |
 
 ### SHOULD TEST — all 6 DONE
 
@@ -135,7 +135,7 @@ All 14 edges resolved. Implementation absorbed into the cli plan + code:
 
 ### Validation summary
 
-- `pnpm --filter @usetheo/cli test` → **62/62 passed** (10 test files)
-- `pnpm --filter @usetheo/cli typecheck` → **clean** (zero TS errors)
-- `pnpm --filter @usetheo/cli pack` → **15 templates entries** in tarball (EC-C proof)
+- `pnpm --filter @theokit/cli test` → **62/62 passed** (10 test files)
+- `pnpm --filter @theokit/cli typecheck` → **clean** (zero TS errors)
+- `pnpm --filter @theokit/cli pack` → **15 templates entries** in tarball (EC-C proof)
 - Earlier in session: real-LLM dogfood of CLI against Ollama (init → inspect → dev → eval, 2/2 rows mean score 1.000)

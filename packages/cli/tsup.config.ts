@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { defineConfig } from "tsup";
 
 /**
- * Tsup config for @usetheo/cli.
+ * Tsup config for @theokit/cli.
  *
  * Two entries:
  *  - `index.ts` — programmatic library API (exports `main`).
@@ -31,7 +31,7 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/sdk", "@clack/prompts", "commander", "picocolors", "tsx", "zod"],
+  external: ["@theokit/sdk", "@clack/prompts", "commander", "picocolors", "tsx", "zod"],
   define: {
     __SDK_VERSION__: JSON.stringify(readSdkVersion()),
     __CLI_VERSION__: JSON.stringify(

@@ -5,22 +5,22 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.3.0
-  - @usetheo/gateway@2.0.0
+  - @theokit/sdk@1.3.0
+  - @theokit/gateway@2.0.0
 
 ## 1.0.0
 
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.2.0
-  - @usetheo/gateway@1.0.0
+  - @theokit/sdk@1.2.0
+  - @theokit/gateway@1.0.0
 
 ## [Unreleased]
 
-### Added — `@usetheo/gateway-matrix@0.1.0` (ADRs D413-D421)
+### Added — `@theokit/gateway-matrix@0.1.0` (ADRs D413-D421)
 
-- Initial release of the Matrix protocol adapter for `@usetheo/gateway`.
+- Initial release of the Matrix protocol adapter for `@theokit/gateway`.
 - `matrix-js-sdk@^32.0.0` peer-dep (lazy import — full SDK is ~2MB).
 - `MatrixAdapter` extending `BasePlatformAdapter`:
   - `connect()` initializes `MatrixClient` with `homeserverUrl + accessToken + userId`; starts sync loop with `initialSyncLimit: 10` (D414, D415).

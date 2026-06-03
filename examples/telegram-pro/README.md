@@ -1,6 +1,6 @@
 # Telegram Pro — flagship multimodal demo
 
-A real, deployable Telegram bot built on `@usetheo/sdk` v1. **~900 LoC, ~95% SDK surface coverage.**
+A real, deployable Telegram bot built on `@theokit/sdk` v1. **~900 LoC, ~95% SDK surface coverage.**
 
 This example reproduces the five highest-value patterns from OpenClaw's 187-file `extensions/telegram` AND exercises the SDK's full feature set in one process: persistence, memory, hooks, sandbox, MCP, cron, providers, skills, context, plugins.
 

@@ -4,8 +4,8 @@
  * For other recipes, use `pnpm recipe-NN` (see README + package.json scripts).
  */
 
-import { Agent } from "@usetheo/sdk";
-import { googleWorkspace } from "@usetheo/skills-google-workspace";
+import { Agent } from "@theokit/sdk";
+import { googleWorkspace } from "@theokit/skills-google-workspace";
 
 import { requireCreds } from "./lib/scope-gate.js";
 

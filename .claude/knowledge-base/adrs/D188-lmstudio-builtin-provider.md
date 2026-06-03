@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/sdk` registers LM Studio (`name: "lmstudio"`,
+`@theokit/sdk` registers LM Studio (`name: "lmstudio"`,
 aliases `["lm-studio", "lm_studio"]`) as a sixth builtin provider
 profile alongside Ollama. The shape mirrors `OLLAMA`:
 
@@ -32,7 +32,7 @@ Router's `resolveBaseUrlEnvOverride` is extended to honor
 
 Alternatives rejected:
 
-- **Ship as a separate `@usetheo/provider-lmstudio` plugin.** Extra
+- **Ship as a separate `@theokit/provider-lmstudio` plugin.** Extra
   install step for the most common local-LLM-after-Ollama story.
   Friction kills adoption (same rationale as D182).
 - **Special-case the discovery flow.** LM Studio's `/v1/models`

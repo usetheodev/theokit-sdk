@@ -11,5 +11,5 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/sdk", "@agentclientprotocol/sdk"],
+  external: ["@theokit/sdk", "@agentclientprotocol/sdk"],
 });

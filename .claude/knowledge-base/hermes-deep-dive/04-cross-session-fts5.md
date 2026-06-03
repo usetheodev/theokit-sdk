@@ -720,7 +720,7 @@ Hermes tests to port:
 
 ## Open questions
 
-- **Schema version**: Hermes is at 11; do we start fresh at 1 for `@usetheo/sdk` or maintain compat with Hermes' schema? Recommend fresh (incompatible state.db files between Hermes and TheoKit anyway, since session ID formats differ).
+- **Schema version**: Hermes is at 11; do we start fresh at 1 for `@theokit/sdk` or maintain compat with Hermes' schema? Recommend fresh (incompatible state.db files between Hermes and TheoKit anyway, since session ID formats differ).
 - **`state_meta` table**: Used for goals (`02-runUntil-goal.md`) and other key-value state. Should we expose it as `Memory.setMeta(key, value)` / `Memory.getMeta(key)` or keep it internal?
 - **Message limits for summarization**: 100k chars per session, 10k summary tokens. These match GPT-4-class context windows. For smaller-context models (8k), the truncation needs to scale down.
 - **Session source taxonomy**: Hermes uses `cli`, `telegram`, `discord`, etc. For TheoKit we'd have `sdk-direct`, `theokit`, plus user-defined. Need to pick the wire format and document.

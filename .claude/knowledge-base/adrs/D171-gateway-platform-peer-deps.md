@@ -5,11 +5,11 @@
 
 ## Decision
 
-`@usetheo/gateway-telegram` and `@usetheo/gateway-discord` are separate workspace packages, each declaring `@usetheo/gateway`, `@usetheo/sdk`, and the platform SDK (grammy / discord.js) as peer deps.
+`@theokit/gateway-telegram` and `@theokit/gateway-discord` are separate workspace packages, each declaring `@theokit/gateway`, `@theokit/sdk`, and the platform SDK (grammy / discord.js) as peer deps.
 
 ## Rationale
 
-Exactly mirrors `@usetheo/memory-*` (D143). A consumer who only wants Telegram should not pay the install cost of discord.js (~1MB) and vice versa. Peer deps avoid the bundler-confusion problem when multiple adapters coexist.
+Exactly mirrors `@theokit/memory-*` (D143). A consumer who only wants Telegram should not pay the install cost of discord.js (~1MB) and vice versa. Peer deps avoid the bundler-confusion problem when multiple adapters coexist.
 
 ## Consequences
 

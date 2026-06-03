@@ -1,6 +1,6 @@
 # CLAUDE.md — theokit-sdk
 
-Contract between Claude and the **`@usetheo/sdk`** project (the **Harness** pillar of [usetheo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
+Contract between Claude and the **`@theokit/sdk`** project (the **Harness** pillar of [usetheo](../CLAUDE.md)). Read this file **and** the root `CLAUDE.md` before editing anything here.
 
 This file complements `/home/paulo/Projetos/usetheo/CLAUDE.md` and `/home/paulo/.claude/CLAUDE.md`. Root rules apply unconditionally. SDK-specific rules layer on top.
 
@@ -8,7 +8,7 @@ This file complements `/home/paulo/Projetos/usetheo/CLAUDE.md` and `/home/paulo/
 
 ## What this project is
 
-`@usetheo/sdk` is the **TypeScript SDK for the Theo agent harness**. It implements the public contract defined in [`./docs.md`](./docs.md) — `Agent.create()`, `Agent.send()`, `Run.stream()`, MCP servers, hooks, subagents — as a standalone TypeScript package.
+`@theokit/sdk` is the **TypeScript SDK for the Theo agent harness**. It implements the public contract defined in [`./docs.md`](./docs.md) — `Agent.create()`, `Agent.send()`, `Run.stream()`, MCP servers, hooks, subagents — as a standalone TypeScript package.
 
 The SDK is implemented from scratch, informed by reference projects under `./referencia/` (notably `pi` and the `openai-agents-python` SDK). The reference tree is read-only; we study it, we do not depend on it.
 
@@ -28,7 +28,7 @@ theokit-sdk/
 ├── .changeset/         # Changesets config and in-flight entries
 ├── .nvmrc              # Pinned Node version (22.12+)
 ├── packages/
-│   └── sdk/            # @usetheo/sdk — the publishable package
+│   └── sdk/            # @theokit/sdk — the publishable package
 │       ├── src/
 │       │   ├── index.ts         # public barrel
 │       │   ├── agent.ts         # Agent façade (static class)
@@ -59,7 +59,7 @@ Resolved 2026-05-14. Changing any requires updating `docs.md`, `README.md`, and 
 
 | Item | Value | Notes |
 | --- | --- | --- |
-| npm package | `@usetheo/sdk` | Under the `@usetheo` scope, alongside `@usetheo/ui`. |
+| npm package | `@theokit/sdk` | Under the `@usetheo` scope, alongside `@theokit/ui`. |
 | Env var (API key) | `THEOKIT_API_KEY` | All SDK env vars namespace under `THEOKIT_` to leave `THEO_` available for future Theo PaaS tooling. |
 | API namespace object | `Theokit` | E.g. `Theokit.me()`, `Theokit.models.list()`, `Theokit.repositories.list()`. |
 | Error base class | `TheokitAgentError` | All errors extend this. |
@@ -105,7 +105,7 @@ Some dependencies ship native binaries (currently: `better-sqlite3`). Each is co
 
 **If you hit the error locally:**
 - First: `nvm use` (or `nvm install` if you don't have the pinned version). 95% of cases.
-- If you can't switch Node: `pnpm rebuild better-sqlite3 --filter @usetheo/sdk`. The preflight does this automatically on first test run.
+- If you can't switch Node: `pnpm rebuild better-sqlite3 --filter @theokit/sdk`. The preflight does this automatically on first test run.
 - If both fail: `node-gyp` prerequisites missing (python3, make, C++ compiler). Install build-essential / Xcode CLI tools.
 
 **If you hit it in CI:**
@@ -162,7 +162,7 @@ The cloud runtime depends on **Theo PaaS**, currently pre-release per the root `
 
 | Pillar | Project | Current integration (verify before claiming) | Roadmap |
 | --- | --- | --- | --- |
-| UI | `@usetheo/ui` | None as of 2026-05-14 | Web chat surfaces may consume `@usetheo/ui` primitives later. |
+| UI | `@theokit/ui` | None as of 2026-05-14 | Web chat surfaces may consume `@theokit/ui` primitives later. |
 | Skills | `theokit` | None as of 2026-05-14 | `theokit` README mentions an "agent layer" — that integration lands here. |
 | Runtime | Theo PaaS | None (PaaS pre-release) | Cloud runtime endpoint is Theo PaaS. |
 
@@ -229,7 +229,7 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D24 | `defineTool` schema source = Zod peer dep + feature-detected JSON Schema conversion | [D24-definetool-zod-source.md](./.claude/knowledge-base/adrs/D24-definetool-zod-source.md) |
 | D25 | `Agent.builder()` API shape = fluent mutable chain with delegated validation | [D25-agent-builder-api-shape.md](./.claude/knowledge-base/adrs/D25-agent-builder-api-shape.md) |
 | D26 | Cloud agent parity for all 4 DX helpers (reuse `validateAgentOptions` single point) | [D26-helpers-cloud-parity.md](./.claude/knowledge-base/adrs/D26-helpers-cloud-parity.md) |
-| D32 | `@usetheo/react` as separate workspace package + Vercel Data Stream v1 wire format | [D32-react-package-separation.md](./.claude/knowledge-base/adrs/D32-react-package-separation.md) |
+| D32 | `@theokit/react` as separate workspace package + Vercel Data Stream v1 wire format | [D32-react-package-separation.md](./.claude/knowledge-base/adrs/D32-react-package-separation.md) |
 | D33 | `Agent.generateObject` via synthetic forced tool (Zod-driven) | [D33-generateobject-via-synthetic-tool.md](./.claude/knowledge-base/adrs/D33-generateobject-via-synthetic-tool.md) |
 | D34 | Telemetry: OTel spans, privacy-by-default, lazy load + safe() wrapper | [D34-telemetry-otel-privacy-default.md](./.claude/knowledge-base/adrs/D34-telemetry-otel-privacy-default.md) |
 | D35 | Validation rubric: quantitative metrics per pillar | [D35-validation-rubric-quantitative.md](./.claude/knowledge-base/adrs/D35-validation-rubric-quantitative.md) |
@@ -340,12 +340,12 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D140 | `AbortSignal` cancels pending prompts only; in-flight ones complete | [D140-batch-abort-pending-only.md](./.claude/knowledge-base/adrs/D140-batch-abort-pending-only.md) |
 | D141 | `MemoryAdapter` formal interface + EC-B `mkMemoryId`/`extractRawId` prefix scheme | [D141-memory-adapter-interface.md](./.claude/knowledge-base/adrs/D141-memory-adapter-interface.md) |
 | D142 | Memory adapters expose dual surface (API direta + LLM tool schemas) | [D142-memory-dual-surface.md](./.claude/knowledge-base/adrs/D142-memory-dual-surface.md) |
-| D143 | Each adapter is a separate workspace package (`@usetheo/memory-*`) | [D143-memory-workspace-packages.md](./.claude/knowledge-base/adrs/D143-memory-workspace-packages.md) |
+| D143 | Each adapter is a separate workspace package (`@theokit/memory-*`) | [D143-memory-workspace-packages.md](./.claude/knowledge-base/adrs/D143-memory-workspace-packages.md) |
 | D144 | Background prefetch is opt-in (default off) | [D144-memory-prefetch-opt-in.md](./.claude/knowledge-base/adrs/D144-memory-prefetch-opt-in.md) |
 | D145 | Agent loop integrates memory via 2 new hooks (`pre_user_send`/`post_assistant_reply`), not a parallel MemoryManager | [D145-memory-hooks-not-manager.md](./.claude/knowledge-base/adrs/D145-memory-hooks-not-manager.md) |
 | D146 | Memory adapter HTTP errors do NOT flow through CredentialPool | [D146-memory-no-credential-pool.md](./.claude/knowledge-base/adrs/D146-memory-no-credential-pool.md) |
 | D147 | `MemoryContext` is minimal; only `userId` is required | [D147-memory-context-minimal.md](./.claude/knowledge-base/adrs/D147-memory-context-minimal.md) |
-| D148 | `@usetheo/memory-mem0` ships cloud client only (no OSS local mode) | [D148-mem0-cloud-only.md](./.claude/knowledge-base/adrs/D148-mem0-cloud-only.md) |
+| D148 | `@theokit/memory-mem0` ships cloud client only (no OSS local mode) | [D148-mem0-cloud-only.md](./.claude/knowledge-base/adrs/D148-mem0-cloud-only.md) |
 | D149 | Adapter READMEs carry mandatory AGPL/CVSS disclosure sections | [D149-memory-readme-disclosures.md](./.claude/knowledge-base/adrs/D149-memory-readme-disclosures.md) |
 | D150 | Context files coverage set: AGENTS/GEMINI/CLAUDE/.cursor/rules/THEO; skip SOUL/.hermes/.cursorrules | [D150-context-files-coverage-set.md](./.claude/knowledge-base/adrs/D150-context-files-coverage-set.md) |
 | D151 | Walk-up-to-git-root discovery; no gitignore parsing | [D151-context-walk-up-git-root.md](./.claude/knowledge-base/adrs/D151-context-walk-up-git-root.md) |
@@ -367,8 +367,8 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D167 | Personality `tools:` is advisory; additive narrowing per D102 layer 4 (EC-I MCP exact match, EC-15 dedup, EC-17 Levenshtein hint) | [D167-personality-tool-whitelist-advisory-narrowing.md](./.claude/knowledge-base/adrs/D167-personality-tool-whitelist-advisory-narrowing.md) |
 | D168 | Forks inherit parent's active personality as a **slug snapshot** via AsyncLocalStorage — EC-A (NOT a live store reference) | [D168-personality-fork-inheritance-snapshot.md](./.claude/knowledge-base/adrs/D168-personality-fork-inheritance-snapshot.md) |
 | D169 | `CloudAgent.usePersonality` throws `UnsupportedRunOperationError` (cloud pre-release) | [D169-personality-cloud-unsupported.md](./.claude/knowledge-base/adrs/D169-personality-cloud-unsupported.md) |
-| D170 | `@usetheo/gateway` is a workspace package separate from `@usetheo/sdk` (SDK = harness, gateway = framework-domain) | [D170-gateway-workspace-package.md](./.claude/knowledge-base/adrs/D170-gateway-workspace-package.md) |
-| D171 | Each platform adapter is its own peer-dep workspace package (`@usetheo/gateway-telegram`, `@usetheo/gateway-discord`) | [D171-gateway-platform-peer-deps.md](./.claude/knowledge-base/adrs/D171-gateway-platform-peer-deps.md) |
+| D170 | `@theokit/gateway` is a workspace package separate from `@theokit/sdk` (SDK = harness, gateway = framework-domain) | [D170-gateway-workspace-package.md](./.claude/knowledge-base/adrs/D170-gateway-workspace-package.md) |
+| D171 | Each platform adapter is its own peer-dep workspace package (`@theokit/gateway-telegram`, `@theokit/gateway-discord`) | [D171-gateway-platform-peer-deps.md](./.claude/knowledge-base/adrs/D171-gateway-platform-peer-deps.md) |
 | D172 | `BasePlatformAdapter` is an abstract class with shared lifecycle defaults | [D172-gateway-base-abstract-class.md](./.claude/knowledge-base/adrs/D172-gateway-base-abstract-class.md) |
 | D173 | `MessageEvent` is a discriminated union by `platform` field (telegram / discord / ...) | [D173-gateway-message-event-discriminated-union.md](./.claude/knowledge-base/adrs/D173-gateway-message-event-discriminated-union.md) |
 | D174 | `SessionRouter` composes `Agent.resume`; never reimplements session storage | [D174-gateway-session-router-composes-agent-resume.md](./.claude/knowledge-base/adrs/D174-gateway-session-router-composes-agent-resume.md) |
@@ -388,7 +388,7 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D188 | LM Studio ships as a builtin sibling profile (port 1234, `LMSTUDIO_HOST` override) | [D188-lmstudio-builtin-provider.md](./.claude/knowledge-base/adrs/D188-lmstudio-builtin-provider.md) |
 | D189 | llama.cpp server ships as a builtin sibling profile (port 8080, `LLAMACPP_HOST` override) | [D189-llamacpp-builtin-provider.md](./.claude/knowledge-base/adrs/D189-llamacpp-builtin-provider.md) |
 | D190 | Real-LLM examples are mandatory evidence for integration DONE | [D190-mandatory-examples-as-evidence.md](./.claude/knowledge-base/adrs/D190-mandatory-examples-as-evidence.md) |
-| D193 | `@usetheo/cli` ships as a separate workspace package | [D193-cli-workspace-package.md](./.claude/knowledge-base/adrs/D193-cli-workspace-package.md) |
+| D193 | `@theokit/cli` ships as a separate workspace package | [D193-cli-workspace-package.md](./.claude/knowledge-base/adrs/D193-cli-workspace-package.md) |
 | D194 | `commander@12` for CLI subcommand routing | [D194-commander-routing.md](./.claude/knowledge-base/adrs/D194-commander-routing.md) |
 | D195 | CLI bin name is `theokit` (not `tk`, `theo`, etc.) | [D195-bin-name-theokit.md](./.claude/knowledge-base/adrs/D195-bin-name-theokit.md) |
 | D196 | `theokit init` templates are bundled, not git-cloned | [D196-init-bundled-templates.md](./.claude/knowledge-base/adrs/D196-init-bundled-templates.md) |
@@ -396,7 +396,7 @@ Architectural decisions are tracked in [`./.claude/knowledge-base/adrs/`](./.cla
 | D198 | `theokit inspect` is read-only; never executes user/plugin code | [D198-inspect-no-execution.md](./.claude/knowledge-base/adrs/D198-inspect-no-execution.md) |
 | D199 | `theokit eval` v1 wraps `Agent.batch`; swaps to `Eval.run` later | [D199-eval-v1-minimal.md](./.claude/knowledge-base/adrs/D199-eval-v1-minimal.md) |
 | D200 | Three initial `theokit init` templates: `minimal`, `ollama-local`, `telegram-bot` | [D200-init-three-templates.md](./.claude/knowledge-base/adrs/D200-init-three-templates.md) |
-| D201 | `Theokit.inspect.*` public namespace in `@usetheo/sdk` | [D201-theokit-inspect-public-api.md](./.claude/knowledge-base/adrs/D201-theokit-inspect-public-api.md) |
+| D201 | `Theokit.inspect.*` public namespace in `@theokit/sdk` | [D201-theokit-inspect-public-api.md](./.claude/knowledge-base/adrs/D201-theokit-inspect-public-api.md) |
 | D202 | `Eval` is a static class with `Eval.create` factory + `.run()` method | [D202-eval-static-class.md](./.claude/knowledge-base/adrs/D202-eval-static-class.md) |
 | D203 | Built-in scorers live in a separate `Scorers` namespace | [D203-scorers-namespace.md](./.claude/knowledge-base/adrs/D203-scorers-namespace.md) |
 | D204 | Internally `Eval.run` consumes `Agent.batch` for parallelism | [D204-eval-consumes-batch.md](./.claude/knowledge-base/adrs/D204-eval-consumes-batch.md) |
@@ -541,7 +541,7 @@ Status SDK 2026-06-01 (resumo — detalhes no meta):
 - **v1.4 Adoption (5 items)**: 5/5 DONE 2026-05-23 → 2026-05-25 — Docs site, WhatsApp, Teams, Email, Google Workspace skills.
 - **v1.5 Adoption (2 items)**: 2/2 DONE 2026-05-27 — ACP server, Tasks observability.
 - **v1.5 Gateway Tier 1 (4 items)**: 4/4 DONE 2026-05-28 — SMS, Mattermost, LINE, Matrix.
-- **Backend DX P1 (DI + di-agent)**: DONE 2026-05-29, GA 0.1.0 published 2026-05-31. P2 (`@usetheo/orm`) + P3 (`@usetheo/http-decorators`) ⏳ next.
+- **Backend DX P1 (DI + di-agent)**: DONE 2026-05-29, GA 0.1.0 published 2026-05-31. P2 (`@theokit/orm`) + P3 (`@theokit/http-decorators`) ⏳ next.
 
 Total ADRs registradas: 421 (`./.claude/knowledge-base/adrs/D1` até `D421`).
 
@@ -566,7 +566,7 @@ Full text: `/home/paulo/.claude/CLAUDE.md`. Cross-project rules: `/home/paulo/Pr
 - [ ] `CHANGELOG.md` entry under `[Unreleased]` in `packages/sdk/CHANGELOG.md` (or root `CHANGELOG.md` for workspace changes).
 - [ ] No reference to "Theo IDE" or other surfaces that do not exist in the usetheo stack.
 - [ ] No promise of cloud-only features as GA.
-- [ ] No silent integration claims with `@usetheo/ui` or `theokit` — verify the import exists.
+- [ ] No silent integration claims with `@theokit/ui` or `theokit` — verify the import exists.
 - [ ] No imports from `referencia/*` — that tree is read-only study material.
 
 ## When this file is wrong

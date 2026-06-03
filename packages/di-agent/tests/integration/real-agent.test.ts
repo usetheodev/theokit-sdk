@@ -1,6 +1,6 @@
 /**
  * T4.2 — Real-LLM integration test (per the `real-llm-validation.md`
- * inviolable rule). Calls the actual `@usetheo/sdk` `Agent.create()` +
+ * inviolable rule). Calls the actual `@theokit/sdk` `Agent.create()` +
  * `Agent.send()` against a real provider, injected via REQUEST scope.
  *
  * Env-gated: skips if `OPENROUTER_API_KEY` is missing. CI without the key
@@ -11,8 +11,8 @@
  * the suite (model-side issue, NOT SDK bug).
  */
 
-import { Container, Injectable, Module } from "@usetheo/di";
-import { Agent, type SDKAgent } from "@usetheo/sdk";
+import { Container, Injectable, Module } from "@theokit/di";
+import { Agent, type SDKAgent } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 
 import { createAgentProvider, InjectAgent } from "../../src/index.js";
@@ -106,10 +106,10 @@ describe.skipIf(KEY === undefined || KEY.length === 0)(
       // Agent instances (asserted via referential inequality).
       const [a, b] = await Promise.all([
         container.runInRequest(async () =>
-          container.resolveAsync<SDKAgent>("@usetheo/di-agent:Agent"),
+          container.resolveAsync<SDKAgent>("@theokit/di-agent:Agent"),
         ),
         container.runInRequest(async () =>
-          container.resolveAsync<SDKAgent>("@usetheo/di-agent:Agent"),
+          container.resolveAsync<SDKAgent>("@theokit/di-agent:Agent"),
         ),
       ]);
 

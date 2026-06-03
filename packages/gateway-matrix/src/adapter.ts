@@ -10,7 +10,7 @@ import {
   type MessageEvent as GatewayMessageEvent,
   type OutboundMessage,
   type SendResult,
-} from "@usetheo/gateway";
+} from "@theokit/gateway";
 
 import { AliasCache } from "./alias.js";
 import { loadMatrixSdk, type MatrixSdkClient } from "./client.js";

@@ -1,4 +1,4 @@
-import { type AgentFactory, createAgentFactory, type SDKAgent } from "@usetheo/sdk";
+import { type AgentFactory, createAgentFactory, type SDKAgent } from "@theokit/sdk";
 import type { Context } from "grammy";
 
 import { buildMcpServers, buildProviderRouting } from "./sdk-config.js";

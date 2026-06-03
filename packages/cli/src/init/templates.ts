@@ -27,7 +27,7 @@ export const TEMPLATES: ReadonlyArray<TemplateMeta> = [
   },
   {
     name: "telegram-bot",
-    description: "Telegram bot via @usetheo/gateway + grammy.",
+    description: "Telegram bot via @theokit/gateway + grammy.",
     hint: "Get a bot token from @BotFather, set TELEGRAM_BOT_TOKEN in .env.",
   },
 ] as const;

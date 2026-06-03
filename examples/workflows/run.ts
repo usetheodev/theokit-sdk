@@ -12,7 +12,7 @@
  * `OLLAMA_HOST` (default http://localhost:11434).
  */
 
-import { Agent, Workflow, agentStep, fn } from "@usetheo/sdk";
+import { Agent, Workflow, agentStep, fn } from "@theokit/sdk";
 
 const OPENROUTER = process.env.OPENROUTER_API_KEY;
 const useOllama = OPENROUTER === undefined || OPENROUTER.length === 0;

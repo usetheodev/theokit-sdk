@@ -1,10 +1,10 @@
-# Plan: `@usetheo/gateway` v0.1 — Multi-platform messaging gateway as a workspace package
+# Plan: `@theokit/gateway` v0.1 — Multi-platform messaging gateway as a workspace package
 
-> **Version 1.2** (2026-05-21, COMPLETED) — all 10 phases shipped. 3 new workspace packages (`@usetheo/gateway`, `@usetheo/gateway-telegram`, `@usetheo/gateway-discord`) at `0.1.0`. 67 unit tests GREEN across the 3 packages (41 core + 19 telegram + 7 discord). 12 ADRs (D170-D181) registered. Telegram-pro migrated to consume `@usetheo/gateway-telegram` (group-policy + splitForTelegram extracted, 2 local files removed). Discord example `examples/gateway-discord/` typechecks clean. Telegram-pro dogfood: **39/42 PASS** (improvement over the 2026-05-20 baseline of 38/42), 2 flake failures (Gemini transient — both pass on retry), 1 env-gated skip. LoC reduction in `examples/telegram-pro/src/index.ts` did NOT hit the 40% target (1641 → 1649 LoC, 8-line gain from new imports) — honest assessment: the plan target was overoptimistic; the real benefit is architectural (consume the gateway contract), not LoC reduction. Total LoC reduction across the example directory: ~70 LoC (deleted local `format.ts` + `group-policy.ts`).
+> **Version 1.2** (2026-05-21, COMPLETED) — all 10 phases shipped. 3 new workspace packages (`@theokit/gateway`, `@theokit/gateway-telegram`, `@theokit/gateway-discord`) at `0.1.0`. 67 unit tests GREEN across the 3 packages (41 core + 19 telegram + 7 discord). 12 ADRs (D170-D181) registered. Telegram-pro migrated to consume `@theokit/gateway-telegram` (group-policy + splitForTelegram extracted, 2 local files removed). Discord example `examples/gateway-discord/` typechecks clean. Telegram-pro dogfood: **39/42 PASS** (improvement over the 2026-05-20 baseline of 38/42), 2 flake failures (Gemini transient — both pass on retry), 1 env-gated skip. LoC reduction in `examples/telegram-pro/src/index.ts` did NOT hit the 40% target (1641 → 1649 LoC, 8-line gain from new imports) — honest assessment: the plan target was overoptimistic; the real benefit is architectural (consume the gateway contract), not LoC reduction. Total LoC reduction across the example directory: ~70 LoC (deleted local `format.ts` + `group-policy.ts`).
 >
 > **Version 1.1** (2026-05-20) — incorporates edge-case review: 7 MUST FIX (EC-A slash boundary, EC-B topicId fallback, EC-C Discord intents default, EC-D `block:message` auto-reply wired, EC-E `stop()` drain timeout, EC-F token redaction via D68, EC-G `ctx.reply` adapter routing) + 5 SHOULD TEST woven into TDD blocks + 4 DOCUMENT items added inline.
 >
-> **Version 1.0** (2026-05-20) — Ships `@usetheo/gateway` as a NEW workspace package paralel ao `@usetheo/sdk` (not inside it), with two transport adapters (`@usetheo/gateway-telegram`, `@usetheo/gateway-discord`) as peer-dep packages — same architectural pattern as `@usetheo/memory-*` (ADRs D141-D149). The core package owns transport-agnostic primitives (`BasePlatformAdapter`, `MessageEvent`, `SessionRouter`, `DeliveryRouter`, `GatewayRunner`, hooks) but never duplicates anything the SDK already has — sessions compose `Agent.resume`, scheduled delivery composes `Cron`, system context composes `SystemPromptResolver`. The success gate is the existing `/telegram-pro-dogfood` skill (42 commands today): the migration of `examples/telegram-pro` to use `@usetheo/gateway-telegram` must keep the suite at its current PASS count, with the 6 personality commands shipped in v1.14 still green. A minimal Discord example validates that the abstraction holds against a second transport (WebSocket-driven, fundamentally different from Telegram's long-polling).
+> **Version 1.0** (2026-05-20) — Ships `@theokit/gateway` as a NEW workspace package paralel ao `@theokit/sdk` (not inside it), with two transport adapters (`@theokit/gateway-telegram`, `@theokit/gateway-discord`) as peer-dep packages — same architectural pattern as `@theokit/memory-*` (ADRs D141-D149). The core package owns transport-agnostic primitives (`BasePlatformAdapter`, `MessageEvent`, `SessionRouter`, `DeliveryRouter`, `GatewayRunner`, hooks) but never duplicates anything the SDK already has — sessions compose `Agent.resume`, scheduled delivery composes `Cron`, system context composes `SystemPromptResolver`. The success gate is the existing `/telegram-pro-dogfood` skill (42 commands today): the migration of `examples/telegram-pro` to use `@theokit/gateway-telegram` must keep the suite at its current PASS count, with the 6 personality commands shipped in v1.14 still green. A minimal Discord example validates that the abstraction holds against a second transport (WebSocket-driven, fundamentally different from Telegram's long-polling).
 
 ## Context
 
@@ -20,7 +20,7 @@
 Three concrete evidence points justify this work now:
 
 1. **The 1641-LoC `index.ts`** in telegram-pro is single-handedly the largest file in the monorepo and ~80% of it is grammy plumbing + slash command dispatch. Any second bot example (Discord, Slack) would re-implement the same plumbing — `cron-setup.ts`, `loops.ts`, `streaming.ts`, `group-policy.ts`, the agentId-per-chat factory pattern — none of which are Telegram-specific.
-2. **Cross-Project Rule 2** (root `CLAUDE.md`): "Verify before claiming integration." Today TheoKit-SDK has zero documented integration surface for transport layers, so any future TheoKit (Next.js framework) attempt to wire bots will reinvent the same primitives. A typed `@usetheo/gateway` contract removes the speculation.
+2. **Cross-Project Rule 2** (root `CLAUDE.md`): "Verify before claiming integration." Today TheoKit-SDK has zero documented integration surface for transport layers, so any future TheoKit (Next.js framework) attempt to wire bots will reinvent the same primitives. A typed `@theokit/gateway` contract removes the speculation.
 3. **The `/telegram-pro-dogfood` skill** is the only ratchet test in the monorepo (42 commands, ~248s wall clock, CDP-driven against real Gemini-via-OpenRouter). Without a gateway abstraction, any refactor of telegram-pro risks breaking it; with the gateway, the dogfood becomes the **regression gate of the gateway itself**.
 
 ### Why not just leave it as separate examples per platform?
@@ -30,18 +30,18 @@ The root `CLAUDE.md` rule: **don't reinvent**. Hermes' gateway is 1000+ LoC of m
 ### Why not put it in TheoKit (the Next.js framework pillar)?
 
 TheoKit is "Full-Stack AI Agents" — a Next.js framework. Bots run as long-lived processes with WebSockets / long-polling; that's a worse fit for serverless-Next-routes than for a standalone Node process. A separate workspace package gives us:
-- TheoKit can later import `@usetheo/gateway` from its routes (e.g., `app/api/bot/[platform]/route.ts`) if Next.js webhook routes are the right delivery mode for some platform.
+- TheoKit can later import `@theokit/gateway` from its routes (e.g., `app/api/bot/[platform]/route.ts`) if Next.js webhook routes are the right delivery mode for some platform.
 - CLI users / VPS users / Docker users can run the gateway directly without bringing Next.js in.
 - The pillar boundary (SDK = harness, TheoKit = framework) stays clean.
 
 ## Objective
 
-**Done = the running `@theo_paulo_bot` (telegram-pro) is wired through `@usetheo/gateway-telegram`, the `/telegram-pro-dogfood` skill passes at ≥38/42 (current baseline) with zero new failures, AND a minimal Discord example using `@usetheo/gateway-discord` successfully receives a slash command and replies with a real LLM response.**
+**Done = the running `@theo_paulo_bot` (telegram-pro) is wired through `@theokit/gateway-telegram`, the `/telegram-pro-dogfood` skill passes at ≥38/42 (current baseline) with zero new failures, AND a minimal Discord example using `@theokit/gateway-discord` successfully receives a slash command and replies with a real LLM response.**
 
 Specific measurable goals:
 
-1. Three new workspace packages exist and build cleanly: `@usetheo/gateway`, `@usetheo/gateway-telegram`, `@usetheo/gateway-discord`.
-2. `examples/telegram-pro/src/index.ts` shrinks from 1641 LoC → ≤900 LoC (target: 40-45% reduction) by extracting all transport-specific plumbing into `@usetheo/gateway-telegram`.
+1. Three new workspace packages exist and build cleanly: `@theokit/gateway`, `@theokit/gateway-telegram`, `@theokit/gateway-discord`.
+2. `examples/telegram-pro/src/index.ts` shrinks from 1641 LoC → ≤900 LoC (target: 40-45% reduction) by extracting all transport-specific plumbing into `@theokit/gateway-telegram`.
 3. The `/telegram-pro-dogfood` skill passes (≥38/42 PASS, same as 2026-05-20 baseline; the 3 known Gemini-flake commands stay flake, no NEW failures).
 4. A new `examples/gateway-discord/` example runs `/ping`-style commands against a real Discord guild.
 5. Twelve new ADRs (D170-D181) register every architectural decision.
@@ -50,21 +50,21 @@ Specific measurable goals:
 
 ## ADRs
 
-### D170 — `@usetheo/gateway` is a workspace package separate from `@usetheo/sdk`
+### D170 — `@theokit/gateway` is a workspace package separate from `@theokit/sdk`
 
 **Decision:** Ship the gateway as `packages/gateway/`, NOT inside `packages/sdk/src/gateway/`.
 
-**Rationale:** The pillar narrative in the root `CLAUDE.md` is "SDK = harness, TheoKit = framework". A multi-transport messaging layer is framework-territory, not harness-territory. Putting it under the SDK would (a) bloat the SDK's API surface, (b) drag transport peer deps (grammy, discord.js) into the SDK's dependency graph even for users who never touch bots, and (c) blur the pillar boundary. The same logic justified the `@usetheo/memory-*` split (D143).
+**Rationale:** The pillar narrative in the root `CLAUDE.md` is "SDK = harness, TheoKit = framework". A multi-transport messaging layer is framework-territory, not harness-territory. Putting it under the SDK would (a) bloat the SDK's API surface, (b) drag transport peer deps (grammy, discord.js) into the SDK's dependency graph even for users who never touch bots, and (c) blur the pillar boundary. The same logic justified the `@theokit/memory-*` split (D143).
 
 **Consequences:**
-- **Enables:** independent versioning, opt-in install (`pnpm add @usetheo/gateway @usetheo/gateway-telegram`), clean SDK boundary.
+- **Enables:** independent versioning, opt-in install (`pnpm add @theokit/gateway @theokit/gateway-telegram`), clean SDK boundary.
 - **Constrains:** consumers who want both the SDK and the gateway install two packages — same as memory adapters. Acceptable.
 
 ### D171 — Each platform adapter is its own peer-dep package
 
-**Decision:** `@usetheo/gateway-telegram` and `@usetheo/gateway-discord` are separate workspace packages, each declaring `@usetheo/gateway`, `@usetheo/sdk`, and the platform SDK (grammy / discord.js) as peer deps.
+**Decision:** `@theokit/gateway-telegram` and `@theokit/gateway-discord` are separate workspace packages, each declaring `@theokit/gateway`, `@theokit/sdk`, and the platform SDK (grammy / discord.js) as peer deps.
 
-**Rationale:** Exactly mirrors `@usetheo/memory-*` (D143). A user who only wants Telegram should not pay the install cost of discord.js (~1MB) and vice versa. Peer deps avoid the bundler-confusion problem when multiple adapters coexist.
+**Rationale:** Exactly mirrors `@theokit/memory-*` (D143). A user who only wants Telegram should not pay the install cost of discord.js (~1MB) and vice versa. Peer deps avoid the bundler-confusion problem when multiple adapters coexist.
 
 **Consequences:**
 - **Enables:** zero-cost addition of future adapters (Slack, WhatsApp, Signal) without modifying the core.
@@ -114,7 +114,7 @@ Specific measurable goals:
 
 **Decision:** Define a separate `GatewayHook` type with three fire points (`pre_inbound`, `post_outbound`, `on_error`). Do NOT extend the SDK's `Plugin` discriminated union (D98) with `kind: "gateway-hook"`.
 
-**Rationale:** The SDK's Plugin contract is sealed by design (D98 — "discriminated union by kind"). Adding kinds inflates the contract surface and forces every SDK consumer to know about gateway concerns even when they never touch transport. Keeping gateway hooks in `@usetheo/gateway` keeps the boundary clean. The same logic kept D101 (`pre_tool_call` veto) inside the SDK's plugin contract — because tool calls are SDK-domain. Transport hooks are gateway-domain.
+**Rationale:** The SDK's Plugin contract is sealed by design (D98 — "discriminated union by kind"). Adding kinds inflates the contract surface and forces every SDK consumer to know about gateway concerns even when they never touch transport. Keeping gateway hooks in `@theokit/gateway` keeps the boundary clean. The same logic kept D101 (`pre_tool_call` veto) inside the SDK's plugin contract — because tool calls are SDK-domain. Transport hooks are gateway-domain.
 
 **Consequences:**
 - **Enables:** gateway hooks can have transport-specific contexts (e.g., a Telegram `ctx` object) without leaking into the SDK.
@@ -142,7 +142,7 @@ Specific measurable goals:
 
 ### D179 — Discord adapter uses WebSocket Gateway (discord.js), not HTTP webhooks
 
-**Decision:** `@usetheo/gateway-discord` opens a long-lived WebSocket via discord.js's `Client.login()`. We do NOT build a webhook-based variant for v0.1.
+**Decision:** `@theokit/gateway-discord` opens a long-lived WebSocket via discord.js's `Client.login()`. We do NOT build a webhook-based variant for v0.1.
 
 **Rationale:** WebSocket is the canonical Discord bot mode; webhook bots are limited (no presence, no DM, no thread events). Telegram's bot mode is long-polling (grammy default). Both are long-lived process patterns, justifying a unified "GatewayRunner stays up" lifecycle. v0.1 is not trying to be serverless-friendly.
 
@@ -215,7 +215,7 @@ Phase 10 (Dogfood QA — /telegram-pro-dogfood gate)
 
 ## Phase 0: Workspace setup
 
-**Objective:** Create the three new workspace packages with build infrastructure mirroring `@usetheo/memory-supermemory`.
+**Objective:** Create the three new workspace packages with build infrastructure mirroring `@theokit/memory-supermemory`.
 
 ### T0.1 — Scaffold `packages/gateway/`
 
@@ -223,11 +223,11 @@ Phase 10 (Dogfood QA — /telegram-pro-dogfood gate)
 Create the core gateway package with the same build/test infrastructure as the existing workspace packages.
 
 #### Evidence
-- `packages/memory-supermemory/` is the proven template: `tsup` build, `vitest` tests, dual ESM/CJS exports, peer-dep declaration of `@usetheo/sdk`.
+- `packages/memory-supermemory/` is the proven template: `tsup` build, `vitest` tests, dual ESM/CJS exports, peer-dep declaration of `@theokit/sdk`.
 
 #### Files to edit
 ```
-packages/gateway/package.json (NEW) — workspace package, name @usetheo/gateway, version 0.1.0
+packages/gateway/package.json (NEW) — workspace package, name @theokit/gateway, version 0.1.0
 packages/gateway/tsconfig.json (NEW) — extends ../../tsconfig.base.json
 packages/gateway/tsup.config.ts (NEW) — dual ESM/CJS, target node22, entry src/index.ts
 packages/gateway/vitest.config.ts (NEW) — standard vitest config
@@ -246,9 +246,9 @@ pnpm-workspace.yaml — add packages/gateway, packages/gateway-* to globs
 #### Deep Dives
 
 **Package layout invariants:**
-- `peerDependencies` declares `@usetheo/sdk: workspace:^` so consumers control the SDK version.
+- `peerDependencies` declares `@theokit/sdk: workspace:^` so consumers control the SDK version.
 - `dependencies` is empty for the core (no runtime deps beyond TS types from SDK).
-- `devDependencies` includes `tsup`, `typescript`, `vitest`, `@usetheo/sdk: workspace:*`.
+- `devDependencies` includes `tsup`, `typescript`, `vitest`, `@theokit/sdk: workspace:*`.
 
 **Tsup config (copy from memory-supermemory):**
 ```typescript
@@ -273,20 +273,20 @@ export default defineConfig({
 2. Rewrite `package.json` name + description.
 3. Strip `memory-adapter`-specific code from `src/`, leave a single empty `index.ts`.
 4. Run `pnpm install` at repo root to wire the workspace.
-5. Run `pnpm --filter @usetheo/gateway build` to confirm the toolchain compiles.
+5. Run `pnpm --filter @theokit/gateway build` to confirm the toolchain compiles.
 
 #### TDD
 ```
-RED:     test_package_exports_empty_object — import * from "@usetheo/gateway" should not throw
+RED:     test_package_exports_empty_object — import * from "@theokit/gateway" should not throw
 GREEN:   ship the empty index.ts
 REFACTOR: none
-VERIFY:  pnpm --filter @usetheo/gateway build && pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway build && pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
-- [ ] `packages/gateway/package.json` exists with name `@usetheo/gateway`, version `0.1.0`
+- [ ] `packages/gateway/package.json` exists with name `@theokit/gateway`, version `0.1.0`
 - [ ] `pnpm install` succeeds and creates a symlink in workspace `node_modules`
-- [ ] `pnpm --filter @usetheo/gateway build` succeeds, produces `dist/index.js`, `dist/index.cjs`, `dist/index.d.ts`
+- [ ] `pnpm --filter @theokit/gateway build` succeeds, produces `dist/index.js`, `dist/index.cjs`, `dist/index.d.ts`
 - [ ] 1 placeholder test passes
 
 #### DoD
@@ -306,8 +306,8 @@ packages/gateway-telegram/{package.json, tsconfig.json, tsup.config.ts, vitest.c
 ```
 
 #### Acceptance Criteria
-- [ ] `pnpm --filter @usetheo/gateway-telegram build` succeeds
-- [ ] Peer deps declared: `@usetheo/gateway`, `@usetheo/sdk`, `grammy`
+- [ ] `pnpm --filter @theokit/gateway-telegram build` succeeds
+- [ ] Peer deps declared: `@theokit/gateway`, `@theokit/sdk`, `grammy`
 
 ---
 
@@ -321,8 +321,8 @@ packages/gateway-discord/{...} (NEW)
 ```
 
 #### Acceptance Criteria
-- [ ] `pnpm --filter @usetheo/gateway-discord build` succeeds
-- [ ] Peer deps declared: `@usetheo/gateway`, `@usetheo/sdk`, `discord.js`
+- [ ] `pnpm --filter @theokit/gateway-discord build` succeeds
+- [ ] Peer deps declared: `@theokit/gateway`, `@theokit/sdk`, `discord.js`
 
 ---
 
@@ -349,7 +349,7 @@ packages/gateway/tests/types/message-event.test.ts (NEW)
 
 #### Deep file dependency analysis
 - No external deps; pure types.
-- `index.ts` re-exports so consumers do `import type { MessageEvent } from "@usetheo/gateway"`.
+- `index.ts` re-exports so consumers do `import type { MessageEvent } from "@theokit/gateway"`.
 
 #### Deep Dives
 
@@ -421,12 +421,12 @@ RED:     test_platform_field_narrows_discord
 RED:     test_unknown_platform_is_compile_error — //@ts-expect-error trap
 GREEN:   define the types
 REFACTOR: none
-VERIFY:  pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
 - [ ] 3 type-only tests pass
-- [ ] `MessageEvent` exported from `@usetheo/gateway`
+- [ ] `MessageEvent` exported from `@theokit/gateway`
 - [ ] File ≤80 LoC
 
 #### DoD
@@ -525,7 +525,7 @@ RED:     test_mock_adapter_disconnect_idempotent
 RED:     test_mock_adapter_inbound_second_call_replaces_handler — EC-H: predictable runner integration
 GREEN:   implement BasePlatformAdapter abstract class
 REFACTOR: extract typing-indicator default into mixin if 2+ adapters duplicate
-VERIFY:  pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
@@ -558,7 +558,7 @@ packages/gateway/tests/runner/gateway-runner.test.ts (NEW)
 
 #### Deep file dependency analysis
 - Depends on T1.1 (MessageEvent), T1.2 (BasePlatformAdapter).
-- Does NOT depend on `@usetheo/sdk` yet — that wiring happens in Phases 2-4.
+- Does NOT depend on `@theokit/sdk` yet — that wiring happens in Phases 2-4.
 
 #### Deep Dives
 
@@ -633,7 +633,7 @@ if (decision.block === true) {
 - The handler is wrapped in try/catch — exceptions are logged via `Security.redact(console.error(...))` (EC-F) and do NOT crash the gateway.
 - `stop()` waits up to `drainTimeoutMs` for in-flight handlers BEFORE disconnecting adapters (EC-E).
 - `stop()` is safe to call multiple times.
-- All error log paths use `Security.redact(...)` from `@usetheo/sdk` to scrub tokens (EC-F, ADR D68).
+- All error log paths use `Security.redact(...)` from `@theokit/sdk` to scrub tokens (EC-F, ADR D68).
 
 **Edge cases:**
 - **EC-1:** Empty `adapters` array → `start()` succeeds (logs warning), runner waits but never dispatches.
@@ -664,7 +664,7 @@ RED:     test_runner_block_without_message_short_circuits_silently — EC-D nega
 RED:     test_runner_error_logs_are_redacted — EC-F: token in error string is masked
 GREEN:   implement GatewayRunner
 REFACTOR: extract connect/disconnect lifecycle if size demands
-VERIFY:  pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
@@ -760,7 +760,7 @@ RED:     test_sanitize_id_with_dashes — EC-1
 RED:     test_thread_with_undefined_topicId_falls_back_to_group_key — EC-B
 GREEN:   implement
 REFACTOR: none
-VERIFY:  pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
@@ -844,7 +844,7 @@ RED:     test_router_send_unknown_platform_returns_no_adapter_error
 RED:     test_router_send_does_not_throw_on_adapter_error
 GREEN:   implement
 REFACTOR: none
-VERIFY:  pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
@@ -951,7 +951,7 @@ RED:     test_runner_blocked_inbound_does_not_call_handler
 RED:     test_runner_handler_throw_fires_on_error_hooks
 GREEN:   implement
 REFACTOR: none
-VERIFY:  pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
@@ -985,7 +985,7 @@ packages/gateway-telegram/tests/adapter.test.ts (NEW)
 ```
 
 #### Deep file dependency analysis
-- Depends on `@usetheo/gateway` (T1.1, T1.2).
+- Depends on `@theokit/gateway` (T1.1, T1.2).
 - Imports grammy as peer dep.
 
 #### Deep Dives
@@ -993,7 +993,7 @@ packages/gateway-telegram/tests/adapter.test.ts (NEW)
 **Shape:**
 ```typescript
 import { Bot, type Context } from "grammy";
-import { BasePlatformAdapter, type MessageEvent, type OutboundMessage, type SendResult } from "@usetheo/gateway";
+import { BasePlatformAdapter, type MessageEvent, type OutboundMessage, type SendResult } from "@theokit/gateway";
 
 export interface TelegramAdapterOptions {
   token: string;
@@ -1079,7 +1079,7 @@ RED:     test_telegram_adapter_split_preserves_markdown_pairs — EC-J (no orpha
 RED:     test_telegram_adapter_ignores_messages_from_other_bots — EC-K (is_bot filter)
 GREEN:   implement adapter + group-policy + split
 REFACTOR: none
-VERIFY:  pnpm --filter @usetheo/gateway-telegram test
+VERIFY:  pnpm --filter @theokit/gateway-telegram test
 ```
 
 #### Acceptance Criteria
@@ -1117,7 +1117,7 @@ packages/gateway-discord/tests/adapter.test.ts (NEW)
 **Shape:**
 ```typescript
 import { Client, GatewayIntentBits, type Message } from "discord.js";
-import { BasePlatformAdapter, type MessageEvent, type OutboundMessage, type SendResult } from "@usetheo/gateway";
+import { BasePlatformAdapter, type MessageEvent, type OutboundMessage, type SendResult } from "@theokit/gateway";
 
 export interface DiscordAdapterOptions {
   token: string;
@@ -1194,7 +1194,7 @@ RED:     test_discord_adapter_default_intents_include_MessageContent — EC-C: s
 RED:     test_discord_adapter_empty_intents_logs_warn — EC-C: explicit opt-out is loud
 GREEN:   implement
 REFACTOR: none
-VERIFY:  pnpm --filter @usetheo/gateway-discord test
+VERIFY:  pnpm --filter @theokit/gateway-discord test
 ```
 
 #### Acceptance Criteria
@@ -1209,7 +1209,7 @@ VERIFY:  pnpm --filter @usetheo/gateway-discord test
 
 ## Phase 7: Migrate telegram-pro
 
-**Objective:** Rewire `examples/telegram-pro` to use `@usetheo/gateway` + `@usetheo/gateway-telegram` while preserving 100% of slash command behavior (D178).
+**Objective:** Rewire `examples/telegram-pro` to use `@theokit/gateway` + `@theokit/gateway-telegram` while preserving 100% of slash command behavior (D178).
 
 ### T7.1 — Replace `new Bot(TOKEN)` with `new GatewayRunner({...})`
 
@@ -1222,10 +1222,10 @@ Single-file mechanical refactor of `index.ts`. Slash commands migrate verbatim m
 
 #### Files to edit
 ```
-examples/telegram-pro/package.json — add @usetheo/gateway, @usetheo/gateway-telegram deps
+examples/telegram-pro/package.json — add @theokit/gateway, @theokit/gateway-telegram deps
 examples/telegram-pro/src/index.ts — rewrite top-level wiring (NOT individual handler bodies)
-examples/telegram-pro/src/group-policy.ts — DELETE (now in @usetheo/gateway-telegram)
-examples/telegram-pro/src/format.ts — DELETE (splitForTelegram now in @usetheo/gateway-telegram)
+examples/telegram-pro/src/group-policy.ts — DELETE (now in @theokit/gateway-telegram)
+examples/telegram-pro/src/format.ts — DELETE (splitForTelegram now in @theokit/gateway-telegram)
 examples/telegram-pro/src/agent.ts — adjust resolveAgentId to delegate to SessionRouter (optional preservation alias)
 ```
 
@@ -1235,13 +1235,13 @@ The migration is **structural at the top**, **mechanical in handlers**:
 
 - **TOP (rewritten):** `const bot = new Bot(TOKEN)` → `const runner = new GatewayRunner({ adapters: [new TelegramAdapter({ token: TOKEN })], handler })`.
 - **HANDLERS (preserved):** every `bot.command("X", async (ctx) => ...)` becomes a `runner.command("X", async (ctx) => ...)` with **the same handler body**.
-- **HELPERS (deleted):** `group-policy.ts` and `format.ts` removed; their re-exports come from `@usetheo/gateway-telegram`.
+- **HELPERS (deleted):** `group-policy.ts` and `format.ts` removed; their re-exports come from `@theokit/gateway-telegram`.
 
 `runner.command(name, handler)` is a thin sugar over the underlying `pre_inbound` hook that matches `text.startsWith(`/${name}`)`. The slash dispatch happens in the gateway, not in grammy directly.
 
 #### Deep Dives
 
-**Sugar API in `@usetheo/gateway`:**
+**Sugar API in `@theokit/gateway`:**
 ```typescript
 class GatewayRunner {
   command(name: string, handler: (event: MessageEvent, ctx: GatewayContext) => Promise<void>): void {
@@ -1281,7 +1281,7 @@ class GatewayRunner {
 - **EC-A (slash boundary):** telegram-pro has both `/skill` AND `/skills`, `/loop` AND `/loops`, `/stop_loop` AND `/stop_loop all`. The `runner.command(name, h)` sugar MUST use word-boundary match (see T1.3 spec), otherwise `/skills` is shadowed by `/skill`. Verified by the existing dogfood suite — if the boundary breaks, command dispatch tests fail.
 
 #### Tasks
-1. Add `@usetheo/gateway` + `@usetheo/gateway-telegram` to package.json.
+1. Add `@theokit/gateway` + `@theokit/gateway-telegram` to package.json.
 2. Rewrite the top 60 lines of `index.ts` (imports + bot construction + start).
 3. Convert each `bot.command(...)` to `runner.command(...)`.
 4. Convert the `bot.use(...)` allowlist middleware to a hook.
@@ -1291,12 +1291,12 @@ class GatewayRunner {
 
 #### TDD
 ```
-RED:     test_typecheck_passes_after_migration — pnpm --filter @usetheo/example-telegram-pro typecheck
+RED:     test_typecheck_passes_after_migration — pnpm --filter @theokit/example-telegram-pro typecheck
 RED:     test_telegram_pro_hook_order_allowlist_after_redact — EC-L: registration order matches current middleware
 RED:     test_telegram_pro_skill_does_not_shadow_skills — EC-A: real test against the migrated dispatch
 RED:     test_telegram_pro_loop_does_not_shadow_loops — EC-A: second prefix-shared pair
 GREEN:   migration committed
-VERIFY:  pnpm --filter @usetheo/example-telegram-pro typecheck
+VERIFY:  pnpm --filter @theokit/example-telegram-pro typecheck
 ```
 
 #### Acceptance Criteria
@@ -1363,7 +1363,7 @@ VERIFY:  manual probe + dogfood
 
 ## Phase 8: Minimal Discord example
 
-**Objective:** Validate `@usetheo/gateway-discord` works against a real Discord guild with a `/ping`-style command and one real-LLM command.
+**Objective:** Validate `@theokit/gateway-discord` works against a real Discord guild with a `/ping`-style command and one real-LLM command.
 
 ### T8.1 — Build `examples/gateway-discord/`
 
@@ -1385,9 +1385,9 @@ examples/gateway-discord/README.md (NEW)
 #### Deep Dives
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner, SessionRouter } from "@usetheo/gateway";
-import { DiscordAdapter } from "@usetheo/gateway-discord";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner, SessionRouter } from "@theokit/gateway";
+import { DiscordAdapter } from "@theokit/gateway-discord";
 
 const adapter = new DiscordAdapter({ token: process.env.DISCORD_BOT_TOKEN! });
 const router = new SessionRouter();
@@ -1421,13 +1421,13 @@ console.log("discord-gateway bot online");
 - **EC-2:** No guilds configured → bot still online; first server to add it works.
 
 #### Tasks
-1. Create package.json with peer dep on `@usetheo/sdk`, `@usetheo/gateway`, `@usetheo/gateway-discord`, `discord.js`.
+1. Create package.json with peer dep on `@theokit/sdk`, `@theokit/gateway`, `@theokit/gateway-discord`, `discord.js`.
 2. Write minimal `index.ts`.
 3. README with setup steps.
 
 #### TDD
 ```
-RED:     test_discord_example_typechecks — pnpm --filter @usetheo/example-gateway-discord typecheck
+RED:     test_discord_example_typechecks — pnpm --filter @theokit/example-gateway-discord typecheck
 GREEN:   example committed
 VERIFY:  manual run against test Discord server
 ```
@@ -1542,9 +1542,9 @@ sleep 8
 
 | # | Requirement | Task(s) | Resolution |
 |---|---|---|---|
-| 1 | Workspace package `@usetheo/gateway` | T0.1 | Created with build infra |
-| 2 | Workspace package `@usetheo/gateway-telegram` | T0.2 | Created |
-| 3 | Workspace package `@usetheo/gateway-discord` | T0.3 | Created |
+| 1 | Workspace package `@theokit/gateway` | T0.1 | Created with build infra |
+| 2 | Workspace package `@theokit/gateway-telegram` | T0.2 | Created |
+| 3 | Workspace package `@theokit/gateway-discord` | T0.3 | Created |
 | 4 | `MessageEvent` discriminated union (D173) | T1.1 | Defined with `platform` discriminator |
 | 5 | `BasePlatformAdapter` abstract class (D172) | T1.2 | Implemented |
 | 6 | `GatewayRunner` skeleton | T1.3 | Implemented |
@@ -1590,7 +1590,7 @@ Cross-reference of every edge case raised by `/edge-case-plan` against the task 
 | EC-C | MUST FIX | T6.1 | `DiscordAdapterOptions.intents` defaults to `[Guilds, GuildMessages, MessageContent, DirectMessages, DirectMessageReactions]`; empty array logs warn |
 | EC-D | MUST FIX | T1.3 / T4.1 | `{ block: true, message }` triggers `ctx.reply(message)` BEFORE short-circuit. No more dead field. |
 | EC-E | MUST FIX | T1.3 | `GatewayRunner.stop()` drains in-flight handlers up to `drainTimeoutMs` (default 10s) before disconnect |
-| EC-F | MUST FIX | T1.3 | All `console.error/warn` in the runner wrap text in `Security.redact(...)` from `@usetheo/sdk` (ADR D68) |
+| EC-F | MUST FIX | T1.3 | All `console.error/warn` in the runner wrap text in `Security.redact(...)` from `@theokit/sdk` (ADR D68) |
 | EC-G | MUST FIX | T1.3 | `ctx.reply` lookups the adapter via `event.platform`; multi-adapter routing is deterministic; unknown platform → `{ ok: false, code: "no_adapter" }` |
 | EC-H | SHOULD TEST | T1.2 | `onInbound` second call replaces the handler (not stacks); test asserts only the latest receives events |
 | EC-I | SHOULD TEST | T5.1 | Telegram invalid token → `connect()` resolves false (no throw) |

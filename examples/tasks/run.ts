@@ -14,7 +14,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { Task } from "@usetheo/sdk";
+import { Task } from "@theokit/sdk";
 
 async function main(): Promise<void> {
   // Persist tasks to a temp dir so we can also exercise the CLI verb.

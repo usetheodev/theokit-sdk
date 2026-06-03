@@ -1,18 +1,18 @@
-# D148 — `@usetheo/memory-mem0` ships cloud client only
+# D148 — `@theokit/memory-mem0` ships cloud client only
 
 **Date:** 2026-05-20
 **Status:** Accepted
 
 ## Decision
 
-`@usetheo/memory-mem0` wraps `mem0ai` `MemoryClient` (cloud) only.
+`@theokit/memory-mem0` wraps `mem0ai` `MemoryClient` (cloud) only.
 The OSS local mode (Qdrant / pgvector / Pinecone / Chroma / etc. with
 local LLM) is NOT supported. Users wanting local memory use
-`@usetheo/sdk`'s built-in Memory + Active Memory subsystems instead.
+`@theokit/sdk`'s built-in Memory + Active Memory subsystems instead.
 
 ## Rationale
 
-1. The OSS local mode duplicates work already shipped in `@usetheo/sdk`
+1. The OSS local mode duplicates work already shipped in `@theokit/sdk`
    (Active Memory subagent D13, Lance backend D43).
 2. Mem0 OSS pulls 18 peer deps (Qdrant, Pinecone, pgvector, better-
    sqlite3, etc.) — fights the SDK's "no surprise deps" posture.
@@ -28,5 +28,5 @@ local LLM) is NOT supported. Users wanting local memory use
 - **Enables:** Mem0 adapter as a thin HTTP wrapper; cleaner type
   story; lighter peer-dep graph.
 - **Constrains:** local-only / air-gapped consumers cannot use this
-  adapter. They use `@usetheo/sdk`'s built-in memory — which is the
+  adapter. They use `@theokit/sdk`'s built-in memory — which is the
   recommended path regardless.

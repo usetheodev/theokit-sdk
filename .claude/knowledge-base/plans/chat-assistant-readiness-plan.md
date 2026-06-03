@@ -1,6 +1,6 @@
 # Plan: Chat Assistant Readiness — Multi-Session Persistence
 
-> **Version 1.0** — Fix the 5 limitations that prevent `@usetheo/sdk` from being a drop-in foundation for a persistent multi-user chat assistant (Telegram/Slack/Discord/etc). The blocker today: agent registry + session messages live in-memory only, so a bot process restart wipes every user's context. This plan adds persistent registry, persistent session messages, per-agent send mutex, `corpus="sessions"` memory recall, and ships a reference Telegram example to prove the pattern. Outcome: a user-built bot that survives restart with conversation continuity across all chats without the bot author writing persistence code.
+> **Version 1.0** — Fix the 5 limitations that prevent `@theokit/sdk` from being a drop-in foundation for a persistent multi-user chat assistant (Telegram/Slack/Discord/etc). The blocker today: agent registry + session messages live in-memory only, so a bot process restart wipes every user's context. This plan adds persistent registry, persistent session messages, per-agent send mutex, `corpus="sessions"` memory recall, and ships a reference Telegram example to prove the pattern. Outcome: a user-built bot that survives restart with conversation continuity across all chats without the bot author writing persistence code.
 
 ## Context
 
@@ -26,7 +26,7 @@ Per the previous session's competitive audit: positioning the SDK as the foundat
 
 ## Objective
 
-A bot author using `@usetheo/sdk` can:
+A bot author using `@theokit/sdk` can:
 
 1. Create N agents per process (one per chat) with `Agent.create({ agentId: "tg-${chatId}", ... })` OR auto-generated ids.
 2. Kill `-9` the process and restart it.
@@ -216,7 +216,7 @@ RED:  recovers-from-corrupt-json (EC-4)         — write invalid bytes to regis
 RED:  registry-isolated-per-cwd (EC-5)          — Agent.create in cwd /tmp/a + Agent.create in cwd /tmp/b → two separate registry.json files; Agent.resume(id) from the wrong cwd throws unknown_agent
 GREEN: Implement store + wire to agent-registry + agent.ts:Agent.resume + create-collision throw
 REFACTOR: Extract debounced-save helper
-VERIFY: pnpm --filter @usetheo/sdk test tests/golden/runtime/agent-registry-persistence
+VERIFY: pnpm --filter @theokit/sdk test tests/golden/runtime/agent-registry-persistence
 ```
 
 #### Acceptance Criteria
@@ -526,7 +526,7 @@ examples/README.md — add entry to inventory
 ```
 
 #### Deep file dependency analysis
-- Standalone example, links to `@usetheo/sdk` via `file:../../packages/sdk` (existing pattern).
+- Standalone example, links to `@theokit/sdk` via `file:../../packages/sdk` (existing pattern).
 - New devDep: `grammy` (Telegram bot framework, zero deps itself, modern, TS-native).
 
 #### Deep Dives

@@ -1,6 +1,6 @@
-# Blueprint: Extract `Workflow` + `Eval` from `@usetheo/sdk` main barrel into dedicated sub-paths
+# Blueprint: Extract `Workflow` + `Eval` from `@theokit/sdk` main barrel into dedicated sub-paths
 
-> **Version 1.1** — synthesizes the packaging decision for moving `Workflow` (+ `agentStep`, `fn`, `WorkflowBuilder`, 8 `Workflow*Error` types) and `Eval` (+ `EvalAlreadyRunningError`, `Scorers`) out of `packages/sdk/src/index.ts` into dedicated sub-paths `@usetheo/sdk/workflow` and `@usetheo/sdk/eval`. **No backwards-compat is preserved** — symbols are removed from the main barrel entirely. v1.1 corrects every line citation from v1.0 after empirical verification revealed multiple fabricated line numbers in v1.0; this version is line-exact.
+> **Version 1.1** — synthesizes the packaging decision for moving `Workflow` (+ `agentStep`, `fn`, `WorkflowBuilder`, 8 `Workflow*Error` types) and `Eval` (+ `EvalAlreadyRunningError`, `Scorers`) out of `packages/sdk/src/index.ts` into dedicated sub-paths `@theokit/sdk/workflow` and `@theokit/sdk/eval`. **No backwards-compat is preserved** — symbols are removed from the main barrel entirely. v1.1 corrects every line citation from v1.0 after empirical verification revealed multiple fabricated line numbers in v1.0; this version is line-exact.
 
 **Slug:** `sdk-subpath-extraction-workflow-eval`
 **Source plan:** `.claude/knowledge-base/discoveries/plans/sdk-subpath-extraction-workflow-eval-plan.md` (v1.1)
@@ -34,9 +34,9 @@ Decide, with line-exact citations, the exact diff for `package.json#exports`, `t
 // package.json:16 — workspace-wide typecheck
 "typecheck": "pnpm --filter=./packages/* run typecheck",
 // package.json:18 — publint targeted at sdk
-"validate:publint": "pnpm --filter=@usetheo/sdk exec publint",
+"validate:publint": "pnpm --filter=@theokit/sdk exec publint",
 // package.json:19 — attw with --ignore-rules no-resolution (NOT --profile node16)
-"validate:attw": "pnpm --filter=@usetheo/sdk exec attw --pack . --ignore-rules no-resolution",
+"validate:attw": "pnpm --filter=@theokit/sdk exec attw --pack . --ignore-rules no-resolution",
 // package.json:28 — the chain
 "validate": "pnpm run check && pnpm run build && pnpm run typecheck && pnpm run test && pnpm run validate:publint && pnpm run validate:attw && pnpm run quality"
 ```
@@ -64,11 +64,11 @@ Grep for usage of the 5 existing sub-paths across `packages/*/src/` + `examples/
 
 | Sub-path | Smoke consumer files | Citation |
 |---|---|---|
-| `@usetheo/sdk/cron` | 0 | — |
-| `@usetheo/sdk/tools` | 0 first-party (only self-reference in `packages/sdk/src/tools/index.ts`) | — |
-| `@usetheo/sdk/path-safety` | 1 consumer | `packages/cli/src/commands/eval.ts` |
-| `@usetheo/sdk/task-store` | 1 consumer | `packages/cli/src/commands/tasks.ts` |
-| `@usetheo/sdk/errors` | 0 | — |
+| `@theokit/sdk/cron` | 0 | — |
+| `@theokit/sdk/tools` | 0 first-party (only self-reference in `packages/sdk/src/tools/index.ts`) | — |
+| `@theokit/sdk/path-safety` | 1 consumer | `packages/cli/src/commands/eval.ts` |
+| `@theokit/sdk/task-store` | 1 consumer | `packages/cli/src/commands/tasks.ts` |
+| `@theokit/sdk/errors` | 0 | — |
 
 Two of the existing sub-paths (`path-safety`, `task-store`) DO have first-party consumers in `packages/cli/src/commands/`. The extraction precedent is real, not theoretical.
 
@@ -138,7 +138,7 @@ dts: {
 
 #### Fase C — empirical probe (per plan v1.1 EC-1, mandatory if static read is ambiguous)
 
-NOT EXECUTED in this manual blueprint run. Documented as a **mandatory pre-implementation step** for `/implement`: before adding `workflow` to `dts.entry`, run the empirical probe — `cp packages/sdk/tsup.config.ts packages/sdk/tsup.scratch.config.ts`, add `workflow: "src/workflow.ts"` to the `entry` map AND `dts.entry`, `pnpm --filter @usetheo/sdk exec tsup --config tsup.scratch.config.ts`. If the build fails with "ForkOptions not exported", route through the tsc workaround. Cleanup: `rm tsup.scratch.config.ts && pnpm --filter @usetheo/sdk build`.
+NOT EXECUTED in this manual blueprint run. Documented as a **mandatory pre-implementation step** for `/implement`: before adding `workflow` to `dts.entry`, run the empirical probe — `cp packages/sdk/tsup.config.ts packages/sdk/tsup.scratch.config.ts`, add `workflow: "src/workflow.ts"` to the `entry` map AND `dts.entry`, `pnpm --filter @theokit/sdk exec tsup --config tsup.scratch.config.ts`. If the build fails with "ForkOptions not exported", route through the tsc workaround. Cleanup: `rm tsup.scratch.config.ts && pnpm --filter @theokit/sdk build`.
 
 Per the static evidence, the safer default is **route `workflow` and `eval` through the tsc workaround** (same lane as `tools`, `path-safety`, `task-store`). The tsc lane has zero observed failures in production. KISS: copy what works.
 
@@ -196,22 +196,22 @@ packages/sdk/src/types/index.ts:25: export type * from "./workflow.js";
 
 #### Step 2 — named-import scan
 
-Searched `packages/*/src/` + `examples/*/` for `import { ... } from "@usetheo/sdk"` containing any symbol from Step 1:
+Searched `packages/*/src/` + `examples/*/` for `import { ... } from "@theokit/sdk"` containing any symbol from Step 1:
 
 | File | Line | Current import statement | Target sub-path |
 |---|---|---|---|
-| `packages/cli/src/eval/runner.ts` | 14 | `import { Eval, type EvalRun, type Scorer as SdkScorer } from "@usetheo/sdk";` | `@usetheo/sdk/eval` |
-| `examples/eval/run.ts` | 14 | `import { Eval, Scorers, type EvalRun } from "@usetheo/sdk";` | `@usetheo/sdk/eval` |
+| `packages/cli/src/eval/runner.ts` | 14 | `import { Eval, type EvalRun, type Scorer as SdkScorer } from "@theokit/sdk";` | `@theokit/sdk/eval` |
+| `examples/eval/run.ts` | 14 | `import { Eval, Scorers, type EvalRun } from "@theokit/sdk";` | `@theokit/sdk/eval` |
 
-`examples/handoffs/run.ts:13-N` imports `{ Agent, Handoff, ... }` from `@usetheo/sdk` — NO Q5 symbols. Verified: handoffs is NOT a migration site (only the Handoff/Agent symbols, neither of which moves).
+`examples/handoffs/run.ts:13-N` imports `{ Agent, Handoff, ... }` from `@theokit/sdk` — NO Q5 symbols. Verified: handoffs is NOT a migration site (only the Handoff/Agent symbols, neither of which moves).
 
 **Workflow consumers: zero.** Despite shipping at v1.0 on 2026-05-25 (ADRs D230-D248), no first-party adoption exists in `packages/*/src/` or `examples/`. The 12 Workflow runtime exports + all `WorkflowDefinition`/`WorkflowStep`/etc type exports are dead surface from a consumer-evidence perspective today.
 
 #### Decision
 
-- Migration is small: 2 import-statement edits (1 in `packages/cli/src/eval/runner.ts:14`, 1 in `examples/eval/run.ts:14`). Both rewrite `from "@usetheo/sdk"` to `from "@usetheo/sdk/eval"`.
-- `Scorers` MUST live in `@usetheo/sdk/eval` (NOT a separate sub-path) — co-locates with its only consumer `examples/eval/run.ts:14`. See D3.
-- Workflow's lack of consumers IS positive evidence for ISP-via-sub-path: no one ever needed `Workflow` from the main barrel, so removing it reduces DTS weight without breaking anyone today. The eventual first-party Workflow consumer will import from `@usetheo/sdk/workflow` directly.
+- Migration is small: 2 import-statement edits (1 in `packages/cli/src/eval/runner.ts:14`, 1 in `examples/eval/run.ts:14`). Both rewrite `from "@theokit/sdk"` to `from "@theokit/sdk/eval"`.
+- `Scorers` MUST live in `@theokit/sdk/eval` (NOT a separate sub-path) — co-locates with its only consumer `examples/eval/run.ts:14`. See D3.
+- Workflow's lack of consumers IS positive evidence for ISP-via-sub-path: no one ever needed `Workflow` from the main barrel, so removing it reduces DTS weight without breaking anyone today. The eventual first-party Workflow consumer will import from `@theokit/sdk/workflow` directly.
 
 ---
 
@@ -396,7 +396,7 @@ export { Scorers } from "./scorers.js";
 
 #### Post-conditions to verify after the 5 diffs
 
-1. `pnpm --filter @usetheo/sdk build` exit 0
+1. `pnpm --filter @theokit/sdk build` exit 0
 2. `dist/workflow.{js,cjs,d.ts,d.cts}` + `dist/eval.{js,cjs,d.ts,d.cts}` all exist (the mirror script + tsup produce them)
 3. `pnpm validate:publint` exit 0 (root script, `package.json:18`)
 4. `pnpm validate:attw` exit 0 (root script, `package.json:19`)
@@ -409,7 +409,7 @@ export { Scorers } from "./scorers.js";
 
 ### Q4 — How does `@anthropic-ai/sdk@0.40.1` shape its `package.json#exports`?
 
-**Verdict:** Anthropic uses a **wildcard-based** exports map (`./*.mjs`, `./*.js`, `./*`). Pattern differs from `@usetheo/sdk`'s explicit-entry-per-sub-path approach. Recommendation: **keep the existing explicit pattern** for `@usetheo/sdk`.
+**Verdict:** Anthropic uses a **wildcard-based** exports map (`./*.mjs`, `./*.js`, `./*`). Pattern differs from `@theokit/sdk`'s explicit-entry-per-sub-path approach. Recommendation: **keep the existing explicit pattern** for `@theokit/sdk`.
 
 #### Evidence
 
@@ -423,11 +423,11 @@ Anthropic's exports keys (via `node -e "console.log(Object.keys(require('node_mo
 
 The wildcard `./*` lets any sub-path resolve automatically based on the dist tree shape. Suits SDKs with ~50+ fine-grained modules (anthropic ships per-resource files: `anthropic/resources/messages`, `anthropic/_shims/auto/...`).
 
-#### Recommendation for `@usetheo/sdk`
+#### Recommendation for `@theokit/sdk`
 
 **Keep the explicit-entry-per-sub-path pattern.** Reasons:
 
-- After this extraction `@usetheo/sdk` has 7 sub-paths total (`./errors`, `./cron`, `./tools`, `./path-safety`, `./task-store`, `./workflow`, `./eval`). Wildcards add accidental-surface risk for a small count.
+- After this extraction `@theokit/sdk` has 7 sub-paths total (`./errors`, `./cron`, `./tools`, `./path-safety`, `./task-store`, `./workflow`, `./eval`). Wildcards add accidental-surface risk for a small count.
 - The current explicit pattern is validated by `pnpm validate:attw` (root `package.json:19`) with `--ignore-rules no-resolution`. Switching to wildcards requires re-validating compatibility — out of scope.
 - KISS + Inquebrável Rule 9: copy what works (the 5 existing entries are production-validated by `.github/workflows/ci.yml:68`).
 
@@ -439,7 +439,7 @@ DOCUMENTed (plan v1.1 EC-6 acceptance): a follow-up `/discover-plan {slug}-peer-
 
 ### Q6 — Does `tools/typecheck-examples.sh` auto-propagate the multi-entry update?
 
-**Verdict:** **`auto-propagates: NO`** — confirmed by reading the script. Implementation MUST run explicit `pnpm --filter @usetheo/sdk build` BEFORE invoking `tools/typecheck-examples.sh`.
+**Verdict:** **`auto-propagates: NO`** — confirmed by reading the script. Implementation MUST run explicit `pnpm --filter @theokit/sdk build` BEFORE invoking `tools/typecheck-examples.sh`.
 
 #### Evidence
 
@@ -453,7 +453,7 @@ DOCUMENTed (plan v1.1 EC-6 acceptance): a follow-up `/discover-plan {slug}-peer-
    - `pnpm install --ignore-workspace --no-frozen-lockfile` (re-resolves the `file:` link to the SDK; EC-1 comment in script)
    - `npx tsc --noEmit`
 
-It does NOT invoke `pnpm --filter @usetheo/sdk build` anywhere. The `pnpm install --no-frozen-lockfile` re-resolves the link but if `dist/` is stale, `tsc --noEmit` reads stale `.d.ts` files. For the workflow/eval extraction this matters because the new sub-paths' `.d.ts` files only exist AFTER a rebuild.
+It does NOT invoke `pnpm --filter @theokit/sdk build` anywhere. The `pnpm install --no-frozen-lockfile` re-resolves the link but if `dist/` is stale, `tsc --noEmit` reads stale `.d.ts` files. For the workflow/eval extraction this matters because the new sub-paths' `.d.ts` files only exist AFTER a rebuild.
 
 #### Required pre-implementation runbook
 
@@ -462,11 +462,11 @@ The blueprint MUST be consumed by `/implement` with this exact sequence:
 ```bash
 # 1. Apply diffs 1-5 from Q3
 # 2. Rebuild the SDK so dist/ has the new sub-path entries
-pnpm --filter @usetheo/sdk build
+pnpm --filter @theokit/sdk build
 
 # 3. Migrate the 2 consumer sites identified in Q5:
-#    - packages/cli/src/eval/runner.ts:14 → from "@usetheo/sdk/eval"
-#    - examples/eval/run.ts:14 → from "@usetheo/sdk/eval"
+#    - packages/cli/src/eval/runner.ts:14 → from "@theokit/sdk/eval"
+#    - examples/eval/run.ts:14 → from "@theokit/sdk/eval"
 
 # 4. Run validation gates (mirrors root `package.json:28` validate chain)
 pnpm validate:publint           # root package.json:18
@@ -505,8 +505,8 @@ For `/implement` consumption, ranked by impact:
 4. **Do NOT touch `.github/workflows/ci.yml`** — D5 confirms the existing gate covers the new sub-paths automatically. Adding a CI job is scope creep.
 5. **Update `packages/sdk/CHANGELOG.md` under `[Unreleased]`** — per CLAUDE.md inquebrável § 6, the breaking change (`Removed` category: `Workflow`, `Eval`, `Scorers`, etc. from main barrel) MUST appear in the changelog before the SDK version bumps. Suggested entry text:
    > ### Removed
-   > - `Workflow`, `WorkflowBuilder`, `WorkflowAlreadyRunningError`, `WorkflowCompensateNotImplementedError`, `WorkflowDuplicateStepIdError`, `WorkflowMaxIterationsExceededError`, `WorkflowNotSerializableError`, `WorkflowParallelError`, `WorkflowResumeStepNotFoundError`, `WorkflowSnapshotNotFoundError`, `agentStep`, `fn` from main barrel `@usetheo/sdk` — import from `@usetheo/sdk/workflow` instead.
-   > - `Eval`, `EvalAlreadyRunningError`, `Scorers` from main barrel `@usetheo/sdk` — import from `@usetheo/sdk/eval` instead.
+   > - `Workflow`, `WorkflowBuilder`, `WorkflowAlreadyRunningError`, `WorkflowCompensateNotImplementedError`, `WorkflowDuplicateStepIdError`, `WorkflowMaxIterationsExceededError`, `WorkflowNotSerializableError`, `WorkflowParallelError`, `WorkflowResumeStepNotFoundError`, `WorkflowSnapshotNotFoundError`, `agentStep`, `fn` from main barrel `@theokit/sdk` — import from `@theokit/sdk/workflow` instead.
+   > - `Eval`, `EvalAlreadyRunningError`, `Scorers` from main barrel `@theokit/sdk` — import from `@theokit/sdk/eval` instead.
 6. **Bump the SDK version to `1.5.0`** (minor, technically breaking but the pre-1.0 SemVer policy in workspace + the user's no-backwards-compat directive justifies a minor; major reserved for the 1.0.0 cutover per meta-repo roadmap Onda 4).
 
 The blueprint does NOT recommend a `theokit migrate` codemod — the migration footprint is 2 line edits, well under any reasonable codemod threshold.
@@ -542,29 +542,29 @@ The blueprint does NOT recommend a `theokit migrate` codemod — the migration f
 
 **Cited rules:** `.claude/rules/architecture.md` (public API surface explicit declaration).
 
-### D3 — Move `Scorers` to `@usetheo/sdk/eval` (co-locate with `Eval`)
+### D3 — Move `Scorers` to `@theokit/sdk/eval` (co-locate with `Eval`)
 
-**Decision:** `Scorers` namespace moves to `@usetheo/sdk/eval` via re-export from `src/eval.ts`, NOT kept in the main barrel.
+**Decision:** `Scorers` namespace moves to `@theokit/sdk/eval` via re-export from `src/eval.ts`, NOT kept in the main barrel.
 
 **Rationale:** Consumer evidence: `examples/eval/run.ts:14` imports `{ Eval, Scorers, type EvalRun }` together. `packages/cli/src/eval/runner.ts:14` imports `Eval` + `Scorer` type together. Every actual Scorers consumer is also an Eval consumer. Locality of reference + ISP — keeping it in the main barrel forces non-eval consumers to pay its ~151 LoC DTS cost.
 
 **Alternatives considered:**
 - Keep in main barrel — rejected, violates locality.
-- Separate `@usetheo/sdk/scorers` sub-path — rejected, no usage pattern justifies a third sub-path (Scorers without Eval has no use case).
+- Separate `@theokit/sdk/scorers` sub-path — rejected, no usage pattern justifies a third sub-path (Scorers without Eval has no use case).
 
 **Consequences:** `src/eval.ts` MUST add `export { Scorers } from "./scorers.js"`. `tsconfig.tools-dts.json#include` MUST add `src/scorers.ts`.
 
 **Cited rules:** `.claude/rules/architecture.md` (DIP layer locality), Inquebrável § ISP.
 
-### D4 — `/implement` MUST run explicit `pnpm --filter @usetheo/sdk build` before `tools/typecheck-examples.sh`
+### D4 — `/implement` MUST run explicit `pnpm --filter @theokit/sdk build` before `tools/typecheck-examples.sh`
 
-**Decision:** The implementation runbook ships a fixed step-2 invoking `pnpm --filter @usetheo/sdk build` after diff application and before any typecheck.
+**Decision:** The implementation runbook ships a fixed step-2 invoking `pnpm --filter @theokit/sdk build` after diff application and before any typecheck.
 
 **Rationale:** Empirical confirmation in Q6 — `tools/typecheck-examples.sh:1-50` does NOT call `pnpm build`. Without rebuild, the sweep reads stale `dist/` and produces false positives. `.claude/rules/real-llm-validation.md` discipline (evidence-as-proof) makes this non-negotiable.
 
 **Alternatives considered:** Patch `tools/typecheck-examples.sh` to auto-rebuild — rejected as scope creep; the rebuild step is a runbook addition, not a tooling change. Future hardening can promote it.
 
-**Consequences:** `/implement` halt-loop MUST sequence: (1) apply 5 diffs, (2) `pnpm --filter @usetheo/sdk build`, (3) migrate 2 consumer sites, (4) run validation gates. Skipping step 2 invalidates step 4.
+**Consequences:** `/implement` halt-loop MUST sequence: (1) apply 5 diffs, (2) `pnpm --filter @theokit/sdk build`, (3) migrate 2 consumer sites, (4) run validation gates. Skipping step 2 invalidates step 4.
 
 **Cited rules:** `.claude/rules/real-llm-validation.md` (real evidence not framed evidence).
 
@@ -574,7 +574,7 @@ The blueprint does NOT recommend a `theokit migrate` codemod — the migration f
 
 **Rationale:** Per Q1 evidence, the CI gate already covers every package-level publint + attw check via the root validate scripts. The new `./workflow` and `./eval` entries in `package.json#exports` will be exercised by the existing gate automatically.
 
-**Alternatives considered:** Add a sub-path-specific smoke test (e.g., `import "@usetheo/sdk/workflow"` in a probe file) — rejected; the 2 consumer migrations from Q5 ARE the smoke tests, and the existing attw gate validates the exports map structurally.
+**Alternatives considered:** Add a sub-path-specific smoke test (e.g., `import "@theokit/sdk/workflow"` in a probe file) — rejected; the 2 consumer migrations from Q5 ARE the smoke tests, and the existing attw gate validates the exports map structurally.
 
 **Consequences:** Zero CI YAML changes for this extraction. The cost is paid by `tools/typecheck-examples.sh` sweep + `pnpm validate:attw` on every push.
 
@@ -591,7 +591,7 @@ The blueprint does NOT recommend a `theokit migrate` codemod — the migration f
 | 3 | `tsconfig.tools-dts.json` include diff | Add 5 paths (workflow.ts, eval.ts, scorers.ts, internal/eval/**, internal/workflow/**) at line 25+ | Q3 Diff 2 |
 | 4 | `mirror-dts-to-cts.mjs` update | Add `dist/workflow.d.ts` + `dist/eval.d.ts` to explicit targets array (lines 32-36) | Q3 Diff 3 |
 | 5 | Consumer migration list | 2 sites: `packages/cli/src/eval/runner.ts:14`, `examples/eval/run.ts:14` | Q5 Step-2 table |
-| 6 | Scorers location decision | Move to `@usetheo/sdk/eval` (re-export from `src/eval.ts`) | D3 |
+| 6 | Scorers location decision | Move to `@theokit/sdk/eval` (re-export from `src/eval.ts`) | D3 |
 
 ---
 
@@ -611,32 +611,32 @@ Reproduced per Q5 special checkpoint (plan v1.1).
 
 | Symbol | Source file | New sub-path |
 |---|---|---|
-| `Workflow` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowBuilder` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowAlreadyRunningError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowCompensateNotImplementedError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowDuplicateStepIdError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowMaxIterationsExceededError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowNotSerializableError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowParallelError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowResumeStepNotFoundError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `WorkflowSnapshotNotFoundError` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `agentStep` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `fn` | `packages/sdk/src/workflow.ts` | `@usetheo/sdk/workflow` |
-| `Eval` | `packages/sdk/src/eval.ts` | `@usetheo/sdk/eval` |
-| `EvalAlreadyRunningError` | `packages/sdk/src/eval.ts:77` (re-exported from `internal/eval/single-flight.ts`) | `@usetheo/sdk/eval` |
-| `Scorers` | `packages/sdk/src/scorers.ts` | `@usetheo/sdk/eval` (per D3) |
+| `Workflow` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowBuilder` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowAlreadyRunningError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowCompensateNotImplementedError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowDuplicateStepIdError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowMaxIterationsExceededError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowNotSerializableError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowParallelError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowResumeStepNotFoundError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `WorkflowSnapshotNotFoundError` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `agentStep` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `fn` | `packages/sdk/src/workflow.ts` | `@theokit/sdk/workflow` |
+| `Eval` | `packages/sdk/src/eval.ts` | `@theokit/sdk/eval` |
+| `EvalAlreadyRunningError` | `packages/sdk/src/eval.ts:77` (re-exported from `internal/eval/single-flight.ts`) | `@theokit/sdk/eval` |
+| `Scorers` | `packages/sdk/src/scorers.ts` | `@theokit/sdk/eval` (per D3) |
 
 ### Type-only re-exports
 
 | Source file | New sub-path |
 |---|---|
-| All exports of `packages/sdk/src/types/workflow.ts` (currently surfaced via `types/index.ts:25`) | `@usetheo/sdk/workflow` |
-| All exports of `packages/sdk/src/types/eval.ts` (currently surfaced via `types/index.ts:12`) | `@usetheo/sdk/eval` |
+| All exports of `packages/sdk/src/types/workflow.ts` (currently surfaced via `types/index.ts:25`) | `@theokit/sdk/workflow` |
+| All exports of `packages/sdk/src/types/eval.ts` (currently surfaced via `types/index.ts:12`) | `@theokit/sdk/eval` |
 
 ### Consumer sites (Step-2 grep result)
 
-| File | Line | Symbols imported from `@usetheo/sdk` |
+| File | Line | Symbols imported from `@theokit/sdk` |
 |---|---|---|
 | `packages/cli/src/eval/runner.ts` | 14 | `Eval`, `EvalRun` (type), `Scorer as SdkScorer` (type) |
 | `examples/eval/run.ts` | 14 | `Eval`, `Scorers`, `EvalRun` (type) |

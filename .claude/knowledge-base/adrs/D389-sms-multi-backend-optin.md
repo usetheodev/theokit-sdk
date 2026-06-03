@@ -10,11 +10,11 @@ SMS has no single dominant provider (unlike WhatsApp = Meta or Slack = Bolt). Tw
 
 ## Decision
 
-`@usetheo/gateway-sms` exposes discriminated union `SMSBackendKind = "twilio" | "plivo" | "vonage"` selected via constructor option `backend`. Each backend SDK is an optional peer-dep; only the selected backend's SDK is imported lazily.
+`@theokit/gateway-sms` exposes discriminated union `SMSBackendKind = "twilio" | "plivo" | "vonage"` selected via constructor option `backend`. Each backend SDK is an optional peer-dep; only the selected backend's SDK is imported lazily.
 
 ## Rationale
 
-Same multi-backend pattern as `@usetheo/gateway-whatsapp` (D303) which proved viable. Avoids forcing all three peer-deps on every consumer.
+Same multi-backend pattern as `@theokit/gateway-whatsapp` (D303) which proved viable. Avoids forcing all three peer-deps on every consumer.
 
 ## Consequences
 

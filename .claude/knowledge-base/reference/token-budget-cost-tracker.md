@@ -10,7 +10,7 @@
 
 ## 1. Problem statement
 
-- **What:** Adicionar à `@usetheo/sdk` um sistema de tracking de **tokens consumidos + custo USD estimado** + **enforcement de budgets** (hard cap / warn / audit). Surface mínimo: (a) `result.usage` em todo `RunResult`, (b) `Budget` static class com windows stacked (per-day/week/month), (c) `BudgetExceededError` no fail-fast antes da chamada LLM, (d) hook/event para observability externa (Langfuse/Sentry/OTel).
+- **What:** Adicionar à `@theokit/sdk` um sistema de tracking de **tokens consumidos + custo USD estimado** + **enforcement de budgets** (hard cap / warn / audit). Surface mínimo: (a) `result.usage` em todo `RunResult`, (b) `Budget` static class com windows stacked (per-day/week/month), (c) `BudgetExceededError` no fail-fast antes da chamada LLM, (d) hook/event para observability externa (Langfuse/Sentry/OTel).
 - **Current state:** `RunResult` em [`packages/sdk/src/types/run.ts:49-66`](packages/sdk/src/types/run.ts) tem apenas `{ id, status, result?, model?, durationMs?, git?, error? }` — **sem usage, sem cost**. Zero pricing data bundled. Sem primitivo de Budget. A análise SDK vs Hermes (2026-05-27) marcou "Token budget / cost tracking" como gap MISS — Hermes tem `agent/usage_pricing.py` completo; nós não temos nada.
 - **Why now:** Identificado nesta semana como gap residual #1 pós-ACP + Tasks. ROI alto para enterprise (controle de spend), esforço pequeno (1-2 dias) por já existirem 4+ reference implementations + LiteLLM pricing JSON como source-of-truth. Token tracking é também pré-requisito para "cost-velocity circuit breaker" + observability stack 2026 (Langfuse/Helicone esperam essa shape).
 

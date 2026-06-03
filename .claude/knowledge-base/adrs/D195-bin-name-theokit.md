@@ -7,7 +7,7 @@
 
 The CLI installs a single bin named `theokit`. Existing single-purpose
 bins (`theokit-migrate-memory`, `theokit-migrate-config`) remain
-working — they're separate scripts in `@usetheo/sdk/bin/`. Future
+working — they're separate scripts in `@theokit/sdk/bin/`. Future
 work may add `theokit migrate memory|config` aliases with deprecation
 warnings on the standalone bins.
 

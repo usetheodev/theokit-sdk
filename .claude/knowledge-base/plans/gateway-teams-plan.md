@@ -1,6 +1,6 @@
-# Plan: `@usetheo/gateway-teams` v0.1.0 (Roadmap v1.4 #3)
+# Plan: `@theokit/gateway-teams` v0.1.0 (Roadmap v1.4 #3)
 
-> **Version 1.2** (2026-05-23, after Phase 0 SDK inspection) — Ship the Microsoft Teams adapter for `@usetheo/gateway` using the **modern `@microsoft/teams.apps` SDK v2.x** (Microsoft-published, replaces the legacy `botbuilder`). v1 scope: 1:1 + group chat + channel posts + plain text. Both reference projects (`referencia/hermes-agent/plugins/platforms/teams/adapter.py` and `referencia/openclaw/extensions/msteams/`) standardize on the same SDK — we follow suit. Adapter exposes `BasePlatformAdapter` contract (D172); platform-specific extensions (Adaptive Cards, channel posts, replies) sit behind `event.teams.raw` escape hatch (D180). Env-gated example with Azure Bot Service registration walkthrough in README. Expected outcome: builders can `pnpm add @usetheo/gateway-teams` and reach the enterprise default messaging platform — Slack ✅ + Discord ✅ + WhatsApp ✅ + Teams completes the production-grade triangle.
+> **Version 1.2** (2026-05-23, after Phase 0 SDK inspection) — Ship the Microsoft Teams adapter for `@theokit/gateway` using the **modern `@microsoft/teams.apps` SDK v2.x** (Microsoft-published, replaces the legacy `botbuilder`). v1 scope: 1:1 + group chat + channel posts + plain text. Both reference projects (`referencia/hermes-agent/plugins/platforms/teams/adapter.py` and `referencia/openclaw/extensions/msteams/`) standardize on the same SDK — we follow suit. Adapter exposes `BasePlatformAdapter` contract (D172); platform-specific extensions (Adaptive Cards, channel posts, replies) sit behind `event.teams.raw` escape hatch (D180). Env-gated example with Azure Bot Service registration walkthrough in README. Expected outcome: builders can `pnpm add @theokit/gateway-teams` and reach the enterprise default messaging platform — Slack ✅ + Discord ✅ + WhatsApp ✅ + Teams completes the production-grade triangle.
 
 > **Edge-case review 2026-05-23 absorbed (v1.1):** 7 MUST FIX identified by `/edge-case-plan` were incorporated:
 > - **EC-1** (T1.3) — constructor validates non-empty credentials (not just `!== undefined`).
@@ -17,8 +17,8 @@
 
 ### What exists today
 
-- 4 gateways shipped: `@usetheo/gateway-telegram`, `@usetheo/gateway-discord`, `@usetheo/gateway-slack`, `@usetheo/gateway-whatsapp` (D170-D314).
-- `@usetheo/gateway@0.2.0` — `BasePlatformAdapter` + closed `PlatformName = "telegram" | "discord" | "slack" | "whatsapp"`. Opens to include `"teams"` per the D308-style pattern that worked for WhatsApp.
+- 4 gateways shipped: `@theokit/gateway-telegram`, `@theokit/gateway-discord`, `@theokit/gateway-slack`, `@theokit/gateway-whatsapp` (D170-D314).
+- `@theokit/gateway@0.2.0` — `BasePlatformAdapter` + closed `PlatformName = "telegram" | "discord" | "slack" | "whatsapp"`. Opens to include `"teams"` per the D308-style pattern that worked for WhatsApp.
 - `examples/whatsapp-bot/` already demonstrates the Express + webhook + agent-loop pattern. Teams will mirror that shape closely.
 
 ### What's missing
@@ -45,11 +45,11 @@
 
 ## Objective
 
-**Done = a user can `pnpm add @usetheo/gateway-teams`, register an Azure Bot Service app, set 3 env vars, and have their `@usetheo/sdk` agent receive Teams 1:1/group/channel messages + respond.**
+**Done = a user can `pnpm add @theokit/gateway-teams`, register an Azure Bot Service app, set 3 env vars, and have their `@theokit/sdk` agent receive Teams 1:1/group/channel messages + respond.**
 
 Measurable goals:
 
-1. Package `@usetheo/gateway-teams` v0.1.0 shippable via npm (publint + attw clean).
+1. Package `@theokit/gateway-teams` v0.1.0 shippable via npm (publint + attw clean).
 2. `TeamsAdapter` extends `BasePlatformAdapter`; passes `instanceof` checks; never throws on platform errors per D172 contract.
 3. Webhook ingress: `POST /api/messages` wired via Express bridge into `@microsoft/teams.apps`.
 4. Inbound normalization: 1:1, group chat, channel post → `TeamsMessageEvent` with portable fields + `event.teams.raw` escape hatch.
@@ -116,9 +116,9 @@ Measurable goals:
 - **Consequences:** Standard `0.x` semver.
 
 ### D325 — `PlatformName` extends to `"teams"`
-- **Decision:** Open the `@usetheo/gateway` `PlatformName` union to include `"teams"`. Bump gateway to 0.3.0. Add `TeamsMessageEvent` variant.
+- **Decision:** Open the `@theokit/gateway` `PlatformName` union to include `"teams"`. Bump gateway to 0.3.0. Add `TeamsMessageEvent` variant.
 - **Rationale:** Same pattern WhatsApp followed (D308). Additive; existing consumers unaffected.
-- **Consequences:** Minor bump on `@usetheo/gateway` from 0.2.0 → 0.3.0.
+- **Consequences:** Minor bump on `@theokit/gateway` from 0.2.0 → 0.3.0.
 
 ### D326 — Express handler factory (instead of bundled server)
 - **Decision:** Adapter exposes `adapter.createExpressHandler()` — returns a request handler the user mounts at their chosen path. We do NOT spawn an HTTP server.
@@ -241,7 +241,7 @@ packages/gateway-teams/src/index.ts (NEW — empty barrel)
 - Workspace auto-includes via `packages/*` glob.
 
 #### Deep Dives
-- `peerDependencies`: `@usetheo/gateway: workspace:^`, `@usetheo/sdk: workspace:^`, `@microsoft/teams.apps: ^2.0.0`, `@microsoft/teams.api: ^2.0.0`. Express is OPTIONAL since the user provides their own server (the adapter only exposes the handler factory).
+- `peerDependencies`: `@theokit/gateway: workspace:^`, `@theokit/sdk: workspace:^`, `@microsoft/teams.apps: ^2.0.0`, `@microsoft/teams.api: ^2.0.0`. Express is OPTIONAL since the user provides their own server (the adapter only exposes the handler factory).
 - `peerDependenciesMeta`: none optional (Teams SDK is required to function).
 - `sideEffects: false` from the start (publint suggestion absorbed early).
 
@@ -254,16 +254,16 @@ packages/gateway-teams/src/index.ts (NEW — empty barrel)
 
 #### TDD
 ```
-RED:     test_package_resolves — `pnpm list @usetheo/gateway-teams` shows it
+RED:     test_package_resolves — `pnpm list @theokit/gateway-teams` shows it
 GREEN:   Package skeleton in workspace
 REFACTOR: None expected
-VERIFY:  pnpm install && pnpm list @usetheo/gateway-teams
+VERIFY:  pnpm install && pnpm list @theokit/gateway-teams
 ```
 
 #### Acceptance Criteria
 - [ ] `packages/gateway-teams/` directory exists with 7 files
 - [ ] `pnpm install` succeeds at root
-- [ ] `pnpm --filter @usetheo/gateway-teams build` works (empty index emits empty dist)
+- [ ] `pnpm --filter @theokit/gateway-teams build` works (empty index emits empty dist)
 
 #### DoD
 - [ ] Skeleton commitable
@@ -321,7 +321,7 @@ packages/gateway/tests/types/message-event.test.ts — add teams variant test + 
 1. Add `"teams"` to `PlatformName` union.
 2. Add `TeamsMessageEvent` interface.
 3. Add to the `MessageEvent` union export.
-4. Update `@usetheo/gateway/package.json` to `0.3.0`.
+4. Update `@theokit/gateway/package.json` to `0.3.0`.
 5. Add CHANGELOG entry under `[Unreleased]`.
 6. Update `tests/types/message-event.test.ts` exhaustive switch + add a `makeTeamsEvent` helper.
 
@@ -332,12 +332,12 @@ RED:     test_teams_event_narrows — switch on `event.platform === "teams"` nar
 RED:     test_exhaustive_switch_covers_teams — extends the existing exhaustive test to include teams
 GREEN:   Types compile + tests pass
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway typecheck && pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway typecheck && pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
 - [ ] `PlatformName` includes `"teams"`
-- [ ] `TeamsMessageEvent` exported from `@usetheo/gateway`
+- [ ] `TeamsMessageEvent` exported from `@theokit/gateway`
 - [ ] Sibling adapters (whatsapp, slack, telegram, discord) still typecheck
 - [ ] CHANGELOG entry added (0.3.0)
 
@@ -423,7 +423,7 @@ RED:     test_adapter_constructor_validates_non_empty (EC-1) — passing `client
 RED:     test_adapter_conv_ref_store_recorded_on_inbound — `Map` has entry after `_handleInbound`
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test
+VERIFY:  pnpm --filter @theokit/gateway-teams test
 ```
 
 #### Acceptance Criteria
@@ -468,7 +468,7 @@ RED:     test_create_teams_app_sets_user_agent — App receives "theokit-gateway
 RED:     test_create_teams_app_throws_on_missing_credentials
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test teams-app.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-teams test teams-app.test.ts
 ```
 
 #### Acceptance Criteria
@@ -525,7 +525,7 @@ RED:     test_express_handler_throws_500_when_not_connected
 RED:     test_express_handler_delegates_to_app_process — fake app's `process` is called with (req, res)
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test adapter.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-teams test adapter.test.ts
 ```
 
 #### Acceptance Criteria
@@ -610,7 +610,7 @@ RED:     test_normalize_preserves_raw_activity — `event.teams.raw` is the inpu
 RED:     test_normalize_handles_empty_text — empty body → `text: ""`
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test normalize.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-teams test normalize.test.ts
 ```
 
 #### Acceptance Criteria
@@ -686,7 +686,7 @@ RED:     test_conv_ref_store_caps_at_1000_entries (EC-5) — inserting 1001st ch
 RED:     test_conv_ref_store_lru_on_write (EC-5) — re-inserting an existing chatId bumps it to "newest" position
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test conversation-ref-store.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-teams test conversation-ref-store.test.ts
 ```
 
 #### Acceptance Criteria
@@ -737,7 +737,7 @@ RED:     test_split_preserves_surrogate_pairs
 RED:     test_split_filters_empty_parts
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test split.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-teams test split.test.ts
 ```
 
 #### Acceptance Criteria
@@ -804,7 +804,7 @@ RED:     test_send_app_throws_returns_error
 RED:     test_send_returns_last_activity_id
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test
+VERIFY:  pnpm --filter @theokit/gateway-teams test
 ```
 
 #### Acceptance Criteria
@@ -879,7 +879,7 @@ RED:     test_map_plain_error_without_status (EC-7, absorbs EC-10) — `new Erro
 RED:     test_map_handles_statusCode_field (EC-7) — some SDKs use `statusCode` not `status`; both must work
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test errors.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-teams test errors.test.ts
 ```
 
 #### Acceptance Criteria
@@ -948,7 +948,7 @@ RED:     test_disconnect_idempotent — second call is noop
 RED:     test_disconnect_clears_conv_refs
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-teams test
+VERIFY:  pnpm --filter @theokit/gateway-teams test
 ```
 
 #### Acceptance Criteria
@@ -981,7 +981,7 @@ examples/teams-bot/tsconfig.json (NEW)
 
 #### Deep file dependency analysis
 - Standalone example package — independent install.
-- Depends on `@usetheo/sdk` + `@usetheo/gateway-teams` (workspace) + `@microsoft/teams.apps` + `@microsoft/teams.api` + `express`.
+- Depends on `@theokit/sdk` + `@theokit/gateway-teams` (workspace) + `@microsoft/teams.apps` + `@microsoft/teams.api` + `express`.
 
 #### Deep Dives
 - `.env.example`:
@@ -1103,7 +1103,7 @@ Add Teams row to the shipped-adapters table.
 ```
 
 #### Tasks
-1. Add `@usetheo/gateway-teams` row.
+1. Add `@theokit/gateway-teams` row.
 2. Update roadmap blurb: WhatsApp ✅, Teams ✅, Email pendente.
 
 #### TDD
@@ -1149,7 +1149,7 @@ Regenerate cookbook to pick up `examples/teams-bot/`.
 None — verification only.
 
 #### Tasks
-1. `pnpm --filter @usetheo/sdk run docs:drift`.
+1. `pnpm --filter @theokit/sdk run docs:drift`.
 2. Confirm exit 0.
 
 #### Acceptance Criteria
@@ -1206,7 +1206,7 @@ Land the work.
 
 #### Tasks
 1. theokit-sdk: stage new package + CHANGELOG + roadmap update + plan + inventory.
-2. theokit-sdk: commit `feat(gateway): @usetheo/gateway-teams v0.1.0 (Roadmap v1.4 #3)`.
+2. theokit-sdk: commit `feat(gateway): @theokit/gateway-teams v0.1.0 (Roadmap v1.4 #3)`.
 3. theokit-sdk: push.
 4. theo-opendocs: commit cookbook regen + gateways.mdx edit.
 5. theo-opendocs: push.
@@ -1253,8 +1253,8 @@ Land the work.
 ## Global Definition of Done
 
 - [ ] Phases 0-7 complete (Phase 0 SDK inspection is mandatory — EC-2)
-- [ ] All tests passing in `@usetheo/gateway-teams`
-- [ ] `@usetheo/gateway` bumped to 0.3.0 (union opened for `"teams"`)
+- [ ] All tests passing in `@theokit/gateway-teams`
+- [ ] `@theokit/gateway` bumped to 0.3.0 (union opened for `"teams"`)
 - [ ] `examples/teams-bot/` scaffold + README + smoke
 - [ ] theo-opendocs `concepts/gateways.mdx` updated + cookbook regenerated
 - [ ] Drift checker clean

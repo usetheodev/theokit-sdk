@@ -8,31 +8,31 @@
 
 ### Breaking Changes
 
-- **`Workflow` and `Eval` moved out of the main barrel into dedicated sub-paths.** The migration is mechanical (rewrite the `from` string); no behavior changes. `@usetheo/sdk` main barrel no longer exports:
-  - From workflow: `Workflow`, `WorkflowBuilder`, `agentStep`, `fn`, `WorkflowAlreadyRunningError`, `WorkflowCompensateNotImplementedError`, `WorkflowDuplicateStepIdError`, `WorkflowMaxIterationsExceededError`, `WorkflowNotSerializableError`, `WorkflowParallelError`, `WorkflowResumeStepNotFoundError`, `WorkflowSnapshotNotFoundError` — **import from `@usetheo/sdk/workflow` instead**.
-  - From eval: `Eval`, `EvalAlreadyRunningError`, `Scorers` — **import from `@usetheo/sdk/eval` instead**.
+- **`Workflow` and `Eval` moved out of the main barrel into dedicated sub-paths.** The migration is mechanical (rewrite the `from` string); no behavior changes. `@theokit/sdk` main barrel no longer exports:
+  - From workflow: `Workflow`, `WorkflowBuilder`, `agentStep`, `fn`, `WorkflowAlreadyRunningError`, `WorkflowCompensateNotImplementedError`, `WorkflowDuplicateStepIdError`, `WorkflowMaxIterationsExceededError`, `WorkflowNotSerializableError`, `WorkflowParallelError`, `WorkflowResumeStepNotFoundError`, `WorkflowSnapshotNotFoundError` — **import from `@theokit/sdk/workflow` instead**.
+  - From eval: `Eval`, `EvalAlreadyRunningError`, `Scorers` — **import from `@theokit/sdk/eval` instead**.
   - From `types/*`: type aliases for workflow + eval (e.g., `EvalRun`, `Scorer`, `Score`, `EvalOptions`, `EvalAggregate`, `Step`, `FnStep`, etc.) no longer reach the main barrel via `types/index.ts`; surface only through the new sub-paths.
 
-  Rationale: Interface Segregation. The barrel exported 17+ feature areas, forcing consumers to pay the DTS cost of `Workflow`+`Eval` even if they only used `Agent`+`Memory`. Sub-paths reduce DTS surface and align with the existing pattern (`@usetheo/sdk/cron`, `/tools`, `/path-safety`, `/task-store`, `/errors`).
+  Rationale: Interface Segregation. The barrel exported 17+ feature areas, forcing consumers to pay the DTS cost of `Workflow`+`Eval` even if they only used `Agent`+`Memory`. Sub-paths reduce DTS surface and align with the existing pattern (`@theokit/sdk/cron`, `/tools`, `/path-safety`, `/task-store`, `/errors`).
 
   **Migration:**
   ```ts
   // Before
-  import { Workflow, Eval, Scorers } from "@usetheo/sdk";
+  import { Workflow, Eval, Scorers } from "@theokit/sdk";
 
   // After
-  import { Workflow } from "@usetheo/sdk/workflow";
-  import { Eval, Scorers } from "@usetheo/sdk/eval";
+  import { Workflow } from "@theokit/sdk/workflow";
+  import { Eval, Scorers } from "@theokit/sdk/eval";
   ```
 
 ### Added
 
-- `@usetheo/sdk/workflow` sub-path entry (with full ESM + CJS conditions, `.d.ts` + `.d.cts` mirror for attw compliance).
-- `@usetheo/sdk/eval` sub-path entry (same shape; `Scorers` co-located here per locality of reference).
+- `@theokit/sdk/workflow` sub-path entry (with full ESM + CJS conditions, `.d.ts` + `.d.cts` mirror for attw compliance).
+- `@theokit/sdk/eval` sub-path entry (same shape; `Scorers` co-located here per locality of reference).
 
 ## 1.4.1 (workspace-only — NOT published to npm)
 
-> **Drift note (2026-06-02):** versions 1.4.0 and 1.4.1 landed in workspace and were merged to develop, but never reached the `@latest` npm dist-tag. npm `@usetheo/sdk@latest` remains at **1.3.0** (last shipped 2026-05-30). The 1.4.x patch chain will be consolidated into the next published release (1.5.0 or higher) — consumers who need the LanceDB wiring fix (1.4.0) or the zod v3/v4 universal converter (1.4.1) must install `@usetheo/sdk@1.5.0-next.X` (when published on `next`) or wait for the consolidated `latest` cut. Drift root cause: 1.4.0 sub-paths extraction work changed the publish requirements (workspace `pnpm changeset version` chain was bumped but `pnpm changeset publish` was deferred while 1.5.0 sub-path API surface stabilized). All entries below reflect REAL code changes that DID land on develop.
+> **Drift note (2026-06-02):** versions 1.4.0 and 1.4.1 landed in workspace and were merged to develop, but never reached the `@latest` npm dist-tag. npm `@theokit/sdk@latest` remains at **1.3.0** (last shipped 2026-05-30). The 1.4.x patch chain will be consolidated into the next published release (1.5.0 or higher) — consumers who need the LanceDB wiring fix (1.4.0) or the zod v3/v4 universal converter (1.4.1) must install `@theokit/sdk@1.5.0-next.X` (when published on `next`) or wait for the consolidated `latest` cut. Drift root cause: 1.4.0 sub-paths extraction work changed the publish requirements (workspace `pnpm changeset version` chain was bumped but `pnpm changeset publish` was deferred while 1.5.0 sub-path API surface stabilized). All entries below reflect REAL code changes that DID land on develop.
 
 ### Patch Changes
 
@@ -240,13 +240,13 @@ FAIL before the fix).
 
 ### Added — Task observability registry (ADRs D361-D374, Adoption Roadmap gap #2)
 
-- `Task` namespace (`@usetheo/sdk`) exposing static methods `submit`, `list`,
+- `Task` namespace (`@theokit/sdk`) exposing static methods `submit`, `list`,
   `get`, `cancel`, `subscribe`, `configure`. Closed 5-state lifecycle
   (`queued | running | finished | error | cancelled`).
 - Pluggable `TaskStore` interface + 2 backends — `InMemoryTaskStore` (default,
   transient) and `JsonFileTaskStore` (opt-in, one JSON file per task,
   single-process invariant documented). SQLite backend deferred to v0.2.
-- New sub-export `@usetheo/sdk/task-store` for cross-process readers
+- New sub-export `@theokit/sdk/task-store` for cross-process readers
   (the `theokit tasks` CLI consumes this).
 - Ring buffer (cap 64) per task for late-attach `subscribe` replay (D372).
 - Idempotent cancel — `Task.cancel(id, reason?)` returns
@@ -339,7 +339,7 @@ Closes Gap 3 of the TheoKit cross-repo handoff. Makes `AgentRunError` consumer-b
 
 **Added:**
 
-- **`AgentRunErrorCode`** discriminated union (16 codes) exported from `@usetheo/sdk`. Supersets `ErrorCode` with non-HTTP origins (`quota_exceeded`, `tool_runtime_error`, `aborted`, `invalid_model`, `safety_blocked`, `provider_unreachable`). Trailing `(string & {})` keeps autocomplete + accepts legacy provider-prefixed strings.
+- **`AgentRunErrorCode`** discriminated union (16 codes) exported from `@theokit/sdk`. Supersets `ErrorCode` with non-HTTP origins (`quota_exceeded`, `tool_runtime_error`, `aborted`, `invalid_model`, `safety_blocked`, `provider_unreachable`). Trailing `(string & {})` keeps autocomplete + accepts legacy provider-prefixed strings.
 - **`AgentRunError.requestId`** + **`AgentRunError.conversationId`** fields. Provider's `x-request-id` / `request-id` header parsed via `parseRequestId` helper in `internal/errors/mappers/shared.ts`. `conversationId` settable by caller for log correlation.
 - **`AgentRunError.retriable`** getter — alias for `isRetryable` (handoff contract; future v2 deprecates `isRetryable`).
 - **`AgentRunError.retryAfterMs`** computed getter — `metadata.retryAfter * 1000` so callers compose with `Date.now()` / `setTimeout` directly. Returns `0` (not `undefined`) when provider sent `Retry-After: 0` (EC-11).
@@ -378,7 +378,7 @@ Closes Gap 2 of the TheoKit cross-repo handoff. Eliminates OOM in 24/7 Node depl
 
 Closes Gap 1 of the TheoKit cross-repo production-readiness handoff (`docs/handoffs/from-theokit/2026-05-25-production-readiness.md`). Unblocks serverless (Vercel, Cloudflare Workers, Lambda) and multi-host (K8s replicas, TheoCloud canary) deploys that cannot use the default `<cwd>/.theokit/agents/<id>/messages.jsonl` filesystem persistence.
 
-- **`ConversationStorageAdapter`** interface exported from `@usetheo/sdk`. 5 methods (`getMessages`, `appendMessage`, `deleteConversation`, optional `listConversationIds`, optional `compact`, optional `dispose`). Implementations return `Promise<>` uniformly for adapter polymorphism (ADR D306).
+- **`ConversationStorageAdapter`** interface exported from `@theokit/sdk`. 5 methods (`getMessages`, `appendMessage`, `deleteConversation`, optional `listConversationIds`, optional `compact`, optional `dispose`). Implementations return `Promise<>` uniformly for adapter polymorphism (ADR D306).
 - **`FileSystemConversationStorage`** exported. Default when `AgentOptions.conversationStorage` is unset (zero migration — existing apps unaffected). Wraps the pre-D303 byte-identical behavior including redaction (D68) + compaction every 50 appends (D18). Path-traversal guard re-applied in `deleteConversation` (EC-1, ADR D304); ENOENT swallowed in `listConversationIds` for first-run deploys (EC-2).
 - **`InMemoryConversationStorage`** exported. `Map<conversationId, StoredMessage[]>` for tests + ephemeral dev. Returns defensive copies from `getMessages`.
 - **`StoredMessage`** widened from `user|assistant` to 5 roles (`user|assistant|system|tool_call|tool_result`) for forward compat with tool-shaped messages flowing through the adapter (EC-10, ADR D304). Legacy JSONL files continue to parse — `readSessionFile` filters defensively.
@@ -404,22 +404,22 @@ Closes Gap 1 of the TheoKit cross-repo production-readiness handoff (`docs/hando
 
 - **Intermediate-symlink escape closed.** Previous implementation called `lstatSync(path)` only on the **terminal** component. If an intermediate directory in the path was itself a symlink to a location outside `base` (`/project/inner → /outside`), accessing `/project/inner/file.txt` would physically read `/outside/file.txt` and the guard would NOT detect the escape — `lstat` followed the intermediate symlink and reported a regular file. **Fix:** walk to the deepest existing ancestor, `realpathSync` it, then re-attach the lexical suffix; compare against the canonical base. Two new tests pin the fix (terminal-not-yet-created variant included). All 27 existing consumer tests (`agent-session-store`, `persistence/paths`, `lint/no-unguarded-path-input`) remain green.
 
-### Added (`@usetheo/sdk/tools` sub-export — built-in tools for coding agents)
+### Added (`@theokit/sdk/tools` sub-export — built-in tools for coding agents)
 
-**Drop-in toolkit any coding agent on top of `@usetheo/sdk` needs without reimplementing: read, list, search, diff, test.**
+**Drop-in toolkit any coding agent on top of `@theokit/sdk` needs without reimplementing: read, list, search, diff, test.**
 
 - **`createReadFileTool({ projectRoot })`** — read a project-relative file as UTF-8. Refuses traversal, sensitive files (`.env*` / `.git/` / `node_modules/` / `.theo/` / lock files), binary files (null-byte detection in first 8 KB; EC-5), and files larger than 5 MB. Returns `{ ok, content, size }` or `{ ok: false, error }`. 12 tests.
 - **`createListDirTool({ projectRoot, max? })`** — list direct entries of a project-relative directory. Defaults to a 500-entry cap (EC-6: avoid 5 MB JSON payloads in 10k-file projects). Each entry exposes `{ name, type: 'file' | 'directory' }`. Result includes `{ truncated, totalCount }` so the agent can refine. 8 tests.
 - **`createSearchTextTool({ projectRoot, maxMatches?, maxFileSize? })`** — recursive literal-text search. Skips sensitive dirs, binary files, and files larger than 1 MB. Defaults to a 100-match cap. Returns `{ matches: [{ file, line, preview }], truncated, totalMatches }`. 8 tests.
 - **`createGitDiffTool({ projectRoot, timeoutMs?, maxStdoutBytes? })`** — `git diff` wrapper. Supports `{ path, cached }` scoping. 30s timeout (kills the whole process group on expiry; EC-7). 5 MB stdout cap. Returns `{ diff, truncated }` or `{ ok: false, error: 'not_a_repo' | 'timeout' | 'git_failed' }`. 7 tests.
 - **`createRunVitestTool({ projectRoot, timeoutMs?, maxStdoutBytes? })`** — vitest runner via `npx --no-install vitest`. **EC-12** fix: parser walks stdout bottom-up to extract the last valid JSON line — skips node deprecation warnings that vitest prepends. 120s timeout + process-group kill. Returns `{ ok, summary }` with `{ numTotalTests, numPassedTests, numFailedTests, success }`. Helper `extractTrailingJson` exported for direct testing. 6 tests.
-- **Public surface** at `@usetheo/sdk/tools`. Tsup entry `tools: "src/tools/index.ts"` produces `dist/tools.js` + `.d.ts`; package.json `exports["./tools"]` resolves both ESM + CJS + types. Sub-export smoke test (`tests/tools/sub-export-smoke.test.ts`) pins the 5 named exports.
+- **Public surface** at `@theokit/sdk/tools`. Tsup entry `tools: "src/tools/index.ts"` produces `dist/tools.js` + `.d.ts`; package.json `exports["./tools"]` resolves both ESM + CJS + types. Sub-export smoke test (`tests/tools/sub-export-smoke.test.ts`) pins the 5 named exports.
 
 44 tests total in `tests/tools/` (12 + 8 + 8 + 7 + 6 + 5 smoke).
 
-### Added (`@usetheo/sdk/path-safety` sub-export — path-traversal primitives go public)
+### Added (`@theokit/sdk/path-safety` sub-export — path-traversal primitives go public)
 
-- **`safePathJoin`, `assertNoSymlinkEscape`, `PathTraversalError`** now exported from `@usetheo/sdk/path-safety`. Previously `@internal`; promoted so consumer agents (TheoKit Studio, cli-bot, future coding agents) can validate user-supplied paths without reinventing the guard. Wire shape is unchanged — same signatures, same `ConfigurationError` code (`path_traversal`).
+- **`safePathJoin`, `assertNoSymlinkEscape`, `PathTraversalError`** now exported from `@theokit/sdk/path-safety`. Previously `@internal`; promoted so consumer agents (TheoKit Studio, cli-bot, future coding agents) can validate user-supplied paths without reinventing the guard. Wire shape is unchanged — same signatures, same `ConfigurationError` code (`path_traversal`).
 - **`isForbiddenPath(input)`** — new public primitive shipping the universal sensitive-file blocklist (`.env*` except `.env.example`, `.git/**`, `node_modules/**`, `.theo/**`, lock files). Cross-platform path normalisation (backslashes folded to forward slashes). 15-case test suite covering each blocklist family. Companion error `ForbiddenPathError` (extends `ConfigurationError`, code `forbidden_path`).
 - **Dedicated sub-export** (`./path-safety` in package.json `exports`, separate from the main barrel). Architectural choice: the path-guard module reaches into `internal/runtime` via `errors.js`, which participates in a known import cycle `types/agent.ts ↔ fork-agent.ts`. The dedicated sub-export keeps DTS bundling decoupled — without it, rollup-plugin-dts surfaces a fatal "ForkOptions not exported" false positive on the main bundle.
 - **Public-API smoke test** (`tests/path-safety-public-api.test.ts`) pins the sub-export so a refactor cannot silently revert these to `@internal`.
@@ -482,7 +482,7 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
   Returns the resolved `PersonalityPreset` (or `null` when cleared).
   Cloud agents reject with `UnsupportedRunOperationError` (D169).
 - **`PersonalityRegistry`** + **`PersonalityPreset`** re-exported from
-  `@usetheo/sdk` (read-only). Reads from `<cwd>/.theokit/personalities/*.md`
+  `@theokit/sdk` (read-only). Reads from `<cwd>/.theokit/personalities/*.md`
   (project) + `~/.theokit/personalities/*.md` (user) with project-wins-on-
   collision (D162).
 - **Markdown + Zod frontmatter shape** (D161) — `name` (lowercase-only
@@ -621,13 +621,13 @@ context.json` loads CONTENT and emits one-time deprecation warning
 
 ### New workspace packages
 
-- **`@usetheo/memory-supermemory@0.1.0`** — Supermemory wrapper
+- **`@theokit/memory-supermemory@0.1.0`** — Supermemory wrapper
   (`supermemory@^4.21`, zero-dep MIT). EC-C identifier sanitization
   on every containerTag component.
-- **`@usetheo/memory-honcho@0.1.0`** — Honcho wrapper
+- **`@theokit/memory-honcho@0.1.0`** — Honcho wrapper
   (`@honcho-ai/sdk@^2.1`). EC-D session namespaced under userId to
   prevent cross-user leak. AGPL self-host disclosure in README.
-- **`@usetheo/memory-mem0@0.1.0`** — Mem0 cloud-only wrapper (D148:
+- **`@theokit/memory-mem0@0.1.0`** — Mem0 cloud-only wrapper (D148:
   no OSS local mode). Unique `history(id)` capability. Circuit
   breaker (EC-K: 429 does NOT trip). CVSS 8.1 disclosure in README.
 
@@ -1146,7 +1146,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 ### Added (v1.2 features — paridade técnica com Vercel AI / Mastra)
 
 - **`Agent.streamObject<T>({ schema, prompt, ... })`** — typed structured output WITH partial-object streaming via synthetic forced tool (ADR D39). Returns `AsyncIterator<StreamObjectEvent<T>>` emitting zero or more `{ type: "partial", partial: DeepPartial<T>, attempt }` events plus exactly one `{ type: "complete", object: z.infer<T>, ... }` at the end. Reuses 80% of `generateObject` infrastructure. EC-4 (cancellation cleanup), EC-5 (refine/transform fallback), EC-6 (parallel tool-use dedup) covered by tests.
-- **`@usetheo/react` v1.2.0 — family of 3 hooks** (ADR D40): `useTheoChat` (multi-turn, existing) + `useTheoCompletion` (single-shot text gen, equivalent to Vercel `useCompletion`) + `useTheoAssistant<T>` (object-shaped streaming, wraps `Agent.streamObject`). Each hook has a matching server-side handler: `streamTheoChat`, `streamCompletion`, `streamAssistant`. Shared SSE parser in `internal/sse-parser.ts` handles all wire codes including new `o:`/`O:` for object streaming (ADR D45).
+- **`@theokit/react` v1.2.0 — family of 3 hooks** (ADR D40): `useTheoChat` (multi-turn, existing) + `useTheoCompletion` (single-shot text gen, equivalent to Vercel `useCompletion`) + `useTheoAssistant<T>` (object-shaped streaming, wraps `Agent.streamObject`). Each hook has a matching server-side handler: `streamTheoChat`, `streamCompletion`, `streamAssistant`. Shared SSE parser in `internal/sse-parser.ts` handles all wire codes including new `o:`/`O:` for object streaming (ADR D45).
 - **OAuth 2.1 PKCE for MCP HTTP servers** (ADR D41). `McpAuthConfig.oauth` opts into the flow. Two modes: `manual` (paste callback URL via stdin, SSH-friendly) and `localhost` (auto-spawned http.createServer on a free port). Token storage prefers OS keychain (`keytar`, optional peer dep) with `~/.theokit/mcp-tokens.json` (chmod 600) fallback. EC-2 (state CSRF validation), EC-9 (concurrent refresh serialization), EC-10 (default expires_in 3600s) covered.
 - **Auto-instrumentation of telemetry vendors** (ADR D42). `tracer.ts` feature-detects `@langfuse/node` v3+, `@sentry/node`, and `posthog-node` via `createRequire`. When present + `telemetry.enabled: true`, registers OTel exporter automatically. Opt-out via `telemetry.autoDetect: false` OR `telemetry.disable: ["langfuse"]`. EC-12 (double-billing prevention) covered.
 - **LanceDB backend for Memory.index** (ADR D43). `Memory.create({ index: { backend: "lance" } })` activates `@lancedb/lancedb` (optional peer dep). SQLite remains default. Lance scales to 100k+ facts. Filters use Lance's structured filter API — NO string interpolation, EC-1 MUST FIX. EC-8 (embedding dim mismatch) typed error.
@@ -1171,7 +1171,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 
 - **`Agent.generateObject<T>({ schema, prompt })`** — typed structured output via synthetic forced tool (ADR D33). Returns `{ object: z.infer<T>, raw, usage, finishReason }`. Retry-on-parse-fail with `maxRetries` (default 1). Transient agent disposed AND hard-deleted from registry across retries (EC-3 no leak). Same provider routing/fallback as `agent.send`.
 - **`AgentOptions.telemetry`** — opt-in OpenTelemetry spans for `agent.send`, `llm.call`, `tool.call` (ADR D34). Privacy-by-default: NO content logged unless `includeContent: true`. `@opentelemetry/api` is OPTIONAL peer dep loaded via `createRequire`. All OTel calls wrapped in `safe()` so exporter errors NEVER propagate to `agent.send` (EC-1).
-- **`@usetheo/react` v1.0.0** — new workspace package (ADR D32). `useTheoChat` React hook (HTTP fetch + SSE parser, AbortController on unmount, EC-6 5xx handling, EC-8 graceful close). `streamTheoChat` Next.js-compatible SSE handler (EC-2 pre-stream typed errors return HTTP 400/401). Wire format = Vercel AI Data Stream v1 (drop-in `useChat` migration; no `ai` package runtime dep). React peer dep `^18 || ^19`.
+- **`@theokit/react` v1.0.0** — new workspace package (ADR D32). `useTheoChat` React hook (HTTP fetch + SSE parser, AbortController on unmount, EC-6 5xx handling, EC-8 graceful close). `streamTheoChat` Next.js-compatible SSE handler (EC-2 pre-stream typed errors return HTTP 400/401). Wire format = Vercel AI Data Stream v1 (drop-in `useChat` migration; no `ai` package runtime dep). React peer dep `^18 || ^19`.
 
 ### Validations (v1.1 pillar audits)
 
@@ -1250,7 +1250,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 
   Pre-release. `Agent.getRun({ runtime: "cloud" })`, `agent.listArtifacts()`, `agent.downloadArtifact()` throw `ConfigurationError(code: "cloud_runtime_pre_release")` when invoked with non-fixture API keys. Fixture mode (`theo_test_*` keys) remains the documented test seam.
 
-All notable changes to `@usetheo/sdk` are documented here.
+All notable changes to `@theokit/sdk` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -1258,7 +1258,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added (multimodal demo `examples/telegram-pro`)
 
-- **New `examples/telegram-pro/`** — ~600 LoC Telegram bot that reproduces the 5 highest-value patterns from OpenClaw's `extensions/telegram` (187 production files) on top of `@usetheo/sdk` 1.0.0:
+- **New `examples/telegram-pro/`** — ~600 LoC Telegram bot that reproduces the 5 highest-value patterns from OpenClaw's `extensions/telegram` (187 production files) on top of `@theokit/sdk` 1.0.0:
   - **Voice transcription** ([`src/transcribe.ts`](../../examples/telegram-pro/src/transcribe.ts)) — downloads the OGG/Opus from Telegram, POSTs multipart to Whisper. Provider order: `OPENAI_API_KEY` → `GROQ_API_KEY` → graceful "voice not configured" reply. Transcript is injected into the agent loop as `[voice transcript: ...]`.
   - **Vision** ([`src/vision.ts`](../../examples/telegram-pro/src/vision.ts)) — photo and sticker descriptions via `google/gemini-2.0-flash-001` multimodal on OpenRouter. Disk-cached at `.theokit/cache/vision/<sha256>.txt` keyed by Telegram's `file_unique_id`, so repeated stickers (common in groups) skip the LLM roundtrip.
   - **Inline buttons** ([`src/buttons.ts`](../../examples/telegram-pro/src/buttons.ts)) — agent emits `[BUTTONS: A | B | C]` at end of reply; example strips the marker, renders a grammy `InlineKeyboard`, and routes button taps back to the agent as `[user tapped button: A]` so conversation history stays consistent.
@@ -1269,7 +1269,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added (chat assistant readiness — flagship demo `examples/telegram-assistant`)
 
-- **New `examples/telegram-assistant/`** — ~300 LoC Personal Assistant Telegram bot built on `@usetheo/sdk` 1.0.0. Demonstrates the full chat-assistant surface end-to-end against a real LLM:
+- **New `examples/telegram-assistant/`** — ~300 LoC Personal Assistant Telegram bot built on `@theokit/sdk` 1.0.0. Demonstrates the full chat-assistant surface end-to-end against a real LLM:
   - **Commands**: `/start /help /me /remember /forget /recall /summary /reset` — covers explicit fact write, fact removal by substring, past-conversation search via `corpus="sessions"`, dreaming consolidation via `Memory.runDreamingSweep`, and conversation reset.
   - **Per-user isolation** — agent id = `tg-assistant-<userId>`, memory namespace pinned to `ctx.from.id` so group chats keep each member's facts separated (EC-11 documented).
   - **Allow-list** — optional `TELEGRAM_ALLOWED_USERS` env var locks the bot to specific Telegram user-ids so a randomly-discovered bot can't burn the operator's LLM budget.
@@ -1292,7 +1292,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   3. **Real process restart** via `spawnSync("npx tsx ...", ...)` runs a fresh node process. The subprocess `Agent.resume`s both chats — pulling registry.json + messages.jsonl + MEMORY.md from disk. Both LLMs answer with the persisted facts ("Vitest + alpha-7", "PostgreSQL + project-beta") after the restart boundary. **PASS** post-restart recall.
   4. Concurrent burst: 5 parallel sends into one chat produce strictly-alternating user/assistant records (16 records total). **PASS** mutex serialization.
   5. Sessions corpus: 11+ `.md` summaries on disk after all runs. **PASS** corpus seeding.
-- **Result**: 10 PASS / 0 WARN / 0 FAIL against real LLM. The chat assistant pattern works end-to-end with `@usetheo/sdk` v1.0.0.
+- **Result**: 10 PASS / 0 WARN / 0 FAIL against real LLM. The chat assistant pattern works end-to-end with `@theokit/sdk` v1.0.0.
 
 ### Added (chat assistant readiness — Phase 4 / `examples/telegram-bot`)
 
@@ -1394,7 +1394,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added (memory-system-openclaw-parity, Increment C — Dogfood examples + Memory namespace)
 
-- **`Memory` public namespace** exported from `@usetheo/sdk` — `Memory.runDreamingSweep({ cwd, embedding })` lets users trigger consolidation outside of `agent.send()` (e.g. from a cron job handler).
+- **`Memory` public namespace** exported from `@theokit/sdk` — `Memory.runDreamingSweep({ cwd, embedding })` lets users trigger consolidation outside of `agent.send()` (e.g. from a cron job handler).
 - **`MemoryEmbeddingRuntime` public type** — `embedding` now accepts either a built-in provider id (`{ provider, model? }`) OR a BYO runtime (`{ runtime: MemoryEmbeddingRuntime }`). Enables self-hosted/local embedding models and self-contained demos without external API creds. Mirrors OpenClaw's `EmbeddingRuntime` shape from ADR D3.
 - **4 new example apps** under `examples/`:
   - **`memory-search`** — LLM uses `memory_search` to find facts in MEMORY.md.

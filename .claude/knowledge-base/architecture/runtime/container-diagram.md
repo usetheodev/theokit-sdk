@@ -1,6 +1,6 @@
 # Container Diagram — `runtime` (BASELINE 2026-05-25)
 
-## Top-level containers inside `@usetheo/sdk`
+## Top-level containers inside `@theokit/sdk`
 
 | Container | Path | Responsibility | Persistence |
 |---|---|---|---|

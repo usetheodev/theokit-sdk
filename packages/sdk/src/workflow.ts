@@ -5,8 +5,8 @@
  *
  * Usage:
  *
- *   import { Agent } from "@usetheo/sdk";
- *   import { Workflow, fn, agentStep } from "@usetheo/sdk/workflow";
+ *   import { Agent } from "@theokit/sdk";
+ *   import { Workflow, fn, agentStep } from "@theokit/sdk/workflow";
  *
  *   const classifier = await Agent.create({ ... });
  *   const wf = Workflow.create({ name: "demo" })
@@ -336,7 +336,7 @@ export function agentStep(
 export { __resetSnapshotStoresForTests } from "./internal/workflow/snapshot-store.js";
 
 /* ─── Re-exports for ergonomics (errors + all public types). After the
-       sub-path extraction `@usetheo/sdk/workflow` is the single import site,
+       sub-path extraction `@theokit/sdk/workflow` is the single import site,
        so type aliases must surface here (previously they reached consumers
        via `types/index.ts:25 export type * from "./workflow.js"`, which the
        extraction removes). ─── */

@@ -1,4 +1,4 @@
-# D356 — No global state in `@usetheo/acp`; every `serveAcp()` call is self-contained
+# D356 — No global state in `@theokit/acp`; every `serveAcp()` call is self-contained
 
 - **Status:** Accepted
 - **Date:** 2026-05-26

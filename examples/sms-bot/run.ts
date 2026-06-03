@@ -14,9 +14,9 @@
  * 5. Send an SMS to your Twilio number from your phone.
  */
 
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner } from "@usetheo/gateway";
-import { createWebhookServer, SMSAdapter } from "@usetheo/gateway-sms";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { createWebhookServer, SMSAdapter } from "@theokit/gateway-sms";
 
 const requiredEnv = ["TWILIO_ACCOUNT_SID", "TWILIO_AUTH_TOKEN", "TWILIO_FROM", "PUBLIC_URL"];
 for (const k of requiredEnv) {

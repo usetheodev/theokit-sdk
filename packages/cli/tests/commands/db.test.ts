@@ -74,7 +74,7 @@ describe("theokit db export-schema", () => {
     expect(code).toBe(2);
   });
 
-  it("returns exit code 2 when @usetheo/orm is not installed", async () => {
+  it("returns exit code 2 when @theokit/orm is not installed", async () => {
     writeConfig(sandbox, ["users"]);
     const code = await runDbExportSchema({
       cwd: sandbox,

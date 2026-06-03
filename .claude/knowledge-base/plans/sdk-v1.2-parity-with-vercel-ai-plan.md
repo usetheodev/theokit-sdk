@@ -2,13 +2,13 @@
 
 > **STATUS: COMPLETO** — Concluído em 2026-05-17. Todas as tarefas executadas, todos os critérios de aceite validados e DoDs atingidos. **pnpm validate exit=0** (G1-G9). **413 testes passando** (391 SDK + 22 React; +58 vs v1.1 baseline). **41/41 examples typecheck PASS**. **streamObject real-LLM 6/6 checks PASS** (2.7s, zero registry leak). 8 ADRs (D39-D46) lockados em CLAUDE.md.
 
-> **Version 1.0** — Plano de release v1.2 do `@usetheo/sdk` cobrindo os 5 gaps técnicos identificados na análise de maturidade pós-v1.1 que separam o SDK de paridade industrial: (1) `Agent.streamObject<T>` para partial-object streaming; (2) `useTheoCompletion` + `useTheoAssistant` completando a família de hooks React; (3) OAuth 2.1 PKCE flow para MCP remoto autenticado (Notion/Linear/Slack); (4) auto-instrumentação de telemetria (Langfuse/Sentry/PostHog feature-detected); (5) backend LanceDB para Memory + migration tool SQLite→Lance. Cross-agent shared memory é diferido para v1.3 por exigir threat-model próprio. Outcome: SDK sai de "GA local, paridade-de-base com Vercel AI" (8/10) para "paridade técnica completa com Vercel AI e Mastra" (9.0/10) — restando apenas distribuição/adoção para 10/10.
+> **Version 1.0** — Plano de release v1.2 do `@theokit/sdk` cobrindo os 5 gaps técnicos identificados na análise de maturidade pós-v1.1 que separam o SDK de paridade industrial: (1) `Agent.streamObject<T>` para partial-object streaming; (2) `useTheoCompletion` + `useTheoAssistant` completando a família de hooks React; (3) OAuth 2.1 PKCE flow para MCP remoto autenticado (Notion/Linear/Slack); (4) auto-instrumentação de telemetria (Langfuse/Sentry/PostHog feature-detected); (5) backend LanceDB para Memory + migration tool SQLite→Lance. Cross-agent shared memory é diferido para v1.3 por exigir threat-model próprio. Outcome: SDK sai de "GA local, paridade-de-base com Vercel AI" (8/10) para "paridade técnica completa com Vercel AI e Mastra" (9.0/10) — restando apenas distribuição/adoção para 10/10.
 
 ## Context
 
 **Origem do plano (análise de maturidade pós-v1.1, sessão 2026-05-17):**
 
-Após shipar v1.1 com `Agent.generateObject`, telemetry OTel opt-in e `@usetheo/react` v1.0, identifiquei 9 gaps técnicos vs SOTA (Vercel AI SDK + Mastra + Anthropic Agent SDK). Os 5 com melhor impacto-to-effort foram selecionados para v1.2:
+Após shipar v1.1 com `Agent.generateObject`, telemetry OTel opt-in e `@theokit/react` v1.0, identifiquei 9 gaps técnicos vs SOTA (Vercel AI SDK + Mastra + Anthropic Agent SDK). Os 5 com melhor impacto-to-effort foram selecionados para v1.2:
 
 **Gaps identificados:**
 
@@ -51,12 +51,12 @@ Após shipar v1.1 com `Agent.generateObject`, telemetry OTel opt-in e `@usetheo/
 
 ## Objective
 
-**Done = `@usetheo/sdk` v1.2 publicado em npm com paridade técnica funcional vs Vercel AI SDK v4 + Mastra latest, validada por suite de smoke tests real-LLM e dogfood completo passando.**
+**Done = `@theokit/sdk` v1.2 publicado em npm com paridade técnica funcional vs Vercel AI SDK v4 + Mastra latest, validada por suite de smoke tests real-LLM e dogfood completo passando.**
 
 Metas mensuráveis:
 
 1. **`Agent.streamObject<T>` shipado** — partial deltas emitidos via `AsyncIterator`, parse final retorna `z.infer<T>`, real-LLM validation PASS.
-2. **`useTheoCompletion` + `useTheoAssistant`** — ambos no `@usetheo/react`, peer-dep React 18/19, com 6+ testes cada e exemplo Next.js boota.
+2. **`useTheoCompletion` + `useTheoAssistant`** — ambos no `@theokit/react`, peer-dep React 18/19, com 6+ testes cada e exemplo Next.js boota.
 3. **OAuth 2.1 PKCE flow para MCP HTTP** — flow completo (auth code paste + localhost callback) + token storage criptografado (keychain quando disponível) + refresh handler automático. Real Notion MCP server validado end-to-end.
 4. **Auto-instrumentation telemetria** — detecta `@langfuse/node`, `@sentry/node`, `posthog-node` via `createRequire` e registra exporter sem config adicional. Smoke test: instalar Langfuse → spans aparecem no dashboard.
 5. **LanceDB backend** — `Memory.create({ index: { backend: "lance" } })` funciona; `pnpm exec theokit-migrate-memory` migra de SQLite preservando 100% dos facts; benchmark mostra latência <30ms@50k facts.
@@ -259,7 +259,7 @@ RED:     test_streamobject_with_refined_schema_falls_back_to_complete_only() —
 RED:     test_streamobject_ignores_duplicate_output_tool_calls() — EC-6 (parallel tool use, Claude 3.5+)
 GREEN:   Implement streamObjectImpl + helpers + types
 REFACTOR: Extract shared zod-loader + sentinel helpers into internal/zod-utils.ts (shared with generate-object.ts)
-VERIFY:  pnpm test --filter=@usetheo/sdk -- stream-object
+VERIFY:  pnpm test --filter=@theokit/sdk -- stream-object
 ```
 
 #### Acceptance Criteria
@@ -420,12 +420,12 @@ RED:     test_stream_completion_returns_400_on_missing_prompt()
 RED:     test_useTheoCompletion_concurrent_complete_calls_cancels_first() — EC-7 (no interlaced state)
 GREEN:   Implement use-theo-completion + stream-completion + extract sse-parser
 REFACTOR: Verify use-theo-chat tests still pass after sse-parser extraction
-VERIFY:  pnpm test --filter=@usetheo/react
+VERIFY:  pnpm test --filter=@theokit/react
 ```
 
 #### Acceptance Criteria
-- [ ] `useTheoCompletion` exported from `@usetheo/react`
-- [ ] `streamCompletion` exported from `@usetheo/react`
+- [ ] `useTheoCompletion` exported from `@theokit/react`
+- [ ] `streamCompletion` exported from `@theokit/react`
 - [ ] Tests pass (6+ hook, 4+ handler)
 - [ ] use-theo-chat tests continuam passando (regression-free)
 - [ ] Build dual ESM+CJS clean
@@ -434,8 +434,8 @@ VERIFY:  pnpm test --filter=@usetheo/react
 - [ ] File <= 400 LoC each
 
 #### DoD
-- [ ] `pnpm test --filter=@usetheo/react` exit=0
-- [ ] `pnpm build --filter=@usetheo/react` produz `dist/index.{js,cjs,d.ts}`
+- [ ] `pnpm test --filter=@theokit/react` exit=0
+- [ ] `pnpm build --filter=@theokit/react` produz `dist/index.{js,cjs,d.ts}`
 - [ ] `grep -c "useTheoCompletion" packages/react/dist/index.d.ts` >= 1
 
 ---
@@ -516,7 +516,7 @@ RED:     test_stream_assistant_emits_d_after_O()
 RED:     test_sse_parser_ignores_unknown_codes() — EC-11 (forward-compat: useTheoChat ignores `o:`/`O:` instead of throwing)
 GREEN:   Implement
 REFACTOR: Ensure use-theo-chat + use-theo-completion still green
-VERIFY:  pnpm test --filter=@usetheo/react
+VERIFY:  pnpm test --filter=@theokit/react
 ```
 
 #### Acceptance Criteria
@@ -660,7 +660,7 @@ RED:     test_token_refresh_is_serialized_per_server() — EC-9 (race)
 RED:     test_token_storage_defaults_expires_in_to_3600s_when_missing() — EC-10
 GREEN:   Implement oauth.ts + token-storage.ts + wire client.ts
 REFACTOR: Extract PKCE primitives into internal/oauth-pkce.ts if 3+ test files use them
-VERIFY:  pnpm test --filter=@usetheo/sdk -- oauth
+VERIFY:  pnpm test --filter=@theokit/sdk -- oauth
 ```
 
 #### Acceptance Criteria
@@ -674,7 +674,7 @@ VERIFY:  pnpm test --filter=@usetheo/sdk -- oauth
 - [ ] File <= 400 LoC each
 
 #### DoD
-- [ ] `pnpm test --filter=@usetheo/sdk -- oauth` exit=0
+- [ ] `pnpm test --filter=@theokit/sdk -- oauth` exit=0
 - [ ] `grep -c "oauth" packages/sdk/dist/index.d.ts` >= 1
 
 ---
@@ -814,7 +814,7 @@ RED:     test_all_three_adapters_can_coexist()
 RED:     test_auto_instrumentation_skips_when_provider_already_has_langfuse_processor() — EC-12 (no double-billing)
 GREEN:   Implement adapters + registry + wire tracer
 REFACTOR: Common safe-require helper extracted to internal/safe-require.ts
-VERIFY:  pnpm test --filter=@usetheo/sdk -- telemetry-auto
+VERIFY:  pnpm test --filter=@theokit/sdk -- telemetry-auto
 ```
 
 #### Acceptance Criteria
@@ -933,7 +933,7 @@ RED:     test_lance_open_with_dimension_mismatch_throws_typed_error() — EC-8
 RED:     test_sqlite_backend_still_works_unchanged() — regression
 GREEN:   Implement
 REFACTOR: Extract common embedding-provider call into shared module
-VERIFY:  pnpm test --filter=@usetheo/sdk -- memory/lance
+VERIFY:  pnpm test --filter=@theokit/sdk -- memory/lance
 ```
 
 #### Acceptance Criteria
@@ -1030,7 +1030,7 @@ RED:     test_batch_size_respected()
 RED:     test_migration_validation_handles_unicode_normalization() — EC-3 MUST FIX ("café" NFC vs NFD)
 GREEN:   Implement
 REFACTOR: None expected (CLI is thin wrapper)
-VERIFY:  pnpm test --filter=@usetheo/sdk -- migrate-sqlite-to-lance
+VERIFY:  pnpm test --filter=@theokit/sdk -- migrate-sqlite-to-lance
          node packages/sdk/bin/theokit-migrate-memory.mjs --help
 ```
 

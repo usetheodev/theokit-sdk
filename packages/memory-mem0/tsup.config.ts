@@ -11,5 +11,5 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/sdk", "mem0ai"],
+  external: ["@theokit/sdk", "mem0ai"],
 });

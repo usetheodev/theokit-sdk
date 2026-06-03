@@ -222,7 +222,7 @@ RED:     onDelta_throw_does_not_crash() — onDelta throws; assert run still com
 RED:     callbacks_optional_when_not_set() — no callbacks passed; assert run still completes finished, no errors.
 GREEN:   Implement steps 1-6 in T1.1 #### Tasks.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/agent-loop/callbacks.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/agent-loop/callbacks.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -286,7 +286,7 @@ RED:     aborted_signal_skips_fallback_attempt() — chain = [fail-401, working]
 RED:     single_client_chain_skips_wrapper() — chain.length === 1; assert real-local-run uses chain[0] directly (no wrapper overhead).
 GREEN:   Implement steps 1-6.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/llm/fallback-client.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/llm/fallback-client.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -368,7 +368,7 @@ RED:     base_provider_returns_baseSystemPrompt() — ctx.baseSystemPrompt = "Be
 RED:     base_provider_returns_undefined_when_no_base() — ctx.baseSystemPrompt = undefined → undefined.
 GREEN:   Implement steps 1-7.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/runtime/system-prompt/pipeline.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/runtime/system-prompt/pipeline.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -441,7 +441,7 @@ RED:     localAgent_threads_context_into_llm() — stub Anthropic; agent with co
 RED:     localAgent_skips_pipeline_when_no_context_and_no_base() — neither context nor systemPrompt set → captured `system` field is absent from the request body (existing behaviour preserved).
 GREEN:   Implement steps 1-5.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/runtime/system-prompt/context-provider.golden.test.ts tests/golden/agent/system-prompt.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/runtime/system-prompt/context-provider.golden.test.ts tests/golden/agent/system-prompt.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -516,7 +516,7 @@ RED:     skills_E2E_real_LLM_runtime() — stub Anthropic; agent with 2 skills i
 RED:     skills_with_resolver_both_appear() — agent has resolver returning "Be terse." AND 2 skills; captured `system` contains `<skills>...` block followed by "Be terse.".
 GREEN:   Implement steps 1-5.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/runtime/system-prompt/skills-provider.golden.test.ts tests/golden/agent/system-prompt.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/runtime/system-prompt/skills-provider.golden.test.ts tests/golden/agent/system-prompt.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -592,7 +592,7 @@ RED:     resolver_receives_memory_in_ctx() — custom resolver invoked; ctx.memo
 RED:     memory_E2E_real_LLM_runtime() — agent-1 persists "magic-number is 8675309"; agent-2 created against same workspace; captured `system` of agent-2's first send contains "8675309".
 GREEN:   Implement steps 1-6.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/runtime/system-prompt/memory-provider.golden.test.ts tests/golden/agent/system-prompt.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/runtime/system-prompt/memory-provider.golden.test.ts tests/golden/agent/system-prompt.golden.test.ts
 ```
 
 #### Acceptance Criteria

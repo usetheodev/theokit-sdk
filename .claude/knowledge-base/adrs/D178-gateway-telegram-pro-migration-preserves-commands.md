@@ -5,7 +5,7 @@
 
 ## Decision
 
-The `examples/telegram-pro` migration to consume `@usetheo/gateway-telegram` does NOT drop, rename, or behaviorally change any of its 30+ slash commands. The `/telegram-pro-dogfood` skill (42 commands, CDP-driven against real Gemini-via-OpenRouter) is the regression gate.
+The `examples/telegram-pro` migration to consume `@theokit/gateway-telegram` does NOT drop, rename, or behaviorally change any of its 30+ slash commands. The `/telegram-pro-dogfood` skill (42 commands, CDP-driven against real Gemini-via-OpenRouter) is the regression gate.
 
 ## Rationale
 

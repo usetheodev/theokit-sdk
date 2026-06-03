@@ -207,7 +207,7 @@ examples/telegram-pro/src/index.ts  (UPDATE) — dispatchToAgent ganha 2 paths
 
 ```ts
 import type { Context } from "grammy";
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 import { splitForTelegram } from "./format.js";
 
 const EDIT_THROTTLE_MS = 500;
@@ -442,7 +442,7 @@ bot.command("factstream", async (ctx) => {
   const chatId = placeholder.chat.id;
 
   try {
-    const { Agent } = await import("@usetheo/sdk");
+    const { Agent } = await import("@theokit/sdk");
     const { z } = await import("zod");
     const schema = z.object({
       title: z.string().min(1),
@@ -560,7 +560,7 @@ examples/telegram-pro/src/index.ts  (UPDATE) — adicionar bot.command("migrate_
 ```
 
 #### Deep file dependency analysis
-- Importa `migrateSqliteToLance` de `@usetheo/sdk`.
+- Importa `migrateSqliteToLance` de `@theokit/sdk`.
 - Cria tmpdir + escreve fake `MEMORY.md` com 3 facts + invoca migration dry-run.
 - Report via Telegram markdown.
 
@@ -576,7 +576,7 @@ bot.command("migrate_memory", async (ctx) => {
     { parse_mode: "Markdown" },
   );
 
-  const { migrateSqliteToLance } = await import("@usetheo/sdk");
+  const { migrateSqliteToLance } = await import("@theokit/sdk");
   const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -675,7 +675,7 @@ examples/telegram-pro/src/index.ts  (UPDATE) — adicionar bot.command("memory_l
 
 ```ts
 bot.command("memory_lance", async (ctx) => {
-  const { ConfigurationError } = await import("@usetheo/sdk");
+  const { ConfigurationError } = await import("@theokit/sdk");
   const sampleConfig = {
     memory: {
       enabled: true,

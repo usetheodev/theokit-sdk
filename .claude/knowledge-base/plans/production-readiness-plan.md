@@ -33,7 +33,7 @@ TheoKit acabou de shipar `system-100-percent-functional` (v0.2.0 candidate) com 
 
 **Done = TheoKit pode anunciar honestamente "production-grade para serverless e multi-host" e o `theo-cloud` deploy adapter milestone fica desbloqueado.** Operacionalmente isso significa, em ordem:
 
-1. **Gap 1 shipped** — `@usetheo/sdk` exporta `ConversationStorageAdapter` interface + `InMemoryConversationStorage` + `FileSystemConversationStorage` (default). Postgres + Redis recipes em `docs/recipes/`. `AgentOptions.conversationStorage` opcional propaga até o lugar onde hoje `appendToSessionFile` é chamado direto.
+1. **Gap 1 shipped** — `@theokit/sdk` exporta `ConversationStorageAdapter` interface + `InMemoryConversationStorage` + `FileSystemConversationStorage` (default). Postgres + Redis recipes em `docs/recipes/`. `AgentOptions.conversationStorage` opcional propaga até o lugar onde hoje `appendToSessionFile` é chamado direto.
 2. **Gap 2 shipped** — `Agent.registry.configure({ maxAgents, idleTimeoutMs, onEvict })` controla LRU + idle eviction. `Agent.registry.evict(id)` / `evictAll()` / `size()` / `ids()`. `agent.dispose()` chamado em cada eviction. Default seguro: `maxAgents: 100`, `idleTimeoutMs: 30min`.
 3. **Gap 3 shipped** — `AgentRunError` carrega `code: AgentRunErrorCode` (11 valores), `retriable: boolean`, `retryAfterMs?: number` (computed dos mappers), `requestId?: string`, `conversationId?: string`. `providerError` disponível mas NÃO em `.message` (regra anti-leak). Cross-provider mapping documentado em `docs/error-codes.md`.
 4. **Gap 5 shipped** — `send(message, { signal })` propaga até `fetch({ signal })` na chamada provider. Quando abortado: HTTP request real cancelada (não só Promise rejeitada), nenhum partial assistant message persiste em storage, throw `AgentRunError({ code: "aborted", retriable: false })`.
@@ -48,15 +48,15 @@ TheoKit acabou de shipar `system-100-percent-functional` (v0.2.0 candidate) com 
 
 ### Gap 1 — ConversationStorageAdapter
 
-- **D303 — `ConversationStorageAdapter` é interface pública exportada de `@usetheo/sdk`, NÃO de um sub-export.**
-  *Rationale:* O contrato é central para qualquer consumidor sério (TheoKit, futuros frameworks). Sub-export `@usetheo/sdk/conversation` quebra discoverability — devs precisam saber que existe pra importar. Main barrel é o ponto de entrada esperado. Sub-exports do SDK até hoje (D24 Zod, D43 LanceDB, sub-export `/tools` e `/path-safety`) seguem regra: sub-export quando feature opcional + dep peer carrega payload material. Interface puro de tipos não pesa nada.
+- **D303 — `ConversationStorageAdapter` é interface pública exportada de `@theokit/sdk`, NÃO de um sub-export.**
+  *Rationale:* O contrato é central para qualquer consumidor sério (TheoKit, futuros frameworks). Sub-export `@theokit/sdk/conversation` quebra discoverability — devs precisam saber que existe pra importar. Main barrel é o ponto de entrada esperado. Sub-exports do SDK até hoje (D24 Zod, D43 LanceDB, sub-export `/tools` e `/path-safety`) seguem regra: sub-export quando feature opcional + dep peer carrega payload material. Interface puro de tipos não pesa nada.
   *Consequences:* enables descoberta natural via autocomplete; constrains: rename futuro do método requer major bump (não problema — interface é de 5 métodos, estabilidade alta).
 
 - **D304 — `FileSystemConversationStorage` é o default zero-config; `InMemoryConversationStorage` é primary para tests.**
   *Rationale:* Backward compat absoluta. App existente sem `conversationStorage` continua escrevendo em `.theokit/agents/<id>/messages.jsonl` sem mudar nada. Default FS é o que 100% dos usuários atuais já assumem. `InMemoryConversationStorage` é necessário para tests da SDK e para users que querem ephemeral state em dev/CLI single-process.
   *Consequences:* enables zero-migration upgrade; constrains: FS adapter precisa ser refactor-safe — não pode regredir performance ou semantics de crash-safe-line-granularidade que o JSONL atual tem.
 
-- **D305 — Postgres + Redis adapters ficam em `docs/recipes/` como user code, NÃO em `@usetheo/sdk`.**
+- **D305 — Postgres + Redis adapters ficam em `docs/recipes/` como user code, NÃO em `@theokit/sdk`.**
   *Rationale:* Manter SDK dep-light. `pg` traz prepared statement infra de ~500KB; `ioredis` ~300KB. Não-justificado para uma feature que 30% dos users vão precisar (self-hosted Node single-VPS continua FS-bound). Pattern: documentar interface, mostrar exemplo, deixar consumer copiar+pastear. Compatível com D170 (gateway-* como peer dep packages) e D11 (embedding adapters como peer-dep workspace packages quando carregam módulos sérios — mas storage adapter é trivial: 30 linhas).
   *Consequences:* enables SDK <50KB bundle; constrains: TheoKit e consumers que querem typed Postgres adapter copiam o template. Trade-off aceitável (validado contra Vercel AI SDK que segue o mesmo padrão em `examples/`).
 
@@ -329,17 +329,17 @@ RED:     types_compile_no_change_to_existing_options() — assert que `AgentOpti
 RED:     stored_message_shape_persists() — assert shape do StoredMessage não muda em refactor futuro
 GREEN:   Criar arquivo + re-export
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/sdk typecheck && pnpm --filter @usetheo/sdk build
+VERIFY:  pnpm --filter @theokit/sdk typecheck && pnpm --filter @theokit/sdk build
 ```
 
 #### Acceptance Criteria
-- [ ] `import { ConversationStorageAdapter, StoredMessage } from "@usetheo/sdk"` compila
+- [ ] `import { ConversationStorageAdapter, StoredMessage } from "@theokit/sdk"` compila
 - [ ] `AgentOptions.conversationStorage?` aparece em autocomplete
 - [ ] Zero arquivos existentes editados além do barrel + types/agent.ts
 - [ ] `pnpm publint && pnpm attw` permanece 100% verde
 
 #### DoD
-- [ ] `pnpm --filter @usetheo/sdk typecheck` passa
+- [ ] `pnpm --filter @theokit/sdk typecheck` passa
 - [ ] Nenhum example breakou typecheck (`tools/typecheck-examples.sh`)
 
 ### T1.2 — `InMemoryConversationStorage` impl + tests
@@ -359,7 +359,7 @@ packages/sdk/src/index.ts                                             (MODIFY �
 
 #### Deep file dependency analysis
 - Nenhum import de runtime; só `Map<string, StoredMessage[]>`.
-- Re-exportado do barrel para uso direto: `import { InMemoryConversationStorage } from "@usetheo/sdk"`.
+- Re-exportado do barrel para uso direto: `import { InMemoryConversationStorage } from "@theokit/sdk"`.
 
 #### Deep Dives
 - Concurrent safety: Node single-thread, `Map.set` é atômico, append a array é atômico, OK sem mutex.
@@ -382,7 +382,7 @@ RED:     test_getMessages_returns_defensive_copy()
 RED:     test_listConversationIds_respects_limit()
 GREEN:   Implementar InMemoryConversationStorage (7 tests passam)
 REFACTOR: Extrair helper `cloneArray` se houver dup
-VERIFY:  pnpm --filter @usetheo/sdk test -- conversation-storage-memory
+VERIFY:  pnpm --filter @theokit/sdk test -- conversation-storage-memory
 ```
 
 #### Acceptance Criteria
@@ -393,7 +393,7 @@ VERIFY:  pnpm --filter @usetheo/sdk test -- conversation-storage-memory
 
 #### DoD
 - [ ] Tests verdes
-- [ ] `pnpm --filter @usetheo/sdk typecheck` passa
+- [ ] `pnpm --filter @theokit/sdk typecheck` passa
 - [ ] Exportado do barrel
 
 ### T1.3 — `FileSystemConversationStorage` impl + tests
@@ -451,7 +451,7 @@ RED:     test_fs_listConversationIds_empty_when_dir_missing()     # EC-2
 RED:     test_fs_appendMessage_tool_call_role_persists()          # EC-10
 GREEN:   FileSystemConversationStorage implementa 5 métodos
 REFACTOR: Extrair contract test helper para reuso futuro
-VERIFY:  pnpm --filter @usetheo/sdk test -- conversation-storage
+VERIFY:  pnpm --filter @theokit/sdk test -- conversation-storage
 ```
 
 #### Acceptance Criteria
@@ -462,7 +462,7 @@ VERIFY:  pnpm --filter @usetheo/sdk test -- conversation-storage
 
 #### DoD
 - [ ] Tests verdes
-- [ ] `pnpm --filter @usetheo/sdk typecheck` passa
+- [ ] `pnpm --filter @theokit/sdk typecheck` passa
 - [ ] Telegram-pro dogfood smoke `/help` continua < 2s (FS path)
 
 ### T1.4 — Refactor `agent-session.ts` para consumir adapter
@@ -510,7 +510,7 @@ RED:     test_compaction_only_triggers_for_fs()
 RED:     test_hydrate_uses_adapter_not_filesystem()
 GREEN:   Refactor agent-session.ts
 REFACTOR: Extrair `resolveStorage(cwdOrStorage)` helper
-VERIFY:  pnpm --filter @usetheo/sdk test -- agent-session
+VERIFY:  pnpm --filter @theokit/sdk test -- agent-session
 ```
 
 #### Acceptance Criteria
@@ -520,8 +520,8 @@ VERIFY:  pnpm --filter @usetheo/sdk test -- agent-session
 
 #### DoD
 - [ ] Tests verdes
-- [ ] `pnpm --filter @usetheo/sdk test` 100% green (full suite)
-- [ ] `pnpm --filter @usetheo/sdk typecheck` passa
+- [ ] `pnpm --filter @theokit/sdk test` 100% green (full suite)
+- [ ] `pnpm --filter @theokit/sdk typecheck` passa
 
 ### T1.5 — `AgentOptions.conversationStorage` wiring
 
@@ -571,7 +571,7 @@ RED:     test_resume_without_storage_no_marker_uses_fs_silently()       # backco
 RED:     test_custom_adapter_consumed_by_local_run()
 GREEN:   Wire option through constructor + marker persistence
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/sdk test -- conversation-storage-option
+VERIFY:  pnpm --filter @theokit/sdk test -- conversation-storage-option
 ```
 
 #### Acceptance Criteria
@@ -650,7 +650,7 @@ docs.md                         (MODIFY — new section "Conversation Storage")
    ```
    ### Added (`ConversationStorageAdapter` — pluggable conversation persistence)
 
-   - `ConversationStorageAdapter` interface exported from `@usetheo/sdk`. Lets consumers in serverless (Vercel, CF Workers) and multi-host (K8s, TheoCloud) provide their own Postgres/Redis/Durable Objects backend instead of the default filesystem JSONL.
+   - `ConversationStorageAdapter` interface exported from `@theokit/sdk`. Lets consumers in serverless (Vercel, CF Workers) and multi-host (K8s, TheoCloud) provide their own Postgres/Redis/Durable Objects backend instead of the default filesystem JSONL.
    - `InMemoryConversationStorage` exported for tests + ephemeral single-process dev.
    - `FileSystemConversationStorage` exported (default when `AgentOptions.conversationStorage` is unset; preserves the existing `.theokit/agents/<id>/messages.jsonl` behavior byte-identical including redaction D68 + compaction D18).
    - `AgentOptions.conversationStorage?` opt-in; backward compatible.
@@ -665,7 +665,7 @@ docs.md                         (MODIFY — new section "Conversation Storage")
 
 #### DoD
 - [ ] `pnpm validate` (publint + attw) green
-- [ ] Cross-repo bump tag ready: `@usetheo/sdk@X.Y.0-next.1`
+- [ ] Cross-repo bump tag ready: `@theokit/sdk@X.Y.0-next.1`
 
 ---
 
@@ -735,7 +735,7 @@ RED:     test_set_with_same_id_different_agent_disposes_old()      # EC-4
 RED:     test_set_with_same_id_same_agent_no_dispose()              # EC-4 idempotent
 GREEN:   Implementar set/get/size/ids + overwrite-dispose
 REFACTOR: Extract lastUsedAt update helper
-VERIFY:  pnpm --filter @usetheo/sdk test -- live-agent-registry
+VERIFY:  pnpm --filter @theokit/sdk test -- live-agent-registry
 ```
 
 #### Acceptance Criteria
@@ -780,7 +780,7 @@ RED:     test_dispose_called_on_evict()
 RED:     test_dispose_error_swallowed_warn_stderr()
 GREEN:   Implementar #evictLRU + wire into set
 REFACTOR: Extract #findLRU
-VERIFY:  pnpm --filter @usetheo/sdk test -- live-agent-registry-lru
+VERIFY:  pnpm --filter @theokit/sdk test -- live-agent-registry-lru
 ```
 
 #### Acceptance Criteria
@@ -823,7 +823,7 @@ RED:     test_sweep_unref_allows_process_exit()
 RED:     test_reconfigure_resets_sweep()
 GREEN:   Implementar sweep
 REFACTOR: None
-VERIFY:  pnpm --filter @usetheo/sdk test -- live-agent-registry-idle
+VERIFY:  pnpm --filter @theokit/sdk test -- live-agent-registry-idle
 ```
 
 #### Acceptance Criteria
@@ -859,7 +859,7 @@ RED:     test_onEvict_fires_with_reason_idle()
 RED:     test_onEvict_fires_with_reason_explicit()
 RED:     test_onEvict_listener_error_swallowed()
 GREEN:   Wire callback
-VERIFY:  pnpm --filter @usetheo/sdk test -- live-agent-registry-onevict
+VERIFY:  pnpm --filter @theokit/sdk test -- live-agent-registry-onevict
 ```
 
 #### Acceptance Criteria
@@ -897,7 +897,7 @@ packages/sdk/src/index.ts                                  (MODIFY — re-export
 RED:     test_Agent_registry_is_accessible()
 RED:     test_Agent_registry_configure_changes_max()
 GREEN:   Add static
-VERIFY:  pnpm --filter @usetheo/sdk test -- agent-registry-public
+VERIFY:  pnpm --filter @theokit/sdk test -- agent-registry-public
 ```
 
 #### Acceptance Criteria
@@ -942,7 +942,7 @@ RED:     test_getOrCreate_second_call_hits_cache()
 RED:     test_evict_forces_rehydrate()
 RED:     test_max_zero_disables_cache()
 GREEN:   Wire cache
-VERIFY:  pnpm --filter @usetheo/sdk test -- getOrCreate-with-cache
+VERIFY:  pnpm --filter @theokit/sdk test -- getOrCreate-with-cache
 ```
 
 #### Acceptance Criteria
@@ -1011,7 +1011,7 @@ RED:     test_AgentRunError_code_accepts_tool_runtime_error()
 RED:     test_AgentRunError_code_accepts_aborted()
 RED:     test_existing_code_strings_still_accepted()
 GREEN:   Add types
-VERIFY:  pnpm --filter @usetheo/sdk typecheck && test
+VERIFY:  pnpm --filter @theokit/sdk typecheck && test
 ```
 
 #### Acceptance Criteria
@@ -1061,7 +1061,7 @@ RED:     test_requestId_stored()
 RED:     test_conversationId_stored()
 RED:     test_message_never_leaks_providerError()
 GREEN:   Add getters + fields
-VERIFY:  pnpm --filter @usetheo/sdk test -- agent-run-error-fields
+VERIFY:  pnpm --filter @theokit/sdk test -- agent-run-error-fields
 ```
 
 #### Acceptance Criteria
@@ -1107,7 +1107,7 @@ RED:     test_anthropic_402_maps_to_quota_exceeded()
 RED:     test_anthropic_request_id_parsed()
 RED:     test_openai_x_request_id_parsed()
 GREEN:   Wire mappers
-VERIFY:  pnpm --filter @usetheo/sdk test -- errors/mappers
+VERIFY:  pnpm --filter @theokit/sdk test -- errors/mappers
 ```
 
 #### Acceptance Criteria
@@ -1145,7 +1145,7 @@ packages/sdk/tests/tool-dispatch/tool-error-code.test.ts           (NEW)
 RED:     test_tool_throw_maps_to_tool_runtime_error_code()
 RED:     test_throwOnError_jogga_AgentRunError_with_correct_code()
 GREEN:   Add code propagation
-VERIFY:  pnpm --filter @usetheo/sdk test -- tool-error-code
+VERIFY:  pnpm --filter @theokit/sdk test -- tool-error-code
 ```
 
 #### Acceptance Criteria
@@ -1243,7 +1243,7 @@ RED:     test_send_with_aborted_signal_never_calls_fetch()
 RED:     test_send_signal_aborts_mid_stream_fetch_cancels()
 RED:     test_signal_undefined_no_change_to_behavior()
 GREEN:   Wire signal
-VERIFY:  pnpm --filter @usetheo/sdk test -- send-with-signal
+VERIFY:  pnpm --filter @theokit/sdk test -- send-with-signal
 ```
 
 #### Acceptance Criteria
@@ -1300,7 +1300,7 @@ RED:     test_anySignal_uses_native_when_available()           # EC-5
 RED:     test_anySignal_ponyfill_works_without_native()        # EC-5
 RED:     test_anySignal_propagates_reason()                    # EC-5
 GREEN:   Wire compose + ponyfill helper
-VERIFY:  pnpm --filter @usetheo/sdk test -- abort-signal-compose abort-utils
+VERIFY:  pnpm --filter @theokit/sdk test -- abort-signal-compose abort-utils
 ```
 
 #### Acceptance Criteria
@@ -1336,7 +1336,7 @@ packages/sdk/tests/runtime/abort-no-partial-persist.test.ts    (NEW)
 RED:     test_abort_mid_stream_no_assistant_message_persisted()
 RED:     test_abort_mid_stream_user_message_still_persisted()
 GREEN:   Refactor append placement
-VERIFY:  pnpm --filter @usetheo/sdk test -- abort-no-partial-persist
+VERIFY:  pnpm --filter @theokit/sdk test -- abort-no-partial-persist
 ```
 
 #### Acceptance Criteria
@@ -1368,7 +1368,7 @@ RED:     test_abort_error_code_is_aborted()
 RED:     test_abort_error_retriable_false()
 RED:     test_abort_error_cause_is_DOMException()
 GREEN:   Wrap
-VERIFY:  pnpm --filter @usetheo/sdk test -- abort-error-class
+VERIFY:  pnpm --filter @theokit/sdk test -- abort-error-class
 ```
 
 #### Acceptance Criteria
@@ -1496,7 +1496,7 @@ RED:     test_hook_errors_dont_abort_run()
 RED:     test_onToolError_receives_Error_instance_not_string()  # EC-6
 RED:     test_onToolError_fires_on_validate_fail_with_Error()   # EC-6
 GREEN:   Implement wrapper; always wrap content into `new Error(content)` for onToolError payload
-VERIFY:  pnpm --filter @usetheo/sdk test -- tool-hooks
+VERIFY:  pnpm --filter @theokit/sdk test -- tool-hooks
 ```
 
 #### Acceptance Criteria
@@ -1574,7 +1574,7 @@ RED:     test_onBeforeCreate_throws_blocks_create()
 RED:     test_onBeforeCreate_resolves_create_proceeds()
 RED:     test_onBeforeCreate_skipped_on_cache_hit()
 GREEN:   Wire
-VERIFY:  pnpm --filter @usetheo/sdk test -- onBeforeCreate
+VERIFY:  pnpm --filter @theokit/sdk test -- onBeforeCreate
 ```
 
 #### Acceptance Criteria
@@ -1612,7 +1612,7 @@ RED:     test_onBeforeSend_throws_blocks_send()
 RED:     test_onBeforeSend_resolves_send_proceeds()
 RED:     test_onBeforeSend_rejection_no_side_effects()
 GREEN:   Wire
-VERIFY:  pnpm --filter @usetheo/sdk test -- onBeforeSend
+VERIFY:  pnpm --filter @theokit/sdk test -- onBeforeSend
 ```
 
 #### Acceptance Criteria
@@ -1678,7 +1678,7 @@ Memory `feedback-dogfood-after-plan` — skill `/dogfood` é gate canônico.
 Bumped pre-release validada em `examples/openrouter-demo` da TheoKit.
 
 #### Tasks
-1. Publish `@usetheo/sdk@X.Y.0-next.N` (tag, não main).
+1. Publish `@theokit/sdk@X.Y.0-next.N` (tag, não main).
 2. TheoKit-side: bump dep + write fixture:
    - Use `conversationStorage: new RedisConversationStorage()` from recipe.
    - Pass `signal` from `request.signal` to `agent.send`.
@@ -1809,7 +1809,7 @@ TheoKit pode consumir incrementalmente — cada one unblocks one deploy category
 
 - TheoKit-side fixes (CSP nonce, Redis rate-limit, Postgres outbox, theo-cloud deploy) — `theokit/docs/plans/`
 - Provider-specific bug fixes (OpenAI quirks, Anthropic streaming edge cases) — separate work
-- UI-side issues (`@usetheo/ui`) — separate repo
+- UI-side issues (`@theokit/ui`) — separate repo
 - Theo PaaS endpoints — cloud runtime is pre-release per CLAUDE.md root
 
 **Riscos & mitigações:**

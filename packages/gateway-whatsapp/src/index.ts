@@ -1,14 +1,14 @@
 /**
- * `@usetheo/gateway-whatsapp` — public API.
+ * `@theokit/gateway-whatsapp` — public API.
  *
- * Multi-backend (Cloud + Web) WhatsApp adapter for `@usetheo/gateway`.
+ * Multi-backend (Cloud + Web) WhatsApp adapter for `@theokit/gateway`.
  * See README for setup walkthroughs.
  *
  * @public
  */
 
 // Re-export the MessageEvent variant for consumer-side ergonomics.
-export type { WhatsAppMessageEvent } from "@usetheo/gateway";
+export type { WhatsAppMessageEvent } from "@theokit/gateway";
 export {
   digitsOnly,
   WhatsAppAdapter,

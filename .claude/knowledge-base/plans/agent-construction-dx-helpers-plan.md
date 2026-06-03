@@ -2,7 +2,7 @@
 
 > **STATUS: COMPLETO — todas 7 phases concluídas, 331/331 testes verdes, validate (G1-G9) passou exit=0, dogfood real-LLM no telegram-pro confirmado via messages.jsonl persistido (UUID v4 + SHA256 real + 2026 timestamp).**
 
-> **Version 1.0** — Quatro helpers públicos no `@usetheo/sdk` para abstrair a construção de agentes: `Agent.getOrCreate(id, options)` mata a boilerplate de resume-or-create (vista em 6 examples hoje); `createAgentFactory(common)` captura config compartilhada para chat-bot patterns (per-session forking); `defineTool(spec)` dá tipagem Zod-driven e remove `as Record<string, unknown>` casts em definições de tool; `Agent.builder()` oferece fluent-chain alternativo ao options-bag para quem prefere construção progressiva. Outcome: telegram-pro encolhe ~80 LoC, os 5 outros examples removem ~30 LoC cada, defineTool elimina type-cast unsafety em `ad-hoc-tools.ts`, e a public API surface ganha pontos de entrada claros para os 3 padrões mais comuns (one-shot, factory, fluent).
+> **Version 1.0** — Quatro helpers públicos no `@theokit/sdk` para abstrair a construção de agentes: `Agent.getOrCreate(id, options)` mata a boilerplate de resume-or-create (vista em 6 examples hoje); `createAgentFactory(common)` captura config compartilhada para chat-bot patterns (per-session forking); `defineTool(spec)` dá tipagem Zod-driven e remove `as Record<string, unknown>` casts em definições de tool; `Agent.builder()` oferece fluent-chain alternativo ao options-bag para quem prefere construção progressiva. Outcome: telegram-pro encolhe ~80 LoC, os 5 outros examples removem ~30 LoC cada, defineTool elimina type-cast unsafety em `ad-hoc-tools.ts`, e a public API surface ganha pontos de entrada claros para os 3 padrões mais comuns (one-shot, factory, fluent).
 
 ## Context
 
@@ -237,7 +237,7 @@ Edge cases:
 1. RED: escrever `tests/golden/agent/getorcreate.golden.test.ts` com 5 testes
 2. GREEN: adicionar method em `packages/sdk/src/agent.ts`
 3. REFACTOR: nenhum esperado (método trivial)
-4. VERIFY: `pnpm --filter=@usetheo/sdk run test -- getorcreate.golden`
+4. VERIFY: `pnpm --filter=@theokit/sdk run test -- getorcreate.golden`
 
 #### TDD
 ```
@@ -249,7 +249,7 @@ RED:     getorcreate_resumes_with_supplied_tools() — assert: cria, dispose, ge
 RED:     getorcreate_handles_concurrent_create_race() — EC-1: Promise.all([getOrCreate(id,opts), getOrCreate(id,opts)]) → ambas retornam handles válidos, registry size = 1, segundo handle é o do winner
 GREEN:   Implementar Agent.getOrCreate (~15 LoC inclusive race handling)
 REFACTOR: None expected
-VERIFY:  pnpm --filter=@usetheo/sdk run test -- getorcreate.golden
+VERIFY:  pnpm --filter=@theokit/sdk run test -- getorcreate.golden
 ```
 
 #### Acceptance Criteria
@@ -331,7 +331,7 @@ Edge cases:
 1. RED: escrever `tests/golden/agent/factory.golden.test.ts` com 6 testes
 2. GREEN: criar `agent-factory.ts` + export
 3. REFACTOR: extrair `mergeOptions` se inline ficar pesado
-4. VERIFY: `pnpm --filter=@usetheo/sdk run test -- factory.golden`
+4. VERIFY: `pnpm --filter=@theokit/sdk run test -- factory.golden`
 
 #### TDD
 ```
@@ -343,7 +343,7 @@ RED:     factory_param_agentId_wins_over_common_and_overrides() — assert: comm
 RED:     factory_propagates_validation_errors() — assert: common SEM model + overrides SEM model → forSession lança missing_model
 GREEN:   Implementar createAgentFactory + mergeOptions (~30 LoC)
 REFACTOR: extrair mergeOptions se complexity > 10 (Biome G9)
-VERIFY:  pnpm --filter=@usetheo/sdk run test -- factory.golden
+VERIFY:  pnpm --filter=@theokit/sdk run test -- factory.golden
 ```
 
 #### Acceptance Criteria
@@ -431,7 +431,7 @@ Edge cases:
 2. Adicionar `zod-to-json-schema` como dep (Zod 3 path) ou usar `z.toJSONSchema` (Zod 4)
 3. RED: escrever `tests/golden/agent/define-tool.golden.test.ts` com 5 testes
 4. GREEN: implementar
-5. VERIFY: `pnpm --filter=@usetheo/sdk run test -- define-tool.golden`
+5. VERIFY: `pnpm --filter=@theokit/sdk run test -- define-tool.golden`
 
 #### TDD
 ```
@@ -443,7 +443,7 @@ RED:     definetool_rejected_by_validateCustomTools_when_schema_is_not_object() 
 RED:     definetool_handler_receives_zod_transform_output() — EC-3: schema com z.string().transform(Number); LLM emite "8080" → handler recebe 8080 (number), não "8080" (string)
 GREEN:   Implementar defineTool com z.toJSONSchema + parse
 REFACTOR: extrair zodToJsonSchema se necessário
-VERIFY:  pnpm --filter=@usetheo/sdk run test -- define-tool.golden
+VERIFY:  pnpm --filter=@theokit/sdk run test -- define-tool.golden
 ```
 
 #### Acceptance Criteria
@@ -530,7 +530,7 @@ Edge cases:
 1. RED: escrever `tests/golden/agent/builder.golden.test.ts` com 6 testes
 2. GREEN: criar `agent-builder.ts` + `Agent.builder()` static + exports
 3. REFACTOR: nenhum esperado (boilerplate trivial)
-4. VERIFY: `pnpm --filter=@usetheo/sdk run test -- builder.golden`
+4. VERIFY: `pnpm --filter=@theokit/sdk run test -- builder.golden`
 
 #### TDD
 ```
@@ -543,7 +543,7 @@ RED:     builder_chainable_returns_this() — TS-level: cada setter retorna Agen
 RED:     builder_build_returns_independent_snapshot() — EC-2: builder.build() !== builder.build(); mutar o primeiro NÃO afeta .create() (shallow clone)
 GREEN:   Implementar AgentBuilder class + Agent.builder() static
 REFACTOR: None expected
-VERIFY:  pnpm --filter=@usetheo/sdk run test -- builder.golden
+VERIFY:  pnpm --filter=@theokit/sdk run test -- builder.golden
 ```
 
 #### Acceptance Criteria
@@ -616,7 +616,7 @@ Net: 55 → ~10 LoC. -45 LoC.
 Refactor ad-hoc-tools.ts:
 ```ts
 import { z } from "zod";
-import { defineTool } from "@usetheo/sdk";
+import { defineTool } from "@theokit/sdk";
 
 const rollSchema = z.object({
   count: z.number().int().min(1).max(100),

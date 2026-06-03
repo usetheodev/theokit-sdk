@@ -1,12 +1,12 @@
-# Plan: Slack Gateway Adapter (`@usetheo/gateway-slack`)
+# Plan: Slack Gateway Adapter (`@theokit/gateway-slack`)
 
 > **Version 1.3 — ✅ LIVE-VALIDATED 2026-05-23.** Real Slack workspace dogfood passed: bot conectado (`Connected as U0B58SZFH4P` no workspace de teste), 2 DMs round-trip end-to-end com Gemini Flash via OpenRouter — log mostra `[inbound] → [agent] status=finished → [outbound] sent N chars`. Bot loop guard (D275) confirmado funcional (sem self-echo). 2 hot-fixes durante a validação: **(a)** `@slack/bolt` v3 é CJS-only — `import { App }` quebra em ESM-mode Node; trocado para `import bolt from "@slack/bolt"; const { App } = bolt;`; **(b)** example default model mudado de `openai/gpt-4o-mini` (exige `OPENAI_API_KEY` dedicada) para `google/gemini-2.0-flash-001` (rota natural via OpenRouter, alinhado com `examples/telegram-pro/`).
 >
-> **Version 1.2 — ✅ COMPLETE 2026-05-22.** TODAS AS TASKS, CRITERIOS DE ACEITES, DODs CONCLUIDAS E VALIDADAS. `@usetheo/gateway-slack` shipped: 56/56 unit tests PASS (split/errors/normalize/adapter cobrindo D267-D285 + EC-1/2/3/4/6); build ESM+CJS+DTS verde; 19 ADRs registradas; example `examples/slack-bot/` standalone. Telegram-pro regression check via dogfood: **43/45 PASS, 0 feature regressions** induzidas por adicionar `"slack"` ao `PlatformName` union; 1 FAIL é `/personality ghost` CDP-timeout flake (environmental, não relacionado), 1 SKIP HONCHO. Live Slack workspace test é manual env-gated (D284).
+> **Version 1.2 — ✅ COMPLETE 2026-05-22.** TODAS AS TASKS, CRITERIOS DE ACEITES, DODs CONCLUIDAS E VALIDADAS. `@theokit/gateway-slack` shipped: 56/56 unit tests PASS (split/errors/normalize/adapter cobrindo D267-D285 + EC-1/2/3/4/6); build ESM+CJS+DTS verde; 19 ADRs registradas; example `examples/slack-bot/` standalone. Telegram-pro regression check via dogfood: **43/45 PASS, 0 feature regressions** induzidas por adicionar `"slack"` ao `PlatformName` union; 1 FAIL é `/personality ghost` CDP-timeout flake (environmental, não relacionado), 1 SKIP HONCHO. Live Slack workspace test é manual env-gated (D284).
 >
 > **Version 1.1** — Edge case review 2026-05-22 absorveu 4 MUST FIX (EC-1 `app.stop()` no catch para evitar app órfão, EC-2 serializar `connect()` concorrente, EC-3 mention guard default-true para canais, EC-4 surrogate-safe split) + adicionou **D285** (`requireMention` default true) → 19 ADRs (D267-D285). 3 SHOULD TEST adicionados aos TDD; 2 DOCUMENT integrados. Review: `.claude/knowledge-base/reviews/edge-case/gateway-slack-edge-cases-2026-05-22.md`.
 >
-> **Version 1.0** — Adiciona `@usetheo/gateway-slack` como o terceiro platform adapter sobre `@usetheo/gateway` (após Telegram e Discord). Segue o padrão estabelecido em ADRs D170-D181 (gateway core + peer-dep packages): `BasePlatformAdapter` implementation com `connect/disconnect/sendMessage/onInbound`, normalização de `SlackEvent` → `SlackMessageEvent` (discriminated union por `platform: "slack"`), Socket Mode default via `@slack/bolt`, threading nativa via `thread_ts`, message split 4000-char (limite Slack `chat.postMessage.text`). Outcome esperado: shippar item #7 do Adoption Roadmap com 18 ADRs (D267-D284), 40+ unit tests com Bolt SDK mockado, example `examples/slack-bot/` standalone, validação end-to-end opcional contra workspace Slack real quando `SLACK_BOT_TOKEN` + `SLACK_APP_TOKEN` estiverem disponíveis no env.
+> **Version 1.0** — Adiciona `@theokit/gateway-slack` como o terceiro platform adapter sobre `@theokit/gateway` (após Telegram e Discord). Segue o padrão estabelecido em ADRs D170-D181 (gateway core + peer-dep packages): `BasePlatformAdapter` implementation com `connect/disconnect/sendMessage/onInbound`, normalização de `SlackEvent` → `SlackMessageEvent` (discriminated union por `platform: "slack"`), Socket Mode default via `@slack/bolt`, threading nativa via `thread_ts`, message split 4000-char (limite Slack `chat.postMessage.text`). Outcome esperado: shippar item #7 do Adoption Roadmap com 18 ADRs (D267-D284), 40+ unit tests com Bolt SDK mockado, example `examples/slack-bot/` standalone, validação end-to-end opcional contra workspace Slack real quando `SLACK_BOT_TOKEN` + `SLACK_APP_TOKEN` estiverem disponíveis no env.
 
 ## Context
 
@@ -16,7 +16,7 @@
 - `MessageEvent` discriminated union (D173) por campo `platform: "telegram" | "discord"` (vai virar `"telegram" | "discord" | "slack"`).
 - `TelegramAdapter` em `packages/gateway-telegram/src/adapter.ts` — referência principal: grammy bot, `splitForTelegram` 4096-char util, group-policy filter, `replyParameters`/`message_thread_id` para threads.
 - `DiscordAdapter` em `packages/gateway-discord/src/adapter.ts` — segunda referência: discord.js WebSocket Gateway (D179), `MessageContent` intent obrigatório (EC-C), 2000-char split.
-- `gateway-telegram/package.json` segue ADR D171: `@usetheo/gateway` + `@usetheo/sdk` como workspace peer-deps; `grammy` como peer-dep externa. Template direto para `@usetheo/gateway-slack`.
+- `gateway-telegram/package.json` segue ADR D171: `@theokit/gateway` + `@theokit/sdk` como workspace peer-deps; `grammy` como peer-dep externa. Template direto para `@theokit/gateway-slack`.
 - Gateway runner (`packages/gateway/src/runner/`) + session router (D174) + delivery router (D175) já são platform-agnostic — adapter novo conecta automaticamente.
 
 **O que está faltando:**
@@ -38,7 +38,7 @@ Hoje, qualquer cliente Slack que queira usar o SDK precisa escrever sua própria
 
 ## Objective
 
-**Done = `import { SlackAdapter } from "@usetheo/gateway-slack"` + `new SlackAdapter({ botToken, appToken }).connect()` produz um adapter funcional que recebe DMs + canais via Socket Mode, normaliza para `SlackMessageEvent`, envia respostas via `chat.postMessage`, com threading + error handling, integrável ao `AgentRunner` do gateway.**
+**Done = `import { SlackAdapter } from "@theokit/gateway-slack"` + `new SlackAdapter({ botToken, appToken }).connect()` produz um adapter funcional que recebe DMs + canais via Socket Mode, normaliza para `SlackMessageEvent`, envia respostas via `chat.postMessage`, com threading + error handling, integrável ao `AgentRunner` do gateway.**
 
 Goals mensuráveis:
 
@@ -220,7 +220,7 @@ export interface SlackMessageEvent extends BaseMessageEvent {
 
 ### D283 — Peer dep `@slack/bolt` + `@slack/web-api` (espelha D171)
 
-**Decision:** `gateway-slack/package.json` declara `@slack/bolt: "^3.20.0"` e `@slack/web-api: "^6.12.0"` como peer-deps. Caller instala. Workspace deps: `@usetheo/gateway` + `@usetheo/sdk`.
+**Decision:** `gateway-slack/package.json` declara `@slack/bolt: "^3.20.0"` e `@slack/web-api: "^6.12.0"` como peer-deps. Caller instala. Workspace deps: `@theokit/gateway` + `@theokit/sdk`.
 
 **Rationale:** Match com Telegram (grammy peer-dep) e Discord (discord.js peer-dep). Ship reduzido — caller controla versão do SDK Slack.
 
@@ -341,7 +341,7 @@ packages/gateway-slack/src/index.ts (NEW — empty barrel)
 
 ```json
 {
-  "name": "@usetheo/gateway-slack",
+  "name": "@theokit/gateway-slack",
   "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -360,14 +360,14 @@ packages/gateway-slack/src/index.ts (NEW — empty barrel)
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/gateway": "workspace:^",
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/gateway": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "@slack/bolt": "^3.20.0",
     "@slack/web-api": "^6.12.0"
   },
   "devDependencies": {
-    "@usetheo/gateway": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/gateway": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "@slack/bolt": "^3.20.0",
     "@slack/web-api": "^6.12.0",
     "tsup": "^8.5.0",
@@ -380,11 +380,11 @@ packages/gateway-slack/src/index.ts (NEW — empty barrel)
 #### Tasks
 1. Criar arquivos acima.
 2. `pnpm install` no root.
-3. `pnpm -F @usetheo/gateway-slack typecheck` verde.
+3. `pnpm -F @theokit/gateway-slack typecheck` verde.
 
 #### TDD
 ```
-N/A — apenas scaffolding. Verification: `pnpm -F @usetheo/gateway-slack typecheck` passes; `pnpm -F @usetheo/gateway-slack build` produces empty dist.
+N/A — apenas scaffolding. Verification: `pnpm -F @theokit/gateway-slack typecheck` passes; `pnpm -F @theokit/gateway-slack build` produces empty dist.
 ```
 
 #### Acceptance Criteria
@@ -392,7 +392,7 @@ N/A — apenas scaffolding. Verification: `pnpm -F @usetheo/gateway-slack typech
 - [ ] Workspace `pnpm-workspace.yaml` reconhece o package (já tem `packages/*`).
 
 #### DoD
-- [ ] `pnpm -F @usetheo/gateway-slack typecheck` zero erros.
+- [ ] `pnpm -F @theokit/gateway-slack typecheck` zero erros.
 - [ ] Build produz `dist/` vazio (apenas barrel).
 
 ---
@@ -444,7 +444,7 @@ RED:
   - type_test_messageEvent_union_includes_slack (compile-time)
   - type_test_discriminator_narrows_to_SlackMessageEvent
 GREEN: add types.
-VERIFY: pnpm -F @usetheo/gateway typecheck
+VERIFY: pnpm -F @theokit/gateway typecheck
 ```
 
 #### Acceptance Criteria
@@ -473,8 +473,8 @@ packages/gateway-slack/src/index.ts (MODIFY — export SlackAdapter + SlackAdapt
 
 ```typescript
 import { App } from "@slack/bolt";
-import type { GatewayMessageEvent } from "@usetheo/gateway";
-import { BasePlatformAdapter, type OutboundMessage, type SendResult } from "@usetheo/gateway";
+import type { GatewayMessageEvent } from "@theokit/gateway";
+import { BasePlatformAdapter, type OutboundMessage, type SendResult } from "@theokit/gateway";
 
 export interface SlackAdapterOptions {
   readonly botToken: string;        // xoxb-...
@@ -589,7 +589,7 @@ RED:
   - EC-5: disconnect_while_connect_in_flight_leaves_no_app_running
   - EC-6: send_during_connect_returns_not_connected
 GREEN: implement.
-VERIFY: pnpm -F @usetheo/gateway-slack test tests/adapter-lifecycle.test.ts
+VERIFY: pnpm -F @theokit/gateway-slack test tests/adapter-lifecycle.test.ts
 ```
 
 #### Acceptance Criteria
@@ -616,7 +616,7 @@ packages/gateway-slack/src/normalize.ts (NEW)
 #### Deep Dives
 
 ```typescript
-import type { SlackMessageEvent } from "@usetheo/gateway";
+import type { SlackMessageEvent } from "@theokit/gateway";
 
 interface BoltMessageBody {
   event: {
@@ -855,7 +855,7 @@ packages/gateway-slack/src/errors.ts (NEW)
 #### Deep Dives
 
 ```typescript
-import type { SendResult } from "@usetheo/gateway";
+import type { SendResult } from "@theokit/gateway";
 
 interface SlackErrorLike {
   code?: string;
@@ -1036,9 +1036,9 @@ README.md (MODIFY: mention gateway-slack in features list)
 
 ```bash
 # 1. Build SDK + gateway + gateway-slack
-pnpm -F @usetheo/sdk build
-pnpm -F @usetheo/gateway build
-pnpm -F @usetheo/gateway-slack build
+pnpm -F @theokit/sdk build
+pnpm -F @theokit/gateway build
+pnpm -F @theokit/gateway-slack build
 
 # 2. Run example (env-gated)
 cd examples/slack-bot
@@ -1102,7 +1102,7 @@ fi
 ## Global Definition of Done
 
 - [ ] Todas as 6 phases completadas.
-- [ ] ≥ 40 unit tests passing (`pnpm -F @usetheo/gateway-slack test`).
+- [ ] ≥ 40 unit tests passing (`pnpm -F @theokit/gateway-slack test`).
 - [ ] Zero biome warnings.
 - [ ] Build CJS + ESM + DTS green em `packages/gateway-slack`.
 - [ ] 19 ADRs registered (D267-D285).

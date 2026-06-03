@@ -102,7 +102,7 @@ Specific measurable goals:
 - **Decision**: `proper-lockfile` é optional peer dependency. Helper `withFileLock(path, fn)` em `internal/persistence/file-lock.ts` faz dynamic import; se ausente, loga warning informativo + fallback to `withCwdMutex` (in-process only). Quando presente, usa proper-lockfile com `stale: 30000, retries: { retries: 5, factor: 1.5 }`.
 - **Rationale**: proper-lockfile é a lib mais usada no ecossistema Node para flock-style locks. Mas é dep externa — usuários em sandboxes restritos (Vercel Edge, Cloudflare Workers) podem não conseguir installar. Optional peer dep + graceful degradation respeita ambos os casos.
 - **Consequences**: 
-  - Permite: usuários "comuns" rodam `pnpm add @usetheo/sdk proper-lockfile` e ganham multi-process safety.
+  - Permite: usuários "comuns" rodam `pnpm add @theokit/sdk proper-lockfile` e ganham multi-process safety.
   - Permite: usuários edge skipam `proper-lockfile` e SDK continua funcional com warning ("multi-process file-lock unavailable; cross-cwd writes may race").
   - Constrai: alguns sites (kanban heartbeat, futuro) DEVEM ter proper-lockfile — esses sites checam disponibilidade e erram explícito se ausente.
 

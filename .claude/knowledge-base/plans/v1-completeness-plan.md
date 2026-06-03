@@ -155,7 +155,7 @@ RED:     localAgent_skips_persistence_when_memory_disabled() — agent without m
 RED:     localAgent_single_write_in_fixture_mode_when_pattern_matches() — theo_test_* key + memory.enabled; send("Remember: foo"); assert the persisted file contains EXACTLY ONE fact entry (proves EC-2 double-write is gone).
 GREEN:   Implement steps 1-4 in T1.1 Tasks.
 REFACTOR: Verify the fixture path still passes the existing memory contract test.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/runtime/memory-auto-write.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/runtime/memory-auto-write.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -209,7 +209,7 @@ examples/README.md — (MODIFY) add "provider-inspector" row in the Real LLM tab
 - **`reason` field interpretation:** the example explicitly prints the reason next to each route so users see why a route was picked. This is the only way `routes()` differs from blindly trusting `providers.routes` config.
 
 #### Tasks
-1. Scaffold `examples/provider-inspector/{package.json, tsconfig.json, .env.example, .gitignore}` mirroring `examples/quickstart`. Add `"@usetheo/sdk": "file:../../packages/sdk"` dependency.
+1. Scaffold `examples/provider-inspector/{package.json, tsconfig.json, .env.example, .gitignore}` mirroring `examples/quickstart`. Add `"@theokit/sdk": "file:../../packages/sdk"` dependency.
 2. **`.env.example` MUST include both `THEOKIT_API_KEY=theo_test_inspector` (so `Theokit.providers.list()` resolves to the bundled fixture catalog without a real PaaS) AND the chosen real provider key (`OPENROUTER_API_KEY=` / `OPENAI_API_KEY=` / `ANTHROPIC_API_KEY=`)** — without `THEOKIT_API_KEY` the example crashes on its first line with `AuthenticationError` (per EC-5).
 3. Write `src/index.ts` that creates an agent with `providers.routes` configured, calls `Theokit.providers.list()`, calls `agent.providers.routes()`, and prints both.
 4. Write `README.md` with sections: What it shows / Run / Output sample / `reason` field reference. Document explicitly that the catalog call uses `THEOKIT_API_KEY` (fixture or real PaaS) and the routing call uses the standard provider env keys.
@@ -272,7 +272,7 @@ RED:     resume_loads_hooks_skills_context_just_like_create() — create agent w
 RED:     resume_for_cold_agent_id_does_not_crash() — Agent.resume("agent-unknown-id"); assert returns SDKAgent without throwing (matches existing behaviour for cold resume).
 GREEN:   Implement step 1 in T3.0 Tasks.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/agent/agent-resume.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/agent/agent-resume.golden.test.ts
 ```
 
 #### Acceptance Criteria

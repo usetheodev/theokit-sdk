@@ -12,7 +12,7 @@ Edge cases encontrados: 6 (MUST FIX: 1, SHOULD TEST: 2, DOCUMENT: 3)
 
 - **Task afetada:** T1.1 (typecheck-sweep)
 - **Família:** State / Resource
-- **Cenário:** Cada example tem seu próprio `pnpm-lock.yaml` que pinou o SDK no estado anterior ao rebuild. Quando o sweep roda `pnpm install --ignore-workspace`, pnpm prefere o lock existente — o symlink para o `dist/` do SDK NÃO é refrescado mesmo após `pnpm --filter=@usetheo/sdk run build`. Resultado: `tsc --noEmit` vê a API antiga, falha com erros que parecem "regressão SDK" mas são lock obsoleto. Já vimos esse efeito durante a migração do telegram-pro nesta sessão.
+- **Cenário:** Cada example tem seu próprio `pnpm-lock.yaml` que pinou o SDK no estado anterior ao rebuild. Quando o sweep roda `pnpm install --ignore-workspace`, pnpm prefere o lock existente — o symlink para o `dist/` do SDK NÃO é refrescado mesmo após `pnpm --filter=@theokit/sdk run build`. Resultado: `tsc --noEmit` vê a API antiga, falha com erros que parecem "regressão SDK" mas são lock obsoleto. Já vimos esse efeito durante a migração do telegram-pro nesta sessão.
 - **Impacto:** Sweep reporta dezenas de falsos positivos. Triagem manual de cada fail consome ~1h; pior, mascara regressões REAIS.
 - **Fix sugerido:** No script `tools/typecheck-examples.sh`, usar `pnpm install --ignore-workspace --no-frozen-lockfile` (ou rm `pnpm-lock.yaml` antes do install em cada example). Adicionar como linha explícita:
   ```bash

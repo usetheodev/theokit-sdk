@@ -1,13 +1,13 @@
 /**
- * `@usetheo/gateway-teams` — public API.
+ * `@theokit/gateway-teams` — public API.
  *
- * Microsoft Teams adapter for `@usetheo/gateway`, built on `@microsoft/teams.apps@^2`.
+ * Microsoft Teams adapter for `@theokit/gateway`, built on `@microsoft/teams.apps@^2`.
  *
  * @public
  */
 
 // Re-export for consumer ergonomics.
-export type { TeamsMessageEvent } from "@usetheo/gateway";
+export type { TeamsMessageEvent } from "@theokit/gateway";
 export { TeamsAdapter } from "./adapter.js";
 
 export { mapTeamsError } from "./errors.js";

@@ -17,7 +17,7 @@
  * Per `.claude/rules/real-llm-validation.md`.
  */
 
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 // Note (edge-case review EC-P): the production SYSTEM_PROMPT +
 // TELEGRAM_PRO_CUSTOM_TOOLS mix bilingual (pt-BR/en) instructions with

@@ -2,7 +2,7 @@
 
 > **STATUS: COMPLETO** — Concluído em 2026-05-17. Todas as tarefas executadas, todos os critérios de aceite validados e DoDs atingidos. Snapshots em `.claude/knowledge-base/reviews/`. Real-LLM PASS para `Agent.generateObject` (8/8 checks, 1.7s, zero registry leak). 355/355 testes passam (349 SDK + 6 React). `pnpm validate` exit=0 (G1-G9). 41/41 examples typecheck clean. 5/5 validations PASS.
 
-> **Version 1.0** — Plano de release v1.1 do `@usetheo/sdk` cobrindo as 3 features que fecham os gaps competitivos identificados na maturity analysis (`Agent.generateObject` para structured output, telemetria OTel opt-in, e novo pacote `@usetheo/react` com `useTheoChat`) MAIS uma rodada de hardening dos 5 pillars existentes (persistence-first, MCP-first, memory-as-subsystem, DX para chat bots, ambient safety). Outcome: SDK passa de "early-GA local / cloud pre-release" para "GA local battle-tested + mainstream-ready streaming UI"; telegram-pro vira showcase integrado das 3 features novas; um segundo chat bot example (CLI-bot) prova portabilidade dos DX helpers além do N=1 telegram.
+> **Version 1.0** — Plano de release v1.1 do `@theokit/sdk` cobrindo as 3 features que fecham os gaps competitivos identificados na maturity analysis (`Agent.generateObject` para structured output, telemetria OTel opt-in, e novo pacote `@theokit/react` com `useTheoChat`) MAIS uma rodada de hardening dos 5 pillars existentes (persistence-first, MCP-first, memory-as-subsystem, DX para chat bots, ambient safety). Outcome: SDK passa de "early-GA local / cloud pre-release" para "GA local battle-tested + mainstream-ready streaming UI"; telegram-pro vira showcase integrado das 3 features novas; um segundo chat bot example (CLI-bot) prova portabilidade dos DX helpers além do N=1 telegram.
 
 ## Context
 
@@ -38,7 +38,7 @@ Pillars onde o SDK lidera mas precisam validação adversarial:
 
 Metas mensuráveis:
 
-1. **`@usetheo/react` v1.0.0** shipado no workspace. `useTheoChat` hook ergonomic em Next.js App Router; SSE handler reusável.
+1. **`@theokit/react` v1.0.0** shipado no workspace. `useTheoChat` hook ergonomic em Next.js App Router; SSE handler reusável.
 2. **`Agent.generateObject({ schema, prompt })`** público no SDK. Retorna `z.infer<T>` tipado; provider-agnostic via function-calling.
 3. **`AgentOptions.telemetry`** opt-in. OTel spans em send → LLM → tool calls. Privacy default: timing/counts only; opt-in para content.
 4. **Persistence chaos suite**: 100 kill -9 mid-send → 0 corrupt registries. Cross-process resume validado.
@@ -51,11 +51,11 @@ Metas mensuráveis:
 
 ## ADRs
 
-### D32 — `@usetheo/react` como pacote workspace separado
+### D32 — `@theokit/react` como pacote workspace separado
 
-- **Decisão**: `useTheoChat` e o SSE handler vivem em `packages/react/` (novo workspace member, `@usetheo/react`). NÃO entram no core SDK. Peer dep: `react ^18 || ^19`, `@usetheo/sdk` workspace internal. Wire format: **Vercel AI SDK Data Stream Protocol v1** (compatível com `useChat` consumers existentes via adapter).
+- **Decisão**: `useTheoChat` e o SSE handler vivem em `packages/react/` (novo workspace member, `@theokit/react`). NÃO entram no core SDK. Peer dep: `react ^18 || ^19`, `@theokit/sdk` workspace internal. Wire format: **Vercel AI SDK Data Stream Protocol v1** (compatível com `useChat` consumers existentes via adapter).
 - **Rationale**: Core SDK não pode arrastar React deps — consumidores Node/CLI/server-side hoje não pagam custo. Workspace member separado mantém o core leve E permite versionar React API independentemente. Vercel protocol garante migração simples de quem usa Vercel AI hoje + ecosystem compatibility com qualquer chat UI existente.
-- **Consequências**: 1 novo workspace member. CI publica 2 npm packages (`@usetheo/sdk` e `@usetheo/react`). Bundle React APIs nunca mais afetam SDK consumers. Compromisso: temos que MANTER compat com Vercel protocol upgrades — se v2 quebrar, escolhemos seguir ou bifurcar.
+- **Consequências**: 1 novo workspace member. CI publica 2 npm packages (`@theokit/sdk` e `@theokit/react`). Bundle React APIs nunca mais afetam SDK consumers. Compromisso: temos que MANTER compat com Vercel protocol upgrades — se v2 quebrar, escolhemos seguir ou bifurcar.
 
 ### D33 — `Agent.generateObject` via function-calling synthetic tool
 
@@ -94,7 +94,7 @@ Metas mensuráveis:
 
 ### D38 — SSE wire format = Vercel AI SDK Data Stream v1
 
-- **Decisão**: `@usetheo/react` SSE endpoint emite no formato Vercel AI Data Stream v1 (linha por evento, prefixos `0:` text, `9:` tool-call, `a:` tool-result, `d:` finish). Backend wrapper `streamTheoChat(agent, req)` converte SDKMessage events para esse formato. Frontend `useTheoChat` parsea direto (sem dep em `ai`).
+- **Decisão**: `@theokit/react` SSE endpoint emite no formato Vercel AI Data Stream v1 (linha por evento, prefixos `0:` text, `9:` tool-call, `a:` tool-result, `d:` finish). Backend wrapper `streamTheoChat(agent, req)` converte SDKMessage events para esse formato. Frontend `useTheoChat` parsea direto (sem dep em `ai`).
 - **Rationale**: Compat instant com ecosystem Vercel AI — consumers migrando de `useChat` ganham `useTheoChat` como drop-in. Mantemos nossa implementação leve (não depend em `ai` package no runtime); só seguimos o spec do wire format.
 - **Consequências**: Future-compat depende do Vercel não quebrar o protocolo. Se quebrarem, fork or upgrade. Hoje (Vercel AI v4+) o protocolo é estável.
 
@@ -105,7 +105,7 @@ Phase 0 (ADRs D32-D38) ──▶ Phase 1 (generateObject) ──▶ Phase 3.1 (t
                        │                                       ▲
                        └─▶ Phase 2 (Telemetry) ────────────────┤
                        │                                       │
-                       └─▶ Phase 3 (@usetheo/react) ───────────┤
+                       └─▶ Phase 3 (@theokit/react) ───────────┤
                                                                │
                                   Phases 4-8 (Validations) ────┤  (parallel after Phase 0)
                                                                │
@@ -259,7 +259,7 @@ RED:    generateobject_handler_uses_first_tool_call_ignores_rest() — stub emit
 RED:    generateobject_retry_does_not_leak_registry_entries() — EC-3: maxRetries=2 + LLM fails 1x then succeeds; assert Agent.list({runtime:"local", cwd:tmpdir}).items.length === 0 after call (transient agent fully disposed across retries)
 GREEN:  Implementar generate-object.ts (~80 LoC)
 REFACTOR: extrair retry loop se complexity > 10
-VERIFY: pnpm --filter=@usetheo/sdk run test -- generate-object.golden
+VERIFY: pnpm --filter=@theokit/sdk run test -- generate-object.golden
 ```
 
 #### Acceptance Criteria
@@ -381,7 +381,7 @@ RED:    telemetry_child_spans_inherit_trace_context() — EC-4: assert llm.call 
 RED:    telemetry_open_spans_end_on_dispose() — EC-5: start span; call agent.dispose() before run.wait(); assert in-memory exporter sees span.end event
 GREEN:  Implementar tracer + spans + instrumentation com safe() wrapper
 REFACTOR: extrair span context propagation se complexity > 10
-VERIFY: pnpm --filter=@usetheo/sdk run test -- telemetry.golden
+VERIFY: pnpm --filter=@theokit/sdk run test -- telemetry.golden
 ```
 
 #### Acceptance Criteria
@@ -399,7 +399,7 @@ VERIFY: pnpm --filter=@usetheo/sdk run test -- telemetry.golden
 
 ---
 
-## Phase 3: `@usetheo/react` package + `useTheoChat`
+## Phase 3: `@theokit/react` package + `useTheoChat`
 
 **Objective:** Pacote workspace separado com hook React + SSE handler server-side.
 
@@ -413,7 +413,7 @@ D32: React API não pode contaminar core SDK. Pacote separado.
 
 #### Files to edit
 ```
-packages/react/package.json — (NEW) @usetheo/react, peerDeps React + @usetheo/sdk
+packages/react/package.json — (NEW) @theokit/react, peerDeps React + @theokit/sdk
 packages/react/tsconfig.json — (NEW) extends ../../tsconfig.base.json
 packages/react/tsup.config.ts — (NEW) ESM+CJS dual build
 packages/react/src/index.ts — (NEW) re-export useTheoChat + streamTheoChat
@@ -425,14 +425,14 @@ pnpm-workspace.yaml — confirmar que `packages/*` glob pega packages/react
 
 #### Deep file dependency analysis
 - Novo workspace member. CI publica como segundo npm package.
-- Depende de `@usetheo/sdk` workspace internal + `react` peer.
+- Depende de `@theokit/sdk` workspace internal + `react` peer.
 - Não exporta nada do core SDK que React não precise.
 
 #### Deep Dives
 package.json template:
 ```json
 {
-  "name": "@usetheo/react",
+  "name": "@theokit/react",
   "version": "1.0.0",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -441,7 +441,7 @@ package.json template:
   "exports": { ".": { "import": "./dist/index.js", "require": "./dist/index.cjs", "types": "./dist/index.d.ts" } },
   "peerDependencies": {
     "react": "^18 || ^19",
-    "@usetheo/sdk": "workspace:*"
+    "@theokit/sdk": "workspace:*"
   },
   "scripts": { "build": "tsup", "typecheck": "tsc --noEmit", "test": "vitest run" }
 }
@@ -455,8 +455,8 @@ package.json template:
 
 #### TDD
 ```
-SMOKE:  pnpm --filter=@usetheo/react run typecheck → exit 0
-SMOKE:  pnpm --filter=@usetheo/react run build → produces dist/
+SMOKE:  pnpm --filter=@theokit/react run typecheck → exit 0
+SMOKE:  pnpm --filter=@theokit/react run build → produces dist/
 ```
 
 #### Acceptance Criteria
@@ -527,7 +527,7 @@ Parsing the SSE stream (Vercel AI Data Stream v1):
 #### Tasks
 1. RED: 6 tests with Testing Library
 2. GREEN: implementar `use-theo-chat.ts`
-3. VERIFY: `pnpm --filter=@usetheo/react run test`
+3. VERIFY: `pnpm --filter=@theokit/react run test`
 
 #### TDD
 ```
@@ -542,7 +542,7 @@ RED:    use_theo_chat_aborts_on_unmount() — EC-7: render hook; trigger send; u
 RED:    use_theo_chat_handles_premature_stream_close() — EC-8: mock SSE that ends without `d:` finish event; assert isStreaming === false after stream done
 GREEN:  Implementar hook
 REFACTOR: extrair SSE parser se complexity > 10
-VERIFY: pnpm --filter=@usetheo/react run test
+VERIFY: pnpm --filter=@theokit/react run test
 ```
 
 #### Acceptance Criteria
@@ -633,7 +633,7 @@ RED:    stream_emits_error_event_on_run_error() — mock agent rejects mid-strea
 RED:    stream_returns_4xx_on_pre_stream_ConfigurationError() — EC-2: agent.send rejects sync with ConfigurationError before any stream event; assert HTTP status 400 + JSON body { error, code }
 RED:    stream_returns_4xx_on_pre_stream_AuthenticationError() — EC-2: agent.send rejects sync with AuthenticationError; assert HTTP 401 + JSON
 GREEN:  Implementar streamTheoChat
-VERIFY: pnpm --filter=@usetheo/react run test
+VERIFY: pnpm --filter=@theokit/react run test
 ```
 
 #### Acceptance Criteria
@@ -1142,7 +1142,7 @@ packages/react/CHANGELOG.md — (NEW)
 
 | # | Requirement | Phase | Task(s) | Resolution |
 |---|---|---|---|---|
-| 1 | useTheoChat React helper | 3 | T3.1, T3.2, T3.3, T3.1.1 | New @usetheo/react workspace member |
+| 1 | useTheoChat React helper | 3 | T3.1, T3.2, T3.3, T3.1.1 | New @theokit/react workspace member |
 | 2 | generateObject equivalent | 1 | T1.1 | Static method via synthetic forced tool |
 | 3 | Telemetry opt-in | 2 | T2.1 | OTel lazy + privacy-default |
 | 4 | Persistence chaos | 4 | T4.1 | 100 kill -9 → 0 corrupt |
@@ -1159,9 +1159,9 @@ packages/react/CHANGELOG.md — (NEW)
 
 ## Global Definition of Done
 
-- [x] All phases completed (Phase 0-10) — Phase 0 (ADRs D32-D38), Phase 1 (generateObject), Phase 2 (telemetry), Phase 3 (`@usetheo/react`), Phase 4-8 (5 validations), Phase 3.1 (telegram-pro `/fact`), Phase 9 (docs), Phase 10 (dogfood)
+- [x] All phases completed (Phase 0-10) — Phase 0 (ADRs D32-D38), Phase 1 (generateObject), Phase 2 (telemetry), Phase 3 (`@theokit/react`), Phase 4-8 (5 validations), Phase 3.1 (telegram-pro `/fact`), Phase 9 (docs), Phase 10 (dogfood)
 - [x] SDK suite cresce de 331 → 349 tests (SDK) + 6 (React) = **355 total** (+24 vs baseline)
-- [x] `@usetheo/react` package shipado com tests verdes (6/6, build dual ESM+CJS, tipos públicos)
+- [x] `@theokit/react` package shipado com tests verdes (6/6, build dual ESM+CJS, tipos públicos)
 - [x] Zero Biome warnings (`pnpm check` reporta 0 erros / 0 warnings, apenas 1 info de schema version)
 - [x] Zero `tsc --noEmit` errors em ambos packages (`pnpm typecheck` exit=0 para sdk + react)
 - [x] `pnpm -w run validate` exit=0 (G1-G9: check, typecheck, build, test, publint, attw, knip, dep-cruiser, loc, jscpd)
@@ -1195,11 +1195,11 @@ Já coberto em Phase 10.
 | useTheoChat React 18 vs 19 quirks | Média | Peer dep aceita ambos; tests rodam em React 18 + 19 via matrix |
 | Memory recall hit-rate <80% target falha | Média | Threshold documented como "v1.1 baseline"; failing → file bug, ship features anyway, fix in v1.2 |
 | Sandbox bypass found via adversarial | Alta | Cada bypass vira P0 bug + immediate fix; pode atrasar release mas não negociável |
-| @usetheo/react publish quebra workspace install | Média | Test `pnpm install` from clean clone after publish dry-run |
+| @theokit/react publish quebra workspace install | Média | Test `pnpm install` from clean clone after publish dry-run |
 | EC-10: parallel tool calls em `generateObject` (Claude 3.5+) | Baixa | JSDoc explicit: only first tool call is used; multiple calls of `output` tool are not expected design pattern. Consumer aware. |
 | EC-11: chaos suite vaza child MCP processes ao longo de 100 iters | Baixa | Documentar limpeza `pkill -f modelcontextprotocol` no README do chaos suite + dedicated CI env recommendation |
 | EC-12: memory recall hit-rate em facts sintéticos é artificialmente alto | Média | Rubric documentado como "v1.1 baseline em facts representativos com semantic spread"; não é absolute benchmark |
 | EC-13: telegram-pro `/fact` sem fallback se generateObject falhar | Baixa | Handler adiciona try/catch com fallback para plain `Remember:` write em 3 linhas |
-| EC-14: version coupling `@usetheo/sdk` + `@usetheo/react` | Média | `packages/react/package.json` published declara `"peerDependencies": { "@usetheo/sdk": "^1.1.0" }` — não `workspace:*` |
+| EC-14: version coupling `@theokit/sdk` + `@theokit/react` | Média | `packages/react/package.json` published declara `"peerDependencies": { "@theokit/sdk": "^1.1.0" }` — não `workspace:*` |
 | EC-15: Vercel AI Data Stream v1 não pinada a versão fonte | Baixa | Inline copy do spec em `packages/react/src/wire-format.md` + fingerprint dos códigos (`0:`, `9:`, `a:`, `d:`, `3:`) |
 | EC-16: `includeContent: true` expõe API keys em prompts a tracing backend | Média | JSDoc warning + recomendação de redaction patterns no exporter; responsabilidade do consumer |

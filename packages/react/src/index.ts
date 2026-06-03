@@ -1,9 +1,9 @@
-// Client-only public surface for @usetheo/react.
+// Client-only public surface for @theokit/react.
 //
 // Spec: packages/react/src/wire-format.md (Vercel AI Data Stream v1).
 //
 // Server route handlers (streamAssistant, streamCompletion, streamTheoChat)
-// moved to `@usetheo/react/server` because they import @usetheo/sdk
+// moved to `@theokit/react/server` because they import @theokit/sdk
 // (node:fs/path) at module-eval time and would leak into the client bundle
 // if re-exported here. Pattern mirrors Next.js `next/server`.
 

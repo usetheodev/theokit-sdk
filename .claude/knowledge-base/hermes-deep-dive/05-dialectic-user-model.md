@@ -613,7 +613,7 @@ packages/sdk/src/internal/memory/
 ├── providers/
 │   ├── builtin/
 │   │   └── index.ts                # Default file-based memory (always active)
-│   └── honcho/                     # @usetheo/sdk-memory-honcho — separate peer dep package
+│   └── honcho/                     # @theokit/sdk-memory-honcho — separate peer dep package
 │       ├── index.ts                # HonchoMemoryProvider implementation
 │       ├── client.ts               # Honcho SDK wrapper
 │       ├── session.ts              # Per-session state
@@ -638,16 +638,16 @@ packages/sdk/src/internal/memory/
 
 | Dep | Why | When required |
 |---|---|---|
-| `@usetheo/sdk-memory-honcho` | Honcho provider (separate package) | Only if user opts into `memory.provider: "honcho"` |
-| `honcho-sdk` or similar | Honcho's official SDK | Pulled in by `@usetheo/sdk-memory-honcho` |
+| `@theokit/sdk-memory-honcho` | Honcho provider (separate package) | Only if user opts into `memory.provider: "honcho"` |
+| `honcho-sdk` or similar | Honcho's official SDK | Pulled in by `@theokit/sdk-memory-honcho` |
 
-Memory providers ship as **separate npm packages** that depend on `@usetheo/sdk` and implement `MemoryProvider`. The SDK itself does not bundle them — mirroring Hermes' "closed in-tree set, plugins via standalone repos" policy (AGENTS.md:515-525).
+Memory providers ship as **separate npm packages** that depend on `@theokit/sdk` and implement `MemoryProvider`. The SDK itself does not bundle them — mirroring Hermes' "closed in-tree set, plugins via standalone repos" policy (AGENTS.md:515-525).
 
 ### Migration impact on v1.2 users
 
 - **Backward-compatible**: Yes. Existing `Memory` API extended with `registerProvider`/`activateProvider`. Users who don't activate an external provider keep the built-in.
 - **Breaking signature changes**: None.
-- **Migration path**: Users opt in by `npm i @usetheo/sdk-memory-honcho` + `Agent.create({ memory: { provider: "honcho", honcho: { apiKey } } })`.
+- **Migration path**: Users opt in by `npm i @theokit/sdk-memory-honcho` + `Agent.create({ memory: { provider: "honcho", honcho: { apiKey } } })`.
 
 ## Test strategy
 
@@ -675,7 +675,7 @@ Hermes tests to port:
 
 ## Open questions
 
-- **Provider package naming**: `@usetheo/sdk-memory-honcho` vs `@usetheo/memory-honcho`? Recommend keeping `sdk-` prefix.
+- **Provider package naming**: `@theokit/sdk-memory-honcho` vs `@theokit/memory-honcho`? Recommend keeping `sdk-` prefix.
 - **Should Hindsight, Mem0, ByteRover ship as official packages or stay community?** Hermes ships all 8 in-tree. Our SDK is greenfield — recommend community-first: only Honcho gets an official adapter package, others are community-maintained.
 - **`agent_context` mapping**: Hermes has 4 contexts (primary/subagent/cron/flush). Our SDK has fewer modes. Recommend collapsing: `primary` (default), `non-primary` (everything else, providers skip writes).
 - **HTTP vs SDK**: do we wrap Honcho's HTTP API directly or pull in their official SDK? SDK is cleaner but adds a dep. Recommend their official Node SDK if it exists.

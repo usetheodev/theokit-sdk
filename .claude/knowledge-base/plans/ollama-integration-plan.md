@@ -21,7 +21,7 @@
 3. **404 em modelo não puxado é incompreensível.** Quando usuário usa `model: "ollama/llama3.2"` mas não rodou `ollama pull llama3.2`, Ollama devolve 404 sem contexto. Deveríamos surface "Model `llama3.2` not pulled. Run `ollama pull llama3.2`".
 4. **`Theokit.models.list()` é cloud-only.** Hoje só lê do TheoCloud (`/v1/models`). Local Ollama tem `/v1/models` mas não está wired. Developer não consegue descobrir quais modelos tem instalados via SDK.
 5. **Sem embedding adapter Ollama.** Catálogo `MEMORY_EMBEDDING_ADAPTERS` tem 5 entradas (openai/mistral/openrouter/voyage/deepinfra) — nenhuma local. Para developer que quer memória/RAG 100% local, falta o último elo.
-6. **Vision/multimodal não validado.** Ollama suporta `llava`, `llama3.2-vision`. SDK tem image-input path (`@usetheo/sdk`'s send com `content: [{type:"image",...}]`). Nunca testamos a interseção.
+6. **Vision/multimodal não validado.** Ollama suporta `llava`, `llama3.2-vision`. SDK tem image-input path (`@theokit/sdk`'s send com `content: [{type:"image",...}]`). Nunca testamos a interseção.
 7. **Tool calling não validado.** Ollama suporta tool calls (modelos novos: Llama 3.1+, Qwen2.5, Mistral). Schema OpenAI-compat funciona em tese, mas qualidade varia. Sem teste, não sabemos.
 8. **Zero examples rodando.** `examples/` tem 30+ apps mas nenhum prova Ollama. Sem isso, README fica vazio.
 9. **Default model gap.** `Agent.create({ model: "ollama" })` (sem `/<model>`) hoje quebra. Deveríamos auto-selecionar primeiro modelo instalado OU dar erro acionável.
@@ -176,7 +176,7 @@ RED:     test_credential_pool_noop_for_authtype_none()                    [EC-C 
          — Assert: chamar resolveProviderChain de novo NÃO re-emite warn (one-shot)
 GREEN:   Implementação descrita em Tasks (inclui Task #6 — EC-C fix).
 REFACTOR: Extrair regex de "model not found" para constante exportada.
-VERIFY:  pnpm --filter @usetheo/sdk test tests/internal/errors/ollama-error-mapping.test.ts tests/internal/llm/router.test.ts
+VERIFY:  pnpm --filter @theokit/sdk test tests/internal/errors/ollama-error-mapping.test.ts tests/internal/llm/router.test.ts
 ```
 
 #### Acceptance Criteria
@@ -188,8 +188,8 @@ VERIFY:  pnpm --filter @usetheo/sdk test tests/internal/errors/ollama-error-mapp
 - [ ] Typecheck limpo.
 
 #### DoD
-- [ ] `pnpm --filter @usetheo/sdk test tests/internal/errors` PASS.
-- [ ] `pnpm --filter @usetheo/sdk typecheck` PASS.
+- [ ] `pnpm --filter @theokit/sdk test tests/internal/errors` PASS.
+- [ ] `pnpm --filter @theokit/sdk typecheck` PASS.
 - [ ] CHANGELOG.md entry em `packages/sdk/CHANGELOG.md` [Unreleased].
 - [ ] ADR D185 criado.
 
@@ -228,7 +228,7 @@ RED:     ollama_send_basic() — Agent.create + send "say hi" → assert role as
 RED:     ollama_stream_emits_deltas() — agent.send com stream callback → assert ≥1 delta event
 GREEN:   Nada a implementar (D182 já feito); este test só PROVA que funciona.
 REFACTOR: None expected.
-VERIFY:  ollama serve & ollama pull llama3.2 && pnpm --filter @usetheo/sdk test:integration
+VERIFY:  ollama serve & ollama pull llama3.2 && pnpm --filter @theokit/sdk test:integration
 ```
 
 #### Acceptance Criteria
@@ -295,7 +295,7 @@ RED:     test_theokit_models_list_with_provider_ollama_routes_local() — Spy fe
 RED:     test_theokit_models_list_without_provider_unchanged() — Cloud path intact
 GREEN:   Implementação descrita em Tasks.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/sdk test tests/internal/catalog tests/theokit-models-provider.test.ts
+VERIFY:  pnpm --filter @theokit/sdk test tests/internal/catalog tests/theokit-models-provider.test.ts
 ```
 
 #### Acceptance Criteria
@@ -377,7 +377,7 @@ RED:     test_ollama_batch_embedding_fail_fast()                          [EC-I]
          — Promise.all rejeita; erro contém metadata.failedIndex === 2
 GREEN:   Implementação (inclui Tasks #4 e #5 — EC-A + EC-B fixes).
 REFACTOR: None expected (zero-dup with openai-embedding já garantida pelo factory).
-VERIFY:  pnpm --filter @usetheo/sdk test tests/internal/memory/adapters/ollama-embedding.test.ts
+VERIFY:  pnpm --filter @theokit/sdk test tests/internal/memory/adapters/ollama-embedding.test.ts
 ```
 
 #### Acceptance Criteria
@@ -435,7 +435,7 @@ RED:     test_openai_client_serializes_image_url_block() — input message com i
 RED:     test_ollama_vision_describes_image() — integration: send image + "describe" → response.content non-empty (skip-if-no-vision-model)
 GREEN:   Confirma serializer já correto; se falhar, ajustar serializer.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/sdk test
+VERIFY:  pnpm --filter @theokit/sdk test
 ```
 
 #### Acceptance Criteria

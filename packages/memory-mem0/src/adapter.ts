@@ -1,5 +1,5 @@
 /**
- * Mem0Adapter — `@usetheo/memory-mem0` core (T5.1, ADR D141 / D148).
+ * Mem0Adapter — `@theokit/memory-mem0` core (T5.1, ADR D141 / D148).
  *
  * Wraps `mem0ai` `MemoryClient` (cloud-only per D148). Implements
  * `MemoryAdapter` with the unique `history(id)` capability — the only
@@ -22,7 +22,7 @@ import {
   type MemoryToolSchema,
   type MemoryTurnMessage,
   mkMemoryId,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 import MemoryClient from "mem0ai";
 
 import { CircuitBreaker, type CircuitBreakerOptions } from "./circuit-breaker.js";

@@ -1,6 +1,6 @@
 # Plan: TheoKit-SDK v1.0 GA Completion
 
-> **Version 1.0** — Close the 14 remaining gaps blocking `@usetheo/sdk` v1.0 GA: validate the SDK in its declared Node 22 engine (currently only tested in Node 20 with engine warnings), formalize the 8 "Pending" decisions in `CLAUDE.md` as proper ADRs, and either ship real implementations or write deferral ADRs for the 4 OpenClaw parity gaps that were intentionally removed under the no-stubs rule. After this plan, `CLAUDE.md` has zero `Pending` entries, the SDK is Node-22-validated, and every catalog/feature exposed in the public API has a real implementation behind it.
+> **Version 1.0** — Close the 14 remaining gaps blocking `@theokit/sdk` v1.0 GA: validate the SDK in its declared Node 22 engine (currently only tested in Node 20 with engine warnings), formalize the 8 "Pending" decisions in `CLAUDE.md` as proper ADRs, and either ship real implementations or write deferral ADRs for the 4 OpenClaw parity gaps that were intentionally removed under the no-stubs rule. After this plan, `CLAUDE.md` has zero `Pending` entries, the SDK is Node-22-validated, and every catalog/feature exposed in the public API has a real implementation behind it.
 
 ## Context
 
@@ -21,7 +21,7 @@ v1.0 publish is blocked by: (a) inability to validate in the engine the SDK decl
 
 ## Objective
 
-`@usetheo/sdk` is **release-ready for `npm publish` under v1.0**: validated in Node 22.12+, `CLAUDE.md` has zero `Pending` entries, all OpenClaw parity gaps are either shipped or documented in a `v1.1-deferred` ADR with rationale.
+`@theokit/sdk` is **release-ready for `npm publish` under v1.0**: validated in Node 22.12+, `CLAUDE.md` has zero `Pending` entries, all OpenClaw parity gaps are either shipped or documented in a `v1.1-deferred` ADR with rationale.
 
 **Measurable goals:**
 1. `pnpm test`, `pnpm check`, `pnpm typecheck`, `pnpm validate`, `pnpm quality` all green in Node 22.12+ with **zero engine warnings**.
@@ -356,7 +356,7 @@ RED:     voyage-honors-api-key-env — adapter reads VOYAGE_API_KEY env when opt
 RED:     voyage-unlisted-model-uses-response-dimension (EC-4) — passing a model id NOT in DIMENSION_BY_MODEL and a stub-fetch response of 512-dim vectors must NOT zero-pad to default 1536; adapter should adopt the response.data[0].embedding.length as runtime dimension (and at minimum log a warning when the model id is unknown)
 GREEN:   Implement adapter + register in catalog + widen union; in `openai-compatible.ts`, derive dimension from the FIRST response when the model is not in the hint table (replace the silent zero-pad fallback)
 REFACTOR: None expected (factory already handles batching/cache)
-VERIFY:  pnpm --filter @usetheo/sdk exec vitest run tests/golden/memory/multi-adapter.golden.test.ts
+VERIFY:  pnpm --filter @theokit/sdk exec vitest run tests/golden/memory/multi-adapter.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -425,7 +425,7 @@ RED:     openai-adapter-still-hits-default-path — backward-compat: openai/mist
 RED:     embeddings-path-replaces-not-appends (EC-2) — given baseUrl="https://x.test" + embeddingsPath="/foo", composed URL is exactly "https://x.test/foo", not "https://x.test/foo/v1/embeddings"
 GREEN:   Add embeddingsPath option to OpenAiCompatibleConfig (default "/v1/embeddings"); URL builder uses replacement semantics, never concatenation
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/sdk test tests/golden/memory/multi-adapter
+VERIFY:  pnpm --filter @theokit/sdk test tests/golden/memory/multi-adapter
 ```
 
 #### Acceptance Criteria
@@ -505,7 +505,7 @@ RED:     missing-frontmatter-rejected — SkillSchemaError with code "missing_fr
 RED:     malformed-yaml-rejected (EC-5) — SKILL.md with unclosed quote in frontmatter yields SkillSchemaError(code: "schema_invalid"), agent.send() continues without crash
 GREEN:   Implement parser + wire to manager
 REFACTOR: Extract schema into its own file
-VERIFY:  pnpm --filter @usetheo/sdk test skills
+VERIFY:  pnpm --filter @theokit/sdk test skills
 ```
 
 #### Acceptance Criteria
@@ -615,7 +615,7 @@ packages/sdk/package.json — version field; Changeset auto-bumps
 ```
 
 #### Deep file dependency analysis
-- `.changeset/v1-ga.md` declares the version bump. Format: frontmatter with `"@usetheo/sdk": major`, body is the summary.
+- `.changeset/v1-ga.md` declares the version bump. Format: frontmatter with `"@theokit/sdk": major`, body is the summary.
 - Running `pnpm version-packages` consumes the Changeset and emits CHANGELOG + version bump.
 - `package.json` bump is automatic.
 
@@ -624,7 +624,7 @@ packages/sdk/package.json — version field; Changeset auto-bumps
 - **Summary template**: link the ADR directory, the deep review doc, and the memory-system plan.
 
 #### Tasks
-1. Run `pnpm changeset` interactively; select `@usetheo/sdk` with `major` bump.
+1. Run `pnpm changeset` interactively; select `@theokit/sdk` with `major` bump.
 2. Paste a summary that references this plan + the ADR directory.
 3. Run `pnpm version-packages` to materialize the version bump.
 4. Verify `package.json` version is `1.0.0` and CHANGELOG `[1.0.0]` section is populated.

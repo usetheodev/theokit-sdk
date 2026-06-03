@@ -2,7 +2,7 @@
 
 > **Version 1.1 — STATUS: ✅ COMPLETE (2026-05-22).** Todos 8 phases (T0.1-T8.1) DONE. 12 ADRs D202-D213 filados. 61 unit tests PASS (SDK eval/scorers/aggregate/single-flight/dataset-iter/telemetry/llm-judge) + 63 CLI tests PASS (incluindo 5 novos pós-D212 swap). Real-LLM eval contra Ollama: **5/5 rows, mean 0.900, passRatio 100%, 0 errors**. Telegram-pro regression dogfood: 34/42 PASS (7 FAIL = OpenRouter HTTP 401 chave expirada — não regressão Eval; SDK trata erro corretamente). **Edges absorvidos: EC-1 (empty-expected), EC-2 (jsonShape OOM cap), EC-3 (concurrency validation), EC-4 (hook isolation via safeHook), EC-6 (clampScore), EC-7 (empty dataset), EC-8 (llmJudge markdown parsing), EC-10/EC-11/EC-12 documented**.
 
-> **Version 1.0** — Ship the SDK-level eval-as-code primitive (`Eval.create({ dataset, scorers, agent }).run() → EvalRun`) that lets consumers gate production deploys on quantitative agent-quality metrics. Reuses `Agent.batch` (D134-D140) for parallelism, `Telemetry` (D34) for per-row tracing, and 5 built-in scorers (exact, contains, regex, jsonShape, llmJudge). The minimal CLI eval (D199, already shipped) swaps to consume this API internally. Outcome: every consumer of `@usetheo/sdk` can write `pnpm eval` as code, get aggregate metrics + per-row traces + cost estimate, and decide whether to ship — without paying Braintrust/LangSmith.
+> **Version 1.0** — Ship the SDK-level eval-as-code primitive (`Eval.create({ dataset, scorers, agent }).run() → EvalRun`) that lets consumers gate production deploys on quantitative agent-quality metrics. Reuses `Agent.batch` (D134-D140) for parallelism, `Telemetry` (D34) for per-row tracing, and 5 built-in scorers (exact, contains, regex, jsonShape, llmJudge). The minimal CLI eval (D199, already shipped) swaps to consume this API internally. Outcome: every consumer of `@theokit/sdk` can write `pnpm eval` as code, get aggregate metrics + per-row traces + cost estimate, and decide whether to ship — without paying Braintrust/LangSmith.
 
 ## Context
 
@@ -15,7 +15,7 @@
 
 **What's missing:**
 
-- No public `Eval` namespace in `@usetheo/sdk` (`packages/sdk/src/index.ts` line 7+ has Agent / AgentBuilder / Cron / Theokit / Security but no Eval).
+- No public `Eval` namespace in `@theokit/sdk` (`packages/sdk/src/index.ts` line 7+ has Agent / AgentBuilder / Cron / Theokit / Security but no Eval).
 - No built-in scorers — consumers re-invent regex/contains/llmJudge wheel for every eval. (CLI scaffolds one inline scorer in `eval.config.mjs` template.)
 - No `EvalRun` aggregate shape — CLI computes its own minimal aggregate (`meanScore`, `passRatio`); no p50/p95 durations, no per-scorer breakdown, no token totals.
 - No LLM-as-judge primitive — every consumer who needs subjective quality scoring builds it from scratch.
@@ -32,11 +32,11 @@ Per CLAUDE.md Roadmap rationale: "Sem eval-as-code (not eval-as-dashboard) ningu
 
 ## Objective
 
-**Done = a developer writes `import { Eval, Scorers } from "@usetheo/sdk"`, calls `Eval.create({...}).run()`, gets back an `EvalRun` with aggregate metrics + per-row traces + cost summary, AND the CLI `theokit eval` invokes this API under the hood (no duplicate logic).**
+**Done = a developer writes `import { Eval, Scorers } from "@theokit/sdk"`, calls `Eval.create({...}).run()`, gets back an `EvalRun` with aggregate metrics + per-row traces + cost summary, AND the CLI `theokit eval` invokes this API under the hood (no duplicate logic).**
 
 Specific measurable goals:
 
-1. `Eval` namespace exported from `@usetheo/sdk` with `Eval.create()` factory + `.run()` method.
+1. `Eval` namespace exported from `@theokit/sdk` with `Eval.create()` factory + `.run()` method.
 2. `Scorers` namespace exports 5 built-ins: `exactMatch`, `containsExpected`, `regex`, `jsonShape`, `llmJudge`.
 3. `EvalRun` shape includes: `aggregate` (mean, median, passRatio, perScorer, p50/p95 duration, tokensIn/Out), `rows[]` with per-row trace, `id`, `startedAt`, `endedAt`, `durationMs`.
 4. `Eval.run()` consumes `Agent.batch` internally — failure-isolation per-row, abort honors pending only.
@@ -54,7 +54,7 @@ Specific measurable goals:
   *Consequences:* enables `Eval.create({...}).run()` ergonomic; constrains: result type is `Promise<EvalRun>` (not an iterator) — partial-stream API deferred to v2.
 
 - **D203 — Built-in scorers live in a separate `Scorers` namespace exported from the SDK barrel.**
-  *Rationale:* Scorers are curried factories (`Scorers.regex(pattern)` returns a `Scorer`), not Eval methods. Keeping them in their own namespace makes the import tree-shakeable (`import { Scorers } from "@usetheo/sdk"` pulls only what's used) and avoids name collisions with other Eval-namespace methods.
+  *Rationale:* Scorers are curried factories (`Scorers.regex(pattern)` returns a `Scorer`), not Eval methods. Keeping them in their own namespace makes the import tree-shakeable (`import { Scorers } from "@theokit/sdk"` pulls only what's used) and avoids name collisions with other Eval-namespace methods.
   *Consequences:* enables tree-shaking; constrains: third-party scorer packages should follow the same `(config) => Scorer` shape; `Scorers` namespace versioned at the SDK major.
 
 - **D204 — Internally `Eval.run` consumes `Agent.batch` for parallelism.**
@@ -344,7 +344,7 @@ RED:     test_eval_run_shape_compiles() — constructs an EvalRun literal.
 RED:     test_score_range_enforced_at_runtime() — wraps a scorer returning {score: 2}, asserts Zod refinement throws (this requires the runtime wrapper from T3.1 — so this test is parked into T3.1).
 GREEN:   File types/eval.ts. Re-export from index.ts. Run `pnpm typecheck` — all green.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/sdk typecheck
+VERIFY:  pnpm --filter @theokit/sdk typecheck
 ```
 
 #### Acceptance Criteria
@@ -501,7 +501,7 @@ RED:     test_eval_handles_batch_result_without_timing_fields()  # EC-5 — dura
 
 GREEN:   Implement files in order: single-flight → dataset-iter → aggregate → runner → eval.ts.
 REFACTOR: Extract score-clamping into `aggregate.ts`; extract agent-factory resolution into a helper.
-VERIFY:  pnpm --filter @usetheo/sdk test tests/eval/
+VERIFY:  pnpm --filter @theokit/sdk test tests/eval/
 ```
 
 #### Acceptance Criteria
@@ -514,8 +514,8 @@ VERIFY:  pnpm --filter @usetheo/sdk test tests/eval/
 - [ ] Empty dataset returns `EvalRun` with `totalRows: 0`, all aggregates 0 (NOT NaN) (EC-7).
 - [ ] Pathological scorer scores (NaN, ±Infinity, out-of-range) clamp to finite [0,1] (EC-6).
 - [ ] Pre-`run()` abort releases single-flight; next call with same name succeeds (EC-9).
-- [ ] Pass: `pnpm --filter @usetheo/sdk typecheck`.
-- [ ] Pass: `pnpm --filter @usetheo/sdk test tests/eval/` 100%.
+- [ ] Pass: `pnpm --filter @theokit/sdk typecheck`.
+- [ ] Pass: `pnpm --filter @theokit/sdk test tests/eval/` 100%.
 - [ ] Coverage ≥ 90% on `packages/sdk/src/internal/eval/**`.
 - [ ] Biome lint zero warnings.
 
@@ -666,12 +666,12 @@ RED:     test_json_shape_oversize_output_returns_0_output_too_large()  # EC-2
 
 GREEN:   Implement scorers.ts.
 REFACTOR: None expected (small file).
-VERIFY:  pnpm --filter @usetheo/sdk test tests/scorers/
+VERIFY:  pnpm --filter @theokit/sdk test tests/scorers/
 ```
 
 #### Acceptance Criteria
 - [ ] 17/17 RED → GREEN.
-- [ ] `import { Scorers } from "@usetheo/sdk"` exposes all 4.
+- [ ] `import { Scorers } from "@theokit/sdk"` exposes all 4.
 - [ ] `containsExpected({...}).score(any, "")` returns `{score: 0, reason: "expected_empty"}` (EC-1).
 - [ ] `jsonShape(z.any()).score("a".repeat(1_500_000))` returns `{score: 0, reason: "output_too_large"}` (EC-2).
 - [ ] `Scorers.regex` docstring documents ReDoS caveat (EC-10).
@@ -819,8 +819,8 @@ RED:     test_llm_judge_real_openrouter_gpt4omini() — real call; expects score
 
 GREEN:   Implement files.
 REFACTOR: Extract JUDGE_PROMPT to a const; consider exposing it for advanced consumers.
-VERIFY:  pnpm --filter @usetheo/sdk test tests/scorers/
-         OPENROUTER_API_KEY=... pnpm --filter @usetheo/sdk test tests/scorers/llm-judge.real.test.ts
+VERIFY:  pnpm --filter @theokit/sdk test tests/scorers/
+         OPENROUTER_API_KEY=... pnpm --filter @theokit/sdk test tests/scorers/llm-judge.real.test.ts
 ```
 
 #### Acceptance Criteria
@@ -900,7 +900,7 @@ RED:     test_otel_unavailable_eval_still_succeeds() — mock require("@opentele
 
 GREEN:   Implement files.
 REFACTOR: Consider exposing `Eval.toOtelLogRecord(run)` helper (out of scope v1; track for v2).
-VERIFY:  pnpm --filter @usetheo/sdk test tests/eval/telemetry.test.ts
+VERIFY:  pnpm --filter @theokit/sdk test tests/eval/telemetry.test.ts
 ```
 
 #### Acceptance Criteria
@@ -955,7 +955,7 @@ RED:     test_cli_eval_outputs_p50_p95_when_available() — new fields surfaced.
 
 GREEN:   Refactor files.
 REFACTOR: Drop dead code: in-CLI `applyScorer`, `extractUsage` (now in SDK).
-VERIFY:  pnpm --filter @usetheo/cli test tests/eval/
+VERIFY:  pnpm --filter @theokit/cli test tests/eval/
 ```
 
 #### Acceptance Criteria
@@ -1071,7 +1071,7 @@ packages/sdk/CHANGELOG.md           (edit)
 ## Global Definition of Done
 
 - [ ] All 8 phases completed.
-- [ ] All tests passing: `pnpm --filter @usetheo/sdk test` + `pnpm --filter @usetheo/cli test`.
+- [ ] All tests passing: `pnpm --filter @theokit/sdk test` + `pnpm --filter @theokit/cli test`.
 - [ ] Zero Biome lint warnings on touched files (`packages/sdk/src/eval.ts`, `internal/eval/**`, `scorers.ts`, `internal/scorers/**`).
 - [ ] `pnpm typecheck` clean across SDK + CLI.
 - [ ] Backward compatibility: existing `Agent`, `Cron`, `Theokit`, `Security` surfaces unchanged.
@@ -1090,8 +1090,8 @@ See Phase 8. Plan is NOT done until both dogfoods pass.
 
 ```bash
 # 1. SDK + CLI tests
-pnpm --filter @usetheo/sdk test
-pnpm --filter @usetheo/cli test
+pnpm --filter @theokit/sdk test
+pnpm --filter @theokit/cli test
 
 # 2. Real-LLM eval (Ollama)
 cd examples/eval && pnpm exec tsx run.ts
@@ -1101,7 +1101,7 @@ export OPENROUTER_API_KEY=...
 cd examples/eval && pnpm exec tsx run.ts --judge
 
 # 4. CLI smoke
-pnpm --filter @usetheo/cli exec theokit eval --config examples/eval/eval.config.mjs
+pnpm --filter @theokit/cli exec theokit eval --config examples/eval/eval.config.mjs
 
 # 5. Telegram-pro regression (per /dogfood skill memory)
 node .claude/skills/dogfood/lib/dogfood.mjs --user-id <id>

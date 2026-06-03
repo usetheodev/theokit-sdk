@@ -14,7 +14,7 @@
  * @internal
  */
 
-import type { SlackMessageEvent } from "@usetheo/gateway";
+import type { SlackMessageEvent } from "@theokit/gateway";
 
 export interface BoltMessageBody {
   event: {

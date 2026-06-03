@@ -1,6 +1,6 @@
 # Plan: Memory System — OpenClaw Parity
 
-> **Version 1.0** — Replicate the OpenClaw memory architecture inside `@usetheo/sdk`. This is a **multi-month effort, ~10 sequential phases, ~80-120 new files, ~15k LoC**. The OpenClaw reference is ~304 files spread across 5 plugin packages (`memory-core` 120, `memory-host-sdk` 97, `active-memory` 4, `memory-lancedb` 12, `memory-wiki` 64, plus 7 provider embedding adapters). The plan ships a **functionally equivalent** stack adapted to our internal-module shape (we have no plugin host, so what OpenClaw calls "extensions" become `packages/sdk/src/internal/memory/<sub>/`). Every public surface and every behavior described in OpenClaw's memory docs lands.
+> **Version 1.0** — Replicate the OpenClaw memory architecture inside `@theokit/sdk`. This is a **multi-month effort, ~10 sequential phases, ~80-120 new files, ~15k LoC**. The OpenClaw reference is ~304 files spread across 5 plugin packages (`memory-core` 120, `memory-host-sdk` 97, `active-memory` 4, `memory-lancedb` 12, `memory-wiki` 64, plus 7 provider embedding adapters). The plan ships a **functionally equivalent** stack adapted to our internal-module shape (we have no plugin host, so what OpenClaw calls "extensions" become `packages/sdk/src/internal/memory/<sub>/`). Every public surface and every behavior described in OpenClaw's memory docs lands.
 
 > **Realistic timeline:** 5-10 weeks of focused engineering depending on how aggressively edge cases get covered. Each phase ships independently — pause at any green phase boundary.
 
@@ -29,7 +29,7 @@ The current memory implementation works for ≤50 facts and breaks down beyond t
 
 ## Objective
 
-`@usetheo/sdk` exposes a memory subsystem behaviorally equivalent to OpenClaw's `memory-core` + `active-memory` + `memory-wiki` + dreaming + at minimum 2 embedding adapters (OpenAI + a fallback) + one vector backend (SQLite-vec) with an interface stable enough to add LanceDB later.
+`@theokit/sdk` exposes a memory subsystem behaviorally equivalent to OpenClaw's `memory-core` + `active-memory` + `memory-wiki` + dreaming + at minimum 2 embedding adapters (OpenAI + a fallback) + one vector backend (SQLite-vec) with an interface stable enough to add LanceDB later.
 
 **Measurable goals:**
 1. Memory persists to `.theokit/memory/MEMORY.md` (root) and `.theokit/memory/notes/*.md` (per-topic), readable and editable by humans.
@@ -193,7 +193,7 @@ packages/sdk/src/internal/runtime/local-agent.ts — (MODIFY) update maybePersis
   ```markdown
   # Memory
 
-  > Auto-managed by @usetheo/sdk. Edit freely — the SDK reads from here.
+  > Auto-managed by @theokit/sdk. Edit freely — the SDK reads from here.
 
   ## Facts
 
@@ -224,7 +224,7 @@ RED:     markdownStore_creates_facts_section_when_missing() — pre-populate `# 
 RED:     markdownStore_serializes_concurrent_appends() — 5 parallel appendFact calls → all 5 bullets present after the last promise resolves (EC-4).
 GREEN:   Implement steps 1-5.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/markdown-store.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/markdown-store.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -286,7 +286,7 @@ RED:     reader_default_200_lines() — no lines arg → reads up to 200 lines.
 RED:     chunkMarkdown_splits_on_word_boundary_not_mid_word() — paragraph of 1500 chars without whitespace at the 800th char → split point is the nearest whitespace ≤ maxChars, not exactly at 800 (EC-6).
 GREEN:   Implement steps 1-3.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/chunk-and-read.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/chunk-and-read.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -354,7 +354,7 @@ RED:     indexManager_atomic_reindex_on_error() — sync interrupted mid-write �
 RED:     indexManager_recovers_from_corrupt_db() — write garbage bytes to `.index/memory.sqlite`; on open, either rename aside to `.corrupt-<ts>` + recreate the schema, OR throw `ConfigurationError(code: "index_corrupt")` (EC-7).
 GREEN:   Implement steps 1-4.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/index-manager.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/index-manager.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -387,7 +387,7 @@ packages/sdk/src/internal/memory/embedding-adapter.ts — (NEW) interface + help
 RED:     adapter_shape_matches_openclaw_contract() — type-level: id, defaultModel, transport, authProviderId, autoSelectPriority, create() return shape.
 GREEN:   Implement type interface.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/embedding-adapter.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/embedding-adapter.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -422,7 +422,7 @@ RED:     openaiAdapter_retries_on_429_with_backoff() — stub 429 then 200 → s
 RED:     openaiAdapter_retries_on_5xx_with_backoff() — stub 503 then 200 → succeeds after one retry (5xx is the common transient failure mode, EC-9).
 GREEN:   Implement steps 1-2.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/openai-embedding.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/openai-embedding.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -463,7 +463,7 @@ RED:     indexManager_force_reembed_on_dimension_change() — sync with `text-em
 RED:     sqliteVecLoader_throws_typed_error_on_missing_extension() — stub `db.loadExtension` to throw → IndexManager surfaces `ConfigurationError(code: "sqlite_vec_unavailable")`, NOT a raw native error (EC-8).
 GREEN:   Implement steps 1-4.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/vec-index.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/vec-index.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -491,7 +491,7 @@ RED:     hybridSearch_respects_minScore() — filter below threshold.
 RED:     hybridSearch_falls_back_to_fts_when_no_provider() — provider undefined → FTS-only, no errors.
 GREEN:   Implement.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/hybrid-search.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/hybrid-search.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -531,7 +531,7 @@ RED:     memoryGetTool_rejects_path_traversal() — call with `path: "../../etc/
 RED:     memorySearchTool_caps_total_result_chars() — 100 chunks × 1000 chars, maxResults=100 → response stays ≤ 16384 chars; `truncated: true` set; lowest-rank hits dropped first (EC-10).
 GREEN:   Implement steps 1-5.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/tools.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/tools.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -573,7 +573,7 @@ RED:     activeMemory_skips_when_disabled() — memory.activeRecall=false → st
 RED:     activeMemory_disables_recursion() — sub-agent's own memory.enabled stays false.
 GREEN:   Implement steps 1-5.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/active-memory.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/active-memory.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -613,7 +613,7 @@ RED:     transcripts_persisted_when_enabled() — flag on → transcript file wr
 RED:     transcripts_disabled_by_default() — no flag → no file.
 GREEN:   Implement steps 1-3.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/breaker-and-cache.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/breaker-and-cache.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -658,7 +658,7 @@ RED:     dreaming_promotes_short_term_to_permanent() — facts marked short-term
 RED:     dreaming_atomic_writes_survive_simulated_crash() — inject failure between two file writes via mocked fs.rename → no file is half-written; partial state is recoverable by re-running the sweep (EC-3).
 GREEN:   Implement steps 1-6.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/dreaming.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/dreaming.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -694,7 +694,7 @@ RED:     memorySearch_corpus_wiki_returns_only_wiki_hits() — corpus=wiki → n
 RED:     memorySearch_corpus_all_returns_combined() — corpus=all → both memory and wiki hits.
 GREEN:   Implement steps 1-3.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/wiki-loader.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/wiki-loader.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -727,7 +727,7 @@ RED:     mistralAdapter_embeds_text() — stub /v1/embeddings → vector returne
 RED:     stubAdapters_throw_not_implemented_on_embed() — others throw ConfigurationError code "adapter_not_implemented".
 GREEN:   Implement.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/multi-adapter.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/multi-adapter.golden.test.ts
 ```
 
 #### Acceptance Criteria
@@ -761,7 +761,7 @@ RED:     lancedbBackend_indexes_chunks() — chunks added → searchable.
 RED:     lancedbBackend_hybrid_search_returns_same_shape() — hits look identical to sqlite-vec backend.
 GREEN:   Implement.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/memory/lancedb-backend.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/memory/lancedb-backend.golden.test.ts
 ```
 
 #### Acceptance Criteria

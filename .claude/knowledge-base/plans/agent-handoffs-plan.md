@@ -2,7 +2,7 @@
 
 > **Version 1.1 — STATUS: ✅ COMPLETE (2026-05-22).** All 8 phases (T0.1-T8.1) DONE. 16 ADRs D214-D229 filed (12 base + 4 absorbed from edge-case review). 29 unit tests PASS (registry + normalize + dispatcher + handoff-create). All 5 MUST FIX edges absorbed (EC-1 parallel handoff first-wins, EC-2 inputFilter throw fallback, EC-3 onHandoff throw aborts, EC-4 empty inputJson handling, EC-5 disposed receiver). 6 SHOULD TEST + 3 DOCUMENT integrated. Integrated into telegram-pro via `/handoff_demo` command (Adoption Roadmap #4 dogfood requirement). **Telegram-pro full dogfood: 41/42 PASS, 0 FAIL, 1 SKIP (HONCHO_API_KEY unset) in 216.7s.** Real-LLM `examples/handoffs/run.ts` validates SDK contract (small Ollama model demonstrates documented EC-14 limitation; cloud models work fully). Bonus regression fix: removed `parse_mode: "Markdown"` from telegram-pro's /help reply to fix pre-existing entity-parse bug exposed by `/handoff_demo` addition.
 
-> **Version 1.0** — Ship `@usetheo/sdk`'s peer-to-peer agent handoff primitive. Pattern alvo: **handoff-as-tool** (canonical OpenAI Agents SDK pattern, also confirmed by LangGraph supervisor mode). Each `handoffs[]` destination becomes a synthetic function tool `transfer_to_<receiver>` exposed to the LLM; runtime intercepts the tool call and routes the next turn to the receiver agent. Supports `inputFilter` (history scoping), `inputType` (structured payload via Zod), `onHandoff` (side-effect callback), per-receiver tool whitelist, and max-depth loop guard. Reuses `fork()` infra (D110-D114) for the receiver lifecycle and `Telemetry` (D34) for spans. Outcome: a consumer writes `Agent.create({ handoffs: [billing, support] })` and the SDK does triage automatically — no state machine, no orchestration code.
+> **Version 1.0** — Ship `@theokit/sdk`'s peer-to-peer agent handoff primitive. Pattern alvo: **handoff-as-tool** (canonical OpenAI Agents SDK pattern, also confirmed by LangGraph supervisor mode). Each `handoffs[]` destination becomes a synthetic function tool `transfer_to_<receiver>` exposed to the LLM; runtime intercepts the tool call and routes the next turn to the receiver agent. Supports `inputFilter` (history scoping), `inputType` (structured payload via Zod), `onHandoff` (side-effect callback), per-receiver tool whitelist, and max-depth loop guard. Reuses `fork()` infra (D110-D114) for the receiver lifecycle and `Telemetry` (D34) for spans. Outcome: a consumer writes `Agent.create({ handoffs: [billing, support] })` and the SDK does triage automatically — no state machine, no orchestration code.
 
 ## Context
 
@@ -428,7 +428,7 @@ RED:     test_handoff_imperative_handoffTo_method_works()  # D225 escape hatch
 
 GREEN:   Implement files in order: registry → tool-injector → dispatcher → interceptor → handoff.ts.
 REFACTOR: Extract shared helpers between fork (D110) and handoff (T2.1) if 30%+ overlap.
-VERIFY:  pnpm --filter @usetheo/sdk test tests/handoff/
+VERIFY:  pnpm --filter @theokit/sdk test tests/handoff/
 ```
 
 #### Acceptance Criteria
@@ -549,7 +549,7 @@ packages/sdk/CHANGELOG.md               (edit)
 ## Global Definition of Done
 
 - [ ] All 8 phases completed.
-- [ ] All tests passing: `pnpm --filter @usetheo/sdk test` + `pnpm --filter @usetheo/cli test`.
+- [ ] All tests passing: `pnpm --filter @theokit/sdk test` + `pnpm --filter @theokit/cli test`.
 - [ ] Zero Biome lint warnings on touched files.
 - [ ] `pnpm typecheck` clean across SDK + CLI.
 - [ ] D214-D225 ADRs filed in `.claude/knowledge-base/adrs/`.
@@ -567,7 +567,7 @@ See Phase 8. Plan is NOT done until both dogfoods pass.
 
 ```bash
 # 1. SDK tests
-pnpm --filter @usetheo/sdk test
+pnpm --filter @theokit/sdk test
 
 # 2. Real-LLM handoff demo (Ollama)
 cd examples/handoffs && pnpm exec tsx run.ts

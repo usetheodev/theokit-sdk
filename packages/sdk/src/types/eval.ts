@@ -2,7 +2,7 @@
  * Public type contract for `Eval.create / .run` and the `Scorers` namespace
  * (Adoption Roadmap #2; ADRs D202-D213).
  *
- * Consumers import these types via `@usetheo/sdk` — they're re-exported
+ * Consumers import these types via `@theokit/sdk` — they're re-exported
  * from the package barrel. Implementation lives in `eval.ts`, `scorers.ts`,
  * and `internal/eval/**`.
  *

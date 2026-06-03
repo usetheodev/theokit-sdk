@@ -4,7 +4,7 @@
 >
 > **Version 1.1** — Edge case review 2026-05-23 absorveu 5 MUST FIX + adicionou **D302** (Bedrock streaming deferido a v1.x) → 17 ADRs (D286-D302). Fixes: EC-1 helpful error quando Vertex `projectId` undefined; EC-3 helpful error quando `google-auth-library` missing; EC-5 v1 Bedrock é non-streaming only (AWS event stream binary parser fora de escopo); EC-6 helpful error quando Bedrock token undefined; EC-13 convenção `bedrock/{aws-id}` para routing. 4 SHOULD TEST adicionados aos TDD; 3 DOCUMENT integrados. Review: `.claude/knowledge-base/reviews/edge-case/bedrock-vertex-profiles-edge-cases-2026-05-23.md`.
 >
-> **Version 1.0** — Adiciona dois `ProviderProfile` (D105) novos ao `@usetheo/sdk` — `bedrock` e `vertex` — fechando o item #8 do Adoption Roadmap e habilitando enterprise customers AWS/GCP. Caminho de menor atrito: **ambos via Bearer-token + `fetch` nativo, sem SigV4 nem Service Account JWT manual**. Bedrock usa o env `AWS_BEARER_TOKEN_BEDROCK` (GA setembro/2025) + optional `@aws/bedrock-token-generator` (97KB) para auto-refresh; Vertex usa `google-auth-library` (572KB) required peer dep que resolve credentials via ADC (env var → gcloud → metadata server → WIF). Gemini no Vertex aproveita o endpoint OpenAI-compat oficial (`/endpoints/openapi/chat/completions`) — zero novo transport; Claude no Vertex usa `:rawPredict` com `apiMode: "anthropic_messages"` + body massage (`anthropic_version` injetado, `model` stripped). Outcome esperado: shipping com ~16 ADRs (D286-D301), 60+ unit tests, 2 examples (`examples/bedrock-bot`, `examples/vertex-bot`), live dogfood env-gated, e CLAUDE.md Roadmap #8 → ✅ DONE com **7/8 itens shipados**.
+> **Version 1.0** — Adiciona dois `ProviderProfile` (D105) novos ao `@theokit/sdk` — `bedrock` e `vertex` — fechando o item #8 do Adoption Roadmap e habilitando enterprise customers AWS/GCP. Caminho de menor atrito: **ambos via Bearer-token + `fetch` nativo, sem SigV4 nem Service Account JWT manual**. Bedrock usa o env `AWS_BEARER_TOKEN_BEDROCK` (GA setembro/2025) + optional `@aws/bedrock-token-generator` (97KB) para auto-refresh; Vertex usa `google-auth-library` (572KB) required peer dep que resolve credentials via ADC (env var → gcloud → metadata server → WIF). Gemini no Vertex aproveita o endpoint OpenAI-compat oficial (`/endpoints/openapi/chat/completions`) — zero novo transport; Claude no Vertex usa `:rawPredict` com `apiMode: "anthropic_messages"` + body massage (`anthropic_version` injetado, `model` stripped). Outcome esperado: shipping com ~16 ADRs (D286-D301), 60+ unit tests, 2 examples (`examples/bedrock-bot`, `examples/vertex-bot`), live dogfood env-gated, e CLAUDE.md Roadmap #8 → ✅ DONE com **7/8 itens shipados**.
 
 ## Context
 
@@ -365,7 +365,7 @@ RED:
   - resolveBedrockBaseUrl_no_prefix_falls_back_to_AWS_REGION
   - resolveBedrockBaseUrl_default_when_AWS_REGION_undefined
 GREEN: implement.
-VERIFY: pnpm -F @usetheo/sdk test tests/providers/bedrock.test.ts
+VERIFY: pnpm -F @theokit/sdk test tests/providers/bedrock.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1099,7 +1099,7 @@ README.md (MODIFY: mention enterprise providers in features)
 
 ```bash
 # Mandatory: telegram-pro regression check (no Bedrock/Vertex usage)
-pnpm -F @usetheo/sdk build
+pnpm -F @theokit/sdk build
 # refresh telegram-pro link...
 node .claude/skills/dogfood/lib/dogfood.mjs --user-id 7528967933
 

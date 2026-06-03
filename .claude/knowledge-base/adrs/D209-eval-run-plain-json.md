@@ -11,7 +11,7 @@ just works.
 Convenience renderers (markdown, HTML, diff) ship as top-level functions:
 
 ```ts
-import { Eval } from "@usetheo/sdk";
+import { Eval } from "@theokit/sdk";
 const md = Eval.toMarkdown(run);  // Helper, not run.toMarkdown()
 ```
 

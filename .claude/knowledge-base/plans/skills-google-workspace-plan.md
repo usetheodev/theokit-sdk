@@ -1,4 +1,4 @@
-# Plan: `@usetheo/skills-google-workspace` (T3, Roadmap v1.4 #5)
+# Plan: `@theokit/skills-google-workspace` (T3, Roadmap v1.4 #5)
 
 > **Version 1.2 (PIVOT)** — Ship a single workspace package that consumes **one combined Google Workspace MCP server** (`google-workspace-mcp@2.3.6` by pm990320 — MIT, MIT-licensed, GitHub Actions OIDC trusted publisher) covering Calendar + Drive + Sheets + Docs + Gmail + Slides + Forms. Our value-add: a Node factory that emits an `McpServerConfig` ready to spread into `Agent.create({ mcpServers })`, a `theokit setup gworkspace` CLI that shells out to the upstream `npx google-workspace-mcp setup / accounts add` flow (with our EC-1 guard layered on top), and a cookbook with six real-LLM-validated recipes. **NÃO reinventa MCP** — we delegate to a battle-tested upstream server.
 >
@@ -51,11 +51,11 @@ Combined alternatives (`@taylorwilsdon/google_workspace_mcp`) exist but Phase 0 
 
 ## Objective
 
-**Done means:** a user runs `pnpm add @usetheo/skills-google-workspace`, then `npx theokit setup gworkspace`, then `Agent.create({ mcpServers: googleWorkspace({ products: ["calendar", "drive", "sheets"] }) })`, and their agent can answer "what's on my calendar tomorrow?" against a real Google account with **read-only scopes by default**.
+**Done means:** a user runs `pnpm add @theokit/skills-google-workspace`, then `npx theokit setup gworkspace`, then `Agent.create({ mcpServers: googleWorkspace({ products: ["calendar", "drive", "sheets"] }) })`, and their agent can answer "what's on my calendar tomorrow?" against a real Google account with **read-only scopes by default**.
 
 Specific, measurable goals:
 
-1. New workspace package `@usetheo/skills-google-workspace@0.1.0` published-ready (publint + attw clean, ESM+CJS+DTS).
+1. New workspace package `@theokit/skills-google-workspace@0.1.0` published-ready (publint + attw clean, ESM+CJS+DTS).
 2. `googleWorkspace(opts): Record<string, McpServerConfig>` factory exported from the package — returns one entry per requested product, ready to spread into `Agent.create({ mcpServers })`.
 3. `theokit setup gworkspace` CLI subcommand walks user through Google Cloud project setup, stages `credentials.json` at `~/.theokit/gworkspace/credentials.json` with `chmod 600`, and runs a connectivity probe.
 4. Read-only scope defaults wired per product; write scopes require explicit opt-in (e.g., `{ products: { calendar: { writable: true } } }`).
@@ -68,13 +68,13 @@ Specific, measurable goals:
 
 | ID | Decision | Rationale | Consequences |
 |---|---|---|---|
-| **D340** | `@usetheo/skills-google-workspace` ships as a separate workspace package, not a sub-export of `@usetheo/sdk`. | Matches the per-domain workspace-package policy already proven for gateway-* (D170/D171) and memory-* (D143). Lets users opt in to the ~5MB peer-dep footprint of three MCP servers without paying it for SDK-only agents. | Adds one workspace member. Versioning is independent — `0.1.0` per D181 pre-1.0 policy. |
+| **D340** | `@theokit/skills-google-workspace` ships as a separate workspace package, not a sub-export of `@theokit/sdk`. | Matches the per-domain workspace-package policy already proven for gateway-* (D170/D171) and memory-* (D143). Lets users opt in to the ~5MB peer-dep footprint of three MCP servers without paying it for SDK-only agents. | Adds one workspace member. Versioning is independent — `0.1.0` per D181 pre-1.0 policy. |
 | **D341** | The package exposes a single factory `googleWorkspace(opts): Record<string, McpServerConfig>` instead of three independent factories. | One factory per Workspace product would scatter the OAuth + credentials story across three call sites. A single factory keeps credential resolution in one place and matches the user's mental model ("I want Google Workspace, not three separate things"). | Users wanting only one product still call the same factory with `products: ["calendar"]`. Slightly more boilerplate than 3 individual factories, but ONE invariant ("creds resolved once") rather than three. |
 | **D342** | MCP servers are launched via **stdio** transport (not HTTP/SSE). | All three chosen MCP servers ship as npm CLI packages that consume `credentials.json` from disk and speak stdio. HTTP would require us to host them. Stdio matches the existing Notion + filesystem MCP pattern proven in the SDK. | Users need Node 22+ installed (already required by SDK engines field). MCP servers spawned per-agent — `Agent.create()` triggers cold start (~200–500ms each); cached subsequent calls. |
 | **D343** | Read-only OAuth scopes are the default; write requires explicit opt-in via `writable: true` per product. | Principle of least privilege. A bot that needs to "summarize my last week of meetings" should not be able to delete events. Matches the `.claude/rules/no-stubs-no-mocks-no-wired.md` discipline of safe-by-default APIs. | Onboarding flow shows one consent screen; if the user later wants write access they re-run `theokit setup gworkspace --writable=calendar,sheets` to grant additional scopes (re-consent in Google). |
 | **D344** | Credentials live at `$THEOKIT_HOME/gworkspace/credentials.json` (default `~/.theokit/gworkspace/credentials.json`) with `chmod 600`. | Reuses the existing `getTheokitHome(cwd)` resolver (D60). Mirrors the MCP token storage pattern (D41 + `token-storage.ts`). Single canonical path that the package and all three MCP servers consume via `GOOGLE_APPLICATION_CREDENTIALS` env var. | Cross-process safety enforced via O_EXCL on initial write (D82). Re-running setup overwrites with backup at `credentials.json.bak.<timestamp>`. |
 | **D345** | OAuth is delegated to each MCP server's own implementation, not unified at the SDK layer. | Each MCP server already handles its own OAuth flow against Google. Unifying would mean re-implementing the flow three times to match each server's expected token shape, which fights the "não reinventa MCP" rule. Our `theokit setup gworkspace` stages the shared `credentials.json` — the actual OAuth dance happens at first MCP server use. | Trade-off: first agent run shows ONE consent screen per product the first time. This is honest — it's what Google requires. The `theokit setup gworkspace --probe` flag warms each server to surface OAuth prompts up-front in the terminal instead of mid-agent-loop. |
-| **D346** | `theokit setup gworkspace` lives in `packages/cli/src/commands/setup.ts` as a NEW top-level CLI subcommand `setup`, with `gworkspace` as the first concrete domain. | `setup` as a verb is reserved future-proofing — `setup notion`, `setup linear` follow the same pattern. Keeping it under `theokit` (vs. shipping `@usetheo/skills-google-workspace/cli`) keeps install-friction at zero (no extra bin). | Adds one subcommand to `commander` wiring in `main.ts`. CLI bundle grows by ~3KB. |
+| **D346** | `theokit setup gworkspace` lives in `packages/cli/src/commands/setup.ts` as a NEW top-level CLI subcommand `setup`, with `gworkspace` as the first concrete domain. | `setup` as a verb is reserved future-proofing — `setup notion`, `setup linear` follow the same pattern. Keeping it under `theokit` (vs. shipping `@theokit/skills-google-workspace/cli`) keeps install-friction at zero (no extra bin). | Adds one subcommand to `commander` wiring in `main.ts`. CLI bundle grows by ~3KB. |
 | **D347** | The cookbook ships at `examples/skills-google-workspace/` with **six** recipes, the LAST of which (`recipe-06-combined-meeting-doc.ts`) chains Calendar (read) → Drive (write to a Doc), demonstrating cross-product composition. | Five recipes feel like a list; six lets us showcase one *combined* scenario which is the package's actual value-add over running three servers independently. Per `.claude/rules/real-llm-validation.md` each recipe is env-gated; without creds they skip honestly. | Recipe 6 requires `writable: true` on Drive — the cookbook README walks the user through enabling it. |
 | **D348** | Package version starts at `0.1.0` per D181 pre-1.0 policy; SDK + gateway versions unaffected. | This is purely additive; no changes to existing public APIs. The package can iterate independently. | Future breaking changes (e.g., adding Gmail) allowed within 0.x. |
 
@@ -203,7 +203,7 @@ pnpm-workspace.yaml — add packages/skills-google-workspace
 ```
 
 #### Deep file dependency analysis
-- `package.json`: peer deps on `@usetheo/sdk` (workspace:^). NO peer deps on MCP servers themselves — those are spawned as child processes via `npx` or pinned via `cliCommand` option (resolved in Phase 2).
+- `package.json`: peer deps on `@theokit/sdk` (workspace:^). NO peer deps on MCP servers themselves — those are spawned as child processes via `npx` or pinned via `cliCommand` option (resolved in Phase 2).
 - `tsup.config.ts` mirrors gateway-email — dual ESM+CJS+DTS, `sideEffects: false`.
 - `tsconfig.json` extends `../../tsconfig.base.json` (workspace shared).
 - `pnpm-workspace.yaml`: adding a glob entry is the only repo-level edit.
@@ -223,7 +223,7 @@ Returns `Record<string, never>` so TypeScript narrows correctly when spread into
 #### Tasks
 1. `mkdir packages/skills-google-workspace/{src,tests}`
 2. Add the package to `pnpm-workspace.yaml`.
-3. Write `package.json` (peer dep on `@usetheo/sdk`, scripts: build/test/typecheck).
+3. Write `package.json` (peer dep on `@theokit/sdk`, scripts: build/test/typecheck).
 4. Copy `tsup.config.ts`, `tsconfig.json`, `vitest.config.ts` from gateway-email and adjust paths.
 5. `cp packages/sdk/LICENSE packages/skills-google-workspace/LICENSE`
 6. Write `src/index.ts` placeholder and `src/types.ts` with `GoogleWorkspaceOptions` interface (initially `{ products?: ReadonlyArray<"calendar" | "drive" | "sheets"> }`).
@@ -237,7 +237,7 @@ RED:     test_googleWorkspace_no_args_returns_empty_record — fails because src
 RED:     test_googleWorkspace_with_products_returns_empty_record_in_phase_1 — fails for same reason
 GREEN:   Implement the placeholder factory
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/skills-google-workspace test && pnpm --filter @usetheo/skills-google-workspace build
+VERIFY:  pnpm --filter @theokit/skills-google-workspace test && pnpm --filter @theokit/skills-google-workspace build
 ```
 
 #### Acceptance Criteria
@@ -250,8 +250,8 @@ VERIFY:  pnpm --filter @usetheo/skills-google-workspace test && pnpm --filter @u
 
 #### DoD
 - [ ] All tasks completed
-- [ ] `pnpm --filter @usetheo/skills-google-workspace build` green
-- [ ] `pnpm --filter @usetheo/skills-google-workspace test` green (2/2)
+- [ ] `pnpm --filter @theokit/skills-google-workspace build` green
+- [ ] `pnpm --filter @theokit/skills-google-workspace test` green (2/2)
 - [ ] `npx publint packages/skills-google-workspace` clean
 - [ ] `npx @arethetypeswrong/cli --pack packages/skills-google-workspace` 100% green
 
@@ -353,7 +353,7 @@ RED:     test_factory_unique_keys — keys are stable strings like "gworkspace-c
 RED:     test_factory_dedups_duplicate_products (EC-5) — { products: ["calendar", "calendar"] } returns ONE entry, not two. Implementation: Array.from(new Set(products)) before the loop.
 GREEN:   Implement builders + factory
 REFACTOR: Extract shared scope-flag formatting if duplication appears (likely yes)
-VERIFY:  pnpm --filter @usetheo/skills-google-workspace test
+VERIFY:  pnpm --filter @theokit/skills-google-workspace test
 ```
 
 #### Acceptance Criteria
@@ -368,7 +368,7 @@ VERIFY:  pnpm --filter @usetheo/skills-google-workspace test
 
 #### DoD
 - [ ] All 12 tests green
-- [ ] Typecheck clean (`pnpm --filter @usetheo/skills-google-workspace typecheck`)
+- [ ] Typecheck clean (`pnpm --filter @theokit/skills-google-workspace typecheck`)
 - [ ] Build CJS+ESM+DTS verde
 - [ ] publint + attw still 100% green after additions
 
@@ -412,14 +412,14 @@ export type {
 #### Tasks
 1. Pin exports.
 2. Draft README skeleton.
-3. Verify `import { googleWorkspace } from "@usetheo/skills-google-workspace"` works from a sibling workspace by adding a fake importer test (only typechecks; no runtime).
+3. Verify `import { googleWorkspace } from "@theokit/skills-google-workspace"` works from a sibling workspace by adding a fake importer test (only typechecks; no runtime).
 
 #### TDD
 ```
 RED:     test_public_exports_have_stable_names — uses dynamic import + reflection to verify export keys
 GREEN:   Pin exports
 REFACTOR: None
-VERIFY:  pnpm --filter @usetheo/skills-google-workspace test && pnpm typecheck
+VERIFY:  pnpm --filter @theokit/skills-google-workspace test && pnpm typecheck
 ```
 
 #### Acceptance Criteria
@@ -506,7 +506,7 @@ RED:     test_setup_gworkspace_web_oauth_client_rejected_with_actionable_message
 RED:     test_setup_gworkspace_probe_timeout_per_server_10s (EC-3) — fake MCP server that accepts but never responds → probe aborts after 10s, prints "did not respond to initialize within 10s", continues
 GREEN:   Implement
 REFACTOR: Likely extract a shared chmod helper if duplicated
-VERIFY:  pnpm --filter @usetheo/cli test
+VERIFY:  pnpm --filter @theokit/cli test
 ```
 
 #### Acceptance Criteria
@@ -606,7 +606,7 @@ examples/skills-google-workspace/README.md (NEW)
 
 #### Deep file dependency analysis
 - `lib/scope-gate.ts` is shared by all six recipes; tests in the SDK don't depend on it.
-- `package.json` adds `@usetheo/skills-google-workspace` + `@usetheo/sdk` as workspace file-deps + `tsx` + `zod` (already proven in other examples).
+- `package.json` adds `@theokit/skills-google-workspace` + `@theokit/sdk` as workspace file-deps + `tsx` + `zod` (already proven in other examples).
 
 #### Deep Dives
 **`scope-gate.ts`:**
@@ -743,10 +743,10 @@ CLAUDE.md — mark Roadmap v1.4 #5 as ✅ DONE with the new ADR range
 
 #### Deep Dives
 **Validation sequence:**
-1. `pnpm --filter @usetheo/sdk test` — must be 1585/1585 PASS.
-2. `pnpm --filter @usetheo/gateway test` — must be 44/44 PASS.
-3. `pnpm --filter @usetheo/skills-google-workspace test` — must be 14+/14+ PASS (new tests).
-4. `pnpm --filter @usetheo/cli test` — must be ≥ prior count + 5 (new setup tests) PASS.
+1. `pnpm --filter @theokit/sdk test` — must be 1585/1585 PASS.
+2. `pnpm --filter @theokit/gateway test` — must be 44/44 PASS.
+3. `pnpm --filter @theokit/skills-google-workspace test` — must be 14+/14+ PASS (new tests).
+4. `pnpm --filter @theokit/cli test` — must be ≥ prior count + 5 (new setup tests) PASS.
 5. `/dogfood` (telegram-pro via CDP) — 44/44 PASS expected.
 6. Commit + push theokit-sdk.
 7. Commit + push theo-opendocs.

@@ -39,7 +39,7 @@
       "corner": "techniques",
       "blocked_reason": null,
       "answered_at": "2026-06-02",
-      "notes": "Anthropic uses wildcard ./* exports. Recommendation: keep @usetheo/sdk explicit-entry pattern (7 sub-paths post-extraction, KISS, attw-validated)."
+      "notes": "Anthropic uses wildcard ./* exports. Recommendation: keep @theokit/sdk explicit-entry pattern (7 sub-paths post-extraction, KISS, attw-validated)."
     },
     {
       "id": "Q5",
@@ -55,7 +55,7 @@
       "corner": "tests",
       "blocked_reason": null,
       "answered_at": "2026-06-02",
-      "notes": "auto-propagates: NO. tools/typecheck-examples.sh:35-50 does pnpm install --no-frozen-lockfile but NOT pnpm build. B-ADR-4 mandates explicit pnpm --filter @usetheo/sdk build in /implement runbook."
+      "notes": "auto-propagates: NO. tools/typecheck-examples.sh:35-50 does pnpm install --no-frozen-lockfile but NOT pnpm build. B-ADR-4 mandates explicit pnpm --filter @theokit/sdk build in /implement runbook."
     }
   ],
   "coverage_corners": {

@@ -10,7 +10,7 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk";
-import type { SDKMessage } from "@usetheo/sdk";
+import type { SDKMessage } from "@theokit/sdk";
 
 const MAX_CONSECUTIVE_SEND_FAILURES = 10;
 

@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/cli` uses `commander@^12` for argv parsing + subcommand
+`@theokit/cli` uses `commander@^12` for argv parsing + subcommand
 dispatch + `--help` / `--version` generation. Each subcommand
 (`init`, `dev`, `inspect`, `eval`) registers via
 `.command(name).action(handler)`. Top-level `program.exitOverride()`

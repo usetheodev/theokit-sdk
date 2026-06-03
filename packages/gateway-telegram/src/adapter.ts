@@ -1,5 +1,5 @@
 /**
- * `TelegramAdapter` — wraps grammy in the `@usetheo/gateway`
+ * `TelegramAdapter` — wraps grammy in the `@theokit/gateway`
  * `BasePlatformAdapter` contract (T5.1, ADR D171).
  *
  * - `connect()` calls `bot.start()` in the background; never throws on
@@ -13,8 +13,8 @@
  * @public
  */
 
-import type { MessageEvent as GatewayMessageEvent, TelegramMessageEvent } from "@usetheo/gateway";
-import { BasePlatformAdapter, type OutboundMessage, type SendResult } from "@usetheo/gateway";
+import type { MessageEvent as GatewayMessageEvent, TelegramMessageEvent } from "@theokit/gateway";
+import { BasePlatformAdapter, type OutboundMessage, type SendResult } from "@theokit/gateway";
 import { Bot, type Context, GrammyError, HttpError } from "grammy";
 
 import { splitForTelegram } from "./split.js";

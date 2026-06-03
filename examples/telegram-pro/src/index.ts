@@ -1,17 +1,17 @@
-import { Security } from "@usetheo/sdk";
-// @usetheo/gateway FULL migration (Phase 7, ADRs D170-D181).
+import { Security } from "@theokit/sdk";
+// @theokit/gateway FULL migration (Phase 7, ADRs D170-D181).
 // The runner orchestrates lifecycle + slash dispatch + hook chain.
 // `adapter.getBot()` exposes grammy's Bot for non-portable events
 // (callback_query, bot.catch).
-import type { GatewayHook, MessageEvent } from "@usetheo/gateway";
-import { GatewayRunner } from "@usetheo/gateway";
+import type { GatewayHook, MessageEvent } from "@theokit/gateway";
+import { GatewayRunner } from "@theokit/gateway";
 import {
   type PolicyContext,
   TelegramAdapter,
   shouldRespondInChat,
   splitForTelegram,
   stripBotMention,
-} from "@usetheo/gateway-telegram";
+} from "@theokit/gateway-telegram";
 import { type Context, GrammyError, HttpError, InputFile } from "grammy";
 
 import { AD_HOC_TOOLS, listAdHocTools } from "./ad-hoc-tools.js";
@@ -37,7 +37,7 @@ import { searchWiki } from "./wiki-search.js";
 import { seedWorkspace } from "./workspace-seeds.js";
 
 /**
- * Theo Pro — multimodal Telegram bot built on @usetheo/sdk 1.0.0.
+ * Theo Pro — multimodal Telegram bot built on @theokit/sdk 1.0.0.
  *
  * Reproduces the 5 highest-value patterns from OpenClaw's `extensions/telegram`:
  *   1. Voice transcription   (text/audio → Whisper → agent)
@@ -337,7 +337,7 @@ runner.command("fact", async (event) => {
   }
   await ctx.replyWithChatAction("typing");
   try {
-    const { Agent } = await import("@usetheo/sdk");
+    const { Agent } = await import("@theokit/sdk");
     const { z } = await import("zod");
     const schema = z.object({
       title: z.string().min(1).describe("Short title of the fact (1 line)."),
@@ -408,7 +408,7 @@ runner.command("batch", async (event) => {
   }
   await ctx.replyWithChatAction("typing");
   try {
-    const { Agent } = await import("@usetheo/sdk");
+    const { Agent } = await import("@theokit/sdk");
     const t0 = Date.now();
     // T3.3: opt-in Task wrapping (D363/D374). The whole batch is
     // registered as a `kind: "batch"` Task with `b-` prefix — visible
@@ -453,7 +453,7 @@ runner.command("tasks", async (event) => {
   if (event.platform !== "telegram") return;
   const ctx = event.telegram.raw as Context;
   try {
-    const { Task } = await import("@usetheo/sdk");
+    const { Task } = await import("@theokit/sdk");
     const handles = await Task.list({ limit: 10 });
     if (handles.length === 0) {
       await ctx.reply(
@@ -493,7 +493,7 @@ function budgetNameForChat(chatId: number): string {
 }
 
 async function ensureChatBudget(chatId: number): Promise<void> {
-  const { Budget } = await import("@usetheo/sdk");
+  const { Budget } = await import("@theokit/sdk");
   const name = budgetNameForChat(chatId);
   if (Budget.get(name) === undefined) {
     Budget.create({
@@ -517,7 +517,7 @@ runner.command("budget", async (event) => {
     return;
   }
   const arg = event.text.replace(/^\/\S+\s*/, "").trim();
-  const { Budget } = await import("@usetheo/sdk");
+  const { Budget } = await import("@theokit/sdk");
 
   if (arg === "reset") {
     const name = budgetNameForChat(chatId);
@@ -563,7 +563,7 @@ runner.command("budget_demo", async (event) => {
   await ensureChatBudget(chatId);
   const budgetName = budgetNameForChat(chatId);
 
-  const { Agent, Budget, chargeAndCheckThresholds } = await import("@usetheo/sdk");
+  const { Agent, Budget, chargeAndCheckThresholds } = await import("@theokit/sdk");
   const { buildProviderRouting } = await import("./sdk-config.js");
   const providers = buildProviderRouting();
 
@@ -628,7 +628,7 @@ runner.command("budget_demo", async (event) => {
 
 // ────────────────────── /memory — third-party memory adapters (v1.12, ADRs D141-D149) ──────────────────────
 //
-// Demonstrates @usetheo/memory-{supermemory,honcho,mem0} adapters via
+// Demonstrates @theokit/memory-{supermemory,honcho,mem0} adapters via
 // agent.memory.write/recall + LLM-driven pre_user_send context injection.
 // Each provider is env-gated — missing key → polite error, NOT a crash.
 runner.command("memory", async (event) => {
@@ -671,19 +671,19 @@ runner.command("memory", async (event) => {
   }
   await ctx.replyWithChatAction("typing");
   try {
-    const { Agent } = await import("@usetheo/sdk");
+    const { Agent } = await import("@theokit/sdk");
     let memoryPlugin: unknown;
     if (provider === "supermemory") {
-      const { supermemoryMemory } = await import("@usetheo/memory-supermemory");
+      const { supermemoryMemory } = await import("@theokit/memory-supermemory");
       memoryPlugin = supermemoryMemory({
         apiKey,
         containerTagPrefix: `theokit-tg-${Date.now()}`,
       });
     } else if (provider === "honcho") {
-      const { honchoMemory } = await import("@usetheo/memory-honcho");
+      const { honchoMemory } = await import("@theokit/memory-honcho");
       memoryPlugin = honchoMemory({ apiKey });
     } else {
-      const { mem0Memory } = await import("@usetheo/memory-mem0");
+      const { mem0Memory } = await import("@theokit/memory-mem0");
       memoryPlugin = mem0Memory({ apiKey });
     }
     const userId = String(ctx.from?.id ?? "demo-user");
@@ -691,7 +691,7 @@ runner.command("memory", async (event) => {
       apiKey: API_KEY,
       model: { id: "openai/gpt-4o-mini" },
       local: { cwd: CWD, sandboxOptions: { enabled: false } },
-      plugins: [memoryPlugin] as unknown as import("@usetheo/sdk").AgentOptions["plugins"],
+      plugins: [memoryPlugin] as unknown as import("@theokit/sdk").AgentOptions["plugins"],
       memoryContext: { userId },
     });
     try {
@@ -740,7 +740,7 @@ runner.command("context", async (event) => {
   const match = event.text.replace(/^\/\S+\s*/, "");
   await ctx.replyWithChatAction("typing");
   try {
-    const { Agent } = await import("@usetheo/sdk");
+    const { Agent } = await import("@theokit/sdk");
     const agent = await Agent.create({
       apiKey: API_KEY,
       model: { id: "openai/gpt-4o-mini" },
@@ -808,7 +808,7 @@ runner.command("factstream", async (event) => {
   const chatId = placeholder.chat.id;
 
   try {
-    const { Agent } = await import("@usetheo/sdk");
+    const { Agent } = await import("@theokit/sdk");
     const { z } = await import("zod");
     const schema = z.object({
       title: z.string().min(1),
@@ -925,7 +925,7 @@ runner.command("migrate_memory", async (event) => {
     "🔄 Running migrateSqliteToLance({ dryRun: true }) in an isolated tmpdir (does NOT touch your bot's real memory).",
   );
 
-  const { migrateSqliteToLance } = await import("@usetheo/sdk");
+  const { migrateSqliteToLance } = await import("@theokit/sdk");
   const { mkdtempSync, mkdirSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -981,7 +981,7 @@ runner.command("memory_lance", async (event) => {
   if (event.platform !== "telegram") return;
   const ctx = event.telegram.raw as Context;
   const match = event.text.replace(/^\/\S+\s*/, "");
-  const { ConfigurationError } = await import("@usetheo/sdk");
+  const { ConfigurationError } = await import("@theokit/sdk");
   const sampleConfig = {
     memory: {
       enabled: true,
@@ -1357,7 +1357,7 @@ runner.command("reset", async (event) => {
   const { rm } = await import("node:fs/promises");
   const { join } = await import("node:path");
   await rm(join(CWD, ".theokit", "agents", agentId), { recursive: true, force: true });
-  const { Agent } = await import("@usetheo/sdk");
+  const { Agent } = await import("@theokit/sdk");
   try {
     await Agent.delete(agentId);
   } catch {}
@@ -1465,7 +1465,7 @@ runner.command("goal", async (event) => {
     );
     return;
   }
-  const { Agent } = await import("@usetheo/sdk");
+  const { Agent } = await import("@theokit/sdk");
   // Honor TELEGRAM_PRO_MODEL so /goal works in local Ollama mode.
   const goalModelId = process.env.TELEGRAM_PRO_MODEL ?? "openai/gpt-4o-mini";
   const agent = await Agent.create({
@@ -1552,7 +1552,7 @@ runner.command("pool", async (event) => {
   // PoolAwareLlmClient transparently retries the same key once (D126)
   // before rotating. With a 2-key pool configured via OPENROUTER_API_KEY_2,
   // the rotation is observable.
-  const { Agent } = await import("@usetheo/sdk");
+  const { Agent } = await import("@theokit/sdk");
   const agent = await Agent.create({
     apiKey: API_KEY,
     local: { cwd: CWD },
@@ -1592,7 +1592,7 @@ runner.command("pool", async (event) => {
  * loop module is responsible for sending the result to Telegram.
  */
 async function fireForLoop(prompt: string, chatId: number): Promise<string> {
-  const { Agent, UnknownAgentError } = await import("@usetheo/sdk");
+  const { Agent, UnknownAgentError } = await import("@theokit/sdk");
   const agentId = `tg-pro-dm-${chatId}`;
   let agent: Awaited<ReturnType<typeof Agent.create>>;
   try {
@@ -1658,7 +1658,7 @@ runner.command("handoff_demo", async (event) => {
   }
   await ctx.replyWithChatAction("typing");
 
-  const { Agent, Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } = await import("@usetheo/sdk");
+  const { Agent, Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } = await import("@theokit/sdk");
 
   // Build 3 throwaway agents for this demo (disposed at end). Sharing the
   // bot's main agent factory would mix telegram-pro's history with this
@@ -1753,7 +1753,7 @@ runner.command("workflow_demo", async (event) => {
   }
   await ctx.replyWithChatAction("typing");
 
-  const { Agent, Workflow, fn, agentStep } = await import("@usetheo/sdk");
+  const { Agent, Workflow, fn, agentStep } = await import("@theokit/sdk");
 
   const baseConfig = {
     apiKey: API_KEY,
@@ -1866,7 +1866,7 @@ runner.command("cache_demo", async (event) => {
   }
   await ctx.replyWithChatAction("typing");
 
-  const { Agent, Cache } = await import("@usetheo/sdk");
+  const { Agent, Cache } = await import("@theokit/sdk");
 
   const toyEmbedder = {
     id: "toy-letter",

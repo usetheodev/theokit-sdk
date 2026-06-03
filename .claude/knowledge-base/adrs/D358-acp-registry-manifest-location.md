@@ -11,7 +11,7 @@ ACP registry (https://github.com/agentclientprotocol/registry) hosts a marketpla
 ## Decision
 
 - Registry manifest lives at `packages/acp/registry/agent.json` (shipped via npm `files` field).
-- Standalone bin shim `theokit-acp` published from `@usetheo/acp/bin/theokit-acp.mjs` so `npx theokit-acp` works without installing the full `@usetheo/cli`.
+- Standalone bin shim `theokit-acp` published from `@theokit/acp/bin/theokit-acp.mjs` so `npx theokit-acp` works without installing the full `@theokit/cli`.
 - `distribution.command: "npx"`, `distribution.args: ["theokit-acp", "--entry", "<entry>"]`.
 
 ## Rationale

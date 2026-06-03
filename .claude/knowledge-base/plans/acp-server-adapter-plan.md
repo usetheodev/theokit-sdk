@@ -1,6 +1,6 @@
-# Plan: ACP Server Adapter — `@usetheo/acp`
+# Plan: ACP Server Adapter — `@theokit/acp`
 
-> **Version 1.1** — Ship `@usetheo/acp` workspace package that exposes any `@usetheo/sdk` `SDKAgent` as an Agent Client Protocol (ACP) server over stdio JSON-RPC, using the official `@agentclientprotocol/sdk@^0.22`. Adds a `theokit acp` CLI verb and a publishable `agent.json` registry manifest so Zed/Cursor/Claude Desktop users can drive our SDK as a coding agent without writing any glue code. Outcome: closes one of two SDK-level gaps vs OpenClaw (server-only first; ACP client comes in a follow-up plan).
+> **Version 1.1** — Ship `@theokit/acp` workspace package that exposes any `@theokit/sdk` `SDKAgent` as an Agent Client Protocol (ACP) server over stdio JSON-RPC, using the official `@agentclientprotocol/sdk@^0.22`. Adds a `theokit acp` CLI verb and a publishable `agent.json` registry manifest so Zed/Cursor/Claude Desktop users can drive our SDK as a coding agent without writing any glue code. Outcome: closes one of two SDK-level gaps vs OpenClaw (server-only first; ACP client comes in a follow-up plan).
 >
 > **v1.1 changelog:** Edge case review absorbed 6 MUST FIX items (EC-1 cleanup-on-shutdown, EC-2 permission-timeout, EC-3 CloudAgent-fork-rejection, EC-4 CJS-module-interop, EC-5 cwd-absolute-resolve, EC-6 storage-hint-on-load-failure). RED test count grew from ~80 to ~95. Coverage matrix grew from 23 to 29 items.
 
@@ -20,18 +20,18 @@ Evidence:
 - OpenClaw analysis: `referencia/openclaw/src/acp/` (10+ source files, 2171-line translator).
 - Hermes analysis: `referencia/hermes-agent/acp_adapter/server.py` + `acp_registry/agent.json` (single-file registry manifest, `distribution.type: "command"`).
 - npm metadata: `npm view @agentclientprotocol/sdk@0.22.1` confirms Apache-2.0, zero deps, recent release.
-- Our existing patterns to mirror: `@usetheo/gateway-{telegram,discord,slack,teams,whatsapp,email}` (workspace package with peer deps + dual ESM/CJS dist via tsup), `@usetheo/cli` subcommand structure (`packages/cli/src/main.ts`).
+- Our existing patterns to mirror: `@theokit/gateway-{telegram,discord,slack,teams,whatsapp,email}` (workspace package with peer deps + dual ESM/CJS dist via tsup), `@theokit/cli` subcommand structure (`packages/cli/src/main.ts`).
 
 ## Objective
 
-Ship a production-ready ACP server adapter that lets a real Zed/Cursor user point their editor at `theokit acp` and drive an `@usetheo/sdk` agent end-to-end.
+Ship a production-ready ACP server adapter that lets a real Zed/Cursor user point their editor at `theokit acp` and drive an `@theokit/sdk` agent end-to-end.
 
 Specific measurable goals:
-1. New `@usetheo/acp@0.1.0` workspace package published, peer-depped on `@usetheo/sdk` + `@agentclientprotocol/sdk`.
+1. New `@theokit/acp@0.1.0` workspace package published, peer-depped on `@theokit/sdk` + `@agentclientprotocol/sdk`.
 2. Public API surface: `serveAcp({ agent, info?, capabilities? })` + `AcpServerOptions` type.
 3. New CLI verb: `theokit acp [--entry <path>]` launches stdio server pointing at an entry file's default-exported agent.
 4. `agent.json` ACP registry manifest published in `packages/acp/registry/` and listed in `theo-opendocs` cookbook.
-5. End-to-end Zed dogfood: open Zed → External Agents → add `@usetheo/sdk` → send a prompt → receive streamed reply with at least one tool call.
+5. End-to-end Zed dogfood: open Zed → External Agents → add `@theokit/sdk` → send a prompt → receive streamed reply with at least one tool call.
 6. SDK-level test coverage ≥90% for translator + lifecycle handlers (excluding integration tests requiring Zed).
 7. Zero regressions in existing SDK / CLI / gateway packages.
 
@@ -39,16 +39,16 @@ Specific measurable goals:
 
 | ID | Decision | Rationale | Consequences |
 |---|---|---|---|
-| D349 | `@usetheo/acp` ships as a **separate workspace package**, NOT folded into `@usetheo/sdk` | Same precedent as `@usetheo/gateway-*` and `@usetheo/memory-*`: protocol adapters live outside core SDK so consumers who never need ACP don't pay bundle cost. Also lets the ACP SDK be optional-peer for the user. | Adds one more npm artifact to maintain. Peer dep on `@usetheo/sdk` workspace:^ + `@agentclientprotocol/sdk@^0.22`. Versions pre-1.0 (D181 pattern) until the protocol API stabilizes upstream. |
+| D349 | `@theokit/acp` ships as a **separate workspace package**, NOT folded into `@theokit/sdk` | Same precedent as `@theokit/gateway-*` and `@theokit/memory-*`: protocol adapters live outside core SDK so consumers who never need ACP don't pay bundle cost. Also lets the ACP SDK be optional-peer for the user. | Adds one more npm artifact to maintain. Peer dep on `@theokit/sdk` workspace:^ + `@agentclientprotocol/sdk@^0.22`. Versions pre-1.0 (D181 pattern) until the protocol API stabilizes upstream. |
 | D350 | Server-only in v1; ACP **client** (calling external ACP agents) deferred to v0.2 | Server is the high-leverage path (distribution to Zed/Cursor users). Client adds subprocess lifecycle + auth flow complexity and overlaps with `Handoff` (D214-D229). Sequencing avoids landing a half-baked client. | `theokit acp` only **serves**; calling Zed's Claude Code from inside our agent requires v0.2. Documented in README. |
 | D351 | `serveAcp({ agent: SDKAgent })` accepts a **factory function** for per-session agents, NOT a single shared agent | ACP `new_session` spec implies one agent state per session. A single shared `SDKAgent` would leak conversation history across sessions. Factory shape: `agent: (sessionId) => Promise<SDKAgent>`. Single-agent callers wrap with `() => existingAgent` if intentional. | Forces callers to think about per-session isolation. Adds one indirection. Backward-compatible — single agent is still expressible. |
 | D352 | ACP session lifecycle maps **1:1 to our `agentId`**: `new_session` → `Agent.create`; `load_session` → `Agent.resume`; `cancel` → `agent.dispose()` lifecycle controller; `fork_session` → `agent.fork()` | We already have all four primitives shipped (ADRs D304-D325 for storage, D110-D114 for fork, D319 for lifecycle abort). Reusing them avoids parallel state machines. | If our agent primitives change shape, the translator may need to follow. Documented as an integration point. |
 | D353 | `prompt` translation uses an **AsyncGenerator pipeline**: `agent.send(text).stream()` → `SDKMessage` → ACP `SessionUpdate` notifications | Aligns with our existing AsyncGenerator-based streaming (Run.stream() returns `AsyncGenerator<SDKMessage>`). One-to-many mapping is natural: SDK emits one `SDKAssistantMessage` per turn; translator may emit multiple ACP `agent_message_chunk` updates. | Translator is the load-bearing module; ~300-500 LoC expected (vs OpenClaw's 2171 because we skip gateway plumbing). Discriminated union switch on `SDKMessage.type` — exhaustive check required. |
 | D354 | `cancel` notification triggers the **lifecycle AbortController** already wired in `LocalAgent` (D319) | Reuse over parallel cancellation mechanism. No code change on SDK side. | Existing semantics: aborted runs surface as `AgentRunError({ code: "aborted" })` — translator maps that to ACP `stop_reason: "cancelled"`. |
 | D355 | Tool **permission requests** translate `pre_tool_call` veto hook → ACP `tool_call_permission_request` notification → roundtrip back to veto/allow | Tool approval is a first-class ACP concept and our SDK's existing `pre_tool_call` veto is the closest primitive. Translator awaits user response before allowing the tool to proceed; timeout → auto-deny. | Requires installing a synthetic plugin from the translator that intercepts tool calls. Documented invariant: user MUST be present (no headless permission grant). Add `permissionDefault: "auto"|"ask"|"deny"` option to disable interactive mode for CI. |
-| D356 | **No global state in `@usetheo/acp`**: every `serveAcp()` call gets its own session store (Map), abort controller, and stdio binding | Multi-process safety (some hosts spawn one ACP server per workspace). Avoids cross-instance leakage if a consumer wraps `serveAcp` differently. | Session store is in-memory only by default. JSON-file persistence is a v0.2 follow-up (mirrors D235 for workflows). |
+| D356 | **No global state in `@theokit/acp`**: every `serveAcp()` call gets its own session store (Map), abort controller, and stdio binding | Multi-process safety (some hosts spawn one ACP server per workspace). Avoids cross-instance leakage if a consumer wraps `serveAcp` differently. | Session store is in-memory only by default. JSON-file persistence is a v0.2 follow-up (mirrors D235 for workflows). |
 | D357 | `theokit acp` CLI subcommand uses the same **entry resolver** as `theokit dev` (`packages/cli/src/dev/entry-resolver.ts`) | Consistency — `dev` already resolves `src/index.ts` or `package.main` and dynamically imports the default export. ACP just hooks the result into `serveAcp` instead of `tsx --watch`. | Entry file MUST export a default `SDKAgent`-factory or `SDKAgent` instance. CLI wraps single-instance default exports into a factory automatically (D351 backward-compat). |
-| D358 | `agent.json` registry manifest lives at `packages/acp/registry/agent.json` AND is mirrored to `theo-opendocs/content/theokit-sdk/concepts/acp-registry.mdx` | Discoverable by Zed/Cursor users via the ACP marketplace AND by docs readers searching for "ACP". `distribution.type: "npm"` with `command: ["npx", "theokit-acp"]`. | Bin alias `theokit-acp` shipped from `@usetheo/acp` package.json (so `npx theokit-acp` works without installing CLI). |
+| D358 | `agent.json` registry manifest lives at `packages/acp/registry/agent.json` AND is mirrored to `theo-opendocs/content/theokit-sdk/concepts/acp-registry.mdx` | Discoverable by Zed/Cursor users via the ACP marketplace AND by docs readers searching for "ACP". `distribution.type: "npm"` with `command: ["npx", "theokit-acp"]`. | Bin alias `theokit-acp` shipped from `@theokit/acp` package.json (so `npx theokit-acp` works without installing CLI). |
 | D359 | Logging routes to **stderr only**; stdio is reserved for JSON-RPC frame traffic | Per ACP spec — stdout is the protocol channel. OpenClaw uses `routeLogsToStderr()` for the same reason. Any `console.log` in production code path is a protocol-corrupting bug. | New CI lint rule scans `packages/acp/src/**` for `console.log` (warn → error). Translator uses an injected `log(msg: string)` callback defaulting to `process.stderr.write`. |
 | D360 | Prompt size cap = **2 MiB** (matches OpenClaw `MAX_PROMPT_BYTES`) | DoS defense — unbounded prompts cause memory exhaustion (CWE-400). Same value as the upstream OpenClaw battle-tested cap. | Translator rejects oversized prompts with ACP `error: { code: "invalid_request", message: "prompt exceeds 2 MiB" }`. Configurable via `serveAcp({ maxPromptBytes })`. |
 
@@ -163,7 +163,7 @@ VERIFY:
 
 ## Phase 1: Package skeleton
 
-**Objective:** Create the `@usetheo/acp` workspace package with the dual ESM/CJS build wired up, mirroring the gateway-* template, and add it to the monorepo.
+**Objective:** Create the `@theokit/acp` workspace package with the dual ESM/CJS build wired up, mirroring the gateway-* template, and add it to the monorepo.
 
 ### T1.1 — Workspace package boilerplate
 
@@ -176,7 +176,7 @@ Create the package directory, `package.json`, `tsup.config.ts`, `tsconfig.json`,
 
 #### Files to edit
 ```
-packages/acp/package.json (NEW) — name "@usetheo/acp", version "0.1.0", peer deps SDK + ACP SDK
+packages/acp/package.json (NEW) — name "@theokit/acp", version "0.1.0", peer deps SDK + ACP SDK
 packages/acp/tsup.config.ts (NEW) — dual ESM/CJS, sourcemap, treeshake, external SDK + ACP SDK
 packages/acp/tsconfig.json (NEW) — extends ../tsconfig.base.json
 packages/acp/vitest.config.ts (NEW) — node env, default 10s timeout
@@ -192,15 +192,15 @@ pnpm-workspace.yaml (verify) — confirm `packages/*` glob picks up packages/acp
 #### Deep file dependency analysis
 - `packages/acp/package.json` is NEW. Downstream effect: when `pnpm install` runs at root, the workspace will pull in `@agentclientprotocol/sdk` as a peer + dev dependency.
 - `pnpm-workspace.yaml` is unchanged but must be re-verified — if any future glob exclusion was added (`!packages/acp`), it would silently skip the new package.
-- `packages/sdk/package.json` is **not modified** — `@usetheo/acp` is a peer dependent of `@usetheo/sdk`, not the other way around. SDK consumers who don't need ACP don't see this package.
+- `packages/sdk/package.json` is **not modified** — `@theokit/acp` is a peer dependent of `@theokit/sdk`, not the other way around. SDK consumers who don't need ACP don't see this package.
 
 #### Deep Dives
 **`package.json` shape (matches gateway-slack pattern, ADRs D170-D181):**
 ```jsonc
 {
-  "name": "@usetheo/acp",
+  "name": "@theokit/acp",
   "version": "0.1.0",
-  "description": "Agent Client Protocol (ACP) server adapter for @usetheo/sdk. ADRs D349-D360.",
+  "description": "Agent Client Protocol (ACP) server adapter for @theokit/sdk. ADRs D349-D360.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": { "node": ">=22.12.0" },
@@ -221,11 +221,11 @@ pnpm-workspace.yaml (verify) — confirm `packages/*` glob picks up packages/acp
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "@agentclientprotocol/sdk": "^0.22.1"
   },
   "devDependencies": {
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "@agentclientprotocol/sdk": "~0.22.1",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
@@ -241,27 +241,27 @@ pnpm-workspace.yaml (verify) — confirm `packages/*` glob picks up packages/acp
 
 #### Tasks
 1. Create the directory `packages/acp/` and all NEW files above.
-2. Configure `tsup.config.ts` identical to `packages/gateway-slack/tsup.config.ts` (dual format, externals `@usetheo/sdk` + `@agentclientprotocol/sdk`).
+2. Configure `tsup.config.ts` identical to `packages/gateway-slack/tsup.config.ts` (dual format, externals `@theokit/sdk` + `@agentclientprotocol/sdk`).
 3. Stub `src/index.ts`: `export { serveAcp } from "./serve.js"; export type { AcpServerOptions } from "./types.js";`. Mark `serveAcp` as `throw new Error("not_implemented_yet")` for now (we'll implement in Phase 2). NOTE: per `.claude/rules/no-stubs-no-mocks-no-wired.md`, this placeholder MUST be removed before merging Phase 2. Documented as a tracking checkbox in T2's DoD.
 4. Stub `src/types.ts` with the `AcpServerOptions` shape (8 fields: `agent`, `info`, `capabilities`, `permissionDefault`, `maxPromptBytes`, `log`, `stdin`, `stdout`).
 5. Run `pnpm install` at root — verify `pnpm-workspace.yaml` picks up the new package.
-6. Run `pnpm --filter @usetheo/acp build` — verify tsup produces both `dist/index.js` (ESM) and `dist/index.cjs` (CJS) with `.d.ts` + `.d.cts`.
-7. Run `pnpm --filter @usetheo/acp typecheck` — verify TypeScript compiles cleanly.
+6. Run `pnpm --filter @theokit/acp build` — verify tsup produces both `dist/index.js` (ESM) and `dist/index.cjs` (CJS) with `.d.ts` + `.d.cts`.
+7. Run `pnpm --filter @theokit/acp typecheck` — verify TypeScript compiles cleanly.
 8. Write `CHANGELOG.md` initial entry: `## 0.1.0 — Initial release: ACP server adapter`.
 
 #### TDD
 ```
-RED:     skeleton.test.ts — asserts `@usetheo/acp` package is importable and exports `serveAcp` (function) + `AcpServerOptions` (type) — MUST fail before T1.1 since the package doesn't exist.
+RED:     skeleton.test.ts — asserts `@theokit/acp` package is importable and exports `serveAcp` (function) + `AcpServerOptions` (type) — MUST fail before T1.1 since the package doesn't exist.
 GREEN:   Create the package files.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/acp test
+VERIFY:  pnpm --filter @theokit/acp test
 ```
 
 #### Acceptance Criteria
-- [ ] `pnpm install` picks up `@usetheo/acp` and resolves peer deps.
-- [ ] `pnpm --filter @usetheo/acp build` produces dual-format `dist/`.
-- [ ] `pnpm --filter @usetheo/acp typecheck` passes with strict TypeScript.
-- [ ] `pnpm --filter @usetheo/acp test` runs the skeleton test (passes).
+- [ ] `pnpm install` picks up `@theokit/acp` and resolves peer deps.
+- [ ] `pnpm --filter @theokit/acp build` produces dual-format `dist/`.
+- [ ] `pnpm --filter @theokit/acp typecheck` passes with strict TypeScript.
+- [ ] `pnpm --filter @theokit/acp test` runs the skeleton test (passes).
 - [ ] `serveAcp` is a placeholder that throws — but is exported and typed correctly.
 - [ ] No regressions: full `pnpm -w run validate` still green.
 
@@ -297,7 +297,7 @@ packages/acp/tests/agent-resolver.test.ts (NEW)
 
 #### Deep file dependency analysis
 - `session-store.ts` is NEW. Pure in-memory data structure — no FS or DB. Downstream: `serve.ts` and lifecycle handler files import the store.
-- `agent-resolver.ts` is NEW. Imports `SDKAgent` type from `@usetheo/sdk`. Downstream: lifecycle handlers call `resolveAgent(factory, sessionId)`.
+- `agent-resolver.ts` is NEW. Imports `SDKAgent` type from `@theokit/sdk`. Downstream: lifecycle handlers call `resolveAgent(factory, sessionId)`.
 - `types.ts` was created in Phase 1 as a stub; extend with `AcpSession` (sessionId, agentId, agent, createdAt, lastUsedAt, abortController) and `AgentFactory = (sessionId: string) => Promise<SDKAgent>`.
 
 #### Deep Dives
@@ -339,7 +339,7 @@ RED:     resolver_invalid_input_throws_configuration_error — passing `{}` thro
 RED:     resolver_factory_throw_propagates — factory throwing becomes a translator-visible error.
 GREEN:   Implement session-store.ts and agent-resolver.ts.
 REFACTOR: Extract common assertion helpers into a tests/_helpers.ts if duplication appears.
-VERIFY:  pnpm --filter @usetheo/acp test session-store agent-resolver
+VERIFY:  pnpm --filter @theokit/acp test session-store agent-resolver
 ```
 
 #### Acceptance Criteria
@@ -355,8 +355,8 @@ VERIFY:  pnpm --filter @usetheo/acp test session-store agent-resolver
 #### DoD
 - [ ] All tasks completed and validated.
 - [ ] All RED tests now GREEN.
-- [ ] `pnpm --filter @usetheo/acp test` green.
-- [ ] `pnpm --filter @usetheo/acp typecheck` green.
+- [ ] `pnpm --filter @theokit/acp test` green.
+- [ ] `pnpm --filter @theokit/acp typecheck` green.
 
 ---
 
@@ -447,7 +447,7 @@ RED:     serve_disposes_all_sessions_on_stdin_close — EC-1: every session in s
 RED:     serve_factory_rejected_at_construction_throws — passing `agent: {}` throws ConfigurationError before stdin even starts.
 GREEN:   Implement lifecycle.ts + serve.ts.
 REFACTOR: Extract capability-merge utility if it grows past ~30 LoC.
-VERIFY:  pnpm --filter @usetheo/acp test lifecycle serve
+VERIFY:  pnpm --filter @theokit/acp test lifecycle serve
 ```
 
 #### Acceptance Criteria
@@ -465,8 +465,8 @@ VERIFY:  pnpm --filter @usetheo/acp test lifecycle serve
 #### DoD
 - [ ] All tasks completed and validated.
 - [ ] Placeholder `throw new Error("not_implemented_yet")` is GONE.
-- [ ] `pnpm --filter @usetheo/acp test` green.
-- [ ] `pnpm --filter @usetheo/acp build` produces working dist with no warnings.
+- [ ] `pnpm --filter @theokit/acp test` green.
+- [ ] `pnpm --filter @theokit/acp build` produces working dist with no warnings.
 - [ ] CHANGELOG.md updated with Phase 2 progress.
 
 ---
@@ -533,13 +533,13 @@ RED:     fork_session_resolves_relative_cwd_when_provided — EC-5: explicit cwd
 RED:     fork_session_omitted_cwd_inherits_parent_cwd — SHOULD TEST EC-12 absorbed.
 GREEN:   Implement load + fork handlers.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/acp test lifecycle
+VERIFY:  pnpm --filter @theokit/acp test lifecycle
 ```
 
 #### Acceptance Criteria
 - [ ] All 10 RED tests now GREEN (6 original + EC-3 cloud fork + EC-5 cwd resolve × 2 + EC-6 storage hint + EC-12 cwd inheritance).
-- [ ] `loadSession` uses `Agent.resume` from `@usetheo/sdk`.
-- [ ] `forkSession` uses `agent.fork()` from `@usetheo/sdk` with try/catch around `UnsupportedRunOperationError`.
+- [ ] `loadSession` uses `Agent.resume` from `@theokit/sdk`.
+- [ ] `forkSession` uses `agent.fork()` from `@theokit/sdk` with try/catch around `UnsupportedRunOperationError`.
 - [ ] Forked session's abort signal cascades from parent.
 - [ ] **EC-3:** CloudAgent fork attempt surfaces as ACP `invalid_request`, NOT `internal_error`.
 - [ ] **EC-5:** cwd resolved via path.resolve before any agent operation.
@@ -551,7 +551,7 @@ VERIFY:  pnpm --filter @usetheo/acp test lifecycle
 #### DoD
 - [ ] All tasks completed and validated.
 - [ ] README documents the sessionId == agentId mapping + override pattern.
-- [ ] `pnpm --filter @usetheo/acp test` green.
+- [ ] `pnpm --filter @theokit/acp test` green.
 
 ---
 
@@ -609,7 +609,7 @@ RED:     extract_utf16_surrogate_counts_utf8_bytes — emoji counted correctly.
 RED:     extract_unknown_block_type_throws — defensive (never-case).
 GREEN:   Implement prompt-extract.ts.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/acp test prompt-extract
+VERIFY:  pnpm --filter @theokit/acp test prompt-extract
 ```
 
 #### Acceptance Criteria
@@ -624,7 +624,7 @@ VERIFY:  pnpm --filter @usetheo/acp test prompt-extract
 #### DoD
 - [ ] All tasks completed and validated.
 - [ ] `PromptTooLargeError` exported from `src/types.ts` (consumers may want to catch).
-- [ ] `pnpm --filter @usetheo/acp test` green.
+- [ ] `pnpm --filter @theokit/acp test` green.
 
 ---
 
@@ -752,7 +752,7 @@ RED:     tool_kind_write_file_returns_edit
 RED:     tool_kind_unknown_returns_other
 GREEN:   Implement translator.ts + translator-blocks.ts.
 REFACTOR: If `translateStream` exceeds biome complexity 10, extract per-variant helpers (likely needed — 9 variants in a switch is borderline).
-VERIFY:  pnpm --filter @usetheo/acp test translator translator-blocks
+VERIFY:  pnpm --filter @theokit/acp test translator translator-blocks
 ```
 
 #### Acceptance Criteria
@@ -768,7 +768,7 @@ VERIFY:  pnpm --filter @usetheo/acp test translator translator-blocks
 #### DoD
 - [ ] All tasks completed and validated.
 - [ ] Compile-time exhaustive check verified (intentional broken-compile test in `translator.test.ts`).
-- [ ] `pnpm --filter @usetheo/acp test` green.
+- [ ] `pnpm --filter @theokit/acp test` green.
 
 ---
 
@@ -836,7 +836,7 @@ RED:     prompt_translator_throw_returns_internal_error
 RED:     prompt_updates_session_last_used_at
 GREEN:   Implement handlePrompt.
 REFACTOR: Split lifecycle.ts if >400 LoC.
-VERIFY:  pnpm --filter @usetheo/acp test lifecycle
+VERIFY:  pnpm --filter @theokit/acp test lifecycle
 ```
 
 #### Acceptance Criteria
@@ -850,7 +850,7 @@ VERIFY:  pnpm --filter @usetheo/acp test lifecycle
 
 #### DoD
 - [ ] All tasks completed and validated.
-- [ ] `pnpm --filter @usetheo/acp test` green.
+- [ ] `pnpm --filter @theokit/acp test` green.
 - [ ] End-to-end Promise-based smoke test in `tests/serve.test.ts`: spawn `serveAcp`, simulate JSON-RPC stdin messages, assert correct responses.
 
 ---
@@ -972,7 +972,7 @@ RED:     plugin_installed_on_forked_session
 RED:     plugin_not_installed_when_mode_is_auto
 GREEN:   Implement permission-plugin.ts + wire in serve.ts.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/acp test permission-plugin
+VERIFY:  pnpm --filter @theokit/acp test permission-plugin
 ```
 
 #### Acceptance Criteria
@@ -986,7 +986,7 @@ VERIFY:  pnpm --filter @usetheo/acp test permission-plugin
 
 #### DoD
 - [ ] All tasks completed and validated.
-- [ ] `pnpm --filter @usetheo/acp test` green.
+- [ ] `pnpm --filter @theokit/acp test` green.
 - [ ] README documents the three permission modes + `trustedTools` option.
 
 ---
@@ -998,17 +998,17 @@ VERIFY:  pnpm --filter @usetheo/acp test permission-plugin
 ### T5.1 — `theokit acp` command implementation
 
 #### Objective
-Hook the new subcommand into `@usetheo/cli`, reuse the entry resolver from `theokit dev`, and pass the resolved agent to `serveAcp`.
+Hook the new subcommand into `@theokit/cli`, reuse the entry resolver from `theokit dev`, and pass the resolved agent to `serveAcp`.
 
 #### Evidence
 - `theokit dev` (`packages/cli/src/commands/dev.ts`) already resolves `src/index.ts` or `package.main` dynamically. ACP uses the same convention to minimize learning curve.
-- Per D358, we also ship a `bin/theokit-acp.mjs` shim in the `@usetheo/acp` package so `npx theokit-acp` works without installing the full CLI.
+- Per D358, we also ship a `bin/theokit-acp.mjs` shim in the `@theokit/acp` package so `npx theokit-acp` works without installing the full CLI.
 
 #### Files to edit
 ```
 packages/cli/src/commands/acp.ts (NEW) — runAcp function
 packages/cli/src/main.ts — register "acp" subcommand
-packages/cli/package.json — add @usetheo/acp as peer dep (CLI never bundles ACP — uses runtime resolve)
+packages/cli/package.json — add @theokit/acp as peer dep (CLI never bundles ACP — uses runtime resolve)
 packages/cli/tests/commands/acp.test.ts (NEW)
 packages/acp/bin/theokit-acp.mjs (NEW) — standalone CLI shim for direct npx
 ```
@@ -1016,14 +1016,14 @@ packages/acp/bin/theokit-acp.mjs (NEW) — standalone CLI shim for direct npx
 #### Deep file dependency analysis
 - `acp.ts` mirrors `dev.ts` pattern: parse flags, resolve entry, dynamic import, validate default export, call `serveAcp`.
 - `main.ts` adds one more `.command("acp")` block.
-- `package.json` adds `@usetheo/acp` to `peerDependencies` (NOT a hard dep — only required when user invokes `theokit acp`).
+- `package.json` adds `@theokit/acp` to `peerDependencies` (NOT a hard dep — only required when user invokes `theokit acp`).
 - `bin/theokit-acp.mjs` in the acp package is a small shim: parses `--entry`, dynamic-imports, calls serveAcp. Targets users who only need ACP and don't want the full CLI.
 
 #### Deep Dives
 **`runAcp(opts: AcpOptions)` algorithm:**
 1. Resolve entry file via `resolveEntry(opts.entry)` (shared with dev).
 2. Dynamic import. **EC-4 absorbed:** read default with CJS interop fallback — `const agent = module.default ?? module;`. Without the fallback, CJS users with `module.exports = factory` see `module.default === undefined` and get a misleading "no default export" error even though their entry is correctly shaped.
-3. Validate it looks like `SDKAgent` OR a factory function (use the same `resolveAgentFactory` from T2.1 — exported from `@usetheo/acp`).
+3. Validate it looks like `SDKAgent` OR a factory function (use the same `resolveAgentFactory` from T2.1 — exported from `@theokit/acp`).
 4. Build `AcpServerOptions`:
    - `agent`: the resolved value
    - `info`: read from package.json (`name`, `version`)
@@ -1040,7 +1040,7 @@ packages/acp/bin/theokit-acp.mjs (NEW) — standalone CLI shim for direct npx
 **`bin/theokit-acp.mjs` shim:**
 ```js
 #!/usr/bin/env node
-import { serveAcp } from "@usetheo/acp";
+import { serveAcp } from "@theokit/acp";
 import { parseArgs } from "node:util";
 import { resolve } from "node:path";
 
@@ -1085,7 +1085,7 @@ RED:     bin_shim_starts_server_with_entry_file
 RED:     bin_shim_cjs_module_exports_picked_up — EC-4: same fallback in the standalone shim.
 GREEN:   Implement runAcp + bin shim.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/cli test acp; pnpm --filter @usetheo/acp test bin-shim
+VERIFY:  pnpm --filter @theokit/cli test acp; pnpm --filter @theokit/acp test bin-shim
 ```
 
 #### Acceptance Criteria
@@ -1106,7 +1106,7 @@ VERIFY:  pnpm --filter @usetheo/cli test acp; pnpm --filter @usetheo/acp test bi
 
 ## Phase 6: Registry manifest + docs
 
-**Objective:** Publish the `agent.json` ACP registry manifest so Zed and Cursor users can discover and install `@usetheo/sdk` from the marketplace. Add a full concept page to `theo-opendocs`.
+**Objective:** Publish the `agent.json` ACP registry manifest so Zed and Cursor users can discover and install `@theokit/sdk` from the marketplace. Add a full concept page to `theo-opendocs`.
 
 ### T6.1 — `agent.json` manifest + docs
 
@@ -1133,7 +1133,7 @@ examples/acp-server/README.md (NEW) — Zed integration walkthrough
 #### Deep file dependency analysis
 - `agent.json` is published with the npm package (already in `files: ["registry"]`). Discoverable post-install.
 - Docs files in `theo-opendocs` — separate repo. Add to current repo's `theo-opendocs` worktree if present, otherwise document as a follow-up PR.
-- `examples/acp-server/` follows the established example pattern (`@usetheo/sdk` workspace dep, real-LLM integration per `.claude/rules/real-llm-validation.md`).
+- `examples/acp-server/` follows the established example pattern (`@theokit/sdk` workspace dep, real-LLM integration per `.claude/rules/real-llm-validation.md`).
 
 #### Deep Dives
 **`agent.json` shape:**
@@ -1142,7 +1142,7 @@ examples/acp-server/README.md (NEW) — Zed integration walkthrough
   "schema_version": 1,
   "name": "usetheo-sdk",
   "display_name": "Theokit SDK",
-  "description": "Run your @usetheo/sdk agent as an ACP server — drives a TypeScript SDKAgent with multi-provider, multi-platform, memory + workflows + skills. Apache-2.0.",
+  "description": "Run your @theokit/sdk agent as an ACP server — drives a TypeScript SDKAgent with multi-provider, multi-platform, memory + workflows + skills. Apache-2.0.",
   "icon": "icon.svg",
   "distribution": {
     "type": "command",
@@ -1154,7 +1154,7 @@ examples/acp-server/README.md (NEW) — Zed integration walkthrough
 
 **Concept page sections:**
 1. What is ACP — link to upstream spec.
-2. Quick start — `npm i @usetheo/acp` + sample agent + Zed integration.
+2. Quick start — `npm i @theokit/acp` + sample agent + Zed integration.
 3. `serveAcp()` API reference (auto-generated from typedoc).
 4. Permission modes — `ask`, `auto`, `deny` (D355).
 5. Session lifecycle — how ACP sessions map to `agentId` (D352).
@@ -1167,7 +1167,7 @@ examples/acp-server/README.md (NEW) — Zed integration walkthrough
 **Cookbook recipe** — minimal walkthrough:
 ```ts
 // examples/acp-server/src/index.ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 export default async (sessionId) => {
   return Agent.create({
@@ -1197,14 +1197,14 @@ RED:     example_agent_factory_returns_sdk_agent — calling factory returns obj
 RED:     concept_doc_exists — concepts/acp-server.mdx file present, ≥10 H2 sections.
 GREEN:   Author the files.
 REFACTOR: None expected.
-VERIFY:  pnpm --filter @usetheo/acp test registry-schema; smoke-test examples/acp-server.
+VERIFY:  pnpm --filter @theokit/acp test registry-schema; smoke-test examples/acp-server.
 ```
 
 #### Acceptance Criteria
 - [ ] `agent.json` validates against ACP registry schema.
 - [ ] Concept page has all 10 sections.
 - [ ] Cookbook recipe has a full Zed integration walkthrough.
-- [ ] Example agent imports `@usetheo/sdk`, exports a factory, runs against real LLM (per `real-llm-validation.md`).
+- [ ] Example agent imports `@theokit/sdk`, exports a factory, runs against real LLM (per `real-llm-validation.md`).
 - [ ] Pass: zero biome warnings.
 - [ ] Pass: types:check on `theo-opendocs`.
 
@@ -1219,7 +1219,7 @@ VERIFY:  pnpm --filter @usetheo/acp test registry-schema; smoke-test examples/ac
 
 | # | Gap / Requirement | Task(s) | Resolution |
 |---|---|---|---|
-| 1 | Expose `@usetheo/sdk` as ACP server | T1.1, T2.1-T2.3, T3.1-T3.3 | New `@usetheo/acp` package + `serveAcp()` API + session lifecycle handlers + translator |
+| 1 | Expose `@theokit/sdk` as ACP server | T1.1, T2.1-T2.3, T3.1-T3.3 | New `@theokit/acp` package + `serveAcp()` API + session lifecycle handlers + translator |
 | 2 | Stdio JSON-RPC framing | T2.2 | `AgentSideConnection` from `@agentclientprotocol/sdk@^0.22` handles framing |
 | 3 | `initialize` capability advertisement | T2.2 | `handleInitialize` returns `protocolVersion`, capabilities |
 | 4 | `new_session` per-session agent isolation | T2.1, T2.2 | `SessionStore` + factory resolver + `handleNewSession` |
@@ -1239,7 +1239,7 @@ VERIFY:  pnpm --filter @usetheo/acp test registry-schema; smoke-test examples/ac
 | 18 | End-to-end Zed dogfood | T7.1 (final) | Real Zed install + send-receive validation |
 | 19 | Logging routes to stderr | T2.2 (D359) | `log` option defaults to `process.stderr.write` |
 | 20 | Server-only scope (no client) | All phases (D350) | Plan explicitly defers ACP client to v0.2 |
-| 21 | Backward compatibility with existing SDK | All phases | No SDK files modified — `@usetheo/acp` is purely additive |
+| 21 | Backward compatibility with existing SDK | All phases | No SDK files modified — `@theokit/acp` is purely additive |
 | 22 | Real-LLM validation per repo rule | T6.1, T7.1 | Example agent + dogfood both call real LLM |
 | 23 | No stubs/mocks in production code | T1.1 (placeholder), T2.2 (placeholder removal) | Phase 2 DoD explicitly tracks placeholder removal |
 | 24 | EC-1 cleanup on stdin close | T2.2 | `Promise.allSettled(dispose)` before serveAcp resolve |
@@ -1255,9 +1255,9 @@ VERIFY:  pnpm --filter @usetheo/acp test registry-schema; smoke-test examples/ac
 
 - [ ] All 7 phases completed (Phase 0 inventory through Phase 7 dogfood).
 - [ ] All RED tests (≥95 across 7 phases — 80 original + ~15 absorbed from edge case review) now GREEN.
-- [ ] Zero biome / publint / attw warnings on `@usetheo/acp` package.
+- [ ] Zero biome / publint / attw warnings on `@theokit/acp` package.
 - [ ] Zero regressions in existing packages — full `pnpm -w run validate` green.
-- [ ] `@usetheo/acp@0.1.0` published to npm with `--no-provenance` (using NPM_TOKEN from .env until CI publish lands).
+- [ ] `@theokit/acp@0.1.0` published to npm with `--no-provenance` (using NPM_TOKEN from .env until CI publish lands).
 - [ ] `agent.json` validates against ACP registry schema.
 - [ ] Concept page + cookbook recipe present in `theo-opendocs`.
 - [ ] Example `examples/acp-server/` runs end-to-end with real LLM.
@@ -1277,7 +1277,7 @@ VERIFY:  pnpm --filter @usetheo/acp test registry-schema; smoke-test examples/ac
 
 ### Execution
 
-1. **Local install** — `pnpm --filter @usetheo/acp build && npm pack` to produce a tarball.
+1. **Local install** — `pnpm --filter @theokit/acp build && npm pack` to produce a tarball.
 2. **Zed integration** — copy `packages/acp/registry/agent.json` to `~/.config/zed/external_agents/usetheo-sdk/agent.json`, edit `distribution.args` to point at the local example (`examples/acp-server/src/index.ts`).
 3. **Restart Zed** — open the External Agents panel, confirm "Theokit SDK" appears.
 4. **Send 3 prompts:**

@@ -1,4 +1,4 @@
-# Plan: System Prompt Support for `@usetheo/sdk`
+# Plan: System Prompt Support for `@theokit/sdk`
 
 > **Version 1.0** — Add public API for users to define the agent's system prompt. Currently the SDK silently sends user messages to the LLM with **no system context**, even though the internal `AgentLoopInputs.systemPrompt` field exists and is wired to the LLM request. This plan closes the gap between the public contract and the internal capability by exposing `systemPrompt` on `AgentOptions` (per-agent default) and `SendOptions` (per-call override), with optional dynamic resolver support cross-validated against pi, Mastra, and OpenAI Agents Python.
 
@@ -161,14 +161,14 @@ VERIFY:  pnpm typecheck
 ```
 
 #### Acceptance Criteria
-- [x] `SystemPromptContext` and `SystemPromptResolver` are exported from `@usetheo/sdk`. _Verified: `packages/sdk/src/types/agent.ts:104-133` + barrel re-export in `dist/index.d.ts:2`._
+- [x] `SystemPromptContext` and `SystemPromptResolver` are exported from `@theokit/sdk`. _Verified: `packages/sdk/src/types/agent.ts:104-133` + barrel re-export in `dist/index.d.ts:2`._
 - [x] `AgentOptions.systemPrompt` is optional and union-typed. _Verified: `packages/sdk/src/types/agent.ts:154` `systemPrompt?: string | SystemPromptResolver;`._
 - [x] `pnpm typecheck` exits 0. _Verified: full `pnpm validate` exits 0._
 - [x] Pass: G1 typecheck, G2 Biome lint (no unused-import errors). _Verified via `pnpm validate`._
 
 #### DoD
 - [x] Types compile.
-- [x] Barrel re-export visible from `import { type SystemPromptContext } from "@usetheo/sdk"`. _Verified: `dist/index.d.ts:2` re-exports `SystemPromptContext`, `SystemPromptResolver`, `SystemPromptSkillRef`._
+- [x] Barrel re-export visible from `import { type SystemPromptContext } from "@theokit/sdk"`. _Verified: `dist/index.d.ts:2` re-exports `SystemPromptContext`, `SystemPromptResolver`, `SystemPromptSkillRef`._
 
 ### T1.2 — Add `systemPrompt` to `SendOptions`
 
@@ -267,7 +267,7 @@ RED:     resolves_empty_string_override() — override="" wins over agent="X" �
 RED:     coerces_non_string_resolver_to_undefined() — resolver returns null/0/object → returns undefined (EC-2).
 GREEN:   Implement the function in ~30 lines.
 REFACTOR: None expected (function is small + pure).
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/runtime/resolve-system-prompt.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/runtime/resolve-system-prompt.golden.test.ts
 ```
 
 Tests live at `packages/sdk/tests/golden/runtime/resolve-system-prompt.golden.test.ts`.
@@ -392,7 +392,7 @@ RED:     undefined_when_neither_set() — neither set, captured body has NO syst
 RED:     cloud_agent_includes_systemPrompt_in_paas_body() — Agent.create({ cloud, systemPrompt: "..." }), captured POST /v1/agents/{id}/runs body has systemPrompt === "..." (EC-1 / D7).
 GREEN:   Already implemented by T1+T2+T3
 REFACTOR: None
-VERIFY:  pnpm --filter=@usetheo/sdk exec vitest run tests/golden/agent/system-prompt.golden.test.ts
+VERIFY:  pnpm --filter=@theokit/sdk exec vitest run tests/golden/agent/system-prompt.golden.test.ts
 ```
 
 #### Acceptance Criteria

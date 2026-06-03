@@ -2,7 +2,7 @@
 
 > **STATUS: COMPLETO** — Concluído em 2026-05-17. 5 examples novos criados (4 SDK-only + 1 consolidated React Next.js). 7 features públicas cobertas (`Agent.streamObject`, `useTheoChat`, `useTheoCompletion`, `useTheoAssistant`, OAuth MCP PKCE, auto-instrumentation, LanceDB+migration). `pnpm validate` exit=0. `tools/typecheck-examples.sh` Pass=46/46. Snapshot final: `.claude/knowledge-base/reviews/examples-100-coverage-dogfood-2026-05-17.md`.
 
-> **Version 1.0** — Plano para criar examples rodáveis das 7 features públicas que hoje têm cobertura zero em `examples/`: `useTheoChat` (gap herdado de v1.1) + `Agent.streamObject`, `useTheoCompletion`, `useTheoAssistant`, OAuth MCP PKCE, Auto-instrumentation Langfuse/Sentry/PostHog, LanceDB backend + Migration CLI (v1.2). Cada feature ganha 1 example pequeno (≤200 LoC), rodável, com README. Outcome: dev externo lendo `examples/` consegue chegar a "hello world" de qualquer feature pública sem precisar ler `docs.md` ou abrir tests. Critério de "100% coberto": surface pública do `@usetheo/sdk` + `@usetheo/react` tem 1 example por feature, todos passando `tools/typecheck-examples.sh`.
+> **Version 1.0** — Plano para criar examples rodáveis das 7 features públicas que hoje têm cobertura zero em `examples/`: `useTheoChat` (gap herdado de v1.1) + `Agent.streamObject`, `useTheoCompletion`, `useTheoAssistant`, OAuth MCP PKCE, Auto-instrumentation Langfuse/Sentry/PostHog, LanceDB backend + Migration CLI (v1.2). Cada feature ganha 1 example pequeno (≤200 LoC), rodável, com README. Outcome: dev externo lendo `examples/` consegue chegar a "hello world" de qualquer feature pública sem precisar ler `docs.md` ou abrir tests. Critério de "100% coberto": surface pública do `@theokit/sdk` + `@theokit/react` tem 1 example por feature, todos passando `tools/typecheck-examples.sh`.
 
 ## Context
 
@@ -36,7 +36,7 @@ Apenas `telegram-pro/src/index.ts` referencia `Agent.generateObject` (v1.1). Tud
 
 ## Objective
 
-**Done = surface pública v1.0 + v1.1 + v1.2 do `@usetheo/sdk` + `@usetheo/react` tem 1 example dedicado por feature; todos passam `tools/typecheck-examples.sh`; smoke real-LLM rodado para as 2 features de risco mais alto (streamObject + useTheoAssistant via Next.js).**
+**Done = surface pública v1.0 + v1.1 + v1.2 do `@theokit/sdk` + `@theokit/react` tem 1 example dedicado por feature; todos passam `tools/typecheck-examples.sh`; smoke real-LLM rodado para as 2 features de risco mais alto (streamObject + useTheoAssistant via Next.js).**
 
 Metas mensuráveis:
 
@@ -160,8 +160,8 @@ examples/stream-object/.env.example     (NEW)
 ```
 
 #### Deep file dependency analysis
-- **`src/index.ts`**: importa `Agent` de `@usetheo/sdk` (via `file:../../packages/sdk`) + `z` de `zod`. Define schema `FactCard { title, summary, year, sources }`. Itera `Agent.streamObject({ schema, prompt, model, local })` e imprime cada partial + complete.
-- **`package.json`**: dev script `bash ../../tools/dev.sh tsx --env-file=.env src/index.ts`, deps `@usetheo/sdk` + `zod`, devDep `tsx`+`typescript`.
+- **`src/index.ts`**: importa `Agent` de `@theokit/sdk` (via `file:../../packages/sdk`) + `z` de `zod`. Define schema `FactCard { title, summary, year, sources }`. Itera `Agent.streamObject({ schema, prompt, model, local })` e imprime cada partial + complete.
+- **`package.json`**: dev script `bash ../../tools/dev.sh tsx --env-file=.env src/index.ts`, deps `@theokit/sdk` + `zod`, devDep `tsx`+`typescript`.
 - **`README.md`**: explica o pattern "model → calls output tool → SDK parses → returns typed object", env vars suportadas (OPENROUTER_API_KEY/ANTHROPIC_API_KEY/OPENAI_API_KEY), output esperado.
 
 #### Deep Dives
@@ -169,7 +169,7 @@ examples/stream-object/.env.example     (NEW)
 **Estrutura do `src/index.ts`:**
 
 ```ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 import { z } from "zod";
 
 const FactCard = z.object({
@@ -264,7 +264,7 @@ examples/mcp-oauth-notion/.env.example     (NEW)
 ```
 
 #### Deep file dependency analysis
-- **`src/index.ts`**: importa `Agent`, `McpServerConfig` de `@usetheo/sdk`. Constrói `notionMcp: McpServerConfig` com `auth.oauth.{authorizationEndpoint, tokenEndpoint, redirectMode}`. Se sem `NOTION_OAUTH_CLIENT_ID` → imprime "Config-only mode (set NOTION_OAUTH_CLIENT_ID + provider key to enable real flow)" + JSON.stringify(cfg) + exit 0. Com creds → cria agent, dispara `agent.send("list my notion databases")` que aciona PKCE flow no primeiro use.
+- **`src/index.ts`**: importa `Agent`, `McpServerConfig` de `@theokit/sdk`. Constrói `notionMcp: McpServerConfig` com `auth.oauth.{authorizationEndpoint, tokenEndpoint, redirectMode}`. Se sem `NOTION_OAUTH_CLIENT_ID` → imprime "Config-only mode (set NOTION_OAUTH_CLIENT_ID + provider key to enable real flow)" + JSON.stringify(cfg) + exit 0. Com creds → cria agent, dispara `agent.send("list my notion databases")` que aciona PKCE flow no primeiro use.
 - **`README.md`**: setup do Notion OAuth integration (link para docs Notion), env vars, modos (config-only vs real), security notes sobre `state` validation + token storage.
 
 #### Deep Dives
@@ -272,7 +272,7 @@ examples/mcp-oauth-notion/.env.example     (NEW)
 **Estrutura do `src/index.ts`:**
 
 ```ts
-import { Agent, type McpServerConfig } from "@usetheo/sdk";
+import { Agent, type McpServerConfig } from "@theokit/sdk";
 
 const NOTION_CLIENT_ID = process.env.NOTION_OAUTH_CLIENT_ID;
 const PROVIDER_KEY = process.env.OPENROUTER_API_KEY ?? process.env.ANTHROPIC_API_KEY ?? process.env.OPENAI_API_KEY;
@@ -364,14 +364,14 @@ examples/memory-lance/README.md        (NEW)
 ```
 
 #### Deep file dependency analysis
-- **`src/index.ts`**: imports `Memory`, `migrateSqliteToLance` de `@usetheo/sdk`. Cria SQLite memory com 5 facts dummy, depois roda `migrateSqliteToLance({ cwd, dryRun: true })` e imprime resultado (count, validation). Se `@lancedb/lancedb` instalado, tenta `Memory.create({ ..., index: { backend: "lance" } })` e captura `lance_backend_unavailable` graciosamente quando ausente.
+- **`src/index.ts`**: imports `Memory`, `migrateSqliteToLance` de `@theokit/sdk`. Cria SQLite memory com 5 facts dummy, depois roda `migrateSqliteToLance({ cwd, dryRun: true })` e imprime resultado (count, validation). Se `@lancedb/lancedb` instalado, tenta `Memory.create({ ..., index: { backend: "lance" } })` e captura `lance_backend_unavailable` graciosamente quando ausente.
 
 #### Deep Dives
 
 **Estrutura do `src/index.ts`:**
 
 ```ts
-import { Memory, migrateSqliteToLance, ConfigurationError } from "@usetheo/sdk";
+import { Memory, migrateSqliteToLance, ConfigurationError } from "@theokit/sdk";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -481,7 +481,7 @@ examples/telemetry-autoinstrument/.env.example     (NEW)
 **Estrutura do `src/index.ts`:**
 
 ```ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 function pickModel(): string {
   if (process.env.ANTHROPIC_API_KEY) return "claude-sonnet-4-5-20250929";
@@ -590,10 +590,10 @@ examples/react-nextjs/src/lib/get-agent.ts                 (NEW) — shared agen
 ```
 
 #### Deep file dependency analysis
-- **`package.json`**: deps `next@^14`, `react@^18`, `react-dom@^18`, `@usetheo/sdk` (file link), `@usetheo/react` (file link), `zod`. devDeps `@types/react`, `@types/node`, `typescript`.
-- **`next.config.mjs`**: enable App Router, allow workspace file links via `transpilePackages: ["@usetheo/sdk", "@usetheo/react"]`.
+- **`package.json`**: deps `next@^14`, `react@^18`, `react-dom@^18`, `@theokit/sdk` (file link), `@theokit/react` (file link), `zod`. devDeps `@types/react`, `@types/node`, `typescript`.
+- **`next.config.mjs`**: enable App Router, allow workspace file links via `transpilePackages: ["@theokit/sdk", "@theokit/react"]`.
 - **`src/lib/get-agent.ts`**: factory que instancia agent uma vez (cache singleton em dev) — usado pelos 3 route handlers.
-- **`src/app/api/{chat,completion,assistant}/route.ts`**: cada handler é ~15 LoC — `POST(req)` extrai body, chama o handler correspondente do `@usetheo/react`.
+- **`src/app/api/{chat,completion,assistant}/route.ts`**: cada handler é ~15 LoC — `POST(req)` extrai body, chama o handler correspondente do `@theokit/react`.
 - **`src/app/{chat,completion,assistant}/page.tsx`**: "use client" + hook + form UI minimalista (textarea + submit + display).
 
 #### Deep Dives
@@ -602,7 +602,7 @@ examples/react-nextjs/src/lib/get-agent.ts                 (NEW) — shared agen
 
 ```tsx
 "use client";
-import { useTheoChat } from "@usetheo/react";
+import { useTheoChat } from "@theokit/react";
 
 export default function ChatPage() {
   const { messages, input, setInput, send, isStreaming, error } = useTheoChat({
@@ -631,7 +631,7 @@ export default function ChatPage() {
 **Estrutura mínima de `src/app/api/chat/route.ts`:**
 
 ```ts
-import { streamTheoChat } from "@usetheo/react";
+import { streamTheoChat } from "@theokit/react";
 import { getAgent } from "../../../lib/get-agent";
 
 export async function POST(req: Request) {
@@ -644,7 +644,7 @@ export async function POST(req: Request) {
 **Estrutura mínima de `src/lib/get-agent.ts`:**
 
 ```ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 let cachedAgent: Awaited<ReturnType<typeof Agent.create>> | undefined;
 
@@ -707,7 +707,7 @@ export type FactCard = z.infer<typeof FactCard>;
 
 #### TDD
 ```
-RED: N/A (UI example; tests cobertos no pacote @usetheo/react)
+RED: N/A (UI example; tests cobertos no pacote @theokit/react)
 VERIFY: cd examples/react-nextjs && pnpm install --ignore-workspace
 VERIFY: cd examples/react-nextjs && npx tsc --noEmit  → exit 0
 VERIFY (smoke build): cd examples/react-nextjs && pnpm build  → exit 0 (Next.js produces .next/)
@@ -932,11 +932,11 @@ Já coberto em Phase 4. Plan NOT done até Phase 4 acceptance criteria 100% chec
 
 | Risco | Severidade | Mitigação |
 |---|---|---|
-| Next.js 14 App Router quirks com workspace file links | Média | `transpilePackages: ["@usetheo/sdk", "@usetheo/react"]` no next.config; test em ambos pnpm + bun (CI futuro) |
+| Next.js 14 App Router quirks com workspace file links | Média | `transpilePackages: ["@theokit/sdk", "@theokit/react"]` no next.config; test em ambos pnpm + bun (CI futuro) |
 | Lance binding nativo falha no CI durante `pnpm install` do example | Baixa | Lance é optional dep; example NÃO declara como dep; documentado |
 | Notion MCP OAuth endpoint muda URL/scopes entre v1.2 release e example deploy | Baixa | Example é config-only por default; só roda flow real se user setar `NOTION_OAUTH_CLIENT_ID` — sua responsabilidade verificar setup |
 | Langfuse v3 não estável + breaking changes | Média | Adapter já degrada gracioso (D42); example documenta versão mínima |
-| React 19 specific quirks em useEffect cleanup | Baixa | `@usetheo/react` peer dep aceita 18 || 19; example pin em 18.3 (LTS) |
+| React 19 specific quirks em useEffect cleanup | Baixa | `@theokit/react` peer dep aceita 18 || 19; example pin em 18.3 (LTS) |
 | `next build` falha sem provider key env (build-time fetch) | Média | Route handlers em `async` mode (não SSG); build não chama `getAgent`; documentar em README |
 | Examples README fica desatualizado se features mudarem | Baixa | Matriz tem hash de commits implícito; future plans devem updatar matriz como parte do DoD |
 

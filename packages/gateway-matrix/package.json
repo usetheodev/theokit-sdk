@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/gateway-matrix",
+  "name": "@theokit/gateway-matrix",
   "version": "0.1.0",
-  "description": "Matrix protocol platform adapter for @usetheo/gateway. ADRs D413-D421.",
+  "description": "Matrix protocol platform adapter for @theokit/gateway. ADRs D413-D421.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -35,8 +35,8 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/gateway": "workspace:^",
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/gateway": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "matrix-js-sdk": "^32.0.0"
   },
   "peerDependenciesMeta": {
@@ -45,8 +45,8 @@
     }
   },
   "devDependencies": {
-    "@usetheo/gateway": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/gateway": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "vitest": "^3.0.0"

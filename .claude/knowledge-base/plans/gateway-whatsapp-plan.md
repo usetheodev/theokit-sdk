@@ -1,6 +1,6 @@
-# Plan: `@usetheo/gateway-whatsapp` v0.1.0 (Roadmap v1.4 #2)
+# Plan: `@theokit/gateway-whatsapp` v0.1.0 (Roadmap v1.4 #2)
 
-> **Version 1.1** (2026-05-23) — Ship the WhatsApp adapter for `@usetheo/gateway` with **two backends**: (1) official Meta WhatsApp Business Cloud API and (2) unofficial subprocess bridge to `whatsapp-web.js` (Hermes pattern). v1 scope: DMs + groups + text + status receipts. Multi-backend choice mirrors `referencia/hermes-agent/gateway/platforms/whatsapp.py` rationale — businesses on verified numbers use Cloud, dev/personal use Web bridge. Env-gated example with local webhook receiver. Expected outcome: builders can add `@usetheo/gateway-whatsapp` to their stack and reach ~2 bi users on the largest messaging platform of the planet, via the same `MessageEvent` surface they already use for Slack/Telegram/Discord.
+> **Version 1.1** (2026-05-23) — Ship the WhatsApp adapter for `@theokit/gateway` with **two backends**: (1) official Meta WhatsApp Business Cloud API and (2) unofficial subprocess bridge to `whatsapp-web.js` (Hermes pattern). v1 scope: DMs + groups + text + status receipts. Multi-backend choice mirrors `referencia/hermes-agent/gateway/platforms/whatsapp.py` rationale — businesses on verified numbers use Cloud, dev/personal use Web bridge. Env-gated example with local webhook receiver. Expected outcome: builders can add `@theokit/gateway-whatsapp` to their stack and reach ~2 bi users on the largest messaging platform of the planet, via the same `MessageEvent` surface they already use for Slack/Telegram/Discord.
 
 > **Edge-case review 2026-05-23 absorbed (v1.1):** 8 MUST FIX identified by `/edge-case-plan` were incorporated into the tasks:
 > - **EC-1** (T2.2 + T5.1) — `verifyWebhookSubscription` helper for Meta's GET handshake; without it the webhook never registers.
@@ -18,8 +18,8 @@
 
 ### What exists today
 
-- 3 gateways shipped: `@usetheo/gateway-telegram`, `@usetheo/gateway-discord`, `@usetheo/gateway-slack` (ADRs D170-D285).
-- `@usetheo/gateway` base package — `BasePlatformAdapter` abstract class (D172), `MessageEvent` discriminated union (D173), `SendResult` outbound shape, hooks contract (D176-D177).
+- 3 gateways shipped: `@theokit/gateway-telegram`, `@theokit/gateway-discord`, `@theokit/gateway-slack` (ADRs D170-D285).
+- `@theokit/gateway` base package — `BasePlatformAdapter` abstract class (D172), `MessageEvent` discriminated union (D173), `SendResult` outbound shape, hooks contract (D176-D177).
 - Slack adapter (`packages/gateway-slack/`) is the closest pattern reference — peer-dep workspace package, Socket Mode transport, `MessageEvent` variant with `slack: { raw, channel }`.
 - `MessageEvent.platform` is currently typed `"telegram" | "discord" | "slack"` (closed union).
 
@@ -36,11 +36,11 @@
 
 ## Objective
 
-**Done = a user can `pnpm add @usetheo/gateway-whatsapp`, configure either `backend: "cloud"` or `backend: "web"`, and have their `@usetheo/sdk` agent receive WhatsApp DMs + group messages + emit responses, with status receipts surfacing back via hooks.**
+**Done = a user can `pnpm add @theokit/gateway-whatsapp`, configure either `backend: "cloud"` or `backend: "web"`, and have their `@theokit/sdk` agent receive WhatsApp DMs + group messages + emit responses, with status receipts surfacing back via hooks.**
 
 Measurable goals:
 
-1. Package `@usetheo/gateway-whatsapp` v0.1.0 shippable via npm (publint + attw clean).
+1. Package `@theokit/gateway-whatsapp` v0.1.0 shippable via npm (publint + attw clean).
 2. `WhatsAppAdapter` extends `BasePlatformAdapter`; passes `instanceof` checks; never throws on platform errors per D172 contract.
 3. Cloud backend: `POST /messages` (send) + `POST <webhook-url>` (inbound) with `X-Hub-Signature-256` verification.
 4. Web backend: subprocess to `whatsapp-web.js` (stdio JSON-lines IPC), Hermes-style PID file + port-kill protection.
@@ -78,9 +78,9 @@ Measurable goals:
 - **Consequences:** WhatsApp gets a `WhatsAppAdapter`-specific hook (not in `BasePlatformAdapter`). Mirrors the platform-specific escape hatch pattern (D180).
 
 ### D308 — `MessageEvent.platform` opens to `"whatsapp"`
-- **Decision:** Extend `PlatformName` union in `@usetheo/gateway` to include `"whatsapp"`. Add `WhatsAppMessageEvent` variant with `whatsapp: { rawWamid, phoneNumberId, contactName, raw }`.
+- **Decision:** Extend `PlatformName` union in `@theokit/gateway` to include `"whatsapp"`. Add `WhatsAppMessageEvent` variant with `whatsapp: { rawWamid, phoneNumberId, contactName, raw }`.
 - **Rationale:** D173 mandates discriminated union by `platform`. Closed union grows with each new adapter; this is the expected pattern (Slack added the same way in T1.1 of plan D267-D285).
-- **Consequences:** Minor version bump on `@usetheo/gateway` (0.1.x → 0.2.0). Existing adapters unaffected since they read their own variant only.
+- **Consequences:** Minor version bump on `@theokit/gateway` (0.1.x → 0.2.0). Existing adapters unaffected since they read their own variant only.
 
 ### D309 — Group event filtering: mention-required by default for groups
 - **Decision:** When backend emits a group message, the adapter drops it UNLESS:
@@ -222,7 +222,7 @@ pnpm-workspace.yaml — confirm `packages/*` glob covers (no change expected)
 - Workspace auto-includes new package via `packages/*` glob.
 
 #### Deep Dives
-- `package.json` peers: `@usetheo/gateway`, `@usetheo/sdk`. Optional peer: `whatsapp-web.js` (web backend) — declared optional via `peerDependenciesMeta`.
+- `package.json` peers: `@theokit/gateway`, `@theokit/sdk`. Optional peer: `whatsapp-web.js` (web backend) — declared optional via `peerDependenciesMeta`.
 - `tsup.config.ts` mirrors `gateway-slack` exactly (input: `src/index.ts`, format: `["esm", "cjs"]`, dts: true).
 
 #### Tasks
@@ -236,16 +236,16 @@ pnpm-workspace.yaml — confirm `packages/*` glob covers (no change expected)
 
 #### TDD
 ```
-RED:     test_package_resolves — `pnpm list @usetheo/gateway-whatsapp` shows it
+RED:     test_package_resolves — `pnpm list @theokit/gateway-whatsapp` shows it
 GREEN:   Package skeleton in workspace
 REFACTOR: None expected
-VERIFY:  pnpm install && pnpm list @usetheo/gateway-whatsapp
+VERIFY:  pnpm install && pnpm list @theokit/gateway-whatsapp
 ```
 
 #### Acceptance Criteria
 - [ ] `packages/gateway-whatsapp/` directory exists with 6 files
 - [ ] `pnpm install` succeeds at root
-- [ ] `pnpm --filter @usetheo/gateway-whatsapp build` works (empty index emits empty dist; OK)
+- [ ] `pnpm --filter @theokit/gateway-whatsapp build` works (empty index emits empty dist; OK)
 
 #### DoD
 - [ ] Skeleton commitable
@@ -294,7 +294,7 @@ packages/gateway/CHANGELOG.md — record 0.1.x → 0.2.0 bump
 1. Add `"whatsapp"` to `PlatformName` union.
 2. Add `WhatsAppMessageEvent` interface.
 3. Add to the `MessageEvent` union export.
-4. Update `@usetheo/gateway/package.json` to `0.2.0`.
+4. Update `@theokit/gateway/package.json` to `0.2.0`.
 5. Add CHANGELOG entry under `[Unreleased]`.
 
 #### TDD
@@ -303,12 +303,12 @@ RED:     test_platform_name_includes_whatsapp — `const _p: PlatformName = "wha
 RED:     test_whatsapp_event_narrows — switch on `event.platform === "whatsapp"` narrows access to `event.whatsapp`
 GREEN:   Types compile + tests pass
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway typecheck && pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway typecheck && pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
 - [ ] `PlatformName` includes `"whatsapp"`
-- [ ] `WhatsAppMessageEvent` exported from `@usetheo/gateway`
+- [ ] `WhatsAppMessageEvent` exported from `@theokit/gateway`
 - [ ] Sibling adapters (slack, telegram, discord) still typecheck
 - [ ] CHANGELOG entry added
 
@@ -363,7 +363,7 @@ RED:     test_backend_interface_kind_is_closed — `kind: "cloud" | "web"` is ex
 RED:     test_inbound_event_has_required_fields — narrow types compile against expected shape
 GREEN:   Interface compiles
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp typecheck
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp typecheck
 ```
 
 #### Acceptance Criteria
@@ -435,7 +435,7 @@ RED:     test_adapter_send_with_empty_text_returns_error — `SendResult { ok: f
 RED:     test_adapter_connect_idempotent — second call returns true with same backend instance
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test
 ```
 
 #### Acceptance Criteria
@@ -502,7 +502,7 @@ RED:     test_cloud_client_handles_4xx — returns { ok: false, error } on 400/4
 RED:     test_cloud_client_handles_429 — rate_limit code surfaced
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test backend/cloud/client.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test backend/cloud/client.test.ts
 ```
 
 #### Acceptance Criteria
@@ -590,7 +590,7 @@ RED:     test_normalize_handles_empty_changes — no messages array yields empty
 RED:     test_normalize_handles_empty_entries_array (EC-9) — { entry: [] } health-ping returns []
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test backend/cloud/webhook.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test backend/cloud/webhook.test.ts
 ```
 
 #### Acceptance Criteria
@@ -647,7 +647,7 @@ RED:     test_cloud_backend_handle_webhook_valid_dispatches_to_inbound_handler
 RED:     test_cloud_backend_handle_webhook_dispatches_status_receipts
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test backend/cloud/
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test backend/cloud/
 ```
 
 #### Acceptance Criteria
@@ -728,7 +728,7 @@ RED:     test_terminate_bridge_sigterm_then_sigkill — second-stage kill if SIG
 RED:     test_terminate_bridge_removes_pid_file
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test backend/web/lifecycle.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test backend/web/lifecycle.test.ts
 ```
 
 #### Acceptance Criteria
@@ -785,7 +785,7 @@ RED:     test_parse_event_malformed_returns_null
 RED:     test_format_command_adds_newline
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test backend/web/ipc.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test backend/web/ipc.test.ts
 ```
 
 #### Acceptance Criteria
@@ -849,7 +849,7 @@ RED:     test_web_backend_dispatches_status_receipt
 RED:     test_web_backend_ipc_buffers_fragmented_line (EC-11) — stdout chunked '{"event":"mes' then 'sage"}\n' parses correctly
 GREEN:   Implement (use mock subprocess in tests)
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test backend/web/
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test backend/web/
 ```
 
 #### Acceptance Criteria
@@ -906,7 +906,7 @@ RED:     test_map_web_error_protocol_to_server_error
 RED:     test_map_web_error_auth_to_auth_failed
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test errors.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test errors.test.ts
 ```
 
 #### Acceptance Criteria
@@ -957,7 +957,7 @@ RED:     test_split_preserves_surrogate_pairs
 RED:     test_split_filters_empty_parts (EC-8) — `"a\n\n\n\n\nb"` returns `["a", "b"]`, NOT `["a", "", "", "b"]`
 GREEN:   Implement
 REFACTOR: Extract shared splitter into gateway base if all 3 implementations diverge only by limit (DEFERRED — wait for the 4th adapter)
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test split.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test split.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1012,7 +1012,7 @@ RED:     test_send_partial_failure_stops_remaining
 RED:     test_send_returns_last_message_id_on_full_success
 GREEN:   Implement
 REFACTOR: None expected
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp test adapter.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp test adapter.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1045,7 +1045,7 @@ examples/whatsapp-bot/tsconfig.json (NEW)
 
 #### Deep file dependency analysis
 - Standalone example package — independent install.
-- Depends on `@usetheo/sdk` + `@usetheo/gateway-whatsapp` (workspace) + `express` (or `hono`).
+- Depends on `@theokit/sdk` + `@theokit/gateway-whatsapp` (workspace) + `express` (or `hono`).
 - `.env.example`: `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_APP_SECRET`, `OPENROUTER_API_KEY`, `PORT`.
 
 #### Deep Dives
@@ -1057,7 +1057,7 @@ examples/whatsapp-bot/tsconfig.json (NEW)
   - Local testing with ngrok
 
 #### Tasks
-1. Create package.json with deps: `@usetheo/sdk`, `@usetheo/gateway-whatsapp`, `express`, `tsx`.
+1. Create package.json with deps: `@theokit/sdk`, `@theokit/gateway-whatsapp`, `express`, `tsx`.
 2. Create `run.ts`:
    - **(EC-2 absorbed)** Express MUST use `app.use(express.json({ verify: (req, _res, buf) => { (req as any).rawBody = buf; } }))` BEFORE the route handlers. Without `verify`, Express consumes the stream and discards bytes → `verifyWebhookSignature` always fails. README documents this requirement prominently.
    - **(EC-1 absorbed)** GET `/webhook` handler:
@@ -1172,7 +1172,7 @@ T1.4 ships `WhatsAppAdapter`; concepts table must list it.
 ```
 
 #### Tasks
-1. Add `@usetheo/gateway-whatsapp` row to the table.
+1. Add `@theokit/gateway-whatsapp` row to the table.
 2. Update the roadmap blurb (no longer "v1.4 adds WhatsApp" — now "shipped").
 
 #### TDD
@@ -1234,13 +1234,13 @@ Confirm drift checker is still clean after additions.
 ```
 
 #### Tasks
-1. `pnpm --filter @usetheo/sdk run docs:drift` from theokit-sdk root.
+1. `pnpm --filter @theokit/sdk run docs:drift` from theokit-sdk root.
 2. Confirm exit 0.
 
 #### TDD
 ```
 GREEN:   Exit 0
-VERIFY:  pnpm --filter @usetheo/sdk run docs:drift; echo $?
+VERIFY:  pnpm --filter @theokit/sdk run docs:drift; echo $?
 ```
 
 #### Acceptance Criteria
@@ -1300,7 +1300,7 @@ Confirm the new package is npm-publishable.
 #### TDD
 ```
 GREEN:   publint zero errors, attw zero failures
-VERIFY:  pnpm --filter @usetheo/gateway-whatsapp publint && pnpm --filter @usetheo/gateway-whatsapp attw
+VERIFY:  pnpm --filter @theokit/gateway-whatsapp publint && pnpm --filter @theokit/gateway-whatsapp attw
 ```
 
 #### Acceptance Criteria
@@ -1319,7 +1319,7 @@ Land the work.
 
 #### Tasks
 1. theokit-sdk: stage new package + CHANGELOG + roadmap update.
-2. theokit-sdk: commit "feat(gateway): @usetheo/gateway-whatsapp v0.1.0 (Roadmap v1.4 #2)".
+2. theokit-sdk: commit "feat(gateway): @theokit/gateway-whatsapp v0.1.0 (Roadmap v1.4 #2)".
 3. theokit-sdk: push.
 4. theo-opendocs: commit cookbook regen + gateways.mdx edit.
 5. theo-opendocs: push.
@@ -1359,8 +1359,8 @@ Land the work.
 ## Global Definition of Done
 
 - [ ] Phases 0-7 complete
-- [ ] All tests passing in `@usetheo/gateway-whatsapp`
-- [ ] `@usetheo/gateway` bumped to 0.2.0 (union opened)
+- [ ] All tests passing in `@theokit/gateway-whatsapp`
+- [ ] `@theokit/gateway` bumped to 0.2.0 (union opened)
 - [ ] `examples/whatsapp-bot/` scaffold + README + smoke
 - [ ] theo-opendocs `concepts/gateways.mdx` updated + cookbook regenerated
 - [ ] Drift checker clean

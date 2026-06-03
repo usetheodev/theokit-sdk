@@ -108,7 +108,7 @@ describe("serve smoke (Phase 7)", () => {
   beforeEach(() => {
     workDir = mkdtempSync(join(tmpdir(), "acp-smoke-"));
     // The fixture entry has to live inside the workspace tree so that
-    // `import "@usetheo/sdk"` resolves via the root node_modules; outside
+    // `import "@theokit/sdk"` resolves via the root node_modules; outside
     // the tree (e.g., /tmp) there is no module resolution path.
     entryPath = join(import.meta.dirname, "_smoke-entry.mjs");
     cleanupExtras = [entryPath];
@@ -117,7 +117,7 @@ describe("serve smoke (Phase 7)", () => {
     writeFileSync(
       entryPath,
       `
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 export default async (sessionId) => {
   return Agent.create({

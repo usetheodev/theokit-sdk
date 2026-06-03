@@ -1,5 +1,5 @@
 /**
- * `DiscordAdapter` — wraps discord.js in the `@usetheo/gateway`
+ * `DiscordAdapter` — wraps discord.js in the `@theokit/gateway`
  * `BasePlatformAdapter` contract (T6.1, ADRs D171, D179).
  *
  * - `connect()` calls `client.login(token)` and awaits the `ready` event.
@@ -11,8 +11,8 @@
  * @public
  */
 
-import type { DiscordMessageEvent, MessageEvent as GatewayMessageEvent } from "@usetheo/gateway";
-import { BasePlatformAdapter, type OutboundMessage, type SendResult } from "@usetheo/gateway";
+import type { DiscordMessageEvent, MessageEvent as GatewayMessageEvent } from "@theokit/gateway";
+import { BasePlatformAdapter, type OutboundMessage, type SendResult } from "@theokit/gateway";
 import { Client, DiscordAPIError, Events, GatewayIntentBits, type Message } from "discord.js";
 
 export interface DiscordAdapterOptions {

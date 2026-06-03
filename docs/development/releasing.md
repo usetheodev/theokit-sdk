@@ -12,7 +12,7 @@ pnpm changeset
 
 The interactive prompt asks:
 
-1. Which package(s) changed → typically `@usetheo/sdk`.
+1. Which package(s) changed → typically `@theokit/sdk`.
 2. Type of bump → `patch` (bug fix), `minor` (new feature), `major` (breaking change).
 3. Summary → one or two sentences describing the change from the user's perspective.
 
@@ -22,7 +22,7 @@ This writes a markdown file to `.changeset/`. Commit it with your PR.
 
 ```markdown
 ---
-"@usetheo/sdk": minor
+"@theokit/sdk": minor
 ---
 
 Add `Cron` namespace for scheduling agent runs. Supports both local in-process scheduling and cloud (Theo PaaS) scheduling.

@@ -1,20 +1,20 @@
-# @usetheo/gateway-discord
+# @theokit/gateway-discord
 
-Discord platform adapter for `@usetheo/gateway`. Wraps [discord.js](https://discord.js.org/) in the `BasePlatformAdapter` contract.
+Discord platform adapter for `@theokit/gateway`. Wraps [discord.js](https://discord.js.org/) in the `BasePlatformAdapter` contract.
 
 > **Status: 0.1.0 — pre-release.**
 
 ## Install
 
 ```bash
-pnpm add @usetheo/gateway-discord @usetheo/gateway @usetheo/sdk discord.js
+pnpm add @theokit/gateway-discord @theokit/gateway @theokit/sdk discord.js
 ```
 
 ## Usage
 
 ```typescript
-import { GatewayRunner } from "@usetheo/gateway";
-import { DiscordAdapter } from "@usetheo/gateway-discord";
+import { GatewayRunner } from "@theokit/gateway";
+import { DiscordAdapter } from "@theokit/gateway-discord";
 
 const adapter = new DiscordAdapter({
   token: process.env.DISCORD_BOT_TOKEN!,

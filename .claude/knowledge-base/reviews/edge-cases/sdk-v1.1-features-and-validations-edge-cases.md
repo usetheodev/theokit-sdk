@@ -98,9 +98,9 @@ Edge cases encontrados: 14 (MUST FIX: 2, SHOULD TEST: 6, DOCUMENT: 6)
 
 - **Risco aceito:** Se LLM não responde ou Zod parse falha após retries, `/fact` retorna erro ao usuário. Documentar no handler: graceful fallback para plain `Remember:` write quando `generateObject` lança. 3 linhas de try/catch no T3.1.S handler.
 
-### EC-14: `@usetheo/sdk` + `@usetheo/react` version coupling não definido
+### EC-14: `@theokit/sdk` + `@theokit/react` version coupling não definido
 
-- **Risco aceito:** Se consumer instala `@usetheo/sdk@1.1` + `@usetheo/react@1.0` (versão antiga), wire format pode estar dessincronizado. Documentar no `packages/react/package.json`: `"peerDependencies": { "@usetheo/sdk": "^1.1.0" }` (não `workspace:*` no published). Plan menciona `workspace:*` que é só dev; release precisa pin range explícito.
+- **Risco aceito:** Se consumer instala `@theokit/sdk@1.1` + `@theokit/react@1.0` (versão antiga), wire format pode estar dessincronizado. Documentar no `packages/react/package.json`: `"peerDependencies": { "@theokit/sdk": "^1.1.0" }` (não `workspace:*` no published). Plan menciona `workspace:*` que é só dev; release precisa pin range explícito.
 
 ### EC-15: Vercel AI Data Stream v1 spec não está pinado a versão fonte
 

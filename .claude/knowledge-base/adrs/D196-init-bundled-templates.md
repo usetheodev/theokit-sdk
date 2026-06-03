@@ -15,7 +15,7 @@ No git clone, no `degit` dep, no network at scaffold time.
 
 - **Air-gapped CI / firewalled enterprise** networks need scaffolding
   to work without network. `degit`-style git clone fails there.
-- **Offline `npx`** — `npx --offline @usetheo/cli init` works once the
+- **Offline `npx`** — `npx --offline @theokit/cli init` works once the
   package is cached. Important for air-gap dev environments.
 - **Atomic versioning** — templates ship with the CLI semver; no drift
   between "the CLI you have" and "the templates it produces."
@@ -24,7 +24,7 @@ Alternatives rejected:
 
 - **`degit` clone from GitHub** — adds a dep, requires network, breaks
   air-gap. Marginal benefit (template updates without re-publishing).
-- **Embed templates in `@usetheo/sdk`** — wrong package; CLI is the
+- **Embed templates in `@theokit/sdk`** — wrong package; CLI is the
   scaffolder, not the library.
 
 ## Consequences

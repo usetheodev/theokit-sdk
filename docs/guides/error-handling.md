@@ -31,7 +31,7 @@ Error
 ## Retry pattern
 
 ```typescript
-import { TheokitAgentError, type Run } from "@usetheo/sdk";
+import { TheokitAgentError, type Run } from "@theokit/sdk";
 
 async function withRetry(send: () => Promise<Run>, attempts = 3): Promise<Run> {
   let lastError: unknown;
@@ -69,7 +69,7 @@ class TheokitAgentError extends Error {
 ## `IntegrationNotConnectedError`
 
 ```typescript
-import { IntegrationNotConnectedError } from "@usetheo/sdk/errors";
+import { IntegrationNotConnectedError } from "@theokit/sdk/errors";
 
 try {
   await Agent.create({ /* cloud with disconnected repo */ });
@@ -107,7 +107,7 @@ import {
   TheokitAgentError,
   RateLimitError,
   AuthenticationError,
-} from "@usetheo/sdk/errors";
+} from "@theokit/sdk/errors";
 ```
 
 ## Next

@@ -1,6 +1,6 @@
 # example: vertex-bot
 
-One-shot Gemini (or Claude) prompt via GCP Vertex AI (`@usetheo/sdk` Adoption Roadmap #8; ADRs D286-D302).
+One-shot Gemini (or Claude) prompt via GCP Vertex AI (`@theokit/sdk` Adoption Roadmap #8; ADRs D286-D302).
 
 ## Setup
 

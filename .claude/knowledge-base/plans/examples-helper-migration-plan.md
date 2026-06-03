@@ -2,7 +2,7 @@
 
 > **STATUS: COMPLETO + Phase 6 adicionada — 7 phases concluídas. 39/39 examples typecheck verde + 26/29 standalone real-LLM examples passados + 10/10 fixture-mode validated per inviolable rule. Descobriu + corrigiu bug crítico durante real-LLM sweep: SDK dist tinha top-level `import "zod"` quebrando todos os examples sem zod dep. Fix: `createRequire` lazy sync load em define-tool.ts. SDK tests 6/6 verde, defineTool semantics inalteradas. 1 fail (telegram-bot) é token conflict ambiental; 2 skipped (mcp-http, plugins-walkthrough) pendem .env do usuário.**
 
-> **Version 1.0** — Pass de revisão completa nos 39 examples do `@usetheo/sdk` após o release dos 4 DX helpers (`Agent.getOrCreate`, `createAgentFactory`, `defineTool`, `Agent.builder()`). Objetivo: garantir que (1) zero regressão de typecheck pós-rebuild SDK; (2) examples com `as` cast em custom tools migram para `defineTool`; (3) dogfood scripts internos migram para `getOrCreate`; (4) examples didáticos de showcase ganham variante helper (sem destruir o pattern original que ensina o feature base). Outcome: 39/39 examples typecheck clean, ~6 examples com migração concreta, ~3 com variante didática adicionada, e o README index aponta qual helper cada example demonstra quando aplicável.
+> **Version 1.0** — Pass de revisão completa nos 39 examples do `@theokit/sdk` após o release dos 4 DX helpers (`Agent.getOrCreate`, `createAgentFactory`, `defineTool`, `Agent.builder()`). Objetivo: garantir que (1) zero regressão de typecheck pós-rebuild SDK; (2) examples com `as` cast em custom tools migram para `defineTool`; (3) dogfood scripts internos migram para `getOrCreate`; (4) examples didáticos de showcase ganham variante helper (sem destruir o pattern original que ensina o feature base). Outcome: 39/39 examples typecheck clean, ~6 examples com migração concreta, ~3 com variante didática adicionada, e o README index aponta qual helper cada example demonstra quando aplicável.
 
 ## Context
 
@@ -17,14 +17,14 @@
 
 **Por que o trabalho vale:**
 
-- Após o release dos helpers (commit do plano anterior), o `dist` do SDK ganhou 4 novos symbols (`getOrCreate`, `AgentBuilder`, `createAgentFactory`, `defineTool`). Cada example tem seu próprio `node_modules/@usetheo/sdk` link que precisa refresh — typecheck pode falhar silenciosamente em CI até que cada example reinstale.
+- Após o release dos helpers (commit do plano anterior), o `dist` do SDK ganhou 4 novos symbols (`getOrCreate`, `AgentBuilder`, `createAgentFactory`, `defineTool`). Cada example tem seu próprio `node_modules/@theokit/sdk` link que precisa refresh — typecheck pode falhar silenciosamente em CI até que cada example reinstale.
 - Os 2 dogfood scripts do `telegram-bot/src/dogfood*.ts` ainda usam o try/catch antigo — não são examples didáticos publicados, são test scripts internos, e mantê-los inconsistentes confunde quem clona o repo.
 - `shell-tool` e `hooks-policy` têm `as` cast em definições de tool — mesmo padrão que `ad-hoc-tools.ts` tinha antes da migração. Removendo o cast ganhamos type-safety + Zod runtime validation grátis.
 - Os 29 examples "plain" são propositalmente single-feature (foco didático). Migrar tudo para builder/factory **obscurece** o que eles ensinam. EXCEÇÃO: o `quickstart` é a primeira impressão — adicionar uma seção "...e você pode escrever isso assim com Agent.builder()" gera 80% do valor pedagógico dos helpers para 0% de churn nos outros.
 
 **Riscos identificados (não-especulativos):**
 
-- Os 39 examples têm `package.json` com dep `"@usetheo/sdk": "file:../../packages/sdk"`. pnpm symlinks o dist; se o symlink não atualizar após rebuild SDK, o tsc enxerga API antiga e falha. Confirmado durante a migração do telegram-pro: o `pnpm install --ignore-workspace` foi necessário para refrescar.
+- Os 39 examples têm `package.json` com dep `"@theokit/sdk": "file:../../packages/sdk"`. pnpm symlinks o dist; se o symlink não atualizar após rebuild SDK, o tsc enxerga API antiga e falha. Confirmado durante a migração do telegram-pro: o `pnpm install --ignore-workspace` foi necessário para refrescar.
 - Examples com Zod opt-in: hoje só telegram-pro tem zod como dep direta. Se algum example "plain" começar a usar `defineTool`, precisa do mesmo dep.
 
 **Referências:**
@@ -601,9 +601,9 @@ examples/README.md — (NEW ou rewrite) tabela completa + seção "Where to star
 #### Deep Dives
 Estrutura sugerida:
 ```markdown
-# @usetheo/sdk Examples
+# @theokit/sdk Examples
 
-39 runnable examples covering the public surface of `@usetheo/sdk`.
+39 runnable examples covering the public surface of `@theokit/sdk`.
 
 ## Where to start
 

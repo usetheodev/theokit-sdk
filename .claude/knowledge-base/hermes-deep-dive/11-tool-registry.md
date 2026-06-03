@@ -113,7 +113,7 @@ TOOLSETS: Dict[str, List[str]] = {…}
 
 - **Rationale**: Tools live with their handlers. No separate "tools.yaml" registry file that drifts from code.
 
-- **TypeScript translation**: `defineTool({...})` returns a `Tool` object. A barrel file (`packages/sdk/src/tools/index.ts`) re-exports each. SDK consumers `import { theKanbanTools } from "@usetheo/sdk"` and pass the toolset to `Agent.create({ tools })`.
+- **TypeScript translation**: `defineTool({...})` returns a `Tool` object. A barrel file (`packages/sdk/src/tools/index.ts`) re-exports each. SDK consumers `import { theKanbanTools } from "@theokit/sdk"` and pass the toolset to `Agent.create({ tools })`.
 
 ### AD-3: Auto-discovery imports — but toolset wiring is manual
 

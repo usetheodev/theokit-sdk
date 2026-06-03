@@ -7,7 +7,7 @@
  *   - `theokit db migrate`        → drizzle-kit migrate
  *   - `theokit db studio`         → drizzle-kit studio
  *   - `theokit db push`           → drizzle-kit push (dangerous, gated)
- *   - `theokit db export-schema`  → run @usetheo/orm schema-export → .theokit/schema/{entity}.schema.json
+ *   - `theokit db export-schema`  → run @theokit/orm schema-export → .theokit/schema/{entity}.schema.json
  *   - `theokit db check-schema-drift`
  *                                 → re-emit and diff against committed schemas; exit 1 on drift
  *
@@ -116,7 +116,7 @@ async function loadSchemaExporter(cwd: string): Promise<SchemaExportModule> {
       return (await import(pathToFileURL(c).href)) as SchemaExportModule;
     }
   }
-  throw new Error("theokit db: @usetheo/orm is not installed. Install it: pnpm add @usetheo/orm");
+  throw new Error("theokit db: @theokit/orm is not installed. Install it: pnpm add @theokit/orm");
 }
 
 function atomicWrite(filePath: string, content: string): void {

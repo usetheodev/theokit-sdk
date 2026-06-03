@@ -6,7 +6,7 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk";
-import type { Run } from "@usetheo/sdk";
+import type { Run } from "@theokit/sdk";
 import { ACP_ERR, type AcpError } from "./lifecycle.js";
 import { installPermissionPlugin } from "./permission-plugin.js";
 import { extractPrompt } from "./prompt-extract.js";

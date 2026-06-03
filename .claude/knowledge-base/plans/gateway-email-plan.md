@@ -1,6 +1,6 @@
-# Plan: `@usetheo/gateway-email` v0.1.0 (Roadmap v1.4 #4)
+# Plan: `@theokit/gateway-email` v0.1.0 (Roadmap v1.4 #4)
 
-> **Version 1.1** (2026-05-24) — Ship the Email adapter for `@usetheo/gateway` using the **Node community standard 2026 stack**: `nodemailer` (SMTP outbound), `imapflow` (IMAP IDLE/poll inbound), `mailparser` (RFC 5322 parsing). v1 scope: 1:1 DMs (sender ↔ bot), text body, threading via `Message-ID`/`In-Reply-To`/`References` chain (RFC 5322). Inspired by `referencia/hermes-agent/gateway/platforms/email.py` (773 lines) but adapted to Node async/await idioms and the modern `imapflow` IDLE-first approach. Env-gated example using Gmail App Passwords + IMAP/SMTP. Expected outcome: builders can drop `@usetheo/gateway-email` into their stack and reach the **most universal communication channel ever invented** — zero client onboarding required from the user side. Completes the v1.4 enterprise triangle (Slack ✅ + Teams ✅ + WhatsApp ✅ + Email).
+> **Version 1.1** (2026-05-24) — Ship the Email adapter for `@theokit/gateway` using the **Node community standard 2026 stack**: `nodemailer` (SMTP outbound), `imapflow` (IMAP IDLE/poll inbound), `mailparser` (RFC 5322 parsing). v1 scope: 1:1 DMs (sender ↔ bot), text body, threading via `Message-ID`/`In-Reply-To`/`References` chain (RFC 5322). Inspired by `referencia/hermes-agent/gateway/platforms/email.py` (773 lines) but adapted to Node async/await idioms and the modern `imapflow` IDLE-first approach. Env-gated example using Gmail App Passwords + IMAP/SMTP. Expected outcome: builders can drop `@theokit/gateway-email` into their stack and reach the **most universal communication channel ever invented** — zero client onboarding required from the user side. Completes the v1.4 enterprise triangle (Slack ✅ + Teams ✅ + WhatsApp ✅ + Email).
 
 > **Edge-case review 2026-05-24 absorbed (v1.1):** 5 MUST FIX identified by `/edge-case-plan`:
 > - **EC-1** (T5.3, CRITICAL) — drop own-address loopback FIRST in `_dispatchInbound`. Without this, mailing-lists / BCC-self / Gmail "All Mail" cause infinite send/receive loop = $$ in LLM tokens.
@@ -15,8 +15,8 @@
 
 ### What exists today
 
-- 5 gateways shipped: `@usetheo/gateway-telegram`, `@usetheo/gateway-discord`, `@usetheo/gateway-slack`, `@usetheo/gateway-whatsapp`, `@usetheo/gateway-teams` (D170-D326).
-- `@usetheo/gateway@0.3.0` — `BasePlatformAdapter` + closed `PlatformName = "telegram" | "discord" | "slack" | "whatsapp" | "teams"`. Opens to `"email"` per the D308/D325 additive-bump pattern.
+- 5 gateways shipped: `@theokit/gateway-telegram`, `@theokit/gateway-discord`, `@theokit/gateway-slack`, `@theokit/gateway-whatsapp`, `@theokit/gateway-teams` (D170-D326).
+- `@theokit/gateway@0.3.0` — `BasePlatformAdapter` + closed `PlatformName = "telegram" | "discord" | "slack" | "whatsapp" | "teams"`. Opens to `"email"` per the D308/D325 additive-bump pattern.
 - `examples/whatsapp-bot/` and `examples/teams-bot/` demonstrate the pattern: env-gated standalone example, README walkthrough, smoke that validates credentials.
 
 ### What's missing
@@ -58,11 +58,11 @@
 
 ## Objective
 
-**Done = a user can `pnpm add @usetheo/gateway-email`, set 4 env vars (`EMAIL_ADDRESS`/`EMAIL_PASSWORD`/`EMAIL_IMAP_HOST`/`EMAIL_SMTP_HOST`), and their `@usetheo/sdk` agent receives Gmail messages + replies in the same thread.**
+**Done = a user can `pnpm add @theokit/gateway-email`, set 4 env vars (`EMAIL_ADDRESS`/`EMAIL_PASSWORD`/`EMAIL_IMAP_HOST`/`EMAIL_SMTP_HOST`), and their `@theokit/sdk` agent receives Gmail messages + replies in the same thread.**
 
 Measurable goals:
 
-1. Package `@usetheo/gateway-email` v0.1.0 shippable via npm (publint + attw clean).
+1. Package `@theokit/gateway-email` v0.1.0 shippable via npm (publint + attw clean).
 2. `EmailAdapter` extends `BasePlatformAdapter`; passes `instanceof` checks; never throws on platform errors per D172 contract.
 3. Inbound: IMAP IDLE preferred, polling fallback. Normalized to `EmailMessageEvent` with portable fields + `event.email.raw` escape hatch.
 4. Outbound: SMTP via `nodemailer`. Threading reciprocity (preserves `In-Reply-To` + `References`).
@@ -146,9 +146,9 @@ Measurable goals:
 - **Consequences:** Standard 0.x semver.
 
 ### D339 — `PlatformName` extends to `"email"`
-- **Decision:** Open `@usetheo/gateway` `PlatformName` union to include `"email"`. Bump gateway to 0.4.0. Add `EmailMessageEvent` variant.
+- **Decision:** Open `@theokit/gateway` `PlatformName` union to include `"email"`. Bump gateway to 0.4.0. Add `EmailMessageEvent` variant.
 - **Rationale:** Same additive bump pattern (D308, D325). Existing consumers unaffected.
-- **Consequences:** `@usetheo/gateway` 0.3.0 → 0.4.0.
+- **Consequences:** `@theokit/gateway` 0.3.0 → 0.4.0.
 
 ## Dependency Graph
 
@@ -246,7 +246,7 @@ packages/gateway-email/src/index.ts (NEW — empty barrel)
 
 #### Deep file dependency analysis
 - Template from `packages/gateway-teams/package.json`. Adjust name, peers.
-- `peerDependencies`: `@usetheo/gateway`, `@usetheo/sdk`, `nodemailer@^8`, `imapflow@^1`, `mailparser@^3`.
+- `peerDependencies`: `@theokit/gateway`, `@theokit/sdk`, `nodemailer@^8`, `imapflow@^1`, `mailparser@^3`.
 - `devDependencies`: same peers + `@types/nodemailer`, `@types/mailparser`, tsup, typescript, vitest.
 
 #### Deep Dives
@@ -262,9 +262,9 @@ packages/gateway-email/src/index.ts (NEW — empty barrel)
 
 #### TDD
 ```
-RED:     test_package_resolves — `pnpm list @usetheo/gateway-email` shows it
+RED:     test_package_resolves — `pnpm list @theokit/gateway-email` shows it
 GREEN:   Package skeleton in workspace
-VERIFY:  pnpm install && pnpm list @usetheo/gateway-email
+VERIFY:  pnpm install && pnpm list @theokit/gateway-email
 ```
 
 #### Acceptance Criteria
@@ -322,7 +322,7 @@ packages/gateway/tests/types/message-event.test.ts — add email variant test + 
 1. Add `"email"` to `PlatformName` union.
 2. Add `EmailMessageEvent` interface.
 3. Add to `MessageEvent` union export.
-4. Update `@usetheo/gateway/package.json` to `0.4.0`.
+4. Update `@theokit/gateway/package.json` to `0.4.0`.
 5. Add CHANGELOG entry.
 6. Update `tests/types/message-event.test.ts` exhaustive switch.
 
@@ -332,12 +332,12 @@ RED:     test_platform_name_includes_email — `const _p: PlatformName = "email"
 RED:     test_email_event_narrows — switch case "email" narrows to `event.email.messageId`
 RED:     test_exhaustive_switch_covers_email — full union exhaustive
 GREEN:   Types compile + tests pass
-VERIFY:  pnpm --filter @usetheo/gateway typecheck && pnpm --filter @usetheo/gateway test
+VERIFY:  pnpm --filter @theokit/gateway typecheck && pnpm --filter @theokit/gateway test
 ```
 
 #### Acceptance Criteria
 - [ ] `PlatformName` includes `"email"`
-- [ ] `EmailMessageEvent` exported from `@usetheo/gateway`
+- [ ] `EmailMessageEvent` exported from `@theokit/gateway`
 - [ ] Sibling adapters typecheck
 - [ ] CHANGELOG entry (0.4.0)
 
@@ -414,7 +414,7 @@ RED:     test_adapter_constructor_validates_non_empty_password
 RED:     test_adapter_constructor_validates_non_empty_imap_host
 RED:     test_adapter_constructor_validates_non_empty_smtp_host
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test adapter.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test adapter.test.ts
 ```
 
 #### Acceptance Criteria
@@ -471,7 +471,7 @@ RED:     test_imap_client_poll_returns_unseen_messages
 RED:     test_imap_client_reconnect_after_close — auto-reconnect on connection drop
 RED:     test_imap_client_disconnect_idempotent
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test imap-client.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test imap-client.test.ts
 ```
 
 #### Acceptance Criteria
@@ -544,7 +544,7 @@ RED:     test_normalize_excludes_bot_from_recipients
 RED:     test_normalize_topic_id_equals_message_id
 RED:     test_normalize_reports_attachment_count
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test normalize.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test normalize.test.ts
 ```
 
 #### Acceptance Criteria
@@ -601,7 +601,7 @@ RED:     test_seen_uid_set_add_then_has
 RED:     test_seen_uid_set_caps_at_5000_with_fifo_trim — inserting 6000 UIDs drops oldest
 RED:     test_seen_uid_set_clear_empties
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test seen-uids.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test seen-uids.test.ts
 ```
 
 #### Acceptance Criteria
@@ -653,7 +653,7 @@ RED:     test_smtp_client_send_returns_new_message_id (without `<>`)
 RED:     test_smtp_client_send_utf8_subject (EC-8) — subject "Olá, café ☕" → nodemailer encodes per RFC 2047
 RED:     test_smtp_client_close_idempotent
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test smtp-client.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test smtp-client.test.ts
 ```
 
 #### Acceptance Criteria
@@ -706,7 +706,7 @@ RED:     test_thread_store_lookup_returns_undefined_for_unknown
 RED:     test_thread_store_caps_at_1000
 RED:     test_thread_store_subject_decoded_from_event
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test thread-store.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test thread-store.test.ts
 ```
 
 #### Acceptance Criteria
@@ -783,7 +783,7 @@ RED:     test_send_empty_text_returns_error
 RED:     test_send_not_connected_returns_error
 RED:     test_send_returns_message_id
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test adapter.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test adapter.test.ts
 ```
 
 #### Acceptance Criteria
@@ -840,7 +840,7 @@ RED:     test_filter_blocks_precedence_bulk_header
 RED:     test_filter_allows_normal_user_address
 RED:     test_filter_case_insensitive
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test filters.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test filters.test.ts
 ```
 
 #### Acceptance Criteria
@@ -899,7 +899,7 @@ RED:     test_allowed_sender_not_in_list_denied
 RED:     test_allowed_sender_bracketed_allowlist_entry (EC-3) — allowlist `["Alice <alice@e.com>"]` matches inbound `alice@e.com`
 RED:     test_allowed_sender_pure_email_in_allowlist (EC-3) — allowlist `["alice@e.com"]` matches inbound `alice@e.com` (no regression)
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test filters.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test filters.test.ts
 ```
 
 #### Acceptance Criteria
@@ -945,7 +945,7 @@ RED:     test_map_imap_auth_failed
 RED:     test_map_plain_error_econnrefused_to_server_error
 RED:     test_map_null_to_unknown
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test errors.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test errors.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1006,7 +1006,7 @@ RED:     test_connect_idempotent
 RED:     test_disconnect_cancels_inbound_loop
 RED:     test_disconnect_idempotent
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test adapter.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test adapter.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1091,7 +1091,7 @@ RED:     test_dispatch_filters_disallowed_senders
 RED:     test_dispatch_records_thread_context
 RED:     test_dispatch_invokes_handler_on_allowed_message
 GREEN:   Implement
-VERIFY:  pnpm --filter @usetheo/gateway-email test adapter.test.ts
+VERIFY:  pnpm --filter @theokit/gateway-email test adapter.test.ts
 ```
 
 #### Acceptance Criteria
@@ -1135,8 +1135,8 @@ examples/email-bot/tsconfig.json (NEW)
   ```
 - `run.ts`:
   ```typescript
-  import { EmailAdapter } from "@usetheo/gateway-email";
-  import { Agent } from "@usetheo/sdk";
+  import { EmailAdapter } from "@theokit/gateway-email";
+  import { Agent } from "@theokit/sdk";
   const adapter = new EmailAdapter({...});
   adapter.onInbound(async (event) => {
     if (event.platform !== "email") return;
@@ -1232,7 +1232,7 @@ VERIFY:  cd examples/email-bot && pnpm tsx smoke.ts
 ```
 
 #### Tasks
-1. Add `@usetheo/gateway-email` row to shipped-adapters table.
+1. Add `@theokit/gateway-email` row to shipped-adapters table.
 2. Update roadmap blurb: ✅ WhatsApp, ✅ Teams, ✅ Email — next: Google Workspace skills.
 
 #### TDD
@@ -1267,7 +1267,7 @@ GREEN:   grep -i email concepts/gateways.mdx — Email row present
 ### T7.3 — Drift checker
 
 #### Tasks
-1. `pnpm --filter @usetheo/sdk run docs:drift`.
+1. `pnpm --filter @theokit/sdk run docs:drift`.
 
 #### DoD
 - [ ] Exit 0
@@ -1303,7 +1303,7 @@ GREEN:   grep -i email concepts/gateways.mdx — Email row present
 
 #### Tasks
 1. theokit-sdk: stage new package + CHANGELOG + roadmap + plan.
-2. theokit-sdk: commit `feat(gateway): @usetheo/gateway-email v0.1.0 (Roadmap v1.4 #4)`.
+2. theokit-sdk: commit `feat(gateway): @theokit/gateway-email v0.1.0 (Roadmap v1.4 #4)`.
 3. theokit-sdk: push.
 4. theo-opendocs: commit cookbook + gateways.mdx.
 5. theo-opendocs: push.
@@ -1345,8 +1345,8 @@ GREEN:   grep -i email concepts/gateways.mdx — Email row present
 ## Global Definition of Done
 
 - [ ] Phases 0-8 complete
-- [ ] All tests passing in `@usetheo/gateway-email`
-- [ ] `@usetheo/gateway` bumped to 0.4.0 (union opened for `"email"`)
+- [ ] All tests passing in `@theokit/gateway-email`
+- [ ] `@theokit/gateway` bumped to 0.4.0 (union opened for `"email"`)
 - [ ] `examples/email-bot/` scaffold + README + smoke
 - [ ] theo-opendocs `concepts/gateways.mdx` updated + cookbook regenerated
 - [ ] Drift checker clean

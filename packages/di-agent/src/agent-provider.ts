@@ -1,10 +1,10 @@
-import { type FactoryProvider, Scope } from "@usetheo/di";
+import { type FactoryProvider, Scope } from "@theokit/di";
 
 import { AGENT_TOKEN } from "./tokens.js";
 
 /**
  * Options accepted by `createAgentProvider()`. Mirrors the public
- * `AgentOptions` from `@usetheo/sdk` but kept structural so this package
+ * `AgentOptions` from `@theokit/sdk` but kept structural so this package
  * does not have a hard import dependency on the SDK's type tree.
  *
  * The factory `async () => Agent.create(options)` is provided by the
@@ -14,7 +14,7 @@ import { AGENT_TOKEN } from "./tokens.js";
 export interface CreateAgentProviderOptions<TAgent> {
   /**
    * Factory function that produces a fresh Agent per REQUEST.
-   * Typically `() => Agent.create({...})` from `@usetheo/sdk`.
+   * Typically `() => Agent.create({...})` from `@theokit/sdk`.
    */
   factory: () => TAgent | Promise<TAgent>;
   /**
@@ -29,9 +29,9 @@ export interface CreateAgentProviderOptions<TAgent> {
  * Build a `FactoryProvider` that materializes an Agent on demand.
  *
  * @example
- *   import { Agent } from "@usetheo/sdk";
- *   import { Module } from "@usetheo/di";
- *   import { createAgentProvider } from "@usetheo/di-agent";
+ *   import { Agent } from "@theokit/sdk";
+ *   import { Module } from "@theokit/di";
+ *   import { createAgentProvider } from "@theokit/di-agent";
  *
  *   @Module({
  *     providers: [

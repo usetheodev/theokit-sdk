@@ -4,13 +4,13 @@
 >
 > **Version 1.1** — Edge case review 2026-05-22 absorveu 7 MUST FIX (EC-1 graceful embedder degradation, EC-2 dim mismatch filter, EC-3 empty prompt bypass, EC-4 asPlugin memoization, EC-7 corrupt JSON recovery, EC-10 don't cache tool-use runs, EC-13 single-source-of-truth Map) + 3 SHOULD TEST added to TDD + 3 DOCUMENT integrated as invariants. **Adicionada D266** para a decisão semântica de "não cachear tool-use runs". See `.claude/knowledge-base/reviews/edge-case/semantic-cache-edge-cases-2026-05-22.md`.
 >
-> **Version 1.0** — Adiciona ao `@usetheo/sdk` uma camada de cache semântico para chamadas LLM, montada sobre os primitivos existentes (`MemoryEmbeddingProviderAdapter` D11 + plugin hooks `pre_user_send` / `post_assistant_reply` D145 + `internal/persistence/` D59-D64). API alvo: `Cache.semantic({ embedder, threshold, ttl, namespace }).asPlugin()` plugável via `Agent.create({ plugins: [cache] })`. Outcome esperado: shippar o item #6 do Adoption Roadmap com ADRs D249-D265, integração validada via `/cache_demo` no telegram-pro, e demonstração mensurável de hit rate via OTel spans `cache.hit` / `cache.miss`. **Não é** um RAG retriever (esse papel é da Memory). É um pré-filtro entre `agent.send(prompt)` e o LLM real — se uma query semanticamente equivalente já foi respondida dentro do TTL+threshold, devolvemos a resposta cacheada sem chamar o provider.
+> **Version 1.0** — Adiciona ao `@theokit/sdk` uma camada de cache semântico para chamadas LLM, montada sobre os primitivos existentes (`MemoryEmbeddingProviderAdapter` D11 + plugin hooks `pre_user_send` / `post_assistant_reply` D145 + `internal/persistence/` D59-D64). API alvo: `Cache.semantic({ embedder, threshold, ttl, namespace }).asPlugin()` plugável via `Agent.create({ plugins: [cache] })`. Outcome esperado: shippar o item #6 do Adoption Roadmap com ADRs D249-D265, integração validada via `/cache_demo` no telegram-pro, e demonstração mensurável de hit rate via OTel spans `cache.hit` / `cache.miss`. **Não é** um RAG retriever (esse papel é da Memory). É um pré-filtro entre `agent.send(prompt)` e o LLM real — se uma query semanticamente equivalente já foi respondida dentro do TTL+threshold, devolvemos a resposta cacheada sem chamar o provider.
 
 ## Context
 
 **O que existe hoje no SDK:**
 - `MemoryEmbeddingProviderAdapter` (D11) — adapters openai/mistral/openrouter/voyage/deepinfra shipados; `EmbeddingRuntime#embed(texts)` retorna `number[][]`.
-- `MemoryAdapter` (D141-D149) — interface formal para storage com 3 packages (`@usetheo/memory-supermemory`, `@usetheo/memory-honcho`, `@usetheo/memory-mem0`).
+- `MemoryAdapter` (D141-D149) — interface formal para storage com 3 packages (`@theokit/memory-supermemory`, `@theokit/memory-honcho`, `@theokit/memory-mem0`).
 - `Plugin` (D97-D109) — discriminated union por `kind`, registrado via `Agent.create({ plugins: [...] })`. Hooks `pre_user_send` + `post_assistant_reply` (D145) já interceptam o fluxo de envio antes/depois do LLM.
 - `internal/persistence/` (D59-D64) — `atomicWriteJson`, `readVersionedJson`, `casUpdate` — primitivas reusáveis para snapshots opt-in.
 - `internal/telemetry/` (D34) — wrapper lazy de `@opentelemetry/api` com seam validado em 4 features (eval, handoff, workflow, agent loop).
@@ -20,7 +20,7 @@
 
 Hoje, todo `agent.send(prompt)` bate o LLM, mesmo quando o usuário pergunta a mesma coisa (ou paráfrase) em queries sucessivas. Helicone Cache resolve **exato** via HTTP headers (não semantic), Anthropic prompt_caching resolve **prefix idêntico** com 90% discount mas não pega paráfrases, e Vercel AI SDK só tem cache exato via middleware. **LangCache (Redis)** é a única referência TS de mercado para semantic cache e está em **preview pública** (não-GA em maio/2026). LangChain Python tem `RedisSemanticCache`/`MongoDBAtlasSemanticCache` mas não há equivalente JS oficial. GPTCache (Python only, manutenção em queda).
 
-**Implicação para `@usetheo/sdk`:** ou shippamos in-house (mimetizando shape do LangCache SDK + lições do vCache paper + arquitetura layered do GPTCache), ou ficamos atrás em paridade. O caminho in-house é viável **sem** novos backends — `MemoryEmbeddingProviderAdapter` (D11) já dá embeddings; `internal/memory/embedding-cache.ts` já dá LRU local; `internal/persistence/atomic-write.ts` (D60) dá disk persistence; plugin hooks já dão pontos de interceção.
+**Implicação para `@theokit/sdk`:** ou shippamos in-house (mimetizando shape do LangCache SDK + lições do vCache paper + arquitetura layered do GPTCache), ou ficamos atrás em paridade. O caminho in-house é viável **sem** novos backends — `MemoryEmbeddingProviderAdapter` (D11) já dá embeddings; `internal/memory/embedding-cache.ts` já dá LRU local; `internal/persistence/atomic-write.ts` (D60) dá disk persistence; plugin hooks já dão pontos de interceção.
 
 **Evidências da pesquisa web (2025-2026):**
 
@@ -402,7 +402,7 @@ RED:
   - cache_persistence_dir_required_for_json_backend (compile-time guard via refine)
 GREEN: Define types.
 REFACTOR: None expected.
-VERIFY: pnpm -F @usetheo/sdk typecheck
+VERIFY: pnpm -F @theokit/sdk typecheck
 ```
 
 #### Acceptance Criteria
@@ -411,7 +411,7 @@ VERIFY: pnpm -F @usetheo/sdk typecheck
 - [ ] Re-exported via `types/index.ts`.
 
 #### DoD
-- [ ] `pnpm -F @usetheo/sdk typecheck` verde.
+- [ ] `pnpm -F @theokit/sdk typecheck` verde.
 
 ---
 
@@ -1044,7 +1044,7 @@ Cover:
 
 ### Execution
 ```bash
-pnpm -F @usetheo/sdk build
+pnpm -F @theokit/sdk build
 # refresh telegram-pro link (zod symlink, dist copy)
 ps aux | grep tsx.*telegram-pro | awk '{print $2}' | xargs -r kill -9
 cd examples/telegram-pro && nohup pnpm tsx --env-file=.env src/index.ts > /tmp/tgpro-cache.log 2>&1 & disown

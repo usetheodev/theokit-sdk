@@ -84,7 +84,7 @@ References cross-checked (file paths verified):
 
 | Task | Expected | Actual | Status |
 |---|---|---|---|
-| T1.1 — SystemPromptContext + Resolver + AgentOptions field | New types exported from `@usetheo/sdk`, AgentOptions has optional field | `types/agent.ts` lines 96-141 (3 new types + AgentOptions field) | ✓ |
+| T1.1 — SystemPromptContext + Resolver + AgentOptions field | New types exported from `@theokit/sdk`, AgentOptions has optional field | `types/agent.ts` lines 96-141 (3 new types + AgentOptions field) | ✓ |
 | T1.2 — SendOptions.systemPrompt | Optional string field | `types/run.ts` lines 90-95 (with JSDoc) | ✓ |
 | T2.1 — resolveSystemPrompt helper | Pure function, 9 RED tests pass | `internal/runtime/system-prompt.ts` + 9/9 unit tests green | ✓ |
 | T3.1 — LocalAgent wiring | LocalAgent.send resolves + threads, lazy skills | `local-agent.ts` `resolveSystemPromptForSend` + `buildSystemPromptContext` (guards `skillsManager === undefined`) | ✓ |

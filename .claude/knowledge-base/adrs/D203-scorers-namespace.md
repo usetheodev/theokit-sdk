@@ -8,7 +8,7 @@
 Built-in scorers ship as a namespace export from the SDK barrel:
 
 ```ts
-import { Scorers } from "@usetheo/sdk";
+import { Scorers } from "@theokit/sdk";
 const scorer = Scorers.containsExpected({ caseSensitive: false });
 ```
 

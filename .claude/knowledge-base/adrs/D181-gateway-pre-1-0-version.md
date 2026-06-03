@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/gateway`, `@usetheo/gateway-telegram`, and `@usetheo/gateway-discord` all publish at version `0.1.0`. Breaking changes are allowed within the `0.x.y` line per semver minor bumps. Promotion to `1.0.0` requires (a) at least one quarter of real-world use AND (b) a third adapter validating the abstraction contract.
+`@theokit/gateway`, `@theokit/gateway-telegram`, and `@theokit/gateway-discord` all publish at version `0.1.0`. Breaking changes are allowed within the `0.x.y` line per semver minor bumps. Promotion to `1.0.0` requires (a) at least one quarter of real-world use AND (b) a third adapter validating the abstraction contract.
 
 ## Rationale
 

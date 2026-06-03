@@ -5,7 +5,7 @@
 
 ## Decision
 
-Os examples React do `@usetheo/react` são apps Next.js 14 standalone (App Router), não componentes isolados nem demos via Vite. Cada example tem `package.json`, `next.config.mjs`, `tsconfig.json`, `app/layout.tsx`, e usa o pattern Route Handler (`app/api/*/route.ts`) para o servidor.
+Os examples React do `@theokit/react` são apps Next.js 14 standalone (App Router), não componentes isolados nem demos via Vite. Cada example tem `package.json`, `next.config.mjs`, `tsconfig.json`, `app/layout.tsx`, e usa o pattern Route Handler (`app/api/*/route.ts`) para o servidor.
 
 ## Rationale
 
@@ -27,4 +27,4 @@ Alternativas consideradas:
 - Dev faz `pnpm install && pnpm dev` para boot; primeira request lazy-loads o agent.
 - Bundle size do example NÃO é otimizado (é demo, não prod) — sem code-splitting agressivo, sem prefetch tuning.
 - Quando Next.js 15 sair, example pode quebrar (Server Components defaults, fetch caching) — README documenta pin em 14.x.
-- Não cobre frameworks que NÃO são Next.js — outros frameworks que consumem o pacote `@usetheo/react` ficam por conta do user (handler shape é `Request → Response`, compatível com qualquer Web Standard runtime).
+- Não cobre frameworks que NÃO são Next.js — outros frameworks que consumem o pacote `@theokit/react` ficam por conta do user (handler shape é `Request → Response`, compatível com qualquer Web Standard runtime).

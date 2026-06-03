@@ -293,7 +293,7 @@ RED: vitest.setup.ts beforeEach clears extras — test A adds pattern, test B in
 
 GREEN: implement redact.ts + _test-reset.ts + index.ts + wire reset in vitest.setup.ts
 REFACTOR: ensure regex declarations are at module-top (zero per-call allocation), extract helper for length-bucket logic
-VERIFY: pnpm --filter @usetheo/sdk test tests/internal/security/redact.test.ts
+VERIFY: pnpm --filter @theokit/sdk test tests/internal/security/redact.test.ts
 ```
 
 #### Acceptance Criteria
