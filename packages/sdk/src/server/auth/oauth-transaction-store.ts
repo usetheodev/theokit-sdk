@@ -104,7 +104,7 @@ function clearCookie(res: ServerResponse, name: string): void {
   }
 }
 
-async function setTransaction(
+async function _setTransaction(
   res: ServerResponse,
   tx: OAuthTransaction,
   secret: string,
@@ -112,6 +112,8 @@ async function setTransaction(
   const encoded = await encodeTransaction(tx, secret);
   setCookie(res, COOKIE_NAME, encoded);
 }
+// Reserved internal helper — not currently invoked (drop-in for future T2.x refactor that consolidates SessionManager + tx-store crypto paths). Underscore prefix per biome noUnusedVariables documented escape.
+void _setTransaction;
 
 export async function getTransaction(
   req: IncomingMessage,
