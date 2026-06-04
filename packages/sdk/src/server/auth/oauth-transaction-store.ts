@@ -49,7 +49,7 @@ export async function encodeTransaction(tx: OAuthTransaction, secret: string): P
   return Buffer.from(combined).toString("base64url");
 }
 
-export async function decodeTransaction(
+async function decodeTransaction(
   encoded: string,
   secret: string,
 ): Promise<OAuthTransaction | null> {
@@ -66,7 +66,7 @@ export async function decodeTransaction(
   }
 }
 
-export function getCookie(req: IncomingMessage, name: string): string | null {
+function getCookie(req: IncomingMessage, name: string): string | null {
   const header = req.headers.cookie;
   if (!header) return null;
   for (const part of header.split(";")) {
@@ -76,7 +76,7 @@ export function getCookie(req: IncomingMessage, name: string): string | null {
   return null;
 }
 
-export function setCookie(res: ServerResponse, name: string, value: string): void {
+function setCookie(res: ServerResponse, name: string, value: string): void {
   const existing = res.getHeader("Set-Cookie");
   const cookie = `${name}=${value}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=${TX_LIFETIME_MS / 1000}`;
   if (Array.isArray(existing)) {
@@ -88,7 +88,7 @@ export function setCookie(res: ServerResponse, name: string, value: string): voi
   }
 }
 
-export function clearCookie(res: ServerResponse, name: string): void {
+function clearCookie(res: ServerResponse, name: string): void {
   setCookie(
     res,
     name,
@@ -104,7 +104,7 @@ export function clearCookie(res: ServerResponse, name: string): void {
   }
 }
 
-export async function setTransaction(
+async function setTransaction(
   res: ServerResponse,
   tx: OAuthTransaction,
   secret: string,
