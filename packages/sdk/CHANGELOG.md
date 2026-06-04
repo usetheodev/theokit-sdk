@@ -1,5 +1,58 @@
 # Changelog
 
+## 1.7.0 - 2026-06-04
+
+### Added
+
+- **`@theokit/sdk/subscription` sub-path** (per blueprint G8 SHIPPABLE 98.3) — typed subscription primitive with WS + W3C SSE transports + opaque resume tokens (`lastEventId`). Form 4 Hybrid (D423): low-level adapters (`createNodeWsAdapter`, `encodeSseChunk`, `parseSseW3C`) + high-level DSL (`defineSubscription`, `subscribe`, `tracked`).
+- **8 exports** at `@theokit/sdk/subscription`:
+  - `defineSubscription<TInput, TOutput>({input, output, handler})` — server-side typed RPC factory (D427)
+  - `subscribe<TInput, TOutput>(name, input, opts)` — client-side AsyncGenerator with transparent reconnect + lastEventId propagation (D428)
+  - `tracked(id, payload)` + `isTrackedEnvelope(value)` — resume token envelope helpers
+  - `SubscriptionTransport = 'ws' | 'sse' | 'auto'` (D425)
+  - `SubscriptionCtx`, `SubscriptionDescriptor<TInput, TOutput>`, `TrackedEnvelope<T>` (types)
+- **3 typed error classes:** `SubscriptionError`, `SubscriptionInputError` (carries Zod `issues`), `SubscriptionDisconnectError` (carries `closeCode`/`closeReason`). All extend `TheokitAgentError`.
+- **`ws@>=8.0.0` + `@types/ws@>=8.0.0` optional peer deps** — Node WS adapter loads `ws` via dynamic `import()` with actionable error when missing (D426). SSE-only consumers pay zero cost.
+- **W3C-spec SSE encoder + parser** — independent of D38 a peer vendor AI Data Stream v1 wire format (which stays locked for `streamAssistant` LLM streaming). Both coexist (D429).
+- **Server integration primitives** — `scanSubscriptions({appDir, outFile})` emits `.theo/subscriptions.json` mirroring G6 routes scanner; `mountSubscriptions({manifest, appDir})` returns `{handleSseRequest, handleWsUpgrade}` ready to wire into `http.Server`. theokit-side Vite plugin + dev-server wiring is a cross-repo follow-up (D430).
+
+### ADRs absorbed
+
+- **D423** — Form 4 Hybrid (low-level primitives + high-level DSL)
+- **D424** — `lastEventId` opaque, server-defined replay semantics
+- **D425** — Transport selection `'ws' | 'sse' | 'auto'` (default `'auto'` = WS-preferred)
+- **D426** — `ws` Node canonical (optional peer); CF Workers / Bun / Deno deferred to v1.8.x as separate packages
+- **D427** — `defineSubscription` AsyncGenerator + Zod input/output
+- **D428** — `subscribe` lives at `@theokit/sdk/subscription` sub-path only (NOT promoted to `Theokit.subscribe` due to pre-existing `agent.ts ↔ fork-agent.ts` rollup-dts cycle; same isolation pattern as `path-safety`)
+- **D429** — W3C SSE wire format (independent of D38 a peer vendor AI Data Stream)
+- **D430** — Server auto-route via `theokit.subscriptions` scanner (cross-repo follow-up for theokit-side wiring)
+
+### Security threats addressed
+
+| Threat | Mitigation |
+|---|---|
+| Resume token replay | Consumer SHOULD bind token to session + rotate per reconnect; SDK ships TTL knob via custom `tracked()` envelope semantics |
+| WS connection hijacking | Auth at HTTP upgrade — `WsAdapter.upgrade(ctx, raw)` exposes the `request` so consumer middleware (G11 `defineAuth`) runs BEFORE upgrade. Rejected upgrade returns null → caller responds 401 |
+| Subscription input tampering | Zod schema validation BEFORE handler invocation; throws `SubscriptionInputError` carrying issues |
+| Resource exhaustion | Per-subscription `AbortSignal`; `SubscriptionRuntime.getActiveConnectionCount()` for ops visibility; consumer wires rate-limit middleware (P#10) at upgrade boundary |
+| Sensitive data in logs | Telemetry seam (D34) captures metadata only (`subscriptionName`, `lastEventId`, `connectionId`); never payloads (per D73 redact at output boundaries) |
+| Long-lived WS survives token expiry | `ctx.disconnect(code, reason)` lets consumer's auth middleware force-close when session revoked |
+
+### Multi-runtime compatibility matrix
+
+| Runtime | v1.7.0 | v1.8.x (planned) |
+|---|---|---|
+| Node 22+ | yes (canonical `ws` peer) | yes |
+| Cloudflare Workers | consumer adapter only | yes (`@theokit/sdk-ws-cloudflare`) |
+| Bun | consumer adapter only | yes (`@theokit/sdk-ws-bun`) |
+| Deno | consumer adapter only | yes (`@theokit/sdk-ws-deno`) |
+
+### Notes
+
+- v1.7.0 is **additive** — no breaking changes. Existing `streamAssistant` (a peer vendor AI Data Stream, D38) untouched.
+- Tests: **45 GREEN + 1 honest-SKIP** under `tests/subscription/` + `tests/integration/subscription-resume.test.ts` (real `ws.WebSocketServer` + `http.Server` real SSE roundtrip + lastEventId resume) + `tests/integration/subscription-real-llm.test.ts` (env-gated `OPENROUTER_API_KEY` — verified GREEN against real OpenRouter `openai/gpt-4o-mini` per `real-llm-validation.md`).
+- Build: `dist/subscription/index.{js,cjs,d.ts,d.cts}` emitted; JS+CJS via tsup, DTS via tsc + `tsconfig.tools-dts.json` (mirrors `tools/` + `path-safety` pattern to avoid pre-existing `types/agent.ts ↔ fork-agent.ts` rollup-dts cycle).
+
 ## 1.6.0 - 2026-06-03
 
 ### Added

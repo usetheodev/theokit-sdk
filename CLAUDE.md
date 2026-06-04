@@ -542,8 +542,9 @@ Status SDK 2026-06-01 (resumo — detalhes no meta):
 - **v1.5 Adoption (2 items)**: 2/2 DONE 2026-05-27 — ACP server, Tasks observability.
 - **v1.5 Gateway Tier 1 (4 items)**: 4/4 DONE 2026-05-28 — SMS, Mattermost, LINE, Matrix.
 - **Backend DX P1 (DI + di-agent)**: DONE 2026-05-29, GA 0.1.0 published 2026-05-31. P2 (`@theokit/orm`) + P3 (`@theokit/http-decorators`) ⏳ next.
+- **G8 streaming (WebSocket + W3C SSE + opaque resume tokens, ADRs D423-D430)**: DONE 2026-06-04 — `@theokit/sdk@1.7.0` ships `@theokit/sdk/subscription` sub-path with `defineSubscription` + `subscribe` + `tracked` + Node `ws` canonical adapter. 45 tests GREEN + 1 honest-SKIP (real Node WS server roundtrip + lastEventId resume + real-LLM env-gated composition with `Agent.streamObject`). CF Workers/Bun/Deno adapters deferred v1.8.x.
 
-Total ADRs registradas: 421 (`./.claude/knowledge-base/adrs/D1` até `D421`).
+Total ADRs registradas: 430 (`./.claude/knowledge-base/adrs/D1` até `D430`).
 
 ## Inviolable rules (carried from root and global)
 

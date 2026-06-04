@@ -52,7 +52,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -65,10 +65,10 @@ importers:
     dependencies:
       '@theokit/acp':
         specifier: file:../../packages/acp
-        version: file:packages/acp(@agentclientprotocol/sdk@0.22.1(zod@4.4.3))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/acp(@agentclientprotocol/sdk@0.22.1(zod@4.4.3))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -84,7 +84,7 @@ importers:
         version: 1.1.0
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -97,7 +97,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -110,7 +110,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -141,13 +141,13 @@ importers:
     dependencies:
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-email':
         specifier: file:../../packages/gateway-email
-        version: file:packages/gateway-email(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(imapflow@1.3.3)(mailparser@3.9.8)(nodemailer@8.0.8)
+        version: file:packages/gateway-email(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(imapflow@1.3.3)(mailparser@3.9.8)(nodemailer@8.0.8)
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       imapflow:
         specifier: ^1.0.165
         version: 1.3.3
@@ -178,7 +178,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -191,7 +191,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -207,13 +207,13 @@ importers:
         version: 9.9.0
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-line':
         specifier: file:../../packages/gateway-line
-        version: file:packages/gateway-line(@line/bot-sdk@9.9.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@4.22.2)
+        version: file:packages/gateway-line(@line/bot-sdk@9.9.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@4.22.2)
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       express:
         specifier: ^4.19.0
         version: 4.22.2
@@ -232,13 +232,13 @@ importers:
     dependencies:
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-matrix':
         specifier: file:../../packages/gateway-matrix
-        version: file:packages/gateway-matrix(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(matrix-js-sdk@32.4.0)
+        version: file:packages/gateway-matrix(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(matrix-js-sdk@32.4.0)
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       matrix-js-sdk:
         specifier: ^32.0.0
         version: 32.4.0
@@ -257,13 +257,13 @@ importers:
         version: 9.11.0(@mattermost/types@9.3.0(typescript@5.9.3))(typescript@5.9.3)
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-mattermost':
         specifier: file:../../packages/gateway-mattermost
-        version: file:packages/gateway-mattermost(@mattermost/client@9.11.0(@mattermost/types@9.3.0(typescript@5.9.3))(typescript@5.9.3))(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(ws@8.20.1)
+        version: file:packages/gateway-mattermost(@mattermost/client@9.11.0(@mattermost/types@9.3.0(typescript@5.9.3))(typescript@5.9.3))(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(ws@8.20.1)
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       ws:
         specifier: ^8.16.0
         version: 8.20.1
@@ -282,7 +282,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -292,10 +292,10 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       '@theokit/skills-google-workspace':
         specifier: file:../../packages/skills-google-workspace
-        version: file:packages/skills-google-workspace(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/skills-google-workspace(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -317,13 +317,13 @@ importers:
         version: 6.13.0
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-slack':
         specifier: file:../../packages/gateway-slack
-        version: file:packages/gateway-slack(@slack/bolt@3.22.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway-slack(@slack/bolt@3.22.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -336,13 +336,13 @@ importers:
     dependencies:
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-sms':
         specifier: file:../../packages/gateway-sms
-        version: file:packages/gateway-sms(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@vonage/server-sdk@3.27.0)(express@4.22.2)(libphonenumber-js@1.13.3)(plivo@4.77.1)(twilio@5.13.1)
+        version: file:packages/gateway-sms(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@vonage/server-sdk@3.27.0)(express@4.22.2)(libphonenumber-js@1.13.3)(plivo@4.77.1)(twilio@5.13.1)
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       express:
         specifier: ^4.19.0
         version: 4.22.2
@@ -367,7 +367,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -383,13 +383,13 @@ importers:
         version: 2.0.11
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-teams':
         specifier: file:../../packages/gateway-teams
-        version: file:packages/gateway-teams(@microsoft/teams.apps@2.0.11)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway-teams(@microsoft/teams.apps@2.0.11)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       express:
         specifier: ^4.19.0
         version: 4.22.2
@@ -414,22 +414,22 @@ importers:
         version: 2.1.1
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-telegram':
         specifier: file:../../packages/gateway-telegram
-        version: file:packages/gateway-telegram(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(grammy@1.43.0)
+        version: file:packages/gateway-telegram(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(grammy@1.43.0)
       '@theokit/memory-honcho':
         specifier: file:../../packages/memory-honcho
-        version: file:packages/memory-honcho(@honcho-ai/sdk@2.1.1)(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/memory-honcho(@honcho-ai/sdk@2.1.1)(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/memory-mem0':
         specifier: file:../../packages/memory-mem0
-        version: file:packages/memory-mem0(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(mem0ai@3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@a framework/core@1.1.47(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(redis@5.12.1)(ws@8.21.0))
+        version: file:packages/memory-mem0(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(mem0ai@3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@a framework/core@1.1.47(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(redis@5.12.1)(ws@8.21.0))
       '@theokit/memory-supermemory':
         specifier: file:../../packages/memory-supermemory
-        version: file:packages/memory-supermemory(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(supermemory@4.21.1)
+        version: file:packages/memory-supermemory(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(supermemory@4.21.1)
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       grammy:
         specifier: ^1.30.0
         version: 1.43.0
@@ -460,7 +460,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -473,7 +473,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       google-auth-library:
         specifier: ^10.0.0
         version: 10.6.2
@@ -489,13 +489,13 @@ importers:
     dependencies:
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-whatsapp':
         specifier: file:../../packages/gateway-whatsapp
-        version: file:packages/gateway-whatsapp(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(whatsapp-web.js@1.34.7(typescript@5.9.3))
+        version: file:packages/gateway-whatsapp(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(whatsapp-web.js@1.34.7(typescript@5.9.3))
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       express:
         specifier: ^4.19.0
         version: 4.22.2
@@ -517,13 +517,13 @@ importers:
     dependencies:
       '@theokit/gateway':
         specifier: file:../../packages/gateway
-        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+        version: file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
       '@theokit/gateway-whatsapp':
         specifier: file:../../packages/gateway-whatsapp
-        version: file:packages/gateway-whatsapp(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(whatsapp-web.js@1.34.7(typescript@5.9.3))
+        version: file:packages/gateway-whatsapp(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(whatsapp-web.js@1.34.7(typescript@5.9.3))
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       whatsapp-web.js:
         specifier: ^1.23.0
         version: 1.34.7(typescript@5.9.3)
@@ -542,7 +542,7 @@ importers:
     dependencies:
       '@theokit/sdk':
         specifier: file:../../packages/sdk
-        version: file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: link:../../packages/sdk
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -664,7 +664,7 @@ importers:
         version: link:../sdk
       tsup:
         specifier: ^8.5.0
-        version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -893,7 +893,7 @@ importers:
         version: 1.43.0
       tsup:
         specifier: ^8.5.0
-        version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
       typescript:
         specifier: ^5.8.0
         version: 5.9.3
@@ -1055,6 +1055,9 @@ importers:
       '@types/proper-lockfile':
         specifier: ^4.1.4
         version: 4.1.4
+      '@types/ws':
+        specifier: ^8.18.0
+        version: 8.18.1
       better-sqlite3:
         specifier: ^12.10.0
         version: 12.10.0
@@ -1070,6 +1073,9 @@ importers:
       typedoc:
         specifier: ^0.28.19
         version: 0.28.19(typescript@5.9.3)
+      ws:
+        specifier: ^8.18.0
+        version: 8.21.0
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -2947,19 +2953,25 @@ packages:
     hasBin: true
     peerDependencies:
       '@lancedb/lancedb': ^0.30.0
+      '@types/ws': '>=8.0.0'
       better-sqlite3: ^12.0.0
       proper-lockfile: ^4.1.2
       sqlite-vec: ^0.1.0
+      ws: '>=8.0.0'
       zod: ^3.25.0 || ^4.0.0
       zod-to-json-schema: ^3.24.0
     peerDependenciesMeta:
       '@lancedb/lancedb':
+        optional: true
+      '@types/ws':
         optional: true
       better-sqlite3:
         optional: true
       proper-lockfile:
         optional: true
       sqlite-vec:
+        optional: true
+      ws:
         optional: true
       zod:
         optional: true
@@ -5881,10 +5893,6 @@ packages:
       yaml:
         optional: true
 
-  postcss@8.5.14:
-    resolution: {integrity: sha512-SoSL4+OSEtR99LHFZQiJLkT59C5B1amGO1NzTwj7TT1qCUgUO6hxOvzkOYxD+vMrXBM3XJIKzokoERdqQq/Zmg==}
-    engines: {node: ^10 || ^12 || >=14}
-
   postcss@8.5.15:
     resolution: {integrity: sha512-FfR8sjd4em2T6fb3I2MwAJU7HWVMr9zba+enmQeeWFfCbm+UOC/0X4DS8XtpUTMwWMGbjKYP7xjfNekzyGmB3A==}
     engines: {node: ^10 || ^12 || >=14}
@@ -7841,7 +7849,7 @@ snapshots:
       '@vladfrangu/async_event_emitter': 2.4.7
       discord-api-types: 0.38.47
       tslib: 2.8.1
-      ws: 8.20.1
+      ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -8088,7 +8096,7 @@ snapshots:
       '@jest/schemas': 29.6.3
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 25.9.1
+      '@types/node': 22.19.19
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -8945,52 +8953,52 @@ snapshots:
     dependencies:
       '@swc/counter': 0.1.3
 
-  '@theokit/acp@file:packages/acp(@agentclientprotocol/sdk@0.22.1(zod@4.4.3))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@theokit/acp@file:packages/acp(@agentclientprotocol/sdk@0.22.1(zod@4.4.3))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
       '@agentclientprotocol/sdk': 0.22.1(zod@4.4.3)
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
-  '@theokit/gateway-email@file:packages/gateway-email(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(imapflow@1.3.3)(mailparser@3.9.8)(nodemailer@8.0.8)':
+  '@theokit/gateway-email@file:packages/gateway-email(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(imapflow@1.3.3)(mailparser@3.9.8)(nodemailer@8.0.8)':
     dependencies:
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       imapflow: 1.3.3
       mailparser: 3.9.8
       nodemailer: 8.0.8
 
-  '@theokit/gateway-line@file:packages/gateway-line(@line/bot-sdk@9.9.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@4.22.2)':
+  '@theokit/gateway-line@file:packages/gateway-line(@line/bot-sdk@9.9.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(express@4.22.2)':
     dependencies:
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     optionalDependencies:
       '@line/bot-sdk': 9.9.0
       express: 4.22.2
 
-  '@theokit/gateway-matrix@file:packages/gateway-matrix(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(matrix-js-sdk@32.4.0)':
+  '@theokit/gateway-matrix@file:packages/gateway-matrix(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(matrix-js-sdk@32.4.0)':
     dependencies:
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     optionalDependencies:
       matrix-js-sdk: 32.4.0
 
-  '@theokit/gateway-mattermost@file:packages/gateway-mattermost(@mattermost/client@9.11.0(@mattermost/types@9.3.0(typescript@5.9.3))(typescript@5.9.3))(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(ws@8.20.1)':
+  '@theokit/gateway-mattermost@file:packages/gateway-mattermost(@mattermost/client@9.11.0(@mattermost/types@9.3.0(typescript@5.9.3))(typescript@5.9.3))(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(ws@8.20.1)':
     dependencies:
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     optionalDependencies:
       '@mattermost/client': 9.11.0(@mattermost/types@9.3.0(typescript@5.9.3))(typescript@5.9.3)
       ws: 8.20.1
 
-  '@theokit/gateway-slack@file:packages/gateway-slack(@slack/bolt@3.22.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@theokit/gateway-slack@file:packages/gateway-slack(@slack/bolt@3.22.0)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
       '@slack/bolt': 3.22.0
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
-  '@theokit/gateway-sms@file:packages/gateway-sms(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@vonage/server-sdk@3.27.0)(express@4.22.2)(libphonenumber-js@1.13.3)(plivo@4.77.1)(twilio@5.13.1)':
+  '@theokit/gateway-sms@file:packages/gateway-sms(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@vonage/server-sdk@3.27.0)(express@4.22.2)(libphonenumber-js@1.13.3)(plivo@4.77.1)(twilio@5.13.1)':
     dependencies:
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       libphonenumber-js: 1.13.3
     optionalDependencies:
       '@vonage/server-sdk': 3.27.0
@@ -8998,58 +9006,77 @@ snapshots:
       plivo: 4.77.1
       twilio: 5.13.1
 
-  '@theokit/gateway-teams@file:packages/gateway-teams(@microsoft/teams.apps@2.0.11)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@theokit/gateway-teams@file:packages/gateway-teams(@microsoft/teams.apps@2.0.11)(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
       '@microsoft/teams.apps': 2.0.11
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
-  '@theokit/gateway-telegram@file:packages/gateway-telegram(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(grammy@1.43.0)':
+  '@theokit/gateway-telegram@file:packages/gateway-telegram(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(grammy@1.43.0)':
     dependencies:
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       grammy: 1.43.0
 
-  '@theokit/gateway-whatsapp@file:packages/gateway-whatsapp(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(whatsapp-web.js@1.34.7(typescript@5.9.3))':
+  '@theokit/gateway-whatsapp@file:packages/gateway-whatsapp(@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)))(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(whatsapp-web.js@1.34.7(typescript@5.9.3))':
     dependencies:
-      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/gateway': file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     optionalDependencies:
       whatsapp-web.js: 1.34.7(typescript@5.9.3)
 
-  '@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
-  '@theokit/memory-honcho@file:packages/memory-honcho(@honcho-ai/sdk@2.1.1)(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@theokit/gateway@file:packages/gateway(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+    dependencies:
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+
+  '@theokit/memory-honcho@file:packages/memory-honcho(@honcho-ai/sdk@2.1.1)(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
     dependencies:
       '@honcho-ai/sdk': 2.1.1
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
-  '@theokit/memory-mem0@file:packages/memory-mem0(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(mem0ai@3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@a framework/core@1.1.47(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(redis@5.12.1)(ws@8.21.0))':
+  '@theokit/memory-mem0@file:packages/memory-mem0(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(mem0ai@3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@a framework/core@1.1.47(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(redis@5.12.1)(ws@8.21.0))':
     dependencies:
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       mem0ai: 3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@a framework/core@1.1.47(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(socks@2.8.9))(ollama@0.5.18)(pg@8.11.3)(redis@5.12.1)(ws@8.21.0)
 
-  '@theokit/memory-supermemory@file:packages/memory-supermemory(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(supermemory@4.21.1)':
+  '@theokit/memory-supermemory@file:packages/memory-supermemory(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(supermemory@4.21.1)':
     dependencies:
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       supermemory: 4.21.1
 
-  '@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
+  '@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.20.1)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       croner: 9.1.0
     optionalDependencies:
       '@lancedb/lancedb': 0.30.0(apache-arrow@21.1.0)
+      '@types/ws': 8.18.1
       better-sqlite3: 12.10.0
       proper-lockfile: 4.1.2
       sqlite-vec: 0.1.9
+      ws: 8.20.1
       zod: 4.4.3
       zod-to-json-schema: 3.25.2(zod@4.4.3)
 
-  '@theokit/skills-google-workspace@file:packages/skills-google-workspace(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+  '@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      croner: 9.1.0
+    optionalDependencies:
+      '@lancedb/lancedb': 0.30.0(apache-arrow@21.1.0)
+      '@types/ws': 8.18.1
+      better-sqlite3: 12.10.0
+      proper-lockfile: 4.1.2
+      sqlite-vec: 0.1.9
+      ws: 8.21.0
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.2(zod@4.4.3)
+
+  '@theokit/skills-google-workspace@file:packages/skills-google-workspace(@theokit/sdk@file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))':
+    dependencies:
+      '@theokit/sdk': file:packages/sdk(@lancedb/lancedb@0.30.0(apache-arrow@21.1.0))(@types/ws@8.18.1)(better-sqlite3@12.10.0)(proper-lockfile@4.1.2)(sqlite-vec@0.1.9)(ws@8.21.0)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
@@ -9173,6 +9200,7 @@ snapshots:
   '@types/node@25.9.1':
     dependencies:
       undici-types: 7.24.6
+    optional: true
 
   '@types/nodemailer@8.0.0':
     dependencies:
@@ -9180,7 +9208,7 @@ snapshots:
 
   '@types/pg@8.11.0':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 22.19.19
       pg-protocol: 1.14.0
       pg-types: 4.1.0
 
@@ -11404,7 +11432,7 @@ snapshots:
   jest-util@29.7.0:
     dependencies:
       '@jest/types': 29.6.3
-      '@types/node': 25.9.1
+      '@types/node': 22.19.19
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
@@ -12360,15 +12388,6 @@ snapshots:
 
   possible-typed-array-names@1.1.0: {}
 
-  postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(yaml@2.9.0):
-    dependencies:
-      lilconfig: 3.1.3
-    optionalDependencies:
-      jiti: 2.7.0
-      postcss: 8.5.14
-      tsx: 4.22.0
-      yaml: 2.9.0
-
   postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(yaml@2.9.0):
     dependencies:
       lilconfig: 3.1.3
@@ -12377,13 +12396,6 @@ snapshots:
       postcss: 8.5.15
       tsx: 4.22.0
       yaml: 2.9.0
-
-  postcss@8.5.14:
-    dependencies:
-      nanoid: 3.3.12
-      picocolors: 1.1.1
-      source-map-js: 1.2.1
-    optional: true
 
   postcss@8.5.15:
     dependencies:
@@ -12482,7 +12494,7 @@ snapshots:
       '@protobufjs/path': 1.1.2
       '@protobufjs/pool': 1.1.0
       '@protobufjs/utf8': 1.1.1
-      '@types/node': 25.9.1
+      '@types/node': 22.19.19
       long: 5.3.2
 
   proxy-addr@2.0.7:
@@ -12602,7 +12614,7 @@ snapshots:
       devtools-protocol: 0.0.1581282
       typed-query-selector: 2.12.2
       webdriver-bidi-protocol: 0.4.1
-      ws: 8.20.1
+      ws: 8.21.0
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -13402,35 +13414,6 @@ snapshots:
 
   tsscmp@1.0.6: {}
 
-  tsup@8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0):
-    dependencies:
-      bundle-require: 5.1.0(esbuild@0.27.7)
-      cac: 6.7.14
-      chokidar: 4.0.3
-      consola: 3.4.2
-      debug: 4.4.3
-      esbuild: 0.27.7
-      fix-dts-default-cjs-exports: 1.0.1
-      joycon: 3.1.1
-      picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.14)(tsx@4.22.0)(yaml@2.9.0)
-      resolve-from: 5.0.0
-      rollup: 4.60.3
-      source-map: 0.7.6
-      sucrase: 3.35.1
-      tinyexec: 0.3.2
-      tinyglobby: 0.2.16
-      tree-kill: 1.2.2
-    optionalDependencies:
-      '@swc/core': 1.15.40(@swc/helpers@0.5.23)
-      postcss: 8.5.14
-      typescript: 5.9.3
-    transitivePeerDependencies:
-      - jiti
-      - supports-color
-      - tsx
-      - yaml
-
   tsup@8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.27.7)
@@ -13567,7 +13550,8 @@ snapshots:
 
   undici-types@7.16.0: {}
 
-  undici-types@7.24.6: {}
+  undici-types@7.24.6:
+    optional: true
 
   undici@5.28.5:
     dependencies:

@@ -123,6 +123,12 @@ export {
   type StreamObjectOptions,
 } from "./stream-object.js";
 export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn } from "./task.js";
+// Subscription primitives (G8 — ADRs D422-D429) live at the dedicated
+// `@theokit/sdk/subscription` sub-export to keep them off the main `index.ts`
+// DTS bundle (same isolation pattern as `path-safety` per tsup.config.ts
+// header comment — the agent.ts ↔ fork-agent.ts cycle trips rollup-plugin-dts
+// whenever a sub-entry reaches into `internal/runtime`).
+// Consumers: `import { defineSubscription, tracked, subscribe } from "@theokit/sdk/subscription"`.
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 // Trajectory export (ADR D139) — opt-in ShareGPT converter

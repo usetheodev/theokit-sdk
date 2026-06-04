@@ -26,6 +26,7 @@
     "src/eval.ts",
     "src/scorers.ts",
     "src/internal/eval/**/*",
-    "src/internal/workflow/**/*"
+    "src/internal/workflow/**/*",
+    "src/subscription/**/*"
   ]
 }
