@@ -19,7 +19,7 @@ function dataSourceTokenFor(name: string): string {
 function entityArrayOrThrow(entities: unknown): readonly unknown[] {
   if (!Array.isArray(entities)) {
     throw new OrmConfigurationError(
-      "OrmModule.forFeature: entities must be an array of Drizzle tables. Got " + typeof entities,
+      `OrmModule.forFeature: entities must be an array of Drizzle tables. Got ${typeof entities}`,
     );
   }
   if (entities.length === 0) {

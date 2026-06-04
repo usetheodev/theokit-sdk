@@ -13,12 +13,7 @@ import {
   AuthConfigError,
   AuthProviderNotFoundError,
 } from "./errors.js";
-import {
-  clearTransaction,
-  getTransaction,
-  newTransaction,
-  setTransaction,
-} from "./oauth-transaction-store.js";
+import { clearTransaction, getTransaction, newTransaction } from "./oauth-transaction-store.js";
 import type { AuthOrchestrator, AuthProvider, DefineAuthOptions } from "./types.js";
 import { validateReturnTo } from "./validate-return-to.js";
 
@@ -134,6 +129,7 @@ export function defineAuth<TSession>(
     return new Response(null, { status: 302, headers });
   }
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: OAuth callback handler must validate 6 distinct error conditions sequentially (provider error / state / tx fetch / PKCE / code exchange / session) — extracting helpers fragments the linear control flow without clarifying intent (per EC-1 v1.1 absorbed)
   async function finishSignIn(
     providerName: string,
     req: IncomingMessage,
