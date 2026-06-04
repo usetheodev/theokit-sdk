@@ -27,6 +27,8 @@ module.exports = {
           "(^|/)tools/",
           "(^|/)packages/sdk/src/internal/",
           "(^|/)packages/sdk/src/types/",
+          // G11 auth orchestrator types (type-only exports erased at JS runtime; tsc + knip cover dead-type detection per existing rule rationale)
+          "(^|/)packages/sdk/src/server/auth/types\\.ts$",
         ],
       },
       to: {},
