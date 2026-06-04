@@ -108,6 +108,16 @@
         "default": "./dist/server/auth/index.cjs"
       }
     },
+    "./server/errors-envelope": {
+      "import": {
+        "types": "./dist/server/errors-envelope.d.ts",
+        "default": "./dist/server/errors-envelope.js"
+      },
+      "require": {
+        "types": "./dist/server/errors-envelope.d.cts",
+        "default": "./dist/server/errors-envelope.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
