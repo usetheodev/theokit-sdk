@@ -98,6 +98,7 @@ export class Repository<T extends Table> {
 
   async findById(id: string | number): Promise<InferSelectModel<T> | null> {
     assertValidId("findById", id);
+    // biome-ignore lint/suspicious/noExplicitAny: Drizzle generic chain — fluent query builder types are too complex to narrow at call site without importing internal Drizzle types
     const rows = (await (this.db.select().from(this.table) as any)
       .where(eq(this.pkColumn, id))
       .limit(1)) as unknown[];
@@ -105,6 +106,7 @@ export class Repository<T extends Table> {
   }
 
   async findMany(where?: SQL): Promise<InferSelectModel<T>[]> {
+    // biome-ignore lint/suspicious/noExplicitAny: Drizzle generic chain — fluent query builder types are too complex to narrow at call site without importing internal Drizzle types
     const q = this.db.select().from(this.table) as any;
     const rows = (where ? await q.where(where) : await q) as unknown[];
     return rows as InferSelectModel<T>[];
@@ -112,6 +114,7 @@ export class Repository<T extends Table> {
 
   async insert(values: InferInsertModel<T>): Promise<InferSelectModel<T>> {
     const filled = fillAgentColumns(this.table, values as Record<string, unknown>);
+    // biome-ignore lint/suspicious/noExplicitAny: Drizzle generic chain — fluent query builder types are too complex to narrow at call site without importing internal Drizzle types
     const op = this.db.insert(this.table).values(filled) as any;
     if (typeof op.returning === "function") {
       const rows = (await op.returning()) as unknown[];
@@ -134,6 +137,7 @@ export class Repository<T extends Table> {
   ): Promise<InferSelectModel<T>> {
     assertValidId("update", id);
     const filled = fillAgentColumns(this.table, patch as Record<string, unknown>);
+    // biome-ignore lint/suspicious/noExplicitAny: Drizzle generic chain — fluent query builder types are too complex to narrow at call site without importing internal Drizzle types
     const op = this.db.update(this.table).set(filled).where(eq(this.pkColumn, id)) as any;
     if (typeof op.returning === "function") {
       const rows = (await op.returning()) as unknown[];
@@ -152,6 +156,7 @@ export class Repository<T extends Table> {
 
   async delete(id: string | number): Promise<void> {
     assertValidId("delete", id);
+    // biome-ignore lint/suspicious/noExplicitAny: Drizzle generic chain — fluent query builder types are too complex to narrow at call site without importing internal Drizzle types
     await (this.db.delete(this.table) as any).where(eq(this.pkColumn, id));
   }
 
