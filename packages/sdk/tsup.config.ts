@@ -12,6 +12,7 @@ export default defineConfig({
     eval: "src/eval.ts",
     "server/auth/index": "src/server/auth/index.ts",
     "server/errors-envelope": "src/server/errors-envelope.ts",
+    "subscription/index": "src/subscription/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
@@ -27,6 +28,8 @@ export default defineConfig({
       "server/errors-envelope": "src/server/errors-envelope.ts",
     },
   },
+  // Note: `subscription/index` DTS generated via tsc (onSuccess) — see tsconfig.tools-dts.json.
+  // Mirrors tools/ + path-safety pattern to avoid rollup-plugin-dts cycle issues.
   sourcemap: true,
   clean: true,
   treeshake: true,
@@ -36,7 +39,7 @@ export default defineConfig({
   platform: "node",
   // Native + optional peer deps that must not be inlined — they require
   // runtime resolution against the host's node_modules.
-  external: ["@lancedb/lancedb", "better-sqlite3", "node:sqlite", "sqlite-vec"],
+  external: ["@lancedb/lancedb", "better-sqlite3", "node:sqlite", "sqlite-vec", "ws"],
   outExtension({ format }) {
     return { js: format === "esm" ? ".js" : ".cjs" };
   },
