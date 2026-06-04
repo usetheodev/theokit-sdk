@@ -29,6 +29,19 @@ function randomState(): string {
   return Buffer.from(bytes).toString("base64url");
 }
 
+/**
+ * Generate a PKCE code_verifier per RFC 7636 §4.1 — 43..128 chars from the
+ * unreserved set [A-Z][a-z][0-9]-._~ (base64url is a strict subset).
+ *
+ * 32 random bytes → 43 base64url chars satisfies the minimum. Provided by
+ * the orchestrator so every transaction carries one; PKCE-aware providers
+ * (Google) consume it; PKCE-ignorant providers (GitHub) discard it.
+ */
+function generatePkceVerifier(): string {
+  const bytes = webcrypto.getRandomValues(new Uint8Array(32));
+  return Buffer.from(bytes).toString("base64url");
+}
+
 function txCookieSecret<TSession>(opts: DefineAuthOptions<TSession>): string {
   // For T1.2 minimal impl, derive a per-session-manager secret from the
   // SessionManager identity. Production T2+ may refactor to share the
@@ -93,11 +106,17 @@ export function defineAuth<TSession>(
     const baseUrl = new URL(`http://${req.headers.host ?? "localhost"}${req.url ?? "/"}`);
     const safeReturnTo = validateReturnTo(startOpts?.returnTo, baseUrl);
 
-    // Generate transaction
+    // Generate transaction. Always include a PKCE verifier — PKCE-aware
+    // providers (Google OIDC) consume it; PKCE-ignorant providers (GitHub
+    // OAuth 2.0) discard it. Generating unconditionally simplifies the
+    // provider contract: every tx is PKCE-ready.
     const state = randomState();
-    // pkceVerifier: providers that need PKCE generate it themselves and store via mutable side-channel;
-    // for T1.2 we put a placeholder slot. T2+ refactors providers to receive the tx for verifier-write.
-    const tx = newTransaction({ state, returnTo: safeReturnTo === "/" ? undefined : safeReturnTo });
+    const pkceVerifier = generatePkceVerifier();
+    const tx = newTransaction({
+      state,
+      pkceVerifier,
+      returnTo: safeReturnTo === "/" ? undefined : safeReturnTo,
+    });
 
     // Persist transaction cookie via headers (since we return Response, need Set-Cookie header manually)
     const authUrl = await provider.createAuthorizationURL(tx);
