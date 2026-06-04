@@ -156,6 +156,16 @@ export class Theokit {
         defaultModel: adapter.defaultModel,
       })),
   };
+
+  // NOTE: `Theokit.subscribe` is exported from `@theokit/sdk/subscription`
+  // sub-path entry instead of the main `Theokit` static class to avoid
+  // pulling the subscription module into the main `index.ts` DTS bundle
+  // (which trips on the pre-existing `types/agent.ts ↔ fork-agent.ts` cycle
+  // — same pattern as `path-safety` per ADR D425/D429 + see tsup.config.ts
+  // header comment). Consumers import via:
+  //   `import { subscribe } from "@theokit/sdk/subscription"`
+  // The function shape mirrors a hypothetical `Theokit.subscribe(name, input, opts)`
+  // and may be promoted onto Theokit once the agent.ts cycle is broken.
 }
 
 /**

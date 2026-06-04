@@ -1,6 +1,6 @@
 {
   "name": "@theokit/sdk",
-  "version": "1.6.2",
+  "version": "1.7.0",
   "description": "TypeScript SDK for the Theo agent harness \u2014 same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
@@ -118,6 +118,16 @@
         "default": "./dist/server/errors-envelope.cjs"
       }
     },
+    "./subscription": {
+      "import": {
+        "types": "./dist/subscription/index.d.ts",
+        "default": "./dist/subscription/index.js"
+      },
+      "require": {
+        "types": "./dist/subscription/index.d.cts",
+        "default": "./dist/subscription/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
@@ -143,14 +153,19 @@
   },
   "peerDependencies": {
     "@lancedb/lancedb": "^0.30.0",
+    "@types/ws": ">=8.0.0",
     "better-sqlite3": "^12.0.0",
     "proper-lockfile": "^4.1.2",
     "sqlite-vec": "^0.1.0",
+    "ws": ">=8.0.0",
     "zod": "^3.25.0 || ^4.0.0",
     "zod-to-json-schema": "^3.24.0"
   },
   "peerDependenciesMeta": {
     "@lancedb/lancedb": {
+      "optional": true
+    },
+    "@types/ws": {
       "optional": true
     },
     "better-sqlite3": {
@@ -160,6 +175,9 @@
       "optional": true
     },
     "sqlite-vec": {
+      "optional": true
+    },
+    "ws": {
       "optional": true
     },
     "zod-to-json-schema": {
@@ -194,11 +212,13 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/proper-lockfile": "^4.1.4",
+    "@types/ws": "^8.18.0",
     "better-sqlite3": "^12.10.0",
     "fast-check": "^4.8.0",
     "proper-lockfile": "^4.1.2",
     "sqlite-vec": "^0.1.9",
     "typedoc": "^0.28.19",
+    "ws": "^8.18.0",
     "zod": "^4.0.0"
   }
 }
