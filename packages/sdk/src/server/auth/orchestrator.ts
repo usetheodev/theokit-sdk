@@ -36,7 +36,12 @@ function txCookieSecret<TSession>(opts: DefineAuthOptions<TSession>): string {
   // Falls back to TX_FALLBACK_SECRET when not available — apps should override.
   const sess = opts.session as unknown as { secret?: string | string[] };
   if (sess.secret) {
-    return Array.isArray(sess.secret) ? sess.secret[0] : sess.secret;
+    if (Array.isArray(sess.secret)) {
+      const first = sess.secret[0];
+      if (first) return first;
+    } else {
+      return sess.secret;
+    }
   }
   // Defensive fallback. Apps without SessionManager.secret pattern should
   // explicitly pass an env-backed secret OR rely on this dev-only fallback
