@@ -47,7 +47,7 @@ export class AuthProviderNotFoundError extends Error {
  *   - 'oauth_missing_code_or_state' — required query params absent
  */
 export class AuthCallbackError extends Error {
-  override readonly name = "AuthCallbackError";
+  override readonly name: string = "AuthCallbackError";
   readonly code: string;
 
   constructor(code: string, message?: string) {
@@ -65,7 +65,7 @@ export class AuthCallbackError extends Error {
  * "Login cancelled — try again" UX instead of opaque "callback failed".
  */
 export class AuthCancelledError extends AuthCallbackError {
-  override readonly name = "AuthCancelledError";
+  override readonly name: string = "AuthCancelledError";
   readonly errorDescription?: string;
 
   constructor(errorDescription?: string) {

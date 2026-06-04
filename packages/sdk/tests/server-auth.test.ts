@@ -9,7 +9,7 @@
  */
 
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { AuthProvider, SessionManager } from "../src/server/auth/index.js";
 import {
   AuthCallbackError,
@@ -20,33 +20,38 @@ import {
   validateReturnTo,
 } from "../src/server/auth/index.js";
 
-function mockSession<T>(): SessionManager<T> & {
-  _state: { rotated: boolean; created: T | null; destroyed: boolean };
-} {
-  const state = {
+interface MockSessionState<T> {
+  rotated: boolean;
+  created: T | null;
+  destroyed: boolean;
+  secret: string;
+}
+
+function mockSession<T>(): SessionManager<T> & { _state: MockSessionState<T> } {
+  const state: MockSessionState<T> = {
     rotated: false,
-    created: null as T | null,
+    created: null,
     destroyed: false,
     secret: "test-secret-32-chars-abcdefghij",
   };
   return {
-    async getSession() {
+    async getSession(): Promise<T | null> {
       return state.created;
     },
-    async createSession(_res, data) {
+    async createSession(_res: ServerResponse, data: T): Promise<void> {
       state.created = data;
     },
-    destroySession() {
+    destroySession(): void {
       state.destroyed = true;
     },
-    async rotateSession() {
+    async rotateSession(): Promise<T | null> {
       state.rotated = true;
       return state.created;
     },
     _state: state,
     // include secret prop so orchestrator txCookieSecret() finds it
     secret: state.secret,
-  } as unknown as SessionManager<T> & { _state: typeof state };
+  } as unknown as SessionManager<T> & { _state: MockSessionState<T> };
 }
 
 function mockProvider<TProfile>(name: string, profile: TProfile): AuthProvider<TProfile, string> {
