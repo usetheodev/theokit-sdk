@@ -25,7 +25,7 @@ import type { OAuthTransaction } from "./types.js";
 const COOKIE_NAME = "theo_oauth_tx";
 const TX_LIFETIME_MS = 10 * 60 * 1000; // 10 minutes per D5
 
-async function deriveKey(secret: string): Promise<CryptoKey> {
+async function deriveKey(secret: string): Promise<webcrypto.CryptoKey> {
   const keyMaterial = await webcrypto.subtle.importKey(
     "raw",
     Buffer.from(secret).slice(0, 32).length === 32

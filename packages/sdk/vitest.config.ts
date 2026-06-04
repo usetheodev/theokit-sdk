@@ -41,6 +41,7 @@ export default defineConfig({
     // so cross-file pollution can still happen if a test mutates module
     // state without resetting it in its own afterEach.
     pool: "forks",
+    // @ts-expect-error vitest 4.x InlineConfig type may not expose poolOptions key directly; runtime config IS accepted by vitest CLI per documented schema
     poolOptions: {
       forks: {
         // singleFork=false → each test file runs in its OWN subprocess. This
