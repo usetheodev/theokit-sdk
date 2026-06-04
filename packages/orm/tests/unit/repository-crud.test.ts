@@ -78,6 +78,7 @@ describe("Repository CRUD", () => {
 
   it("query exposes the Drizzle builder as escape hatch", async () => {
     await repo.insert({ id: "u1", name: "Ada" });
+    // biome-ignore lint/suspicious/noExplicitAny: Drizzle query builder shape varies per driver; test only validates presence of .where method
     const q: any = repo.query();
     expect(q).toBeDefined();
     expect(typeof q.where).toBe("function");

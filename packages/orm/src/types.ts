@@ -17,6 +17,7 @@ export interface DataSource<TSchema extends Record<string, AnyTable> = Record<st
   readonly name: string;
   readonly dialect: Dialect;
   readonly schema: TSchema;
+  // biome-ignore lint/suspicious/noExplicitAny: Drizzle db handle has driver-specific shape (BetterSQLite3Database vs PgDatabase vs MySqlDatabase); narrow types come at use-site via Repository<T> generic
   readonly db: any;
 }
 
