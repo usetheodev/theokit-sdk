@@ -60,3 +60,7 @@ docs/evalscope/
 /packages/sdk/.theokit/
 /examples/*/.theokit/
 .gstack/
+
+# Local backups (e.g., .claude.previous.bak/, CLAUDE.md.bak from migrations)
+*.bak
+*.bak/

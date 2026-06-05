@@ -103,7 +103,9 @@ describe("SubscriptionRuntime dispatch (SSE)", () => {
       disconnect: () => ac.abort(),
     });
     expect(result.transport).toBe("sse");
-    const body = await readSse((result as { transport: "sse"; stream: ReadableStream<Uint8Array> }).stream);
+    const body = await readSse(
+      (result as { transport: "sse"; stream: ReadableStream<Uint8Array> }).stream,
+    );
     expect(body).toContain("event: connected");
     expect(body).toContain('data: {"n":10}');
     expect(body).toContain('data: {"n":11}');
@@ -131,7 +133,9 @@ describe("SubscriptionRuntime dispatch (SSE)", () => {
       signal: ac.signal,
       disconnect: () => ac.abort(),
     });
-    const body = await readSse((result as { transport: "sse"; stream: ReadableStream<Uint8Array> }).stream);
+    const body = await readSse(
+      (result as { transport: "sse"; stream: ReadableStream<Uint8Array> }).stream,
+    );
     expect(body).toContain("id: id-a");
     expect(body).toContain('data: {"msg":"hello"}');
   });
@@ -228,7 +232,9 @@ describe("SubscriptionRuntime dispatch (WS)", () => {
       disconnect: () => ac.abort(),
     });
     expect(result.transport).toBe("ws");
-    const frames = await readWs((result as { transport: "ws"; iterable: AsyncIterable<WireFrame> }).iterable);
+    const frames = await readWs(
+      (result as { transport: "ws"; iterable: AsyncIterable<WireFrame> }).iterable,
+    );
     expect(frames).toEqual([
       { type: "data", data: { n: 1 } },
       { type: "tracked", id: "id-x", data: { n: 2 } },
@@ -258,7 +264,9 @@ describe("SubscriptionRuntime dispatch (WS)", () => {
       signal: ac.signal,
       disconnect: () => ac.abort(),
     });
-    const frames = await readWs((result as { transport: "ws"; iterable: AsyncIterable<WireFrame> }).iterable);
+    const frames = await readWs(
+      (result as { transport: "ws"; iterable: AsyncIterable<WireFrame> }).iterable,
+    );
     expect(frames[0]).toEqual({ type: "error", error: { message: "boom" } });
   });
 });

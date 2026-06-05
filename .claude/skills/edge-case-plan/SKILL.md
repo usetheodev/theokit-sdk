@@ -1,148 +1,165 @@
 ---
 name: edge-case-plan
-description: Analisa um plano de implementação e identifica edge cases não previstos. Pragmático — aponta riscos reais sem complicar o design. Use após /to-plan ou quando revisar qualquer plano em .claude/knowledge-base/plans/.
+description: Analyzes an implementation plan and identifies unforeseen edge cases. Pragmatic — flags real risks without complicating the design. Use after /to-plan or when reviewing any plan in knowledge-base/plans/.
 user-invocable: true
-allowed-tools: Read Glob Grep Bash Agent
+allowed-tools: Read Glob Grep Bash
 argument-hint: "[plan-slug|plan-file-path]"
 ---
 
 # Edge Case Plan Review
 
-Analise o plano e identifique edge cases que NÃO foram previstos. Seja pragmático — aponte riscos reais, não cenários fantasiosos.
+Analyze the plan and identify edge cases that were NOT foreseen. Be pragmatic — flag real risks, not fantastical scenarios.
 
-## Argumento
+## Cycle contract
 
-- `$ARGUMENTS` = slug do plano (busca em `.claude/knowledge-base/plans/{slug}-plan.md`) ou caminho completo
-- Sem argumento = analisa o plano mais recente em `.claude/knowledge-base/plans/`
+This skill is **phase 2** of [`cycle-plan`](../../rules/cycle-plan.md). The cycle rule is the source of truth for chain order, hard gates, anti-patterns at the cycle level, and rollback. **Read `cycle-plan.md` before invoking this skill.** This SKILL.md retains phase-specific detail (the pragmatic checklist for identifying edge cases, the MUST FIX / SHOULD TEST / DOCUMENT classification rubric, report format).
 
-## Filosofia
+## Argument
 
-**Você NÃO é o agente que complica.** Você é o agente que pergunta: "e se isso der errado?"
+- `$ARGUMENTS` = plan slug (resolved against `knowledge-base/plans/{slug}-plan.md`) or a full path
+- No argument = analyze the most recent plan in `knowledge-base/plans/`
 
-Regras de ouro:
-1. **Só aponte edge cases que podem acontecer de verdade** — não cenários com probabilidade de 0.001%
-2. **Nunca sugira adicionar camadas de abstração** — a solução para um edge case é um `if`, um teste, ou um `match` arm — não um novo módulo
-3. **KISS prevalece** — se o fix para o edge case é mais complexo que o dano do edge case, documente o risco e siga em frente
-4. **Cada edge case apontado DEVE ter uma sugestão de fix em ≤3 linhas de código ou ≤1 frase de mudança no plano**
-5. **Corner cases (múltiplos edges combinados) só se forem realistas** — "e se o disco encher durante um race condition em noite de lua cheia" não é realista
+## Philosophy
 
-## Processo
+**You are NOT the agent that complicates things.** You are the agent that asks: "what if this goes wrong?"
 
-### Passo 1 — Ler o Plano
+Golden rules:
+1. **Only flag edge cases that can actually happen** — not scenarios with 0.001% probability
+2. **Never suggest adding layers of abstraction** — the fix for an edge case is an `if`, a test, or a `match` arm — never a new module
+3. **KISS prevails** — if the fix for an edge case is more complex than the damage of the edge case itself, document the risk and move on
+4. **Each flagged edge case MUST come with a suggested fix in ≤3 lines of code or ≤1 sentence of plan change**
+5. **Corner cases (multiple edges combined) only if realistic** — "what if the disk fills up during a race condition under a full moon" is not realistic
+
+## Process
+
+### Step 1 — Read the Plan
 
 ```!
-# Encontrar o plano
-ls .claude/knowledge-base/plans/*${ARGUMENTS}* 2>/dev/null || ls -t .claude/knowledge-base/plans/*.md | head -5
+# Locate the plan
+ls knowledge-base/plans/*${ARGUMENTS}* 2>/dev/null || ls -t knowledge-base/plans/*.md | head -5
 ```
 
-Leia o plano completo. Entenda:
-- O que está sendo construído
-- Quais crates/arquivos serão tocados
-- Quais são os inputs e outputs de cada task
-- Onde estão as fronteiras do sistema (I/O, parsing, rede, user input)
+Read the full plan. Understand:
+- What is being built
+- Which modules / files / packages will be touched
+- The inputs and outputs of each task
+- Where the system boundaries are (I/O, parsing, network, user input, external calls)
 
-### Passo 2 — Mapear Fronteiras
+### Step 2 — Map the Boundaries
 
-Para cada task do plano, identifique:
-- **Entradas**: de onde vêm os dados? (usuário, LLM, rede, disco, outro crate)
-- **Saídas**: para onde vão? (disco, rede, outro módulo, UI)
-- **Estado**: o que muda? (memória, arquivo, banco, state machine)
+For each task in the plan, identify:
+- **Inputs**: where does the data come from? (user/caller via public interface, webhook, event, another domain module)
+- **Outputs**: where does it go? (external system, persistence, audit log, telemetry)
+- **State**: what changes? (domain entities, persistence, external resources)
 
-Edge cases vivem nas fronteiras. Código interno que processa dados já validados raramente tem edge cases relevantes.
+Edge cases live at boundaries. Internal code that processes already-validated data rarely has relevant edge cases.
 
-### Passo 3 — Aplicar o Checklist Pragmático
+### Step 3 — Apply the Pragmatic Checklist
 
-Para cada task, passe por este checklist. Marque ✅ se o plano já cobre, ❌ se não:
+For each task, walk through this checklist. Mark ✅ if the plan already covers it, ❌ if not:
 
 ```
 INPUTS:
-  [ ] O que acontece com input vazio/nulo?
-  [ ] O que acontece com input no limite máximo?
-  [ ] O que acontece com input malformado? (tipo errado, encoding ruim)
+  [ ] What happens with empty/null input?
+  [ ] What happens with input at the maximum boundary?
+  [ ] What happens with malformed input? (wrong type, bad encoding)
 
-ESTADO:
-  [ ] O que acontece se a operação falhar no meio? (crash recovery)
-  [ ] A operação é idempotente? (rodar 2x produz o mesmo resultado?)
+STATE:
+  [ ] What happens if the operation fails midway? (crash recovery)
+  [ ] Is the operation idempotent? (does running twice produce the same result?)
 
 I/O:
-  [ ] O que acontece se o disco/rede falhar?
-  [ ] O que acontece com timeout?
+  [ ] What happens if disk/network fails?
+  [ ] What happens on timeout?
 
-CONCORRÊNCIA:
-  [ ] Duas chamadas simultâneas causam problema?
-  [ ] Cancelamento mid-operation é seguro?
+CONCURRENCY:
+  [ ] Do two simultaneous calls cause problems?
+  [ ] Is mid-operation cancellation safe?
 
-INTEGRAÇÃO:
-  [ ] O crate consumidor recebe erros tipados ou panics?
-  [ ] O contrato de dependência (make check-arch) é respeitado?
+INTEGRATION:
+  [ ] Does the caller receive typed errors (not generic / not panics)?
+  [ ] Is the dependency contract (DIP in `rules/architecture.md`, enforced by `hooks/boundary-check.sh`) respected?
+  [ ] Is the public API surface explicit and versioned?
 ```
 
-**Ignore os checks que não se aplicam.** Nem toda task tem I/O. Nem toda task tem concorrência. Só marque o que é relevante.
+**Skip checks that do not apply.** Not every task has I/O. Not every task has concurrency. Mark only what is relevant.
 
-### Passo 4 — Classificar e Reportar
+### Step 4 — Classify and Report
 
-Para cada edge case encontrado, classifique:
+For each edge case found, classify:
 
-| Nível | Significado | Ação |
+| Level | Meaning | Action |
 |---|---|---|
-| **MUST FIX** | Vai causar crash, data loss, ou security hole | Adicionar ao plano como sub-task |
-| **SHOULD TEST** | Improvável mas perigoso se acontecer | Adicionar teste ao TDD do task existente |
-| **DOCUMENT** | Risco aceito conscientemente | Adicionar como nota no plano |
-| **IGNORE** | Teórico demais ou fix é pior que o problema | Não incluir no report |
+| **MUST FIX** | Will cause crash, data loss, or security hole | Add to the plan as a sub-task |
+| **SHOULD TEST** | Unlikely but dangerous if it happens | Add a test to the existing task's TDD |
+| **DOCUMENT** | Risk consciously accepted | Add as a note in the plan |
+| **IGNORE** | Too theoretical or the fix is worse than the problem | Do not include in the report |
 
-## Formato do Report
+### Step 5 — Save the Report
+
+Save the report at:
+
+```
+knowledge-base/reviews/{plan-slug}-edge-cases-{YYYY-MM-DD}.md
+```
+
+Create the `reviews/` directory if it does not yet exist. The report serves as the audit trail for `/plan-confidence` (which does NOT auto-cross-reference edge case reports in M2 — that is the M4 jury layer).
+
+**Who absorbs the MUST FIX items into the plan:** this skill does NOT edit `{slug}-plan.md`. The human user (or a future cycle-plan wrapper) reads the report and revises the plan from v1.0 to v1.1, incorporating each MUST FIX as a sub-task or ADR. Then `/plan-confidence` is re-run to validate.
+
+## Report Format
 
 ```markdown
-# Edge Case Review — {plano}
+# Edge Case Review — {plan}
 
-Data: YYYY-MM-DD
-Tasks analisadas: N
-Edge cases encontrados: N (MUST FIX: N, SHOULD TEST: N, DOCUMENT: N)
+Date: YYYY-MM-DD
+Tasks analyzed: N
+Edge cases found: N (MUST FIX: N, SHOULD TEST: N, DOCUMENT: N)
 
 ## MUST FIX
 
-### EC-{N}: {descrição curta}
-- **Task afetada:** T{N}.{M}
-- **Família:** Input / Boundary / Resource / Timing / State / Permission / Format
-- **Cenário:** {como acontece}
-- **Impacto:** {o que quebra}
-- **Fix sugerido:** {≤3 linhas de código ou ≤1 frase}
+### EC-{N}: {short description}
+- **Affected task:** T{N}.{M}
+- **Family:** Input / Boundary / Resource / Timing / State / Permission / Format
+- **Scenario:** {how it happens}
+- **Impact:** {what breaks}
+- **Suggested fix:** {≤3 lines of code or ≤1 sentence}
 
 ## SHOULD TEST
 
-### EC-{N}: {descrição curta}
-- **Task afetada:** T{N}.{M}
-- **Teste sugerido:** `test_{function}_{edge_description}` — {o que assertar}
+### EC-{N}: {short description}
+- **Affected task:** T{N}.{M}
+- **Suggested test:** `test_{function}_{edge_description}` — {what to assert}
 
 ## DOCUMENT
 
-### EC-{N}: {descrição curta}
-- **Risco aceito:** {por que é ok não tratar agora}
+### EC-{N}: {short description}
+- **Accepted risk:** {why it is OK not to address now}
 
-## Resumo
+## Summary
 
-| Task | Edges encontrados | MUST FIX | SHOULD TEST | DOCUMENT |
-|------|-------------------|----------|-------------|----------|
+| Task | Edges found | MUST FIX | SHOULD TEST | DOCUMENT |
+|------|-------------|----------|-------------|----------|
 | T1.1 | N | N | N | N |
 | T1.2 | N | N | N | N |
 
-**Veredicto:** PLANO OK / PLANO PRECISA DE AJUSTE
+**Verdict:** PLAN OK / PLAN NEEDS ADJUSTMENT
 ```
 
-## Anti-Patterns que Você NUNCA Comete
+## Anti-Patterns You NEVER Commit
 
-1. **Over-engineering** — "Vamos criar um ErrorRecoveryManager para tratar esse edge case" → NÃO. Um `if input.is_empty() { return Err(...) }` resolve.
+1. **Over-engineering** — "Let's create an ErrorRecoveryManager to handle this edge case" → NO. An `if input.is_empty() { return Err(...) }` solves it.
 
-2. **Especulação** — "E se no futuro alguém mudar essa API e..." → NÃO. Analise o plano COMO ESTÁ, não como poderia ser.
+2. **Speculation** — "What if in the future someone changes this API and…" → NO. Analyze the plan AS IT IS, not as it could be.
 
-3. **Paranoia** — "Precisamos validar input em TODAS as camadas" → NÃO. Valide na fronteira (entrada do sistema). Depois da fronteira, os dados são confiáveis.
+3. **Paranoia** — "We need to validate input at EVERY layer" → NO. Validate at the boundary (system entry). Past the boundary, data is trusted.
 
-4. **Scope creep** — "Já que estamos aqui, vamos também tratar..." → NÃO. Seu job é apontar edges NO PLANO, não adicionar features.
+4. **Scope creep** — "Since we are here, let's also handle…" → NO. Your job is to flag edges IN THE PLAN, not to add features.
 
-5. **Complexidade disfarçada** — "Vamos adicionar retry com exponential backoff + circuit breaker + fallback" → NÃO (a menos que o plano JÁ seja sobre resiliência). Um timeout simples resolve 90% dos casos.
+5. **Disguised complexity** — "Let's add retry with exponential backoff + circuit breaker + fallback" → NO (unless the plan is ALREADY about resilience). A simple timeout solves 90% of cases.
 
-## Integração
+## Integration
 
-- Roda DEPOIS de `/to-plan` ou quando alguém pede para revisar um plano
-- O `edge-case-architect` (agente) faz análise profunda de código existente; esta skill analisa **planos antes da implementação**
-- O `cto-architect` pode solicitar esta análise como parte do seu protocolo de "está 100% implementada?"
+- Runs AFTER `/to-plan` or whenever someone asks for a review of a plan in `knowledge-base/plans/`
+- This skill analyzes **plans before implementation** — for deep analysis of existing code, open a PR and use `/review` or `/security-review` (built-in)
+- Part of the unbreakable chain documented in `/to-plan` SKILL.md: `/to-plan` → `/edge-case-plan` → `/plan-confidence` → (if needed) `/plan-improve` → `/plan-confidence` re-score

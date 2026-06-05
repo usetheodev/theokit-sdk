@@ -15,20 +15,18 @@
  */
 
 export {
-  defineSubscription,
   type DefineSubscriptionOptions,
+  defineSubscription,
 } from "./define-subscription.js";
-
+export { type SubscribeOptions, subscribe } from "./theokit-subscribe.js";
 export {
   isTrackedEnvelope,
+  type SubscriptionCtx,
+  type SubscriptionDescriptor,
   SubscriptionDisconnectError,
   SubscriptionError,
   SubscriptionInputError,
-  tracked,
-  type SubscriptionCtx,
-  type SubscriptionDescriptor,
   type SubscriptionTransport,
   type TrackedEnvelope,
+  tracked,
 } from "./types.js";
-
-export { subscribe, type SubscribeOptions } from "./theokit-subscribe.js";

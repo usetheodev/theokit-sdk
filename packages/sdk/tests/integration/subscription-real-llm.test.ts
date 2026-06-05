@@ -43,10 +43,10 @@ beforeAll(async () => {
         for await (const evt of iter) {
           if (ctx.signal.aborted) return;
           if (evt.type === "partial") {
-            yield ctx.tracked(
-              String(++counter),
-              { kind: "partial" as const, text: JSON.stringify(evt.partial) },
-            );
+            yield ctx.tracked(String(++counter), {
+              kind: "partial" as const,
+              text: JSON.stringify(evt.partial),
+            });
           } else if (evt.type === "complete") {
             yield ctx.tracked(String(++counter), {
               kind: "complete" as const,
@@ -107,29 +107,32 @@ afterAll(async () => {
 });
 
 describe.skipIf(SKIP)("G8 subscription real-LLM composition", () => {
-  it(
-    "subscription handler streams Agent.streamObject partial+complete events",
-    async () => {
-      const collected: Array<{ kind: string; text: string }> = [];
-      for await (const v of subscribe<
-        { topic: string },
-        { kind: "partial" | "complete"; text: string }
-      >("haiku-stream", { topic: "robots" }, { baseUrl, transport: "sse", maxReconnectAttempts: 0 })) {
-        collected.push(v);
-      }
-      const partials = collected.filter((c) => c.kind === "partial");
-      const completes = collected.filter((c) => c.kind === "complete");
-      expect(partials.length).toBeGreaterThanOrEqual(1);
-      expect(completes.length).toBeGreaterThanOrEqual(1);
-      expect(completes[0]?.text).toBeTypeOf("string");
-      expect((completes[0]?.text ?? "").length).toBeGreaterThan(0);
-    },
-    60_000,
-  );
+  it("subscription handler streams Agent.streamObject partial+complete events", async () => {
+    const collected: Array<{ kind: string; text: string }> = [];
+    for await (const v of subscribe<
+      { topic: string },
+      { kind: "partial" | "complete"; text: string }
+    >(
+      "haiku-stream",
+      { topic: "robots" },
+      { baseUrl, transport: "sse", maxReconnectAttempts: 0 },
+    )) {
+      collected.push(v);
+    }
+    const partials = collected.filter((c) => c.kind === "partial");
+    const completes = collected.filter((c) => c.kind === "complete");
+    expect(partials.length).toBeGreaterThanOrEqual(1);
+    expect(completes.length).toBeGreaterThanOrEqual(1);
+    expect(completes[0]?.text).toBeTypeOf("string");
+    expect((completes[0]?.text ?? "").length).toBeGreaterThan(0);
+  }, 60_000);
 });
 
-describe.skipIf(!SKIP)("G8 subscription real-LLM composition (skipped — no OPENROUTER_API_KEY)", () => {
-  it("honest skip per real-llm-validation.md", () => {
-    expect(SKIP).toBe(true);
-  });
-});
+describe.skipIf(!SKIP)(
+  "G8 subscription real-LLM composition (skipped — no OPENROUTER_API_KEY)",
+  () => {
+    it("honest skip per real-llm-validation.md", () => {
+      expect(SKIP).toBe(true);
+    });
+  },
+);

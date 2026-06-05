@@ -19,12 +19,7 @@ import type { UpgradeContext, WebSocketHandle, WsAdapter } from "./adapter-types
  * @internal
  */
 interface WsLikeServer {
-  handleUpgrade(
-    req: unknown,
-    socket: unknown,
-    head: unknown,
-    cb: (ws: WsLikeSocket) => void,
-  ): void;
+  handleUpgrade(req: unknown, socket: unknown, head: unknown, cb: (ws: WsLikeSocket) => void): void;
 }
 
 interface WsLikeSocket {
@@ -181,10 +176,7 @@ function decodeWsMessage(data: unknown, isBinary: boolean): string | Uint8Array 
     if (data instanceof ArrayBuffer) return new Uint8Array(data);
     if (Array.isArray(data)) {
       // ws delivers Buffer[] for fragmented messages — concatenate
-      const total = data.reduce(
-        (acc: number, b: unknown) => acc + (b as Uint8Array).byteLength,
-        0,
-      );
+      const total = data.reduce((acc: number, b: unknown) => acc + (b as Uint8Array).byteLength, 0);
       const out = new Uint8Array(total);
       let offset = 0;
       for (const b of data as Uint8Array[]) {
