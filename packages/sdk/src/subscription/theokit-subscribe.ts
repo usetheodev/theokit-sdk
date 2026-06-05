@@ -11,13 +11,13 @@
  * @public
  */
 
+import { parseSseW3C } from "./internal/sse-parser.js";
+import type { WireFrame } from "./internal/subscription-runtime.js";
 import {
   SubscriptionDisconnectError,
   SubscriptionError,
   type SubscriptionTransport,
 } from "./types.js";
-import { parseSseW3C } from "./internal/sse-parser.js";
-import type { WireFrame } from "./internal/subscription-runtime.js";
 
 /**
  * Options accepted by `Theokit.subscribe(name, input, opts?)`.
@@ -127,19 +127,17 @@ async function* openSse<T>(
     ...(opts.signal !== undefined ? { signal: opts.signal } : {}),
   });
   if (!res.ok || res.body === null) {
-    throw new SubscriptionError(
-      `SSE subscribe failed: HTTP ${res.status} ${res.statusText}`,
-      { code: "sse_http_error" },
-    );
+    throw new SubscriptionError(`SSE subscribe failed: HTTP ${res.status} ${res.statusText}`, {
+      code: "sse_http_error",
+    });
   }
   const events = parseSseW3C(streamToAsyncIterable(res.body));
   for await (const ev of events) {
     if (ev.event === "end") return;
     if (ev.event === "error") {
-      throw new SubscriptionError(
-        `SSE server emitted error: ${ev.data ?? "(no body)"}`,
-        { code: "sse_server_error" },
-      );
+      throw new SubscriptionError(`SSE server emitted error: ${ev.data ?? "(no body)"}`, {
+        code: "sse_server_error",
+      });
     }
     if (ev.event === "connected") continue;
     if (ev.data === undefined) continue;

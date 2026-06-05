@@ -14,8 +14,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineSubscription } from "../../src/subscription/define-subscription.js";
 import {
-  mountSubscriptions,
   type MountedSubscriptions,
+  mountSubscriptions,
 } from "../../src/subscription/internal/server-integration.js";
 import { SubscriptionRuntime } from "../../src/subscription/internal/subscription-runtime.js";
 import { subscribe } from "../../src/subscription/theokit-subscribe.js";
@@ -39,9 +39,7 @@ beforeAll(async () => {
       output: z.object({ n: z.number() }),
       async *handler(input, ctx) {
         const startFromCursor =
-          input.lastEventId !== undefined
-            ? Number.parseInt(input.lastEventId, 10) + 1
-            : input.from;
+          input.lastEventId !== undefined ? Number.parseInt(input.lastEventId, 10) + 1 : input.from;
         for (let i = startFromCursor; i <= 3; i++) {
           if (ctx.signal.aborted) return;
           yield ctx.tracked(String(i), { n: i });
@@ -166,7 +164,8 @@ async function mountSubscriptionsViaPreloadedRuntime(
     handleWsUpgrade: async (req, socket, head) => {
       const url = new URL((req as { url?: string }).url ?? "/", "http://localhost");
       const headers = new Map<string, string>();
-      const reqHeaders = (req as { headers: Record<string, string | string[] | undefined> }).headers;
+      const reqHeaders = (req as { headers: Record<string, string | string[] | undefined> })
+        .headers;
       for (const [k, v] of Object.entries(reqHeaders)) {
         if (typeof v === "string") headers.set(k.toLowerCase(), v);
       }

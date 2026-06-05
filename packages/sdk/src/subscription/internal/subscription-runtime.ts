@@ -10,12 +10,12 @@
 import { randomUUID } from "node:crypto";
 import {
   isTrackedEnvelope,
+  tracked as makeTracked,
   type SubscriptionCtx,
   type SubscriptionDescriptor,
   SubscriptionError,
   SubscriptionInputError,
   type SubscriptionTransport,
-  tracked as makeTracked,
   type TrackedEnvelope,
 } from "../types.js";
 import { encodeSseChunk } from "./sse-encoder.js";
@@ -75,7 +75,10 @@ export class SubscriptionRuntime {
   private activeCount = 0;
 
   /** Register a subscription descriptor under `name` (or descriptor.name). */
-  register<TInput, TOutput>(name: string, descriptor: SubscriptionDescriptor<TInput, TOutput>): void {
+  register<TInput, TOutput>(
+    name: string,
+    descriptor: SubscriptionDescriptor<TInput, TOutput>,
+  ): void {
     if (this.registry.has(name)) {
       throw new SubscriptionError(`Subscription already registered: ${name}`, {
         code: "subscription_duplicate",

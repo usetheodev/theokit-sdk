@@ -570,6 +570,35 @@ Full text: `/home/user/.claude/CLAUDE.md`. Cross-project rules: `/home/user/Proj
 - [ ] No silent integration claims with `@theokit/ui` or `theokit` — verify the import exists.
 - [ ] No imports from `referencia/*` — that tree is read-only study material.
 
+## Pipeline de ciclos (plan ecosystem)
+
+Instalado em `.claude/` via `bash scripts/install.sh` do template [`plan`](file:///home/user/Projetos/plan). Backup do `.claude/` anterior (skills `quality-review` + `to-reference`, rules `no-stubs-no-mocks-no-wired` + `real-llm-validation`, `quality-gates.md`, knowledge-base com architecture/hermes-deep-dive/specs/sdk-references/plans/discoveries/reviews/adrs) preservado em `.claude.previous.bak/`. O `CLAUDE.md` anterior preservado em `CLAUDE.md.bak`.
+
+**Conteúdo SDK preservado no `.claude/` novo via merge seletivo** (~580 arquivos migrados):
+
+- `rules/no-stubs-no-mocks-no-wired.md` + `rules/real-llm-validation.md` — políticas locais lado a lado com `rules/cycle-*.md` do plan.
+- `quality-gates.md` (raiz) — contract de hard/soft/manual gates do SDK; referenciado pelo skill `quality-review`.
+- `skills/quality-review/` + `skills/to-reference/` — coexistem com as 26 skills do plan.
+- `knowledge-base/{architecture,hermes-deep-dive,specs,sdk-references,reference,plans,discoveries,reviews,adrs}/` — categorias `plans/discoveries/reviews/adrs` deram merge com as pastas semânticas do plan scaffold.
+
+**Comandos disponíveis (plan + SDK):**
+
+- **Plan**: `/grill-me`, `/to-plan`, `/edge-case-plan`, `/deps-audit`, `/plan-confidence`, `/plan-improve`
+- **Discover**: `/discover-plan`, `/discover-edge-cases`, `/discover-plan-confidence`, `/discover-execute`, `/discover-confidence`, `/discover-improve`
+- **Implement**: `/implement` (halt-loop RED → GREEN → REFACTOR → WIRING → COMMIT)
+- **Quality**: `/code-quality` (plan, regex/threshold-based) + `/quality-review` (SDK, manual SOLID/Clean Code review pareado com `quality-gates.md`)
+- **Review**: `/review` (plan, 5–7 specialist agents)
+- **Release**: `/release` (develop→main PR + semver tag)
+- **Honesty gate**: `/dogfood`
+- **Orchestrator**: `/auto-plan {topic-slug}`
+- **SDK-specific**: `/to-reference {topic}` (deep-dive em `referencia/` → guia de implementação em `knowledge-base/reference/{topic}.md`)
+
+**Hooks ativos** (`.claude/settings.json`): SessionStart, UserPromptSubmit, PreToolUse(Bash + Edit|Write), PostToolUse(linter + public-copy-lint), Stop (TDD + CHANGELOG gate), PreCompact (plan snapshot).
+
+**Contratos**: `.claude/rules/cycle-*.md` (plan) + `.claude/rules/{no-stubs-no-mocks-no-wired,real-llm-validation}.md` (SDK policies) + `.claude/quality-gates.md` (SDK gate contract).
+
+**Caminhos preservados** (não houve renomeação — referências internas do CLAUDE.md continuam válidas): `.claude/quality-gates.md`, `.claude/skills/quality-review/SKILL.md`, `.claude/rules/no-stubs-no-mocks-no-wired.md`, etc.
+
 ## When this file is wrong
 
 The code is authoritative. If this file disagrees with the code, the code wins — update this file via PR with rationale in the commit message. Locked names and locked toolchain require an explicit decision; do not edit them silently.

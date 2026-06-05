@@ -2,15 +2,15 @@
  * G8 T1.2 — SubscriptionCtx + TrackedEnvelope + errors.
  */
 import { describe, expect, it } from "vitest";
+import { TheokitAgentError } from "../../src/errors.js";
 import {
   isTrackedEnvelope,
   SubscriptionDisconnectError,
   SubscriptionError,
   SubscriptionInputError,
-  tracked,
   type TrackedEnvelope,
+  tracked,
 } from "../../src/subscription/types.js";
-import { TheokitAgentError } from "../../src/errors.js";
 
 describe("tracked() envelope", () => {
   it("returns [id, payload] tuple", () => {
@@ -62,7 +62,9 @@ describe("Subscription error hierarchy", () => {
   });
 
   it("SubscriptionInputError carries issues field", () => {
-    const e = new SubscriptionInputError("bad input", { issues: { fieldErrors: { x: ["required"] } } });
+    const e = new SubscriptionInputError("bad input", {
+      issues: { fieldErrors: { x: ["required"] } },
+    });
     expect(e).toBeInstanceOf(SubscriptionError);
     expect(e.name).toBe("SubscriptionInputError");
     expect(e.code).toBe("subscription_input_invalid");
