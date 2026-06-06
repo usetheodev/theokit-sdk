@@ -64,3 +64,7 @@ docs/evalscope/
 # Local backups (e.g., .claude.previous.bak/, CLAUDE.md.bak from migrations)
 *.bak
 *.bak/
+
+# Architecture review output (loop-architecture-review plugin output dir)
+# DB + figures + ADR drafts; reproducible by re-running /loop-architecture-review
+architecture-output/
