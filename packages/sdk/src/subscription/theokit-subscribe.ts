@@ -49,6 +49,7 @@ const defaultRetry = (attempt: number) => Math.min(30_000, 1000 * 2 ** attempt);
  *
  * @public
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: G8 subscribe orchestrates reconnect + transport switch + resume — refactor candidate tracked in subscription/theokit-subscribe.ts:52 followup
 export async function* subscribe<TInput, TOutput>(
   name: string,
   input: TInput,
@@ -112,6 +113,7 @@ interface FrameOut<T> {
   readonly lastEventId?: string;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: openSse parses framed SSE stream with abort/error/retry branches — refactor candidate
 async function* openSse<T>(
   name: string,
   input: unknown,
@@ -150,6 +152,7 @@ async function* openSse<T>(
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: openWs orchestrates WS lifecycle + envelope decode + cleanup — refactor candidate
 async function* openWs<T>(
   name: string,
   input: unknown,
@@ -172,6 +175,7 @@ async function* openWs<T>(
 
   // Set up async iterator-like state.
   const incoming: WireFrame[] = [];
+  // biome-ignore lint/suspicious/noConfusingVoidType: idiomatic event-callback signature; refactoring to undefined would mask the no-value semantics
   let waiter: ((value: void) => void) | null = null;
   let closed = false;
   let closeError: Error | undefined;

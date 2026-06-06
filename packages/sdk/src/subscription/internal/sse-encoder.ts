@@ -40,6 +40,7 @@ const encoder = new TextEncoder();
  *
  * @internal
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: SSE encoder branches across comment/event/data/retry/id fields per W3C spec — refactor candidate
 export function encodeSseChunk(chunk: SSEvent): Uint8Array {
   const lines: string[] = [];
 
