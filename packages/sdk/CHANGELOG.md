@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Fixed
+
+- Restored green `pnpm validate` after G8 subscription landing (`9fda7d7`). Biome 2.4 gate: 24 lint findings in `subscription/` prod + tests resolved with `biome-ignore` annotations (9× `useYield` intentional empty/throw test handlers; 13× `noExcessiveCognitiveComplexity` refactor-candidate; 1× `noConfusingVoidType` idiomatic callback shape; 1× `noAssignInExpressions` idiomatic line-parser). Stale `// eslint-disable-next-line require-yield` comments replaced — Biome does not honor ESLint pragmas. Lint-gate T1.5.2 `no-unredacted-sink` whitelisted `subscription/internal/server-integration.ts` (writes declarative `SubscriptionManifest`, no PII). Build/publint: `scripts/mirror-dts-to-cts.mjs` targets extended to cover `subscription/` so `dist/subscription/index.d.cts` is emitted (fixes `pkg.exports["./subscription"].require.types` missing). Dead-code/knip: ignore glob extended from `src/internal/**` to `src/**/internal/**` for per-feature internal namespaces. Architecture/depcruise `no-orphans`: `pathNot` extended with `(^|/)packages/sdk/src/[^/]+/internal/` (same exemption rationale as `src/internal/` — type-only exports erased at runtime).
+
 ## 1.7.0 - 2026-06-04
 
 ### Added
