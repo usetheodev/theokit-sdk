@@ -13,10 +13,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { defineSubscription } from "../../src/subscription/define-subscription.js";
-import {
-  type MountedSubscriptions,
-  mountSubscriptions,
-} from "../../src/subscription/internal/server-integration.js";
+import type { MountedSubscriptions } from "../../src/subscription/internal/server-integration.js";
 import { SubscriptionRuntime } from "../../src/subscription/internal/subscription-runtime.js";
 import { subscribe } from "../../src/subscription/theokit-subscribe.js";
 
@@ -95,6 +92,7 @@ async function mountSubscriptionsViaPreloadedRuntime(
   return {
     runtime,
     loaded: ["counter"],
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test mount handler mirrors production server-integration semantics for resume scenarios
     handleSseRequest: async (reqRaw, resRaw) => {
       const req = reqRaw as {
         url?: string;
@@ -174,6 +172,7 @@ async function mountSubscriptionsViaPreloadedRuntime(
         (socket as { destroy: () => void }).destroy();
         return;
       }
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test WS handler multiplexes subscribe/abort/resume kinds
       handle.onMessage((data) => {
         const text = typeof data === "string" ? data : new TextDecoder().decode(data);
         const msg = JSON.parse(text);

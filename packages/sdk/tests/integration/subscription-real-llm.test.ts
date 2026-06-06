@@ -31,6 +31,7 @@ beforeAll(async () => {
     defineSubscription({
       input: z.object({ topic: z.string() }),
       output: z.object({ kind: z.enum(["partial", "complete"]), text: z.string() }),
+      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: integration test handler streams partial/complete envelopes with abort + flush semantics
       async *handler(input, ctx) {
         let counter = 0;
         const iter = Agent.streamObject({
@@ -58,6 +59,7 @@ beforeAll(async () => {
     }),
   );
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test server multiplexes routing + SSE framing for integration scenarios
   server = createServer(async (req, res) => {
     if (!req.url?.startsWith("/api/subscriptions/")) {
       res.writeHead(404);

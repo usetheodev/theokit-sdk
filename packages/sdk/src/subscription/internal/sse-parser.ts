@@ -42,6 +42,7 @@ export async function* parseSseW3C(
   let commentLines: string[] = [];
   let hasField = false;
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dispatch builds SSEvent from per-field state per W3C spec — refactor candidate
   const dispatch = (): SSEvent | null => {
     if (!hasField) {
       // Blank line with no preceding fields → reset state, no dispatch (per spec § 9.2.6)
@@ -67,6 +68,7 @@ export async function* parseSseW3C(
     return chunk;
   };
 
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: handleLine dispatches across all SSE field kinds per W3C spec — refactor candidate
   const handleLine = (line: string): SSEvent | null => {
     if (line === "") {
       return dispatch();
@@ -122,6 +124,7 @@ export async function* parseSseW3C(
     // Normalize CRLF / CR to LF then split
     buffer += decoder.decode(bytes, { stream: true }).replace(/\r\n|\r/g, "\n");
     let idx: number;
+    // biome-ignore lint/suspicious/noAssignInExpressions: idiomatic while-assignment loop for buffered line parsing
     while ((idx = buffer.indexOf("\n")) !== -1) {
       const line = buffer.slice(0, idx);
       buffer = buffer.slice(idx + 1);

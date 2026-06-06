@@ -12,7 +12,7 @@ describe("defineSubscription", () => {
     const desc = defineSubscription({
       input,
       output,
-      // eslint-disable-next-line require-yield
+      // biome-ignore lint/correctness/useYield: intentional empty handler — test asserts registration only
       async *handler() {
         return;
       },
@@ -27,7 +27,7 @@ describe("defineSubscription", () => {
       name: "chat-room",
       input: z.object({}),
       output: z.object({}),
-      // eslint-disable-next-line require-yield
+      // biome-ignore lint/correctness/useYield: intentional empty handler — test asserts name preservation only
       async *handler() {
         return;
       },
@@ -41,6 +41,7 @@ describe("defineSubscription", () => {
         // @ts-expect-error testing runtime guard
         input: undefined,
         output: z.object({}),
+        // biome-ignore lint/correctness/useYield: handler only reached if runtime guard fails
         async *handler() {
           return;
         },
@@ -54,6 +55,7 @@ describe("defineSubscription", () => {
         input: z.object({}),
         // @ts-expect-error testing runtime guard
         output: undefined,
+        // biome-ignore lint/correctness/useYield: handler only reached if runtime guard fails
         async *handler() {
           return;
         },

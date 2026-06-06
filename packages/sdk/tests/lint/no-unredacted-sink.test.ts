@@ -127,6 +127,11 @@ const WHITELIST = new Set<string>([
   // static label, not user-supplied data; `console.warn` prints `err.message` only
   // (no raw prompt). Same rationale as the source modules already in the whitelist.
   "internal/cache/embed-helper.ts",
+  // G8 subscription server-integration: `fs.writeFile` persists the
+  // SubscriptionManifest (declarative registry — version + subscription names
+  // + zod-derived input/output schemas). No user payload, no PII, no secrets.
+  // Manifest is loaded back at server boot to mount routes.
+  "subscription/internal/server-integration.ts",
 ]);
 
 interface Offender {

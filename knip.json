@@ -23,7 +23,7 @@
     "packages/sdk": {
       "entry": ["tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": ["src/internal/**"]
+      "ignore": ["src/internal/**", "src/**/internal/**"]
     },
     "packages/react": {
       "entry": ["tests/**/*.test.ts"],

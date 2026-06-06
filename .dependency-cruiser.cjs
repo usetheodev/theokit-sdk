@@ -26,6 +26,9 @@ module.exports = {
           "(^|/)tests/",
           "(^|/)tools/",
           "(^|/)packages/sdk/src/internal/",
+          // Per-feature internal namespaces (e.g., subscription/internal/) — same rationale as src/internal/:
+          // type-only re-exports erased at JS runtime, plus knip + tsc cover dead-type detection.
+          "(^|/)packages/sdk/src/[^/]+/internal/",
           "(^|/)packages/sdk/src/types/",
           // G11 auth orchestrator types (type-only exports erased at JS runtime; tsc + knip cover dead-type detection per existing rule rationale)
           "(^|/)packages/sdk/src/server/auth/types\\.ts$",
