@@ -66,6 +66,8 @@ If `iterations_used >= {MAX_ITERATIONS}` OR no-improvement detected for 2 consec
 - NEVER fabricate a citation. If a path doesn't exist, mark it BLOCKED and move on.
 - NEVER emit the promise while a hard cap is still active. INVALID verdict cannot be auto-improved past 49 without resolving the underlying structural defect (empty corner / fabricated citation).
 - NEVER iterate beyond `{MAX_ITERATIONS}`.
+- NEVER emit `<promise>BLUEPRINT_IMPROVED</promise>` without re-running `run_blueprint_score.py` in this iteration AFTER your last edit. The promise asserts a measurable fact (verdict ≥ `{TARGET_VERDICT}`); emitting it speculatively (without verification) is fabrication.
+- NEVER spawn a nested ralph-loop inside this iteration. NEVER modify `.claude/ralph-loop.local.md` directly. If you observe `ralph-loop.local.md` with `active: true` referencing a DIFFERENT slug, HALT and surface the conflict.
 
 ## When to give up honestly
 

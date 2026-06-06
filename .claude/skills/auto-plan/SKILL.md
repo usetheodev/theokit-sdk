@@ -122,10 +122,10 @@ Locks the SHA256 so UserPromptSubmit hook can validate.
 Skill(/implement {topic-slug})              # ralph-loop halt-loop until IMPLEMENTATION_COMPLETE
 ```
 
-The `/implement` skill itself now invokes `/code-quality` at Step 5.5 (see `skills/implement/SKILL.md`), so a separate orchestrator call is not needed. After `/implement` returns:
+The `/implement` skill itself runs the consolidated validation gate at Step 5 — `run_validation.py` invokes `/code-quality` internally via `cq_invoke` (per ADR 0002) — and, when Step 5 returns `FAIL`, drives a mandatory fix-loop at Step 5.5 with promise `VALIDATION_GATE_PASSED` (see `skills/implement/SKILL.md`). A separate orchestrator call is not needed. After `/implement` returns, branch on the final reported state:
 
-- code-quality verdict ∈ {`PASS`, `PASS_WITH_CAVEATS`} → proceed to Phase R.
-- code-quality verdict ∈ {`FAIL_SOFT`, `FAIL_HARD`, `INVALID`} → halt with `BLOCKED` and surface findings.
+- Step 4 promise = `IMPLEMENTATION_COMPLETE` (no BLOCKED) AND Step 5/5.5 promise = `VALIDATION_GATE_PASSED` (no BLOCKED) AND final code-quality verdict ∈ {`PASS`, `PASS_WITH_CAVEATS`} → proceed to Phase R.
+- Either loop emitted a BLOCKED report OR final code-quality verdict ∈ {`FAIL_SOFT`, `FAIL_HARD`, `INVALID`} → halt with `BLOCKED` and surface findings. `/review` and `/release` MUST NOT run.
 
 #### Phase R — Review (full-pipeline only; SKIPPED when `--plan-only`)
 

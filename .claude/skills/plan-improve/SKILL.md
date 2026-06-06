@@ -35,7 +35,7 @@ Where `{slug}` is the basename of a plan file in `.claude/knowledge-base/plans/`
 
 Defaults:
 - `--target`: `SHIPPABLE_WITH_CAVEATS` (the realistic ceiling per ADR D8 + EC-5)
-- `--max-iterations`: `20`
+- `--max-iterations`: `20` (canonical cap — see § Hard limits; the "Maximum reasonable" of 30 mentioned later is the absolute ceiling beyond which the plan is structurally broken, not the default)
 
 ### Step 2 — Resolve plan path
 
@@ -49,7 +49,11 @@ Read `.claude/skills/plan-improve/prompts/improvement-prompt.md` and substitute:
 - `{TARGET_VERDICT}` — target band
 - `{MAX_ITERATIONS}` — iteration limit
 
-### Step 4 — Invoke ralph-loop (shell-safe positional + flags)
+### Step 4 — Pre-flight guard (concurrent-loop safety)
+
+Before invoking ralph-loop, verify `.claude/ralph-loop.local.md` (if present in project root) does NOT have `active: true`. Concurrent ralph-loops on overlapping state is a documented anti-pattern (`rules/loop-engine-convention.md § Anti-patterns`). If a stale state file from a prior loop is observed `active`, HALT and surface to human rather than spawning a concurrent loop.
+
+### Step 5 — Invoke ralph-loop (shell-safe positional + flags)
 
 **Read `.claude/rules/loop-engine-convention.md § How to invoke ralph-loop:ralph-loop safely` BEFORE this step.** The ralph-loop positional argument is shell-evaluated; inlining a multi-section driver prompt (backticks / fenced code blocks / `$(...)`) breaks loop startup with a bash parse error. Use the file-referenced pattern.
 
@@ -65,13 +69,36 @@ The ralph-loop plugin:
 - Feeds the positional prompt back to Claude on each session-exit attempt (Claude re-reads the driver file each iteration)
 - Detects `<promise>PLAN_IMPROVED</promise>` to terminate
 
-### Step 5 — Report
+### Step 6 — Post-promise sanity check
 
-After the loop terminates (promise detected OR max iterations), print:
-- Initial verdict vs final verdict
+After the loop emits `<promise>PLAN_IMPROVED</promise>`, run ONCE before the report:
+
+```bash
+python3 .claude/skills/plan-confidence/scripts/run_structural.py {PLAN_PATH} --no-warn
+```
+
+Compare the emitted verdict against `--target`. If the post-promise verdict is BELOW `--target`, the loop emitted the marker speculatively — surface as **PROMISE INTEGRITY VIOLATION** and re-invoke. NEVER accept the promise at face value when score-on-disk does not match.
+
+### Step 7 — Report
+
+After the loop terminates AND sanity check passes:
+- Initial verdict vs final verdict (post-sanity-check)
 - Total changes per category (weak_imperatives, loopholes, tdd_template, adr_alternatives)
 - Remaining issues that required human review (if any)
 - Diff of all modifications (`git diff` against working tree)
+
+## Stop conditions
+
+Emit the promise (per `prompts/improvement-prompt.md`) **with explicit BLOCKED report**, never false PASS, when ANY of:
+
+1. `iterations_used >= --max-iterations` and `verdict < --target`.
+2. No-improvement detected for 2 consecutive iterations (same score, same `reasons`).
+3. Hard cap fires that cannot be auto-resolved (INVALID at 49 — `/plan-improve` does NOT fix hard caps per `cycle-plan.md § Verdicts`). HALT, recommend `/to-plan` rewrite.
+4. ADR alternative cannot be credibly proposed by Phase B → leave TODO comment, surface for human.
+5. Coverage Matrix gap cannot be deferred via existing ADR justification → leave TODO comment.
+6. Post-promise sanity check (Step 6) detects score-disk drift → re-invoke OR HALT after 2 retries.
+
+In all 6 cases, `cycle-plan` downstream phases MUST NOT proceed treating the plan as auto-improved. Honest BLOCKED > false IMPROVED (Unbreakable Rule 3).
 
 ## Fix categories (4 active in v1)
 
@@ -84,13 +111,14 @@ After the loop terminates (promise detected OR max iterations), print:
 
 **Phase A (apply_fixes.py)** is invoked first via Bash. **Phase B (LLM)** runs only if Phase A doesn't reach target.
 
-## Invariants
+## Anti-patterns
 
-- The skill SHALL NOT touch files outside `{PLAN_PATH}`.
-- The skill SHALL NOT commit or push to git.
-- The skill SHALL NOT emit `<promise>PLAN_IMPROVED</promise>` falsely.
-- The loop SHALL NOT iterate beyond `--max-iterations`.
-- If the loop reaches max iterations without target met, the agent emits the promise WITH an honest "remaining issues" report.
+- The skill NEVER touches files outside `{PLAN_PATH}`.
+- The skill NEVER commits or pushes to git.
+- The skill NEVER emits `<promise>PLAN_IMPROVED</promise>` falsely — Step 6 sanity check enforces.
+- The skill NEVER spawns concurrent ralph-loops on overlapping state (Step 4 pre-flight guard).
+- The loop NEVER iterates beyond `--max-iterations`.
+- If the loop reaches max iterations without target met, the agent emits the promise WITH an honest "remaining issues" report. Forbidden per-iteration practices are enumerated in `prompts/improvement-prompt.md § Invariants you SHALL NOT violate`.
 
 ## Hard limits
 

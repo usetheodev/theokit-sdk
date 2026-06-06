@@ -51,6 +51,17 @@ Phase 0 is OPTIONAL — invoke only when the topic is non-trivial AND requiremen
 | deps-audit | plan | dependency report with CVE status | no critical CVE on a planned dependency |
 | plan-confidence | plan | score + verdict | INVALID returns to /to-plan |
 
+## Halt-loop contract (/plan-improve only)
+
+`/plan-improve` is the only phase of `cycle-plan` that drives an autonomous halt-loop via `ralph-loop:ralph-loop`. It follows the same rigorous template established for `/implement` (per `rules/cycle-implement.md`): pre-flight guard against concurrent ralph-loops, formal stop conditions, post-promise sanity check, anti-patterns enumerated, honest BLOCKED report over false PASS.
+
+- **Completion promise:** `<promise>PLAN_IMPROVED</promise>` — asserts re-run of `run_structural.py` in the emitting iteration shows verdict ≥ `--target`. Step 6 post-promise sanity check re-verifies score-on-disk.
+- **Max iterations:** 20 (canonical). Beyond 30 the plan is structurally broken.
+- **Stop conditions:** see `skills/plan-improve/SKILL.md § Stop conditions` (6 enumerated cases).
+- **Hard caps are NOT auto-fixable.** Per § Verdicts, `INVALID` (49) returns to `/to-plan` rewrite — `/plan-improve` MUST NOT iterate trying to lift a hard cap.
+
+A BLOCKED report blocks downstream: `/plan-confidence` MUST NOT honor the plan as SHIPPABLE until the human resolves the blocker.
+
 ## When to skip Phase 0 (grill-me)
 
 - The user already wrote a detailed spec (e.g., a one-pager in `docs/specs/`).

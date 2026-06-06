@@ -104,6 +104,7 @@ You are mid-discovery, iteration {ITERATION}/{MAX_ITERATIONS}. The user invoked 
 - NEVER fabricate a citation. If you cannot find a real path that supports a claim, REMOVE the claim or mark it BLOCKED.
 - NEVER skip a corner. All four must be populated before the promise.
 - NEVER emit `<promise>BLUEPRINT_COMPLETE</promise>` while a question is still `pending`. Use `blocked` if you cannot answer it.
+- NEVER spawn a nested ralph-loop inside this iteration. NEVER modify `.claude/ralph-loop.local.md` directly — that is the parent loop's state. If you observe `ralph-loop.local.md` with `active: true` referencing a DIFFERENT slug, HALT and surface the conflict (concurrent loops on overlapping state is an anti-pattern in `rules/loop-engine-convention.md`).
 
 ## When the loop should give up
 

@@ -97,7 +97,8 @@ Run the scorer again (Step 1). If improved, continue. If not improved (same or l
 5. **DO NOT modify task headers (`### T<N>.<M>`).** Title content is sacred.
 6. **DO NOT touch other plans.** Only the slug you were given.
 7. **DO NOT touch git history or commit changes.** Edits stay in working tree.
-8. **DO NOT emit `<promise>PLAN_IMPROVED</promise>` falsely.** Only when the target verdict is genuinely met OR you've exhausted all automatic fixes and need human intervention.
+8. **DO NOT emit `<promise>PLAN_IMPROVED</promise>` falsely.** Only when the target verdict is genuinely met (re-run `run_structural.py` AFTER your last edit in this iteration — the promise asserts a measurable fact; emitting it speculatively is fabrication) OR you've exhausted all automatic fixes and need human intervention.
+9. **DO NOT spawn a nested ralph-loop inside this iteration. DO NOT modify `.claude/ralph-loop.local.md` directly.** If you observe `ralph-loop.local.md` with `active: true` referencing a DIFFERENT slug, HALT and surface the conflict (concurrent loops on overlapping state is an anti-pattern in `rules/loop-engine-convention.md`).
 
 ## What "EXTREMELY reliable" means in this loop
 

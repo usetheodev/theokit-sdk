@@ -48,10 +48,30 @@ Do NOT trigger DISCOVER for:
 | improve (opt.) | NEEDS_REVISION blueprint | revised blueprint | bumped verdict on re-score |
 | writer/validator/register (opt.) | SHIPPABLE blueprint | first-class `*-patterns` skill in `skills/` | passes skill-validator gates |
 
+## Halt-loop contracts (rigorous promises with measurable exit criteria)
+
+Two phases drive autonomous halt-loops via `ralph-loop:ralph-loop`. Both follow the same rigorous template established for `/implement` (per `rules/cycle-implement.md`): pre-flight guard against concurrent ralph-loops, formal stop conditions, post-promise sanity check, anti-patterns enumerated, honest BLOCKED report over false PASS.
+
+### /discover-execute (Phase 4)
+
+- **Completion promise:** `<promise>BLUEPRINT_COMPLETE</promise>` — asserts (a) every plan question is `done` OR `blocked` with reason, (b) every citation in the blueprint resolves on disk, (c) all four coverage corners populated, (d) ≥ 1 ADR section. Step 7 post-promise sanity check re-verifies citation integrity.
+- **Failure promise:** `<promise>BLUEPRINT_BLOCKED</promise>` — emitted with explicit blocked-questions report when stop conditions trigger.
+- **Max iterations:** 30. **Time budget:** 60min default (derived from plan).
+- **Stop conditions:** see `skills/discover-execute/SKILL.md § Stop conditions` (6 enumerated cases).
+
+### /discover-improve (Phase 5, optional)
+
+- **Completion promise:** `<promise>BLUEPRINT_IMPROVED</promise>` — asserts re-run of `run_blueprint_score.py` in the emitting iteration shows verdict ≥ `--target`. Step 6 post-promise sanity check re-verifies score-on-disk.
+- **Max iterations:** 20 (canonical). Beyond 30 the blueprint is structurally broken.
+- **Stop conditions:** see `skills/discover-improve/SKILL.md § Stop conditions` (6 enumerated cases).
+
+Either loop emitting a BLOCKED report blocks downstream: `/discover-confidence` MUST NOT honor the blueprint as SHIPPABLE until the human resolves the blocker.
+
 ## Stop conditions
 
 - Verdict INVALID → return to `/discover-plan` (rewrite the question).
 - 3 consecutive iterations without confidence improvement → escalate to a human.
+- Either halt-loop emits BLOCKED → cycle pauses; downstream phases MUST NOT proceed.
 
 ## Anti-patterns
 

@@ -39,7 +39,7 @@ Where `{slug}` is the basename of a blueprint file in `.claude/knowledge-base/di
 Defaults:
 
 - `--target`: `SHIPPABLE_WITH_CAVEATS` (the realistic ceiling for auto-improvement)
-- `--max-iterations`: `20`
+- `--max-iterations`: `20` (canonical cap — see § Hard limits; the "Maximum reasonable" of 30 mentioned later is the absolute ceiling beyond which the blueprint is structurally broken, not the default)
 
 ### Step 2 — Resolve blueprint path
 
@@ -54,7 +54,11 @@ Read `.claude/skills/discover-improve/prompts/improvement-prompt.md` and substit
 - `{TARGET_VERDICT}` — target band
 - `{MAX_ITERATIONS}` — iteration limit
 
-### Step 4 — Invoke ralph-loop (shell-safe positional + flags)
+### Step 4 — Pre-flight guard (concurrent-loop safety)
+
+Before invoking ralph-loop, verify `.claude/ralph-loop.local.md` (if present in project root) does NOT have `active: true`. Concurrent ralph-loops on overlapping state is a documented anti-pattern (`rules/loop-engine-convention.md § Anti-patterns`). If a stale state file from a prior loop is observed `active`, HALT and surface to human rather than spawning a concurrent loop.
+
+### Step 5 — Invoke ralph-loop (shell-safe positional + flags)
 
 **Read `.claude/rules/loop-engine-convention.md § How to invoke ralph-loop:ralph-loop safely` BEFORE this step.** The ralph-loop positional argument is shell-evaluated; inlining a multi-section driver prompt (backticks / fenced code blocks / `$(...)`) breaks loop startup with a bash parse error. Use the file-referenced pattern.
 
@@ -71,14 +75,37 @@ The ralph-loop plugin:
 - Feeds the positional prompt back to Claude on each session-exit attempt (Claude re-reads the driver file each iteration)
 - Detects `<promise>BLUEPRINT_IMPROVED</promise>` to terminate
 
-### Step 5 — Report
+### Step 6 — Post-promise sanity check
 
-After the loop terminates:
+After the loop emits `<promise>BLUEPRINT_IMPROVED</promise>`, run ONCE before the report:
 
-- Initial verdict vs final verdict
+```bash
+python3 .claude/skills/discover-confidence/scripts/run_blueprint_score.py {BLUEPRINT_PATH} --no-warn
+```
+
+Compare the emitted verdict against `--target`. If the post-promise verdict is BELOW `--target`, the loop emitted the marker speculatively — surface as **PROMISE INTEGRITY VIOLATION** and re-invoke. NEVER accept the promise at face value when score-on-disk does not match.
+
+### Step 7 — Report
+
+After the loop terminates AND sanity check passes:
+
+- Initial verdict vs final verdict (post-sanity-check)
 - Total changes per category
 - Remaining issues that required human review
 - Diff of all modifications (`git diff` against working tree)
+
+## Stop conditions
+
+Emit the promise (per `prompts/improvement-prompt.md § When to give up honestly`) **with explicit BLOCKED report**, never false PASS, when ANY of:
+
+1. `iterations_used >= --max-iterations` and `verdict < --target`.
+2. No-improvement detected for 2 consecutive iterations (same score, same `reasons`).
+3. Fabricated citation with no plausible replacement → BLOCKED, recommend `/discover-execute` to re-run the source question.
+4. Empty coverage corner with no relevant content elsewhere → BLOCKED, recommend `/discover-plan` to revise OR accept lower verdict.
+5. Hard cap remains active (INVALID at 49) and cannot be lifted via Phase A or Phase B without scope-creeping → HALT, surface to human.
+6. Post-promise sanity check (Step 6) detects score-disk drift → re-invoke OR HALT after 2 retries.
+
+In all 6 cases, downstream phases of `cycle-discover` MUST NOT proceed treating the blueprint as auto-improved. Honest BLOCKED > false IMPROVED (Unbreakable Rule 3).
 
 ## Fix categories (4 active in v1)
 
@@ -93,14 +120,15 @@ After the loop terminates:
 
 **Phase A (apply_fixes.py)** runs first. **Phase B (LLM)** runs only if Phase A doesn't reach target.
 
-## Invariants
+## Anti-patterns
 
-- The skill SHALL NOT touch files outside `{BLUEPRINT_PATH}` (or the progress file).
-- The skill SHALL NOT modify `.claude/knowledge-base/references/` (boundary-check hook enforces).
-- The skill SHALL NOT modify the upstream discovery plan (use `/discover-plan` to revise the plan).
-- The skill SHALL NOT commit or push to git.
-- The skill SHALL NOT emit `<promise>BLUEPRINT_IMPROVED</promise>` falsely.
-- The loop SHALL NOT iterate beyond `--max-iterations`.
+- The skill NEVER touches files outside `{BLUEPRINT_PATH}` (or the progress file).
+- The skill NEVER modifies `.claude/knowledge-base/references/` (boundary-check hook enforces).
+- The skill NEVER modifies the upstream discovery plan (use `/discover-plan` to revise the plan).
+- The skill NEVER commits or pushes to git.
+- The skill NEVER emits `<promise>BLUEPRINT_IMPROVED</promise>` falsely — Step 6 sanity check enforces.
+- The skill NEVER spawns concurrent ralph-loops on overlapping state (Step 4 pre-flight guard).
+- The loop NEVER iterates beyond `--max-iterations`. Forbidden per-iteration practices are enumerated in `prompts/improvement-prompt.md § Inviolable rules`.
 
 ## Hard limits
 

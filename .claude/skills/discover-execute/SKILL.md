@@ -60,7 +60,11 @@ Read `.claude/skills/discover-execute/prompts/execute-mode-prompt.md` and substi
 - `{MAX_ITERATIONS}` — iteration limit
 - `{TIME_BUDGET}` — total time budget
 
-### Step 4 — Invoke ralph-loop (shell-safe positional + flags)
+### Step 4 — Pre-flight guard (concurrent-loop safety)
+
+Before invoking ralph-loop, verify `.claude/ralph-loop.local.md` (if present in project root) does NOT have `active: true`. Concurrent ralph-loops on overlapping state is a documented anti-pattern (`rules/loop-engine-convention.md § Anti-patterns`). If a stale state file from a prior loop is observed `active`, HALT and surface to human rather than spawning a concurrent loop.
+
+### Step 5 — Invoke ralph-loop (shell-safe positional + flags)
 
 **Read `.claude/rules/loop-engine-convention.md § How to invoke ralph-loop:ralph-loop safely` BEFORE this step.** The ralph-loop positional argument is shell-evaluated; inlining a multi-section driver prompt (backticks / fenced code blocks / `$(...)`) breaks loop startup with a bash parse error. Use the file-referenced pattern.
 
@@ -77,7 +81,7 @@ The ralph-loop plugin:
 - Feeds the positional prompt back to Claude on each session-exit attempt (Claude re-reads the driver file each iteration)
 - Detects `<promise>BLUEPRINT_COMPLETE</promise>` to terminate
 
-### Step 5 — Per-iteration contract
+### Step 6 — Per-iteration contract
 
 Each iteration of the halt-loop MUST:
 
@@ -96,7 +100,22 @@ If a research question cannot be answered (e.g., the cited path doesn't exist af
 - Continues to the next question.
 - Does NOT emit `BLUEPRINT_COMPLETE` — instead reports honestly that N questions remained blocked.
 
-### Step 6 — Report
+### Step 7 — Post-promise sanity check
+
+After the loop emits `<promise>BLUEPRINT_COMPLETE</promise>`, run ONCE before the report:
+
+```bash
+# Re-verify ALL citations in the blueprint exist on disk
+grep -oE '.claude/knowledge-base/references/[^ )`":]+' {BLUEPRINT_PATH} | sort -u | while read -r path; do
+  [ -e "$path" ] || echo "FABRICATED: $path"
+done
+```
+
+If ANY `FABRICATED:` line appears, the promise was emitted with a fabricated citation slipping through. Surface as **PROMISE INTEGRITY VIOLATION** — re-mark the offending claim with `<!-- BLOCKED: ... -->` and re-invoke the loop. NEVER accept the promise at face value.
+
+If the loop emitted `<promise>BLUEPRINT_BLOCKED</promise>`, the sanity check still runs to ensure the BLOCKED report's surfaced blocker count matches the progress file. Drift between the report and `.progress-{slug}.json` blocks handoff.
+
+### Step 8 — Report
 
 After the loop terminates (promise detected OR max iterations OR time budget):
 
@@ -106,14 +125,29 @@ After the loop terminates (promise detected OR max iterations OR time budget):
 - Citations verified count (cross-ref against `.progress-{slug}.json`)
 - Recommendation: invoke `/discover-confidence {slug}` next
 
-## Halt-loop invariants
+## Halt-loop anti-patterns
 
-- The skill SHALL NOT modify the discovery plan during execute (use `/discover-improve` for blueprint refinement).
-- The skill SHALL NOT touch any file inside `.claude/knowledge-base/references/` (boundary-check hook enforces).
-- The skill SHALL NOT run `npm install`, `pip install`, `poetry install`, or any dependency installer inside `.claude/knowledge-base/references/`.
-- The skill SHALL NOT emit `<promise>BLUEPRINT_COMPLETE</promise>` while ANY of the four halt-condition checks fails.
-- The loop SHALL NOT iterate beyond `--max-iterations` or `--time-budget`.
-- If exhausted before completion, the skill SHALL emit a promise with HONEST blocked-questions report.
+- The skill NEVER modifies the discovery plan during execute (use `/discover-improve` for blueprint refinement).
+- The skill NEVER touches any file inside `.claude/knowledge-base/references/` (boundary-check hook enforces).
+- The skill NEVER runs `npm install`, `pip install`, `poetry install`, or any dependency installer inside `.claude/knowledge-base/references/`.
+- The skill NEVER emits `<promise>BLUEPRINT_COMPLETE</promise>` while ANY of the four halt-condition checks fails.
+- The skill NEVER emits a promise without the post-promise sanity check (Step 7) confirming on-disk truth.
+- The skill NEVER spawns concurrent ralph-loops on overlapping state (Step 4 pre-flight guard).
+- The loop NEVER iterates beyond `--max-iterations` or `--time-budget`.
+- If exhausted before completion, the skill emits `<promise>BLUEPRINT_BLOCKED</promise>` (not `BLUEPRINT_COMPLETE`) with HONEST blocked-questions report. Forbidden practices specific to per-iteration work are enumerated in `prompts/execute-mode-prompt.md § Inviolable rules`.
+
+## Stop conditions
+
+Emit `<promise>BLUEPRINT_BLOCKED</promise>` (NEVER `BLUEPRINT_COMPLETE`) with explicit BLOCKED report when ANY of:
+
+1. `iterations_used >= --max-iterations` and at least one question is still `pending`.
+2. Time budget exhausted (`--time-budget`).
+3. Same question fails twice in a row with no observable progress.
+4. A fabricated citation cannot be replaced with a real path (recommend re-running `/discover-plan` for that question).
+5. A coverage corner has zero credible source after exhaustive Fase A + Fase B passes (the question budget allocated to that corner was insufficient — recommend `/discover-plan` to revise).
+6. Boundary-check hook blocked a write attempt to `knowledge-base/references/` — surfaces an underlying bug, not a content gap; HALT immediately and surface to human.
+
+In all 6 cases, `/discover-confidence` MUST NOT honor the blueprint as SHIPPABLE — the BLOCKED report is canonical until the human resolves the blocker. Honest BLOCKED > false COMPLETE (Unbreakable Rule 3).
 
 ## Per-iteration prompt skeleton (informational — actual prompt lives in `prompts/execute-mode-prompt.md`)
 
