@@ -216,6 +216,7 @@ function isSubscriptionDescriptor(value: unknown): boolean {
   );
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: handleSseRequest orchestrates parse + auth + framing + cleanup — refactor candidate
 async function handleSseRequest(
   runtime: SubscriptionRuntime,
   reqRaw: unknown,
@@ -307,6 +308,7 @@ function wireWsConnection(
   handle: import("./adapter-types.js").WebSocketHandle,
 ): void {
   const subs: Map<string, { ac: AbortController; iterable: AsyncIterable<WireFrame> }> = new Map();
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: onMessage callback multiplexes subscribe/abort/resume kinds + per-sub lifecycle — refactor candidate
   handle.onMessage((data) => {
     const text = typeof data === "string" ? data : new TextDecoder().decode(data);
     let msg: { kind?: string; name?: string; input?: unknown; lastEventId?: string };

@@ -40,7 +40,7 @@ describe("SubscriptionRuntime register/get", () => {
     const desc = defineSubscription({
       input: z.object({}),
       output: z.object({}),
-      // eslint-disable-next-line require-yield
+      // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
       async *handler() {
         return;
       },
@@ -54,7 +54,7 @@ describe("SubscriptionRuntime register/get", () => {
     const desc = defineSubscription({
       input: z.object({}),
       output: z.object({}),
-      // eslint-disable-next-line require-yield
+      // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
       async *handler() {
         return;
       },
@@ -68,7 +68,7 @@ describe("SubscriptionRuntime register/get", () => {
     const desc = defineSubscription({
       input: z.object({}),
       output: z.object({}),
-      // eslint-disable-next-line require-yield
+      // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
       async *handler() {
         return;
       },
@@ -161,7 +161,7 @@ describe("SubscriptionRuntime dispatch (SSE)", () => {
       defineSubscription({
         input: z.object({ n: z.number() }),
         output: z.object({}),
-        // eslint-disable-next-line require-yield
+        // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
         async *handler() {
           return;
         },
@@ -249,7 +249,7 @@ describe("SubscriptionRuntime dispatch (WS)", () => {
       defineSubscription({
         input: z.object({}),
         output: z.object({}),
-        // eslint-disable-next-line require-yield
+        // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
         async *handler() {
           throw new Error("boom");
         },

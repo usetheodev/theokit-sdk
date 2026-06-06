@@ -170,6 +170,7 @@ function wrapSocket(ws: WsLikeSocket, connectionId: string): WebSocketHandle {
   return handle;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: decodeWsMessage branches across Buffer/ArrayBuffer/Uint8Array/string for cross-runtime WS adapters — refactor candidate
 function decodeWsMessage(data: unknown, isBinary: boolean): string | Uint8Array {
   if (isBinary) {
     if (data instanceof Uint8Array) return data;

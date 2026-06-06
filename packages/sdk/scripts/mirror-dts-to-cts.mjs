@@ -33,6 +33,7 @@ const targets = [
   join(DIST, "task-store.d.ts"),
   join(DIST, "workflow.d.ts"),
   join(DIST, "eval.d.ts"),
+  join(DIST, "subscription"),
 ];
 
 for (const target of targets) {
