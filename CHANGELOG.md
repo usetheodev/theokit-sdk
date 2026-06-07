@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T0.1: OTel hot-path wiring foundation (plan `sdk-superiority-2026-06-07`)
+
+- **Workspace impact**: 8 new tests + 3 new test-only devDeps (`@opentelemetry/api`, `@opentelemetry/sdk-trace-base`, `@opentelemetry/sdk-metrics`). Workspace `pnpm test` exercises a real `InMemorySpanExporter` for telemetry assertions — no module mocks. Full per-package detail at `packages/sdk/CHANGELOG.md` `[Unreleased] § Added`. Commit `42a3763`.
+
 ### Fixed — telegram-pro: rotate deprecated OpenRouter model `google/gemini-2.0-flash-001` → `openai/gpt-4o-mini`
 
 - **Root cause of the 4 dogfood failures in `telegram-pro-dogfood-2026-06-07.md`**: the default model `google/gemini-2.0-flash-001` was retired upstream by OpenRouter. Direct probe returns `{"error":{"message":"No endpoints found for google/gemini-2.0-flash-001.","code":404}}`. Most slash commands appeared to PASS because they emit a static acknowledgement reply ("Generating…", "Demo started…", list output) BEFORE the LLM call fails — the DOM watcher catches the static reply. Only commands that wait for actual LLM completion before any user-visible reply (`Remember:`, `/fact`, `How do I reverse a string?`) surfaced the 404.
