@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { SystemPromptPipeline } from "../../../../src/internal/runtime/system-prompt/pipeline.js";
-import { SkillsPromptProvider } from "../../../../src/internal/runtime/system-prompt/providers/skills-provider.js";
+import { SkillsPromptProvider } from "../../../../src/internal/runtime/system-prompt/sources/skills-provider.js";
 import type { SystemPromptAssemblyContext } from "../../../../src/internal/runtime/system-prompt/types.js";
 
 /**
