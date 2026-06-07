@@ -16,7 +16,7 @@
  * @internal
  */
 
-import type { IndexStatus, MemorySearchHit, SearchOptions } from "./index-manager.js";
+import type { IndexStatus, MemorySearchHit, SearchOptions } from "./index-manager-contract.js";
 
 // Re-export consumer-facing shapes for stable internal import paths.
 export type { IndexStatus, MemorySearchHit, SearchOptions };
