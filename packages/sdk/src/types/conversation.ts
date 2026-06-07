@@ -1,5 +1,12 @@
 import type { ToolCall } from "./updates.js";
 
+// T4.1 / D438 — `UserMessage` moved to `./messages-base.ts` (leaf file) so
+// `./updates.ts` can reach it without cycling back through this module.
+// Re-exported here for back-compat with `import type { UserMessage } from "@theokit/sdk"`.
+export type { UserMessage } from "./messages-base.js";
+
+import type { UserMessage } from "./messages-base.js";
+
 /**
  * Plain assistant message in a conversation history.
  *
@@ -17,15 +24,6 @@ export interface AssistantMessage {
 export interface ThinkingMessage {
   text: string;
   thinkingDurationMs?: number;
-}
-
-/**
- * User-authored message in a conversation history.
- *
- * @public
- */
-export interface UserMessage {
-  text: string;
 }
 
 /**

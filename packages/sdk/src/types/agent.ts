@@ -3,27 +3,13 @@ import type { McpServerConfig } from "./mcp.js";
 import type { PluginsSettings, ProviderRoutingSettings, SDKProvidersManager } from "./providers.js";
 import type { Run, SDKUserMessage, SendOptions } from "./run.js";
 
-/**
- * One slot in a {@link ModelSelection.params} array.
- *
- * @public
- */
-export interface ModelParameterValue {
-  id: string;
-  value: string;
-}
+// T4.1 / D438 — primitives now live in `./agent-prims.ts` (leaf file) so
+// `./run.ts` and `./messages.ts` can reach them without cycling through
+// `./agent.ts`. Re-exported here for back-compat with consumers that import
+// `ModelSelection` / `ModelParameterValue` / `CustomTool` from `@theokit/sdk`.
+export type { CustomTool, ModelParameterValue, ModelSelection } from "./agent-prims.js";
 
-/**
- * Identifies a model plus optional per-model parameters (e.g. reasoning effort).
- *
- * Use `Theokit.models.list()` to discover valid ids and parameter definitions.
- *
- * @public
- */
-export interface ModelSelection {
-  id: string;
-  params?: ModelParameterValue[];
-}
+import type { CustomTool, ModelSelection } from "./agent-prims.js";
 
 /**
  * Which on-disk settings layers a local agent loads.
@@ -255,38 +241,10 @@ export interface MemorySettings {
   };
 }
 
-/**
- * Inline custom tool — registered with the LLM under the given name + schema
- * and dispatched locally to {@link CustomTool.handler} when the model emits a
- * `tool_use` for it.
- *
- * Local runtime only (SDK v1.0). Cloud agents reject `tools` (handlers cannot
- * cross the wire — use MCP servers or subagents for cloud tool surfaces).
- *
- * Handlers MUST be re-passed on `Agent.resume()` because closures cannot be
- * persisted. The tool catalog (name + description + schema) is NOT serialized.
- *
- * @public
- */
-export interface CustomTool {
-  /**
-   * Tool name surfaced to the LLM. Must match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`
-   * and must not collide with `shell`, `memory_search`, `memory_get`, or any
-   * `mcp_*` prefix (reserved for the SDK's built-in tools).
-   */
-  name: string;
-  /** Description surfaced to the LLM. Required — drives tool-selection accuracy. */
-  description: string;
-  /** JSON Schema (Draft-7 subset) describing the `input` argument. Must be `type: "object"`. */
-  inputSchema: Record<string, unknown>;
-  /**
-   * Local handler invoked when the model emits `tool_use` for this tool.
-   * Returns a string (becomes the `tool_result.content` surfaced back to the
-   * model). Throws → SDK converts to `tool_result` with `isError: true` and
-   * the error `message` as content.
-   */
-  handler: (input: Record<string, unknown>) => string | Promise<string>;
-}
+// T4.1 / D438 — `CustomTool` moved to `./agent-prims.ts` (leaf file) and
+// re-exported at the top of this module. Inline `import("./agent.js")` self-
+// references that previously triggered madge self-cycle #3 have been removed
+// in this same slice.
 
 /**
  * Telemetry configuration for an agent. When `enabled: true`, the SDK emits
@@ -422,9 +380,10 @@ export interface AgentOptions {
    *
    * @public
    */
-  handoffs?: ReadonlyArray<
-    import("./agent.js").SDKAgent | import("./handoff.js").HandoffDescriptor
-  >;
+  // T4.1 / D438 — `SDKAgent` is defined later in this same module; the inline
+  // `import("./agent.js").SDKAgent` form was the back-edge that produced
+  // madge self-cycle #3. Direct forward-reference is valid in type position.
+  handoffs?: ReadonlyArray<SDKAgent | import("./handoff.js").HandoffDescriptor>;
   /**
    * Maximum chain depth across handoffs per `agent.send()` call (D218).
    * Default 5. Exceeding throws `HandoffLoopError`. Set to 0 to disable
