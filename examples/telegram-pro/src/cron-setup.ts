@@ -46,7 +46,7 @@ async function ensureNightlyDream(cwd: string, apiKey: string): Promise<CronJob 
     apiKey,
     agent: {
       apiKey,
-      model: { id: "google/gemini-2.0-flash-001" },
+      model: { id: "openai/gpt-4o-mini" },
       local: { cwd },
       systemPrompt:
         "You are a cron worker. When invoked, do not chat — just acknowledge in one short sentence and stop.",
@@ -109,7 +109,7 @@ export async function scheduleReminder(opts: {
     agent: {
       agentId: id,
       apiKey: opts.apiKey,
-      model: { id: "google/gemini-2.0-flash-001" },
+      model: { id: "openai/gpt-4o-mini" },
       local: { cwd: opts.cwd },
       memory: { enabled: false },
       systemPrompt:

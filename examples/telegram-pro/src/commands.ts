@@ -276,7 +276,7 @@ runner.command("fact", async (event) => {
     const t0 = Date.now();
     const out = await Agent.generateObject({
       apiKey: API_KEY,
-      model: { id: "google/gemini-2.0-flash-001" },
+      model: { id: "openai/gpt-4o-mini" },
       local: { cwd: CWD, sandboxOptions: { enabled: false } },
       schema,
       systemPrompt:
@@ -1534,7 +1534,7 @@ async function fireForLoop(prompt: string, chatId: number): Promise<string> {
     agent = await Agent.create({
       agentId,
       apiKey: API_KEY,
-      model: { id: "google/gemini-2.0-flash-001" },
+      model: { id: "openai/gpt-4o-mini" },
       local: { cwd: CWD, settingSources: ["project", "plugins"], sandboxOptions: { enabled: true } },
       memory: {
         enabled: true,
@@ -1593,7 +1593,7 @@ runner.command("handoff_demo", async (event) => {
   // demo's; isolate to keep the demo predictable.
   const baseConfig = {
     apiKey: API_KEY,
-    model: { id: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001" },
+    model: { id: process.env.TELEGRAM_PRO_MODEL ?? "openai/gpt-4o-mini" },
     local: { cwd: CWD, sandboxOptions: { enabled: false } as const },
   };
 
@@ -1685,7 +1685,7 @@ runner.command("workflow_demo", async (event) => {
 
   const baseConfig = {
     apiKey: API_KEY,
-    model: { id: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001" },
+    model: { id: process.env.TELEGRAM_PRO_MODEL ?? "openai/gpt-4o-mini" },
     local: { cwd: CWD, sandboxOptions: { enabled: false } as const },
   };
 
@@ -1819,14 +1819,14 @@ runner.command("cache_demo", async (event) => {
     threshold: 0.4,
     ttl: { default: "1h", exclude: /\b(weather|today|now|current|stock)\b/i },
     namespace: "tg-cache-demo",
-    modelId: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001",
+    modelId: process.env.TELEGRAM_PRO_MODEL ?? "openai/gpt-4o-mini",
   });
 
   let agent: Awaited<ReturnType<typeof Agent.create>> | undefined;
   try {
     agent = await Agent.create({
       apiKey: API_KEY,
-      model: { id: process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001" },
+      model: { id: process.env.TELEGRAM_PRO_MODEL ?? "openai/gpt-4o-mini" },
       local: { cwd: CWD, sandboxOptions: { enabled: false } as const },
       name: "cache-demo-agent",
     });
