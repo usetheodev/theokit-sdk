@@ -7,12 +7,12 @@ import type {
   SDKUserMessage,
   SendOptions,
 } from "../../types/run.js";
-import { buildFixtureScript } from "./fixture-responder.js";
+import { buildFixtureScript } from "./fixtures/fixture-responder.js";
 import {
   FixtureRunBase,
   type FixtureRunBaseOptions,
   prepareRunContext,
-} from "./fixture-run-base.js";
+} from "./fixtures/fixture-run-base.js";
 
 /**
  * Options accepted by `createCloudRun()`.

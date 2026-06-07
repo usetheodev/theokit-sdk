@@ -1,6 +1,6 @@
-import type { SDKMessage } from "../../types/messages.js";
-import type { RunResult } from "../../types/run.js";
-import { redactSecrets } from "../security/index.js";
+import type { SDKMessage } from "../../../types/messages.js";
+import type { RunResult } from "../../../types/run.js";
+import { redactSecrets } from "../../security/index.js";
 import {
   buildCloudScript,
   contextAwareScript,

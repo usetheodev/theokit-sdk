@@ -6,8 +6,8 @@ import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl } from "../fixture-mode.js";
 import { parseSseStream } from "../llm/sse.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";
-import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
-import type { FixtureScript } from "./fixture-types.js";
+import { FixtureRunBase, prepareRunContext } from "./fixtures/fixture-run-base.js";
+import type { FixtureScript } from "./fixtures/fixture-types.js";
 
 /**
  * Real cloud Run. When `THEOKIT_API_BASE_URL` is set + the API key is not
