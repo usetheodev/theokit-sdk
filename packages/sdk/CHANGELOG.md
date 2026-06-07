@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Renamed `internal/runtime/system-prompt/providers/` → `internal/runtime/system-prompt/sources/`** (FO#6, plan `arch-review-fixes-2026-06-06` T10.3). The directory previously shared its basename with `internal/providers/` (LLM provider profiles per ADR D105-D107) — auditor flagged the duplicate folder name as a findability hazard. `sources/` better describes the semantic: these 5 modules are system-prompt *sources* (ActiveMemoryPromptProvider, BasePromptProvider, ContextPromptProvider, MemoryPromptProvider, SkillsPromptProvider), not LLM provider profiles. Internal-only rename; no public API touched. Git-rename detection preserved (5/5 files moved with `git mv`); import paths in `pipeline.ts` + 5 golden tests updated atomically.
+
 ### Fixed
 
 - **`safeListTools` no longer silently swallows MCP failures** (PV#6, plan `arch-review-fixes-2026-06-06` T8.1). When `client.listTools()` throws (MCP server unreachable, auth refused, etc.), the agent loop now emits a structured `[theokit-sdk] mcp listTools failed (server=<name>): <error>` line to stderr **while preserving the empty-list fallback** that consumers depend on for graceful degradation. The previous behaviour violated Inquebrável Rule 8 (`FALHE alto, FALHE cedo, FALHE claro`). `safeListTools` is now `export`ed from `internal/agent-loop/loop.ts` to enable unit-test access to the catch path — NOT promoted to the public `@theokit/sdk` API surface.
