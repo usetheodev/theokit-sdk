@@ -29,8 +29,8 @@ import { z } from "zod";
 import { defineTool } from "../define-tool.js";
 import { isForbiddenPath } from "../internal/security/path-guard.js";
 import type { CustomTool } from "../types/agent.js";
-import { checkPathScope } from "./_path-scope.js";
-import { armTimeoutKill, attachChildSettlers } from "./_subprocess.js";
+import { checkPathScope } from "./path-scope.js";
+import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 const DEFAULT_MAX_STDOUT_BYTES = 10 * 1024 * 1024;
