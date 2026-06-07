@@ -16,7 +16,7 @@ import {
   handleNewSession,
 } from "../src/lifecycle.js";
 import { type AcpSession, SessionStore } from "../src/session-store.js";
-import { makeFakeAgent } from "./_helpers.js";
+import { makeFakeAgent } from "./helpers.js";
 
 const noopLog = (): void => undefined;
 
