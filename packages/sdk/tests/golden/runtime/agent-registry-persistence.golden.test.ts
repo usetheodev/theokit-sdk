@@ -7,7 +7,7 @@ import { Agent, ConfigurationError, UnknownAgentError } from "../../../src/index
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
-} from "../../../src/internal/runtime/agent-registry.js";
+} from "../../../src/internal/runtime/registry/agent-registry.js";
 
 /**
  * ADR D17 + D21 + EC-1/EC-4/EC-5 — the agent registry must survive process
@@ -286,7 +286,7 @@ describe("Agent registry persistence (T0.1 / ADR D17 + D21)", () => {
       // rather than throwing, so we instead assert isolation at the hydration
       // boundary: after hydrating cwdA, only agent-only-in-a is in the map.)
       const { hydrateRegistryFromDisk, getRegisteredAgent } = await import(
-        "../../../src/internal/runtime/agent-registry.js"
+        "../../../src/internal/runtime/registry/agent-registry.js"
       );
       await hydrateRegistryFromDisk(cwdA);
       expect(getRegisteredAgent("agent-only-in-a")).toBeDefined();

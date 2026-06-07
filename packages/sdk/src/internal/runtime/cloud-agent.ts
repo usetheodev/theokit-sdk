@@ -15,12 +15,16 @@ import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
 import { withCwdMutex } from "../memory/cwd-mutex.js";
-import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
 import { DEFAULT_AGENTIC_MODEL_ID } from "./default-model.js";
 import { createRealCloudRun } from "./real-cloud-run.js";
+import {
+  flushRegistrySaves,
+  registerAgent,
+  updateRegisteredAgent,
+} from "./registry/agent-registry.js";
 import { resolveSystemPromptForSend } from "./system-prompt.js";
 
 /**

@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   type EvictReason,
   LiveAgentRegistry,
-} from "../../../src/internal/runtime/live-agent-registry.js";
+} from "../../../src/internal/runtime/registry/live-agent-registry.js";
 import type { SDKAgent } from "../../../src/types/agent.js";
 
 /**

@@ -15,12 +15,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Agent } from "../src/agent.js";
 import { FileSystemConversationStorage } from "../src/internal/persistence/conversation-storage-fs.js";
 import { InMemoryConversationStorage } from "../src/internal/persistence/conversation-storage-memory.js";
+import { clearAllSessions } from "../src/internal/runtime/agent-session.js";
 import {
   clearAgentRegistry,
   getRegisteredAgent,
   invalidateRegistryHydration,
-} from "../src/internal/runtime/agent-registry.js";
-import { clearAllSessions } from "../src/internal/runtime/agent-session.js";
+} from "../src/internal/runtime/registry/agent-registry.js";
 
 const FIXTURE_KEY = "theo_test_conversation_storage";
 const MODEL = { id: "openai/gpt-4o-mini" };
