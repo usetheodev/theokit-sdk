@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Runtime cycle #8 closed via contract extraction (T3.1, ADR D431)
+
+- **`@theokit/sdk`**: extracted `internal/runtime/agent-registry-contract.ts` (leaf types file ~60 LOC) holding `AgentRuntime` + `RegisteredAgent`. Both `agent-registry.ts` and `agent-registry-store.ts` now import these types from the contract, breaking the previous runtime↔store 2-node cycle (Phase 5 cartographer cycle #8, HIGH severity). madge cycle count: 13 → 12. RED-GREEN-COMMIT TDD with architecture test `tests/architecture/cycle-8-closed.test.ts` (NEW) asserting via spawnSync(madge --circular) that no cycle contains both file names. Back-compat re-export preserved.
+
 ### Added — `SecretRedactor` interface + Zone of Pain doc (T9.1, ADR D437)
 
 - **`@theokit/sdk`**: added types-only `internal/security/secret-redactor.ts` exporting `SecretRedactor` interface (single method `redact(value: unknown): string`). Canonical `redactSecrets` from `redact.ts` is structurally compatible — no class wrapper required. TypeScript erases the interface at build time; runtime exports are zero. Closes AF#16 (Zone of Pain) from the 2026-06-06 architecture audit via documentation + minimal abstraction.
