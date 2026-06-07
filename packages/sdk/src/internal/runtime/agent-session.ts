@@ -21,10 +21,13 @@ import { compactSessionFile, readSessionFile } from "./agent-session-store.js";
  * @internal
  */
 
-export interface SessionMessage {
-  role: "user" | "assistant";
-  text: string;
-}
+// T1.1 / ADR D432 — `SessionMessage` now lives in `./session-types.ts`
+// (leaf types file) so the persistence layer can import the type without
+// back-edging through this runtime module. Re-exported for back-compat
+// with downstream importers that historically pulled it from here.
+export type { SessionMessage } from "./session-types.js";
+
+import type { SessionMessage } from "./session-types.js";
 
 const DEFAULT_MAX_TURNS = 200;
 const COMPACTION_CHECK_INTERVAL = 50;
