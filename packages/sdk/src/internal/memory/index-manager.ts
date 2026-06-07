@@ -35,51 +35,23 @@ import { discoverWikiFiles } from "./wiki-loader.js";
  * @internal
  */
 
-export interface MemorySearchHit {
-  /** Path relative to the memory root. */
-  path: string;
-  startLine: number;
-  endLine: number;
-  /** Combined score (hybrid when vector backend active, else just textScore). */
-  score: number;
-  /** FTS5 BM25 score normalized to 0..1 (higher = better). */
-  textScore: number;
-  /** sqlite-vec distance normalized to 0..1 (higher = better). Omitted when vector backend disabled. */
-  vectorScore?: number;
-  snippet: string;
-  source: "memory" | "sessions" | "wiki";
-  /** path:startLine-endLine for citations. */
-  citation: string;
-}
+// T2.1 / ADR D433 — these types now live in `index-manager-contract.ts`
+// to break the 3-cycle memory cluster. Re-exported here for back-compat
+// with downstream importers that historically pulled from this file.
+export type {
+  IndexStatus,
+  MemoryBackend,
+  MemorySearchHit,
+  OpenIndexOptions,
+  SearchOptions,
+} from "./index-manager-contract.js";
 
-export interface IndexStatus {
-  backend: "fts-only" | "hybrid";
-  filesIndexed: number;
-  chunksIndexed: number;
-  lastSyncMs?: number;
-}
-
-export interface SearchOptions {
-  maxResults?: number;
-  minScore?: number;
-  sources?: ReadonlyArray<"memory" | "sessions" | "wiki">;
-  /** 0..1 — vector vs text weight in hybrid scoring (D4). Default 0.6. */
-  vectorWeight?: number;
-  /** 0..1 — text weight in hybrid scoring. Default 0.4. */
-  textWeight?: number;
-}
-
-/** Vector backend selector. SQLite default; Lance opt-in (ADR D43). */
-export type MemoryBackend = "sqlite-vec" | "lance";
-
-export interface OpenIndexOptions {
-  cwd: string;
-  filePath?: string;
-  /** When provided, vector index is enabled in hybrid mode. */
-  embedding?: EmbeddingRuntime;
-  /** Vector backend. Default and only value today: `"sqlite-vec"`. */
-  backend?: MemoryBackend;
-}
+import type {
+  IndexStatus,
+  MemorySearchHit,
+  OpenIndexOptions,
+  SearchOptions,
+} from "./index-manager-contract.js";
 
 export class IndexManager implements MemoryIndex {
   private lastSyncMs: number | undefined;

@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Memory cluster cycles #11/#12/#13 closed via contract extraction (T2.1, ADR D433)
+
+- **`@theokit/sdk`**: extracted `internal/memory/index-manager-contract.ts` (leaf types file ~70 LOC) holding `MemorySearchHit`, `IndexStatus`, `SearchOptions`, `MemoryBackend`, `OpenIndexOptions`. All 4 cluster members (`index-manager.ts`, `index-manager-dispatch.ts`, `lance-memory-adapter.ts`, `memory-index.ts`) now import these types from the contract. Single extraction breaks 3 HIGH-severity cycles at once (Phase 5 cartographer cycles #11/#12/#13 — 2-node + 3-node + 4-node rings). madge cycle count: 12 → 9. RED-GREEN-COMMIT TDD with 3 architecture assertions in `tests/architecture/cycle-11-12-13-closed.test.ts` (NEW). Back-compat re-export preserved on `index-manager.ts`.
+
 ### Fixed — Runtime cycle #8 closed via contract extraction (T3.1, ADR D431)
 
 - **`@theokit/sdk`**: extracted `internal/runtime/agent-registry-contract.ts` (leaf types file ~60 LOC) holding `AgentRuntime` + `RegisteredAgent`. Both `agent-registry.ts` and `agent-registry-store.ts` now import these types from the contract, breaking the previous runtime↔store 2-node cycle (Phase 5 cartographer cycle #8, HIGH severity). madge cycle count: 13 → 12. RED-GREEN-COMMIT TDD with architecture test `tests/architecture/cycle-8-closed.test.ts` (NEW) asserting via spawnSync(madge --circular) that no cycle contains both file names. Back-compat re-export preserved.
