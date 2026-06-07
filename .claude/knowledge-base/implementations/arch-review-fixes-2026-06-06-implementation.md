@@ -47,7 +47,7 @@ This satisfies `.nvmrc` (=22) without restart. Document deviation per Inquebráv
 | T10.1 | Phase 10 / T10.1 | memory/ subfolder promotion (FO#3) | pending | — | — | — | — |
 | T10.2 | Phase 10 / T10.2 | gateway/ lonely cluster (FO#4) | pending | — | — | — | — |
 | T10.3 | Phase 10 / T10.3 | rename runtime/system-prompt/providers/ → sources/ (FO#6) | pending | — | — | — | — |
-| T10.4 | Phase 10 / T10.4 | split dispatchSingleCall 158 LOC (PV#2) | pending | — | — | — | — |
+| T10.4 | Phase 10 / T10.4 | split dispatchSingleCall 158 LOC (PV#2) — 7 helpers + directive removed; 51/51 regression GREEN | committed | iter-13 | — | — | — |
 | T11.1 | Phase 11 / T11.1 | DOC cycles #1/#2 D428 + ISP/SDKAgent D122 | pending | — | — | — | — |
 | T11.2 | Phase 11 / T11.2 | DOC PV#3/PV#10/PV#11 auditor-acknowledged INFO orchestrators | pending | — | — | — | — |
 | T13.1 | Phase 13 / T13.1 | Integration Validation re-audit + positive preservation | pending | — | — | — | — |

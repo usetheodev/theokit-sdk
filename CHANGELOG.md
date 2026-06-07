@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — split `dispatchSingleCall` orchestrator (T10.4, PV#2)
+
+- **`@theokit/sdk`**: `internal/agent-loop/tool-dispatch.ts` — the 158 LOC `dispatchSingleCall` orchestrator was decomposed into 7 named single-concern private helpers, each preserving the original sub-step rationale (D86-D88 repair / D111 fork whitelist / OTel span init / D101 plugin veto / file-hook veto / D315-D317 lifecycle / span end + postToolUse). The orchestrator body now reads as a clean ~28 LOC sequence; the previous `biome-ignore noExcessiveCognitiveComplexity` suppression was removed (no longer warranted).
+- **Behavior preservation:** 51/51 regression tests across `tests/internal/tool-dispatch/`, `tests/agent-tool-hooks.test.ts`, and `tests/golden/agent/custom-tools.golden.test.ts` continue to pass unchanged. Zero public-API surface change (orchestrator + helpers are all private; only `dispatchTools` + `ResolvedTool` remain exported).
+- **Structural guard:** `tests/internal/tool-dispatch/dispatch-single-call-split.test.ts` (NEW) ships 2 assertions — directive absence + orchestrator-body LOC cap ≤ 50 — to prevent silent regression.
+
 ### Fixed — 5 LOW type-only cycles closed via 3 leaf extractions + self-ref drop (T4.1, ADR D438)
 
 - **`@theokit/sdk`**: extracted 3 type-leaf files holding shared primitives so cyclic siblings can reach the same types without back-edging through each other:

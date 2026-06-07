@@ -49,7 +49,7 @@
       "status": "committed",
       "deps": [],
       "title": "type-leaf extractions — closed 5 of 6 LOW cycles; #4 deferred (needs SDKAgent full extraction); architecture-test repoRoot integrity bug fixed across 4 files",
-      "commit_sha": "(pending — will be patched)",
+      "commit_sha": "478fe5a",
       "plan_deviations": [
         "Cycle #4 (agent↔handoff) NOT closed: audit prescribed agent-id.ts, empirical inspection showed HandoffDescriptor.target requires full SDKAgent interface — extracting an identity brand wouldn't close the cycle. Closing #4 needs moving SDKAgent (~120 LOC + many local deps) to a leaf — out of T4.1 scope.",
         "Surfaced + fixed architecture-test integrity bug in T1.1/T2.1/T3.1 commits (repoRoot 5 ups landed in meta-repo without pnpm workspace → pnpm exec madge ERR'd → tests passed vacuously). All 4 architecture test files corrected to 4 ups. Cycle closures from prior iterations independently re-verified GREEN on real madge output."
@@ -101,9 +101,10 @@
       "commit_sha": "e7dc48f"
     },
     "T10.4": {
-      "status": "pending",
+      "status": "committed",
       "deps": [],
-      "title": "split dispatchSingleCall"
+      "title": "split dispatchSingleCall (PV#2) — 7 helpers + biome-ignore noExcessiveCognitiveComplexity removed",
+      "commit_sha": "(pending — will be patched)"
     },
     "T11.1": {
       "status": "committed",
@@ -310,7 +311,7 @@
       "iteration": 12,
       "task_id": "T4.1",
       "outcome": "COMMITTED (plan-deviation #4 + architecture-test integrity bug surfaced and fixed across 4 files)",
-      "commit_sha": "(pending \u2014 will be patched after commit)",
+      "commit_sha": "478fe5a",
       "phases_completed": [
         "cycle-map",
         "plan-vs-reality-inspect",
@@ -336,6 +337,42 @@
       "sepa_invoked": false,
       "sepa_deferral_reason": "context budget at iteration end; plan-deviation reasoning already grounded in empirical madge output + same TDD pattern as T1.1/T2.1/T3.1",
       "duration_minutes": 32
+    },
+    {
+      "iteration": 13,
+      "task_id": "T10.4",
+      "outcome": "COMMITTED",
+      "commit_sha": "(pending \u2014 will be patched)",
+      "phases_completed": [
+        "function-decomposition-plan",
+        "red",
+        "green",
+        "refactor",
+        "wiring",
+        "commit"
+      ],
+      "red_tests": [
+        "dispatch-single-call-split.test.ts (2 structural assertions: no biome-ignore for noExcessiveCognitiveComplexity + body LOC \u2264 50)"
+      ],
+      "green_status": "2/2 split tests pass; 51/51 regression GREEN (tool-dispatch + hooks + custom-tools.golden); typecheck exit 0; biome clean; madge 3 (unchanged from iter-12)",
+      "extracted_helpers": [
+        "applyRepairAndExtractCall (D86-D88 repair middleware)",
+        "vetoFromForkWhitelist (D111 fork whitelist gate, early-return)",
+        "startToolCallSpan (OTel span init + repairs/args annotation)",
+        "vetoFromPluginPreHook (D101 plugin pre_tool_call, early-return)",
+        "vetoFromFileHookPreDecision (operator-policy file hooks, early-return)",
+        "runToolWithLifecycle (D315-D317 onToolStart/End/Error + exec)",
+        "finalizeSpanAndPostHook (span end + postToolUse fire-and-forget + return shape)"
+      ],
+      "before_after_metrics": {
+        "orchestrator_body_loc_before": 133,
+        "orchestrator_body_loc_after": 28,
+        "biome_ignore_directives_before": 1,
+        "biome_ignore_directives_after": 0
+      },
+      "sepa_invoked": false,
+      "sepa_deferral_reason": "behavior-preserving refactor with strong existing regression coverage (51 tests); pattern (extract-named-helpers) is canonical; SEPA value-add low for mechanical decomposition",
+      "duration_minutes": 22
     }
   ]
 }

@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Refactored
+
+- **`dispatchSingleCall` orchestrator split (T10.4, PV#2)**: the 158 LOC body in `internal/agent-loop/tool-dispatch.ts` was decomposed into 7 named single-concern helpers (`applyRepairAndExtractCall`, `vetoFromForkWhitelist`, `startToolCallSpan`, `vetoFromPluginPreHook`, `vetoFromFileHookPreDecision`, `runToolWithLifecycle`, `finalizeSpanAndPostHook`). The orchestrator now reads as a ~28 LOC sequence; the previous complexity-suppression `biome-ignore` directive is removed. Zero public-API surface change; 51/51 regression tests (tool-dispatch + hooks + golden custom-tools) continue to pass.
+
 ### Fixed
 
 - **5 LOW type-only cycles closed via 3 leaf extractions + self-ref drop (T4.1, ADR D438)**:
