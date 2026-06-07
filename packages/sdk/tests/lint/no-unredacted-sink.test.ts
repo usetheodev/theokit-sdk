@@ -49,7 +49,7 @@ const SINK_PATTERNS: Sink[] = [
  *   module top.
  * - `internal/persistence/atomic-write.ts` — generic blob writer used
  *   by callers that must redact themselves before passing data in.
- * - `internal/memory/transcript-store.ts` — uses atomic-write
+ * - `internal/memory/storage/transcript-store.ts` — uses atomic-write
  *   primitive; caller redacts (consistent with the runtime/session
  *   store approach).
  * - `internal/mcp/token-storage.ts` — writes encrypted OAuth tokens
@@ -101,9 +101,9 @@ const WHITELIST = new Set<string>([
   "internal/persistence/exclusive-create.ts",
   "internal/persistence/file-lock.ts",
   "internal/persistence/schema-version.ts",
-  "internal/memory/transcript-store.ts",
+  "internal/memory/storage/transcript-store.ts",
   "internal/mcp/token-storage.ts",
-  "internal/runtime/agent-registry-store.ts",
+  "internal/runtime/registry/agent-registry-store.ts",
   "internal/agent-loop/loop.ts",
   "internal/agent-loop/tool-dispatch.ts",
   "internal/workflow/telemetry.ts",
