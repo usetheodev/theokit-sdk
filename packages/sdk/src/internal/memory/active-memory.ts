@@ -10,7 +10,7 @@ import type {
 import type { CircuitBreaker } from "./circuit-breaker.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
-import { persistActiveMemoryTranscript } from "./transcript-store.js";
+import { persistActiveMemoryTranscript } from "./storage/transcript-store.js";
 
 export type { ActiveMemoryQueryMode, ActiveMemoryResult, ActiveMemoryStatus };
 

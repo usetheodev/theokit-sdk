@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import type { MemoryChunk } from "./types.js";
+import type { MemoryChunk } from "../types.js";
 
 /**
  * Split a markdown document into semantically meaningful chunks (ADR D1 of

@@ -84,9 +84,10 @@
       "commit_sha": "46c426d"
     },
     "T10.1": {
-      "status": "pending",
+      "status": "committed",
       "deps": [],
-      "title": "memory/ subfolder promotion"
+      "title": "memory/ subfolder promotion (FO#3) — storage/ cluster promoted; 28→22 direct files; index/ split deferred per YAGNI (already under budget)",
+      "commit_sha": "(pending — will be patched)"
     },
     "T10.2": {
       "status": "committed",
@@ -104,7 +105,7 @@
       "status": "committed",
       "deps": [],
       "title": "split dispatchSingleCall (PV#2) — 7 helpers + biome-ignore noExcessiveCognitiveComplexity removed",
-      "commit_sha": "(pending — will be patched)"
+      "commit_sha": "b27a823"
     },
     "T11.1": {
       "status": "committed",
@@ -373,6 +374,47 @@
       "sepa_invoked": false,
       "sepa_deferral_reason": "behavior-preserving refactor with strong existing regression coverage (51 tests); pattern (extract-named-helpers) is canonical; SEPA value-add low for mechanical decomposition",
       "duration_minutes": 22
+    },
+    {
+      "iteration": 14,
+      "task_id": "T10.1",
+      "outcome": "COMMITTED (scope-narrowed: storage/ cluster promoted; index/ split deferred per YAGNI — heuristic already satisfied)",
+      "commit_sha": "(pending)",
+      "phases_completed": [
+        "audit-direct-file-count",
+        "cluster-cohesion-analysis",
+        "red",
+        "git-mv-7-files",
+        "import-rewrite-4-categories",
+        "fix-moved-file-relative-paths",
+        "green",
+        "refactor",
+        "wiring",
+        "commit"
+      ],
+      "red_tests": [
+        "memory-folder-budget.test.ts (2 assertions: direct count ≤ 25 + storage/ exists with ≥ 3 files)"
+      ],
+      "promoted_files": [
+        "markdown-store.ts",
+        "transcript-store.ts",
+        "session-loader.ts",
+        "session-summary-writer.ts",
+        "reader.ts",
+        "wiki-loader.ts",
+        "chunk-markdown.ts"
+      ],
+      "before_after_metrics": {
+        "memory_direct_files_before": 28,
+        "memory_direct_files_after": 22,
+        "memory_storage_files_after": 7,
+        "god_folder_heuristic_threshold": 25
+      },
+      "green_status": "2/2 budget tests pass; 140/140 architecture + memory tests GREEN; typecheck exit 0; biome clean; madge 3 cycles unchanged from iter-13",
+      "scope_deviation_documented": "Plan calls for both memory/storage/ AND memory/index/ subfolders. With direct count already at 22 after storage/ split (under 25 heuristic), the index/ split was deferred per YAGNI. Documented in CHANGELOG followup note.",
+      "sepa_invoked": false,
+      "sepa_deferral_reason": "behavior-preserving file moves with mechanical import rewrites; strong existing test coverage (140 tests); SEPA value-add low for git-mv work",
+      "duration_minutes": 30
     }
   ]
 }

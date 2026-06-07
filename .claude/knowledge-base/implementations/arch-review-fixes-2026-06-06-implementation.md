@@ -44,7 +44,7 @@ This satisfies `.nvmrc` (=22) without restart. Document deviation per Inquebráv
 | T7.1 | Phase 7 / T7.1 | .ls-lint.yml + 4 file renames | pending | — | — | — | — |
 | T8.1 | Phase 8 / T8.1 | silent-catch elimination (PV#6 + PV#7) | pending | — | — | — | — |
 | T9.1 | Phase 9 / T9.1 | SecretRedactor interface + Zone of Pain doc (D437) | pending | — | — | — | — |
-| T10.1 | Phase 10 / T10.1 | memory/ subfolder promotion (FO#3) | pending | — | — | — | — |
+| T10.1 | Phase 10 / T10.1 | memory/ subfolder promotion (FO#3) — promoted storage/ cluster; 28→22 direct files; index/ split deferred (already under budget) | committed | iter-14 | — | — | — |
 | T10.2 | Phase 10 / T10.2 | gateway/ lonely cluster (FO#4) | pending | — | — | — | — |
 | T10.3 | Phase 10 / T10.3 | rename runtime/system-prompt/providers/ → sources/ (FO#6) | pending | — | — | — | — |
 | T10.4 | Phase 10 / T10.4 | split dispatchSingleCall 158 LOC (PV#2) — 7 helpers + directive removed; 51/51 regression GREEN | committed | iter-13 | — | — | — |

@@ -5,13 +5,13 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryDir } from "../../../src/internal/memory/markdown-store.js";
-import { discoverSessionFiles } from "../../../src/internal/memory/session-loader.js";
+import { memoryDir } from "../../../src/internal/memory/storage/markdown-store.js";
+import { discoverSessionFiles } from "../../../src/internal/memory/storage/session-loader.js";
 import {
   sessionSummaryPath,
   sessionsDir,
   writeSessionSummary,
-} from "../../../src/internal/memory/session-summary-writer.js";
+} from "../../../src/internal/memory/storage/session-summary-writer.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,

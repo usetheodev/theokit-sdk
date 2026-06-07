@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve as resolvePath } from "node:path";
 
-import type { MemoryReadResult } from "./types.js";
+import type { MemoryReadResult } from "../types.js";
 
 /**
  * Bounded read with truncation info (ADR D5 — `memory_get` foundation).

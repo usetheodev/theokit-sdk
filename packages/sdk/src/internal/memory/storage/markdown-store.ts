@@ -1,9 +1,9 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic } from "./atomic-write.js";
-import { withCwdMutex } from "./cwd-mutex.js";
-import { type MemoryConfig, type MemoryFact, redactSecrets } from "./types.js";
+import { replaceFileAtomic } from "../atomic-write.js";
+import { withCwdMutex } from "../cwd-mutex.js";
+import { type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
 
 /**
  * Markdown-first memory storage (ADR D1 of memory-system-openclaw-parity).

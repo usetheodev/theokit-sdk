@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { replaceFileAtomic } from "../atomic-write.js";
 import { withCwdMutex } from "../cwd-mutex.js";
 import type { EmbeddingRuntime } from "../embedding-adapter.js";
-import { memoryDir, readFactsFromMarkdown } from "../markdown-store.js";
+import { memoryDir, readFactsFromMarkdown } from "../storage/markdown-store.js";
 import { appendDiaryEntry } from "./diary.js";
 import { deepPhase, lightPhase, remPhase } from "./phases.js";
 
