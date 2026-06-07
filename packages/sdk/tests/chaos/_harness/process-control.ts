@@ -87,10 +87,7 @@ export async function killMidStream(
   handle.child.kill("SIGKILL");
   const timeoutPromise = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(
     (resolve) =>
-      setTimeout(
-        () => resolve({ code: null, signal: "SIGKILL" as NodeJS.Signals }),
-        timeoutMs,
-      ),
+      setTimeout(() => resolve({ code: null, signal: "SIGKILL" as NodeJS.Signals }), timeoutMs),
   );
   return Promise.race([handle.exitPromise, timeoutPromise]);
 }

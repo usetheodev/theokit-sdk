@@ -1,32 +1,32 @@
 {
   "slug": "sdk-superiority-2026-06-07",
   "max_iterations": 100,
-  "iterations_used": 2,
+  "iterations_used": 3,
   "started_at": "2026-06-07",
+  "phase_0_status": "completed",
   "tasks": [
     {
       "task_id": "T0.1",
-      "phase": "Phase 0 — Foundation",
       "status": "partial(iter1)",
-      "wiring": { "a": "pass", "b": "pass-defer", "c": "pass(histogram)" },
       "commit_sha": "42a3763",
-      "iterations_used": 1,
-      "phases_completed": ["red", "green", "refactor", "wiring", "commit"],
-      "notes": "3 of 6 acceptance span names shipped; rest deferred to T1.7/T2.4/T3.* per SEPA."
+      "wiring": { "a": "pass", "b": "pass-defer", "c": "pass(histogram)" },
+      "notes": "3 of 6 spans; remainder deferred T1.7/T2.4/T3.*"
     },
     {
       "task_id": "T0.2",
-      "phase": "Phase 0 — Foundation",
+      "status": "committed",
+      "commit_sha": "8d4487e",
+      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" },
+      "notes": "15 env-gated real-LLM scaffolds + shared helper"
+    },
+    {
+      "task_id": "T0.3",
       "status": "committed",
       "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" },
-      "commit_sha": "8d4487e",
-      "iterations_used": 1,
-      "phases_completed": ["red", "green", "refactor", "wiring", "commit"],
-      "notes": "15 env-gated test files; all skip cleanly without keys. Helper resolveRealLlmEnv at _helpers/. Cost: $0 this iter (no keys exported)."
+      "notes": "6 scaffold tests + 3 harness modules; 8 GREEN smoke"
     }
   ],
-  "pending_count": 65,
+  "pending_count": 64,
   "halted": false,
-  "cost_usd_cumulative": 0.0,
-  "real_llm_cost_breakdown": []
+  "cost_usd_cumulative": 0.0
 }

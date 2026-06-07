@@ -11,13 +11,10 @@
  * session summary writes) and asserts move-corrupt-aside + recovery.
  */
 
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-
-import { chmod } from "node:fs/promises";
 
 const SKIP_CHAOS = process.env.SKIP_T0_3_CHAOS === "1";
 
