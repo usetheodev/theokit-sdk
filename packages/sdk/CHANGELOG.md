@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Runtime cycle #8 closed**: extracted `internal/runtime/agent-registry-contract.ts` (leaf types file, ~60 LOC) holding `AgentRuntime` + `RegisteredAgent`. Both `agent-registry.ts` and `agent-registry-store.ts` now import these types from the contract; the previous runtime↔store 2-node cycle is closed (T3.1 of plan `arch-review-fixes-2026-06-06`, ADR D431). Back-compat re-export preserved on `agent-registry.ts` for existing downstream importers — no public API change. madge cycle count: 13 → 12 (HIGH cycle #8 resolved; remaining 12 covered by T1.1/T2.1/T4.1).
+
 ### Added
 
 - **`SecretRedactor` interface** at `internal/security/secret-redactor.ts` (T9.1 of plan `arch-review-fixes-2026-06-06`, ADR D437). Types-only — no runtime exports; canonical `redactSecrets` from `redact.ts` satisfies the interface structurally. Closes AF#16 (Martin Zone of Pain D=0.923) from the 2026-06-06 architecture audit through documentation + minimal abstraction without violating D68/D69/D70/D71/D73 (security primitives stay concrete + stable). Rationale + coupling metrics at `internal/security/README.md`.
