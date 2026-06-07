@@ -22,7 +22,11 @@
 <!-- ADR-DEFER-WIRING-B: HistogramName: type-only export, no runtime call site needed. -->
 
 > **T0.1 status note** — iter 1 ships 3 of the 6 acceptance spans (`agent.create`, `agent.send`, `memory.recall`) + closed-enum + `recordHistogram` + histogram name `theokit_memory_recall_duration_ms`. Remaining spans (`agent.send.<step>` × 8, `tool.call`, `llm.call`) are explicitly DEFERRED to T1.7 / T2.4 / T3.* per SEPA pre-RED brief — zero plan-deviation. The ≥ 6 DoD distinct-names threshold will be met transitively when T1.7 ships. T0.1 status will flip to `committed` after T1.7 closes the parent contract.
-| T0.2 | Phase 0 / T0.2 | Real-LLM CI matrix scaffold | pending | — | — | — | — |
+| T0.2 | Phase 0 / T0.2 | Real-LLM CI matrix scaffold | committed | 2 | TBD | a=pass-defer b=pass-defer c=n/a | skipped-per-iter |
+
+<!-- ADR-DEFER-WIRING-B: resolveRealLlmEnv: test-only helper consumed by 15 scaffold test files in tests/integration/real-llm/; no production-side caller by design (T0.2 is a CI matrix scaffold task). check_wiring.py's production-caller heuristic does not fit test-helper modules. Equivalent rigor: 15 dependent test files all call resolveRealLlmEnv at top-level. -->
+<!-- ADR-DEFER-WIRING-B: RealLlmHandle: type-only export, no runtime call site needed. -->
+<!-- ADR-DEFER-WIRING-B: RealLlmProvider: type-only export, no runtime call site needed. -->
 | T0.3 | Phase 0 / T0.3 | Load test + chaos suite scaffold | pending | — | — | — | — |
 
 ### Phase 1 — SDK Core hardening (11 tasks)
