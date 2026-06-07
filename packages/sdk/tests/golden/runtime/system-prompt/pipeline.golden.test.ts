@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from "vitest";
 import { ConfigurationError } from "../../../../src/errors.js";
 import { escapeBlockBody } from "../../../../src/internal/runtime/system-prompt/escape.js";
 import { SystemPromptPipeline } from "../../../../src/internal/runtime/system-prompt/pipeline.js";
-import { BasePromptProvider } from "../../../../src/internal/runtime/system-prompt/providers/base-provider.js";
 import { safeCall } from "../../../../src/internal/runtime/system-prompt/safe-call.js";
+import { BasePromptProvider } from "../../../../src/internal/runtime/system-prompt/sources/base-provider.js";
 import type {
   SystemPromptAssemblyContext,
   SystemPromptProvider,

@@ -7,7 +7,7 @@ import { runActiveMemory } from "../../../src/internal/memory/active-memory.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryMdPath } from "../../../src/internal/memory/markdown-store.js";
 import { SystemPromptPipeline } from "../../../src/internal/runtime/system-prompt/pipeline.js";
-import { ActiveMemoryPromptProvider } from "../../../src/internal/runtime/system-prompt/providers/active-memory-provider.js";
+import { ActiveMemoryPromptProvider } from "../../../src/internal/runtime/system-prompt/sources/active-memory-provider.js";
 import type { SystemPromptAssemblyContext } from "../../../src/internal/runtime/system-prompt/types.js";
 
 /**
