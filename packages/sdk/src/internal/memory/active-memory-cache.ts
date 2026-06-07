@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
-import type { ActiveMemoryResult } from "./active-memory.js";
+// T4.1 / D438 — import from leaf to break the active-memory cluster cycle (#10).
+import type { ActiveMemoryResult } from "./active-memory-types.js";
 
 /**
  * TTL-bounded cache for `runActiveMemory` results. Keyed by

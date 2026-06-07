@@ -1,4 +1,5 @@
-import type { UserMessage } from "./conversation.js";
+// T4.1 / D438 — import from leaf to break the conversation<->updates cycle (#6).
+import type { UserMessage } from "./messages-base.js";
 
 /**
  * Single tool call event. The internal `args` and `result` shapes are NOT stable.
