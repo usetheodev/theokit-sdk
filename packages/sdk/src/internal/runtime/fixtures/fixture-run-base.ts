@@ -1,8 +1,14 @@
-import type { ModelSelection } from "../../types/agent.js";
-import type { ConversationTurn } from "../../types/conversation.js";
-import type { SDKMessage } from "../../types/messages.js";
-import type { Run, RunOperation, RunResult, RunStatus, SDKUserMessage } from "../../types/run.js";
-import { generateRunId } from "../ids.js";
+import type { ModelSelection } from "../../../types/agent.js";
+import type { ConversationTurn } from "../../../types/conversation.js";
+import type { SDKMessage } from "../../../types/messages.js";
+import type {
+  Run,
+  RunOperation,
+  RunResult,
+  RunStatus,
+  SDKUserMessage,
+} from "../../../types/run.js";
+import { generateRunId } from "../../ids.js";
 import { applyExtraRunFields } from "./fixture-responder.js";
 import type { FixtureScript } from "./fixture-types.js";
 

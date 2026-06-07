@@ -1,4 +1,4 @@
-import type { ConversationTurn } from "../../types/conversation.js";
+import type { ConversationTurn } from "../../../types/conversation.js";
 import type {
   SDKAssistantMessage,
   SDKRequestMessage,
@@ -8,8 +8,8 @@ import type {
   SDKThinkingMessage,
   SDKToolUseMessage,
   SDKUserMessageEvent,
-} from "../../types/messages.js";
-import { generateRequestId } from "../ids.js";
+} from "../../../types/messages.js";
+import { generateRequestId } from "../../ids.js";
 import type { FixtureRequest } from "./fixture-types.js";
 
 /**
