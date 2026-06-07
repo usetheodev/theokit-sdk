@@ -1,3 +1,5 @@
+import { HISTOGRAM_NAMES, SPAN_NAMES } from "../telemetry/span-names.js";
+import type { OTelSpan, TelemetryHandle } from "../telemetry/tracer.js";
 import type { ActiveMemoryCache } from "./active-memory-cache.js";
 // T4.1 / D438 — `ActiveMemoryResult` and its helpers moved to `./active-memory-types.ts`
 // so `./active-memory-cache.ts` can reach them without cycling back here (cycle #10).
@@ -62,6 +64,20 @@ export interface RunActiveMemoryArgs {
   agentKey?: string;
   /** Run id for transcript file naming. */
   runId?: string;
+  /**
+   * T0.1 — optional telemetry handle. When provided AND telemetry is enabled,
+   * `memory.recall` span is emitted with `{ userId, namespace, scope, queryMode,
+   * hits, status }` attrs and `theokit_memory_recall_duration_ms` histogram is
+   * recorded with the same dimension keys. T4.9 will pin `userId/namespace/scope`
+   * to the cache-key invariant (cross-tenant leak fix).
+   */
+  telemetry?: TelemetryHandle;
+  /** User id surfaced as a memory.recall span attr for cross-tenant tracing. */
+  userId?: string;
+  /** Memory namespace (e.g. `default`, `<orgId>`) for span/histogram dimensions. */
+  namespace?: string;
+  /** Memory scope (`session` / `user` / `global`) for span/histogram dimensions. */
+  scope?: string;
 }
 
 const DEFAULTS: Required<Omit<ActiveMemoryOptions, "enabled">> = {
@@ -73,29 +89,95 @@ const DEFAULTS: Required<Omit<ActiveMemoryOptions, "enabled">> = {
 
 export async function runActiveMemory(args: RunActiveMemoryArgs): Promise<ActiveMemoryResult> {
   const started = Date.now();
-  if (args.options.enabled !== true || args.index === undefined) {
-    return { summary: undefined, durationMs: 0, status: "skipped", hits: [] };
-  }
-  const cfg = { ...DEFAULTS, ...args.options };
-  const breakerKey = args.agentKey ?? "default";
-  if (args.breaker?.shouldSkip(breakerKey) === true) {
-    return { summary: undefined, durationMs: 0, status: "skipped", hits: [] };
-  }
-  const cached = args.cache?.get(args.userText, cfg.queryMode);
-  if (cached !== undefined) return cached;
+  // T0.1 — `memory.recall` span emitted around the entire body so skipped /
+  // cached / no-recall paths still surface in telemetry with the correct status.
+  // userId/namespace/scope come from `args` (LocalAgentMemory threads them).
+  const span = startMemoryRecallSpan(args);
+  try {
+    if (args.options.enabled !== true || args.index === undefined) {
+      return endRecallSpan(span, args, {
+        summary: undefined,
+        durationMs: 0,
+        status: "skipped",
+        hits: [],
+      });
+    }
+    const cfg = { ...DEFAULTS, ...args.options };
+    const breakerKey = args.agentKey ?? "default";
+    if (args.breaker?.shouldSkip(breakerKey) === true) {
+      return endRecallSpan(span, args, {
+        summary: undefined,
+        durationMs: 0,
+        status: "skipped",
+        hits: [],
+      });
+    }
+    const cached = args.cache?.get(args.userText, cfg.queryMode);
+    if (cached !== undefined) return endRecallSpan(span, args, cached);
 
-  const query = buildQuery(args.userText, args.priorMessages, cfg.queryMode, cfg.recentUserTurns);
-  if (query.trim().length === 0) {
-    return finalize(args, cfg.queryMode, {
-      summary: undefined,
-      durationMs: Date.now() - started,
-      status: "no-recall",
-      hits: [],
-    });
+    const query = buildQuery(args.userText, args.priorMessages, cfg.queryMode, cfg.recentUserTurns);
+    if (query.trim().length === 0) {
+      const finalized = await finalize(args, cfg.queryMode, {
+        summary: undefined,
+        durationMs: Date.now() - started,
+        status: "no-recall",
+        hits: [],
+      });
+      return endRecallSpan(span, args, finalized);
+    }
+    const result = await searchOnce(args, cfg, query, started);
+    notifyBreaker(args.breaker, breakerKey, result.status);
+    const finalized = await finalize(args, cfg.queryMode, result);
+    return endRecallSpan(span, args, finalized);
+  } catch (cause) {
+    span.recordException(cause);
+    span.setStatus({ code: 2, message: cause instanceof Error ? cause.message : String(cause) });
+    span.end();
+    throw cause;
   }
-  const result = await searchOnce(args, cfg, query, started);
-  notifyBreaker(args.breaker, breakerKey, result.status);
-  return finalize(args, cfg.queryMode, result);
+}
+
+function startMemoryRecallSpan(args: RunActiveMemoryArgs): OTelSpan {
+  const telemetry: TelemetryHandle | undefined = args.telemetry;
+  if (telemetry === undefined) {
+    // No-op span identical to the runtime no-op when telemetry is disabled.
+    return {
+      setAttribute: () => {},
+      setAttributes: () => {},
+      addEvent: () => {},
+      setStatus: () => {},
+      recordException: () => {},
+      end: () => {},
+      spanContext: () => ({ traceId: "0".repeat(32), spanId: "0".repeat(16) }),
+      isRecording: () => false,
+    };
+  }
+  return telemetry.startSpan(SPAN_NAMES.MEMORY_RECALL, {
+    queryMode: args.options.queryMode ?? "recent",
+    ...(args.userId !== undefined ? { userId: args.userId } : {}),
+    ...(args.namespace !== undefined ? { namespace: args.namespace } : {}),
+    ...(args.scope !== undefined ? { scope: args.scope } : {}),
+  });
+}
+
+function endRecallSpan(
+  span: OTelSpan,
+  args: RunActiveMemoryArgs,
+  result: ActiveMemoryResult,
+): ActiveMemoryResult {
+  span.setAttributes({
+    hits: result.hits.length,
+    status: result.status,
+    durationMs: result.durationMs,
+  });
+  span.end();
+  args.telemetry?.recordHistogram(HISTOGRAM_NAMES.MEMORY_RECALL_DURATION_MS, result.durationMs, {
+    status: result.status,
+    ...(args.userId !== undefined ? { userId: args.userId } : {}),
+    ...(args.namespace !== undefined ? { namespace: args.namespace } : {}),
+    ...(args.scope !== undefined ? { scope: args.scope } : {}),
+  });
+  return result;
 }
 
 interface ResolvedConfig {

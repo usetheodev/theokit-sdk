@@ -8,6 +8,7 @@ import type { EmbeddingRuntime } from "../memory/embedding-adapter.js";
 import { IndexManager } from "../memory/index-manager.js";
 import type { MemoryIndex } from "../memory/memory-index.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../memory/tools.js";
+import type { TelemetryHandle } from "../telemetry/tracer.js";
 
 /**
  * Per-agent memory glue. Owns the lazy `IndexManager`, the memory tools
@@ -59,6 +60,7 @@ export class LocalAgentMemory {
   async runActiveMemoryIfEnabled(
     userText: string,
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+    telemetry?: TelemetryHandle,
   ): Promise<string | undefined> {
     const cfg = this.options.memory?.activeRecall;
     if (cfg?.enabled !== true || this.index === undefined) return undefined;
@@ -68,20 +70,39 @@ export class LocalAgentMemory {
       userText,
       priorMessages,
       index: this.index,
-      options: {
-        enabled: true,
-        ...(cfg.queryMode !== undefined ? { queryMode: cfg.queryMode } : {}),
-        ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
-        ...(cfg.maxSummaryChars !== undefined ? { maxSummaryChars: cfg.maxSummaryChars } : {}),
-      },
+      options: this.buildActiveMemoryOptions(cfg),
       breaker: this.breaker,
       cache: this.cache,
       agentKey: this.agentId,
       cwd: this.workspaceCwd,
       ...(cfg.persistTranscripts === true ? { persistTranscripts: true } : {}),
       runId: `${this.agentId}-${Date.now()}`,
+      ...this.buildTelemetryRecallArgs(telemetry),
     });
     return result.summary;
+  }
+
+  private buildActiveMemoryOptions(cfg: NonNullable<AgentOptions["memory"]>["activeRecall"]) {
+    if (cfg === undefined) return { enabled: true };
+    return {
+      enabled: true,
+      ...(cfg.queryMode !== undefined ? { queryMode: cfg.queryMode } : {}),
+      ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
+      ...(cfg.maxSummaryChars !== undefined ? { maxSummaryChars: cfg.maxSummaryChars } : {}),
+    };
+  }
+
+  private buildTelemetryRecallArgs(telemetry?: TelemetryHandle) {
+    const userId =
+      typeof this.options.memoryContext?.userId === "string"
+        ? this.options.memoryContext.userId
+        : undefined;
+    return {
+      ...(telemetry !== undefined ? { telemetry } : {}),
+      ...(userId !== undefined ? { userId } : {}),
+      namespace: "default",
+      scope: "session",
+    };
   }
 
   /**
