@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Internal directory rename for findability (T10.3)
+
+- **`@theokit/sdk`**: renamed `internal/runtime/system-prompt/providers/` → `internal/runtime/system-prompt/sources/` (FO#6 of plan `arch-review-fixes-2026-06-06`). Disambiguates from `internal/providers/` (LLM provider profiles per D105-D107) — auditor flagged the duplicate folder name as a findability hazard. `sources/` better describes the 5 system-prompt source modules (ActiveMemoryPromptProvider, BasePromptProvider, ContextPromptProvider, MemoryPromptProvider, SkillsPromptProvider). Internal-only; no public API touched. Git rename detection preserved (100% on all 5 files); imports in pipeline.ts + 5 golden tests updated.
+
 ### Fixed — Silent-catch elimination per Inquebrável Rule 8 (T8.1)
 
 - **`@theokit/gateway-telegram`**: `TelegramAdapter.disconnect()` no longer silently swallows `bot.stop()` failures (PV#7, plan `arch-review-fixes-2026-06-06` T8.1). The catch remains intentional (disconnect must stay idempotent + safe — the bot may already be torn down by Telegram or by a prior signal handler), but now emits a structured `[theokit-gateway-telegram] bot.stop() failed during disconnect: <error>` line to stderr. Never-throw contract preserved.
