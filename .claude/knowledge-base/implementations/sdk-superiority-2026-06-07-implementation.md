@@ -27,7 +27,20 @@
 <!-- ADR-DEFER-WIRING-B: resolveRealLlmEnv: test-only helper consumed by 15 scaffold test files in tests/integration/real-llm/; no production-side caller by design (T0.2 is a CI matrix scaffold task). check_wiring.py's production-caller heuristic does not fit test-helper modules. Equivalent rigor: 15 dependent test files all call resolveRealLlmEnv at top-level. -->
 <!-- ADR-DEFER-WIRING-B: RealLlmHandle: type-only export, no runtime call site needed. -->
 <!-- ADR-DEFER-WIRING-B: RealLlmProvider: type-only export, no runtime call site needed. -->
-| T0.3 | Phase 0 / T0.3 | Load test + chaos suite scaffold | pending | — | — | — | — |
+| T0.3 | Phase 0 / T0.3 | Load test + chaos suite scaffold | committed | 3 | TBD | a=pass-defer b=pass-defer c=n/a | smoke-pass |
+
+<!-- ADR-DEFER-WIRING-B: runSseDriver: T0.3 harness consumed by tests/load/1000-concurrent-sse.test.ts and downstream T6.2 will exercise the SDK's real streaming surface. Production-caller heuristic not applicable to test-harness modules. -->
+<!-- ADR-DEFER-WIRING-B: probeSockets: Linux-only test helper; consumed by load smoke. Production-caller n/a. -->
+<!-- ADR-DEFER-WIRING-B: assertNoLingeringCloseWait: same as probeSockets — test-only helper. -->
+<!-- ADR-DEFER-WIRING-B: spawnNodeChild: T0.3 chaos harness consumed by kill-mid-stream and oom-recovery tests. -->
+<!-- ADR-DEFER-WIRING-B: killMidStream: chaos harness — consumed by tests/chaos/kill-mid-stream.test.ts. -->
+<!-- ADR-DEFER-WIRING-B: waitForStdout: chaos harness — consumed by tests/chaos/kill-mid-stream.test.ts. -->
+<!-- ADR-DEFER-WIRING-B: SseClient: type-only export, no runtime caller needed. -->
+<!-- ADR-DEFER-WIRING-B: DriverResult: type-only export, no runtime caller needed. -->
+<!-- ADR-DEFER-WIRING-B: DriverOptions: type-only export, no runtime caller needed. -->
+<!-- ADR-DEFER-WIRING-B: SocketSnapshot: type-only export, no runtime caller needed. -->
+<!-- ADR-DEFER-WIRING-B: ChildHandle: type-only export, no runtime caller needed. -->
+<!-- ADR-DEFER-WIRING-B: SpawnOptions: type-only export, no runtime caller needed. -->
 
 ### Phase 1 — SDK Core hardening (11 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
