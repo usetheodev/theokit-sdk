@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T0.2: Real-LLM CI matrix scaffold (plan `sdk-superiority-2026-06-07`)
+
+- **Workspace impact**: 15 env-gated integration test files at `packages/sdk/tests/integration/real-llm/`. All suites skip silently when API keys absent; with `OPENROUTER_API_KEY` (or provider-native keys) set, CI matrix exercises tools / vision / stream / cache / structured outputs across openai / anthropic / openrouter routes. Per-package detail at `packages/sdk/CHANGELOG.md` `[Unreleased] § Added`.
+
 ### Added — `@theokit/sdk` T0.1: OTel hot-path wiring foundation (plan `sdk-superiority-2026-06-07`)
 
 - **Workspace impact**: 8 new tests + 3 new test-only devDeps (`@opentelemetry/api`, `@opentelemetry/sdk-trace-base`, `@opentelemetry/sdk-metrics`). Workspace `pnpm test` exercises a real `InMemorySpanExporter` for telemetry assertions — no module mocks. Full per-package detail at `packages/sdk/CHANGELOG.md` `[Unreleased] § Added`. Commit `42a3763`.
