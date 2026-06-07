@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — telegram-pro: rotate deprecated OpenRouter model `google/gemini-2.0-flash-001` → `openai/gpt-4o-mini`
+
+- **Root cause of the 4 dogfood failures in `telegram-pro-dogfood-2026-06-07.md`**: the default model `google/gemini-2.0-flash-001` was retired upstream by OpenRouter. Direct probe returns `{"error":{"message":"No endpoints found for google/gemini-2.0-flash-001.","code":404}}`. Most slash commands appeared to PASS because they emit a static acknowledgement reply ("Generating…", "Demo started…", list output) BEFORE the LLM call fails — the DOM watcher catches the static reply. Only commands that wait for actual LLM completion before any user-visible reply (`Remember:`, `/fact`, `How do I reverse a string?`) surfaced the 404.
+- **Probed alternatives on OpenRouter live**: `gemini-2.0-flash-001` / `-flash` / `-flash-exp` / `gemini-flash-1.5` / `gemini-flash-1.5-8b` all return 404; `google/gemini-2.5-flash` works; `openai/gpt-4o-mini` works (picked for better tool-calling reliability + similar cost). Per user direction "use modelos mais baratos com tool calling".
+- **Files updated** (15 occurrences across 6 files): `examples/telegram-pro/src/agent.ts` (default model), `examples/telegram-pro/src/vision.ts` (vision adapter), `examples/telegram-pro/src/commands.ts` (12 per-command demos), `examples/telegram-pro/src/cron-setup.ts` (cron agents), `examples/telegram-pro/src/dogfood-sdk-e2e.ts` (e2e helper), `examples/telegram-pro/src/index.ts` (boot log line).
+- **Unrelated to T6.1 split**: confirmed by the 43/48 dogfood PASS where all command categories the split moved to commands.ts worked end-to-end — including closure-injection-heavy handlers (`/handoff_demo`, `/workflow_demo`, `/cache_demo`, memory backends `supermemory`/`mem0`/`migrate_memory`).
+
 ### Fixed — lint allowlists rotated after T5.1+T10.1 sub-folder promotions (post iter-20)
 
 - **`packages/sdk/tests/lint/no-unguarded-path-input.test.ts`** + **`packages/sdk/tests/lint/no-unredacted-sink.test.ts`**: 6 stale allowlist entries pointed at file paths that T5.1 (`internal/runtime/{context,registry,plugins}/`) and T10.1 (`internal/memory/storage/`) had relocated via `git mv`. The "allowlist entry stale" gate (which exists precisely to catch this scenario) flagged them on the next workspace `pnpm test` run. Paths updated:
