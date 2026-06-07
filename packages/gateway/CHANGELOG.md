@@ -1,5 +1,11 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- **Documentation only:** added `src/README.md` documenting the 6 single-file sub-folder cluster (`adapter/`, `delivery/`, `hooks/`, `runner/`, `session/`, `types/`) as intentional bounded future-extensibility scaffold (T10.2 of plan `arch-review-fixes-2026-06-06`; FO#4 of 2026-06-06 architecture audit). Rationale + ADR cross-references (D170-D177) + 12-month re-evaluation trigger documented. No code change.
+
 ## 2.0.0
 
 ### Patch Changes
