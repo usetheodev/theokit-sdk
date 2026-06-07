@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — lint allowlists rotated after T5.1+T10.1 sub-folder promotions (post iter-20)
+
+- **`packages/sdk/tests/lint/no-unguarded-path-input.test.ts`** + **`packages/sdk/tests/lint/no-unredacted-sink.test.ts`**: 6 stale allowlist entries pointed at file paths that T5.1 (`internal/runtime/{context,registry,plugins}/`) and T10.1 (`internal/memory/storage/`) had relocated via `git mv`. The "allowlist entry stale" gate (which exists precisely to catch this scenario) flagged them on the next workspace `pnpm test` run. Paths updated:
+  - `internal/runtime/plugins-manager.ts` → `internal/runtime/plugins/plugins-manager.ts`
+  - `internal/runtime/context-manager.ts` → `internal/runtime/context/context-manager.ts`
+  - `internal/runtime/agent-registry-store.ts` → `internal/runtime/registry/agent-registry-store.ts`
+  - `internal/memory/transcript-store.ts` → `internal/memory/storage/transcript-store.ts`
+  - `internal/memory/markdown-store.ts` → `internal/memory/storage/markdown-store.ts`
+  - `internal/memory/session-loader.ts` → `internal/memory/storage/session-loader.ts`
+  - `internal/memory/session-summary-writer.ts` → `internal/memory/storage/session-summary-writer.ts`
+  - `internal/memory/reader.ts` → `internal/memory/storage/reader.ts`
+- **Workspace `pnpm test` exit 0** after the fix (with `OLLAMA_TEST_MODEL=ollama/qwen2.5:0.5b` override for Ollama OOM workaround on dev machines without 3 GiB free).
+
 ### Refactored — arch-review-fixes-2026-06-06 iter-20: all 5 prior BLOCKED tasks CLOSED (plan-deviations under user 'sem retro compat' authorization)
 
 - **T0.1 — CI cycle gate via `tools/check-cycles.mjs`**: dropped the silently-broken `no-circular` rule from `.dependency-cruiser.cjs` (the audit-prescribed tsConfig fix would have re-broken depcruise per its own config warning). New script reads `MAX_CYCLES` env (default 2) and fails CI on threshold breach via `pnpm run quality:cycles`. depcruise retained for `no-orphans` + layering via `pnpm run quality:depcruise`. Both wired into `pnpm run quality` umbrella + `pnpm run validate`.
