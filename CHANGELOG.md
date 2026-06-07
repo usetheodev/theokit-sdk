@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — CI tooling pins for arch-review-fixes plan (T0.4)
+
+- **`madge@8.0.0`** + **`@ls-lint/ls-lint@2.3.1`** added as exact-pinned devDeps at workspace root (T0.4 of plan `arch-review-fixes-2026-06-06`). Rationale doc at `docs/audit/ci-tool-versions-2026-06-06.md`: CI-gate dependencies (cycle detection, filename-naming linter) pinned exactly rather than `^x.y.z` to avoid silent gate drift. **Package-name discipline:** the bare `ls-lint` package on npm is an unrelated legacy livescript-based tool — confirmed via deps-audit (`.claude/knowledge-base/audits/arch-review-fixes-2026-06-06-deps-audit-2026-06-06.md`); the scoped `@ls-lint/ls-lint` is the correct package. Zero CVE per npm audit at install time.
+
 ### Added — Tier 1 Gateway Expansion v1.5 (ADRs D389-D421)
 
 Four new workspace packages bringing the gateway fleet from 6 → 10, closing OCDE + APAC consumer + decentralized federation gaps:
