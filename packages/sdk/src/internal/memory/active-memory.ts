@@ -1,8 +1,18 @@
 import type { ActiveMemoryCache } from "./active-memory-cache.js";
+// T4.1 / D438 — `ActiveMemoryResult` and its helpers moved to `./active-memory-types.ts`
+// so `./active-memory-cache.ts` can reach them without cycling back here (cycle #10).
+// Re-exported below for back-compat with in-tree consumers.
+import type {
+  ActiveMemoryQueryMode,
+  ActiveMemoryResult,
+  ActiveMemoryStatus,
+} from "./active-memory-types.js";
 import type { CircuitBreaker } from "./circuit-breaker.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
 import { persistActiveMemoryTranscript } from "./transcript-store.js";
+
+export type { ActiveMemoryQueryMode, ActiveMemoryResult, ActiveMemoryStatus };
 
 /**
  * Active Memory blocking recall (ADR D6 of memory-system-peer-project-parity).
@@ -18,15 +28,9 @@ import { persistActiveMemoryTranscript } from "./transcript-store.js";
  * @internal
  */
 
-export type ActiveMemoryQueryMode = "message" | "recent" | "full";
-export type ActiveMemoryStatus = "ok" | "timeout" | "skipped" | "no-recall" | "error";
-
-export interface ActiveMemoryResult {
-  summary: string | undefined;
-  durationMs: number;
-  status: ActiveMemoryStatus;
-  hits: ReadonlyArray<MemorySearchHit>;
-}
+// T4.1 / D438 — `ActiveMemoryQueryMode`, `ActiveMemoryStatus`, and
+// `ActiveMemoryResult` now live in `./active-memory-types.ts` and are
+// re-exported at the top of this module for back-compat.
 
 export interface ActiveMemoryOptions {
   /** Whether active recall is enabled. Default `false`. */

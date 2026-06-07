@@ -19,7 +19,10 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 function runMadge(): string {
-  const repoRoot = resolve(__dirname, "../../../../..");
+  // T4.1 follow-up: was `"../../../../.."` (5 ups → meta-repo `theokit-tools`,
+  // no pnpm workspace) → `pnpm exec madge` errored out → test passed vacuously.
+  // 4 ups lands at the `theokit-sdk` workspace root where madge runs correctly.
+  const repoRoot = resolve(__dirname, "../../../..");
   const target = "packages/sdk/src";
   const result = spawnSync(
     "pnpm",
