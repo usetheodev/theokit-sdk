@@ -416,7 +416,7 @@ async function collectTools(mcp: Map<string, McpClient>): Promise<ResolvedTool[]
     },
   ];
   for (const [serverName, client] of mcp.entries()) {
-    const mcpTools = await safeListTools(client);
+    const mcpTools = await safeListTools(client, serverName);
     for (const tool of mcpTools) {
       tools.push({
         name: `mcp_${sanitize(serverName)}_${sanitize(tool.name)}`,
@@ -431,10 +431,28 @@ async function collectTools(mcp: Map<string, McpClient>): Promise<ResolvedTool[]
   return tools;
 }
 
-async function safeListTools(client: McpClient): Promise<McpTool[]> {
+/**
+ * Lists tools from an MCP client with structured-stderr diagnostic on failure.
+ *
+ * **PV#6 / T8.1 of arch-review-fixes-2026-06-06:** the previous implementation
+ * silently swallowed `client.listTools()` errors and returned `[]` — violating
+ * Inquebrável Rule 8 (`FALHE alto, FALHE cedo, FALHE claro`). The empty-list
+ * fallback is intentional graceful degradation (an unreachable MCP server
+ * should not break the agent loop), but the absence of any diagnostic made
+ * the failure invisible to operators. This function now emits a structured
+ * `[theokit-sdk]` stderr message including the failing server name and the
+ * underlying error message, while preserving the `[]` return contract.
+ *
+ * Exported for unit-test access to the catch path; internal-only — NOT part
+ * of the `@theokit/sdk` public API.
+ */
+export async function safeListTools(client: McpClient, serverName?: string): Promise<McpTool[]> {
   try {
     return await client.listTools();
-  } catch {
+  } catch (cause) {
+    const message = cause instanceof Error ? cause.message : String(cause);
+    const server = serverName ?? "unknown";
+    process.stderr.write(`[theokit-sdk] mcp listTools failed (server=${server}): ${message}\n`);
     return [];
   }
 }

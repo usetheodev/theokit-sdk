@@ -76,8 +76,17 @@ export class TelegramAdapter extends BasePlatformAdapter {
     this.connected = false;
     try {
       await this.bot.stop();
-    } catch {
-      /* ignore */
+    } catch (cause) {
+      // PV#7 / T8.1 of arch-review-fixes-2026-06-06: disconnect must remain
+      // idempotent + safe (catch is intentional — bot may already be torn down
+      // by Telegram or by a prior signal handler). The empty-swallow violated
+      // Inquebrável Rule 8 by hiding the diagnostic. Emit a structured stderr
+      // message including the underlying error while preserving the
+      // never-throw contract callers depend on.
+      const message = cause instanceof Error ? cause.message : String(cause);
+      process.stderr.write(
+        `[theokit-gateway-telegram] bot.stop() failed during disconnect: ${message}\n`,
+      );
     }
     if (this.startPromise !== undefined) {
       await this.startPromise.catch(() => undefined);
