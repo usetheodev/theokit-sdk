@@ -383,7 +383,11 @@ export interface AgentOptions {
   // T4.1 / D438 — `SDKAgent` is defined later in this same module; the inline
   // `import("./agent.js").SDKAgent` form was the back-edge that produced
   // madge self-cycle #3. Direct forward-reference is valid in type position.
-  handoffs?: ReadonlyArray<SDKAgent | import("./handoff.js").HandoffDescriptor>;
+  // T4.1 follow-up (cycle #4 closed): use the leaf generic and pin it to
+  // SDKAgent here. agent.ts no longer needs to import from handoff.ts.
+  handoffs?: ReadonlyArray<
+    SDKAgent | import("./handoff-descriptor.js").HandoffDescriptor<import("zod").ZodType, SDKAgent>
+  >;
   /**
    * Maximum chain depth across handoffs per `agent.send()` call (D218).
    * Default 5. Exceeding throws `HandoffLoopError`. Set to 0 to disable
