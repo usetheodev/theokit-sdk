@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — Gateway base internal layout documented (T10.2)
+
+- **`@theokit/gateway`**: added `packages/gateway/src/README.md` documenting the 6 single-file sub-folder cluster (`adapter/`, `delivery/`, `hooks/`, `runner/`, `session/`, `types/`) as intentional bounded future-extensibility scaffold (FO#4 of 2026-06-06 architecture audit, T10.2 of plan `arch-review-fixes-2026-06-06`). Each sub-folder maps 1:1 to an ADR (D170-D177) and represents a stable semantic role rather than over-folding. Includes 12-month re-evaluation trigger. No source change.
+
 ### Changed — Internal directory rename for findability (T10.3)
 
 - **`@theokit/sdk`**: renamed `internal/runtime/system-prompt/providers/` → `internal/runtime/system-prompt/sources/` (FO#6 of plan `arch-review-fixes-2026-06-06`). Disambiguates from `internal/providers/` (LLM provider profiles per D105-D107) — auditor flagged the duplicate folder name as a findability hazard. `sources/` better describes the 5 system-prompt source modules (ActiveMemoryPromptProvider, BasePromptProvider, ContextPromptProvider, MemoryPromptProvider, SkillsPromptProvider). Internal-only; no public API touched. Git rename detection preserved (100% on all 5 files); imports in pipeline.ts + 5 golden tests updated.
