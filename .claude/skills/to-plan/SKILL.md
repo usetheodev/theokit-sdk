@@ -135,7 +135,7 @@ This skill is **phase 1** of [`cycle-plan`](../../rules/cycle-plan.md). The cycl
 - Chain order (this skill → `/edge-case-plan` → `/plan-confidence` → optional `/plan-improve` → `/plan-confidence` re-score)
 - Hard gates (Coverage Matrix 100%, ADR alternatives, TDD in bug-fix tasks, fabricated citations)
 - Soft gates (NON_SHIPPABLE verdict, smell density, low architecture compliance)
-- Stop conditions (max iterations, no-improvement, human-needed gaps)
+- Stop conditions (no-improvement, hard-cap blockers, human-needed gaps)
 - Anti-patterns at the cycle level (skip edge-case-plan, advance with INVALID, fabricate paths, override patterns silently)
 - Rollback procedures
 - Companion cycles: upstream `cycle-discover.md` (provides `*-patterns` skills); downstream `cycle-implement.md` (consumes the validated plan)

@@ -30,7 +30,7 @@ Driving Phase N+1, N+2, ... outside the halt-loop loses:
 
 4. **Verify halt-loop driver file still exists** at `halt-loop-prompts/implement-{slug}.md`. If gitignored + wiped, regenerate per Step 3 of the main SKILL.
 
-5. **Re-invoke ralph-loop with the SAME flags** as the original invocation (same `--completion-promise`, same `--max-iterations` budget — the iteration counter resumes from where progress JSON left off, NOT from 1).
+5. **Re-invoke ralph-loop with the SAME flags** as the original invocation (same `--completion-promise`; no iteration cap — the iteration counter resumes from where progress JSON left off, NOT from 1).
 
 6. The fresh iteration reads `.progress-{slug}.json`, picks the formerly-BLOCKED task (now `pending`), and proceeds. SEPA's per-iteration brief includes the recovered state.
 

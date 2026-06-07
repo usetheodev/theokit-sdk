@@ -47,7 +47,12 @@
           "coverage_lt_100",
           "adr_without_alternatives",
           "bugfix_without_tdd",
-          "citation_fabricated"
+          "citation_fabricated",
+          "fabricated_citation",
+          "vague_acceptance_criteria",
+          "soft_floor_smell_density_high",
+          "soft_floor_high_deferred_ratio",
+          "soft_floor_low_architecture_compliance"
         ]
       },
       "uniqueItems": true

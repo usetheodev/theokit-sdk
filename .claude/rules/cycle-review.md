@@ -64,5 +64,6 @@ Re-validate quality gates with stricter thresholds before merge. Catches issues 
 - Schema for cycle rules: `rules/cycle-rule-schema.md`
 - Skill: `skills/review/SKILL.md`
 - Public-copy lint: `rules/public-copy.md`
+- Macro super-loop: `rules/cycle-roadmap.md` — `READY_TO_MERGE` here unblocks the release that flips the milestone checkbox
 - Upstream: `rules/cycle-code-quality.md` (consumes the audit verdict)
 - Conventions: `rules/architecture.md`, `rules/testing.md`

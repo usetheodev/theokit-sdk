@@ -43,6 +43,7 @@ Each cycle has its own verdict vocabulary because the **shape of the decision** 
 
 | Cycle | OK | OK with caveats | Not OK — recoverable | Not OK — structural |
 |---|---|---|---|---|
+| `cycle-roadmap` (macro super-loop) | `MILESTONE_RELEASED` / `ROADMAP_COMPLETE` | `MILESTONE_IN_FLIGHT` (paused at release human-approval gate) | `MILESTONE_BLOCKED` (recoverable per milestone) | `ROADMAP_BLOCKED` (dependency wall across all eligible milestones) |
 | `cycle-discover` | `SHIPPABLE` | `SHIPPABLE_WITH_CAVEATS` | `NEEDS_REVISION` | `INVALID` |
 | `cycle-plan` | `SHIPPABLE` | `SHIPPABLE_WITH_CAVEATS` | `NEEDS_REVISION` | `INVALID` |
 | `cycle-implement` | `IMPLEMENTATION_COMPLETE` (completion promise) | — | (halt-loop pauses for human) | — |
@@ -55,6 +56,7 @@ Each cycle has its own verdict vocabulary because the **shape of the decision** 
 
 ### Why each vocabulary differs
 
+- **roadmap** emits **macro-loop progression verdicts** at two granularities: per-milestone (`MILESTONE_RELEASED`, `MILESTONE_IN_FLIGHT`, `MILESTONE_BLOCKED`) and at the roadmap-as-a-whole level (`ROADMAP_COMPLETE` when every milestone is `[x]`, `ROADMAP_BLOCKED` when no milestone is eligible because every unchecked one is blocked by another unchecked one — a structural dependency wall). Unlike sub-cycles, `cycle-roadmap` has no "with caveats" band because the macro-loop's only OK states are atomic: a milestone either shipped (`[x]`) or it did not.
 - **discover/plan** emit a **structural fitness verdict** on a document. `INVALID` means the document violates a hard cap (fabricated citation, missing Coverage Matrix); `NEEDS_REVISION` means the score is recoverable via `*-improve`.
 - **implement** does not emit a verdict — it emits a **completion promise** (`IMPLEMENTATION_COMPLETE`) consumed by downstream cycles. Halt-loop pauses on hard-gate failure rather than emitting a verdict.
 - **code-quality** emits a **PASS/FAIL** because it is a binary quality gate: either every finding fits inside the severity ceiling or it does not.

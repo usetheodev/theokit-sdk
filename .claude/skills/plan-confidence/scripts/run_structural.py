@@ -29,6 +29,7 @@ from _rubric_loader import load_rubric
 from check_adr_completeness import ADRReport, check_adr_completeness
 from check_architecture_compliance import check_architecture_compliance
 from check_coverage_matrix import CoverageReport, check_coverage_matrix
+from check_criterion_executability import ExecutabilityReport, check_criterion_executability
 from check_evidence_citations import EvidenceReport, check_evidence_citations
 from check_spec_smells import SmellReport, check_spec_smells
 from check_tdd_in_bugfix import TDDReport, check_tdd_in_bugfix
@@ -214,6 +215,7 @@ def _detect_hard_caps(
     adr: ADRReport,
     tdd: TDDReport,
     evidence: EvidenceReport | None = None,
+    executability: ExecutabilityReport | None = None,
 ) -> list[tuple[str, int]]:
     """Return list of (cap_id, cap_value) for triggered caps.
 
@@ -229,6 +231,10 @@ def _detect_hard_caps(
         triggered.append(("bugfix_without_tdd", 70))
     if evidence is not None and evidence.unresolved_citations:
         triggered.append(("fabricated_citation", 49))
+    if executability is not None and executability.soft_cap_triggered:
+        # Heuristic-grade soft cap — Acceptance Criteria not executable enough.
+        # See check_criterion_executability.py for the gate thresholds.
+        triggered.append(("vague_acceptance_criteria", 70))
     return triggered
 
 
@@ -284,6 +290,7 @@ def run_structural(
     smells = check_spec_smells(plan_path, rubric_path)
     compliance = check_architecture_compliance(plan_path)
     evidence = check_evidence_citations(plan_path, _find_repo_root_from_plan(plan_path))
+    executability = check_criterion_executability(plan_path)
 
     # Compute per-dimension scores
     completeness, completude_motivos = _compute_completude(cov, adr, tdd)
@@ -300,7 +307,7 @@ def run_structural(
     )
 
     # Hard caps (strict, fail-closed)
-    triggered = _detect_hard_caps(cov, adr, tdd, evidence)
+    triggered = _detect_hard_caps(cov, adr, tdd, evidence, executability)
     hard_cap_ids = [t[0] for t in triggered]
     if triggered:
         smallest_cap = min(t[1] for t in triggered)
@@ -412,6 +419,20 @@ def run_structural(
                     }
                     for c in evidence.unresolved_citations
                 ],
+            },
+            "criterion_executability": {
+                "total_criteria": executability.total_criteria,
+                "vague_count": executability.vague_count,
+                "weak_count": executability.weak_count,
+                "acceptable_count": executability.acceptable_count,
+                "executable_count": executability.executable_count,
+                "vague_ratio": round(executability.vague_ratio, 3),
+                "acceptable_ratio": round(executability.acceptable_ratio, 3),
+                "executable_ratio": round(executability.executable_ratio, 3),
+                "soft_cap_triggered": executability.soft_cap_triggered,
+                "vague_criteria_sample": [
+                    c.text for c in executability.criteria if c.score == 0
+                ][:5],
             },
         },
     )

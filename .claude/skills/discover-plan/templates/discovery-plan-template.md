@@ -56,7 +56,7 @@ Decisions about HOW to investigate. Each gets:
 
 **Stop condition — per question (mandatory):** When a question's Fase A returns empty matches after 3 consecutive retries with different query variants (e.g., pattern → kind-based → alternate path → broader scope), mark the question BLOCKED with reason "Fase A exhausted — no hotspots found" and continue to the next. Do NOT pad with unrelated hotspots from a different question's scope.
 
-**Stop condition — per project (mandatory):** When a project's time budget is exhausted with N questions still pending, mark all remaining questions for that project as BLOCKED with reason "budget exhausted" and continue with the next project (or, if last, emit the promise with the honest blocked-questions report).
+**Stop condition — per project (mandatory):** When a project's time budget is exhausted with N questions still pending, mark all remaining questions for that project as BLOCKED with reason "budget exhausted" and continue with the next project. If every remaining project is in the same state (every question either `done` or honestly `blocked`), emit `<promise>BLUEPRINT_BLOCKED</promise>` (NOT `BLUEPRINT_COMPLETE`) with the honest blocked-questions report — the BLOCKED promise is the canonical signal that the loop terminated honestly without satisfying every halt condition. Never emit `BLUEPRINT_COMPLETE` from a state with blocked questions.
 
 **Anti-pattern:** NEVER fabricate Fase B answers to close a question whose Fase A was exhausted. Honest BLOCKED with reason is required (Unbreakable Rule 3).
 

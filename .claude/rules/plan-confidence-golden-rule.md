@@ -38,6 +38,7 @@ The rule closes this gap by forcing minimum structural state PRESENT before the 
 | Fabricated citation → score ≤ 49 | M3 v0.1 — `check_evidence_citations.py` (regex + `Path.exists` + section grep); covers rule refs, Blueprint refs, intra-plan ADR refs, Unbreakable Rules 1..13. ADR `0001-m3-fabricated-citation-v01`. |
 | ADR without alternatives in Rationale → score ≤ 70 | M2 — `check_adr_completeness.py` |
 | Bug-fix task without TDD RED-GREEN-REFACTOR → score ≤ 70 | M2 — `check_tdd_in_bugfix.py` |
+| Vague Acceptance Criteria → score ≤ 70 (heuristic) | `check_criterion_executability.py` — triggers when `vague_ratio > 0.10` OR `acceptable_ratio < 0.80` across DoD/Acceptance Criteria bullets. Each criterion scored on 3 axes (observable verb, measurable object, oracle). HONESTLY HEURISTIC: linguistic patterns can false-positive; the JSON sub_report lists every vague criterion for human override via `/plan-improve`. Closes the plan-vagueness propagation gap (companion gate in `skills/implement/scripts/check_tdd_shape.py`). |
 | `--skip-checks` flag does not exist and SHALL NOT be added | Constructor invariant in `run_structural.py` |
 | Score capped MUST appear marked in the report | Rendering rule |
 | `hard_caps_triggered` list MUST be non-empty when verdict==INVALID | JSON schema invariant |

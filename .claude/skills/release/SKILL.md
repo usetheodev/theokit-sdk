@@ -145,6 +145,47 @@ gh release create "v${NEXT_VERSION}" \
   --target "$MERGE_SHA"
 ```
 
+### Step 7.5 — Flip ROADMAP.md milestone checkbox (post-merge)
+
+Closes the `cycle-roadmap` super-loop. Runs after the tag + GitHub release are published.
+
+```bash
+# Extract the plan slug from the release context (passed from /auto-plan, or derived from the source review)
+PLAN_FILE="knowledge-base/plans/${SLUG}-plan.md"
+
+# Read milestone_id from the plan frontmatter
+MILESTONE_ID=$(python3 -c "
+import sys, yaml
+with open('$PLAN_FILE') as f:
+    raw = f.read()
+parts = raw.split('---', 2)
+if len(parts) >= 3:
+    meta = yaml.safe_load(parts[1])
+    print(meta.get('milestone_id', ''))
+")
+
+if [ -z "$MILESTONE_ID" ]; then
+  echo "WARN roadmap-checkbox: plan has no milestone_id — skipping flip (ad-hoc release)"
+else
+  python3 skills/release/scripts/flip_milestone_checkbox.py \
+    --roadmap ROADMAP.md \
+    --milestone-id "$MILESTONE_ID" \
+    --version "$NEXT_VERSION" \
+    --plan "$PLAN_FILE" \
+    --release-log "knowledge-base/releases/v${NEXT_VERSION}-release.md"
+fi
+```
+
+`flip_milestone_checkbox.py` MUST:
+
+1. Locate the literal header `## ${MILESTONE_ID} — [ ] <name>` in `ROADMAP.md`. If not found, emit `WARN roadmap-checkbox: $MILESTONE_ID not found in ROADMAP.md — skipping flip` and exit 0.
+2. If header is already `[x]`, emit `INFO roadmap-checkbox: $MILESTONE_ID already [x] — no-op` and exit 0 (idempotent).
+3. Replace `[ ]` → `[x]` in-place. NEVER use fuzzy matching.
+4. Commit on `develop` (NOT `main`): `chore(roadmap): mark $MILESTONE_ID done (v$NEXT_VERSION)`.
+5. Append to `knowledge-base/roadmap-runs/${MILESTONE_ID}-$(date -I).md`: `status: completed`, `checkbox_flipped_at`, `flip_commit_sha`, link to release log. Create the file if it does not exist.
+
+Per `cycle-release § Single-flip invariant`, at most ONE checkbox flips per release. The script verifies its own diff before committing — if more than one `[ ]` → `[x]` transition would result, it aborts.
+
 ### Step 8 — Record the release
 
 Write `knowledge-base/releases/v${NEXT_VERSION}-release.md`:
@@ -185,6 +226,7 @@ Next: nothing — release is published. Start a new cycle with /to-plan or /gril
 3. **Tag must be annotated** (`git tag -a`) — never lightweight tags.
 4. **CHANGELOG [Unreleased] non-empty** — empty releases are forbidden.
 5. **No duplicate version tags** — if `v{X}` already exists, halt.
+6. **Single-flip invariant** — Step 7.5 flips at most ONE checkbox per release. Multi-milestone flips abort the script.
 
 ## Soft gates (proceed with note)
 
@@ -199,6 +241,9 @@ Next: nothing — release is published. Start a new cycle with /to-plan or /gril
 4. **Cutting a release with unaddressed FAIL_HARD from `/code-quality`** — the review gate enforces this; never bypass.
 5. **`git push --force` on a release tag** — tags are immutable once published; if wrong, deprecate and cut a new version.
 6. **Co-Authored-By trailer on the `chore(release)` commit** — blocked by `hooks/validate-command.sh`.
+7. **Fuzzy-matching the milestone for the checkbox flip in Step 7.5.** Plan declares `milestone_id: M3` → flip M3 by literal header match, never M4.
+8. **Flipping multiple checkboxes from one release.** Each release maps to one milestone via plan `milestone_id`.
+9. **Blocking the release if `milestone_id` is missing.** Ad-hoc / hotfix work skips the flip with WARN — never blocks.
 
 ## Cycle contract
 
@@ -210,4 +255,5 @@ This skill is `phase 1` (only phase) of `cycle-release`. The cycle rule SoT is `
 - Upstream cycle: [`rules/cycle-review.md`](../../rules/cycle-review.md) — consumes `READY_TO_MERGE` verdict
 - Conventions: [`rules/public-copy.md`](../../rules/public-copy.md) — release notes lint
 - Hooks enforced: `hooks/validate-command.sh` (git safety + Co-Authored-By block), `hooks/stop-validation.sh` (CHANGELOG hard gate)
-- Scripts: `scripts/compute_next_version.py`, `scripts/promote_unreleased.py`, `scripts/render_release_notes.py`, `scripts/changelog_section_nonempty.py`
+- Scripts: `scripts/compute_next_version.py`, `scripts/promote_unreleased.py`, `scripts/render_release_notes.py`, `scripts/changelog_section_nonempty.py`, `scripts/flip_milestone_checkbox.py` (Step 7.5 — pending implementation, see Task #20)
+- Macro super-loop: [`rules/cycle-roadmap.md`](../../rules/cycle-roadmap.md) — defines the single-flip invariant + the roadmap-runs file contract that Step 7.5 satisfies

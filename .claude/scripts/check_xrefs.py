@@ -43,7 +43,12 @@ from typing import Any
 # - ast-grep: structural search utility
 # - deck, marp-slide, excalidraw: presentation skills, project-agnostic
 # - dogfood: honesty gate consumed transversally (README/CHANGELOG edits, release decisions)
-AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood"}
+# - roadmap-init: single-shot bootstrap at project inception; intentionally isolated
+#   (its ARTIFACTS — ROADMAP.md + knowledge-base/references/ — are consumed by cycle-roadmap
+#   and cycle-discover; the SKILL itself is never invoked mid-cycle)
+# - roadmap-feature: sister of roadmap-init for adding one milestone to an existing roadmap
+#   (same isolation contract; opposite pre-condition — refuses if ROADMAP.md is missing)
+AUXILIARY_SKILLS = {"ast-grep", "deck", "marp-slide", "excalidraw", "dogfood", "roadmap-init", "roadmap-feature"}
 
 # Patterns to detect file references in markdown
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
