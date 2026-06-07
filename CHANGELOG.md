@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `SecretRedactor` interface + Zone of Pain doc (T9.1, ADR D437)
+
+- **`@theokit/sdk`**: added types-only `internal/security/secret-redactor.ts` exporting `SecretRedactor` interface (single method `redact(value: unknown): string`). Canonical `redactSecrets` from `redact.ts` is structurally compatible — no class wrapper required. TypeScript erases the interface at build time; runtime exports are zero. Closes AF#16 (Zone of Pain) from the 2026-06-06 architecture audit via documentation + minimal abstraction.
+- **Documentation**: added `internal/security/README.md` documenting Martin's coupling metrics for the security folder (Ca=12, Ce=1, A=0.000, D=0.923), the explicit rationale for keeping primitives concrete (cites D68/D69/D70/D71/D73), and the marginal abstractness bump from adding the interface. Per `rules/cycle-rule-schema.md` heuristic-source legend, the 0.3 cutoff that triggers a "Zone of Pain" flag is folklore — finding is real, prescribed action ("raise A") is rejected per ADR record.
+
 ### Added — `.ls-lint.yml` filename naming gate (T7.1)
 
 - **`.ls-lint.yml`** added at workspace root enforcing kebab-case (regex `^[a-z][a-z0-9-]*$`) on every `.ts`/`.tsx` source + test file under `packages/*/src/**` and `packages/*/tests/**`. `ignore:` block covers `node_modules`, build outputs, `.changeset/`, `.github/`, `.claude*/`, `referencia/`, `docs/evalscope/`, `architecture-output/`, `examples/` (each with documented rationale in `docs/audit/ls-lint-violations-pre-2026-06-06.md`).
