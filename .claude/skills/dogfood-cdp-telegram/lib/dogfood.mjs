@@ -510,7 +510,7 @@ function summarize(text, max) {
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: orchestration entry point — splitting hurts readability
 async function main() {
-  const ROOT = "/home/paulo/Projetos/usetheo/theokit-sdk";
+  const ROOT = "/home/paulo/Projetos/usetheo/theokit-tools/theokit-sdk";
   const ENV = loadEnv(`${ROOT}/examples/telegram-pro/.env`);
   // user_id source priority: --user-id arg > TELEGRAM_ALLOWED_USERS > Bot API getUpdates
   const argUserIdx = process.argv.indexOf("--user-id");
