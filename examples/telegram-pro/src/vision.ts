@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 /**
  * Sticker / photo description via Gemini-2.0-flash multimodal.
  *
- * OpenRouter exposes `google/gemini-2.0-flash-001` with vision capability:
+ * OpenRouter exposes `openai/gpt-4o-mini` with vision capability:
  * we POST the image as base64 in the chat-completions `content` array. The
  * model returns a short description we feed into the agent loop.
  *
@@ -17,7 +17,7 @@ import { dirname, join } from "node:path";
  */
 
 const VISION_ENDPOINT = "https://openrouter.ai/api/v1/chat/completions";
-const VISION_MODEL = "google/gemini-2.0-flash-001";
+const VISION_MODEL = "openai/gpt-4o-mini";
 
 export interface DescribeOptions {
   /** Raw image bytes (JPEG/PNG/WebP). */

@@ -321,7 +321,7 @@ console.log("Theo Pro bot starting...");
 console.log(`  workspace: ${CWD}`);
 console.log(`  allowed-users: ${ALLOWED_USERS.size === 0 ? "(everyone)" : Array.from(ALLOWED_USERS).join(",")}`);
 console.log(`  voice: ${process.env.OPENAI_API_KEY ? "openai whisper" : process.env.GROQ_API_KEY ? "groq whisper" : "(none — voice messages will be rejected)"}`);
-console.log(`  vision: gemini-2.0-flash-001 via OpenRouter (cached at .theokit/cache/vision/)`);
+console.log(`  vision: openai/gpt-4o-mini via OpenRouter (cached at .theokit/cache/vision/)`);
 
 // Pre-flight: write the shell-policy + seed workspace (skills, plugins,
 // context, wiki) + register cron jobs before connecting to Telegram, so
