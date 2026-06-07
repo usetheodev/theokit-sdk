@@ -1,4 +1,4 @@
-import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { AgentRuntime, RegisteredAgent } from "./agent-registry-contract.js";
 import { fromSerialized, loadRegistry, saveRegistry } from "./agent-registry-store.js";
 
 /**
@@ -11,38 +11,20 @@ import { fromSerialized, loadRegistry, saveRegistry } from "./agent-registry-sto
  * `Agent.resume` / `Agent.list` / `Agent.get` entry points hydrate from disk
  * lazily via `hydrateRegistryFromDisk`.
  *
+ * **T3.1 of plan `arch-review-fixes-2026-06-06` (ADR D431):** the shared
+ * `AgentRuntime` and `RegisteredAgent` types are now defined in
+ * `agent-registry-contract.ts` (a leaf types file) and re-exported here for
+ * back-compat with downstream code. The store layer (`agent-registry-store.ts`)
+ * imports the types from the contract too, breaking the previous
+ * runtime↔store cycle.
+ *
  * @internal
  */
 
-export type AgentRuntime = "local" | "cloud";
-
-export interface RegisteredAgent {
-  agentId: string;
-  runtime: AgentRuntime;
-  name?: string;
-  summary?: string;
-  model?: ModelSelection;
-  createdAt: number;
-  lastModified: number;
-  archived: boolean;
-  options: AgentOptions;
-  /** Local workspace cwd; only set when runtime is local. Also used as the
-   * persistence routing key (cloud agents default to `process.cwd()`). */
-  cwd?: string;
-  /** Cloud repo URLs; only set when runtime is cloud. */
-  repos?: string[];
-  /** Optional explicit status reported via SDKAgentInfo.status. */
-  status?: "running" | "finished" | "error";
-  /**
-   * EC-3 (ADR D325): marker set at create-time when
-   * `AgentOptions.conversationStorage` was non-undefined. `Agent.resume`
-   * checks this flag — if `true` AND the caller did not pass
-   * `conversationStorage` again, throws `ConfigurationError(code:
-   * "conversation_storage_required")` instead of silently falling back to
-   * the FS adapter (which would lose Postgres/Redis history).
-   */
-  requiresCustomStorage?: boolean;
-}
+// Re-exported for back-compat — consumers that historically imported these
+// from `./agent-registry.js` keep working. New code SHOULD import from
+// `./agent-registry-contract.js` directly.
+export type { AgentRuntime, RegisteredAgent };
 
 const agents = new Map<string, RegisteredAgent>();
 const hydratedCwds = new Set<string>();
