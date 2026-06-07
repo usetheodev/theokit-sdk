@@ -59,8 +59,8 @@
       "status": "committed",
       "deps": ["T1.1", "T2.1", "T3.1"],
       "title": "runtime/ god folder split (FO#1) — COMPLETE: all 4 plan-prescribed clusters promoted (fixtures/ + context/ + registry/ + plugins/); 69→48 direct files; remaining 23-file gap deferred (no cohesive 5+ file cluster left)",
-      "partial_commits": ["f1aae57", "2df50fa", "ad8f127", "(pending — iter-18)"],
-      "commit_sha": "(pending — iter-18 final)",
+      "partial_commits": ["f1aae57", "2df50fa", "ad8f127", "119c741"],
+      "commit_sha": "119c741",
       "scope_deviation": "Plan calls for direct count ≤ 25 (audit heuristic). After all 4 plan-prescribed clusters promoted, count is 48 — the remaining 23 files are individual heterogeneous modules (local-agent*, cloud-*, hooks-*, mcp-tools, system-prompt, validate-*, etc.) with no further cohesive 5+ file clusters that would warrant a sub-folder per the cohesion floor. Closing the remaining gap requires deeper architectural decomposition (e.g., agent-loop/, cloud/, hooks/) — documented as follow-up plan candidate. T5.1 declared COMPLETE per the 4-cluster plan-prescribed scope.",
       "direct_file_count_progress": {
         "before_iter_15": 69,
@@ -73,9 +73,18 @@
       }
     },
     "T6.1": {
-      "status": "pending",
+      "status": "blocked",
       "deps": [],
-      "title": "telegram-pro split"
+      "title": "telegram-pro split (PV#1) — BLOCKED on dogfood-cdp-telegram requirement (environmental, not effort)",
+      "blocked_reason": "Plan T6.1 mandates the dogfood-cdp-telegram skill (real Telegram WebApp via Chrome DevTools Protocol) as the regression gate for splitting 2317 LOC across 34 slash commands + 1 bot.on(callback_query) + 1 bot.catch. The halt-loop runs in a sandboxed environment WITHOUT: (a) live TELEGRAM_BOT_TOKEN, (b) Chrome MCP/CDP infrastructure, (c) interactive Telegram chat session, (d) network access to Telegram WebApp. Per Inquebrável Rule 1 (95% confidence) splitting closure-heavy handler code without verification cannot reach the threshold — every runner.command(...) closes over policy/opts/adapter/bot/CWD/ALLOWED_USERS + local fn-scope state. Mechanical extraction risks silent handler-closure regressions invisible to typecheck + unit tests. Per cycle-implement.md Stop Conditions (env-broken → halt + escalate), T6.1 is escalated to a human-driven session with the required Telegram + Chrome MCP environment. Recommended approach: dedicated future PR with dogfood-cdp-telegram skill pre-loaded.",
+      "discovered_at_iteration": 19,
+      "environment_requirements_missing": [
+        "TELEGRAM_BOT_TOKEN env var",
+        "Chrome MCP",
+        "live Telegram chat as test target",
+        "network access to Telegram WebApp"
+      ],
+      "out_of_halt_loop_scope": true
     },
     "T7.1": {
       "status": "committed",
@@ -132,7 +141,7 @@
       "commit_sha": "30e6531"
     },
     "T13.1": {
-      "status": "pending",
+      "status": "blocked",
       "deps": [
         "T1.1",
         "T2.1",
@@ -150,7 +159,10 @@
         "T11.1",
         "T11.2"
       ],
-      "title": "Integration Validation re-audit"
+      "title": "Integration Validation re-audit — BLOCKED transitively on T6.1 AND requires full architecture audit skill re-run",
+      "blocked_reason": "Two compounding blockers: (1) Plan dependency T6.1 is BLOCKED on environmental dogfood requirement — re-audit would still flag PV#1 (telegram-pro god file) so the audit cannot show '0 critical+high findings' end state. (2) T13.1 requires running `/loop-architecture-review . --mode full` skill which spawns multiple sub-agents and rebuilds `architecture-output/architecture.db` from scratch — heavyweight operation suitable for a dedicated session, not a halt-loop iteration. Recommended approach: re-run the audit skill in the same human-driven session that unblocks T6.1; the SQLite queries in the plan's `Execution` section then run against the fresh DB and assert the 7 positive findings persist (rows 35-42 of Coverage Matrix). Per Inquebrável Rule 3, marking BLOCKED instead of attempting a partial audit that could mislead by missing T6.1's impact.",
+      "discovered_at_iteration": 19,
+      "out_of_halt_loop_scope": true
     }
   },
   "iterations_log": [
@@ -563,7 +575,7 @@
       "iteration": 18,
       "task_id": "T5.1",
       "outcome": "COMMITTED_FINAL (plugins/ cluster promoted; T5.1 4 of 4 clusters COMPLETE; remaining 23-file gap deferred as out-of-cohesive-cluster-scope)",
-      "commit_sha": "(pending)",
+      "commit_sha": "119c741",
       "phases_completed": [
         "audit-plugins-cluster",
         "ratchet-budget-test-final",
@@ -604,6 +616,22 @@
       "sepa_invoked": false,
       "sepa_deferral_reason": "final T5.1 cluster using same proven pattern across 4 iterations; SEPA value-add low for git-mv work",
       "duration_minutes": 18
+    },
+    {
+      "iteration": 19,
+      "task_id": "T6.1 + T13.1",
+      "outcome": "BLOCKED_HONESTLY (environmental, not effort) — both T6.1 and T13.1 require resources unavailable to the halt-loop sandbox",
+      "phases_completed": [
+        "audit-T6.1-acceptance-criteria",
+        "verify-environment-requirements",
+        "document-BLOCKED-rationale-per-Inquebrável-Rule-3"
+      ],
+      "T6_1_block_summary": "Dogfood-cdp-telegram is the mandated regression gate. Requires real Telegram bot + Chrome MCP + live chat session. Halt-loop sandbox does not provide these. Mechanical split would risk silent handler-closure regression in 30+ commands. Escalate to human-driven session.",
+      "T13_1_block_summary": "Transitively blocked on T6.1 (audit would still flag PV#1 telegram-pro god file). Also requires `/loop-architecture-review . --mode full` skill re-run which spawns multi-agent pipeline and rebuilds SQLite DB — heavyweight for a single halt-loop iteration.",
+      "halt_loop_terminal_state": "ALL remaining pending tasks are now BLOCKED with documented reasons. T0.2 + T0.3 transitively blocked on T0.1 plan-defect (iter-1). T6.1 + T13.1 blocked on environment (iter-19). 14 of 20 tasks COMMITTED (incl T5.1 4-cluster complete). 6 tasks BLOCKED. Honest blocked report emitted; downstream validation gate will not run.",
+      "sepa_invoked": false,
+      "sepa_deferral_reason": "no code change in this iteration — documentation update only",
+      "duration_minutes": 8
     }
   ]
 }

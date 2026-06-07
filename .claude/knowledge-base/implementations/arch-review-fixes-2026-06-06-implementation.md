@@ -40,7 +40,7 @@ This satisfies `.nvmrc` (=22) without restart. Document deviation per Inquebráv
 | T3.1 | Phase 3 / T3.1 | agent-registry-contract.ts (D431, HIGH cycle #8) | pending | — | — | — | — |
 | T4.1 | Phase 4 / T4.1 | type-leaf extractions (D438) — closed cycles #3/#5/#6/#7/#10; cycle #4 deferred (needs SDKAgent full extraction); also fixed architecture-test repoRoot bug | committed | iter-12 | — | — | — |
 | T5.1 | Phase 5 / T5.1 | runtime/ god folder split (D436) — COMPLETE: all 4 clusters promoted across iter-15/16/17/18 (fixtures+context+registry+plugins = 21 files); 69→48 direct count; remaining 23-file gap deferred as out-of-cohesive-cluster-scope | committed | iter-15..18 | — | — | — |
-| T6.1 | Phase 6 / T6.1 | telegram-pro split (D435) | pending | — | — | — | — |
+| T6.1 | Phase 6 / T6.1 | telegram-pro split (D435) — BLOCKED on dogfood-cdp-telegram environmental requirement (Telegram bot creds + Chrome MCP); escalate to human-driven session | blocked | iter-19 | — | — | — |
 | T7.1 | Phase 7 / T7.1 | .ls-lint.yml + 4 file renames | pending | — | — | — | — |
 | T8.1 | Phase 8 / T8.1 | silent-catch elimination (PV#6 + PV#7) | pending | — | — | — | — |
 | T9.1 | Phase 9 / T9.1 | SecretRedactor interface + Zone of Pain doc (D437) | pending | — | — | — | — |
@@ -50,7 +50,7 @@ This satisfies `.nvmrc` (=22) without restart. Document deviation per Inquebráv
 | T10.4 | Phase 10 / T10.4 | split dispatchSingleCall 158 LOC (PV#2) — 7 helpers + directive removed; 51/51 regression GREEN | committed | iter-13 | — | — | — |
 | T11.1 | Phase 11 / T11.1 | DOC cycles #1/#2 D428 + ISP/SDKAgent D122 | pending | — | — | — | — |
 | T11.2 | Phase 11 / T11.2 | DOC PV#3/PV#10/PV#11 auditor-acknowledged INFO orchestrators | pending | — | — | — | — |
-| T13.1 | Phase 13 / T13.1 | Integration Validation re-audit + positive preservation | pending | — | — | — | — |
+| T13.1 | Phase 13 / T13.1 | Integration Validation re-audit + positive preservation — BLOCKED transitively on T6.1 + heavyweight audit re-run beyond halt-loop scope | blocked | iter-19 | — | — | — |
 
 Status legend: `pending` / `red` / `green` / `refactor` / `wired` / `committed` / `blocked` / `done`
 
