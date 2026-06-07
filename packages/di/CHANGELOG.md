@@ -5,6 +5,12 @@ All notable changes to `@theokit/di` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **Documentation only:** expanded JSDoc header on `Container` class (`src/container.ts:87`) acknowledging auditor finding PV#10 from the 2026-06-06 architecture audit. The 812 LOC class size is above the 500 LOC heuristic file budget but justified as the Single-Point-of-Truth for DI resolution (registry lookup, lifecycle SINGLETON/TRANSIENT/REQUEST, `@Injectable` metadata read, alias resolution, request-scope ALS propagation, dispose chain). Splitting would fragment cohesion per `rules/architecture.md § 3` + KISS / YAGNI. ADR D422 tracks ongoing Extract-Method refactor at the method level. No code change. Plan `arch-review-fixes-2026-06-06` T11.2 records the trade-off.
+
 ## [0.1.0] - 2026-05-31
 
 > First GA release. Promotes `0.1.0-next.0` to stable with the EC-R3-1 single-flight Promise cache fix (shipped in `0.1.0-next.0` commit `520fe7d`) plus the biome-cleanup refactors below. API contract preserved — no breaking changes from `0.1.0-next.0`.
