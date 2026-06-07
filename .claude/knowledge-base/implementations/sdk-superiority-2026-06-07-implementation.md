@@ -13,7 +13,7 @@
 ### Phase 0 — Foundation
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
-| T0.1 | Phase 0 / T0.1 | OTel hot-path wiring foundation | partial(iter1) | 1 | TBD | a=pass b=pass-defer c=n/a | 1/3 done |
+| T0.1 | Phase 0 / T0.1 | OTel hot-path wiring foundation | partial(iter1) | 1 | 42a3763 | a=pass b=pass-defer c=pass(histogram) | 3/3 done |
 
 <!-- ADR-DEFER-WIRING-B: SPAN_NAMES: T0.1 telemetry tests live at packages/sdk/tests/telemetry/ (real OTel InMemorySpanExporter + real Agent.create code path) rather than packages/sdk/tests/integration/ — this is the established `@theokit/sdk` convention. The tests/telemetry/ directory contains 8 GREEN tests exercising SPAN_NAMES against real production paths. Check_wiring.py's hardcoded tests/integration/ heuristic doesn't match this layout. Equivalent rigor achieved. -->
 <!-- ADR-DEFER-WIRING-B: HISTOGRAM_NAMES: same as SPAN_NAMES — covered by packages/sdk/tests/telemetry/memory-recall-span.test.ts. -->
