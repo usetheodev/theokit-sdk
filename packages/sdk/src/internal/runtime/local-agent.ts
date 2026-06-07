@@ -14,6 +14,8 @@ import type { PersonalityRegistry } from "../personality/registry.js";
 import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
+import { SPAN_NAMES } from "../telemetry/span-names.js";
+import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import { anySignal } from "./abort-utils.js";
 import {
   appendSessionMessage,
@@ -111,9 +113,12 @@ export class LocalAgent implements SDKAgent {
   /** Personality presets — lazy-loaded on first `usePersonality` call (ADRs D160-D164). @internal */
   private personalityRegistry: PersonalityRegistry | undefined;
   private readonly personalityStore: PersonalityStore;
+  /** T0.1 — telemetry handle shared with sendLocked + memory recall path. */
+  private readonly _telemetry: TelemetryHandle;
 
   constructor(options: AgentOptions) {
     this.agentId = options.agentId ?? generateLocalAgentId();
+    this._telemetry = createTelemetry(options.telemetry);
     this.model = options.model;
     this.options = options;
     this.workspaceCwd = resolveCwd(options.local?.cwd);
@@ -199,6 +204,12 @@ export class LocalAgent implements SDKAgent {
     if (options.tools !== undefined && options.tools.length > 0) {
       validateToolCatalog(options.tools);
     }
+    // T0.1: `agent.send` parent span spans the FULL lifecycle (mutex acquire +
+    // dispatch + post-run). Child step spans (`agent.send.<step>`) land in T1.7.
+    const sendSpan = this._telemetry.startSpan(SPAN_NAMES.AGENT_SEND, {
+      agentId: this.agentId,
+      ...(this.model?.id !== undefined ? { model: this.model.id } : {}),
+    });
     // ADR D19 (EC-8): per-agent send mutex keyed by `agent-send:${agentId}`.
     // The lock spans the FULL run lifecycle — dispatch + run.wait() + post-run
     // assistant-turn append + session summary write + disk flush — so
@@ -206,30 +217,47 @@ export class LocalAgent implements SDKAgent {
     // records mid-turn AND `agent.dispose()` can never return before the
     // summary write finishes (ADR D20).
     return new Promise<Run>((resolve, reject) => {
-      void withCwdMutex(`agent-send:${this.agentId}`, async () => {
-        const userText = typeof message === "string" ? message : message.text;
-        let run: Run;
-        try {
-          run = await this.sendLocked(message, options);
-        } catch (err) {
-          reject(err);
-          return;
-        }
-        // T3.2: opt-in Task wrapping (ADRs D363/D374).
-        // biome-ignore format: one-liner to stay under G8 LoC budget.
-        if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
-        resolve(run);
-        await runPostRunLifecycle({
-          run,
-          userText,
-          agentId: this.agentId,
-          workspaceCwd: this.workspaceCwd,
-          storageHandle: this.storageHandle(),
-          hooksExecutor: this.hooksExecutor,
-          memoryGlue: this.memoryGlue,
-        });
-      });
+      void withCwdMutex(`agent-send:${this.agentId}`, () =>
+        this.runLockedSendCycle(message, options, sendSpan, resolve, reject),
+      );
     });
+  }
+
+  private async runLockedSendCycle(
+    message: string | SDKUserMessage,
+    options: SendOptions,
+    sendSpan: OTelSpan,
+    resolve: (run: Run) => void,
+    reject: (err: unknown) => void,
+  ): Promise<void> {
+    const userText = typeof message === "string" ? message : message.text;
+    let run: Run;
+    try {
+      run = await this.sendLocked(message, options);
+    } catch (err) {
+      sendSpan.recordException(err);
+      sendSpan.setStatus({ code: 2, message: err instanceof Error ? err.message : String(err) });
+      sendSpan.end();
+      reject(err);
+      return;
+    }
+    // T3.2: opt-in Task wrapping (ADRs D363/D374).
+    // biome-ignore format: one-liner to stay under G8 LoC budget.
+    if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
+    resolve(run);
+    try {
+      await runPostRunLifecycle({
+        run,
+        userText,
+        agentId: this.agentId,
+        workspaceCwd: this.workspaceCwd,
+        storageHandle: this.storageHandle(),
+        hooksExecutor: this.hooksExecutor,
+        memoryGlue: this.memoryGlue,
+      });
+    } finally {
+      sendSpan.end();
+    }
   }
 
   private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
@@ -272,6 +300,7 @@ export class LocalAgent implements SDKAgent {
     const activeMemorySummary = await this.memoryGlue.runActiveMemoryIfEnabled(
       userText,
       priorMessages,
+      this._telemetry,
     );
     const baseSystemPrompt = await this.resolveSystemPromptForSend(userText, options, memoryFacts);
     const assembledSystemPrompt = await this.assembleSystemPromptForSend(

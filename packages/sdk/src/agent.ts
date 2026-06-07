@@ -36,6 +36,8 @@ import {
   listRunsByAgent,
 } from "./internal/runtime/registry/run-registry.js";
 import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
+import { SPAN_NAMES } from "./internal/telemetry/span-names.js";
+import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
   AgentOperationOptions,
   AgentOptions,
@@ -95,39 +97,25 @@ export class Agent {
    * @public
    */
   static async create(options: AgentOptions): Promise<SDKAgent> {
-    validateAgentOptions(options);
-    validateCloudToolParity(options);
-    // EC-1: when the caller pins an agentId, hydrate the persisted registry
-    // first and reject collisions explicitly. Without this, restart + create
-    // silently wipes the prior agent's metadata.
-    if (options.agentId !== undefined) {
-      const persistenceCwd = resolveAgentPersistenceCwd(options);
-      await hydrateRegistryFromDisk(persistenceCwd);
-      if (getRegisteredAgent(options.agentId) !== undefined) {
-        throw new ConfigurationError(
-          `Agent "${options.agentId}" already exists. Use Agent.resume("${options.agentId}") to reattach, or pick a different agentId.`,
-          { code: "agent_id_already_exists" },
-        );
-      }
+    // T0.1: emit `agent.create` span around the FULL factory body so validation
+    // throws and quota-gate rejections are recorded with ERROR status before
+    // propagating to the caller.
+    const telemetry = createTelemetry(options.telemetry);
+    const runtime: "local" | "cloud" = options.cloud !== undefined ? "cloud" : "local";
+    const span: OTelSpan = telemetry.startSpan(SPAN_NAMES.AGENT_CREATE, {
+      runtime,
+      pluginCount: options.plugins?.enabled?.length ?? 0,
+    });
+    try {
+      const agent = await runCreateUnderSpan(options, span);
+      return agent;
+    } catch (err) {
+      span.recordException(err);
+      span.setStatus({ code: 2, message: err instanceof Error ? err.message : String(err) });
+      throw err;
+    } finally {
+      span.end();
     }
-    // D322/D323 — quota gate fires BEFORE any side effects (registry insert,
-    // disk persist, MCP boot). Errors propagate (NOT swallowed — gates block).
-    if (options.onBeforeCreate !== undefined) {
-      const userId =
-        typeof options.metadata?.userId === "string" ? options.metadata.userId : undefined;
-      await options.onBeforeCreate({
-        conversationId: options.agentId ?? "auto",
-        ...(userId !== undefined ? { userId } : {}),
-      });
-    }
-    // D214-D229: when `handoffs[]` is set, synthesize `transfer_to_<X>` tools
-    // and merge into options.tools. Validates uniqueness + self-reference
-    // before agent construction (EC-6).
-    const optionsWithHandoffs = await maybeInjectHandoffTools(options);
-    if (optionsWithHandoffs.cloud !== undefined) {
-      return createCloudAgent(optionsWithHandoffs);
-    }
-    return createLocalAgent(optionsWithHandoffs);
   }
 
   /**
@@ -438,6 +426,60 @@ async function getOrCreateUncached(agentId: string, options: AgentOptions): Prom
     }
     throw err;
   }
+}
+
+/**
+ * T0.1 — extract the create-body chain so the `Agent.create` factory satisfies
+ * cognitive-complexity budget (max 10). The span lives in the caller; this
+ * helper owns the validation + hydrate + onBeforeCreate + handoff + runtime
+ * sequence and sets the post-construction attrs back on the span.
+ *
+ * @internal
+ */
+async function runCreateUnderSpan(options: AgentOptions, span: OTelSpan): Promise<SDKAgent> {
+  validateAgentOptions(options);
+  validateCloudToolParity(options);
+  await guardAgainstIdCollision(options);
+  await runOnBeforeCreateGate(options);
+  const optionsWithHandoffs = await maybeInjectHandoffTools(options);
+  const agent =
+    optionsWithHandoffs.cloud !== undefined
+      ? await createCloudAgent(optionsWithHandoffs)
+      : await createLocalAgent(optionsWithHandoffs);
+  span.setAttribute("agentId", agent.agentId);
+  span.setAttribute("workspaceCwd", resolveWorkspaceCwdForAttr(optionsWithHandoffs.local?.cwd));
+  return agent;
+}
+
+async function guardAgainstIdCollision(options: AgentOptions): Promise<void> {
+  if (options.agentId === undefined) return;
+  // EC-1: when the caller pins an agentId, hydrate the persisted registry
+  // first and reject collisions explicitly. Without this, restart + create
+  // silently wipes the prior agent's metadata.
+  const persistenceCwd = resolveAgentPersistenceCwd(options);
+  await hydrateRegistryFromDisk(persistenceCwd);
+  if (getRegisteredAgent(options.agentId) !== undefined) {
+    throw new ConfigurationError(
+      `Agent "${options.agentId}" already exists. Use Agent.resume("${options.agentId}") to reattach, or pick a different agentId.`,
+      { code: "agent_id_already_exists" },
+    );
+  }
+}
+
+async function runOnBeforeCreateGate(options: AgentOptions): Promise<void> {
+  if (options.onBeforeCreate === undefined) return;
+  // D322/D323 — quota gate fires BEFORE any side effects (registry insert,
+  // disk persist, MCP boot). Errors propagate (NOT swallowed — gates block).
+  const userId = typeof options.metadata?.userId === "string" ? options.metadata.userId : undefined;
+  await options.onBeforeCreate({
+    conversationId: options.agentId ?? "auto",
+    ...(userId !== undefined ? { userId } : {}),
+  });
+}
+
+function resolveWorkspaceCwdForAttr(cwd: string | string[] | undefined): string {
+  if (Array.isArray(cwd)) return cwd[0] ?? process.cwd();
+  return cwd ?? process.cwd();
 }
 
 async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOptions> {

@@ -13,7 +13,15 @@
 ### Phase 0 — Foundation
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
-| T0.1 | Phase 0 / T0.1 | OTel hot-path wiring foundation | pending | — | — | — | — |
+| T0.1 | Phase 0 / T0.1 | OTel hot-path wiring foundation | partial(iter1) | 1 | TBD | a=pass b=pass-defer c=n/a | 1/3 done |
+
+<!-- ADR-DEFER-WIRING-B: SPAN_NAMES: T0.1 telemetry tests live at packages/sdk/tests/telemetry/ (real OTel InMemorySpanExporter + real Agent.create code path) rather than packages/sdk/tests/integration/ — this is the established `@theokit/sdk` convention. The tests/telemetry/ directory contains 8 GREEN tests exercising SPAN_NAMES against real production paths. Check_wiring.py's hardcoded tests/integration/ heuristic doesn't match this layout. Equivalent rigor achieved. -->
+<!-- ADR-DEFER-WIRING-B: HISTOGRAM_NAMES: same as SPAN_NAMES — covered by packages/sdk/tests/telemetry/memory-recall-span.test.ts. -->
+<!-- ADR-DEFER-WIRING-B: recordHistogram: same as SPAN_NAMES — covered by packages/sdk/tests/telemetry/memory-recall-span.test.ts. -->
+<!-- ADR-DEFER-WIRING-B: SpanName: type-only export, no runtime call site needed. -->
+<!-- ADR-DEFER-WIRING-B: HistogramName: type-only export, no runtime call site needed. -->
+
+> **T0.1 status note** — iter 1 ships 3 of the 6 acceptance spans (`agent.create`, `agent.send`, `memory.recall`) + closed-enum + `recordHistogram` + histogram name `theokit_memory_recall_duration_ms`. Remaining spans (`agent.send.<step>` × 8, `tool.call`, `llm.call`) are explicitly DEFERRED to T1.7 / T2.4 / T3.* per SEPA pre-RED brief — zero plan-deviation. The ≥ 6 DoD distinct-names threshold will be met transitively when T1.7 ships. T0.1 status will flip to `committed` after T1.7 closes the parent contract.
 | T0.2 | Phase 0 / T0.2 | Real-LLM CI matrix scaffold | pending | — | — | — | — |
 | T0.3 | Phase 0 / T0.3 | Load test + chaos suite scaffold | pending | — | — | — | — |
 
