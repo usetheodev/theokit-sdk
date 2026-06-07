@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — promote `internal/runtime/registry/` sub-folder (T5.1 partial 3 of 4, FO#1)
+
+- **`@theokit/sdk`**: promoted the registry cluster from `internal/runtime/` to `internal/runtime/registry/`. 6 files moved via `git mv`: `agent-factory-registry.ts`, `agent-registry-contract.ts`, `agent-registry-store.ts`, `agent-registry.ts`, `live-agent-registry.ts`, `run-registry.ts`. Direct file count in `internal/runtime/`: 56 → 50.
+- **T5.1 status — PARTIAL (3 of 4 clusters complete).** Remaining: `plugins/` (~2 files: plugin-frontmatter, plugins-manager).
+- **Cross-folder caller surgery.** Registry files are imported from `src/` root (`agent.ts`, `index.ts`) AND from runtime/ siblings AND from 4 test files. All paths rewritten. One dynamic `import("./agent-factory-registry.js")` in `local-agent-runtime-extensions.ts` also updated (sed pass was extended to cover this pattern).
+- **Behavior preservation:** 33/33 runtime + architecture test files (253 tests) GREEN. typecheck exit 0. biome clean. madge 3 cycles unchanged.
+
 ### Refactored — promote `internal/runtime/context/` sub-folder (T5.1 partial 2 of 4, FO#1)
 
 - **`@theokit/sdk`**: promoted the context cluster from `internal/runtime/` to a new `internal/runtime/context/` sub-folder. 8 files moved via `git mv`: `context-aggregator.ts`, `context-discovery-runner.ts`, `context-discovery.ts`, `context-frontmatter.ts`, `context-import-resolver.ts`, `context-loaders.ts`, `context-manager.ts`, `context-mdc-parser.ts`. Direct file count in `internal/runtime/`: 64 → 56.

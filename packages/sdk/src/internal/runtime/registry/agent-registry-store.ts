@@ -1,8 +1,8 @@
 import { join } from "node:path";
 
-import type { AgentOptions } from "../../types/agent.js";
-import { withCwdMutex } from "../persistence/cwd-mutex.js";
-import { readVersionedJson, writeVersionedJson } from "../persistence/schema-version.js";
+import type { AgentOptions } from "../../../types/agent.js";
+import { withCwdMutex } from "../../persistence/cwd-mutex.js";
+import { readVersionedJson, writeVersionedJson } from "../../persistence/schema-version.js";
 import type { AgentRuntime, RegisteredAgent } from "./agent-registry-contract.js";
 
 /**

@@ -1,4 +1,4 @@
-import type { Run } from "../../types/run.js";
+import type { Run } from "../../../types/run.js";
 
 /**
  * Process-wide run registry indexed by run id. Lets `Agent.listRuns()` and

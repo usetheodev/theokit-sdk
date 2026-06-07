@@ -14,7 +14,7 @@
  * @internal
  */
 
-import type { AgentOptions, SDKAgent } from "../../types/agent.js";
+import type { AgentOptions, SDKAgent } from "../../../types/agent.js";
 
 export type AgentCreateFn = (options: AgentOptions) => Promise<SDKAgent>;
 

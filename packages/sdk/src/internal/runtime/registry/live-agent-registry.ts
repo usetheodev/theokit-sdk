@@ -18,7 +18,7 @@
  * @public (singleton exposed via `Agent.registry`)
  */
 
-import type { SDKAgent } from "../../types/agent.js";
+import type { SDKAgent } from "../../../types/agent.js";
 
 export type EvictReason = "lru" | "idle" | "explicit";
 

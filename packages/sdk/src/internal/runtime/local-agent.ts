@@ -15,7 +15,6 @@ import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
 import { anySignal } from "./abort-utils.js";
-import { flushRegistrySaves, updateRegisteredAgent } from "./agent-registry.js";
 import {
   appendSessionMessage,
   compactSession,
@@ -25,7 +24,6 @@ import {
 } from "./agent-session.js";
 import type { FileContextManager } from "./context/context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
-import { liveAgentRegistry } from "./live-agent-registry.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
@@ -49,6 +47,8 @@ import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
 import type { PluginMetadata, PluginsManager } from "./plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
 import type { ProvidersManagerImpl } from "./providers-manager.js";
+import { flushRegistrySaves, updateRegisteredAgent } from "./registry/agent-registry.js";
+import { liveAgentRegistry } from "./registry/live-agent-registry.js";
 import type { SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
 import {

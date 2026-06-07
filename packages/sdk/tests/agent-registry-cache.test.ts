@@ -15,12 +15,12 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 // but file-level parallelism is what we need to control.
 
 import { Agent } from "../src/agent.js";
+import { clearAllSessions } from "../src/internal/runtime/agent-session.js";
 import {
   clearAgentRegistry,
   flushRegistrySaves,
   invalidateRegistryHydration,
-} from "../src/internal/runtime/agent-registry.js";
-import { clearAllSessions } from "../src/internal/runtime/agent-session.js";
+} from "../src/internal/runtime/registry/agent-registry.js";
 
 const FIXTURE_KEY = "theo_test_registry_cache";
 const MODEL = { id: "openai/gpt-4o-mini" };
