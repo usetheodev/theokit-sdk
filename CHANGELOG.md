@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Notes — arch-review-fixes-2026-06-06 halt-loop terminal state (iter-19)
+
+The halt-loop terminated honestly after 14 tasks committed + 6 tasks BLOCKED with documented environmental rationale (per Inquebrável Rule 3 — extreme honesty over false PASS):
+
+- **T0.1 + T0.2 + T0.3** (CI cycle/orphan gates) — BLOCKED on T0.1 plan-defect: audit prescribed a `tsconfig` fix to `.dependency-cruiser.cjs` that the existing config explicitly skips for documented reasons. Empirically `madge` and `depcruise` disagree on cycle count (madge=13 vs depcruise=0 at iter-1); the discrepancy root cause remains unknown without revising the plan. Workaround already in place: 7 architecture tests now assert cycle absence via real `madge --circular`.
+- **T6.1** (`telegram-pro` 2317 LOC split, PV#1) — BLOCKED on environmental dogfood requirement: the plan's mandatory regression gate (`dogfood-cdp-telegram` skill) needs real `TELEGRAM_BOT_TOKEN` + Chrome MCP/CDP + live Telegram chat session, none available in halt-loop sandbox. Mechanical extraction of 30+ closure-heavy command handlers without dogfood verification cannot meet the 95% confidence threshold. Escalated to a dedicated human-driven session.
+- **T13.1** (Integration Validation re-audit) — BLOCKED transitively on T6.1 + requires `/loop-architecture-review . --mode full` skill re-run (multi-agent pipeline rebuilding `architecture-output/architecture.db`) which is heavyweight beyond a single halt-loop iteration. Recommended: run in the same session that unblocks T6.1.
+
+**14 of 20 tasks shipped** (committed to `develop`): T0.4, T1.1, T2.1, T3.1, T4.1, T5.1 (4-cluster split COMPLETE across iter-15/16/17/18), T7.1, T8.1, T9.1, T10.1, T10.2, T10.3, T10.4, T11.1, T11.2. CRITICAL cycle #9 closed, 5 of 6 LOW type-only cycles closed (cycle #4 documented as deferred), HIGH cycles #8 + #11/#12/#13 closed, FO#1 god folder cut 69→48 (30% reduction), FO#3 memory under budget, PV#2 dispatchSingleCall split, plus all docs + naming + Zone of Pain + silent-catch + lonely-cluster work. Zero behavior regression across 254 runtime + architecture tests; 3 cycles remaining are the 2 D428-acknowledged + cycle #4 (agent↔handoff) which needs SDKAgent interface extraction.
+
 ### Refactored — promote `internal/runtime/plugins/` sub-folder + complete T5.1 (4 of 4, FO#1)
 
 - **`@theokit/sdk`**: promoted the plugins cluster from `internal/runtime/` to `internal/runtime/plugins/`. 2 files moved via `git mv`: `plugin-frontmatter.ts`, `plugins-manager.ts`. Direct file count in `internal/runtime/`: 50 → 48.
