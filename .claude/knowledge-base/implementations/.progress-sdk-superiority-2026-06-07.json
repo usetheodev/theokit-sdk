@@ -1,7 +1,7 @@
 {
   "slug": "sdk-superiority-2026-06-07",
   "max_iterations": 100,
-  "iterations_used": 1,
+  "iterations_used": 2,
   "started_at": "2026-06-07",
   "tasks": [
     {
@@ -12,10 +12,20 @@
       "commit_sha": "42a3763",
       "iterations_used": 1,
       "phases_completed": ["red", "green", "refactor", "wiring", "commit"],
-      "notes": "3 of 6 acceptance span names shipped: agent.create, agent.send (parent), memory.recall. Remaining agent.send.<step> x 8 + tool.call + llm.call deferred to T1.7/T2.4/T3.* per SEPA pre-RED brief. Histogram theokit_memory_recall_duration_ms wired."
+      "notes": "3 of 6 acceptance span names shipped; rest deferred to T1.7/T2.4/T3.* per SEPA."
+    },
+    {
+      "task_id": "T0.2",
+      "phase": "Phase 0 — Foundation",
+      "status": "committed",
+      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" },
+      "commit_sha": "8d4487e",
+      "iterations_used": 1,
+      "phases_completed": ["red", "green", "refactor", "wiring", "commit"],
+      "notes": "15 env-gated test files; all skip cleanly without keys. Helper resolveRealLlmEnv at _helpers/. Cost: $0 this iter (no keys exported)."
     }
   ],
-  "pending_count": 66,
+  "pending_count": 65,
   "halted": false,
   "cost_usd_cumulative": 0.0,
   "real_llm_cost_breakdown": []
