@@ -44,7 +44,7 @@ import {
 } from "./local-agent-runtime-extensions.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
 import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
-import type { PluginMetadata, PluginsManager } from "./plugins-manager.js";
+import type { PluginMetadata, PluginsManager } from "./plugins/plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
 import type { ProvidersManagerImpl } from "./providers-manager.js";
 import { flushRegistrySaves, updateRegisteredAgent } from "./registry/agent-registry.js";

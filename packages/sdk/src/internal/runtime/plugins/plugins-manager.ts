@@ -2,12 +2,12 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { ConfigurationError } from "../../errors.js";
-import { loadMarkdownEntities } from "../persistence/markdown-config-loader.js";
-import { safePathJoin } from "../security/path-guard.js";
-import { warnOnce } from "./hooks-source.js";
+import { ConfigurationError } from "../../../errors.js";
+import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
+import { safePathJoin } from "../../security/path-guard.js";
+import { warnOnce } from "../hooks-source.js";
+import { readWorkspaceDir } from "../workspace-dir.js";
 import { type PluginFrontmatter, PluginFrontmatterSchema } from "./plugin-frontmatter.js";
-import { readWorkspaceDir } from "./workspace-dir.js";
 
 /**
  * Plugin manifest exposed via `agent.plugins.list()`. Includes provenance

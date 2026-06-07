@@ -11,7 +11,7 @@
 
 import { z } from "zod";
 
-import { ConfigurationError } from "../../errors.js";
+import { ConfigurationError } from "../../../errors.js";
 
 export const PluginFrontmatterSchema = z.object({
   /** Plugin identifier; defaults to folder name if omitted. */

@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — promote `internal/runtime/plugins/` sub-folder + complete T5.1 (4 of 4, FO#1)
+
+- **`@theokit/sdk`**: promoted the plugins cluster from `internal/runtime/` to `internal/runtime/plugins/`. 2 files moved via `git mv`: `plugin-frontmatter.ts`, `plugins-manager.ts`. Direct file count in `internal/runtime/`: 50 → 48.
+- **T5.1 status — all 4 plan-prescribed clusters COMPLETE.** Cumulative across iter-15/16/17/18: fixtures (5) + context (8) + registry (6) + plugins (2) = **21 files moved**. `internal/runtime/` direct count: **69 → 48** (drop of 30%, no test or madge regression). Audit heuristic ideal is 25; remaining 23-file gap is documented as a follow-up plan (each promotable cluster from here is below the 5-file cohesion floor).
+- **Internal-only refactor.** Zero public API surface change. Sibling callers (`local-agent.ts`, `local-agent-bootstrap.ts`) and 2 test files updated. Moved-file paths adjusted (`../../errors.js` → `../../../errors.js`; `../persistence/...`, `../security/...` → `../../...`; `./hooks-source.js`, `./workspace-dir.js` → `../...`).
+- **Behavior preservation:** 33/33 runtime + architecture test files (254 tests) GREEN. typecheck exit 0. biome clean. madge 3 cycles unchanged.
+
 ### Refactored — promote `internal/runtime/registry/` sub-folder (T5.1 partial 3 of 4, FO#1)
 
 - **`@theokit/sdk`**: promoted the registry cluster from `internal/runtime/` to `internal/runtime/registry/`. 6 files moved via `git mv`: `agent-factory-registry.ts`, `agent-registry-contract.ts`, `agent-registry-store.ts`, `agent-registry.ts`, `live-agent-registry.ts`, `run-registry.ts`. Direct file count in `internal/runtime/`: 56 → 50.
