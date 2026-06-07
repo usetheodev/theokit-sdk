@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — biome auto-format applied to T0.3 scaffold files (post-commit `1eb3687`)
+
+- **Workspace impact**: import sort + template-string conversion + indexOf-walk refactor in `packages/sdk/tests/{load,chaos}/`. No behavior change. Triggered by `pnpm check:fix` during the halt-loop's iter 3 closeout.
+
 ### Added — `@theokit/sdk` T0.3: Load + chaos suite scaffold (plan `sdk-superiority-2026-06-07`)
 
 - **Workspace impact**: 6 new test files at `packages/sdk/tests/{load,chaos}/` + 3 new harness modules (custom in-process SSE driver, Linux-only socket monitor, child-process control with SIGKILL injection per D37). 8/8 tests GREEN today; T6.2/T6.3/T6.4/T6.5 ratchet to production assertions. Per-package detail at `packages/sdk/CHANGELOG.md`.
