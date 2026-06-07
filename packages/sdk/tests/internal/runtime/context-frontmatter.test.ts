@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   ContextSourceFrontmatterSchema,
   parseContextSourceFrontmatter,
-} from "../../../src/internal/runtime/context-frontmatter.js";
+} from "../../../src/internal/runtime/context/context-frontmatter.js";
 
 describe("ContextSourceFrontmatterSchema", () => {
   it("accepts a minimal source", () => {

@@ -23,7 +23,7 @@ import {
   getSessionMessages,
   hydrateSession,
 } from "./agent-session.js";
-import type { FileContextManager } from "./context-manager.js";
+import type { FileContextManager } from "./context/context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
 import { liveAgentRegistry } from "./live-agent-registry.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";

@@ -2,15 +2,16 @@ import { existsSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { join, resolve as resolvePath } from "node:path";
 
-import { ConfigurationError } from "../../errors.js";
+import { ConfigurationError } from "../../../errors.js";
 import type {
   ContextBudget,
   ContextSettings,
   ContextSnapshot,
   ContextSource,
   SDKContextManager,
-} from "../../types/context.js";
-import { loadMarkdownEntities } from "../persistence/markdown-config-loader.js";
+} from "../../../types/context.js";
+import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
+import { warnOnce } from "../hooks-source.js";
 import {
   type AggregatorSource,
   applyAggregateCap,
@@ -19,7 +20,6 @@ import {
 import { runDiscovery } from "./context-discovery-runner.js";
 import { ContextSourceFrontmatterSchema } from "./context-frontmatter.js";
 import { DEFAULT_MAX_BYTES_PER_FILE } from "./context-loaders.js";
-import { warnOnce } from "./hooks-source.js";
 
 /**
  * File-based context manager. Reads `.theokit/context.json` from the
