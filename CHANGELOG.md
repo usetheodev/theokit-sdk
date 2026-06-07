@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — promote `internal/runtime/context/` sub-folder (T5.1 partial 2 of 4, FO#1)
+
+- **`@theokit/sdk`**: promoted the context cluster from `internal/runtime/` to a new `internal/runtime/context/` sub-folder. 8 files moved via `git mv`: `context-aggregator.ts`, `context-discovery-runner.ts`, `context-discovery.ts`, `context-frontmatter.ts`, `context-import-resolver.ts`, `context-loaders.ts`, `context-manager.ts`, `context-mdc-parser.ts`. Direct file count in `internal/runtime/`: 64 → 56.
+- **T5.1 status — PARTIAL (2 of 4 clusters complete).** Iter-15 shipped `fixtures/` (5 files). This iteration ships `context/`. Remaining: `registry/` (~6 files: agent-factory-registry, agent-registry*, live-agent-registry, run-registry), `plugins/` (~2 files).
+- **Internal-only refactor.** Zero public API surface change. Three callers updated: `local-agent.ts`, `local-agent-bootstrap.ts`, `system-prompt/local-assembly.ts`. 8 test files in `tests/internal/runtime/` had their `<path>/runtime/context-X.js` paths rewritten to `<path>/runtime/context/context-X.js`. Moved-file internal imports adjusted (`../../errors.js` → `../../../errors.js`, `../../types/context.js` → `../../../types/context.js`, `../persistence/...` → `../../persistence/...`, `./hooks-source.js` → `../hooks-source.js`).
+- **Behavior preservation:** 33/33 runtime + architecture test files (252 tests) GREEN. typecheck exit 0. biome clean. madge 3 cycles unchanged.
+
 ### Refactored — promote `internal/runtime/fixtures/` sub-folder (T5.1 partial, FO#1)
 
 - **`@theokit/sdk`**: promoted the fixture cluster from `internal/runtime/` to a new `internal/runtime/fixtures/` sub-folder. 5 files moved via `git mv`: `fixture-events.ts`, `fixture-responder.ts`, `fixture-run-base.ts`, `fixture-scripts.ts`, `fixture-types.ts`. Direct file count in `internal/runtime/`: 69 → 64.

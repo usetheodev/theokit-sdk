@@ -4,7 +4,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseMdc, shouldActivate } from "../../../src/internal/runtime/context-mdc-parser.js";
+import {
+  parseMdc,
+  shouldActivate,
+} from "../../../src/internal/runtime/context/context-mdc-parser.js";
 
 describe("parseMdc + shouldActivate (T3.1)", () => {
   it("alwaysApply: true always activates", () => {

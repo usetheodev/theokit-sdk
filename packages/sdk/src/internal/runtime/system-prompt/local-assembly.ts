@@ -1,5 +1,5 @@
 import type { AgentOptions, ModelSelection, SystemPromptContext } from "../../../types/agent.js";
-import type { FileContextManager } from "../context-manager.js";
+import type { FileContextManager } from "../context/context-manager.js";
 import type { MemoryFact } from "../memory-store.js";
 import type { SkillsManager } from "../skills-manager.js";
 import type { SystemPromptPipeline } from "./pipeline.js";

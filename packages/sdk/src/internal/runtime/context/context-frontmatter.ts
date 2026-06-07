@@ -10,7 +10,7 @@
 
 import { z } from "zod";
 
-import { ConfigurationError } from "../../errors.js";
+import { ConfigurationError } from "../../../errors.js";
 
 export const ContextSourceFrontmatterSchema = z.object({
   /** Identifier; defaults to filename slug if omitted. */
