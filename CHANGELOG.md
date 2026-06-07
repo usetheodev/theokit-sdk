@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `.ls-lint.yml` filename naming gate (T7.1)
+
+- **`.ls-lint.yml`** added at workspace root enforcing kebab-case (regex `^[a-z][a-z0-9-]*$`) on every `.ts`/`.tsx` source + test file under `packages/*/src/**` and `packages/*/tests/**`. `ignore:` block covers `node_modules`, build outputs, `.changeset/`, `.github/`, `.claude*/`, `referencia/`, `docs/evalscope/`, `architecture-output/`, `examples/` (each with documented rationale in `docs/audit/ls-lint-violations-pre-2026-06-06.md`).
+- **`validate:naming` script** added to root `package.json` + wired into the `validate` chain (runs after `test`, before `validate:publint`). Closes NV#1 + NV#2 from the 2026-06-06 architecture audit (plan `arch-review-fixes-2026-06-06` T7.1).
+- **EC-11 absorbed**: dry-run violations captured to `docs/audit/ls-lint-violations-pre-2026-06-06.md` BEFORE the rule was wired into validate — guarantees CI doesn't fail unrelated paths.
+
+### Changed — 4 underscore-prefixed files renamed for kebab-case discipline (T7.1)
+
+- **`@theokit/sdk`**: `_subprocess.ts` → `subprocess.ts`, `_path-scope.ts` → `path-scope.ts` (both in `src/tools/`), `_test-reset.ts` → `test-reset.ts` (in `src/internal/security/`). All 5 importer files updated (`git-diff.ts`, `run-vitest.ts`, `tests/internal/security/redact.test.ts`).
+- **`@theokit/acp`**: `_helpers.ts` → `helpers.ts` (in `tests/`). 1 importer updated (`lifecycle.test.ts`).
+- Closes NV#1 from the 2026-06-06 architecture audit (plan `arch-review-fixes-2026-06-06` T7.1). Internal-only renames; no public API touched. Git rename detection preserved (100% on all 4 files).
+
 ### Changed — Gateway base internal layout documented (T10.2)
 
 - **`@theokit/gateway`**: added `packages/gateway/src/README.md` documenting the 6 single-file sub-folder cluster (`adapter/`, `delivery/`, `hooks/`, `runner/`, `session/`, `types/`) as intentional bounded future-extensibility scaffold (FO#4 of 2026-06-06 architecture audit, T10.2 of plan `arch-review-fixes-2026-06-06`). Each sub-folder maps 1:1 to an ADR (D170-D177) and represents a stable semantic role rather than over-folding. Includes 12-month re-evaluation trigger. No source change.
