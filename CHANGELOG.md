@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T0.3: Load + chaos suite scaffold (plan `sdk-superiority-2026-06-07`)
+
+- **Workspace impact**: 6 new test files at `packages/sdk/tests/{load,chaos}/` + 3 new harness modules (custom in-process SSE driver, Linux-only socket monitor, child-process control with SIGKILL injection per D37). 8/8 tests GREEN today; T6.2/T6.3/T6.4/T6.5 ratchet to production assertions. Per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Added — `@theokit/sdk` T0.2: Real-LLM CI matrix scaffold (plan `sdk-superiority-2026-06-07`)
 
 - **Workspace impact**: 15 env-gated integration test files at `packages/sdk/tests/integration/real-llm/`. All suites skip silently when API keys absent; with `OPENROUTER_API_KEY` (or provider-native keys) set, CI matrix exercises tools / vision / stream / cache / structured outputs across openai / anthropic / openrouter routes. Per-package detail at `packages/sdk/CHANGELOG.md` `[Unreleased] § Added`.
