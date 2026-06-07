@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — CRITICAL runtime↔persistence cycle #9 closed (T1.1, ADR D432, plan-defect-corrected)
+
+- **`@theokit/sdk`**: extracted `internal/runtime/session-types.ts` (leaf types file ~15 LOC) holding `SessionMessage`. `agent-session-store.ts` now imports the type from this leaf; `agent-session.ts` re-exports it for back-compat. Closes the audit's only CRITICAL cycle (Phase 5 cartographer cycle #9, runtime↔persistence layer-crossing). madge cycle count: 9 → 8. Architecture test in `tests/architecture/cycle-9-closed.test.ts` (NEW) asserts via `spawnSync(madge --circular)`.
+- **Plan-vs-reality deviation honored:** the plan (ADR D432) prescribed a full port-and-adapter refactor (introduce `ConversationStorage` port in `runtime/`, rewire LocalAgent constructor, mirror in CloudAgent per EC-6, route every Agent.* static factory per EC-4, pre-grep store per EC-5). Empirical inspection found the cycle's back-edge was a single types-only import — type-leaf extraction is the smallest break that ACTUALLY closes the cycle. The port-and-adapter refactor would have left the back-edge intact. Documented in commit body + `session-types.ts` JSDoc rationale.
+
 ### Fixed — Memory cluster cycles #11/#12/#13 closed via contract extraction (T2.1, ADR D433)
 
 - **`@theokit/sdk`**: extracted `internal/memory/index-manager-contract.ts` (leaf types file ~70 LOC) holding `MemorySearchHit`, `IndexStatus`, `SearchOptions`, `MemoryBackend`, `OpenIndexOptions`. All 4 cluster members (`index-manager.ts`, `index-manager-dispatch.ts`, `lance-memory-adapter.ts`, `memory-index.ts`) now import these types from the contract. Single extraction breaks 3 HIGH-severity cycles at once (Phase 5 cartographer cycles #11/#12/#13 — 2-node + 3-node + 4-node rings). madge cycle count: 12 → 9. RED-GREEN-COMMIT TDD with 3 architecture assertions in `tests/architecture/cycle-11-12-13-closed.test.ts` (NEW). Back-compat re-export preserved on `index-manager.ts`.
