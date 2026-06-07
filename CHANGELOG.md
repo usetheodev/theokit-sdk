@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Silent-catch elimination per Inquebrável Rule 8 (T8.1)
+
+- **`@theokit/gateway-telegram`**: `TelegramAdapter.disconnect()` no longer silently swallows `bot.stop()` failures (PV#7, plan `arch-review-fixes-2026-06-06` T8.1). The catch remains intentional (disconnect must stay idempotent + safe — the bot may already be torn down by Telegram or by a prior signal handler), but now emits a structured `[theokit-gateway-telegram] bot.stop() failed during disconnect: <error>` line to stderr. Never-throw contract preserved.
+
 ### Added — CI tooling pins for arch-review-fixes plan (T0.4)
 
 - **`madge@8.0.0`** + **`@ls-lint/ls-lint@2.3.1`** added as exact-pinned devDeps at workspace root (T0.4 of plan `arch-review-fixes-2026-06-06`). Rationale doc at `docs/audit/ci-tool-versions-2026-06-06.md`: CI-gate dependencies (cycle detection, filename-naming linter) pinned exactly rather than `^x.y.z` to avoid silent gate drift. **Package-name discipline:** the bare `ls-lint` package on npm is an unrelated legacy livescript-based tool — confirmed via deps-audit (`.claude/knowledge-base/audits/arch-review-fixes-2026-06-06-deps-audit-2026-06-06.md`); the scoped `@ls-lint/ls-lint` is the correct package. Zero CVE per npm audit at install time.

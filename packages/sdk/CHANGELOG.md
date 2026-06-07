@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **`safeListTools` no longer silently swallows MCP failures** (PV#6, plan `arch-review-fixes-2026-06-06` T8.1). When `client.listTools()` throws (MCP server unreachable, auth refused, etc.), the agent loop now emits a structured `[theokit-sdk] mcp listTools failed (server=<name>): <error>` line to stderr **while preserving the empty-list fallback** that consumers depend on for graceful degradation. The previous behaviour violated Inquebrável Rule 8 (`FALHE alto, FALHE cedo, FALHE claro`). `safeListTools` is now `export`ed from `internal/agent-loop/loop.ts` to enable unit-test access to the catch path — NOT promoted to the public `@theokit/sdk` API surface.
+
 ### Notes
 
 - **Cycles #1, #2 (type-only, ADR D428 acknowledged):** the 2026-06-06 architecture audit (`/loop-architecture-review`) found 2 type-only dependency cycles in `packages/sdk/src/types/agent.ts ↔ internal/runtime/fork-agent.ts` that manifest in the rollup-dts bundle. Per ADR D428 (subscribe-at-sub-path) these are intentional: keeping `subscribe` at the `@theokit/sdk/subscription` sub-path avoids promoting types through the cycle. They are NOT runtime cycles (JS-erased at build time) and are not breakable without regressing D428. Plan `arch-review-fixes-2026-06-06` T11.1 documents this rationale.
