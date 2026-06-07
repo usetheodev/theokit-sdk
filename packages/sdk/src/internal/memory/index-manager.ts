@@ -3,14 +3,15 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
 import { sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
-import { chunkMarkdown } from "./chunk-markdown.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
-import { memoryDir, memoryMdPath, notesDir } from "./markdown-store.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
-import { discoverSessionFiles } from "./session-loader.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
+import { chunkMarkdown } from "./storage/chunk-markdown.js";
+import { memoryDir, memoryMdPath, notesDir } from "./storage/markdown-store.js";
+import { discoverSessionFiles } from "./storage/session-loader.js";
+import { discoverWikiFiles } from "./storage/wiki-loader.js";
 import {
   createVectorIndex,
   dropVectorIndex,
@@ -20,7 +21,6 @@ import {
   vectorSearch,
   writeEmbeddingIdentity,
 } from "./vec-index.js";
-import { discoverWikiFiles } from "./wiki-loader.js";
 
 /**
  * Memory index manager (ADR D2). FTS5-only at Phase 3; vector index lands in

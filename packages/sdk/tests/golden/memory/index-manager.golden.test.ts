@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { defaultIndexPath } from "../../../src/internal/memory/index-db.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryMdPath, notesDir } from "../../../src/internal/memory/markdown-store.js";
+import { memoryMdPath, notesDir } from "../../../src/internal/memory/storage/markdown-store.js";
 
 /**
  * Phase 3 T3.1 — SQLite + FTS5 IndexManager.

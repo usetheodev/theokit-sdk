@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { chunkMarkdown } from "../../../src/internal/memory/chunk-markdown.js";
+import { chunkMarkdown } from "../../../src/internal/memory/storage/chunk-markdown.js";
 import {
   DEFAULT_MEMORY_READ_LINES,
   readMemoryFileBounded,
-} from "../../../src/internal/memory/reader.js";
+} from "../../../src/internal/memory/storage/reader.js";
 
 /**
  * Phase 2 T2.1 — chunkMarkdown + bounded reader.

@@ -4,8 +4,8 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryDir, memoryMdPath } from "../../../src/internal/memory/markdown-store.js";
-import { wikiDir } from "../../../src/internal/memory/wiki-loader.js";
+import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { wikiDir } from "../../../src/internal/memory/storage/wiki-loader.js";
 
 /**
  * Phase 10 T10.1 — wiki supplement indexing + corpus filtering.
