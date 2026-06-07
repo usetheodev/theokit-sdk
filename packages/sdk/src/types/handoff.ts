@@ -6,98 +6,38 @@
  * `transfer_to_<receiver>` function tool exposed to the LLM. Runtime
  * intercepts the tool call and routes the next turn to the receiver.
  *
+ * T4.1 follow-up (cycle #4 closed): `HandoffDescriptor` + its leaf-friendly
+ * sibling types now live in `./handoff-descriptor.ts` (generic over
+ * `TAgent`). This module re-exports the leaf types pinned to `SDKAgent`,
+ * keeps the runtime error classes, and removes the back-edge to `agent.ts`.
+ *
  * @public
  */
 
 import type { ZodType } from "zod";
 
 import type { SDKAgent } from "./agent.js";
+import type {
+  HandoffContext,
+  HandoffDescriptor as HandoffDescriptorGeneric,
+  HandoffHistory,
+  HandoffOptions,
+  HandoffResult,
+} from "./handoff-descriptor.js";
+
+export type { HandoffContext, HandoffHistory, HandoffOptions, HandoffResult };
 
 /**
- * Context handed to `onHandoff` callbacks and `isEnabled` predicates.
- * Read-only snapshot of the handoff dispatch state.
- */
-export interface HandoffContext {
-  readonly senderAgentId: string;
-  readonly receiverAgentId: string;
-  /** Depth counter AT dispatch time (post-increment; first handoff = 1). */
-  readonly currentDepth: number;
-  /** Chain of agentIds traversed so far in this send(). Always ends with sender. */
-  readonly chain: ReadonlyArray<string>;
-}
-
-/**
- * The transcript wrapper passed to `inputFilter`. `messages` is widened to
- * `unknown[]` so this type doesn't import from `messages.ts` (avoids cycle
- * — implementations cast to `SDKMessage[]` internally).
- */
-export interface HandoffHistory {
-  readonly messages: ReadonlyArray<unknown>;
-}
-
-/**
- * Options accepted by `Handoff.create(target, opts?)`.
+ * `HandoffDescriptor` pinned to `SDKAgent` — back-compat shape for callers
+ * that imported `import type { HandoffDescriptor } from "@theokit/sdk"`
+ * before T4.1 follow-up.
  *
  * @public
  */
-export interface HandoffOptions<TInput extends ZodType = ZodType> {
-  /** Override the default tool name `transfer_to_<receiver.name>` (D215). */
-  readonly toolName?: string;
-  /** Override the default tool description. */
-  readonly toolDescription?: string;
-  /**
-   * Side-effect callback fired BEFORE the receiver takes over.
-   *
-   * **Semantics (D227):** throwing aborts the handoff — the synthetic tool
-   * returns `tool_error: onHandoff_failed: <message>` so the LLM sees the
-   * conflict. Logger-style consumers MUST wrap their own try/catch to
-   * swallow exceptions.
-   */
-  readonly onHandoff?: (
-    ctx: HandoffContext,
-    parsed: TInput extends ZodType ? unknown : undefined,
-  ) => void | Promise<void>;
-  /**
-   * Zod schema for the handoff tool-call arguments (structured payload).
-   * When set, LLM-provided args are validated before `onHandoff` fires.
-   *
-   * **Edge case (D229):** empty/null `inputJson` parses as `{}` before
-   * Zod refinements fire — required-field schemas still throw normally.
-   */
-  readonly inputType?: TInput;
-  /**
-   * Filter the history passed to the receiver (D216 default = full; D219).
-   *
-   * **Resilience (D228):** if this callback throws, the runtime logs once
-   * to stderr and falls back to the un-filtered history. Use this for
-   * privacy redaction; if you need fatal-on-failure semantics, throw in
-   * `onHandoff` instead.
-   */
-  readonly inputFilter?: (history: HandoffHistory) => HandoffHistory | Promise<HandoffHistory>;
-  /**
-   * Restrict the receiver's tools for the post-handoff turn ONLY (D224).
-   * Subsequent receiver-internal turns use the receiver's full tool set.
-   */
-  readonly tools?: ReadonlyArray<string>;
-  /**
-   * Dynamically enable/disable this handoff. Bool = static; predicate =
-   * called per-`Agent.send()` to evaluate.
-   */
-  readonly isEnabled?: boolean | ((ctx: HandoffContext) => boolean | Promise<boolean>);
-}
-
-/**
- * Result of a single handoff dispatch (for telemetry / observability).
- *
- * @public
- */
-export interface HandoffResult {
-  readonly from: string;
-  readonly to: string;
-  readonly depth: number;
-  readonly toolName: string;
-  readonly reasonFromLlm?: string;
-}
+export type HandoffDescriptor<TInput extends ZodType = ZodType> = HandoffDescriptorGeneric<
+  TInput,
+  SDKAgent
+>;
 
 /** Throw when handoff depth exceeds `maxHandoffDepth` (default 5; D218). */
 export class HandoffLoopError extends Error {
@@ -166,17 +106,4 @@ export class HandoffNameCollisionError extends Error {
     );
     this.conflictingName = conflictingName;
   }
-}
-
-/**
- * Public `Handoff` shape — what `Handoff.create()` returns. Read-only
- * accessors only; behavior lives in the engine.
- *
- * @public
- */
-export interface HandoffDescriptor<TInput extends ZodType = ZodType> {
-  readonly target: SDKAgent;
-  readonly options: HandoffOptions<TInput>;
-  /** Resolved tool name (after applying toolName override or default `transfer_to_<receiver>`). */
-  readonly resolvedToolName: string;
 }

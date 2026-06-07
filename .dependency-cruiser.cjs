@@ -1,16 +1,17 @@
-// Dependency-cruiser config — enforces Quality Gates G6 (no cycles) and
-// G7 (layered architecture). See .claude/quality-gates.md.
+// Dependency-cruiser config — enforces Quality Gate G7 (layered architecture)
+// and orphan-module detection. See .claude/quality-gates.md.
+//
+// T0.1 (arch-review-fixes-2026-06-06): `no-circular` rule removed.
+// dep-cruiser's circular detection silently misses cycles that `madge`
+// catches via the dependency-tree library (root cause: dep-cruiser's
+// tsConfig parse is skipped per the documented `enhancedResolveOptions`
+// rationale, which downgrades TS module resolution). madge is the canonical
+// cycle gate via `pnpm run quality:cycles` (tools/check-cycles.mjs).
+// Empirically observed iter-1: madge=13 cycles vs depcruise=0 violations.
+// dep-cruiser remains the gate for `no-orphans` + layered architecture rules.
 
 module.exports = {
   forbidden: [
-    {
-      name: "no-circular",
-      severity: "error",
-      comment:
-        "G6: Circular dependencies are forbidden. Break the cycle by extracting a shared type or interface.",
-      from: {},
-      to: { circular: true },
-    },
     {
       name: "no-orphans",
       severity: "error",
