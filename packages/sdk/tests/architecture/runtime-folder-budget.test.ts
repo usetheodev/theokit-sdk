@@ -15,17 +15,17 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RUNTIME_DIR = resolve(__dirname, "../../src/internal/runtime");
-const ITER_16_DIRECT_FILES_CEILING = 57;
+const ITER_17_DIRECT_FILES_CEILING = 51;
 
 describe("Architecture — T5.1 runtime/ folder budget (FO#1)", () => {
-  it(`internal/runtime/ direct .ts file count is ≤ ${ITER_16_DIRECT_FILES_CEILING} after context/ promotion`, () => {
+  it(`internal/runtime/ direct .ts file count is ≤ ${ITER_17_DIRECT_FILES_CEILING} after context/ promotion`, () => {
     const directFiles = readdirSync(RUNTIME_DIR)
       .filter((name) => name.endsWith(".ts"))
       .filter((name) => statSync(resolve(RUNTIME_DIR, name)).isFile());
     expect(
       directFiles.length,
-      `Expected ≤ ${ITER_16_DIRECT_FILES_CEILING} direct .ts files in internal/runtime/. Found ${directFiles.length}.`,
-    ).toBeLessThanOrEqual(ITER_16_DIRECT_FILES_CEILING);
+      `Expected ≤ ${ITER_17_DIRECT_FILES_CEILING} direct .ts files in internal/runtime/. Found ${directFiles.length}.`,
+    ).toBeLessThanOrEqual(ITER_17_DIRECT_FILES_CEILING);
   });
 
   it("`fixtures/` sub-folder exists with the promoted fixture-* cluster (iter-15)", () => {
@@ -41,6 +41,14 @@ describe("Architecture — T5.1 runtime/ folder budget (FO#1)", () => {
     expect(safeIsDirectory(contextDir), "Expected internal/runtime/context/ to exist").toBe(true);
     expect(readdirSync(contextDir).filter((n) => n.endsWith(".ts")).length).toBeGreaterThanOrEqual(
       8,
+    );
+  });
+
+  it("`registry/` sub-folder exists with the promoted *-registry* cluster (iter-17)", () => {
+    const registryDir = resolve(RUNTIME_DIR, "registry");
+    expect(safeIsDirectory(registryDir), "Expected internal/runtime/registry/ to exist").toBe(true);
+    expect(readdirSync(registryDir).filter((n) => n.endsWith(".ts")).length).toBeGreaterThanOrEqual(
+      5,
     );
   });
 });

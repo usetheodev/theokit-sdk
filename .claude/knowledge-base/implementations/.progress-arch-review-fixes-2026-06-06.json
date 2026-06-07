@@ -58,13 +58,14 @@
     "T5.1": {
       "status": "in_progress",
       "deps": ["T1.1", "T2.1", "T3.1"],
-      "title": "runtime/ god folder split (FO#1) — PARTIAL: 2 of 4 clusters promoted (fixtures/ + context/ done; registry/plugins pending follow-up iterations)",
-      "partial_commits": ["f1aae57", "(pending — iter-16)"],
-      "remaining_clusters": ["registry/ (~6 files)", "plugins/ (~2 files)"],
+      "title": "runtime/ god folder split (FO#1) — PARTIAL: 3 of 4 clusters promoted (fixtures/ + context/ + registry/ done; plugins/ pending)",
+      "partial_commits": ["f1aae57", "2df50fa", "(pending — iter-17)"],
+      "remaining_clusters": ["plugins/ (~2 files)"],
       "direct_file_count_progress": {
         "before_iter_15": 69,
         "after_iter_15": 64,
         "after_iter_16": 56,
+        "after_iter_17": 50,
         "target_per_audit_heuristic": 25
       }
     },
@@ -468,7 +469,7 @@
       "iteration": 16,
       "task_id": "T5.1",
       "outcome": "PARTIAL_COMMIT (context/ cluster promoted; T5.1 now 2 of 4 clusters; 2 remain: registry, plugins)",
-      "commit_sha": "(pending)",
+      "commit_sha": "2df50fa",
       "phases_completed": [
         "audit-context-cluster-importers",
         "ratchet-budget-test",
@@ -507,6 +508,53 @@
       "sepa_invoked": false,
       "sepa_deferral_reason": "structural file move using proven pattern from iter-15 + iter-14; SEPA value-add low for git-mv work",
       "duration_minutes": 24
+    },
+    {
+      "iteration": 17,
+      "task_id": "T5.1",
+      "outcome": "PARTIAL_COMMIT (registry/ cluster promoted; T5.1 now 3 of 4 clusters; plugins/ remains)",
+      "commit_sha": "(pending)",
+      "phases_completed": [
+        "audit-registry-cluster-importers",
+        "ratchet-budget-test",
+        "red",
+        "git-mv-6-files",
+        "fix-moved-file-cross-folder-paths",
+        "rewrite-runtime-sibling-imports",
+        "rewrite-src-root-importers",
+        "rewrite-dynamic-import",
+        "rewrite-test-paths",
+        "green",
+        "refactor",
+        "wiring",
+        "commit"
+      ],
+      "red_tests": [
+        "runtime-folder-budget.test.ts ratcheted: ceiling ≤ 51 + registry/ exists with ≥ 5 files"
+      ],
+      "promoted_files": [
+        "agent-factory-registry.ts",
+        "agent-registry-contract.ts",
+        "agent-registry-store.ts",
+        "agent-registry.ts",
+        "live-agent-registry.ts",
+        "run-registry.ts"
+      ],
+      "before_after_metrics": {
+        "runtime_direct_files_before": 56,
+        "runtime_direct_files_after": 50,
+        "runtime_registry_files_after": 6,
+        "god_folder_heuristic_threshold": 25
+      },
+      "green_status": "4/4 budget tests pass; 33 test files / 253 tests GREEN; typecheck exit 0; biome clean; madge 3 cycles unchanged",
+      "new_caller_surfaces_handled": [
+        "src/agent.ts (sdk root) — 5 imports rewritten to ./internal/runtime/registry/X.js",
+        "src/index.ts (sdk root) — 1 import rewritten",
+        "local-agent-runtime-extensions.ts — dynamic import('./agent-factory-registry.js') extended pattern (new sed clause)"
+      ],
+      "sepa_invoked": false,
+      "sepa_deferral_reason": "same proven pattern; mechanical file moves",
+      "duration_minutes": 22
     }
   ]
 }

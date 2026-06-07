@@ -88,7 +88,7 @@ export type {
   AgentRegistryOptions,
   EvictReason,
   LiveAgentRegistry,
-} from "./internal/runtime/live-agent-registry.js";
+} from "./internal/runtime/registry/live-agent-registry.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,

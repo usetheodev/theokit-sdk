@@ -15,7 +15,10 @@ import {
 } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
-import { setAgentCreate } from "./internal/runtime/agent-factory-registry.js";
+import { CloudAgent } from "./internal/runtime/cloud-agent.js";
+import { validateCloudToolParity } from "./internal/runtime/cloud-tool-parity.js";
+import { LocalAgent } from "./internal/runtime/local-agent.js";
+import { setAgentCreate } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
   getRegisteredAgent,
@@ -23,15 +26,15 @@ import {
   listRegisteredAgents,
   removeRegisteredAgent,
   updateRegisteredAgent,
-} from "./internal/runtime/agent-registry.js";
-import { CloudAgent } from "./internal/runtime/cloud-agent.js";
-import { validateCloudToolParity } from "./internal/runtime/cloud-tool-parity.js";
+} from "./internal/runtime/registry/agent-registry.js";
 import {
   type LiveAgentRegistry,
   liveAgentRegistry,
-} from "./internal/runtime/live-agent-registry.js";
-import { LocalAgent } from "./internal/runtime/local-agent.js";
-import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
+} from "./internal/runtime/registry/live-agent-registry.js";
+import {
+  getRun as getRegisteredRun,
+  listRunsByAgent,
+} from "./internal/runtime/registry/run-registry.js";
 import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
 import type {
   AgentOperationOptions,

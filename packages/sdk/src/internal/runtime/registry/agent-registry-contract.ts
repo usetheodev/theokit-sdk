@@ -18,7 +18,7 @@
  *
  * @internal — NOT part of the `@theokit/sdk` public API.
  */
-import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
 
 /**
  * Whether an agent runs in the local or cloud runtime. Drives storage routing,

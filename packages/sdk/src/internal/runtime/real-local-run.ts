@@ -13,7 +13,7 @@ import type { SessionMessage } from "./agent-session.js";
 import { FixtureRunBase, prepareRunContext } from "./fixtures/fixture-run-base.js";
 import type { FixtureScript } from "./fixtures/fixture-types.js";
 import type { HooksExecutor } from "./hooks-executor.js";
-import { registerRun } from "./run-registry.js";
+import { registerRun } from "./registry/run-registry.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
