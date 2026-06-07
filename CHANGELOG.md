@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — promote `internal/runtime/fixtures/` sub-folder (T5.1 partial, FO#1)
+
+- **`@theokit/sdk`**: promoted the fixture cluster from `internal/runtime/` to a new `internal/runtime/fixtures/` sub-folder. 5 files moved via `git mv`: `fixture-events.ts`, `fixture-responder.ts`, `fixture-run-base.ts`, `fixture-scripts.ts`, `fixture-types.ts`. Direct file count in `internal/runtime/`: 69 → 64.
+- **T5.1 status — PARTIAL (1 of 4 clusters complete).** The plan called for promoting 4 sub-folders (`context/`, `registry/`, `fixtures/`, `plugins/`). Fixtures was chosen first because all 5 files are cohesive and all callers are runtime/ siblings (zero cross-package import churn). The remaining 3 clusters land in followup iterations of the halt-loop (each cluster is independent — context-* (8 files), *-registry* (~6 files), plugins-related (~2 files)). Final direct-count target: ≤ 25 per the `cycle-rule-schema.md` god-folder heuristic.
+- **Internal-only refactor.** Zero public API surface change. The 4 runtime sibling files that import fixture symbols (`cloud-run.ts`, `local-run.ts`, `real-local-run.ts`, `real-cloud-run.ts`) were rewritten to `./fixtures/fixture-X.js`. Moved files' internal imports adjusted one level up (`../../types/...`, `../ids.js`, `../security/...`, `../agent-session.js`, `../memory-store.js`).
+- **Behavior preservation:** 33/33 runtime + architecture test files (251 tests) GREEN. typecheck exit 0. biome clean. madge 3 cycles unchanged.
+
 ### Refactored — promote `internal/memory/storage/` sub-folder (T10.1, FO#3)
 
 - **`@theokit/sdk`**: promoted the implicit storage-primitives cluster from `internal/memory/` to a new `internal/memory/storage/` sub-folder per FO#3. 7 files moved via `git mv` (history-preserving): `markdown-store.ts`, `transcript-store.ts`, `session-loader.ts`, `session-summary-writer.ts`, `reader.ts`, `wiki-loader.ts`, `chunk-markdown.ts`. The direct file count in `internal/memory/` drops from 28 → 22 (under the 25-file god-folder heuristic in `cycle-rule-schema.md`).

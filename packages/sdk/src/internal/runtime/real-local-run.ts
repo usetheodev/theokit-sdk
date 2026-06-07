@@ -10,8 +10,8 @@ import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";
 import type { SessionMessage } from "./agent-session.js";
-import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
-import type { FixtureScript } from "./fixture-types.js";
+import { FixtureRunBase, prepareRunContext } from "./fixtures/fixture-run-base.js";
+import type { FixtureScript } from "./fixtures/fixture-types.js";
 import type { HooksExecutor } from "./hooks-executor.js";
 import { registerRun } from "./run-registry.js";
 

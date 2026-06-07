@@ -56,9 +56,16 @@
       ]
     },
     "T5.1": {
-      "status": "pending",
+      "status": "in_progress",
       "deps": ["T1.1", "T2.1", "T3.1"],
-      "title": "runtime/ god folder split"
+      "title": "runtime/ god folder split (FO#1) — PARTIAL: 1 of 4 clusters promoted (fixtures/ done; context/registry/plugins pending follow-up iterations)",
+      "partial_commits": ["(pending — iter-15)"],
+      "remaining_clusters": ["context/ (~8 files)", "registry/ (~6 files)", "plugins/ (~2 files)"],
+      "direct_file_count_progress": {
+        "before_iter_15": 69,
+        "after_iter_15": 64,
+        "target_per_audit_heuristic": 25
+      }
     },
     "T6.1": {
       "status": "pending",
@@ -87,7 +94,7 @@
       "status": "committed",
       "deps": [],
       "title": "memory/ subfolder promotion (FO#3) — storage/ cluster promoted; 28→22 direct files; index/ split deferred per YAGNI (already under budget)",
-      "commit_sha": "(pending — will be patched)"
+      "commit_sha": "52412d9"
     },
     "T10.2": {
       "status": "committed",
@@ -379,7 +386,7 @@
       "iteration": 14,
       "task_id": "T10.1",
       "outcome": "COMMITTED (scope-narrowed: storage/ cluster promoted; index/ split deferred per YAGNI — heuristic already satisfied)",
-      "commit_sha": "(pending)",
+      "commit_sha": "52412d9",
       "phases_completed": [
         "audit-direct-file-count",
         "cluster-cohesion-analysis",
@@ -415,6 +422,46 @@
       "sepa_invoked": false,
       "sepa_deferral_reason": "behavior-preserving file moves with mechanical import rewrites; strong existing test coverage (140 tests); SEPA value-add low for git-mv work",
       "duration_minutes": 30
+    },
+    {
+      "iteration": 15,
+      "task_id": "T5.1",
+      "outcome": "PARTIAL_COMMIT (fixtures/ cluster promoted; 3 clusters remain — context, registry, plugins)",
+      "commit_sha": "(pending)",
+      "phases_completed": [
+        "audit-runtime-direct-count",
+        "cluster-cohesion-analysis",
+        "selected-fixtures-as-lowest-blast-radius-first",
+        "red",
+        "git-mv-5-files",
+        "fix-moved-file-relative-paths",
+        "rewrite-sibling-imports",
+        "green",
+        "refactor",
+        "wiring",
+        "commit"
+      ],
+      "red_tests": [
+        "runtime-folder-budget.test.ts (2 assertions: direct count ≤ 65 + fixtures/ exists with ≥ 5 files)"
+      ],
+      "promoted_files": [
+        "fixture-events.ts",
+        "fixture-responder.ts",
+        "fixture-run-base.ts",
+        "fixture-scripts.ts",
+        "fixture-types.ts"
+      ],
+      "before_after_metrics": {
+        "runtime_direct_files_before": 69,
+        "runtime_direct_files_after": 64,
+        "runtime_fixtures_files_after": 5,
+        "god_folder_heuristic_threshold": 25
+      },
+      "green_status": "2/2 runtime budget tests pass; 33 test files / 251 tests GREEN (runtime + architecture); typecheck exit 0; biome clean; madge 3 cycles unchanged",
+      "scope_deviation_documented": "T5.1 status remains in_progress (not pending/committed). 1 of 4 plan-prescribed clusters promoted. Remaining: context/ (~8 files), registry/ (~6 files), plugins/ (~2 files). Each is a follow-up halt-loop iteration. Iteration budget allows 2-3 more T5.1 partials before T6.1 + T13.1.",
+      "sepa_invoked": false,
+      "sepa_deferral_reason": "structural file move with mechanical import surgery (4 sibling files); same proven pattern as T10.1; SEPA value-add low for git-mv work",
+      "duration_minutes": 22
     }
   ]
 }

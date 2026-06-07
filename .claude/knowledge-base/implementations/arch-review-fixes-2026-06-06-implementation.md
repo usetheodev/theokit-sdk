@@ -39,7 +39,7 @@ This satisfies `.nvmrc` (=22) without restart. Document deviation per Inquebráv
 | T2.1 | Phase 2 / T2.1 | index-manager-contract.ts (D433, HIGH cycles #11/#12/#13) | pending | — | — | — | — |
 | T3.1 | Phase 3 / T3.1 | agent-registry-contract.ts (D431, HIGH cycle #8) | pending | — | — | — | — |
 | T4.1 | Phase 4 / T4.1 | type-leaf extractions (D438) — closed cycles #3/#5/#6/#7/#10; cycle #4 deferred (needs SDKAgent full extraction); also fixed architecture-test repoRoot bug | committed | iter-12 | — | — | — |
-| T5.1 | Phase 5 / T5.1 | runtime/ god folder split (D436, BLOCKED until T1.1+T2.1+T3.1 merged) | pending | — | — | — | — |
+| T5.1 | Phase 5 / T5.1 | runtime/ god folder split (D436) — PARTIAL: fixtures/ cluster promoted iter-15 (5 files); context/registry/plugins clusters pending follow-up iterations | in_progress | iter-15 | — | — | — |
 | T6.1 | Phase 6 / T6.1 | telegram-pro split (D435) | pending | — | — | — | — |
 | T7.1 | Phase 7 / T7.1 | .ls-lint.yml + 4 file renames | pending | — | — | — | — |
 | T8.1 | Phase 8 / T8.1 | silent-catch elimination (PV#6 + PV#7) | pending | — | — | — | — |
