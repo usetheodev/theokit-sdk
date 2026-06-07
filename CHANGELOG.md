@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Refactored — promote `internal/memory/storage/` sub-folder (T10.1, FO#3)
+
+- **`@theokit/sdk`**: promoted the implicit storage-primitives cluster from `internal/memory/` to a new `internal/memory/storage/` sub-folder per FO#3. 7 files moved via `git mv` (history-preserving): `markdown-store.ts`, `transcript-store.ts`, `session-loader.ts`, `session-summary-writer.ts`, `reader.ts`, `wiki-loader.ts`, `chunk-markdown.ts`. The direct file count in `internal/memory/` drops from 28 → 22 (under the 25-file god-folder heuristic in `cycle-rule-schema.md`).
+- **Internal-only refactor.** Zero public API surface change — `internal/memory/` is not exported. All sibling memory/* modules, runtime/* callers, and golden+integration test imports were rewritten in the same slice (4 categories of edits: intra-cluster siblings unchanged, sibling memory/ files `./X` → `./storage/X`, dreaming/ sub-folder `../X` → `../storage/X`, runtime/ `../memory/X` → `../memory/storage/X`, tests `<path>/memory/X` → `<path>/memory/storage/X`).
+- **Behavior preservation:** 140/140 architecture + memory tests GREEN, typecheck exit 0, biome clean, madge 3 cycles unchanged (no new cycles introduced). Architecture guard `tests/architecture/memory-folder-budget.test.ts` (NEW) asserts the direct-file budget post-promotion.
+- **Open scope (deferred per YAGNI):** the plan also called for a parallel `memory/index/` sub-folder for index-machinery (index-db, index-manager*, memory-index, vec-index, lance-index, sqlite-vec-loader). With direct count already at 22 (under the heuristic), the index split is not strictly required to close FO#3. Followup ticket if cohesion-by-feature warrants it.
+
 ### Refactored — split `dispatchSingleCall` orchestrator (T10.4, PV#2)
 
 - **`@theokit/sdk`**: `internal/agent-loop/tool-dispatch.ts` — the 158 LOC `dispatchSingleCall` orchestrator was decomposed into 7 named single-concern private helpers, each preserving the original sub-step rationale (D86-D88 repair / D111 fork whitelist / OTel span init / D101 plugin veto / file-hook veto / D315-D317 lifecycle / span end + postToolUse). The orchestrator body now reads as a clean ~28 LOC sequence; the previous `biome-ignore noExcessiveCognitiveComplexity` suppression was removed (no longer warranted).

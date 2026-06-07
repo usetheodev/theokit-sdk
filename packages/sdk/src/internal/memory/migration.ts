@@ -1,6 +1,6 @@
 import { access, readFile, unlink } from "node:fs/promises";
 
-import { appendFactToMarkdown, memoryMdPath } from "./markdown-store.js";
+import { appendFactToMarkdown, memoryMdPath } from "./storage/markdown-store.js";
 import { legacyMemoryJsonPath, type MemoryConfig, type MemoryFact } from "./types.js";
 
 /**

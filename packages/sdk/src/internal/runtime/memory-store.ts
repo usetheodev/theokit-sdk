@@ -1,5 +1,8 @@
-import { appendFact as appendFactMd, readFacts as readFactsMd } from "../memory/markdown-store.js";
 import { migrateLegacyJson } from "../memory/migration.js";
+import {
+  appendFact as appendFactMd,
+  readFacts as readFactsMd,
+} from "../memory/storage/markdown-store.js";
 import {
   legacyMemoryJsonPath,
   type MemoryConfig,

@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { atomicWriteJson } from "../persistence/atomic-write.js";
+import { atomicWriteJson } from "../../persistence/atomic-write.js";
 import { memoryDir } from "./markdown-store.js";
 
 /**

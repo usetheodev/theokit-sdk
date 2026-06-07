@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { diaryPath } from "../../../src/internal/memory/dreaming/diary.js";
 import { runDreamingSweep } from "../../../src/internal/memory/dreaming/run.js";
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
-import { memoryDir, memoryMdPath } from "../../../src/internal/memory/markdown-store.js";
+import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 
 /**
  * Phase 9 T9.1 — dreaming/REM consolidation (deterministic mode).

@@ -1,6 +1,6 @@
 import type { ConversationStorageAdapter } from "../../types/conversation-storage.js";
 import type { Run } from "../../types/run.js";
-import { writeSessionSummary } from "../memory/session-summary-writer.js";
+import { writeSessionSummary } from "../memory/storage/session-summary-writer.js";
 import { appendSessionMessage, flushSessionWrites } from "./agent-session.js";
 import type { HooksExecutor } from "./hooks-executor.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
