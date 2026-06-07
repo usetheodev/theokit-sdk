@@ -11,14 +11,18 @@
       "discovered_at_iteration": 1
     },
     "T0.2": {
-      "status": "pending",
+      "status": "blocked",
       "deps": ["T0.1"],
-      "title": "no-orphans snapshot+resolve"
+      "title": "no-orphans snapshot+resolve \u2014 BLOCKED transitively on T0.1 plan-defect",
+      "blocked_reason": "Transitive: depends on T0.1 which is plan-defect BLOCKED (audit misdiagnosed depcruise tsconfig issue; prescribed fix would re-break depcruise per existing config comment). Recommend revisiting after a cycle-plan revision that addresses the madge\u2194depcruise discrepancy. Workaround in place: 7 architecture tests assert cycle absence via real `madge --circular`.",
+      "discovered_at_iteration": 19
     },
     "T0.3": {
-      "status": "pending",
+      "status": "blocked",
       "deps": ["T0.1", "T1.1", "T2.1", "T3.1", "T4.1"],
-      "title": "flip warn\u2192error"
+      "title": "flip warn\u2192error \u2014 BLOCKED transitively on T0.1 plan-defect",
+      "blocked_reason": "Transitive: depends on T0.1. Cannot flip the CI gate from warn to error without first resolving the madge\u2194depcruise discrepancy via a plan revision.",
+      "discovered_at_iteration": 19
     },
     "T0.4": {
       "status": "committed",
