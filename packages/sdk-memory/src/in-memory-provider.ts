@@ -21,7 +21,7 @@
  * @public
  */
 
-import { mkdir } from "node:fs/promises";
+import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
@@ -49,6 +49,17 @@ const ADAPTER_ID = "in-memory-md";
 interface InMemoryHandleState {
   readonly facts: Map<string, MemoryFact>;
   readonly counter: { next: number };
+  /**
+   * Workspace cwd captured at `init()` time. Used by `runActivePass()`
+   * to read previously-written session summaries from disk for recall
+   * (iter 34 — closes the "write but never read" gap from iter 33).
+   */
+  readonly cwd: string;
+  /**
+   * `sessions: true` capability is set when cwd is available (always),
+   * so future Stage 3 work can mark this provider as the canonical
+   * sessions-recall path (vs. the no-op default).
+   */
 }
 
 const INTERNAL_STATE = Symbol("sdk-memory.in-memory.state");
@@ -139,6 +150,59 @@ function renderSessionSummaryMarkdown(args: RecordSessionSummaryArgs): string {
   ].join("\n");
 }
 
+/**
+ * Read previously-written session summaries from disk + substring-
+ * match against the user message. Best-effort: errors degrade to
+ * empty recall (no throw — matches the non-throwing-on-hot-path
+ * contract).
+ *
+ * Iter 34: this is the SUBSTRING-match version. Future iters can
+ * upgrade to embedding-based semantic similarity (LanceDB ANN)
+ * without changing the public surface.
+ *
+ * Cap: returns at most 5 hits to bound the systemPromptAdditions size.
+ */
+async function recallSessionSummaries(
+  cwd: string,
+  userMessage: string,
+): Promise<ReadonlyArray<MemoryFact>> {
+  const RECALL_CAP = 5;
+  const sessionsDir = join(cwd, ".theokit", "memory", "sessions");
+  let files: string[];
+  try {
+    files = await readdir(sessionsDir);
+  } catch {
+    return [];
+  }
+  const query = userMessage.toLowerCase().trim();
+  if (query.length === 0) return [];
+  const hits: MemoryFact[] = [];
+  for (const file of files) {
+    if (!file.endsWith(".md")) continue;
+    if (hits.length >= RECALL_CAP) break;
+    const filePath = join(sessionsDir, file);
+    let content: string;
+    try {
+      content = await readFile(filePath, "utf-8");
+    } catch {
+      continue;
+    }
+    if (content.toLowerCase().includes(query)) {
+      // Extract a short snippet — the User section (first 200 chars).
+      const userIdx = content.indexOf("## User");
+      const snippet =
+        userIdx >= 0 ? content.slice(userIdx, userIdx + 200).replace(/\s+/g, " ") : file;
+      const id = `${ADAPTER_ID}:session:${file}` as MemoryId;
+      hits.push({
+        id,
+        content: snippet,
+        score: 0.5, // substring-match has no real score; placeholder
+      });
+    }
+  }
+  return hits;
+}
+
 function buildMemoryRememberTool(state: InMemoryHandleState): CustomTool {
   return {
     name: "memory_remember",
@@ -173,16 +237,21 @@ function buildMemoryRememberTool(state: InMemoryHandleState): CustomTool {
  * returned provider is independent — call `createInMemoryMarkdownProvider()`
  * per agent OR share across agents (each `init()` gets its own state).
  *
- * Options reserved for future versions (LanceDB path, embedding model, …).
- * Current impl accepts `MemoryProviderInitOptions.cwd` for forward-compat
- * but does NOT read from disk.
+ * Iter 33: `recordSessionSummary()` writes session-summary markdown
+ * files to disk under `${cwd}/.theokit/memory/sessions/`.
+ * Iter 34: `runActivePass()` reads back those summaries + substring-
+ * matches against the user message for genuine cross-session recall.
+ *
+ * Future LanceDB-backed impl will replace the substring match with
+ * semantic-similarity ANN over embedding vectors.
  */
 export function createInMemoryMarkdownProvider(): MemoryProvider {
   return {
-    async init(_opts: MemoryProviderInitOptions): Promise<MemoryProviderHandle> {
+    async init(opts: MemoryProviderInitOptions): Promise<MemoryProviderHandle> {
       const state: InMemoryHandleState = {
         facts: new Map(),
         counter: { next: 0 },
+        cwd: opts.cwd,
       };
       const adapter = buildAdapter(state);
       return {
@@ -197,17 +266,23 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
     },
     async runActivePass(
       handle: MemoryProviderHandle,
-      _args: ActiveMemoryPassArgs,
+      args: ActiveMemoryPassArgs,
     ): Promise<ActiveMemoryPassResult> {
       const state = handle[INTERNAL_STATE] as InMemoryHandleState | undefined;
       if (state === undefined) return { facts: [] };
-      const facts = Array.from(state.facts.values());
-      if (facts.length === 0) return { facts: [] };
+      // (1) In-process facts (from memory_remember tool calls this turn).
+      const inProcessFacts = Array.from(state.facts.values());
+      // (2) Persisted session-summary recall — iter 34. Read previously-
+      // written summaries from disk + substring-match against the user
+      // message. Best-effort: read errors degrade to empty recall.
+      const persistedHits = await recallSessionSummaries(state.cwd, args.userMessage);
+      const allFacts = [...inProcessFacts, ...persistedHits];
+      if (allFacts.length === 0) return { facts: [] };
       const systemPromptAdditions = [
         "Known facts about the user/session (recall):",
-        ...facts.map((f) => `- ${f.content}`),
+        ...allFacts.map((f) => `- ${f.content}`),
       ].join("\n");
-      return { facts, systemPromptAdditions };
+      return { facts: allFacts, systemPromptAdditions };
     },
     sync(_handle: MemoryProviderHandle): void {
       // No-op for the in-memory impl — facts are written synchronously to
