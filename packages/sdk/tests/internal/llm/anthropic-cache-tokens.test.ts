@@ -18,9 +18,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  __testing__AnthropicAccumulator,
-} from "../../../src/internal/llm/anthropic.js";
+import { __testing__AnthropicAccumulator } from "../../../src/internal/llm/anthropic.js";
 
 describe("T3.8 — Anthropic cache-token surfacing on LlmFinish", () => {
   it("cache_creation_input_tokens flows to LlmFinish.cacheWriteTokens", () => {
