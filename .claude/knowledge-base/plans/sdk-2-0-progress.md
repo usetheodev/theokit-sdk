@@ -134,9 +134,35 @@ The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory
 - `pnpm vitest run tests/codemod-1-x-to-2-0.test.ts`: 8/8 GREEN
 - Idempotency: PASS (walkUpToStatement helper attaches comments to outer statement, not inner CallExpression, so the hasLeadingComment check finds the marker on subsequent runs)
 
-## Phase 2, 4, 6, 7, 9 + Final + Phase 1 (Memory still postponed)
+## Phase 9 — Documentation
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T9.1 — packages/README.md families + 1-x-to-2-0 migration guide | ✅ DONE 2026-06-08 | `0addd94` | 11/11 GREEN |
+
+**Deliverables Phase 9:**
+- `packages/README.md` (NEW) — 5-family table (Core / Channels / Memory adapters / React / Integrations) listing all 24 packages. Status table for SDK 2.0 split phases.
+- `docs/migration/1-x-to-2-0.md` (NEW) — consumer guide with:
+  - 5-row subsystem summary (Cache/Tools shipped; Memory/Budget/Handoff pending)
+  - One-command upgrade snippet (jscodeshift dry-run → apply)
+  - Before/after diff blocks per surface
+  - **⚠ silent breaking change** flag for Agent.create without budgetTracker (EC-3)
+  - Handoff option removal walkthrough (EC-4)
+  - 8-row breaking changes table
+  - Rollback procedure (pin 1.7.0)
+  - Known codemod limitations
+- `packages/sdk/tests/docs-sdk-2-0.test.ts` — 11 validation tests (existence, 5 families, every package name appears, codemod snippet present, ≥4 diff blocks, budget+handoff sections present, sub-package READMEs).
+
+## Phase 2, 4, 6, 7 + Final + Phase 1 (Memory still postponed)
 
 Not started. See `sdk-2-0-package-split-plan.md` for tasks.
+
+**Phase 4 (Handoff) planning notes (surfaced iter 5):**
+- 491 LOC internal + 120 LOC public + 109 LOC types + 4 tests.
+- agent.ts has lazy `await import("./internal/handoff/tool-injector.js")` in `maybeInjectHandoffTools()` — needs to point at sdk-handoff after move.
+- Handoff.asPlugin() does NOT exist yet — must be added per plan T4.1.
+- EC-4 absorbed in v1.1 mandates `AgentCreateOptions` removes `handoffs?` field (breaking change to `Agent.create`).
+- Strategy for next iter: (a) scaffold sdk-handoff, (b) move source, (c) implement asPlugin via dispatcher wrapper, (d) agent.ts uses try-catch dynamic import of sdk-handoff (optional peer model), (e) keep `handoffs:` option transitional with deprecation warning, (f) full removal lands in Phase 6 cohort.
 
 **Concurrent session note (updated iter 3):** The sdk-superiority session reached iter 10 and finished T3.1 (SSE parser HTML LS compliance) + acknowledged my prior commits via `7f4b98c`. My Phase 5 commit `e67d1db` accidentally swept up 4 pre-staged files from their session (CHANGELOG.md, ollama-native.ts, sse.ts, sse-abort-cancels-body.test.ts) because they were in the git index before I ran `git commit`. Work preserved correctly; their next iteration will recognize their files are committed.
 
@@ -164,3 +190,4 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 | 2 | 2026-06-08 | Pre-step + Phase 3 / T3.1 | DONE — commits `26c15a6` + `f67ed6d`; 65/65 cumulative tests GREEN (11 pre-step + 54 cache) |
 | 3 | 2026-06-08 | Phase 5 / T5.1 | DONE — commit `e67d1db`; 46/46 sdk-tools tests GREEN; 165 cumulative tests across 3 packages (sdk baseline + sdk-cache + sdk-tools) |
 | 4 | 2026-06-08 | Phase 10 / T10.1 + Phase 8 / T8.1 | DONE — commits `fb5cb96` (bundle gate) + `2b3ad4e` (codemod); 6+8 = 14 new tests GREEN; cumulative 179 tests |
+| 5 | 2026-06-08 | Phase 9 / T9.1 | DONE — commit `0addd94`; 11/11 docs tests GREEN; cumulative 190 tests across 4 packages |
