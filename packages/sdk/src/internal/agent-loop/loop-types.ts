@@ -119,6 +119,20 @@ export interface AgentLoopInputs {
    * the runtime hooks land.
    */
   budgetTracker?: import("../runtime/budget-tracker.js").BudgetTracker;
+  /**
+   * Pluggable memory provider (SDK 2.0 Phase 1 / T1.4 — Hexagonal
+   * Architecture interface inversion). When provided, the loop will
+   * eventually call `init()` / `buildTools()` / `runActivePass()` /
+   * `dispose()` at the appropriate kernel hooks. When undefined, the
+   * legacy `Memory` class + `internal/memory/*` runtime files remain
+   * the sole authority.
+   *
+   * **Status (incremental Phase 1):** plumbed at the type surface only.
+   * Runtime lifecycle calls land in T1.5. Plumbing the option through
+   * now lets `Agent.create({ memoryProvider })` thread the value down
+   * to the loop without further type changes when the hooks land.
+   */
+  memoryProvider?: import("../runtime/memory-provider.js").MemoryProvider;
 }
 
 /**
