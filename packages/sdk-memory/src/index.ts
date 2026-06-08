@@ -50,6 +50,15 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 66: twenty-third Stage 3 file move — sqlite-vec-loader (38 LOC).
+// Loads the `sqlite-vec` extension into an opened MemoryDb. Wraps the
+// native `load(db)` call with a typed error path (EC-8) so callers
+// see a `sqlite_vec_unavailable` ConfigurationError instead of a raw
+// native error. `loadSqliteVecExtension(db)` + `isSqliteVecLoaded(db)`
+// (tiny `SELECT vec_version()` probe). Dependencies sibling: iter 65's
+// MemoryDb. Future `vec-index.ts` move composes with this as sibling.
+export * from "./internal/sqlite-vec-loader.js";
+
 // Iter 65: twenty-second Stage 3 file move — index-db (109 LOC).
 // Thin wrapper around the SQLite driver. Prefers `node:sqlite` on
 // Node 22.5+; falls back to `better-sqlite3`. Applies WAL with
