@@ -50,6 +50,15 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 53: tenth Stage 3 file move — chunk-markdown (141 LOC).
+// `chunkMarkdown(text, options?): MemoryChunk[]` algorithm mirrors
+// OpenClaw's memory-host-sdk implementation per ADR D1 of the
+// memory-system-openclaw-parity plan. Heading + blank-line aware,
+// word-boundary aligned for oversized paragraphs (EC-6 enforced).
+// Depends only on `node:crypto` + iter 52's MemoryChunk type
+// (sibling import via ./memory-types.js).
+export * from "./internal/chunk-markdown.js";
+
 // Iter 52: ninth Stage 3 file move — memory-types (113 LOC).
 // Public memory shape types: `MemoryConfig`, `MemoryFact`,
 // `MemoryChunk`, `MemoryReadResult`, `MemoryFileEntry`, +
