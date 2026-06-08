@@ -24,7 +24,7 @@ Tracking which phases/tasks are committed. Updated each iteration.
 
 | Task | Status | Notes |
 |---|---|---|
-| T1.1 — Scaffold + move 40 files / 4070 LOC | ⏳ NEXT | See below |
+| T1.1 — Scaffold + move 40 files / 4070 LOC | ⏳ POSTPONED | Pivoted to Phase 3 (Cache) first — see below. Pre-step (EC-1) for Memory already shipped at commit `26c15a6`. |
 
 **Next steps for T1.1:**
 1. `pnpm-workspace.yaml` already captures `packages/*` glob — no edit needed.
@@ -60,9 +60,33 @@ The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory
 
 **Recommendation for T1.1 execution:** classify each external usage as type-only vs runtime. Type-only imports stay (TS only, no bundle impact). Runtime imports require per-case decision. If we find > 3 runtime imports that can't be cleanly resolved, surface as a BLOCKED finding and revisit ADR D1.
 
-## Phase 2-10 + Final
+## Phase 3 — Extract `@theokit/sdk-cache` (PIVOTED — done before Phase 1)
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| Pre-step EC-1 + plugin types — internal sub-paths | ✅ DONE 2026-06-08 | `26c15a6` | 11/11 GREEN |
+| T3.1 — Cache extraction | ✅ DONE 2026-06-08 | `f67ed6d` | 54/54 GREEN |
+
+**Why pivot:** Phase 0 baseline + iter 2 investigation revealed Memory has 7+ external runtime consumers (theokit.ts, migrate.ts, credential-pool.ts, fixtures, etc.) requiring per-case decisions. Cache had ZERO external runtime consumers — clean extraction. Plan T3.1 explicitly says Phases 1-5 are independent and parallelizable, so reordering doesn't break dependency graph.
+
+**Deliverables Phase 3:**
+- `packages/sdk-cache/` (new package, 18.51 KB ESM / 5.20 KB gzipped — 79% under 25 KB budget).
+- 7 test files (cache-create, consult-remember, cosine-key, lookup, store-handler, store, ttl) all 54 tests GREEN.
+- sdk barrel stripped of `Cache, CacheEmbedderError, CacheInvalidTtlError` (breadcrumb comment points consumers at `@theokit/sdk-cache`).
+- `@theokit/sdk/internal/persistence` sub-path expanded with `atomicWriteText` + `PersistenceSchema`.
+- `@theokit/sdk/internal/observability` sub-path created (infrastructure for Memory/Handoff future work).
+
+**Quality gates Phase 3:**
+- EC-2 verified: `grep -c "class Agent\|function definePlugin" sdk-cache/dist/index.js` = 0.
+- EC-5 verified: `pnpm list @theokit/sdk-cache` finds workspace registration.
+- Dual-Zod-realm bug surfaced + fixed: aligned sdk-cache devDep zod ^3.25.76 → ^4.0.0 to match sdk's resolved zod@4.4.3.
+- Inline tracer-loader workaround documented (rollup-plugin-dts emits empty stub for new internal barrels — runtime works, only DTS affected; future investigation).
+
+## Phase 2, 4, 5, 6-10 + Final
 
 Not started. See `sdk-2-0-package-split-plan.md` for tasks.
+
+**Concurrent session note:** the sdk-superiority halt-loop session (iter 9+) is ACTIVE in this repo and committed T2.1 (`1af7f5d`, `17d8552`, `351eee0`) AFTER my Phase 0 / pre-step / Phase 3. The two sessions work in orthogonal areas (sdk-superiority touches `internal/agent-loop/loop.ts`; SDK 2.0 split touches subsystem extraction). No conflicts yet but Phase 2 of SDK 2.0 plan WILL touch agent-loop — coordinate before starting.
 
 ## Pre-existing uncommitted state (NOT from this loop)
 
@@ -83,3 +107,4 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 | Iteration | Date | Phase/Task | Outcome |
 |---|---|---|---|
 | 1 | 2026-06-08 | Phase 0 / T0.1 | DONE — commit `aa8b079`; 4/4 tests GREEN |
+| 2 | 2026-06-08 | Pre-step + Phase 3 / T3.1 | DONE — commits `26c15a6` + `f67ed6d`; 65/65 cumulative tests GREEN (11 pre-step + 54 cache) |
