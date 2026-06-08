@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — Forbidden-path blocklist expansion + case-insensitive (T5.6)
+
+- **Workspace impact**: `@theokit/sdk` consumers' coding-agent
+  scenarios now block 13+ additional credential locations
+  universally on developer laptops — `.ssh/`, `.aws/`, `.docker/`,
+  `.kube/`, `.npmrc`, `.netrc`, `.pgpass`, `id_rsa`,
+  `id_ed25519`, `authorized_keys`, `known_hosts`, plus the
+  entire `*.pem` / `*.key` / `*.p12` / `*.pfx` family.
+  Case-insensitive matching defeats the `.ENV` / `.Git/` /
+  `.SSH/` bypass that used to slip through on
+  case-insensitive filesystems (Windows/macOS-default).
+- **Iter 22** of halt-loop `sdk-superiority-2026-06-07`.
+  Closes DR6 finding #6.
+
+### Operational — iter 22 stop-hook acknowledgement
+
+- Same mixed-authorship hygiene as iters 16-21. Staged only T5.6
+  files (`packages/sdk/src/internal/security/path-guard.ts`,
+  `packages/sdk/tests/internal/security/path-guard-forbidden-expansion.test.ts`,
+  both CHANGELOGs, contract row, progress JSON).
+
 ### Operational — iter 21 post-housekeeping stop-hook acknowledgement
 
 - Working tree continues to carry unstaged production-source changes
