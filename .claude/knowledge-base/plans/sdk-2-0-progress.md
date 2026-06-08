@@ -100,7 +100,41 @@ The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory
 - EC-2 verified: `grep -c "class Agent" sdk-tools/dist/index.js` = 0.
 - EC-5 verified: `pnpm list @theokit/sdk-tools` finds workspace registration.
 
-## Phase 2, 4, 6-10 + Final + Phase 1 (Memory still postponed)
+## Phase 10 — CI Bundle Budget Gate
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T10.1 — `scripts/check-bundle-budget.mjs` + `.bundle-budget.json` + CI step | ✅ DONE 2026-06-08 | `fb5cb96` | 6/6 GREEN |
+
+**Deliverables Phase 10:**
+- `scripts/check-bundle-budget.mjs` — Node script, zero deps, reads every `packages/<name>/.bundle-budget.json`, measures gzipped, fails CI on overshoot. Supports --json + --package=<name> filter.
+- `packages/sdk-cache/.bundle-budget.json` = `{ "dist/index.js": 25000 }` (current: 5339 / 21%)
+- `packages/sdk-tools/.bundle-budget.json` = `{ "dist/index.js": 15000 }` (current: 5164 / 34%)
+- `pnpm check:bundle` script wired into `pnpm validate`
+- `.github/workflows/ci.yml` "Bundle budget gate" step after Quality
+
+## Phase 8 — Migration Codemod (jscodeshift)
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T8.1 — Codemod `1-x-to-2-0.cjs` + 5 fixtures + 8 tests | ✅ DONE 2026-06-08 | `2b3ad4e` | 8/8 GREEN |
+
+**Deliverables Phase 8:**
+- `scripts/migrations/1-x-to-2-0.cjs` — jscodeshift transformer (CommonJS — jscodeshift loads via require). Five transforms:
+  - (A) Sub-path: `@theokit/sdk/tools` → `@theokit/sdk-tools`
+  - (B) Named import split: `@theokit/sdk` → multiple targets per map.json
+  - (C) Re-export rewrite: `export { X } from "@theokit/sdk"` → new target
+  - (D) EC-3: `Agent.create({...})` sem `budgetTracker` → CODEMOD-WARN comment
+  - (E) EC-4: `Agent.create({ handoffs })` → CODEMOD comment (no auto-rewrite)
+- `scripts/migrations/1-x-to-2-0-map.json` — 21 symbol→target entries (Cache + Tools). Pending: Memory/Budget/Handoff entries land when Phases 1/2/4 extract those.
+- 5 byte-equal fixtures: single-cache-import, mixed-imports, aliased, agent-create-no-budget, agent-create-handoffs.
+- 8 tests including idempotency check (md5-stable on re-run).
+
+**Quality gates Phase 8:**
+- `pnpm vitest run tests/codemod-1-x-to-2-0.test.ts`: 8/8 GREEN
+- Idempotency: PASS (walkUpToStatement helper attaches comments to outer statement, not inner CallExpression, so the hasLeadingComment check finds the marker on subsequent runs)
+
+## Phase 2, 4, 6, 7, 9 + Final + Phase 1 (Memory still postponed)
 
 Not started. See `sdk-2-0-package-split-plan.md` for tasks.
 
@@ -129,3 +163,4 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 | 1 | 2026-06-08 | Phase 0 / T0.1 | DONE — commit `aa8b079`; 4/4 tests GREEN |
 | 2 | 2026-06-08 | Pre-step + Phase 3 / T3.1 | DONE — commits `26c15a6` + `f67ed6d`; 65/65 cumulative tests GREEN (11 pre-step + 54 cache) |
 | 3 | 2026-06-08 | Phase 5 / T5.1 | DONE — commit `e67d1db`; 46/46 sdk-tools tests GREEN; 165 cumulative tests across 3 packages (sdk baseline + sdk-cache + sdk-tools) |
+| 4 | 2026-06-08 | Phase 10 / T10.1 + Phase 8 / T8.1 | DONE — commits `fb5cb96` (bundle gate) + `2b3ad4e` (codemod); 6+8 = 14 new tests GREEN; cumulative 179 tests |
