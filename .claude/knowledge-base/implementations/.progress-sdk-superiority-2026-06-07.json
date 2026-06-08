@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 16,
+  "iterations_used": 17,
   "tasks": [
     {"id": "T0.1", "status": "partial(iter1)", "sha": "42a3763"},
     {"id": "T0.2", "status": "committed", "sha": "8d4487e"},
@@ -18,11 +18,12 @@
     {"id": "T3.4", "status": "partial(iter13)", "sha": "1e40f5a"},
     {"id": "T3.5", "status": "committed", "sha": "d15987f"},
     {"id": "T3.6", "status": "committed", "sha": "3ff01b4"},
-    {"id": "T3.7", "status": "committed", "sha_artifacts": "d465b6e+1570d8c", "note": "errors.ts widening + openai mapper fix + CHANGELOG swept by sdk-2-0 session at d465b6e; my follow-up 1570d8c re-added the test file."}
+    {"id": "T3.7", "status": "committed", "sha_artifacts": "d465b6e+1570d8c", "note": "errors.ts widening + openai mapper fix + CHANGELOG swept by sdk-2-0 session at d465b6e; my follow-up 1570d8c re-added the test file."},
+    {"id": "T3.8", "status": "committed", "sha": "TBD"}
   ],
   "blocked_count": 1,
   "partial_count": 2,
-  "pending_count": 50,
+  "pending_count": 49,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }

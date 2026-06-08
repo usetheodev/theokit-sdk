@@ -90,7 +90,7 @@
 | T3.5 | Phase 3 / T3.5 | Anthropic prompt caching emit | committed | 14 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.6 | Phase 3 / T3.6 | OpenAI structured outputs json_schema | committed | 15 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.7 | Phase 3 / T3.7 | Error mapping completeness (OpenRouter/Anthropic/Vertex) | committed | 16 | TBD | a=pass b=pass c=n/a | none-needed |
-| T3.8 | Phase 3 / T3.8 | Cache tokens Anthropic native + 5-bucket telemetry | pending | — | — | — | — |
+| T3.8 | Phase 3 / T3.8 | Cache tokens Anthropic native + 5-bucket telemetry | committed | 17 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.9 | Phase 3 / T3.9 | Reconnect storm prevention (pool waitForAvailable) | pending | — | — | — | — |
 | T3.10 | Phase 3 / T3.10 | Cleanup batch DR3 findings 13-25 (incl vision content parts LARGE) | pending | — | — | — | — |
 
