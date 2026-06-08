@@ -178,7 +178,33 @@ The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory
 - All 29 SDK 2.0 infrastructure tests still GREEN
 - `pnpm check:bundle`: PASS — sdk-cache 21% / sdk-handoff 36% / sdk-tools 34%
 
-## Phase 2, 6, 7 + Final + Phase 1 (Memory still postponed)
+## Phase 1 — Pre-cleanup ONLY (Memory full extract POSTPONED)
+
+| Sub-task | Status | Commit | Notes |
+|---|---|---|---|
+| Remove deprecated `internal/memory/cwd-mutex.ts` shim | ✅ DONE 2026-06-08 | `bf18a84` | 7 consumers (5 sdk-core + 2 intra-memory) re-pointed at canonical `internal/persistence/cwd-mutex.js` |
+| Full source move + integration | ⏳ POSTPONED | — | Iter 7 attempted, **reverted**. Surfaces deep architectural blockers. |
+
+**Deep blocker surfaced iter 7:**
+- `internal/runtime/local-agent-memory.ts`, `post-run-lifecycle.ts`, `agent-session-store.ts`, `memory-store.ts` (4 files) cross-import `internal/memory/*` at runtime.
+- These are AGENT-LOOP files (kernel area) — can't be moved to sdk-memory without creating circular dependency.
+- Per-call dynamic import (try-catch optional peer like handoff) would gut performance on hot path.
+- **Real fix:** interface inversion like Budget (ADR D1). Define `MemoryProvider` interface in sdk-core, runtime depends on interface, sdk-memory provides impl via DI. Multi-iteration architectural change.
+
+**Iter 7 partial work (not committed beyond cwd-mutex cleanup):**
+- sdk-memory package scaffold (package.json, tsup, tsconfig, vitest, README, CHANGELOG, LICENSE) — DELETED (incomplete; would ship empty package).
+- Inline copies of `to-json-schema.ts` (126 LOC), `error-mapper-shared.ts` (91 LOC), `openai-compatible-error-mapper.ts` (126 LOC), `telemetry-shim.ts` (30 LOC) — DELETED.
+- theokit.ts MEMORY_EMBEDDING_ADAPTERS dynamic-import change — REVERTED (breaking change to sync inspect.embeddingAdapters API was premature).
+- Pure-memory test moves (4 files: types/memory-adapter, internal/memory/{migrate-redaction, adapters/ollama-embedding, index-manager-dispatch}) — REVERTED.
+
+**Future Phase 1 strategy (deferred to multi-iteration plan):**
+1. Define `MemoryProvider` interface contracts in sdk-core (types only).
+2. Refactor 4 runtime files to depend on interface instead of concrete `internal/memory/` imports.
+3. Move memory implementation to sdk-memory.
+4. Memory contracts (`MemoryAdapter`, `MemoryContext`, `MemoryFact`) STAY in sdk-core types.
+5. Migration helper (`migrateSqliteToLance`) moves to sdk-memory.
+
+## Phase 2, 6, 7 + Final + Phase 1 (Memory still postponed — see above)
 
 Not started. See `sdk-2-0-package-split-plan.md` for tasks.
 
@@ -217,3 +243,4 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 | 4 | 2026-06-08 | Phase 10 / T10.1 + Phase 8 / T8.1 | DONE — commits `fb5cb96` (bundle gate) + `2b3ad4e` (codemod); 6+8 = 14 new tests GREEN; cumulative 179 tests |
 | 5 | 2026-06-08 | Phase 9 / T9.1 | DONE — commit `0addd94`; 11/11 docs tests GREEN; cumulative 190 tests across 4 packages |
 | 6 | 2026-06-08 | Phase 4 / T4.1 | DONE — commit `b49a6a1`; 29 handoff tests GREEN; cumulative 219 tests across 5 packages |
+| 7 | 2026-06-08 | Phase 1 pre-cleanup | PARTIAL — commit `bf18a84` cwd-mutex shim removed + 7 consumers fixed. Full source move attempted then REVERTED — needs interface inversion (multi-iteration). |
