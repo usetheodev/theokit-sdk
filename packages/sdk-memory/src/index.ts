@@ -50,6 +50,20 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 68: twenty-fifth Stage 3 file move — lance-index (273 LOC).
+// LanceDB-backed alternative memory index per ADR D43 — opt-in via
+// `Memory.create({ index: { backend: "lance" } })`; SQLite remains
+// default. `@lancedb/lancedb` dynamically required via createRequire
+// with EC `lance_backend_unavailable` typed error on missing peer.
+// EC-1: search filters use Lance's SQL string predicate with `'`→`''`
+// escape (bind parameters not supported by Lance 0.30). EC-8:
+// embedding dimension validated against on-disk Arrow FixedSizeList
+// `listSize` (forward-compat `fixedSize` fallback). Exports:
+// LanceIndex class (open/addFacts/search/countFacts/removeFacts/close)
+// + LanceFactRecord + OpenLanceOptions + LanceSearchOptions +
+// LanceSearchHit + isLanceAvailable + lanceStoragePath helpers.
+export * from "./internal/lance-index.js";
+
 // Iter 67: twenty-fourth Stage 3 file move — vec-index (127 LOC).
 // Vector index helpers per ADR D2 + D4. Embeddings live in a
 // `embeddings(chunk_id, vec)` vec0 virtual table provided by
