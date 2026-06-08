@@ -14,7 +14,7 @@ import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
-import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { PathTraversalError, validateArtifactPath } from "../security/path-guard.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";

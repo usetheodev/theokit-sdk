@@ -17,7 +17,7 @@
  */
 
 import { ConfigurationError } from "../../errors.js";
-import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import {
   COOLDOWN_MS,
   type CredentialPoolSnapshot,
