@@ -82,9 +82,29 @@ The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory
 - Dual-Zod-realm bug surfaced + fixed: aligned sdk-cache devDep zod ^3.25.76 → ^4.0.0 to match sdk's resolved zod@4.4.3.
 - Inline tracer-loader workaround documented (rollup-plugin-dts emits empty stub for new internal barrels — runtime works, only DTS affected; future investigation).
 
-## Phase 2, 4, 5, 6-10 + Final
+## Phase 5 — Extract `@theokit/sdk-tools` (PIVOTED — done before Phase 1)
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T5.1 — Tools extraction | ✅ DONE 2026-06-08 | `e67d1db` | 46/46 GREEN |
+
+**Deliverables Phase 5:**
+- `packages/sdk-tools/` (new package, 19.69 KB ESM / 5.20 KB gzipped — 65% under 15 KB budget).
+- 6 test files (git-diff, list-dir, read-file, run-vitest, search-text, sub-export-smoke) all 46 tests GREEN.
+- sdk barrel additions: `CustomTool` type explicit export (needed by extracted package).
+- `@theokit/sdk/internal/security` sub-path created (parallel to persistence/plugins/observability).
+- Inline `path-guard.ts` in sdk-tools/internal/ — full ~200 LOC duplicate of the security primitives. Rationale: rollup-plugin-dts bug consistently emits incomplete `index.d.ts` for newly-modified internal/ barrels.
+
+**Quality gates Phase 5:**
+- AC1-AC10 all PASS (build, tests, EC-2, EC-5, bundle budget, sdk regression check).
+- EC-2 verified: `grep -c "class Agent" sdk-tools/dist/index.js` = 0.
+- EC-5 verified: `pnpm list @theokit/sdk-tools` finds workspace registration.
+
+## Phase 2, 4, 6-10 + Final + Phase 1 (Memory still postponed)
 
 Not started. See `sdk-2-0-package-split-plan.md` for tasks.
+
+**Concurrent session note (updated iter 3):** The sdk-superiority session reached iter 10 and finished T3.1 (SSE parser HTML LS compliance) + acknowledged my prior commits via `7f4b98c`. My Phase 5 commit `e67d1db` accidentally swept up 4 pre-staged files from their session (CHANGELOG.md, ollama-native.ts, sse.ts, sse-abort-cancels-body.test.ts) because they were in the git index before I ran `git commit`. Work preserved correctly; their next iteration will recognize their files are committed.
 
 **Concurrent session note:** the sdk-superiority halt-loop session (iter 9+) is ACTIVE in this repo and committed T2.1 (`1af7f5d`, `17d8552`, `351eee0`) AFTER my Phase 0 / pre-step / Phase 3. The two sessions work in orthogonal areas (sdk-superiority touches `internal/agent-loop/loop.ts`; SDK 2.0 split touches subsystem extraction). No conflicts yet but Phase 2 of SDK 2.0 plan WILL touch agent-loop — coordinate before starting.
 
@@ -108,3 +128,4 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 |---|---|---|---|
 | 1 | 2026-06-08 | Phase 0 / T0.1 | DONE — commit `aa8b079`; 4/4 tests GREEN |
 | 2 | 2026-06-08 | Pre-step + Phase 3 / T3.1 | DONE — commits `26c15a6` + `f67ed6d`; 65/65 cumulative tests GREEN (11 pre-step + 54 cache) |
+| 3 | 2026-06-08 | Phase 5 / T5.1 | DONE — commit `e67d1db`; 46/46 sdk-tools tests GREEN; 165 cumulative tests across 3 packages (sdk baseline + sdk-cache + sdk-tools) |
