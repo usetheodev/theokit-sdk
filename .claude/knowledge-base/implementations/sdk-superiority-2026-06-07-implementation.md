@@ -112,7 +112,7 @@
 ### Phase 5 — Security hardening (11 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
-| T5.1 | Phase 5 / T5.1 | HKDF-SHA256 para AES tx-cookie CRITICAL | pending | — | — | — | — |
+| T5.1 | Phase 5 / T5.1 | HKDF-SHA256 para AES tx-cookie CRITICAL | committed | 20 | TBD | a=pass b=pass c=n/a | none-needed |
 | T5.2 | Phase 5 / T5.2 | SQL injection Lance .where via sanitizeIdentifier | pending | — | — | — | — |
 | T5.3 | Phase 5 / T5.3 | __Host- cookie prefix + cookie clear fix | pending | — | — | — | — |
 | T5.4 | Phase 5 / T5.4 | Redactor pattern expansion (12→30+) | committed | 19 | 8d1325e+62408c1 (contamination) | a=pass b=pass c=n/a | none-needed |

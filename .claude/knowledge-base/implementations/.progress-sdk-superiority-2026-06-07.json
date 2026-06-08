@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 19,
+  "iterations_used": 20,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -45,11 +45,12 @@
       "status": "committed",
       "sha_artifacts": "8d1325e+62408c1",
       "note": "T5.4 source (redact.ts) + tests + CHANGELOG entries swept into sdk-2-0 session's commit 8d1325e (iter 52 — memory-types + sanitizeIdentifier public). My follow-up 62408c1 re-staged the biome-auto-fixed test-reset.ts + redact-pattern-expansion.test.ts after biome reordered imports. Same contamination pattern as iter 18's T3.9. T5.4 algorithm intact at HEAD: 158/158 redaction-sink tests GREEN, BUILTIN count = 30 (≥ floor)."
-    }
+    },
+    { "id": "T5.1", "status": "committed", "sha": "TBD" }
   ],
   "blocked_count": 2,
   "partial_count": 2,
-  "pending_count": 46,
+  "pending_count": 45,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }
