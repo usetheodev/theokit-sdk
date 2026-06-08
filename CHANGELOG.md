@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T1.4: downloadArtifact path-traversal hardening
+
+- **Workspace impact**: centralized `validateArtifactPath` in `internal/security/path-guard.ts` rejects 7 traversal vectors (`..`, backslash, URL-encoded `%2e%2e`, NUL byte, Windows drive prefix, home tilde, absolute path). `cloud-agent.ts:downloadArtifact` delegates. 7 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Added — `@theokit/sdk` T1.3: API key boundary validation
 
 - **Workspace impact**: shape-only `validateApiKeyShape` runs at `Agent.create` boundary; rejects whitespace / sub-4-char / sub-16-char / embedded-whitespace / missing-known-prefix early with typed `malformed_api_key` error. Tiered to bypass strict checks in env-credential mode. 14 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.

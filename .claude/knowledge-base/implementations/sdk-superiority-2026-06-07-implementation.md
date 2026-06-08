@@ -54,7 +54,7 @@
 
 > **T1.2 plan-vs-reality note** — the leaf-extraction part of T1.2 was already shipped under the prior plan `arch-review-fixes-2026-06-06` (T3.1 / ADR D431, commit pre-iter-1). The leaf file is `agent-registry-contract.ts`, NOT `agent-registry-types.ts` as the T1.2 plan declared. This iter completes T1.2's missing piece: the `tests/contract/registered-agent.test.ts` snapshot test. Plan-deviation accepted because the alternative (recreating identical leaf at the plan's declared path) would introduce a duplicate type definition. Zero downstream impact — madge cycles unchanged (2 baseline).
 | T1.3 | Phase 1 / T1.3 | API key boundary validation | committed | 6 | TBD | a=pass b=pass c=n/a | none-needed |
-| T1.4 | Phase 1 / T1.4 | Path traversal hardening em downloadArtifact | pending | — | — | — | — |
+| T1.4 | Phase 1 / T1.4 | Path traversal hardening em downloadArtifact | committed | 7 | TBD | a=pass b=pass c=n/a | none-needed |
 | T1.5 | Phase 1 / T1.5 | Redact providerError.raw via getter + toJSON | pending | — | — | — | — |
 | T1.6 | Phase 1 / T1.6 | Typed errors (AgentDisposedError + collision) | pending | — | — | — | — |
 | T1.7 | Phase 1 / T1.7 | Observability seed em local-agent | pending | — | — | — | — |
