@@ -6,6 +6,32 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SDK 2.0 Phase 1 physical Stage 2b: `THEOKIT_PORT_MEMORY_PATH` env flag
+
+- **Workspace impact**: opt-in env-flag (`THEOKIT_PORT_MEMORY_PATH=1` or
+  `=true`) routes the memory subsystem through the `MemoryProvider` port
+  inside `LocalAgent.sendLocked()` instead of the legacy direct
+  `memoryGlue.ensureTools()` + `runActiveMemoryIfEnabled()` calls.
+  Default is OFF — zero behavior change for unflagged consumers.
+- **Why**: closes the kernel-side architectural seam needed for Stage 3
+  (physical move of `internal/memory/*` sources to `@theokit/sdk-memory`).
+  When the flag is on, agent-loop's iter 18 T1.5.* lifecycle wiring
+  (init → buildTools → runActivePass → sync → dispose) takes over from
+  the legacy direct calls; the same rich impl is used via the port.
+- **Consumer-supplied `Agent.create({ memoryProvider })`** always wins
+  regardless of flag.
+- **New surface (internal)**: `internal/runtime/memory-path-selector.ts`
+  with `shouldUsePortMemoryPath`, `resolveMemoryProviderForLoop`,
+  `resolveMemoryToolsForLoop`, `resolveActiveMemorySummaryForSend`.
+- **Tests**: 26 new (14 selector helpers + 12 flip integration); cumulative
+  Phase 1 GREEN = 109.
+- **Status**: kernel flip shipped (iter 23). Dogfood fixture validation
+  pending before the env-var default flips (next iter).
+
+### Added — `@theokit/sdk` T3.7: ErrorCode.quota_exceeded + mapper completeness
+
+- **Workspace impact**: `ErrorCode` union widened with `quota_exceeded`; OpenAI/OpenRouter 402 + `insufficient_quota` body codes now map to the canonical bucket (was `invalid_request`); Anthropic 529 + Vertex 401/403 pinned by new contract tests. 5 new tests + 2 pre-existing tests updated. Per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Added — `@theokit/sdk` T3.6: OpenAI structured outputs json_schema emission
 
 - **Workspace impact**: new `LlmResponseFormat` discriminated union (`json_schema` + `json_object`); `LlmRequest.responseFormat?: LlmResponseFormat`; OpenAI wire body emits `response_format: {type:"json_schema", json_schema}` with `strict: true` default. Same patch closes latent T3.5 bug in openai.ts system field (collapsed via `openAISystemText` helper). 4 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
