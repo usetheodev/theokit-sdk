@@ -115,12 +115,22 @@ implements as no-op (LanceDB-backed impl in future will fire
 `IndexManager.sync()`). 6 new tests; back-compat preserved
 (existing impls without `sync` keep working — TS optional method).
 
-**Stage 2:** Migrate `local-agent-memory.ts` from direct
-`internal/memory/*` imports to MemoryProvider port calls. The class
-becomes a thin adapter that calls `provider.buildTools(...)` +
-`provider.runActivePass(...)` + `provider.sync(...)`. Auto-installs a
-sdk-memory rich provider when consumer didn't pass `memoryProvider`
-and `options.memory.enabled === true` (optional-peer pattern).
+**Stage 2 (split into 2a + 2b):**
+- **2a (iter 19 — SHIPPED):** ship `createLocalAgentMemoryProvider`
+  adapter wrapping `LocalAgentMemory` as a MemoryProvider impl. Bridges
+  legacy + port paths. 9 tests; `buildTools` initially returned [] (gap).
+- **2b (iter 19 — SHIPPED partial):** close the buildTools gap by
+  adding `LocalAgentMemory.getCachedTools()` sync accessor that the
+  adapter reads. Adapter now surfaces the rich `memory_search` +
+  `memory_get` tools via `buildTools()` with shape translation
+  (`MemoryToolSpec.execute` → `CustomTool.handler`).
+- **2b proper (DEFERRED — next iter):** refactor `LocalAgent.send()`
+  to auto-install the adapter as `inputs.memoryProvider` (when consumer
+  didn't supply one) + skip the legacy `memoryGlue.ensureTools()` +
+  `memoryGlue.runActiveMemoryIfEnabled()` direct calls. Risk: timing
+  + ordering of memoryTools + systemPromptAdditions injection
+  differs between legacy and port paths. Needs careful equivalence
+  testing under `options.memory.enabled === true`.
 
 **Stage 3:** Move `internal/memory/*` sources to
 `packages/sdk-memory/src/`. Ship sdk-memory's LanceDB-backed rich
