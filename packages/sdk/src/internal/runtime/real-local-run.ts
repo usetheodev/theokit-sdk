@@ -168,6 +168,14 @@ function buildLoopInputs(
     ...(options.agentOptions.budgetTracker !== undefined
       ? { budgetTracker: options.agentOptions.budgetTracker }
       : {}),
+    // SDK 2.0 Phase 1 / T1.4: thread the optional MemoryProvider from
+    // Agent.create options down to the loop. Runtime `init()` /
+    // `buildTools()` / `runActivePass()` / `dispose()` calls land in
+    // T1.5; for now the field is plumbed so the runtime wiring requires
+    // no further type changes.
+    ...(options.agentOptions.memoryProvider !== undefined
+      ? { memoryProvider: options.agentOptions.memoryProvider }
+      : {}),
   };
 }
 
