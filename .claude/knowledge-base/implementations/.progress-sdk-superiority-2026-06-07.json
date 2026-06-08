@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 10,
+  "iterations_used": 11,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -14,12 +14,18 @@
     {
       "id": "T2.2",
       "status": "blocked-on-replan",
-      "reason": "SEPA HALT — aux-LLM model/key/pool source unspecified in plan; needs /to-plan revision"
+      "reason": "SEPA HALT — aux-LLM model/key/pool source unspecified in plan"
     },
-    { "id": "T3.1", "status": "committed", "sha": "a390ea5" }
+    { "id": "T3.1", "status": "committed", "sha": "a390ea5" },
+    {
+      "id": "T3.2",
+      "status": "committed",
+      "sha_artifacts": "e67d1db+73471ac",
+      "note": "T3.2 work split across two commits — sse.ts refactor at 73471ac (mine); ollama-native + test + CHANGELOG at e67d1db (concurrent sdk-2-0 session swept in my staged files alongside their sdk-tools extraction). Functionally complete: pillar(a)+pillar(b) both verified GREEN; 2 RED tests now PASS; 80 regression GREEN."
+    }
   ],
   "blocked_count": 1,
-  "pending_count": 56,
+  "pending_count": 55,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }
