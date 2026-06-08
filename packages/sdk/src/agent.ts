@@ -43,6 +43,7 @@ import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
   AgentOperationOptions,
   AgentOptions,
+  CustomTool,
   GetAgentOptions,
   GetRunOptions,
   ListAgentsOptions,
@@ -502,15 +503,39 @@ async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOpti
   if (handoffs === undefined || handoffs.length === 0) return options;
   if (options.maxHandoffDepth === 0) return options;
 
-  // Lazy import to keep the cold path lean for non-handoff agents.
-  const { normalizeHandoffs, buildHandoffTool } = await import(
-    "./internal/handoff/tool-injector.js"
-  );
+  // Lazy import — kept transitional for the legacy `handoffs:[]` option.
+  // SDK 2.0 (Phase 4): the dispatcher lives in @theokit/sdk-handoff. We
+  // resolve it via the OPTIONAL peer model: if the package isn't installed,
+  // throw an actionable error so the consumer adds it. The preferred 2.x
+  // pattern is `plugins: [Handoff.asPlugin({ targets })]` — see
+  // docs/migration/1-x-to-2-0.md#handoff.
+  interface ToolInjectorModule {
+    normalizeHandoffs(
+      parentAgentId: string,
+      entries: ReadonlyArray<unknown>,
+    ): ReadonlyArray<{ descriptor: unknown }>;
+    buildHandoffTool(parentAgentId: string, descriptor: unknown, maxDepth: number): CustomTool;
+  }
+  let mod: ToolInjectorModule;
+  try {
+    // @ts-expect-error optional peer — module resolution happens at runtime;
+    // TS doesn't see @theokit/sdk-handoff because @theokit/sdk has no
+    // dependency on it (avoiding the kernel→extension direction violation).
+    mod = (await import("@theokit/sdk-handoff/internal/tool-injector")) as ToolInjectorModule;
+  } catch (err) {
+    throw new ConfigurationError(
+      "Agent.create({ handoffs: [...] }) requires @theokit/sdk-handoff. " +
+        "Install it: pnpm add @theokit/sdk-handoff. " +
+        "Or migrate to the preferred plugin pattern: " +
+        "plugins: [Handoff.asPlugin({ targets: [...] })] (see docs/migration/1-x-to-2-0.md#handoff).",
+      { code: "handoff_package_missing", cause: err },
+    );
+  }
   const parentAgentId = options.agentId ?? options.name ?? "anonymous";
-  const normalized = normalizeHandoffs(parentAgentId, handoffs);
+  const normalized = mod.normalizeHandoffs(parentAgentId, handoffs);
   const maxDepth = options.maxHandoffDepth ?? 5;
   const handoffTools = normalized.map(({ descriptor }) =>
-    buildHandoffTool(parentAgentId, descriptor, maxDepth),
+    mod.buildHandoffTool(parentAgentId, descriptor, maxDepth),
   );
   const existingTools = options.tools ?? [];
   return {

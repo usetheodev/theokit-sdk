@@ -27,5 +27,21 @@
   "CreateRunVitestToolOptions": "@theokit/sdk-tools",
   "VitestSummary": "@theokit/sdk-tools",
 
-  "$comment-pending": "Memory/Budget/Handoff entries land when Phases 1/2/4 complete (sdk-memory, sdk-budget, sdk-handoff). For now those symbols stay in @theokit/sdk and the codemod preserves them."
+  "$comment-handoff": "Handoff subsystem extracted to @theokit/sdk-handoff (Phase 4 / T4.1).",
+  "Handoff": "@theokit/sdk-handoff",
+  "handoffTo": "@theokit/sdk-handoff",
+  "RECOMMENDED_HANDOFF_PROMPT_PREFIX": "@theokit/sdk-handoff",
+  "HandoffLoopError": "@theokit/sdk-handoff",
+  "HandoffPairLoopError": "@theokit/sdk-handoff",
+  "HandoffNameCollisionError": "@theokit/sdk-handoff",
+  "HandoffReceiverDisposedError": "@theokit/sdk-handoff",
+  "HandoffSelfReferenceError": "@theokit/sdk-handoff",
+  "HandoffContext": "@theokit/sdk-handoff",
+  "HandoffDescriptor": "@theokit/sdk-handoff",
+  "HandoffHistory": "@theokit/sdk-handoff",
+  "HandoffOptions": "@theokit/sdk-handoff",
+  "HandoffResult": "@theokit/sdk-handoff",
+  "AsPluginOptions": "@theokit/sdk-handoff",
+
+  "$comment-pending": "Memory/Budget entries land when Phases 1/2 complete. For now those symbols stay in @theokit/sdk and the codemod preserves them."
 }

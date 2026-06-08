@@ -960,7 +960,7 @@ importers:
         version: link:../sdk
       mem0ai:
         specifier: ^3.0.3
-        version: 3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)))(@langchain/core@1.1.47(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@3.25.76))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.21.0)(redis@5.12.1(@opentelemetry/api@1.9.1))(ws@8.21.0)
+        version: 3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@langchain/core@1.1.47(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.21.0)(redis@5.12.1(@opentelemetry/api@1.9.1))(ws@8.21.0)
       tsup:
         specifier: ^8.5.0
         version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
@@ -1102,6 +1102,24 @@ importers:
         version: 4.4.3
 
   packages/sdk-cache:
+    devDependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      tsup:
+        specifier: ^8.3.5
+        version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@25.9.1)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+
+  packages/sdk-handoff:
     devDependencies:
       '@theokit/sdk':
         specifier: workspace:*
@@ -2166,7 +2184,6 @@ packages:
   '@lancedb/lancedb@0.30.0':
     resolution: {integrity: sha512-d0FoEL6cthqgsulqAc7fck6kRXrSRGMTqlKYbhSGSazHU6vB2GEpD737Mu0HZd7fMyBUdhR9sD1W2C9uQZ5p0Q==}
     engines: {node: '>= 18'}
-    cpu: [x64, arm64]
     os: [darwin, linux, win32]
     peerDependencies:
       apache-arrow: '>=15.0.0 <=18.1.0'
@@ -2184,7 +2201,6 @@ packages:
 
   '@ls-lint/ls-lint@2.3.1':
     resolution: {integrity: sha512-vPe6IDByQnQRTxcAYjTxrmga/tSIui50VBFTB5KIJWY3OOFmxE2VtymjeSEfQfiMbhZV/ZPAqYy2lt8pZFQ0Rw==}
-    cpu: [x64, arm64, s390x, ppc64le]
     os: [darwin, linux, win32]
     hasBin: true
 
@@ -8898,19 +8914,6 @@ snapshots:
       '@shikijs/types': 3.23.0
       '@shikijs/vscode-textmate': 10.0.2
 
-  '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))':
-    dependencies:
-      google-auth-library: 10.6.2
-      p-retry: 4.6.2
-      protobufjs: 7.6.2
-      ws: 8.21.0
-    optionalDependencies:
-      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)
-    transitivePeerDependencies:
-      - bufferutil
-      - supports-color
-      - utf-8-validate
-
   '@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))':
     dependencies:
       google-auth-library: 10.6.2
@@ -9070,22 +9073,6 @@ snapshots:
       '@lancedb/lancedb-win32-arm64-msvc': 0.30.0
       '@lancedb/lancedb-win32-x64-msvc': 0.30.0
 
-  '@langchain/core@1.1.47(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@3.25.76))(ws@8.21.0)':
-    dependencies:
-      '@cfworker/json-schema': 4.1.1
-      '@standard-schema/spec': 1.1.0
-      js-tiktoken: 1.0.21
-      langsmith: 0.7.4(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@3.25.76))(ws@8.21.0)
-      mustache: 4.2.0
-      p-queue: 6.6.2
-      zod: 4.4.3
-    transitivePeerDependencies:
-      - '@opentelemetry/api'
-      - '@opentelemetry/exporter-trace-otlp-proto'
-      - '@opentelemetry/sdk-trace-base'
-      - openai
-      - ws
-
   '@langchain/core@1.1.47(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0)':
     dependencies:
       '@cfworker/json-schema': 4.1.1
@@ -9197,31 +9184,6 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
-
-  '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)':
-    dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.23)
-      ajv: 8.20.0
-      ajv-formats: 3.0.1(ajv@8.20.0)
-      content-type: 1.0.5
-      cors: 2.8.6
-      cross-spawn: 7.0.6
-      eventsource: 3.0.7
-      eventsource-parser: 3.1.0
-      express: 5.2.1
-      express-rate-limit: 8.5.2(express@5.2.1)
-      hono: 4.12.23
-      jose: 6.2.3
-      json-schema-typed: 8.0.2
-      pkce-challenge: 5.0.1
-      raw-body: 3.0.2
-      zod: 3.25.76
-      zod-to-json-schema: 3.25.2(zod@3.25.76)
-    optionalDependencies:
-      '@cfworker/json-schema': 4.1.1
-    transitivePeerDependencies:
-      - supports-color
-    optional: true
 
   '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)':
     dependencies:
@@ -12846,15 +12808,6 @@ snapshots:
       - '@emnapi/core'
       - '@emnapi/runtime'
 
-  langsmith@0.7.4(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@3.25.76))(ws@8.21.0):
-    dependencies:
-      p-queue: 6.6.2
-    optionalDependencies:
-      '@opentelemetry/api': 1.9.1
-      '@opentelemetry/sdk-trace-base': 1.30.1(@opentelemetry/api@1.9.1)
-      openai: 4.104.0(ws@8.21.0)(zod@3.25.76)
-      ws: 8.21.0
-
   langsmith@0.7.4(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0):
     dependencies:
       p-queue: 6.6.2
@@ -13091,36 +13044,6 @@ snapshots:
   media-typer@0.3.0: {}
 
   media-typer@1.1.0: {}
-
-  mem0ai@3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76)))(@langchain/core@1.1.47(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@3.25.76))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.21.0)(redis@5.12.1(@opentelemetry/api@1.9.1))(ws@8.21.0):
-    dependencies:
-      '@anthropic-ai/sdk': 0.40.1
-      '@azure/identity': 4.13.1
-      '@azure/search-documents': 12.2.0
-      '@cloudflare/workers-types': 4.20260520.1
-      '@google/genai': 1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))
-      '@langchain/core': 1.1.47(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@3.25.76))(ws@8.21.0)
-      '@mistralai/mistralai': 1.15.1
-      '@qdrant/js-client-rest': 1.13.0(typescript@5.9.3)
-      '@supabase/supabase-js': 2.106.1
-      '@types/jest': 29.5.14
-      '@types/pg': 8.11.0
-      axios: 1.13.6
-      better-sqlite3: 12.10.0
-      cloudflare: 4.5.0
-      compromise: 14.15.0
-      groq-sdk: 0.3.0
-      natural: 8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9)
-      ollama: 0.5.18
-      openai: 4.104.0(ws@8.21.0)(zod@3.25.76)
-      pg: 8.21.0
-      redis: 5.12.1(@opentelemetry/api@1.9.1)
-      uuid: 9.0.1
-      zod: 3.25.76
-    transitivePeerDependencies:
-      - debug
-      - encoding
-      - ws
 
   mem0ai@3.0.3(@anthropic-ai/sdk@0.40.1)(@azure/identity@4.13.1)(@azure/search-documents@12.2.0)(@cloudflare/workers-types@4.20260520.1)(@google/genai@1.52.0(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)))(@langchain/core@1.1.47(@opentelemetry/api@1.9.1)(@opentelemetry/sdk-trace-base@1.30.1(@opentelemetry/api@1.9.1))(openai@4.104.0(ws@8.21.0)(zod@4.4.3))(ws@8.21.0))(@mistralai/mistralai@1.15.1)(@qdrant/js-client-rest@1.13.0(typescript@5.9.3))(@supabase/supabase-js@2.106.1)(@types/jest@29.5.14)(@types/pg@8.11.0)(better-sqlite3@12.10.0)(cloudflare@4.5.0)(compromise@14.15.0)(groq-sdk@0.3.0)(natural@8.1.1(@aws-sdk/credential-providers@3.1053.0)(@opentelemetry/api@1.9.1)(socks@2.8.9))(ollama@0.5.18)(pg@8.21.0)(redis@5.12.1(@opentelemetry/api@1.9.1))(ws@8.21.0):
     dependencies:
@@ -15394,11 +15317,6 @@ snapshots:
       archiver-utils: 5.0.2
       compress-commons: 6.0.2
       readable-stream: 4.7.0
-    optional: true
-
-  zod-to-json-schema@3.25.2(zod@3.25.76):
-    dependencies:
-      zod: 3.25.76
     optional: true
 
   zod-to-json-schema@3.25.2(zod@4.4.3):
