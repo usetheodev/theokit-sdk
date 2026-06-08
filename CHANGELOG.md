@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 20 post-housekeeping stop-hook acknowledgement
+
+- Working tree continues to carry unstaged production-source changes
+  under `packages/sdk-budget/src/` and `packages/sdk-handoff/src/`
+  from the concurrent `sdk-2-0` ralph-loop session's in-flight Phase 1
+  Stage 3 source-move work. Same mixed-authorship hygiene as iters
+  16-19 — this line acknowledges the residual state per Inquebrável
+  Rule 6 without claiming authorship. My T5.1 CRITICAL fix
+  (`packages/sdk/src/server/auth/oauth-transaction-store.ts` HKDF-SHA256
+  derivation + `AuthSecretTooShortError` typed error) landed clean
+  at `37294ea` with no contamination.
+
 ### Security — HKDF-SHA256 key derivation for OAuth tx-cookie (T5.1 CRITICAL)
 
 - **Workspace impact**: `@theokit/sdk` consumers using `defineAuth` for
