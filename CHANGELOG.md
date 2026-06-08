@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - During iter 9 of the halt-loop a second ralph-loop session for plan `sdk-2-0` modified ~20 files under `packages/sdk/{src,tests}/cache/` (renaming the cache module to a standalone `packages/sdk-cache/` workspace). A naive `git add -u` picked these up and contaminated the T2.1 commit. The contaminated commit was soft-reset (`git reset --soft HEAD~1`); the sdk-2-0 changes were unstaged via `git restore --staged` and remain in the working tree for that session's owner to commit. T2.1 was re-committed cleanly as a 5-file slice (`1af7f5d`). Documented per Inquebrável Rule 3 honesty.
 
+### Fixed — `@theokit/sdk` T3.1: SSE parser HTML LS §9.2.6 compliance (CRITICAL)
+
+- **Workspace impact**: SSE parser now strips exactly one leading space per HTML LS §9.2.6 (was `.trim()` — destroyed trailing whitespace + extra leading whitespace). 6 new tests; root cause of DR3 finding #1 intermittent stream truncation; required before T6.2 load test per SEPA ordering. Per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Added — `@theokit/sdk` T2.1: wire `validateResponse` D93 bailout
 
 - **Workspace impact**: `validateResponse` (previously orphan export, 0 production callers) now wired in `continueOrTerminate`; bailout shape triggers nudge-user-message + re-run, capped at 2 attempts. 4 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
