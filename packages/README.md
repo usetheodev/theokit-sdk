@@ -13,9 +13,9 @@ This monorepo ships **24 packages** organized in **5 families**. The family lets
 | `@theokit/sdk` | **1.7.0 → 2.0.0** (pending rename to `@theokit/sdk-core`) | Agent kernel: `Agent`, `AgentBuilder`, `AgentFactory`, `defineTool`, runtime loop, plugin foundation, persistence primitives. |
 | `@theokit/sdk-cache` | **0.1.0** ✓ | Semantic LLM response cache. Integrates via Plugin protocol. Extracted in Phase 3. |
 | `@theokit/sdk-tools` | **0.1.0** ✓ | Built-in tools (read-file, list-dir, search-text, git-diff, subprocess, run-vitest). Extracted in Phase 5. |
-| `@theokit/sdk-memory` | _pending Phase 1_ | Memory subsystem (embeddings, dreaming, storage adapters). Currently inside `@theokit/sdk`. |
-| `@theokit/sdk-budget` | _pending Phase 2_ | Token/USD budget enforcement + pricing registry. Currently inside `@theokit/sdk`. |
-| `@theokit/sdk-handoff` | _pending Phase 4_ | Inter-agent dispatch. Currently inside `@theokit/sdk`. |
+| `@theokit/sdk-memory` | **0.1.0** ✓ + iter 33-37 feature surface | `MemoryProvider` port consumer. `createInMemoryMarkdownProvider` with disk-backed session-summary write/recall + LLM-facing `memory_remember` + `memory_search` tools + agent-scope privacy filter. Phase 1 functional ship (iter 18 T1.6); rich impl source-move scheduled Stage 3 (iter 30 target). |
+| `@theokit/sdk-budget` | **0.1.0** ✓ + Phase 2 physical Stage 1 (iter 19) | `BudgetTracker` port consumer + USD pricing tracker. Phase 2 physical Stage 1 moved 568 LOC of internal/budget primitives (registry / enforcement / ledger / normalize-usage / calendar-window) from sdk-core. sdk-core retains v1.x sync API copies for back-compat. |
+| `@theokit/sdk-handoff` | **0.1.0** ✓ | Inter-agent dispatch via plugin protocol. `Handoff.asPlugin()` + lazy-loaded `internal/tool-injector`. Extracted Phase 4 (iter 6). attw clean across all 4 resolvers (iter 38 typesVersions fix). |
 | `@theokit/orm` | 0.1.0 | Lightweight ORM atop better-sqlite3. |
 | `@theokit/di` | 0.1.0 | Dependency-injection container. |
 | `@theokit/di-agent` | 0.1.0 | Decorator-driven Agent factory atop `@theokit/di`. |
@@ -65,16 +65,22 @@ See `.claude/knowledge-base/plans/sdk-2-0-progress.md` for the running progress 
 | Phase | Task | Status |
 |---|---|---|
 | 0 | Baseline subsystem map + bundle snapshot | ✅ DONE |
-| 1 | Extract `@theokit/sdk-memory` | ⏳ pending |
-| 2 | Extract `@theokit/sdk-budget` | ⏳ pending |
+| 1 | Extract `@theokit/sdk-memory` (functional + cohort + Stage 2b kernel flip) | 🟢 functional shipped; Stage 3 source-move pending (iter 30 target) |
+| 2 | Extract `@theokit/sdk-budget` (functional + Stage 1 physical 568 LOC) | 🟢 functional + Stage 1 physical shipped (iter 18-19) |
 | 3 | Extract `@theokit/sdk-cache` | ✅ DONE |
-| 4 | Extract `@theokit/sdk-handoff` | ⏳ pending |
+| 4 | Extract `@theokit/sdk-handoff` | ✅ DONE (iter 6 + typesVersions fix iter 38) |
 | 5 | Extract `@theokit/sdk-tools` | ✅ DONE |
-| 6 | Rename `@theokit/sdk` → `@theokit/sdk-core@2.0.0` | ⏳ pending |
-| 7 | Cohort bump 21 dependent packages | ⏳ pending |
-| 8 | Codemod jscodeshift | ✅ DONE |
+| 6 | Rename `@theokit/sdk` → `@theokit/sdk-core@2.0.0` | ⏳ pending (gated on bundle target after Stage 3) |
+| 7 | Cohort bump 21 dependent packages | ⏳ pending (operator step; engineering blockers cleared iter 38) |
+| 8 | Codemod jscodeshift | ✅ DONE (iter 39 added Memory + Budget map entries) |
 | 9 | Documentation (this file) | ✅ in progress |
 | 10 | CI bundle budget gate | ✅ DONE |
+
+For granular state see:
+- `.claude/knowledge-base/plans/sdk-2-0-phase-1-2-adr.md` — architectural decisions
+- `.claude/knowledge-base/plans/sdk-2-0-phase-1-physical-progress.md` — iter-by-iter Stage 1/2 log
+- `.claude/knowledge-base/plans/sdk-2-0-phase-1-stage-3-source-move-plan.md` — file-by-file Stage 3 plan
+- `.claude/knowledge-base/plans/sdk-2-0-cohort-readiness-audit.md` — Phase 7 publish-readiness audit
 
 ## License
 
