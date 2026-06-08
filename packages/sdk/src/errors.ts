@@ -1,3 +1,4 @@
+import { redactSecrets } from "./internal/security/redact.js";
 import type { RunOperation } from "./types/run.js";
 
 /**
@@ -349,11 +350,70 @@ export class AgentRunError extends TheokitAgentError {
   }
 
   /**
-   * D313: alias for `metadata.raw`. Provider response body for debugging.
-   * Available but NEVER serialized into `.message` (anti-leak invariant).
+   * D313 + T1.5: alias for `metadata.raw`. Provider response body for
+   * debugging. T1.5 wraps the value in `redactSecrets` at the getter
+   * boundary so secret-shaped substrings (`sk-...`, Bearer JWTs, etc.) are
+   * stripped before reaching the caller. Available but NEVER serialized
+   * into `.message` (anti-leak invariant).
    */
   get providerError(): unknown {
-    return this.metadata?.raw;
+    const raw = this.metadata?.raw;
+    if (raw === undefined) return undefined;
+    if (typeof raw === "string") return redactSecrets(raw);
+    // Non-string raw (object/buffer) — stringify then redact.
+    try {
+      return redactSecrets(JSON.stringify(raw));
+    } catch {
+      return redactSecrets(String(raw));
+    }
+  }
+
+  /**
+   * T1.5 — sanitized JSON form. `metadata.raw` is OMITTED by default; opt
+   * in via `THEOKIT_DEBUG_RAW_ERRORS=1` to surface the (redacted) raw
+   * payload for diagnostics. Every other field stays accessible.
+   *
+   * The single env-var gate is read each call so operators can toggle at
+   * runtime without restarting the process.
+   */
+  toJSON(): Record<string, unknown> {
+    const json: Record<string, unknown> = {
+      name: this.name,
+      message: this.message,
+      isRetryable: this.isRetryable,
+    };
+    addOptionalFields(json, this);
+    const safeMeta = sanitizeMetadata(this.metadata);
+    if (safeMeta !== undefined) json.metadata = safeMeta;
+    return json;
+  }
+}
+
+function addOptionalFields(json: Record<string, unknown>, err: AgentRunError): void {
+  if (err.code !== undefined) json.code = err.code;
+  if (err.provider !== undefined) json.provider = err.provider;
+  if (err.requestId !== undefined) json.requestId = err.requestId;
+  if (err.conversationId !== undefined) json.conversationId = err.conversationId;
+  if (err.raw !== undefined) json.raw = redactSecrets(err.raw);
+}
+
+function sanitizeMetadata(meta: ErrorMetadata | undefined): ErrorMetadata | undefined {
+  if (meta === undefined) return undefined;
+  const { raw, ...rest } = meta;
+  const debugRaw = process.env.THEOKIT_DEBUG_RAW_ERRORS === "1";
+  if (debugRaw && raw !== undefined) {
+    const redactedRaw =
+      typeof raw === "string" ? redactSecrets(raw) : redactSecrets(safeStringify(raw));
+    return { ...rest, raw: redactedRaw } as ErrorMetadata;
+  }
+  return rest as ErrorMetadata;
+}
+
+function safeStringify(value: unknown): string {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
   }
 }
 
