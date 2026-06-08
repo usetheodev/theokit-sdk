@@ -22,18 +22,21 @@ Run for each package:
 | `@theokit/sdk-budget` | 0.1.0 | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
 | `@theokit/sdk-cache` | 0.1.0 | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
 | `@theokit/sdk-handoff` | 0.1.0 (main) | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
-| `@theokit/sdk-handoff/internal/tool-injector` | sub-path | — | 💀 NoRes¹ | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
+| `@theokit/sdk-handoff/internal/tool-injector` | sub-path | — | 🟢¹ | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
 | `@theokit/sdk-tools` | 0.1.0 | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
 
-¹ sdk-handoff's `./internal/tool-injector` sub-path fails node10
-resolution. **NOT a blocker.** node10 was EOL'd in 2019 and the
-package declares `engines.node: ">=22.12.0"` — node10 was never a
-supported runtime. The failure surfaces because attw runs node10
-even when engines explicitly excludes it.
-
-**Resolution decision:** accept the known limitation; document it
-here. A future iter MAY add a `typesVersions` field to silence the
-warning, but it's cosmetic only — no real consumer impact.
+¹ **CLOSED iter 38.** sdk-handoff's `./internal/tool-injector` sub-path
+previously failed node10 resolution. Fixed by adding a `typesVersions`
+field to sdk-handoff's package.json:
+```json
+"typesVersions": {
+  "*": {
+    "internal/tool-injector": ["./dist/internal/tool-injector.d.ts"]
+  }
+}
+```
+Now the sub-path resolves cleanly under ALL attw axes (node10 +
+node16-CJS/ESM + bundler).
 
 ## What this means for Phase 7 (cohort publish)
 
@@ -43,8 +46,7 @@ node10 warning on a sub-path of one package is accepted.
 
 Phase 7 prereqs:
 - ✅ `publint` clean on all 5
-- ✅ `attw` clean on modern resolvers (node16+, bundler)
-- ⚠️ `attw` node10 warning on one sub-path — accepted per package's `engines.node`
+- ✅ `attw` clean on ALL resolvers (node10, node16-CJS, node16-ESM, bundler) — closed iter 38 via typesVersions fix
 - ⏳ npm auth + workspace credential setup (operator step, not engineering)
 - ⏳ Version bump alignment (all at 0.1.0 today; the plan's D6 calls
   for synchronized major bump in 2.0.0 cohort — that lands during the

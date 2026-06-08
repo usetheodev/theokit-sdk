@@ -202,7 +202,11 @@ describe("PoolAwareLlmClient (T3.1)", () => {
           },
         }),
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    // T3.9 — opt out of the new waitForAvailable storm-prevention loop
+    // (waitForAvailableMs = 0) so this test keeps the throw-fast contract
+    // it was written against. The wait path has its own coverage in
+    // tests/internal/llm/credential-pool-wait-for-available.test.ts.
+    const client = new PoolAwareLlmClient(pool, factory, 0);
     await expect(
       drain(client.stream({} as LlmRequest, new AbortController().signal)),
     ).rejects.toThrow(CredentialPoolExhaustedError);
@@ -313,7 +317,8 @@ describe("PoolAwareLlmClient (T3.1)", () => {
           },
         }),
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    // T3.9 — opt out of waitForAvailable (see comment in dry-test above).
+    const client = new PoolAwareLlmClient(pool, factory, 0);
     try {
       await drain(client.stream({} as LlmRequest, new AbortController().signal));
       expect.fail("should have thrown");
