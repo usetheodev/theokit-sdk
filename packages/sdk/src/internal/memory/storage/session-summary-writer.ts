@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic } from "../atomic-write.js";
+import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { redactSecrets } from "../types.js";
 import { memoryDir } from "./markdown-store.js";
 
