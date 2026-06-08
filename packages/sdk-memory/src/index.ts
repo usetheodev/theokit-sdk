@@ -50,6 +50,21 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 69: twenty-sixth Stage 3 file move — lance-memory-adapter (131 LOC).
+// `LanceMemoryAdapter` wraps `LanceIndex` (iter 68) to expose the
+// `MemoryIndex` contract (iter 50). Drop-in replacement for the
+// SQLite IndexManager when consumers select `backend: "lance"`.
+// `sync()` is no-op (returns frozen empty SyncResult); `search()`
+// uses vector-only (textScore=0, vectorScore=score, 200-char
+// snippet truncation; namespace defaults to "default" pending
+// v1.5 SearchOptions.namespace surface); `status()` reports
+// `backend: "hybrid"` with zero counts (consumers needing exact
+// row count call `unwrap().countFacts()` directly). `unwrap()`
+// returns the inner LanceIndex for advanced callers (migration
+// tool, benchmark script). Future `index-manager-dispatch.ts` move
+// composes with this as sibling.
+export * from "./internal/lance-memory-adapter.js";
+
 // Iter 68: twenty-fifth Stage 3 file move — lance-index (273 LOC).
 // LanceDB-backed alternative memory index per ADR D43 — opt-in via
 // `Memory.create({ index: { backend: "lance" } })`; SQLite remains
