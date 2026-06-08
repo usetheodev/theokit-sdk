@@ -128,6 +128,26 @@
         "default": "./dist/subscription/index.cjs"
       }
     },
+    "./internal/persistence": {
+      "import": {
+        "types": "./dist/internal/persistence/index.d.ts",
+        "default": "./dist/internal/persistence/index.js"
+      },
+      "require": {
+        "types": "./dist/internal/persistence/index.d.cts",
+        "default": "./dist/internal/persistence/index.cjs"
+      }
+    },
+    "./internal/plugins": {
+      "import": {
+        "types": "./dist/internal/plugins/index.d.ts",
+        "default": "./dist/internal/plugins/index.js"
+      },
+      "require": {
+        "types": "./dist/internal/plugins/index.d.cts",
+        "default": "./dist/internal/plugins/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [

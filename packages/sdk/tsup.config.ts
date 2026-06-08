@@ -13,6 +13,12 @@ export default defineConfig({
     "server/auth/index": "src/server/auth/index.ts",
     "server/errors-envelope": "src/server/errors-envelope.ts",
     "subscription/index": "src/subscription/index.ts",
+    // EC-1 absorbed (SDK 2.0 plan T1.1): internal/persistence + internal/plugins
+    // are publicly accessible sub-paths used by extracted packages (sdk-memory,
+    // sdk-cache, sdk-handoff) for shared persistence primitives and the plugin
+    // contract. Documented as "internal API — semver-exempt" in README.
+    "internal/persistence/index": "src/internal/persistence/index.ts",
+    "internal/plugins/index": "src/internal/plugins/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)

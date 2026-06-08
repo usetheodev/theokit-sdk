@@ -41,26 +41,37 @@ describe("SDK 2.0 baseline artifacts (Phase 0 / T0.1)", () => {
     expect(matches.length).toBeGreaterThanOrEqual(17);
   });
 
-  it("test_baseline_bundle_md_has_all_subpaths — bundle baseline lists every exports sub-path from package.json", () => {
+  it("test_baseline_bundle_md_has_all_subpaths — bundle baseline lists every exports sub-path from the 1.7.0 snapshot", () => {
     expect(existsSync(bundlePath)).toBe(true);
     const content = readFileSync(bundlePath, "utf-8");
 
-    const pkg = JSON.parse(
-      readFileSync(resolve(repoRoot, "packages", "sdk", "package.json"), "utf-8"),
-    ) as { exports: Record<string, unknown> };
+    // Frozen snapshot of `packages/sdk/package.json` `exports` keys as they
+    // existed at @theokit/sdk@1.7.0 (measured 2026-06-07). NOT read from
+    // the live package.json because the SDK 2.0 work adds sub-paths during
+    // execution (e.g., `./internal/persistence` for sdk-cache + sdk-memory).
+    // The baseline must reflect the PRE-split state.
+    const historicalSubpaths = [
+      ".",
+      "./cron",
+      "./errors",
+      "./eval",
+      "./package.json",
+      "./path-safety",
+      "./server/auth",
+      "./server/errors-envelope",
+      "./subscription",
+      "./task-store",
+      "./tools",
+      "./workflow",
+    ];
 
-    const subpaths = Object.keys(pkg.exports);
-    expect(subpaths.length).toBeGreaterThanOrEqual(11);
+    expect(historicalSubpaths.length).toBe(12);
 
-    for (const sub of subpaths) {
-      // The doc may render a sub-path in a markdown code-span like `./cron`.
-      // We require the literal sub-path string (between backticks OR plain)
-      // to appear somewhere in the file.
+    for (const sub of historicalSubpaths) {
       const found = content.includes(sub);
-      expect(
-        found,
-        `sub-path ${sub} from package.json exports is missing from bundle baseline`,
-      ).toBe(true);
+      expect(found, `sub-path ${sub} from the 1.7.0 snapshot is missing from bundle baseline`).toBe(
+        true,
+      );
     }
   });
 

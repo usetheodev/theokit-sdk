@@ -21,6 +21,9 @@ export {
   type MemoryProviderFactory,
   type Plugin,
   type PluginContext,
+  type PostAssistantReplyContext,
   type PreToolCallContext,
   type PreToolCallDecision,
+  type PreUserSendContext,
+  type PreUserSendResult,
 } from "./types.js";
