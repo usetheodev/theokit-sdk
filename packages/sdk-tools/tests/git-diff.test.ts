@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createGitDiffTool } from "../../src/tools/git-diff.js";
+import { createGitDiffTool } from "../src/git-diff.js";
 
 let projectRoot: string;
 

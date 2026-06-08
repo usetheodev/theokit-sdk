@@ -26,9 +26,13 @@ export async function* parseSseStream(
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8");
   const state: ParserState = { buffer: "", event: "message", data: "" };
+  let aborted = signal.aborted;
   try {
     while (true) {
-      if (signal.aborted) return;
+      if (signal.aborted) {
+        aborted = true;
+        return;
+      }
       const { value, done } = await reader.read();
       if (done) break;
       state.buffer += decoder.decode(value, { stream: true });
@@ -36,6 +40,18 @@ export async function* parseSseStream(
     }
     if (state.data.length > 0) yield { event: state.event, data: state.data };
   } finally {
+    // T3.2 — on abort, cancel the underlying body stream so the upstream
+    // HTTP connection's TCP socket closes (otherwise CLOSE_WAIT accumulates
+    // and the T6.2 load test fails). cancel() takes the reader's lock and
+    // returns the lock to the body; we swallow any cancel-time error per
+    // ADR D34's safe-exporter contract (telemetry never propagates).
+    if (aborted || signal.aborted) {
+      try {
+        await reader.cancel();
+      } catch {
+        // best-effort — already cancelled OR upstream closed
+      }
+    }
     releaseReader(reader);
   }
 }

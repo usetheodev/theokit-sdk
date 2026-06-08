@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import * as Tools from "../../src/tools/index.js";
+import * as Tools from "../src/index.js";
 
 /**
  * Smoke test pinning the public surface of the `@theokit/sdk/tools` sub-export.
@@ -9,7 +9,7 @@ import * as Tools from "../../src/tools/index.js";
  *
  *   import { createReadFileTool, createListDirTool, createSearchTextTool } from "@theokit/sdk/tools";
  *
- * This test guards against accidental rename / removal in `src/tools/index.ts`.
+ * This test guards against accidental rename / removal in `src/index.ts`.
  */
 
 describe("@theokit/sdk/tools — sub-export barrel", () => {

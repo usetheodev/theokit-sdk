@@ -25,17 +25,17 @@
  */
 
 import { type FileHandle, open } from "node:fs/promises";
-import { z } from "zod";
+import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "../define-tool.js";
+import { defineTool } from "@theokit/sdk";
+import { z } from "zod";
 import {
   assertNoSymlinkEscape,
   ForbiddenPathError,
   isForbiddenPath,
   PathTraversalError,
   safePathJoin,
-} from "../internal/security/path-guard.js";
-import type { CustomTool } from "../types/agent.js";
+} from "./internal/path-guard.js";
 
 /** Max single-file read size, in bytes. 5 MB ceiling — enough for any source file. */
 const MAX_FILE_SIZE = 5 * 1024 * 1024;

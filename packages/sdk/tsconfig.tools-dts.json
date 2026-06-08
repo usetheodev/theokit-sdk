@@ -10,13 +10,13 @@
     "skipLibCheck": true
   },
   "include": [
-    "src/tools/**/*",
     "src/path-safety.ts",
     "src/task-store.ts",
     "src/internal/task/store.ts",
     "src/internal/persistence/**/*",
     "src/internal/plugins/**/*",
     "src/internal/observability/**/*",
+    "src/internal/security/**/*",
     "src/errors.ts",
     "src/agent.ts",
     "src/agent-factory.ts",

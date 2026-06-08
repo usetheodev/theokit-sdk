@@ -25,17 +25,17 @@
 import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative as relativePath } from "node:path";
-import { z } from "zod";
+import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "../define-tool.js";
+import { defineTool } from "@theokit/sdk";
+import { z } from "zod";
 import {
   assertNoSymlinkEscape,
   ForbiddenPathError,
   isForbiddenPath,
   PathTraversalError,
   safePathJoin,
-} from "../internal/security/path-guard.js";
-import type { CustomTool } from "../types/agent.js";
+} from "./internal/path-guard.js";
 
 const DEFAULT_MAX_MATCHES = 100;
 const DEFAULT_MAX_FILE_SIZE = 1024 * 1024; // 1 MB

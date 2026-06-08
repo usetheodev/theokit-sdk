@@ -1,0 +1,80 @@
+# @theokit/sdk-tools
+
+Built-in tools for `@theokit/sdk` agents. File system, git, subprocess, search-text, vitest runner. Each tool is a factory that returns a `CustomTool` ready to drop into `Agent.create({ tools: [...] })`.
+
+Extracted from `@theokit/sdk@1.7.0` as part of the SDK 2.0 package split.
+
+## Install
+
+```bash
+pnpm add @theokit/sdk @theokit/sdk-tools
+
+# Optional peers if you use the corresponding tool:
+pnpm add simple-git    # for createGitDiffTool
+pnpm add vitest        # for createRunVitestTool
+```
+
+## Quick start
+
+```typescript
+import { Agent } from "@theokit/sdk";
+import { createReadFileTool, createListDirTool, createSearchTextTool } from "@theokit/sdk-tools";
+
+const agent = await Agent.create({
+  model: { id: "openai/gpt-4o-mini" },
+  tools: [
+    createReadFileTool({ cwd: process.cwd() }),
+    createListDirTool({ cwd: process.cwd() }),
+    createSearchTextTool({ cwd: process.cwd() }),
+  ],
+});
+
+await agent.send("List the TypeScript files in src/ and read the largest one");
+```
+
+## Available tools
+
+| Factory | What it does | Optional peer |
+|---|---|---|
+| `createReadFileTool` | Read a file under `cwd`, with sensitive-file blocklist (`.env`, lock files, `node_modules`, `.git`). | — |
+| `createListDirTool` | List directory contents under `cwd`. Skips forbidden paths. | — |
+| `createSearchTextTool` | grep-style search across files under `cwd`. | — |
+| `createGitDiffTool` | Show git diff (staged / working tree / range). | `simple-git` |
+| `createRunVitestTool` | Run vitest with JSON reporter; return structured results. | `vitest` |
+| `createSubprocessTool` | Spawn a child process with timeout + abort + cleanup. | — |
+
+## Security guard rails
+
+All tools validate paths against the universal forbidden-path blocklist:
+
+- `.env`, `.env.<anything>` (except `.env.example`)
+- `.git/`, `node_modules/`, `.theo/`
+- Lock files (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `bun.lockb`)
+
+Sub-shell tools (`subprocess`, `git-diff`, `run-vitest`) use timeout + AbortController + spawned-process cleanup to avoid zombies.
+
+## How it fits with `@theokit/sdk`
+
+- **Foundation:** `defineTool` and `CustomTool` types come from `@theokit/sdk`.
+- **No kernel coupling:** sdk-tools never imports from `@theokit/sdk/internal/runtime` or the agent loop.
+- **Path-guard inline:** the small `isForbiddenPath` helper is inlined here (rather than importing from `@theokit/sdk/internal/security`) so sdk-tools is self-contained for the security-critical check.
+
+## Migration from `@theokit/sdk@1.x`
+
+Before (1.x):
+
+```typescript
+import { createReadFileTool } from "@theokit/sdk/tools";
+```
+
+After (2.x):
+
+```typescript
+import { createReadFileTool } from "@theokit/sdk-tools";
+```
+
+See `docs/migration/1-x-to-2-0.md` in the monorepo root.
+
+## License
+
+Apache-2.0.

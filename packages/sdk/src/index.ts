@@ -135,5 +135,10 @@ export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn 
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 // Trajectory export (ADR D139) — opt-in ShareGPT converter
 export { toShareGptTrajectory } from "./trajectory-helpers.js";
+// CustomTool type — explicit re-export so rollup-dts surfaces it in the
+// bundled .d.ts (the `export type *` indirection through `./types/index.js`
+// does not propagate to the rollup-dts output reliably). Needed by extracted
+// packages that author custom tools (e.g., @theokit/sdk-tools).
+export type { CustomTool } from "./types/agent.js";
 // Type contract
 export type * from "./types/index.js";

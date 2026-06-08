@@ -24,11 +24,11 @@
  */
 
 import { spawn } from "node:child_process";
-import { z } from "zod";
+import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "../define-tool.js";
-import { isForbiddenPath } from "../internal/security/path-guard.js";
-import type { CustomTool } from "../types/agent.js";
+import { defineTool } from "@theokit/sdk";
+import { z } from "zod";
+import { isForbiddenPath } from "./internal/path-guard.js";
 import { checkPathScope } from "./path-scope.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
 
