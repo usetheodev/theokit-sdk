@@ -50,6 +50,22 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 64: twenty-first Stage 3 file move — tools (176 LOC).
+// LLM-facing memory tools (`memory_search` + `memory_get`) per ADR D5.
+// Mirrors OpenClaw's tool surface. Each tool exposes
+// `{ name, description, inputSchema (JSON Schema), execute }`.
+// `createMemorySearchTool({ index, maxTotalChars? })` accepts an
+// already-opened MemoryIndex (from iter 50's contract). EC-10:
+// snippet+citation overhead capped at maxTotalChars (default
+// 16384) so a misbehaved index can't blow the JSON response.
+// `createMemoryGetTool({ cwd })` reads bounded excerpts via iter
+// 55's `readMemoryFileBounded`; EC-2: resolved paths that escape
+// memoryDir get rejected with typed ConfigurationError. Cross-package
+// imports: `@theokit/sdk/errors` for ConfigurationError. All other
+// imports sibling: index-manager-contract / memory-index / markdown-store
+// / reader.
+export * from "./internal/tools.js";
+
 // Iter 63: twentieth Stage 3 file move — migration (90 LOC).
 // One-shot legacy-JSON → MEMORY.md migration per ADR D8.
 // `migrateLegacyJson(cwd, config)` triggers when the per-namespace
