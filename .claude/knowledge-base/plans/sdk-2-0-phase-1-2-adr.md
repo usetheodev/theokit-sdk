@@ -51,7 +51,7 @@ These are AGENT-LOOP runtime files — replacing imports with `await import(...)
 - **BudgetTracker** is a CONSUMER-SUPPLIED, LAYERED gate that observes (`track()`) + can abort (`check()`).
 - Optional — when `Agent.create({ budgetTracker })` is absent, ZERO behavior change vs. legacy.
 
-**Status:** Functionally complete via interface inversion. Physical extraction of `Budget` class + `internal/budget/*` files to `@theokit/sdk-budget` package is deferred — it's not a functional gap, it's a packaging/bundle cleanup.
+**Status:** Functionally complete via interface inversion (iter 10-16). Cohort-ready as of iter 18+: `@theokit/sdk-budget@0.1.0` package shipped consuming the `BudgetTracker` port + a USD-cost-aware impl (`createUsdBudgetTracker`) with built-in pricing for 9 popular models. 18/18 tests GREEN; publint clean; attw 4/4 GREEN. Physical extraction of `internal/budget/*` source files (compute-cost, ledger, normalize-usage, pricing-registry, usage-accumulator, calendar-window) to the sdk-budget package is still deferred — same multi-iter character as Memory (ADR-001 physical) — but is no longer blocking the Phase 7 cohort.
 
 ## ADR-003 — Cross-extracted-package patterns (Cache / Tools / Handoff vs. Memory / Budget)
 
@@ -128,15 +128,15 @@ This pattern is cheap (5-10 min per shim) and reduces surface area for future ex
 |---|---|---|
 | 0 — Baseline | ✅ DONE (iter 1) | — |
 | 1 — Memory extract | 🟢 Functionally complete via interface (iter 18 — T1.1-T1.6) | Physical extraction of rich impl (LanceDB, embeddings, circuit-breaker) to sdk-memory (3-4 iters) — gated on updating 4 kernel runtime files to the port |
-| 2 — Budget extract | 🟢 Functionally complete via interface (iter 10-16) | Physical extraction to sdk-budget package (2-3 iters) |
+| 2 — Budget extract | 🟢 Functionally complete (iter 10-16) + cohort-ready (iter 18+ — `@theokit/sdk-budget@0.1.0` shipped) | Physical extraction of `internal/budget/*` source files (still multi-iter) |
 | 3 — Cache extract | ✅ DONE (iter 2) | — |
 | 4 — Handoff extract | ✅ DONE (iter 6) | — |
 | 5 — Tools extract | ✅ DONE (iter 3) | — |
 | 6 — Rename → sdk-core 2.0 | ⏳ Gated on bundle budget | After Phase 1 + 2 physical |
-| 7 — Cohort 21 packages | 🟢 Prep DONE (iter 9); `@theokit/sdk-memory@0.1.0` added to cohort (iter 18) | After Phase 6 |
+| 7 — Cohort 23 packages | 🟢 Prep DONE (iter 9); `@theokit/sdk-memory@0.1.0` + `@theokit/sdk-budget@0.1.0` added to cohort (iter 18+) | After Phase 6 |
 | 8 — Codemod | ✅ DONE (iter 4) | Append Memory/Budget entries when extracted |
 | 9 — Docs | ✅ DONE (iter 5) | Update status table after each extraction |
 | 10 — CI bundle gate | ✅ DONE (iter 4) | — |
 | Final — Dogfood QA | ⏳ Not started | After Phase 7 |
 
-**~5-7 more iterations** to reach full completion realistically (Phase 1 physical = 3-4 iters; Phase 2 physical = 2-3 iters; Phase 6 + 7 + dogfood = 2-3 iters).
+**~4-6 more iterations** to reach full completion realistically (Phase 1 + 2 physical source moves can be parallel/incremental; Phase 6 rename + Phase 7 cohort publish + dogfood = 2-3 iters). Both subsystems now cohort-ready; the physical source moves are bundle-size cleanup, not functional gaps.
