@@ -50,6 +50,17 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 62: nineteenth Stage 3 file move — session-loader (45 LOC).
+// Session summary discovery per ADR D20. Mirrors iter 57's
+// `wiki-loader` shape: scans `.theokit/memory/sessions/*.md` and
+// emits `{absolutePath, relPath}` records that future indexer moves
+// tag with `source="sessions"` for `memory_search { corpus: "sessions" }`
+// filter. `discoverSessionFiles` + `SessionFile`. CLOSES the
+// sessions/ cluster in sdk-memory (writer iter 61 + loader this iter).
+// Dependencies all sibling: `memoryDir` from markdown-store (iter 56)
+// + `sessionsDir` from session-summary-writer (iter 61).
+export * from "./internal/session-loader.js";
+
 // Iter 61: eighteenth Stage 3 file move — session-summary-writer (88 LOC).
 // Per-run session summary writer per ADR D20. After every finished
 // run, writes a markdown summary to
