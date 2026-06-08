@@ -49,11 +49,11 @@ describe("createLocalAgentMemoryProvider (Stage 2a — iter 19+)", () => {
     expect(handle.adapter.capabilities.toolSchemas).toBe(true);
   });
 
-  it("test_buildTools_returns_empty_array_in_stage_2a", async () => {
-    // Documented gap: Stage 2a's adapter returns [] from buildTools.
-    // The legacy `inputs.memoryTools` path still surfaces the rich tools
-    // until Stage 2b refactors kernel call sites. Pin this contract so
-    // the gap doesn't silently change.
+  it("test_buildTools_returns_empty_when_memory_disabled", async () => {
+    // With memory.enabled !== true (test default), ensureTools()
+    // returns undefined → toolsCache stays unset → adapter surfaces
+    // []. Once Stage 3 ships, the rich impl will be in sdk-memory
+    // and this path will be exercised with memory enabled too.
     const provider = createLocalAgentMemoryProvider({
       agentOptions: STUB_AGENT_OPTIONS,
       workspaceCwd: "/tmp/theokit-test",
@@ -62,6 +62,45 @@ describe("createLocalAgentMemoryProvider (Stage 2a — iter 19+)", () => {
     const handle = await provider.init({ cwd: "/tmp/theokit-test" });
     const tools = provider.buildTools(handle, {} as SDKAgent);
     expect(tools).toEqual([]);
+  });
+
+  it("test_buildTools_reads_from_LocalAgentMemory_cache_when_present", async () => {
+    // When LocalAgentMemory's toolsCache is populated, the adapter
+    // surfaces the SAME tools via buildTools(). Stage 2b — iter 19+
+    // closed the previous Stage 2a gap (where buildTools always
+    // returned []).
+    //
+    // We synthesize an enabled-memory scenario by injecting a stub
+    // toolsCache directly onto the underlying LocalAgentMemory instance
+    // via the adapter's handle. This avoids needing IndexManager.open()
+    // (which requires fs / lancedb). The contract being tested is just
+    // the adapter's translation layer, not the rich memory subsystem.
+    const provider = createLocalAgentMemoryProvider({
+      agentOptions: STUB_AGENT_OPTIONS,
+      workspaceCwd: "/tmp/theokit-test",
+      agentId: "test-agent",
+    });
+    const handle = await provider.init({ cwd: "/tmp/theokit-test" });
+    // Reach into the handle's adapter state via the symbol slot.
+    const HANDLE_KEYS = Object.getOwnPropertySymbols(handle);
+    const stateSym = HANDLE_KEYS.find((s) => s.toString().includes("local-agent-memory-provider"));
+    if (stateSym === undefined) throw new Error("adapter state symbol not found");
+    const state = handle[stateSym] as { glue: { getCachedTools(): unknown } };
+    // Inject a stub tool into the LocalAgentMemory's private toolsCache
+    // (the `getCachedTools()` accessor reads from it).
+    const stubTool = {
+      name: "memory_search",
+      description: "search memory",
+      inputSchema: { type: "object" },
+      execute: async () => "{}",
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: test reaches private field
+    (state.glue as any).toolsCache = [stubTool];
+    const tools = provider.buildTools(handle, {} as SDKAgent);
+    expect(tools.length).toBe(1);
+    expect(tools[0]?.name).toBe("memory_search");
+    expect(tools[0]?.description).toBe("search memory");
+    expect(typeof tools[0]?.handler).toBe("function");
   });
 
   it("test_runActivePass_returns_empty_facts_when_memory_disabled", async () => {
