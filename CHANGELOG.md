@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — NUL byte rejection across path-guard primitives (T5.5)
+
+- **Workspace impact**: `@theokit/sdk` consumers calling
+  `safePathJoin`, `assertNoSymlinkEscape`, or `sanitizeIdentifier`
+  (directly OR transitively via memory/persistence/runtime sinks)
+  now get explicit NUL (`\x00`) + C0/DEL control-character
+  rejection at every entrypoint. The pre-T5.5 generic "invalid
+  characters" diagnostic from `sanitizeIdentifier` is replaced by
+  a precise `<nul-byte>` / `<control-char-0x..>` label via a typed
+  `PathTraversalError`. Existing clean inputs are unaffected; only
+  prompt-injection / fuzz-shaped inputs see the new rejection
+  path.
+- **Iter 21** of halt-loop `sdk-superiority-2026-06-07`. Closes
+  DR6 finding #5. Real-LLM fuzzed path-input proof lands in T6.x.
+
+### Operational — iter 21 stop-hook acknowledgement
+
+- Same mixed-authorship hygiene as iters 16-20. Staged only T5.5
+  files (`packages/sdk/src/internal/security/path-guard.ts`,
+  `packages/sdk/tests/internal/security/path-guard.test.ts`
+  assertion update, `packages/sdk/tests/internal/security/path-guard-nul-rejection.test.ts`,
+  both CHANGELOGs, contract row, progress JSON).
+
 ### Operational — iter 20 post-housekeeping stop-hook acknowledgement
 
 - Working tree continues to carry unstaged production-source changes
