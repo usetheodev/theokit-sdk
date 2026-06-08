@@ -28,7 +28,7 @@
       "sha_artifacts": "d465b6e+1570d8c",
       "note": "errors.ts widening + openai mapper fix + CHANGELOG swept by sdk-2-0 session at d465b6e; my follow-up 1570d8c re-added the test file."
     },
-    { "id": "T3.8", "status": "committed", "sha": "TBD" }
+    { "id": "T3.8", "status": "committed", "sha": "386fdd9" }
   ],
   "blocked_count": 1,
   "partial_count": 2,
