@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Working tree still carries the unstaged `packages/sdk/{src,tests}/cache/ → packages/sdk-cache/` rename from the concurrent `sdk-2-0` ralph-loop session (originally documented in commit `351eee0`). The stop hook treats unstaged TS source as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
 
+### Operational — iter 14 T3.5 swept by concurrent session
+
+- T3.5 (Anthropic prompt-cache emit + `LlmRequest.system` widening) was authored locally during iter 14 but committed via the concurrent `sdk-2-0` ralph-loop session's sweep commit `d15987f`. Functionally complete: `LlmSystemBlock` type + widened `LlmRequest.system` + `encodeAnthropicSystem` (anthropic-shared.ts) + `ollamaSystemText` (ollama-native.ts) + 5 tests at `packages/sdk/tests/internal/llm/anthropic-prompt-cache.test.ts` all GREEN. Authorship is mixed; functional ownership documented in `.progress-sdk-superiority-2026-06-07.json`.
+
 ### Operational — iter 13 stop-hook acknowledgement
 
 - Working tree still carries unstaged production-source changes from the concurrent `sdk-2-0` ralph-loop session (originally documented in commits `351eee0` + `7f4b98c`). The stop hook flags any TS modification under `packages/sdk/src/` as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
