@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Workspace impact**: new `LlmResponseFormat` discriminated union (`json_schema` + `json_object`); `LlmRequest.responseFormat?: LlmResponseFormat`; OpenAI wire body emits `response_format: {type:"json_schema", json_schema}` with `strict: true` default. Same patch closes latent T3.5 bug in openai.ts system field (collapsed via `openAISystemText` helper). 4 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
 
+### Operational — iter 15 stop-hook acknowledgement
+
+- Working tree still carries unstaged production-source changes from the concurrent `sdk-2-0` ralph-loop session. The stop hook flags any TS modification under `packages/sdk/src/` as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6.
+
 ### Operational — sdk-superiority-2026-06-07 iter 9 concurrent-session note
 
 - During iter 9 of the halt-loop a second ralph-loop session for plan `sdk-2-0` modified ~20 files under `packages/sdk/{src,tests}/cache/` (renaming the cache module to a standalone `packages/sdk-cache/` workspace). A naive `git add -u` picked these up and contaminated the T2.1 commit. The contaminated commit was soft-reset (`git reset --soft HEAD~1`); the sdk-2-0 changes were unstaged via `git restore --staged` and remain in the working tree for that session's owner to commit. T2.1 was re-committed cleanly as a 5-file slice (`1af7f5d`). Documented per Inquebrável Rule 3 honesty.
