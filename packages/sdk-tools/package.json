@@ -60,6 +60,8 @@
     "typescript": "^5.7.2",
     "vitest": "^4.1.8",
     "@theokit/sdk": "workspace:*",
+    "@theokit/sdk-cache": "workspace:*",
+    "@theokit/sdk-handoff": "workspace:*",
     "zod": "^4.0.0"
   },
   "publishConfig": {
