@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 import {
   AuthenticationError,
   NetworkError,
-  TheokitAgentError,
+  type TheokitAgentError,
 } from "../../../../src/errors.js";
 import { mapAnthropicError } from "../../../../src/internal/errors/mappers/anthropic.js";
 import { mapOpenAICompatibleError } from "../../../../src/internal/errors/mappers/openai-compatible.js";
