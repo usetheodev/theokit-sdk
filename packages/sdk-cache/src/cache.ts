@@ -26,20 +26,20 @@
  * @public
  */
 
+import {
+  definePlugin,
+  type Plugin,
+  type PluginContext,
+  type PostAssistantReplyContext,
+  type PreUserSendContext,
+  type PreUserSendResult,
+} from "@theokit/sdk";
+import { PersistenceSchema } from "@theokit/sdk/internal/persistence";
 import { z } from "zod";
-import { type LookupableStore, performLookup } from "./internal/cache/lookup.js";
-import { InMemoryCacheStore } from "./internal/cache/store.js";
-import { performStore } from "./internal/cache/store-handler.js";
-import { JsonFileCacheStore } from "./internal/cache/store-json.js";
-import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
-import type {
-  Plugin,
-  PluginContext,
-  PostAssistantReplyContext,
-  PreUserSendContext,
-  PreUserSendResult,
-} from "./internal/plugins/types.js";
-import { definePlugin } from "./internal/plugins/types.js";
+import { type LookupableStore, performLookup } from "./internal/lookup.js";
+import { InMemoryCacheStore } from "./internal/store.js";
+import { performStore } from "./internal/store-handler.js";
+import { JsonFileCacheStore } from "./internal/store-json.js";
 import type {
   CacheEmbedderRuntime,
   CachePersistenceOptions,

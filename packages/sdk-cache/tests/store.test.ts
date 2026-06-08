@@ -4,8 +4,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { InMemoryCacheStore } from "../../src/internal/cache/store.js";
-import type { CacheEntry } from "../../src/types/cache.js";
+import { InMemoryCacheStore } from "../src/internal/store.js";
+import type { CacheEntry } from "../src/types/cache.js";
 
 function makeEntry(p: Partial<CacheEntry> & { key: string }): CacheEntry {
   const now = Date.now();

@@ -16,8 +16,8 @@
 
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { CacheEntry, CacheStats } from "../../types/cache.js";
-import { atomicWriteText } from "../persistence/atomic-write.js";
+import { atomicWriteText } from "@theokit/sdk/internal/persistence";
+import type { CacheEntry, CacheStats } from "../types/cache.js";
 import { type CacheStore, InMemoryCacheStore } from "./store.js";
 
 interface SerializedSnapshot {

@@ -5,8 +5,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseTtlMs } from "../../src/internal/cache/ttl.js";
-import { CacheInvalidTtlError } from "../../src/types/cache.js";
+import { parseTtlMs } from "../src/internal/ttl.js";
+import { CacheInvalidTtlError } from "../src/types/cache.js";
 
 describe("parseTtlMs", () => {
   it("parses seconds suffix", () => {

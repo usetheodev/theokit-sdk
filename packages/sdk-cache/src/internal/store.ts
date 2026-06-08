@@ -12,7 +12,7 @@
  * @internal
  */
 
-import type { CacheEntry, CacheStats } from "../../types/cache.js";
+import type { CacheEntry, CacheStats } from "../types/cache.js";
 import { cosineDistance } from "./cosine.js";
 
 export interface CacheStore {

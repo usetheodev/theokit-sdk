@@ -37,6 +37,7 @@ const targets = [
   // EC-1 absorbed: internal sub-paths exposed for extracted packages.
   join(DIST, "internal", "persistence"),
   join(DIST, "internal", "plugins"),
+  join(DIST, "internal", "observability"),
 ];
 
 for (const target of targets) {

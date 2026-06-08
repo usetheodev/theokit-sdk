@@ -7,7 +7,7 @@
  * @internal
  */
 
-import type { CacheEmbedderRuntime } from "../../types/cache.js";
+import type { CacheEmbedderRuntime } from "../types/cache.js";
 import type { InMemoryCacheStore } from "./store.js";
 import type { JsonFileCacheStore } from "./store-json.js";
 
