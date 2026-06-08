@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Working tree still carries the unstaged `packages/sdk/{src,tests}/cache/ → packages/sdk-cache/` rename from the concurrent `sdk-2-0` ralph-loop session (originally documented in commit `351eee0`). The stop hook treats unstaged TS source as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
 
+### Added — `@theokit/sdk` T3.4: backoff/jitter helper module (partial)
+
+- **Workspace impact**: new `internal/llm/retry.ts` exposes `computeBackoffMs` (full-jitter AWS Brooker 2015 pattern) + `sleepWithAbort` (abort-aware Promise sleep). 10 new tests. Wiring into pool-aware-client deferred — existing test suite uses `vi.useFakeTimers()` and needs separate refactor.
+
 ### Fixed — `@theokit/sdk` T3.3: SSE/NDJSON body cancels on every exit path (CRITICAL)
 
 - **Workspace impact**: extends T3.2 cancel-on-abort to also cover consumer break + throw paths. `reader.cancel()` is now unconditional in `parseSseStream` / `parseNdjsonStream` finally blocks. 2 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
