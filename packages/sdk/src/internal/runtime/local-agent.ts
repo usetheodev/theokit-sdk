@@ -30,6 +30,7 @@ import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstra
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
+import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
 import {
@@ -108,6 +109,18 @@ export class LocalAgent implements SDKAgent {
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
   private readonly memoryGlue: LocalAgentMemory;
+  /**
+   * SDK 2.0 Phase 1 physical Stage 2b — iter 19+: pre-built adapter
+   * wrapping `memoryGlue` as a MemoryProvider impl. Constructed eagerly
+   * so future iters can flip `inputs.memoryProvider` to default to
+   * THIS adapter when consumer didn't supply one. NOT YET used by
+   * `send()` — the kernel flip lands in Stage 2b proper after equivalence
+   * regression coverage.
+   *
+   * Accessible to tests via `_defaultMemoryProviderForLoop()` helper.
+   * @internal
+   */
+  private readonly defaultMemoryProviderForLoop: ReturnType<typeof createLocalAgentMemoryProvider>;
   /** T4.1 — PluginManager for code plugins (kind: general/model-provider/memory). @internal */
   private readonly pluginManagerCode: PluginManager = new PluginManager();
   /** Personality presets — lazy-loaded on first `usePersonality` call (ADRs D160-D164). @internal */
@@ -141,6 +154,17 @@ export class LocalAgent implements SDKAgent {
 
     this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
     this.memoryGlue = new LocalAgentMemory(options, this.workspaceCwd, this.agentId);
+    // SDK 2.0 Phase 1 physical Stage 2b — iter 19+: build the adapter
+    // alongside the legacy glue. Same underlying rich impl; the adapter
+    // exposes it through the MemoryProvider port. NOT YET wired into
+    // send() — agent-loop still consumes `memoryGlue` directly via
+    // `inputs.memoryTools` + `activeMemorySummary` concat path.
+    this.defaultMemoryProviderForLoop = createLocalAgentMemoryProvider({
+      agentOptions: options,
+      workspaceCwd: this.workspaceCwd,
+      agentId: this.agentId,
+      ...(this._telemetry !== undefined ? { telemetry: this._telemetry } : {}),
+    });
     this.personalityStore = new PersonalityStore(this.workspaceCwd);
     // ADR D141 / D142: `agent.memory.*` direct API over plugin-aggregated adapters.
     // Built unconditionally; `requireAdapters` throws ConfigurationError when called
