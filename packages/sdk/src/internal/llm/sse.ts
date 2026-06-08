@@ -26,33 +26,53 @@ export async function* parseSseStream(
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8");
   const state: ParserState = { buffer: "", event: "message", data: "" };
-  let aborted = signal.aborted;
   try {
-    while (true) {
-      if (signal.aborted) {
-        aborted = true;
-        return;
-      }
-      const { value, done } = await reader.read();
-      if (done) break;
-      state.buffer += decoder.decode(value, { stream: true });
+    for await (const chunk of readChunks(reader, signal)) {
+      state.buffer += decoder.decode(chunk, { stream: true });
       for (const record of drainCompleteRecords(state)) yield record;
     }
     if (state.data.length > 0) yield { event: state.event, data: state.data };
   } finally {
-    // T3.2 — on abort, cancel the underlying body stream so the upstream
-    // HTTP connection's TCP socket closes (otherwise CLOSE_WAIT accumulates
-    // and the T6.2 load test fails). cancel() takes the reader's lock and
-    // returns the lock to the body; we swallow any cancel-time error per
-    // ADR D34's safe-exporter contract (telemetry never propagates).
-    if (aborted || signal.aborted) {
-      try {
-        await reader.cancel();
-      } catch {
-        // best-effort — already cancelled OR upstream closed
-      }
-    }
+    await cancelOnAbort(reader, signal.aborted);
     releaseReader(reader);
+  }
+}
+
+/**
+ * T3.2 — yield each chunk from `reader` until `done` OR `signal.aborted`.
+ * Extracted from `parseSseStream` so its complexity stays under budget.
+ *
+ * @internal
+ */
+async function* readChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal,
+): AsyncGenerator<Uint8Array, void, void> {
+  while (true) {
+    if (signal.aborted) return;
+    const { value, done } = await reader.read();
+    if (done) return;
+    if (value !== undefined) yield value;
+  }
+}
+
+/**
+ * T3.2 — on abort, cancel the underlying body stream so the upstream HTTP
+ * connection's TCP socket closes (otherwise CLOSE_WAIT accumulates and the
+ * T6.2 load test fails). Swallows any cancel-time error per ADR D34's
+ * safe-exporter contract (telemetry never propagates).
+ *
+ * @internal
+ */
+async function cancelOnAbort(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  abortedFlag: boolean,
+): Promise<void> {
+  if (!abortedFlag) return;
+  try {
+    await reader.cancel();
+  } catch {
+    // best-effort — already cancelled OR upstream closed
   }
 }
 
