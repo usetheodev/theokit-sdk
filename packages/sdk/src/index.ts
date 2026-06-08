@@ -107,6 +107,10 @@ export type {
   MemoryProviderHandle,
   MemoryProviderInitOptions,
 } from "./internal/runtime/memory-provider.js";
+// Reference impl — pure no-op, no recall, no tools. Consumers can use
+// as fallback before @theokit/sdk-memory ships or as a worked example
+// when authoring custom providers.
+export { createNoopMemoryProvider } from "./internal/runtime/memory-provider-noop.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
