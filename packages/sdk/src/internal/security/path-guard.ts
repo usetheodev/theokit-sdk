@@ -75,12 +75,41 @@ export function safePathJoin(base: string, ...parts: string[]): string {
   if (base === "") {
     throw new Error("safePathJoin: base must be non-empty");
   }
+  // T5.5 — NUL byte + C0/DEL control char rejection at the boundary.
+  // Apply before path resolution so a malicious input never reaches
+  // `resolve` (which on some platforms behaved unexpectedly with NUL
+  // and in N-API callers historically silently truncated).
+  rejectNulAndControlChars(base, "base");
+  for (const part of parts) {
+    rejectNulAndControlChars(part, "path segment");
+  }
   const baseResolved = resolve(base);
   const target = resolve(base, ...parts);
   if (target !== baseResolved && !target.startsWith(baseResolved + sep)) {
     throw new PathTraversalError(parts.join("/"), target);
   }
   return target;
+}
+
+/**
+ * T5.5 — Reject NUL (`\x00`) and C0/DEL control characters
+ * (`\x01-\x1F`, `\x7F`) in any path-shaped or identifier-shaped input.
+ * Centralizes the check so every public path-guard / sanitize entrypoint
+ * shares the same defense.
+ *
+ * Throws `PathTraversalError` (the same shape as other path-shape
+ * rejections) so callers don't need to learn a new error class.
+ *
+ * @internal
+ */
+function rejectNulAndControlChars(input: string, role: string): void {
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+    if (code === 0x00 || (code >= 0x01 && code <= 0x1f) || code === 0x7f) {
+      const label = code === 0x00 ? "<nul-byte>" : `<control-char-0x${code.toString(16)}>`;
+      throw new PathTraversalError(`${role}: ${input}`, label);
+    }
+  }
 }
 
 /**
@@ -102,6 +131,11 @@ export function safePathJoin(base: string, ...parts: string[]): string {
  * @internal
  */
 export function assertNoSymlinkEscape(path: string, base: string): void {
+  // T5.5 — reject NUL / control chars before any FS call (a NUL byte
+  // in the path used to silently truncate at the C boundary on legacy
+  // libc — defense in depth even on modern Node).
+  rejectNulAndControlChars(path, "path");
+  rejectNulAndControlChars(base, "base");
   // Canonical base — symlinks in the base path itself are absorbed once here.
   let baseResolved: string;
   try {
@@ -313,6 +347,14 @@ export function sanitizeIdentifier(input: string, options?: { maxLen?: number })
       code: "invalid_identifier",
     });
   }
+  // T5.5 — explicit NUL / control char rejection ahead of the generic
+  // pattern check. The IDENTIFIER_PATTERN regex already excludes these
+  // (they are not in `[a-z0-9\-_]`), but routing them through the same
+  // helper used by safePathJoin gives operators a precise diagnostic
+  // ("nul-byte" / "control-char-0x..") instead of the generic
+  // "invalid characters" message — making prompt-injection traces
+  // legible per Inquebrável Rule 3.
+  rejectNulAndControlChars(input, "identifier");
   if (!IDENTIFIER_PATTERN.test(input)) {
     throw new ConfigurationError(`Identifier contains invalid characters: "${input}"`, {
       code: "invalid_identifier",
