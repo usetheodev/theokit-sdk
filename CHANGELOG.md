@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Working tree still carries the unstaged `packages/sdk/{src,tests}/cache/ → packages/sdk-cache/` rename from the concurrent `sdk-2-0` ralph-loop session (originally documented in commit `351eee0`). The stop hook treats unstaged TS source as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
 
+### Fixed — `@theokit/sdk` T3.3: SSE/NDJSON body cancels on every exit path (CRITICAL)
+
+- **Workspace impact**: extends T3.2 cancel-on-abort to also cover consumer break + throw paths. `reader.cancel()` is now unconditional in `parseSseStream` / `parseNdjsonStream` finally blocks. 2 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Fixed — `@theokit/sdk` T3.2: SSE/NDJSON abort cancels body (CRITICAL)
 
 - **Workspace impact**: SSE + Ollama NDJSON parsers now call `reader.cancel()` on abort, closing the upstream HTTP socket cleanly (eliminates CLOSE_WAIT accumulation under T6.2 load). 2 new tests. Per-package detail at `packages/sdk/CHANGELOG.md`.
