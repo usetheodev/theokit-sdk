@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T2.1: wire `validateResponse` D93 bailout
+
+- **Workspace impact**: `validateResponse` (previously orphan export, 0 production callers) now wired in `continueOrTerminate`; bailout shape triggers nudge-user-message + re-run, capped at 2 attempts. 4 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Changed — `@theokit/sdk` T1.5: redact `providerError.raw` + opt-in toJSON()
 
 - **Workspace impact**: `AgentRunError.providerError` getter now returns a redacted string (BREAKING shape change); `AgentRunError.toJSON()` omits `metadata.raw` by default, opt-in via `THEOKIT_DEBUG_RAW_ERRORS=1`. 5 new tests + 2 pre-existing tests updated.
