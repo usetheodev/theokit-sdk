@@ -32,14 +32,7 @@ const afterDir = resolve(__dirname, "fixtures", "codemod-1x", "after");
 function runCodemod(targetPath: string): { status: number | null; stderr: string } {
   const result = spawnSync(
     "npx",
-    [
-      "jscodeshift",
-      "-t",
-      codemod,
-      targetPath,
-      "--parser=tsx",
-      "--extensions=ts",
-    ],
+    ["jscodeshift", "-t", codemod, targetPath, "--parser=tsx", "--extensions=ts"],
     { cwd: repoRoot, encoding: "utf-8", timeout: 30_000 },
   );
   return { status: result.status, stderr: result.stderr ?? "" };
@@ -98,6 +91,21 @@ describe("codemod 1.x → 2.0 (Phase 8 / T8.1)", () => {
     expect(actual).toMatch(/CODEMOD: handoffs option removed in 2\.0/);
   });
 
+  it("test_codemod_memory_and_budget_imports — iter 39 map additions", () => {
+    // Verifies the Memory + Budget map entries added iter 39 to
+    // `1-x-to-2-0-map.json` actually rewrite imports correctly:
+    //   createInMemoryMarkdownProvider → @theokit/sdk-memory
+    //   createUsdBudgetTracker + facade primitives → @theokit/sdk-budget
+    const actual = applyAndRead("memory-and-budget-imports", tmpRoot);
+    const expected = readFileSync(join(afterDir, "memory-and-budget-imports.ts"), "utf-8");
+    expect(actual).toBe(expected);
+    // Spot-check the rewrites are present.
+    expect(actual).toContain('from "@theokit/sdk-memory"');
+    expect(actual).toContain('from "@theokit/sdk-budget"');
+    // The original `from "@theokit/sdk"` import should be GONE.
+    expect(actual).not.toMatch(/from\s+["']@theokit\/sdk["']/);
+  });
+
   it("test_codemod_idempotent — running on already-migrated AFTER fixture is a no-op", () => {
     // Copy after fixture to tmp, re-run codemod, expect no further change.
     const target = join(tmpRoot, "idempotent-check.ts");
@@ -129,9 +137,9 @@ describe("codemod 1.x → 2.0 (Phase 8 / T8.1)", () => {
     require("node:fs").writeFileSync(
       target,
       'import { Agent } from "@theokit/sdk";\n' +
-        'const budget = null as never;\n' +
+        "const budget = null as never;\n" +
         'const a = await Agent.create({ name: "x", model: { id: "openai/gpt-4o-mini" }, budgetTracker: budget });\n' +
-        'export { a };\n',
+        "export { a };\n",
     );
     runCodemod(target);
     const out = readFileSync(target, "utf-8");
