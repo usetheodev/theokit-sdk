@@ -85,10 +85,15 @@ function buildAdapter(state: InMemoryHandleState): MemoryAdapter {
     },
     async write(content: string | MemoryTurnMessage[], _ctx: MemoryContext): Promise<MemoryId> {
       const text = typeof content === "string" ? content : content.map((m) => m.content).join("\n");
+      // Iter 43: redact secrets before persisting. Same posture as
+      // memory_remember tool handler — secret-containing payloads
+      // submitted to MemoryAdapter.write directly should never
+      // surface verbatim in subsequent recall.
+      const safeText = Security.redact(text);
       const id = `${ADAPTER_ID}:${state.counter.next++}` as MemoryId;
       state.facts.set(id, {
         id,
-        content: text,
+        content: safeText,
         createdAt: new Date().toISOString(),
       });
       return id;
@@ -296,10 +301,17 @@ function buildMemoryRememberTool(state: InMemoryHandleState): CustomTool {
       if (content.length === 0) {
         return JSON.stringify({ ok: false, error: "empty content" });
       }
+      // Iter 43: redact secrets from the LLM-supplied content BEFORE
+      // storing in the Map. The LLM may quote a key from the user
+      // verbatim (e.g., "user said their key is sk-proj-..."); without
+      // this, that secret would persist + leak into systemPromptAdditions
+      // on subsequent runActivePass calls. Mirrors the iter 42
+      // recordSessionSummary redaction posture.
+      const safeContent = Security.redact(content);
       const id = `${ADAPTER_ID}:${state.counter.next++}` as MemoryId;
       state.facts.set(id, {
         id,
-        content,
+        content: safeContent,
         createdAt: new Date().toISOString(),
       });
       return JSON.stringify({ ok: true, id });
