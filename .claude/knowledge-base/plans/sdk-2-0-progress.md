@@ -153,11 +153,36 @@ The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory
   - Known codemod limitations
 - `packages/sdk/tests/docs-sdk-2-0.test.ts` — 11 validation tests (existence, 5 families, every package name appears, codemod snippet present, ≥4 diff blocks, budget+handoff sections present, sub-package READMEs).
 
-## Phase 2, 4, 6, 7 + Final + Phase 1 (Memory still postponed)
+## Phase 4 — Extract `@theokit/sdk-handoff`
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T4.1 — Handoff extraction + asPlugin + transitional auto-wire | ✅ DONE 2026-06-08 | `b49a6a1` | 29/29 GREEN |
+
+**Deliverables Phase 4:**
+- `packages/sdk-handoff/` (NEW package): 5.4 KB gzipped (36% under 15 KB budget).
+- Moved: handoff.ts (120 LOC) + types/handoff.ts + types/handoff-descriptor.ts (90 LOC) + internal/{dispatcher,registry,telemetry,tool-injector}.ts (491 LOC) + 4 test files (29 tests total).
+- **`Handoff.asPlugin({ targets, parentAgentId?, maxHandoffDepth? })`** — preferred 2.x API.
+- **Optional-peer model for legacy `Agent.create({ handoffs:[] })`** — sdk lazy-imports `@theokit/sdk-handoff/internal/tool-injector`; missing package = actionable `ConfigurationError`.
+- Inline `to-json-schema.ts` + `tracer-loader` in sdk-handoff (rollup-dts barrel workaround).
+- `types/agent.ts` `handoffs?:` field loosened to `SDKAgent|unknown` (full removal in Phase 6 EC-4 absorbed).
+- Codemod map: +14 handoff symbol entries (Handoff, handoffTo, error classes, types).
+- Bundle budget: sdk-handoff `.bundle-budget.json` added (gate now covers 3 packages).
+
+**Quality gates Phase 4:**
+- sdk build: PASS (no regression)
+- sdk-handoff build: PASS (18.0 KB ESM, 5.4 KB gz)
+- sdk-handoff test: 29/29 GREEN (4 files: dispatcher, handoff-create, normalize, registry)
+- sdk tsc --noEmit: exit 0 (needed `exclude: ["tests/fixtures/codemod-1x/**/*"]` in tsconfig — fixtures use intentionally-mismatching imports)
+- sdk-handoff tsc --noEmit: exit 0
+- All 29 SDK 2.0 infrastructure tests still GREEN
+- `pnpm check:bundle`: PASS — sdk-cache 21% / sdk-handoff 36% / sdk-tools 34%
+
+## Phase 2, 6, 7 + Final + Phase 1 (Memory still postponed)
 
 Not started. See `sdk-2-0-package-split-plan.md` for tasks.
 
-**Phase 4 (Handoff) planning notes (surfaced iter 5):**
+**Phase 4 (Handoff) planning notes (surfaced iter 5 — now resolved iter 6):**
 - 491 LOC internal + 120 LOC public + 109 LOC types + 4 tests.
 - agent.ts has lazy `await import("./internal/handoff/tool-injector.js")` in `maybeInjectHandoffTools()` — needs to point at sdk-handoff after move.
 - Handoff.asPlugin() does NOT exist yet — must be added per plan T4.1.
@@ -191,3 +216,4 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 | 3 | 2026-06-08 | Phase 5 / T5.1 | DONE — commit `e67d1db`; 46/46 sdk-tools tests GREEN; 165 cumulative tests across 3 packages (sdk baseline + sdk-cache + sdk-tools) |
 | 4 | 2026-06-08 | Phase 10 / T10.1 + Phase 8 / T8.1 | DONE — commits `fb5cb96` (bundle gate) + `2b3ad4e` (codemod); 6+8 = 14 new tests GREEN; cumulative 179 tests |
 | 5 | 2026-06-08 | Phase 9 / T9.1 | DONE — commit `0addd94`; 11/11 docs tests GREEN; cumulative 190 tests across 4 packages |
+| 6 | 2026-06-08 | Phase 4 / T4.1 | DONE — commit `b49a6a1`; 29 handoff tests GREEN; cumulative 219 tests across 5 packages |
