@@ -8,6 +8,7 @@ import {
   coerceToKnownAgentRunErrorCode,
   UnknownAgentError,
 } from "./errors.js";
+import { validateApiKeyShape } from "./internal/auth/api-key-validator.js";
 import { resolveApiKey } from "./internal/env.js";
 import {
   getConfiguredBaseUrl,
@@ -483,6 +484,19 @@ function resolveWorkspaceCwdForAttr(cwd: string | string[] | undefined): string 
   return cwd ?? process.cwd();
 }
 
+/**
+ * Infer the provider name from a model id like `"openai/gpt-4o-mini"`.
+ * Used by T1.3 boundary validation to apply the right provider-prefix
+ * sanity check (e.g., `sk-` for openai). Returns `undefined` when the
+ * model id has no provider segment.
+ */
+function providerFromModelId(modelId: string | undefined): string | undefined {
+  if (modelId === undefined) return undefined;
+  const slash = modelId.indexOf("/");
+  if (slash <= 0) return undefined;
+  return modelId.slice(0, slash);
+}
+
 async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOptions> {
   const handoffs = options.handoffs;
   if (handoffs === undefined || handoffs.length === 0) return options;
@@ -590,6 +604,20 @@ async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
   if (apiKey === undefined) {
     throw new AuthenticationError("Missing API key", { code: "missing_api_key" });
   }
+  // T1.3 — two-tier shape check at the boundary:
+  // - Tier 1 (always): reject empty / whitespace-only / sub-4-char shapes.
+  // - Tier 2 (strict=true only when this `apiKey` is the value that will
+  //   actually flow to a provider fetch): reject sub-16-char + embedded
+  //   whitespace + missing-known-prefix. In `shouldUseRealLocalRuntime` mode
+  //   the real fetch consumes an env credential, so we keep Tier 1 only.
+  const willFlowToProvider = !isFixtureApiKey(apiKey) && !shouldUseRealLocalRuntime(apiKey);
+  const shape = validateApiKeyShape(apiKey, {
+    strict: willFlowToProvider,
+    ...(willFlowToProvider ? { provider: providerFromModelId(options.model?.id) } : {}),
+  });
+  if (shape.malformed) {
+    throw new AuthenticationError(shape.message, { code: "malformed_api_key" });
+  }
   if (
     !isFixtureApiKey(apiKey) &&
     getConfiguredBaseUrl() === undefined &&
@@ -610,6 +638,11 @@ async function createCloudAgent(options: AgentOptions): Promise<SDKAgent> {
     throw new ConfigurationError("Missing API key for cloud agent", {
       code: "missing_api_key",
     });
+  }
+  // T1.3 — cloud uses the same boundary validator.
+  const shape = validateApiKeyShape(apiKey);
+  if (shape.malformed) {
+    throw new AuthenticationError(shape.message, { code: "malformed_api_key" });
   }
 
   const baseUrl = getConfiguredBaseUrl();
