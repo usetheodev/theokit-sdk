@@ -7,29 +7,19 @@
  * Internal — `active-memory.ts` re-exports these for in-tree consumers
  * that historically imported from there.
  *
- * **Iter 48 (Stage 3) note:** the original `MemorySearchHit` import
- * from `./index-manager-contract.js` was inlined as a duplicate
- * interface because rollup-plugin-dts treeshakes the source type out
- * of the dts emit (it's not reachable from any other public surface
- * yet). When `MemorySearchHit` gains a reachable consumer, the inline
- * duplicate here MUST be deleted + the import restored to maintain a
- * single source of truth. Inline shape is kept byte-identical to the
- * canonical declaration.
+ * **Iter 48 → iter 50 evolution:** the original `MemorySearchHit`
+ * import from `./index-manager-contract.js` was temporarily inlined
+ * as a duplicate interface because rollup-plugin-dts treeshook it out
+ * of sdk-memory's dist (no reachable consumer yet). Iter 50 moved
+ * `memory-index.ts` into sdk-memory and the barrel now publicly
+ * re-exports `MemorySearchHit` — creating the reachable consumer —
+ * so this file restores the canonical import and the inline mirror
+ * is gone. Single source of truth is back.
  *
  * @internal
  */
 
-/** Mirror of `MemorySearchHit` from `index-manager-contract.ts` (iter 48 dts workaround). */
-interface MemorySearchHit {
-  /** Path relative to the memory root. */
-  readonly path: string;
-  readonly startLine: number;
-  readonly endLine: number;
-  /** Combined score (hybrid when vector backend active, else just textScore). */
-  readonly score: number;
-  /** FTS5 BM25 score normalized to 0..1 (higher = better). */
-  readonly textScore: number;
-}
+import type { MemorySearchHit } from "./index-manager-contract.js";
 
 export type ActiveMemoryQueryMode = "message" | "recent" | "full";
 
