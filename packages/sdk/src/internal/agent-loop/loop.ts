@@ -7,6 +7,7 @@ import type { LlmClient, LlmMessage, LlmTool, LlmToolCallPart } from "../llm/typ
 import type { McpClient, McpTool } from "../mcp/client.js";
 import { IterationBudget } from "../runtime/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
+import { validateResponse } from "../runtime/validate-response.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { AgentLoopErrorDetail, AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import {
@@ -112,6 +113,67 @@ interface LoopContext {
    * `finalStatus: "error"` and copies this verbatim onto `AgentLoopOutput.error`.
    */
   error?: AgentLoopErrorDetail;
+  /**
+   * T2.1 (ADR D93) — bailout-nudge attempt counter. When the LLM returns an
+   * empty / whitespace-only assistant turn with zero tool calls (weak-model
+   * bailout shape), the loop injects a "continue or finish" nudge user
+   * message and re-runs the turn. Capped at 2 attempts so a persistently
+   * bailing model still terminates instead of spinning forever.
+   */
+  nudgeAttempts: number;
+}
+
+/** T2.1 (ADR D93) — maximum number of bailout-nudge user messages to inject. */
+const MAX_NUDGE_ATTEMPTS = 2;
+
+/**
+ * T2.1 — return `true` (and mutate `ctx`) when the LLM finish shape matches
+ * the bailout pattern AND we still have nudge attempts left. Caller treats
+ * a `true` return as "loop should continue (re-run the LLM turn)".
+ */
+/**
+ * Emit the assistant message event + conversation turn + optional onStep
+ * callback for a non-empty text payload. Extracted from continueOrTerminate
+ * to keep that function under the cognitive-complexity budget.
+ */
+async function emitAssistantTextStep(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+  text: string,
+): Promise<void> {
+  ctx.events.push(buildAssistantEvent(inputs, text));
+  ctx.conversation.push({
+    type: "agentConversationTurn",
+    turn: { steps: [{ type: "assistantMessage", message: { text } }] },
+  });
+  ctx.finalText = text;
+  if (inputs.onStep === undefined) return;
+  const cb = inputs.onStep;
+  await safeCall(
+    () => cb({ step: { type: "assistantMessage", message: { text } } }),
+    undefined,
+    "SendOptions.onStep",
+  );
+}
+
+function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boolean {
+  if (ctx.nudgeAttempts >= MAX_NUDGE_ATTEMPTS) return false;
+  const validation = validateResponse({
+    content: llmOutput.text,
+    toolCalls: llmOutput.toolCalls,
+  });
+  if (validation.ok) return false;
+  ctx.nudgeAttempts += 1;
+  ctx.messages.push({
+    role: "user",
+    content: [
+      {
+        type: "text",
+        text: "Please continue your previous answer or provide a final answer.",
+      },
+    ],
+  });
+  return true;
 }
 
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
@@ -156,6 +218,7 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
     finalText: "",
     finalStatus: "finished",
     usage: new UsageAccumulator(),
+    nudgeAttempts: 0,
   };
 }
 
@@ -175,22 +238,12 @@ async function continueOrTerminate(
 ): Promise<"continue" | "done" | "error"> {
   if (llmOutput.errored) return "error";
   if (llmOutput.text.length > 0) {
-    ctx.events.push(buildAssistantEvent(inputs, llmOutput.text));
-    ctx.conversation.push({
-      type: "agentConversationTurn",
-      turn: { steps: [{ type: "assistantMessage", message: { text: llmOutput.text } }] },
-    });
-    ctx.finalText = llmOutput.text;
-    if (inputs.onStep !== undefined) {
-      const cb = inputs.onStep;
-      await safeCall(
-        () => cb({ step: { type: "assistantMessage", message: { text: llmOutput.text } } }),
-        undefined,
-        "SendOptions.onStep",
-      );
-    }
+    await emitAssistantTextStep(inputs, ctx, llmOutput.text);
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
+    // T2.1 (ADR D93) — bailout detection delegated to helper to keep
+    // continueOrTerminate's complexity budget under 10.
+    if (shouldNudgeAndContinue(ctx, llmOutput)) return "continue";
     ctx.finalStatus = "finished";
     return "done";
   }

@@ -66,7 +66,7 @@
 ### Phase 2 — Agent-loop wiring + parallelization (9 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
-| T2.1 | Phase 2 / T2.1 | Wire validateResponse D93 bailout CRITICAL | pending | — | — | — | — |
+| T2.1 | Phase 2 / T2.1 | Wire validateResponse D93 bailout CRITICAL | committed | 9 | TBD | a=pass b=pass c=n/a | none-needed |
 | T2.2 | Phase 2 / T2.2 | Wire D91/D92 compression CRITICAL | pending | — | — | — | — |
 | T2.3 | Phase 2 / T2.3 | Conversation log: push tool turns | pending | — | — | — | — |
 | T2.4 | Phase 2 / T2.4 | Parallel tool dispatch | pending | — | — | — | — |
