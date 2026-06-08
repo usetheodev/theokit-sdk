@@ -1,3 +1,4 @@
+import type { CustomTool, SDKAgent } from "../../types/agent.js";
 import type { ConversationTurn } from "../../types/conversation.js";
 import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus } from "../../types/run.js";
@@ -6,11 +7,10 @@ import { generateRequestId } from "../ids.js";
 import type { LlmClient, LlmMessage, LlmTool, LlmToolCallPart } from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import { IterationBudget } from "../runtime/budget.js";
+import type { MemoryProviderHandle } from "../runtime/memory-provider.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validate-response.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
-import type { MemoryProviderHandle } from "../runtime/memory-provider.js";
-import type { CustomTool, SDKAgent } from "../../types/agent.js";
 import type { AgentLoopErrorDetail, AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import {
   buildAssistantEvent,
@@ -109,6 +109,22 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
         totalOutputTokens: usage.outputTokens,
         ...(cost?.amountUsd !== undefined ? { totalCostUsd: cost.amountUsd } : {}),
       });
+    }
+    // SDK 2.0 Phase 1 physical Stage 1 — iter 19: optional `sync()`
+    // post-run hook. Mirrors LocalAgentMemory.syncIfReady() role.
+    // Fires ONLY when the run finished successfully (matches the
+    // legacy memory subsystem behavior where session-summary writes
+    // gated the index re-sync). Best-effort + swallow per contract.
+    if (
+      ctx.finalStatus === "finished" &&
+      ctx.memoryProviderHandle !== undefined &&
+      inputs.memoryProvider?.sync !== undefined
+    ) {
+      try {
+        await inputs.memoryProvider.sync(ctx.memoryProviderHandle);
+      } catch {
+        // Swallow — sync() MUST be non-throwing on the hot path.
+      }
     }
     return {
       events: ctx.events,
@@ -322,10 +338,7 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
   if (inputs.memoryProvider !== undefined && memoryProviderHandle !== undefined) {
     let providerTools: ReadonlyArray<CustomTool> = [];
     try {
-      providerTools = inputs.memoryProvider.buildTools(
-        memoryProviderHandle,
-        buildAgentRef(inputs),
-      );
+      providerTools = inputs.memoryProvider.buildTools(memoryProviderHandle, buildAgentRef(inputs));
     } catch {
       providerTools = [];
     }

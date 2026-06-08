@@ -94,6 +94,21 @@ export interface MemoryProvider {
     handle: MemoryProviderHandle,
     args: ActiveMemoryPassArgs,
   ): Promise<ActiveMemoryPassResult>;
+  /**
+   * Optional post-run hook (SDK 2.0 Phase 1 physical Stage 1 — iter 19).
+   * Called by the agent loop AFTER a successful send so the impl can
+   * incorporate the session summary into its index (e.g., re-index the
+   * `sessions` corpus so the next recall sees it).
+   *
+   * Fire-and-forget at the call site; impl MUST be idempotent +
+   * non-throwing. Optional so existing impls (createNoopMemoryProvider,
+   * sdk-memory@0.1.0) keep working without modification.
+   *
+   * Mirrors the role of `LocalAgentMemory.syncIfReady()` in sdk-core's
+   * legacy memory path — exposing it via the port is the seam that
+   * unblocks moving LocalAgentMemory's logic out to sdk-memory.
+   */
+  sync?(handle: MemoryProviderHandle): Promise<void> | void;
   /** Release the handle (close index, flush caches). Idempotent + non-throwing. */
   dispose(handle: MemoryProviderHandle): Promise<void> | void;
 }

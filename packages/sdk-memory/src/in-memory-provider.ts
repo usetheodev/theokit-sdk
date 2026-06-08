@@ -164,6 +164,12 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
       ].join("\n");
       return { facts, systemPromptAdditions };
     },
+    sync(_handle: MemoryProviderHandle): void {
+      // No-op for the in-memory impl — facts are written synchronously to
+      // the Map at handler-call time; nothing to re-index post-run. Future
+      // LanceDB-backed impl will fire IndexManager.sync() here.
+      return;
+    },
     dispose(handle: MemoryProviderHandle): void {
       const state = handle[INTERNAL_STATE] as InMemoryHandleState | undefined;
       if (state === undefined) return;

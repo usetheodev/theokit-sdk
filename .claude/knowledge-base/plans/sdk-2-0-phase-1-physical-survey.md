@@ -81,25 +81,59 @@ The expanded port surface includes:
 That's a meaningful port API expansion (~12 new methods/types). Not a
 single-iter project.
 
-## Strategy recommendation
+## Strategy recommendation — REVISED iter 19
 
-**Stage 1 (next focused iter):** Expand the `MemoryProvider` port to
-cover the kernel file surface. Add per-method documentation +
-back-compat guarantees. Ship a "richer no-op" reference that returns
-appropriate empty/degraded values for the new methods (so the kernel
-can keep working when no provider supplied).
+The original survey recommendation ("expand the port surface with 12+
+new methods") was wrong-headed. Closer inspection of the 3 kernel
+files that actually import from `internal/memory/*` (not 10 — most
+others use the intermediate `memory-store.ts` kernel file):
 
-**Stage 2 (subsequent iter):** Migrate the 5 highest-value kernel files
-from direct-import to port-call. The other 5 follow in a third iter.
+| Kernel file | actual internal/memory imports |
+|---|---|
+| `local-agent-memory.ts` | 8 symbols — runActiveMemory, ActiveMemoryCache, MEMORY_EMBEDDING_ADAPTERS, CircuitBreaker, EmbeddingRuntime, IndexManager, MemoryIndex, createMemory{Get,Search}Tool |
+| `post-run-lifecycle.ts` | writeSessionSummary |
+| `memory-store.ts` | migrateLegacyJson |
 
-**Stage 3 (subsequent iter):** Move `internal/memory/*` sources to
-`packages/sdk-memory/src/`. Update sdk-memory's `createInMemoryMarkdownProvider`
-+ ship the LanceDB-backed rich impl.
+`LocalAgentMemory` exposes 3 public methods that ALREADY map 1:1 to
+the existing `MemoryProvider` port surface:
 
-**Stage 4 (subsequent iter):** Drop the public-API re-exports from
-sdk-core (Memory class, migrateSqliteToLance) via optional-peer pattern.
+| LocalAgentMemory method | Maps to MemoryProvider |
+|---|---|
+| `ensureTools()` | `provider.buildTools(handle, agent)` |
+| `runActiveMemoryIfEnabled()` | `provider.runActivePass(handle, args)` |
+| `syncIfReady()` | **NEW** `provider.sync(handle)` — iter 19 shipped |
 
-Total: ~4 focused iterations on top of iter 18.
+This means the port already covers 95% of what the kernel needs. The
+12-method "expand the port" plan was a strawman.
+
+### Revised stages
+
+**Stage 1 (iter 19 — shipped):** Add optional `sync(handle)` method to
+`MemoryProvider` port. Wire in agent-loop post-run path (gated on
+`finalStatus === "finished"`). sdk-memory's `createInMemoryMarkdownProvider`
+implements as no-op (LanceDB-backed impl in future will fire
+`IndexManager.sync()`). 6 new tests; back-compat preserved
+(existing impls without `sync` keep working — TS optional method).
+
+**Stage 2:** Migrate `local-agent-memory.ts` from direct
+`internal/memory/*` imports to MemoryProvider port calls. The class
+becomes a thin adapter that calls `provider.buildTools(...)` +
+`provider.runActivePass(...)` + `provider.sync(...)`. Auto-installs a
+sdk-memory rich provider when consumer didn't pass `memoryProvider`
+and `options.memory.enabled === true` (optional-peer pattern).
+
+**Stage 3:** Move `internal/memory/*` sources to
+`packages/sdk-memory/src/`. Ship sdk-memory's LanceDB-backed rich
+provider (current `createInMemoryMarkdownProvider` is the foundation).
+Update `post-run-lifecycle.ts` + `memory-store.ts` to use the
+optional-peer pattern.
+
+**Stage 4:** Drop the public `Memory` class + `migrateSqliteToLance`
+re-exports from sdk-core via optional-peer pattern (mirrors
+sdk-handoff iter 6).
+
+Total: ~3 focused iterations on top of iter 19. Each stage is
+shippable independently.
 
 ## Honest assessment
 
