@@ -116,6 +116,52 @@ without breaking consumers.
 
 Total: ~1 dev-day in a single focused iteration.
 
+## Blocker discovered iter 18+ (post-survey)
+
+When attempting to move the 5 moveable files (calendar-window,
+enforcement, ledger, normalize-usage, registry), surveying their
+internal imports revealed:
+
+- **`ledger.ts:5` imports `withCwdMutex` from
+  `../../persistence/cwd-mutex.js`** — a sdk-core INTERNAL utility,
+  not publicly exported.
+
+`withCwdMutex` is used in 5+ kernel runtime files (memory/dreaming,
+cloud-agent, registry/agent-registry-store, local-agent-personality-
+extensions). It's a process-level mutex Map; per-package duplicates
+do NOT synchronize across module boundaries → cross-package usage
+introduces data races in production budget ledger writes.
+
+Two paths forward:
+
+### Path A — promote `withCwdMutex` to a public utility
+
+Add `export { withCwdMutex } from "./internal/persistence/cwd-mutex.js"`
+to sdk-core's main barrel. Requires:
+- New ADR documenting the public-utility decision.
+- Stability guarantee (we now own backwards-compat for this signature).
+- Future packages can rely on the same mutex registry.
+
+### Path B — keep `ledger.ts` in sdk-core; partial extraction only
+
+Move just `calendar-window.ts` + `normalize-usage.ts` (the two files
+with no inter-budget deps beyond types). Keep enforcement / ledger /
+registry in sdk-core. Bundle delta: minimal (~209 LOC vs target 864).
+
+### Recommendation
+
+Path A. Mutex synchronization is a process-level concern, not a
+package-level one. Promoting `withCwdMutex` to public is the same
+pattern other tools use (Bun, Deno, Node's `--experimental-async-hooks`
+all expose process-level locks). One small ADR + one barrel line.
+
+After Path A: the original 5-file move + `src/budget.ts` shim plan
+proceeds as documented above.
+
+Honest cost: Path A is ~2 hours of careful ADR + barrel-add + smoke
+test work before the actual move begins. Phase 2 physical extraction
+total: ~1.5 dev-days (was 1).
+
 ## Next iteration scope
 
 - T2.physical.1 — copy 7 files to `packages/sdk-budget/src/`
