@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createSearchTextTool } from "../../src/tools/search-text.js";
+import { createSearchTextTool } from "../src/search-text.js";
 
 let projectRoot: string;
 

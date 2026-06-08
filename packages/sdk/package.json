@@ -48,16 +48,6 @@
         "default": "./dist/errors.cjs"
       }
     },
-    "./tools": {
-      "import": {
-        "types": "./dist/tools/index.d.ts",
-        "default": "./dist/tools.js"
-      },
-      "require": {
-        "types": "./dist/tools/index.d.cts",
-        "default": "./dist/tools.cjs"
-      }
-    },
     "./path-safety": {
       "import": {
         "types": "./dist/path-safety.d.ts",
@@ -156,6 +146,16 @@
       "require": {
         "types": "./dist/internal/observability/index.d.cts",
         "default": "./dist/internal/observability/index.cjs"
+      }
+    },
+    "./internal/security": {
+      "import": {
+        "types": "./dist/internal/security/index.d.ts",
+        "default": "./dist/internal/security/index.js"
+      },
+      "require": {
+        "types": "./dist/internal/security/index.d.cts",
+        "default": "./dist/internal/security/index.cjs"
       }
     },
     "./package.json": "./package.json"

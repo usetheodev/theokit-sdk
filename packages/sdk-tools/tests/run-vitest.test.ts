@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createRunVitestTool, extractTrailingJson } from "../../src/tools/run-vitest.js";
+import { createRunVitestTool, extractTrailingJson } from "../src/run-vitest.js";
 
 let projectRoot: string;
 

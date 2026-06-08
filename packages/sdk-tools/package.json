@@ -1,0 +1,68 @@
+{
+  "name": "@theokit/sdk-tools",
+  "version": "0.1.0",
+  "description": "Built-in tools for @theokit/sdk agents — file system, git, subprocess, search-text, vitest runner.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/usetheo/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheo/theokit-sdk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheo/theokit-sdk.git",
+    "directory": "packages/sdk-tools"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@theokit/sdk": ">=1.7.0",
+    "simple-git": "^3.0.0",
+    "vitest": ">=2.0.0",
+    "zod": "^3.25.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "simple-git": {
+      "optional": true
+    },
+    "vitest": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.8",
+    "@theokit/sdk": "workspace:*",
+    "zod": "^4.0.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
