@@ -49,3 +49,15 @@ export * from "./internal/active-memory-types.js";
 // constants for the SQLite memory index. Unblocks future `index-db`
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
+
+// Iter 50: seventh Stage 3 file move — memory-index (67 LOC).
+// Defines `MemoryIndex` interface (the OCP-preserving 4-method
+// contract — `sync`/`search`/`status`/`close` — both sqlite-vec and
+// lance backends satisfy) + `SyncResult` + `parseSearchOptions`
+// helper. Re-exports `IndexStatus`, `MemorySearchHit`, `SearchOptions`
+// from iter 47's index-manager-contract for stable internal import
+// paths. **Side-effect:** the public re-export of `MemorySearchHit`
+// here unblocks the rollup-plugin-dts treeshake limitation that
+// forced the iter 48 inline-duplicate workaround — that mirror is
+// dropped in this same iter (see internal/active-memory-types.ts).
+export * from "./internal/memory-index.js";
