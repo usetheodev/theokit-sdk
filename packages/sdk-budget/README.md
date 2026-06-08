@@ -1,0 +1,72 @@
+# @theokit/sdk-budget
+
+USD-cost-aware `BudgetTracker` impls for [`@theokit/sdk`](https://www.npmjs.com/package/@theokit/sdk).
+Consumes the kernel-facing `BudgetTracker` port (SDK 2.0 Phase 2 / T2.1 —
+ADR D1, interface inversion).
+
+```ts
+import { Agent } from "@theokit/sdk";
+import { createUsdBudgetTracker } from "@theokit/sdk-budget";
+
+const agent = await Agent.create({
+  agentId: "support-bot",
+  model: { id: "anthropic/claude-3-5-haiku-latest" },
+  budgetTracker: createUsdBudgetTracker({ maxUsd: 5 }), // hard $5 cap
+  // ...other options
+});
+
+// During the run, check spend from outside:
+const spent = (agent.budgetTracker as ReturnType<typeof createUsdBudgetTracker>).getTotalUsd();
+console.log(`Spent so far: $${spent.toFixed(4)}`);
+```
+
+## What ships today (v0.1.0)
+
+- `createUsdBudgetTracker({ maxTokens?, maxUsd?, pricing? })` — extends
+  the counter-based reference from sdk-core with per-model USD cost
+  computation. Built-in pricing table covers the most-used
+  OpenAI / Anthropic / Google models; supply `pricing` to override or
+  add custom models.
+- `BUILTIN_PRICING` (read-only) — the static table powering the built-in
+  rates. Export so consumers can audit current values.
+- `computeUsdCost(pricing, model, type, tokens)` — pure helper for
+  ad-hoc cost calc outside the tracker.
+
+## When to use vs `createCounterBudgetTracker` (sdk-core)
+
+| Need | Use |
+|------|-----|
+| Cap iterations only | `createCounterBudgetTracker` from `@theokit/sdk` |
+| Cap raw token count | either (counter is lighter) |
+| Cap USD spend | **`createUsdBudgetTracker` from `@theokit/sdk-budget`** |
+| Need custom pricing logic | extend the contract directly — `BudgetTracker` is the port |
+
+## Architecture
+
+This package is a **port consumer**, not a kernel mod. The contract
+lives in `@theokit/sdk/internal/runtime/budget-tracker.ts` and is
+exposed to consumers via:
+
+```ts
+import type {
+  BudgetTracker,
+  BudgetUsageEvent,
+  BudgetCheck,
+  BudgetTotal,
+} from "@theokit/sdk";
+```
+
+The agent loop calls `tracker.track(...)` after each LLM completion and
+`tracker.check()` before each iteration. Your impl fulfills the
+contract; sdk-core never imports this package directly — that's the
+seam that makes the split possible.
+
+## Roadmap
+
+- v0.2: Pluggable pricing source (fetch live rates).
+- v0.3: Ledger persistence (Postgres / SQLite adapters).
+- v0.4: Per-user / per-tenant budget aggregation.
+
+## License
+
+Apache-2.0 © useTheo
