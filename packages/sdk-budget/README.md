@@ -20,7 +20,9 @@ const spent = (agent.budgetTracker as ReturnType<typeof createUsdBudgetTracker>)
 console.log(`Spent so far: $${spent.toFixed(4)}`);
 ```
 
-## What ships today (v0.1.0)
+## What ships today
+
+### USD-cost tracker (BudgetTracker port impl)
 
 - `createUsdBudgetTracker({ maxTokens?, maxUsd?, pricing? })` — extends
   the counter-based reference from sdk-core with per-model USD cost
@@ -31,6 +33,32 @@ console.log(`Spent so far: $${spent.toFixed(4)}`);
   rates. Export so consumers can audit current values.
 - `computeUsdCost(pricing, model, type, tokens)` — pure helper for
   ad-hoc cost calc outside the tracker.
+
+### Budget facade (Phase 2 physical Stage 1 — iter 19)
+
+The Budget facade primitives (registry, ledger, enforcement,
+normalize-usage, calendar-window) were physically extracted from sdk-core
+to this package:
+
+```ts
+import {
+  // Registry — manage named Budget instances
+  createBudget, getBudget, listBudgets, deleteBudget, snapshotAll,
+  defaultMode, getBudgetOptionsRaw,
+  // Enforcement — preflight + threshold callbacks
+  preflightCheck, chargeAndCheckThresholds,
+  // Usage normalization — Anthropic / OpenAI Chat / OpenAI Responses
+  inferApiMode, normalizeUsage,
+  // Calendar window helpers — UTC-aligned 1h/1d/1w/30d/365d
+  startOfDayUtc, startOfWeekUtc, windowStartMs,
+  // Low-level ledger ops
+  charge, spentIn,
+} from "@theokit/sdk-budget";
+```
+
+sdk-core retains its own copies for v1.x sync API back-compat. Consumers
+SHOULD migrate to importing from `@theokit/sdk-budget` directly before
+sdk-core v3.0 (which will drop the duplicated source).
 
 ## When to use vs `createCounterBudgetTracker` (sdk-core)
 
@@ -60,6 +88,15 @@ The agent loop calls `tracker.track(...)` after each LLM completion and
 `tracker.check()` before each iteration. Your impl fulfills the
 contract; sdk-core never imports this package directly — that's the
 seam that makes the split possible.
+
+## Cross-package coupling
+
+sdk-budget's `ledger` consumes `withCwdMutex` from sdk-core via the
+main `@theokit/sdk` barrel (per ADR-008). The mutex's process-level
+Map is shared across all consumers via Node ESM's module-cache
+guarantee — `internal/budget/ledger.ts` in this package serializes
+writes against the SAME registry that sdk-core's `internal/memory`
+subsystem uses. No double-mutex hazard.
 
 ## Roadmap
 
