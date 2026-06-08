@@ -50,6 +50,21 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 67: twenty-fourth Stage 3 file move — vec-index (127 LOC).
+// Vector index helpers per ADR D2 + D4. Embeddings live in a
+// `embeddings(chunk_id, vec)` vec0 virtual table provided by
+// sqlite-vec. Embedding identity (providerId+model+dimension) lives
+// in `meta` table — mismatches force a full re-embed sweep (EC-1).
+// Exports: META_KEY_* constants + EmbeddingIdentity +
+// read/writeEmbeddingIdentity + identityMatches + dropVectorIndex +
+// createVectorIndex + packVector (Float32Array → Buffer for
+// sqlite-vec BLOB binding) + upsertEmbedding (DELETE+INSERT with
+// BigInt id binding per vec0 v0.1.9 contract) + vectorSearch (KNN
+// MATCH+k syntax) + EmbedAllArgs + embedMissingChunks (LEFT JOIN
+// embeddings query → batch embed → upsert). Dependencies sibling:
+// EmbeddingRuntime (iter 45) + MemoryDb (iter 65).
+export * from "./internal/vec-index.js";
+
 // Iter 66: twenty-third Stage 3 file move — sqlite-vec-loader (38 LOC).
 // Loads the `sqlite-vec` extension into an opened MemoryDb. Wraps the
 // native `load(db)` call with a typed error path (EC-8) so callers
