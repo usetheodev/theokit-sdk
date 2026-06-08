@@ -5,6 +5,7 @@ import { appendSessionMessage, flushSessionWrites } from "./agent-session.js";
 import type { HooksExecutor } from "./hooks-executor.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
 import { shouldUsePortMemoryPath } from "./memory-path-selector.js";
+import type { MemoryProvider, MemoryProviderHandle } from "./memory-provider.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
@@ -24,6 +25,19 @@ export interface PostRunLifecycleInputs {
   storageHandle: ConversationStorageAdapter | string;
   hooksExecutor: HooksExecutor;
   memoryGlue: LocalAgentMemory;
+  /**
+   * SDK 2.0 Phase 1 physical Stage 3 prep — iter 27: optional
+   * port-based session-summary recorder. When supplied AND the
+   * provider implements `recordSessionSummary`, the kernel delegates
+   * the write through the port. When absent, falls back to the
+   * legacy direct `writeSessionSummary` import (current behavior).
+   */
+  memoryProvider?: MemoryProvider;
+  /**
+   * Handle from `provider.init()`. Required when `memoryProvider` is
+   * supplied; ignored otherwise.
+   */
+  memoryProviderHandle?: MemoryProviderHandle;
 }
 
 /**
@@ -44,7 +58,17 @@ export interface PostRunLifecycleInputs {
  * @internal
  */
 export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promise<void> {
-  const { run, userText, agentId, workspaceCwd, storageHandle, hooksExecutor, memoryGlue } = inputs;
+  const {
+    run,
+    userText,
+    agentId,
+    workspaceCwd,
+    storageHandle,
+    hooksExecutor,
+    memoryGlue,
+    memoryProvider,
+    memoryProviderHandle,
+  } = inputs;
   let result: Awaited<ReturnType<Run["wait"]>>;
   try {
     result = await run.wait();
@@ -61,16 +85,28 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
 
   // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
   if (result.status === "finished" && result.result !== undefined) {
+    const summaryArgs = {
+      runId: result.id,
+      agentId,
+      userText,
+      assistantText: result.result,
+      status: "finished" as const,
+      at: Date.now(),
+    };
     try {
-      await writeSessionSummary({
-        cwd: workspaceCwd,
-        runId: result.id,
-        agentId,
-        userText,
-        assistantText: result.result,
-        status: "finished",
-        at: Date.now(),
-      });
+      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 27: prefer the
+      // port-based `provider.recordSessionSummary` when wired. Falls
+      // back to the direct `writeSessionSummary` import otherwise
+      // (legacy behavior). Both paths handle the markdown write +
+      // disk persistence; the difference is just WHERE the impl lives.
+      if (
+        memoryProvider?.recordSessionSummary !== undefined &&
+        memoryProviderHandle !== undefined
+      ) {
+        await memoryProvider.recordSessionSummary(memoryProviderHandle, summaryArgs);
+      } else {
+        await writeSessionSummary({ cwd: workspaceCwd, ...summaryArgs });
+      }
       // EC-3: trigger sync so the next memory_search({corpus:"sessions"})
       // sees the just-written summary. Fire-and-forget; the read path
       // tolerates a missed sync because IndexManager re-scans on each call.
