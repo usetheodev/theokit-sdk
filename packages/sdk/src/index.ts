@@ -21,12 +21,8 @@ export {
   preflightCheck,
   UsageAccumulator,
 } from "./budget.js";
-// Semantic cache (Adoption Roadmap #6; ADRs D249-D266)
-export {
-  Cache,
-  CacheEmbedderError,
-  CacheInvalidTtlError,
-} from "./cache.js";
+// Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
+// Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
 export { Cron } from "./cron.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";

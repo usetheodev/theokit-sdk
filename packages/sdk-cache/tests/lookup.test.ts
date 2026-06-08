@@ -4,9 +4,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { computeCacheKey } from "../../src/internal/cache/key.js";
-import { performLookup } from "../../src/internal/cache/lookup.js";
-import { InMemoryCacheStore } from "../../src/internal/cache/store.js";
+import { computeCacheKey } from "../src/internal/key.js";
+import { performLookup } from "../src/internal/lookup.js";
+import { InMemoryCacheStore } from "../src/internal/store.js";
 
 const fakeEmbedder = {
   id: "fake",

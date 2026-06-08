@@ -10,7 +10,7 @@
  * @internal
  */
 
-import type { CacheEmbedderRuntime, CacheTTLConfig } from "../../types/cache.js";
+import type { CacheEmbedderRuntime, CacheTTLConfig } from "../types/cache.js";
 import { embedOrDegrade } from "./embed-helper.js";
 import { computeCacheKey } from "./key.js";
 import type { LookupableStore } from "./lookup.js";

@@ -3,7 +3,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { Cache } from "../../src/cache.js";
+import { Cache } from "../src/cache.js";
 
 const fakeEmbedder = {
   id: "fake",

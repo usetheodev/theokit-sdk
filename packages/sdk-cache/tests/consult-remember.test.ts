@@ -4,7 +4,7 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { Cache } from "../../src/cache.js";
+import { Cache } from "../src/cache.js";
 
 // Embedder where the resulting vector has 1.0 in position [charCode % 4]
 // of the first letter — so paraphrases starting with the same letter

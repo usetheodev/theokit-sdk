@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { cosineDistance } from "../../src/internal/cache/cosine.js";
-import { computeCacheKey } from "../../src/internal/cache/key.js";
+import { cosineDistance } from "../src/internal/cosine.js";
+import { computeCacheKey } from "../src/internal/key.js";
 
 describe("cosineDistance", () => {
   it("identical vectors → distance 0", () => {

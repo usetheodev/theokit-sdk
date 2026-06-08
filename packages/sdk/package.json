@@ -148,6 +148,16 @@
         "default": "./dist/internal/plugins/index.cjs"
       }
     },
+    "./internal/observability": {
+      "import": {
+        "types": "./dist/internal/observability/index.d.ts",
+        "default": "./dist/internal/observability/index.js"
+      },
+      "require": {
+        "types": "./dist/internal/observability/index.d.cts",
+        "default": "./dist/internal/observability/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
