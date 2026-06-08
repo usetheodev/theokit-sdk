@@ -50,6 +50,20 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 56: thirteenth Stage 3 file move — markdown-store (134 LOC).
+// Markdown-first memory storage primitives per ADR D1 of the
+// memory-system-openclaw-parity plan. Public path helpers
+// (`memoryDir`, `memoryMdPath`, `notesDir`), fact reader+writer
+// (`readFacts`, `appendFact`, `readFactsFromMarkdown`,
+// `appendFactToMarkdown`), and notes lister (`listNotes`). All writes
+// go through `replaceFileAtomic` + per-cwd mutex (EC-4) via the
+// public `@theokit/sdk/internal/persistence` sub-path.
+// Configuration-aware accessors honor MemoryConfig.enabled gate.
+// Future `tools.ts`, `dreaming-diary`, `dreaming-run`,
+// `session-loader`, `session-summary-writer`, `transcript-store`,
+// `wiki-loader`, `migration` moves all compose with this as sibling.
+export * from "./internal/markdown-store.js";
+
 // Iter 55: twelfth Stage 3 file move — reader (57 LOC).
 // `readMemoryFileBounded(opts): Promise<MemoryReadResult>` — the
 // bounded read with truncation info that powers ADR D5's
