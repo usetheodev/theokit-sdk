@@ -50,6 +50,18 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 52: ninth Stage 3 file move — memory-types (113 LOC).
+// Public memory shape types: `MemoryConfig`, `MemoryFact`,
+// `MemoryChunk`, `MemoryReadResult`, `MemoryFileEntry`, +
+// `legacyMemoryJsonPath` helper for pre-ADR-D8 JSON path resolution,
+// + canonical `redactSecrets` re-export from `@theokit/sdk` (ADR D68).
+// Cross-package imports go through public sub-paths only —
+// `@theokit/sdk/path-safety` (`safePathJoin` + iter 52-promoted
+// `sanitizeIdentifier`) + `@theokit/sdk` (`redactSecrets`). Future
+// `storage/*`, `migration`, `chunk-markdown` moves target this as
+// sibling without re-importing from sdk-core.
+export * from "./internal/memory-types.js";
+
 // Iter 51: eighth Stage 3 file move — active-memory-cache (74 LOC).
 // TTL-bounded + capacity-bounded LRU cache for `runActiveMemory`
 // results. Depends only on `node:crypto` + iter 48's
