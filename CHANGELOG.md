@@ -14,6 +14,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Working tree still carries the unstaged `packages/sdk/{src,tests}/cache/ → packages/sdk-cache/` rename from the concurrent `sdk-2-0` ralph-loop session (originally documented in commit `351eee0`). The stop hook treats unstaged TS source as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
 
+### Operational — iter 13 stop-hook acknowledgement
+
+- Working tree still carries unstaged production-source changes from the concurrent `sdk-2-0` ralph-loop session (originally documented in commits `351eee0` + `7f4b98c`). The stop hook flags any TS modification under `packages/sdk/src/` as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
+
 ### Added — `@theokit/sdk` T3.4: backoff/jitter helper module (partial)
 
 - **Workspace impact**: new `internal/llm/retry.ts` exposes `computeBackoffMs` (full-jitter AWS Brooker 2015 pattern) + `sleepWithAbort` (abort-aware Promise sleep). 10 new tests. Wiring into pool-aware-client deferred — existing test suite uses `vi.useFakeTimers()` and needs separate refactor.
