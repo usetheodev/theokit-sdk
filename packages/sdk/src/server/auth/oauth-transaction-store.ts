@@ -25,17 +25,76 @@ import type { OAuthTransaction } from "./types.js";
 const COOKIE_NAME = "theo_oauth_tx";
 const TX_LIFETIME_MS = 10 * 60 * 1000; // 10 minutes per D5
 
+// T5.1 — HKDF info string fixed per plan; bump version (v1 → v2) only when
+// the AES-GCM derivation contract itself changes (which would invalidate
+// all in-flight cookies).
+const HKDF_INFO = "theokit:oauth-tx-v1";
+
+/**
+ * T5.1 — Derive a 32-byte AES-256-GCM key from `secret` via HKDF-SHA256
+ * (RFC 5869). Replaces the pre-T5.1 zero-padding scheme that was NOT a
+ * KDF and produced near-identical keys for near-identical secrets.
+ *
+ * Contract:
+ * - `secret` MUST be ≥ 32 bytes (256 bits) — throws otherwise.
+ * - Salt is sourced from `THEOKIT_OAUTH_TX_SALT` env (UTF-8 string);
+ *   when unset, RFC 5869's zero-string fallback is used and operators
+ *   accept the default cross-app collision risk.
+ * - `info` is fixed at "theokit:oauth-tx-v1" so v1 cookies decrypt
+ *   forever even if a future v2 derivation ships alongside.
+ *
+ * Throws `AuthSecretTooShortError` (typed) when secret < 32 bytes.
+ *
+ * @internal
+ */
 async function deriveKey(secret: string): Promise<webcrypto.CryptoKey> {
-  const keyMaterial = await webcrypto.subtle.importKey(
-    "raw",
-    Buffer.from(secret).slice(0, 32).length === 32
-      ? Buffer.from(secret).slice(0, 32)
-      : Buffer.concat([Buffer.from(secret), Buffer.alloc(32)]).slice(0, 32),
-    { name: "AES-GCM" },
-    false,
-    ["encrypt", "decrypt"],
+  const secretBytes = new TextEncoder().encode(secret);
+  if (secretBytes.byteLength < 32) {
+    throw new AuthSecretTooShortError(secretBytes.byteLength);
+  }
+  const saltRaw = process.env.THEOKIT_OAUTH_TX_SALT ?? "";
+  const salt = new TextEncoder().encode(saltRaw);
+  // Import the raw secret as HKDF input keying material.
+  const ikm = await webcrypto.subtle.importKey("raw", secretBytes, "HKDF", false, ["deriveBits"]);
+  // Derive 256 bits via HKDF-SHA256.
+  const derived = await webcrypto.subtle.deriveBits(
+    { name: "HKDF", hash: "SHA-256", salt, info: new TextEncoder().encode(HKDF_INFO) },
+    ikm,
+    256,
   );
-  return keyMaterial;
+  // Wrap the derived bits as an AES-GCM key.
+  return webcrypto.subtle.importKey("raw", derived, { name: "AES-GCM" }, true, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+
+/**
+ * T5.1 — Typed error thrown when an OAuth tx-cookie secret has < 32
+ * bytes of entropy. Surfaces the actual byte length so operators can
+ * diagnose mis-configured env vars without leaking the secret itself.
+ *
+ * @public
+ */
+export class AuthSecretTooShortError extends Error {
+  override readonly name = "AuthSecretTooShortError";
+  constructor(actualBytes: number) {
+    super(
+      `OAuth transaction secret must be at least 32 bytes (got ${actualBytes}). ` +
+        "Generate a fresh value with: openssl rand -base64 33",
+    );
+  }
+}
+
+/**
+ * T5.1 — Test seam for the HKDF derivation. NOT included in the public
+ * barrel — exposed only so unit tests can assert avalanche / determinism
+ * properties without round-tripping through encodeTransaction.
+ *
+ * @internal
+ */
+export async function __TESTING__deriveKey(secret: string): Promise<webcrypto.CryptoKey> {
+  return deriveKey(secret);
 }
 
 export async function encodeTransaction(tx: OAuthTransaction, secret: string): Promise<string> {

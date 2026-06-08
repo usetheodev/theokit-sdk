@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — HKDF-SHA256 key derivation for OAuth tx-cookie (T5.1 CRITICAL)
+
+- **Workspace impact**: `@theokit/sdk` consumers using `defineAuth` for
+  OAuth flows now get cryptographically sound AES-256-GCM keys derived
+  via HKDF-SHA256 from the configured secret instead of zero-padded
+  raw bytes. Distinct secrets always produce distinct keys; near-
+  identical secrets produce avalanche-distinct keys (Hamming > 160
+  bits). **BREAKING validation**: secrets < 32 bytes are rejected
+  with the new typed `AuthSecretTooShortError`. Pre-T5.1 these were
+  silently zero-padded and produced insecure keys. Generate a fresh
+  value with `openssl rand -base64 33`.
+- **Iter 20** of halt-loop `sdk-superiority-2026-06-07`. Closes DR6
+  finding #1 (CRITICAL). Real-LLM proof against OpenRouter sign-in
+  with a per-app salt set via `THEOKIT_OAUTH_TX_SALT` lands in T6.x.
+
+### Operational — iter 20 stop-hook acknowledgement
+
+- Same mixed-authorship hygiene as iters 16-19. Staged only T5.1
+  files (`packages/sdk/src/server/auth/oauth-transaction-store.ts`,
+  `packages/sdk/src/server/auth/index.ts` barrel re-export,
+  `packages/sdk/tests/server-auth.test.ts` fixture widening,
+  `packages/sdk/tests/server-auth-hkdf-derive-key.test.ts`, the two
+  CHANGELOGs, the implementation contract row, and the progress
+  JSON).
+
 ### Operational — iter 19 post-housekeeping stop-hook acknowledgement
 
 - Working tree carries unstaged production-source changes under
