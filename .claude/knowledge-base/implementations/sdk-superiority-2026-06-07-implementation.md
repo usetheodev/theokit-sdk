@@ -82,7 +82,7 @@
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
 | T3.1 | Phase 3 / T3.1 | SSE spec-correct parser CRITICAL | committed | 10 | TBD | a=pass b=pass c=n/a | none-needed |
-| T3.2 | Phase 3 / T3.2 | SSE abort cancels body CRITICAL | pending | — | — | — | — |
+| T3.2 | Phase 3 / T3.2 | SSE abort cancels body CRITICAL | committed | 11 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.3 | Phase 3 / T3.3 | Stream break cancels body CRITICAL | pending | — | — | — | — |
 | T3.4 | Phase 3 / T3.4 | Exponential backoff + jitter no credential pool | pending | — | — | — | — |
 | T3.5 | Phase 3 / T3.5 | Anthropic prompt caching emit | pending | — | — | — | — |

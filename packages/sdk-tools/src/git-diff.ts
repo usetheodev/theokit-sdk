@@ -17,10 +17,10 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
-import { z } from "zod";
+import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "../define-tool.js";
-import type { CustomTool } from "../types/agent.js";
+import { defineTool } from "@theokit/sdk";
+import { z } from "zod";
 import { checkPathScope } from "./path-scope.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
 

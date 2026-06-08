@@ -11,7 +11,7 @@ import {
   ForbiddenPathError,
   PathTraversalError,
   safePathJoin,
-} from "../internal/security/path-guard.js";
+} from "./internal/path-guard.js";
 
 export function checkPathScope(path: string | undefined, projectRoot: string): string | null {
   if (path === undefined || path === "") return null;

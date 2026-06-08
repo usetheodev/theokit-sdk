@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createListDirTool } from "../../src/tools/list-dir.js";
+import { createListDirTool } from "../src/list-dir.js";
 
 let projectRoot: string;
 

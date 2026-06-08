@@ -19,17 +19,17 @@
 
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
-import { z } from "zod";
+import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "../define-tool.js";
+import { defineTool } from "@theokit/sdk";
+import { z } from "zod";
 import {
   assertNoSymlinkEscape,
   ForbiddenPathError,
   isForbiddenPath,
   PathTraversalError,
   safePathJoin,
-} from "../internal/security/path-guard.js";
-import type { CustomTool } from "../types/agent.js";
+} from "./internal/path-guard.js";
 
 const DEFAULT_MAX_ENTRIES = 500;
 

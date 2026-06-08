@@ -5,7 +5,7 @@ export default defineConfig({
     index: "src/index.ts",
     errors: "src/errors.ts",
     cron: "src/cron.ts",
-    tools: "src/tools/index.ts",
+    // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
     "path-safety": "src/path-safety.ts",
     "task-store": "src/task-store.ts",
     workflow: "src/workflow.ts",
@@ -20,6 +20,7 @@ export default defineConfig({
     "internal/persistence/index": "src/internal/persistence/index.ts",
     "internal/plugins/index": "src/internal/plugins/index.ts",
     "internal/observability/index": "src/internal/observability/index.ts",
+    "internal/security/index": "src/internal/security/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)

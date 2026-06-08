@@ -28,7 +28,7 @@ async function* walkDts(dir) {
 }
 
 const targets = [
-  join(DIST, "tools"),
+  // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
   join(DIST, "path-safety.d.ts"),
   join(DIST, "task-store.d.ts"),
   join(DIST, "workflow.d.ts"),
@@ -38,6 +38,7 @@ const targets = [
   join(DIST, "internal", "persistence"),
   join(DIST, "internal", "plugins"),
   join(DIST, "internal", "observability"),
+  join(DIST, "internal", "security"),
 ];
 
 for (const target of targets) {

@@ -214,9 +214,13 @@ async function* parseNdjsonStream(
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8");
   let buffer = "";
+  let aborted = signal.aborted;
   try {
     while (true) {
-      if (signal.aborted) return;
+      if (signal.aborted) {
+        aborted = true;
+        return;
+      }
       const { done, value } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
@@ -241,6 +245,15 @@ async function* parseNdjsonStream(
       }
     }
   } finally {
+    // T3.2 — mirror sse.ts: on abort, cancel the underlying body stream
+    // so the upstream Ollama HTTP connection's TCP socket closes.
+    if (aborted || signal.aborted) {
+      try {
+        await reader.cancel();
+      } catch {
+        // best-effort — already cancelled OR upstream closed
+      }
+    }
     reader.releaseLock();
   }
 }
