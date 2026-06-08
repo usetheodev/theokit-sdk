@@ -33,7 +33,12 @@ export async function* parseSseStream(
     }
     if (state.data.length > 0) yield { event: state.event, data: state.data };
   } finally {
-    await cancelOnAbort(reader, signal.aborted);
+    // T3.2 + T3.3 — cancel the underlying body stream on EVERY exit path
+    // (abort, normal close, consumer break, consumer throw). Without this
+    // the upstream HTTP TCP socket stays in CLOSE_WAIT until the OS times
+    // it out. cancel() on a finished stream is a no-op so always-cancel
+    // is safe.
+    await cancelReaderQuietly(reader);
     releaseReader(reader);
   }
 }
@@ -57,18 +62,16 @@ async function* readChunks(
 }
 
 /**
- * T3.2 — on abort, cancel the underlying body stream so the upstream HTTP
- * connection's TCP socket closes (otherwise CLOSE_WAIT accumulates and the
- * T6.2 load test fails). Swallows any cancel-time error per ADR D34's
- * safe-exporter contract (telemetry never propagates).
+ * T3.2 + T3.3 — cancel the underlying body stream on every exit path.
+ * Swallows any cancel-time error per ADR D34's safe-exporter contract
+ * (cancel-time errors never propagate to caller).
+ *
+ * Calling cancel on a stream that already completed naturally is a no-op
+ * per the WHATWG streams spec, so unconditional cancel is safe.
  *
  * @internal
  */
-async function cancelOnAbort(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  abortedFlag: boolean,
-): Promise<void> {
-  if (!abortedFlag) return;
+async function cancelReaderQuietly(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
   try {
     await reader.cancel();
   } catch {
