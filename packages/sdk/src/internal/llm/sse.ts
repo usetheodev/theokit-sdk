@@ -66,14 +66,31 @@ function applyLine(state: ParserState, line: string): SseRecord | undefined {
   }
   if (line.startsWith(":")) return undefined;
   if (line.startsWith("event:")) {
-    state.event = line.slice(6).trim();
+    // T3.1 — HTML Living Standard § 9.2.6: strip exactly ONE leading
+    // U+0020 SPACE from the value; preserve other whitespace verbatim.
+    state.event = stripOneLeadingSpace(line.slice(6));
     return undefined;
   }
   if (line.startsWith("data:")) {
-    const piece = line.slice(5).trim();
+    const piece = stripOneLeadingSpace(line.slice(5));
     state.data = state.data.length === 0 ? piece : `${state.data}\n${piece}`;
   }
   return undefined;
+}
+
+/**
+ * T3.1 — HTML Living Standard § 9.2.6 step 5 of "Process the field":
+ *   "If the value of field starts with a U+0020 SPACE character, remove
+ *    it from value."
+ *
+ * Pre-T3.1 the parser called `.trim()` which destroyed legitimate trailing
+ * whitespace (and any extra leading whitespace beyond the first space).
+ * This helper strips at most one leading space and leaves everything else.
+ *
+ * @internal
+ */
+function stripOneLeadingSpace(value: string): string {
+  return value.startsWith(" ") ? value.slice(1) : value;
 }
 
 function releaseReader(reader: ReadableStreamDefaultReader<Uint8Array>): void {
