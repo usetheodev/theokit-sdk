@@ -78,6 +78,10 @@ export class PoolAwareLlmClient implements LlmClient {
       const decision = classifyAndDecide(attempt.error, hasRetried429);
       if (decision === "retry") {
         // D126: first 429 retries the same key. Don't mark exhausted yet.
+        // NOTE — T3.4 introduced `internal/llm/retry.ts` with
+        // `computeBackoffMs` + `sleepWithAbort` helpers but wiring them
+        // here requires updating tests that use `vi.useFakeTimers()` to
+        // advance the new sleeps. Wiring deferred to a follow-up slice.
         hasRetried429 = true;
         continue;
       }
