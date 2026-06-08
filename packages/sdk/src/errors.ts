@@ -18,6 +18,7 @@ export type ErrorCode =
   | "content_filtered"
   | "model_unavailable"
   | "network"
+  | "quota_exceeded"
   | "unknown";
 
 /**
