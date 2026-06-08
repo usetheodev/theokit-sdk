@@ -5,7 +5,7 @@ import { appendSessionMessage, flushSessionWrites } from "./agent-session.js";
 import type { HooksExecutor } from "./hooks-executor.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
 import { shouldUsePortMemoryPath } from "./memory-path-selector.js";
-import type { MemoryProvider, MemoryProviderHandle } from "./memory-provider.js";
+import type { MemoryProvider } from "./memory-provider.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
@@ -26,18 +26,17 @@ export interface PostRunLifecycleInputs {
   hooksExecutor: HooksExecutor;
   memoryGlue: LocalAgentMemory;
   /**
-   * SDK 2.0 Phase 1 physical Stage 3 prep — iter 27: optional
-   * port-based session-summary recorder. When supplied AND the
+   * SDK 2.0 Phase 1 physical Stage 3 prep — iter 27 (refined iter 28):
+   * optional port-based session-summary recorder. When supplied AND the
    * provider implements `recordSessionSummary`, the kernel delegates
    * the write through the port. When absent, falls back to the
    * legacy direct `writeSessionSummary` import (current behavior).
+   *
+   * STATELESS — no handle param needed (post-run-lifecycle runs AFTER
+   * runAgentLoop disposes the per-run handle). `cwd` lives on the
+   * args passed to the impl.
    */
   memoryProvider?: MemoryProvider;
-  /**
-   * Handle from `provider.init()`. Required when `memoryProvider` is
-   * supplied; ignored otherwise.
-   */
-  memoryProviderHandle?: MemoryProviderHandle;
 }
 
 /**
@@ -67,7 +66,6 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     hooksExecutor,
     memoryGlue,
     memoryProvider,
-    memoryProviderHandle,
   } = inputs;
   let result: Awaited<ReturnType<Run["wait"]>>;
   try {
@@ -86,6 +84,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
   if (result.status === "finished" && result.result !== undefined) {
     const summaryArgs = {
+      cwd: workspaceCwd,
       runId: result.id,
       agentId,
       userText,
@@ -94,18 +93,17 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       at: Date.now(),
     };
     try {
-      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 27: prefer the
-      // port-based `provider.recordSessionSummary` when wired. Falls
-      // back to the direct `writeSessionSummary` import otherwise
-      // (legacy behavior). Both paths handle the markdown write +
-      // disk persistence; the difference is just WHERE the impl lives.
-      if (
-        memoryProvider?.recordSessionSummary !== undefined &&
-        memoryProviderHandle !== undefined
-      ) {
-        await memoryProvider.recordSessionSummary(memoryProviderHandle, summaryArgs);
+      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 27 (refined iter 28):
+      // prefer the STATELESS port-based `provider.recordSessionSummary`
+      // when defined. Falls back to the direct `writeSessionSummary`
+      // import otherwise (legacy behavior). Both paths handle the
+      // markdown write + disk persistence; the difference is WHERE the
+      // impl lives. Stateless = no handle needed (post-run-lifecycle
+      // runs AFTER runAgentLoop disposed the per-run handle).
+      if (memoryProvider?.recordSessionSummary !== undefined) {
+        await memoryProvider.recordSessionSummary(summaryArgs);
       } else {
-        await writeSessionSummary({ cwd: workspaceCwd, ...summaryArgs });
+        await writeSessionSummary(summaryArgs);
       }
       // EC-3: trigger sync so the next memory_search({corpus:"sessions"})
       // sees the just-written summary. Fire-and-forget; the read path

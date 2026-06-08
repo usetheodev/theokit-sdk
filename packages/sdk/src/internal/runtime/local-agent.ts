@@ -30,15 +30,9 @@ import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstra
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
-import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
-import {
-  resolveActiveMemorySummaryForSend,
-  resolveMemoryProviderForLoop,
-  resolveMemoryToolsForLoop,
-  shouldUsePortMemoryPath,
-} from "./memory-path-selector.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
+import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
 import {
   applyPersonalityOverlay,
   ensurePersonalityRegistryIfNeeded,
@@ -52,6 +46,12 @@ import {
   persistMemoryFactIfWritePrompt,
 } from "./local-agent-runtime-extensions.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
+import {
+  resolveActiveMemorySummaryForSend,
+  resolveMemoryProviderForLoop,
+  resolveMemoryToolsForLoop,
+  shouldUsePortMemoryPath,
+} from "./memory-path-selector.js";
 import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
 import type { PluginMetadata, PluginsManager } from "./plugins/plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
@@ -276,6 +276,17 @@ export class LocalAgent implements SDKAgent {
     if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
     resolve(run);
     try {
+      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 28: thread the
+      // resolved memoryProvider into post-run-lifecycle so the
+      // recordSessionSummary port method can be invoked (when defined).
+      // Consumer-supplied `options.memoryProvider` always wins; otherwise
+      // when port path is active, the auto-installed adapter takes over.
+      // When neither: undefined → legacy writeSessionSummary path runs.
+      const postRunProvider = resolveMemoryProviderForLoop(
+        this.options.memoryProvider,
+        this.defaultMemoryProviderForLoop,
+        shouldUsePortMemoryPath(),
+      );
       await runPostRunLifecycle({
         run,
         userText,
@@ -284,6 +295,7 @@ export class LocalAgent implements SDKAgent {
         storageHandle: this.storageHandle(),
         hooksExecutor: this.hooksExecutor,
         memoryGlue: this.memoryGlue,
+        ...(postRunProvider !== undefined ? { memoryProvider: postRunProvider } : {}),
       });
     } finally {
       sendSpan.end();
