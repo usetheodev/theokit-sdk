@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T3.6: OpenAI structured outputs json_schema emission
+
+- **Workspace impact**: new `LlmResponseFormat` discriminated union (`json_schema` + `json_object`); `LlmRequest.responseFormat?: LlmResponseFormat`; OpenAI wire body emits `response_format: {type:"json_schema", json_schema}` with `strict: true` default. Same patch closes latent T3.5 bug in openai.ts system field (collapsed via `openAISystemText` helper). 4 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Operational — sdk-superiority-2026-06-07 iter 9 concurrent-session note
 
 - During iter 9 of the halt-loop a second ralph-loop session for plan `sdk-2-0` modified ~20 files under `packages/sdk/{src,tests}/cache/` (renaming the cache module to a standalone `packages/sdk-cache/` workspace). A naive `git add -u` picked these up and contaminated the T2.1 commit. The contaminated commit was soft-reset (`git reset --soft HEAD~1`); the sdk-2-0 changes were unstaged via `git restore --staged` and remain in the working tree for that session's owner to commit. T2.1 was re-committed cleanly as a 5-file slice (`1af7f5d`). Documented per Inquebrável Rule 3 honesty.
