@@ -244,3 +244,4 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 | 5 | 2026-06-08 | Phase 9 / T9.1 | DONE — commit `0addd94`; 11/11 docs tests GREEN; cumulative 190 tests across 4 packages |
 | 6 | 2026-06-08 | Phase 4 / T4.1 | DONE — commit `b49a6a1`; 29 handoff tests GREEN; cumulative 219 tests across 5 packages |
 | 7 | 2026-06-08 | Phase 1 pre-cleanup | PARTIAL — commit `bf18a84` cwd-mutex shim removed + 7 consumers fixed. Full source move attempted then REVERTED — needs interface inversion (multi-iteration). |
+| 8 | 2026-06-08 | Cross-package composition smoke test | DONE — commit `1ac4840`; 6 new tests validating Phases 3+4+5 compose cleanly without runtime conflict (Cache.asPlugin + Handoff.asPlugin + tools in single Agent options, plugin names unique across 4 instances). Cumulative 225 tests across 5 packages; all 3 extracted packages within budget. |
