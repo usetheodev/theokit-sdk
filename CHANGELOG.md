@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T1.3: API key boundary validation
+
+- **Workspace impact**: shape-only `validateApiKeyShape` runs at `Agent.create` boundary; rejects whitespace / sub-4-char / sub-16-char / embedded-whitespace / missing-known-prefix early with typed `malformed_api_key` error. Tiered to bypass strict checks in env-credential mode. 14 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
+
 ### Added — `@theokit/sdk` T1.2: RegisteredAgent contract snapshot test
 
 - **Workspace impact**: 1 new contract test at `packages/sdk/tests/contract/registered-agent.test.ts` pinning RegisteredAgent shape + AgentRuntime + status closed union. Madge cycles unchanged.
