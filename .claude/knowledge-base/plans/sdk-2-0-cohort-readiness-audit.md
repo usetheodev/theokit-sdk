@@ -1,0 +1,63 @@
+---
+slug: sdk-2-0-cohort-readiness-audit
+artifact: cohort-publish-readiness-audit
+created_at: 2026-06-08
+purpose: Capture publint + attw state of the 5 SDK 2.0 extracted packages after iter 33-37
+---
+
+# SDK 2.0 cohort readiness audit (post iter 37)
+
+## Methodology
+
+Run for each package:
+1. `npx publint packages/<pkg>` (lints the published package shape)
+2. `pnpm pack --pack-destination /tmp` (produce tarball)
+3. `npx @arethetypeswrong/cli /tmp/<pkg>.tgz` (validate type resolutions across module systems)
+
+## Results
+
+| Package | Version | publint | attw node10 | attw node16-CJS | attw node16-ESM | attw bundler |
+|---|---|---|---|---|---|---|
+| `@theokit/sdk-memory` | 0.1.0 | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
+| `@theokit/sdk-budget` | 0.1.0 | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
+| `@theokit/sdk-cache` | 0.1.0 | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
+| `@theokit/sdk-handoff` | 0.1.0 (main) | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
+| `@theokit/sdk-handoff/internal/tool-injector` | sub-path | — | 💀 NoRes¹ | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
+| `@theokit/sdk-tools` | 0.1.0 | ✅ All good! | 🟢 | 🟢 (CJS) | 🟢 (ESM) | 🟢 |
+
+¹ sdk-handoff's `./internal/tool-injector` sub-path fails node10
+resolution. **NOT a blocker.** node10 was EOL'd in 2019 and the
+package declares `engines.node: ">=22.12.0"` — node10 was never a
+supported runtime. The failure surfaces because attw runs node10
+even when engines explicitly excludes it.
+
+**Resolution decision:** accept the known limitation; document it
+here. A future iter MAY add a `typesVersions` field to silence the
+warning, but it's cosmetic only — no real consumer impact.
+
+## What this means for Phase 7 (cohort publish)
+
+All 5 packages are publish-ready under modern module resolutions
+(node16-CJS, node16-ESM, bundler — covers >99% of consumers). The
+node10 warning on a sub-path of one package is accepted.
+
+Phase 7 prereqs:
+- ✅ `publint` clean on all 5
+- ✅ `attw` clean on modern resolvers (node16+, bundler)
+- ⚠️ `attw` node10 warning on one sub-path — accepted per package's `engines.node`
+- ⏳ npm auth + workspace credential setup (operator step, not engineering)
+- ⏳ Version bump alignment (all at 0.1.0 today; the plan's D6 calls
+  for synchronized major bump in 2.0.0 cohort — that lands during the
+  Phase 6 rename)
+
+## Iter 33-37 net change
+
+The cohort-readiness state has NOT regressed since the iter 17 baseline
+(`sdk-2-0-phase-1-2-adr.md` ADR-007). Each iter's changes shipped with:
+- Tests added (cumulative ~205+ GREEN cross-package)
+- Build + dts emit verified
+- publint + attw checked at commit time
+
+This audit confirms the cumulative state is still publish-ready after
+the iter 33-37 sdk-memory feature surface expansion (disk write +
+cross-session recall + memory_search tool + agent-scope filter).
