@@ -73,13 +73,19 @@ export { FileSystemConversationStorage } from "./internal/persistence/conversati
 // Conversation storage adapters (Production-Readiness #1; ADRs D303-D306)
 export { InMemoryConversationStorage } from "./internal/persistence/conversation-storage-memory.js";
 // Plugin & extension system (v1.8 — ADRs D97-D109)
+// EC-Cache absorbed: PreUserSendContext + PostAssistantReplyContext + PreUserSendResult
+// added to barrel so extracted packages (sdk-cache, sdk-handoff) can type their
+// .asPlugin() factories without reaching into ./internal/plugins sub-path.
 export {
   definePlugin,
   type HookName,
   type Plugin,
   type PluginContext,
+  type PostAssistantReplyContext,
   type PreToolCallContext,
   type PreToolCallDecision,
+  type PreUserSendContext,
+  type PreUserSendResult,
 } from "./internal/plugins/types.js";
 export type { ProviderProfile } from "./internal/providers/types.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
