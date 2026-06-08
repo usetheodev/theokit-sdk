@@ -50,6 +50,20 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 61: eighteenth Stage 3 file move — session-summary-writer (88 LOC).
+// Per-run session summary writer per ADR D20. After every finished
+// run, writes a markdown summary to
+// `.theokit/memory/sessions/<runId>.md`. EC-9: only `status === "finished"`
+// runs trigger a write — cancelled/errored runs would otherwise pollute
+// the recall corpus with partial transcripts. Both user and assistant
+// text run through redactSecrets (ADR D68) + char-truncate at 2000
+// before persist. runId sanitized to `[a-zA-Z0-9_-]` so a malicious
+// id cannot escape the sessions directory. Future indexer moves tag
+// these with `source="sessions"` for memory_search corpus filter.
+// `writeSessionSummary` + `sessionsDir` + `sessionSummaryPath` +
+// `SessionSummaryInput`.
+export * from "./internal/session-summary-writer.js";
+
 // Iter 60: seventeenth Stage 3 file move — dreaming-run (110 LOC).
 // Dreaming sweep orchestrator per ADR D7. Composes:
 //   - readFactsFromMarkdown (iter 56) — input
