@@ -134,5 +134,16 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
 export type { CustomTool, SDKAgent } from "./types/agent.js";
+// BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
+// Kernel-facing contract for budget/usage tracking. Default impl lives in
+// internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
+// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
+// (wiring lands in subsequent iteration).
+export type {
+  BudgetCheck,
+  BudgetTotal,
+  BudgetTracker,
+  BudgetUsageEvent,
+} from "./internal/runtime/budget-tracker.js";
 // Type contract
 export type * from "./types/index.js";
