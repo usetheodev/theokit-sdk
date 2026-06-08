@@ -24,6 +24,7 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { Security } from "@theokit/sdk";
 import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
 import type {
   ActiveMemoryPassArgs,
@@ -131,6 +132,13 @@ function sanitizeRunId(runId: string): string {
 /** Render the session-summary markdown body. */
 function renderSessionSummaryMarkdown(args: RecordSessionSummaryArgs): string {
   const iso = new Date(args.at).toISOString();
+  // Iter 42: redact secrets from User + Assistant text via the public
+  // `Security.redact()` API (sdk-core's ADR D68 canonical redactor —
+  // 12 built-in patterns: OpenAI, Anthropic, GitHub PAT, AWS, etc.).
+  // Mirrors sdk-core's legacy writeSessionSummary behavior so the
+  // disk artefact never leaks API keys typed by the user.
+  const safeUser = Security.redact(truncate(args.userText));
+  const safeAssistant = Security.redact(truncate(args.assistantText));
   return [
     "---",
     `runId: ${args.runId}`,
@@ -141,11 +149,11 @@ function renderSessionSummaryMarkdown(args: RecordSessionSummaryArgs): string {
     "",
     "## User",
     "",
-    truncate(args.userText),
+    safeUser,
     "",
     "## Assistant",
     "",
-    truncate(args.assistantText),
+    safeAssistant,
     "",
   ].join("\n");
 }
