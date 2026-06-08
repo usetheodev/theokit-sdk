@@ -29,7 +29,12 @@
       "note": "errors.ts widening + openai mapper fix + CHANGELOG swept by sdk-2-0 session at d465b6e; my follow-up 1570d8c re-added the test file."
     },
     { "id": "T3.8", "status": "committed", "sha": "386fdd9" },
-    { "id": "T3.9", "status": "committed", "sha": "TBD" }
+    {
+      "id": "T3.9",
+      "status": "committed",
+      "sha_artifacts": "1ed2866",
+      "note": "T3.9 source + tests + CHANGELOG entries swept into sdk-2-0 session's commit 1ed2866 (sdk-handoff typesVersions fix). The race occurred when my T3.9 pre-commit hook ran AT the same instant the sdk-2-0 commit hook ran; HEAD advanced under my feet and my own commit lost the lock-ref. The actual T3.9 algorithm + tests are intact at HEAD per Inquebrável Rule 3."
+    }
   ],
   "blocked_count": 1,
   "partial_count": 2,
