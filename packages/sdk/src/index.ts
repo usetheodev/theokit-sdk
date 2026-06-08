@@ -145,5 +145,11 @@ export type {
   BudgetTracker,
   BudgetUsageEvent,
 } from "./internal/runtime/budget-tracker.js";
+// Reference impl — pure counter, no USD pricing. Consumers can use as a
+// fallback before @theokit/sdk-budget ships or as a worked example.
+export {
+  type CounterBudgetTrackerOptions,
+  createCounterBudgetTracker,
+} from "./internal/runtime/budget-tracker-counter.js";
 // Type contract
 export type * from "./types/index.js";
