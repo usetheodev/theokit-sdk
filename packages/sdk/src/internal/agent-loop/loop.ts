@@ -9,6 +9,7 @@ import { IterationBudget } from "../runtime/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validate-response.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
+import type { MemoryProviderHandle } from "../runtime/memory-provider.js";
 import type { AgentLoopErrorDetail, AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import {
   buildAssistantEvent,
@@ -41,8 +42,12 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
   if (sendSpan !== undefined && inputs.telemetry?.includeContent === true) {
     sendSpan.addEvent("prompt", { content: inputs.userMessage });
   }
+  // SDK 2.0 Phase 1 / T1.5.1: declared outside `try` so the finally
+  // block can reach `ctx.memoryProviderHandle` for `provider.dispose(...)`.
+  let ctxRef: LoopContext | undefined;
   try {
     const ctx = await initLoopContext(inputs);
+    ctxRef = ctx;
     // T4.2 (ADRs D90-D91): IterationBudget replaces the bare counter so
     // grace-call semantics, compression cap, and EC-4 NaN safety land in
     // one canonical place. Caller-supplied `budget` overrides defaults.
@@ -116,6 +121,22 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ...(ctx.error !== undefined ? { error: ctx.error } : {}),
     };
   } finally {
+    // SDK 2.0 Phase 1 / T1.5.1: dispose the MemoryProvider handle even
+    // when the loop errored. ctxRef is set inside `try` BEFORE the loop
+    // runs; if `initLoopContext` itself threw, ctxRef stays undefined
+    // and no handle was acquired — nothing to dispose.
+    if (
+      ctxRef !== undefined &&
+      ctxRef.memoryProviderHandle !== undefined &&
+      inputs.memoryProvider !== undefined
+    ) {
+      try {
+        await inputs.memoryProvider.dispose(ctxRef.memoryProviderHandle);
+      } catch {
+        // Per contract: dispose MUST be non-throwing on the hot path.
+        // Swallow + rely on provider-internal telemetry to surface.
+      }
+    }
     sendSpan?.end();
   }
 }
@@ -143,6 +164,14 @@ interface LoopContext {
    * bailing model still terminates instead of spinning forever.
    */
   nudgeAttempts: number;
+  /**
+   * SDK 2.0 Phase 1 / T1.5.1 — opaque handle from `provider.init()` when a
+   * `MemoryProvider` is wired on `AgentLoopInputs`. Undefined when no
+   * provider was supplied (legacy `Memory` class path). Carried so T1.5.2
+   * can call `provider.buildTools(handle, …)` and T1.5.3 can call
+   * `provider.runActivePass(handle, …)` without re-init.
+   */
+  memoryProviderHandle?: MemoryProviderHandle;
 }
 
 /** T2.1 (ADR D93) — maximum number of bailout-nudge user messages to inject. */
@@ -199,6 +228,22 @@ function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boo
 }
 
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
+  // SDK 2.0 Phase 1 / T1.5.1: when consumer supplied a MemoryProvider,
+  // run `init()` once per send. The opaque handle is stashed on ctx so
+  // T1.5.2 (buildTools) and T1.5.3 (runActivePass) can use it without
+  // re-init. `init()` throw is treated as soft-degradation: telemetry
+  // surfaces it; legacy `Memory` class path continues.
+  let memoryProviderHandle: MemoryProviderHandle | undefined;
+  if (inputs.memoryProvider !== undefined) {
+    try {
+      memoryProviderHandle = await inputs.memoryProvider.init({
+        cwd: process.cwd(),
+      });
+    } catch {
+      // Swallow per provider-contract (non-throwing on hot path).
+      memoryProviderHandle = undefined;
+    }
+  }
   const tools = await collectTools(inputs.mcp);
   for (const memTool of inputs.memoryTools ?? []) {
     tools.push({
@@ -241,6 +286,7 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
     finalStatus: "finished",
     usage: new UsageAccumulator(),
     nudgeAttempts: 0,
+    ...(memoryProviderHandle !== undefined ? { memoryProviderHandle } : {}),
   };
 }
 
