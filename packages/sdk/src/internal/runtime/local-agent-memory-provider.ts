@@ -111,13 +111,22 @@ export function createLocalAgentMemoryProvider(
     buildTools(handle: MemoryProviderHandle, _agent: SDKAgent): ReadonlyArray<CustomTool> {
       const state = handle[INTERNAL_LAM_KEY] as AdapterState | undefined;
       if (state === undefined) return [];
-      // ensureTools() resolves synchronously from cache after init() warmed it.
-      // But the contract is async — we can't await here without making
-      // buildTools async-only. Caller workaround: this adapter ALWAYS
-      // returns [] from buildTools — the rich tool surface still flows
-      // through legacy `inputs.memoryTools` until Stage 2b refactors the
-      // kernel call site. Documented gap.
-      return [];
+      // Read from the sync `getCachedTools()` view (Stage 2b — iter 19+
+      // — `LocalAgentMemory` added this sync accessor so the adapter
+      // can surface the same memory_search + memory_get tools the
+      // legacy path would). init() already awaited ensureTools() to
+      // warm the cache; this is the readout.
+      const cached = state.glue.getCachedTools();
+      if (cached === undefined || cached.length === 0) return [];
+      // Translate MemoryToolSpec (`execute`) → CustomTool (`handler`).
+      // Shape compatible (name + description + inputSchema match);
+      // only the handler-function key renames.
+      return cached.map((memTool) => ({
+        name: memTool.name,
+        description: memTool.description,
+        inputSchema: memTool.inputSchema,
+        handler: memTool.execute,
+      }));
     },
     async runActivePass(
       handle: MemoryProviderHandle,
