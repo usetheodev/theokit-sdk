@@ -1,0 +1,31 @@
+{
+  "$schema": "./1-x-to-2-0-map.schema.json",
+  "$description": "SDK 2.0 split — symbol → new target package map. Used by jscodeshift codemod scripts/migrations/1-x-to-2-0.mjs. Symbol absent from this map = preserved with original import path; codemod emits a warning.",
+
+  "$comment-cache": "Cache subsystem extracted to @theokit/sdk-cache (Phase 3 / T3.1).",
+  "Cache": "@theokit/sdk-cache",
+  "CacheEmbedderError": "@theokit/sdk-cache",
+  "CacheInvalidTtlError": "@theokit/sdk-cache",
+  "CacheEmbedderRuntime": "@theokit/sdk-cache",
+  "CacheEntry": "@theokit/sdk-cache",
+  "CachePersistenceOptions": "@theokit/sdk-cache",
+  "CacheSemanticOptions": "@theokit/sdk-cache",
+  "CacheStats": "@theokit/sdk-cache",
+  "CacheTTLConfig": "@theokit/sdk-cache",
+
+  "$comment-tools": "Tools subsystem extracted to @theokit/sdk-tools (Phase 5 / T5.1). The @theokit/sdk/tools sub-path was REMOVED in 2.0 — every consumer importing from there needs the path rewritten.",
+  "createReadFileTool": "@theokit/sdk-tools",
+  "createListDirTool": "@theokit/sdk-tools",
+  "createSearchTextTool": "@theokit/sdk-tools",
+  "createGitDiffTool": "@theokit/sdk-tools",
+  "createRunVitestTool": "@theokit/sdk-tools",
+  "createSubprocessTool": "@theokit/sdk-tools",
+  "CreateReadFileToolOptions": "@theokit/sdk-tools",
+  "CreateListDirToolOptions": "@theokit/sdk-tools",
+  "CreateSearchTextToolOptions": "@theokit/sdk-tools",
+  "CreateGitDiffToolOptions": "@theokit/sdk-tools",
+  "CreateRunVitestToolOptions": "@theokit/sdk-tools",
+  "VitestSummary": "@theokit/sdk-tools",
+
+  "$comment-pending": "Memory/Budget/Handoff entries land when Phases 1/2/4 complete (sdk-memory, sdk-budget, sdk-handoff). For now those symbols stay in @theokit/sdk and the codemod preserves them."
+}
