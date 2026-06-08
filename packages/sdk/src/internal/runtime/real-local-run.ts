@@ -161,6 +161,13 @@ function buildLoopInputs(
       ? { onToolError: options.agentOptions.onToolError }
       : {}),
     telemetry: createTelemetry(options.agentOptions.telemetry),
+    // SDK 2.0 Phase 2 / T2.1: thread the optional BudgetTracker from
+    // Agent.create options down to the loop. Runtime `track()` / `check()`
+    // calls land in a follow-up iteration; for now the field is plumbed
+    // so future enablement requires no further type changes.
+    ...(options.agentOptions.budgetTracker !== undefined
+      ? { budgetTracker: options.agentOptions.budgetTracker }
+      : {}),
   };
 }
 
