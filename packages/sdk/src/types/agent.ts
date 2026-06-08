@@ -488,6 +488,28 @@ export interface AgentOptions {
    * @public
    */
   conversationStorage?: import("./conversation-storage.js").ConversationStorageAdapter;
+
+  /**
+   * Pluggable budget/usage tracker (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface
+   * inversion). When provided, the agent loop calls `tracker.track(...)`
+   * after each LLM completion and `tracker.check()` before each iteration.
+   *
+   * **Status (Phase 2 incremental):** the option is wired to the type
+   * surface only. Agent-loop runtime wiring is additive and lands in a
+   * subsequent iteration — for now, the kernel still uses the legacy
+   * `UsageAccumulator` + `IterationBudget` from `internal/budget/`.
+   * Consumers passing a custom tracker today get the type guarantee but
+   * NOT runtime enforcement.
+   *
+   * Default impls available today via `@theokit/sdk`:
+   *   - `createCounterBudgetTracker({ maxTokens, maxIterations })`
+   *
+   * Future: post-Phase-2, `@theokit/sdk-budget` ships a richer impl with
+   * USD pricing.
+   *
+   * @public
+   */
+  budgetTracker?: import("../internal/runtime/budget-tracker.js").BudgetTracker;
 }
 
 /**
