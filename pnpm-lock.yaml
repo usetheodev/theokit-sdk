@@ -1163,6 +1163,9 @@ importers:
       better-sqlite3:
         specifier: ^12.10.0
         version: 12.10.0
+      sqlite-vec:
+        specifier: ^0.1.6
+        version: 0.1.9
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
