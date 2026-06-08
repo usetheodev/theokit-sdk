@@ -10,6 +10,7 @@ import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validate-response.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { MemoryProviderHandle } from "../runtime/memory-provider.js";
+import type { CustomTool, SDKAgent } from "../../types/agent.js";
 import type { AgentLoopErrorDetail, AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import {
   buildAssistantEvent,
@@ -227,6 +228,25 @@ function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boo
   return true;
 }
 
+/**
+ * SDK 2.0 Phase 1 / T1.5.2 — synthesize a minimal `SDKAgent` view for
+ * MemoryProvider hooks. The agent-loop runs BELOW the Agent layer so it
+ * has no direct handle to the SDKAgent instance. This view exposes
+ * `agentId` + `model` (the fields rich provider impls actually need
+ * for per-agent scoping) and leaves the rest undefined.
+ *
+ * Documented contract: provider impls MUST treat optional fields as
+ * "may be undefined even when the field exists on the SDKAgent type" —
+ * the loop never populates context/providers/skills/plugins managers
+ * for this call site.
+ */
+function buildAgentRef(inputs: AgentLoopInputs): SDKAgent {
+  return {
+    agentId: inputs.agentId,
+    model: inputs.model,
+  } as SDKAgent;
+}
+
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
   // SDK 2.0 Phase 1 / T1.5.1: when consumer supplied a MemoryProvider,
   // run `init()` once per send. The opaque handle is stashed on ctx so
@@ -262,6 +282,32 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
       origin: "custom",
       customHandler: customTool.handler,
     });
+  }
+  // SDK 2.0 Phase 1 / T1.5.2: when a MemoryProvider is wired AND init
+  // succeeded, surface its LLM-facing tools to the catalog. APPENDED
+  // after memoryTools + customTools so legacy paths win on name
+  // collisions (downstream dispatch is name-keyed). Provider tools
+  // adopt `origin: "custom"` since their handler shape matches.
+  // `buildTools()` throw is swallowed: tools array stays as-is.
+  if (inputs.memoryProvider !== undefined && memoryProviderHandle !== undefined) {
+    let providerTools: ReadonlyArray<CustomTool> = [];
+    try {
+      providerTools = inputs.memoryProvider.buildTools(
+        memoryProviderHandle,
+        buildAgentRef(inputs),
+      );
+    } catch {
+      providerTools = [];
+    }
+    for (const providerTool of providerTools) {
+      tools.push({
+        name: providerTool.name,
+        description: providerTool.description,
+        inputSchema: providerTool.inputSchema,
+        origin: "custom",
+        customHandler: providerTool.handler,
+      });
+    }
   }
   const events: SDKMessage[] = [
     buildSystemEvent(
