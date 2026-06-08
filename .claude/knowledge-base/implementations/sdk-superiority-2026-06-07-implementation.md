@@ -92,7 +92,7 @@
 | T3.7 | Phase 3 / T3.7 | Error mapping completeness (OpenRouter/Anthropic/Vertex) | committed | 16 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.8 | Phase 3 / T3.8 | Cache tokens Anthropic native + 5-bucket telemetry | committed | 17 | 386fdd9 | a=pass b=pass c=n/a | none-needed |
 | T3.9 | Phase 3 / T3.9 | Reconnect storm prevention (pool waitForAvailable) | committed | 18 | 1ed2866 (contamination) | a=pass b=pass c=n/a | none-needed |
-| T3.10 | Phase 3 / T3.10 | Cleanup batch DR3 findings 13-25 (incl vision content parts LARGE) | pending | — | — | — | — |
+| T3.10 | Phase 3 / T3.10 | Cleanup batch DR3 findings 13-25 (incl vision content parts LARGE) | blocked-on-replan | 19 | — | — | needs plan split per SEPA mass-delete gate; see progress JSON for rationale |
 
 ### Phase 4 — Memory subsystem (11 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
@@ -115,7 +115,7 @@
 | T5.1 | Phase 5 / T5.1 | HKDF-SHA256 para AES tx-cookie CRITICAL | pending | — | — | — | — |
 | T5.2 | Phase 5 / T5.2 | SQL injection Lance .where via sanitizeIdentifier | pending | — | — | — | — |
 | T5.3 | Phase 5 / T5.3 | __Host- cookie prefix + cookie clear fix | pending | — | — | — | — |
-| T5.4 | Phase 5 / T5.4 | Redactor pattern expansion (12→30+) | pending | — | — | — | — |
+| T5.4 | Phase 5 / T5.4 | Redactor pattern expansion (12→30+) | committed | 19 | TBD | a=pass b=pass c=n/a | none-needed |
 | T5.5 | Phase 5 / T5.5 | NUL byte rejection across path-guard | pending | — | — | — | — |
 | T5.6 | Phase 5 / T5.6 | Forbidden-path blocklist expansion | pending | — | — | — | — |
 | T5.7 | Phase 5 / T5.7 | Crypto-random tmp file names + mode 0o600 | pending | — | — | — | — |

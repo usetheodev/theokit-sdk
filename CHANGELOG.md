@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Redactor pattern expansion 12 → 30 builtins (T5.4 of plan `sdk-superiority-2026-06-07`)
+
+- **Workspace impact**: `@theokit/sdk` consumers now have credential
+  redaction coverage for 18 more vendor classes — JWT, GCP PEM
+  private_key block, Azure SAS, HuggingFace, Anthropic admin, Groq,
+  Perplexity, Replicate, xAI, Fireworks, Voyage, Pinecone, npm,
+  SendGrid, Twilio, Mailgun, Discord bot, LaunchDarkly. PARAM
+  keyword vocabulary also extended (`session_token`, `id_token`,
+  `service_account`, `refresh_token`, `client_secret`, etc.), so
+  generic `<keyword>=<value>` shapes in error metadata / telemetry
+  spans / transcript logs get caught even when the value lacks a
+  known prefix. Behavior is conservative: existing prefix-preserved
+  bucket-masks (D71 `sk-ant...xxxx` shape) survive the PARAM pass via
+  a new `...` separator guard in the callback.
+- **Iter 19** of halt-loop `sdk-superiority-2026-06-07`. Closes DR6
+  finding #4 (pattern coverage) + #24 (PARAM keyword vocabulary).
+
+### Halt-loop notes — iter 19 housekeeping
+
+- **T3.10 BLOCKED-on-replan**: T3.10 is a 13-finding cleanup batch
+  with no per-finding TDD shape in the plan; SEPA mass-delete gate
+  requires per-symbol grep before deletion. Documented in progress
+  JSON; recommends `/to-plan` revision to split T3.10 across DR3
+  findings 13-25 individually.
+- **Phase 4 tasks all collision-blocked** by the concurrent sdk-2-0
+  ralph-loop session's active Phase 1 Stage 3 source-move of
+  `internal/memory/*` into `@theokit/sdk-memory`. Iter 19 routed
+  around by picking T5.4 (additive single-file security work).
+
+### Operational — iter 19 stop-hook acknowledgement
+
+- Working tree continues to carry unstaged production-source changes
+  under `packages/sdk-budget/src/` and `packages/sdk-handoff/src/`
+  from the concurrent `sdk-2-0` ralph-loop session's Phase 1
+  Stage 3 work. Same mixed-authorship hygiene as iters 16-18.
+
 ### Added — SDK 2.0 Phase 1 + Phase 2 cohort progress (iter 24-41 summary)
 
 A long chain of concrete cohort-readiness work that landed across

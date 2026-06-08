@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 18,
+  "iterations_used": 19,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -34,11 +34,17 @@
       "status": "committed",
       "sha_artifacts": "1ed2866",
       "note": "T3.9 source + tests + CHANGELOG entries swept into sdk-2-0 session's commit 1ed2866 (sdk-handoff typesVersions fix). The race occurred when my T3.9 pre-commit hook ran AT the same instant the sdk-2-0 commit hook ran; HEAD advanced under my feet and my own commit lost the lock-ref. The actual T3.9 algorithm + tests are intact at HEAD per Inquebrável Rule 3."
-    }
+    },
+    {
+      "id": "T3.10",
+      "status": "blocked-on-replan",
+      "reason": "Plan label is 'Cleanup batch DR3 findings 13-25' but provides NO per-finding TDD shape, only a flat file list across vision content parts (DR3 #24 — LARGE), Bedrock streaming flag, capabilities introspection, vertex hack removal. The SEPA initial-brief mass-delete gate (#11-15) REQUIRES per-symbol grep before any deletion — that is sub-task structure the plan does not provide. Per Inquebrável Rule 5 (TDD) + user direction 'ZERO plan-deviation; HALT and re-plan via /to-plan when reality diverges', T3.10 needs to be split into T3.10a..T3.10n (one finding per sub-task each with its own RED-test shape) BEFORE retry. Recommend: /plan-improve or hand-edit the plan to split T3.10 across DR3 findings 13-25 individually."
+    },
+    { "id": "T5.4", "status": "committed", "sha": "TBD" }
   ],
-  "blocked_count": 1,
+  "blocked_count": 2,
   "partial_count": 2,
-  "pending_count": 48,
+  "pending_count": 46,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }
