@@ -23,9 +23,9 @@
  */
 
 import type { AgentOptions, SDKAgent } from "@theokit/sdk";
-import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent-memory-provider.js";
-import { LocalAgentMemory } from "../src/internal/runtime/local-agent-memory.js";
 import { describe, expect, it } from "vitest";
+import { LocalAgentMemory } from "../src/internal/runtime/local-agent-memory.js";
+import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent-memory-provider.js";
 
 const AGENT_OPTIONS: AgentOptions = {
   agentId: "equivalence-agent",
@@ -72,9 +72,7 @@ describe("Adapter ↔ Legacy equivalence (Stage 2b — iter 19+)", () => {
     });
     const handle = await adapter.init({ cwd: "/tmp/theokit-eq" });
     const HANDLE_SYMS = Object.getOwnPropertySymbols(handle);
-    const stateSym = HANDLE_SYMS.find((s) =>
-      s.toString().includes("local-agent-memory-provider"),
-    );
+    const stateSym = HANDLE_SYMS.find((s) => s.toString().includes("local-agent-memory-provider"));
     if (stateSym === undefined) throw new Error("adapter state symbol not found");
     const state = handle[stateSym] as { glue: { toolsCache: typeof STUB_TOOLS } };
     state.glue.toolsCache = STUB_TOOLS;
@@ -98,11 +96,10 @@ describe("Adapter ↔ Legacy equivalence (Stage 2b — iter 19+)", () => {
     });
     const handle = await adapter.init({ cwd: "/tmp/theokit-eq" });
     const HANDLE_SYMS = Object.getOwnPropertySymbols(handle);
-    const stateSym = HANDLE_SYMS.find((s) =>
-      s.toString().includes("local-agent-memory-provider"),
-    );
+    const stateSym = HANDLE_SYMS.find((s) => s.toString().includes("local-agent-memory-provider"));
     if (stateSym === undefined) throw new Error("adapter state symbol not found");
-    const state = handle[stateSym] as { glue: { toolsCache: typeof STUB_TOOLS } };
+    // biome-ignore lint/suspicious/noExplicitAny: test reaches a private field
+    const state = handle[stateSym] as { glue: { toolsCache: any } };
     // Use a tool whose execute is observable
     let executed = 0;
     const observableTool = {
