@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 22 post-housekeeping stop-hook acknowledgement
+
+- Working tree continues to carry unstaged production-source changes
+  under `packages/sdk-budget/src/`, `packages/sdk-handoff/src/`,
+  and `packages/sdk-memory/src/` from the concurrent `sdk-2-0`
+  ralph-loop session's in-flight Phase 1 Stage 3 source-move work.
+  Same mixed-authorship hygiene as iters 16-21 — this line
+  acknowledges the residual state per Inquebrável Rule 6 without
+  claiming authorship. My T5.6 forbidden-path blocklist expansion
+  (`packages/sdk/src/internal/security/path-guard.ts` —
+  `SENSITIVE_FIRST_SEGMENTS` / `SENSITIVE_BASENAMES` /
+  `SENSITIVE_SUFFIXES` + case-insensitive normalization + split
+  helpers) landed clean at `2bf3f83` with no contamination — third
+  consecutive clean atomic iter (T5.1 / T5.5 / T5.6).
+
 ### Security — Forbidden-path blocklist expansion + case-insensitive (T5.6)
 
 - **Workspace impact**: `@theokit/sdk` consumers' coding-agent
