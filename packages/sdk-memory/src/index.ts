@@ -50,6 +50,19 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 58: fifteenth Stage 3 file move — transcript-store (48 LOC).
+// Optional on-disk persistence for Active Memory recall transcripts
+// per ADR D6. `persistActiveMemoryTranscript(cwd, transcript)` writes
+// one JSON file per run under
+// `.theokit/memory/transcripts/active-memory/<runId>.json` via
+// atomicWriteJson (no torn writes during crash). Failures are
+// swallowed with a stderr warning so transcript IO never crashes the
+// agent run. ActiveMemoryTranscript shape exported for consumer
+// typing. Future `active-memory.ts` move composes with this as
+// sibling. Dependency chain (both resolved): persistence sub-path +
+// `./markdown-store.js` (iter 56).
+export * from "./internal/transcript-store.js";
+
 // Iter 57: fourteenth Stage 3 file move — wiki-loader (50 LOC).
 // Read-only wiki supplement discovery (ADR Phase 10 of
 // memory-system-peer-project-parity). Lists `.theokit/memory/wiki/*.md`
