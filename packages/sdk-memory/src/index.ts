@@ -19,3 +19,12 @@ export * from "./internal/circuit-breaker.js";
 // `MemoryEmbeddingProviderAdapter` + `CreateAdapterOptions` +
 // `EmbeddingRuntime` + `EmbeddingRuntimeStats` + `EmbeddingCache`.
 export * from "./internal/embedding-adapter.js";
+
+// Iter 46: third Stage 3 file move — LruEmbeddingCache (36 LOC).
+// Concrete bounded-LRU impl of `EmbeddingCache` from iter 45's
+// embedding-adapter types. KEPT INTERNAL — not re-exported from the
+// public barrel because no Stage 1 surface consumes it yet. Lives in
+// sdk-memory's internal/ so future rich providers (LanceDB-backed)
+// can import it as a sibling. Rollup-plugin-dts treeshake limitation
+// + lack of public consumer = internal-only. Will be promoted to
+// public if/when a consumer surface needs it.
