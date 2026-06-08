@@ -1,32 +1,38 @@
 {
   "slug": "sdk-superiority-2026-06-07",
   "max_iterations": 100,
-  "iterations_used": 3,
+  "iterations_used": 4,
   "started_at": "2026-06-07",
   "phase_0_status": "completed",
+  "phase_1_status": "in-progress",
   "tasks": [
     {
       "task_id": "T0.1",
       "status": "partial(iter1)",
       "commit_sha": "42a3763",
-      "wiring": { "a": "pass", "b": "pass-defer", "c": "pass(histogram)" },
-      "notes": "3 of 6 spans; remainder deferred T1.7/T2.4/T3.*"
+      "wiring": { "a": "pass", "b": "pass-defer", "c": "pass(histogram)" }
     },
     {
       "task_id": "T0.2",
       "status": "committed",
       "commit_sha": "8d4487e",
-      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" },
-      "notes": "15 env-gated real-LLM scaffolds + shared helper"
+      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" }
     },
     {
       "task_id": "T0.3",
       "status": "committed",
-      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" },
-      "notes": "6 scaffold tests + 3 harness modules; 8 GREEN smoke"
+      "commit_sha": "1eb3687",
+      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" }
+    },
+    {
+      "task_id": "T1.1",
+      "status": "committed",
+      "commit_sha": "5ac8f75",
+      "wiring": { "a": "pass", "b": "pass-defer", "c": "n/a" },
+      "notes": "BREAKING type-level; KnownAgentRunErrorCode + back-compat alias + coerce helper + migration codemod"
     }
   ],
-  "pending_count": 64,
+  "pending_count": 63,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }
