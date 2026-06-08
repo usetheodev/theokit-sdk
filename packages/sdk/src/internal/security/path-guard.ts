@@ -236,6 +236,76 @@ const IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9\-_]*$/i;
  *
  * @internal
  */
+/**
+ * T1.4 — validate a relative artifact path string BEFORE it is used to look
+ * up a fixture or to fetch from PaaS. Rejects every well-known traversal
+ * vector at the boundary, throwing `PathTraversalError`.
+ *
+ * Vectors rejected:
+ *  - classic `..` parent-directory traversal (any segment).
+ *  - backslash separators (Windows-style `..\\windows`).
+ *  - URL-encoded `%2e%2e` / `%2E%2E` (double-decoded traversal).
+ *  - NUL byte injection (`\x00`).
+ *  - Windows drive letter prefix (`C:`, `D:\\...`).
+ *  - Home-tilde expansion (`~/`, `~root/...`).
+ *  - Absolute paths starting with `/`.
+ *
+ * Does NOT touch the filesystem — the call is shape-only. Live symlink
+ * traversal protection happens via `assertNoSymlinkEscape` at the FS-resolve
+ * boundary.
+ *
+ * @param input - Caller-supplied artifact path.
+ * @throws `PathTraversalError` on any rejection.
+ *
+ * @internal
+ */
+export function validateArtifactPath(input: string): void {
+  rejectKnownPrefixVectors(input);
+  const normalized = decodeAndNormalize(input);
+  rejectParentTraversal(input, normalized);
+}
+
+function rejectKnownPrefixVectors(input: string): void {
+  if (input.includes("\x00")) {
+    throw new PathTraversalError(input, "<nul-byte>");
+  }
+  if (input.startsWith("/") || input.startsWith("~")) {
+    throw new PathTraversalError(input, input);
+  }
+  if (/^[A-Za-z]:[\\/]?/.test(input)) {
+    throw new PathTraversalError(input, input);
+  }
+}
+
+function decodeAndNormalize(input: string): string {
+  // URL-encoded traversal — 2 passes catches `%252e%252e`.
+  // Malformed sequences (decodeURIComponent throws) are themselves a rejection.
+  let decoded = input;
+  for (let i = 0; i < 2; i += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      throw new PathTraversalError(input, "<malformed-url-encoding>");
+    }
+  }
+  // Normalize backslash to forward slash before segment-walking.
+  return decoded.replace(/\\/g, "/");
+}
+
+function rejectParentTraversal(input: string, normalized: string): void {
+  for (const segment of normalized.split("/")) {
+    if (segment === ".." || segment === "..%00") {
+      throw new PathTraversalError(input, normalized);
+    }
+  }
+  // Defense in depth: literal `..` anywhere in the normalized string.
+  if (normalized.includes("..")) {
+    throw new PathTraversalError(input, normalized);
+  }
+}
+
 export function sanitizeIdentifier(input: string, options?: { maxLen?: number }): string {
   const maxLen = options?.maxLen ?? 64;
   if (input.length === 0 || input.length > maxLen) {

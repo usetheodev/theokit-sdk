@@ -15,6 +15,7 @@ import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
 import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { PathTraversalError, validateArtifactPath } from "../security/path-guard.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
@@ -206,12 +207,24 @@ export class CloudAgent implements SDKAgent {
   }
 
   downloadArtifact(path: string): Promise<Buffer> {
-    if (path.includes("..") || path.startsWith("/")) {
-      return Promise.reject(
-        new ConfigurationError(`Artifact path must stay inside the workspace: ${path}`, {
-          code: "artifact_path_traversal",
-        }),
-      );
+    // T1.4 — delegate path-traversal rejection to the centralized
+    // path-guard module (handles `..`, backslash, %2e%2e, NUL byte,
+    // Windows drive prefix, home-tilde, absolute paths). The original
+    // 2-vector inline check shipped a typed `artifact_path_traversal`
+    // error; we preserve that error contract here regardless of which
+    // vector trips the validator.
+    try {
+      validateArtifactPath(path);
+    } catch (cause) {
+      if (cause instanceof PathTraversalError) {
+        return Promise.reject(
+          new ConfigurationError(`Artifact path must stay inside the workspace: ${path}`, {
+            code: "artifact_path_traversal",
+            cause,
+          }),
+        );
+      }
+      return Promise.reject(cause as Error);
     }
     if (!this.isFixtureMode()) {
       return Promise.reject(
