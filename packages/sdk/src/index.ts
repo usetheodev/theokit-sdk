@@ -78,6 +78,35 @@ export {
   type PreUserSendResult,
 } from "./internal/plugins/types.js";
 export type { ProviderProfile } from "./internal/providers/types.js";
+// BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
+// Kernel-facing contract for budget/usage tracking. Default impl lives in
+// internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
+// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
+// (wiring lands in subsequent iteration).
+export type {
+  BudgetCheck,
+  BudgetTotal,
+  BudgetTracker,
+  BudgetUsageEvent,
+} from "./internal/runtime/budget-tracker.js";
+// Reference impl — pure counter, no USD pricing. Consumers can use as a
+// fallback before @theokit/sdk-budget ships or as a worked example.
+export {
+  type CounterBudgetTrackerOptions,
+  createCounterBudgetTracker,
+} from "./internal/runtime/budget-tracker-counter.js";
+// MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
+// Architecture). Kernel-facing contract for the memory subsystem.
+// Default no-op impl ships with sdk; rich impl will ship in
+// @theokit/sdk-memory. Consumers opt-in via Agent.create({ memoryProvider })
+// (wiring lands in subsequent iteration). Mirrors BudgetTracker pattern.
+export type {
+  ActiveMemoryPassArgs,
+  ActiveMemoryPassResult,
+  MemoryProvider,
+  MemoryProviderHandle,
+  MemoryProviderInitOptions,
+} from "./internal/runtime/memory-provider.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
@@ -134,22 +163,5 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
 export type { CustomTool, SDKAgent } from "./types/agent.js";
-// BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
-// Kernel-facing contract for budget/usage tracking. Default impl lives in
-// internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
-// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
-// (wiring lands in subsequent iteration).
-export type {
-  BudgetCheck,
-  BudgetTotal,
-  BudgetTracker,
-  BudgetUsageEvent,
-} from "./internal/runtime/budget-tracker.js";
-// Reference impl — pure counter, no USD pricing. Consumers can use as a
-// fallback before @theokit/sdk-budget ships or as a worked example.
-export {
-  type CounterBudgetTrackerOptions,
-  createCounterBudgetTracker,
-} from "./internal/runtime/budget-tracker-counter.js";
 // Type contract
 export type * from "./types/index.js";
