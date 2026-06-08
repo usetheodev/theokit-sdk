@@ -2,6 +2,24 @@
 
 ## [Unreleased]
 
+### Added (Phase 1 Stage 3 prep — iter 33-35, 2026-06-08)
+- `createInMemoryMarkdownProvider.recordSessionSummary` ships REAL
+  filesystem-backed impl (was no-op). Writes
+  `${cwd}/.theokit/memory/sessions/${sanitizeRunId(runId)}.md` via
+  `replaceFileAtomic` imported from `@theokit/sdk/internal/persistence`
+  (ADR-008 sub-path resolution). Mirrors sdk-core's legacy
+  `writeSessionSummary` semantics — YAML frontmatter + User/Assistant
+  sections, 2000-char truncation, runId sanitization.
+- `runActivePass()` now reads previously-written session summaries
+  from disk + substring-matches against the user message — closes
+  the "write but never read" gap. In-process Map facts AND disk-recall
+  hits both contribute to `systemPromptAdditions`. Capped at 5 hits
+  per pass.
+- NEW LLM-facing tool: `memory_search(query)` — surfaced in
+  `buildTools` alongside `memory_remember`. The LLM can explicitly
+  query the disk sessions corpus when the user references past
+  conversations. Returns JSON `{ok, count, results: [{id, snippet}]}`.
+
 ### Changed (Phase 1 physical Stage 1 — iter 19, 2026-06-08)
 - `createInMemoryMarkdownProvider` now implements the new optional
   `sync(handle)` port method (no-op for the in-process impl — facts
