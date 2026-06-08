@@ -108,6 +108,82 @@ export class CredentialPool {
     return this.availableEntries().length > 0;
   }
 
+  /**
+   * Earliest `lastErrorResetAt` across all entries, or `undefined` if no
+   * entry is in cooldown. Used by `waitForAvailable` to compute the
+   * upper bound of each jittered sleep window.
+   *
+   * @internal
+   */
+  earliestResetAt(): number | undefined {
+    let earliest: number | undefined;
+    for (const entry of this.entries) {
+      if (entry.lastStatus === "ok") continue;
+      if (entry.lastErrorResetAt === undefined) continue;
+      if (earliest === undefined || entry.lastErrorResetAt < earliest) {
+        earliest = entry.lastErrorResetAt;
+      }
+    }
+    return earliest;
+  }
+
+  /**
+   * Wait until at least one entry becomes healthy OR `maxWaitMs` elapses
+   * OR `signal` aborts. Returns `true` if a healthy entry is available
+   * when the call returns, `false` otherwise.
+   *
+   * T3.9 — Reconnect storm prevention. Concurrent callers each sleep a
+   * random fraction of the window to the earliest cooldown reset (full
+   * jitter — AWS Brooker 2015) so they do not all wake at the exact
+   * instant cooldown expires and hammer the upstream simultaneously.
+   *
+   * The `sleeper` parameter is a dependency-injection seam for tests:
+   * callers in production omit it and the default `setTimeout`-based
+   * sleeper is used. The seam avoids the `vi.useFakeTimers()` mismatch
+   * that blocked T3.4's wiring.
+   *
+   * @internal
+   */
+  async waitForAvailable(
+    signal: AbortSignal,
+    opts: {
+      maxWaitMs: number;
+      sleeper?: (ms: number, signal: AbortSignal) => Promise<void>;
+    },
+  ): Promise<boolean> {
+    if (signal.aborted) return false;
+    if (this.hasAvailable()) return true;
+    const sleeper = opts.sleeper ?? defaultSleeper;
+    const deadline = Date.now() + opts.maxWaitMs;
+    while (Date.now() < deadline) {
+      if (signal.aborted) return false;
+      const jittered = this.computeJitteredSleepMs(deadline);
+      await sleeper(jittered, signal);
+      if (signal.aborted) return false;
+      if (this.hasAvailable()) return true;
+    }
+    return this.hasAvailable();
+  }
+
+  /**
+   * Compute the next jittered sleep window (ms) for `waitForAvailable`.
+   * Full-jitter cap: at most (a) time until the earliest reset (plus a
+   * 50 ms grace so the entry actually heals before re-probe), or (b) the
+   * remaining wait window, whichever is smaller. When no entry has a
+   * known reset (rare — only if `markExhaustedAndRotate` was called
+   * without `resetAtMs`), fall back to a 250 ms ceiling so we stay
+   * responsive without hot-looping.
+   */
+  private computeJitteredSleepMs(deadline: number): number {
+    const resetAt = this.earliestResetAt();
+    const remaining = deadline - Date.now();
+    const ceiling =
+      resetAt === undefined
+        ? Math.min(remaining, 250)
+        : Math.min(remaining, Math.max(0, resetAt - Date.now()) + 50);
+    return Math.max(0, Math.floor(Math.random() * ceiling));
+  }
+
   /** Live (frozen) view of all entries. */
   list(): readonly PooledCredential[] {
     return this.entries;
@@ -249,6 +325,29 @@ export class CredentialPool {
     }
     return out;
   }
+}
+
+/**
+ * Default sleeper for `CredentialPool.waitForAvailable`. Resolves after
+ * `ms` milliseconds OR when `signal` aborts, whichever comes first.
+ * Pure helper — no module-level timers.
+ *
+ * @internal
+ */
+function defaultSleeper(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve();
+  if (ms <= 0) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = (): void => {
+      clearTimeout(timer);
+      resolve();
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 }
 
 /**

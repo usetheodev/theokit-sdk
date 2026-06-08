@@ -6,6 +6,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Reconnect storm prevention via `CredentialPool.waitForAvailable` (T3.9 of plan `sdk-superiority-2026-06-07`)
+
+- **Workspace impact**: `@theokit/sdk` consumers running pool-aware
+  clients with multiple credentials per provider stop seeing
+  `CredentialPoolExhaustedError` storms when a transient upstream
+  outage cools down every key simultaneously. Concurrent callers now
+  cooperatively wait (up to 30 s, jittered) for the earliest cooldown
+  to expire before throwing — and they wake at staggered times so they
+  do not all re-hammer the upstream at the same instant. Behavior is
+  conservative: legacy single-credential setups continue to throw
+  fast (the wait is a no-op when one entry is healthy), and
+  callers that prefer the old contract can opt out by passing
+  `waitForAvailableMs: 0` to the `PoolAwareLlmClient` constructor.
+- **Iter 18** of halt-loop `sdk-superiority-2026-06-07`. Closes DR3
+  finding #9. Real-LLM proof against OpenRouter with an artificially
+  exhausted second key lands in T6.x.
+
+### Operational — iter 18 stop-hook acknowledgement
+
+- Same mixed-authorship hygiene as iter 17 — staged only T3.9 files
+  (`packages/sdk/src/internal/llm/credential-pool.ts`,
+  `packages/sdk/src/internal/llm/pool-aware-client.ts`,
+  `packages/sdk/tests/internal/llm/credential-pool-wait-for-available.test.ts`,
+  `packages/sdk/tests/internal/llm/pool-aware-client.test.ts`,
+  the two CHANGELOGs, the implementation contract row, and the
+  progress JSON).
+
 ### Added — Anthropic native cache-token surfacing (T3.8 of plan `sdk-superiority-2026-06-07`)
 
 - **Workspace impact**: `@theokit/sdk` consumers using Anthropic with
