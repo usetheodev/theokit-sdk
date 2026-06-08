@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 19 post-housekeeping stop-hook acknowledgement
+
+- Working tree carries unstaged production-source changes under
+  `packages/sdk-budget/src/`, `packages/sdk-handoff/src/`, and
+  `packages/sdk-memory/src/` from the concurrent `sdk-2-0` ralph-loop
+  session's in-flight Phase 1 Stage 3 source-move work (currently
+  iter 52). Same mixed-authorship hygiene as iters 16, 17, 18 — this
+  line acknowledges the residual state per Inquebrável Rule 6 without
+  claiming authorship. My T5.4 source (`packages/sdk/src/internal/security/redact.ts`
+  with 30 BUILTIN patterns + 16 PARAM keywords) was committed at
+  `8d1325e+62408c1` (see contamination note in
+  `.claude/knowledge-base/implementations/.progress-sdk-superiority-2026-06-07.json`).
+
 ### Added — Redactor pattern expansion 12 → 30 builtins (T5.4 of plan `sdk-superiority-2026-06-07`)
 
 - **Workspace impact**: `@theokit/sdk` consumers now have credential
