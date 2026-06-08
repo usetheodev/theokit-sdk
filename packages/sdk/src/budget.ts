@@ -7,6 +7,27 @@
  * (preflight throw before LLM call).
  *
  * @public
+ *
+ * @deprecated since SDK 2.0 (iter 18+) — import this facade from
+ * `@theokit/sdk-budget` instead. The sources backing this facade have
+ * been physically extracted to `@theokit/sdk-budget/internal/` per
+ * ADR-008. The sdk-core copies are retained for the v1.x sync API
+ * contract; consumers MUST migrate before sdk-core v3.0.
+ *
+ * Migration:
+ *
+ * ```ts
+ * // Before (sdk-core, deprecated):
+ * import { Budget, computeCost } from "@theokit/sdk";
+ *
+ * // After (sdk-budget, authoritative):
+ * import {
+ *   chargeAndCheckThresholds,
+ *   createBudget,
+ *   computeUsdCost,  // replaces computeCost
+ *   createUsdBudgetTracker,
+ * } from "@theokit/sdk-budget";
+ * ```
  */
 
 import { computeCost } from "./internal/budget/compute-cost.js";
