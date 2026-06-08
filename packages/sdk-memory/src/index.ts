@@ -50,6 +50,17 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 55: twelfth Stage 3 file move — reader (57 LOC).
+// `readMemoryFileBounded(opts): Promise<MemoryReadResult>` — the
+// bounded read with truncation info that powers ADR D5's
+// `memory_get` tool. Mirrors OpenClaw's `buildMemoryReadResult`
+// semantics (1-indexed `from`, default 200 lines, truncated=true
+// when content remains past the slice). Default lines constant
+// `DEFAULT_MEMORY_READ_LINES` also exported. Depends only on
+// `node:fs/promises` + `node:path` + iter 52's `MemoryReadResult`
+// (sibling import via ./memory-types.js).
+export * from "./internal/reader.js";
+
 // Iter 54: eleventh Stage 3 file move — dreaming-phases (149 LOC).
 // Three-phase memory consolidation: `lightPhase` (cosine ≥ 0.95
 // dedup) + `remPhase` (single-link agglomerative clustering at
