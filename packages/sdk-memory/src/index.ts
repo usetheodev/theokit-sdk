@@ -50,6 +50,18 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 70: twenty-seventh Stage 3 file move — index-manager-dispatch (50 LOC).
+// Dispatch helpers used by `IndexManager.open` to route between
+// sqlite-vec (default) and lance backends without bloating the
+// composed `index-manager.ts` past the G8 400-LoC budget. Exports
+// `VALID_BACKENDS` (`["sqlite-vec", "lance"]`), `assertValidBackend`
+// runtime guard (EC-1 — `invalid_memory_backend` typed error on
+// any non-canonical literal), and `openLanceIndex(opts)` async
+// factory (throws `lance_requires_embedding` when embedding runtime
+// missing because Lance is vector-only — no FTS fallback).
+// Future `index-manager.ts` move composes with this as sibling.
+export * from "./internal/index-manager-dispatch.js";
+
 // Iter 69: twenty-sixth Stage 3 file move — lance-memory-adapter (131 LOC).
 // `LanceMemoryAdapter` wraps `LanceIndex` (iter 68) to expose the
 // `MemoryIndex` contract (iter 50). Drop-in replacement for the
