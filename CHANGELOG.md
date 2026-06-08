@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 18 post-housekeeping stop-hook acknowledgement
+
+- Working tree carries unstaged production-source changes under
+  `packages/sdk-budget/src/` and `packages/sdk-handoff/src/` from the
+  concurrent `sdk-2-0` ralph-loop session's in-flight Phase 1 Stage 3
+  work. Same mixed-authorship hygiene as iters 16, 17, 18 — this line
+  acknowledges the residual state per Inquebrável Rule 6 without
+  claiming authorship of work that belongs to the other session. My
+  T3.9 source (`packages/sdk/src/internal/llm/credential-pool.ts`
+  `+earliestResetAt`/`+waitForAvailable`) was already committed at
+  `1ed2866` (see contamination note in
+  `.claude/knowledge-base/implementations/.progress-sdk-superiority-2026-06-07.json`).
+
 ### Added — Reconnect storm prevention via `CredentialPool.waitForAvailable` (T3.9 of plan `sdk-superiority-2026-06-07`)
 
 - **Workspace impact**: `@theokit/sdk` consumers running pool-aware
