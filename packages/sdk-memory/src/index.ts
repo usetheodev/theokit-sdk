@@ -50,6 +50,16 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 57: fourteenth Stage 3 file move — wiki-loader (50 LOC).
+// Read-only wiki supplement discovery (ADR Phase 10 of
+// memory-system-peer-project-parity). Lists `.theokit/memory/wiki/*.md`
+// and emits `{absolutePath, relPath}` records that future indexer
+// moves (`index-db`/`index-manager`) consume with `source="wiki"`
+// chunk tagging so `memory_search { corpus: "wiki" }` filter scopes
+// hits. Depends on sibling `./markdown-store.js` for `memoryDir`
+// (moved iter 56).
+export * from "./internal/wiki-loader.js";
+
 // Iter 56: thirteenth Stage 3 file move — markdown-store (134 LOC).
 // Markdown-first memory storage primitives per ADR D1 of the
 // memory-system-peer-project-parity plan. Public path helpers
