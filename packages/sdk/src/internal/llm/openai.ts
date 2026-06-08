@@ -247,7 +247,10 @@ function mapOpenAIFinish(reason: string): LlmStopReason {
 
 function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
   const messages: Array<Record<string, unknown>> = [];
-  if (request.system !== undefined) messages.push({ role: "system", content: request.system });
+  const systemText = openAISystemText(request.system);
+  if (systemText.length > 0) {
+    messages.push({ role: "system", content: systemText });
+  }
   for (const message of request.messages) {
     for (const out of toOpenAIMessages(message)) messages.push(out);
   }
@@ -267,8 +270,54 @@ function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
       function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
     }));
   }
+  const responseFormat = encodeOpenAIResponseFormat(request.responseFormat);
+  if (responseFormat !== undefined) body.response_format = responseFormat;
   return body;
 }
+
+/**
+ * T3.5 follow-up — collapse `LlmRequest.system` to the OpenAI wire shape
+ * (single string). OpenAI doesn't support per-block prompt caching, so
+ * blocks are joined with a blank-line separator.
+ *
+ * @internal
+ */
+function openAISystemText(system: LlmRequest["system"]): string {
+  if (system === undefined) return "";
+  if (typeof system === "string") return system;
+  return system.map((b) => b.text).join("\n\n");
+}
+
+/**
+ * T3.6 — encode `LlmResponseFormat` into the OpenAI wire shape. The
+ * structured-outputs path defaults `strict` to `true` (provider guarantees
+ * the response matches the schema).
+ *
+ * @internal
+ */
+function encodeOpenAIResponseFormat(
+  rf: LlmRequest["responseFormat"],
+): Record<string, unknown> | undefined {
+  if (rf === undefined) return undefined;
+  if (rf.type === "json_object") return { type: "json_object" };
+  return {
+    type: "json_schema",
+    json_schema: {
+      name: rf.jsonSchema.name,
+      schema: rf.jsonSchema.schema,
+      strict: rf.jsonSchema.strict ?? true,
+    },
+  };
+}
+
+/**
+ * T3.6 — public test seam for `buildOpenAIBody`. The implementation is
+ * file-local; the seam lets unit tests verify the wire shape without
+ * exercising the streaming path.
+ *
+ * @internal
+ */
+export const __testing__buildOpenAIBody = buildOpenAIBody;
 
 function toOpenAIMessages(message: LlmMessage): Array<Record<string, unknown>> {
   if (message.role === "system") return [systemMessage(message)];
