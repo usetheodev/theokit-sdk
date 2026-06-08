@@ -17,10 +17,10 @@ import { describe, expect, expectTypeOf, it } from "vitest";
  * Kept in lockstep with the runtime call — when the runtime code
  * changes, this helper changes too.
  */
-function threadMemoryProvider<T extends { memoryProvider?: MemoryProvider }>(
+function threadMemoryProvider<T extends Record<string, unknown>>(
   agentOptionsMemoryProvider: MemoryProvider | undefined,
   loopInputsSoFar: T,
-): T {
+): T & { memoryProvider?: MemoryProvider } {
   return {
     ...loopInputsSoFar,
     ...(agentOptionsMemoryProvider !== undefined
