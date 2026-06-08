@@ -41,6 +41,20 @@ export class PoolAwareLlmClient implements LlmClient {
   constructor(
     private readonly pool: CredentialPool,
     private readonly buildClient: (apiKey: string) => LlmClient,
+    /**
+     * T3.9 — Optional override for the upper bound on how long
+     * `stream()` waits for a cooldown to expire before throwing
+     * `CredentialPoolExhaustedError`. Defaults to 30 s. The actual
+     * wait inside `pool.waitForAvailable` is jittered (AWS Brooker
+     * 2015 full-jitter), so concurrent callers stagger their
+     * re-probe of the pool — preventing reconnect storms.
+     *
+     * Set to `0` to opt out (legacy pre-T3.9 behavior — throw on
+     * first `select()`-returns-null).
+     *
+     * @internal
+     */
+    private readonly waitForAvailableMs: number = 30_000,
   ) {
     this.name = `pool-aware:${pool.provider}`;
   }
@@ -54,14 +68,32 @@ export class PoolAwareLlmClient implements LlmClient {
     while (true) {
       if (signal.aborted) throw abortError(signal);
 
-      const entry = await this.pool.select();
+      let entry = await this.pool.select();
       if (entry === null) {
-        throw new CredentialPoolExhaustedError(
-          `All ${this.pool.provider} credentials exhausted; next retry available at ${
-            this.nextRetryHint() ?? "unknown"
-          }`,
-          { provider: this.pool.provider, nextRetryAt: this.nextRetryHint() },
-        );
+        // T3.9 — Reconnect storm prevention. Instead of throwing
+        // immediately, wait (with jitter) for the earliest cooldown to
+        // expire. Concurrent callers each pick a random delay within
+        // the window to the earliest reset, so they wake at staggered
+        // times and do not all re-hammer the upstream at the same
+        // instant. `waitForAvailableMs === 0` opts out for legacy
+        // callers and for unit tests that prefer the pre-T3.9
+        // throw-fast contract.
+        if (this.waitForAvailableMs > 0) {
+          const available = await this.pool.waitForAvailable(signal, {
+            maxWaitMs: this.waitForAvailableMs,
+          });
+          if (available) {
+            entry = await this.pool.select();
+          }
+        }
+        if (entry === null) {
+          throw new CredentialPoolExhaustedError(
+            `All ${this.pool.provider} credentials exhausted; next retry available at ${
+              this.nextRetryHint() ?? "unknown"
+            }`,
+            { provider: this.pool.provider, nextRetryAt: this.nextRetryHint() },
+          );
+        }
       }
 
       // EC-D: a failure inside buildClient (e.g., invalid baseUrl) is
