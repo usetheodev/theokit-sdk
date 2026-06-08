@@ -67,7 +67,9 @@
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
 | T2.1 | Phase 2 / T2.1 | Wire validateResponse D93 bailout CRITICAL | committed | 9 | TBD | a=pass b=pass c=n/a | none-needed |
-| T2.2 | Phase 2 / T2.2 | Wire D91/D92 compression CRITICAL | pending | — | — | — | — |
+| T2.2 | Phase 2 / T2.2 | Wire D91/D92 compression CRITICAL | blocked-on-replan | — | — | — | SEPA HALT |
+
+> **T2.2 BLOCKED (iter 10 surfacing)** — SEPA initial brief § B item #2 marked this `[CRITICAL] HALT + refine plan` because the plan does NOT specify the auxiliary-LLM contract for compression (model id, API-key source, credential-pool routing, fallback behavior). Plan ADR D440 is referenced but not yet defined in the plan body. Per the user's zero plan-deviation policy, I HALT T2.2 and recommend `/to-plan` revision to lock the aux-LLM contract before implementation. Downstream T3.* / T4.* / T5.* / T6.* are NOT blocked — only T2.2 itself.
 | T2.3 | Phase 2 / T2.3 | Conversation log: push tool turns | pending | — | — | — | — |
 | T2.4 | Phase 2 / T2.4 | Parallel tool dispatch | pending | — | — | — | — |
 | T2.5 | Phase 2 / T2.5 | Hook ordering vetoes + lifecycle + span | pending | — | — | — | — |
@@ -79,7 +81,7 @@
 ### Phase 3 — LLM providers + streaming (10 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
-| T3.1 | Phase 3 / T3.1 | SSE spec-correct parser CRITICAL | pending | — | — | — | — |
+| T3.1 | Phase 3 / T3.1 | SSE spec-correct parser CRITICAL | committed | 10 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.2 | Phase 3 / T3.2 | SSE abort cancels body CRITICAL | pending | — | — | — | — |
 | T3.3 | Phase 3 / T3.3 | Stream break cancels body CRITICAL | pending | — | — | — | — |
 | T3.4 | Phase 3 / T3.4 | Exponential backoff + jitter no credential pool | pending | — | — | — | — |
