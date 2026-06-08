@@ -197,10 +197,7 @@ class AnthropicStreamAccumulator {
     ) {
       this.cacheWriteTokens = md.usage.cache_creation_input_tokens;
     }
-    if (
-      md.usage?.cache_read_input_tokens !== undefined &&
-      md.usage.cache_read_input_tokens > 0
-    ) {
+    if (md.usage?.cache_read_input_tokens !== undefined && md.usage.cache_read_input_tokens > 0) {
       this.cacheReadTokens = md.usage.cache_read_input_tokens;
     }
   }
