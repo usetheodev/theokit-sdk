@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 16 stop-hook acknowledgement
+
+- Working tree carries unstaged production-source changes from the concurrent `sdk-2-0` ralph-loop session. The stop hook flags any TS modification under `packages/sdk/src/` as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
+
 ### Added — SDK 2.0 Phase 1 physical Stage 2b: `THEOKIT_PORT_MEMORY_PATH` env flag
 
 - **Workspace impact**: opt-in env-flag (`THEOKIT_PORT_MEMORY_PATH=1` or
