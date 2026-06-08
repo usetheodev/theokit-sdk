@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 12,
+  "iterations_used": 13,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -18,11 +18,17 @@
     },
     { "id": "T3.1", "status": "committed", "sha": "a390ea5" },
     { "id": "T3.2", "status": "committed", "sha_artifacts": "e67d1db+73471ac" },
-    { "id": "T3.3", "status": "committed", "sha": "1384bad" }
+    { "id": "T3.3", "status": "committed", "sha": "1384bad" },
+    {
+      "id": "T3.4",
+      "status": "partial(iter13)",
+      "sha": "1e40f5a",
+      "note": "Helper module + 10 unit tests shipped; pool-aware-client wiring deferred due to vi.useFakeTimers stall in existing test suite"
+    }
   ],
   "blocked_count": 1,
-  "pending_count": 54,
+  "partial_count": 2,
+  "pending_count": 53,
   "halted": false,
-  "wave_3_status": "T3.1+T3.2+T3.3 all shipped (CRITICAL ssh/abort/break paths closed); unblocks T6.2 load test",
   "cost_usd_cumulative": 0.0
 }
