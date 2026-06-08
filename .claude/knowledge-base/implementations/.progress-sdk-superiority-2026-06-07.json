@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 14,
+  "iterations_used": 15,
   "tasks": [
     {"id": "T0.1", "status": "partial(iter1)", "sha": "42a3763"},
     {"id": "T0.2", "status": "committed", "sha": "8d4487e"},
@@ -15,13 +15,13 @@
     {"id": "T3.1", "status": "committed", "sha": "a390ea5"},
     {"id": "T3.2", "status": "committed", "sha_artifacts": "e67d1db+73471ac"},
     {"id": "T3.3", "status": "committed", "sha": "1384bad"},
-    {"id": "T3.4", "status": "partial(iter13)", "sha": "1e40f5a", "note": "Helper module shipped; pool-aware-client wiring deferred"},
-    {"id": "T3.5", "status": "committed", "sha": "d15987f", "note": "T3.5 work shipped via the concurrent sdk-2-0 session's sweep commit. Functionally complete: LlmSystemBlock type + LlmRequest.system widening + encodeAnthropicSystem helper in anthropic-shared.ts + ollamaSystemText helper in ollama-native.ts. 5 tests at tests/internal/llm/anthropic-prompt-cache.test.ts all GREEN."}
+    {"id": "T3.4", "status": "partial(iter13)", "sha": "1e40f5a"},
+    {"id": "T3.5", "status": "committed", "sha": "d15987f"},
+    {"id": "T3.6", "status": "committed", "sha": "3ff01b4"}
   ],
   "blocked_count": 1,
   "partial_count": 2,
-  "pending_count": 52,
+  "pending_count": 51,
   "halted": false,
-  "concurrent_session_note": "Sdk-2-0 session has shipped 10+ commits since iter 13 (`d15987f` through `1ea0ca2`), each on packages/sdk-{core,memory,budget,cache,handoff} extraction. My T3.5 staged-but-uncommitted work at session end was swept into `d15987f`. Authorship mixed; functionally complete.",
   "cost_usd_cumulative": 0.0
 }
