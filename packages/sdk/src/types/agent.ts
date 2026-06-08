@@ -510,6 +510,31 @@ export interface AgentOptions {
    * @public
    */
   budgetTracker?: import("../internal/runtime/budget-tracker.js").BudgetTracker;
+
+  /**
+   * Pluggable memory subsystem (SDK 2.0 Phase 1 / T1.3 — Hexagonal
+   * Architecture interface inversion). When provided, the agent loop
+   * calls `provider.init(...)` once per agent, surfaces tools from
+   * `provider.buildTools(...)` to the LLM, runs `provider.runActivePass(...)`
+   * pre-LLM to inject recalled facts, and `provider.dispose(...)` on
+   * Agent shutdown.
+   *
+   * **Status (Phase 1 incremental):** the option is wired to the type
+   * surface only. Agent-loop runtime wiring is additive and lands in
+   * subsequent iterations (T1.4 plumbing, T1.5 runtime hooks). For now,
+   * the kernel still uses the legacy `Memory` class + `internal/memory/*`
+   * runtime files. Consumers passing a custom provider today get the type
+   * guarantee but NOT runtime enforcement.
+   *
+   * Default impls available today via `@theokit/sdk`:
+   *   - `createNoopMemoryProvider()` — degenerate fallback / worked example
+   *
+   * Future: post-Phase-1, `@theokit/sdk-memory` ships a rich impl with
+   * LanceDB / embeddings / circuit breaker / active-memory cache.
+   *
+   * @public
+   */
+  memoryProvider?: import("../internal/runtime/memory-provider.js").MemoryProvider;
 }
 
 /**
