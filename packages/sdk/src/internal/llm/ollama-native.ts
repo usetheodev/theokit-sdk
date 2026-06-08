@@ -255,19 +255,24 @@ async function* parseNdjsonStream(
   }
 }
 
+/**
+ * T3.5 — collapse the wider `LlmRequest.system` shape into the legacy
+ * single-string form Ollama expects. Ollama doesn't support per-block
+ * prompt caching, so block content is joined with a blank-line separator.
+ *
+ * @internal
+ */
+function ollamaSystemText(system: LlmRequest["system"]): string {
+  if (system === undefined) return "";
+  if (typeof system === "string") return system;
+  return system.map((b) => b.text).join("\n\n");
+}
+
 function buildOllamaChatBody(request: LlmRequest): Record<string, unknown> {
   const messages: OllamaChatMessage[] = [];
-  if (request.system !== undefined) {
-    // T3.5 — Ollama doesn't support per-block prompt caching, so collapse
-    // the wider `string | LlmSystemBlock[]` into the legacy string shape
-    // by joining all block texts with a blank-line separator.
-    const systemText =
-      typeof request.system === "string"
-        ? request.system
-        : request.system.map((b) => b.text).join("\n\n");
-    if (systemText.length > 0) {
-      messages.push({ role: "system", content: systemText });
-    }
+  const systemText = ollamaSystemText(request.system);
+  if (systemText.length > 0) {
+    messages.push({ role: "system", content: systemText });
   }
   for (const message of request.messages) {
     for (const out of toOllamaMessages(message)) messages.push(out);
