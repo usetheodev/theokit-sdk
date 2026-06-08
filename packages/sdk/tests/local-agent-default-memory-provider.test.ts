@@ -75,4 +75,35 @@ describe("LocalAgent.defaultMemoryProviderForLoop (Stage 2b iter 19+)", () => {
     expect(handle).toBeDefined();
     expect(handle.adapter.id).toBe("local-agent-memory");
   });
+
+  it("test_default_provider_implements_recordSessionSummary_port_method", async () => {
+    // Iter 29: createLocalAgentMemoryProvider now defines the
+    // optional `recordSessionSummary` method (delegates to legacy
+    // writeSessionSummary). This pins the wire-up so a future refactor
+    // can't silently drop the impl + regress to the legacy fallback.
+    const { createLocalAgentMemoryProvider } = await import(
+      "../src/internal/runtime/local-agent-memory-provider.js"
+    );
+    const provider = createLocalAgentMemoryProvider({
+      agentOptions: STUB_OPTIONS,
+      workspaceCwd: "/tmp/stage-2b",
+      agentId: "stage-2b-test-agent",
+    });
+    expect(provider.recordSessionSummary).toBeDefined();
+    expect(typeof provider.recordSessionSummary).toBe("function");
+  });
+
+  it("test_default_provider_implements_sync_port_method", async () => {
+    // Iter 19: optional sync() port method.
+    const { createLocalAgentMemoryProvider } = await import(
+      "../src/internal/runtime/local-agent-memory-provider.js"
+    );
+    const provider = createLocalAgentMemoryProvider({
+      agentOptions: STUB_OPTIONS,
+      workspaceCwd: "/tmp/stage-2b",
+      agentId: "stage-2b-test-agent",
+    });
+    expect(provider.sync).toBeDefined();
+    expect(typeof provider.sync).toBe("function");
+  });
 });
