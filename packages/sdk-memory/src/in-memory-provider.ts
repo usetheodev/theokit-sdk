@@ -63,10 +63,7 @@ function buildAdapter(state: InMemoryHandleState): MemoryAdapter {
     isAvailable(): boolean {
       return true;
     },
-    async write(
-      content: string | MemoryTurnMessage[],
-      _ctx: MemoryContext,
-    ): Promise<MemoryId> {
+    async write(content: string | MemoryTurnMessage[], _ctx: MemoryContext): Promise<MemoryId> {
       const text = typeof content === "string" ? content : content.map((m) => m.content).join("\n");
       const id = `${ADAPTER_ID}:${state.counter.next++}` as MemoryId;
       state.facts.set(id, {
@@ -168,6 +165,13 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
       // No-op for the in-memory impl — facts are written synchronously to
       // the Map at handler-call time; nothing to re-index post-run. Future
       // LanceDB-backed impl will fire IndexManager.sync() here.
+      return;
+    },
+    recordSessionSummary(): void {
+      // No-op for the in-memory impl — session summaries are stateful
+      // file writes; without a filesystem-backed store, there's nothing
+      // to persist. Future LanceDB-backed impl writes the markdown to
+      // `${cwd}/.theokit/sessions/${runId}.md` then triggers re-index.
       return;
     },
     dispose(handle: MemoryProviderHandle): void {

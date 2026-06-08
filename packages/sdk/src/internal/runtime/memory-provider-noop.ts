@@ -94,6 +94,14 @@ export function createNoopMemoryProvider(): MemoryProvider {
     ): Promise<ActiveMemoryPassResult> {
       return { facts: [] };
     },
+    recordSessionSummary(): void {
+      // No-op: the no-op provider doesn't persist anything. Defining the
+      // method (vs leaving it undefined) is intentional — when consumers
+      // wire the no-op explicitly, they OPT INTO the port path for the
+      // session-summary write site too. Future rich impls override this
+      // with real disk writes.
+      return;
+    },
     dispose(_handle: MemoryProviderHandle): void {
       return;
     },
