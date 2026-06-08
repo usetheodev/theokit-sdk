@@ -50,6 +50,21 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 63: twentieth Stage 3 file move — migration (90 LOC).
+// One-shot legacy-JSON → MEMORY.md migration per ADR D8.
+// `migrateLegacyJson(cwd, config)` triggers when the per-namespace
+// `<scope>-<userId>.json` exists AND `MEMORY.md` does not; reads
+// JSON facts, appends each as a `## Facts` bullet via iter 56's
+// `appendFactToMarkdown`, then unlinks the JSON file. Idempotent —
+// per-process `Set<string>` (cwd::namespace::scope::userId key)
+// guards re-entry. Failure modes typed in `MigrationResult.reason`:
+// "already-migrated" / "no-legacy-json" / "markdown-exists" /
+// "readonly-fs". `resetMigrationStateForTests` exposed for test
+// isolation. Dependencies sibling: markdown-store (iter 56) +
+// memory-types (iter 52). NOTE: per-package flag map (Set) — this
+// is documented in source.
+export * from "./internal/migration.js";
+
 // Iter 62: nineteenth Stage 3 file move — session-loader (45 LOC).
 // Session summary discovery per ADR D20. Mirrors iter 57's
 // `wiki-loader` shape: scans `.theokit/memory/sessions/*.md` and
