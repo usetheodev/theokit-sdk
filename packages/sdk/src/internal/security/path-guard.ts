@@ -210,6 +210,38 @@ function realpathOfDeepestExisting(path: string): string | undefined {
 
 const LOCK_FILES = new Set(["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lockb"]);
 
+// T5.6 — top-level credential dot-dirs / dot-files. Matching against
+// the FIRST path segment (lowercase). Adding any entry here costs a
+// CHANGELOG note + an explicit case-fold test (entries are lowercased
+// at module load).
+const SENSITIVE_FIRST_SEGMENTS = new Set([
+  ".ssh",
+  ".aws",
+  ".docker",
+  ".kube",
+  ".npmrc",
+  ".netrc",
+  ".pgpass",
+]);
+
+// T5.6 — credential basenames blocked at ANY depth (lowercase). Catches
+// the developer-laptop case where an agent recurses into a subdir.
+const SENSITIVE_BASENAMES = new Set([
+  "id_rsa",
+  "id_ed25519",
+  "id_ecdsa",
+  "id_dsa",
+  "authorized_keys",
+  "known_hosts",
+  ".npmrc",
+  ".netrc",
+  ".pgpass",
+]);
+
+// T5.6 — extension suffixes blocked at ANY depth (lowercase). Covers
+// the entire `*.pem` / `*.key` private-material family.
+const SENSITIVE_SUFFIXES = [".pem", ".key", ".p12", ".pfx"];
+
 /**
  * Decide whether a project-relative path points to a known-sensitive file
  * that a coding agent must not read or write.
@@ -232,26 +264,36 @@ const LOCK_FILES = new Set(["pnpm-lock.yaml", "package-lock.json", "yarn.lock", 
  * @public
  */
 export function isForbiddenPath(input: string): boolean {
-  // Normalize: forward slashes only, strip leading "./"
-  const normalized = input.replace(/\\/g, "/").replace(/^\.\//, "");
+  // T5.6 — lowercase normalization defeats case-only bypass on
+  // case-insensitive filesystems (Windows/macOS-default) where `.ENV`
+  // and `.env` map to the same inode but a case-sensitive string
+  // check passes the former.
+  const normalized = input.replace(/\\/g, "/").replace(/^\.\//, "").toLowerCase();
   if (normalized.length === 0) return false;
 
   const segments = normalized.split("/").filter((s) => s.length > 0);
   if (segments.length === 0) return false;
 
-  const first = segments[0]!;
+  if (isForbiddenFirstSegment(segments[0]!)) return true;
+  if (isForbiddenBasename(segments[segments.length - 1]!)) return true;
+  return false;
+}
+
+function isForbiddenFirstSegment(first: string): boolean {
   // .env.example is explicitly allowlisted (template safe to read)
   if (first === ".env.example") return false;
   if (first === ".env") return true;
   if (/^\.env\./.test(first)) return true;
+  if (first === ".git" || first === "node_modules" || first === ".theo") return true;
+  return SENSITIVE_FIRST_SEGMENTS.has(first);
+}
 
-  if (first === ".git") return true;
-  if (first === "node_modules") return true;
-  if (first === ".theo") return true;
-
-  const basename = segments[segments.length - 1]!;
+function isForbiddenBasename(basename: string): boolean {
   if (LOCK_FILES.has(basename)) return true;
-
+  if (SENSITIVE_BASENAMES.has(basename)) return true;
+  for (const suffix of SENSITIVE_SUFFIXES) {
+    if (basename.endsWith(suffix)) return true;
+  }
   return false;
 }
 
