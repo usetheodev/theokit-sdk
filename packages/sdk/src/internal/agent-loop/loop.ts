@@ -173,6 +173,14 @@ interface LoopContext {
    * `provider.runActivePass(handle, …)` without re-init.
    */
   memoryProviderHandle?: MemoryProviderHandle;
+  /**
+   * SDK 2.0 Phase 1 / T1.5.3 — `systemPromptAdditions` returned from
+   * `provider.runActivePass(...)`. Appended to `inputs.systemPrompt`
+   * (separator: blank line) at the LLM call site. Undefined when no
+   * provider supplied OR provider returned no additions OR
+   * `runActivePass()` threw (swallow per contract).
+   */
+  memorySystemPromptAdditions?: string;
 }
 
 /** T2.1 (ADR D93) — maximum number of bailout-nudge user messages to inject. */
@@ -245,6 +253,28 @@ function buildAgentRef(inputs: AgentLoopInputs): SDKAgent {
     agentId: inputs.agentId,
     model: inputs.model,
   } as SDKAgent;
+}
+
+/**
+ * SDK 2.0 Phase 1 / T1.5.3 — concat MemoryProvider's
+ * `systemPromptAdditions` to the inbound `inputs.systemPrompt`.
+ *
+ * Semantics:
+ *   - no inbound + no additions → undefined (LLM receives no system).
+ *   - no inbound + additions    → additions alone.
+ *   - inbound + no additions    → inbound unchanged (back-compat).
+ *   - inbound + additions       → "inbound\n\nadditions".
+ *
+ * Extracted so the call site stays readable; covered by 6 dedicated
+ * unit tests in `agent-loop-memory-provider-active-pass.test.ts`.
+ */
+function resolveSystemPromptWithMemoryAdditions(
+  systemPrompt: string | undefined,
+  additions: string | undefined,
+): string | undefined {
+  if (additions === undefined || additions.length === 0) return systemPrompt;
+  if (systemPrompt === undefined || systemPrompt.length === 0) return additions;
+  return `${systemPrompt}\n\n${additions}`;
 }
 
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
@@ -320,6 +350,36 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
     role: msg.role,
     content: [{ type: "text", text: msg.text }],
   }));
+  // SDK 2.0 Phase 1 / T1.5.3: when a MemoryProvider is wired AND init
+  // succeeded, run the active-memory pass BEFORE the first LLM call.
+  // `runActivePass()` returns recalled facts + optional sysPromptAdditions
+  // + breakerTripped. The additions concat to `inputs.systemPrompt` at the
+  // LLM call site (see `streamLlmTurn`). `breakerTripped` is purely a
+  // telemetry surface today — the agent loop never hard-blocks on it.
+  // `runActivePass()` throw is swallowed: additions stay undefined.
+  let memorySystemPromptAdditions: string | undefined;
+  if (inputs.memoryProvider !== undefined && memoryProviderHandle !== undefined) {
+    try {
+      const passResult = await inputs.memoryProvider.runActivePass(memoryProviderHandle, {
+        userMessage: inputs.userMessage,
+        history: (inputs.priorMessages ?? []).map((msg) => ({
+          role: msg.role,
+          content: msg.text,
+        })),
+        agentId: inputs.agentId,
+      });
+      if (
+        passResult.systemPromptAdditions !== undefined &&
+        passResult.systemPromptAdditions.length > 0
+      ) {
+        memorySystemPromptAdditions = passResult.systemPromptAdditions;
+      }
+    } catch {
+      // Swallow per contract — `runActivePass()` MUST NOT throw on the
+      // hot path. Provider-internal telemetry surfaces the failure.
+      memorySystemPromptAdditions = undefined;
+    }
+  }
   return {
     events,
     conversation: [],
@@ -333,6 +393,7 @@ async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
     usage: new UsageAccumulator(),
     nudgeAttempts: 0,
     ...(memoryProviderHandle !== undefined ? { memoryProviderHandle } : {}),
+    ...(memorySystemPromptAdditions !== undefined ? { memorySystemPromptAdditions } : {}),
   };
 }
 
@@ -441,7 +502,18 @@ async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise
   const generator = inputs.llm.stream(
     {
       model: inputs.model.id ?? "auto",
-      ...(inputs.systemPrompt !== undefined ? { system: inputs.systemPrompt } : {}),
+      ...((): { system?: string } => {
+        // SDK 2.0 Phase 1 / T1.5.3: concat MemoryProvider's
+        // `systemPromptAdditions` to the inbound `inputs.systemPrompt`.
+        // Separator is a blank line so the model sees "user prompt\n\n
+        // recalled facts" as distinct sections. When no additions OR no
+        // inbound prompt, the existing semantics hold.
+        const effective = resolveSystemPromptWithMemoryAdditions(
+          inputs.systemPrompt,
+          ctx.memorySystemPromptAdditions,
+        );
+        return effective !== undefined ? { system: effective } : {};
+      })(),
       messages: ctx.messages,
       tools: ctx.tools.map(toLlmTool),
     },
