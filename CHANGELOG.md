@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — `@theokit/sdk` T1.2: RegisteredAgent contract snapshot test
+
+- **Workspace impact**: 1 new contract test at `packages/sdk/tests/contract/registered-agent.test.ts` pinning RegisteredAgent shape + AgentRuntime + status closed union. Madge cycles unchanged.
+
 ### Changed — `@theokit/sdk` T1.1: closed AgentRunErrorCode (BREAKING type-level)
 
 - **Workspace impact**: `(string & {})` escape hatch removed from the SDK's `AgentRunErrorCode`. New canonical name `KnownAgentRunErrorCode` ships; old name aliased for source-level back-compat. Boundary helper + migration codemod included. Per-package detail at `packages/sdk/CHANGELOG.md` `[Unreleased] § Changed`.
