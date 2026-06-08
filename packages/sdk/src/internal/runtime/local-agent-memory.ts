@@ -29,6 +29,21 @@ export class LocalAgentMemory {
     private readonly agentId: string,
   ) {}
 
+  /**
+   * Sync view of the tool cache (SDK 2.0 Phase 1 Stage 2b — iter 19+).
+   * Returns the cached MemoryToolSpec[] when `ensureTools()` has run
+   * AND succeeded; undefined otherwise. Lets the
+   * `createLocalAgentMemoryProvider` adapter (`buildTools` is sync per
+   * the port contract) surface the same tools the legacy path would.
+   *
+   * Caller MUST have already awaited `ensureTools()` once
+   * (adapter does this in `init()`) — otherwise the cache is empty
+   * and this returns undefined (matching the "no tools today" semantics).
+   */
+  getCachedTools(): ReadonlyArray<MemoryToolSpec> | undefined {
+    return this.toolsCache;
+  }
+
   async ensureTools(): Promise<ReadonlyArray<MemoryToolSpec> | undefined> {
     const cfg = this.options.memory?.index;
     if (cfg?.tools === false) return undefined;
