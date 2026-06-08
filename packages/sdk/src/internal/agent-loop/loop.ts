@@ -49,6 +49,28 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
     const budget =
       inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
     while (budget.shouldContinue()) {
+      // SDK 2.0 Phase 2 / T2.1: when a custom BudgetTracker is wired,
+      // honor its `check()` decision BEFORE running the next iteration.
+      // Legacy IterationBudget remains the authoritative iteration cap
+      // (via the outer while + shouldContinue); BudgetTracker is the
+      // consumer-supplied USD/token/cost gate, layered on top.
+      if (inputs.budgetTracker !== undefined) {
+        let decision: ReturnType<typeof inputs.budgetTracker.check>;
+        try {
+          decision = inputs.budgetTracker.check();
+        } catch {
+          // Tracker.check() throw treated as soft-allow (don't block on
+          // tracker errors — telemetry surfaces them separately).
+          decision = { allowed: true };
+        }
+        if (decision.allowed === false) {
+          // Tracker explicitly aborted — mark error + break. The
+          // tracker's `reason` field will be the diagnostic surface
+          // when this propagates up through SendOptions.signal handling.
+          ctx.finalStatus = "error";
+          break;
+        }
+      }
       const usingGrace = budget.remaining <= 0 && !budget.graceCallUsed;
       if (usingGrace) budget.useGraceCall();
       const decision = await runIteration(inputs, ctx);
