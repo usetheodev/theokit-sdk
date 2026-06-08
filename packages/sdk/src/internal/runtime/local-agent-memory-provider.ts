@@ -27,6 +27,7 @@
  */
 
 import type { AgentOptions, CustomTool, SDKAgent } from "../../types/agent.js";
+import { writeSessionSummary } from "../memory/storage/session-summary-writer.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import type {
@@ -35,6 +36,7 @@ import type {
   MemoryProvider,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
+  RecordSessionSummaryArgs,
 } from "./memory-provider.js";
 
 const INTERNAL_LAM_KEY = Symbol("sdk-core.local-agent-memory-provider.glue");
@@ -142,6 +144,11 @@ export function createLocalAgentMemoryProvider(
       );
       if (summary === undefined || summary.length === 0) return { facts: [] };
       return { facts: [], systemPromptAdditions: summary };
+    },
+    async recordSessionSummary(args: RecordSessionSummaryArgs): Promise<void> {
+      // Stateless: delegate to the legacy `writeSessionSummary` directly.
+      // Args are passthrough — same shape as the legacy `SessionSummaryInput`.
+      await writeSessionSummary(args);
     },
     async sync(handle: MemoryProviderHandle): Promise<void> {
       const state = handle[INTERNAL_LAM_KEY] as AdapterState | undefined;
