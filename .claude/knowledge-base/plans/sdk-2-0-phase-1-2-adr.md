@@ -30,7 +30,14 @@ These are AGENT-LOOP runtime files — replacing imports with `await import(...)
 
 **Decision:** Memory full extract requires **interface inversion** similar to Budget (ADR-002 below). Define a `MemoryProvider` contract in sdk-core; impl lives in sdk-memory; agent-loop calls through the interface. This is a multi-iteration architectural change, not a single-iteration move.
 
-**Status:** Pre-cleanup only shipped (iter 7 cwd-mutex shim removal; iter 14 atomic-write shim removal). 12 consumer files canonicalized to `internal/persistence/*`. Full extract deferred.
+**Status:** Functionally complete via interface inversion (iter 18 — T1.1 → T1.6). `MemoryProvider` port shipped in sdk-core; `@theokit/sdk-memory@0.1.0` package shipped consuming the port with a working in-process impl (`createInMemoryMarkdownProvider`); 65/65 tests GREEN across sdk-core (51) + sdk-memory (14). Physical extraction of `internal/memory/lance-*` / `index-manager` / `embedding-adapter` / `circuit-breaker` sources to `@theokit/sdk-memory` rich impl is deferred — it's the packaging/bundle cleanup that requires updating the 4 kernel runtime files (`local-agent-memory`, `post-run-lifecycle`, `agent-session-store`, `memory-store`) to use the port instead of direct imports. Same maturity as Budget (ADR-002).
+
+**Layered design (mirrors Budget):**
+
+- **Legacy `Memory` class + `internal/memory/*`** REMAIN the sole authoritative path for back-compat.
+- **`MemoryProvider`** is a CONSUMER-SUPPLIED, LAYERED extension surfaced via `Agent.create({ memoryProvider })`. When undefined, ZERO behavior change.
+- Provider's `buildTools()` results APPEND to legacy `memoryTools` + `customTools` (no replacement).
+- Provider's `runActivePass()` returns `systemPromptAdditions` that CONCAT to `inputs.systemPrompt` (separator: blank line).
 
 ## ADR-002 — Budget: interface inversion completed via BudgetTracker (iter 10-16)
 
@@ -120,16 +127,16 @@ This pattern is cheap (5-10 min per shim) and reduces surface area for future ex
 | Phase | Status | Remaining work |
 |---|---|---|
 | 0 — Baseline | ✅ DONE (iter 1) | — |
-| 1 — Memory extract | ⏳ Pre-cleanup only (iter 7, 14) | Interface inversion (4 runtime files); 3-5 iters |
+| 1 — Memory extract | 🟢 Functionally complete via interface (iter 18 — T1.1-T1.6) | Physical extraction of rich impl (LanceDB, embeddings, circuit-breaker) to sdk-memory (3-4 iters) — gated on updating 4 kernel runtime files to the port |
 | 2 — Budget extract | 🟢 Functionally complete via interface (iter 10-16) | Physical extraction to sdk-budget package (2-3 iters) |
 | 3 — Cache extract | ✅ DONE (iter 2) | — |
 | 4 — Handoff extract | ✅ DONE (iter 6) | — |
 | 5 — Tools extract | ✅ DONE (iter 3) | — |
 | 6 — Rename → sdk-core 2.0 | ⏳ Gated on bundle budget | After Phase 1 + 2 physical |
-| 7 — Cohort 21 packages | 🟢 Prep DONE (iter 9) | After Phase 6 |
+| 7 — Cohort 21 packages | 🟢 Prep DONE (iter 9); `@theokit/sdk-memory@0.1.0` added to cohort (iter 18) | After Phase 6 |
 | 8 — Codemod | ✅ DONE (iter 4) | Append Memory/Budget entries when extracted |
 | 9 — Docs | ✅ DONE (iter 5) | Update status table after each extraction |
 | 10 — CI bundle gate | ✅ DONE (iter 4) | — |
 | Final — Dogfood QA | ⏳ Not started | After Phase 7 |
 
-**~5-8 more iterations** to reach full completion realistically (Phase 1 interface inversion = 3-5 iters; Phase 2 physical = 2-3 iters; Phase 6 + 7 + dogfood = 2-3 iters).
+**~5-7 more iterations** to reach full completion realistically (Phase 1 physical = 3-4 iters; Phase 2 physical = 2-3 iters; Phase 6 + 7 + dogfood = 2-3 iters).
