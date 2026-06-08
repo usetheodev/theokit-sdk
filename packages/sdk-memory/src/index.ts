@@ -28,3 +28,11 @@ export * from "./internal/embedding-adapter.js";
 // can import it as a sibling. Rollup-plugin-dts treeshake limitation
 // + lack of public consumer = internal-only. Will be promoted to
 // public if/when a consumer surface needs it.
+
+// Iter 47: fourth Stage 3 file move — index-manager-contract types
+// (75 LOC, pure type-only). Defines `MemorySearchHit`, `IndexStatus`,
+// `SearchOptions`, `MemoryBackend`, `OpenIndexOptions` — the contract
+// every IndexManager impl (sqlite-vec, lance, future ANN backends)
+// satisfies. Imports only `EmbeddingRuntime` from iter 45's
+// embedding-adapter.
+export * from "./internal/index-manager-contract.js";
