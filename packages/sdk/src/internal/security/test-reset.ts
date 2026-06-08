@@ -8,4 +8,4 @@
  * @internal
  */
 
-export { _resetForTests, __TESTING__BUILTIN_PATTERN_COUNT } from "./redact.js";
+export { __TESTING__BUILTIN_PATTERN_COUNT, _resetForTests } from "./redact.js";
