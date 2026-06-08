@@ -105,6 +105,20 @@ export interface AgentLoopInputs {
   customTools?: ReadonlyArray<CustomToolSpec>;
   /** Telemetry handle (D34). No-op when disabled. */
   telemetry?: import("../telemetry/tracer.js").TelemetryHandle;
+  /**
+   * Pluggable budget tracker (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface
+   * inversion). When provided, the loop will call `track()` after each
+   * LLM completion AND `check()` before each iteration. When undefined,
+   * the legacy internal `IterationBudget` + `UsageAccumulator` remain
+   * the sole authority.
+   *
+   * **Status (incremental Phase 2):** plumbed at the type surface only.
+   * Runtime `track()` / `check()` calls land in a follow-up iteration.
+   * Plumbing the option through now lets `Agent.create({ budgetTracker })`
+   * thread the value down to the loop without further type changes when
+   * the runtime hooks land.
+   */
+  budgetTracker?: import("../runtime/budget-tracker.js").BudgetTracker;
 }
 
 /**
