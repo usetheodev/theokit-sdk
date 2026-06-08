@@ -1,38 +1,16 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "max_iterations": 100,
-  "iterations_used": 4,
-  "started_at": "2026-06-07",
+  "iterations_used": 5,
   "phase_0_status": "completed",
   "phase_1_status": "in-progress",
   "tasks": [
-    {
-      "task_id": "T0.1",
-      "status": "partial(iter1)",
-      "commit_sha": "42a3763",
-      "wiring": { "a": "pass", "b": "pass-defer", "c": "pass(histogram)" }
-    },
-    {
-      "task_id": "T0.2",
-      "status": "committed",
-      "commit_sha": "8d4487e",
-      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" }
-    },
-    {
-      "task_id": "T0.3",
-      "status": "committed",
-      "commit_sha": "1eb3687",
-      "wiring": { "a": "pass-defer", "b": "pass-defer", "c": "n/a" }
-    },
-    {
-      "task_id": "T1.1",
-      "status": "committed",
-      "commit_sha": "5ac8f75",
-      "wiring": { "a": "pass", "b": "pass-defer", "c": "n/a" },
-      "notes": "BREAKING type-level; KnownAgentRunErrorCode + back-compat alias + coerce helper + migration codemod"
-    }
+    { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
+    { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
+    { "id": "T0.3", "status": "committed", "sha": "1eb3687" },
+    { "id": "T1.1", "status": "committed", "sha": "5ac8f75" },
+    { "id": "T1.2", "status": "committed", "sha": "a288a02" }
   ],
-  "pending_count": 63,
+  "pending_count": 62,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }
