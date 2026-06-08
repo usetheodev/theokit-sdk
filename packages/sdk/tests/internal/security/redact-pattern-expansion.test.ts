@@ -23,10 +23,7 @@
 
 import { describe, expect, it } from "vitest";
 import { redactSecrets } from "../../../src/internal/security/index.js";
-import {
-  _resetForTests,
-  __TESTING__BUILTIN_PATTERN_COUNT,
-} from "../../../src/internal/security/test-reset.js";
+import { __TESTING__BUILTIN_PATTERN_COUNT } from "../../../src/internal/security/test-reset.js";
 
 describe("T5.4 — builtin pattern count expanded", () => {
   it("ships at least 30 builtin patterns (was 12 pre-T5.4)", () => {
