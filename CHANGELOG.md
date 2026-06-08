@@ -6,6 +6,58 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SDK 2.0 Phase 1 + Phase 2 cohort progress (iter 24-41 summary)
+
+A long chain of concrete cohort-readiness work that landed across
+sdk-memory, sdk-budget, sdk-handoff, and the Phase 8 codemod:
+
+**sdk-memory (5 features added on top of v0.1.0 baseline)**:
+- `recordSessionSummary` port method now writes markdown to disk
+  via `@theokit/sdk/internal/persistence` sub-path (ADR-008
+  cross-package mutex bridge). Replaces the iter 29 no-op stub.
+- `runActivePass` reads previously-written session summaries from
+  disk + substring-matches against the user message → genuine
+  cross-session recall (was per-session Map only). Capped at 5 hits.
+- NEW LLM-facing tool `memory_search(query)` surfaced in
+  `buildTools` alongside `memory_remember`.
+- Multi-agent privacy filter on recall — YAML frontmatter `agentId:`
+  parsed + matched against `args.agentId`. Agent-A summaries never
+  surface in agent-B's recall.
+- README + CHANGELOG document the full surface (no stale "pending"
+  markers).
+
+**sdk-budget (post Phase 2 physical Stage 1)**:
+- README updated to document the iter 19 physical extraction
+  (registry / enforcement / ledger / normalize-usage /
+  calendar-window — 568 LOC moved from sdk-core). Documents the
+  dual-copy back-compat for v1.x sync API.
+
+**sdk-handoff**:
+- `typesVersions` field added to package.json — closes the only
+  attw deficit in the cohort (node10 sub-path resolution for
+  `./internal/tool-injector`). All 5 packages now attw-clean
+  across ALL resolvers (node10 + node16-CJS + node16-ESM + bundler).
+
+**Phase 8 (codemod) catch-up**:
+- `scripts/migrations/1-x-to-2-0-map.json` gains 21 new Memory +
+  Budget symbol mappings + new codemod fixture pair pins the
+  rewrite contract.
+
+**Phase 9 (docs)**:
+- `packages/README.md` family table + status table reflect actual
+  state (was stale: "pending Phase 1/2/4" despite all 3 shipped).
+- `docs/migration/1-x-to-2-0.md` Memory + Budget + Handoff sections
+  refreshed.
+- New planning docs: `sdk-2-0-phase-1-stage-3-source-move-plan.md`
+  + `sdk-2-0-cohort-readiness-audit.md`.
+
+**Cohort state post iter 41**:
+- 5 extracted packages all publint clean + attw 🟢 across ALL axes.
+- 210+ tests GREEN cross-package.
+- Phase 7 cohort publish has ZERO remaining engineering blockers —
+  only operator/release-cycle steps (npm auth + version-bump
+  alignment in Phase 6 rename) remain.
+
 ### Operational — iter 18 post-housekeeping stop-hook acknowledgement
 
 - Working tree carries unstaged production-source changes under
