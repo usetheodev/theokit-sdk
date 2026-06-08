@@ -46,7 +46,7 @@
       "sha_artifacts": "8d1325e+62408c1",
       "note": "T5.4 source (redact.ts) + tests + CHANGELOG entries swept into sdk-2-0 session's commit 8d1325e (iter 52 — memory-types + sanitizeIdentifier public). My follow-up 62408c1 re-staged the biome-auto-fixed test-reset.ts + redact-pattern-expansion.test.ts after biome reordered imports. Same contamination pattern as iter 18's T3.9. T5.4 algorithm intact at HEAD: 158/158 redaction-sink tests GREEN, BUILTIN count = 30 (≥ floor)."
     },
-    { "id": "T5.1", "status": "committed", "sha": "TBD" }
+    { "id": "T5.1", "status": "committed", "sha": "37294ea" }
   ],
   "blocked_count": 2,
   "partial_count": 2,
