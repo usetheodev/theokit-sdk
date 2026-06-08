@@ -50,6 +50,18 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 59: sixteenth Stage 3 file move — dreaming-diary (74 LOC).
+// Dream-diary append per ADR D7. Diary lives at
+// `.theokit/memory/dream-diary.md` and grows with one entry per
+// sweep. Content-hashed entry for idempotency; atomic writes via
+// replaceFileAtomic (EC-3) so a crash mid-write can't leave a
+// half-written diary. `appendDiaryEntry(cwd, entry)` + `diaryPath`
+// + `renderDiaryEntry` + `entryHash` + `DiaryEntry` interface.
+// Future `dreaming-run.ts` move (post-sweep summary writer) composes
+// with this as sibling. Dependencies all resolved: persistence
+// sub-path + markdown-store (iter 56).
+export * from "./internal/dreaming-diary.js";
+
 // Iter 58: fifteenth Stage 3 file move — transcript-store (48 LOC).
 // Optional on-disk persistence for Active Memory recall transcripts
 // per ADR D6. `persistActiveMemoryTranscript(cwd, transcript)` writes
