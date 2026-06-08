@@ -40,7 +40,12 @@
       "status": "blocked-on-replan",
       "reason": "Plan label is 'Cleanup batch DR3 findings 13-25' but provides NO per-finding TDD shape, only a flat file list across vision content parts (DR3 #24 — LARGE), Bedrock streaming flag, capabilities introspection, vertex hack removal. The SEPA initial-brief mass-delete gate (#11-15) REQUIRES per-symbol grep before any deletion — that is sub-task structure the plan does not provide. Per Inquebrável Rule 5 (TDD) + user direction 'ZERO plan-deviation; HALT and re-plan via /to-plan when reality diverges', T3.10 needs to be split into T3.10a..T3.10n (one finding per sub-task each with its own RED-test shape) BEFORE retry. Recommend: /plan-improve or hand-edit the plan to split T3.10 across DR3 findings 13-25 individually."
     },
-    { "id": "T5.4", "status": "committed", "sha": "TBD" }
+    {
+      "id": "T5.4",
+      "status": "committed",
+      "sha_artifacts": "8d1325e+62408c1",
+      "note": "T5.4 source (redact.ts) + tests + CHANGELOG entries swept into sdk-2-0 session's commit 8d1325e (iter 52 — memory-types + sanitizeIdentifier public). My follow-up 62408c1 re-staged the biome-auto-fixed test-reset.ts + redact-pattern-expansion.test.ts after biome reordered imports. Same contamination pattern as iter 18's T3.9. T5.4 algorithm intact at HEAD: 158/158 redaction-sink tests GREEN, BUILTIN count = 30 (≥ floor)."
+    }
   ],
   "blocked_count": 2,
   "partial_count": 2,
