@@ -127,7 +127,7 @@ This pattern is cheap (5-10 min per shim) and reduces surface area for future ex
 | Phase | Status | Remaining work |
 |---|---|---|
 | 0 — Baseline | ✅ DONE (iter 1) | — |
-| 1 — Memory extract | 🟢 Functionally complete via interface (iter 18 — T1.1-T1.6) | Physical extraction of rich impl (LanceDB, embeddings, circuit-breaker) to sdk-memory (3-4 iters) — gated on updating 4 kernel runtime files to the port |
+| 1 — Memory extract | 🟢 Functionally complete via interface (iter 18 — T1.1-T1.6); 🟢 Physical Stage 1 — sync() port hook shipped (iter 19) | Physical Stage 2 — refactor LocalAgentMemory to use MemoryProvider port (1 iter); Stage 3 — move internal/memory/* to sdk-memory + ship LanceDB rich impl (1 iter); Stage 4 — drop public Memory class via optional-peer (1 iter) |
 | 2 — Budget extract | 🟢 Functionally complete (iter 10-16) + cohort-ready (iter 18+ — `@theokit/sdk-budget@0.1.0` shipped) | Physical extraction of `internal/budget/*` source files (still multi-iter) |
 | 3 — Cache extract | ✅ DONE (iter 2) | — |
 | 4 — Handoff extract | ✅ DONE (iter 6) | — |
@@ -139,4 +139,10 @@ This pattern is cheap (5-10 min per shim) and reduces surface area for future ex
 | 10 — CI bundle gate | ✅ DONE (iter 4) | — |
 | Final — Dogfood QA | ⏳ Not started | After Phase 7 |
 
-**~4-6 more iterations** to reach full completion realistically (Phase 1 + 2 physical source moves can be parallel/incremental; Phase 6 rename + Phase 7 cohort publish + dogfood = 2-3 iters). Both subsystems now cohort-ready; the physical source moves are bundle-size cleanup, not functional gaps.
+**~3-5 more iterations** to reach full completion (was 4-6 pre iter 19):
+- Phase 1 physical Stages 2-4 = 3 iters (LocalAgentMemory refactor → moves → optional-peer)
+- Phase 6 rename + Phase 7 cohort publish + dogfood = 2-3 iters
+
+Both subsystems now cohort-ready + Phase 1 physical Stage 1 (sync hook)
+shipped iter 19. The physical source moves are bundle-size cleanup, not
+functional gaps.
