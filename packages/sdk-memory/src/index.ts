@@ -50,6 +50,15 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 51: eighth Stage 3 file move — active-memory-cache (74 LOC).
+// TTL-bounded + capacity-bounded LRU cache for `runActiveMemory`
+// results. Depends only on `node:crypto` + iter 48's
+// active-memory-types. `ActiveMemoryCache` class + `ActiveMemoryCacheOptions`
+// interface exposed publicly — future `active-memory.ts` move targets
+// this as a sibling. (No rollup-dts treeshake issue because
+// `ActiveMemoryResult` is already publicly reachable via the barrel.)
+export * from "./internal/active-memory-cache.js";
+
 // Iter 50: seventh Stage 3 file move — memory-index (67 LOC).
 // Defines `MemoryIndex` interface (the OCP-preserving 4-method
 // contract — `sync`/`search`/`status`/`close` — both sqlite-vec and
