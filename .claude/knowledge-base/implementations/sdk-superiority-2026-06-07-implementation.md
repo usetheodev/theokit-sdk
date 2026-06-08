@@ -45,7 +45,11 @@
 ### Phase 1 — SDK Core hardening (11 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
-| T1.1 | Phase 1 / T1.1 | Eliminar `(string & {})` em AgentRunErrorCode CRITICAL | pending | — | — | — | — |
+| T1.1 | Phase 1 / T1.1 | Eliminar `(string & {})` em AgentRunErrorCode CRITICAL | committed | 4 | TBD | a=pass b=pass-defer c=n/a | none-needed |
+
+<!-- ADR-DEFER-WIRING-B: KnownAgentRunErrorCode: type-only export, no runtime caller needed. Closed-union enforcement is via tsc + tests/contract/error-codes.test.ts which is typecheck-gated (vitest excludes tests/contract/** by design per vitest.config.ts comment). -->
+<!-- ADR-DEFER-WIRING-B: AgentRunErrorCode: type-alias re-export for back-compat, no caller needed. -->
+<!-- ADR-DEFER-WIRING-B: coerceToKnownAgentRunErrorCode: pillar (a) PASS via agent.ts:146 caller (Agent.prompt throw-path); pillar (b) defer — typecheck + tests/errors/agent-run-error-fields.test.ts updated test cover the surface. -->
 | T1.2 | Phase 1 / T1.2 | Promote RegisteredAgent para shared types | pending | — | — | — | — |
 | T1.3 | Phase 1 / T1.3 | API key boundary validation | pending | — | — | — | — |
 | T1.4 | Phase 1 / T1.4 | Path traversal hardening em downloadArtifact | pending | — | — | — | — |

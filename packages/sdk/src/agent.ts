@@ -5,6 +5,7 @@ import {
   AgentRunError,
   AuthenticationError,
   ConfigurationError,
+  coerceToKnownAgentRunErrorCode,
   UnknownAgentError,
 } from "./errors.js";
 import { resolveApiKey } from "./internal/env.js";
@@ -138,7 +139,7 @@ export class Agent {
         result.error !== undefined
       ) {
         throw new AgentRunError(result.error.message, {
-          code: result.error.code ?? "unknown",
+          code: coerceToKnownAgentRunErrorCode(result.error.code),
           cause: result.error.cause,
         });
       }

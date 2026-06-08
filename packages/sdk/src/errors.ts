@@ -38,15 +38,71 @@ export type ErrorCode =
  *
  * @public
  */
-export type AgentRunErrorCode =
+/**
+ * T1.1 — closed literal union for `AgentRunError.code`. The previous
+ * `(string & {})` escape hatch let arbitrary strings slip into the type
+ * surface and defeated exhaustive `switch (code)` discrimination. This is
+ * the canonical closed form. `AgentRunErrorCode` is re-aliased below for
+ * source-level back-compat.
+ *
+ * Adding a new code: append the literal here AND audit every `switch (err.code)`
+ * in callers. Type-checker enforces the audit via the `default: assertNever(code)`
+ * convention.
+ *
+ * @public
+ */
+export type KnownAgentRunErrorCode =
   | ErrorCode
   | "quota_exceeded"
   | "tool_runtime_error"
   | "aborted"
   | "invalid_model"
   | "safety_blocked"
-  | "provider_unreachable"
-  | (string & {});
+  | "provider_unreachable";
+
+/**
+ * Back-compat alias of {@link KnownAgentRunErrorCode}. Pre-T1.1 callers that
+ * imported `AgentRunErrorCode` keep working; new code SHOULD prefer
+ * `KnownAgentRunErrorCode` to make the closed-union intent explicit.
+ *
+ * @public
+ */
+export type AgentRunErrorCode = KnownAgentRunErrorCode;
+
+/** Snapshot of every known code at runtime — used by the boundary coercer. */
+const KNOWN_AGENT_RUN_ERROR_CODES = new Set<string>([
+  "rate_limit",
+  "auth_failed",
+  "invalid_request",
+  "timeout",
+  "server_error",
+  "context_too_long",
+  "content_filtered",
+  "model_unavailable",
+  "network",
+  "unknown",
+  "quota_exceeded",
+  "tool_runtime_error",
+  "aborted",
+  "invalid_model",
+  "safety_blocked",
+  "provider_unreachable",
+]);
+
+/**
+ * T1.1 boundary helper — coerce an arbitrary string (typically arriving from
+ * a downstream `RunErrorDetail.code` or a deserialized cloud response) into a
+ * `KnownAgentRunErrorCode`. Unknown strings collapse to `"unknown"` so the
+ * closed type contract holds without forcing every caller to switch.
+ *
+ * @internal
+ */
+export function coerceToKnownAgentRunErrorCode(code: string | undefined): KnownAgentRunErrorCode {
+  if (code !== undefined && KNOWN_AGENT_RUN_ERROR_CODES.has(code)) {
+    return code as KnownAgentRunErrorCode;
+  }
+  return "unknown";
+}
 
 /**
  * Structured context for errors that originated from a provider HTTP
