@@ -31,14 +31,20 @@ describe("createInMemoryMarkdownProvider (@theokit/sdk-memory T1.6)", () => {
     expect(handle.adapter.isAvailable()).toBe(true);
   });
 
-  it("test_buildTools_exposes_memory_remember_tool", async () => {
+  it("test_buildTools_exposes_memory_remember_AND_memory_search_tools", async () => {
+    // Iter 35: buildTools now surfaces BOTH memory_remember +
+    // memory_search. Pin both names so a future refactor can't silently
+    // drop either.
     const provider = createInMemoryMarkdownProvider();
     const handle = await provider.init({ cwd: "/tmp" });
     const tools = provider.buildTools(handle, FAKE_AGENT);
-    expect(tools.length).toBe(1);
-    expect(tools[0]?.name).toBe("memory_remember");
-    expect(tools[0]?.description).toContain("Persist");
-    expect(tools[0]?.inputSchema).toMatchObject({
+    expect(tools.length).toBe(2);
+    const names = tools.map((t) => t.name).sort();
+    expect(names).toEqual(["memory_remember", "memory_search"]);
+    // memory_remember (the original — pinned by name + description)
+    const remember = tools.find((t) => t.name === "memory_remember");
+    expect(remember?.description).toContain("Persist");
+    expect(remember?.inputSchema).toMatchObject({
       type: "object",
       properties: { content: { type: "string" } },
       required: ["content"],
@@ -167,11 +173,13 @@ describe("createInMemoryMarkdownProvider (@theokit/sdk-memory T1.6)", () => {
     const provider = createInMemoryMarkdownProvider();
     const handle = await provider.init({ cwd: "/tmp", embeddingProviderId: "ollama" });
     const tools = provider.buildTools(handle, FAKE_AGENT);
-    expect(tools.length).toBe(1);
-    if (tools[0] === undefined) throw new Error("missing tool");
+    // Iter 35: buildTools surfaces 2 tools (memory_remember + memory_search).
+    expect(tools.length).toBe(2);
+    const rememberTool = tools.find((t) => t.name === "memory_remember");
+    if (rememberTool === undefined) throw new Error("missing memory_remember tool");
 
-    await tools[0].handler({ content: "Pet is a corgi named Maple." });
-    await tools[0].handler({ content: "Birthday is in October." });
+    await rememberTool.handler({ content: "Pet is a corgi named Maple." });
+    await rememberTool.handler({ content: "Birthday is in October." });
 
     const pass = await provider.runActivePass(handle, {
       userMessage: "what do you know about me?",
