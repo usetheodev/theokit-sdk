@@ -50,6 +50,23 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 60: seventeenth Stage 3 file move — dreaming-run (110 LOC).
+// Dreaming sweep orchestrator per ADR D7. Composes:
+//   - readFactsFromMarkdown (iter 56) — input
+//   - lightPhase (iter 54)            — dedup
+//   - remPhase   (iter 54)            — cluster
+//   - deepPhase  (iter 54)            — consolidated-notes render
+//   - appendDiaryEntry (iter 59)      — diary append
+// All file writes go through `replaceFileAtomic` (EC-3); the whole
+// sweep holds `withCwdMutex` so a concurrent `Remember:` append
+// can't race it. `runDreamingSweep(options): Promise<DreamingResult>`
+// is the public entrypoint, with DreamingOptions + DreamingResult
+// shapes. Failures are swallowed with stderr warn (status: "error")
+// so a single sweep crash never bubbles into the agent loop.
+// CLOSES the dreaming/ cluster — 4 files (phases/diary/run + types)
+// fully in sdk-memory.
+export * from "./internal/dreaming-run.js";
+
 // Iter 59: sixteenth Stage 3 file move — dreaming-diary (74 LOC).
 // Dream-diary append per ADR D7. Diary lives at
 // `.theokit/memory/dream-diary.md` and grows with one entry per
