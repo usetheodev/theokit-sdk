@@ -31,6 +31,12 @@ import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
+import {
+  resolveActiveMemorySummaryForSend,
+  resolveMemoryProviderForLoop,
+  resolveMemoryToolsForLoop,
+  shouldUsePortMemoryPath,
+} from "./memory-path-selector.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
 import {
@@ -320,11 +326,26 @@ export class LocalAgent implements SDKAgent {
     // BEFORE the LLM call so the new fact is durable even if the LLM call fails.
     await this.maybePersistMemoryFactFromUserMessage(userText);
     const memoryFacts = await this.readMemoryForSend();
-    const memoryTools = await this.memoryGlue.ensureTools();
-    const activeMemorySummary = await this.memoryGlue.runActiveMemoryIfEnabled(
-      userText,
-      priorMessages,
-      this._telemetry,
+    // SDK 2.0 Phase 1 physical Stage 2b — iter 23 KERNEL FLIP.
+    // When `THEOKIT_PORT_MEMORY_PATH=1` is set:
+    //   - Skip the legacy memoryGlue.ensureTools() async call entirely
+    //     (tools surface via provider.buildTools inside agent-loop).
+    //   - Skip the legacy runActiveMemoryIfEnabled async call entirely
+    //     (additions surface via provider.runActivePass inside agent-loop).
+    //   - Inject the auto-installed adapter into agent-loop via
+    //     dispatchRun's memoryProviderOverride arg below.
+    // When the flag is NOT set (default): zero behavior change.
+    const portPathActive = shouldUsePortMemoryPath();
+    const legacyTools = portPathActive ? undefined : await this.memoryGlue.ensureTools();
+    const legacySummary = portPathActive
+      ? undefined
+      : await this.memoryGlue.runActiveMemoryIfEnabled(userText, priorMessages, this._telemetry);
+    const memoryTools = resolveMemoryToolsForLoop(legacyTools, portPathActive);
+    const activeMemorySummary = resolveActiveMemorySummaryForSend(legacySummary, portPathActive);
+    const effectiveMemoryProvider = resolveMemoryProviderForLoop(
+      this.options.memoryProvider,
+      this.defaultMemoryProviderForLoop,
+      portPathActive,
     );
     const baseSystemPrompt = await this.resolveSystemPromptForSend(userText, options, memoryFacts);
     const assembledSystemPrompt = await this.assembleSystemPromptForSend(
@@ -347,6 +368,7 @@ export class LocalAgent implements SDKAgent {
       memoryFacts,
       priorMessages,
       memoryTools,
+      effectiveMemoryProvider,
     );
     // ADR D145: wrap `wait()` so post_assistant_reply fires once after the run
     // completes. Fire-and-forget (errors → stderr) so the caller never blocks.
@@ -449,12 +471,24 @@ export class LocalAgent implements SDKAgent {
     memoryFacts: ReadonlyArray<MemoryFact>,
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
     memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
+    memoryProviderOverride?: import("./memory-provider.js").MemoryProvider,
   ): Promise<Run> {
+    // SDK 2.0 Phase 1 physical Stage 2b — iter 23 KERNEL FLIP:
+    // When `memoryProviderOverride` is supplied (env-flag path), inject
+    // it via a shallow-cloned `agentOptions` so agent-loop's iter 18
+    // T1.3 wiring threads it into `inputs.memoryProvider` automatically.
+    // When undefined: pass `this.options` verbatim (zero behavior change
+    // — the existing consumer-supplied `options.memoryProvider` path
+    // wins unchanged).
+    const effectiveAgentOptions =
+      memoryProviderOverride !== undefined && this.options.memoryProvider === undefined
+        ? { ...this.options, memoryProvider: memoryProviderOverride }
+        : this.options;
     return dispatchLocalRun({
       inputs: {
         agentId: this.agentId,
         model: this.model,
-        options: this.options,
+        options: effectiveAgentOptions,
         workspaceCwd: this.workspaceCwd,
         hooksExecutor: this.hooksExecutor,
         pluginManager: this.pluginManagerCode,
