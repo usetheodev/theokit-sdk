@@ -19,6 +19,7 @@ export default defineConfig({
     // contract. Documented as "internal API — semver-exempt" in README.
     "internal/persistence/index": "src/internal/persistence/index.ts",
     "internal/plugins/index": "src/internal/plugins/index.ts",
+    "internal/observability/index": "src/internal/observability/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)

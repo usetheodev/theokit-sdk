@@ -9,7 +9,7 @@
  * @internal
  */
 
-import { CacheInvalidTtlError } from "../../types/cache.js";
+import { CacheInvalidTtlError } from "../types/cache.js";
 
 const TTL_PATTERN = /^(\d+)\s*(s|m|h|d|w)$/i;
 

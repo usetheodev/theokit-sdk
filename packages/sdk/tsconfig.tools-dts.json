@@ -16,6 +16,7 @@
     "src/internal/task/store.ts",
     "src/internal/persistence/**/*",
     "src/internal/plugins/**/*",
+    "src/internal/observability/**/*",
     "src/errors.ts",
     "src/agent.ts",
     "src/agent-factory.ts",

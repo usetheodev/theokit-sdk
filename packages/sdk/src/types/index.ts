@@ -4,7 +4,7 @@
 export type * from "./agent.js";
 export type * from "./batch.js";
 export type * from "./budget.js";
-export type * from "./cache.js";
+// cache.ts — EXTRACTED to @theokit/sdk-cache (SDK 2.0 split, Phase 3).
 export type * from "./context.js";
 export type * from "./conversation.js";
 export type * from "./conversation-storage.js";
