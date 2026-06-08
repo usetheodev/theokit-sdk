@@ -8,11 +8,11 @@
 
 import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import { Handoff } from "../../src/handoff.js";
-import { dispatchHandoff } from "../../src/internal/handoff/dispatcher.js";
-import { createChainState } from "../../src/internal/handoff/registry.js";
-import type { SDKAgent } from "../../src/types/agent.js";
-import { HandoffReceiverDisposedError } from "../../src/types/handoff.js";
+import { Handoff } from "../src/handoff.js";
+import { dispatchHandoff } from "../src/internal/dispatcher.js";
+import { createChainState } from "../src/internal/registry.js";
+import type { SDKAgent } from "@theokit/sdk";
+import { HandoffReceiverDisposedError } from "../src/types/handoff.js";
 
 function fakeAgent(name: string, opts: { disposed?: boolean; reply?: string } = {}): SDKAgent {
   const sendSpy = vi.fn(async (_msg: string) => ({

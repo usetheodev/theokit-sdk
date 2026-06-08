@@ -380,14 +380,14 @@ export interface AgentOptions {
    *
    * @public
    */
-  // T4.1 / D438 — `SDKAgent` is defined later in this same module; the inline
-  // `import("./agent.js").SDKAgent` form was the back-edge that produced
-  // madge self-cycle #3. Direct forward-reference is valid in type position.
-  // T4.1 follow-up (cycle #4 closed): use the leaf generic and pin it to
-  // SDKAgent here. agent.ts no longer needs to import from handoff.ts.
-  handoffs?: ReadonlyArray<
-    SDKAgent | import("./handoff-descriptor.js").HandoffDescriptor<import("zod").ZodType, SDKAgent>
-  >;
+  // SDK 2.0 split (Phase 4): handoff-descriptor.ts moved to @theokit/sdk-handoff.
+  // The handoffs field is TRANSITIONAL — preferred 2.x pattern is
+  // `plugins: [Handoff.asPlugin({ targets: [...] })]` (see migration guide).
+  // Type loosened to `unknown` here because the kernel must not import from
+  // an extension; consumers using this option must have @theokit/sdk-handoff
+  // installed (optional peer — see agent.ts maybeInjectHandoffTools).
+  // EC-4 absorbed in plan v1.1 removes this field entirely in Phase 6 cohort.
+  handoffs?: ReadonlyArray<SDKAgent | unknown>;
   /**
    * Maximum chain depth across handoffs per `agent.send()` call (D218).
    * Default 5. Exceeding throws `HandoffLoopError`. Set to 0 to disable

@@ -29,7 +29,7 @@
 
 import type { ZodType } from "zod";
 
-import type { SDKAgent } from "./types/agent.js";
+import { definePlugin, type Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
 import type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 
 /** Recommended system-prompt prefix for senders (D215 / EC-13). */
@@ -68,6 +68,57 @@ export class Handoff {
       resolvedToolName,
     };
   }
+
+  /**
+   * Plugin-based wiring (SDK 2.x preferred). Wraps `targets` in synthetic
+   * `transfer_to_<receiver>` tools and registers them via `ctx.registerTool`
+   * at agent init time.
+   *
+   * Replaces the legacy `Agent.create({ handoffs: [...] })` option (which is
+   * still supported as a transitional convenience while sdk-handoff is
+   * installed — the framework lazy-imports the tool-injector at runtime).
+   *
+   * @example
+   *   const support = await Agent.create({
+   *     name: "support",
+   *     plugins: [Handoff.asPlugin({ parentAgentId: "support", targets: [billing] })],
+   *   });
+   */
+  static asPlugin(opts: AsPluginOptions): Plugin {
+    const parent = opts.parentAgentId ?? "anonymous";
+    const maxDepth = opts.maxHandoffDepth ?? 5;
+    const targets = opts.targets;
+    return definePlugin({
+      name: `handoff-${parent}`,
+      version: "1.0.0",
+      kind: "general" as const,
+      register(ctx: PluginContext): void {
+        if (maxDepth === 0 || targets.length === 0) return;
+        // Lazy import — keeps cold path lean if asPlugin is constructed but
+        // its register hook is never invoked (e.g., disabled by config).
+        // eslint-disable-next-line @typescript-eslint/no-floating-promises
+        void (async () => {
+          const { normalizeHandoffs, buildHandoffTool } = await import(
+            "./internal/tool-injector.js"
+          );
+          const normalized = normalizeHandoffs(parent, targets);
+          for (const { descriptor } of normalized) {
+            ctx.registerTool(buildHandoffTool(parent, descriptor, maxDepth));
+          }
+        })();
+      },
+    });
+  }
+}
+
+/**
+ * Options for `Handoff.asPlugin()`. `parentAgentId` defaults to `"anonymous"`;
+ * pass the host agent's `name` for correct loop detection in chains.
+ */
+export interface AsPluginOptions {
+  readonly targets: ReadonlyArray<SDKAgent | HandoffDescriptor>;
+  readonly parentAgentId?: string;
+  readonly maxHandoffDepth?: number;
 }
 
 function slugifyName(agent: SDKAgent): string {
@@ -97,8 +148,8 @@ export async function handoffTo(
 ): Promise<string> {
   const descriptor = Handoff.create(target, options);
   // Lazy import to avoid loading internal module unless this is called.
-  const { dispatchHandoff } = await import("./internal/handoff/dispatcher.js");
-  const { createChainState } = await import("./internal/handoff/registry.js");
+  const { dispatchHandoff } = await import("./internal/dispatcher.js");
+  const { createChainState } = await import("./internal/registry.js");
   const chainState = createChainState(sender.agentId, 5);
   const { reply } = await dispatchHandoff({
     descriptor,
