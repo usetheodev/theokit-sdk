@@ -2,6 +2,13 @@
 //
 // Concrete `MemoryProvider` impls consuming the kernel-facing port from
 // `@theokit/sdk`. Today: an in-process markdown-backed impl. Next iters
-// ship LanceDB + embeddings + circuit-breaker + active-memory cache.
+// ship LanceDB + embeddings + active-memory cache.
 
 export { createInMemoryMarkdownProvider } from "./in-memory-provider.js";
+
+// Iter 44: first Stage 3 file move — CircuitBreaker copied from sdk-core's
+// internal/memory/circuit-breaker.ts. sdk-core retains its copy for v1.x
+// active-memory back-compat; sdk-memory's canonical copy is what future
+// rich providers (LanceDB-backed) will consume. Hybrid dual-copy mirrors
+// Phase 2 physical Stage 1 (sdk-budget) pattern.
+export * from "./internal/circuit-breaker.js";
