@@ -43,3 +43,9 @@ export * from "./internal/index-manager-contract.js";
 // index-manager-contract (sibling). Unblocks the upcoming
 // `active-memory.ts` + `active-memory-cache.ts` moves.
 export * from "./internal/active-memory-types.js";
+
+// Iter 49: sixth Stage 3 file move — index-schema (61 LOC, zero
+// imports). Defines `SCHEMA_STATEMENTS` + `PRAGMA_STATEMENTS` SQL
+// constants for the SQLite memory index. Unblocks future `index-db`
+// + `index-manager` + `vec-index` moves which depend on schema DDL.
+export * from "./internal/index-schema.js";
