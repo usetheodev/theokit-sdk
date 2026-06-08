@@ -111,6 +111,14 @@ export type {
 // as fallback before @theokit/sdk-memory ships or as a worked example
 // when authoring custom providers.
 export { createNoopMemoryProvider } from "./internal/runtime/memory-provider-noop.js";
+// Process-level keyed mutex (SDK 2.0 Phase 2 physical-survey unblock —
+// ADR-008). Public utility consumed by extracted packages
+// (@theokit/sdk-budget, @theokit/sdk-memory) to share the SAME mutex
+// Map registry across package boundaries. Required for ledger.ts
+// (sdk-budget) + dreaming/run.ts (sdk-memory) to coordinate writes
+// without racing. Stability guarantee: signature stable until sdk-core
+// v3.0.
+export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
