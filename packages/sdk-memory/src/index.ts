@@ -50,6 +50,22 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 65: twenty-second Stage 3 file move — index-db (109 LOC).
+// Thin wrapper around the SQLite driver. Prefers `node:sqlite` on
+// Node 22.5+; falls back to `better-sqlite3`. Applies WAL with
+// NFS/SMB/FUSE fallback (ADR D63) BEFORE schema setup. Corrupt-DB
+// recovery (EC-7): on "malformed" / "not a database" / "encrypted"
+// errors, the file (+ WAL + SHM siblings) is renamed aside to
+// `<path>.corrupt-<ts>` and the schema is rebuilt from scratch.
+// `openMemoryDb(opts)` + `defaultIndexPath(cwd)` +
+// `MemoryDb` / `OpenDbOptions` interfaces. Dependencies all resolved:
+// `@theokit/sdk/errors` (ConfigurationError public),
+// `@theokit/sdk/internal/persistence` (applyWalWithFallback),
+// sibling `./index-schema.js` (PRAGMA + SCHEMA from iter 49).
+// Unblocks future moves: `sqlite-vec-loader`, `vec-index`,
+// `index-manager`, `migrate-sqlite-to-lance`.
+export * from "./internal/index-db.js";
+
 // Iter 64: twenty-first Stage 3 file move — tools (176 LOC).
 // LLM-facing memory tools (`memory_search` + `memory_get`) per ADR D5.
 // Mirrors peer-project's tool surface. Each tool exposes
