@@ -162,9 +162,32 @@ function renderSessionSummaryMarkdown(args: RecordSessionSummaryArgs): string {
  *
  * Cap: returns at most 5 hits to bound the systemPromptAdditions size.
  */
+/**
+ * Extract `agentId:` value from a session-summary YAML frontmatter.
+ * Returns undefined when the file is malformed or has no agentId.
+ *
+ * The frontmatter shape is:
+ *   ---
+ *   runId: ...
+ *   agentId: ...
+ *   ...
+ *   ---
+ *
+ * Parsing is intentionally simple (regex line-match) — full YAML parse
+ * is overkill for the 5-field frontmatter we emit. A malformed file
+ * shows up as undefined → falls out of the optional agentId filter.
+ */
+function extractAgentIdFromFrontmatter(content: string): string | undefined {
+  // Match `agentId: <value>` within the leading frontmatter block.
+  const match = content.match(/^agentId:\s*(.+)$/m);
+  if (match === null || match[1] === undefined) return undefined;
+  return match[1].trim();
+}
+
 async function recallSessionSummaries(
   cwd: string,
   userMessage: string,
+  agentIdFilter?: string,
 ): Promise<ReadonlyArray<MemoryFact>> {
   const RECALL_CAP = 5;
   const sessionsDir = join(cwd, ".theokit", "memory", "sessions");
@@ -186,6 +209,13 @@ async function recallSessionSummaries(
       content = await readFile(filePath, "utf-8");
     } catch {
       continue;
+    }
+    // Iter 36: agentId scope filter. When set, skip summaries whose
+    // frontmatter `agentId:` field doesn't match. Prevents cross-agent
+    // data leakage in multi-agent setups.
+    if (agentIdFilter !== undefined) {
+      const fileAgentId = extractAgentIdFromFrontmatter(content);
+      if (fileAgentId !== agentIdFilter) continue;
     }
     if (content.toLowerCase().includes(query)) {
       // Extract a short snippet — the User section (first 200 chars).
@@ -312,7 +342,15 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
       // (2) Persisted session-summary recall — iter 34. Read previously-
       // written summaries from disk + substring-match against the user
       // message. Best-effort: read errors degrade to empty recall.
-      const persistedHits = await recallSessionSummaries(state.cwd, args.userMessage);
+      //
+      // Iter 36: scope the disk recall to args.agentId so a session
+      // summary written by agent-A never bleeds into agent-B's recall.
+      // This is the multi-agent privacy invariant.
+      const persistedHits = await recallSessionSummaries(
+        state.cwd,
+        args.userMessage,
+        args.agentId,
+      );
       const allFacts = [...inProcessFacts, ...persistedHits];
       if (allFacts.length === 0) return { facts: [] };
       const systemPromptAdditions = [
