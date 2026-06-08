@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 7,
+  "iterations_used": 8,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -8,9 +8,11 @@
     { "id": "T1.1", "status": "committed", "sha": "5ac8f75" },
     { "id": "T1.2", "status": "committed", "sha": "a288a02" },
     { "id": "T1.3", "status": "committed", "sha": "50fd52e" },
-    { "id": "T1.4", "status": "committed", "sha": "78b767a" }
+    { "id": "T1.4", "status": "committed", "sha": "78b767a" },
+    { "id": "T1.5", "status": "committed", "sha": "1096531" }
   ],
-  "pending_count": 60,
+  "pending_count": 59,
   "halted": false,
+  "phase_1_critical_status": "wave_1_complete",
   "cost_usd_cumulative": 0.0
 }
