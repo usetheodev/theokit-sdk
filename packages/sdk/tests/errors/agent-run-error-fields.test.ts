@@ -45,9 +45,15 @@ describe("AgentRunError — discriminated code union (T3.1)", () => {
     }
   });
 
-  it("forward-compat string code accepted via `& {}` escape hatch", () => {
-    const err = new AgentRunError("future", { code: "future_unknown_code" });
-    expect(err.code).toBe("future_unknown_code");
+  it("T1.1 — unknown string codes preserved at runtime via explicit cast", () => {
+    // The `(string & {})` escape hatch was REMOVED in T1.1 (closed union).
+    // Internal callers that MUST surface a legacy raw value still can via
+    // explicit cast; the boundary helper `coerceToKnownAgentRunErrorCode`
+    // is the recommended path for external sources.
+    const explicit = new AgentRunError("future", {
+      code: "future_unknown_code" as never,
+    });
+    expect(explicit.code).toBe("future_unknown_code");
   });
 });
 
