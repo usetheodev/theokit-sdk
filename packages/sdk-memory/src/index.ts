@@ -50,6 +50,15 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 54: eleventh Stage 3 file move — dreaming-phases (149 LOC).
+// Three-phase memory consolidation: `lightPhase` (cosine ≥ 0.95
+// dedup) + `remPhase` (single-link agglomerative clustering at
+// cosine ≥ 0.75) + `deepPhase` (consolidated-markdown renderer).
+// Dependencies (both sibling): `EmbeddingRuntime` (iter 45) +
+// `MemoryFact` (iter 52). Future `dreaming-run.ts` move composes
+// with these three as sibling imports.
+export * from "./internal/dreaming-phases.js";
+
 // Iter 53: tenth Stage 3 file move — chunk-markdown (141 LOC).
 // `chunkMarkdown(text, options?): MemoryChunk[]` algorithm mirrors
 // peer-project's memory-host-sdk implementation per ADR D1 of the
