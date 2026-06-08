@@ -1,0 +1,85 @@
+---
+slug: sdk-2-0-package-split
+artifact: progress-log
+started_at: 2026-06-07T22:55Z
+---
+
+# SDK 2.0 split — progress log (ralph-loop)
+
+Tracking which phases/tasks are committed. Updated each iteration.
+
+## Phase 0 — Baseline snapshot
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T0.1 — Subsystem map + bundle baseline | ✅ DONE 2026-06-08 | `aa8b079` | 4/4 GREEN |
+
+**Deliverables shipped:**
+- `.claude/knowledge-base/baselines/sdk-2-0-baseline-bundle-2026-06-07.md`
+- `.claude/knowledge-base/baselines/sdk-2-0-baseline-subsystems-2026-06-07.md`
+- `packages/sdk/tests/sdk-2-0-baseline.test.ts` (4 tests)
+- `packages/sdk/dist/index.js` measured at **138677 bytes gzipped** (matches plan).
+
+## Phase 1 — Extract `@theokit/sdk-memory`
+
+| Task | Status | Notes |
+|---|---|---|
+| T1.1 — Scaffold + move 40 files / 4070 LOC | ⏳ NEXT | See below |
+
+**Next steps for T1.1:**
+1. `pnpm-workspace.yaml` already captures `packages/*` glob — no edit needed.
+2. Create `packages/sdk-memory/{package.json, tsconfig.json, tsup.config.ts, LICENSE, README.md, src/, tests/}`.
+   - `package.json` peerDeps: `@theokit/sdk-core` (will be sdk-core post-Phase-6; for now use `@theokit/sdk@^1.7.0`), `better-sqlite3@>=11`, `sqlite-vec@>=0.1`, `@lancedb/lancedb@>=0.10`.
+   - **EC-2 absorbed:** `tsup.config.ts` MUST declare `external: [/^@theokit\//, 'better-sqlite3', 'sqlite-vec', '@lancedb/lancedb']`.
+3. **EC-1 absorbed:** Add `./internal/persistence` sub-path to `packages/sdk/package.json` exports BEFORE move (sdk-memory will import via this sub-path).
+4. Write move script `tools/move-memory-subsystem.mjs` (dry-run first).
+5. Move:
+   - `packages/sdk/src/memory.ts` (191 LOC) → `packages/sdk-memory/src/memory.ts`
+   - `packages/sdk/src/memory-adapter-helpers.ts` → `packages/sdk-memory/src/memory-adapter-helpers.ts`
+   - `packages/sdk/src/internal/memory/**` (40 files, 4070 LOC) → `packages/sdk-memory/src/internal/`
+     - Adjust import paths: `from "./internal/memory/X"` → `from "./internal/X"`.
+   - `packages/sdk/src/types/memory-adapter.ts` → `packages/sdk-memory/src/types/memory-adapter.ts`
+   - Tests in `packages/sdk/tests/memory*.test.ts` (and `internal/memory/**/*.test.ts`) → `packages/sdk-memory/tests/`.
+6. Strip Memory exports from `packages/sdk/src/index.ts`:
+   - Remove `export { Memory, ... } from './memory.js';`
+   - Remove `export { extractRawId, mkMemoryId } from './memory-adapter-helpers.js';`
+7. **CRITICAL — external consumers of Memory in sdk/src/:**
+   - theokit.ts, migrate.ts, internal/llm/credential-pool.ts, internal/runtime/fixtures/*, internal/runtime/local-agent-dispatch.ts, internal/runtime/local-agent-personality-extensions.ts
+   - These import `Memory` from `./memory.js`. After move they need `from '@theokit/sdk-memory'` BUT this creates kernel→extension dep direction violation.
+   - **Resolution:** type-only imports stay; runtime imports need redesign. Specifically check which usages are types vs runtime values.
+8. `pnpm install -w` after package created (EC-5 absorbed).
+9. Build + tests in sdk-memory.
+10. Commit: `feat(sdk-memory): extract @theokit/sdk-memory 0.1.0 from @theokit/sdk@1.7.0 (T1.1)`.
+
+**Open concern surfaced during baseline measurement:**
+
+The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory namespace mas agent-loop não importa Memory diretamente; Memory é state observada por hooks. Extractable." But empirical grep shows Memory is used by **7+ files outside internal/memory** (theokit.ts, migrate.ts, credential-pool.ts, fixtures, local-agent-dispatch.ts, personality-extensions.ts). These external usages need careful handling — either:
+- (a) move those external users TO sdk-memory if they're memory-tools (theokit.ts probably has the public Memory facade — already moved with memory.ts; migrate.ts handles memory migration scripts — could stay in core OR move).
+- (b) refactor those files to import Memory from `@theokit/sdk-memory` peer (creates kernel→extension dep — bad).
+- (c) leave a thin Memory facade in core that delegates to sdk-memory at runtime (defeats bundle gain).
+
+**Recommendation for T1.1 execution:** classify each external usage as type-only vs runtime. Type-only imports stay (TS only, no bundle impact). Runtime imports require per-case decision. If we find > 3 runtime imports that can't be cleanly resolved, surface as a BLOCKED finding and revisit ADR D1.
+
+## Phase 2-10 + Final
+
+Not started. See `sdk-2-0-package-split-plan.md` for tasks.
+
+## Pre-existing uncommitted state (NOT from this loop)
+
+The following files have changes from a prior session (sdk-superiority halt-loop, iteration 8 marked Wave 1 complete). They are NOT touched by this loop and SHOULD be committed/cleaned separately by their owner:
+
+```
+M packages/sdk/src/internal/agent-loop/loop.ts  (+33 lines)
+?? .claude/CHANGELOG.md
+?? packages/sdk/tests/internal/agent-loop/validate-response-nudge.test.ts
+```
+
+The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mid-stream.test.ts` are also pre-existing.
+
+**Impact on SDK 2.0 split:** loop.ts is touched by Phase 2 T2.1 (BudgetTracker interface inversion). The uncommitted +33 lines will need to be either committed by the prior owner OR rebased into the Phase 2 refactor. Surface to user before starting Phase 2.
+
+## Iteration log
+
+| Iteration | Date | Phase/Task | Outcome |
+|---|---|---|---|
+| 1 | 2026-06-08 | Phase 0 / T0.1 | DONE — commit `aa8b079`; 4/4 tests GREEN |
