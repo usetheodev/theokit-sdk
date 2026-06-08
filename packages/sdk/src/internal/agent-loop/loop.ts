@@ -228,6 +228,36 @@ async function runIteration(
 ): Promise<"continue" | "done" | "error"> {
   const llmOutput = await streamLlmTurn(inputs, ctx);
   accumulateUsage(ctx.usage, llmOutput);
+  // SDK 2.0 Phase 2 / T2.1 (incremental): when consumer supplied a
+  // BudgetTracker, forward the usage event as PASSIVE OBSERVATION.
+  // Legacy IterationBudget remains the sole enforcement authority for
+  // back-compat; tracker.check() wiring lands when sdk-budget extraction
+  // completes. track() MUST be synchronous + non-throwing per contract.
+  if (inputs.budgetTracker !== undefined) {
+    const modelId = inputs.model.id ?? "auto";
+    const inputT = llmOutput.inputTokens ?? 0;
+    const outputT = llmOutput.outputTokens ?? 0;
+    try {
+      if (inputT > 0) {
+        inputs.budgetTracker.track({
+          tokens: inputT,
+          model: modelId,
+          type: "input",
+        });
+      }
+      if (outputT > 0) {
+        inputs.budgetTracker.track({
+          tokens: outputT,
+          model: modelId,
+          type: "output",
+        });
+      }
+    } catch {
+      // Tracker.track() is contracted as non-throwing — swallow to protect
+      // the hot path. Real diagnostic surfaces via telemetry if the
+      // tracker itself wires logging.
+    }
+  }
   return continueOrTerminate(inputs, ctx, llmOutput);
 }
 

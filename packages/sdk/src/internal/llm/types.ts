@@ -39,9 +39,27 @@ export interface LlmMessage {
   content: LlmContentPart[];
 }
 
+/**
+ * T3.5 — a single system-prompt block. Used by `LlmRequest.system` when the
+ * caller wants to opt into Anthropic prompt caching: each block whose
+ * `cacheable` is `true` gets the `cache_control: {type: 'ephemeral'}`
+ * annotation in the Anthropic wire body, which lets Anthropic bill
+ * subsequent same-content requests at the cache-read rate (1-3x discount).
+ *
+ * For providers that don't support prompt caching (OpenAI, OpenRouter, etc),
+ * the array is joined into a single string at the wire boundary so the
+ * upstream contract stays unchanged. Back-compat: `LlmRequest.system` still
+ * accepts a plain `string` (pre-T3.5 callers compile unchanged).
+ */
+export interface LlmSystemBlock {
+  text: string;
+  /** When `true`, ask the provider to cache this block (Anthropic only). */
+  cacheable?: boolean;
+}
+
 export interface LlmRequest {
   model: string;
-  system?: string;
+  system?: string | LlmSystemBlock[];
   messages: LlmMessage[];
   tools?: LlmTool[];
   maxTokens?: number;
