@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 9,
+  "iterations_used": 10,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -10,11 +10,16 @@
     { "id": "T1.3", "status": "committed", "sha": "50fd52e" },
     { "id": "T1.4", "status": "committed", "sha": "78b767a" },
     { "id": "T1.5", "status": "committed", "sha": "1096531" },
-    { "id": "T2.1", "status": "committed", "sha": "1af7f5d" }
+    { "id": "T2.1", "status": "committed", "sha": "1af7f5d" },
+    {
+      "id": "T2.2",
+      "status": "blocked-on-replan",
+      "reason": "SEPA HALT — aux-LLM model/key/pool source unspecified in plan; needs /to-plan revision"
+    },
+    { "id": "T3.1", "status": "committed", "sha": "a390ea5" }
   ],
-  "pending_count": 58,
+  "blocked_count": 1,
+  "pending_count": 56,
   "halted": false,
-  "phase_1_critical_status": "wave_1_complete",
-  "concurrent_session_note": "Detected concurrent sdk-2-0 ralph-loop modifying packages/sdk/{src,tests}/cache/ -> packages/sdk-cache/. Manually unstaged via git restore --staged to keep T2.1 commit clean (Inquebrável Rule 3 honesty). The sdk-2-0 changes remain in the working tree for the other session to commit.",
   "cost_usd_cumulative": 0.0
 }
