@@ -203,6 +203,43 @@ async function recallSessionSummaries(
   return hits;
 }
 
+/**
+ * Build the LLM-facing `memory_search` tool (iter 35). The LLM calls
+ * this when the user asks about something it might have learned in a
+ * previous session. Queries the disk-backed sessions corpus via the
+ * same `recallSessionSummaries` helper used by `runActivePass`.
+ */
+function buildMemorySearchTool(state: InMemoryHandleState): CustomTool {
+  return {
+    name: "memory_search",
+    description:
+      "Search past session summaries for content related to a query. Use when the user asks about something they mentioned in a previous conversation. Returns up to 5 short snippets.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: {
+          type: "string",
+          description: "What to search for (a topic, fact, or keyword).",
+        },
+      },
+      required: ["query"],
+      additionalProperties: false,
+    },
+    handler: async (input: Record<string, unknown>): Promise<string> => {
+      const query = typeof input.query === "string" ? input.query : "";
+      if (query.length === 0) {
+        return JSON.stringify({ ok: false, results: [], error: "empty query" });
+      }
+      const hits = await recallSessionSummaries(state.cwd, query);
+      return JSON.stringify({
+        ok: true,
+        count: hits.length,
+        results: hits.map((h) => ({ id: String(h.id), snippet: h.content })),
+      });
+    },
+  };
+}
+
 function buildMemoryRememberTool(state: InMemoryHandleState): CustomTool {
   return {
     name: "memory_remember",
@@ -262,7 +299,7 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
     buildTools(handle: MemoryProviderHandle, _agent: SDKAgent): ReadonlyArray<CustomTool> {
       const state = handle[INTERNAL_STATE] as InMemoryHandleState | undefined;
       if (state === undefined) return [];
-      return [buildMemoryRememberTool(state)];
+      return [buildMemoryRememberTool(state), buildMemorySearchTool(state)];
     },
     async runActivePass(
       handle: MemoryProviderHandle,
