@@ -32,7 +32,9 @@ function mockSession<T>(): SessionManager<T> & { _state: MockSessionState<T> } {
     rotated: false,
     created: null,
     destroyed: false,
-    secret: "test-secret-32-chars-abcdefghij",
+    // T5.1 — secret MUST be ≥ 32 bytes (HKDF-SHA256 minimum entropy
+    // requirement); the pre-T5.1 31-byte value was silently zero-padded.
+    secret: "test-secret-32-chars-abcdefghijK",
   };
   return {
     async getSession(): Promise<T | null> {
