@@ -4,6 +4,7 @@ import { writeSessionSummary } from "../memory/storage/session-summary-writer.js
 import { appendSessionMessage, flushSessionWrites } from "./agent-session.js";
 import type { HooksExecutor } from "./hooks-executor.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
+import { shouldUsePortMemoryPath } from "./memory-path-selector.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
@@ -73,7 +74,14 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       // EC-3: trigger sync so the next memory_search({corpus:"sessions"})
       // sees the just-written summary. Fire-and-forget; the read path
       // tolerates a missed sync because IndexManager re-scans on each call.
-      void memoryGlue.syncIfReady();
+      //
+      // SDK 2.0 Phase 1 physical Stage 2b — iter 26: under
+      // `THEOKIT_PORT_MEMORY_PATH=1` the agent-loop already fired
+      // `provider.sync()` post-finished-run. Calling syncIfReady() here
+      // would be redundant (double sync). Skip when flag is on.
+      if (!shouldUsePortMemoryPath()) {
+        void memoryGlue.syncIfReady();
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       process.stderr.write(
