@@ -36,3 +36,10 @@ export * from "./internal/embedding-adapter.js";
 // satisfies. Imports only `EmbeddingRuntime` from iter 45's
 // embedding-adapter.
 export * from "./internal/index-manager-contract.js";
+
+// Iter 48: fifth Stage 3 file move — active-memory-types (24 LOC,
+// pure type-only). Defines `ActiveMemoryQueryMode`, `ActiveMemoryStatus`,
+// `ActiveMemoryResult`. Imports only `MemorySearchHit` from iter 47's
+// index-manager-contract (sibling). Unblocks the upcoming
+// `active-memory.ts` + `active-memory-cache.ts` moves.
+export * from "./internal/active-memory-types.js";
