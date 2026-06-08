@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Anthropic native cache-token surfacing (T3.8 of plan `sdk-superiority-2026-06-07`)
+
+- **Workspace impact**: `@theokit/sdk` consumers using Anthropic with
+  `cache_control: {type:"ephemeral"}` annotated system blocks (shipped in
+  T3.5) now receive both `cacheReadTokens` (0.1× billing tier) and
+  `cacheWriteTokens` (1.25× billing tier) on `LlmFinish` and downstream
+  through the 5-bucket `TokenUsage` accumulator. Pre-T3.8 the SDK silently
+  dropped both — billing dashboards under-counted cache activity and
+  per-run cost estimates were structurally wrong.
+- **Iter 17** of halt-loop `sdk-superiority-2026-06-07`. Closes the
+  algorithm half of DR3 finding #8; real-LLM proof against
+  `claude-3-haiku-20240307` lands in T6.1.
+
+### Operational — iter 17 stop-hook acknowledgement
+
+- Working tree continues to carry unstaged production-source changes from
+  the concurrent `sdk-2-0` ralph-loop session; this iter staged only
+  T3.8-related files (`packages/sdk/src/internal/llm/anthropic.ts`,
+  `packages/sdk/tests/internal/llm/anthropic-cache-tokens.test.ts`,
+  the two CHANGELOGs, the implementation contract row, and the progress
+  JSON). The mixed-authorship hygiene pattern from iter 16 holds.
+
 ### Operational — iter 16 stop-hook acknowledgement
 
 - Working tree carries unstaged production-source changes from the concurrent `sdk-2-0` ralph-loop session. The stop hook flags any TS modification under `packages/sdk/src/` as "production source changed" and demands a CHANGELOG entry; this line acknowledges the state per Inquebrável Rule 6 without claiming authorship of work that belongs to the other session.
