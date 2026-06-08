@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic } from "../atomic-write.js";
+import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import type { EmbeddingRuntime } from "../embedding-adapter.js";
 import { memoryDir, readFactsFromMarkdown } from "../storage/markdown-store.js";
