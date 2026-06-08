@@ -6,7 +6,18 @@
  * Multi-process safety is NOT covered (would need OS file locks — see
  * `withFileLock` in `./file-lock.ts`).
  *
- * @internal
+ * **Public utility (SDK 2.0 Phase 2 physical-survey unblock — see ADR-008).**
+ * Extracted packages (`@theokit/sdk-budget`, `@theokit/sdk-memory`) consume
+ * this via `import { withCwdMutex } from "@theokit/sdk"` to ensure the
+ * cross-package mutex Map IS the same process-level registry (single source
+ * of truth) — duplicating the impl per package would defeat the purpose
+ * (each package would have its own Map; concurrent writes from different
+ * packages would race).
+ *
+ * Stability guarantee: signature + semantics will not change before sdk-core
+ * v3.0. The mutex Map is module-scoped — restart-on-import resets state.
+ *
+ * @public
  */
 const tails = new Map<string, Promise<unknown>>();
 
