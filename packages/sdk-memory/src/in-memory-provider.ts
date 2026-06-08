@@ -13,11 +13,18 @@
  *     them in the system slot).
  *   - `buildTools()` surfaces a `memory_remember(content)` tool the LLM
  *     can call to persist a fact mid-conversation.
+ *   - `recordSessionSummary()` writes a markdown summary to
+ *     `${cwd}/.theokit/memory/sessions/${runId}.md` (real disk write
+ *     via `@theokit/sdk/internal/persistence` per ADR-008).
  *   - `dispose()` clears the handle's per-agent map (releases memory).
  *
  * @public
  */
 
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
+
+import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
 import type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
@@ -31,6 +38,7 @@ import type {
   MemoryProviderHandle,
   MemoryProviderInitOptions,
   MemoryTurnMessage,
+  RecordSessionSummaryArgs,
   SDKAgent,
 } from "@theokit/sdk";
 
@@ -89,6 +97,46 @@ function buildAdapter(state: InMemoryHandleState): MemoryAdapter {
       state.facts.delete(id);
     },
   };
+}
+
+/** Truncate session-summary text fields to bound disk size. */
+const MAX_SUMMARY_TURN_CHARS = 2000;
+
+function truncate(text: string): string {
+  if (text.length <= MAX_SUMMARY_TURN_CHARS) return text;
+  return `${text.slice(0, MAX_SUMMARY_TURN_CHARS)}…`;
+}
+
+/**
+ * Sanitize a runId for use as a filename. Strip path separators +
+ * traversal patterns; keep `[a-zA-Z0-9_-]`; cap at 128 chars.
+ * Mirrors sdk-core's legacy `writeSessionSummary` sanitizer so the
+ * file-path semantics are identical across paths.
+ */
+function sanitizeRunId(runId: string): string {
+  return runId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 128);
+}
+
+/** Render the session-summary markdown body. */
+function renderSessionSummaryMarkdown(args: RecordSessionSummaryArgs): string {
+  const iso = new Date(args.at).toISOString();
+  return [
+    "---",
+    `runId: ${args.runId}`,
+    `agentId: ${args.agentId}`,
+    `at: ${iso}`,
+    `status: ${args.status}`,
+    "---",
+    "",
+    "## User",
+    "",
+    truncate(args.userText),
+    "",
+    "## Assistant",
+    "",
+    truncate(args.assistantText),
+    "",
+  ].join("\n");
 }
 
 function buildMemoryRememberTool(state: InMemoryHandleState): CustomTool {
@@ -167,12 +215,18 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
       // LanceDB-backed impl will fire IndexManager.sync() here.
       return;
     },
-    recordSessionSummary(): void {
-      // No-op for the in-memory impl — session summaries are stateful
-      // file writes; without a filesystem-backed store, there's nothing
-      // to persist. Future LanceDB-backed impl writes the markdown to
-      // `${cwd}/.theokit/sessions/${runId}.md` then triggers re-index.
-      return;
+    async recordSessionSummary(args: RecordSessionSummaryArgs): Promise<void> {
+      // Real filesystem write via `@theokit/sdk/internal/persistence`'s
+      // `replaceFileAtomic`. ADR-008 sub-path resolution guarantees the
+      // same process-level write lock as sdk-core's legacy
+      // `writeSessionSummary`. Future LanceDB-backed impl additionally
+      // triggers IndexManager re-sync after the write.
+      if (args.status !== "finished") return;
+      const sessionsPath = join(args.cwd, ".theokit", "memory", "sessions");
+      const filePath = join(sessionsPath, `${sanitizeRunId(args.runId)}.md`);
+      await mkdir(sessionsPath, { recursive: true });
+      const body = renderSessionSummaryMarkdown(args);
+      await replaceFileAtomic(filePath, body);
     },
     dispose(handle: MemoryProviderHandle): void {
       const state = handle[INTERNAL_STATE] as InMemoryHandleState | undefined;
