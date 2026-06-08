@@ -65,6 +65,14 @@ export interface ActiveMemoryPassArgs {
  * @public
  */
 export interface RecordSessionSummaryArgs {
+  /**
+   * Workspace cwd where on-disk artefacts live. Included on the args
+   * (not on a handle) because `recordSessionSummary` is STATELESS — it
+   * runs AFTER `runAgentLoop`'s `dispose()` releases the per-run handle.
+   * The kernel passes its own `workspaceCwd`; the impl uses it to
+   * compute the markdown file path.
+   */
+  readonly cwd: string;
   /** Run id used as the filename key. */
   readonly runId: string;
   /** Agent identity for scope (foldering). */
@@ -138,7 +146,7 @@ export interface MemoryProvider {
   sync?(handle: MemoryProviderHandle): Promise<void> | void;
   /**
    * Optional session-summary write hook (SDK 2.0 Phase 1 physical
-   * Stage 3 prep — iter 27).
+   * Stage 3 prep — iter 27, refined iter 28).
    *
    * Called by `post-run-lifecycle.ts` AFTER a finished run to persist
    * the run's session-summary markdown under `corpus="sessions"`. When
@@ -147,16 +155,18 @@ export interface MemoryProvider {
    * `writeSessionSummary` import (legacy path, until Stage 3 source
    * move drops that import entirely).
    *
+   * STATELESS — does NOT take a `MemoryProviderHandle` because post-run-
+   * lifecycle runs AFTER `runAgentLoop` disposed the per-run handle.
+   * `cwd` lives on `args` instead. Impls that need per-agent state can
+   * cache it via closure inside the provider factory.
+   *
    * Impl MUST be non-throwing on the hot path. The kernel swallows
    * any throw + emits a stderr warning.
    *
    * Optional so existing impls (createNoopMemoryProvider,
    * createInMemoryMarkdownProvider) keep working without modification.
    */
-  recordSessionSummary?(
-    handle: MemoryProviderHandle,
-    args: RecordSessionSummaryArgs,
-  ): Promise<void> | void;
+  recordSessionSummary?(args: RecordSessionSummaryArgs): Promise<void> | void;
   /** Release the handle (close index, flush caches). Idempotent + non-throwing. */
   dispose(handle: MemoryProviderHandle): Promise<void> | void;
 }

@@ -1,22 +1,20 @@
 /**
  * `MemoryProvider.recordSessionSummary?` port-method tests
- * (SDK 2.0 Phase 1 physical Stage 3 prep — iter 27).
+ * (SDK 2.0 Phase 1 physical Stage 3 prep — iter 27, refined iter 28).
+ *
+ * STATELESS — port method takes args only (NO handle), because
+ * post-run-lifecycle runs AFTER runAgentLoop disposes the per-run
+ * handle. `cwd` lives on the args.
  *
  * Pins:
- *   - The optional port method's shape (RecordSessionSummaryArgs).
+ *   - The optional port method's shape (RecordSessionSummaryArgs incl. cwd).
  *   - When defined: post-run-lifecycle delegates to it.
  *   - When undefined: post-run-lifecycle falls back to legacy
  *     `writeSessionSummary` direct call.
- *   - When the port method throws: kernel swallows + emits stderr.
- *
- * Drives the EXACT branch logic from `post-run-lifecycle.ts` ~line 65-90
- * via a mirror function. Decouples the unit test from the kernel
- * fixture infrastructure.
  */
 
 import type {
   MemoryProvider,
-  MemoryProviderHandle,
   RecordSessionSummaryArgs,
 } from "../src/internal/runtime/memory-provider.js";
 import type { MemoryAdapter } from "../src/types/memory-adapter.js";
@@ -41,29 +39,25 @@ function makeStubAdapter(): MemoryAdapter {
 }
 
 /**
- * Mirror of the wiring at `post-run-lifecycle.ts` ~line 65-90.
- * Prefers port impl; falls back to legacy on absent port method.
+ * Mirror of the wiring at `post-run-lifecycle.ts` ~line 70-90.
+ * Prefers stateless port impl; falls back to legacy on absent port method.
  */
 async function runRecordSessionSummary(args: {
   memoryProvider: MemoryProvider | undefined;
-  memoryProviderHandle: MemoryProviderHandle | undefined;
   summaryArgs: RecordSessionSummaryArgs;
-  legacyWriter: (args: RecordSessionSummaryArgs & { cwd: string }) => Promise<void>;
-  workspaceCwd: string;
+  legacyWriter: (args: RecordSessionSummaryArgs) => Promise<void>;
 }): Promise<{ usedPort: boolean }> {
-  const { memoryProvider, memoryProviderHandle, summaryArgs, legacyWriter, workspaceCwd } = args;
-  if (
-    memoryProvider?.recordSessionSummary !== undefined &&
-    memoryProviderHandle !== undefined
-  ) {
-    await memoryProvider.recordSessionSummary(memoryProviderHandle, summaryArgs);
+  const { memoryProvider, summaryArgs, legacyWriter } = args;
+  if (memoryProvider?.recordSessionSummary !== undefined) {
+    await memoryProvider.recordSessionSummary(summaryArgs);
     return { usedPort: true };
   }
-  await legacyWriter({ cwd: workspaceCwd, ...summaryArgs });
+  await legacyWriter(summaryArgs);
   return { usedPort: false };
 }
 
 const SUMMARY_ARGS: RecordSessionSummaryArgs = {
+  cwd: "/workspace",
   runId: "run-123",
   agentId: "agent-test",
   userText: "user says hi",
@@ -72,9 +66,10 @@ const SUMMARY_ARGS: RecordSessionSummaryArgs = {
   at: 1234567890,
 };
 
-describe("recordSessionSummary port method (iter 27)", () => {
-  it("test_RecordSessionSummaryArgs_shape", () => {
-    // Type-level shape pinning.
+describe("recordSessionSummary port method — STATELESS (iter 27/28)", () => {
+  it("test_RecordSessionSummaryArgs_shape_includes_cwd", () => {
+    // Type-level shape pinning — cwd is on args (not on handle).
+    expectTypeOf<RecordSessionSummaryArgs["cwd"]>().toEqualTypeOf<string>();
     expectTypeOf<RecordSessionSummaryArgs["runId"]>().toEqualTypeOf<string>();
     expectTypeOf<RecordSessionSummaryArgs["agentId"]>().toEqualTypeOf<string>();
     expectTypeOf<RecordSessionSummaryArgs["userText"]>().toEqualTypeOf<string>();
@@ -86,20 +81,30 @@ describe("recordSessionSummary port method (iter 27)", () => {
   });
 
   it("test_port_recordSessionSummary_is_optional_on_MemoryProvider", () => {
-    // Type assertion: a provider WITHOUT recordSessionSummary still
-    // satisfies the MemoryProvider interface (optional method).
     const noopProvider: MemoryProvider = {
       init: async () => ({ adapter: makeStubAdapter() }),
       buildTools: () => [],
       runActivePass: async () => ({ facts: [] }),
       dispose: () => undefined,
-      // recordSessionSummary intentionally omitted
     };
     expect(noopProvider.recordSessionSummary).toBeUndefined();
   });
 
+  it("test_port_method_signature_is_stateless_one_arg", () => {
+    // Pin: signature is `(args: RecordSessionSummaryArgs) => Promise<void> | void`.
+    // NO handle param (post-run-lifecycle has no handle by the time it
+    // calls this — runAgentLoop already disposed).
+    expectTypeOf<NonNullable<MemoryProvider["recordSessionSummary"]>>().parameter(0).toEqualTypeOf<
+      RecordSessionSummaryArgs
+    >();
+    // Verify the function has exactly ONE parameter (no second-arg overload).
+    expectTypeOf<NonNullable<MemoryProvider["recordSessionSummary"]>>().parameters.toEqualTypeOf<
+      [RecordSessionSummaryArgs]
+    >();
+  });
+
   it("test_port_path_used_when_provider_implements_recordSessionSummary", async () => {
-    const recordSpy = vi.fn(async (_h: MemoryProviderHandle, _a: RecordSessionSummaryArgs) => {});
+    const recordSpy = vi.fn(async (_a: RecordSessionSummaryArgs) => {});
     const legacySpy = vi.fn(async () => {});
 
     const provider: MemoryProvider = {
@@ -109,19 +114,16 @@ describe("recordSessionSummary port method (iter 27)", () => {
       dispose: () => undefined,
       recordSessionSummary: recordSpy,
     };
-    const handle = await provider.init({ cwd: "/tmp" });
 
     const { usedPort } = await runRecordSessionSummary({
       memoryProvider: provider,
-      memoryProviderHandle: handle,
       summaryArgs: SUMMARY_ARGS,
       legacyWriter: legacySpy,
-      workspaceCwd: "/tmp",
     });
 
     expect(usedPort).toBe(true);
     expect(recordSpy).toHaveBeenCalledTimes(1);
-    expect(recordSpy).toHaveBeenCalledWith(handle, SUMMARY_ARGS);
+    expect(recordSpy).toHaveBeenCalledWith(SUMMARY_ARGS);
     expect(legacySpy).not.toHaveBeenCalled();
   });
 
@@ -132,22 +134,17 @@ describe("recordSessionSummary port method (iter 27)", () => {
       buildTools: () => [],
       runActivePass: async () => ({ facts: [] }),
       dispose: () => undefined,
-      // recordSessionSummary omitted
     };
-    const handle = await provider.init({ cwd: "/tmp" });
 
     const { usedPort } = await runRecordSessionSummary({
       memoryProvider: provider,
-      memoryProviderHandle: handle,
       summaryArgs: SUMMARY_ARGS,
       legacyWriter: legacySpy,
-      workspaceCwd: "/workspace",
     });
 
     expect(usedPort).toBe(false);
     expect(legacySpy).toHaveBeenCalledTimes(1);
-    // Legacy writer receives the merged shape with cwd
-    expect(legacySpy).toHaveBeenCalledWith({ cwd: "/workspace", ...SUMMARY_ARGS });
+    expect(legacySpy).toHaveBeenCalledWith(SUMMARY_ARGS);
   });
 
   it("test_legacy_fallback_when_no_provider_supplied", async () => {
@@ -155,54 +152,29 @@ describe("recordSessionSummary port method (iter 27)", () => {
 
     const { usedPort } = await runRecordSessionSummary({
       memoryProvider: undefined,
-      memoryProviderHandle: undefined,
       summaryArgs: SUMMARY_ARGS,
       legacyWriter: legacySpy,
-      workspaceCwd: "/workspace",
     });
 
     expect(usedPort).toBe(false);
     expect(legacySpy).toHaveBeenCalledTimes(1);
   });
 
-  it("test_legacy_fallback_when_provider_set_but_handle_undefined", async () => {
-    const recordSpy = vi.fn(async () => {});
-    const legacySpy = vi.fn(async () => {});
-
-    const provider: MemoryProvider = {
-      init: async () => ({ adapter: makeStubAdapter() }),
-      buildTools: () => [],
-      runActivePass: async () => ({ facts: [] }),
-      dispose: () => undefined,
-      recordSessionSummary: recordSpy,
-    };
-
-    const { usedPort } = await runRecordSessionSummary({
-      memoryProvider: provider,
-      memoryProviderHandle: undefined, // simulates init() having thrown
-      summaryArgs: SUMMARY_ARGS,
-      legacyWriter: legacySpy,
-      workspaceCwd: "/workspace",
-    });
-
-    expect(usedPort).toBe(false);
-    expect(recordSpy).not.toHaveBeenCalled();
-    expect(legacySpy).toHaveBeenCalledTimes(1);
-  });
-
-  it("test_port_recordSessionSummary_args_match_legacy_args_shape", () => {
-    // Pin that adding `cwd` to RecordSessionSummaryArgs reproduces the
-    // legacy writeSessionSummary call site exactly. Future Stage 3
-    // source-move relies on this equivalence.
-    type LegacyWriteArgs = RecordSessionSummaryArgs & { cwd: string };
-    expectTypeOf<LegacyWriteArgs>().toMatchTypeOf<{
+  it("test_port_args_compatible_with_legacy_SessionSummaryInput", () => {
+    // The legacy writeSessionSummary's SessionSummaryInput type is a
+    // SUPERSET of RecordSessionSummaryArgs (status union includes
+    // "running" which port doesn't need). This compatibility is what
+    // lets post-run-lifecycle pass `summaryArgs` to both paths.
+    type LegacyShape = {
       cwd: string;
       runId: string;
       agentId: string;
       userText: string;
       assistantText: string;
-      status: "finished" | "error" | "cancelled";
+      status: "finished" | "running" | "error" | "cancelled";
       at: number;
-    }>();
+    };
+    // RecordSessionSummaryArgs is assignable to LegacyShape (subtype).
+    expectTypeOf<RecordSessionSummaryArgs>().toMatchTypeOf<LegacyShape>();
   });
 });
