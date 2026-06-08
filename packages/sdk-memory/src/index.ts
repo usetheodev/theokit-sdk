@@ -12,3 +12,10 @@ export { createInMemoryMarkdownProvider } from "./in-memory-provider.js";
 // rich providers (LanceDB-backed) will consume. Hybrid dual-copy mirrors
 // Phase 2 physical Stage 1 (sdk-budget) pattern.
 export * from "./internal/circuit-breaker.js";
+
+// Iter 45: second Stage 3 file move — embedding-adapter types (61 LOC,
+// pure type-only file). Defines the contract that provider adapters
+// (openai-embedding, ollama-embedding, etc.) implement.
+// `MemoryEmbeddingProviderAdapter` + `CreateAdapterOptions` +
+// `EmbeddingRuntime` + `EmbeddingRuntimeStats` + `EmbeddingCache`.
+export * from "./internal/embedding-adapter.js";
