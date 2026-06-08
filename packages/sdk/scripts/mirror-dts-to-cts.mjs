@@ -34,6 +34,9 @@ const targets = [
   join(DIST, "workflow.d.ts"),
   join(DIST, "eval.d.ts"),
   join(DIST, "subscription"),
+  // EC-1 absorbed: internal sub-paths exposed for extracted packages.
+  join(DIST, "internal", "persistence"),
+  join(DIST, "internal", "plugins"),
 ];
 
 for (const target of targets) {
