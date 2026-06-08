@@ -117,7 +117,7 @@
 | T5.3 | Phase 5 / T5.3 | __Host- cookie prefix + cookie clear fix | pending | — | — | — | — |
 | T5.4 | Phase 5 / T5.4 | Redactor pattern expansion (12→30+) | committed | 19 | 8d1325e+62408c1 (contamination) | a=pass b=pass c=n/a | none-needed |
 | T5.5 | Phase 5 / T5.5 | NUL byte rejection across path-guard | committed | 21 | 9d4264b | a=pass b=pass c=n/a | none-needed |
-| T5.6 | Phase 5 / T5.6 | Forbidden-path blocklist expansion | committed | 22 | TBD | a=pass b=pass c=n/a | none-needed |
+| T5.6 | Phase 5 / T5.6 | Forbidden-path blocklist expansion | committed | 22 | 2bf3f83 | a=pass b=pass c=n/a | none-needed |
 | T5.7 | Phase 5 / T5.7 | Crypto-random tmp file names + mode 0o600 | pending | — | — | — | — |
 | T5.8 | Phase 5 / T5.8 | NFS detection + warning | pending | — | — | — | — |
 | T5.9 | Phase 5 / T5.9 | proper-lockfile supply-chain hardening | pending | — | — | — | — |
