@@ -167,7 +167,7 @@ describe("mapOpenAICompatibleError", () => {
   });
 
   // D314: Production-Readiness Phase 3 — billing-style codes
-  it("402 → ConfigurationError (mapped via invalid_request fallback)", () => {
+  it("T3.7 — 402 maps to quota_exceeded (was invalid_request pre-T3.7)", () => {
     const err = mapOpenAICompatibleError({
       providerId: "openai",
       status: 402,
@@ -175,14 +175,13 @@ describe("mapOpenAICompatibleError", () => {
       headers: headers(),
       endpoint: "/v1/chat/completions",
     });
-    // Status 402 doesn't match the AuthenticationError/Rate/etc. branches so
-    // falls through to UnknownAgentError. metadata.code is invalid_request
-    // (D314 mapping). AgentRunError emitted at the top level uses D311
-    // quota_exceeded.
-    expect(err.metadata?.code).toBe("invalid_request");
+    // T3.7 widened ErrorCode with `quota_exceeded`; 402 now maps there
+    // canonically. Pre-T3.7 callers received `invalid_request` due to the
+    // missing bucket.
+    expect(err.metadata?.code).toBe("quota_exceeded");
   });
 
-  it("body with insufficient_quota code → invalid_request (D314)", () => {
+  it("T3.7 — body with insufficient_quota code now maps to quota_exceeded", () => {
     const err = mapOpenAICompatibleError({
       providerId: "openai",
       status: 400,
@@ -190,6 +189,6 @@ describe("mapOpenAICompatibleError", () => {
       headers: headers(),
       endpoint: "/v1/chat/completions",
     });
-    expect(err.metadata?.code).toBe("invalid_request");
+    expect(err.metadata?.code).toBe("quota_exceeded");
   });
 });

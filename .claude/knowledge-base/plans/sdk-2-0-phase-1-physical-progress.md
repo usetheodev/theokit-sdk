@@ -84,39 +84,69 @@ multi-iter physical extraction. Updated at end of each iter session.
   - returned payload shape invariant (facts always Array; optional fields default undefined)
   - concat semantics match `resolveSystemPromptWithMemoryAdditions`
 
-## Stage 2b kernel flip ⏳ NEXT
+## Stage 2b — memory-path-selector helpers ✅ SHIPPED (iter 22)
 
-The actual flip: `LocalAgent.send()` switches from legacy direct calls
-to port path. Requires:
+**Commit:** `cbe9551` feat(sdk-2-0): Phase 1 physical Stage 2b — memory-path-selector helpers
 
-1. **Gate decision**: when does the flip happen?
-   - Option A — env var `THEOKIT_PORT_MEMORY_PATH=1` (opt-in, default off)
-   - Option B — `options.memory.usePortPath: boolean` (per-agent opt-in)
-   - Option C — flip default; legacy as opt-OUT
-   - **Recommendation:** Option A. Lowest blast radius; env-based
-     keeps the API surface clean; future deprecation cycle drops it.
+- New file: `internal/runtime/memory-path-selector.ts`
+- `PORT_MEMORY_PATH_ENV_VAR` constant: `"THEOKIT_PORT_MEMORY_PATH"`
+- `shouldUsePortMemoryPath()` — env var detection ("1" or "true" → true)
+- `resolveMemoryProviderForLoop(consumer, default, flag)` — consumer-
+  supplied always wins; flag decides fall-back
+- `resolveMemoryToolsForLoop(legacy, flag)` — flag on suppresses legacy
+- `resolveActiveMemorySummaryForSend(legacy, flag)` — flag on suppresses legacy
+- **Tests:** 14 (5 describes covering env-var matrix + selector matrices)
 
-2. **`LocalAgent.send()` refactor**: when flag enabled:
-   - Skip `await this.memoryGlue.ensureTools()` (returns [] instead)
-   - Skip `await this.memoryGlue.runActiveMemoryIfEnabled(...)` (returns undefined)
-   - Pass `inputs.memoryProvider = options.memoryProvider ??
-     this.defaultMemoryProviderForLoop`
-   - Agent-loop's iter 18 T1.5.* wiring takes over (tools via buildTools,
-     additions via runActivePass)
+## Stage 2b kernel flip ✅ SHIPPED (iter 23)
 
-3. **Regression coverage** (already in place):
-   - buildTools equivalence (Stage 2b smoke) ✅
-   - runActivePass equivalence (this iter) ✅
-   - Lifecycle ordering ✅
-   - Adapter construction pattern ✅
+**Commit:** `aa7b486` feat(sdk-2-0): Phase 1 physical Stage 2b — KERNEL FLIP (env-flag gated)
 
-4. **Dogfood validation**: needs a fixture or smoke test that
-   exercises memory-enabled mode under both legacy + port paths and
-   diffs the outputs. Currently unavailable (memory subsystem requires
-   IndexManager + filesystem).
+The actual `LocalAgent.sendLocked()` kernel refactor wiring the iter 22
+selector helpers. When `THEOKIT_PORT_MEMORY_PATH=1` is set:
 
-**Estimated effort:** 1 focused iter session. Risk: medium —
-double-processing if the legacy calls aren't perfectly gated.
+  - Legacy `memoryGlue.ensureTools()` + `runActiveMemoryIfEnabled()`
+    async calls SKIPPED (the expensive active-memory recall is not even
+    fired).
+  - Auto-installed adapter (`defaultMemoryProviderForLoop`) injected
+    into agent-loop via shallow-cloned `agentOptions` (dispatchRun
+    gains optional `memoryProviderOverride` arg).
+  - Iter 18 T1.5.* port wiring takes over inside agent-loop:
+    `init → buildTools → runActivePass → sync → dispose`.
+
+When flag is NOT set (default): ZERO behavior change. Consumer-supplied
+`Agent.create({ memoryProvider })` ALWAYS wins regardless of flag.
+
+**Tests:** 12 flip integration tests (2 describes: flag unset / flag set):
+- shouldUsePortMemoryPath under each flag state
+- memoryTools/activeMemorySummary/memoryProvider selection
+- consumer-supplied wins precedence
+
+## Stage 2b dogfood validation ⏳ NEXT
+
+With the kernel flip shipped (iter 23) and the env flag in place,
+the remaining Stage 2b validation is:
+
+1. **Dogfood / fixture validation**: needs a test that exercises
+   memory-enabled mode under both legacy + port paths and diffs the
+   outputs. Currently unavailable in the test corpus — the memory
+   subsystem requires `IndexManager.open()` + filesystem-backed
+   embedding adapter to fully exercise the rich impl.
+   - Recommendation: add a smoke test that boots `LocalAgent` with
+     `options.memory.enabled = true` under both flag states + asserts
+     equivalence of the agent-loop's `memoryTools` catalog and
+     `system: <effective>` parameter.
+   - Real-LLM dogfood under `THEOKIT_PORT_MEMORY_PATH=1` to confirm
+     end-to-end equivalence: same `tool_use` IDs, same response.
+
+2. **Flip the env-var default**: after fixture validation passes,
+   `shouldUsePortMemoryPath()` default flips to `true` (legacy
+   becomes opt-OUT via `THEOKIT_PORT_MEMORY_PATH=0`). This is the
+   second sub-iter — small but consequential.
+
+3. **Drop the env-var entirely**: after a release cycle of port-path-
+   default in production, `LocalAgent.send` removes the flag branches
+   and the legacy direct calls. `memoryGlue` field stays for back-
+   compat (Stage 4 deprecation).
 
 ## Stage 3 — Move `internal/memory/*` to `sdk-memory`/internal ⏳
 
@@ -139,9 +169,11 @@ lives in sdk-core; deprecation is meaningless until the impl moves.
 | `local-agent-default-memory-provider.test.ts` | 3 |
 | `agent-loop-memory-provider-ordering.test.ts` | 7 |
 | `local-agent-memory-provider-runActivePass-equivalence.test.ts` | 4 |
-| **Subtotal — Stage 1+2** | **32** |
+| `memory-path-selector.test.ts` | 14 |
+| `local-agent-port-memory-path-flip.test.ts` | 12 |
+| **Subtotal — Stage 1+2** | **58** |
 | Pre-Stage Phase 1 (T1.1-T1.5) | 51 |
-| **Total Phase 1** | **83 GREEN** |
+| **Total Phase 1** | **109 GREEN** |
 
 ## Commit chain (Phase 1 physical, in order)
 
@@ -155,4 +187,7 @@ f30d7d8 Stage 2b — adapter↔legacy equivalence smoke (buildTools)
 a5f645c Stage 2b — holistic lifecycle-ordering tests
 6fbca87 Stage 2b — LocalAgent eagerly builds adapter
 54871f6 Stage 2b — runActivePass equivalence
+c6e675c docs: Phase 1 physical progress log (consolidate iter 19-21)
+cbe9551 Stage 2b — memory-path-selector helpers
+aa7b486 Stage 2b — KERNEL FLIP (env-flag gated)
 ```

@@ -89,7 +89,7 @@
 > **T3.4 partial(iter13) note** — `internal/llm/retry.ts` helper module + 10 GREEN unit tests shipped. Wiring into `pool-aware-client.ts` was attempted but reverted: the existing tests at `tests/internal/llm/pool-aware-client.test.ts` use `vi.useFakeTimers()` (lines 85-87) which stalls the new `setTimeout`-based `sleepWithAbort`. Integration requires either (a) test refactor to call `vi.advanceTimersByTimeAsync` between retries, or (b) sleeper-injection seam on the PoolAwareLlmClient constructor with no-op default for tests. Both modify existing test code outside iter scope — deferred to a follow-up slice.
 | T3.5 | Phase 3 / T3.5 | Anthropic prompt caching emit | committed | 14 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.6 | Phase 3 / T3.6 | OpenAI structured outputs json_schema | committed | 15 | TBD | a=pass b=pass c=n/a | none-needed |
-| T3.7 | Phase 3 / T3.7 | Error mapping completeness (OpenRouter/Anthropic/Vertex) | pending | — | — | — | — |
+| T3.7 | Phase 3 / T3.7 | Error mapping completeness (OpenRouter/Anthropic/Vertex) | committed | 16 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.8 | Phase 3 / T3.8 | Cache tokens Anthropic native + 5-bucket telemetry | pending | — | — | — | — |
 | T3.9 | Phase 3 / T3.9 | Reconnect storm prevention (pool waitForAvailable) | pending | — | — | — | — |
 | T3.10 | Phase 3 / T3.10 | Cleanup batch DR3 findings 13-25 (incl vision content parts LARGE) | pending | — | — | — | — |
