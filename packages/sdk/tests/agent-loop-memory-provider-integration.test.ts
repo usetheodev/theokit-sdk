@@ -35,12 +35,12 @@ import type {
 import type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
-  MemoryAdapter,
   MemoryProvider,
   MemoryProviderHandle,
   MemoryProviderInitOptions,
 } from "../src/internal/runtime/memory-provider.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks-executor.js";
+import type { MemoryAdapter } from "../src/types/memory-adapter.js";
 import type { SDKAgent, CustomTool } from "../src/types/agent.js";
 
 /** Stub LLM that records every request and returns a deterministic final turn. */
@@ -152,7 +152,7 @@ describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
     const firstRequest = requests[0];
     expect(firstRequest).toBeDefined();
     if (firstRequest === undefined) return;
-    const toolNames = firstRequest.tools.map((t) => t.name);
+    const toolNames = (firstRequest.tools ?? []).map((t) => t.name);
     expect(toolNames).toContain("memory_search");
 
     // Assertion 3: LLM received the systemPromptAdditions concatenated
@@ -238,7 +238,7 @@ describe("MemoryProvider full integration with runAgentLoop (iter 24)", () => {
     // System verbatim; no additions appended.
     expect(firstRequest.system).toBe("Baseline system.");
     // No provider tools in catalog.
-    const toolNames = firstRequest.tools.map((t) => t.name);
+    const toolNames = (firstRequest.tools ?? []).map((t) => t.name);
     expect(toolNames).not.toContain("memory_search");
   });
 

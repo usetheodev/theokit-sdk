@@ -52,6 +52,33 @@ export interface ActiveMemoryPassArgs {
   readonly agentId: string;
 }
 
+/**
+ * Arguments for `MemoryProvider.recordSessionSummary(...)`
+ * (SDK 2.0 Phase 1 physical Stage 3 prep — iter 27).
+ *
+ * The "session summary" is the markdown that gets written to disk
+ * after a finished run + indexed under `corpus="sessions"`. This
+ * port method lets sdk-core's `post-run-lifecycle.ts` delegate the
+ * write to the provider instead of importing
+ * `internal/memory/storage/session-summary-writer.ts` directly.
+ *
+ * @public
+ */
+export interface RecordSessionSummaryArgs {
+  /** Run id used as the filename key. */
+  readonly runId: string;
+  /** Agent identity for scope (foldering). */
+  readonly agentId: string;
+  /** Verbatim user message that started the run. */
+  readonly userText: string;
+  /** Final assistant text the run produced. */
+  readonly assistantText: string;
+  /** Final run status (only "finished" is recorded today). */
+  readonly status: "finished" | "error" | "cancelled";
+  /** Wall-clock ms at write time. */
+  readonly at: number;
+}
+
 /** Options for `MemoryProvider.init(...)`. */
 export interface MemoryProviderInitOptions {
   /** Workspace cwd where on-disk artefacts live (`.theokit/memory/...`). */
@@ -109,6 +136,27 @@ export interface MemoryProvider {
    * unblocks moving LocalAgentMemory's logic out to sdk-memory.
    */
   sync?(handle: MemoryProviderHandle): Promise<void> | void;
+  /**
+   * Optional session-summary write hook (SDK 2.0 Phase 1 physical
+   * Stage 3 prep — iter 27).
+   *
+   * Called by `post-run-lifecycle.ts` AFTER a finished run to persist
+   * the run's session-summary markdown under `corpus="sessions"`. When
+   * defined, the kernel delegates the write to the provider; when
+   * undefined, post-run-lifecycle falls back to the direct
+   * `writeSessionSummary` import (legacy path, until Stage 3 source
+   * move drops that import entirely).
+   *
+   * Impl MUST be non-throwing on the hot path. The kernel swallows
+   * any throw + emits a stderr warning.
+   *
+   * Optional so existing impls (createNoopMemoryProvider,
+   * createInMemoryMarkdownProvider) keep working without modification.
+   */
+  recordSessionSummary?(
+    handle: MemoryProviderHandle,
+    args: RecordSessionSummaryArgs,
+  ): Promise<void> | void;
   /** Release the handle (close index, flush caches). Idempotent + non-throwing. */
   dispose(handle: MemoryProviderHandle): Promise<void> | void;
 }
