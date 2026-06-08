@@ -43,13 +43,21 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@theokit/sdk": ">=1.7.0"
+    "@theokit/sdk": ">=1.7.0",
+    "better-sqlite3": "^12.0.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "tsup": "^8.3.5",
     "typescript": "^5.7.2",
     "vitest": "^4.1.8",
-    "@theokit/sdk": "workspace:*"
+    "@theokit/sdk": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.10.0"
   },
   "publishConfig": {
     "access": "public"
