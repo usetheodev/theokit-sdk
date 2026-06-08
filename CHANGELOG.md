@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed — `@theokit/sdk` T1.5: redact `providerError.raw` + opt-in toJSON()
+
+- **Workspace impact**: `AgentRunError.providerError` getter now returns a redacted string (BREAKING shape change); `AgentRunError.toJSON()` omits `metadata.raw` by default, opt-in via `THEOKIT_DEBUG_RAW_ERRORS=1`. 5 new tests + 2 pre-existing tests updated.
+
 ### Added — `@theokit/sdk` T1.4: downloadArtifact path-traversal hardening
 
 - **Workspace impact**: centralized `validateArtifactPath` in `internal/security/path-guard.ts` rejects 7 traversal vectors (`..`, backslash, URL-encoded `%2e%2e`, NUL byte, Windows drive prefix, home tilde, absolute path). `cloud-agent.ts:downloadArtifact` delegates. 7 new tests; per-package detail at `packages/sdk/CHANGELOG.md`.
