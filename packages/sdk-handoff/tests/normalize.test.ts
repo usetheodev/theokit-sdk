@@ -5,10 +5,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { Handoff } from "../../src/handoff.js";
-import { normalizeHandoffs } from "../../src/internal/handoff/tool-injector.js";
-import type { SDKAgent } from "../../src/types/agent.js";
-import { HandoffNameCollisionError, HandoffSelfReferenceError } from "../../src/types/handoff.js";
+import { Handoff } from "../src/handoff.js";
+import { normalizeHandoffs } from "../src/internal/tool-injector.js";
+import type { SDKAgent } from "@theokit/sdk";
+import { HandoffNameCollisionError, HandoffSelfReferenceError } from "../src/types/handoff.js";
 
 function fakeAgent(name: string, agentId = `agent-${name}`): SDKAgent {
   return {

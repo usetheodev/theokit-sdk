@@ -54,17 +54,11 @@ export {
   type GenerateObjectOptions,
   type GenerateObjectResult,
 } from "./generate-object.js";
-// Handoffs (Adoption Roadmap #4; ADRs D214-D229)
-export {
-  Handoff,
-  HandoffLoopError,
-  HandoffNameCollisionError,
-  HandoffPairLoopError,
-  HandoffReceiverDisposedError,
-  HandoffSelfReferenceError,
-  handoffTo,
-  RECOMMENDED_HANDOFF_PROMPT_PREFIX,
-} from "./handoff.js";
+// Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
+// Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
+// Transitional: `Agent.create({ handoffs: [...] })` still works while
+// @theokit/sdk-handoff is installed (lazy-imported via optional peer model).
+// The preferred 2.x pattern is `plugins: [Handoff.asPlugin({ targets: [...] })]`.
 export { FileSystemConversationStorage } from "./internal/persistence/conversation-storage-fs.js";
 // Conversation storage adapters (Production-Readiness #1; ADRs D303-D306)
 export { InMemoryConversationStorage } from "./internal/persistence/conversation-storage-memory.js";
@@ -139,6 +133,6 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // bundled .d.ts (the `export type *` indirection through `./types/index.js`
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
-export type { CustomTool } from "./types/agent.js";
+export type { CustomTool, SDKAgent } from "./types/agent.js";
 // Type contract
 export type * from "./types/index.js";

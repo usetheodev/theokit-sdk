@@ -10,13 +10,13 @@
  */
 
 import { z } from "zod";
-import type { CustomTool, SDKAgent } from "../../types/agent.js";
+import type { CustomTool, SDKAgent } from "@theokit/sdk";
 import {
   type HandoffDescriptor,
   HandoffNameCollisionError,
   HandoffSelfReferenceError,
-} from "../../types/handoff.js";
-import { toJsonSchema } from "../zod/to-json-schema.js";
+} from "../types/handoff.js";
+import { toJsonSchema } from "./to-json-schema.js";
 import { dispatchHandoff } from "./dispatcher.js";
 import { createChainState } from "./registry.js";
 

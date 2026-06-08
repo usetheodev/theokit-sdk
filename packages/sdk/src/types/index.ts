@@ -10,7 +10,7 @@ export type * from "./conversation.js";
 export type * from "./conversation-storage.js";
 export type * from "./cron.js";
 export type * from "./goal-events.js";
-export type * from "./handoff.js";
+// handoff.ts — EXTRACTED to @theokit/sdk-handoff (SDK 2.0 split, Phase 4).
 export type * from "./mcp.js";
 export type * from "./memory-adapter.js";
 export type * from "./messages.js";

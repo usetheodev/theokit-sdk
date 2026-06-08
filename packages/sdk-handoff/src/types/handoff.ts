@@ -16,7 +16,7 @@
 
 import type { ZodType } from "zod";
 
-import type { SDKAgent } from "./agent.js";
+import type { SDKAgent } from "@theokit/sdk";
 import type {
   HandoffContext,
   HandoffDescriptor as HandoffDescriptorGeneric,

@@ -14,14 +14,14 @@
  */
 
 import { z } from "zod";
-import type { SDKAgent } from "../../types/agent.js";
+import type { SDKAgent } from "@theokit/sdk";
 import type {
   HandoffContext,
   HandoffDescriptor,
   HandoffHistory,
   HandoffResult,
-} from "../../types/handoff.js";
-import { HandoffReceiverDisposedError } from "../../types/handoff.js";
+} from "../types/handoff.js";
+import { HandoffReceiverDisposedError } from "../types/handoff.js";
 import { type HandoffChainState, recordHop } from "./registry.js";
 import { startHandoffSpan } from "./telemetry.js";
 

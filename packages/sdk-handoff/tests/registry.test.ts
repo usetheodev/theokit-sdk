@@ -4,8 +4,8 @@
 
 import { describe, expect, it } from "vitest";
 
-import { createChainState, currentDepth, recordHop } from "../../src/internal/handoff/registry.js";
-import { HandoffLoopError, HandoffPairLoopError } from "../../src/types/handoff.js";
+import { createChainState, currentDepth, recordHop } from "../src/internal/registry.js";
+import { HandoffLoopError, HandoffPairLoopError } from "../src/types/handoff.js";
 
 describe("handoff chain state", () => {
   it("createChainState seeds with root agent (depth 0)", () => {

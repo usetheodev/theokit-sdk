@@ -5,8 +5,8 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "../../src/handoff.js";
-import type { SDKAgent } from "../../src/types/agent.js";
+import { Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "../src/handoff.js";
+import type { SDKAgent } from "@theokit/sdk";
 
 function fakeAgent(name: string): SDKAgent {
   return {
