@@ -14,7 +14,7 @@
  */
 
 import type { BudgetWindow } from "../../types/budget.js";
-import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { windowStartMs } from "./calendar-window.js";
 
 interface ChargeLog {

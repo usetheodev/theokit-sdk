@@ -2,7 +2,7 @@ import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { replaceFileAtomic } from "../atomic-write.js";
-import { withCwdMutex } from "../cwd-mutex.js";
+import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { type MemoryConfig, type MemoryFact, redactSecrets } from "../types.js";
 
 /**
