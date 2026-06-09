@@ -50,6 +50,24 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 71: twenty-eighth Stage 3 file move — migrate-sqlite-to-lance (249 LOC).
+// One-shot SQLite → LanceDB migration per ADR D44. Reads all facts
+// from the SQLite chunks table, writes them to a `lance-new/`
+// staging directory, validates count + sample-compare (up to 10
+// facts) with NFC unicode normalization (EC-3 MUST FIX — SQLite and
+// Lance native bindings can normalize differently), then atomically
+// renames the staging dir to final `lance/`. Dry-run discards
+// staging without committing. Failed validation leaves SQLite
+// intact + removes staging. T1.4 secret redaction (ADR D68/D70):
+// the user-supplied or default logger is wrapped so fact text
+// containing keys is masked BEFORE reaching destination — bypass
+// via custom logger is impossible by design. Placeholder embedder
+// (deterministic 8-dim hash) is sufficient for migration validation;
+// consumers re-embed on first real query post-migration.
+// Dependencies all resolved sibling: index-db (iter 65) + lance-index
+// (iter 68) + memory-types (iter 52).
+export * from "./internal/migrate-sqlite-to-lance.js";
+
 // Iter 70: twenty-seventh Stage 3 file move — index-manager-dispatch (50 LOC).
 // Dispatch helpers used by `IndexManager.open` to route between
 // sqlite-vec (default) and lance backends without bloating the
