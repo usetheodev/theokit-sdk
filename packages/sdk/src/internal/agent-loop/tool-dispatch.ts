@@ -33,17 +33,74 @@ interface ToolResult {
   exitCode?: number | null;
 }
 
+/**
+ * T2.4 — Parallel tool dispatch with bounded concurrency (DR2 finding #4).
+ *
+ * Pre-T2.4 this was a serial `for...of` loop — each tool call awaited
+ * before the next. With N independent tools each taking Tms, total
+ * wall-clock was N×Tms. T2.4 switches to `Promise.all` with bounded
+ * concurrency via an inline semaphore (ADR D135 — in-house, no
+ * `p-limit` dep). Default cap is 4 concurrent tools; consumer
+ * overrides via `AgentLoopInputs.maxConcurrentTools`.
+ *
+ * Order preservation: `Promise.all` preserves input order in the
+ * resolved array regardless of which promise settles first — the
+ * LLM expects tool results in call order and this contract holds.
+ *
+ * Event array safety: `events` is append-only. In single-threaded
+ * JS (Node event loop), concurrent `.push()` calls from different
+ * microtask continuations do NOT interleave — each push is atomic.
+ * The order of events across tools becomes non-deterministic, but
+ * each individual tool's events are internally ordered.
+ */
 export async function dispatchTools(
   inputs: AgentLoopInputs,
   tools: ResolvedTool[],
   toolCalls: LlmToolCallPart[],
   events: SDKMessage[],
 ): Promise<LlmContentPart[]> {
-  const out: LlmContentPart[] = [];
-  for (const call of toolCalls) {
-    out.push(await dispatchSingleCall(inputs, tools, call, events));
+  const maxConcurrent = (inputs as { maxConcurrentTools?: number }).maxConcurrentTools ?? 4;
+  return boundedParallel(maxConcurrent, toolCalls, (call) =>
+    dispatchSingleCall(inputs, tools, call, events),
+  );
+}
+
+/**
+ * T2.4 — Bounded-concurrency parallel map (ADR D135 — in-house semaphore).
+ * Runs up to `max` tasks concurrently; queues the rest. Preserves input
+ * order in the output array. ~15 LoC — no external dep.
+ *
+ * @internal
+ */
+async function boundedParallel<T, R>(
+  max: number,
+  items: T[],
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  let running = 0;
+  const queue: Array<() => void> = [];
+  async function acquire(): Promise<void> {
+    if (running < max) {
+      running++;
+      return;
+    }
+    await new Promise<void>((resolve) => queue.push(resolve));
+    running++;
   }
-  return out;
+  function release(): void {
+    running--;
+    if (queue.length > 0) queue.shift()!();
+  }
+  return Promise.all(
+    items.map(async (item) => {
+      await acquire();
+      try {
+        return await fn(item);
+      } finally {
+        release();
+      }
+    }),
+  );
 }
 
 /**
