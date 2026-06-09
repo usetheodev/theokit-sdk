@@ -45,7 +45,9 @@ for (const section of [
   pushFail(!stdout.includes(section), `markdown missing section "${section}"`);
 }
 
-// All 4 gates should show a ✓ checkmark on the current workspace.
+// At least 4 gates should show a ✓ checkmark on the current workspace
+// (workspace / drift / phase 6 / phase 7 mandatory; bundle gate optional
+// per iter 107 — added when dist/ exists).
 const checkmarkCount = (stdout.match(/✓ /g) ?? []).length;
 pushFail(
   checkmarkCount < 4,
@@ -76,7 +78,10 @@ try {
 if (parsed !== undefined) {
   pushFail(parsed.all_read_only_pass !== true, "json: all_read_only_pass !== true");
   pushFail(!Array.isArray(parsed.gates), "json: gates not an array");
-  pushFail(parsed.gates.length !== 4, `json: expected 4 gates, got ${parsed.gates.length}`);
+  pushFail(
+    parsed.gates.length < 4,
+    `json: expected ≥4 gates (workspace/drift/phase 6/phase 7 mandatory; bundle optional), got ${parsed.gates.length}`,
+  );
   for (const g of parsed.gates ?? []) {
     pushFail(g.pass !== true, `json: gate "${g.label}" pass !== true`);
   }
