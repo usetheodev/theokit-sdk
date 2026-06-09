@@ -122,6 +122,14 @@ jobs:
         # ships in the codemod but isn't documented.
         run: node scripts/__tests__/migration-guide-coverage.test.mjs
 
+      - name: Cohort CHANGELOG shape (iter 111)
+        # Enforces Unbreakable Rule 6 across the SDK 2.0 cohort.
+        # Every cohort package CHANGELOG must have: # Changelog H1
+        # + ## [Unreleased] section + at least one versioned section.
+        # Catches drift where 0.1.0 packages ship without the staging
+        # slot for next-release notes.
+        run: node scripts/__tests__/cohort-changelog-shape.test.mjs
+
   cohort-publish-readiness:
     name: cohort publish-readiness gate
     runs-on: ubuntu-latest

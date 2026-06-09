@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Iter 42: T4.4 embedding cache singleton + T1.7 deferred
+
+- **T4.4** `globalEmbeddingCache` process-wide singleton — cross-index deduplication; was per-adapter
+- **T1.7** Deferred to Phase 6 OTel coverage pass (8 sub-spans need sendLocked helper extraction first)
+
 ### Added — SDK core iters 39-41: T1.6 + T1.8 + T1.9 + T1.10
 
 - **T1.6** `AgentDisposedError` typed error — replaces generic `Error("Agent has been disposed")` with catchable typed class; exported from barrel; `code: "agent_disposed"`
