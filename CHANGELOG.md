@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — second /implement refusal stop-hook acknowledgement
+
+- Re-invocation of `/implement sdk-superiority-2026-06-07`. Same two
+  HARD pre-condition failures as the first refusal (`07e22b6`): dirty
+  tree (now 30 files vs 28 before — concurrent sdk-2-0 session
+  continues writing) + Node version mismatch (.nvmrc 22, active
+  20.19.2). Per SKILL.md Step 1: refused to start the halt-loop. No
+  halt-loop spawned. No code touched. No state-file changes. Same
+  residual-state ack hygiene as 16-25 + `07e22b6` + `6f98a7a`.
+
 ### Operational — /ralph-loop:cancel-ralph (no-op) stop-hook acknowledgement
 
 - User invoked `/ralph-loop:cancel-ralph`. State file was already
