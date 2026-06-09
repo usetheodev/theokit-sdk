@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Agent-loop iters 36-38: T2.5 span leak + T2.6 tool error + T2.7 verified + T2.8 hook error log
+
+- **T2.5** OTel span leak on veto — plugin/file-hook veto paths now end the span with `tool.vetoed` attribute (pre-T2.5 leaked open spans)
+- **T2.6** Loop continues on tool error per ADR D89 — LLM sees the error and decides; consecutive-error cap (default 3) prevents infinite loops
+- **T2.7** Provider error → AgentRunErrorCode propagation verified as resolved by T1.1 + T1.5 + T3.7 chain
+- **T2.8** postToolUse hook error no longer silently swallowed — `.catch()` logs WARN to stderr
+
 ### Added — Agent-loop improvements batch (iters 26-35 of sdk-superiority)
 
 - **T5.9** proper-lockfile supply-chain hardening (structural validation after dynamic import)
