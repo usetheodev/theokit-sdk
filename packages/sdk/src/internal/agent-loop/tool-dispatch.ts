@@ -136,10 +136,23 @@ async function dispatchSingleCall(
   events.push(buildToolUseRunning(inputs, callId, workingCall));
 
   const pluginVeto = await vetoFromPluginPreHook(inputs, workingCall, callId, events);
-  if (pluginVeto !== undefined) return pluginVeto;
+  if (pluginVeto !== undefined) {
+    // T2.5 — end the span on veto so we don't leak open OTel spans.
+    // Pre-T2.5 the span started at step 3 but veto returns at step 4/5
+    // skipped step 7's `toolSpan.end()` — leaked an open span.
+    toolSpan?.setAttribute("tool.vetoed", true);
+    toolSpan?.setAttribute("tool.veto_source", "plugin");
+    toolSpan?.end();
+    return pluginVeto;
+  }
 
   const fileVeto = await vetoFromFileHookPreDecision(inputs, workingCall, callId, events);
-  if (fileVeto !== undefined) return fileVeto;
+  if (fileVeto !== undefined) {
+    toolSpan?.setAttribute("tool.vetoed", true);
+    toolSpan?.setAttribute("tool.veto_source", "file_hook");
+    toolSpan?.end();
+    return fileVeto;
+  }
 
   const result = await runToolWithLifecycle(inputs, resolved, workingCall, callId);
   return finalizeSpanAndPostHook(inputs, workingCall, callId, result, events, toolSpan);
