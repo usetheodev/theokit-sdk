@@ -14,9 +14,9 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -68,6 +68,29 @@ async function runCodemod(cwd, extraArgs = []) {
   });
 }
 
+// Helpers — absorb conditional branches so per-test cognitive complexity
+// stays under biome's limit while keeping assertion intent obvious.
+function pushFail(condition, message) {
+  if (condition) failures.push(message);
+}
+
+function assertContains(text, fragment, label) {
+  pushFail(!text.includes(fragment), `${label}: missing "${fragment}"`);
+}
+
+function assertAbsent(text, fragment, label) {
+  pushFail(text.includes(fragment), `${label}: still contains "${fragment}"`);
+}
+
+function assertPkgKeyMoved(pkg, block, expectedValue, label) {
+  const deps = pkg[block] ?? {};
+  pushFail(
+    deps["@theokit/sdk-core"] !== expectedValue,
+    `${label}: ${block}[@theokit/sdk-core] !== ${JSON.stringify(expectedValue)}`,
+  );
+  pushFail(deps["@theokit/sdk"] !== undefined, `${label}: ${block} still has @theokit/sdk key`);
+}
+
 async function testDryRunDoesNotModify() {
   const cwd = await setupScratch();
   try {
@@ -103,39 +126,21 @@ async function testWriteMode() {
     }
     // package.json: dep key renamed, sub-package untouched.
     const pkg = JSON.parse(await readFile(join(cwd, "package.json"), "utf8"));
-    if (pkg.dependencies["@theokit/sdk-core"] !== "^1.7.0") {
-      failures.push(
-        `dependencies key not renamed correctly: got ${JSON.stringify(pkg.dependencies)}`,
-      );
-    }
-    if (pkg.dependencies["@theokit/sdk"] !== undefined) {
-      failures.push("old @theokit/sdk key not removed from dependencies");
-    }
-    if (pkg.dependencies["@theokit/sdk-memory"] !== ">=0.1.0") {
-      failures.push("sub-package @theokit/sdk-memory was touched (should NOT be)");
-    }
-    if (pkg.devDependencies["@theokit/sdk-core"] !== "^1.7.0") {
-      failures.push("devDependencies key not renamed correctly");
-    }
+    assertPkgKeyMoved(pkg, "dependencies", "^1.7.0", "write");
+    assertPkgKeyMoved(pkg, "devDependencies", "^1.7.0", "write");
+    pushFail(
+      pkg.dependencies["@theokit/sdk-memory"] !== ">=0.1.0",
+      "sub-package @theokit/sdk-memory was touched (should NOT be)",
+    );
     // src/index.ts: import rewritten, sub-package import preserved.
     const ts = await readFile(join(cwd, "src", "index.ts"), "utf8");
-    if (!ts.includes('from "@theokit/sdk-core"')) {
-      failures.push("source import not rewritten");
-    }
-    if (ts.includes('from "@theokit/sdk"')) {
-      failures.push("source import still contains bare @theokit/sdk");
-    }
-    if (!ts.includes('from "@theokit/sdk-memory"')) {
-      failures.push("sub-package source import was modified (should NOT be)");
-    }
+    assertContains(ts, 'from "@theokit/sdk-core"', "source import");
+    assertAbsent(ts, 'from "@theokit/sdk"', "source import");
+    assertContains(ts, 'from "@theokit/sdk-memory"', "sub-package import");
     // docs/guide.md: rewritten + sub-package preserved.
     const md = await readFile(join(cwd, "docs", "guide.md"), "utf8");
-    if (!md.includes("`@theokit/sdk-core`")) {
-      failures.push("markdown reference not rewritten");
-    }
-    if (!md.includes("`@theokit/sdk-memory`")) {
-      failures.push("sub-package markdown reference was modified (should NOT be)");
-    }
+    assertContains(md, "`@theokit/sdk-core`", "markdown reference");
+    assertContains(md, "`@theokit/sdk-memory`", "sub-package markdown");
   } finally {
     await teardown(cwd);
   }
@@ -171,14 +176,103 @@ async function testBackupMode() {
   }
 }
 
+async function testEdgeCaseImportShapes() {
+  // Hardens the codemod against real-world consumer patterns that
+  // the 3 baseline scenarios above didn't exercise:
+  //   - Sub-path specifiers (`@theokit/sdk/agent` → `@theokit/sdk-core/agent`)
+  //   - peerDependencies + peerDependenciesMeta rewrite
+  //   - Single-quoted imports, type-only imports
+  //   - Namespace imports, dynamic imports, re-exports
+  //   - Sub-package sub-path stays untouched
+  //     (`@theokit/sdk-memory/internal/foo` MUST NOT become `-core`)
+  const cwd = await mkdtemp(join(tmpdir(), "codemod-edge-test-"));
+  try {
+    await writeFile(
+      join(cwd, "package.json"),
+      JSON.stringify(
+        {
+          name: "edge-consumer",
+          version: "0.1.0",
+          peerDependencies: { "@theokit/sdk": ">=1.7.0" },
+          peerDependenciesMeta: { "@theokit/sdk": { optional: false } },
+          optionalDependencies: { "@theokit/sdk": "^1.7.0" },
+        },
+        null,
+        2,
+      ),
+    );
+    await mkdir(join(cwd, "src"), { recursive: true });
+    await writeFile(
+      join(cwd, "src", "shapes.ts"),
+      [
+        // Single-quoted, type-only — common in TS strict codebases.
+        `import type { Agent } from '@theokit/sdk';`,
+        // Sub-path specifier — rewrite to @theokit/sdk-core/agent.
+        `import { defineRoute } from "@theokit/sdk/agent";`,
+        // Namespace import.
+        `import * as Theo from "@theokit/sdk";`,
+        // Re-export.
+        `export { Memory } from "@theokit/sdk";`,
+        // Dynamic import.
+        `const sdk = await import("@theokit/sdk");`,
+        // Sub-package sub-path — MUST stay untouched.
+        `import { x } from "@theokit/sdk-memory/internal/foo";`,
+        // Sub-package bare — MUST stay untouched.
+        `import { y } from "@theokit/sdk-budget";`,
+        `void [Agent, Theo, sdk, defineRoute, Memory, x, y];`,
+      ].join("\n"),
+    );
+    const result = await runCodemod(cwd, ["--write"]);
+    if (result.status !== 0) {
+      failures.push(`edge-shapes exit: ${result.status}`);
+      return;
+    }
+    const pkg = JSON.parse(await readFile(join(cwd, "package.json"), "utf8"));
+    assertPkgKeyMoved(pkg, "peerDependencies", ">=1.7.0", "edge");
+    assertPkgKeyMoved(pkg, "optionalDependencies", "^1.7.0", "edge");
+    // peerDependenciesMeta value is an object, so use bespoke checks.
+    pushFail(
+      pkg.peerDependenciesMeta?.["@theokit/sdk-core"]?.optional !== false,
+      "peerDependenciesMeta key NOT renamed",
+    );
+    pushFail(
+      pkg.peerDependenciesMeta?.["@theokit/sdk"] !== undefined,
+      "peerDependenciesMeta still has old @theokit/sdk key",
+    );
+    const ts = await readFile(join(cwd, "src", "shapes.ts"), "utf8");
+    const expected = [
+      [`import type { Agent } from '@theokit/sdk-core';`, "type-only single-quoted"],
+      [`import { defineRoute } from "@theokit/sdk-core/agent";`, "sub-path specifier"],
+      [`import * as Theo from "@theokit/sdk-core";`, "namespace import"],
+      [`export { Memory } from "@theokit/sdk-core";`, "re-export"],
+      [`const sdk = await import("@theokit/sdk-core");`, "dynamic import"],
+      [`import { x } from "@theokit/sdk-memory/internal/foo";`, "sub-package sub-path preserved"],
+      [`import { y } from "@theokit/sdk-budget";`, "sub-package bare preserved"],
+    ];
+    for (const [line, label] of expected) {
+      assertContains(ts, line, `shape "${label}"`);
+    }
+    // Negative: no bare `@theokit/sdk` (without -core or -memory etc.) should remain.
+    // Strip all sub-packages and assert no bare @theokit/sdk lingers.
+    const stripped = ts.replace(/@theokit\/sdk-[a-z-]+/g, "");
+    pushFail(
+      /@theokit\/sdk(?!-)/.test(stripped),
+      "source still contains bare @theokit/sdk after rewrite",
+    );
+  } finally {
+    await teardown(cwd);
+  }
+}
+
 (async () => {
   await testDryRunDoesNotModify();
   await testWriteMode();
   await testBackupMode();
+  await testEdgeCaseImportShapes();
   if (failures.length > 0) {
     console.error("codemod integration test FAILED:");
     for (const f of failures) console.error(`  - ${f}`);
     process.exit(1);
   }
-  console.log("codemod integration test PASSED (3 scenarios).");
+  console.log("codemod integration test PASSED (4 scenarios).");
 })();
