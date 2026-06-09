@@ -50,6 +50,24 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 72: twenty-ninth Stage 3 file move — index-manager (446 LOC).
+// THE big orchestrator. `IndexManager` class implements MemoryIndex
+// over a SQLite + sqlite-vec hybrid backend. Overloaded `open()`
+// dispatches to Lance via iter 70's openLanceIndex when
+// `backend: "lance"`; default sqlite-vec path uses iter 65's
+// openMemoryDb + iter 66's loadSqliteVecExtension + iter 67's
+// vec-index helpers. EC-1 identity invalidation: dimension/model/
+// provider changes drop the embeddings table BEFORE re-creating it
+// so the next sync re-embeds. `sync()` walks MEMORY.md + notes/
+// + wiki/ + sessions/ markdown corpus via iter 56/57/62's loaders,
+// chunks via iter 53's chunkMarkdown, batch-embeds missing chunks.
+// `search()` runs hybrid retrieval: FTS5 BM25 via iter's
+// sanitizeFts5Query + sqlite-vec KNN, merges by chunkId, blends
+// scores via configurable weights (vectorWeight 0.6 + textWeight
+// 0.4 default), filters by minScore + sources, sorts by combined
+// score. **CLOSES the index/ cluster** in sdk-memory.
+export * from "./internal/index-manager.js";
+
 // Iter 71: twenty-eighth Stage 3 file move — migrate-sqlite-to-lance (249 LOC).
 // One-shot SQLite → LanceDB migration per ADR D44. Reads all facts
 // from the SQLite chunks table, writes them to a `lance-new/`
