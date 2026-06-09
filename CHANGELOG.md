@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Iters 49-50: T4.5 Lance hybrid + T4.7 AbortSignal + T5.2 SQL injection
+
+- **T4.5** Lance hybrid search: vector-only → 0.7×vector + 0.3×text term-overlap
+- **T4.7** Active memory AbortSignal: early exit on abort before I/O
+- **T5.2** CRITICAL SQL injection fix: Lance `.where()` NUL/control rejection + backslash escaping
+
 ### Added — Iter 49: T4.5 Lance hybrid search + text scoring
 
 - **T4.5** Lance adapter: vector-only → hybrid via `computeTermOverlapScore` (0.7×vector + 0.3×text term-overlap). Removes ADR D43 vector-only caveat.
