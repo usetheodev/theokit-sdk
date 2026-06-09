@@ -114,27 +114,29 @@ export class CompressionModelUnresolvedError extends Error {
  * @internal
  */
 export function resolveCompressionModel(agentModel: string): string {
-  // 1. Exact match — most common case.
   const exact = EXACT_REGISTRY.get(agentModel);
   if (exact !== undefined) return exact;
+  const wildcard = matchWildcard(agentModel);
+  if (wildcard !== null) return wildcard;
+  if (isNoAuthProvider(agentModel)) return agentModel;
+  throw new CompressionModelUnresolvedError(agentModel);
+}
 
-  // 2. Wildcard match — Bedrock region-prefixed variants.
+/** Wildcard suffix match — Bedrock region-prefixed variants. */
+function matchWildcard(agentModel: string): string | null {
   for (const [pattern, replacement] of WILDCARD_REGISTRY) {
     const prefix = pattern.endsWith("*") ? pattern.slice(0, -1) : pattern;
-    if (agentModel.startsWith(prefix)) {
-      const suffix = agentModel.slice(prefix.length);
-      const replPrefix = replacement.endsWith("*") ? replacement.slice(0, -1) : replacement;
-      return `${replPrefix}${suffix}`;
-    }
+    if (!agentModel.startsWith(prefix)) continue;
+    const suffix = agentModel.slice(prefix.length);
+    const replPrefix = replacement.endsWith("*") ? replacement.slice(0, -1) : replacement;
+    return `${replPrefix}${suffix}`;
   }
+  return null;
+}
 
-  // 3. authType:"none" provider — local runtime returns same model.
+/** Provider declares `authType: "none"` — local runtime, same model. */
+function isNoAuthProvider(agentModel: string): boolean {
   const slashIdx = agentModel.indexOf("/");
-  if (slashIdx > 0) {
-    const provider = agentModel.slice(0, slashIdx);
-    if (NO_AUTH_PROVIDERS.has(provider)) return agentModel;
-  }
-
-  // 4. Unresolved — fail loud at Agent.create time, not at runtime.
-  throw new CompressionModelUnresolvedError(agentModel);
+  if (slashIdx <= 0) return false;
+  return NO_AUTH_PROVIDERS.has(agentModel.slice(0, slashIdx));
 }
