@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 23 post-housekeeping stop-hook acknowledgement
+
+- Working tree continues to carry unstaged production-source changes
+  under `packages/sdk-budget/src/`, `packages/sdk-handoff/src/`, and
+  `packages/sdk-memory/src/` from the concurrent `sdk-2-0` ralph-loop
+  session's in-flight Phase 1 Stage 3 source-move work. Same mixed-
+  authorship hygiene as iters 16-22 — this line acknowledges the
+  residual state per Inquebrável Rule 6 without claiming authorship.
+  My T5.3 `__Host-` cookie prefix + `clearCookie` rewrite
+  (`packages/sdk/src/server/auth/oauth-transaction-store.ts`) landed
+  clean at `317dce6` with no contamination — fourth consecutive clean
+  atomic iter in Phase 5 security (T5.1 → T5.5 → T5.6 → T5.3).
+
 ### Security — `__Host-` cookie prefix + deterministic clear (T5.3 BREAKING wire)
 
 - **Workspace impact**: `@theokit/sdk` consumers using `defineAuth`
