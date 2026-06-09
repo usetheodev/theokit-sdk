@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — Iter 48: T5.2 CRITICAL SQL injection fix in Lance .where()
+
+- **T5.2** `escapeSqlValue` hardened: NUL/C0/DEL rejection + backslash escaping + throws `ConfigurationError({code:"sql_injection_blocked"})`. Pre-T5.2 only escaped single quotes.
+
 ### Added — Iter 47: T4.1 query-vector LRU cache
 
 - **T4.1** `queryVectorCache` LRU(2000) keyed by sha256(query) — repeated search queries skip embedding HTTP round-trip (p99 1.5-3s → ~0ms on hit). Third caching layer alongside T4.4 (text-level dedup) and T4.9 (tenant-scoped result dedup).
