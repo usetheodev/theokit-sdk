@@ -7,17 +7,14 @@
 // usage, calendar-window) — ~568 LOC moved out of sdk-core into this
 // package per ADR-008.
 
-// USD pricing helpers
-export {
-  BUILTIN_PRICING,
-  computeUsdCost,
-  type ModelPricing,
-} from "./usd-pricing.js";
-export {
-  createUsdBudgetTracker,
-  type UsdBudgetTrackerOptions,
-} from "./usd-budget-tracker.js";
-
+// Calendar window helpers — UTC-aligned 1h/1d/1w/30d/365d.
+export { startOfDayUtc, startOfWeekUtc, windowStartMs } from "./internal/calendar-window.js";
+// Budget enforcement — preflight check + threshold callbacks.
+export { chargeAndCheckThresholds, preflightCheck } from "./internal/enforcement.js";
+// Low-level ledger — exposed for consumers needing direct ledger access.
+export { charge, spentIn } from "./internal/ledger.js";
+// Usage normalization — converts provider-shaped raw `usage` into canonical TokenUsage.
+export { inferApiMode, normalizeUsage } from "./internal/normalize-usage.js";
 // Budget registry — manages named Budget instances + their options.
 export {
   createBudget,
@@ -28,15 +25,13 @@ export {
   listBudgets,
   snapshotAll,
 } from "./internal/registry.js";
-
-// Budget enforcement — preflight check + threshold callbacks.
-export { chargeAndCheckThresholds, preflightCheck } from "./internal/enforcement.js";
-
-// Usage normalization — converts provider-shaped raw `usage` into canonical TokenUsage.
-export { inferApiMode, normalizeUsage } from "./internal/normalize-usage.js";
-
-// Calendar window helpers — UTC-aligned 1h/1d/1w/30d/365d.
-export { startOfDayUtc, startOfWeekUtc, windowStartMs } from "./internal/calendar-window.js";
-
-// Low-level ledger — exposed for consumers needing direct ledger access.
-export { charge, spentIn } from "./internal/ledger.js";
+export {
+  createUsdBudgetTracker,
+  type UsdBudgetTrackerOptions,
+} from "./usd-budget-tracker.js";
+// USD pricing helpers
+export {
+  BUILTIN_PRICING,
+  computeUsdCost,
+  type ModelPricing,
+} from "./usd-pricing.js";

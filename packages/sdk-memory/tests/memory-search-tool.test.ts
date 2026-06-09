@@ -134,7 +134,7 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
         cwd,
         runId: `cap-${i}`,
         agentId: "a",
-        userText: "shared-needle " + i,
+        userText: `shared-needle ${i}`,
         assistantText: "ok",
         status: "finished",
         at: Date.now(),

@@ -2,11 +2,10 @@
  * Public Handoff.create() factory + RECOMMENDED_HANDOFF_PROMPT_PREFIX.
  */
 
+import type { SDKAgent } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-
 import { Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "../src/handoff.js";
-import type { SDKAgent } from "@theokit/sdk";
 
 function fakeAgent(name: string): SDKAgent {
   return {

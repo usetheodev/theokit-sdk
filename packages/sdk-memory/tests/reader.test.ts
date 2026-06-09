@@ -18,10 +18,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  DEFAULT_MEMORY_READ_LINES,
-  readMemoryFileBounded,
-} from "@theokit/sdk-memory";
+import { DEFAULT_MEMORY_READ_LINES, readMemoryFileBounded } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("sdk-memory readMemoryFileBounded (iter 55)", () => {

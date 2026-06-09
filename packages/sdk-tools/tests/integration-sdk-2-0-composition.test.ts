@@ -95,7 +95,10 @@ describe("SDK 2.0 cross-package composition (Phases 3+4+5)", () => {
     const composedOptions = {
       name: "host",
       model: { id: "openai/gpt-4o-mini" },
-      tools: [createReadFileTool({ projectRoot: "/tmp" }), createListDirTool({ projectRoot: "/tmp" })],
+      tools: [
+        createReadFileTool({ projectRoot: "/tmp" }),
+        createListDirTool({ projectRoot: "/tmp" }),
+      ],
       plugins: [cache.asPlugin(), handoffPlugin],
     };
     expect(composedOptions.tools.length).toBe(2);

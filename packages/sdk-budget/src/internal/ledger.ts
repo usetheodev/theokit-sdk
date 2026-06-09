@@ -13,7 +13,7 @@
  * @internal
  */
 
-import { withCwdMutex, type BudgetWindow } from "@theokit/sdk";
+import { type BudgetWindow, withCwdMutex } from "@theokit/sdk";
 import { windowStartMs } from "./calendar-window.js";
 
 interface ChargeLog {

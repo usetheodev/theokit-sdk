@@ -15,8 +15,8 @@ interface SpanLike {
   end(): void;
 }
 
-const NOOP_SPAN: SpanLike = {
-  setAttribute: () => NOOP_SPAN,
+const _NOOP_SPAN: SpanLike = {
+  setAttribute: () => _NOOP_SPAN,
   end: () => undefined,
 };
 

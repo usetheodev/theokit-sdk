@@ -18,11 +18,7 @@
  * adapter math is verifiable without spinning up real LanceDB.
  */
 
-import {
-  LanceMemoryAdapter,
-  type MemorySearchHit,
-  type SyncResult,
-} from "@theokit/sdk-memory";
+import { LanceMemoryAdapter, type MemorySearchHit, type SyncResult } from "@theokit/sdk-memory";
 import { describe, expect, it } from "vitest";
 
 /** Stub a LanceIndex with pre-canned hits + a closed flag. */
@@ -84,12 +80,9 @@ describe("sdk-memory lance-memory-adapter (iter 69)", () => {
   describe("search", () => {
     it("test_search_empty_query_returns_empty_immediately", async () => {
       let lanceCalled = false;
-      const stub = stubLanceIndex(
-        [{ id: "x", text: "x", source: "memory", score: 0.9 }],
-        () => {
-          lanceCalled = true;
-        },
-      );
+      const stub = stubLanceIndex([{ id: "x", text: "x", source: "memory", score: 0.9 }], () => {
+        lanceCalled = true;
+      });
       // biome-ignore lint/suspicious/noExplicitAny: cross-package structural stub
       const adapter = new LanceMemoryAdapter(stub as any);
       const result = await adapter.search("");
@@ -153,14 +146,11 @@ describe("sdk-memory lance-memory-adapter (iter 69)", () => {
     it("test_search_passes_sources_filter_through_to_lance_only_when_set", async () => {
       let withSources: { sources?: unknown } = {};
       let withoutSources: { sources?: unknown } = {};
-      const stub = stubLanceIndex(
-        [],
-        (_q, o) => {
-          const opts = o as { sources?: unknown };
-          if (opts.sources !== undefined) withSources = opts;
-          else withoutSources = opts;
-        },
-      );
+      const stub = stubLanceIndex([], (_q, o) => {
+        const opts = o as { sources?: unknown };
+        if (opts.sources !== undefined) withSources = opts;
+        else withoutSources = opts;
+      });
       // biome-ignore lint/suspicious/noExplicitAny: cross-package structural stub
       const adapter = new LanceMemoryAdapter(stub as any);
       await adapter.search("q", { sources: ["wiki"] });

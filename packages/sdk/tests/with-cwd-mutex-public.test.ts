@@ -20,7 +20,9 @@ describe("withCwdMutex public utility (ADR-008)", () => {
   it("test_type_signature_stable", () => {
     expectTypeOf(withCwdMutex).toBeFunction();
     // Signature: withCwdMutex<T>(key: string, fn: () => Promise<T>): Promise<T>
-    expectTypeOf(withCwdMutex<number>).parameter(0).toEqualTypeOf<string>();
+    expectTypeOf(withCwdMutex<number>)
+      .parameter(0)
+      .toEqualTypeOf<string>();
     expectTypeOf(withCwdMutex<number>).returns.toEqualTypeOf<Promise<number>>();
   });
 

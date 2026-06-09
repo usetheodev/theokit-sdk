@@ -70,11 +70,7 @@ async function performPostRunSync(
   handle: MemoryProviderHandle | undefined,
   finalStatus: "finished" | "error",
 ): Promise<void> {
-  if (
-    finalStatus === "finished" &&
-    handle !== undefined &&
-    provider?.sync !== undefined
-  ) {
+  if (finalStatus === "finished" && handle !== undefined && provider?.sync !== undefined) {
     try {
       await provider.sync(handle);
     } catch {

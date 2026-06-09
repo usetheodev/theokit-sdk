@@ -4,19 +4,19 @@
 // @theokit/sdk-budget).
 
 import {
-  // Memory subsystem (new iter 39 map entry)
-  createInMemoryMarkdownProvider,
+  BUILTIN_PRICING,
   // Budget subsystem — registry
   createBudget,
-  listBudgets,
-  snapshotAll,
-  // Budget subsystem — enforcement
-  preflightCheck,
+  // Memory subsystem (new iter 39 map entry)
+  createInMemoryMarkdownProvider,
   // Budget subsystem — USD tracker
   createUsdBudgetTracker,
-  BUILTIN_PRICING,
+  listBudgets,
   // Budget subsystem — usage normalization
   normalizeUsage,
+  // Budget subsystem — enforcement
+  preflightCheck,
+  snapshotAll,
 } from "@theokit/sdk";
 
 export function buildProviders() {

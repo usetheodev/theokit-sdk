@@ -89,9 +89,7 @@ describe("sdk-memory memory-types (iter 52)", () => {
     const cfg: MemoryConfig = { enabled: true };
     const result = legacyMemoryJsonPath("/tmp/cwd", cfg);
     // ADRs D79-D81: default namespace=agent-default
-    expect(result).toBe(
-      "/tmp/cwd/.theokit/memory/default/agent-default.json"
-    );
+    expect(result).toBe("/tmp/cwd/.theokit/memory/default/agent-default.json");
   });
 
   it("test_legacyMemoryJsonPath_sanitizes_userId", () => {
@@ -108,8 +106,7 @@ describe("sdk-memory memory-types (iter 52)", () => {
     // ADR D68 — sdk-memory re-exports the canonical 12-pattern list
     // via sdk-core's public Security surface. Behavior parity check:
     // an OpenAI-shape key is detected + redacted.
-    const FAKE_OPENAI =
-      "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
+    const FAKE_OPENAI = "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     const out = redactSecrets(`api=${FAKE_OPENAI} done`);
     expect(out).not.toContain(FAKE_OPENAI);
     expect(out).toContain("api=");

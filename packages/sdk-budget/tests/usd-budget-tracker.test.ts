@@ -40,7 +40,9 @@ describe("computeUsdCost (pure helper)", () => {
   it("test_invalid_tokens_return_zero", () => {
     expect(computeUsdCost(BUILTIN_PRICING, "openai/gpt-4o-mini", "input", -1)).toBe(0);
     expect(computeUsdCost(BUILTIN_PRICING, "openai/gpt-4o-mini", "input", Number.NaN)).toBe(0);
-    expect(computeUsdCost(BUILTIN_PRICING, "openai/gpt-4o-mini", "input", Number.POSITIVE_INFINITY)).toBe(0);
+    expect(
+      computeUsdCost(BUILTIN_PRICING, "openai/gpt-4o-mini", "input", Number.POSITIVE_INFINITY),
+    ).toBe(0);
   });
 
   it("test_proportional_scaling_for_partial_million", () => {

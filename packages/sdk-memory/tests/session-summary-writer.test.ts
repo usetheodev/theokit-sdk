@@ -28,9 +28,7 @@ import {
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-function sampleInput(
-  overrides: Partial<SessionSummaryInput> = {},
-): SessionSummaryInput {
+function sampleInput(overrides: Partial<SessionSummaryInput> = {}): SessionSummaryInput {
   return {
     cwd: "/will-be-overridden",
     runId: "abc-123",
@@ -55,9 +53,7 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
   describe("path helpers", () => {
     it("test_sessionsDir_resolves_to_theokit_memory_sessions", () => {
-      expect(sessionsDir(cwd)).toBe(
-        join(cwd, ".theokit", "memory", "sessions"),
-      );
+      expect(sessionsDir(cwd)).toBe(join(cwd, ".theokit", "memory", "sessions"));
     });
 
     it("test_sessionSummaryPath_uses_runId_md_filename", () => {
@@ -72,9 +68,7 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
       // "etc" + slash + "passwd" → 6 underscores + "etc" + 1 underscore
       // + "passwd". Verifies a malicious runId can't escape sessionsDir.
       const path = sessionSummaryPath(cwd, "../../etc/passwd");
-      expect(path).toBe(
-        join(cwd, ".theokit", "memory", "sessions", "______etc_passwd.md"),
-      );
+      expect(path).toBe(join(cwd, ".theokit", "memory", "sessions", "______etc_passwd.md"));
     });
 
     it("test_sessionSummaryPath_truncates_long_runId_to_128", () => {
@@ -138,9 +132,7 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
     it("test_truncates_assistant_text_above_MAX_TURN_CHARS_2000", async () => {
       const longAssistant = "a".repeat(2500);
-      await writeSessionSummary(
-        sampleInput({ cwd, assistantText: longAssistant }),
-      );
+      await writeSessionSummary(sampleInput({ cwd, assistantText: longAssistant }));
       const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
       expect(raw).not.toContain("a".repeat(2500));
       expect(raw).toContain(`${"a".repeat(2000)}…`);
@@ -148,9 +140,7 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
     it("test_redacts_secrets_in_user_text_before_persist", async () => {
       const FAKE_KEY = "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-      await writeSessionSummary(
-        sampleInput({ cwd, userText: `my key is ${FAKE_KEY}` }),
-      );
+      await writeSessionSummary(sampleInput({ cwd, userText: `my key is ${FAKE_KEY}` }));
       const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
       expect(raw).not.toContain(FAKE_KEY);
       expect(raw).toContain("my key is");
@@ -158,9 +148,7 @@ describe("sdk-memory session-summary-writer (iter 61)", () => {
 
     it("test_redacts_secrets_in_assistant_text_before_persist", async () => {
       const FAKE_KEY = "sk-ant-api03-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
-      await writeSessionSummary(
-        sampleInput({ cwd, assistantText: `here you go: ${FAKE_KEY}` }),
-      );
+      await writeSessionSummary(sampleInput({ cwd, assistantText: `here you go: ${FAKE_KEY}` }));
       const raw = await readFile(sessionSummaryPath(cwd, "abc-123"), "utf8");
       expect(raw).not.toContain(FAKE_KEY);
       expect(raw).toContain("here you go:");

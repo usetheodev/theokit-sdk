@@ -8,11 +8,7 @@ import { chunkMarkdown } from "./chunk-markdown.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
-import {
-  memoryDir,
-  memoryMdPath,
-  notesDir,
-} from "./markdown-store.js";
+import { memoryDir, memoryMdPath, notesDir } from "./markdown-store.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { discoverSessionFiles } from "./session-loader.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";

@@ -20,11 +20,7 @@ import { access, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  defaultIndexPath,
-  type MemoryDb,
-  openMemoryDb,
-} from "@theokit/sdk-memory";
+import { defaultIndexPath, type MemoryDb, openMemoryDb } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 async function hasBetterSqlite3(): Promise<boolean> {
@@ -67,7 +63,12 @@ describe("sdk-memory index-db (iter 65)", () => {
       const db: MemoryDb = await openMemoryDb({ filePath });
 
       // exec + prepare must work — proves SCHEMA_STATEMENTS already ran.
-      db.exec("INSERT INTO files (path, rel_path, mtime, hash) VALUES (?, ?, ?, ?)".replace(/\?/g, () => "''"));
+      db.exec(
+        "INSERT INTO files (path, rel_path, mtime, hash) VALUES (?, ?, ?, ?)".replace(
+          /\?/g,
+          () => "''",
+        ),
+      );
       const stmt = db.prepare("SELECT COUNT(*) AS count FROM files");
       const row = stmt.get() as { count: number };
       expect(row.count).toBeGreaterThanOrEqual(1);
@@ -101,9 +102,7 @@ describe("sdk-memory index-db (iter 65)", () => {
 
       // openMemoryDb must rename the bad file aside and create a fresh one.
       const db = await openMemoryDb({ filePath });
-      const row = db
-        .prepare("SELECT COUNT(*) AS count FROM files")
-        .get() as { count: number };
+      const row = db.prepare("SELECT COUNT(*) AS count FROM files").get() as { count: number };
       expect(row.count).toBe(0); // fresh table → empty
       db.close();
 
@@ -122,9 +121,7 @@ describe("sdk-memory index-db (iter 65)", () => {
       await mkdir(join(cwd, ".theokit", "memory", ".index"), { recursive: true });
       await writeFile(filePath, "ANOTHER GARBAGE STREAM");
 
-      await expect(
-        openMemoryDb({ filePath, recoverCorrupt: false }),
-      ).rejects.toThrow();
+      await expect(openMemoryDb({ filePath, recoverCorrupt: false })).rejects.toThrow();
     });
   });
 });

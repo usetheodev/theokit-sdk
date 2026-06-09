@@ -14,9 +14,8 @@
  * @public
  */
 
-import type { ZodType } from "zod";
-
 import type { SDKAgent } from "@theokit/sdk";
+import type { ZodType } from "zod";
 import type {
   HandoffContext,
   HandoffDescriptor as HandoffDescriptorGeneric,

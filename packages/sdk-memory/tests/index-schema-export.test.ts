@@ -11,10 +11,7 @@
  * happens when Stage 3 source-move completes.
  */
 
-import {
-  PRAGMA_STATEMENTS,
-  SCHEMA_STATEMENTS,
-} from "@theokit/sdk-memory";
+import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "@theokit/sdk-memory";
 import { describe, expect, it } from "vitest";
 
 describe("sdk-memory index-schema (iter 49)", () => {

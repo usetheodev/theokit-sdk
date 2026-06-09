@@ -126,6 +126,7 @@ export const Memory = {
    *
    * @public
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: memory index routing branches across backend + SDK peer modes
   async openIndex(opts: OpenMemoryIndexOptions): Promise<MemoryIndexHandle> {
     // SDK 2.0 Phase 4 (Stage 4, iter 77): if @theokit/sdk-memory is
     // installed, route through it. Otherwise fall back to the legacy
@@ -190,6 +191,7 @@ export const Memory = {
    *
    * @public
    */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dreaming sweep routes across SDK peer + legacy modes with embedding/clustering branches
   async runDreamingSweep(opts: DreamingSweepOptions): Promise<DreamingSweepResult> {
     // SDK 2.0 Phase 4 (Stage 4, iter 77): route through sdk-memory
     // when installed; fall back to legacy internal/ path otherwise.

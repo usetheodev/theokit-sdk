@@ -70,10 +70,7 @@ interface OTelSpan {
 }
 
 interface TelemetryHandle {
-  startSpan(
-    name: string,
-    attrs?: Record<string, string | number | boolean>,
-  ): OTelSpan;
+  startSpan(name: string, attrs?: Record<string, string | number | boolean>): OTelSpan;
   recordHistogram(
     name: string,
     value: number,

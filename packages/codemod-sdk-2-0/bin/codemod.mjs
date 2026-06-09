@@ -26,16 +26,14 @@
  * publishable equivalent downstream consumers run.
  */
 
-import { readFile, readdir, writeFile, copyFile, stat } from "node:fs/promises";
+import { copyFile, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { join, relative, resolve } from "node:path";
 
 const args = process.argv.slice(2);
 const WRITE_MODE = args.includes("--write");
 const BACKUP = args.includes("--backup");
 const ROOT_IDX = args.indexOf("--root");
-const ROOT = resolve(
-  ROOT_IDX >= 0 && args[ROOT_IDX + 1] !== undefined ? args[ROOT_IDX + 1] : ".",
-);
+const ROOT = resolve(ROOT_IDX >= 0 && args[ROOT_IDX + 1] !== undefined ? args[ROOT_IDX + 1] : ".");
 
 const SKIP_DIRS = new Set([
   "node_modules",
@@ -57,6 +55,7 @@ const summary = {
   documentation: [],
 };
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: codemod walk function inherently complex
 async function walk(dir) {
   let entries;
   try {
@@ -77,23 +76,14 @@ async function walk(dir) {
   }
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: codemod process_file inherently complex
 async function process_file(path) {
   const rel = relative(ROOT, path);
   const basename = rel.split("/").pop() ?? "";
   const dot = basename.lastIndexOf(".");
   const ext = dot >= 0 ? basename.slice(dot) : "";
 
-  const TEXT_EXT = new Set([
-    ".ts",
-    ".tsx",
-    ".mts",
-    ".cts",
-    ".js",
-    ".mjs",
-    ".cjs",
-    ".json",
-    ".md",
-  ]);
+  const TEXT_EXT = new Set([".ts", ".tsx", ".mts", ".cts", ".js", ".mjs", ".cjs", ".json", ".md"]);
   if (!TEXT_EXT.has(ext)) return;
 
   let stats;
@@ -137,7 +127,7 @@ async function process_file(path) {
         changes.push(`${block} key renamed`);
       }
     }
-    if (parsed.peerDependenciesMeta && parsed.peerDependenciesMeta["@theokit/sdk"]) {
+    if (parsed.peerDependenciesMeta?.["@theokit/sdk"]) {
       const v = parsed.peerDependenciesMeta["@theokit/sdk"];
       delete parsed.peerDependenciesMeta["@theokit/sdk"];
       parsed.peerDependenciesMeta["@theokit/sdk-core"] = v;
@@ -168,6 +158,7 @@ async function process_file(path) {
 }
 
 function printReport() {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: report section builder
   const section = (label, items) => {
     console.log(`\n## ${label} (${items.length} files)`);
     if (items.length === 0) {
@@ -198,10 +189,7 @@ function printReport() {
   section("source file modifications", summary.source);
   section("documentation modifications", summary.documentation);
 
-  const total =
-    summary.package_json.length +
-    summary.source.length +
-    summary.documentation.length;
+  const total = summary.package_json.length + summary.source.length + summary.documentation.length;
   console.log(`\n## Summary: ${total} files ${WRITE_MODE ? "modified" : "would be modified"}.`);
   if (!WRITE_MODE && total > 0) {
     console.log("\nThis was a dry-run. Re-run with `--write` to apply.");

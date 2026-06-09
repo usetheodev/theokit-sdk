@@ -15,12 +15,12 @@
  * native binding mismatches the runtime Node version (CI env).
  */
 
-import { Memory } from "../src/memory.js";
-import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
+import { Memory } from "../src/memory.js";
 
 async function hasNativeStack(): Promise<boolean> {
   try {
@@ -55,9 +55,7 @@ describe("sdk-core Memory class peer routing (iter 77, Phase 4 #2)", () => {
           embedding: { provider: "qdrant" as any },
         }),
       ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          'Unknown embedding provider "qdrant"',
-        ),
+        message: expect.stringContaining('Unknown embedding provider "qdrant"'),
       });
     });
 
@@ -92,9 +90,7 @@ describe("sdk-core Memory class peer routing (iter 77, Phase 4 #2)", () => {
           embedding: { provider: "qdrant" as any },
         }),
       ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          'Unknown embedding provider "qdrant"',
-        ),
+        message: expect.stringContaining('Unknown embedding provider "qdrant"'),
       });
     });
 

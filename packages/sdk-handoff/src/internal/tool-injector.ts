@@ -9,16 +9,16 @@
  * @internal
  */
 
-import { z } from "zod";
 import type { CustomTool, SDKAgent } from "@theokit/sdk";
+import { z } from "zod";
 import {
   type HandoffDescriptor,
   HandoffNameCollisionError,
   HandoffSelfReferenceError,
 } from "../types/handoff.js";
-import { toJsonSchema } from "./to-json-schema.js";
 import { dispatchHandoff } from "./dispatcher.js";
 import { createChainState } from "./registry.js";
+import { toJsonSchema } from "./to-json-schema.js";
 
 interface NormalizedHandoff {
   descriptor: HandoffDescriptor;

@@ -23,8 +23,8 @@ import {
   type ActiveMemoryResult,
   type MemoryIndex,
   type MemorySearchHit,
-  runActiveMemory,
   type RunActiveMemoryArgs,
+  runActiveMemory,
 } from "@theokit/sdk-memory";
 import { describe, expect, it } from "vitest";
 
@@ -47,11 +47,7 @@ function stubIndex(hits: ReadonlyArray<MemorySearchHit>): MemoryIndex {
   };
 }
 
-function hitOf(
-  citation: string,
-  snippet: string,
-  score = 0.9,
-): MemorySearchHit {
+function hitOf(citation: string, snippet: string, score = 0.9): MemorySearchHit {
   return {
     path: "MEMORY.md",
     startLine: 1,
@@ -127,9 +123,7 @@ describe("sdk-memory active-memory (iter 75)", () => {
     });
 
     it("test_status_no_recall_when_index_returns_empty", async () => {
-      const result = await runActiveMemory(
-        buildArgs({ index: stubIndex([]) }),
-      );
+      const result = await runActiveMemory(buildArgs({ index: stubIndex([]) }));
       expect(result.status).toBe("no-recall");
       expect(result.hits).toEqual([]);
       expect(result.summary).toBeUndefined();

@@ -7,8 +7,8 @@
  * authoring custom providers.
  */
 
-import { createNoopMemoryProvider } from "@theokit/sdk";
 import type { MemoryProvider, MemoryProviderHandle, SDKAgent } from "@theokit/sdk";
+import { createNoopMemoryProvider } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 
 describe("createNoopMemoryProvider (Phase 1 / T1.2)", () => {

@@ -17,11 +17,9 @@
  * Uses temp-dir + real file I/O (no mocks) per the no-stubs canon.
  */
 
-import { readFile, writeFile } from "node:fs/promises";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-
 import {
   appendFact,
   appendFactToMarkdown,
@@ -34,7 +32,6 @@ import {
   readFacts,
   readFactsFromMarkdown,
 } from "@theokit/sdk-memory";
-import { mkdir } from "node:fs/promises";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("sdk-memory markdown-store (iter 56)", () => {
@@ -52,9 +49,7 @@ describe("sdk-memory markdown-store (iter 56)", () => {
       expect(memoryDir(cwd)).toBe(join(cwd, ".theokit", "memory"));
     });
     it("test_memoryMdPath_returns_MEMORY_md_inside_dir", () => {
-      expect(memoryMdPath(cwd)).toBe(
-        join(cwd, ".theokit", "memory", "MEMORY.md"),
-      );
+      expect(memoryMdPath(cwd)).toBe(join(cwd, ".theokit", "memory", "MEMORY.md"));
     });
     it("test_notesDir_returns_notes_inside_dir", () => {
       expect(notesDir(cwd)).toBe(join(cwd, ".theokit", "memory", "notes"));
@@ -77,8 +72,7 @@ describe("sdk-memory markdown-store (iter 56)", () => {
     });
 
     it("test_stops_at_next_h2_heading", async () => {
-      const content =
-        "# Memory\n\n## Facts\n\n- inside\n\n## Other Section\n\n- outside\n";
+      const content = "# Memory\n\n## Facts\n\n- inside\n\n## Other Section\n\n- outside\n";
       await mkdir(memoryDir(cwd), { recursive: true });
       await writeFile(memoryMdPath(cwd), content);
 
@@ -158,9 +152,7 @@ describe("sdk-memory markdown-store (iter 56)", () => {
   describe("concurrent appends serialize via per-cwd mutex", () => {
     it("test_10_parallel_appends_preserve_all_facts", async () => {
       const inputs = Array.from({ length: 10 }, (_, i) => `parallel-${i}`);
-      await Promise.all(
-        inputs.map((text) => appendFactToMarkdown(cwd, { text })),
-      );
+      await Promise.all(inputs.map((text) => appendFactToMarkdown(cwd, { text })));
 
       const facts = await readFactsFromMarkdown(cwd);
       const got = facts.map((f) => f.text).sort();
