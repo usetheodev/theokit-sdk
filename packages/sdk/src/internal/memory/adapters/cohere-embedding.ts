@@ -29,6 +29,7 @@ export const cohereMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapte
         id: "cohere",
         defaultBaseUrl: "https://api.cohere.com",
         apiKeyEnv: "COHERE_API_KEY",
+        defaultModel: DEFAULT_COHERE_EMBEDDING_MODEL,
         embeddingsPath: "/v2/embed",
         dimensionByModel: DIMENSION_BY_MODEL,
       },
