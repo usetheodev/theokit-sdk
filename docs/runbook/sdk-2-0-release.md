@@ -308,6 +308,77 @@ Check that the npm registry has propagated the new package name.
 returns 404, wait 60s + retry. If it still 404s, the publish failed
 silently — re-publish.
 
+### Phase 6 wrote partial state mid-execution
+
+If `phase6-rename-write.mjs` was killed mid-run (Ctrl+C, OOM, disk
+full), the working tree is half-renamed and half-original. `.bak`
+files exist only for the files that completed writing — files
+touched without a backup are corrupted-mid-write.
+
+Recovery uses git, NOT the .bak files (which are incomplete):
+
+```bash
+# Drop every uncommitted change including untracked .bak files.
+git restore --staged .
+git restore .
+find . -name "*.bak" -delete
+
+# Verify a clean tree.
+git status   # should show no changes
+
+# Diagnose the original failure (likely OOM or disk space).
+df -h .
+free -m
+
+# Re-run after fixing the root cause.
+node scripts/phase6-rename-write.mjs --write --backup
+```
+
+Per Unbreakable Rule 4: never use `git checkout` or `git revert`.
+`git restore .` is the supported reset path.
+
+### Operator forgot to pass --backup to Phase 6 write
+
+`.bak` files do not exist; the working tree contains the rewritten
+content with no local rollback. Use git instead:
+
+```bash
+git diff   # inspect what changed
+git restore .    # discard every unstaged rewrite
+```
+
+If the rewrites were ALREADY committed, use `git reset --soft HEAD~1`
+to undo the commit while keeping changes staged for review. Never
+use `git reset --hard` (per Unbreakable Rule 4); `--soft` preserves
+the diff so you can selectively re-stage.
+
+### Full rollback after broken 2.0.0 publish
+
+If 2.0.0 ships and a critical defect is discovered post-publish,
+DO NOT `npm unpublish` (npm prevents within 72h anyway, and breaks
+every consumer who already installed). Two recovery paths in order
+of preference:
+
+1. **Ship 2.0.1 with the fix immediately.** Bump patch, publish,
+   announce in CHANGELOG. Consumers on 2.0.0 auto-resolve to 2.0.1
+   on next install. This is the canonical path.
+
+2. **Deprecate the broken version + redirect.**
+
+   ```bash
+   npm deprecate "@theokit/sdk-core@2.0.0" \
+     "Critical bug: use 2.0.1 (released YYYY-MM-DD)"
+   ```
+
+   This adds a warning at every install of the deprecated version
+   but does NOT remove the artifact. Consumers see the warning +
+   know to bump.
+
+If the defect is so severe that 1.x consumers must be warned away
+from 2.0.x entirely, `npm deprecate "@theokit/sdk-core@2.0.0"
+"Reverted; stay on @theokit/sdk@1.x until 2.1.0 ships"` and announce
+across release channels. Treat as a postmortem-worthy incident.
+
 ## Cross-references
 
 - Plan: `.claude/knowledge-base/plans/sdk-2-0-package-split-plan.md`
