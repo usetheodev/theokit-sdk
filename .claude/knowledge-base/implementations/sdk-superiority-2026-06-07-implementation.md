@@ -74,7 +74,7 @@
 | T2.4 | Phase 2 / T2.4 | Parallel tool dispatch | committed | 33 | 0a92fc7 | a=pass b=pass c=n/a | none-needed |
 | T2.5 | Phase 2 / T2.5 | Hook ordering vetoes + lifecycle + span | pending | — | — | — | — |
 | T2.6 | Phase 2 / T2.6 | Loop não exit on first tool error (D89) | committed | 35 | TBD | a=pass b=pass c=n/a | none-needed |
-| T2.7 | Phase 2 / T2.7 | Provider error → typed AgentRunErrorCode | pending | — | — | — | — |
+| T2.7 | Phase 2 / T2.7 | Provider error → typed AgentRunErrorCode | resolved-by-prior-work | 36 | — | a=pass b=pass c=n/a | Propagation chain verified: registerLoopError extracts .code → ctx.error → loop output → real-local-run.ts → agent.ts:144 coerceToKnownAgentRunErrorCode → AgentRunError. Closed by T1.1 (closed union) + T1.5 (error packaging) + T3.7 (mapper completeness). Existing test at tests/errors/agent-run-error-fields.test.ts:48 confirms. |
 | T2.8 | Phase 2 / T2.8 | postToolUse + onStep abort + signal default | pending | — | — | — | — |
 | T2.9 | Phase 2 / T2.9 | Cleanup batch DR2 findings 12-25 | pending | — | — | — | — |
 
