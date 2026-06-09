@@ -1,5 +1,9 @@
 import type { TelemetrySettings } from "../../types/agent.js";
+import { arizeAdapter } from "./adapters/arize.js";
+import { braintrustAdapter } from "./adapters/braintrust.js";
+import { datadogAdapter } from "./adapters/datadog.js";
 import { langfuseAdapter } from "./adapters/langfuse.js";
+import { langsmithAdapter } from "./adapters/langsmith.js";
 import { posthogAdapter } from "./adapters/posthog.js";
 import { sentryAdapter } from "./adapters/sentry.js";
 import type { TelemetryAdapter } from "./safe-require.js";
@@ -20,7 +24,15 @@ export type { TelemetryAdapter };
  * @internal
  */
 
-const ALL_ADAPTERS: TelemetryAdapter[] = [langfuseAdapter, sentryAdapter, posthogAdapter];
+const ALL_ADAPTERS: TelemetryAdapter[] = [
+  langfuseAdapter,
+  sentryAdapter,
+  posthogAdapter,
+  datadogAdapter,
+  langsmithAdapter,
+  arizeAdapter,
+  braintrustAdapter,
+];
 
 let attempted = false;
 const registered = new Set<string>();

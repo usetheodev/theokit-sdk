@@ -6,4 +6,5 @@
  * @internal — semver-exempt; surface may change in patch releases.
  */
 
+export type { ObservabilityContext } from "./context.js";
 export * from "./tracer-loader.js";
