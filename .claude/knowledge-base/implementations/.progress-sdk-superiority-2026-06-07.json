@@ -38,7 +38,7 @@
     {
       "id": "T2.2-step4b",
       "status": "committed",
-      "sha": "TBD",
+      "sha": "d961920",
       "note": "Step 4b/N: compression-attempt.ts — attemptCompressionIfNeeded orchestrator integrating decision + selectCompressionWindow + summarizer + counter management. 4 tests. The final loop.ts import-and-call wire is step 4c."
     },
     {
