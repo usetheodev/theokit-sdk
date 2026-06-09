@@ -139,7 +139,10 @@ function translateLanceHit(
  * Returns 0..1 where 1 = all query terms present.
  */
 function computeTermOverlapScore(query: string, text: string): number {
-  const queryTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+  const queryTerms = query
+    .toLowerCase()
+    .split(/\s+/)
+    .filter((t) => t.length > 1);
   if (queryTerms.length === 0) return 0;
   const textLower = text.toLowerCase();
   const matched = queryTerms.filter((term) => textLower.includes(term)).length;
