@@ -1,5 +1,6 @@
 import { MEMORY_EMBEDDING_ADAPTERS } from "./internal/memory/adapters/catalog.js";
 import { runDreamingSweep as runDreamingSweepInternal } from "./internal/memory/dreaming/run.js";
+import { tryLoadSdkMemoryPeer } from "./internal/memory/sdk-memory-peer-loader.js";
 
 /**
  * Public handle to an open memory index. Mirrors the internal `MemoryIndex`
@@ -126,6 +127,36 @@ export const Memory = {
    * @public
    */
   async openIndex(opts: OpenMemoryIndexOptions): Promise<MemoryIndexHandle> {
+    // SDK 2.0 Phase 4 (Stage 4, iter 77): if @theokit/sdk-memory is
+    // installed, route through it. Otherwise fall back to the legacy
+    // internal path. Behavior + thrown errors are byte-equivalent
+    // because sdk-memory's IndexManager + MEMORY_EMBEDDING_ADAPTERS
+    // are hybrid copies of sdk-core's internals (iter 44-75).
+    const peer = await tryLoadSdkMemoryPeer();
+    if (peer !== null) {
+      let embedding: unknown;
+      if (opts.embedding !== undefined) {
+        const adapter = peer.MEMORY_EMBEDDING_ADAPTERS[opts.embedding.provider];
+        if (adapter === undefined) {
+          throw new Error(
+            `Unknown embedding provider "${opts.embedding.provider}". Supported: ${Object.keys(
+              peer.MEMORY_EMBEDDING_ADAPTERS,
+            ).join(", ")}.`,
+          );
+        }
+        embedding = await adapter.create(
+          opts.embedding.model !== undefined ? { model: opts.embedding.model } : {},
+        );
+      }
+      return (await peer.IndexManager.open({
+        cwd: opts.cwd,
+        ...(opts.filePath !== undefined ? { filePath: opts.filePath } : {}),
+        ...(embedding !== undefined ? { embedding } : {}),
+        ...(opts.backend !== undefined ? { backend: opts.backend } : {}),
+      })) as MemoryIndexHandle;
+    }
+    // Fallback path — sdk-memory peer absent; use the internal
+    // implementation (v1.x behavior preserved).
     // Lazy import to avoid pulling internal/runtime types into the public
     // DTS surface (rollup-plugin-dts trips on a pre-existing cycle in
     // types/agent.ts ↔ fork-agent.ts when reached transitively).
@@ -160,6 +191,37 @@ export const Memory = {
    * @public
    */
   async runDreamingSweep(opts: DreamingSweepOptions): Promise<DreamingSweepResult> {
+    // SDK 2.0 Phase 4 (Stage 4, iter 77): route through sdk-memory
+    // when installed; fall back to legacy internal/ path otherwise.
+    const peer = await tryLoadSdkMemoryPeer();
+    if (peer !== null) {
+      const adapter = peer.MEMORY_EMBEDDING_ADAPTERS[opts.embedding.provider];
+      if (adapter === undefined) {
+        throw new Error(
+          `Unknown embedding provider "${opts.embedding.provider}". Supported: ${Object.keys(
+            peer.MEMORY_EMBEDDING_ADAPTERS,
+          ).join(", ")}.`,
+        );
+      }
+      const runtime = await adapter.create(
+        opts.embedding.model !== undefined ? { model: opts.embedding.model } : {},
+      );
+      const result = await peer.runDreamingSweep({
+        cwd: opts.cwd,
+        embedding: runtime,
+        ...(opts.dedupThreshold !== undefined ? { dedupThreshold: opts.dedupThreshold } : {}),
+        ...(opts.clusterThreshold !== undefined ? { clusterThreshold: opts.clusterThreshold } : {}),
+      });
+      return {
+        status: result.status,
+        factsBefore: result.factsBefore,
+        factsAfter: result.factsAfter,
+        duplicatesRemoved: result.duplicatesRemoved,
+        clustersCreated: result.clustersCreated,
+        notesWritten: result.notesWritten,
+      };
+    }
+    // Fallback: legacy internal path (v1.x behavior).
     const adapter = MEMORY_EMBEDDING_ADAPTERS[opts.embedding.provider];
     if (adapter === undefined) {
       // Should be unreachable thanks to the typed `provider` union, but guard
