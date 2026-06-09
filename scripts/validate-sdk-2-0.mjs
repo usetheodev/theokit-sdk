@@ -67,6 +67,12 @@ const GATES = [
     label: "Migration pipeline end-to-end test",
     cmd: ["node", "scripts/__tests__/sdk-2-0-pipeline-e2e.test.mjs"],
   },
+  // Note: cohort publish-readiness is intentionally NOT in this list
+  // because it takes ~5min total (6 × publint+attw each ~50s); the
+  // 10 gates above run in ~5 seconds combined. CI runs the cohort
+  // gate as a separate job (see .github/workflows/sdk-2-0-migration-gates.yml).
+  // Operators run it explicitly with:
+  //   node scripts/__tests__/sdk-2-0-cohort-publish-readiness.test.mjs
 ];
 
 const results = [];
