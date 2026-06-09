@@ -12,6 +12,12 @@
     { "id": "T1.5", "status": "committed", "sha": "1096531" },
     { "id": "T2.1", "status": "committed", "sha": "1af7f5d" },
     {
+      "id": "T2.2-step1",
+      "status": "committed",
+      "sha_artifacts": "52092ee",
+      "note": "Step 1/N of T2.2: compression-model-registry.ts + 18 RED→GREEN tests + CHANGELOGs swept into sdk-2-0 session's commit 52092ee (Stage 4 #1 — optional-peer sdk-memory loader, iter 76). Same contamination pattern as iter 18 T3.9 (1ed2866) + iter 19 T5.4 (8d1325e+62408c1). Post-contamination cognitive-complexity refactor (12→≤10 via matchWildcard + isNoAuthProvider helper extraction) follows. 18/18 tests GREEN at HEAD."
+    },
+    {
       "id": "T2.2",
       "status": "pending",
       "replan_note": "Unblocked 2026-06-09: ADR D440 aux-LLM contract locked in plan. PROVIDER-AGNOSTIC default via same-family-cheaper-tier registry (NOT hardcoded openai/gpt-4o-mini — that would force cross-provider calls breaking SDK's agnostic posture). Registry: openai→gpt-4o-mini, anthropic→claude-3-5-haiku, bedrock→claude-3-haiku, vertex→gemini-1.5-flash, ollama/lmstudio/llamacpp→same model (authType:none branch); unknown model throws CompressionModelUnresolvedError at Agent.create time. Key chain: env THEOKIT_COMPRESSION_API_KEY (cross-provider keys rejected at validation) → explicit Agent.create({compression: {apiKey}}) → fallback to main CredentialPool. Isolated PoolAwareLlmClient. OTel span theokit.agent.compression + RunResult.usage.compressionCost separate bucket. Failure mode: WARN + original conversation unchanged + counter increment + at cap throws CompressionExhaustedError. 6 nested RED tests required."
