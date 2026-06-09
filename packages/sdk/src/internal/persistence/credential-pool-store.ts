@@ -85,7 +85,11 @@ export async function saveCredentialPoolStore(
   const path = poolPath(cwd);
   // Ensure parent dir exists — withFileLock fails if it can't create the
   // companion lockfile beside the data file (mkdir -p semantics).
-  await mkdir(dirname(path), { recursive: true });
+  // T5.7 — mode 0o700 (owner-only) on the credential snapshot directory.
+  // The default mkdir mode is 0o777 minus umask (typically 0o755 = world-
+  // listable); credential snapshot directories must be owner-only so an
+  // attacker enumerating the parent cannot even see the pool exists.
+  await mkdir(dirname(path), { recursive: true, mode: 0o700 });
   const data: PoolStoreData = { pools: {} };
   for (const [provider, snapshot] of pools.entries()) {
     data.pools[provider] = snapshot;

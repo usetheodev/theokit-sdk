@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — Crypto-random tmp file names + mode 0o600 + dir 0o700 (T5.7)
+
+- **Workspace impact**: `@theokit/sdk` persistence layer
+  (`internal/persistence/atomic-write.ts` + `credential-pool-store.ts`)
+  now uses CSPRNG randomness for tmp file suffixes (64 bits via
+  `crypto.randomBytes`), forces mode 0o600 on the tmp + final
+  rename target (owner-only — eliminates the world-readable TOCTOU
+  window pre-T5.7), and tightens credential snapshot parent
+  directories to mode 0o700. All consumers writing JSON snapshots
+  (credential pool, personality, OAuth tx, telemetry buffers) inherit
+  the hardening transparently.
+- **Iter 24** of halt-loop `sdk-superiority-2026-06-07`. Closes DR6
+  finding #7.
+
+### Operational — iter 24 stop-hook acknowledgement
+
+- Same mixed-authorship hygiene as iters 16-23. Staged only T5.7
+  files (`packages/sdk/src/internal/persistence/atomic-write.ts`,
+  `packages/sdk/src/internal/persistence/credential-pool-store.ts`,
+  `packages/sdk/tests/internal/persistence/atomic-write-tmp-secure.test.ts`,
+  both CHANGELOGs, contract row, progress JSON).
+
 ### Operational — iter 23 post-housekeeping stop-hook acknowledgement
 
 - Working tree continues to carry unstaged production-source changes

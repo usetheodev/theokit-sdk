@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { mkdir, open, rename, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
 
@@ -18,8 +19,19 @@ import { dirname } from "node:path";
  * @internal
  */
 export async function replaceFileAtomic(filePath: string, content: string): Promise<void> {
-  const tmp = `${filePath}.${process.pid}.${Math.random().toString(36).slice(2, 10)}.tmp`;
-  const handle = await open(tmp, "w");
+  // T5.7 — crypto-random tmp suffix (CSPRNG, 64 bits of entropy)
+  // replaces the predictable `Math.random().toString(36)` source. An
+  // attacker observing the process can no longer predict the next
+  // tmp path and pre-stage a hostile file to be renamed into place.
+  const suffix = randomBytes(8).toString("hex");
+  const tmp = `${filePath}.${process.pid}.${suffix}.tmp`;
+  // T5.7 — mode 0o600 on the tmp file (owner read+write only). The
+  // tmp file holds the FULL in-flight content (credential snapshots,
+  // OAuth tokens) before the rename. World-readable default would
+  // expose secrets during the ms-window between open and rename
+  // (TOCTOU). On modern Linux the post-rename target inherits the
+  // tmp's permission bits, so the final file is also 0o600.
+  const handle = await open(tmp, "w", 0o600);
   try {
     await handle.writeFile(content, "utf8");
     await handle.sync();
