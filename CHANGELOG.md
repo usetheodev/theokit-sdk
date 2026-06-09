@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Iter 45: T4.3 parallel embed batches
+
+- **T4.3** `runBatches` serial→parallel (cap 3 concurrent HTTP). 500 texts: 5×RTT → max(RTT)×2.
+
 ### Fixed — Iter 44: T4.8 CJK FTS5 fallback to LIKE search
 
 - **T4.8** FTS5 tokenizer failure on CJK/non-Latin scripts now falls back to `LIKE '%query%'` scan instead of returning empty results. Slower but correct for any Unicode input. ADR D64 documents trigram-routing deferral.
