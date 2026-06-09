@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 29,
+  "iterations_used": 30,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -22,6 +22,12 @@
       "status": "committed",
       "sha": "b102ce2",
       "note": "Step 2/N of T2.2: compression-config.ts resolves model (registry) + API key (env→explicit→pool-fallback) + maxAttempts/grace defaults. 11 tests. Foundation for step 3 (aux-llm-client) and step 4 (loop.ts wire)."
+    },
+    {
+      "id": "T2.2-step3",
+      "status": "committed",
+      "sha": "TBD",
+      "note": "Step 3/N: compression-summarizer.ts — buildCompressionPrompt + compressConversationWindow + CompressionFailedError. callLlm DI seam for tests. 5 tests."
     },
     {
       "id": "T2.2",
