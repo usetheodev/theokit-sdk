@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - T10.3: Streaming backpressure — `BoundedBuffer<T>` with configurable `highWaterMark`, deadlock timeout (EC-2), and `queueMicrotask` yield for same-queue safety
 - T11.1: RAG sub-path `@theokit/sdk/rag` — text splitters (character, sentence, recursive), VectorRetriever, CohereReranker + NoopReranker, 7 public types
 - T11.2: Evented workflow executor — cron scheduling via croner, suspend/resume with data serialization, AbortSignal propagation, `[Symbol.dispose]()` timer cleanup (EC-3)
+- T11.3: TheoKitContainer — optional multi-agent registry with `.agent()`, `.tool()`, `.workflow()`, `.run()` + dispose guard (EC-7)
+- T11.4: E2E test suite — 9 end-to-end test files (16 tests) covering agent lifecycle, error propagation, RAG pipeline, streaming backpressure, workflow execution, container, provider catalog, observability, text splitter edge cases
 
 ### Fixed
 
