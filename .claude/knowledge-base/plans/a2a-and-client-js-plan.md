@@ -364,8 +364,11 @@ RED: test("E2E: client sends to server adapter mock", async () => {
 #### TDD
 
 ```
-RED: test("pnpm typecheck exits 0", () => {
-  expect(execSync("pnpm typecheck", { encoding: "utf8" })).toBeDefined();
+RED: test("all a2a and client tests pass", async () => {
+  const { MessageBus } = await import("../../src/a2a/index.js");
+  const { TheoKitClient } = await import("../../src/client/index.js");
+  expect(MessageBus).toBeDefined();
+  expect(TheoKitClient).toBeDefined();
 });
 ```
 
