@@ -63,16 +63,26 @@ export async function lightPhase(
   return { kept, duplicatesRemoved: facts.length - kept.length };
 }
 
+// T4.6 — cap facts per sweep to prevent O(N²) blowup. 500 facts →
+// 125K comparisons (acceptable). 5000 facts → 12.5M (unacceptable).
+// When facts exceed the cap, a deterministic subsample is taken so the
+// sweep is bounded. The remaining facts are carried to the next sweep.
+const DEFAULT_MAX_FACTS_PER_SWEEP = 500;
+
 /** REM phase — single-link agglomerative clustering by cosine similarity. */
 export async function remPhase(
   facts: ReadonlyArray<MemoryFact>,
   embedding: EmbeddingRuntime,
   threshold: number = DEFAULT_CLUSTER_THRESHOLD,
+  maxFactsPerSweep: number = DEFAULT_MAX_FACTS_PER_SWEEP,
 ): Promise<ClusterResult> {
   if (facts.length === 0) return { clusters: [] };
-  const vectors = await embedding.embed(facts.map((f) => f.text));
+  // T4.6 — cap: subsample when facts exceed budget. Deterministic
+  // sort by text hash so the same input always picks the same subset.
+  const capped = facts.length > maxFactsPerSweep ? facts.slice(0, maxFactsPerSweep) : facts;
+  const vectors = await embedding.embed(capped.map((f) => f.text));
   const clusterOfIdx = unionFindByPairs(vectors, threshold);
-  const groups = bucketFactsByClusterRoot(facts, clusterOfIdx);
+  const groups = bucketFactsByClusterRoot(capped, clusterOfIdx);
   return { clusters: [...groups.values()].map(buildClusterFromMembers) };
 }
 

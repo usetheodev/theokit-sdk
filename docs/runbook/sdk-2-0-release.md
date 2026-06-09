@@ -402,28 +402,49 @@ reports ≥ 20 `TS2305` / `TS2724` errors in
 `packages/sdk-memory/tests/*.test.ts`. The test files
 `import { X } from "@theokit/sdk-memory"` for treeshaken X.
 
-**Pre-release fix (operator action, before Phase 6/7):**
+**Root cause (verified iter 114):** every affected source file
+carries an `@internal` JSDoc tag on either the file-level doc
+comment or the type declaration itself. rollup-plugin-dts (used
+by tsup for DTS bundling) respects `@internal` and strips those
+exports from the published `.d.ts` even when an explicit
+`export type { X } from "./internal/Y.js"` is added at the barrel
+level. Iter 114 attempted the "add explicit re-export" path and
+the DTS build hard-failed with:
 
-For each affected symbol, add an explicit `export type` (or
-`export`) statement to `src/index.ts` BEFORE the `export *` line:
+> RollupError: "ActiveMemoryCacheOptions" is not exported by
+> "src/internal/active-memory-cache.ts", imported by "src/index.ts"
 
-```ts
-export type { ActiveMemoryCacheOptions } from "./internal/active-memory-cache.js";
-export type { CircuitBreakerOptions } from "./internal/circuit-breaker.js";
-export type { MemorySearchHit } from "./internal/index-manager-contract.js";
-// ... etc per the typecheck output.
-```
+The runtime `.js` bundle is unaffected — `@internal` is a dts-time
+concern. Tests against the published surface still fail to typecheck.
 
-Rollup-dts respects explicit named exports + retains the type
-declaration in the bundled `.d.ts`. Rebuild + re-run typecheck
-to verify zero errors before publishing the cohort.
+**Pre-release fix paths (operator action, before Phase 6/7):**
 
-**Why this isn't auto-fixed:** the choice of which internal types
-deserve public surface is a design decision (some may stay internal-
-only). Auto-blanketing every type as public would break the iter
-46-style "kept internal until first consumer needs it" discipline.
-Maintainer reviews each missing export, decides "promote to public"
-vs "test uses relative import", then ships.
+Each missing symbol gets ONE of:
+
+1. **Promote to public** — remove the `@internal` JSDoc tag from
+   the source file. The type then appears in the published `.d.ts`
+   and tests resolve. Trade-off: the type is permanent public API;
+   future breaking changes require a semver-major bump.
+
+2. **Keep internal, switch test imports to relative paths** —
+   change `import { X } from "@theokit/sdk-memory"` →
+   `import { X } from "../src/internal/Y.js"` in the test file.
+   Tests still exercise the same code; they just don't pretend to
+   exercise it through the published surface.
+
+3. **Keep internal, expose via a sub-path** — add
+   `"./internal/*": { types: "./dist/internal/*.d.ts", ... }` to
+   sdk-memory's `package.json` exports and have tsup emit the
+   internals as separate entries. Mirrors how sdk-core exposes
+   `@theokit/sdk/internal/persistence`. Higher infra cost but lets
+   downstream consumers (not just tests) opt into internal types.
+
+**Why this isn't auto-fixed:** picking promote-vs-relative-vs-
+sub-path per symbol is a design decision encoded by the `@internal`
+tag's presence in each source file. Auto-stripping every tag would
+break the iter 46 / iter 51 discipline of "kept internal until first
+consumer needs it". Maintainer reviews each missing export, picks
+one of the three paths, ships.
 
 ## Cross-references
 
