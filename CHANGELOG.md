@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — SDK core iters 39-41: T1.6 + T1.8 + T1.9 + T1.10
+
+- **T1.6** `AgentDisposedError` typed error — replaces generic `Error("Agent has been disposed")` with catchable typed class; exported from barrel; `code: "agent_disposed"`
+- **T1.8** `Agent.streamObject` import memoized — second+ call skips promise chain
+- **T1.9** `Agent.prompt` dispose error swallowed — cleanup failure no longer masks business error
+- **T1.10** Cloud-agent mutex release timeout — `Promise.race` with 5min default; env override via `THEOKIT_CLOUD_SEND_MUTEX_TIMEOUT_MS`
+- **T2.5** OTel span leak on veto — plugin/file-hook veto paths now end the span
+- **T2.8** postToolUse hook error logged (was silently swallowed)
+
 ### Fixed — SDK core iter 39: T1.8 streamObject memoization + T1.9 dispose safety
 
 - **T1.8** `Agent.streamObject` import memoized — second+ call skips promise chain
