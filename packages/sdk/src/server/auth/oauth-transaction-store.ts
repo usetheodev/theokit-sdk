@@ -6,7 +6,7 @@
  * Stores OAuthTransaction (state + pkceVerifier + returnTo + expiry) in a
  * single signed+encrypted HttpOnly cookie. Stateless, works in edge/serverless.
  *
- * Cookie name: `theo_oauth_tx`
+ * Cookie name: `__Host-theo_oauth_tx` (T5.3 — RFC 6265bis prefix)
  * Lifetime: 10 minutes (per D5 invariant)
  * Encryption: AES-256-GCM via Node's webcrypto subtle API
  *
@@ -22,7 +22,13 @@ import { webcrypto } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { OAuthTransaction } from "./types.js";
 
-const COOKIE_NAME = "theo_oauth_tx";
+// T5.3 — `__Host-` prefix per RFC 6265bis. Browsers enforce that any
+// cookie with this prefix MUST be set with `Secure`, MUST NOT carry a
+// `Domain` attribute, and MUST have `Path=/`. This blocks the
+// subdomain-fixation vector where a malicious page on
+// `evil.example.com` could plant a same-name cookie that the parent
+// app at `example.com` would happily decrypt.
+const COOKIE_NAME = "__Host-theo_oauth_tx";
 const TX_LIFETIME_MS = 10 * 60 * 1000; // 10 minutes per D5
 
 // T5.1 — HKDF info string fixed per plan; bump version (v1 → v2) only when
@@ -147,20 +153,32 @@ function setCookie(res: ServerResponse, name: string, value: string): void {
   }
 }
 
+/**
+ * T5.3 — Clear the tx cookie deterministically. Emits exactly ONE
+ * Set-Cookie line for `name` (filtering any prior occurrences of the
+ * same name from a pre-existing Set-Cookie header) with:
+ *
+ *   - empty value
+ *   - `Max-Age=0` (modern browsers — immediate delete)
+ *   - `Expires=Thu, 01 Jan 1970 00:00:00 GMT` (legacy fallback)
+ *   - `HttpOnly`, `Secure`, `SameSite=Lax`, `Path=/` — preserved so the
+ *     `__Host-` prefix contract is honored even on the clear path
+ *
+ * Pre-T5.3 this function called setCookie() with an empty value (which
+ * still carried `Max-Age=600`) AND then issued a second explicit
+ * `Max-Age=0` clear into the Set-Cookie header. The double-write
+ * produced a duplicate response header that some legacy clients did
+ * not handle deterministically.
+ */
 function clearCookie(res: ServerResponse, name: string): void {
-  setCookie(
-    res,
-    name,
-    `; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`.split(";").slice(0, 1).join(""),
-  );
-  // Explicit clear with Max-Age=0
-  const clear = `${name}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`;
+  const clear = `${name}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`;
   const existing = res.getHeader("Set-Cookie");
-  if (Array.isArray(existing)) {
-    res.setHeader("Set-Cookie", [...existing.filter((c) => !c.includes(`${name}=`)), clear]);
-  } else {
-    res.setHeader("Set-Cookie", clear);
-  }
+  const preserved = Array.isArray(existing)
+    ? existing.filter((c) => !c.startsWith(`${name}=`))
+    : typeof existing === "string" && !existing.startsWith(`${name}=`)
+      ? [existing]
+      : [];
+  res.setHeader("Set-Cookie", [...preserved, clear]);
 }
 
 async function _setTransaction(

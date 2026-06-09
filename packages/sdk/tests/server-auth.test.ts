@@ -209,7 +209,9 @@ describe("EC-10 (v1.1) — rotateSession on login (OWASP A07:2021)", () => {
 
     const req = mockReq({
       url: "/api/auth/google/callback?code=test-code&state=test-state-12345",
-      cookie: `theo_oauth_tx=${cookieValue}`,
+      // T5.3 — cookie now uses the `__Host-` prefix per RFC 6265bis
+      // (browser-enforced contract: Secure + Path=/ + no Domain).
+      cookie: `__Host-theo_oauth_tx=${cookieValue}`,
     });
     const res = mockRes();
 
