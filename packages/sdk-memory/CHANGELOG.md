@@ -2,6 +2,37 @@
 
 ## [Unreleased]
 
+### Security (drift sync — iter 112/114/115, 2026-06-09)
+
+Three security/perf hardenings shipped in `@theokit/sdk`'s
+`internal/memory/` copies AFTER Stage 3 source-move completed
+(iter 44-75) were silently absent from `@theokit/sdk-memory`'s
+hybrid copies. Per ADR 0002 Stage 4 byte-equivalence invariant,
+they have now been synced. Consumers routing through
+`@theokit/sdk-memory` get the hardened behavior. The drift detector
+(iter 93) caught each gap and flipped to PASS after the sync.
+
+- **T4.9 — cross-tenant cache-key collision (iter 112)** —
+  `active-memory-cache.ts`'s `cacheKey` now accepts an optional
+  `TenantContext` (`namespace`/`userId`/`scope`) and NUL-separates
+  every key part. Pre-sync, two users sharing a process with the
+  same query could receive each other's cached result (DR4 finding
+  #9 — CRITICAL cross-tenant data leak).
+
+- **T4.6 — dreaming O(N²) sweep cap (iter 114)** —
+  `dreaming-phases.ts`'s `remPhase` accepts an optional
+  `maxFactsPerSweep` (default 500) and deterministically
+  subsamples when input exceeds the cap. Pre-sync, a 5000-fact
+  sweep ran 12.5M cosine-similarity comparisons (unacceptable).
+
+- **T5.2 — Lance SQL escape hardening (iter 115)** —
+  `lance-index.ts`'s `escapeSqlValue` now rejects NUL bytes,
+  C0 control chars, and DEL via `ConfigurationError({code:
+  'sql_injection_blocked'})`, and escapes backslashes (`\` →
+  `\\`) in addition to single quotes. Pre-sync, only `'` → `''`
+  was applied — `\'` could escape the closing quote on engines
+  that interpret backslash-escapes.
+
 ### Added (Stage 3 source-move COMPLETE — iter 44-75, 2026-06-08 → 2026-06-09)
 
 38/38 source files from sdk-core's `internal/memory/*` now have
