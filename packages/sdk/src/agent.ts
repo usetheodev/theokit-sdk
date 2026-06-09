@@ -54,6 +54,11 @@ import type {
 } from "./types/agent.js";
 import type { Run, RunResult } from "./types/run.js";
 
+// T1.8 — memoized dynamic import for streamObject so the second+ call
+// skips the promise resolution chain entirely. Module-level so it
+// survives across Agent.streamObject invocations.
+let streamObjectImport: Promise<typeof import("./stream-object.js")> | undefined;
+
 /**
  * Result of a one-shot {@link Agent.prompt} call.
  *
@@ -147,7 +152,15 @@ export class Agent {
       }
       return result;
     } finally {
-      await agent.dispose();
+      // T1.9 — dispose error MUST NOT mask the original error from
+      // the try block. A failing dispose is cleanup, not business
+      // logic — swallow silently so the consumer always sees the
+      // real error (or the real result) from agent.send().
+      try {
+        await agent.dispose();
+      } catch {
+        // Swallowed — dispose cleanup must not propagate.
+      }
     }
   }
 
@@ -235,15 +248,18 @@ export class Agent {
     void,
     void
   > {
-    // Lazy-import the implementation so consumers that never call
-    // streamObject don't pay the import cost.
+    // T1.8 — Lazy-import the implementation; memoized so the second+
+    // call skips the promise chain entirely. Consumers that never call
+    // streamObject don't pay the import cost at all.
     const deps = {
       create: (opts: import("./types/agent.js").AgentOptions) => Agent.create(opts),
       delete: (agentId: string) => Agent.delete(agentId),
     };
-    // Async generator wrapper that defers the actual implementation import.
     async function* wrapper() {
-      const { streamObjectImpl } = await import("./stream-object.js");
+      // T1.8 — memoized dynamic import: first call resolves the module;
+      // subsequent calls reuse the cached promise (no re-await overhead).
+      streamObjectImport ??= import("./stream-object.js");
+      const { streamObjectImpl } = await streamObjectImport;
       yield* streamObjectImpl(options, deps);
     }
     return wrapper();
