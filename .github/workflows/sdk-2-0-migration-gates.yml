@@ -1,0 +1,131 @@
+name: SDK 2.0 migration gates
+
+# Runs every smoke test for the SDK 2.0 migration tooling
+# (iter 81-90). Catches regressions in the operator-facing scripts
+# BEFORE the operator runs Phase 6 + 7.
+#
+# These gates are pure smoke tests — they don't require network,
+# don't publish anything, and don't modify the working tree.
+# All run in --dry mode against the workspace.
+
+on:
+  push:
+    branches: [main, develop, "feat/**"]
+    paths:
+      - "scripts/**"
+      - "packages/codemod-sdk-2-0/**"
+      - "packages/sdk/src/internal/memory/sdk-memory-peer-loader.ts"
+      - "packages/sdk/src/memory.ts"
+      - "packages/sdk/src/migrate.ts"
+      - "packages/sdk/tests/peer-*.test.ts"
+      - "packages/sdk/tests/memory-class-peer-routing.test.ts"
+      - "packages/sdk/tests/migrate-peer-routing.test.ts"
+      - "packages/sdk/tests/internal/memory/sdk-memory-peer-loader.test.ts"
+      - ".github/workflows/sdk-2-0-migration-gates.yml"
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - "scripts/**"
+      - "packages/codemod-sdk-2-0/**"
+      - "packages/sdk/src/internal/memory/sdk-memory-peer-loader.ts"
+      - "packages/sdk/src/memory.ts"
+      - "packages/sdk/src/migrate.ts"
+      - "packages/sdk/tests/peer-*.test.ts"
+      - "packages/sdk/tests/memory-class-peer-routing.test.ts"
+      - "packages/sdk/tests/migrate-peer-routing.test.ts"
+      - "packages/sdk/tests/internal/memory/sdk-memory-peer-loader.test.ts"
+      - ".github/workflows/sdk-2-0-migration-gates.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  migration-tooling-gates:
+    name: migration tooling smoke tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable Corepack + pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.1 --activate
+
+      - name: Setup Node 22.12
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12"
+          cache: "pnpm"
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      # Each smoke test runs independently so a single failure
+      # surfaces in the CI matrix instead of hiding behind a global
+      # script. Order matches the operator runbook flow.
+
+      - name: Phase 6 — rename dry-run smoke
+        run: node scripts/__tests__/phase6-rename-dry-run.test.mjs
+
+      - name: Phase 6 — rename write tool (dry-run mode) smoke
+        run: node scripts/__tests__/phase6-rename-write.test.mjs
+
+      - name: Phase 7 — cohort analysis smoke
+        run: node scripts/__tests__/phase7-cohort-analysis.test.mjs
+
+      - name: Phase 7 — peerDep bump (dry-run mode) smoke
+        run: node scripts/__tests__/phase7-peerdep-bump.test.mjs
+
+      - name: Pre-publish validation gate smoke
+        run: node scripts/__tests__/sdk-2-0-pre-publish-check.test.mjs
+
+      - name: Post-publish validation (dry mode) smoke
+        run: node scripts/__tests__/sdk-2-0-post-publish-check.test.mjs
+
+      - name: Downstream codemod integration test
+        run: node packages/codemod-sdk-2-0/tests/codemod.test.mjs
+
+      - name: codemod ↔ phase6 equivalence test
+        run: node scripts/__tests__/codemod-vs-phase6-equivalence.test.mjs
+
+  stage-4-routing-tests:
+    name: stage 4 routing test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable Corepack + pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.1 --activate
+
+      - name: Setup Node 22.12
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12"
+          cache: "pnpm"
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Stage 4 peer loader test
+        working-directory: packages/sdk
+        run: npx vitest run tests/internal/memory/sdk-memory-peer-loader.test.ts
+
+      - name: Stage 4 Memory class routing test
+        working-directory: packages/sdk
+        run: npx vitest run tests/memory-class-peer-routing.test.ts
+
+      - name: Stage 4 migrate routing test
+        working-directory: packages/sdk
+        run: npx vitest run tests/migrate-peer-routing.test.ts
+
+      - name: Stage 4 sdk-core ↔ sdk-memory parity test
+        working-directory: packages/sdk
+        run: npx vitest run tests/peer-parity.test.ts
+
+      - name: Stage 4 legacy fallback branch test
+        working-directory: packages/sdk
+        run: npx vitest run tests/peer-fallback-branch.test.ts
