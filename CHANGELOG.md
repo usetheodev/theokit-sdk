@@ -6,6 +6,42 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Planning — sdk-superiority-2026-06-07 plan replan: T2.2 + T3.10 unblocked
+
+- **T2.2 (Wire D91/D92 compression CRITICAL)** unblocked. ADR D440
+  aux-LLM contract now LOCKED in the plan body:
+  - **Default model**: `openai/gpt-4o-mini` via OpenRouter — cheapest
+    summarization-grade, same OpenRouter routing as real-LLM tests,
+    OpenAI-compatible API works against any consumer-configured provider.
+  - **Key resolution chain** (first-match): env
+    `THEOKIT_COMPRESSION_API_KEY` → explicit
+    `Agent.create({compression: {apiKey}})` → fallback to agent's main
+    `CredentialPool`. Env+explicit construct ISOLATED single-key pools;
+    only fallback shares the main pool (dev-local zero-config).
+  - **Observability**: OTel span `theokit.agent.compression` parented
+    to current loop turn; cost surfaces on
+    `RunResult.usage.compressionCost` (separate bucket from main cost).
+  - **Failure mode**: aux-LLM throws → WARN with redacted metadata +
+    return original conversation + increment counter; cap 3, grace 1;
+    at exhaustion throws `CompressionExhaustedError`. NO silent
+    swallow.
+  - **Override surface**: `Agent.create({compression: {model?, apiKey?,
+    baseUrl?, maxAttempts?, grace?}})`.
+- **T3.10 (Cleanup DR3 #13-25)** split into 4 named atomic sub-tasks
+  (T3.10a vision content parts LARGE, T3.10b Bedrock streaming flag,
+  T3.10c capabilities introspection, T3.10d Vertex Anthropic
+  body-massage removal). Each has concrete `**Files**`,
+  `**Implementation**`, `**TDD RED**` in the plan body.
+- **9 unnamed DR3 findings (#13, #14, #16, #18-23, #25)** deferred to
+  NEW **T7.4-bis** (`/loop-code-review --focus
+  packages/sdk/src/internal/llm` re-audit + atomic split) as part of
+  Phase 7 dogfood revalidation. Honest replan: no fake work invented,
+  no items silently deleted, full audit trail via Phase 7.
+- **Progress JSON**: `blocked_count` 2 → 0; T2.2 status
+  blocked-on-replan → pending; T3.10 status split-and-replanned + 4
+  new pending sub-tasks + 1 new T7.4-bis pending; `pending_count` 40
+  → 46.
+
 ### Operational — iter 25 post-housekeeping + ralph-loop cancel stop-hook acknowledgement
 
 - Ralph-loop was cancelled by user at concurrent-counter `iteration: 41`
