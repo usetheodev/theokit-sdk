@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 24 post-housekeeping stop-hook acknowledgement
+
+- Working tree continues to carry unstaged production-source changes
+  under `packages/sdk-budget/src/`, `packages/sdk-handoff/src/`, and
+  `packages/sdk-memory/src/` from the concurrent `sdk-2-0` ralph-loop
+  session's in-flight Phase 1 Stage 3 source-move work. Same mixed-
+  authorship hygiene as iters 16-23 — this line acknowledges the
+  residual state per Inquebrável Rule 6 without claiming authorship.
+  My T5.7 crypto-random tmp + mode 0o600 + dir 0o700 hardening
+  (`packages/sdk/src/internal/persistence/atomic-write.ts` +
+  `credential-pool-store.ts`) landed clean at `7fa6b27` — fifth
+  consecutive clean atomic iter in Phase 5 security (T5.1 → T5.5 →
+  T5.6 → T5.3 → T5.7).
+
 ### Security — Crypto-random tmp file names + mode 0o600 + dir 0o700 (T5.7)
 
 - **Workspace impact**: `@theokit/sdk` persistence layer
