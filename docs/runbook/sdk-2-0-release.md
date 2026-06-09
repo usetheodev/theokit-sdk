@@ -352,6 +352,73 @@ to undo the commit while keeping changes staged for review. Never
 use `git reset --hard` (per Unbreakable Rule 4); `--soft` preserves
 the diff so you can selectively re-stage.
 
+### Stage 3 drift detector reports drift mid-cycle
+
+The byte-equivalence invariant between sdk-core's `internal/memory/*`
+and sdk-memory's `internal/*` copies (ADR 0002 Stage 4) only holds
+when patches landing in one copy are mirrored to the other. When
+the drift detector fires:
+
+```bash
+pnpm run sdk-2-0:drift
+# # SDK 2.0 Stage 3 drift detector
+# # ... Findings: 1
+# # ## Result: FAIL — drift found.
+# # ### DRIFT (1)
+# #   <file>.ts ↔ <file>.ts
+# #     normalized bodies differ ...
+```
+
+Apply this triage:
+
+1. **Diff the two copies** to see WHAT changed:
+
+   ```bash
+   diff packages/sdk/src/internal/memory/<path>.ts \
+        packages/sdk-memory/src/internal/<file>.ts
+   ```
+
+2. **Decide direction** (FROM → TO):
+   - If the patch landed in sdk-core first (typical — security fixes
+     follow the `internal/` codepath consumers already hit) → sync
+     TO sdk-memory.
+   - If sdk-memory shipped first (rare — sdk-memory was the testing
+     ground) → sync TO sdk-core.
+
+3. **Apply the patch** to the missing copy, preserving the iter-X
+   "hybrid copy from sdk-core's …" header narration in sdk-memory
+   files (they're descriptive, not load-bearing).
+
+4. **Match declaration order** — the drift detector normalizes
+   comments/imports/whitespace but NOT declaration order. If you
+   add a new constant, place it at the SAME relative position as
+   the source. Iter 114 hit this hazard: same constant, different
+   position → detector still flagged.
+
+5. **Re-run drift detector** to confirm 0 findings:
+
+   ```bash
+   pnpm run sdk-2-0:drift
+   ```
+
+6. **Re-run package tests** to confirm no regression:
+
+   ```bash
+   pnpm -F @theokit/sdk-memory test
+   pnpm -F @theokit/sdk test
+   ```
+
+7. **Document the sync** in `@theokit/sdk-memory`'s CHANGELOG
+   `[Unreleased]` under `### Security` (if security-shaped) or the
+   appropriate Keep-a-Changelog category. Cite the iter where the
+   patch originated. Iters 112/114/115 are the canonical pattern.
+
+8. **If the drift is INTENTIONAL** (one copy needs a deliberately
+   different impl), add the file to `KNOWN_DIVERGENCES` in
+   `scripts/sdk-2-0-stage3-drift-detector.mjs` with a one-line
+   rationale. NEVER allowlist a drift you haven't actively
+   reviewed — silent allowlisting masks future security gaps.
+
 ### Full rollback after broken 2.0.0 publish
 
 If 2.0.0 ships and a critical defect is discovered post-publish,
