@@ -1,6 +1,80 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, open, rename, unlink } from "node:fs/promises";
+import { mkdir, open, rename, statfs, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
+
+// T5.8 — Linux filesystem magic numbers (from `<linux/magic.h>`).
+// Used by `detectNetworkFsName` to identify the parent directory's
+// filesystem type from a `statfs()` return value. The four entries
+// below cover the network/FUSE cases where `rename()` is best-effort
+// rather than strictly atomic; everything else is treated as local.
+const NETWORK_FS_MAGIC: ReadonlyMap<number, string> = new Map([
+  [0x6969, "nfs"],
+  [0x517b, "smb"],
+  [0xff534d42, "cifs"],
+  [0x65735546, "fuse"],
+]);
+
+/**
+ * T5.8 — Map a `statfs().type` magic number to a network-FS label, or
+ * `null` for local filesystems. Pure function — exported via the
+ * `__TESTING__` seam so unit tests can drive the parse logic without
+ * needing a network mount.
+ *
+ * @internal
+ */
+function detectNetworkFsName(typeMagic: number): string | null {
+  return NETWORK_FS_MAGIC.get(typeMagic) ?? null;
+}
+
+const warnedNfsDirs = new Set<string>();
+
+/**
+ * T5.8 — Best-effort one-shot stderr warning when `dirPath` lives on a
+ * network/FUSE filesystem. Silent no-op on local filesystems, on
+ * statfs failure (Windows / Node < 18.15 / EACCES), or after the
+ * first warning per (dir + label) pair. Mirrors the `sqlite-wal.ts`
+ * warn-once-per-label pattern (D63).
+ *
+ * @internal
+ */
+async function warnOnNetworkFsOnce(dirPath: string, label: string): Promise<void> {
+  const key = `${dirPath}\0${label}`;
+  if (warnedNfsDirs.has(key)) return;
+  warnedNfsDirs.add(key);
+  try {
+    const info = await statfs(dirPath);
+    const fsName = detectNetworkFsName(info.type);
+    if (fsName === null) return;
+    process.stderr.write(
+      `[theokit-sdk] ${label}: detected network fs (${fsName}) at ${dirPath} — ` +
+        "rename() atomicity guarantees may be weaker than expected.\n",
+    );
+  } catch {
+    // statfs unavailable (Windows / Node < 18.15) or unreadable —
+    // silent fallback. The warning is purely informational.
+  }
+}
+
+/**
+ * T5.8 — Test seam exposing the pure detection function so unit tests
+ * can assert magic-number coverage without spinning up a network FS.
+ * NOT included in the public barrel.
+ *
+ * @internal
+ */
+export function __TESTING__detectNetworkFsName(typeMagic: number): string | null {
+  return detectNetworkFsName(typeMagic);
+}
+
+/**
+ * T5.8 — Test seam: clear the per-directory warn-once registry between
+ * tests so warning-emission tests stay deterministic.
+ *
+ * @internal
+ */
+export function __TESTING__resetNfsWarnings(): void {
+  warnedNfsDirs.clear();
+}
 
 /**
  * Atomic file replacement: write content to a per-call unique tmp path,
@@ -19,6 +93,11 @@ import { dirname } from "node:path";
  * @internal
  */
 export async function replaceFileAtomic(filePath: string, content: string): Promise<void> {
+  // T5.8 — warn once per parent directory if it lives on a network /
+  // FUSE filesystem where `rename()` atomicity is best-effort. The
+  // write proceeds unchanged; the warning is purely informational so
+  // operators can spot the case in stderr / log aggregators.
+  await warnOnNetworkFsOnce(dirname(filePath), "atomic-write");
   // T5.7 — crypto-random tmp suffix (CSPRNG, 64 bits of entropy)
   // replaces the predictable `Math.random().toString(36)` source. An
   // attacker observing the process can no longer predict the next
