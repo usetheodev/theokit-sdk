@@ -119,7 +119,7 @@
 | T5.5 | Phase 5 / T5.5 | NUL byte rejection across path-guard | committed | 21 | 9d4264b | a=pass b=pass c=n/a | none-needed |
 | T5.6 | Phase 5 / T5.6 | Forbidden-path blocklist expansion | committed | 22 | 2bf3f83 | a=pass b=pass c=n/a | none-needed |
 | T5.7 | Phase 5 / T5.7 | Crypto-random tmp file names + mode 0o600 | committed | 24 | 7fa6b27 | a=pass b=pass c=n/a | none-needed |
-| T5.8 | Phase 5 / T5.8 | NFS detection + warning | committed | 25 | TBD | a=pass b=pass c=n/a | none-needed |
+| T5.8 | Phase 5 / T5.8 | NFS detection + warning | committed | 25 | ccbcdea | a=pass b=pass c=n/a | none-needed |
 | T5.9 | Phase 5 / T5.9 | proper-lockfile supply-chain hardening | pending | — | — | — | — |
 | T5.10 | Phase 5 / T5.10 | Move-corrupt-aside + 1MB cap markdown | pending | — | — | — | — |
 | T5.11 | Phase 5 / T5.11 | Cleanup batch DR6 findings 11-30 | pending | — | — | — | — |
