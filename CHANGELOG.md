@@ -6,13 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Planning — sdk-superiority-2026-06-07 plan replan v2: T2.2 aux-LLM provider-agnostic correction (2026-06-09)
+
+- **T2.2 contract revised**: replaced the hardcoded
+  `openai/gpt-4o-mini via OpenRouter` default — which violated the
+  SDK's provider-agnostic posture by forcing cross-provider calls
+  on consumers running Anthropic-only / Ollama-only / Bedrock-only
+  setups — with a deterministic **same-family-cheaper-tier registry**
+  (`internal/runtime/compression-model-registry.ts`). Resolution
+  algorithm: (a) exact match → cheaper-tier id within same vendor;
+  (b) wildcard match for region-prefixed variants; (c) `authType:
+  "none"` providers (Ollama / LM Studio / llama.cpp) → return SAME
+  model (local — cost N/A); (d) no match → throw
+  `CompressionModelUnresolvedError` at `Agent.create` time (NOT
+  runtime) with actionable message naming the model + override
+  surface + link to add the model to the registry.
+- Cross-provider env-var rejection: `THEOKIT_COMPRESSION_API_KEY` is
+  honored ONLY when the resolved compression provider matches the
+  agent's main provider — prevents an OpenAI key from being silently
+  used for a Claude-family compression call.
+- RED tests expanded from 3 → 6, covering: registry resolution
+  (Anthropic family), Ollama same-model branch,
+  `CompressionModelUnresolvedError` boundary check, cross-provider
+  env-var rejection.
+
 ### Planning — sdk-superiority-2026-06-07 plan replan: T2.2 + T3.10 unblocked
 
 - **T2.2 (Wire D91/D92 compression CRITICAL)** unblocked. ADR D440
   aux-LLM contract now LOCKED in the plan body:
-  - **Default model**: `openai/gpt-4o-mini` via OpenRouter — cheapest
-    summarization-grade, same OpenRouter routing as real-LLM tests,
-    OpenAI-compatible API works against any consumer-configured provider.
+  - **Default model**: ~~`openai/gpt-4o-mini` via OpenRouter~~ —
+    REVISED above; see "plan replan v2" entry. The original
+    hardcoded-default entry violated provider-agnosticism and was
+    corrected before any code shipped.
   - **Key resolution chain** (first-match): env
     `THEOKIT_COMPRESSION_API_KEY` → explicit
     `Agent.create({compression: {apiKey}})` → fallback to agent's main
