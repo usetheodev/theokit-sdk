@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - T10.2: Observability vendor expansion — 4 new telemetry adapters (Datadog dd-trace, LangSmith, Arize Phoenix, Braintrust) + public `ObservabilityContext` type at `@theokit/sdk/internal/observability`
 - T10.3: Streaming backpressure — `BoundedBuffer<T>` with configurable `highWaterMark`, deadlock timeout (EC-2), and `queueMicrotask` yield for same-queue safety
 - T11.1: RAG sub-path `@theokit/sdk/rag` — text splitters (character, sentence, recursive), VectorRetriever, CohereReranker + NoopReranker, 7 public types
+- T11.2: Evented workflow executor — cron scheduling via croner, suspend/resume with data serialization, AbortSignal propagation, `[Symbol.dispose]()` timer cleanup (EC-3)
 
 ### Fixed
 
