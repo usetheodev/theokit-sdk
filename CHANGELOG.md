@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Model capabilities introspection registry (T3.10c step 1)
+
+- **Workspace impact**: `@theokit/sdk` now has a typed per-model
+  capability registry (vision/structured-output/tool-use/cache-
+  control/token-limits). Foundation for boundary-gating features
+  at Agent.create time instead of letting opaque 400s surface.
+  Covers OpenAI + Anthropic families + routing-prefix resolution
+  (openrouter/vertex/bedrock). Unknown models get conservative
+  defaults (all false). 9/9 tests GREEN.
+- **Iter 28** of halt-loop `sdk-superiority-2026-06-07`. Closes
+  DR3 finding #17 (step 1/3).
+
 ### Security — Move-corrupt-aside + 1MB cap on markdown config (T5.10)
 
 - **Workspace impact**: `@theokit/sdk` persistence layer now
