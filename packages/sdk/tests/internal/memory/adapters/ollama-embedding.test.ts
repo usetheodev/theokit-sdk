@@ -42,9 +42,10 @@ describe("ollamaMemoryEmbeddingProviderAdapter (D183)", () => {
     expect(ollamaMemoryEmbeddingProviderAdapter.authProviderId).toBe("ollama");
   });
 
-  it("catalog includes ollama as 6th adapter", () => {
+  it("catalog includes ollama + T4.10 expansion adapters", () => {
     expect(MEMORY_EMBEDDING_ADAPTERS.ollama).toBe(ollamaMemoryEmbeddingProviderAdapter);
-    expect(Object.keys(MEMORY_EMBEDDING_ADAPTERS).length).toBe(6);
+    // T4.10: 6 original + 4 new (azure-openai, cohere, jina, gemini) = 10
+    expect(Object.keys(MEMORY_EMBEDDING_ADAPTERS).length).toBe(10);
   });
 
   it("create() works without OLLAMA_API_KEY (sentinel fallback)", async () => {
