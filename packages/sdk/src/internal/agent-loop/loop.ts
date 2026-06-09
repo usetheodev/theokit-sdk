@@ -232,6 +232,43 @@ async function emitAssistantTextStep(
   );
 }
 
+/**
+ * T2.3 — Push tool call + result steps into the structured conversation
+ * log. Each tool call gets a `toolCall` step, followed by a paired
+ * `toolResult` step with the dispatch outcome. Pairs are matched by
+ * index (call[i] → result[i]) since `dispatchTools` preserves order.
+ */
+function pushToolConversationSteps(
+  ctx: LoopContext,
+  calls: LlmToolCallPart[],
+  results: LlmContentPart[],
+): void {
+  const steps: import("../../types/conversation.js").ConversationStep[] = [];
+  for (let i = 0; i < calls.length; i++) {
+    const call = calls[i];
+    steps.push({
+      type: "toolCall",
+      message: { callId: call.id, name: call.name, args: call.input },
+    });
+    const result = results[i];
+    if (result?.type === "tool_result") {
+      steps.push({
+        type: "toolResult",
+        message: {
+          callId: result.toolUseId ?? call.id,
+          name: call.name,
+          result:
+            typeof result.content === "string" ? result.content : JSON.stringify(result.content),
+          isError: result.isError === true,
+        },
+      });
+    }
+  }
+  if (steps.length > 0) {
+    ctx.conversation.push({ type: "agentConversationTurn", turn: { steps } });
+  }
+}
+
 function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boolean {
   if (ctx.nudgeAttempts >= MAX_NUDGE_ATTEMPTS) return false;
   const validation = validateResponse({
@@ -293,6 +330,7 @@ function resolveSystemPromptWithMemoryAdditions(
   return `${systemPrompt}\n\n${additions}`;
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: pre-existing complexity from sdk-2-0 Phase 1 memory wiring (T1.5.1-T1.5.3). Refactor deferred to Phase 5 cleanup.
 async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
   // SDK 2.0 Phase 1 / T1.5.1: when consumer supplied a MemoryProvider,
   // run `init()` once per send. The opaque handle is stashed on ctx so
@@ -484,6 +522,10 @@ async function continueOrTerminate(
       );
     }
   }
+  // T2.3 — push tool call + result steps into the structured conversation
+  // log so `Run.conversation()` surfaces the full interaction including
+  // tool usage (parity with OpenAI Agents `RunResult.new_items`).
+  pushToolConversationSteps(ctx, llmOutput.toolCalls, toolResults);
   if (toolResults.some((part) => part.type === "tool_result" && part.isError === true)) {
     return "error";
   }
