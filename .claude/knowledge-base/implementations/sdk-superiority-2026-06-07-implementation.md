@@ -58,8 +58,8 @@
 | T1.5 | Phase 1 / T1.5 | Redact providerError.raw via getter + toJSON | committed | 8 | TBD | a=pass b=pass c=n/a | none-needed |
 | T1.6 | Phase 1 / T1.6 | Typed errors (AgentDisposedError + collision) | pending | — | — | — | — |
 | T1.7 | Phase 1 / T1.7 | Observability seed em local-agent | pending | — | — | — | — |
-| T1.8 | Phase 1 / T1.8 | Agent.streamObject import memoization | pending | — | — | — | — |
-| T1.9 | Phase 1 / T1.9 | Agent.prompt dispose error preservation | pending | — | — | — | — |
+| T1.8 | Phase 1 / T1.8 | Agent.streamObject import memoization | committed | 39 | TBD | a=pass b=pass c=n/a | none-needed |
+| T1.9 | Phase 1 / T1.9 | Agent.prompt dispose error preservation | committed | 39 | TBD | a=pass b=pass c=n/a | none-needed |
 | T1.10 | Phase 1 / T1.10 | cloud-agent mutex release timeout | pending | — | — | — | — |
 | T1.11 | Phase 1 / T1.11 | Cleanup batch DR1 findings 12-30 | pending | — | — | — | — |
 
