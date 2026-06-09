@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Agent-loop improvements batch (iters 26-35 of sdk-superiority)
+
+- **T5.9** proper-lockfile supply-chain hardening (structural validation after dynamic import)
+- **T5.10** move-corrupt-aside + 1MB cap on markdown config files
+- **T3.10c** model capabilities introspection registry (resolveModelCapabilities)
+- **T2.2 steps 2-4b** compression pipeline foundation (config + summarizer + decision + attempt orchestrator — 4 modules, 28 tests)
+- **T2.4** parallel tool dispatch with bounded concurrency (serial→Promise.all + inline semaphore, default cap 4)
+- **T2.3** conversation log includes tool call + tool result steps (ToolResult type + pushToolConversationSteps — parity with OpenAI Agents RunResult.new_items)
+- **T2.6** loop continues on tool error instead of aborting (ADR D89 — LLM sees error and decides; consecutive-error cap default 3 prevents infinite loops)
+
 ### Added — Compression config resolution (T2.2 step 2/N)
 
 - **Workspace impact**: `resolveCompressionConfig` module ships the
