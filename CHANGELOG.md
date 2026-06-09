@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Iter 51: T4.10 embedding adapter expansion
+
+- **T4.10** 4 new adapters (Azure OpenAI + Cohere + Jina + Gemini) — catalog 6 → 10 providers
+
 ### Added — Iters 49-50: T4.5 Lance hybrid + T4.7 AbortSignal + T5.2 SQL injection
 
 - **T4.5** Lance hybrid search: vector-only → 0.7×vector + 0.3×text term-overlap
