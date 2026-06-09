@@ -84,6 +84,7 @@ export interface SdkMemoryModule {
 }
 
 let cachedAttempt: Promise<SdkMemoryModule | null> | undefined;
+let forcedAbsentForTests = false;
 
 /**
  * Attempt to load `@theokit/sdk-memory`. Returns the module on
@@ -94,6 +95,7 @@ let cachedAttempt: Promise<SdkMemoryModule | null> | undefined;
  * @internal
  */
 export function tryLoadSdkMemoryPeer(): Promise<SdkMemoryModule | null> {
+  if (forcedAbsentForTests) return Promise.resolve(null);
   if (cachedAttempt !== undefined) return cachedAttempt;
   cachedAttempt = (async () => {
     try {
@@ -127,4 +129,21 @@ export function tryLoadSdkMemoryPeer(): Promise<SdkMemoryModule | null> {
  */
 export function resetSdkMemoryPeerCacheForTests(): void {
   cachedAttempt = undefined;
+  forcedAbsentForTests = false;
+}
+
+/**
+ * Test-only: force the loader to behave as if sdk-memory is NOT
+ * installed, even when the workspace setup makes it resolvable. Lets
+ * tests exercise the legacy fallback code path inside sdk-core's
+ * Memory class methods + migrate wrapper without uninstalling the
+ * peer.
+ *
+ * Pair with `resetSdkMemoryPeerCacheForTests()` in afterEach to undo.
+ *
+ * @internal
+ */
+export function forceSdkMemoryPeerAbsentForTests(): void {
+  cachedAttempt = undefined;
+  forcedAbsentForTests = true;
 }
