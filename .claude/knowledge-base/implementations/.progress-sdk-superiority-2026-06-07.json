@@ -13,8 +13,8 @@
     { "id": "T2.1", "status": "committed", "sha": "1af7f5d" },
     {
       "id": "T2.2",
-      "status": "blocked-on-replan",
-      "reason": "SEPA HALT — aux-LLM contract unspecified"
+      "status": "pending",
+      "replan_note": "Unblocked 2026-06-09: ADR D440 aux-LLM contract locked in plan (default openai/gpt-4o-mini via OpenRouter; key resolution env THEOKIT_COMPRESSION_API_KEY → explicit override → fallback to main pool; isolated PoolAwareLlmClient; OTel span theokit.agent.compression with cost-bucket separation; override surface Agent.create({compression}); failure mode WARN + original conversation unchanged + counter increment, no silent swallow)."
     },
     { "id": "T3.1", "status": "committed", "sha": "a390ea5" },
     { "id": "T3.2", "status": "committed", "sha_artifacts": "e67d1db+73471ac" },
@@ -37,8 +37,17 @@
     },
     {
       "id": "T3.10",
-      "status": "blocked-on-replan",
-      "reason": "Plan label is 'Cleanup batch DR3 findings 13-25' but provides NO per-finding TDD shape, only a flat file list across vision content parts (DR3 #24 — LARGE), Bedrock streaming flag, capabilities introspection, vertex hack removal. The SEPA initial-brief mass-delete gate (#11-15) REQUIRES per-symbol grep before any deletion — that is sub-task structure the plan does not provide. Per Inquebrável Rule 5 (TDD) + user direction 'ZERO plan-deviation; HALT and re-plan via /to-plan when reality diverges', T3.10 needs to be split into T3.10a..T3.10n (one finding per sub-task each with its own RED-test shape) BEFORE retry. Recommend: /plan-improve or hand-edit the plan to split T3.10 across DR3 findings 13-25 individually."
+      "status": "split-and-replanned",
+      "replan_note": "2026-06-09: split into T3.10a (vision content parts LARGE), T3.10b (Bedrock streaming flag), T3.10c (capabilities introspection), T3.10d (vertex Anthropic body-massage removal). Each has concrete file:line + Implementation + TDD RED in plan. The 9 unnamed DR3 #13,14,16,18-23,25 findings deferred to NEW T7.4-bis (Phase 7 re-audit via /loop-code-review)."
+    },
+    { "id": "T3.10a", "status": "pending" },
+    { "id": "T3.10b", "status": "pending" },
+    { "id": "T3.10c", "status": "pending" },
+    { "id": "T3.10d", "status": "pending" },
+    {
+      "id": "T7.4-bis",
+      "status": "pending",
+      "note": "Deferred sub-tasks from T3.10 — DR3 #13,14,16,18-23,25 re-audit + atomic split. Pre-requisite: T7.4 (/loop-architecture-review) to populate findings with file:line."
     },
     {
       "id": "T5.4",
@@ -53,9 +62,9 @@
     { "id": "T5.7", "status": "committed", "sha": "7fa6b27" },
     { "id": "T5.8", "status": "committed", "sha": "ccbcdea" }
   ],
-  "blocked_count": 2,
+  "blocked_count": 0,
   "partial_count": 2,
-  "pending_count": 40,
+  "pending_count": 46,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }

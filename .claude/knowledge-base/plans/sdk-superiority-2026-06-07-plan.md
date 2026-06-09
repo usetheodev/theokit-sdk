@@ -155,11 +155,39 @@ DoD ao fim do plano:
 **TDD RED**: test com mock LLM que retorna empty content + zero tool calls → loop deve injetar nudge user message, NÃO retornar `"finished"`.
 **Implementation**: cap `nudgeAttempts` (≤ 2) em `LoopContext`.
 
-### T2.2 — Wire D91/D92 compression
+### T2.2 — Wire D91/D92 compression (REVISED 2026-06-09 post-replan)
 **Evidence**: DR2 finding #2 — compression-helpers.ts unreachable.
-**Files**: `internal/agent-loop/loop.ts` (`streamLlmTurn` catch), `internal/runtime/compression-helpers.ts`, `internal/runtime/budget.ts:96-105`.
-**TDD RED**: simular `ContextWindowExceededError` → loop chama `budget.recordCompression()` → resumo via aux LLM → `assertCompressionReduced(before, after, 10)` → retry. Cap 3, grace 1.
-**ADR**: D440 — auxiliary-model contract for compression.
+**Files**: `internal/agent-loop/loop.ts` (`streamLlmTurn` catch), `internal/runtime/compression-helpers.ts`, `internal/runtime/budget.ts:96-105`, NEW: `internal/runtime/compression-config.ts`, NEW: `internal/runtime/aux-llm-client.ts`.
+
+**Aux-LLM contract (ADR D440 — locked):**
+
+- **Default model**: `openai/gpt-4o-mini` via OpenRouter (`https://openrouter.ai/api/v1`). Rationale: cheapest summarization-grade option (~$0.15/1M input, $0.60/1M output); same OpenRouter routing as the SDK's real-LLM test default; OpenAI-compatible API works against any provider the consumer already has configured.
+- **Default key resolution chain** (first-match-wins):
+  1. `process.env.THEOKIT_COMPRESSION_API_KEY` — dedicated env var for prod ops to isolate billing/rate-limit from main agent
+  2. `agent._state.compression?.apiKey` — explicit consumer override via `Agent.create({ compression: { apiKey } })`
+  3. Fallback to agent's main `CredentialPool` for that provider — dev-local zero-config path
+- **Pool isolation**: aux-LLM creates its own `PoolAwareLlmClient` instance to keep cooldown/exhaustion state separate from main agent. Shares `CredentialPool` instance ONLY in the fallback path (case 3 above); env-var/explicit-override cases construct an isolated single-key pool.
+- **Observability**: aux-LLM calls emit OTel span `theokit.agent.compression` (parent: current loop turn span) with attributes `compression.model`, `compression.input_tokens`, `compression.output_tokens`, `compression.cost_usd`, `compression.reduction_ratio`. Cost surfaces on `RunResult.usage.compressionCost` (separate bucket from main `cost`).
+- **Override surface**:
+  ```ts
+  Agent.create({
+    compression?: {
+      model?: string;       // override default "openai/gpt-4o-mini"
+      apiKey?: string;      // override default env+pool resolution
+      baseUrl?: string;     // override default OpenRouter endpoint
+      maxAttempts?: number; // override default cap 3
+      grace?: number;       // override default grace 1
+    }
+  })
+  ```
+- **Failure mode**: if aux-LLM call itself throws (network / 401 / quota), compression-helpers logs WARN with redacted error metadata and returns ORIGINAL conversation unchanged — loop falls through to next retry attempt (counts against cap 3). NO silent swallow.
+
+**TDD RED (3 nested tests, all must fail pre-T2.2):**
+1. simular `ContextWindowExceededError` → loop chama `budget.recordCompression()` → resumo via aux LLM (fixture-mode `theo_test_*` key) → `assertCompressionReduced(before, after, 10)` → retry. Cap 3, grace 1.
+2. aux-LLM call throws 401 → compression returns original conversation → next retry → counter incremented → at cap 3 throws `CompressionExhaustedError`.
+3. env var `THEOKIT_COMPRESSION_API_KEY` set → aux-LLM uses dedicated key, NOT agent's main pool. Verified via spy on `PoolAwareLlmClient` constructor.
+
+**ADR**: D440 — auxiliary-model contract for compression. Write `docs/adr/D440-aux-llm-compression-contract.md` AS PART of T2.2 commit.
 
 ### T2.3 — Conversation log: push tool turns
 **Files**: `internal/agent-loop/loop.ts:198-220`, `types/conversation.ts` (add `type: "toolCall" | "toolResult"`).
@@ -223,8 +251,32 @@ DoD ao fim do plano:
 ### T3.9 — Reconnect storm prevention (pool waitForAvailable)
 **Files**: `internal/llm/credential-pool.ts:107-109`, `pool-aware-client.ts:54-65`.
 
-### T3.10 — Cleanup batch DR3 findings 13-25
-**Files**: vision content parts (DR3 #24 — LARGE), Bedrock streaming flag, capabilities introspection, vertex hack removal.
+### T3.10 — Cleanup DR3 #13-25 (SPLIT 2026-06-09 post-replan)
+
+The original T3.10 bundled 13 DR3 MEDIUM findings under one task with no per-finding TDD-shape — blocked at iter 19 per SEPA mass-delete gate. Split into 4 NAMED sub-tasks (items the plan explicitly listed) executable individually. The 9 unnamed "telemetry + DX" findings are **DEFERRED to T7.4-bis** (re-audit via `/loop-code-review --focus packages/sdk/src/internal/llm` as part of Phase 7 dogfood revalidation — that infra re-generates findings with file:line precision, then T7.4-bis splits them into atomic tasks). Honest: no fake work invented, no items silently deleted, full audit trail via Phase 7.
+
+### T3.10a — Vision content parts (DR3 #24, LARGE)
+**Files**: `internal/llm/anthropic.ts` (content_block_start image variant), `internal/llm/openai.ts` (content array with `image_url`), `internal/llm/types.ts` (`LlmContentPart` union widening), NEW: `internal/llm/vision-parts.ts` helper.
+**Implementation**: widen `LlmMessage.content` to discriminated union (`{type: "text"} | {type: "image", source: ...}`); propagate through Anthropic + OpenAI request builders; handle in stream accumulators. Wire end-to-end so `agent.send([{text: "describe"}, {image: base64}])` round-trips.
+**TDD RED**: real-LLM gated test sends image + text turn, asserts response references visual content. Plus unit tests for content-part serialization shape per provider.
+
+### T3.10b — Bedrock streaming flag (DR3 #20)
+**Files**: `internal/llm/bedrock.ts:42-58` (stream parameter wiring), `internal/llm/types.ts`.
+**Implementation**: Bedrock InvokeModelWithResponseStream support gated on `LlmRequest.stream` boolean. Pre-T3.10b: bedrock client always called InvokeModel (non-streaming). Add streaming code path + content delta accumulator mirroring Anthropic's structure.
+**TDD RED**: real-LLM gated test with `AWS_BEARER_TOKEN_BEDROCK` set, `stream: true` request yields incremental `text_delta` events before final stop.
+
+### T3.10c — Capabilities introspection (DR3 #17)
+**Files**: `internal/llm/profiles.ts`, NEW: `Theokit.models.capabilities()` public API in `src/theokit.ts`.
+**Implementation**: per-model capability flags (`supportsVision`, `supportsStructuredOutput`, `supportsToolUse`, `supportsCacheControl`, `maxContextTokens`, `maxOutputTokens`) populated from the model catalog. Public `Theokit.models.capabilities(modelId)` returns the typed shape. `Agent.create` uses these flags to gate features at runtime instead of runtime probing.
+**TDD RED**: unit test asserts capability flag per known model (gpt-4o-mini, claude-3-haiku, ollama/qwen2.5:0.5b). Integration test: agent configured with vision content + non-vision model throws `CapabilityNotSupportedError` at boundary, NOT 400 from provider.
+
+### T3.10d — Vertex Anthropic body-massage removal (DR3 #15)
+**Files**: `internal/llm/vertex-anthropic.ts:67-89` (current massage hack), `internal/llm/anthropic-shared.ts` (canonical body builder).
+**Implementation**: remove the bespoke Vertex Anthropic body transformation (currently strips/re-adds fields to work around a Vertex API mismatch that has since shipped fixed). Vertex Anthropic now accepts the canonical Anthropic body shape. Replace the massage with a direct passthrough; delete the hack module.
+**TDD RED**: real-LLM gated test with `GOOGLE_APPLICATION_CREDENTIALS` set, Vertex Claude call works without the hack — same request body that ships to anthropic.com works against `aiplatform.googleapis.com`.
+
+### T3.10e..T3.10m — DEFERRED to T7.4-bis (DR3 #13, #14, #16, #18, #19, #21, #22, #23, #25)
+**Status**: 9 unnamed "telemetry + DX" findings have no concrete file:line in the plan or initial brief. Deferred to T7.4-bis: `/loop-code-review --focus packages/sdk/src/internal/llm` as part of Phase 7 dogfood revalidation. That re-audit will regenerate findings with file:line precision, then the bis-task splits each into an atomic T-id with TDD-shape. Tracking in progress JSON as `deferred-to-T7.4-bis`.
 
 ## Phase 4 — Memory subsystem (T4.* — 11 tasks)
 
@@ -334,6 +386,15 @@ DoD ao fim do plano:
 ### T7.2 — Build competitor parity matrix (Vercel AI / OpenAI Agents / mem0 / Langchain.js)
 ### T7.3 — Document gaps still standing após Phase 1-5 + plan v2 backlog
 ### T7.4 — `/loop-architecture-review --mode full` re-run: zero CRITICAL/HIGH novos
+
+### T7.4-bis — DR3 #13,14,16,18-23,25 re-audit + cleanup (added 2026-06-09)
+**Files**: deferred from T3.10. To be populated by re-audit output.
+**Implementation**:
+1. Run `/loop-code-review --focus packages/sdk/src/internal/llm` to regenerate the 9 deferred DR3 findings with file:line precision.
+2. From the new audit output, create T7.4-bis-1..T7.4-bis-N atomic sub-tasks (one per finding) each with `**Files**`, `**Implementation**`, and `**TDD RED**`.
+3. Execute each sub-task via the standard halt-loop TDD cycle.
+**TDD RED**: per-finding shape emerges from step 1; no shape exists pre-re-audit.
+**Acceptance**: re-audit `/loop-architecture-review --mode full` (T7.4) reports zero CRITICAL/HIGH novos including coverage of original DR3 #13,14,16,18-23,25.
 
 ## Phase 8 — Documentation + DX (T8.* — 3 tasks)
 

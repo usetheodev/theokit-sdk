@@ -67,7 +67,7 @@
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
 |------|--------------|-------------|--------|------|--------|--------|------|
 | T2.1 | Phase 2 / T2.1 | Wire validateResponse D93 bailout CRITICAL | committed | 9 | TBD | a=pass b=pass c=n/a | none-needed |
-| T2.2 | Phase 2 / T2.2 | Wire D91/D92 compression CRITICAL | blocked-on-replan | — | — | — | SEPA HALT |
+| T2.2 | Phase 2 / T2.2 | Wire D91/D92 compression CRITICAL | pending (UNBLOCKED 2026-06-09) | — | — | — | ADR D440 aux-LLM contract locked in plan |
 
 > **T2.2 BLOCKED (iter 10 surfacing)** — SEPA initial brief § B item #2 marked this `[CRITICAL] HALT + refine plan` because the plan does NOT specify the auxiliary-LLM contract for compression (model id, API-key source, credential-pool routing, fallback behavior). Plan ADR D440 is referenced but not yet defined in the plan body. Per the user's zero plan-deviation policy, I HALT T2.2 and recommend `/to-plan` revision to lock the aux-LLM contract before implementation. Downstream T3.* / T4.* / T5.* / T6.* are NOT blocked — only T2.2 itself.
 | T2.3 | Phase 2 / T2.3 | Conversation log: push tool turns | pending | — | — | — | — |
@@ -92,7 +92,11 @@
 | T3.7 | Phase 3 / T3.7 | Error mapping completeness (OpenRouter/Anthropic/Vertex) | committed | 16 | TBD | a=pass b=pass c=n/a | none-needed |
 | T3.8 | Phase 3 / T3.8 | Cache tokens Anthropic native + 5-bucket telemetry | committed | 17 | 386fdd9 | a=pass b=pass c=n/a | none-needed |
 | T3.9 | Phase 3 / T3.9 | Reconnect storm prevention (pool waitForAvailable) | committed | 18 | 1ed2866 (contamination) | a=pass b=pass c=n/a | none-needed |
-| T3.10 | Phase 3 / T3.10 | Cleanup batch DR3 findings 13-25 (incl vision content parts LARGE) | blocked-on-replan | 19 | — | — | needs plan split per SEPA mass-delete gate; see progress JSON for rationale |
+| T3.10 | Phase 3 / T3.10 | Cleanup batch DR3 findings 13-25 (REPLANNED 2026-06-09) | split-and-replanned | 19 | — | — | Split into T3.10a-d below; 9 unnamed findings deferred to T7.4-bis |
+| T3.10a | Phase 3 / T3.10a | Vision content parts (DR3 #24, LARGE) | pending | — | — | — | — |
+| T3.10b | Phase 3 / T3.10b | Bedrock streaming flag (DR3 #20) | pending | — | — | — | — |
+| T3.10c | Phase 3 / T3.10c | Capabilities introspection (DR3 #17) | pending | — | — | — | — |
+| T3.10d | Phase 3 / T3.10d | Vertex Anthropic body-massage removal (DR3 #15) | pending | — | — | — | — |
 
 ### Phase 4 — Memory subsystem (11 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
@@ -143,6 +147,7 @@
 | T7.2 | Phase 7 / T7.2 | Competitor parity matrix | pending | — | — | — | — |
 | T7.3 | Phase 7 / T7.3 | Gaps still standing + v2 backlog | pending | — | — | — | — |
 | T7.4 | Phase 7 / T7.4 | /loop-architecture-review re-run zero CRITICAL/HIGH | pending | — | — | — | — |
+| T7.4-bis | Phase 7 / T7.4-bis | DR3 #13,14,16,18-23,25 re-audit + cleanup (added 2026-06-09) | pending | — | — | — | Depends on T7.4 re-audit to populate findings |
 
 ### Phase 8 — Documentation + DX (3 tasks)
 | Task | Plan section | Description | Status | Iter | Commit | Wiring | SEPA |
