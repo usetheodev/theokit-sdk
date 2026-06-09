@@ -253,7 +253,43 @@ inconsistent (some packages at v2.0.0, others at v1.x). Mitigation:
 Do NOT attempt to unpublish. npm's unpublish window is 72h but
 breaks downstream consumers who already pulled the version.
 
-### Step 7 — Dogfood QA
+### Step 7 — Dogfood QA + post-publish verification
+
+#### 7a. Mechanical verification (must pass before declaring shippable)
+
+Run each command. Every one must report PASS / GREEN / 200 / expected
+output. ANY failure means the release is broken — roll forward with a
+patch (do NOT `npm unpublish`; see § Recovery flows § Full rollback).
+
+```bash
+# 1. Registry propagation — sdk-core version is queryable
+npm view @theokit/sdk-core version
+# Expected: 2.0.0 (or whatever Step 3 set). 404 means publish failed
+# silently; wait 60s + retry; if still 404, re-publish.
+
+# 2. Every cohort sub-package version queryable
+for p in sdk-budget sdk-cache sdk-handoff sdk-memory sdk-tools; do
+  echo "@theokit/$p: $(npm view @theokit/$p version)"
+done
+# Expected: every line shows a version. Empty line = unpublished or
+# registry lag.
+
+# 3. Post-publish validation gate (workspace state vs registry)
+node scripts/sdk-2-0-post-publish-check.mjs
+# Expected: "## Result: PASS — all gates green."
+
+# 4. Provenance attestation present (if Phase 6 published with --provenance)
+npm view @theokit/sdk-core --json | jq -r '.dist.attestations'
+# Expected: an object with `url` + `provenance`. `null` means the
+# publish ran WITHOUT provenance — informational, not a blocker today.
+
+# 5. Bundle budgets respected on published tarball
+npm pack @theokit/sdk-core@2.0.0 --dry-run 2>&1 | tail -5
+# Expected: tarball size sane (~150 KB gzipped for sdk-core; check
+# against packages/sdk/.bundle-budget.json's 200000 ceiling).
+```
+
+#### 7b. Downstream consumer dogfood
 
 Confirm the published packages work in a fresh consumer environment.
 
@@ -273,6 +309,21 @@ Run the same flow against `theokit-tools`'s other consumers
 
 If any consumer fails, the publish is broken. Roll forward with a
 patch release (`2.0.1`) — do NOT roll back.
+
+#### 7c. Sign-off checklist
+
+The release is declared shippable ONLY when EVERY box below is checked:
+
+- [ ] 7a step 1: `npm view @theokit/sdk-core version` returns the bumped version
+- [ ] 7a step 2: every cohort sub-package version is queryable
+- [ ] 7a step 3: `scripts/sdk-2-0-post-publish-check.mjs` reports PASS
+- [ ] 7a step 4: provenance attestation present (or accepted as absent)
+- [ ] 7a step 5: tarball size under `.bundle-budget.json` ceiling
+- [ ] 7b: downstream consumer test suite passes against `@^2.0.0`
+- [ ] CHANGELOG `[Unreleased]` was flushed to a `## [2.0.0]` section (Step 3)
+- [ ] Git tag `v2.0.0` pushed to origin
+- [ ] No CRITICAL issues opened against the cohort in the first hour
+      post-publish
 
 ## Recovery flows
 
