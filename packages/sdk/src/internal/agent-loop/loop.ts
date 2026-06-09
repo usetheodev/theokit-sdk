@@ -182,6 +182,15 @@ interface LoopContext {
    */
   nudgeAttempts: number;
   /**
+   * T2.6 (ADR D89) — consecutive tool-error counter. Incremented when a
+   * tool dispatch yields ≥1 isError result; reset to 0 on a clean dispatch.
+   * When the counter reaches `maxConsecutiveToolErrors` (default 3), the
+   * loop aborts. Otherwise it continues and lets the LLM react to the
+   * error — the tool result with `isError: true` is visible in the
+   * conversation so the LLM can retry or fall back.
+   */
+  _consecutiveToolErrors?: number;
+  /**
    * SDK 2.0 Phase 1 / T1.5.1 — opaque handle from `provider.init()` when a
    * `MemoryProvider` is wired on `AgentLoopInputs`. Undefined when no
    * provider was supplied (legacy `Memory` class path). Carried so T1.5.2
@@ -267,6 +276,29 @@ function pushToolConversationSteps(
   if (steps.length > 0) {
     ctx.conversation.push({ type: "agentConversationTurn", turn: { steps } });
   }
+}
+
+/**
+ * T2.6 (ADR D89) — tool errors do NOT abort the loop. The isError
+ * results are already in ctx.messages as `tool_result isError: true`;
+ * the LLM sees them on the next turn and decides whether to retry,
+ * use a different tool, or respond. Only abort when consecutive-error
+ * cap is reached (prevents infinite tool-error loops).
+ */
+function handleToolErrorContinuation(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+  toolResults: LlmContentPart[],
+): "continue" | "error" {
+  const hasError = toolResults.some((part) => part.type === "tool_result" && part.isError === true);
+  if (hasError) {
+    ctx._consecutiveToolErrors = (ctx._consecutiveToolErrors ?? 0) + 1;
+    const cap = (inputs as { maxConsecutiveToolErrors?: number }).maxConsecutiveToolErrors ?? 3;
+    if (ctx._consecutiveToolErrors >= cap) return "error";
+    return "continue";
+  }
+  ctx._consecutiveToolErrors = 0;
+  return "continue";
 }
 
 function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boolean {
@@ -526,10 +558,7 @@ async function continueOrTerminate(
   // log so `Run.conversation()` surfaces the full interaction including
   // tool usage (parity with OpenAI Agents `RunResult.new_items`).
   pushToolConversationSteps(ctx, llmOutput.toolCalls, toolResults);
-  if (toolResults.some((part) => part.type === "tool_result" && part.isError === true)) {
-    return "error";
-  }
-  return "continue";
+  return handleToolErrorContinuation(inputs, ctx, toolResults);
 }
 
 interface LlmTurnOutput {
