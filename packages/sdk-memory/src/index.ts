@@ -50,6 +50,31 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 73: thirtieth Stage 3 file move — openai-compatible adapter
+// runtime (276 LOC) + inlined adapter-http-error mapper (160 LOC).
+// `createOpenAiCompatibleRuntime(cfg, options)` is the shared factory
+// the 6 provider-specific adapters (openai/mistral/deepinfra/openrouter/
+// voyage; ollama uses its own native API path) compose around. EC-2:
+// embeddingsPath REPLACES `/v1/embeddings` rather than concatenating
+// (DeepInfra uses `/v1/openai/embeddings`). EC-4: dimensionByModel
+// table is closed — unknown models throw `embedding_unknown_model`
+// before any network call to prevent vec0 dimension mismatches.
+// Linear-backoff retry (50ms × attempt, max 2 retries) on 429 + 5xx;
+// AuthenticationError on missing API key; NetworkError on malformed
+// `data: []` response. **Inlined error mapper:** sdk-core's
+// `mapOpenAICompatibleError` lives in `internal/errors/mappers/` —
+// not part of the public errors surface. sdk-memory carries its own
+// byte-equivalent copy in `./adapter-http-error.js` so the entire
+// adapter cluster ships without reaching into sdk-core internals.
+// Translation table: 401/403 → AuthenticationError; 429 →
+// RateLimitError; 400 → ConfigurationError; 408 → NetworkError
+// timeout; 5xx → NetworkError server_error; everything else →
+// UnknownAgentError. body.error.code introspection covers
+// `context_too_long` / `content_filtered` / `model_unavailable` /
+// `quota_exceeded` (incl. HTTP 402) per ADR D67.
+export * from "./internal/openai-compatible.js";
+export * from "./internal/adapter-http-error.js";
+
 // Iter 72: twenty-ninth Stage 3 file move — index-manager (446 LOC).
 // THE big orchestrator. `IndexManager` class implements MemoryIndex
 // over a SQLite + sqlite-vec hybrid backend. Overloaded `open()`
