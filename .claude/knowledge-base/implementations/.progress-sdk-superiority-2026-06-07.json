@@ -50,7 +50,7 @@
     { "id": "T5.5", "status": "committed", "sha": "9d4264b" },
     { "id": "T5.6", "status": "committed", "sha": "2bf3f83" },
     { "id": "T5.3", "status": "committed", "sha": "317dce6" },
-    { "id": "T5.7", "status": "committed", "sha": "TBD" }
+    { "id": "T5.7", "status": "committed", "sha": "7fa6b27" }
   ],
   "blocked_count": 2,
   "partial_count": 2,
