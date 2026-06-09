@@ -653,6 +653,27 @@ export class BudgetExceededError extends TheokitAgentError {
  *
  * @public
  */
+/**
+ * T1.6 — Thrown when a consumer calls `agent.send()` or any method
+ * on an agent that has already been `dispose()`d. Pre-T1.6 this was
+ * a generic `new Error("Agent has been disposed")` — consumers
+ * couldn't catch it without string-matching the message.
+ *
+ * @public
+ */
+export class AgentDisposedError extends TheokitAgentError {
+  override readonly name: string = "AgentDisposedError";
+  readonly agentId: string;
+
+  constructor(agentId: string) {
+    super(`Agent "${agentId}" has been disposed. Create a new agent or use Agent.resume().`, {
+      isRetryable: false,
+      code: "agent_disposed",
+    });
+    this.agentId = agentId;
+  }
+}
+
 export class UnsupportedBudgetOperationError extends TheokitAgentError {
   override readonly name: string = "UnsupportedBudgetOperationError";
   readonly operation: string;

@@ -28,6 +28,7 @@ export { Cron } from "./cron.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
 // Errors (runtime classes)
 export {
+  AgentDisposedError,
   AgentRunError,
   type AgentRunErrorCode,
   AuthenticationError,

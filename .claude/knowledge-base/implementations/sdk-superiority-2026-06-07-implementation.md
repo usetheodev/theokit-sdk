@@ -56,7 +56,7 @@
 | T1.3 | Phase 1 / T1.3 | API key boundary validation | committed | 6 | TBD | a=pass b=pass c=n/a | none-needed |
 | T1.4 | Phase 1 / T1.4 | Path traversal hardening em downloadArtifact | committed | 7 | TBD | a=pass b=pass c=n/a | none-needed |
 | T1.5 | Phase 1 / T1.5 | Redact providerError.raw via getter + toJSON | committed | 8 | TBD | a=pass b=pass c=n/a | none-needed |
-| T1.6 | Phase 1 / T1.6 | Typed errors (AgentDisposedError + collision) | pending | — | — | — | — |
+| T1.6 | Phase 1 / T1.6 | Typed errors (AgentDisposedError + collision) | committed | 41 | TBD | a=pass b=pass c=n/a | AgentDisposedError class + wired into local-agent + exported from barrel; collision already ConfigurationError |
 | T1.7 | Phase 1 / T1.7 | Observability seed em local-agent | pending | — | — | — | — |
 | T1.8 | Phase 1 / T1.8 | Agent.streamObject import memoization | committed | 39 | TBD | a=pass b=pass c=n/a | none-needed |
 | T1.9 | Phase 1 / T1.9 | Agent.prompt dispose error preservation | committed | 39 | TBD | a=pass b=pass c=n/a | none-needed |
