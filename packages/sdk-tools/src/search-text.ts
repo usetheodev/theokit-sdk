@@ -76,7 +76,7 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
         .string()
         .optional()
         .describe("Optional project-relative directory to scope the search."),
-    }) as unknown as import("zod").ZodType,
+    }),
     handler: async ({ query, path }) => {
       const scope = resolveSearchScope(path, projectRoot);
       if ("error" in scope) return scope.error;
