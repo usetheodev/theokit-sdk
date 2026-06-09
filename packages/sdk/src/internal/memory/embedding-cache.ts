@@ -34,3 +34,37 @@ export class LruEmbeddingCache implements EmbeddingCache {
     return this.map.size;
   }
 }
+
+/**
+ * T4.4 — Process-wide singleton embedding cache (DR4 finding #4).
+ *
+ * Pre-T4.4 each adapter / index-manager constructed its own
+ * `LruEmbeddingCache` — a consumer with 3 Memory.openIndex calls
+ * got 3 independent caches with no cross-index deduplication. The
+ * same text embedded identically across indexes re-computed the
+ * embedding each time.
+ *
+ * The singleton shares the cache process-wide so hit rate goes up
+ * dramatically. The LRU eviction (default 5000 entries) bounds
+ * memory usage even with the shared surface.
+ *
+ * Consumers who need isolation (e.g., multi-tenant with different
+ * embedding models) should construct their own `LruEmbeddingCache`
+ * and pass it explicitly — the singleton is the DEFAULT, not the
+ * only option.
+ *
+ * @internal
+ */
+export const globalEmbeddingCache: EmbeddingCache = new LruEmbeddingCache();
+
+/**
+ * T4.4 — Test seam: reset the global singleton between tests.
+ * NOT included in the public barrel.
+ *
+ * @internal
+ */
+export function __TESTING__resetGlobalEmbeddingCache(): void {
+  const cache = globalEmbeddingCache as LruEmbeddingCache;
+  // Clear all entries — the capacity stays unchanged.
+  (cache as unknown as { map: Map<string, number[]> }).map.clear();
+}

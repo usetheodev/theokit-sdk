@@ -7,7 +7,7 @@ import type {
   EmbeddingRuntime,
   EmbeddingRuntimeStats,
 } from "../embedding-adapter.js";
-import { LruEmbeddingCache } from "../embedding-cache.js";
+import { globalEmbeddingCache } from "../embedding-cache.js";
 
 /**
  * Shared factory for OpenAI-compatible embedding providers (OpenAI, Mistral,
@@ -58,7 +58,8 @@ export async function createOpenAiCompatibleRuntime(
   const envBaseUrl = cfg.baseUrlEnv !== undefined ? process.env[cfg.baseUrlEnv] : undefined;
   const baseUrl = options.baseUrl ?? envBaseUrl ?? cfg.defaultBaseUrl;
   const fetchImpl = options.fetch ?? fetch;
-  const cache = options.cache ?? new LruEmbeddingCache();
+  // T4.4 — default to process-wide singleton (was per-adapter instance).
+  const cache = options.cache ?? globalEmbeddingCache;
   // EC-4: refuse unknown models to prevent vec0 dimension mismatches downstream.
   const dimension = cfg.dimensionByModel[model];
   if (dimension === undefined) {
