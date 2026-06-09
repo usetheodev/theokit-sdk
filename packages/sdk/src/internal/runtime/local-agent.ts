@@ -1,4 +1,8 @@
-import { ConfigurationError, UnsupportedRunOperationError } from "../../errors.js";
+import {
+  AgentDisposedError,
+  ConfigurationError,
+  UnsupportedRunOperationError,
+} from "../../errors.js";
 import type {
   AgentDefinition,
   AgentOptions,
@@ -303,7 +307,9 @@ export class LocalAgent implements SDKAgent {
   }
 
   private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
-    if (this.disposed) throw new Error("Agent has been disposed");
+    // T1.6 — typed error so consumers can catch via instanceof instead
+    // of string-matching the message. Pre-T1.6: `new Error("Agent has been disposed")`.
+    if (this.disposed) throw new AgentDisposedError(this.agentId);
     // biome-ignore format: keep one-liner to stay under G8 LoC.
     await consumePending(this.agentId, this.invalidationPending, () => { this.invalidationPending = undefined; }, () => this.reload());
     this.applyModelOverride(options.model);
