@@ -107,6 +107,13 @@ jobs:
         # would fail the job anyway.
         run: node scripts/sdk-2-0-status.mjs
 
+      - name: Runbook commands resolvable (iter 108)
+        # Pins docs/runbook/sdk-2-0-release.md ↔ script-tree contract.
+        # Every `node scripts/X.mjs` + `pnpm --filter @theokit/X`
+        # reference in the runbook must resolve to a real artifact.
+        # Prevents silent doc rot when scripts/packages are renamed.
+        run: node scripts/__tests__/runbook-commands-resolvable.test.mjs
+
   cohort-publish-readiness:
     name: cohort publish-readiness gate
     runs-on: ubuntu-latest
