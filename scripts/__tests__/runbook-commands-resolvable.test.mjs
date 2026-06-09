@@ -84,6 +84,30 @@ for (const name of pkgRefs) {
   );
 }
 
+// 3) Structural: required top-level sections must be present.
+// Pins the canonical shape so future edits can't accidentally remove
+// "Recovery flows" (operator's lifeline when something breaks
+// mid-cutover).
+for (const section of ["## TL;DR", "## Step-by-step", "## Recovery flows"]) {
+  pushFail(!text.includes(section), `runbook missing required section: "${section}"`);
+}
+
+// Recovery flows must list ≥ 4 sub-headings — iter 110 added 3 new
+// ones (partial state / no --backup / full rollback) on top of the
+// original 4. Set the floor at 4 to detect accidental deletions; the
+// count can grow without breaking the gate.
+const recoveryIdx = text.indexOf("## Recovery flows");
+const crossRefIdx = text.indexOf("## Cross-references");
+const recoverySection =
+  recoveryIdx >= 0 && crossRefIdx > recoveryIdx
+    ? text.slice(recoveryIdx, crossRefIdx)
+    : "";
+const recoveryHeadings = (recoverySection.match(/^### /gm) ?? []).length;
+pushFail(
+  recoveryHeadings < 4,
+  `runbook Recovery flows section has only ${recoveryHeadings} sub-headings (expected ≥4)`,
+);
+
 if (failures.length > 0) {
   console.error("runbook commands resolvable test FAILED:");
   for (const f of failures) console.error(`  - ${f}`);
@@ -95,5 +119,5 @@ if (failures.length > 0) {
 }
 
 console.log(
-  `runbook commands resolvable test PASSED (${scriptRefs.size} scripts + ${pkgRefs.size} packages all resolve).`,
+  `runbook commands resolvable test PASSED (${scriptRefs.size} scripts + ${pkgRefs.size} packages + ${recoveryHeadings} recovery flows).`,
 );
