@@ -31,6 +31,7 @@
     "validate:sdk-2-0": "node scripts/validate-sdk-2-0.mjs",
     "validate:sdk-2-0:bail": "node scripts/validate-sdk-2-0.mjs --bail",
     "sdk-2-0:runbook-check": "node scripts/__tests__/runbook-commands-resolvable.test.mjs",
+    "sdk-2-0:migration-check": "node scripts/__tests__/migration-guide-coverage.test.mjs",
     "sdk-2-0:status": "node scripts/sdk-2-0-status.mjs",
     "sdk-2-0:status:json": "node scripts/sdk-2-0-status.mjs --json",
     "sdk-2-0:drift": "node scripts/sdk-2-0-stage3-drift-detector.mjs",

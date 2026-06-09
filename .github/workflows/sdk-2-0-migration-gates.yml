@@ -114,6 +114,14 @@ jobs:
         # Prevents silent doc rot when scripts/packages are renamed.
         run: node scripts/__tests__/runbook-commands-resolvable.test.mjs
 
+      - name: Migration guide coverage (iter 109)
+        # Pins MIGRATION.md ↔ codemod-test contract. Every import
+        # shape the codemod handles MUST be enumerated in the
+        # consumer-facing migration guide; canonical test path must
+        # be linked. Prevents consumer surprise when a new shape
+        # ships in the codemod but isn't documented.
+        run: node scripts/__tests__/migration-guide-coverage.test.mjs
+
   cohort-publish-readiness:
     name: cohort publish-readiness gate
     runs-on: ubuntu-latest
