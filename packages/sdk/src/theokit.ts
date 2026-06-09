@@ -10,6 +10,10 @@ import { resolveApiKey } from "./internal/env.js";
 import { isFixtureApiKey, shouldUseFixtureMode } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { MEMORY_EMBEDDING_ADAPTERS } from "./internal/memory/adapters/catalog.js";
+import {
+  getCatalogCapabilities,
+  type ProviderCapabilities,
+} from "./internal/providers/catalog-loader.js";
 import { getProviderProfile, listProviders, registerBuiltins } from "./internal/providers/index.js";
 import type { SDKProvider } from "./types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
@@ -64,6 +68,7 @@ export class Theokit {
    */
   static readonly models: {
     list: (options?: TheokitRequestOptions) => Promise<SDKModel[]>;
+    capabilities: (providerOrModelId: string) => ProviderCapabilities | undefined;
   } = {
     list: async (options = {}) => {
       // ADR D184: when `provider` targets an `authType: "none"` provider,
@@ -78,6 +83,14 @@ export class Theokit {
         fixture: FIXTURE_MODELS,
         path: "/v1/models",
       });
+    },
+    capabilities: (providerOrModelId: string) => {
+      registerBuiltins();
+      // Extract provider name from "provider/model" format
+      const providerId = providerOrModelId.includes("/")
+        ? providerOrModelId.split("/")[0]
+        : providerOrModelId;
+      return getCatalogCapabilities(providerId);
     },
   };
 

@@ -87,6 +87,19 @@ export function loadProviderCatalog(opts?: LoadOptions): Record<string, CatalogE
   return result;
 }
 
+let _capabilitiesCache: Record<string, ProviderCapabilities> | null = null;
+
+export function getCatalogCapabilities(providerId: string): ProviderCapabilities | undefined {
+  if (_capabilitiesCache === null) {
+    const catalog = loadProviderCatalog();
+    _capabilitiesCache = {};
+    for (const entry of Object.values(catalog)) {
+      _capabilitiesCache[entry.id] = entry.capabilities;
+    }
+  }
+  return _capabilitiesCache[providerId];
+}
+
 export function registerCatalogProviders(opts?: LoadOptions): void {
   const catalog = loadProviderCatalog(opts);
   for (const entry of Object.values(catalog)) {
