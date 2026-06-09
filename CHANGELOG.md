@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Iter 49: T4.5 Lance hybrid search + text scoring
+
+- **T4.5** Lance adapter: vector-only → hybrid via `computeTermOverlapScore` (0.7×vector + 0.3×text term-overlap). Removes ADR D43 vector-only caveat.
+
 ### Security — Iter 48: T5.2 CRITICAL SQL injection fix in Lance .where()
 
 - **T5.2** `escapeSqlValue` hardened: NUL/C0/DEL rejection + backslash escaping + throws `ConfigurationError({code:"sql_injection_blocked"})`. Pre-T5.2 only escaped single quotes.
