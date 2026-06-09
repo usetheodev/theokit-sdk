@@ -32,7 +32,7 @@
     {
       "id": "T2.2-step4a",
       "status": "committed",
-      "sha": "TBD",
+      "sha": "130eddf",
       "note": "Step 4a/N: compression-decision.ts — shouldAttemptCompression pure function. 8 tests covering decision matrix (error code, enabled flag, grace, attempt cap)."
     },
     {
