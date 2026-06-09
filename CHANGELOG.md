@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — /implement refusal stop-hook acknowledgement
+
+- `/implement sdk-superiority-2026-06-07` invoked but pre-condition
+  validation refused: dirty working tree (28 files from concurrent
+  sdk-2-0 session iter 77+ Stage 4 work) + Node runtime mismatch
+  (.nvmrc pins 22; active is 20.19.2). Per SKILL.md Step 1
+  "If any HARD check fails, refuse to start. Surface the missing
+  piece." No halt-loop spawned. No code touched. Honest BLOCKED
+  surfaced to user with the two prerequisites to unblock (quiesce
+  sdk-2-0 + switch to Node 22). Inquebrável Rule 3 (honesty) +
+  /implement contract enforcement.
+- Same mixed-authorship hygiene as iters 16-25. This line
+  acknowledges the residual sdk-2-0 state per Inquebrável Rule 6.
+
 ### Operational — T2.2 step 1 follow-up stop-hook acknowledgement
 
 - Working tree continues to carry unstaged production-source changes
