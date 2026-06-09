@@ -27,9 +27,8 @@
  * @public
  */
 
-import type { ZodType } from "zod";
-
 import { definePlugin, type Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
+import type { ZodType } from "zod";
 import type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 
 /** Recommended system-prompt prefix for senders (D215 / EC-13). */

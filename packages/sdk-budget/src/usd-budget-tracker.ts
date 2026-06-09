@@ -25,12 +25,7 @@
  * @public
  */
 
-import type {
-  BudgetCheck,
-  BudgetTotal,
-  BudgetTracker,
-  BudgetUsageEvent,
-} from "@theokit/sdk";
+import type { BudgetCheck, BudgetTotal, BudgetTracker, BudgetUsageEvent } from "@theokit/sdk";
 import { BUILTIN_PRICING, computeUsdCost, type ModelPricing } from "./usd-pricing.js";
 
 /** Options for `createUsdBudgetTracker`. */

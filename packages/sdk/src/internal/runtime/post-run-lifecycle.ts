@@ -56,6 +56,7 @@ export interface PostRunLifecycleInputs {
  *
  * @internal
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: lifecycle orchestrator dispatches across multiple subsystems
 export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promise<void> {
   const {
     run,

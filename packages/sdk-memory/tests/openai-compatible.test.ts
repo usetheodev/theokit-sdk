@@ -218,10 +218,7 @@ describe("sdk-memory openai-compatible runtime (iter 73)", () => {
         body: JSON.parse(String(init?.body)),
       });
       return jsonResponse(200, {
-        data: [
-          { embedding: [0.1, 0.2, 0.3, 0.4] },
-          { embedding: [0.5, 0.6, 0.7, 0.8] },
-        ],
+        data: [{ embedding: [0.1, 0.2, 0.3, 0.4] }, { embedding: [0.5, 0.6, 0.7, 0.8] }],
       });
     };
     const runtime = await createOpenAiCompatibleRuntime(CONFIG, {
@@ -270,15 +267,12 @@ describe("sdk-memory openai-compatible runtime (iter 73)", () => {
   });
 
   it("test_persistent_429_after_max_retries_throws_RateLimitError", async () => {
-    const stubFetch = async () =>
-      jsonResponse(429, { error: { code: "rate_limit" } });
+    const stubFetch = async () => jsonResponse(429, { error: { code: "rate_limit" } });
     const runtime = await createOpenAiCompatibleRuntime(CONFIG, {
       apiKey: "sk-test",
       fetch: stubFetch as typeof fetch,
     });
-    await expect(runtime.embed(["never succeeds"])).rejects.toBeInstanceOf(
-      RateLimitError,
-    );
+    await expect(runtime.embed(["never succeeds"])).rejects.toBeInstanceOf(RateLimitError);
   });
 
   it("test_embeddingsPath_override_REPLACES_default_EC2", async () => {

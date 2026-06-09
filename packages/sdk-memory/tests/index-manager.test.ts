@@ -19,15 +19,11 @@
  * exercised by sdk-core's integration tests.
  */
 
-import { mkdtemp, rm, writeFile, mkdir } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  type EmbeddingRuntime,
-  IndexManager,
-  memoryDir,
-} from "@theokit/sdk-memory";
+import { type EmbeddingRuntime, IndexManager, memoryDir } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 async function hasNativeStack(): Promise<boolean> {
@@ -70,12 +66,8 @@ describe("sdk-memory index-manager (iter 72)", () => {
       // Lance preconditions enforce embedding presence BEFORE touching
       // the optional @lancedb/lancedb peer. Same EC reachable from
       // either sdk-core or sdk-memory copy.
-      await expect(
-        IndexManager.open({ cwd, backend: "lance" }),
-      ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          "Lance backend requires an embedding runtime",
-        ),
+      await expect(IndexManager.open({ cwd, backend: "lance" })).rejects.toMatchObject({
+        message: expect.stringContaining("Lance backend requires an embedding runtime"),
       });
     });
   });
@@ -125,10 +117,7 @@ describe("sdk-memory index-manager (iter 72)", () => {
     it("test_sync_idempotent_unchanged_files_skip", async () => {
       if (!(await hasNativeStack())) return;
       await mkdir(memoryDir(cwd), { recursive: true });
-      await writeFile(
-        join(memoryDir(cwd), "MEMORY.md"),
-        "# Memory\n\n## Facts\n\n- pin\n",
-      );
+      await writeFile(join(memoryDir(cwd), "MEMORY.md"), "# Memory\n\n## Facts\n\n- pin\n");
       const idx = await IndexManager.open({ cwd });
 
       const first = await idx.sync();

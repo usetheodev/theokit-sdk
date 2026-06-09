@@ -18,9 +18,9 @@
  */
 
 import type { AgentOptions } from "@theokit/sdk";
+import { describe, expect, it } from "vitest";
 import { LocalAgentMemory } from "../src/internal/runtime/local-agent-memory.js";
 import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent-memory-provider.js";
-import { describe, expect, it } from "vitest";
 
 const AGENT_OPTIONS: AgentOptions = {
   agentId: "rap-eq-agent",

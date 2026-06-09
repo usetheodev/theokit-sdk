@@ -129,10 +129,7 @@ describe("cross-session recall via disk-backed summaries (iter 34)", () => {
     writer.dispose(handle);
     // Write a non-md file with the same needle.
     const { writeFile } = await import("node:fs/promises");
-    await writeFile(
-      join(cwd, ".theokit", "memory", "sessions", "noise.txt"),
-      "needle-only-in-md",
-    );
+    await writeFile(join(cwd, ".theokit", "memory", "sessions", "noise.txt"), "needle-only-in-md");
 
     const reader = createInMemoryMarkdownProvider();
     const h = await reader.init({ cwd });

@@ -16,14 +16,10 @@
  * native ABI mismatches the test skips gracefully.
  */
 
-import {
-  isSqliteVecLoaded,
-  loadSqliteVecExtension,
-  openMemoryDb,
-} from "@theokit/sdk-memory";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isSqliteVecLoaded, loadSqliteVecExtension, openMemoryDb } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 async function hasNativeStack(): Promise<boolean> {

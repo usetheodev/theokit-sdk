@@ -22,14 +22,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  type EmbeddingRuntime,
   isLanceAvailable,
   LanceIndex,
   lanceStoragePath,
-  type EmbeddingRuntime,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-function stubEmbedding(textToVec: Record<string, ReadonlyArray<number>>, dim = 3): EmbeddingRuntime {
+function stubEmbedding(
+  textToVec: Record<string, ReadonlyArray<number>>,
+  dim = 3,
+): EmbeddingRuntime {
   return {
     embed: async (texts) => texts.map((t) => [...(textToVec[t] ?? new Array(dim).fill(0))]),
     dimension: dim,
@@ -58,9 +61,7 @@ describe("sdk-memory lance-index (iter 68)", () => {
       if (isLanceAvailable()) return;
       const cwd = await mkdtemp(join(tmpdir(), "sdk-memory-lance-missing-"));
       try {
-        await expect(
-          LanceIndex.open({ cwd, embedding: stubEmbedding({}) }),
-        ).rejects.toMatchObject({
+        await expect(LanceIndex.open({ cwd, embedding: stubEmbedding({}) })).rejects.toMatchObject({
           message: expect.stringContaining("`@lancedb/lancedb` is not installed"),
         });
       } finally {

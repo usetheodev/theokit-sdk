@@ -21,8 +21,8 @@ import { join } from "node:path";
 
 import {
   appendDiaryEntry,
-  diaryPath,
   type DiaryEntry,
+  diaryPath,
   entryHash,
   memoryDir,
   renderDiaryEntry,
@@ -59,9 +59,7 @@ describe("sdk-memory dreaming-diary (iter 59)", () => {
 
   describe("diaryPath", () => {
     it("test_resolves_to_dot_theokit_memory_dream_diary_md", () => {
-      expect(diaryPath(cwd)).toBe(
-        join(cwd, ".theokit", "memory", "dream-diary.md"),
-      );
+      expect(diaryPath(cwd)).toBe(join(cwd, ".theokit", "memory", "dream-diary.md"));
     });
   });
 

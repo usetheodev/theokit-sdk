@@ -20,15 +20,15 @@
  * native module.
  */
 
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   assertValidBackend,
   isLanceAvailable,
   openLanceIndex,
   VALID_BACKENDS,
 } from "@theokit/sdk-memory";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("sdk-memory index-manager-dispatch (iter 70)", () => {
@@ -52,9 +52,7 @@ describe("sdk-memory index-manager-dispatch (iter 70)", () => {
       expect(() => assertValidBackend("postgres-vector")).toThrowError(
         /Invalid memory backend "postgres-vector"/,
       );
-      expect(() => assertValidBackend("")).toThrowError(
-        /Invalid memory backend ""/,
-      );
+      expect(() => assertValidBackend("")).toThrowError(/Invalid memory backend ""/);
       expect(() => assertValidBackend("SQLITE-VEC")).toThrowError(
         /Invalid memory backend "SQLITE-VEC"/,
       );
@@ -77,9 +75,7 @@ describe("sdk-memory index-manager-dispatch (iter 70)", () => {
       // @lancedb/lancedb, so this test runs reliably even on environments
       // without the optional peer installed.
       await expect(openLanceIndex({ cwd })).rejects.toMatchObject({
-        message: expect.stringContaining(
-          "Lance backend requires an embedding runtime",
-        ),
+        message: expect.stringContaining("Lance backend requires an embedding runtime"),
       });
     });
 
@@ -91,12 +87,8 @@ describe("sdk-memory index-manager-dispatch (iter 70)", () => {
         providerId: "stub",
         model: "stub",
       } as never;
-      await expect(
-        openLanceIndex({ cwd, embedding: stubEmbedding }),
-      ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          "`@lancedb/lancedb` is not installed",
-        ),
+      await expect(openLanceIndex({ cwd, embedding: stubEmbedding })).rejects.toMatchObject({
+        message: expect.stringContaining("`@lancedb/lancedb` is not installed"),
       });
     });
   });

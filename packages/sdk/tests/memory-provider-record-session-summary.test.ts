@@ -13,12 +13,12 @@
  *     `writeSessionSummary` direct call.
  */
 
+import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
 } from "../src/internal/runtime/memory-provider.js";
 import type { MemoryAdapter } from "../src/types/memory-adapter.js";
-import { describe, expect, expectTypeOf, it, vi } from "vitest";
 
 function makeStubAdapter(): MemoryAdapter {
   return {
@@ -94,9 +94,9 @@ describe("recordSessionSummary port method — STATELESS (iter 27/28)", () => {
     // Pin: signature is `(args: RecordSessionSummaryArgs) => Promise<void> | void`.
     // NO handle param (post-run-lifecycle has no handle by the time it
     // calls this — runAgentLoop already disposed).
-    expectTypeOf<NonNullable<MemoryProvider["recordSessionSummary"]>>().parameter(0).toEqualTypeOf<
-      RecordSessionSummaryArgs
-    >();
+    expectTypeOf<NonNullable<MemoryProvider["recordSessionSummary"]>>()
+      .parameter(0)
+      .toEqualTypeOf<RecordSessionSummaryArgs>();
     // Verify the function has exactly ONE parameter (no second-arg overload).
     expectTypeOf<NonNullable<MemoryProvider["recordSessionSummary"]>>().parameters.toEqualTypeOf<
       [RecordSessionSummaryArgs]

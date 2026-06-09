@@ -16,12 +16,12 @@
  * touching native modules, so they run on any Node + ABI.
  */
 
-import { migrateSqliteToLance } from "../src/migrate.js";
-import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
+import { migrateSqliteToLance } from "../src/migrate.js";
 
 describe("sdk-core migrateSqliteToLance peer routing (iter 78, Phase 4 #3)", () => {
   let cwd: string;
@@ -47,9 +47,7 @@ describe("sdk-core migrateSqliteToLance peer routing (iter 78, Phase 4 #3)", () 
     expect(result.validated).toBe(true);
     expect(result.sampleComparisons).toEqual([]);
     expect(result.committed).toBe(false);
-    expect(result.lancePath).toBe(
-      join(cwd, ".theokit", "memory", "lance"),
-    );
+    expect(result.lancePath).toBe(join(cwd, ".theokit", "memory", "lance"));
   });
 
   it("test_destination_exists_throws_typed_error_through_peer_path", async () => {
@@ -59,9 +57,7 @@ describe("sdk-core migrateSqliteToLance peer routing (iter 78, Phase 4 #3)", () 
     const finalPath = join(cwd, ".theokit", "memory", "lance");
     await mkdir(finalPath, { recursive: true });
 
-    await expect(
-      migrateSqliteToLance({ cwd, logger: () => undefined }),
-    ).rejects.toMatchObject({
+    await expect(migrateSqliteToLance({ cwd, logger: () => undefined })).rejects.toMatchObject({
       message: expect.stringContaining("Destination already exists"),
     });
   });
@@ -84,8 +80,6 @@ describe("sdk-core migrateSqliteToLance peer routing (iter 78, Phase 4 #3)", () 
       cwd,
       logger: () => undefined,
     });
-    expect(result.lancePath).toBe(
-      join(cwd, ".theokit", "memory", "lance"),
-    );
+    expect(result.lancePath).toBe(join(cwd, ".theokit", "memory", "lance"));
   });
 });

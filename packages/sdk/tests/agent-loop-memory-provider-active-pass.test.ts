@@ -52,10 +52,7 @@ function buildSpyProvider(opts?: {
   );
   const buildToolsSpy = vi.fn((_h: MemoryProviderHandle, _a: SDKAgent) => []);
   const runActivePassSpy = vi.fn(
-    async (
-      _h: MemoryProviderHandle,
-      _a: ActiveMemoryPassArgs,
-    ): Promise<ActiveMemoryPassResult> => {
+    async (_h: MemoryProviderHandle, _a: ActiveMemoryPassArgs): Promise<ActiveMemoryPassResult> => {
       if (opts?.activePassThrows) throw new Error("activePass blew");
       return opts?.passResult ?? { facts: [] };
     },

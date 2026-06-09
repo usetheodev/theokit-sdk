@@ -44,9 +44,7 @@ describe("sdk-memory chunkMarkdown (iter 53)", () => {
     // Should produce >= 2 chunks (intro + at least one heading-anchored).
     expect(result.length).toBeGreaterThanOrEqual(2);
     // Some chunk after the first heading should carry the heading text.
-    const headingsCarried = result.flatMap((c) =>
-      c.heading !== undefined ? [c.heading] : [],
-    );
+    const headingsCarried = result.flatMap((c) => (c.heading !== undefined ? [c.heading] : []));
     expect(headingsCarried).toContain("First Heading");
   });
 

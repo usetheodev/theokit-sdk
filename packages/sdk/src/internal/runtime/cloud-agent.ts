@@ -119,10 +119,7 @@ export class CloudAgent implements SDKAgent {
         // override via THEOKIT_CLOUD_SEND_MUTEX_TIMEOUT_MS env var).
         const mutexTimeoutMs = Number(process.env.THEOKIT_CLOUD_SEND_MUTEX_TIMEOUT_MS) || 300_000;
         try {
-          await Promise.race([
-            run.wait(),
-            new Promise<void>((r) => setTimeout(r, mutexTimeoutMs)),
-          ]);
+          await Promise.race([run.wait(), new Promise<void>((r) => setTimeout(r, mutexTimeoutMs))]);
         } catch {
           // Caller observes via their own wait/stream.
         }

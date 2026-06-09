@@ -13,8 +13,8 @@
  * @internal
  */
 
-import { z } from "zod";
 import type { SDKAgent } from "@theokit/sdk";
+import { z } from "zod";
 import type {
   HandoffContext,
   HandoffDescriptor,

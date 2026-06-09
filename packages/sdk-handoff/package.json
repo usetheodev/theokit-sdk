@@ -20,7 +20,9 @@
   "types": "./dist/index.d.ts",
   "typesVersions": {
     "*": {
-      "internal/tool-injector": ["./dist/internal/tool-injector.d.ts"]
+      "internal/tool-injector": [
+        "./dist/internal/tool-injector.d.ts"
+      ]
     }
   },
   "exports": {

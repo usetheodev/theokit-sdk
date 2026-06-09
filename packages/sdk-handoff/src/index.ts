@@ -9,7 +9,12 @@
  * @packageDocumentation
  */
 
-export { type AsPluginOptions, Handoff, handoffTo, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "./handoff.js";
+export {
+  type AsPluginOptions,
+  Handoff,
+  handoffTo,
+  RECOMMENDED_HANDOFF_PROMPT_PREFIX,
+} from "./handoff.js";
 export type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 export {
   HandoffLoopError,

@@ -19,8 +19,8 @@ import {
   DEFAULT_OPENAI_EMBEDDING_MODEL,
   DEFAULT_OPENROUTER_EMBEDDING_MODEL,
   DEFAULT_VOYAGE_EMBEDDING_MODEL,
-  MEMORY_EMBEDDING_ADAPTERS,
   deepinfraMemoryEmbeddingProviderAdapter,
+  MEMORY_EMBEDDING_ADAPTERS,
   mistralMemoryEmbeddingProviderAdapter,
   ollamaMemoryEmbeddingProviderAdapter,
   openAiMemoryEmbeddingProviderAdapter,
@@ -44,9 +44,7 @@ describe("sdk-memory embedding-adapter cluster (iter 74)", () => {
       expect(DEFAULT_VOYAGE_EMBEDDING_MODEL).toBe("voyage-3-lite");
     });
     it("test_openrouter_default_model_pinned", () => {
-      expect(DEFAULT_OPENROUTER_EMBEDDING_MODEL).toBe(
-        "openai/text-embedding-3-small",
-      );
+      expect(DEFAULT_OPENROUTER_EMBEDDING_MODEL).toBe("openai/text-embedding-3-small");
     });
     it("test_ollama_default_model_pinned", () => {
       expect(DEFAULT_OLLAMA_EMBEDDING_MODEL).toBe("nomic-embed-text");
@@ -68,9 +66,7 @@ describe("sdk-memory embedding-adapter cluster (iter 74)", () => {
     it("test_deepinfra_adapter_shape", () => {
       expect(deepinfraMemoryEmbeddingProviderAdapter.id).toBe("deepinfra");
       expect(deepinfraMemoryEmbeddingProviderAdapter.transport).toBe("remote");
-      expect(deepinfraMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(
-        13,
-      );
+      expect(deepinfraMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(13);
     });
     it("test_voyage_adapter_shape", () => {
       expect(voyageMemoryEmbeddingProviderAdapter.id).toBe("voyage");
@@ -80,9 +76,7 @@ describe("sdk-memory embedding-adapter cluster (iter 74)", () => {
     it("test_openrouter_adapter_shape", () => {
       expect(openRouterMemoryEmbeddingProviderAdapter.id).toBe("openrouter");
       expect(openRouterMemoryEmbeddingProviderAdapter.transport).toBe("remote");
-      expect(openRouterMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(
-        15,
-      );
+      expect(openRouterMemoryEmbeddingProviderAdapter.autoSelectPriority).toBe(15);
     });
     it("test_ollama_adapter_is_only_local_transport", () => {
       expect(ollamaMemoryEmbeddingProviderAdapter.id).toBe("ollama");
@@ -96,14 +90,7 @@ describe("sdk-memory embedding-adapter cluster (iter 74)", () => {
     it("test_catalog_contains_canonical_6_provider_ids", () => {
       const ids = Object.keys(MEMORY_EMBEDDING_ADAPTERS).sort();
       expect(ids).toEqual(
-        [
-          "deepinfra",
-          "mistral",
-          "ollama",
-          "openai",
-          "openrouter",
-          "voyage",
-        ].sort(),
+        ["deepinfra", "mistral", "ollama", "openai", "openrouter", "voyage"].sort(),
       );
     });
 
