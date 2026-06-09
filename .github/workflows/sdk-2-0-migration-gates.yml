@@ -95,6 +95,39 @@ jobs:
       - name: Migration pipeline end-to-end test
         run: node scripts/__tests__/sdk-2-0-pipeline-e2e.test.mjs
 
+  cohort-publish-readiness:
+    name: cohort publish-readiness gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Enable Corepack + pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@10.34.1 --activate
+
+      - name: Setup Node 22.12
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.12"
+          cache: "pnpm"
+
+      - name: Install workspace
+        run: pnpm install --frozen-lockfile
+
+      - name: Build cohort packages
+        run: |
+          pnpm -F @theokit/sdk build
+          pnpm -F @theokit/sdk-budget build
+          pnpm -F @theokit/sdk-cache build
+          pnpm -F @theokit/sdk-handoff build
+          pnpm -F @theokit/sdk-memory build
+          pnpm -F @theokit/sdk-tools build
+
+      - name: SDK 2.0 cohort publish-readiness (publint + attw × 6 packages)
+        run: node scripts/__tests__/sdk-2-0-cohort-publish-readiness.test.mjs
+
   stage-4-routing-tests:
     name: stage 4 routing test suite
     runs-on: ubuntu-latest
