@@ -28,6 +28,8 @@
     "quality": "pnpm run quality:dead && pnpm run quality:cycles && pnpm run quality:depcruise && pnpm run quality:loc && pnpm run quality:duplication",
     "quality:report": "pnpm run quality && pnpm run quality:coverage && pnpm run quality:audit",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
+    "validate:sdk-2-0": "node scripts/validate-sdk-2-0.mjs",
+    "validate:sdk-2-0:bail": "node scripts/validate-sdk-2-0.mjs --bail",
     "validate": "pnpm run check && pnpm run build && pnpm run typecheck && pnpm run test && pnpm run validate:naming && pnpm run validate:publint && pnpm run validate:attw && pnpm run quality && pnpm run check:bundle",
     "changeset": "changeset",
     "version-packages": "changeset version",
