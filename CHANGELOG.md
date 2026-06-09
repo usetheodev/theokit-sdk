@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — Iter 43: T4.9 CRITICAL cross-tenant cache leak fix
+
+- **T4.9** Active memory cache key now includes `namespace + userId + scope` via NUL-separated SHA-256. Pre-T4.9 two users sharing a process with identical queries got each other's cached results. CRITICAL cross-tenant data leak (DR4 #9).
+
 ### Added — Iter 42: T4.4 embedding cache singleton + T1.7 deferred
 
 - **T4.4** `globalEmbeddingCache` process-wide singleton — cross-index deduplication; was per-adapter
