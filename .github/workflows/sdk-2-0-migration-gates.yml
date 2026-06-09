@@ -92,6 +92,9 @@ jobs:
       - name: Stage 3 drift detector smoke
         run: node scripts/__tests__/sdk-2-0-stage3-drift-detector.test.mjs
 
+      - name: Migration pipeline end-to-end test
+        run: node scripts/__tests__/sdk-2-0-pipeline-e2e.test.mjs
+
   stage-4-routing-tests:
     name: stage 4 routing test suite
     runs-on: ubuntu-latest
