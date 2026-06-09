@@ -28,6 +28,7 @@ export const jinaMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter 
         id: "jina",
         defaultBaseUrl: "https://api.jina.ai",
         apiKeyEnv: "JINA_API_KEY",
+        defaultModel: DEFAULT_JINA_EMBEDDING_MODEL,
         dimensionByModel: DIMENSION_BY_MODEL,
       },
       options,

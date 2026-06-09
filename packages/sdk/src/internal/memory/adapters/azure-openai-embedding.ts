@@ -36,6 +36,7 @@ export const azureOpenAiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderA
         defaultBaseUrl: "https://your-resource.openai.azure.com",
         apiKeyEnv: "AZURE_OPENAI_API_KEY",
         baseUrlEnv: "AZURE_OPENAI_ENDPOINT",
+        defaultModel: DEFAULT_AZURE_OPENAI_EMBEDDING_MODEL,
         embeddingsPath: "/openai/deployments/{model}/embeddings?api-version=2024-02-01",
         dimensionByModel: DIMENSION_BY_MODEL,
       },
