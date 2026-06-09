@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `@theokit/sdk/a2a` sub-path — A2A protocol with `MessageBus` (fire-and-forget + request/response) + `AgentMailbox` per-agent inbox (ADR D453)
+- `@theokit/sdk/client` sub-path — browser-safe `TheoKitClient` with `send()` + `stream()` via native fetch + SSE parsing, zero Node deps (ADR D454)
 - `Theokit.models.capabilities(providerOrModelId)` — public API returning typed `ProviderCapabilities` (supportsToolUse, supportsVision, supportsStructuredOutput, supportsStreaming, supportsCacheControl) from the JSON catalog. Accepts `"openai"` or `"openai/gpt-4o-mini"` format.
 - T10.1: Dynamic provider catalog — 43 LLM providers loaded from JSON at runtime via `registerCatalogProviders()` + `loadProviderCatalog()` with Zod-style validation (EC-1: malformed entries skipped with WARN)
 - T10.2: Observability vendor expansion — 4 new telemetry adapters (Datadog dd-trace, LangSmith, Arize Phoenix, Braintrust) + public `ObservabilityContext` type at `@theokit/sdk/internal/observability`

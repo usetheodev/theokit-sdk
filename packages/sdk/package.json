@@ -168,6 +168,26 @@
         "default": "./dist/rag/index.cjs"
       }
     },
+    "./a2a": {
+      "import": {
+        "types": "./dist/a2a/index.d.ts",
+        "default": "./dist/a2a/index.js"
+      },
+      "require": {
+        "types": "./dist/a2a/index.d.cts",
+        "default": "./dist/a2a/index.cjs"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/client/index.d.ts",
+        "default": "./dist/client/index.js"
+      },
+      "require": {
+        "types": "./dist/client/index.d.cts",
+        "default": "./dist/client/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [
