@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Resolve all biome check errors across workspace (81 auto-fixed + 8 complexity ignores)
+- Fix TS build errors in 4 new embedding adapters (missing `defaultModel` property)
+- Fix `LlmContentPart` import + undefined guard in agent loop
+- Align sdk-tools Zod devDep to `^3.25||^4` resolving DTS cross-package type mismatch
+
+### Added
+
+- Mastra cross-validation plan v1.1 — 11 platform-maturity tasks complementary to sdk-superiority plan (SHIPPABLE 91.6/100)
+
 ### Added — Iter 51: T4.10 embedding adapter expansion
 
 - **T4.10** 4 new adapters (Azure OpenAI + Cohere + Jina + Gemini) — catalog 6 → 10 providers
