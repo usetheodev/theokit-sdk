@@ -67,9 +67,27 @@ const GATES = [
     label: "Migration pipeline end-to-end test",
     cmd: ["node", "scripts/__tests__/sdk-2-0-pipeline-e2e.test.mjs"],
   },
+  // Doc / status gates added iters 105/108/109/111 — fast (<1s each)
+  // so safe to include in the bundled fast-tier runner.
+  {
+    label: "Release-readiness status aggregator smoke (iter 105)",
+    cmd: ["node", "scripts/__tests__/sdk-2-0-status.test.mjs"],
+  },
+  {
+    label: "Runbook commands resolvable (iter 108)",
+    cmd: ["node", "scripts/__tests__/runbook-commands-resolvable.test.mjs"],
+  },
+  {
+    label: "Migration guide coverage (iter 109)",
+    cmd: ["node", "scripts/__tests__/migration-guide-coverage.test.mjs"],
+  },
+  {
+    label: "Cohort CHANGELOG shape (iter 111)",
+    cmd: ["node", "scripts/__tests__/cohort-changelog-shape.test.mjs"],
+  },
   // Note: cohort publish-readiness is intentionally NOT in this list
   // because it takes ~5min total (6 × publint+attw each ~50s); the
-  // 10 gates above run in ~5 seconds combined. CI runs the cohort
+  // 14 gates above run in ~7 seconds combined. CI runs the cohort
   // gate as a separate job (see .github/workflows/sdk-2-0-migration-gates.yml).
   // Operators run it explicitly with:
   //   node scripts/__tests__/sdk-2-0-cohort-publish-readiness.test.mjs
