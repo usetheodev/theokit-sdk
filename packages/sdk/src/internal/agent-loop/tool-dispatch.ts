@@ -351,18 +351,28 @@ function finalizeSpanAndPostHook(
   }
   toolSpan?.end();
   events.push(buildToolUseCompleted(inputs, callId, call, result));
-  void inputs.hooks.run({
-    event: "postToolUse",
-    tool: call.name,
-    input: call.input,
-    output: {
-      stdout: result.stdout,
-      stderr: result.stderr,
-      exitCode: result.exitCode ?? 0,
-    },
-    agentId: inputs.agentId,
-    runId: inputs.runId,
-  });
+  // T2.8 — postToolUse is fire-and-forget (runs AFTER the tool result
+  // is captured, so a veto is meaningless). But errors must NOT be
+  // silently swallowed — at minimum log WARN so operators know a hook
+  // is misbehaving. Pre-T2.8 the bare `void` prefix lost errors entirely.
+  inputs.hooks
+    .run({
+      event: "postToolUse",
+      tool: call.name,
+      input: call.input,
+      output: {
+        stdout: result.stdout,
+        stderr: result.stderr,
+        exitCode: result.exitCode ?? 0,
+      },
+      agentId: inputs.agentId,
+      runId: inputs.runId,
+    })
+    .catch((err: unknown) => {
+      process.stderr.write(
+        `[theokit-sdk] postToolUse hook error (swallowed): ${err instanceof Error ? err.message : String(err)}\n`,
+      );
+    });
   return {
     type: "tool_result",
     toolUseId: call.id,
