@@ -78,6 +78,13 @@ export interface RunActiveMemoryArgs {
   namespace?: string;
   /** Memory scope (`session` / `user` / `global`) for span/histogram dimensions. */
   scope?: string;
+  /**
+   * T4.7 — AbortSignal propagation. When the caller's signal aborts,
+   * the active-memory recall exits early with `status: "skipped"` and
+   * summary `undefined`. Prevents long-running embedding calls from
+   * blocking agent.dispose() or user-initiated cancellation.
+   */
+  signal?: AbortSignal;
 }
 
 const DEFAULTS: Required<Omit<ActiveMemoryOptions, "enabled">> = {
@@ -94,6 +101,15 @@ export async function runActiveMemory(args: RunActiveMemoryArgs): Promise<Active
   // userId/namespace/scope come from `args` (LocalAgentMemory threads them).
   const span = startMemoryRecallSpan(args);
   try {
+    // T4.7 — early exit on abort before any I/O (embedding / search).
+    if (args.signal?.aborted === true) {
+      return endRecallSpan(span, args, {
+        summary: undefined,
+        durationMs: 0,
+        status: "skipped",
+        hits: [],
+      });
+    }
     if (args.options.enabled !== true || args.index === undefined) {
       return endRecallSpan(span, args, {
         summary: undefined,
