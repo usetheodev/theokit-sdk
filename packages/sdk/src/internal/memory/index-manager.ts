@@ -192,7 +192,11 @@ export class IndexManager implements MemoryIndex {
     try {
       rows = stmt.all(sanitized, limit);
     } catch {
-      return [];
+      // T4.8 — CJK fallback: FTS5's default tokenizer chokes on CJK
+      // characters (no word boundaries). Instead of returning empty,
+      // fall back to a LIKE search which handles CJK correctly (slower
+      // but correct). ADR D64 documents the trigram-routing deferral.
+      return this.likeSearchFallback(query, limit);
     }
     return rows.map((row) => {
       const bm25 = Number(row.bm25_score ?? 0);
@@ -211,6 +215,45 @@ export class IndexManager implements MemoryIndex {
         citation: `${path}:${startLine}-${endLine}`,
         // sneak the chunk id through for the hybrid join below
         // (cast away later)
+        chunkId: Number(row.id),
+      } as MemorySearchHit & { chunkId: number };
+    });
+  }
+
+  /**
+   * T4.8 — LIKE-based fallback for CJK and other scripts that FTS5's
+   * default tokenizer cannot segment. Slower than FTS5 (full table scan)
+   * but correct for any Unicode input. Returns the same shape as
+   * `ftsSearch` so callers are unaware of the fallback.
+   */
+  private likeSearchFallback(
+    query: string,
+    limit: number,
+  ): Array<MemorySearchHit & { chunkId: number }> {
+    const pattern = `%${query.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+    const stmt = this.db.prepare(
+      `SELECT chunks.id as id, files.rel_path as rel_path, files.source as source,
+              chunks.start_line as start_line, chunks.end_line as end_line,
+              chunks.text as text
+       FROM chunks
+       JOIN files ON chunks.file_id = files.id
+       WHERE chunks.text LIKE ? ESCAPE '\\'
+       LIMIT ?`,
+    );
+    const rows = stmt.all(pattern, limit) as Array<Record<string, unknown>>;
+    return rows.map((row) => {
+      const path = String(row.rel_path ?? "");
+      const startLine = Number(row.start_line ?? 0);
+      const endLine = Number(row.end_line ?? 0);
+      return {
+        path,
+        startLine,
+        endLine,
+        score: 0.5, // LIKE has no relevance score — use a neutral midpoint
+        textScore: 0.5,
+        snippet: truncateSnippet(String(row.text ?? "")),
+        source: String(row.source) as "memory" | "sessions" | "wiki",
+        citation: `${path}:${startLine}-${endLine}`,
         chunkId: Number(row.id),
       } as MemorySearchHit & { chunkId: number };
     });
