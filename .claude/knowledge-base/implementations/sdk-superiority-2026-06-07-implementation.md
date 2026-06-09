@@ -114,7 +114,7 @@
 |------|--------------|-------------|--------|------|--------|--------|------|
 | T5.1 | Phase 5 / T5.1 | HKDF-SHA256 para AES tx-cookie CRITICAL | committed | 20 | 37294ea | a=pass b=pass c=n/a | none-needed |
 | T5.2 | Phase 5 / T5.2 | SQL injection Lance .where via sanitizeIdentifier | pending | — | — | — | — |
-| T5.3 | Phase 5 / T5.3 | __Host- cookie prefix + cookie clear fix | committed | 23 | TBD | a=pass b=pass c=n/a | none-needed |
+| T5.3 | Phase 5 / T5.3 | __Host- cookie prefix + cookie clear fix | committed | 23 | 317dce6 | a=pass b=pass c=n/a | none-needed |
 | T5.4 | Phase 5 / T5.4 | Redactor pattern expansion (12→30+) | committed | 19 | 8d1325e+62408c1 (contamination) | a=pass b=pass c=n/a | none-needed |
 | T5.5 | Phase 5 / T5.5 | NUL byte rejection across path-guard | committed | 21 | 9d4264b | a=pass b=pass c=n/a | none-needed |
 | T5.6 | Phase 5 / T5.6 | Forbidden-path blocklist expansion | committed | 22 | 2bf3f83 | a=pass b=pass c=n/a | none-needed |
