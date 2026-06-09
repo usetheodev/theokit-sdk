@@ -68,7 +68,12 @@
     { "id": "T5.7", "status": "committed", "sha": "7fa6b27" },
     { "id": "T5.8", "status": "committed", "sha": "ccbcdea" },
     { "id": "T5.9", "status": "committed", "sha": "ff730b1" },
-    { "id": "T5.10", "status": "committed", "sha": "TBD" }
+    {
+      "id": "T5.10",
+      "status": "committed",
+      "sha_artifacts": "9df68a8",
+      "note": "T5.10 source (schema-version.ts rename-aside + markdown-config-loader.ts 1MB cap) + tests + CHANGELOGs swept into sdk-2-0 session's commit 9df68a8 (iter 100 — sdk-memory publish-readiness gate). Same contamination pattern as T3.9/T5.4/T2.2-step1. Algorithm intact at HEAD: 142/142 persistence tests GREEN."
+    }
   ],
   "blocked_count": 0,
   "partial_count": 2,
