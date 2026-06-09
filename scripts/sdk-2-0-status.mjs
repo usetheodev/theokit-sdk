@@ -48,12 +48,56 @@ function extractInt(text, regex) {
   return m === null ? null : Number(m[1]);
 }
 
+function runBundleBudget() {
+  // check-bundle-budget.mjs emits a JSON array (--json) on stdout.
+  // status per entry ∈ {PASS, FAIL, WARN_MISSING_DIST}. The script
+  // exits 0 when all PASS or only WARNs (dist absent on fresh clone),
+  // exit 1 on actual FAIL. Treat WARN_MISSING_DIST as "not measured"
+  // — informational, not a release blocker, because dist absence is
+  // a legitimate state on PR branches before CI builds.
+  const r = spawnSync("node", ["scripts/check-bundle-budget.mjs", "--json"], {
+    cwd: REPO_ROOT,
+    encoding: "utf8",
+    timeout: 30000,
+  });
+  const stdout = r.stdout ?? "";
+  let parsed = null;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    return {
+      label: "Bundle budgets",
+      pass: false,
+      metrics: { error: "could not parse check-bundle-budget --json output" },
+    };
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) {
+    return { label: "Bundle budgets", pass: true, metrics: { measured: 0 } };
+  }
+  const fails = parsed.filter((p) => p.status === "FAIL");
+  const warns = parsed.filter((p) => p.status === "WARN_MISSING_DIST");
+  const passes = parsed.filter((p) => p.status === "PASS");
+  return {
+    label: "Bundle budgets",
+    pass: fails.length === 0,
+    metrics: {
+      pass_count: passes.length,
+      fail_count: fails.length,
+      not_measured: warns.length,
+      max_pct: passes.length > 0
+        ? Math.round(Math.max(...passes.map((p) => (p.actual / p.max) * 100)))
+        : 0,
+    },
+  };
+}
+
 const gates = [
   runScript(
     "Workspace invariants",
     "scripts/sdk-2-0-pre-publish-check.mjs",
     (out) => ({ packages_scanned: extractInt(out, /Workspace packages scanned: (\d+)/) }),
   ),
+  runBundleBudget(),
   runScript(
     "Stage 3 drift detector",
     "scripts/sdk-2-0-stage3-drift-detector.mjs",

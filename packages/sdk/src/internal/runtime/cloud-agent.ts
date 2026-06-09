@@ -111,8 +111,18 @@ export class CloudAgent implements SDKAgent {
           return;
         }
         resolve(run);
+        // T1.10 — bound the mutex hold on run.wait() so a hanging cloud
+        // run (pre-release runtime is unreliable) doesn't block all
+        // subsequent sends to this agentId forever. The run continues
+        // in the background — only the MUTEX hold is bounded. Default
+        // timeout: 5 minutes (generous for LLM round-trips; operators
+        // override via THEOKIT_CLOUD_SEND_MUTEX_TIMEOUT_MS env var).
+        const mutexTimeoutMs = Number(process.env.THEOKIT_CLOUD_SEND_MUTEX_TIMEOUT_MS) || 300_000;
         try {
-          await run.wait();
+          await Promise.race([
+            run.wait(),
+            new Promise<void>((r) => setTimeout(r, mutexTimeoutMs)),
+          ]);
         } catch {
           // Caller observes via their own wait/stream.
         }

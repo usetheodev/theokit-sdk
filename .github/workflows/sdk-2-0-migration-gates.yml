@@ -14,6 +14,7 @@ on:
     paths:
       - "scripts/**"
       - "packages/codemod-sdk-2-0/**"
+      - "packages/*/.bundle-budget.json"
       - "packages/sdk/src/internal/memory/sdk-memory-peer-loader.ts"
       - "packages/sdk/src/memory.ts"
       - "packages/sdk/src/migrate.ts"
@@ -27,6 +28,7 @@ on:
     paths:
       - "scripts/**"
       - "packages/codemod-sdk-2-0/**"
+      - "packages/*/.bundle-budget.json"
       - "packages/sdk/src/internal/memory/sdk-memory-peer-loader.ts"
       - "packages/sdk/src/memory.ts"
       - "packages/sdk/src/migrate.ts"
@@ -134,6 +136,12 @@ jobs:
           pnpm -F @theokit/sdk-handoff build
           pnpm -F @theokit/sdk-memory build
           pnpm -F @theokit/sdk-tools build
+
+      - name: Bundle budget gate (cohort packages)
+        # Each cohort package declares its own gzipped budget in
+        # packages/<name>/.bundle-budget.json (ADR D9). Catches silent
+        # re-export creep that grows the barrel between releases.
+        run: node scripts/check-bundle-budget.mjs
 
       - name: SDK 2.0 cohort publish-readiness (publint + attw × 6 packages)
         run: node scripts/__tests__/sdk-2-0-cohort-publish-readiness.test.mjs
