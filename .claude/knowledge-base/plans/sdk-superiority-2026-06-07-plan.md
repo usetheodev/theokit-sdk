@@ -161,11 +161,40 @@ DoD ao fim do plano:
 
 **Aux-LLM contract (ADR D440 — locked):**
 
-- **Default model**: `openai/gpt-4o-mini` via OpenRouter (`https://openrouter.ai/api/v1`). Rationale: cheapest summarization-grade option (~$0.15/1M input, $0.60/1M output); same OpenRouter routing as the SDK's real-LLM test default; OpenAI-compatible API works against any provider the consumer already has configured.
+- **Provider-agnostic default — same-provider cheaper-model heuristic.** The SDK is provider-agnostic; hard-coding a default model from a specific vendor (e.g., `openai/gpt-4o-mini`) would force a consumer running Anthropic-only or Ollama-only to provision a second vendor key just to use compression. That is unacceptable for a SDK that ships with zero opinion on which provider the consumer chose. Instead, when `Agent.create({compression: {model}})` is NOT explicitly set, the aux-LLM resolves via a deterministic same-family-cheaper-tier registry:
+  ```ts
+  // internal/runtime/compression-model-registry.ts
+  const COMPRESSION_MODEL_REGISTRY: ReadonlyMap<string, string> = new Map([
+    // OpenAI family
+    ["openai/gpt-4o",          "openai/gpt-4o-mini"],
+    ["openai/gpt-4-turbo",     "openai/gpt-4o-mini"],
+    ["openai/o1-preview",      "openai/gpt-4o-mini"],
+    ["openai/o3",              "openai/gpt-4o-mini"],
+    // Anthropic family
+    ["anthropic/claude-opus-4",       "anthropic/claude-3-5-haiku-latest"],
+    ["anthropic/claude-sonnet-4",     "anthropic/claude-3-5-haiku-latest"],
+    ["anthropic/claude-3-5-sonnet",   "anthropic/claude-3-5-haiku-latest"],
+    ["anthropic/claude-3-opus",       "anthropic/claude-3-haiku"],
+    // Ollama family — use same model (local; "cheaper tier" is N/A)
+    // -> resolver returns the same model id
+    // Bedrock / Vertex — route to provider's cheapest variant
+    ["bedrock/anthropic.claude-sonnet-*", "bedrock/anthropic.claude-3-haiku-*"],
+    ["vertex/gemini-1.5-pro",         "vertex/gemini-1.5-flash"],
+    ["vertex/claude-3-5-sonnet",      "vertex/claude-3-5-haiku"],
+    // OpenRouter — preserve OR prefix, swap tier within same vendor
+    ["openrouter/openai/gpt-4o",      "openrouter/openai/gpt-4o-mini"],
+    ["openrouter/anthropic/claude-3-5-sonnet", "openrouter/anthropic/claude-3-5-haiku"],
+    // Mistral, DeepSeek, Together, Groq, xAI, Cohere — populated as
+    // models ship; missing entries throw at resolution time.
+  ]);
+  ```
+  Resolution algorithm: (a) exact match in registry → use cheaper-tier id; (b) wildcard match (`*` suffix in registry key) → swap matched segment; (c) provider has `authType: "none"` (Ollama / LM Studio / llama.cpp) → return SAME model (local — cost N/A, latency penalty acceptable); (d) NO match → throw `CompressionModelUnresolvedError` at `Agent.create` time (NOT runtime) with the actionable message "Could not resolve a cheaper-tier compression model for `<provider/model>`. Provide `Agent.create({compression: {model: ...}})` explicitly OR open an issue to add `<provider/model>` to the registry."
+  Rationale: provider-agnostic preserved (zero cross-provider calls); billing/compliance preserved (same vendor, same endpoint, same API key); automatically cheaper without manual config in 90% of cases; fail-loud on unknown models so consumers don't get surprised by silent OpenAI fallback. Registry table is the right shape — it's exactly what AWS SDK / Stripe SDK / Anthropic SDK do for endpoint/region/model resolution.
+
 - **Default key resolution chain** (first-match-wins):
-  1. `process.env.THEOKIT_COMPRESSION_API_KEY` — dedicated env var for prod ops to isolate billing/rate-limit from main agent
-  2. `agent._state.compression?.apiKey` — explicit consumer override via `Agent.create({ compression: { apiKey } })`
-  3. Fallback to agent's main `CredentialPool` for that provider — dev-local zero-config path
+  1. `process.env.THEOKIT_COMPRESSION_API_KEY` — dedicated env var for prod ops to isolate billing/rate-limit from main agent. ONLY honored when the resolved compression provider matches the agent's main provider (cross-provider keys are rejected at validation time, returning to step 3).
+  2. `agent._state.compression?.apiKey` — explicit consumer override via `Agent.create({ compression: { apiKey } })`. Consumer's responsibility to use a key valid for the resolved compression provider.
+  3. Fallback to agent's main `CredentialPool` for that provider — dev-local zero-config path. Since the registry resolution ALWAYS picks a model in the same provider family as the agent, the main pool always holds a usable key.
 - **Pool isolation**: aux-LLM creates its own `PoolAwareLlmClient` instance to keep cooldown/exhaustion state separate from main agent. Shares `CredentialPool` instance ONLY in the fallback path (case 3 above); env-var/explicit-override cases construct an isolated single-key pool.
 - **Observability**: aux-LLM calls emit OTel span `theokit.agent.compression` (parent: current loop turn span) with attributes `compression.model`, `compression.input_tokens`, `compression.output_tokens`, `compression.cost_usd`, `compression.reduction_ratio`. Cost surfaces on `RunResult.usage.compressionCost` (separate bucket from main `cost`).
 - **Override surface**:
@@ -182,10 +211,13 @@ DoD ao fim do plano:
   ```
 - **Failure mode**: if aux-LLM call itself throws (network / 401 / quota), compression-helpers logs WARN with redacted error metadata and returns ORIGINAL conversation unchanged — loop falls through to next retry attempt (counts against cap 3). NO silent swallow.
 
-**TDD RED (3 nested tests, all must fail pre-T2.2):**
+**TDD RED (6 nested tests, all must fail pre-T2.2):**
 1. simular `ContextWindowExceededError` → loop chama `budget.recordCompression()` → resumo via aux LLM (fixture-mode `theo_test_*` key) → `assertCompressionReduced(before, after, 10)` → retry. Cap 3, grace 1.
 2. aux-LLM call throws 401 → compression returns original conversation → next retry → counter incremented → at cap 3 throws `CompressionExhaustedError`.
-3. env var `THEOKIT_COMPRESSION_API_KEY` set → aux-LLM uses dedicated key, NOT agent's main pool. Verified via spy on `PoolAwareLlmClient` constructor.
+3. `Agent.create({model: "anthropic/claude-3-5-sonnet"})` + no explicit compression → registry resolves compression model to `anthropic/claude-3-5-haiku-latest` (same vendor, same key, cheaper tier). Verified via spy on `PoolAwareLlmClient` constructor model arg.
+4. `Agent.create({model: "ollama/qwen2.5:7b"})` + no explicit compression → registry returns SAME model `ollama/qwen2.5:7b` (authType:"none" branch — local, no cheaper tier needed).
+5. `Agent.create({model: "some-vendor/unknown-model-id"})` + no explicit compression → throws `CompressionModelUnresolvedError` AT `Agent.create` TIME (not runtime) with actionable message naming the model and pointing to override + registry-PR remediation.
+6. `Agent.create({model: "openai/gpt-4o"})` + env `THEOKIT_COMPRESSION_API_KEY=sk-xxx` → registry resolves to `openai/gpt-4o-mini`; key validation passes (both OpenAI); aux-LLM uses dedicated key, NOT main pool. Compared variant: `Agent.create({model: "anthropic/claude-3-5-sonnet"})` + same env → env var SILENTLY REJECTED at construction (cross-provider) + falls through to step 3 (main pool fallback). Verified via spy.
 
 **ADR**: D440 — auxiliary-model contract for compression. Write `docs/adr/D440-aux-llm-compression-contract.md` AS PART of T2.2 commit.
 

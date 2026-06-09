@@ -14,7 +14,7 @@
     {
       "id": "T2.2",
       "status": "pending",
-      "replan_note": "Unblocked 2026-06-09: ADR D440 aux-LLM contract locked in plan (default openai/gpt-4o-mini via OpenRouter; key resolution env THEOKIT_COMPRESSION_API_KEY → explicit override → fallback to main pool; isolated PoolAwareLlmClient; OTel span theokit.agent.compression with cost-bucket separation; override surface Agent.create({compression}); failure mode WARN + original conversation unchanged + counter increment, no silent swallow)."
+      "replan_note": "Unblocked 2026-06-09: ADR D440 aux-LLM contract locked in plan. PROVIDER-AGNOSTIC default via same-family-cheaper-tier registry (NOT hardcoded openai/gpt-4o-mini — that would force cross-provider calls breaking SDK's agnostic posture). Registry: openai→gpt-4o-mini, anthropic→claude-3-5-haiku, bedrock→claude-3-haiku, vertex→gemini-1.5-flash, ollama/lmstudio/llamacpp→same model (authType:none branch); unknown model throws CompressionModelUnresolvedError at Agent.create time. Key chain: env THEOKIT_COMPRESSION_API_KEY (cross-provider keys rejected at validation) → explicit Agent.create({compression: {apiKey}}) → fallback to main CredentialPool. Isolated PoolAwareLlmClient. OTel span theokit.agent.compression + RunResult.usage.compressionCost separate bucket. Failure mode: WARN + original conversation unchanged + counter increment + at cap throws CompressionExhaustedError. 6 nested RED tests required."
     },
     { "id": "T3.1", "status": "committed", "sha": "a390ea5" },
     { "id": "T3.2", "status": "committed", "sha_artifacts": "e67d1db+73471ac" },
