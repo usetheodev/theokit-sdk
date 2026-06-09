@@ -32,15 +32,75 @@ interface ProperLockfileOptions {
 
 let cached: ProperLockfileModule | null | undefined;
 let warnedMissing = false;
+let warnedStructural = false;
 
 async function getProperLockfile(): Promise<ProperLockfileModule | null> {
   if (cached !== undefined) return cached;
   try {
-    cached = (await import("proper-lockfile")) as ProperLockfileModule;
+    const mod = await import("proper-lockfile");
+    // T5.9 — supply-chain hardening: validate the imported module
+    // exposes the API surface we depend on BEFORE caching it. A
+    // tampered or incompatible version that lacks `lock`/`unlock`
+    // functions gets treated as "not installed" with an advisory
+    // warning — never silently used.
+    if (!validateLockModule(mod)) {
+      if (!warnedStructural) {
+        warnedStructural = true;
+        process.stderr.write(
+          "[theokit-sdk] proper-lockfile: imported module does NOT expose " +
+            "the expected `lock`/`unlock` API surface. This may indicate a " +
+            "supply-chain compromise or an incompatible major version. " +
+            "Falling back to in-process mutex (no cross-process safety). " +
+            "Reinstall with: pnpm add proper-lockfile@^11\n",
+        );
+      }
+      cached = null;
+      return cached;
+    }
+    cached = mod as ProperLockfileModule;
   } catch {
     cached = null;
   }
   return cached;
+}
+
+/**
+ * T5.9 — Structural validation of the dynamically-imported
+ * `proper-lockfile` module. Verifies the API surface we depend on
+ * (`lock` and `unlock` as functions) is present. Pure function —
+ * never throws, never mutates, never performs I/O.
+ *
+ * Exported via `__TESTING__validateLockModule` seam so unit tests
+ * can drive the check without spinning up the dynamic import.
+ *
+ * @internal
+ */
+function validateLockModule(mod: unknown): boolean {
+  if (mod === null || mod === undefined || typeof mod !== "object") return false;
+  const m = mod as Record<string, unknown>;
+  return typeof m.lock === "function" && typeof m.unlock === "function";
+}
+
+/**
+ * T5.9 — Test seam: expose the structural validator for unit tests.
+ * NOT included in the public barrel.
+ *
+ * @internal
+ */
+export function __TESTING__validateLockModule(mod: unknown): boolean {
+  return validateLockModule(mod);
+}
+
+/**
+ * T5.9 — Test seam: reset the module cache + warning flags between
+ * tests so each test starts fresh. NOT included in the public barrel.
+ *
+ * @internal
+ */
+export function __TESTING__resetFileLockCache(): void {
+  cached = undefined;
+  warnedMissing = false;
+  warnedStructural = false;
 }
 
 /**
