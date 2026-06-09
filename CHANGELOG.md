@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `Theokit.models.capabilities(providerOrModelId)` — public API returning typed `ProviderCapabilities` (supportsToolUse, supportsVision, supportsStructuredOutput, supportsStreaming, supportsCacheControl) from the JSON catalog. Accepts `"openai"` or `"openai/gpt-4o-mini"` format.
 - T10.1: Dynamic provider catalog — 43 LLM providers loaded from JSON at runtime via `registerCatalogProviders()` + `loadProviderCatalog()` with Zod-style validation (EC-1: malformed entries skipped with WARN)
 - T10.2: Observability vendor expansion — 4 new telemetry adapters (Datadog dd-trace, LangSmith, Arize Phoenix, Braintrust) + public `ObservabilityContext` type at `@theokit/sdk/internal/observability`
 - T10.3: Streaming backpressure — `BoundedBuffer<T>` with configurable `highWaterMark`, deadlock timeout (EC-2), and `queueMicrotask` yield for same-queue safety
