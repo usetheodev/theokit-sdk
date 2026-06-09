@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 30,
+  "iterations_used": 31,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -28,6 +28,12 @@
       "status": "committed",
       "sha": "0b7c87b",
       "note": "Step 3/N: compression-summarizer.ts — buildCompressionPrompt + compressConversationWindow + CompressionFailedError. callLlm DI seam for tests. 5 tests."
+    },
+    {
+      "id": "T2.2-step4a",
+      "status": "committed",
+      "sha": "TBD",
+      "note": "Step 4a/N: compression-decision.ts — shouldAttemptCompression pure function. 8 tests covering decision matrix (error code, enabled flag, grace, attempt cap)."
     },
     {
       "id": "T2.2",
