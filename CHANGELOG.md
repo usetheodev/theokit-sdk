@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Iter 47: T4.1 query-vector LRU cache
+
+- **T4.1** `queryVectorCache` LRU(2000) keyed by sha256(query) — repeated search queries skip embedding HTTP round-trip (p99 1.5-3s → ~0ms on hit). Third caching layer alongside T4.4 (text-level dedup) and T4.9 (tenant-scoped result dedup).
+
 ### Fixed — Iter 46: T4.6 dreaming O(N²) cap at 500 facts/sweep
 
 - **T4.6** `remPhase` capped at 500 facts (125K comparisons) instead of unbounded O(N²). 5000 facts was 12.5M comparisons — unacceptable. Configurable via `maxFactsPerSweep`.
