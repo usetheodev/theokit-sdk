@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — proper-lockfile supply-chain hardening (T5.9)
+
+- **Workspace impact**: `@theokit/sdk` consumers using the optional
+  `proper-lockfile` peer dep for cross-process file locks now get
+  structural validation after the dynamic import. A tampered or
+  incompatible module that lacks the expected `lock`/`unlock`
+  function surface is rejected with a one-shot stderr advisory
+  and graceful fallback to in-process `withCwdMutex`. Never
+  throws — supply-chain validation is advisory, not blocking.
+- **Iter 26** of halt-loop `sdk-superiority-2026-06-07`. Closes
+  DR6 finding #9.
+
 ### Operational — partial blocker remediation + Node-version structural limit
 
 - **Blocker A FIXED**: 28 dirty files from concurrent sdk-2-0 session
