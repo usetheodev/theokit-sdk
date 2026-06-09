@@ -11,7 +11,7 @@
  * @internal
  */
 
-import { readFile } from "node:fs/promises";
+import { readFile, rename } from "node:fs/promises";
 
 import { atomicWriteJson } from "./atomic-write.js";
 
@@ -169,7 +169,17 @@ export async function readVersionedJson<T>(opts: ReadVersionedJsonOptions<T>): P
   try {
     parsed = JSON.parse(raw);
   } catch {
-    process.stderr.write(`[theokit-sdk] ${path} is corrupt; using default value.\n`);
+    // T5.10 — move corrupt file aside so (a) user can investigate and
+    // (b) next run starts fresh instead of hitting the same warning loop.
+    const asidePath = `${path}.corrupt.${Date.now()}`;
+    try {
+      await rename(path, asidePath);
+      process.stderr.write(
+        `[theokit-sdk] ${path} is corrupt; moved to ${asidePath}. Using default value.\n`,
+      );
+    } catch {
+      process.stderr.write(`[theokit-sdk] ${path} is corrupt; using default value.\n`);
+    }
     return defaultValue();
   }
 
