@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — T2.2 step 1 follow-up stop-hook acknowledgement
+
+- Working tree continues to carry unstaged production-source changes
+  under `packages/sdk-budget/src/` and `packages/sdk-handoff/src/`
+  from the concurrent `sdk-2-0` ralph-loop session's in-flight Stage 4
+  source-move work (latest at iter 77 commit `00b6634`). Same mixed-
+  authorship hygiene as iters 16-25 — this line acknowledges the
+  residual state per Inquebrável Rule 6 without claiming authorship.
+  My T2.2 step 1 registry source/tests/CHANGELOGs were swept into the
+  sdk-2-0 session's commit `52092ee` (Stage 4 #1, iter 76); the
+  post-contamination cognitive-complexity refactor (12 → ≤10 via
+  helper extraction) landed clean at `1ae7840` with progress JSON
+  contamination-acknowledged sha_artifacts.
+
 ### Added — T2.2 step 1/N: provider-agnostic compression-model registry
 
 - **Workspace impact**: foundation module for D91/D92 compression.
