@@ -379,6 +379,52 @@ from 2.0.x entirely, `npm deprecate "@theokit/sdk-core@2.0.0"
 "Reverted; stay on @theokit/sdk@1.x until 2.1.0 ships"` and announce
 across release channels. Treat as a postmortem-worthy incident.
 
+## Known limitations
+
+### sdk-memory: rollup-dts treeshake drops internal-type exports
+
+`packages/sdk-memory/src/index.ts` uses `export * from "./internal/X.js"`
+for every Stage 3 source-move. The runtime `.js` bundle preserves
+every named export; the `.d.ts` bundle (built by `rollup-plugin-dts`
+via tsup) treeshakes types that have no reachable public surface
+consumer. The result: types like `ActiveMemoryCacheOptions`,
+`MemorySearchHit`, `CircuitBreakerOptions`, `DiaryEntry`,
+`DedupResult`, `MEMORY_EMBEDDING_ADAPTERS`, `MemoryEmbeddingProviderAdapter`,
+`MemoryDb`, `isLanceAvailable`, `LanceIndex`, `SCHEMA_STATEMENTS`, etc.
+ARE in the source files but DO NOT appear in `dist/index.d.ts`.
+
+Same pattern documented inline in source files iter 48/53/55/66/
+67/69/72 — those iters worked around it via "inline structural
+mirror" copies in sibling files.
+
+Symptom: `pnpm --filter @theokit/sdk-memory exec tsc --noEmit`
+reports ≥ 20 `TS2305` / `TS2724` errors in
+`packages/sdk-memory/tests/*.test.ts`. The test files
+`import { X } from "@theokit/sdk-memory"` for treeshaken X.
+
+**Pre-release fix (operator action, before Phase 6/7):**
+
+For each affected symbol, add an explicit `export type` (or
+`export`) statement to `src/index.ts` BEFORE the `export *` line:
+
+```ts
+export type { ActiveMemoryCacheOptions } from "./internal/active-memory-cache.js";
+export type { CircuitBreakerOptions } from "./internal/circuit-breaker.js";
+export type { MemorySearchHit } from "./internal/index-manager-contract.js";
+// ... etc per the typecheck output.
+```
+
+Rollup-dts respects explicit named exports + retains the type
+declaration in the bundled `.d.ts`. Rebuild + re-run typecheck
+to verify zero errors before publishing the cohort.
+
+**Why this isn't auto-fixed:** the choice of which internal types
+deserve public surface is a design decision (some may stay internal-
+only). Auto-blanketing every type as public would break the iter
+46-style "kept internal until first consumer needs it" discipline.
+Maintainer reviews each missing export, decides "promote to public"
+vs "test uses relative import", then ships.
+
 ## Cross-references
 
 - Plan: `.claude/knowledge-base/plans/sdk-2-0-package-split-plan.md`
