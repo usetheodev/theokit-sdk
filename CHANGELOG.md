@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — NFS / SMB / CIFS / FUSE detection + warn-once on atomic write (T5.8)
+
+- **Workspace impact**: `@theokit/sdk` operators running on network
+  mounts (NFS / SMB / CIFS) or FUSE-backed paths (sshfs / s3fs /
+  rclone) now see a one-shot stderr warning per `(directory, label)`
+  pair surfaced from `replaceFileAtomic`, alerting them that
+  `rename()` atomicity is best-effort on those filesystems. Write
+  semantics are UNCHANGED — the warning is purely informational
+  and mirrors `sqlite-wal.ts:54-61`'s warn-once D63 pattern.
+  Local-FS callers see no change.
+- **Iter 25** of halt-loop `sdk-superiority-2026-06-07`. Closes
+  DR6 finding #8.
+
+### Operational — iter 25 stop-hook acknowledgement
+
+- Same mixed-authorship hygiene as iters 16-24. Staged only T5.8
+  files (`packages/sdk/src/internal/persistence/atomic-write.ts`
+  detection helper + warn-once wiring,
+  `packages/sdk/tests/internal/persistence/atomic-write-nfs-detection.test.ts`,
+  both CHANGELOGs, contract row, progress JSON).
+
 ### Operational — iter 24 post-housekeeping stop-hook acknowledgement
 
 - Working tree continues to carry unstaged production-source changes
