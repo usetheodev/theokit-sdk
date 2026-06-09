@@ -31,6 +31,7 @@ export const geminiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapte
         id: "gemini",
         defaultBaseUrl: "https://generativelanguage.googleapis.com",
         apiKeyEnv: "GEMINI_API_KEY",
+        defaultModel: DEFAULT_GEMINI_EMBEDDING_MODEL,
         dimensionByModel: DIMENSION_BY_MODEL,
       },
       options,

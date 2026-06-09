@@ -4,7 +4,13 @@ import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import { generateRequestId } from "../ids.js";
-import type { LlmClient, LlmMessage, LlmTool, LlmToolCallPart } from "../llm/types.js";
+import type {
+  LlmClient,
+  LlmContentPart,
+  LlmMessage,
+  LlmTool,
+  LlmToolCallPart,
+} from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import { IterationBudget } from "../runtime/budget.js";
 import type { MemoryProviderHandle } from "../runtime/memory-provider.js";
@@ -255,6 +261,7 @@ function pushToolConversationSteps(
   const steps: import("../../types/conversation.js").ConversationStep[] = [];
   for (let i = 0; i < calls.length; i++) {
     const call = calls[i];
+    if (call === undefined) continue;
     steps.push({
       type: "toolCall",
       message: { callId: call.id, name: call.name, args: call.input },
