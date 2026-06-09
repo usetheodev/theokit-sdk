@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- T10.1: Dynamic provider catalog — 43 LLM providers loaded from JSON at runtime via `registerCatalogProviders()` + `loadProviderCatalog()` with Zod-style validation (EC-1: malformed entries skipped with WARN)
+
 ### Fixed
 
 - Resolve all biome check errors across workspace (81 auto-fixed + 8 complexity ignores)
