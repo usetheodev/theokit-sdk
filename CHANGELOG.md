@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — /ralph-loop:cancel-ralph (no-op) stop-hook acknowledgement
+
+- User invoked `/ralph-loop:cancel-ralph`. State file was already
+  absent (previously cancelled in this session at concurrent counter
+  iter 41) — reported "No active Ralph loop found". No production
+  source touched. Stop hook still requires the residual-state
+  acknowledgement because the 28 sdk-2-0 unstaged production-source
+  changes (sdk-budget/src/ + sdk-handoff/src/ + sdk-memory/src/)
+  remain in the working tree per Inquebrável Rule 6. Same hygiene
+  as iters 16-25 + the prior `/implement` refusal ack at `07e22b6`.
+
 ### Operational — /implement refusal stop-hook acknowledgement
 
 - `/implement sdk-superiority-2026-06-07` invoked but pre-condition
