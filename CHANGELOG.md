@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - T11.2: Evented workflow executor — cron scheduling via croner, suspend/resume with data serialization, AbortSignal propagation, `[Symbol.dispose]()` timer cleanup (EC-3)
 - T11.3: TheoKitContainer — optional multi-agent registry with `.agent()`, `.tool()`, `.workflow()`, `.run()` + dispose guard (EC-7)
 - T11.4: E2E test suite — 9 end-to-end test files (16 tests) covering agent lifecycle, error propagation, RAG pipeline, streaming backpressure, workflow execution, container, provider catalog, observability, text splitter edge cases
+- T12.1: 5 starter templates (chatbot, rag-agent, multi-agent, workflow-automation, telegram-bot) each under 100 LoC with getting-started README
+- T12.2: Server adapters — Hono, Express, Fastify `createAgentHandler()` with send/stream/error routes
+- T12.3: Voice foundation — `VoiceProvider` interface + `OpenAIRealtimeVoiceProvider` TTS/STT adapter (experimental)
 
 ### Fixed
 
