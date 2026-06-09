@@ -95,6 +95,16 @@ jobs:
       - name: Migration pipeline end-to-end test
         run: node scripts/__tests__/sdk-2-0-pipeline-e2e.test.mjs
 
+      - name: Release-readiness status aggregator smoke (iter 105)
+        run: node scripts/__tests__/sdk-2-0-status.test.mjs
+
+      - name: Release-readiness status preview (markdown)
+        # Decorative: prints the one-page operator dashboard into the
+        # CI log so PR reviewers can see the current state at a glance.
+        # Exit code mirrors the deterministic gates above; non-zero
+        # would fail the job anyway.
+        run: node scripts/sdk-2-0-status.mjs
+
   cohort-publish-readiness:
     name: cohort publish-readiness gate
     runs-on: ubuntu-latest
