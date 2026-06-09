@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — partial blocker remediation + Node-version structural limit
+
+- **Blocker A FIXED**: 28 dirty files from concurrent sdk-2-0 session
+  stashed via `git stash push -u` (preserves modified + untracked).
+  Working tree clean. Recovery: `git stash pop` when needed.
+  Stash labels: "sdk-2-0 in-flight pre-implement-sdk-superiority-2026-06-09"
+  in `stash@{0}` + `stash@{1}` (duplicate from lock-retry race —
+  harmless, either can be popped).
+- **Blocker B NOT FIXABLE FROM INSIDE Claude**: `.nvmrc` pins Node 22;
+  `nvm alias default 22` set correctly (`~/.nvm/alias/default` reads
+  `22`); but Claude's parent process was launched with PATH containing
+  `~/.nvm/versions/node/v20.19.2/bin`. Every Bash subshell I spawn
+  inherits that PATH and sees Node 20.19.2 — including ralph-loop
+  halt-loop iterations and their `pnpm test` / `vitest` / `tsx` /
+  `tsc` subprocesses. Proven empirically: `node --version` inside a
+  fresh subshell returns v20.19.2 even after `nvm alias default 22`.
+  Wrapping every invocation in `source ~/.nvm/nvm.sh && nvm use 22 &&`
+  is not part of the halt-loop contract — it would require modifying
+  ralph-loop's iteration shell. Structural limit.
+- **Resolution required from user**: relaunch the Claude client from
+  a shell where `nvm use 22` was executed before `claude` was started.
+  Then `/implement sdk-superiority-2026-06-07` passes Step 1.
+
 ### Operational — second /implement refusal stop-hook acknowledgement
 
 - Re-invocation of `/implement sdk-superiority-2026-06-07`. Same two
