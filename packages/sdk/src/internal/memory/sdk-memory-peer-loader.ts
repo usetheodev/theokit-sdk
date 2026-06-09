@@ -66,6 +66,21 @@ export interface SdkMemoryModule {
     // biome-ignore lint/suspicious/noExplicitAny: structural mirror
     }): Promise<any>;
   };
+
+  /** Mirrors @theokit/sdk-memory's migrateSqliteToLance entrypoint (ADR D44). */
+  migrateSqliteToLance(opts: {
+    cwd: string;
+    dryRun?: boolean;
+    batchSize?: number;
+    logger?: (msg: string) => void;
+  }): Promise<{
+    countSqlite: number;
+    countLance: number;
+    validated: boolean;
+    sampleComparisons: ReadonlyArray<{ id: string; match: boolean }>;
+    lancePath: string;
+    committed: boolean;
+  }>;
 }
 
 let cachedAttempt: Promise<SdkMemoryModule | null> | undefined;
@@ -87,11 +102,12 @@ export function tryLoadSdkMemoryPeer(): Promise<SdkMemoryModule | null> {
       // require the package to exist at install time.
       const spec = "@theokit/sdk-memory";
       const mod = (await import(spec)) as unknown as SdkMemoryModule;
-      // Sanity: the module must expose the 3 surfaces we route through.
+      // Sanity: the module must expose the 4 surfaces we route through.
       if (
         typeof mod.runDreamingSweep === "function" &&
         mod.MEMORY_EMBEDDING_ADAPTERS !== undefined &&
-        mod.IndexManager !== undefined
+        mod.IndexManager !== undefined &&
+        typeof mod.migrateSqliteToLance === "function"
       ) {
         return mod;
       }
