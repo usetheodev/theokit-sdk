@@ -53,7 +53,7 @@ export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
         .boolean()
         .optional()
         .describe("If true, show staged changes (git diff --cached). Default false."),
-    }) as unknown as import("zod").ZodType,
+    }),
     handler: async ({ path, cached }) => {
       if (!existsSync(join(projectRoot, ".git"))) {
         return JSON.stringify({ ok: false, error: "not_a_repo" });
