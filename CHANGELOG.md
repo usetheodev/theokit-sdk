@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — `__Host-` cookie prefix + deterministic clear (T5.3 BREAKING wire)
+
+- **Workspace impact**: `@theokit/sdk` consumers using `defineAuth`
+  see the OAuth tx-cookie name change from `theo_oauth_tx` to
+  `__Host-theo_oauth_tx` on the wire. The browser-enforced
+  `__Host-` contract blocks subdomain-fixation by requiring
+  `Secure` + `Path=/` + no `Domain`. `clearCookie` collapses the
+  prior buggy double-write into ONE clean Set-Cookie line carrying
+  both `Max-Age=0` and the legacy `Expires=Thu, 01 Jan 1970`
+  fallback. No public API change — only the wire moves. In-flight
+  pre-T5.3 cookies fail decryption on next callback and the flow
+  restarts cleanly.
+- **Iter 23** of halt-loop `sdk-superiority-2026-06-07`. Closes
+  DR6 finding #3.
+
+### Operational — iter 23 stop-hook acknowledgement
+
+- Same mixed-authorship hygiene as iters 16-22. Staged only T5.3
+  files (`packages/sdk/src/server/auth/oauth-transaction-store.ts`,
+  `packages/sdk/tests/server-auth.test.ts` fixture update,
+  `packages/sdk/tests/server-auth-host-cookie-prefix.test.ts`,
+  both CHANGELOGs, contract row, progress JSON).
+
 ### Operational — iter 22 post-housekeeping stop-hook acknowledgement
 
 - Working tree continues to carry unstaged production-source changes
