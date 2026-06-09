@@ -6,6 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — SDK core iter 39: T1.8 streamObject memoization + T1.9 dispose safety
+
+- **T1.8** `Agent.streamObject` import memoized — second+ call skips promise chain
+- **T1.9** `Agent.prompt` dispose wrapped in try/catch — cleanup error no longer masks business error
+
 ### Fixed — Agent-loop iters 36-38: T2.5 span leak + T2.6 tool error + T2.7 verified + T2.8 hook error log
 
 - **T2.5** OTel span leak on veto — plugin/file-hook veto paths now end the span with `tool.vetoed` attribute (pre-T2.5 leaked open spans)
