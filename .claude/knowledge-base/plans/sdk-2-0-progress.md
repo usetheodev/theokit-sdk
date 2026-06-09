@@ -254,3 +254,80 @@ The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mi
 | 15 | 2026-06-08 | Phase 2 runtime hook #1 — `BudgetTracker.track()` in runIteration | DONE — commit `d15987f`; first RUNTIME wiring of Phase 2 interface inversion. runIteration forwards input/output token counts after every LLM completion as PASSIVE OBSERVATION. Legacy IterationBudget remains sole enforcement. track() exceptions swallowed per non-throwing contract. 7 branch-logic tests pin conditional behavior. Cumulative Phase 2 tests: 28 across 4 files. |
 | 16 | 2026-06-08 | Phase 2 runtime hook #2 — `BudgetTracker.check()` in runAgentLoop | DONE — commit `aab8de2`; outer while-loop calls tracker.check() before each iteration; on allowed:false sets finalStatus=error + breaks. Legacy IterationBudget remains authoritative iteration cap (BudgetTracker is layered consumer gate on top). check() throws treated soft-allow. 6 branch-logic tests. Cumulative Phase 2: 34 tests across 5 files. **Step 6 of 8-step Phase 2 stack complete.** |
 | 17 | 2026-06-08 | ADR — Phase 1+2 architectural decisions | DONE — commit `99fd757`; records 7 ADRs surfaced empirically iter 7-16: Memory kernel coupling, Budget interface inversion success, why Cache/Tools/Handoff cleaner than Memory/Budget, shim cleanup pattern, layered enforcement, bundle budget gating Phase 6, Phase 7 prep independence. Roadmap: ~5-8 iters realistic for full completion. |
+
+## Iter 44-94 (2026-06-08 → 2026-06-09) — Phase 1 Stage 3 source-move + Stage 4 routing + Phase 6/7 prep tooling
+
+### Stage 3 source-move (iter 44-75) — DONE 38/38 files
+
+The hybrid dual-copy extraction: sdk-core retains `internal/memory/*` for v1.x back-compat; sdk-memory ships the canonical copies that Stage 4 routing delegates to. Every iteration moved 1-7 files + shipped tests + commit. Total: 287 GREEN tests across 38 files in sdk-memory.
+
+Closed clusters:
+- Dreaming (iter 54+59+60): phases + diary + run + types
+- Sessions (iter 61+62): writer + loader
+- Storage (iter 53+55-58, 61-62): markdown-store + chunk-markdown + reader + transcript-store + session-* + wiki
+- Index (iter 47+49-50+65-72): contract + schema + memory-index + sqlite-vec + lance + manager
+- Migration (iter 63+71): legacy-json + sqlite→lance
+- Adapters (iter 45+46+73+74): types + cache + shared factory + 6 providers + catalog
+- Core (iter 44+51+52+64+75): circuit-breaker + active-cache + memory-types + tools + active-memory
+
+Cross-package workarounds documented in source:
+- rollup-plugin-dts treeshake inline-duplicates: iter 48/53/55/66/67/69/72 (8 type mirrors)
+- Inlined helpers: iter 73 (adapter-http-error replacing sdk-core's internal mapper), iter 75 (telemetry mirrors)
+- Renames: types.ts→memory-types.ts (iter 52), catalog.ts→adapter-catalog.ts (iter 74), dreaming files (iter 54+59+60)
+- Cross-package public sub-paths added: sanitizeIdentifier in @theokit/sdk/path-safety (iter 52)
+- Optional peers added to sdk-memory: better-sqlite3 (iter 65), sqlite-vec (iter 66), @lancedb/lancedb (iter 68)
+
+### Stage 4 routing (iter 76-80) — DONE 5 surfaces, 24 tests
+
+sdk-core's public `Memory` class + `migrateSqliteToLance` wrapper delegate to `@theokit/sdk-memory` when installed; fall back to legacy internal/ when absent.
+
+- iter 76: `tryLoadSdkMemoryPeer()` loader + SdkMemoryModule structural mirror + test-only escape hatches + 5 tests
+- iter 77: Memory.openIndex + Memory.runDreamingSweep routing wired + 4 tests
+- iter 78: migrateSqliteToLance routing wired + 4 tests + `migrateSqliteToLance` surface added to SdkMemoryModule
+- iter 79: Behavior parity gate — sdk-core (routed) ↔ sdk-memory (direct) produce byte-equivalent results across 5 tests
+- iter 80: Force-absent test flag exercises legacy fallback branch — 6 tests on the if/else other half
+
+Total Stage 4 test coverage: 24 tests across 5 files in `packages/sdk/tests/`.
+
+ADR 0002 (iter 82) documents the architectural decision + sunset condition for SDK 3.0.
+
+### Phase 6 + 7 prep tooling (iter 81+83+84+85)
+
+Operator-runnable scripts for the eventual cohort cutover. All dry-run by default; `--write` to mutate.
+
+- iter 81: `phase6-rename-dry-run.mjs` — reports 398-411 files in scope
+- iter 83: `phase6-rename-write.mjs` — `--write` mutates package.json + source imports + docs; `--backup` creates .bak copies
+- iter 84: `phase7-cohort-analysis.mjs` — enumerates 51 sdk consumers + version spec histogram
+- iter 85: `phase7-peerdep-bump.mjs` — 7 packages need peerDep bumped to `^2.0.0`; `--target` flag overrides
+
+### Validation gates (iter 87+90)
+
+- iter 87: `sdk-2-0-pre-publish-check.mjs` — 5 workspace invariants enforced before pnpm install + npm publish; current state: 57 packages scanned, all gates green
+- iter 90: `sdk-2-0-post-publish-check.mjs` — registry state vs workspace version comparison; `--dry` mode for CI; `--only` flag narrows cohort
+
+### Consumer-facing migration tooling (iter 88+89)
+
+- iter 88: `@theokit/codemod-sdk-2-0` — publishable npm package; consumers run `npx @theokit/codemod-sdk-2-0 --write --backup`; 3 integration scenarios pass
+- iter 89: codemod ↔ phase6-rename-write equivalence test — both tools produce identical diffs on identical input
+
+### Documentation (iter 82+86+92)
+
+- iter 82: `docs/adr/0002-sdk-memory-optional-peer-routing.md` — Stage 4 routing architectural decision + sunset condition
+- iter 86: `docs/runbook/sdk-2-0-release.md` — operator playbook (7 steps + recovery flows)
+- iter 92: `MIGRATION.md` (repo root) — consumer upgrade guide (TL;DR + step-by-step + rollback + edge cases)
+
+### CI + maintenance discipline (iter 91+93+94)
+
+- iter 91: `.github/workflows/sdk-2-0-migration-gates.yml` — 8 dry-mode smoke tests + 5 Stage 4 routing test files; runs on every PR with path filter scoped to migration code
+- iter 93: `sdk-2-0-stage3-drift-detector.mjs` — compares sdk-core's `internal/memory/*` against sdk-memory's canonical copy; catches unsynced patches; 38 pairs / 22 intentional divergences allowlisted / 0 unexpected drift in current workspace state
+- iter 94: bundle budgets for sdk + sdk-memory — locks Phase 10 / T10.1 (ADR D9) coverage on the 2 packages that previously had none; current state: sdk 140K/200K cap (70%), sdk-memory 23K/30K cap (77%)
+
+### Cumulative state at iter 94
+
+- **Stage 3 source-move COMPLETE** — 38/38 files canonical in sdk-memory, 287 GREEN tests, 0 unexpected drift
+- **Stage 4 routing COMPLETE** — 5 surfaces wired (loader + 2 Memory class methods + migrate + parity gate), 24 GREEN tests, both branches covered
+- **Phase 6 + 7 prep tooling COMPLETE** — 5 operator scripts + 8 CI-gated smoke tests
+- **Documentation COMPLETE** — ADR + runbook + MIGRATION.md
+- **Maintenance discipline LOCKED IN** — drift detector + bundle budgets + CI workflow
+
+**What remains:** Phase 6 + 7 execution + cohort npm publish + final dogfood QA against published packages. These are operator-driven coordinated steps requiring npm publish credentials. Per Inquebrável Rule 3 (Honestidade Extrema), the completion promise stays unspoken until execution actually runs against the npm registry.
