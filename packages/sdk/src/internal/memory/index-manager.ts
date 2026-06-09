@@ -4,11 +4,19 @@ import { join, relative } from "node:path";
 
 import { sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
+import { LruEmbeddingCache } from "./embedding-cache.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
 import { chunkMarkdown } from "./storage/chunk-markdown.js";
+
+// T4.1 — query-vector LRU cache (DR4 finding #1). Keyed by
+// sha256(query); caches the embedding vector so repeated search
+// queries skip the HTTP round-trip (p99 1.5-3s → ~0ms on hit).
+// Process-wide singleton with bounded capacity (default 2000 queries).
+const queryVectorCache = new LruEmbeddingCache(2000);
+
 import { memoryDir, memoryMdPath, notesDir } from "./storage/markdown-store.js";
 import { discoverSessionFiles } from "./storage/session-loader.js";
 import { discoverWikiFiles } from "./storage/wiki-loader.js";
@@ -264,8 +272,16 @@ export class IndexManager implements MemoryIndex {
     limit: number,
   ): Promise<Map<number, { vectorScore: number; snippet?: string }>> {
     if (!this.vectorReady || this.embedding === undefined) return new Map();
-    const [queryVec] = await this.embedding.embed([query]);
+    // T4.1 — query-vector LRU cache. The embed call is the p99 hottest
+    // path (1.5-3s per hit). Cache by sha256(query) so repeated queries
+    // skip the HTTP round-trip entirely. The embedding cache (T4.4
+    // globalEmbeddingCache) catches text-level dedup; this catches the
+    // query-level search-result dedup on top.
+    const cacheKey = createHash("sha256").update(query).digest("hex");
+    const cached = queryVectorCache.get(cacheKey);
+    const queryVec = cached ?? (await this.embedding.embed([query]))[0];
     if (queryVec === undefined) return new Map();
+    if (cached === undefined) queryVectorCache.set(cacheKey, queryVec);
     const rows = vectorSearch(this.db, queryVec, limit);
     // sqlite-vec distance: lower = closer. Normalize to 0..1 with higher = better.
     const out = new Map<number, { vectorScore: number }>();
