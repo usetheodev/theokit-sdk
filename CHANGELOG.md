@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Iter 46: T4.6 dreaming O(N²) cap at 500 facts/sweep
+
+- **T4.6** `remPhase` capped at 500 facts (125K comparisons) instead of unbounded O(N²). 5000 facts was 12.5M comparisons — unacceptable. Configurable via `maxFactsPerSweep`.
+
 ### Added — Iter 45: T4.3 parallel embed batches
 
 - **T4.3** `runBatches` serial→parallel (cap 3 concurrent HTTP). 500 texts: 5×RTT → max(RTT)×2.
