@@ -72,7 +72,7 @@ export class LanceMemoryAdapter implements MemoryIndex {
     return lanceHits
       .filter((h) => h.score >= minScore)
       .slice(0, maxResults)
-      .map((h) => translateLanceHit(h));
+      .map((h) => translateLanceHit(h, query));
   }
 
   status(): IndexStatus {
@@ -104,27 +104,44 @@ export class LanceMemoryAdapter implements MemoryIndex {
  *
  *   - `id` → `path` (Lance has no file-system provenance; use opaque id)
  *   - `text` → `snippet` (truncated to 200 chars matching IndexManager convention)
- *   - `score` → `score` AND `vectorScore` (Lance is vector-only)
+ *   - `score` → combined (0.7 × vectorScore + 0.3 × textScore)
+ *   - `vectorScore` → from Lance's distance metric
+ *   - `textScore` → T4.5 client-side term-overlap ratio (removes ADR D43 vector-only caveat)
  *   - `source` → `source`
  *   - synthetic `startLine: 0, endLine: 0` (Lance has no line info)
  *   - synthetic `citation: id` (no path:line citation available)
- *   - `textScore` omitted (Lance does NOT do FTS5)
  */
-function translateLanceHit(hit: {
-  id: string;
-  text: string;
-  source: "memory" | "sessions" | "wiki";
-  score: number;
-}): MemorySearchHit {
+function translateLanceHit(
+  hit: { id: string; text: string; source: "memory" | "sessions" | "wiki"; score: number },
+  query?: string,
+): MemorySearchHit {
+  const textScore = query !== undefined ? computeTermOverlapScore(query, hit.text) : 0;
+  const vectorScore = hit.score;
+  // Hybrid combination: 70% vector (semantic) + 30% text (lexical).
+  const combined = 0.7 * vectorScore + 0.3 * textScore;
   return {
     path: hit.id,
     startLine: 0,
     endLine: 0,
-    score: hit.score,
-    textScore: 0,
-    vectorScore: hit.score,
+    score: combined,
+    textScore,
+    vectorScore,
     snippet: hit.text.slice(0, 200),
     source: hit.source,
     citation: hit.id,
   };
+}
+
+/**
+ * T4.5 — Client-side term-overlap score for Lance hybrid search.
+ * Counts what fraction of query terms appear in the text (case-insensitive).
+ * Simple but effective for re-ranking vector hits by lexical relevance.
+ * Returns 0..1 where 1 = all query terms present.
+ */
+function computeTermOverlapScore(query: string, text: string): number {
+  const queryTerms = query.toLowerCase().split(/\s+/).filter((t) => t.length > 1);
+  if (queryTerms.length === 0) return 0;
+  const textLower = text.toLowerCase();
+  const matched = queryTerms.filter((term) => textLower.includes(term)).length;
+  return matched / queryTerms.length;
 }

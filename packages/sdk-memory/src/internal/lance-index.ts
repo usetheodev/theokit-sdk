@@ -255,7 +255,26 @@ export class LanceIndex {
  * @internal
  */
 function escapeSqlValue(value: string): string {
-  return value.replace(/'/g, "''");
+  // T5.2 — Harden SQL value escaping for Lance `.where()` predicates.
+  // Pre-T5.2 this only escaped single quotes (`'` → `''`). T5.2 adds:
+  // - NUL byte rejection (NUL truncates the string in some SQL engines)
+  // - C0 control char rejection (prevents invisible payload injection)
+  // - Backslash escaping (`\` → `\\` — some engines interpret `\'` as
+  //   a single-quote escape, bypassing the `''` defense)
+  // Synced from sdk-core per ADR 0002 byte-equivalence (iter 115).
+  // Reject NUL + C0/DEL control chars (T5.5 pattern adapted for SQL).
+  for (let i = 0; i < value.length; i++) {
+    const code = value.charCodeAt(i);
+    if (code === 0x00 || (code >= 0x01 && code <= 0x1f) || code === 0x7f) {
+      throw new ConfigurationError(
+        `SQL filter value contains control character at position ${i} (0x${code.toString(16)}). ` +
+          "This may indicate an injection attempt.",
+        { code: "sql_injection_blocked" },
+      );
+    }
+  }
+  // Escape both single-quote and backslash.
+  return value.replace(/\\/g, "\\\\").replace(/'/g, "''");
 }
 
 /**
