@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — T2.2 step 1/N: provider-agnostic compression-model registry
+
+- **Workspace impact**: foundation module for D91/D92 compression.
+  `internal/runtime/compression-model-registry.ts` ships
+  `resolveCompressionModel(agentModel)` pure function + new typed
+  `CompressionModelUnresolvedError`. Zero cross-provider calls by
+  design — Anthropic-only consumers get Anthropic compression,
+  Ollama consumers get Ollama compression (same model — local).
+  Foundation for steps 2-4 (config wiring, OTel aux client,
+  agent-loop catch). 18/18 tests GREEN.
+
 ### Planning — sdk-superiority-2026-06-07 plan replan v2: T2.2 aux-LLM provider-agnostic correction (2026-06-09)
 
 - **T2.2 contract revised**: replaced the hardcoded
