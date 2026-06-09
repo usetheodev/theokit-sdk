@@ -1,0 +1,30 @@
+{
+  "name": "@theokit/codemod-sdk-2-0",
+  "version": "1.0.0",
+  "description": "Downstream consumer migration tool for the @theokit/sdk → @theokit/sdk-core rename (SDK 2.0). Walks the project + rewrites package.json + source imports.",
+  "license": "MIT",
+  "type": "module",
+  "main": "bin/codemod.mjs",
+  "bin": {
+    "theokit-codemod-sdk-2-0": "bin/codemod.mjs"
+  },
+  "files": [
+    "bin",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "theokit",
+    "sdk",
+    "codemod",
+    "migration"
+  ],
+  "scripts": {
+    "test": "node tests/codemod.test.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
