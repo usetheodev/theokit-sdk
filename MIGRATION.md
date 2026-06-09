@@ -155,6 +155,32 @@ pnpm install
 This reverses every change the codemod made, leaving your working
 tree exactly as it was pre-migration.
 
+### Import shapes the codemod handles
+
+Every realistic import shape is covered. The codemod uses a regex
+specifier rewrite — sub-package names (`@theokit/sdk-memory`,
+`-budget`, `-cache`, `-handoff`, `-tools`) are NEVER touched.
+
+| Shape | Before | After |
+|---|---|---|
+| Bare specifier | `from "@theokit/sdk"` | `from "@theokit/sdk-core"` |
+| Sub-path | `from "@theokit/sdk/agent"` | `from "@theokit/sdk-core/agent"` |
+| Single-quoted | `from '@theokit/sdk'` | `from '@theokit/sdk-core'` |
+| Type-only | `import type { X } from "@theokit/sdk"` | `import type { X } from "@theokit/sdk-core"` |
+| Namespace | `import * as Theo from "@theokit/sdk"` | `import * as Theo from "@theokit/sdk-core"` |
+| Re-export | `export { X } from "@theokit/sdk"` | `export { X } from "@theokit/sdk-core"` |
+| Dynamic | `await import("@theokit/sdk")` | `await import("@theokit/sdk-core")` |
+
+In `package.json`: `dependencies`, `devDependencies`,
+`peerDependencies`, `optionalDependencies`, AND `peerDependenciesMeta`
+keys are all rewritten. The version constraint value is preserved
+verbatim (see Step 4 above for when to bump it manually).
+
+The canonical contract is pinned by
+`packages/codemod-sdk-2-0/tests/codemod.test.mjs` scenario
+`testEdgeCaseImportShapes` — every row in the table above appears as
+an assertion there.
+
 ### Known edge cases
 
 - **Templating placeholders**: if your project uses templates like
