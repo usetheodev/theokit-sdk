@@ -22,31 +22,32 @@ import { describe, expect, it, vi } from "vitest";
 
 /** Build a spy MemoryProvider whose lifecycle methods record their calls. */
 function buildSpyProvider(opts?: { initThrows?: boolean; disposeThrows?: boolean }) {
-  const initSpy = vi.fn(
-    async (_o: MemoryProviderInitOptions): Promise<MemoryProviderHandle> => {
-      if (opts?.initThrows) throw new Error("init blew");
-      return {
-        adapter: {
-          id: "spy",
-          capabilities: {
-            history: false,
-            sessions: false,
-            tenancy: false,
-            reasoning: false,
-            toolSchemas: false,
-            prefetch: false,
-          },
-          isAvailable: () => true,
-          write: async () => "spy:noop" as never,
-          recall: async () => [],
-          delete: async () => undefined,
-        } satisfies MemoryAdapter,
-      };
-    },
-  );
+  const initSpy = vi.fn(async (_o: MemoryProviderInitOptions): Promise<MemoryProviderHandle> => {
+    if (opts?.initThrows) throw new Error("init blew");
+    return {
+      adapter: {
+        id: "spy",
+        capabilities: {
+          history: false,
+          sessions: false,
+          tenancy: false,
+          reasoning: false,
+          toolSchemas: false,
+          prefetch: false,
+        },
+        isAvailable: () => true,
+        write: async () => "spy:noop" as never,
+        recall: async () => [],
+        delete: async () => undefined,
+      } satisfies MemoryAdapter,
+    };
+  });
   const buildToolsSpy = vi.fn((_h: MemoryProviderHandle, _a: SDKAgent) => []);
   const runActivePassSpy = vi.fn(
-    async (_h: MemoryProviderHandle, _a: ActiveMemoryPassArgs): Promise<ActiveMemoryPassResult> => ({
+    async (
+      _h: MemoryProviderHandle,
+      _a: ActiveMemoryPassArgs,
+    ): Promise<ActiveMemoryPassResult> => ({
       facts: [],
     }),
   );

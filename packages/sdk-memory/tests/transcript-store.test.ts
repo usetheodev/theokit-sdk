@@ -22,10 +22,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  type ActiveMemoryTranscript,
-  persistActiveMemoryTranscript,
-} from "@theokit/sdk-memory";
+import { type ActiveMemoryTranscript, persistActiveMemoryTranscript } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 function sampleTranscript(runId = "run-001"): ActiveMemoryTranscript {
@@ -98,9 +95,7 @@ describe("sdk-memory transcript-store (iter 58)", () => {
     await mkdir(memoryParent, { recursive: true });
     await chmod(memoryParent, 0o555); // r-x only, no write
 
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
     try {
       // Must not throw.
@@ -126,14 +121,7 @@ describe("sdk-memory transcript-store (iter 58)", () => {
     };
     await persistActiveMemoryTranscript(cwd, tx);
     const raw = await readFile(
-      join(
-        cwd,
-        ".theokit",
-        "memory",
-        "transcripts",
-        "active-memory",
-        "round-trip.json",
-      ),
+      join(cwd, ".theokit", "memory", "transcripts", "active-memory", "round-trip.json"),
       "utf8",
     );
     const parsed = JSON.parse(raw);

@@ -16,11 +16,7 @@
  * Mirrors `agent-create-budget-tracker-option.test.ts` (Phase 2 / T2.1).
  */
 
-import {
-  type AgentOptions,
-  createNoopMemoryProvider,
-  type MemoryProvider,
-} from "@theokit/sdk";
+import { type AgentOptions, createNoopMemoryProvider, type MemoryProvider } from "@theokit/sdk";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("Agent.create memoryProvider option (Phase 1 type wiring)", () => {

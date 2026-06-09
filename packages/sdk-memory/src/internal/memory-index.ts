@@ -31,11 +31,7 @@
  * @internal
  */
 
-import type {
-  IndexStatus,
-  MemorySearchHit,
-  SearchOptions,
-} from "./index-manager-contract.js";
+import type { IndexStatus, MemorySearchHit, SearchOptions } from "./index-manager-contract.js";
 
 // NOTE: the canonical sdk-core copy re-exports
 // `IndexStatus`/`MemorySearchHit`/`SearchOptions` here for stable

@@ -93,10 +93,7 @@ describe("sdk-memory dreaming-run (iter 60)", () => {
     expect(dreamed.length).toBe(1);
 
     // Verify diary entry appended.
-    const diary = await readFile(
-      join(memoryDir(cwd), "dream-diary.md"),
-      "utf8",
-    );
+    const diary = await readFile(join(memoryDir(cwd), "dream-diary.md"), "utf8");
     expect(diary).toContain("# Dream Diary");
     expect(diary).toContain("- facts before: 3");
     expect(diary).toContain("- facts after: 2");
@@ -136,9 +133,7 @@ describe("sdk-memory dreaming-run (iter 60)", () => {
       model: "stub-fail-model",
     } as EmbeddingRuntime;
 
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
     try {
       const result = await runDreamingSweep({ cwd, embedding: failing });
@@ -178,10 +173,7 @@ describe("sdk-memory dreaming-run (iter 60)", () => {
     expect(a.status).toBe("ok");
     expect(b.status).toBe("ok");
 
-    const diary = await readFile(
-      join(memoryDir(cwd), "dream-diary.md"),
-      "utf8",
-    );
+    const diary = await readFile(join(memoryDir(cwd), "dream-diary.md"), "utf8");
     // 2 sweeps → 2 diary entries (both headers present).
     const headerMatches = diary.match(/^## 2026-01-01T12:00:0[01]/gm) ?? [];
     expect(headerMatches.length).toBe(2);

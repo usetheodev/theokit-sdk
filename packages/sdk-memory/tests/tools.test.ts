@@ -88,12 +88,9 @@ describe("sdk-memory tools (iter 64)", () => {
 
     it("test_search_passes_query_and_default_maxResults_10_to_index", async () => {
       let captured: { query: string; opts: unknown } | undefined;
-      const index = stubIndex(
-        [makeHit("MEMORY.md", "hit one")],
-        (q, o) => {
-          captured = { query: q, opts: o };
-        },
-      );
+      const index = stubIndex([makeHit("MEMORY.md", "hit one")], (q, o) => {
+        captured = { query: q, opts: o };
+      });
       const tool = createMemorySearchTool({ index });
 
       const result = await tool.execute({ query: "find me" });
@@ -115,12 +112,9 @@ describe("sdk-memory tools (iter 64)", () => {
 
     it("test_search_corpus_memory_maps_to_sources_memory", async () => {
       let captured: unknown;
-      const index = stubIndex(
-        [],
-        (_q, o) => {
-          captured = o;
-        },
-      );
+      const index = stubIndex([], (_q, o) => {
+        captured = o;
+      });
       const tool = createMemorySearchTool({ index });
       await tool.execute({ query: "x", corpus: "memory" });
       expect((captured as { sources: string[] }).sources).toEqual(["memory"]);
@@ -128,12 +122,9 @@ describe("sdk-memory tools (iter 64)", () => {
 
     it("test_search_corpus_all_drops_sources_filter", async () => {
       let captured: { sources?: unknown } = {};
-      const index = stubIndex(
-        [],
-        (_q, o) => {
-          captured = o as { sources?: unknown };
-        },
-      );
+      const index = stubIndex([], (_q, o) => {
+        captured = o as { sources?: unknown };
+      });
       const tool = createMemorySearchTool({ index });
       await tool.execute({ query: "x", corpus: "all" });
       expect(captured.sources).toBeUndefined();
@@ -141,9 +132,7 @@ describe("sdk-memory tools (iter 64)", () => {
 
     it("test_search_caps_response_at_maxTotalChars_EC10", async () => {
       // 100 hits × ~250 char snippet each = ~25000 chars; cap at 5000.
-      const hits = Array.from({ length: 100 }, (_, i) =>
-        makeHit(`f${i}.md`, "x".repeat(250)),
-      );
+      const hits = Array.from({ length: 100 }, (_, i) => makeHit(`f${i}.md`, "x".repeat(250)));
       const tool = createMemorySearchTool({
         index: stubIndex(hits),
         maxTotalChars: 5000,
@@ -199,12 +188,8 @@ describe("sdk-memory tools (iter 64)", () => {
 
     it("test_get_rejects_path_traversal_with_typed_ConfigurationError_EC2", async () => {
       const tool = createMemoryGetTool({ cwd });
-      await expect(
-        tool.execute({ path: "../../../etc/passwd" }),
-      ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          "memory_get rejected path that escapes memory root",
-        ),
+      await expect(tool.execute({ path: "../../../etc/passwd" })).rejects.toMatchObject({
+        message: expect.stringContaining("memory_get rejected path that escapes memory root"),
       });
     });
 

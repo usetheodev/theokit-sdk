@@ -1,10 +1,6 @@
 import { createHash } from "node:crypto";
 
-import {
-  AuthenticationError,
-  ConfigurationError,
-  NetworkError,
-} from "@theokit/sdk/errors";
+import { AuthenticationError, ConfigurationError, NetworkError } from "@theokit/sdk/errors";
 
 import { mapOpenAICompatibleError } from "./adapter-http-error.js";
 import type {

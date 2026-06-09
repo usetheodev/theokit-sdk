@@ -19,11 +19,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  discoverWikiFiles,
-  type WikiFile,
-  wikiDir,
-} from "@theokit/sdk-memory";
+import { discoverWikiFiles, type WikiFile, wikiDir } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("sdk-memory wiki-loader (iter 57)", () => {

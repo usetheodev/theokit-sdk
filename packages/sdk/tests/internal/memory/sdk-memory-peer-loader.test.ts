@@ -22,12 +22,12 @@
  * @internal
  */
 
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   resetSdkMemoryPeerCacheForTests,
   type SdkMemoryModule,
   tryLoadSdkMemoryPeer,
 } from "../../../src/internal/memory/sdk-memory-peer-loader.js";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("sdk-core sdk-memory peer loader (iter 76, Phase 4 #1)", () => {
   beforeEach(() => {

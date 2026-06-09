@@ -34,11 +34,7 @@
  * @internal
  */
 
-import type {
-  IndexStatus,
-  MemorySearchHit,
-  SearchOptions,
-} from "./index-manager-contract.js";
+import type { IndexStatus, MemorySearchHit, SearchOptions } from "./index-manager-contract.js";
 import { type MemoryIndex, parseSearchOptions, type SyncResult } from "./memory-index.js";
 
 /**

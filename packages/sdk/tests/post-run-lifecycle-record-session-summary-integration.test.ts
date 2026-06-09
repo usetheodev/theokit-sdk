@@ -19,18 +19,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-import type { Run, RunResult } from "../src/types/run.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks-executor.js";
 import { LocalAgentMemory } from "../src/internal/runtime/local-agent-memory.js";
 import type {
   MemoryProvider,
-  MemoryProviderHandle,
   RecordSessionSummaryArgs,
 } from "../src/internal/runtime/memory-provider.js";
 import { runPostRunLifecycle } from "../src/internal/runtime/post-run-lifecycle.js";
 import type { AgentOptions } from "../src/types/agent.js";
 import type { MemoryAdapter } from "../src/types/memory-adapter.js";
+import type { Run, RunResult } from "../src/types/run.js";
 
 function makeStubAdapter(): MemoryAdapter {
   return {
@@ -57,6 +55,7 @@ function buildStubRun(result: RunResult): Run {
     agentId: "test-agent",
     model: undefined,
     sendOptions: {} as never,
+    // biome-ignore lint/correctness/useYield: stub generator for test — no events to yield
     async *stream(): AsyncGenerator<never, void, void> {
       return;
     },

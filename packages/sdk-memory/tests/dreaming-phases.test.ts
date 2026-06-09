@@ -20,17 +20,15 @@ import type { EmbeddingRuntime, MemoryFact } from "@theokit/sdk-memory";
 import {
   type Cluster,
   type ClusterResult,
-  deepPhase,
   type DedupResult,
+  deepPhase,
   lightPhase,
   remPhase,
 } from "@theokit/sdk-memory";
 import { describe, expect, it } from "vitest";
 
 /** Build a deterministic EmbeddingRuntime that maps text → fixed vector. */
-function stubEmbedding(
-  textToVec: Record<string, ReadonlyArray<number>>,
-): EmbeddingRuntime {
+function stubEmbedding(textToVec: Record<string, ReadonlyArray<number>>): EmbeddingRuntime {
   return {
     embed: async (texts: ReadonlyArray<string>): Promise<number[][]> =>
       texts.map((t) => [...(textToVec[t] ?? [0, 0, 0])]),
@@ -62,10 +60,7 @@ describe("sdk-memory dreaming-phases (iter 54)", () => {
         b: [1, 0, 0], // identical → cosine 1.0 ≥ 0.95
         c: [0, 1, 0], // orthogonal → keep
       });
-      const result: DedupResult = await lightPhase(
-        [fact("a"), fact("b"), fact("c")],
-        embedding,
-      );
+      const result: DedupResult = await lightPhase([fact("a"), fact("b"), fact("c")], embedding);
       expect(result.kept.length).toBe(2);
       expect(result.duplicatesRemoved).toBe(1);
       // First-seen wins.
@@ -126,10 +121,7 @@ describe("sdk-memory dreaming-phases (iter 54)", () => {
         short: [1, 0, 0],
         "the longer one": [1, 0, 0],
       });
-      const result = await remPhase(
-        [fact("short"), fact("the longer one")],
-        embedding,
-      );
+      const result = await remPhase([fact("short"), fact("the longer one")], embedding);
       expect(result.clusters.length).toBe(1);
       expect(result.clusters[0]?.representativeText).toBe("the longer one");
     });

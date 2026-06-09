@@ -22,22 +22,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import {
+  createVectorIndex,
+  dropVectorIndex,
   type EmbeddingIdentity,
   type EmbeddingRuntime,
+  embedMissingChunks,
+  identityMatches,
+  loadSqliteVecExtension,
   META_KEY_DIMENSION,
   META_KEY_MODEL,
   META_KEY_PROVIDER_ID,
-  identityMatches,
-  loadSqliteVecExtension,
   openMemoryDb,
   packVector,
   readEmbeddingIdentity,
-  writeEmbeddingIdentity,
-  createVectorIndex,
-  dropVectorIndex,
   upsertEmbedding,
   vectorSearch,
-  embedMissingChunks,
+  writeEmbeddingIdentity,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
@@ -145,9 +145,7 @@ describe("sdk-memory vec-index (iter 67)", () => {
 
       // Need at least one chunk row before referencing chunk_id; insert
       // 3 chunk rows with file_id pointing at a single seeded file.
-      db.exec(
-        "INSERT INTO files (path, rel_path, mtime, hash) VALUES ('test', 'test', 0, 'hash')",
-      );
+      db.exec("INSERT INTO files (path, rel_path, mtime, hash) VALUES ('test', 'test', 0, 'hash')");
       for (let i = 0; i < 3; i++) {
         db.exec(
           `INSERT INTO chunks (file_id, start_line, end_line, text, hash) VALUES (1, ${i + 1}, ${i + 1}, 'chunk${i}', 'h${i}')`,
@@ -178,9 +176,7 @@ describe("sdk-memory vec-index (iter 67)", () => {
 
       // Drop tears down virtual table cleanly.
       dropVectorIndex(db);
-      const remaining = db
-        .prepare("SELECT name FROM sqlite_master WHERE name='embeddings'")
-        .get();
+      const remaining = db.prepare("SELECT name FROM sqlite_master WHERE name='embeddings'").get();
       expect(remaining).toBeUndefined();
       db.close();
     });
@@ -191,9 +187,7 @@ describe("sdk-memory vec-index (iter 67)", () => {
       await loadSqliteVecExtension(db);
       createVectorIndex(db, 3);
 
-      db.exec(
-        "INSERT INTO files (path, rel_path, mtime, hash) VALUES ('test', 'test', 0, 'hash')",
-      );
+      db.exec("INSERT INTO files (path, rel_path, mtime, hash) VALUES ('test', 'test', 0, 'hash')");
       for (let i = 0; i < 4; i++) {
         db.exec(
           `INSERT INTO chunks (file_id, start_line, end_line, text, hash) VALUES (1, ${i + 1}, ${i + 1}, 'text-${i}', 'h${i}')`,

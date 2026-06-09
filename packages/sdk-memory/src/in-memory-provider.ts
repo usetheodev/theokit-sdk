@@ -23,9 +23,6 @@
 
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-
-import { Security } from "@theokit/sdk";
-import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
 import type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
@@ -42,6 +39,8 @@ import type {
   RecordSessionSummaryArgs,
   SDKAgent,
 } from "@theokit/sdk";
+import { Security } from "@theokit/sdk";
+import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
 
 /** Adapter id prefix — namespaces minted MemoryIds so cross-adapter delete is safe (EC-B). */
 const ADAPTER_ID = "in-memory-md";
@@ -197,6 +196,7 @@ function extractAgentIdFromFrontmatter(content: string): string | undefined {
   return match[1].trim();
 }
 
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: session recall has branching on multiple storage modes
 async function recallSessionSummaries(
   cwd: string,
   userMessage: string,
@@ -366,11 +366,7 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
       // Iter 36: scope the disk recall to args.agentId so a session
       // summary written by agent-A never bleeds into agent-B's recall.
       // This is the multi-agent privacy invariant.
-      const persistedHits = await recallSessionSummaries(
-        state.cwd,
-        args.userMessage,
-        args.agentId,
-      );
+      const persistedHits = await recallSessionSummaries(state.cwd, args.userMessage, args.agentId);
       const allFacts = [...inProcessFacts, ...persistedHits];
       if (allFacts.length === 0) return { facts: [] };
       const systemPromptAdditions = [

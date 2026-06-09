@@ -19,14 +19,14 @@
  * routing is invisible to consumers by Stage 4 contract.
  */
 
-import { Memory } from "../src/memory.js";
-import { migrateSqliteToLance } from "../src/migrate.js";
-import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
-import * as sdkMemory from "@theokit/sdk-memory";
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as sdkMemory from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
+import { Memory } from "../src/memory.js";
+import { migrateSqliteToLance } from "../src/migrate.js";
 
 async function makeCwd(prefix: string): Promise<string> {
   return mkdtemp(join(tmpdir(), prefix));
@@ -55,21 +55,15 @@ describe("sdk-core ↔ sdk-memory behavior parity (iter 79, Phase 4 #4)", () => 
         });
         // Shape parity — every key + value type is identical (except
         // cwd-substituted lancePath).
-        expect(Object.keys(coreResult).sort()).toEqual(
-          Object.keys(memoryResult).sort(),
-        );
+        expect(Object.keys(coreResult).sort()).toEqual(Object.keys(memoryResult).sort());
         expect(coreResult.countSqlite).toBe(memoryResult.countSqlite);
         expect(coreResult.countLance).toBe(memoryResult.countLance);
         expect(coreResult.validated).toBe(memoryResult.validated);
-        expect(coreResult.sampleComparisons).toEqual(
-          memoryResult.sampleComparisons,
-        );
+        expect(coreResult.sampleComparisons).toEqual(memoryResult.sampleComparisons);
         expect(coreResult.committed).toBe(memoryResult.committed);
         // lancePath differs only by cwd prefix — relative suffix identical.
         expect(coreResult.lancePath.endsWith(".theokit/memory/lance")).toBe(true);
-        expect(memoryResult.lancePath.endsWith(".theokit/memory/lance")).toBe(
-          true,
-        );
+        expect(memoryResult.lancePath.endsWith(".theokit/memory/lance")).toBe(true);
       } finally {
         await rm(cwdSdkCore, { recursive: true, force: true });
         await rm(cwdSdkMemory, { recursive: true, force: true });
@@ -137,8 +131,7 @@ describe("sdk-core ↔ sdk-memory behavior parity (iter 79, Phase 4 #4)", () => 
         }
         try {
           // sdk-memory's direct path: build the adapter lookup the same way.
-          const peerAdapter =
-            sdkMemory.MEMORY_EMBEDDING_ADAPTERS["qdrant" as never];
+          const peerAdapter = sdkMemory.MEMORY_EMBEDDING_ADAPTERS["qdrant" as never];
           if (peerAdapter === undefined) {
             throw new Error(
               `Unknown embedding provider "qdrant". Supported: ${Object.keys(
@@ -172,8 +165,7 @@ describe("sdk-core ↔ sdk-memory behavior parity (iter 79, Phase 4 #4)", () => 
           coreError = e as Error;
         }
         try {
-          const peerAdapter =
-            sdkMemory.MEMORY_EMBEDDING_ADAPTERS["qdrant" as never];
+          const peerAdapter = sdkMemory.MEMORY_EMBEDDING_ADAPTERS["qdrant" as never];
           if (peerAdapter === undefined) {
             throw new Error(
               `Unknown embedding provider "qdrant". Supported: ${Object.keys(

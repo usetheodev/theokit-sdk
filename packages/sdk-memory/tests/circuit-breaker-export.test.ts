@@ -13,8 +13,8 @@
  * happens when Stage 3 source-move completes (iter 30 target).
  */
 
-import { CircuitBreaker } from "@theokit/sdk-memory";
 import type { CircuitBreakerOptions } from "@theokit/sdk-memory";
+import { CircuitBreaker } from "@theokit/sdk-memory";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("sdk-memory CircuitBreaker export (iter 44)", () => {
@@ -38,7 +38,7 @@ describe("sdk-memory CircuitBreaker export (iter 44)", () => {
   });
 
   it("test_breaker_trips_after_maxTimeouts_consecutive_failures", () => {
-    let now = 1000;
+    const now = 1000;
     const cb = new CircuitBreaker({
       maxTimeouts: 2,
       cooldownMs: 5000,
@@ -64,7 +64,7 @@ describe("sdk-memory CircuitBreaker export (iter 44)", () => {
   });
 
   it("test_recordSuccess_resets_counter", () => {
-    let now = 1000;
+    const now = 1000;
     const cb = new CircuitBreaker({
       maxTimeouts: 2,
       cooldownMs: 5000,
@@ -78,7 +78,7 @@ describe("sdk-memory CircuitBreaker export (iter 44)", () => {
   });
 
   it("test_per_key_isolation_two_agents_no_share", () => {
-    let now = 1000;
+    const now = 1000;
     const cb = new CircuitBreaker({
       maxTimeouts: 1,
       cooldownMs: 5000,

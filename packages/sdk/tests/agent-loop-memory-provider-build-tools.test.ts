@@ -54,7 +54,10 @@ function buildSpyProvider(opts?: {
     },
   );
   const runActivePassSpy = vi.fn(
-    async (_h: MemoryProviderHandle, _a: ActiveMemoryPassArgs): Promise<ActiveMemoryPassResult> => ({
+    async (
+      _h: MemoryProviderHandle,
+      _a: ActiveMemoryPassArgs,
+    ): Promise<ActiveMemoryPassResult> => ({
       facts: [],
     }),
   );
@@ -79,9 +82,9 @@ function performBuildTools<T extends { name: string }>(
   agent: SDKAgent,
   baseTools: T[],
 ): Array<T | { name: string; description: string; inputSchema: Record<string, unknown> }> {
-  const tools: Array<T | { name: string; description: string; inputSchema: Record<string, unknown> }> = [
-    ...baseTools,
-  ];
+  const tools: Array<
+    T | { name: string; description: string; inputSchema: Record<string, unknown> }
+  > = [...baseTools];
   if (provider === undefined || handle === undefined) return tools;
   let providerTools: ReadonlyArray<CustomTool> = [];
   try {

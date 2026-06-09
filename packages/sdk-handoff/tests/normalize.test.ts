@@ -3,11 +3,10 @@
  * D215 (name collision) + auto-wrap behavior.
  */
 
+import type { SDKAgent } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
-
 import { Handoff } from "../src/handoff.js";
 import { normalizeHandoffs } from "../src/internal/tool-injector.js";
-import type { SDKAgent } from "@theokit/sdk";
 import { HandoffNameCollisionError, HandoffSelfReferenceError } from "../src/types/handoff.js";
 
 function fakeAgent(name: string, agentId = `agent-${name}`): SDKAgent {

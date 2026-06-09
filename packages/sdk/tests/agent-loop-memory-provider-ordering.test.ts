@@ -59,6 +59,7 @@ function makeStubAdapter(): MemoryAdapter {
  *
  * Errors at any phase swallow per the non-throwing contract.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: test helper simulates full agent lifecycle with multiple phases
 async function simulateAgentLoopMemoryLifecycle(
   provider: MemoryProvider,
   finalStatusToSimulate: "finished" | "error",
@@ -123,11 +124,7 @@ async function simulateAgentLoopMemoryLifecycle(
     }
 
     // Phase 4: sync — ONLY when finalStatus === "finished"
-    if (
-      finalStatusToSimulate === "finished" &&
-      handle !== undefined &&
-      logged.sync !== undefined
-    ) {
+    if (finalStatusToSimulate === "finished" && handle !== undefined && logged.sync !== undefined) {
       try {
         await logged.sync(handle);
       } catch {
@@ -207,10 +204,7 @@ describe("MemoryProvider lifecycle ordering (Phase 1 iter 19+)", () => {
       sync: async () => undefined,
       dispose: () => undefined,
     };
-    const { calls, handle } = await simulateAgentLoopMemoryLifecycle(
-      throwingProvider,
-      "finished",
-    );
+    const { calls, handle } = await simulateAgentLoopMemoryLifecycle(throwingProvider, "finished");
     // Init records "init" before throwing; subsequent phases gated on handle defined.
     expect(calls).toEqual(["init"]);
     expect(handle).toBeUndefined();

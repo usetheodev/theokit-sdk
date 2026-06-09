@@ -16,6 +16,10 @@
  * confirms it via the in-process fallback branch.
  */
 
+import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   forceSdkMemoryPeerAbsentForTests,
   resetSdkMemoryPeerCacheForTests,
@@ -23,10 +27,6 @@ import {
 } from "../src/internal/memory/sdk-memory-peer-loader.js";
 import { Memory } from "../src/memory.js";
 import { migrateSqliteToLance } from "../src/migrate.js";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("sdk-core legacy fallback branch (iter 80, Phase 4 #5)", () => {
   let cwd: string;
@@ -67,9 +67,7 @@ describe("sdk-core legacy fallback branch (iter 80, Phase 4 #5)", () => {
           embedding: { provider: "qdrant" as any },
         }),
       ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          'Unknown embedding provider "qdrant"',
-        ),
+        message: expect.stringContaining('Unknown embedding provider "qdrant"'),
       });
     });
   });
@@ -83,9 +81,7 @@ describe("sdk-core legacy fallback branch (iter 80, Phase 4 #5)", () => {
           embedding: { provider: "qdrant" as any },
         }),
       ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          'Unknown embedding provider "qdrant"',
-        ),
+        message: expect.stringContaining('Unknown embedding provider "qdrant"'),
       });
     });
   });
@@ -100,18 +96,14 @@ describe("sdk-core legacy fallback branch (iter 80, Phase 4 #5)", () => {
       expect(result.countLance).toBe(0);
       expect(result.validated).toBe(true);
       expect(result.committed).toBe(false);
-      expect(result.lancePath).toBe(
-        join(cwd, ".theokit", "memory", "lance"),
-      );
+      expect(result.lancePath).toBe(join(cwd, ".theokit", "memory", "lance"));
     });
 
     it("test_destination_exists_throws_via_legacy_path", async () => {
       const finalPath = join(cwd, ".theokit", "memory", "lance");
       await mkdir(finalPath, { recursive: true });
 
-      await expect(
-        migrateSqliteToLance({ cwd, logger: () => undefined }),
-      ).rejects.toMatchObject({
+      await expect(migrateSqliteToLance({ cwd, logger: () => undefined })).rejects.toMatchObject({
         message: expect.stringContaining("Destination already exists"),
       });
     });

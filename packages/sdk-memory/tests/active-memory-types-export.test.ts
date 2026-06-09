@@ -27,9 +27,7 @@ import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("sdk-memory active-memory-types (iter 48)", () => {
   it("test_ActiveMemoryQueryMode_union_pinned", () => {
-    expectTypeOf<ActiveMemoryQueryMode>().toEqualTypeOf<
-      "message" | "recent" | "full"
-    >();
+    expectTypeOf<ActiveMemoryQueryMode>().toEqualTypeOf<"message" | "recent" | "full">();
   });
 
   it("test_ActiveMemoryStatus_union_pinned", () => {

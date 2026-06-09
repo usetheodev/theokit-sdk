@@ -23,10 +23,10 @@ import { join } from "node:path";
 import {
   legacyMemoryJsonPath,
   type MemoryConfig,
+  type MigrationResult,
   memoryDir,
   memoryMdPath,
   migrateLegacyJson,
-  type MigrationResult,
   resetMigrationStateForTests,
 } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -64,15 +64,10 @@ describe("sdk-memory migration (iter 63)", () => {
 
   it("test_migrates_facts_writes_markdown_unlinks_legacy_json", async () => {
     const cfg: MemoryConfig = { enabled: true };
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 
     try {
-      const jsonPath = await seedLegacyJson(cwd, cfg, [
-        { text: "first" },
-        { text: "second" },
-      ]);
+      const jsonPath = await seedLegacyJson(cwd, cfg, [{ text: "first" }, { text: "second" }]);
       const result = await migrateLegacyJson(cwd, cfg);
 
       expect(result.migrated).toBe(true);
@@ -102,9 +97,7 @@ describe("sdk-memory migration (iter 63)", () => {
     await mkdir(memoryDir(cwd), { recursive: true });
     await writeFile(memoryMdPath(cwd), "# Memory\n\n## Facts\n\n- existing\n");
 
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
       const result = await migrateLegacyJson(cwd, cfg);
       expect(result.migrated).toBe(false);
@@ -125,9 +118,7 @@ describe("sdk-memory migration (iter 63)", () => {
 
   it("test_idempotent_same_key_returns_already_migrated_second_time", async () => {
     const cfg: MemoryConfig = { enabled: true };
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
       await seedLegacyJson(cwd, cfg, [{ text: "one" }]);
 
@@ -144,9 +135,7 @@ describe("sdk-memory migration (iter 63)", () => {
   });
 
   it("test_different_userId_keys_are_independent", async () => {
-    const stderrSpy = vi
-      .spyOn(process.stderr, "write")
-      .mockImplementation(() => true);
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
     try {
       const alice: MemoryConfig = { enabled: true, userId: "alice" };
       const bob: MemoryConfig = { enabled: true, userId: "bob" };

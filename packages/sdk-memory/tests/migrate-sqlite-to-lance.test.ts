@@ -26,10 +26,7 @@ import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import {
-  migrateSqliteToLance,
-  type MigrateResult,
-} from "@theokit/sdk-memory";
+import { type MigrateResult, migrateSqliteToLance } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 describe("sdk-memory migrate-sqlite-to-lance (iter 71)", () => {
@@ -74,9 +71,7 @@ describe("sdk-memory migrate-sqlite-to-lance (iter 71)", () => {
     const finalPath = join(cwd, ".theokit", "memory", "lance");
     await mkdir(finalPath, { recursive: true });
 
-    await expect(
-      migrateSqliteToLance({ cwd, logger: () => undefined }),
-    ).rejects.toMatchObject({
+    await expect(migrateSqliteToLance({ cwd, logger: () => undefined })).rejects.toMatchObject({
       message: expect.stringContaining("Destination already exists"),
     });
   });

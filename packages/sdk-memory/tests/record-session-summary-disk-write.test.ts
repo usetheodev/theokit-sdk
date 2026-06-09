@@ -98,13 +98,7 @@ describe("createInMemoryMarkdownProvider.recordSessionSummary (iter 33)", () => 
     await expect(stat(join(cwd, "..", "..", "etc", "passwd.md"))).rejects.toThrow();
     // The sanitized path inside `cwd/.theokit/memory/sessions/` SHOULD exist.
     // `../../etc/passwd` becomes `______etc_passwd` after sanitization.
-    const sanitizedPath = join(
-      cwd,
-      ".theokit",
-      "memory",
-      "sessions",
-      "______etc_passwd.md",
-    );
+    const sanitizedPath = join(cwd, ".theokit", "memory", "sessions", "______etc_passwd.md");
     const fileStat = await stat(sanitizedPath);
     expect(fileStat.isFile()).toBe(true);
   });

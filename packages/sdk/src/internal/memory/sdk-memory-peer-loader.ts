@@ -63,7 +63,7 @@ export interface SdkMemoryModule {
       // biome-ignore lint/suspicious/noExplicitAny: structural mirror
       embedding?: any;
       backend?: "sqlite-vec" | "lance";
-    // biome-ignore lint/suspicious/noExplicitAny: structural mirror
+      // biome-ignore lint/suspicious/noExplicitAny: structural mirror
     }): Promise<any>;
   };
 

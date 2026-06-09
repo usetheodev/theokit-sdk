@@ -99,12 +99,13 @@ describe("sdk-memory memory-index (iter 50)", () => {
         chunksEmbedded: 0,
       }),
       search: async () => [],
-      status: () => ({
-        backend: "sqlite-vec" as const,
-        files: 0,
-        chunks: 0,
-        embedded: 0,
-      } as IndexStatus),
+      status: () =>
+        ({
+          backend: "sqlite-vec" as const,
+          files: 0,
+          chunks: 0,
+          embedded: 0,
+        }) as IndexStatus,
       close: () => {
         /* no-op */
       },
