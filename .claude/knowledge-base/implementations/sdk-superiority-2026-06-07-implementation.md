@@ -95,7 +95,7 @@
 | T3.10 | Phase 3 / T3.10 | Cleanup batch DR3 findings 13-25 (REPLANNED 2026-06-09) | split-and-replanned | 19 | — | — | Split into T3.10a-d below; 9 unnamed findings deferred to T7.4-bis |
 | T3.10a | Phase 3 / T3.10a | Vision content parts (DR3 #24, LARGE) | pending | — | — | — | — |
 | T3.10b | Phase 3 / T3.10b | Bedrock streaming flag (DR3 #20) | pending | — | — | — | — |
-| T3.10c | Phase 3 / T3.10c | Capabilities introspection (DR3 #17) | committed | 28 | TBD | a=n/a(step1) b=pass c=n/a | none-needed |
+| T3.10c | Phase 3 / T3.10c | Capabilities introspection (DR3 #17) | committed | 28 | dc4862a | a=n/a(step1) b=pass c=n/a | none-needed |
 | T3.10d | Phase 3 / T3.10d | Vertex Anthropic body-massage removal (DR3 #15) | pending | — | — | — | — |
 
 ### Phase 4 — Memory subsystem (11 tasks)

@@ -48,7 +48,7 @@
     },
     { "id": "T3.10a", "status": "pending" },
     { "id": "T3.10b", "status": "pending" },
-    { "id": "T3.10c", "status": "committed", "sha": "TBD" },
+    { "id": "T3.10c", "status": "committed", "sha": "dc4862a" },
     { "id": "T3.10d", "status": "pending" },
     {
       "id": "T7.4-bis",
