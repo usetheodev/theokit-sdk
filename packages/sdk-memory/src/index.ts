@@ -6,6 +6,20 @@
 
 export { createInMemoryMarkdownProvider } from "./in-memory-provider.js";
 
+// Iter 75: thirty-eighth Stage 3 file move (FINAL) — active-memory
+// orchestrator (296 LOC). The recall blocking primitive (ADR D6)
+// that runs BEFORE `agent.send` assembles the system prompt. Composes
+// every prior Stage 3 move: ActiveMemoryCache (iter 51), CircuitBreaker
+// (iter 44), MemorySearchHit (iter 47), MemoryIndex (iter 50),
+// active-memory-types (iter 48), persistActiveMemoryTranscript
+// (iter 58). `runActiveMemory(args)` + `RunActiveMemoryArgs` +
+// `ActiveMemoryOptions`. Inlined telemetry types (OTelSpan +
+// TelemetryHandle structural mirrors + 2 constant strings —
+// sdk-core's `internal/telemetry/` is not public; the mirrors only
+// satisfy local type checking). **CLOSES Stage 3 source-move** —
+// all 38 files now canonical in @theokit/sdk-memory.
+export * from "./internal/active-memory.js";
+
 // Iter 44: first Stage 3 file move — CircuitBreaker copied from sdk-core's
 // internal/memory/circuit-breaker.ts. sdk-core retains its copy for v1.x
 // active-memory back-compat; sdk-memory's canonical copy is what future
