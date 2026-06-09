@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 31,
+  "iterations_used": 32,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -34,6 +34,12 @@
       "status": "committed",
       "sha": "130eddf",
       "note": "Step 4a/N: compression-decision.ts — shouldAttemptCompression pure function. 8 tests covering decision matrix (error code, enabled flag, grace, attempt cap)."
+    },
+    {
+      "id": "T2.2-step4b",
+      "status": "committed",
+      "sha": "TBD",
+      "note": "Step 4b/N: compression-attempt.ts — attemptCompressionIfNeeded orchestrator integrating decision + selectCompressionWindow + summarizer + counter management. 4 tests. The final loop.ts import-and-call wire is step 4c."
     },
     {
       "id": "T2.2",
