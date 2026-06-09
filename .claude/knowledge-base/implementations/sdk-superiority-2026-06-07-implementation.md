@@ -73,7 +73,7 @@
 | T2.3 | Phase 2 / T2.3 | Conversation log: push tool turns | committed | 34 | cf31347 | a=pass b=pass c=n/a | none-needed |
 | T2.4 | Phase 2 / T2.4 | Parallel tool dispatch | committed | 33 | 0a92fc7 | a=pass b=pass c=n/a | none-needed |
 | T2.5 | Phase 2 / T2.5 | Hook ordering vetoes + lifecycle + span | pending | — | — | — | — |
-| T2.6 | Phase 2 / T2.6 | Loop não exit on first tool error (D89) | pending | — | — | — | — |
+| T2.6 | Phase 2 / T2.6 | Loop não exit on first tool error (D89) | committed | 35 | TBD | a=pass b=pass c=n/a | none-needed |
 | T2.7 | Phase 2 / T2.7 | Provider error → typed AgentRunErrorCode | pending | — | — | — | — |
 | T2.8 | Phase 2 / T2.8 | postToolUse + onStep abort + signal default | pending | — | — | — | — |
 | T2.9 | Phase 2 / T2.9 | Cleanup batch DR2 findings 12-25 | pending | — | — | — | — |
