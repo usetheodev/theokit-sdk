@@ -60,7 +60,7 @@
 | T1.7 | Phase 1 / T1.7 | Observability seed em local-agent | pending | — | — | — | — |
 | T1.8 | Phase 1 / T1.8 | Agent.streamObject import memoization | committed | 39 | TBD | a=pass b=pass c=n/a | none-needed |
 | T1.9 | Phase 1 / T1.9 | Agent.prompt dispose error preservation | committed | 39 | TBD | a=pass b=pass c=n/a | none-needed |
-| T1.10 | Phase 1 / T1.10 | cloud-agent mutex release timeout | committed | 40 | TBD | a=pass b=pass c=n/a | Promise.race with 5min timeout + env override |
+| T1.10 | Phase 1 / T1.10 | cloud-agent mutex release timeout | committed | 40 | fc8d3d9 (contamination) | a=pass b=pass c=n/a | Promise.race with 5min timeout + env override |
 | T1.11 | Phase 1 / T1.11 | Cleanup batch DR1 findings 12-30 | pending | — | — | — | — |
 
 ### Phase 2 — Agent-loop wiring + parallelization (9 tasks)
