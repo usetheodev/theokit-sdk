@@ -26,7 +26,7 @@
     {
       "id": "T2.2-step3",
       "status": "committed",
-      "sha": "TBD",
+      "sha": "0b7c87b",
       "note": "Step 3/N: compression-summarizer.ts — buildCompressionPrompt + compressConversationWindow + CompressionFailedError. callLlm DI seam for tests. 5 tests."
     },
     {
