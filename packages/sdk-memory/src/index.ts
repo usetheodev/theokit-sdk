@@ -50,6 +50,32 @@ export * from "./internal/active-memory-types.js";
 // + `index-manager` + `vec-index` moves which depend on schema DDL.
 export * from "./internal/index-schema.js";
 
+// Iter 74: thirty-first through thirty-seventh Stage 3 file moves —
+// embedding-adapter cluster close. 7 files in one logical move
+// (each ~40 LOC; cluster total ~280 LOC):
+//   - openai-embedding (#31)     — text-embedding-3-small default
+//   - mistral-embedding (#32)    — mistral-embed
+//   - deepinfra-embedding (#33)  — BGE/E5/etc; EC-2 embeddingsPath
+//                                 override `/v1/openai/embeddings`
+//   - voyage-embedding (#34)     — voyage-3-lite default
+//   - openrouter-embedding (#35) — proxies multi-provider catalog ids
+//   - ollama-embedding (#36)     — only `transport: "local"`; sentinel
+//                                 `ollama-local` apiKey for no-auth
+//   - adapter-catalog (#37)      — `MEMORY_EMBEDDING_ADAPTERS` Record
+//                                 indexed by provider id (ADR D11/D183)
+// All 6 provider adapters delegate to iter 73's
+// createOpenAiCompatibleRuntime. CLOSES the embedding-adapter cluster:
+// types (iter 45) + cache (iter 46) + shared factory + inlined error
+// mapper (iter 73) + 6 providers + catalog (this iter) all canonical
+// in @theokit/sdk-memory.
+export * from "./internal/openai-embedding.js";
+export * from "./internal/mistral-embedding.js";
+export * from "./internal/deepinfra-embedding.js";
+export * from "./internal/voyage-embedding.js";
+export * from "./internal/openrouter-embedding.js";
+export * from "./internal/ollama-embedding.js";
+export * from "./internal/adapter-catalog.js";
+
 // Iter 73: thirtieth Stage 3 file move — openai-compatible adapter
 // runtime (276 LOC) + inlined adapter-http-error mapper (160 LOC).
 // `createOpenAiCompatibleRuntime(cfg, options)` is the shared factory
