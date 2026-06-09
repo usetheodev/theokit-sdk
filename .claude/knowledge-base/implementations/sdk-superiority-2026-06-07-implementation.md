@@ -125,7 +125,7 @@
 | T5.7 | Phase 5 / T5.7 | Crypto-random tmp file names + mode 0o600 | committed | 24 | 7fa6b27 | a=pass b=pass c=n/a | none-needed |
 | T5.8 | Phase 5 / T5.8 | NFS detection + warning | committed | 25 | ccbcdea | a=pass b=pass c=n/a | none-needed |
 | T5.9 | Phase 5 / T5.9 | proper-lockfile supply-chain hardening | committed | 26 | ff730b1 | a=pass b=pass c=n/a | none-needed |
-| T5.10 | Phase 5 / T5.10 | Move-corrupt-aside + 1MB cap markdown | pending | — | — | — | — |
+| T5.10 | Phase 5 / T5.10 | Move-corrupt-aside + 1MB cap markdown | committed | 27 | TBD | a=pass b=pass c=n/a | none-needed |
 | T5.11 | Phase 5 / T5.11 | Cleanup batch DR6 findings 11-30 | pending | — | — | — | — |
 
 ### Phase 6 — Test density + load + chaos (8 tasks)

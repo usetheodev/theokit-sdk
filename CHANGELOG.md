@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security — Move-corrupt-aside + 1MB cap on markdown config (T5.10)
+
+- **Workspace impact**: `@theokit/sdk` persistence layer now
+  self-heals corrupt JSON state files by renaming them to
+  `<path>.corrupt.<epoch>` (previously left in place, re-warning
+  every run). Markdown config loader rejects files > 1 MB before
+  reading into memory (local DoS defense for edge/CI workers).
+- **Iter 27** of halt-loop `sdk-superiority-2026-06-07`. Closes
+  DR6 finding #10.
+
 ### Security — proper-lockfile supply-chain hardening (T5.9)
 
 - **Workspace impact**: `@theokit/sdk` consumers using the optional
