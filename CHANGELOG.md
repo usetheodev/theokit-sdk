@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Operational — iter 25 post-housekeeping + ralph-loop cancel stop-hook acknowledgement
+
+- Ralph-loop was cancelled by user at concurrent-counter `iteration: 41`
+  (sdk-2-0 session counter; my `sdk-superiority-2026-06-07` halt-loop
+  stopped at iter 25 per progress JSON).
+- Working tree continues to carry unstaged production-source changes
+  under `packages/sdk-budget/src/`, `packages/sdk-handoff/src/`, and
+  `packages/sdk-memory/src/` from the concurrent `sdk-2-0` ralph-loop
+  session's in-flight Phase 1 Stage 3 source-move work. Same mixed-
+  authorship hygiene as iters 16-24 — this line acknowledges the
+  residual state per Inquebrável Rule 6 without claiming authorship.
+- My T5.8 NFS / SMB / CIFS / FUSE detection + warn-once helper landed
+  clean at `ccbcdea` — sixth consecutive clean atomic iter in Phase 5
+  security (T5.1 → T5.5 → T5.6 → T5.3 → T5.7 → T5.8).
+
 ### Security — NFS / SMB / CIFS / FUSE detection + warn-once on atomic write (T5.8)
 
 - **Workspace impact**: `@theokit/sdk` operators running on network
