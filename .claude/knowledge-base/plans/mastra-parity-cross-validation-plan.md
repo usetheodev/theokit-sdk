@@ -476,8 +476,17 @@ RED: test("container registers and retrieves agents by name", () => {
   const container = new TheoKitContainer({
     agents: { greeter: { model: "openai/gpt-4o-mini", systemPrompt: "greet" } },
   });
-  expect(container.agent("greeter")).toBeDefined();
+  const agent = container.agent("greeter");
+  expect(agent).toBeDefined();
+  expect(agent.model).toEqual("openai/gpt-4o-mini");
   expect(() => container.agent("unknown")).toThrow();
+});
+
+RED: test("container.run after dispose throws AgentDisposedError", async () => {
+  const container = new TheoKitContainer({ agents: { a: { model: "openai/gpt-4o-mini" } } });
+  const agent = container.agent("a");
+  agent.dispose();
+  await expect(container.run("a", "hello")).rejects.toThrow("AgentDisposedError");
 });
 ```
 
@@ -516,6 +525,28 @@ RED: test("container registers and retrieves agents by name", () => {
 - `tests/e2e/budget-tracking.e2e.test.ts` (NEW) — token cost accumulation
 - `tests/e2e/real-llm-full-flow.e2e.test.ts` (NEW) — real LLM gated
 
+#### TDD
+
+```
+RED: test("agent lifecycle: create send dispose", async () => {
+  const agent = Agent.create({ model: "fixture/test", apiKey: "theo_test_fixture" });
+  const run = await agent.send("hello");
+  expect(run.status).toEqual("finished");
+  agent.dispose();
+});
+
+RED: test("tool roundtrip returns tool result", async () => {
+  const tool = defineTool({ name: "echo", inputSchema: z.object({ msg: z.string() }), handler: ({ msg }) => msg });
+  const agent = Agent.create({ model: "fixture/test", apiKey: "theo_test_fixture", tools: [tool] });
+  const run = await agent.send("call echo with msg=hi");
+  expect(run.status).toEqual("finished");
+});
+
+RED: test("error propagation: invalid model throws ConfigurationError", async () => {
+  await expect(Agent.create({ model: "nonexistent/model" }).send("x")).rejects.toThrow();
+});
+```
+
 #### Acceptance criteria
 
 - 10+ `.e2e.test.ts` files in `tests/e2e/`
@@ -547,6 +578,21 @@ RED: test("container registers and retrieves agents by name", () => {
 - `templates/workflow-automation/` (NEW) — evented workflow + cron
 - `templates/telegram-bot/` (NEW) — gateway + agent + memory
 - Each template: `package.json`, `tsconfig.json`, `src/index.ts`, `README.md`
+
+#### TDD
+
+```
+RED: test("chatbot template has required files", () => {
+  expect(existsSync("templates/chatbot/package.json")).toEqual(true);
+  expect(existsSync("templates/chatbot/src/index.ts")).toEqual(true);
+  expect(existsSync("templates/chatbot/README.md")).toEqual(true);
+});
+
+RED: test("chatbot template index.ts is under 100 LoC", () => {
+  const lines = readFileSync("templates/chatbot/src/index.ts", "utf8").split("\n").length;
+  expect(lines).toBeLessThan(100);
+});
+```
 
 #### Acceptance criteria
 
@@ -582,6 +628,21 @@ RED: test("container registers and retrieves agents by name", () => {
 - `tests/server/adapter-express.test.ts` (NEW)
 - `tests/server/adapter-fastify.test.ts` (NEW)
 
+#### TDD
+
+```
+RED: test("hono adapter exports createAgentHandler", async () => {
+  const { createAgentHandler } = await import("../src/server/adapter/hono.js");
+  expect(typeof createAgentHandler).toEqual("function");
+});
+
+RED: test("express adapter handles POST /send", async () => {
+  const handler = createAgentHandler(mockAgent, {});
+  const res = await supertest(handler).post("/send").send({ input: "hi" });
+  expect(res.status).toEqual(200);
+});
+```
+
 #### Acceptance criteria
 
 - `grep 'createAgentHandler' src/server/adapter/hono.ts` returns export statement
@@ -615,6 +676,21 @@ RED: test("container registers and retrieves agents by name", () => {
 - `src/voice/index.ts` (NEW) — barrel
 - `tests/voice/openai-realtime.test.ts` (NEW)
 
+#### TDD
+
+```
+RED: test("VoiceProvider interface is exported from voice sub-path", async () => {
+  const mod = await import("../src/voice/index.js");
+  expect(mod.OpenAIRealtimeVoiceProvider).toBeDefined();
+});
+
+RED: test("OpenAI Realtime TTS request shape", () => {
+  const provider = new OpenAIRealtimeVoiceProvider({ apiKey: "test-key" });
+  expect(typeof provider.textToSpeech).toEqual("function");
+  expect(typeof provider.speechToText).toEqual("function");
+});
+```
+
 #### Acceptance criteria
 
 - `VoiceProvider` interface with `textToSpeech(text, opts)` and `speechToText(audio, opts)`
@@ -638,6 +714,20 @@ RED: test("container registers and retrieves agents by name", () => {
 **Action:** Run the full validation suite (`pnpm validate`), then re-run `/loop-cross-validation:loop-cross-validation /tmp/mastra` to verify all dimensions ≥3.7.
 
 **Reasoning:** The plan is NOT complete until the full chain passes and the cross-validation metric is met. This is the "eat your own cooking" gate.
+
+#### TDD
+
+```
+RED: test("pnpm validate exits 0", async () => {
+  const result = execSync("pnpm -w run validate", { encoding: "utf8" });
+  expect(result).toBeDefined();
+});
+
+RED: test("cross-validation weighted average >= 3.70", () => {
+  const report = JSON.parse(readFileSync("cross-validation-output/scoring-summary.json", "utf8"));
+  expect(report.weighted_avg).toBeGreaterThanOrEqual(3.70);
+});
+```
 
 #### Acceptance criteria
 
