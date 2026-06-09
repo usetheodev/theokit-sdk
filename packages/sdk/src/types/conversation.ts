@@ -52,9 +52,26 @@ export interface ShellOutput {
  *
  * @public
  */
+/**
+ * Result of a tool invocation. Pairs with the preceding `toolCall` step
+ * by `callId`. `isError: true` when the tool returned a failure result.
+ *
+ * T2.3 — added so `Run.conversation()` surfaces the full interaction
+ * including tool results (parity with OpenAI Agents `RunResult.new_items`).
+ *
+ * @public
+ */
+export interface ToolResult {
+  callId: string;
+  name: string;
+  result: string;
+  isError: boolean;
+}
+
 export type ConversationStep =
   | { type: "assistantMessage"; message: AssistantMessage }
   | { type: "toolCall"; message: ToolCall }
+  | { type: "toolResult"; message: ToolResult }
   | { type: "thinkingMessage"; message: ThinkingMessage };
 
 /**
