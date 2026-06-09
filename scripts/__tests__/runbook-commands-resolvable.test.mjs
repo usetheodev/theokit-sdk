@@ -97,11 +97,14 @@ for (const section of ["## TL;DR", "## Step-by-step", "## Recovery flows"]) {
 // original 4. Set the floor at 4 to detect accidental deletions; the
 // count can grow without breaking the gate.
 const recoveryIdx = text.indexOf("## Recovery flows");
-const crossRefIdx = text.indexOf("## Cross-references");
+// Anchor on the NEXT top-level "## " heading after Recovery flows
+// (whichever comes first — Known limitations, Cross-references, etc.)
+// so newly-inserted sections between don't inflate the recovery count.
+const afterRecovery = recoveryIdx >= 0 ? text.slice(recoveryIdx + 1) : "";
+const nextH2Match = afterRecovery.match(/\n## /);
+const sectionEnd = nextH2Match ? recoveryIdx + 1 + nextH2Match.index : text.length;
 const recoverySection =
-  recoveryIdx >= 0 && crossRefIdx > recoveryIdx
-    ? text.slice(recoveryIdx, crossRefIdx)
-    : "";
+  recoveryIdx >= 0 ? text.slice(recoveryIdx, sectionEnd) : "";
 const recoveryHeadings = (recoverySection.match(/^### /gm) ?? []).length;
 pushFail(
   recoveryHeadings < 4,
