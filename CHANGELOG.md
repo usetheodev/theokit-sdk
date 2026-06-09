@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed — Iter 44: T4.8 CJK FTS5 fallback to LIKE search
+
+- **T4.8** FTS5 tokenizer failure on CJK/non-Latin scripts now falls back to `LIKE '%query%'` scan instead of returning empty results. Slower but correct for any Unicode input. ADR D64 documents trigram-routing deferral.
+
 ### Security — Iter 43: T4.9 CRITICAL cross-tenant cache leak fix
 
 - **T4.9** Active memory cache key now includes `namespace + userId + scope` via NUL-separated SHA-256. Pre-T4.9 two users sharing a process with identical queries got each other's cached results. CRITICAL cross-tenant data leak (DR4 #9).
