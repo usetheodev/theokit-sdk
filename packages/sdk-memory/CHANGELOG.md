@@ -2,6 +2,43 @@
 
 ## [Unreleased]
 
+### Added (Stage 3 source-move COMPLETE — iter 44-75, 2026-06-08 → 2026-06-09)
+
+38/38 source files from sdk-core's `internal/memory/*` now have
+canonical hybrid copies in this package. sdk-core retains its copies
+for v1.x back-compat; consumers installing this package get the
+canonical surface that sdk-core's Stage 4 routing delegates to.
+
+**Closed clusters:**
+- Dreaming (iter 54+59+60): `dreaming-phases.ts`, `dreaming-diary.ts`,
+  `dreaming-run.ts` + `active-memory-types.ts` (iter 48)
+- Sessions (iter 61+62): `session-summary-writer.ts`, `session-loader.ts`
+- Storage (iter 53+55-58+62): `markdown-store.ts`, `chunk-markdown.ts`,
+  `reader.ts`, `transcript-store.ts`, `wiki-loader.ts`
+- Index (iter 47+49-50+65-72): `index-manager-contract.ts`,
+  `index-schema.ts`, `memory-index.ts`, `index-db.ts`,
+  `sqlite-vec-loader.ts`, `vec-index.ts`, `lance-index.ts`,
+  `lance-memory-adapter.ts`, `index-manager-dispatch.ts`,
+  `index-manager.ts`
+- Migration (iter 63+71): `migration.ts`, `migrate-sqlite-to-lance.ts`
+- Adapters (iter 45+46+73+74): `embedding-adapter.ts`,
+  `embedding-cache.ts`, `openai-compatible.ts` + inlined
+  `adapter-http-error.ts` + 6 provider adapters
+  (openai/mistral/openrouter/voyage/deepinfra/ollama) +
+  `adapter-catalog.ts`
+- Core (iter 44+51+52+64+75): `circuit-breaker.ts`,
+  `active-memory-cache.ts`, `memory-types.ts`, `tools.ts`,
+  `active-memory.ts`
+
+**Optional peers** (sdk-memory dynamically loads when present):
+- `better-sqlite3` (iter 65)
+- `sqlite-vec` (iter 66)
+- `@lancedb/lancedb` (iter 68)
+
+**287 GREEN tests** across 38 files document every move's behavior;
+**zero unexpected drift** between sdk-core and sdk-memory copies
+(verified by the Stage 3 drift detector, iter 93).
+
 ### Added (Phase 1 Stage 3 prep — iter 33-35, 2026-06-08)
 - `createInMemoryMarkdownProvider.recordSessionSummary` ships REAL
   filesystem-backed impl (was no-op). Writes
