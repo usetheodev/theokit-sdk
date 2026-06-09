@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added — Compression config resolution (T2.2 step 2/N)
+
+- **Workspace impact**: `resolveCompressionConfig` module ships the
+  config bridge between the compression-model-registry (step 1) and
+  the upcoming aux-LLM client (step 3). Exports
+  `CompressionConfig` (consumer-facing type for `Agent.create`) +
+  `ResolvedCompressionConfig` (fully-resolved internal shape).
+  Provider-agnostic key resolution chain: explicit → env → pool
+  fallback. 11/11 tests GREEN.
+- **Iter 29** of halt-loop `sdk-superiority-2026-06-07`.
+
 ### Added — Model capabilities introspection registry (T3.10c step 1)
 
 - **Workspace impact**: `@theokit/sdk` now has a typed per-model

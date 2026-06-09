@@ -1,6 +1,6 @@
 {
   "slug": "sdk-superiority-2026-06-07",
-  "iterations_used": 28,
+  "iterations_used": 29,
   "tasks": [
     { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
     { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
@@ -16,6 +16,12 @@
       "status": "committed",
       "sha_artifacts": "52092ee",
       "note": "Step 1/N of T2.2: compression-model-registry.ts + 18 RED→GREEN tests + CHANGELOGs swept into sdk-2-0 session's commit 52092ee (Stage 4 #1 — optional-peer sdk-memory loader, iter 76). Same contamination pattern as iter 18 T3.9 (1ed2866) + iter 19 T5.4 (8d1325e+62408c1). Post-contamination cognitive-complexity refactor (12→≤10 via matchWildcard + isNoAuthProvider helper extraction) follows. 18/18 tests GREEN at HEAD."
+    },
+    {
+      "id": "T2.2-step2",
+      "status": "committed",
+      "sha": "TBD",
+      "note": "Step 2/N of T2.2: compression-config.ts resolves model (registry) + API key (env→explicit→pool-fallback) + maxAttempts/grace defaults. 11 tests. Foundation for step 3 (aux-llm-client) and step 4 (loop.ts wire)."
     },
     {
       "id": "T2.2",
@@ -77,7 +83,7 @@
   ],
   "blocked_count": 0,
   "partial_count": 2,
-  "pending_count": 43,
+  "pending_count": 42,
   "halted": false,
   "cost_usd_cumulative": 0.0
 }
