@@ -20,7 +20,7 @@
     {
       "id": "T2.2-step2",
       "status": "committed",
-      "sha": "TBD",
+      "sha": "b102ce2",
       "note": "Step 2/N of T2.2: compression-config.ts resolves model (registry) + API key (env→explicit→pool-fallback) + maxAttempts/grace defaults. 11 tests. Foundation for step 3 (aux-llm-client) and step 4 (loop.ts wire)."
     },
     {
