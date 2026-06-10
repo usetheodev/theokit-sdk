@@ -34,7 +34,10 @@ import {
   type PreUserSendContext,
   type PreUserSendResult,
 } from "@theokit/sdk";
-import { PersistenceSchema } from "@theokit/sdk/internal/persistence";
+// PersistenceSchema defined locally using the same Zod version that sdk-cache
+// resolves. Importing from @theokit/sdk/internal/persistence mixes Zod v3
+// (bundled in the SDK dist) with Zod v4 (sdk-cache's resolved version),
+// causing "expected a Zod schema" errors in z.object() nesting.
 import { z } from "zod";
 import { type LookupableStore, performLookup } from "./internal/lookup.js";
 import { InMemoryCacheStore } from "./internal/store.js";
@@ -49,16 +52,9 @@ import type {
 } from "./types/cache.js";
 
 const CacheSemanticOptionsSchema = z.object({
-  embedder: z.unknown().refine(
-    (v) => {
-      if (v === null || typeof v !== "object") return false;
-      const o = v as { id?: unknown; embed?: unknown; dimension?: unknown };
-      return (
-        typeof o.id === "string" && typeof o.embed === "function" && typeof o.dimension === "number"
-      );
-    },
-    { message: "embedder must be a CacheEmbedderRuntime with { id, dimension, embed }" },
-  ),
+  // z.unknown().refine() creates ZodEffects which Zod v4 rejects inside z.object().
+  // Validate embedder shape manually after parse.
+  embedder: z.unknown(),
   threshold: z.number().min(0).max(2).optional(),
   ttl: z
     .object({
@@ -69,7 +65,12 @@ const CacheSemanticOptionsSchema = z.object({
   namespace: z.string().min(1).max(64).optional(),
   modelId: z.string().min(1).max(128).optional(),
   maxEntries: z.number().int().min(1).max(1_000_000).optional(),
-  persistence: PersistenceSchema,
+  persistence: z
+    .object({
+      backend: z.enum(["memory", "json"]),
+      dir: z.string().optional(),
+    })
+    .optional(),
 });
 
 const DEFAULT_THRESHOLD = 0.85;
@@ -91,6 +92,23 @@ export class Cache {
 
   static semantic(options: CacheSemanticOptions): Cache {
     CacheSemanticOptionsSchema.parse(options);
+    // Zod v4 rejects ZodEffects inside z.object(); validate shapes manually
+    const e = options.embedder as unknown as Record<string, unknown> | null;
+    if (
+      e === null ||
+      typeof e !== "object" ||
+      typeof e.id !== "string" ||
+      typeof e.embed !== "function" ||
+      typeof e.dimension !== "number"
+    ) {
+      throw new Error("embedder must be a CacheEmbedderRuntime with { id, dimension, embed }");
+    }
+    if (
+      options.persistence?.backend === "json" &&
+      (typeof options.persistence.dir !== "string" || options.persistence.dir.length === 0)
+    ) {
+      throw new Error('persistence.dir is required when backend = "json"');
+    }
     const threshold = options.threshold ?? DEFAULT_THRESHOLD;
     const ttl = options.ttl ?? DEFAULT_TTL;
     const namespace = options.namespace ?? DEFAULT_NAMESPACE;
