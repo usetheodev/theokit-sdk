@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `@Hitl({ tools: ["execute"] })` method decorator — marks HITL approval handler via DI metadata
 - `@AutoSummarize({ triggerFraction: 0.85 })` class decorator — configures auto-summarization via DI metadata
 - `METADATA_KEYS` exported from `@theokit/di` barrel (SANDBOX, SUBAGENT, HITL, AUTO_SUMMARIZE keys)
-- `examples/deepagents-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation
+- `examples/deepagents-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation (includes `run-decorators.ts` decorator-based variant)
 
 ### Added (previous)
 
