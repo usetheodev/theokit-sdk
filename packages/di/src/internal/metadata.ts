@@ -31,6 +31,24 @@ export const METADATA_KEYS = {
   HITL: "usetheo:di:hitl",
   /** AutoSummarizeConfig from `@AutoSummarize()` class decorator. */
   AUTO_SUMMARIZE: "usetheo:di:auto-summarize",
+  /** Map<string|symbol, ToolOptions> from `@Tool()` property decorator. */
+  TOOL: "usetheo:di:tool",
+  /** WorkflowOptions from `@Workflow()` class decorator. */
+  WORKFLOW: "usetheo:di:workflow",
+  /** EvalOptions from `@Eval()` class decorator. */
+  EVAL: "usetheo:di:eval",
+  /** CronMetadata from `@Cron()` method decorator. */
+  CRON: "usetheo:di:cron",
+  /** Map<string|symbol, SubscriptionOptions> from `@Subscription()` property decorator. */
+  SUBSCRIPTION: "usetheo:di:subscription",
+  /** AuthOptions from `@Auth()` class decorator. */
+  AUTH: "usetheo:di:auth",
+  /** Map<string|symbol, RetrieverOptions> from `@Retriever()` property decorator. */
+  RETRIEVER: "usetheo:di:retriever",
+  /** Map<string|symbol, RerankerOptions> from `@Reranker()` property decorator. */
+  RERANKER: "usetheo:di:reranker",
+  /** Map<string|symbol, TextSplitterOptions> from `@TextSplitter()` property decorator. */
+  TEXT_SPLITTER: "usetheo:di:text-splitter",
 } as const;
 
 export interface InjectableMetadata {
