@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { AuthenticationError, ConfigurationError } from "../../../src/errors.js";
 import { openAiMemoryEmbeddingProviderAdapter } from "../../../src/internal/memory/adapters/openai-embedding.js";
+import { __TESTING__resetGlobalEmbeddingCache } from "../../../src/internal/memory/embedding-cache.js";
 
 /**
  * Phase 4 T4.2 — OpenAI embedding adapter.
@@ -38,6 +39,13 @@ function embeddingPayload(n: number, dim = 1536): { data: Array<{ embedding: num
 }
 
 describe("OpenAI embedding adapter", () => {
+  beforeEach(() => {
+    __TESTING__resetGlobalEmbeddingCache();
+  });
+  afterEach(() => {
+    __TESTING__resetGlobalEmbeddingCache();
+  });
+
   it("embeds a single text via /v1/embeddings", async () => {
     const stub = makeFetchStub([{ status: 200, body: embeddingPayload(1) }]);
     const runtime = await openAiMemoryEmbeddingProviderAdapter.create({

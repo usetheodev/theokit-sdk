@@ -63,7 +63,7 @@ describe("T3.9 — CredentialPool.waitForAvailable", () => {
   it("polls with full-jitter sleeps when all entries are in cooldown, then returns true once one auto-heals", async () => {
     const pool = new CredentialPool("openai", [entry("k1")]);
     // Mark the only entry exhausted with a short cooldown.
-    await pool.markExhaustedAndRotate({ entryId: pool.list()[0].id, statusCode: 429 });
+    await pool.markExhaustedAndRotate({ entryId: pool.list()[0]!.id, statusCode: 429 });
     expect(pool.hasAvailable()).toBe(false);
 
     let sleepCalls = 0;
@@ -92,7 +92,7 @@ describe("T3.9 — CredentialPool.waitForAvailable", () => {
   it("returns false when maxWaitMs elapses without any entry healing", async () => {
     const pool = new CredentialPool("openai", [entry("k1")]);
     await pool.markExhaustedAndRotate({
-      entryId: pool.list()[0].id,
+      entryId: pool.list()[0]!.id,
       statusCode: 429,
       resetAtMs: Date.now() + 999_999_999,
     });
@@ -122,7 +122,7 @@ describe("T3.9 — CredentialPool.waitForAvailable", () => {
 
   it("returns false promptly when signal aborts mid-wait", async () => {
     const pool = new CredentialPool("openai", [entry("k1")]);
-    await pool.markExhaustedAndRotate({ entryId: pool.list()[0].id, statusCode: 429 });
+    await pool.markExhaustedAndRotate({ entryId: pool.list()[0]!.id, statusCode: 429 });
 
     const ac = new AbortController();
     let sleepCalls = 0;

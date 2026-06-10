@@ -63,6 +63,9 @@ describe("sdk-memory active-memory-types (iter 48)", () => {
           endLine: 5,
           score: 0.87,
           textScore: 0.42,
+          snippet: "test snippet",
+          source: "memory",
+          citation: "/abs/path/file.md:1-5",
         },
       ],
     };

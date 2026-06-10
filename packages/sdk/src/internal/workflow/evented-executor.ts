@@ -11,8 +11,11 @@
  */
 
 import { randomUUID } from "node:crypto";
-import type { Step } from "../../types/workflow.js";
+import type { Step, StepContext } from "../../types/workflow.js";
 import { WorkflowScheduler } from "./scheduler.js";
+
+const noop = () => {};
+const noopLog: StepContext["log"] = { debug: noop, info: noop, warn: noop };
 
 export interface EventedWorkflowRunResult {
   runId: string;
@@ -77,13 +80,14 @@ export class EventedWorkflowExecutor {
       }
 
       const step = this._steps[i];
-      if (step.kind !== "fn") continue;
+      if (!step || step.kind !== "fn") continue;
 
-      let _suspended = false;
-      const ctx = {
+      const ctx: StepContext = {
+        runId,
         signal: opts?.signal ?? new AbortController().signal,
-        suspend: (name: string): never => {
-          _suspended = true;
+        log: noopLog,
+        suspend: (payload?: unknown): Promise<never> => {
+          const name = typeof payload === "string" ? payload : `step-${i}`;
           this._suspended.set(runId, {
             runId,
             stepIndex: i + 1,
@@ -95,9 +99,7 @@ export class EventedWorkflowExecutor {
       };
 
       try {
-        current = await (
-          step as { handler: (input: unknown, ctx: unknown) => Promise<unknown> }
-        ).handler(current, ctx);
+        current = await step.fn(current, ctx);
       } catch (err) {
         if (err instanceof SuspendSignal) {
           return { runId, status: "suspended", suspendedAt: err.name };
@@ -128,13 +130,14 @@ export class EventedWorkflowExecutor {
     let current: unknown = resumeData;
     for (let i = state.stepIndex; i < this._steps.length; i++) {
       const step = this._steps[i];
-      if (step.kind !== "fn") continue;
+      if (!step || step.kind !== "fn") continue;
       try {
-        current = await (
-          step as { handler: (input: unknown, ctx: unknown) => Promise<unknown> }
-        ).handler(current, {
+        current = await step.fn(current, {
+          runId,
           signal: new AbortController().signal,
-          suspend: (name: string): never => {
+          log: noopLog,
+          suspend: (payload?: unknown): Promise<never> => {
+            const name = typeof payload === "string" ? payload : `step-${i}`;
             this._suspended.set(runId, {
               runId,
               stepIndex: i + 1,
@@ -143,7 +146,7 @@ export class EventedWorkflowExecutor {
             });
             throw new SuspendSignal(name);
           },
-        });
+        } satisfies StepContext);
       } catch (err) {
         if (err instanceof SuspendSignal) {
           return { runId, status: "suspended", suspendedAt: err.name };

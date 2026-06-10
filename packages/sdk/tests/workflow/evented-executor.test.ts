@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { EventedWorkflowExecutor } from "../../src/internal/workflow/evented-executor.js";
-import type { Step } from "../../src/types/workflow.js";
+import type { Step, StepContext } from "../../src/types/workflow.js";
 
 const echoStep: Step = {
   kind: "fn",
   id: "echo",
-  handler: async (input: unknown) => input,
+  fn: async (input: unknown) => input,
 };
 
 describe("EventedWorkflowExecutor", () => {
@@ -34,7 +34,7 @@ describe("EventedWorkflowExecutor", () => {
     const suspendStep: Step = {
       kind: "fn",
       id: "needs-approval",
-      handler: async (_input: unknown, ctx: { suspend: (name: string) => never }) => {
+      fn: async (_input: unknown, ctx: StepContext) => {
         ctx.suspend("approval");
       },
     };
@@ -55,7 +55,7 @@ describe("EventedWorkflowExecutor", () => {
     const slowStep: Step = {
       kind: "fn",
       id: "slow",
-      handler: async (_input: unknown, ctx: { signal: AbortSignal }) => {
+      fn: async (_input: unknown, ctx: { signal: AbortSignal }) => {
         await new Promise((resolve, reject) => {
           const timer = setTimeout(resolve, 5000);
           ctx.signal.addEventListener("abort", () => {

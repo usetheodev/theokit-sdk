@@ -11,8 +11,8 @@ describe("MessageBus", () => {
     });
     await bus.send("agent-a", "agent-b", { type: "greeting", payload: "hello" });
     expect(received.length).toEqual(1);
-    expect(received[0].payload).toEqual("hello");
-    expect(received[0].from).toEqual("agent-a");
+    expect(received[0]!.payload).toEqual("hello");
+    expect(received[0]!.from).toEqual("agent-a");
   });
 
   it("request/response returns typed response", async () => {

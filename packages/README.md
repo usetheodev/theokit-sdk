@@ -57,6 +57,7 @@ This monorepo ships **24 packages** organized in **5 families**. The family lets
 | `@theokit/acp` | Agent Client Protocol (ACP) server adapter. |
 | `@theokit/skills-google-workspace` | Google Workspace skills (Gmail, Calendar, Drive). |
 | `@theokit/cli` | `theokit` CLI binary (init, dev, inspect, eval, acp). |
+| `@theokit/codemod-sdk-2-0` | jscodeshift codemod for `@theokit/sdk` 1.x → 2.0 import rewriting. |
 
 ## SDK 2.0 split status
 

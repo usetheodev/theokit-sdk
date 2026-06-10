@@ -18,7 +18,7 @@ describe("VectorRetriever", () => {
     const retriever = new VectorRetriever({ index: mockIndex, topK: 3 });
     const results = await retriever.retrieve("cooking recipes");
     expect(results.length).toBeLessThanOrEqual(3);
-    expect(results[0].score).toEqual(0.95);
+    expect(results[0]!.score).toEqual(0.95);
   });
 
   it("respects topK option", async () => {

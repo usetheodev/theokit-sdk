@@ -10,7 +10,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { registerProvider } from "./registry.js";
+import { getProviderProfile, registerProvider } from "./registry.js";
 import type { ApiMode, AuthType, ProviderProfile } from "./types.js";
 
 const __dirname_resolved = dirname(fileURLToPath(import.meta.url));
@@ -103,6 +103,12 @@ export function getCatalogCapabilities(providerId: string): ProviderCapabilities
 export function registerCatalogProviders(opts?: LoadOptions): void {
   const catalog = loadProviderCatalog(opts);
   for (const entry of Object.values(catalog)) {
+    // Skip catalog entries that would overwrite first-party builtins.
+    // Builtins have richer env-var handling and are registered first.
+    // Also skip if any alias collides with an existing provider name.
+    if (getProviderProfile(entry.id) !== undefined) continue;
+    if (entry.aliases?.some((a) => getProviderProfile(a) !== undefined)) continue;
+
     const profile: ProviderProfile = {
       name: entry.id,
       apiMode: entry.apiMode,

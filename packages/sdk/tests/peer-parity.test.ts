@@ -22,7 +22,24 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import * as sdkMemory from "@theokit/sdk-memory";
+// The sdk-memory dist d.ts omits some re-exports (tsup DTS rollup issue).
+// Runtime values exist — use a typed facade for the subset we need.
+import * as _sdkMemory from "@theokit/sdk-memory";
+
+const sdkMemory = _sdkMemory as typeof _sdkMemory & {
+  migrateSqliteToLance: (opts: { cwd: string; logger: () => undefined }) => Promise<
+    Record<string, unknown> & {
+      countSqlite: number;
+      countLance: number;
+      validated: boolean;
+      sampleComparisons: unknown[];
+      committed: boolean;
+      lancePath: string;
+    }
+  >;
+  MEMORY_EMBEDDING_ADAPTERS: Record<string, unknown>;
+};
+
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
 import { Memory } from "../src/memory.js";

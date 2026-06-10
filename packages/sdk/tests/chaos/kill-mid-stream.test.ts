@@ -21,7 +21,7 @@ describe.skipIf(SKIP_CHAOS)("T0.3 kill-mid-stream chaos scaffold", () => {
     const child = spawnNodeChild({
       nodeArgs: ["-e"],
       scriptPath:
-        "let i=0;const t=setInterval(()=>{i+=1;process.stdout.write(`tick ${i}\\n`);if(i>500)clearInterval(t);},10);",
+        "let i=0;const t=setInterval(()=>{i+=1;process.stdout.write('tick '+i+'\\n');if(i>500)clearInterval(t);},10);",
     });
     try {
       await waitForStdout(child, (l) => l.startsWith("tick "), 5_000);

@@ -139,8 +139,8 @@ describe("sdk-memory index-manager (iter 72)", () => {
         providerId: "stub",
         model: "v1",
         dimension: 3,
-        embed: async (texts) => texts.map(() => [1, 0, 0]),
-      } as EmbeddingRuntime;
+        embed: async (texts: string[]) => texts.map(() => [1, 0, 0]),
+      } as unknown as EmbeddingRuntime;
       // Need sqlite-vec for full vector init — gracefully skip if absent.
       try {
         await import("sqlite-vec");
@@ -156,8 +156,8 @@ describe("sdk-memory index-manager (iter 72)", () => {
         providerId: "stub",
         model: "v2",
         dimension: 5,
-        embed: async (texts) => texts.map(() => [1, 0, 0, 0, 0]),
-      } as EmbeddingRuntime;
+        embed: async (texts: string[]) => texts.map(() => [1, 0, 0, 0, 0]),
+      } as unknown as EmbeddingRuntime;
       const idx2 = await IndexManager.open({ cwd, embedding: embedding5 });
       // Open succeeded → EC-1 drop+recreate cycle didn't throw.
       const status = idx2.status();

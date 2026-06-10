@@ -88,7 +88,7 @@ export class Theokit {
       registerBuiltins();
       // Extract provider name from "provider/model" format
       const providerId = providerOrModelId.includes("/")
-        ? providerOrModelId.split("/")[0]
+        ? (providerOrModelId.split("/")[0] ?? providerOrModelId)
         : providerOrModelId;
       return getCatalogCapabilities(providerId);
     },
