@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
 import { MEMORY_EMBEDDING_ADAPTERS } from "../../../src/internal/memory/adapters/catalog.js";
@@ -7,6 +7,7 @@ import { mistralMemoryEmbeddingProviderAdapter } from "../../../src/internal/mem
 import { openAiMemoryEmbeddingProviderAdapter } from "../../../src/internal/memory/adapters/openai-embedding.js";
 import { openRouterMemoryEmbeddingProviderAdapter } from "../../../src/internal/memory/adapters/openrouter-embedding.js";
 import { voyageMemoryEmbeddingProviderAdapter } from "../../../src/internal/memory/adapters/voyage-embedding.js";
+import { __TESTING__resetGlobalEmbeddingCache } from "../../../src/internal/memory/embedding-cache.js";
 
 /**
  * Memory embedding adapter catalog — only adapters that ship a real
@@ -47,9 +48,27 @@ function stubFetch(responses: Array<{ status: number; body?: unknown }>): {
 }
 
 describe("MEMORY_EMBEDDING_ADAPTERS catalog", () => {
-  it("exposes the v1.0 providers (D11) + ollama (D183)", () => {
+  beforeEach(() => {
+    __TESTING__resetGlobalEmbeddingCache();
+  });
+  afterEach(() => {
+    __TESTING__resetGlobalEmbeddingCache();
+  });
+
+  it("exposes the v1.0 providers (D11) + ollama (D183) + T4.10 expansions", () => {
     const ids = Object.keys(MEMORY_EMBEDDING_ADAPTERS).sort();
-    expect(ids).toEqual(["deepinfra", "mistral", "ollama", "openai", "openrouter", "voyage"]);
+    expect(ids).toEqual([
+      "azure-openai",
+      "cohere",
+      "deepinfra",
+      "gemini",
+      "jina",
+      "mistral",
+      "ollama",
+      "openai",
+      "openrouter",
+      "voyage",
+    ]);
     for (const [id, adapter] of Object.entries(MEMORY_EMBEDDING_ADAPTERS)) {
       expect(adapter.id).toBe(id);
       expect(typeof adapter.defaultModel).toBe("string");

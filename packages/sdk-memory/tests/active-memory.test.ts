@@ -243,7 +243,7 @@ describe("sdk-memory active-memory (iter 75)", () => {
   describe("cache integration", () => {
     it("test_cache_hit_short_circuits_returning_cached_result", async () => {
       let lookups = 0;
-      const cache: ActiveMemoryCache = {
+      const cache = {
         get: () => {
           lookups++;
           return {
@@ -255,7 +255,7 @@ describe("sdk-memory active-memory (iter 75)", () => {
         },
         set: () => {},
         size: () => 0,
-      } as ActiveMemoryCache;
+      } as unknown as ActiveMemoryCache;
 
       let searched = false;
       const idx: MemoryIndex = {

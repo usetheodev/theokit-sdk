@@ -81,7 +81,7 @@ export class TheoKitContainer {
     }
     // Delegate to Agent.create — lazy import to avoid circular dep
     const { Agent } = await import("./agent.js");
-    const agent = Agent.create({
+    const agent = await Agent.create({
       model: { id: config.model },
       apiKey: (config.apiKey as string) ?? "theo_test_fixture",
       systemPrompt: config.systemPrompt,

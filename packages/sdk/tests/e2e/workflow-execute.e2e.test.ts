@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EventedWorkflowExecutor } from "../../src/internal/workflow/evented-executor.js";
+import type { StepContext } from "../../src/types/workflow.js";
 
 describe("E2E: workflow execution", () => {
   it("multi-step workflow runs to completion", async () => {
@@ -9,12 +10,12 @@ describe("E2E: workflow execution", () => {
         {
           kind: "fn",
           id: "step1",
-          handler: async (input: unknown) => ({ ...(input as object), step1: true }),
+          fn: async (input: unknown) => ({ ...(input as object), step1: true }),
         },
         {
           kind: "fn",
           id: "step2",
-          handler: async (input: unknown) => ({ ...(input as object), step2: true }),
+          fn: async (input: unknown) => ({ ...(input as object), step2: true }),
         },
       ],
     });
@@ -31,10 +32,9 @@ describe("E2E: workflow execution", () => {
         {
           kind: "fn",
           id: "needs-approval",
-          handler: async (_input: unknown, ctx: { suspend: (n: string) => never }) =>
-            ctx.suspend("human-review"),
+          fn: async (_input: unknown, ctx: StepContext) => ctx.suspend("human-review"),
         },
-        { kind: "fn", id: "final", handler: async (input: unknown) => input },
+        { kind: "fn", id: "final", fn: async (input: unknown) => input },
       ],
     });
     const state = await executor.run({ data: "test" });

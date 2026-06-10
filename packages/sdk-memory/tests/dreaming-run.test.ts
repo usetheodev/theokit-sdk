@@ -36,7 +36,7 @@ function stubEmbedding(textToVec: Record<string, ReadonlyArray<number>>): Embedd
     dimension: 3,
     providerId: "stub",
     model: "stub-model",
-  } as EmbeddingRuntime;
+  } as unknown as EmbeddingRuntime;
 }
 
 describe("sdk-memory dreaming-run (iter 60)", () => {
@@ -131,7 +131,7 @@ describe("sdk-memory dreaming-run (iter 60)", () => {
       dimension: 3,
       providerId: "stub-fail",
       model: "stub-fail-model",
-    } as EmbeddingRuntime;
+    } as unknown as EmbeddingRuntime;
 
     const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
 

@@ -38,7 +38,7 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && tsc -p tsconfig.build.json && cp dist/index.d.ts dist/index.d.cts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

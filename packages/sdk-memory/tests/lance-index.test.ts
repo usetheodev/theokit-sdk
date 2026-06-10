@@ -34,11 +34,12 @@ function stubEmbedding(
   dim = 3,
 ): EmbeddingRuntime {
   return {
-    embed: async (texts) => texts.map((t) => [...(textToVec[t] ?? new Array(dim).fill(0))]),
+    embed: async (texts: string[]) =>
+      texts.map((t) => [...(textToVec[t] ?? new Array(dim).fill(0))]),
     dimension: dim,
     providerId: "stub",
     model: "stub",
-  } as EmbeddingRuntime;
+  } as unknown as EmbeddingRuntime;
 }
 
 describe("sdk-memory lance-index (iter 68)", () => {

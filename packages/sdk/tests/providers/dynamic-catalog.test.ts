@@ -24,8 +24,8 @@ describe("dynamic provider catalog", () => {
     const catalog = loadProviderCatalog();
     const openai = catalog.openai;
     expect(openai).toBeDefined();
-    expect(openai.capabilities).toBeDefined();
-    expect(openai.capabilities.supportsToolUse).toBe(true);
+    expect(openai!.capabilities).toBeDefined();
+    expect(openai!.capabilities.supportsToolUse).toBe(true);
   });
 
   it("catalog includes major providers", () => {

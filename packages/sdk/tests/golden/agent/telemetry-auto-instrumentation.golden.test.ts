@@ -29,11 +29,13 @@ describe("telemetry auto-instrumentation registry", () => {
     expect(names).toContain("PostHog");
   });
 
-  it("does NOT register when none of the modules are present (default env)", () => {
-    // Vendor libs are not installed in CI; tryAutoRegisterAdapters is a no-op.
+  it("only registers adapters whose vendor module is detectable", () => {
+    // Some vendor libs (e.g. langsmith) may be resolvable as transitive
+    // devDeps. The contract is: detect() === true → registered, else not.
     tryAutoRegisterAdapters({ enabled: true });
     for (const adapter of _getAllAdapters()) {
-      expect(_isRegistered(adapter.moduleName)).toBe(false);
+      const detected = adapter.detect();
+      expect(_isRegistered(adapter.moduleName)).toBe(detected);
     }
   });
 
@@ -63,11 +65,16 @@ describe("telemetry auto-instrumentation registry", () => {
 
   it("re-registration is idempotent (no double-register)", () => {
     tryAutoRegisterAdapters({ enabled: true });
-    tryAutoRegisterAdapters({ enabled: true });
-    tryAutoRegisterAdapters({ enabled: true });
-    // No throws; registered set is stable.
+    // Snapshot registered set after first call.
+    const snapshot = new Map<string, boolean>();
     for (const adapter of _getAllAdapters()) {
-      expect(_isRegistered(adapter.moduleName)).toBe(false);
+      snapshot.set(adapter.moduleName, _isRegistered(adapter.moduleName));
+    }
+    // Subsequent calls must not change the set.
+    tryAutoRegisterAdapters({ enabled: true });
+    tryAutoRegisterAdapters({ enabled: true });
+    for (const adapter of _getAllAdapters()) {
+      expect(_isRegistered(adapter.moduleName)).toBe(snapshot.get(adapter.moduleName));
     }
   });
 

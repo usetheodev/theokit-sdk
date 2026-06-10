@@ -68,11 +68,14 @@ export class CohereReranker implements Reranker {
       results: Array<{ index: number; relevance_score: number }>;
     };
 
-    return data.results.map((r) => ({
-      text: chunks[r.index].text,
-      score: r.relevance_score,
-      originalIndex: r.index,
-      metadata: chunks[r.index].metadata,
-    }));
+    return data.results.map((r) => {
+      const chunk = chunks[r.index];
+      return {
+        text: chunk?.text ?? "",
+        score: r.relevance_score,
+        originalIndex: r.index,
+        metadata: chunk?.metadata,
+      };
+    });
   }
 }

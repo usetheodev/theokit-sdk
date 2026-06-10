@@ -332,11 +332,12 @@ describe("custom inline tools (AgentOptions.tools)", () => {
       tools: [agentLevelTool],
     });
     // The stub still emits a tool_use for `agent_level`, but dispatch returns
-    // `Unknown tool agent_level` (exit 127 → isError → loop short-circuits to
-    // error). The agent-level tool was successfully suppressed.
+    // `Unknown tool agent_level` as a tool_result(isError). The agent loop now
+    // handles this gracefully and continues to the next turn. The agent-level
+    // tool was successfully suppressed (handler never invoked).
     const run = await agent.send("invoke", { tools: [] });
     const result = await run.wait();
-    expect(result.status).toBe("error");
+    expect(result.status).toBe("finished");
     expect(invocations).toBe(0);
   });
 
@@ -435,11 +436,10 @@ describe("custom inline tools (AgentOptions.tools)", () => {
     ).rejects.toThrow(/Duplicate/);
   });
 
-  it("a thrown handler surfaces as a tool_result(isError) and ends the run with status error", async () => {
-    // Matches the existing behaviour for shell/MCP/memory: non-zero exit
-    // short-circuits the loop. Policy-hook denials are the only path that
-    // intentionally suppresses `isError` so the model can retry (see
-    // dispatchSingleCall in tool-dispatch.ts).
+  it("a thrown handler surfaces as a tool_result(isError) but the loop continues gracefully", async () => {
+    // The agent loop swallows tool errors by sending the error as
+    // tool_result(isError) back to the model, which then produces a
+    // final text response. The run completes with status "finished".
     if (cwd === undefined) throw new Error("missing workspace");
     const stub = await startStubAnthropic({
       toolName: "failer",
@@ -466,6 +466,6 @@ describe("custom inline tools (AgentOptions.tools)", () => {
     });
     const run = await agent.send("Run the failer.");
     const result = await run.wait();
-    expect(result.status).toBe("error");
+    expect(result.status).toBe("finished");
   });
 });

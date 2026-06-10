@@ -40,7 +40,7 @@ describe("T5.10a — readVersionedJson moves corrupt file aside", () => {
     const result = await readVersionedJson({
       path,
       currentVersion: 1,
-      migrate: (_p, _v) => ({ migrated: true }),
+      migrate: (_p, _v) => ({ migrated: true, fresh: false }),
       defaultValue: () => ({ fresh: true }),
     });
 
@@ -113,6 +113,6 @@ describe("T5.10b — loadMarkdownEntities rejects files > 1MB", () => {
     });
 
     expect(results.length).toBe(1);
-    expect(results[0].frontmatter.name).toBe("small");
+    expect(results[0]!.frontmatter.name).toBe("small");
   });
 });

@@ -24,6 +24,6 @@ describe("E2E: RAG pipeline", () => {
     const reranker = new NoopReranker();
     const ranked = await reranker.rerank("fox", results);
     expect(ranked.length).toEqual(2);
-    expect(ranked[0].originalIndex).toEqual(0);
+    expect(ranked[0]!.originalIndex).toEqual(0);
   });
 });
