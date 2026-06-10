@@ -13,7 +13,7 @@ describe("AgentMailbox", () => {
     });
     await bus.send("external", "agent-a", { type: "ping", payload: "data" });
     expect(messages.length).toEqual(1);
-    expect(messages[0].payload).toEqual("data");
+    expect(messages[0]!.payload).toEqual("data");
   });
 
   it("sends messages via bus", async () => {
@@ -25,7 +25,7 @@ describe("AgentMailbox", () => {
     const mailbox = new AgentMailbox("sender", bus);
     await mailbox.send("target", { type: "hello", payload: "world" });
     expect(received.length).toEqual(1);
-    expect(received[0].from).toEqual("sender");
+    expect(received[0]!.from).toEqual("sender");
   });
 
   it("dispose unregisters from bus", async () => {

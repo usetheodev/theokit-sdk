@@ -109,24 +109,21 @@ const WHITELIST = new Set<string>([
   "internal/workflow/telemetry.ts",
   "internal/workflow/executor.ts",
   "internal/workflow/ctx.ts",
-  "internal/cache/telemetry.ts",
-  "internal/cache/lookup.ts",
-  "internal/cache/store-handler.ts",
-  "internal/cache/store-json.ts",
   "internal/eval/telemetry.ts",
   "internal/eval/runner.ts",
-  "internal/handoff/telemetry.ts",
   // `setAttribute` here is a TYPE definition on the shared `SpanLike` interface,
   // not a runtime call. All consumers obtain spans via `getTracer(...)` which
   // returns OTel-wrapped spans; redaction is handled at the agent-loop tracer
   // wrapper level (ADRs D206/D220/D241/D262 — shared loader extracted from
   // those four telemetry modules to remove duplicate clones).
   "internal/observability/tracer-loader.ts",
-  // Shared embed helper extracted from `cache/lookup.ts` + `cache/store-handler.ts`
-  // (clone elimination). `span.setAttribute("cache.bypass_reason", ...)` writes a
-  // static label, not user-supplied data; `console.warn` prints `err.message` only
-  // (no raw prompt). Same rationale as the source modules already in the whitelist.
-  "internal/cache/embed-helper.ts",
+  // `span.setAttributes(...)` on OTel tracer-wrapped spans in the active
+  // memory module — same rationale as agent-loop/loop.ts (redacted via
+  // `wrapSpan` in telemetry/tracer.ts).
+  "internal/memory/active-memory.ts",
+  // `span.setAttribute(...)` on tracer-wrapped spans in the Agent facade —
+  // agentId and workspaceCwd are non-secret structural labels.
+  "agent.ts",
   // G8 subscription server-integration: `fs.writeFile` persists the
   // SubscriptionManifest (declarative registry — version + subscription names
   // + zod-derived input/output schemas). No user payload, no PII, no secrets.

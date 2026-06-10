@@ -199,14 +199,14 @@ describe("sdk-memory vec-index (iter 67)", () => {
 
       let embedCalls = 0;
       const runtime: EmbeddingRuntime = {
-        embed: async (texts) => {
+        embed: async (texts: string[]) => {
           embedCalls++;
           return texts.map(() => [0.5, 0.5, 0.5]);
         },
         dimension: 3,
         providerId: "stub",
         model: "stub",
-      } as EmbeddingRuntime;
+      } as unknown as EmbeddingRuntime;
 
       const embedded = await embedMissingChunks({ db, runtime });
       expect(embedded).toBe(2);

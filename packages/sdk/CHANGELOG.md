@@ -8,6 +8,14 @@
 
 - **Model capabilities introspection registry (T3.10c step 1 of plan `sdk-superiority-2026-06-07`, DR3 #17)**: pre-T3.10c the SDK had no way to query a model's capability flags before sending a request — consumers who sent vision content to a text-only model or structured-output requests to a model without json_schema support got an opaque 400 from the provider. T3.10c step 1 adds the foundation pure-function registry `resolveModelCapabilities(modelId): ModelCapabilities` with typed per-model flags: `supportsVision`, `supportsStructuredOutput`, `supportsToolUse`, `supportsCacheControl`, `maxContextTokens`, `maxOutputTokens`. Resolution algorithm: strip routing prefixes (openrouter/, vertex/, bedrock/), exact-match against the vendor-model registry, then infer vendor from model name (claude-* → anthropic/, gpt-* → openai/, gemini-* → google/) for routing-prefixed lookups. Unknown models return conservative defaults (all false, 4096/4096 token counts) — never optimistic assumptions. Initial registry covers OpenAI (gpt-4o/4o-mini/4-turbo/o1/o3) and Anthropic (claude-opus-4/sonnet-4/3-5-sonnet/3-haiku/3-opus) families. 9 new tests at `tests/internal/llm/model-capabilities.test.ts`. Foundation for step 2 (public `Theokit.models.capabilities()` API) and step 3 (Agent.create boundary gate + `CapabilityNotSupportedError`).
 
+### Fixed
+
+- Fix `EventedWorkflowExecutor` referencing `handler` instead of `fn` from `FnStep` interface; provide full `StepContext` (runId + log + suspend)
+- Fix missing `await` in `TheoKitContainer.run()` causing `.send()` to be called on a Promise
+- Fix `CohereReranker` null guard for out-of-bounds `chunks[r.index]` array access
+- Fix `Theokit.models.capabilities()` null guard on `split("/")[0]` return value
+- Fix dynamic catalog overwriting first-party builtin providers (ollama/lmstudio/llamacpp) — builtins now take priority
+
 ### Security
 
 - **Move-corrupt-aside + 1MB cap on markdown config files (T5.10 of plan `sdk-superiority-2026-06-07`, DR6 finding #10)**: pre-T5.10 `readVersionedJson` left corrupt JSON files in place after logging a warning — on next run the same warning fired again (no healing). T5.10 renames the corrupt file to `<path>.corrupt.<epoch>` so the user can investigate later while the original path is freed for a fresh default. Additionally, `loadMarkdownEntities` now rejects individual config files > 1MB before reading them into memory (pre-T5.10 no size cap existed — "`.theokit/` is trusted source" comment at line 63). A crafted multi-MB config file was a local DoS vector on resource-constrained environments (edge, CI workers). 4 new tests at `tests/internal/persistence/corrupt-aside-and-size-cap.test.ts`. 142/142 persistence tests GREEN across 17 files. Closes DR6 finding #10.

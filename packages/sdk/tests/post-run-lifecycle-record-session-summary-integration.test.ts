@@ -65,7 +65,7 @@ function buildStubRun(result: RunResult): Run {
     cancel(): void {
       return;
     },
-  } as Run;
+  } as unknown as Run;
 }
 
 const STUB_OPTIONS: AgentOptions = {

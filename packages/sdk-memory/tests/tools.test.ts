@@ -52,7 +52,7 @@ function stubIndex(
         files: 0,
         chunks: 0,
         embedded: 0,
-      }) as IndexStatus,
+      }) as unknown as IndexStatus,
     close: () => undefined,
   };
 }
@@ -65,6 +65,7 @@ function makeHit(path: string, snippet: string, score = 0.9): MemorySearchHit {
     score,
     textScore: score,
     snippet,
+    source: "memory",
     citation: `${path}:1-5`,
   };
 }

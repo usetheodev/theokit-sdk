@@ -105,7 +105,7 @@ describe("sdk-memory memory-index (iter 50)", () => {
           files: 0,
           chunks: 0,
           embedded: 0,
-        }) as IndexStatus,
+        }) as unknown as IndexStatus,
       close: () => {
         /* no-op */
       },

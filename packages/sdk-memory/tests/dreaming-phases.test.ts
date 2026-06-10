@@ -35,7 +35,7 @@ function stubEmbedding(textToVec: Record<string, ReadonlyArray<number>>): Embedd
     dimension: 3,
     providerId: "stub",
     model: "stub-model",
-  } as EmbeddingRuntime;
+  } as unknown as EmbeddingRuntime;
 }
 
 const fact = (text: string): MemoryFact => ({ text });

@@ -50,8 +50,8 @@ describe("T2.2 step 4b — attemptCompressionIfNeeded", () => {
     if (result.compressed) {
       // Summary message (system) + preserved messages (last 6)
       expect(result.messages.length).toBeLessThanOrEqual(7);
-      expect(result.messages[0].role).toBe("system");
-      expect(result.messages[0].content).toContain("Summary");
+      expect(result.messages[0]!.role).toBe("system");
+      expect(result.messages[0]!.content).toContain("Summary");
       expect(state.attemptsUsed).toBe(1);
     }
   });

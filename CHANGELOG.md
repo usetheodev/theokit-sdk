@@ -24,6 +24,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Fixed
 
+- Fix catalog provider overwrite bug — dynamic catalog no longer overwrites first-party builtin providers (ollama/lmstudio/llamacpp baseUrl + env-var handling preserved)
+- Fix missing `await` in `TheoKitContainer.run()` before `Agent.create()` causing type error on `.send()`
+- Fix `EventedWorkflowExecutor` using non-existent `handler` property instead of `fn` from `FnStep` interface; provide full `StepContext` (runId + log + suspend)
+- Fix `CohereReranker` null guard on `chunks[r.index]` array access
+- Fix `Theokit.models.capabilities()` null guard on `split("/")[0]` return
+- Fix sdk-memory DTS build — switch from tsup DTS rollup (silently dropped `@internal` declarations due to `stripInternal: true`) to tsc direct emit, restoring 15 missing type exports (MEMORY_EMBEDDING_ADAPTERS, migrateSqliteToLance, LanceIndex, loadSqliteVecExtension, etc.)
 - Resolve all biome check errors across workspace (81 auto-fixed + 8 complexity ignores)
 - Fix TS build errors in 4 new embedding adapters (missing `defaultModel` property)
 - Fix `LlmContentPart` import + undefined guard in agent loop
