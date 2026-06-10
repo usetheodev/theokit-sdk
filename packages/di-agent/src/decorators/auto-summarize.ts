@@ -14,7 +14,7 @@ const DEFAULTS: Required<Omit<AutoSummarizeOptions, "model">> = {
 };
 
 export function AutoSummarize(options: AutoSummarizeOptions = {}): ClassDecorator {
-  return (target: abstract new (...args: never) => unknown) => {
+  return (target: Function) => {
     const resolved = { ...DEFAULTS, ...options };
     Reflect.defineMetadata(METADATA_KEYS.AUTO_SUMMARIZE, resolved, target);
   };
