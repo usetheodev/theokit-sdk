@@ -16,6 +16,7 @@ export default defineConfig({
     "rag/index": "src/rag/index.ts",
     "a2a/index": "src/a2a/index.ts",
     "client/index": "src/client/index.ts",
+    "sandbox/index": "src/sandbox/index.ts",
     // EC-1 absorbed (SDK 2.0 plan T1.1): internal/persistence + internal/plugins
     // are publicly accessible sub-paths used by extracted packages (sdk-memory,
     // sdk-cache, sdk-handoff) for shared persistence primitives and the plugin

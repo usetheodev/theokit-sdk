@@ -8,6 +8,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- `@theokit/sdk/sandbox` sub-path — `SandboxBackend` abstract class with 2-primitive protocol (`execute` + `uploadFile`), `LocalSandbox` subprocess adapter, `ExecuteResult` type, `SandboxSecurityError` + `SandboxNotAvailableError` typed errors. 10 protocol conformance tests (peer-parity-gaps T1.1)
+- `defineSubAgent(spec)` — declarative subagent-as-tool factory at `@theokit/sdk/a2a`. Creates child agent invocable as LLM tool, with delegation depth tracking (`MaxDelegationDepthError` at configurable limit). 10 delegation tests (peer-parity-gaps T2.1)
+- `HitlMiddleware` — Human-In-The-Loop interrupt middleware at `internal/runtime/hitl-middleware.ts`. Intercepts configured tool calls, yields to async `approve` callback, fail-closed on timeout/error. 9 HITL tests (peer-parity-gaps T4.1)
+- `shouldSummarize()` + `autoSummarize()` — auto-summarization trigger at `internal/runtime/auto-summarize.ts`. Fraction-based trigger (default 85%) reusing existing compression pipeline. Guards for edge cases (fewer messages than keepNewest, zero maxContextTokens). 11 auto-summarize tests (peer-parity-gaps T5.1)
+
+### Added (previous)
+
 - `@theokit/sdk/a2a` sub-path — A2A protocol with `MessageBus` (fire-and-forget + request/response) + `AgentMailbox` per-agent inbox (ADR D453)
 - `@theokit/sdk/client` sub-path — browser-safe `TheoKitClient` with `send()` + `stream()` via native fetch + SSE parsing, zero Node deps (ADR D454)
 - `Theokit.models.capabilities(providerOrModelId)` — public API returning typed `ProviderCapabilities` (supportsToolUse, supportsVision, supportsStructuredOutput, supportsStreaming, supportsCacheControl) from the JSON catalog. Accepts `"openai"` or `"openai/gpt-4o-mini"` format.

@@ -188,6 +188,16 @@
         "default": "./dist/client/index.cjs"
       }
     },
+    "./sandbox": {
+      "import": {
+        "types": "./dist/sandbox/index.d.ts",
+        "default": "./dist/sandbox/index.js"
+      },
+      "require": {
+        "types": "./dist/sandbox/index.d.cts",
+        "default": "./dist/sandbox/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [

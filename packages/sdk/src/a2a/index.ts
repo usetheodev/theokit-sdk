@@ -6,4 +6,9 @@
 
 export { AgentMailbox } from "./agent-mailbox.js";
 export { MessageBus, type RequestOptions } from "./message-bus.js";
+export {
+  defineSubAgent,
+  MaxDelegationDepthError,
+  type SubAgentSpec,
+} from "./subagent.js";
 export type { A2AMessage, MessageHandler } from "./types.js";
