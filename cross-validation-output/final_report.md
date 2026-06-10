@@ -1,210 +1,168 @@
-# Cross-Validation Report: @theokit/sdk vs a peer framework
+# Cross-Validation Report: theokit-sdk vs peer-agents
 
-**Date:** 2026-06-09
-**Target:** @theokit/sdk (166K LoC, 32 packages)
-**Reference:** a peer framework (453K LoC, 90+ packages)
-**Overall Score:** 2.92 / 5.0 (58.4%)
+**Date:** 2026-06-10
+**Target:** theokit-sdk (TypeScript AI agent SDK, @theokit/sdk v1.7.0-develop)
+**Reference:** peer-agents (Python AI agent framework by a framework, v0.5.x)
+**Analyst:** chief-analyst (loop-cross-validation)
 
 ---
 
 ## Executive Summary
 
-@theokit/sdk scores **2.92/5.0** when compared feature-by-feature against a peer framework, a comprehensive TypeScript AI agent framework. The SDK excels in **build quality** (5/5), **security posture** (4/5), **error handling** (4/5), and **code organization** (4/5), but has significant gaps in **developer tooling** (1/5), **integration breadth** (2/5), **memory/RAG** (2/5), and **LLM provider ecosystem** (2/5).
+theokit-sdk is a comprehensive TypeScript AI agent SDK (45,650 LoC, 729 test files, 430 ADRs) that competes favorably against peer-agents (112,411 LoC, 340 test files), a production Python agent framework by a framework built on a framework.
 
-### Top 3 Gaps
+**Overall Weighted Score: 3.92 / 5.0 (78.4%)**
 
-1. **No RAG pipeline** — a peer framework has full document chunking, retrieval, Graph-RAG, reranking + 27 vector backends vs TheoKit's 2
-2. **9 hardcoded LLM providers vs 122** — a peer framework's dynamic JSON registry allows runtime extension
-3. **No visual editor/playground** — a peer framework offers full React IDE with workflow visualization
+theokit-sdk excels in 9 of 12 dimensions, with particular strengths in memory system (5/5), workflow orchestration (5/5), architecture (4/5), and error handling (4/5). peer-agents has advantages in multi-agent delegation (3/5 -- theokit-sdk has lower integration) and developer experience (3/5 -- peer-agents has lower barrier to entry with built-in tools and CLI).
 
-### Top 3 Strengths (Target > Reference)
-
-1. **Build quality** (5/5) — Proper .d.ts/.d.cts separation passes attw; a peer framework fails this check
-2. **Security** (4/5) — Dedicated secret redaction (30+ patterns), path guards, ADR-documented
-3. **Error handling** (4/5) — Closed error union with 15 typed codes, retryability signals, rich metadata
+The two projects reflect different design philosophies: theokit-sdk is a framework-independent, type-safe SDK with rich built-in capabilities; peer-agents is a a framework ecosystem product leveraging a framework for graph-based agent execution with strong middleware composition.
 
 ---
 
 ## Score Card
 
-```
-Dimension                      Score  Weight  Bar
-─────────────────────────────  ─────  ──────  ──────────────────────
-Build & Package Quality         5/5    1.0×   █████████████████████████ EXCELLENT
-Error Handling & Recovery        4/5    1.5×   ████████████████████     STRONG
-Security Posture                 4/5    1.5×   ████████████████████     STRONG
-Code Organization & Modularity   4/5    1.5×   ████████████████████     STRONG
-Agent API Design & DX            3/5    2.0×   ███████████████          ACCEPTABLE
-Testing Strategy                 3/5    2.0×   ███████████████          ACCEPTABLE
-Tool System Design               3/5    1.5×   ███████████████          ACCEPTABLE
-Workflow Orchestration           3/5    1.0×   ███████████████          ACCEPTABLE
-Streaming Architecture           3/5    1.0×   ███████████████          ACCEPTABLE
-Observability & Telemetry        2/5    1.0×   ██████████               BELOW BAR
-LLM Provider Ecosystem           2/5    1.5×   ██████████               BELOW BAR
-Memory & RAG                     2/5    1.5×   ██████████               BELOW BAR
-Documentation & Examples         2/5    1.0×   ██████████               BELOW BAR
-Integration Breadth              2/5    1.0×   ██████████               BELOW BAR
-Developer Tooling                1/5    1.0×   █████                    RUDIMENTARY
-─────────────────────────────  ─────  ──────
-WEIGHTED AVERAGE                2.92    20×
-```
+| Dimension | Weight | Score (0-5) | Rating | Notes |
+|-----------|--------|-------------|--------|-------|
+| Architecture | 1.5x | 4 | Strong | Framework-independent, clear layering, DIP applied, 430 ADRs |
+| Agent Runtime | 1.5x | 4 | Strong | Retry with full jitter, fallback chains, credential pooling, parallel tool dispatch |
+| Tool System | 1.2x | 4 | Strong | Zod schemas, repair middleware, MCP bridging |
+| Memory System | 1.2x | 5 | Excellent | 12 embedding providers, dual vector backends, active memory, dreaming |
+| Multi-Agent | 1.0x | 3 | Adequate | A2A message bus exists but lacks peer-agents-level task tool integration |
+| Error Handling | 1.2x | 4 | Strong | Closed error code union, 5 provider mappers, error envelope, secret redaction |
+| Security | 1.3x | 3 | Adequate | Path guard + redaction, but lacks sandbox isolation |
+| Testing | 1.0x | 4 | Strong | 729 test files, type tests, real LLM validation rule |
+| Observability | 0.8x | 4 | Strong | 7 vendor adapters, OpenTelemetry native |
+| Developer Experience | 1.0x | 3 | Adequate | More setup ceremony; no built-in coding tools or CLI TUI |
+| Workflow Orchestration | 1.0x | 5 | Excellent | 7 step types, snapshot persistence, retry, suspend/resume |
+| Build/Packaging | 0.8x | 4 | Strong | Dual ESM/CJS, sub-path exports, publint+attw validation |
+
+**Weighted Average: 3.92 / 5.0** | **Simple Average: 3.92 / 5.0**
 
 ---
 
-## Gap Analysis (Priority Order)
+## Gap Analysis
 
-### CRITICAL (Score 0-1, blocks competitive positioning)
+### High Severity Gaps
 
-| # | Gap | Current | Reference | File in Reference |
-|---|-----|---------|-----------|-------------------|
-| 1 | No RAG pipeline | Basic memory indexing only | Full RAG: chunking, splitting, retrieval, Graph-RAG, reranking | `packages/rag/src/index.ts` |
-| 2 | 9 hardcoded LLM providers | Static TypeScript builtins | 122 providers via dynamic JSON registry | `packages/core/src/llm/model/provider-registry.json` |
-| 3 | No visual editor/playground | CLI only (8 commands) | Full React IDE + workflow editor + 20 CLI commands | `packages/playground/src/` |
+#### 1. Sandbox Isolation Backend
+- **Reference:** `libs/peer-agents/peer-agents/backends/sandbox.py`
+- **Issue:** peer-agents has `SandboxBackendProtocol` enabling fully sandboxed code execution via remote containers. theokit-sdk has path guards (`PathTraversalError`, `SensitivePathError`) but no sandbox execution boundary. For coding agents, sandbox isolation prevents arbitrary code from affecting the host system.
+- **Suggestion:** Implement a sandboxed execution backend (Docker/Firecracker) for shell tool execution.
+- **Effort:** Large
 
-### HIGH (Score 2, significant competitive gap)
+#### 2. Integrated Subagent Delegation via Task Tool
+- **Reference:** `libs/peer-agents/peer-agents/middleware/subagents.py:27`
+- **Issue:** peer-agents `SubAgent` system provides declarative subagent specs (`SubAgent` TypedDict) with automatic `task` tool registration, middleware inheritance, per-subagent permissions, and HITL. theokit-sdk `a2a/message-bus.ts` is lower-level without this integration.
+- **Suggestion:** Extend `Agent.create` to accept subagent specs that auto-register as callable tools with inherited middleware and permissions.
+- **Effort:** Large
 
-| # | Gap | Current | Reference | File in Reference |
-|---|-----|---------|-----------|-------------------|
-| 4 | 0 voice providers | None | 17 TTS/STT providers (OpenAI, Elevenlabs, Deepgram...) | `voice/` |
-| 5 | 2 vector backends | SQLite-vec + LanceDB | 27 backends (PG, Mongo, Pinecone, Qdrant, Redis...) | `stores/` |
-| 6 | Serial tool dispatch | One tool at a time | Parallel execution for independent calls | `packages/core/src/tools/index.ts` |
-| 7 | 3 observability adapters | PostHog, Langfuse, Sentry | 13 integrations (Datadog, LangSmith, Arize...) | `observability/` |
-| 8 | No server adapters | Custom runtime only | Express, Hono, NestJS, Koa, Fastify | `server-adapters/` |
-| 9 | No starter templates | 25 examples (non-scaffoldable) | 14+ scaffoldable templates | `templates/` |
+### Medium Severity Gaps
 
-### MEDIUM (Score 3, room for improvement)
+#### 3. Built-in Coding Agent Tools
+- **Reference:** `libs/peer-agents/peer-agents/middleware/filesystem.py:75`
+- **Issue:** peer-agents ships rich built-in file operation tools (`ls`, `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `execute`) out of the box. theokit-sdk requires consumers to define file tools manually or use MCP.
+- **Suggestion:** Ship `@theokit/sdk/tools/filesystem` sub-path with pre-built file operation tools.
+- **Effort:** Medium
 
-| # | Gap | Suggestion |
-|---|-----|------------|
-| 10 | No streaming backpressure | Adopt DelayedPromise pattern from a peer framework |
-| 11 | No Agent-to-Agent (A2A) | Design inter-agent communication protocol |
-| 12 | No evented workflow engine | Add scheduled/event-driven workflow mode |
-| 13 | No JS client SDK / AI SDK adapter | Build @theokit/client-js + @theokit/a framework |
+#### 4. Conversation Summarization/Compaction
+- **Reference:** `libs/peer-agents/peer-agents/middleware/summarization.py:1`
+- **Issue:** peer-agents `SummarizationMiddleware` auto-compacts conversations when token usage exceeds configurable threshold, offloading to backend storage. theokit-sdk has compression helpers but no auto-triggered summarization.
+- **Suggestion:** Implement auto-summarization triggered at configurable token thresholds.
+- **Effort:** Medium
 
----
+#### 5. CLI TUI for Interactive Agent Sessions
+- **Reference:** `libs/code/peer-agents_code/`
+- **Issue:** peer-agents ships `libs/code` with a full Textual TUI: chat input, notifications, session stats, MCP auth/trust, theme system, approval flow, onboarding, thread selector. theokit-sdk has no built-in CLI agent interface.
+- **Suggestion:** Build `@theokit/cli-agent` package with TUI for interactive development.
+- **Effort:** Large
 
-## Detailed Comparisons per Dimension
+#### 6. Human-in-the-Loop Interrupt System
+- **Reference:** `libs/peer-agents/peer-agents/graph.py:248`
+- **Issue:** peer-agents has `HumanInTheLoopMiddleware` with configurable `interrupt_on` per tool, enabling approval flows before dangerous operations with checkpointed state. theokit-sdk has hooks (`preToolUse`/`postToolUse`) but no built-in HITL with checkpointing.
+- **Suggestion:** Extend hook system with built-in HITL middleware that pauses execution, persists state, and resumes after human approval.
+- **Effort:** Medium
 
-### D1: Agent API Design & DX (3/5, weight 2.0)
+#### 7. SWE-bench Evaluation Integration
+- **Reference:** `libs/evals/peer-agents_evals/`
+- **Issue:** peer-agents has `libs/evals` with SWE-bench integration for evaluating coding agent quality against real software engineering tasks.
+- **Suggestion:** Build SWE-bench eval adapter in the existing eval framework.
+- **Effort:** Medium
 
-| Aspect | @theokit/sdk | a peer framework |
-|--------|-------------|--------|
-| Agent creation | `Agent.create()` static facade — zero instantiation | `new a peer framework({...})` heavyweight container + `new Agent(config)` |
-| Builder | `Agent.builder().model().tools().create()` ~50 LOC | Complex constructor with processors, hooks, channels |
-| DX friction | Low — static methods, fewer concepts | Higher — requires understanding container pattern |
-| Composability | Independent agents, no central registry | Unified container manages all agents/tools/workflows |
+### Low Severity Gaps
 
-**Evidence:** `packages/sdk/src/agent.ts:74` vs `packages/core/src/a peer framework/index.ts:1`
-**Verdict:** TheoKit wins on friction; a peer framework wins on composability.
-
-### D2: Error Handling & Recovery (4/5, weight 1.5)
-
-| Aspect | @theokit/sdk | a peer framework |
-|--------|-------------|--------|
-| Error codes | 15 closed literal union codes | Delegated to internal, opaque |
-| Typed hierarchy | TheokitAgentError → Auth/RateLimit/Config/Network | No visible public hierarchy |
-| Metadata | provider, endpoint, statusCode, retryAfter | N/A |
-| Recovery signals | `isRetryable` per error type | Not exposed |
-
-**Evidence:** `packages/sdk/src/errors.ts:1-165` vs `packages/core/src/error/index.ts` (9 lines)
-**Verdict:** TheoKit significantly superior.
-
-### D6: Security Posture (4/5, weight 1.5)
-
-| Aspect | @theokit/sdk | a peer framework |
-|--------|-------------|--------|
-| Secret redaction | 30+ patterns, dedicated module | Not formalized |
-| Path safety | `assertNoSymlinkEscape`, `safePathJoin`, public sub-path export | None |
-| Auth | OAuth+PKCE transaction management, open redirect prevention | JWT encode/decode in auth package |
-| ADR documentation | D79-D85, D425, D429 documenting security decisions | No visible security ADRs |
-
-**Evidence:** `packages/sdk/src/internal/security/` vs `packages/auth/src/jwt.ts`
-**Verdict:** TheoKit significantly superior.
-
-### D13: Build & Package Quality (5/5, weight 1.0)
-
-| Aspect | @theokit/sdk | a peer framework |
-|--------|-------------|--------|
-| Type exports | Separate `.d.ts` (ESM) + `.d.cts` (CJS) | Same `.d.ts` for both (fails attw) |
-| publint | Passes | N/A |
-| attw | Passes | Fails (masquerading as ESM) |
-| Provenance | `"provenance": true` | Not configured |
-| Bundle | 23 entry points, treeshake, no splitting | 77+ entries, aggressive splitting |
-
-**Evidence:** `packages/sdk/tsup.config.ts` vs `packages/core/tsup.config.ts`
-**Verdict:** TheoKit best-in-class.
+#### 8. Model-specific Harness Profiles
+- **Reference:** `libs/peer-agents/peer-agents/profiles/harness/harness_profiles.py`
+- **Issue:** peer-agents `HarnessProfile` provides model-specific prompt tuning per model family (Anthropic Sonnet/Opus/Haiku, OpenAI Codex).
+- **Suggestion:** Add optional model profiles for prompt tuning based on LLM provider.
+- **Effort:** Small
 
 ---
 
-## Improvement Roadmap (Prioritized)
+## Areas Where theokit-sdk Excels
 
-### Phase 1: Close Critical Gaps (Effort: ~4 weeks)
+### 1. Framework Independence
+theokit-sdk is fully self-contained with zero dependency on a framework/a framework. All LLM clients, tool dispatch, and runtime are implemented in-house. This avoids framework lock-in and gives full control over the runtime. peer-agents `graph.py` has 20+ imports from `a framework`/`a framework`.
 
-| # | Action | Effort | Impact |
-|---|--------|--------|--------|
-| 1 | **Dynamic LLM provider registry** — replace 9 hardcoded builtins with JSON registry | 1 week | D11: 2→4 |
-| 2 | **Parallel tool dispatch** — `Promise.all` for independent calls (plan T2.4) | 3 days | D5: 3→4 |
-| 3 | **Observability contracts** — formalize as public API, add 5 vendor integrations | 1 week | D7: 2→3 |
+### 2. Workflow Engine (Score: 5/5)
+`Workflow.create().then().commit().run()` API with 7 step types (`fn`, `agentStep`, `branch`, `parallel`, `foreach`, `dowhile`, `sleep`), snapshot persistence, retry policies (`maxAttempts`, `backoff`), single-flight execution, Zod validation, suspend/resume. 14 files in `internal/workflow/`. peer-agents has no equivalent; it relies on lower-level a framework graph primitives.
 
-### Phase 2: Platform Maturity (Effort: ~6 weeks)
+### 3. Memory System (Score: 5/5)
+12 embedding providers (OpenAI, Mistral, Cohere, Voyage, Jina, Ollama, DeepInfra, Gemini, Azure OpenAI, OpenRouter), dual vector index backends (SQLite-vec, LanceDB), active memory with circuit breaker, dreaming/consolidation phases (diary, phases, run), session storage with markdown transcripts, embedding cache, migration utilities. 25+ files in `internal/memory/`. peer-agents memory is simple AGENTS.md file loading (~200 LoC).
 
-| # | Action | Effort | Impact |
-|---|--------|--------|--------|
-| 4 | **RAG module** — text splitting + vector retrieval + reranking | 2 weeks | D12: 2→3 |
-| 5 | **5 vector store adapters** — PostgreSQL/pgvector, Pinecone, Qdrant, MongoDB, Redis | 2 weeks | D12: 3→4 |
-| 6 | **Starter templates** — convert top 5 examples into scaffoldable templates | 1 week | D9: 2→3 |
-| 7 | **Server adapters** — Hono + Express middleware for agent mounting | 1 week | D15: 2→3 |
+### 4. Error Handling (Score: 4/5)
+`KnownAgentRunErrorCode` closed union (11+ codes) enabling exhaustive `switch` handling. Provider-specific error mappers for Anthropic, OpenAI, Bedrock, Ollama, Vertex. Error envelope (`server/errors-envelope.ts`) for cross-layer transport. Secret redaction in error messages via `internal/security/redact.ts`.
 
-### Phase 3: Ecosystem Expansion (Effort: ~8 weeks)
+### 5. Observability (Score: 4/5)
+OpenTelemetry-native tracing with 7 vendor adapter integrations: Langfuse, LangSmith, Braintrust, Datadog, Sentry, PostHog, Arize. Safe dynamic require for optional dependencies. Adapter registry pattern for extensibility. peer-agents focuses primarily on LangSmith (same company).
 
-| # | Action | Effort | Impact |
-|---|--------|--------|--------|
-| 8 | **Agent playground** — lightweight web UI for testing agents | 3 weeks | D14: 1→3 |
-| 9 | **Voice integration** — OpenAI Realtime + Elevenlabs TTS | 2 weeks | D15: 3→4 |
-| 10 | **Client SDK** — @theokit/client-js for browser agent interaction | 1 week | D15: 4→4 |
-| 11 | **A2A protocol** — inter-agent communication | 2 weeks | Overall |
-
-### Projected Score After Roadmap
-
-```
-Current:  2.92 / 5.0 (58.4%)
-Phase 1:  3.35 / 5.0 (67.0%)  — closes critical technical gaps
-Phase 2:  3.72 / 5.0 (74.4%)  — achieves platform maturity
-Phase 3:  4.10 / 5.0 (82.0%)  — competitive ecosystem
-```
+### 6. Budget System (No Equivalent in peer-agents)
+Comprehensive cost management: pricing registry, usage accumulator, calendar windows for time-based cost limits, `BudgetTracker` integration in the agent loop. Enables production cost governance. peer-agents has no equivalent.
 
 ---
 
-## Areas Where Target Excels Over Reference
+## Improvement Roadmap (Priority Order)
 
-1. **Build quality** — Proper ESM/CJS type exports (a peer framework fails attw validation)
-2. **Error handling** — Closed union, metadata, retryability (a peer framework's errors are opaque)
-3. **Security** — Dedicated redaction (30+ patterns), path guards, ADR-documented
-4. **Chat gateways** — 11 messaging platforms (a peer framework has Slack only)
-5. **Test organization** — Structured pyramid with chaos/load/security subdirs
-6. **Tool repair middleware** — Auto-fixes LLM tool-call errors (unique capability)
-7. **DX friction** — Static `Agent.create()` is lighter than a peer framework's container pattern
+| Priority | Gap | Effort | Impact | Rationale |
+|----------|-----|--------|--------|-----------|
+| 1 | Sandbox isolation backend | Large | High | Security boundary for coding agents. Blocks enterprise adoption without it. |
+| 2 | Integrated subagent delegation | Large | High | Multi-agent is a core use case. peer-agents pattern is proven. |
+| 3 | Built-in coding tools | Medium | Medium | Reduces friction for the most common agent type (coding). |
+| 4 | HITL interrupt system | Medium | Medium | Safety-critical for production agents modifying files/infra. |
+| 5 | Conversation summarization | Medium | Medium | Long-running agents need context management. |
+| 6 | SWE-bench eval integration | Medium | Medium | Industry-standard agent benchmark for credibility. |
+| 7 | CLI TUI | Large | Low | Nice-to-have for development; not a core SDK concern. |
+| 8 | Model-specific profiles | Small | Low | Optimization, not a missing capability. |
 
 ---
 
-## What Was NOT Analyzed (Honesty Section)
+## Most-Cited Reference Files
 
-1. **Runtime performance** — No benchmarks were run. Scores reflect API design and code quality, not throughput.
-2. **Production deployment** — Neither project was deployed; analysis is code-only.
-3. **Community adoption** — npm download counts, GitHub stars, and ecosystem adoption were not compared.
-4. **a peer framework's EE features** — Enterprise Edition modules (`/auth/ee`, `/agent-builder/ee`) were not deeply inspected.
-5. **TheoKit's cloud runtime** — Cloud agent paths (Theo PaaS) were acknowledged but not validated.
-6. **Cost/pricing models** — Not compared.
-7. **Reference test QUALITY** — Only test count and organization were compared, not assertion depth or mutation scores.
-8. **a peer framework's internal packages** — `_vendored/` and `_internals/` were skipped (internal tooling).
+| File | Citations | Description |
+|------|-----------|-------------|
+| `libs/peer-agents/peer-agents/graph.py` | 7 | Core agent graph assembly |
+| `libs/peer-agents/peer-agents/middleware/subagents.py` | 3 | SubAgent delegation system |
+| `libs/peer-agents/peer-agents/middleware/filesystem.py` | 3 | File tools + permissions |
+| `libs/peer-agents/peer-agents/middleware/memory.py` | 2 | AGENTS.md memory loader |
+| `libs/peer-agents/peer-agents/middleware/summarization.py` | 2 | Conversation compaction |
+| `libs/peer-agents/peer-agents/backends/sandbox.py` | 2 | Sandbox execution backend |
+| `libs/peer-agents/peer-agents/backends/protocol.py` | 2 | Backend protocol interface |
+| `libs/peer-agents/peer-agents/profiles/harness/harness_profiles.py` | 2 | Model-specific profiles |
+| `libs/peer-agents/peer-agents/_tools.py` | 1 | Tool helpers |
+| `libs/peer-agents/peer-agents/middleware/skills.py` | 1 | Skills middleware |
 
 ---
 
 ## Methodology
 
-- **Phase 1 (Baseline):** Mapped 745 target files + 1662 reference files. Identified 35 components (16 shared, 12 reference-only, 7 target-only).
-- **Phase 2 (Structure):** Defined 15 comparison dimensions weighted 1.0-2.0.
-- **Phase 3 (Deep Analysis):** 3 parallel sub-agents analyzed actual source code in both projects. Every score cites file:line evidence.
-- **Phase 4 (Gap Detection):** Identified 13 gaps (3 critical, 6 high, 4 medium) + 6 target advantages.
-- **Phase 5 (Scoring):** All 15 dimensions scored. Weighted average: 2.92/5.0.
-- **Tools:** SQLite database with 2407 files inventoried, 35 components, 15 dimensions, 15 comparisons, 13 gaps, 5 findings.
+- **Phase 1 (Baseline):** Registered both projects, inventoried 200 source files, identified 15 target + 14 reference components.
+- **Phase 2 (Structure Compare):** Defined 12 comparison dimensions with weights (architecture/agent_runtime at 1.5x, security at 1.3x, error_handling/tool_system/memory_system at 1.2x).
+- **Phase 3 (Deep Analysis):** Read actual source code in both projects. Each comparison cites specific files and evidence from both codebases.
+- **Phase 4 (Gap Detection):** Identified 8 gaps with reference file citations and 6 findings documenting target strengths.
+- **Phase 5 (Scoring):** Computed weighted average (3.92/5.0) consistent with gap findings.
+- **Phase 6 (Report):** This document.
+
+---
+
+## Conclusion
+
+theokit-sdk is a strong, mature AI agent SDK that competes favorably against peer-agents in most dimensions. Its key advantages are framework independence, a sophisticated memory system, a declarative workflow engine, and rich error handling. The primary gaps are in sandbox isolation for secure code execution and integrated multi-agent delegation -- both addressable and neither blocking for the current use cases. The 3.92/5.0 score reflects a well-engineered SDK with clear areas for strategic improvement.
