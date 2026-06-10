@@ -43,7 +43,7 @@
     "commander": "^12.1.0",
     "picocolors": "^1.0.0",
     "tsx": "^4.19.0",
-    "zod": "^3.25.0"
+    "zod": "^4.0.0"
   },
   "peerDependencies": {
     "@theokit/acp": "workspace:^"

@@ -61,7 +61,7 @@
   },
   "peerDependencies": {
     "@theokit/sdk": ">=1.7.0",
-    "zod": "^3.25.0 || ^4.0.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "tsup": "^8.3.5",

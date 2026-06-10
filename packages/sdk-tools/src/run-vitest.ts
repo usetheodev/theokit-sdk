@@ -67,7 +67,7 @@ export function createRunVitestTool(opts: CreateRunVitestToolOptions): CustomToo
         .string()
         .optional()
         .describe("Optional vitest pattern or file path (project-relative)."),
-    }) as any,
+    }),
     handler: async ({ path }) => {
       const scopeError = validateVitestScope(path, projectRoot);
       if (scopeError !== null) return scopeError;
