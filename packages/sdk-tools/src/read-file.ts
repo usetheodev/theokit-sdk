@@ -61,7 +61,7 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
       "{ ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
-    }) as any,
+    }),
     handler: async ({ path }) => {
       if (isForbiddenPath(path)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });

@@ -22,6 +22,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - T12.2: Server adapters — Hono, Express, Fastify `createAgentHandler()` with send/stream/error routes
 - T12.3: Voice foundation — `VoiceProvider` interface + `OpenAIRealtimeVoiceProvider` TTS/STT adapter (experimental)
 
+### Changed
+
+- BREAKING: Zod peer dependency narrowed from `^3.25.0 || ^4.0.0` to `^4.0.0` only across all 6 packages (sdk, sdk-cache, sdk-tools, sdk-handoff, react, cli). Consumers on Zod v3 must upgrade: `pnpm add zod@4`
+- Simplified `to-json-schema.ts` in SDK and sdk-handoff from 126 LoC dual-mode (v3+v4 feature-detect) to ~30 LoC v4-native using `z.toJSONSchema()`
+- Removed `zod-to-json-schema` optional peer dependency from `@theokit/sdk` (Zod v4 ships native converter)
+- Restored `PersistenceSchema` import in sdk-cache from `@theokit/sdk/internal/persistence` (removed inlined duplicate + runtime workaround)
+- Restored `.refine()` validation in `PersistenceSchema` (was removed as cross-version workaround)
+- Removed all 5 `as any` casts on `inputSchema` in sdk-tools (types align with single Zod v4 instance)
+
 ### Fixed
 
 - Fix catalog provider overwrite bug — dynamic catalog no longer overwrites first-party builtin providers (ollama/lmstudio/llamacpp baseUrl + env-var handling preserved)

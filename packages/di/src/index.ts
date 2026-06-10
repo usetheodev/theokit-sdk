@@ -5,8 +5,11 @@
 export { Container } from "./container.js";
 export { Inject } from "./decorators/inject.js";
 export { Injectable, type InjectableOptions } from "./decorators/injectable.js";
+export { PostConstruct, PreDestroy } from "./decorators/lifecycle.js";
 export { Module, type ModuleMetadata } from "./decorators/module.js";
 export { Optional } from "./decorators/optional.js";
+export { Primary } from "./decorators/primary.js";
+export { Qualifier } from "./decorators/qualifier.js";
 export {
   AsyncProviderInSyncResolveError,
   ContainerDisposedError,

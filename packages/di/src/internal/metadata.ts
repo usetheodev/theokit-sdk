@@ -15,6 +15,14 @@ export const METADATA_KEYS = {
   OPTIONAL_FLAGS: "usetheo:di:optional",
   /** TS-emitted constructor parameter types (requires `emitDecoratorMetadata`). */
   DESIGN_PARAMTYPES: "design:paramtypes",
+  /** Map<number, string> from `@Qualifier(name)` parameter decorators. */
+  QUALIFIER_NAMES: "usetheo:di:qualifier-names",
+  /** boolean from `@Primary` class decorator. */
+  PRIMARY: "usetheo:di:primary",
+  /** string | symbol from `@PostConstruct` method decorator. */
+  POST_CONSTRUCT: "usetheo:di:post-construct",
+  /** string | symbol from `@PreDestroy` method decorator. */
+  PRE_DESTROY: "usetheo:di:pre-destroy",
 } as const;
 
 export interface InjectableMetadata {

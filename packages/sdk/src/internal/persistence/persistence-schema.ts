@@ -10,18 +10,17 @@ import { z } from "zod";
 
 /**
  * `persistence?` opt-in JSON disk backend with `dir` required when chosen.
- */
-/**
- * `persistence?` opt-in JSON disk backend with `dir` required when chosen.
  *
- * Plain `z.object().optional()` without refinement — Zod v4 rejects
- * `ZodEffects` wrappers (`.refine()`/`.superRefine()`) when nested inside
- * another `z.object()` property. The dir-required-when-json constraint is
- * enforced at runtime by callers (`Cache.semantic`, `Workflow.create`).
+ * `.refine()` restored after Zod v4-only migration (plan zod-v4-migration
+ * T1.1, ADR D4). With single v4 instance across workspace, ZodEffects
+ * inside `z.object()` works correctly.
  */
 export const PersistenceSchema = z
   .object({
     backend: z.enum(["memory", "json"]),
     dir: z.string().optional(),
+  })
+  .refine((p) => p.backend !== "json" || (typeof p.dir === "string" && p.dir.length > 0), {
+    message: 'persistence.dir is required when backend = "json"',
   })
   .optional();
