@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `HitlMiddleware` — Human-In-The-Loop interrupt middleware at `internal/runtime/hitl-middleware.ts`. Intercepts configured tool calls, yields to async `approve` callback, fail-closed on timeout/error. 9 HITL tests (deepagents-parity-gaps T4.1)
 - `shouldSummarize()` + `autoSummarize()` — auto-summarization trigger at `internal/runtime/auto-summarize.ts`. Fraction-based trigger (default 85%) reusing existing compression pipeline. Guards for edge cases (fewer messages than keepNewest, zero maxContextTokens). 11 auto-summarize tests (deepagents-parity-gaps T5.1)
 
+- `examples/deepagents-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation
+
 ### Added (previous)
 
 - `@theokit/sdk/a2a` sub-path — A2A protocol with `MessageBus` (fire-and-forget + request/response) + `AgentMailbox` per-agent inbox (ADR D453)
