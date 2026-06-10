@@ -34,6 +34,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Fix TS build errors in 4 new embedding adapters (missing `defaultModel` property)
 - Fix `LlmContentPart` import + undefined guard in agent loop
 - Align sdk-tools Zod devDep to `^3.25||^4` resolving DTS cross-package type mismatch
+- Fix sdk-cache Zod v3/v4 cross-version incompatibility — `PersistenceSchema` imported from SDK dist (Zod v3) mixed with sdk-cache's Zod v4 `z.object()`; inlined schema locally + moved `.refine()` to runtime checks
+- Fix sdk-tools `inputSchema` DTS build failure — cast to `any` to bypass Zod v3/v4 `ZodType` structural mismatch
 
 ### Added
 
