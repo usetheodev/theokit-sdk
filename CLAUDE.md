@@ -253,6 +253,7 @@ Total ADRs registradas: 430 (`./.claude/knowledge-base/adrs/D1` até `D430`).
 6. **Changelog discipline.** Every code change updates `CHANGELOG.md` (workspace-level at root; per-package at `packages/<name>/CHANGELOG.md`).
 7. **Don't reinvent.** Prefer mature libraries — the toolchain table above already does this.
 8. **No emojis** in code, READMEs, or CLAUDE.md files unless explicitly requested.
+9. **Decorators mandatory for agentic features.** Every new agentic capability (tools, middleware, sandbox backends, subagent delegation, memory adapters, etc.) MUST ship with a `@Decorator` API surface via `@theokit/di` in addition to the low-level factory function. Factory functions are the primitive; decorators are the recommended DX. Both must be tested. Established 2026-06-10.
 
 Full text: `/home/paulo/.claude/CLAUDE.md`. Cross-project rules: `/home/paulo/Projetos/usetheo/CLAUDE.md`.
 
