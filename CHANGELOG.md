@@ -17,7 +17,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `@SubAgent({ name, instructions })` property decorator — declarative subagent-as-tool via DI metadata
 - `@Hitl({ tools: ["execute"] })` method decorator — marks HITL approval handler via DI metadata
 - `@AutoSummarize({ triggerFraction: 0.85 })` class decorator — configures auto-summarization via DI metadata
-- `METADATA_KEYS` exported from `@theokit/di` barrel (SANDBOX, SUBAGENT, HITL, AUTO_SUMMARIZE keys)
+- `METADATA_KEYS` exported from `@theokit/di` barrel (21 keys total: SANDBOX, SUBAGENT, HITL, AUTO_SUMMARIZE + TOOL, WORKFLOW, EVAL, CRON, SUBSCRIPTION, AUTH, RETRIEVER, RERANKER, TEXT_SPLITTER)
+- `@Tool()` property decorator — tool definition metadata via DI (`@theokit/di-agent`)
+- `@Workflow()` class decorator — workflow configuration metadata
+- `@EvalDecorator()` class decorator — evaluation configuration metadata
+- `@Cron()` method decorator — cron schedule metadata (marks handler method)
+- `@Subscription()` property decorator — subscription definition metadata
+- `@Auth()` class decorator — auth provider configuration metadata
+- `@Retriever()` property decorator — RAG retriever configuration metadata
+- `@Reranker()` property decorator — RAG reranker configuration metadata
+- `@TextSplitter()` property decorator — text splitter configuration metadata
 - `examples/peer-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation (includes `run-decorators.ts` decorator-based variant)
 
 ### Added (previous)
