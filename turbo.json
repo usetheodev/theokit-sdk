@@ -1,0 +1,53 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "dangerouslyDisablePackageManagerCheck": true,
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "inputs": [
+        "src/**",
+        "tsup.config.ts",
+        "tsconfig.json",
+        "tsconfig.build.json",
+        "package.json"
+      ],
+      "outputs": ["dist/**"],
+      "outputLogs": "errors-only"
+    },
+    "@theokit/sdk-memory#build": {
+      "dependsOn": [],
+      "inputs": [
+        "src/**",
+        "tsup.config.ts",
+        "tsconfig.json",
+        "tsconfig.build.json",
+        "package.json"
+      ],
+      "outputs": ["dist/**"],
+      "outputLogs": "errors-only"
+    },
+    "@theokit/sdk#build": {
+      "dependsOn": [],
+      "inputs": ["src/**", "tsup.config.ts", "tsconfig.json", "package.json"],
+      "outputs": ["dist/**"],
+      "outputLogs": "errors-only"
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tests/**", "tsconfig.json", "package.json"],
+      "outputs": [],
+      "outputLogs": "errors-only"
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "inputs": ["src/**", "tests/**", "vitest.config.ts", "package.json"],
+      "outputs": [],
+      "outputLogs": "new-only"
+    },
+    "check": {
+      "inputs": ["src/**", "tests/**", "biome.json"],
+      "outputs": [],
+      "outputLogs": "errors-only"
+    }
+  }
+}
