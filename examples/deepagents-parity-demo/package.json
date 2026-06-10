@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@theokit/sdk": "workspace:*",
+    "reflect-metadata": "^0.2.0",
     "tsx": "^4.19.0"
   }
 }
