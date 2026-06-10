@@ -52,7 +52,7 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
       `at ${String(max)} entries by default; result carries truncated + totalCount.`,
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative directory path. Use '.' for root."),
-    }),
+    }) as any,
     handler: async ({ path }) => {
       const relative = path === "" || path === "." ? "." : path;
       if (relative !== "." && isForbiddenPath(relative)) {
