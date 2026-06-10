@@ -13,6 +13,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `HitlMiddleware` — Human-In-The-Loop interrupt middleware at `internal/runtime/hitl-middleware.ts`. Intercepts configured tool calls, yields to async `approve` callback, fail-closed on timeout/error. 9 HITL tests (peer-parity-gaps T4.1)
 - `shouldSummarize()` + `autoSummarize()` — auto-summarization trigger at `internal/runtime/auto-summarize.ts`. Fraction-based trigger (default 85%) reusing existing compression pipeline. Guards for edge cases (fewer messages than keepNewest, zero maxContextTokens). 11 auto-summarize tests (peer-parity-gaps T5.1)
 
+- `@UseSandbox()` property decorator — configures sandbox backend via DI metadata (`@theokit/di-agent`)
+- `@SubAgent({ name, instructions })` property decorator — declarative subagent-as-tool via DI metadata
+- `@Hitl({ tools: ["execute"] })` method decorator — marks HITL approval handler via DI metadata
+- `@AutoSummarize({ triggerFraction: 0.85 })` class decorator — configures auto-summarization via DI metadata
+- `METADATA_KEYS` exported from `@theokit/di` barrel (SANDBOX, SUBAGENT, HITL, AUTO_SUMMARIZE keys)
 - `examples/peer-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation
 
 ### Added (previous)

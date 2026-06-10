@@ -23,6 +23,14 @@ export const METADATA_KEYS = {
   POST_CONSTRUCT: "usetheo:di:post-construct",
   /** string | symbol from `@PreDestroy` method decorator. */
   PRE_DESTROY: "usetheo:di:pre-destroy",
+  /** Map<string|symbol, SandboxOptions> from `@UseSandbox()` property decorator. */
+  SANDBOX: "usetheo:di:sandbox",
+  /** Map<string|symbol, SubAgentSpec> from `@SubAgent()` property decorator. */
+  SUBAGENT: "usetheo:di:subagent",
+  /** HitlOptions from `@Hitl()` method decorator. */
+  HITL: "usetheo:di:hitl",
+  /** AutoSummarizeConfig from `@AutoSummarize()` class decorator. */
+  AUTO_SUMMARIZE: "usetheo:di:auto-summarize",
 } as const;
 
 export interface InjectableMetadata {
