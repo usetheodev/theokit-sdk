@@ -21,6 +21,7 @@ export {
   ScopeViolationError,
   TokenNotFoundError,
 } from "./errors.js";
+export { METADATA_KEYS } from "./internal/metadata.js";
 export {
   CyclicModuleImportError,
   InvalidExportError,
