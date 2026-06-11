@@ -32,6 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `analyzeQuery()` in sdk-memory — opt-in LLM-driven sub-query distillation for complex queries (>250 chars), with graceful JSON parse fallback
 - `MemoryScope` + `normalizeScopePath()` in sdk-memory — hierarchical path-based memory isolation (e.g., `/crew/agent-1/long-term`) with child scope composition
 - Schema migration v2: `created_at`, `importance`, `scope` columns added to chunks table (nullable, backward-compatible)
+- `@MemoryScopeDecorator({ path })` property decorator in `@theokit/di-agent` — hierarchical memory scope configuration via DI metadata (15th agentic decorator, METADATA_KEY: `usetheo:di:memory-scope`)
 - `examples/deepagents-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation (includes `run-decorators.ts` decorator-based variant)
 
 ### Added (previous)
