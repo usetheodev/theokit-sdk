@@ -36,6 +36,26 @@ export interface CustomToolSpec {
 }
 
 /**
+ * Resolved tool descriptor used by dispatch + executor modules.
+ * Lives in loop-types so both tool-dispatch.ts and tool-executors.ts can
+ * import it without creating a circular dependency.
+ *
+ * @internal
+ */
+export interface ResolvedTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  origin: "shell" | "mcp" | "memory" | "custom";
+  mcpServerName?: string;
+  mcpToolName?: string;
+  /** Direct handler for `origin === "memory"` tools — returns JSON-encoded result string. */
+  memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
+  /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`. */
+  customHandler?: (input: Record<string, unknown>) => string | Promise<string>;
+}
+
+/**
  * Shared agent-loop types. Kept in their own module so the dispatch helpers
  * can import `AgentLoopInputs` without pulling the whole orchestrator file.
  *

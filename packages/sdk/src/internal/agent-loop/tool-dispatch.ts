@@ -3,29 +3,10 @@ import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/async-local-storage.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
-import type { AgentLoopInputs } from "./loop-types.js";
+import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";
 
-/**
- * Tool dispatch helpers extracted from the main agent loop. Each call goes
- * through `dispatchSingleCall` which fires `preToolUse` hooks, executes the
- * tool (shell or MCP), and fires `postToolUse` after capturing the result.
- *
- * @internal
- */
-
-export interface ResolvedTool {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-  origin: "shell" | "mcp" | "memory" | "custom";
-  mcpServerName?: string;
-  mcpToolName?: string;
-  /** Direct handler for `origin === "memory"` tools — returns JSON-encoded result string. */
-  memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
-  /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`. */
-  customHandler?: (input: Record<string, unknown>) => string | Promise<string>;
-}
+export type { ResolvedTool } from "./loop-types.js";
 
 /**
  * T2.4 — Parallel tool dispatch with bounded concurrency (DR2 finding #4).
