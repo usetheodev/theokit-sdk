@@ -1,4 +1,19 @@
-import type { LlmFinish, LlmStopReason, LlmToolCallPart } from "./types.js";
+import type { LlmFinish, LlmRequest, LlmStopReason, LlmToolCallPart } from "./types.js";
+
+/**
+ * Collapse the wider `LlmRequest.system` shape (undefined | string | block[])
+ * into a single string. Providers that don't support per-block prompt caching
+ * join blocks with a blank-line separator.
+ *
+ * Shared between Ollama native and OpenAI-compatible clients.
+ *
+ * @internal
+ */
+export function collapseSystemText(system: LlmRequest["system"]): string {
+  if (system === undefined) return "";
+  if (typeof system === "string") return system;
+  return system.map((b) => b.text).join("\n\n");
+}
 
 /**
  * Decode a buffered JSON-arguments string into an object. Falls back to a

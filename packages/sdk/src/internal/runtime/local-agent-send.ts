@@ -55,6 +55,7 @@ export interface SendLockedInputs {
     memoryFacts: ReadonlyArray<MemoryFact>,
     activeMemorySummary: string | undefined,
   ) => Promise<string | undefined>;
+  // jscpd:ignore-start — type contract mirrors LocalAgent.dispatchRun signature (not knowledge duplication)
   dispatchRun: (
     message: string | SDKUserMessage,
     options: SendOptions,
@@ -64,6 +65,7 @@ export interface SendLockedInputs {
     memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
     memoryProviderOverride?: MemoryProvider,
   ) => Promise<Run>;
+  // jscpd:ignore-end
 }
 
 /**
