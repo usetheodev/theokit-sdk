@@ -28,6 +28,9 @@ export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
 export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
+// Agent workflow tools (moved from @theokit/theocode — SDK LEGO pieces)
+export { createPlanModeTool, type PlanModeTool } from "./plan-mode.js";
+export { createQuestionTool, type QuestionTool, type QuestionToolOptions } from "./question.js";
 export { type CreateReadFileToolOptions, createReadFileTool } from "./read-file.js";
 export {
   type CreateRunVitestToolOptions,
@@ -36,6 +39,8 @@ export {
 } from "./run-vitest.js";
 export { type CreateSearchTextToolOptions, createSearchTextTool } from "./search-text.js";
 export { type CreateShellToolOptions, createShellTool } from "./shell-exec.js";
+export { createTodolistTool, type TodoItem, type TodolistTool } from "./todolist.js";
+export { type TruncationOptions, type TruncationResult, truncateOutput } from "./truncation.js";
 export { type CreateWebFetchToolOptions, createWebFetchTool } from "./web-fetch.js";
 export {
   type CreateWebSearchToolOptions,
