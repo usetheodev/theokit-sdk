@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { EventBus } from "../../src/infra/event-bus.js";
+import { EventBus } from "../src/event-bus.js";
 
 type TestEvents = {
   message: string;

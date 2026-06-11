@@ -18,7 +18,7 @@ import * as readline from "node:readline";
 import { Agent } from "@theokit/sdk";
 import Database from "better-sqlite3";
 
-// Phase 1: Tools
+// SDK building blocks (LEGO pieces)
 import {
   createReadFileTool,
   createWriteFileTool,
@@ -27,24 +27,23 @@ import {
   createShellTool,
   createSearchTextTool,
   createListDirTool,
+  createPlanModeTool,
+  createTodolistTool,
 } from "../../packages/sdk-tools/src/index.js";
 
-// Phase 2: Session
-import { SessionManager, MessageStore } from "../../packages/theocode/src/session/index.js";
-import { initDb } from "../../packages/theocode/src/session/schema.js";
+// App-layer: Session persistence (local to this example)
+import { SessionManager, MessageStore } from "./lib/session/index.js";
+import { initDb } from "./lib/session/schema.js";
 
-// Phase 3: Profiles + Tools
-import { resolveProfile } from "../../packages/theocode/src/profiles/index.js";
-import { createPlanModeTool } from "../../packages/theocode/src/tools/plan-mode.js";
-import { createTodolistTool } from "../../packages/theocode/src/tools/todolist.js";
-import { createTaskAgentTool } from "../../packages/theocode/src/tools/task-agent.js";
+// App-layer: Model profiles (local to this example)
+import { resolveProfile } from "./lib/profiles/index.js";
 
-// Phase 4: Infrastructure
-import { EventBus } from "../../packages/theocode/src/infra/event-bus.js";
+// SDK infra building block
+import { EventBus } from "../../packages/sdk/src/event-bus.js";
 
-// Phase 5: TUI logic
-import { formatStatusBar } from "../../packages/theocode/src/tui/status-bar.js";
-import { formatKeymapHelp } from "../../packages/theocode/src/tui/keymap.js";
+// App-layer: TUI logic (local to this example)
+import { formatStatusBar } from "./lib/tui/status-bar.js";
+import { formatKeymapHelp } from "./lib/tui/keymap.js";
 
 // ─── Config ──────────────────────────────────────────────────────────────
 
@@ -88,34 +87,14 @@ const codingTools = [
   createListDirTool({ projectRoot }),
 ];
 
-// All tools (coding + plan + todo — task added after agent creation)
-const allTools = [
+// All tools (SDK building blocks + app tools)
+const tools = [
   ...codingTools,
   planMode,
   todolist,
 ];
 
-// Create agent
-const agent = await Agent.create({
-  apiKey,
-  model: { id: modelId },
-  systemPrompt: profile.systemPrompt,
-  tools: allTools,
-  local: { cwd: projectRoot },
-  providers: {
-    routes: [{ capability: "chat" as const, provider: "openrouter" }],
-    fallback: ["openrouter"],
-  },
-});
-
-// Task subagent (needs agent reference)
-const taskAgent = createTaskAgentTool({ agent, timeoutMs: 120_000 });
-
-// Rebuild tools list with task agent
-const tools = [...allTools, taskAgent];
-
-// Re-create agent with all tools including task
-agent.dispose();
+// Create agent with all tools
 const fullAgent = await Agent.create({
   apiKey,
   model: { id: modelId },
@@ -143,7 +122,7 @@ function printHeader() {
   console.log(`\x1b[36m╚══════════════════════════════════════════════╝\x1b[0m`);
   console.log(`\x1b[90mModel: ${modelId} | Profile: ${profile.name} | Tools: ${tools.length}\x1b[0m`);
   console.log(`\x1b[90mProject: ${projectRoot}\x1b[0m`);
-  console.log(`\x1b[90mCapabilities: plan_mode, todolist, task_subagent, 7 coding tools\x1b[0m`);
+  console.log(`\x1b[90mCapabilities: plan_mode, todolist, 7 coding tools (SDK LEGO pieces)\x1b[0m`);
   console.log(`\x1b[90mType /help for commands, /quit to exit\x1b[0m\n`);
 }
 
@@ -229,7 +208,7 @@ function prompt() {
       console.log(`  Model: ${modelId}`);
       console.log(`  Profile: ${profile.name}`);
       console.log(`  Mode: ${mode}`);
-      console.log(`  Tasks: ${taskAgent.getHistory().length} delegated\n`);
+      console.log(`  Tools: ${tools.length}\n`);
       prompt();
       return;
     }
