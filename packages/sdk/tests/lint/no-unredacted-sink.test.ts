@@ -129,6 +129,10 @@ const WHITELIST = new Set<string>([
   // + zod-derived input/output schemas). No user payload, no PII, no secrets.
   // Manifest is loaded back at server boot to mount routes.
   "subscription/internal/server-integration.ts",
+  // SandboxBackend abstract class has `console.error(...)` in the default
+  // error handler for derived ops (readFile, writeFile, etc.). The error
+  // message originates from the sandbox process itself, not user payload.
+  "sandbox/types.ts",
 ]);
 
 interface Offender {
