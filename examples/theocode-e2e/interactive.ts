@@ -274,9 +274,27 @@ function prompt() {
 
     try {
       const run = await fullAgent.send(trimmed + modeHint);
-      const result = await run.wait();
 
-      const responseText = result.result ?? "(no response)";
+      // Stream events for real-time visibility
+      let assistantText = "";
+      for await (const event of run.stream()) {
+        if (event.type === "tool_call" && event.status === "running") {
+          const argsPreview = event.args ? JSON.stringify(event.args).slice(0, 80) : "";
+          console.log(`\x1b[90m  [tool] ${event.name}(${argsPreview}${argsPreview.length >= 80 ? "..." : ""})\x1b[0m`);
+        } else if (event.type === "tool_call" && event.status === "completed") {
+          const resultPreview = typeof event.result === "string"
+            ? event.result.slice(0, 100)
+            : JSON.stringify(event.result ?? "").slice(0, 100);
+          console.log(`\x1b[90m  [done] ${event.name} → ${resultPreview}${resultPreview.length >= 100 ? "..." : ""}\x1b[0m`);
+        } else if (event.type === "assistant") {
+          for (const block of event.message.content) {
+            if (block.type === "text") assistantText += block.text;
+          }
+        }
+      }
+
+      const result = await run.wait();
+      const responseText = result.result ?? (assistantText || "(no response)");
       const estimatedTokens = Math.ceil(responseText.length / 4);
       totalTokens += estimatedTokens;
 
