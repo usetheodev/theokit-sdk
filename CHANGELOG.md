@@ -40,6 +40,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Schema migration v2: `created_at`, `importance`, `scope` columns added to chunks table (nullable, backward-compatible)
 - `@MemoryScopeDecorator({ path })` property decorator in `@theokit/di-agent` — hierarchical memory scope configuration via DI metadata (15th agentic decorator, METADATA_KEY: `usetheo:di:memory-scope`)
 - `examples/peer-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation (includes `run-decorators.ts` decorator-based variant + `run-memory.ts` memory system E2E)
+- TheoCode interactive REPL (`examples/theocode-e2e/interactive.ts`) — readline-based coding agent with all 5 phases (tools, session, profiles, event bus, TUI), real LLM via OpenRouter, session commands (/help, /status, /tools, /session, /quit)
+
+### Fixed
+
+- SDK build now auto-copies `provider-catalog.json` to `dist/` — prevents ENOENT at runtime when `loadProviderCatalog()` is called after a clean build
 
 ### Added (previous)
 
