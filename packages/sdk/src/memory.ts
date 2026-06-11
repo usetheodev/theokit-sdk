@@ -126,7 +126,6 @@ export const Memory = {
    *
    * @public
    */
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: memory index routing branches across backend + SDK peer modes
   async openIndex(opts: OpenMemoryIndexOptions): Promise<MemoryIndexHandle> {
     // SDK 2.0 Phase 4 (Stage 4, iter 77): if @theokit/sdk-memory is
     // installed, route through it. Otherwise fall back to the legacy
@@ -134,27 +133,11 @@ export const Memory = {
     // because sdk-memory's IndexManager + MEMORY_EMBEDDING_ADAPTERS
     // are hybrid copies of sdk-core's internals (iter 44-75).
     const peer = await tryLoadSdkMemoryPeer();
+    const openArgs = buildIndexOpenArgs(opts, undefined);
     if (peer !== null) {
-      let embedding: unknown;
-      if (opts.embedding !== undefined) {
-        const adapter = peer.MEMORY_EMBEDDING_ADAPTERS[opts.embedding.provider];
-        if (adapter === undefined) {
-          throw new Error(
-            `Unknown embedding provider "${opts.embedding.provider}". Supported: ${Object.keys(
-              peer.MEMORY_EMBEDDING_ADAPTERS,
-            ).join(", ")}.`,
-          );
-        }
-        embedding = await adapter.create(
-          opts.embedding.model !== undefined ? { model: opts.embedding.model } : {},
-        );
-      }
-      return (await peer.IndexManager.open({
-        cwd: opts.cwd,
-        ...(opts.filePath !== undefined ? { filePath: opts.filePath } : {}),
-        ...(embedding !== undefined ? { embedding } : {}),
-        ...(opts.backend !== undefined ? { backend: opts.backend } : {}),
-      })) as MemoryIndexHandle;
+      openArgs.embedding = await resolveEmbedding(opts.embedding, peer.MEMORY_EMBEDDING_ADAPTERS);
+      // biome-ignore lint/suspicious/noExplicitAny: peer is dynamically loaded — structural compat ensured by sdk-memory
+      return (await peer.IndexManager.open(openArgs as any)) as MemoryIndexHandle;
     }
     // Fallback path — sdk-memory peer absent; use the internal
     // implementation (v1.x behavior preserved).
@@ -162,27 +145,10 @@ export const Memory = {
     // DTS surface (rollup-plugin-dts trips on a pre-existing cycle in
     // types/agent.ts ↔ fork-agent.ts when reached transitively).
     const { IndexManager } = await import("./internal/memory/index-manager.js");
-    let embedding: import("./internal/memory/embedding-adapter.js").EmbeddingRuntime | undefined;
-    if (opts.embedding !== undefined) {
-      const adapter = MEMORY_EMBEDDING_ADAPTERS[opts.embedding.provider];
-      if (adapter === undefined) {
-        throw new Error(
-          `Unknown embedding provider "${opts.embedding.provider}". Supported: ${Object.keys(
-            MEMORY_EMBEDDING_ADAPTERS,
-          ).join(", ")}.`,
-        );
-      }
-      embedding = await adapter.create(
-        opts.embedding.model !== undefined ? { model: opts.embedding.model } : {},
-      );
-    }
+    openArgs.embedding = await resolveEmbedding(opts.embedding, MEMORY_EMBEDDING_ADAPTERS);
     // Cast: structural-compat (internal MemoryIndex matches MemoryIndexHandle).
-    return (await IndexManager.open({
-      cwd: opts.cwd,
-      ...(opts.filePath !== undefined ? { filePath: opts.filePath } : {}),
-      ...(embedding !== undefined ? { embedding } : {}),
-      ...(opts.backend !== undefined ? { backend: opts.backend } : {}),
-    })) as MemoryIndexHandle;
+    // biome-ignore lint/suspicious/noExplicitAny: embedding is resolved from the same catalog — types match at runtime
+    return (await IndexManager.open(openArgs as any)) as MemoryIndexHandle;
   },
 
   /**
@@ -191,65 +157,102 @@ export const Memory = {
    *
    * @public
    */
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: dreaming sweep routes across SDK peer + legacy modes with embedding/clustering branches
   async runDreamingSweep(opts: DreamingSweepOptions): Promise<DreamingSweepResult> {
     // SDK 2.0 Phase 4 (Stage 4, iter 77): route through sdk-memory
     // when installed; fall back to legacy internal/ path otherwise.
     const peer = await tryLoadSdkMemoryPeer();
-    if (peer !== null) {
-      const adapter = peer.MEMORY_EMBEDDING_ADAPTERS[opts.embedding.provider];
-      if (adapter === undefined) {
-        throw new Error(
-          `Unknown embedding provider "${opts.embedding.provider}". Supported: ${Object.keys(
-            peer.MEMORY_EMBEDDING_ADAPTERS,
-          ).join(", ")}.`,
-        );
-      }
-      const runtime = await adapter.create(
-        opts.embedding.model !== undefined ? { model: opts.embedding.model } : {},
-      );
-      const result = await peer.runDreamingSweep({
-        cwd: opts.cwd,
-        embedding: runtime,
-        ...(opts.dedupThreshold !== undefined ? { dedupThreshold: opts.dedupThreshold } : {}),
-        ...(opts.clusterThreshold !== undefined ? { clusterThreshold: opts.clusterThreshold } : {}),
-      });
-      return {
-        status: result.status,
-        factsBefore: result.factsBefore,
-        factsAfter: result.factsAfter,
-        duplicatesRemoved: result.duplicatesRemoved,
-        clustersCreated: result.clustersCreated,
-        notesWritten: result.notesWritten,
-      };
-    }
-    // Fallback: legacy internal path (v1.x behavior).
-    const adapter = MEMORY_EMBEDDING_ADAPTERS[opts.embedding.provider];
-    if (adapter === undefined) {
-      // Should be unreachable thanks to the typed `provider` union, but guard
-      // explicitly for runtime-source callers (JS without types).
-      throw new Error(
-        `Unknown embedding provider "${opts.embedding.provider}". Supported: ${Object.keys(
-          MEMORY_EMBEDDING_ADAPTERS,
-        ).join(", ")}.`,
-      );
-    }
-    const runtime = await adapter.create(
-      opts.embedding.model !== undefined ? { model: opts.embedding.model } : {},
-    );
-    const result = await runDreamingSweepInternal({
-      cwd: opts.cwd,
-      embedding: runtime,
-      ...(opts.dedupThreshold !== undefined ? { dedupThreshold: opts.dedupThreshold } : {}),
-      ...(opts.clusterThreshold !== undefined ? { clusterThreshold: opts.clusterThreshold } : {}),
-    });
-    return {
-      status: result.status,
-      factsBefore: result.factsBefore,
-      factsAfter: result.factsAfter,
-      duplicatesRemoved: result.duplicatesRemoved,
-      clustersCreated: result.clustersCreated,
-      notesWritten: result.notesWritten,
-    };
+    const catalog = peer !== null ? peer.MEMORY_EMBEDDING_ADAPTERS : MEMORY_EMBEDDING_ADAPTERS;
+    const sweepArgs = await buildDreamingSweepArgs(opts, catalog);
+    const result =
+      peer !== null
+        ? // biome-ignore lint/suspicious/noExplicitAny: peer is dynamically loaded — structural compat ensured by sdk-memory
+          await peer.runDreamingSweep(sweepArgs as any)
+        : // biome-ignore lint/suspicious/noExplicitAny: legacy path accepts the same shape
+          await runDreamingSweepInternal(sweepArgs as any);
+    return toDreamingSweepResult(result);
   },
 };
+
+// ---------------------------------------------------------------------------
+// Internal helpers — deduplicate patterns shared across peer + legacy paths.
+// ---------------------------------------------------------------------------
+
+/** Catalog shape shared between sdk-memory peer and local MEMORY_EMBEDDING_ADAPTERS. */
+interface EmbeddingCatalog {
+  [provider: string]: { create(opts: Record<string, unknown>): Promise<unknown> } | undefined;
+}
+
+/**
+ * Resolve an embedding runtime from a provider catalog. Throws the canonical
+ * "Unknown embedding provider" error when the provider is not in the catalog.
+ */
+async function resolveEmbedding(
+  embeddingOpts: { provider: string; model?: string } | undefined,
+  catalog: EmbeddingCatalog,
+): Promise<unknown> {
+  if (embeddingOpts === undefined) return undefined;
+  const adapter = catalog[embeddingOpts.provider];
+  if (adapter === undefined) {
+    throw new Error(
+      `Unknown embedding provider "${embeddingOpts.provider}". Supported: ${Object.keys(catalog).join(", ")}.`,
+    );
+  }
+  return adapter.create(embeddingOpts.model !== undefined ? { model: embeddingOpts.model } : {});
+}
+
+interface IndexOpenArgs {
+  cwd: string;
+  filePath?: string;
+  embedding?: unknown;
+  backend?: "sqlite-vec" | "lance";
+}
+
+/** Build the args object for IndexManager.open from user-facing options. */
+function buildIndexOpenArgs(opts: OpenMemoryIndexOptions, embedding: unknown): IndexOpenArgs {
+  return {
+    cwd: opts.cwd,
+    ...(opts.filePath !== undefined ? { filePath: opts.filePath } : {}),
+    ...(embedding !== undefined ? { embedding } : {}),
+    ...(opts.backend !== undefined ? { backend: opts.backend } : {}),
+  };
+}
+
+interface DreamingSweepArgs {
+  cwd: string;
+  embedding: unknown;
+  dedupThreshold?: number;
+  clusterThreshold?: number;
+}
+
+/** Build args for runDreamingSweep from user-facing options + resolved embedding. */
+async function buildDreamingSweepArgs(
+  opts: DreamingSweepOptions,
+  catalog: EmbeddingCatalog,
+): Promise<DreamingSweepArgs> {
+  const runtime = await resolveEmbedding(opts.embedding, catalog);
+  return {
+    cwd: opts.cwd,
+    embedding: runtime,
+    ...(opts.dedupThreshold !== undefined ? { dedupThreshold: opts.dedupThreshold } : {}),
+    ...(opts.clusterThreshold !== undefined ? { clusterThreshold: opts.clusterThreshold } : {}),
+  };
+}
+
+/** Normalize a raw dreaming sweep result into the public DreamingSweepResult shape. */
+function toDreamingSweepResult(result: {
+  status: string;
+  factsBefore: number;
+  factsAfter: number;
+  duplicatesRemoved: number;
+  clustersCreated: number;
+  notesWritten: number;
+}): DreamingSweepResult {
+  return {
+    status: result.status as DreamingSweepResult["status"],
+    factsBefore: result.factsBefore,
+    factsAfter: result.factsAfter,
+    duplicatesRemoved: result.duplicatesRemoved,
+    clustersCreated: result.clustersCreated,
+    notesWritten: result.notesWritten,
+  };
+}

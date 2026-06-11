@@ -15,3 +15,13 @@ export interface AgentLike {
   ): { stream(): AsyncIterable<unknown>; wait(): Promise<unknown> };
   dispose(): void;
 }
+
+export interface AgentHandler {
+  routes: ReadonlyArray<{ method: string; path: string }>;
+  handleRequest(req: {
+    method: string;
+    url: string;
+    body?: unknown;
+    signal?: AbortSignal;
+  }): Promise<{ status: number; body?: unknown; stream?: AsyncIterable<unknown> }>;
+}

@@ -101,7 +101,7 @@ function loadOtel(): OTelApi | null {
   return cachedOtel ?? null;
 }
 
-const NOOP_SPAN: OTelSpan = {
+export const NOOP_SPAN: OTelSpan = {
   setAttribute: () => {},
   setAttributes: () => {},
   addEvent: () => {},
