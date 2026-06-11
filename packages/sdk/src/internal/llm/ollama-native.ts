@@ -11,7 +11,7 @@
  */
 
 import { mapOllamaHttpError, mapOllamaTransportError } from "../errors/mappers/ollama.js";
-import { makeLlmFinish } from "./finish.js";
+import { collapseSystemText, makeLlmFinish } from "./finish.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -257,16 +257,11 @@ async function* parseNdjsonStream(
 
 /**
  * T3.5 — collapse the wider `LlmRequest.system` shape into the legacy
- * single-string form Ollama expects. Ollama doesn't support per-block
- * prompt caching, so block content is joined with a blank-line separator.
+ * single-string form Ollama expects.
  *
  * @internal
  */
-function ollamaSystemText(system: LlmRequest["system"]): string {
-  if (system === undefined) return "";
-  if (typeof system === "string") return system;
-  return system.map((b) => b.text).join("\n\n");
-}
+const ollamaSystemText = collapseSystemText;
 
 function buildOllamaChatBody(request: LlmRequest): Record<string, unknown> {
   const messages: OllamaChatMessage[] = [];

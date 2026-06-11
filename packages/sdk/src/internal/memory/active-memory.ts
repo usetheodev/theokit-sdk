@@ -1,5 +1,5 @@
 import { HISTOGRAM_NAMES, SPAN_NAMES } from "../telemetry/span-names.js";
-import type { OTelSpan, TelemetryHandle } from "../telemetry/tracer.js";
+import { NOOP_SPAN, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import type { ActiveMemoryCache } from "./active-memory-cache.js";
 // T4.1 / D438 — `ActiveMemoryResult` and its helpers moved to `./active-memory-types.ts`
 // so `./active-memory-cache.ts` can reach them without cycling back here (cycle #10).
@@ -153,26 +153,23 @@ export async function runActiveMemory(args: RunActiveMemoryArgs): Promise<Active
   }
 }
 
+/** Extract optional identity attributes from recall args (shared by span + histogram). */
+function recallIdentityAttrs(args: RunActiveMemoryArgs): Record<string, string> {
+  const attrs: Record<string, string> = {};
+  if (args.userId !== undefined) attrs.userId = args.userId;
+  if (args.namespace !== undefined) attrs.namespace = args.namespace;
+  if (args.scope !== undefined) attrs.scope = args.scope;
+  return attrs;
+}
+
 function startMemoryRecallSpan(args: RunActiveMemoryArgs): OTelSpan {
   const telemetry: TelemetryHandle | undefined = args.telemetry;
   if (telemetry === undefined) {
-    // No-op span identical to the runtime no-op when telemetry is disabled.
-    return {
-      setAttribute: () => {},
-      setAttributes: () => {},
-      addEvent: () => {},
-      setStatus: () => {},
-      recordException: () => {},
-      end: () => {},
-      spanContext: () => ({ traceId: "0".repeat(32), spanId: "0".repeat(16) }),
-      isRecording: () => false,
-    };
+    return NOOP_SPAN;
   }
   return telemetry.startSpan(SPAN_NAMES.MEMORY_RECALL, {
     queryMode: args.options.queryMode ?? "recent",
-    ...(args.userId !== undefined ? { userId: args.userId } : {}),
-    ...(args.namespace !== undefined ? { namespace: args.namespace } : {}),
-    ...(args.scope !== undefined ? { scope: args.scope } : {}),
+    ...recallIdentityAttrs(args),
   });
 }
 
@@ -189,9 +186,7 @@ function endRecallSpan(
   span.end();
   args.telemetry?.recordHistogram(HISTOGRAM_NAMES.MEMORY_RECALL_DURATION_MS, result.durationMs, {
     status: result.status,
-    ...(args.userId !== undefined ? { userId: args.userId } : {}),
-    ...(args.namespace !== undefined ? { namespace: args.namespace } : {}),
-    ...(args.scope !== undefined ? { scope: args.scope } : {}),
+    ...recallIdentityAttrs(args),
   });
   return result;
 }
