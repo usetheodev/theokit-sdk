@@ -74,8 +74,7 @@ function providerFromModelId(modelId: string | undefined): string | undefined {
   return modelId.slice(0, slash);
 }
 
-/** @internal */
-export async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOptions> {
+async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOptions> {
   const handoffs = options.handoffs;
   if (handoffs === undefined || handoffs.length === 0) return options;
   if (options.maxHandoffDepth === 0) return options;
@@ -112,8 +111,7 @@ export async function maybeInjectHandoffTools(options: AgentOptions): Promise<Ag
   };
 }
 
-/** @internal */
-export async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
+async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
   const apiKey = resolveApiKey(options.apiKey);
   if (apiKey === undefined) {
     throw new AuthenticationError("Missing API key", { code: "missing_api_key" });
@@ -140,8 +138,7 @@ export async function createLocalAgent(options: AgentOptions): Promise<SDKAgent>
   return agent;
 }
 
-/** @internal */
-export async function createCloudAgent(options: AgentOptions): Promise<SDKAgent> {
+async function createCloudAgent(options: AgentOptions): Promise<SDKAgent> {
   const apiKey = resolveApiKey(options.apiKey);
   if (apiKey === undefined) {
     throw new ConfigurationError("Missing API key for cloud agent", {
@@ -188,8 +185,7 @@ export function resolveAgentPersistenceCwd(options: Partial<AgentOptions>): stri
   return process.cwd();
 }
 
-/** @internal */
-export type RegisteredAgent = ReturnType<typeof getRegisteredAgent> & object;
+type RegisteredAgent = ReturnType<typeof getRegisteredAgent> & object;
 
 /** @internal */
 export async function rehydrateExistingAgent(
