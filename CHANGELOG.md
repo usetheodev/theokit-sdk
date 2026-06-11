@@ -27,6 +27,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - `@Retriever()` property decorator — RAG retriever configuration metadata
 - `@Reranker()` property decorator — RAG reranker configuration metadata
 - `@TextSplitter()` property decorator — text splitter configuration metadata
+- `rememberMany()` batch encoding pipeline in sdk-memory — embeds N texts in 1 API call with intra-batch cosine dedup (threshold 0.95), inspired by a peer project's EncodingFlow
+- `compositeScore()` in sdk-memory — blends semantic + text + recency decay + importance signals with configurable weights (default: 0.5/0.2/0.2/0.1), backward-compatible with legacy 0.6/0.4 weights
+- `analyzeQuery()` in sdk-memory — opt-in LLM-driven sub-query distillation for complex queries (>250 chars), with graceful JSON parse fallback
+- `MemoryScope` + `normalizeScopePath()` in sdk-memory — hierarchical path-based memory isolation (e.g., `/crew/agent-1/long-term`) with child scope composition
+- Schema migration v2: `created_at`, `importance`, `scope` columns added to chunks table (nullable, backward-compatible)
 - `examples/peer-parity-demo` — end-to-end example exercising sandbox, subagent, HITL, and auto-summarize with real OpenRouter LLM validation (includes `run-decorators.ts` decorator-based variant)
 
 ### Added (previous)

@@ -62,6 +62,16 @@ export const SCHEMA_STATEMENTS: ReadonlyArray<string> = [
  * `applyWalWithFallback` (T4.2, ADR D63) so NFS/SMB users get a graceful
  * DELETE fallback instead of crashing.
  */
+/**
+ * v2 migration: adds created_at, importance, scope columns to chunks.
+ * All nullable for backward-compat with existing data (EC-2).
+ */
+export const MIGRATION_V2_STATEMENTS: ReadonlyArray<string> = [
+  "ALTER TABLE chunks ADD COLUMN created_at INTEGER",
+  "ALTER TABLE chunks ADD COLUMN importance REAL DEFAULT 0.5",
+  "ALTER TABLE chunks ADD COLUMN scope TEXT DEFAULT '/'",
+];
+
 export const PRAGMA_STATEMENTS: ReadonlyArray<string> = [
   "PRAGMA synchronous=NORMAL",
   "PRAGMA foreign_keys=ON",
