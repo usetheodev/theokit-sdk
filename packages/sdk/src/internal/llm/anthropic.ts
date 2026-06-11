@@ -48,7 +48,20 @@ interface AnthropicToolDelta {
 interface AnthropicMessageDelta {
   type: "message_delta";
   delta: { stop_reason: string | null };
-  usage?: { input_tokens?: number; output_tokens?: number };
+  /**
+   * T3.8 — Anthropic native usage shape carries the 5-bucket cache counters
+   * when the request annotated system blocks with `cache_control:
+   * {type:"ephemeral"}` (shipped in T3.5). `cache_creation_input_tokens`
+   * surfaces as `LlmFinish.cacheWriteTokens` (the 1.25x billing tier);
+   * `cache_read_input_tokens` surfaces as `LlmFinish.cacheReadTokens` (the
+   * 0.1x billing tier). Pre-T3.8 the SDK dropped both fields silently.
+   */
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+  };
 }
 
 type AnthropicEvent =
@@ -124,6 +137,8 @@ class AnthropicStreamAccumulator {
   private stopReason: LlmStopReason = "end_turn";
   private inputTokens?: number;
   private outputTokens?: number;
+  private cacheReadTokens?: number;
+  private cacheWriteTokens?: number;
   private readonly toolCalls = new Map<number, LlmToolCallPart>();
   private readonly toolBuffers = new Map<number, string>();
 
@@ -164,10 +179,27 @@ class AnthropicStreamAccumulator {
     return [];
   }
 
-  private handleMessageDelta(md: AnthropicMessageDelta): void {
+  /**
+   * T3.8 — extract token counters from Anthropic's `message_delta` usage.
+   * Public on the class so the test seam can drive it directly without
+   * spinning the SSE parser.
+   */
+  handleMessageDelta(md: AnthropicMessageDelta): void {
     this.stopReason = mapAnthropicStopReason(md.delta.stop_reason);
     if (md.usage?.input_tokens !== undefined) this.inputTokens = md.usage.input_tokens;
     if (md.usage?.output_tokens !== undefined) this.outputTokens = md.usage.output_tokens;
+    // T3.8 — treat 0 as "no cache activity" and leave the bucket
+    // unreported (mirrors usage-accumulator's filter where zero-value
+    // entries are stripped from the emitted TokenUsage).
+    if (
+      md.usage?.cache_creation_input_tokens !== undefined &&
+      md.usage.cache_creation_input_tokens > 0
+    ) {
+      this.cacheWriteTokens = md.usage.cache_creation_input_tokens;
+    }
+    if (md.usage?.cache_read_input_tokens !== undefined && md.usage.cache_read_input_tokens > 0) {
+      this.cacheReadTokens = md.usage.cache_read_input_tokens;
+    }
   }
 
   finish(): LlmFinish {
@@ -184,9 +216,20 @@ class AnthropicStreamAccumulator {
       toolCalls,
       inputTokens: this.inputTokens,
       outputTokens: this.outputTokens,
+      // T3.8 — surface Anthropic native cache-token counters when the
+      // request used `cache_control: {type:"ephemeral"}` on system blocks.
+      cacheReadTokens: this.cacheReadTokens,
+      cacheWriteTokens: this.cacheWriteTokens,
     });
   }
 }
+
+/**
+ * T3.8 — test seam: exposes the AnthropicStreamAccumulator directly so
+ * unit tests can drive the message_delta path without spinning the SSE
+ * parser. `@internal` — not part of the public surface.
+ */
+export const __testing__AnthropicAccumulator = AnthropicStreamAccumulator;
 
 function buildAnthropicBody(request: LlmRequest): Record<string, unknown> {
   return {

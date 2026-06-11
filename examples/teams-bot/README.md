@@ -1,6 +1,6 @@
 # `examples/teams-bot`
 
-Reference Microsoft Teams bot using `@usetheo/gateway-teams`. Built on the modern `@microsoft/teams.apps` v2 SDK.
+Reference Microsoft Teams bot using `@theokit/gateway-teams`. Built on the modern `@microsoft/teams.apps` v2 SDK.
 
 ## What you'll need
 

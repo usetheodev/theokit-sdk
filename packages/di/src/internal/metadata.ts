@@ -15,6 +15,42 @@ export const METADATA_KEYS = {
   OPTIONAL_FLAGS: "usetheo:di:optional",
   /** TS-emitted constructor parameter types (requires `emitDecoratorMetadata`). */
   DESIGN_PARAMTYPES: "design:paramtypes",
+  /** Map<number, string> from `@Qualifier(name)` parameter decorators. */
+  QUALIFIER_NAMES: "usetheo:di:qualifier-names",
+  /** boolean from `@Primary` class decorator. */
+  PRIMARY: "usetheo:di:primary",
+  /** string | symbol from `@PostConstruct` method decorator. */
+  POST_CONSTRUCT: "usetheo:di:post-construct",
+  /** string | symbol from `@PreDestroy` method decorator. */
+  PRE_DESTROY: "usetheo:di:pre-destroy",
+  /** Map<string|symbol, SandboxOptions> from `@UseSandbox()` property decorator. */
+  SANDBOX: "usetheo:di:sandbox",
+  /** Map<string|symbol, SubAgentSpec> from `@SubAgent()` property decorator. */
+  SUBAGENT: "usetheo:di:subagent",
+  /** HitlOptions from `@Hitl()` method decorator. */
+  HITL: "usetheo:di:hitl",
+  /** AutoSummarizeConfig from `@AutoSummarize()` class decorator. */
+  AUTO_SUMMARIZE: "usetheo:di:auto-summarize",
+  /** Map<string|symbol, ToolOptions> from `@Tool()` property decorator. */
+  TOOL: "usetheo:di:tool",
+  /** WorkflowOptions from `@Workflow()` class decorator. */
+  WORKFLOW: "usetheo:di:workflow",
+  /** EvalOptions from `@Eval()` class decorator. */
+  EVAL: "usetheo:di:eval",
+  /** CronMetadata from `@Cron()` method decorator. */
+  CRON: "usetheo:di:cron",
+  /** Map<string|symbol, SubscriptionOptions> from `@Subscription()` property decorator. */
+  SUBSCRIPTION: "usetheo:di:subscription",
+  /** AuthOptions from `@Auth()` class decorator. */
+  AUTH: "usetheo:di:auth",
+  /** Map<string|symbol, RetrieverOptions> from `@Retriever()` property decorator. */
+  RETRIEVER: "usetheo:di:retriever",
+  /** Map<string|symbol, RerankerOptions> from `@Reranker()` property decorator. */
+  RERANKER: "usetheo:di:reranker",
+  /** Map<string|symbol, TextSplitterOptions> from `@TextSplitter()` property decorator. */
+  TEXT_SPLITTER: "usetheo:di:text-splitter",
+  /** Map<string|symbol, MemoryScopeOptions> from `@MemoryScopeDecorator()` property decorator. */
+  MEMORY_SCOPE: "usetheo:di:memory-scope",
 } as const;
 
 export interface InjectableMetadata {

@@ -230,7 +230,7 @@ export async function runGworkspaceSetup(opts: GworkspaceSetupOptions): Promise<
 
   process.stdout.write(
     `\n${pc.green("✓")} gworkspace setup complete.\n` +
-      `${pc.dim('  Next: import { googleWorkspace } from "@usetheo/skills-google-workspace".')}\n`,
+      `${pc.dim('  Next: import { googleWorkspace } from "@theokit/skills-google-workspace".')}\n`,
   );
   return 0;
 }

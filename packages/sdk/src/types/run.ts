@@ -1,4 +1,5 @@
-import type { CustomTool, ModelSelection } from "./agent.js";
+// T4.1 / D438 — import primitives from leaf to break the run<->agent cycle (#5).
+import type { CustomTool, ModelSelection } from "./agent-prims.js";
 import type { ConversationStep, ConversationTurn } from "./conversation.js";
 import type { McpServerConfig } from "./mcp.js";
 import type { SDKMessage } from "./messages.js";

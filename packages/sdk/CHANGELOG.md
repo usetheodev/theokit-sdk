@@ -1,6 +1,253 @@
 # Changelog
 
-## 1.4.1
+## [Unreleased]
+
+## [1.7.0] - 2026-06-11
+
+### Changed
+
+- Extract helper modules from 5 god-files for SRP compliance: `agent.ts` → `agent-helpers.ts`, `loop.ts` → `loop-context-init.ts` + `loop-llm-stream.ts`, `tool-dispatch.ts` → `tool-executors.ts`, `index-manager.ts` → `index-manager-helpers.ts`, `local-agent.ts` → `local-agent-send.ts`. Total ~1300 lines redistributed; zero behavior change, all 2591 tests GREEN.
+
+### Added
+
+- **Compression config resolution module (T2.2 step 2/N of plan `sdk-superiority-2026-06-07`, ADR D440)**: `resolveCompressionConfig(agentModel, config): ResolvedCompressionConfig` bridges the compression-model-registry (step 1) with the `Agent.create({compression})` override surface. Resolves: (a) compression model — registry default OR explicit `config.model` override; (b) API key — first-match chain: explicit `config.apiKey` → `THEOKIT_COMPRESSION_API_KEY` env var → undefined (signals aux-LLM client to use agent's main CredentialPool); (c) maxAttempts (default 3) + grace (default 1). Pure config resolution — no I/O. 11 new tests at `tests/internal/runtime/compression-config.test.ts`. Foundation for step 3 (aux-llm-client with OTel span) and step 4 (agent-loop wire).
+
+- **Model capabilities introspection registry (T3.10c step 1 of plan `sdk-superiority-2026-06-07`, DR3 #17)**: pre-T3.10c the SDK had no way to query a model's capability flags before sending a request — consumers who sent vision content to a text-only model or structured-output requests to a model without json_schema support got an opaque 400 from the provider. T3.10c step 1 adds the foundation pure-function registry `resolveModelCapabilities(modelId): ModelCapabilities` with typed per-model flags: `supportsVision`, `supportsStructuredOutput`, `supportsToolUse`, `supportsCacheControl`, `maxContextTokens`, `maxOutputTokens`. Resolution algorithm: strip routing prefixes (openrouter/, vertex/, bedrock/), exact-match against the vendor-model registry, then infer vendor from model name (claude-* → anthropic/, gpt-* → openai/, gemini-* → google/) for routing-prefixed lookups. Unknown models return conservative defaults (all false, 4096/4096 token counts) — never optimistic assumptions. Initial registry covers OpenAI (gpt-4o/4o-mini/4-turbo/o1/o3) and Anthropic (claude-opus-4/sonnet-4/3-5-sonnet/3-haiku/3-opus) families. 9 new tests at `tests/internal/llm/model-capabilities.test.ts`. Foundation for step 2 (public `Theokit.models.capabilities()` API) and step 3 (Agent.create boundary gate + `CapabilityNotSupportedError`).
+
+### Fixed
+
+- Fix `EventedWorkflowExecutor` referencing `handler` instead of `fn` from `FnStep` interface; provide full `StepContext` (runId + log + suspend)
+- Fix missing `await` in `TheoKitContainer.run()` causing `.send()` to be called on a Promise
+- Fix `CohereReranker` null guard for out-of-bounds `chunks[r.index]` array access
+- Fix `Theokit.models.capabilities()` null guard on `split("/")[0]` return value
+- Fix dynamic catalog overwriting first-party builtin providers (ollama/lmstudio/llamacpp) — builtins now take priority
+
+### Security
+
+- **Move-corrupt-aside + 1MB cap on markdown config files (T5.10 of plan `sdk-superiority-2026-06-07`, DR6 finding #10)**: pre-T5.10 `readVersionedJson` left corrupt JSON files in place after logging a warning — on next run the same warning fired again (no healing). T5.10 renames the corrupt file to `<path>.corrupt.<epoch>` so the user can investigate later while the original path is freed for a fresh default. Additionally, `loadMarkdownEntities` now rejects individual config files > 1MB before reading them into memory (pre-T5.10 no size cap existed — "`.theokit/` is trusted source" comment at line 63). A crafted multi-MB config file was a local DoS vector on resource-constrained environments (edge, CI workers). 4 new tests at `tests/internal/persistence/corrupt-aside-and-size-cap.test.ts`. 142/142 persistence tests GREEN across 17 files. Closes DR6 finding #10.
+
+- **proper-lockfile supply-chain hardening (T5.9 of plan `sdk-superiority-2026-06-07`, DR6 finding #9)**: pre-T5.9 `getProperLockfile()` did a bare `import("proper-lockfile")` with a catch-all that swallowed every error — including import of a tampered or incompatible version. If an attacker replaced the module on disk (npm supply-chain attack), or if a transitive dep pulled a breaking major, the SDK would silently use whatever it got. T5.9 adds structural validation after the dynamic import succeeds: `typeof lib.lock === "function" && typeof lib.unlock === "function"`. If the imported module doesn't expose the API surface we depend on, it's treated as "not installed" (fallback to in-process `withCwdMutex`) + a one-shot supply-chain advisory warning is emitted via stderr pointing to `pnpm add proper-lockfile@^11`. Never throws — supply-chain validation is advisory + graceful fallback, not blocking. New `__TESTING__validateLockModule` + `__TESTING__resetFileLockCache` test seams exposed for unit tests; NOT in the public barrel. 7 new tests at `tests/internal/persistence/file-lock-supply-chain.test.ts`. 138/138 persistence tests GREEN across 16 files (no regressions). Closes DR6 finding #9.
+
+### Added (SDK 2.0 — Stage 4 optional-peer routing — iter 76-80, 2026-06-09)
+
+- **Optional-peer routing through `@theokit/sdk-memory`** (ADR 0002): the public `Memory` class (`Memory.openIndex`, `Memory.runDreamingSweep`) and the `migrateSqliteToLance` wrapper now delegate to the `@theokit/sdk-memory` package when installed. When sdk-memory is absent, methods fall back to sdk-core's legacy `internal/memory/*` implementations — v1.x behavior preserved. No source-level API change for consumers; the routing is opaque. Foundation files: `src/internal/memory/sdk-memory-peer-loader.ts` (canonical loader with `SdkMemoryModule` structural mirror + memoized dynamic import + test escape hatches `resetSdkMemoryPeerCacheForTests` / `forceSdkMemoryPeerAbsentForTests`). Test coverage: 24 tests across 5 files in `tests/` — loader contract pin, Memory class routing for both methods, migrate wrapper routing, behavior parity gate (sdk-core ↔ sdk-memory produce byte-equivalent results for shape + error messages), legacy fallback branch coverage via force-absent flag. See `docs/adr/0002-sdk-memory-optional-peer-routing.md` for full architectural rationale + sunset condition.
+
+### Added
+
+- **Provider-agnostic compression-model registry (T2.2 step 1/N of plan `sdk-superiority-2026-06-07`, ADR D440)**: pre-T2.2 the `D91/D92 compression` path (`compression-helpers.ts`) was dead code — no auxiliary-LLM contract was specified. T2.2 step 1 ships the foundation: a pure-function registry that resolves the agent's main model to a cheaper-tier summarization model in the SAME vendor family. Algorithm: (a) exact match (e.g., `openai/gpt-4o` → `openai/gpt-4o-mini`; `anthropic/claude-sonnet-4` → `anthropic/claude-3-5-haiku-latest`); (b) wildcard match for region-prefixed Bedrock variants (`bedrock/anthropic.claude-sonnet*` → `bedrock/anthropic.claude-3-haiku*`); (c) `authType: "none"` providers (Ollama / LM Studio / llama.cpp) return SAME model id (local — cost N/A); (d) no match throws the new typed `CompressionModelUnresolvedError` at `Agent.create` TIME (not runtime) with the actionable message naming the model and pointing to the override surface + registry-PR remediation. Crucial design: zero cross-provider calls — a consumer running Anthropic-only never gets a silent OpenAI fallback for compression. Initial registry covers OpenAI family (gpt-4o / gpt-4-turbo / o1 / o3), Anthropic family (claude-opus-4 / sonnet-4 / 3-5-sonnet / 3-opus / 3-sonnet), Vertex (Gemini + Anthropic-on-Vertex), OpenRouter (OpenAI + Anthropic), and Bedrock Anthropic (wildcard). 18 new tests at `tests/internal/runtime/compression-model-registry.test.ts`. Foundation for steps 2-4 (compression-config integration, OTel-instrumented aux-llm-client, agent-loop wire on `ContextWindowExceededError`).
+
+### Security
+
+- **NFS / SMB / CIFS / FUSE detection + warn-once on atomic write (T5.8 of plan `sdk-superiority-2026-06-07`, DR6 finding #8)**: pre-T5.8 `replaceFileAtomic` happily called `rename(tmp, filePath)` on any filesystem. POSIX `rename` is atomic on local filesystems (ext4 / btrfs / APFS / NTFS), but on network filesystems (NFS / SMB / CIFS) and many FUSE implementations atomicity is best-effort: NFS clients can return stale cached reads for seconds after a successful server-side rename; SMB / CIFS cross-directory rename is non-atomic on some Samba configurations; FUSE behavior is entirely implementation-dependent (sshfs / s3fs / rclone-mount have known non-atomic rename). T5.8 does NOT change the write path — `replaceFileAtomic` remains a best-effort atomic write — but adds a warn-once-per-(directory, label) telemetry surface so operators see `[theokit-sdk] atomic-write: detected network fs (nfs) at /mnt/share — rename() atomicity guarantees may be weaker than expected` once and know to plan accordingly. Pattern mirrors `sqlite-wal.ts:54-61`'s warn-once-per-label (D63). Detection: Linux `statfs().type` magic numbers (NFS 0x6969, SMB 0x517B, CIFS 0xFF534D42, FUSE 0x65735546); silent fallback on Windows / Node < 18.15 / statfs EACCES. New `detectNetworkFsName(typeMagic): string | null` pure function (test seam `__TESTING__detectNetworkFsName`) + `warnOnNetworkFsOnce(dirPath, label)` wired into `replaceFileAtomic`. 9 new tests at `tests/internal/persistence/atomic-write-nfs-detection.test.ts` covering all 4 network FS magic numbers + 3 local-FS negatives + reset helper idempotence. 29/29 atomic-write + credential-pool persistence tests GREEN. Closes DR6 finding #8.
+
+- **Crypto-random tmp file names + mode 0o600 + dir 0o700 (T5.7 of plan `sdk-superiority-2026-06-07`, DR6 finding #7)**: pre-T5.7 `replaceFileAtomic` had two attacks open. (a) **Predictable tmp path**: the suffix used `Math.random().toString(36).slice(2, 10)` — Math.random is NOT a CSPRNG, an attacker observing the process could predict the next tmp path and pre-stage a hostile file there to be renamed into place. (b) **World-readable tmp file**: `open(tmp, "w")` fell back to the process umask — typically 0o644 on POSIX (world-readable). The tmp file holds the FULL in-flight content (credential pool snapshot, OAuth tokens, etc.) before the rename — any process could read it during the ms-window between open and rename (TOCTOU disclosure). T5.7 fixes both: (a) suffix now uses `randomBytes(8).toString("hex")` from `node:crypto` — 16 hex chars / 64 bits of CSPRNG entropy; (b) `open(tmp, "w", 0o600)` passes the secure mode argument so both the tmp file AND (via rename inheritance on modern Linux) the final target are owner-only. Also tightens `saveCredentialPoolStore` parent directory creation from default umask (0o755 = world-listable) to `mode: 0o700` so an attacker enumerating the parent cannot even see the pool exists. 3 new tests at `tests/internal/persistence/atomic-write-tmp-secure.test.ts` (mode 0o600 verified via stat, content roundtrip, concurrent-write no collision). 46/47 persistence tests GREEN — the 1 pre-existing failure (`integration-stack.test.ts:75`) is unrelated NODE_MODULE_VERSION mismatch on `better-sqlite3` native binding from the preflight workaround documented in `CLAUDE.md`. Closes DR6 finding #7.
+
+- **`__Host-` cookie prefix + deterministic clear (T5.3 of plan `sdk-superiority-2026-06-07`, DR6 finding #3, BREAKING)**: pre-T5.3 the OAuth tx-cookie was named `theo_oauth_tx` — browsers accepted it without enforcing any cookie-prefix contract, leaving the subdomain-fixation vector open (a malicious page on `evil.example.com` could plant a same-name cookie that the parent app at `example.com` would happily decrypt). T5.3 renames the cookie to `__Host-theo_oauth_tx` per RFC 6265bis — browsers now enforce the contract that the cookie MUST be set with `Secure`, MUST NOT carry a `Domain` attribute, and MUST have `Path=/`. Pre-T5.3 `clearCookie` also did a buggy double-write: first an empty-value `setCookie` (which still carried `Max-Age=600` from the live cookie) AND THEN a separate explicit `Max-Age=0` header — creating a duplicate Set-Cookie response some legacy clients did not handle deterministically. T5.3 collapses this to a single clean clear with both `Max-Age=0` (modern browsers) AND `Expires=Thu, 01 Jan 1970 00:00:00 GMT` (legacy fallback), while preserving all `__Host-` prefix attributes (HttpOnly + Secure + SameSite=Lax + Path=/). **Breaking only at the wire — no public API change**: consumers calling `defineAuth().startSignIn()` / `finishSignIn()` see no source-level change because the cookie name is internal; only the HTTP wire format moves from `theo_oauth_tx=...` to `__Host-theo_oauth_tx=...`. In-flight cookies from pre-T5.3 sessions will fail decryption on the next callback and the flow restarts cleanly. 6 new tests at `tests/server-auth-host-cookie-prefix.test.ts` + 1 fixture update at `tests/server-auth.test.ts` (cookie header line widened to the prefixed name). 29/29 server-auth tests GREEN.
+
+- **Forbidden-path blocklist expansion + case-insensitive matching (T5.6 of plan `sdk-superiority-2026-06-07`, DR6 finding #6)**: pre-T5.6 `isForbiddenPath` blocked only `.env*`, `.git/`, `node_modules/`, `.theo/`, and 4 lockfile basenames — and it compared case-sensitively. A coding agent recursing through a developer laptop could happily read `.ssh/id_rsa`, `.aws/credentials`, `.docker/config.json`, `.kube/config`, `.npmrc`, `.netrc`, `.pgpass`, `authorized_keys`, `known_hosts`, OR any `*.pem` / `*.key` file. On macOS/Windows case-insensitive filesystems, `.ENV` and `.SSH/` slipped through entirely because the path string was compared verbatim against lowercase constants. T5.6 (a) lowercases the normalized path BEFORE matching, defeating case-only bypass; (b) adds 3 new pattern sets: `SENSITIVE_FIRST_SEGMENTS` (.ssh / .aws / .docker / .kube / .npmrc / .netrc / .pgpass at top level), `SENSITIVE_BASENAMES` (id_rsa / id_ed25519 / id_ecdsa / id_dsa / authorized_keys / known_hosts / .npmrc / .netrc / .pgpass at any depth), and `SENSITIVE_SUFFIXES` (.pem / .key / .p12 / .pfx at any depth). Implementation matches the `.env.example` allowlist contract — `isForbiddenPath` returns false for safe templates. 28 new tests at `tests/internal/security/path-guard-forbidden-expansion.test.ts`; 102/102 path-guard sink tests GREEN across 6 files. Closes DR6 finding #6.
+
+- **NUL byte + C0/DEL control-char rejection across path-guard primitives (T5.5 of plan `sdk-superiority-2026-06-07`, DR6 finding #5)**: pre-T5.5 `safePathJoin`, `assertNoSymlinkEscape`, and `sanitizeIdentifier` did NOT explicitly reject NUL (`\x00`) or C0/DEL control characters (`\x01-\x1F`, `\x7F`) in path-shaped or identifier-shaped inputs. NUL bytes in path strings have a long history of security bugs: legacy N-API callers historically truncated paths silently at the NUL boundary, letting `foo.txt\x00.env` be opened as `foo.txt` while the upstream caller saw the full string and approved it. C0 control chars are universally invalid in POSIX paths and identifiers. `validateArtifactPath` (T1.4 — line 269) already rejected NUL, so T5.5 propagates the same defense to the sibling primitives so a caller can never bypass NUL/control checks by choosing a different entrypoint. New internal helper `rejectNulAndControlChars(input, role)` centralizes the check; wired into `safePathJoin` (for `base` + each `part`), `assertNoSymlinkEscape` (for `path` + `base`), and `sanitizeIdentifier`. The latter previously threw a generic "invalid characters" message via the alphanumeric-only `IDENTIFIER_PATTERN`; T5.5 routes NUL through the same helper so operators see a precise `<nul-byte>` / `<control-char-0x..>` diagnostic instead — making prompt-injection traces legible per Inquebrável Rule 3. 11 new tests at `tests/internal/security/path-guard-nul-rejection.test.ts` + 1 pre-existing assertion at `tests/internal/security/path-guard.test.ts:249` updated to match the new specific NUL message. 68/68 path-guard sink tests GREEN across 4 files (path-guard unit / property / public-api / agent-session-store).
+
+- **HKDF-SHA256 key derivation for OAuth tx-cookie AES-256-GCM key (T5.1 of plan `sdk-superiority-2026-06-07`, CRITICAL — DR6 finding #1)**: pre-T5.1 `server/auth/oauth-transaction-store.ts:deriveKey` zero-padded secret bytes to 32 if shorter and truncated if longer. This is NOT a key derivation function. Two near-identical secrets (e.g., `"a".repeat(31)` vs `"b".repeat(31)`) produced AES keys differing in only one byte across 32 — an attacker who recovered one cookie could brute-force adjacent deployments cheaply. T5.1 replaces the zero-padding with HKDF-SHA256 (RFC 5869) using `info="theokit:oauth-tx-v1"` and a salt sourced from `THEOKIT_OAUTH_TX_SALT` env var (defaults to RFC 5869 zero-string; operators MUST set per-app salt in production to eliminate cross-deployment collision risk). Distinct secrets now produce avalanche-distinct keys (Hamming distance > 160 bits empirically). **Breaking validation**: `encodeTransaction` (and via the SDK's `defineAuth` chain, any `startSignIn`/`finishSignIn` flow) now throws the new typed `AuthSecretTooShortError` when the configured secret has fewer than 32 bytes of UTF-8 encoded entropy. Pre-T5.1 secrets shorter than 32 bytes were silently zero-padded and produced insecure keys; rejecting them surfaces the misconfiguration honestly per Inquebrável Rule 3. Generate a fresh value with `openssl rand -base64 33`. New test seam `__TESTING__deriveKey` exposed for unit-test avalanche assertions; NOT in the public barrel. 7 new tests at `tests/server-auth-hkdf-derive-key.test.ts` + 1 fixture update at `tests/server-auth.test.ts` (`secret` widened 31 → 32 bytes). 23/23 server-auth tests GREEN.
+
+### Added
+
+- **Redactor pattern expansion (12 → 30 builtin patterns) (T5.4 of plan `sdk-superiority-2026-06-07`)**: pre-T5.4 the canonical redactor at `internal/security/redact.ts:48-63` shipped only 12 vendor-specific builtin regex patterns (Anthropic / OpenAI / OpenAI-project / GitHub PAT classic+fine-grained / GitLab / AWS / Google API / Slack / Sentry / Stripe live+restricted). DR6 finding #4 + #24 surfaced major credential classes leaking through unmasked: JWT (3-segment base64url), GCP service-account PEM private_key block, Azure Storage SAS signature, HuggingFace tokens, Anthropic admin keys, plus a long tail of vendor-specific prefixes (Perplexity / Groq / Replicate / Voyage / xAI / Fireworks / Pinecone / npm / SendGrid / Twilio / Mailgun / Discord / LaunchDarkly). T5.4 grows BUILTIN_PATTERNS to 30 with PEM block first (so the multi-line span runs before any per-line patterns can fire), JWT second, Azure SAS third (lookbehind on `?sig=`/`&sig=`), and the rest alphabetized by prefix for maintainability. PARAM_PATTERN keyword set expanded from 6 → 16 (added `client_secret`, `credential`, `credentials`, `id_token`, `jwt`, `private_key`, `refresh_token`, `service_account`, `session_token`, `token`); `auth` and `bearer` deliberately excluded — they would re-catch the post-BUILTIN-masked form (D71 prefix-preservation `sk-ant...xxxx`) and double-mask to `***`. The `redactSecrets` callback gains a guard that skips PARAM masking when the value contains the D71 `...` separator, preserving prefix-mask debuggability when BUILTIN already fired. New test seam `__TESTING__BUILTIN_PATTERN_COUNT()` exposed via `test-reset.ts` for the floor assertion. 23 new tests at `tests/internal/security/redact-pattern-expansion.test.ts`; 158/158 redaction-sink tests GREEN across 13 files (security/lint/telemetry/migration/agent-session). Closes DR6 finding #4 (pattern coverage) + #24 (PARAM keyword vocabulary).
+
+### Refactored
+
+- **Cycle #4 closed via `types/handoff-descriptor.ts` leaf with TAgent generic (iter-20)**: `HandoffDescriptor` + `HandoffOptions` + `HandoffContext` + `HandoffHistory` + `HandoffResult` moved to a new leaf file. The leaf has `HandoffDescriptor<TInput, TAgent>` parameterized over the target agent shape — no dependency on `SDKAgent` or any other agent.ts type. `types/handoff.ts` re-exports the leaf types with `TAgent = SDKAgent` pinned for back-compat callers. `types/agent.ts` now imports `HandoffDescriptor` from the leaf, breaking the bidirectional `types/agent.ts ↔ types/handoff.ts` edge. madge final state: **2 cycles** (only D428-acknowledged rollup-dts subscribe-at-sub-path remain). Cycle gate threshold tightened ≤ 2.
+- **`internal/runtime/plugins/` sub-folder promotion + T5.1 complete (4 of 4, FO#1)**: 2 plugin-* files moved from `internal/runtime/` to `internal/runtime/plugins/` via `git mv`. Direct file count: 50 → 48. **T5.1 complete across 4 iterations (15-18)**: cumulative 21 files moved across fixtures/ (5) + context/ (8) + registry/ (6) + plugins/ (2). `internal/runtime/` direct file count dropped 69 → 48. Audit ideal heuristic is 25; remaining 23-file gap is documented as out-of-scope (no further cohesive 5+ file cluster remains). 254/254 runtime + architecture tests GREEN.
+- **`internal/runtime/registry/` sub-folder promotion (T5.1 partial 3 of 4, FO#1)**: 6 *-registry* files moved from `internal/runtime/` to `internal/runtime/registry/` via `git mv`. Direct file count: 56 → 50. T5.1 status PARTIAL — 3 of 4 clusters done (fixtures + context + registry). Remaining: plugins/. Cross-package caller surgery covered: `src/agent.ts`, `src/index.ts`, 5 runtime siblings, 4 test files, 1 dynamic `import("./agent-factory-registry.js")` in `local-agent-runtime-extensions.ts`. 253/253 runtime + architecture tests GREEN; madge unchanged.
+- **`internal/runtime/context/` sub-folder promotion (T5.1 partial 2 of 4, FO#1)**: 8 context-* files moved from `internal/runtime/` to `internal/runtime/context/` via `git mv`. Direct file count: 64 → 56. T5.1 status PARTIAL — 2 of 4 clusters done (fixtures + context). Remaining: registry/, plugins/. Sibling callers (`local-agent`, `local-agent-bootstrap`, `system-prompt/local-assembly`) had their imports rewritten to `./context/context-X.js` (or `../context/context-X.js` from system-prompt/). 8 test files updated. 252/252 runtime + architecture tests GREEN.
+- **`internal/runtime/fixtures/` sub-folder promotion (T5.1 partial, FO#1)**: 5 fixture-* files moved from `internal/runtime/` to `internal/runtime/fixtures/` via `git mv`. Direct file count: 69 → 64. T5.1 status PARTIAL — fixtures is 1 of 4 clusters (context/registry/plugins remain for follow-up iterations). Internal-only refactor; sibling callers (`cloud-run`, `local-run`, `real-local-run`, `real-cloud-run`) had their imports rewritten to `./fixtures/fixture-X.js`. 251/251 runtime + architecture tests GREEN; madge cycle count unchanged.
+- **`internal/memory/storage/` sub-folder promotion (T10.1, FO#3)**: 7 storage-primitive files moved from `internal/memory/` to `internal/memory/storage/` via `git mv` — `markdown-store.ts`, `transcript-store.ts`, `session-loader.ts`, `session-summary-writer.ts`, `reader.ts`, `wiki-loader.ts`, `chunk-markdown.ts`. Direct file count in `internal/memory/`: 28 → 22 (under the 25-file god-folder heuristic). Internal-only refactor; zero public API surface change. All sibling imports, runtime/* callers, and test paths updated in the same slice. Architecture guard `tests/architecture/memory-folder-budget.test.ts` (NEW) asserts the budget. 140/140 architecture + memory tests GREEN; madge cycle count unchanged.
+- **`dispatchSingleCall` orchestrator split (T10.4, PV#2)**: the 158 LOC body in `internal/agent-loop/tool-dispatch.ts` was decomposed into 7 named single-concern helpers (`applyRepairAndExtractCall`, `vetoFromForkWhitelist`, `startToolCallSpan`, `vetoFromPluginPreHook`, `vetoFromFileHookPreDecision`, `runToolWithLifecycle`, `finalizeSpanAndPostHook`). The orchestrator now reads as a ~28 LOC sequence; the previous complexity-suppression `biome-ignore` directive is removed. Zero public-API surface change; 51/51 regression tests (tool-dispatch + hooks + golden custom-tools) continue to pass.
+
+### Fixed
+
+- **5 LOW type-only cycles closed via 3 leaf extractions + self-ref drop (T4.1, ADR D438)**:
+  - `types/agent-prims.ts` (NEW leaf) holds `ModelParameterValue`, `ModelSelection`, `CustomTool`; `types/run.ts` + `types/messages.ts` now import these from the leaf (no longer from `types/agent.ts`). Re-exported via `types/agent.ts` barrel — `import type { ModelSelection, CustomTool } from "@theokit/sdk"` keeps working.
+  - `types/messages-base.ts` (NEW leaf) holds `UserMessage`; `types/updates.ts` imports from the leaf. Re-exported via `types/conversation.ts`.
+  - `internal/memory/active-memory-types.ts` (NEW leaf) holds `ActiveMemoryQueryMode`, `ActiveMemoryStatus`, `ActiveMemoryResult`; `active-memory-cache.ts` imports from leaf. Re-exported via `active-memory.ts`.
+  - Self-cycle on `types/agent.ts` (audit #3) closed by replacing the inline `import("./agent.js").SDKAgent` in `AgentOptions.handoffs?` with a direct forward-reference to the locally-defined `SDKAgent` interface.
+  - madge cycle count: **8 → 3** in one slice. Closed: cycles #3/#5/#6/#7/#10. Remaining: #1+#2 D428-acknowledged (rollup-dts subscribe-at-sub-path); #4 documented as deviation requiring HIGH-impact SDKAgent-interface extraction (out of T4.1 scope).
+  - Zero public type surface change. Public-type-surface smoke test in `tests/architecture/type-cycles-closed.test.ts` verifies barrels still resolve.
+- **Architecture-test integrity fix (T4.1 follow-up)**: `tests/architecture/cycle-{8,9,11-12-13}-closed.test.ts` were passing **vacuously** because `repoRoot = resolve(__dirname, "../../../../..")` (5 ups) landed in the meta-repo `theokit-tools` which has no pnpm workspace — `pnpm exec madge` errored out and the cycle-line filter returned `[]`. Corrected to 4 ups (theokit-sdk workspace root). The underlying cycle closures from T1.1/T2.1/T3.1 are real (12/12 architecture tests now PASS against actual `madge --circular` output post-fix); the prior test integrity bug is surfaced honestly here per Inquebrável Rule 3 rather than buried.
+- **CRITICAL runtime↔persistence cycle #9 closed**: extracted `internal/runtime/session-types.ts` (leaf types file ~15 LOC) holding `SessionMessage`. `agent-session-store.ts` now imports the type from this leaf; `agent-session.ts` re-exports it for back-compat with downstream importers. Closes the audit's only CRITICAL cycle (Phase 5 cartographer cycle #9 — `agent-session.ts → conversation-storage-fs.ts → agent-session-store.ts → agent-session.ts`, runtime↔persistence layer-crossing). madge cycle count: 9 → 8. Architecture test asserts via spawnSync. **Plan-vs-reality deviation:** ADR D432 prescribed a full port-and-adapter refactor; empirical inspection found the back-edge was a single types-only import, so type-leaf extraction is the smallest break that actually closes the cycle. Documented in `session-types.ts` JSDoc.
+- **Memory cluster cycles #11 + #12 + #13 closed**: extracted `internal/memory/index-manager-contract.ts` (leaf types file holding `MemorySearchHit`, `IndexStatus`, `SearchOptions`, `MemoryBackend`, `OpenIndexOptions`). All 4 cluster members (`index-manager.ts`, `index-manager-dispatch.ts`, `lance-memory-adapter.ts`, `memory-index.ts`) now import these types from the contract; only the orchestrator imports runtime functions from dispatch (one direction). Single ~70 LOC extraction closes 3 HIGH cycles in one move (T2.1 of plan `arch-review-fixes-2026-06-06`, ADR D433). madge cycle count: 12 → 9. Back-compat re-export preserved on `index-manager.ts`. No public API touched.
+- **Runtime cycle #8 closed**: extracted `internal/runtime/agent-registry-contract.ts` (leaf types file, ~60 LOC) holding `AgentRuntime` + `RegisteredAgent`. Both `agent-registry.ts` and `agent-registry-store.ts` now import these types from the contract; the previous runtime↔store 2-node cycle is closed (T3.1 of plan `arch-review-fixes-2026-06-06`, ADR D431). Back-compat re-export preserved on `agent-registry.ts` for existing downstream importers — no public API change. madge cycle count: 13 → 12 (HIGH cycle #8 resolved; remaining 12 covered by T1.1/T2.1/T4.1).
+
+### Changed
+
+- **BREAKING (shape only): `AgentRunError.providerError` getter now returns a redacted string (T1.5 of plan `sdk-superiority-2026-06-07`)**: pre-T1.5 the getter returned the raw `metadata.raw` object reference, which could carry `sk-...` tokens, Bearer JWTs, or other secret-shaped substrings straight into logs / Sentry / Langfuse. T1.5 wraps the value in `redactSecrets()` at the getter boundary and stringifies non-string payloads. Object identity is intentionally NOT preserved — secrets are stripped at the boundary. New `AgentRunError.toJSON()` OMITS `metadata.raw` from JSON output by default; operators opt in via `THEOKIT_DEBUG_RAW_ERRORS=1` to surface the (still-redacted) raw payload for diagnostics. All other fields (name/message/code/provider/requestId/conversationId/metadata.provider/metadata.endpoint/metadata.code/...) remain accessible. 5 new tests at `tests/security/error-redact.test.ts`; 2 pre-existing tests updated to reflect the new contract.
+
+### Added
+
+- **Reconnect storm prevention via `CredentialPool.waitForAvailable` (T3.9 of plan `sdk-superiority-2026-06-07`)**: pre-T3.9 the pool exposed only the instantaneous `hasAvailable()` probe (`internal/llm/credential-pool.ts:107-109`); concurrent callers that observed `select() === null` threw `CredentialPoolExhaustedError` immediately. Outer-layer retries then re-hit the pool the moment the first cooldown expired — every waiter woke at the same instant and hammered the upstream provider, defeating the cooldown's protective intent. T3.9 adds two new internal helpers on `CredentialPool`: `earliestResetAt()` (smallest `lastErrorResetAt` across exhausted entries) and `waitForAvailable(signal, { maxWaitMs, sleeper? })`. The wait loop uses full-jitter exponential backoff (AWS Brooker 2015 — same pattern shipped in T3.4's `computeBackoffMs`): each iteration sleeps a random fraction of the window to the earliest cooldown reset, so concurrent waiters stagger their re-probe instead of synchronizing. The `sleeper` parameter is a dependency-injection seam so tests stay deterministic without `vi.useFakeTimers()` — that timer mismatch was the blocker that deferred T3.4's wiring; T3.9 sidesteps it entirely. `PoolAwareLlmClient.stream()` now calls `pool.waitForAvailable` when `select()` returns null and the new `waitForAvailableMs` constructor option (default `30_000`) is non-zero; passing `0` opts out for legacy callers and for the two existing `pool-aware-client.test.ts` tests that assert the throw-fast contract. 5 new tests at `tests/internal/llm/credential-pool-wait-for-available.test.ts`; 110/110 llm tests GREEN. Closes DR3 finding #9 (reconnect storm under multi-tenant pool exhaustion).
+
+- **Anthropic native cache-token surfacing on `LlmFinish` (T3.8 of plan `sdk-superiority-2026-06-07`)**: pre-T3.8 the Anthropic accumulator at `internal/llm/anthropic.ts:167-170` read only `input_tokens` and `output_tokens` from `message_delta.usage` — silently dropped `cache_creation_input_tokens` and `cache_read_input_tokens` even though Anthropic emits them when the `cache_control: {type:"ephemeral"}` annotation (shipped in T3.5) is present on system blocks. As a result the budget accumulator's 5-bucket telemetry stayed at zero and cost calculations couldn't apply the 1.25x cache_write / 0.1x cache_read discounts. T3.8 widens the `AnthropicMessageDelta` type, threads both counters through `handleMessageDelta` (treating 0 as "no cache activity" to mirror the usage-accumulator filter), and emits them on `LlmFinish`. New `__testing__AnthropicAccumulator` seam exposes the class directly so unit tests drive the message_delta path without spinning the SSE parser. 4 new tests at `tests/internal/llm/anthropic-cache-tokens.test.ts`; 105/105 llm tests GREEN. Closes the algorithm half of DR3 finding #8 (telemetry observability); real-LLM proof (live Anthropic round-trip with a ≥ 1024-token cacheable prefix returning `cache_read_input_tokens > 0` on the second send) lands in T6.1.
+- **`ErrorCode.quota_exceeded` + provider-mapping completeness (T3.7 of plan `sdk-superiority-2026-06-07`)**: `ErrorCode` union widened with `quota_exceeded` (was missing per the TODO comment in `internal/errors/mappers/openai-compatible.ts:110`). `mapOpenAICompatibleError` now returns the canonical bucket for HTTP 402, OpenRouter "Insufficient credits", and body codes `insufficient_quota` / `quota_exceeded` — previously folded into `invalid_request`. Anthropic 529 (overloaded) and Vertex 401/403 are pinned by new contract tests (already correctly mapped to `server_error` and `auth_failed` respectively). 5 new tests at `tests/internal/errors/mappers/t3-7-quota-completeness.test.ts`; 2 pre-existing tests updated to assert the new T3.7 contract. 53/53 mapper tests GREEN. Closes DR3 finding #7 (MEDIUM — error-mapping completeness).
+- **OpenAI structured outputs `response_format: json_schema` emission (T3.6 of plan `sdk-superiority-2026-06-07`)**: new `LlmResponseFormat` discriminated union at `internal/llm/types.ts` covers both `{type:"json_schema", jsonSchema:{name, schema, strict?}}` (canonical, defaults `strict: true`) and `{type:"json_object"}` (legacy JSON-mode hint). New `LlmRequest.responseFormat?: LlmResponseFormat`. `internal/llm/openai.ts:buildOpenAIBody` routes via new `encodeOpenAIResponseFormat` helper to emit OpenAI's wire shape verbatim. Same patch closes a latent T3.5 bug: `buildOpenAIBody` was naively pushing `request.system` (now `string | LlmSystemBlock[]`) into OpenAI's `content` field — would break for the array form. New `openAISystemText` helper collapses to a joined string the same way `ollamaSystemText` does. Real-LLM proof (Agent.generateObject prefers native path against `gpt-4o-2024-08-06+`) deferred to T6.1 with the live API. 4 new tests at `tests/internal/llm/openai-structured-outputs.test.ts`; 101/101 llm tests GREEN. Closes DR3 finding #6 (HIGH — native structured outputs unreachable).
+- **Anthropic prompt-cache emit + `LlmRequest.system` widening (T3.5 of plan `sdk-superiority-2026-06-07`)**: new `LlmSystemBlock` type at `internal/llm/types.ts` with `text: string` + `cacheable?: boolean`. `LlmRequest.system` widened from `string` to `string | LlmSystemBlock[]` (back-compat preserved — pre-T3.5 string callers unchanged). `internal/llm/anthropic-shared.ts:buildAnthropicCommonBody` now translates the array form into Anthropic's content-block wire shape `{type:"text", text, cache_control?: {type:"ephemeral"}}` so consumers can opt into Anthropic prompt caching (1-3x cache_read billing discount on subsequent same-content turns). Empty array short-circuits to `undefined` (omitted system). `ollama-native.ts:buildOllamaChatBody` collapses the array form into a joined string for providers that don't support per-block caching. Real-LLM proof (cache_read_input_tokens > 0 on second send) lands in T3.8 + T6.1 with a ≥ 1024-token static prefix. 5 new tests at `tests/internal/llm/anthropic-prompt-cache.test.ts`; 97/97 llm tests GREEN.
+- **Exponential backoff + full jitter helper (T3.4 of plan `sdk-superiority-2026-06-07`, partial)**: new `internal/llm/retry.ts` exposes `computeBackoffMs({attempt, baseMs?, capMs?, retryAfterMs?, rng?})` (AWS Brooker 2015 full-jitter pattern with provider Retry-After hint precedence + cap clamp) and `sleepWithAbort(ms, signal)` (resolves early on abort). Closes the algorithm half of DR3 finding #4 (pre-T3.4 the pool retried 429 immediately with no wait, burning every credential in <1ms under coordinated load). 10 new tests cover Retry-After in/out of range, exponential ceiling doubling, jitter spread (50-sample distinctness), cap enforcement, and abort-aware sleep. **Wiring into `pool-aware-client.ts` deferred to follow-up**: existing pool-aware-client tests use `vi.useFakeTimers()` which would stall on the new `setTimeout`-based sleeps; integration requires either test refactor to advance timers OR a sleeper-injection seam (out of iter scope). Helper module shipped + tested standalone.
+
+### Fixed
+
+- **SSE / NDJSON body stream cancels on EVERY exit path (T3.3 of plan `sdk-superiority-2026-06-07`, CRITICAL)**: extends T3.2's abort-only cancel to also cover consumer break (early `[DONE]` exit, satisfied stop condition) and consumer throw (JSON.parse failure, downstream `yield event` rejection). Pre-T3.3 the cancel-on-abort flag-tracking only fired when `signal.aborted === true`; if the OpenAI / Anthropic consumer broke out on `[DONE]` without aborting, the body stayed open and the TCP socket leaked. T3.3 collapses the conditional to unconditional `reader.cancel()` inside both `parseSseStream` and `parseNdjsonStream` finally blocks. WHATWG spec guarantees `cancel()` on a finished stream is a no-op, so always-cancel is safe. Helper renamed `cancelOnAbort → cancelReaderQuietly`. 2 new tests at `tests/internal/llm/sse-break-cancels-body.test.ts` (break + throw paths both observe `ReadableStream.cancel`). Zero regression across 82 llm tests. Closes DR3 finding #2 (T3.2+T3.3 together — required for T6.2 1000-conn load test).
+- **SSE / NDJSON abort now cancels the body stream (T3.2 of plan `sdk-superiority-2026-06-07`, CRITICAL)**: pre-T3.2 `internal/llm/sse.ts:30-37` and `internal/llm/ollama-native.ts:243` only released the reader lock when `AbortSignal` fired — the underlying ReadableStream kept draining and the upstream HTTP connection's TCP socket stayed in CLOSE_WAIT. Over 100s of concurrent SSE clients (T6.2 load test) this leaked sockets to exhaustion. T3.2 mirrors a `aborted` flag and calls `reader.cancel()` in the `finally` block when the signal aborted, so cancellation propagates to the body stream. Best-effort catch around `cancel()` per ADR D34 safe-exporter contract (cancel-time errors never propagate to caller). 2 new tests at `tests/internal/llm/sse-abort-cancels-body.test.ts` (aborted signal triggers `ReadableStream.cancel`; normal close does NOT). Zero regression across 80 existing llm tests. Closes DR3 finding #2.
+- **SSE parser HTML Living Standard § 9.2.6 compliance (T3.1 of plan `sdk-superiority-2026-06-07`, CRITICAL)**: `internal/llm/sse.ts:73` previously called `.trim()` on every `data:` / `event:` value, which (a) stripped ALL leading whitespace instead of exactly one space, and (b) destroyed legitimate trailing whitespace in payloads. Per HTML LS § 9.2.6 step 5 of "Process the field", only a single leading U+0020 SPACE should be removed. T3.1 replaces `.trim()` with a `stripOneLeadingSpace` helper. The bug was the root cause of intermittent stream truncation observed in DR3 review finding #1 — payloads with intentional padding (chunked JSON, message-id headers ending in a space) lost characters. 6 new tests at `tests/internal/llm/sse-spec-compliance.test.ts` cover both `data:` and `event:` fields, multi-line payloads, and chunk-boundary preservation. Zero regression across 78 existing llm tests.
+
+### Added
+
+- **`validateResponse` D93 bailout wiring (T2.1 of plan `sdk-superiority-2026-06-07`)**: previously `internal/runtime/validate-response.ts` was an orphan export with ZERO production callers (DR2 finding #1). The bailout-detector exists for the weak-model failure mode where Gemini Flash / Mistral 7B sometimes return `{ stopReason: "end_turn", text: "", toolCalls: [] }` and the run silently "finishes" with no visible answer. T2.1 wires `validateResponse` in `continueOrTerminate` and adds `LoopContext.nudgeAttempts` capped at 2: empty/whitespace-only bailout shapes inject a "Please continue or provide a final answer" user message and re-run the LLM turn. If the model still bails after 2 nudges, the loop finishes (gives up — break out of infinite spin). 4 new tests at `tests/internal/agent-loop/validate-response-nudge.test.ts` (LLM stub returns empty then real; whitespace-only triggers same path; nudgeAttempts cap; non-empty does NOT over-fire). Zero regression across 20 existing agent-loop + validate-response tests.
+- **`downloadArtifact` path-traversal hardening (T1.4 of plan `sdk-superiority-2026-06-07`)**: previous inline check only rejected `..` substring + leading `/`. New centralized `validateArtifactPath` in `internal/security/path-guard.ts` rejects 7 vectors at the boundary: classic `..` parent-directory traversal, backslash escapes (`..\\windows`), URL-encoded `%2e%2e` (with double-decode to defeat `%252e%252e`), NUL byte injection (`\x00`), Windows drive letter prefix (`C:`, `D:\\`), home-tilde expansion (`~/`, `~root/`), and absolute paths (`/etc/passwd`). `cloud-agent.ts:downloadArtifact` delegates to the validator and preserves the typed `ConfigurationError({code:"artifact_path_traversal"})` contract. 7 new tests at `tests/security/artifact-path-traversal.test.ts`. Closes DR1 finding #2 (CRITICAL path traversal).
+- **API key boundary validation (T1.3 of plan `sdk-superiority-2026-06-07`)**: new `internal/auth/api-key-validator.ts` exposes `validateApiKeyShape(key, opts?)` with a two-tier check — Tier 1 always rejects empty / whitespace-only / sub-4-char shapes; Tier 2 (strict, default-on) adds 16-char minimum + provider-prefix sanity (`sk-` for openai, `sk-ant-` for anthropic, `sk-or-` for openrouter) + embedded-whitespace rejection. Strict tier is bypassed when `shouldUseRealLocalRuntime(key)` is true (the env-credential path doesn't use the apiKey for the provider fetch). `Agent.create` wires the validator into both `createLocalAgent` and `createCloudAgent`. Failures throw `AuthenticationError({code:"malformed_api_key", message})`. 14 new tests at `tests/security/api-key-validation.test.ts` + zero regressions across 209 telemetry/errors/golden tests.
+- **`RegisteredAgent` contract snapshot test (T1.2 of plan `sdk-superiority-2026-06-07`)**: new `tests/contract/registered-agent.test.ts` pins the public shape of `RegisteredAgent` + `AgentRuntime` + `RegisteredAgent.status` closed union. Tsc enforces the snapshot; any field drop / rename / type change surfaces at typecheck. Note: the leaf-extraction part of T1.2 (`agent-registry-contract.ts`) was already shipped under the prior plan `arch-review-fixes-2026-06-06` T3.1 / ADR D431. Madge cycle count unchanged (2 baseline).
+
+### Changed
+
+- **BREAKING (type-level only): `AgentRunErrorCode` is now closed (T1.1 of plan `sdk-superiority-2026-06-07`)**: the previous `(string & {})` escape hatch is removed. New canonical type `KnownAgentRunErrorCode` exposes the closed literal union; `AgentRunErrorCode` remains as a back-compat re-export alias (no source change required for code that uses the alias). Boundary helper `coerceToKnownAgentRunErrorCode(raw)` collapses unknown strings to `"unknown"` at the call boundary; `Agent.prompt` adopted it for `RunErrorDetail.code` translation. Migration codemod ships at `packages/sdk/scripts/migrations/error-code-string-2-known.mjs` (regex-based dry-run by default; pass `--write` to apply). Closes DR1 finding #1 (CRITICAL).
+
+### Added
+
+- **Load + chaos suite scaffold (T0.3 of plan `sdk-superiority-2026-06-07`)**: 6 new test files at `tests/load/{1000-concurrent-sse,leaky-generators,slow-consumer-backpressure}.test.ts` and `tests/chaos/{kill-mid-stream,partition-fs,oom-recovery}.test.ts`. Three harness modules ship alongside: `tests/load/_harness/sse-driver.ts` (in-process SSE driver — NOT autocannon — per SEPA brief § E; tracks p50/p95/p99 latencies + SSE event count via `\n\n` terminators per HTML LS § 9.2.6), `tests/load/_harness/socket-monitor.ts` (Linux-only `ss -tnp` probe with no-op fallback for Mac/Win; CI asserts `closeWaitCount ≤ threshold`), `tests/chaos/_harness/process-control.ts` (child-process spawn + SIGKILL injection per ADR D37 methodology). Today's scaffold uses 100 concurrent SSE (override via `T0_3_CONCURRENCY=1000`); T6.2 ratchets to the full 1000-conn p95 < 200ms perf gate, T6.3 wires the kill-mid-stream chaos against the SDK's real streaming surface, T6.4 wires partition-fs against persistence paths, T6.5 wires OOM against the memory subsystem.
+- **Real-LLM CI matrix scaffold (T0.2 of plan `sdk-superiority-2026-06-07`)**: 15 env-gated integration test files at `tests/integration/real-llm/{openai,anthropic,openrouter}-{tools,vision,stream,cache,structured}.test.ts`. Each file uses `describe.skipIf(...)` so the suite is silent when the relevant API key is absent. `tests/integration/real-llm/_helpers/real-llm-env.ts` centralizes the provider-key resolver with OpenRouter fallback for non-native scenarios (Anthropic cache stays native-only per SEPA initial brief § C). With keys set the matrix validates the happy path for tool use, streaming, vision content parts, prompt caching, and structured outputs across the 3 routes — expanded depth (cache_read_input_tokens > 0 assertion, parallel tool dispatch, error-retry) lands in T3.5 / T3.8 / T6.1. Default model `openai/gpt-4o-mini` per cost budget. Today: 15/15 files skip cleanly.
+- **OTel hot-path wiring foundation (T0.1 of plan `sdk-superiority-2026-06-07`)**: emit canonical spans `agent.create`, `agent.send` (parent), and `memory.recall` when `telemetry.enabled: true`. New closed-enum `internal/telemetry/span-names.ts` (14 names + `SpanName` literal type) anticipates the no-`(string & {})` discipline of T1.1. `TelemetryHandle` interface extended with `recordHistogram(name, valueMs, attrs)` and the OTel `metrics` namespace is lazy-loaded the same way `trace` is (graceful no-op when missing). First histogram name registered: `theokit_memory_recall_duration_ms` (recorded with `userId/namespace/scope/status` dimensions). Integration tests use a real `@opentelemetry/sdk-trace-base` `InMemorySpanExporter` (NOT module mocks) — added as devDep alongside `@opentelemetry/api` and `@opentelemetry/sdk-metrics`. Wiring triad: pillar (a) callers are `Agent.create` (production), `LocalAgent.send` (production), `runActiveMemory` (production); pillar (b) covered by `tests/telemetry/*.test.ts` (8 tests). Remaining acceptance items — `agent.send.<step>` 8 child spans, `tool.call`, `llm.call` spans — deferred to T1.7 / T2.4 / T3.* per SEPA brief (zero plan-deviation).
+- **`SecretRedactor` interface** at `internal/security/secret-redactor.ts` (T9.1 of plan `arch-review-fixes-2026-06-06`, ADR D437). Types-only — no runtime exports; canonical `redactSecrets` from `redact.ts` satisfies the interface structurally. Closes AF#16 (Martin Zone of Pain D=0.923) from the 2026-06-06 architecture audit through documentation + minimal abstraction without violating D68/D69/D70/D71/D73 (security primitives stay concrete + stable). Rationale + coupling metrics at `internal/security/README.md`.
+
+### Changed
+
+- **Renamed `internal/runtime/system-prompt/providers/` → `internal/runtime/system-prompt/sources/`** (FO#6, plan `arch-review-fixes-2026-06-06` T10.3). The directory previously shared its basename with `internal/providers/` (LLM provider profiles per ADR D105-D107) — auditor flagged the duplicate folder name as a findability hazard. `sources/` better describes the semantic: these 5 modules are system-prompt *sources* (ActiveMemoryPromptProvider, BasePromptProvider, ContextPromptProvider, MemoryPromptProvider, SkillsPromptProvider), not LLM provider profiles. Internal-only rename; no public API touched. Git-rename detection preserved (5/5 files moved with `git mv`); import paths in `pipeline.ts` + 5 golden tests updated atomically.
+
+### Fixed
+
+- **`safeListTools` no longer silently swallows MCP failures** (PV#6, plan `arch-review-fixes-2026-06-06` T8.1). When `client.listTools()` throws (MCP server unreachable, auth refused, etc.), the agent loop now emits a structured `[theokit-sdk] mcp listTools failed (server=<name>): <error>` line to stderr **while preserving the empty-list fallback** that consumers depend on for graceful degradation. The previous behaviour violated Inquebrável Rule 8 (`FALHE alto, FALHE cedo, FALHE claro`). `safeListTools` is now `export`ed from `internal/agent-loop/loop.ts` to enable unit-test access to the catch path — NOT promoted to the public `@theokit/sdk` API surface.
+
+### Notes
+
+- **Cycles #1, #2 (type-only, ADR D428 acknowledged):** the 2026-06-06 architecture audit (`/loop-architecture-review`) found 2 type-only dependency cycles in `packages/sdk/src/types/agent.ts ↔ internal/runtime/fork-agent.ts` that manifest in the rollup-dts bundle. Per ADR D428 (subscribe-at-sub-path) these are intentional: keeping `subscribe` at the `@theokit/sdk/subscription` sub-path avoids promoting types through the cycle. They are NOT runtime cycles (JS-erased at build time) and are not breakable without regressing D428. Plan `arch-review-fixes-2026-06-06` T11.1 documents this rationale.
+- **PV#8 — ISP / SDKAgent bundles local + cloud methods (ADR D122 acknowledged):** the 2026-06-06 architecture audit flagged the `SDKAgent` public interface as bundling local-only and cloud-only methods (ISP marginal). Per ADR D122 (`run-until-cloud-unsupported`), `CloudAgent` throws `UnsupportedRunOperationError` for runtime ops it cannot service while sharing the same TypeScript surface — the bundled shape is intentional cross-runtime API parity, not a design defect. Splitting `SDKAgent` into local/cloud interfaces would force consumers to branch on runtime at call sites, contradicting D122's "single typed surface" decision. Plan `arch-review-fixes-2026-06-06` T11.1 documents this rationale.
+
+### Fixed
+
+- Restored green `pnpm validate` after G8 subscription landing (`9fda7d7`). Biome 2.4 gate: 24 lint findings in `subscription/` prod + tests resolved with `biome-ignore` annotations (9× `useYield` intentional empty/throw test handlers; 13× `noExcessiveCognitiveComplexity` refactor-candidate; 1× `noConfusingVoidType` idiomatic callback shape; 1× `noAssignInExpressions` idiomatic line-parser). Stale `// eslint-disable-next-line require-yield` comments replaced — Biome does not honor ESLint pragmas. Lint-gate T1.5.2 `no-unredacted-sink` whitelisted `subscription/internal/server-integration.ts` (writes declarative `SubscriptionManifest`, no PII). Build/publint: `scripts/mirror-dts-to-cts.mjs` targets extended to cover `subscription/` so `dist/subscription/index.d.cts` is emitted (fixes `pkg.exports["./subscription"].require.types` missing). Dead-code/knip: ignore glob extended from `src/internal/**` to `src/**/internal/**` for per-feature internal namespaces. Architecture/depcruise `no-orphans`: `pathNot` extended with `(^|/)packages/sdk/src/[^/]+/internal/` (same exemption rationale as `src/internal/` — type-only exports erased at runtime).
+
+## 1.7.0 - 2026-06-04
+
+### Added
+
+- **`@theokit/sdk/subscription` sub-path** (per blueprint G8 SHIPPABLE 98.3) — typed subscription primitive with WS + W3C SSE transports + opaque resume tokens (`lastEventId`). Form 4 Hybrid (D423): low-level adapters (`createNodeWsAdapter`, `encodeSseChunk`, `parseSseW3C`) + high-level DSL (`defineSubscription`, `subscribe`, `tracked`).
+- **8 exports** at `@theokit/sdk/subscription`:
+  - `defineSubscription<TInput, TOutput>({input, output, handler})` — server-side typed RPC factory (D427)
+  - `subscribe<TInput, TOutput>(name, input, opts)` — client-side AsyncGenerator with transparent reconnect + lastEventId propagation (D428)
+  - `tracked(id, payload)` + `isTrackedEnvelope(value)` — resume token envelope helpers
+  - `SubscriptionTransport = 'ws' | 'sse' | 'auto'` (D425)
+  - `SubscriptionCtx`, `SubscriptionDescriptor<TInput, TOutput>`, `TrackedEnvelope<T>` (types)
+- **3 typed error classes:** `SubscriptionError`, `SubscriptionInputError` (carries Zod `issues`), `SubscriptionDisconnectError` (carries `closeCode`/`closeReason`). All extend `TheokitAgentError`.
+- **`ws@>=8.0.0` + `@types/ws@>=8.0.0` optional peer deps** — Node WS adapter loads `ws` via dynamic `import()` with actionable error when missing (D426). SSE-only consumers pay zero cost.
+- **W3C-spec SSE encoder + parser** — independent of D38 a peer vendor AI Data Stream v1 wire format (which stays locked for `streamAssistant` LLM streaming). Both coexist (D429).
+- **Server integration primitives** — `scanSubscriptions({appDir, outFile})` emits `.theo/subscriptions.json` mirroring G6 routes scanner; `mountSubscriptions({manifest, appDir})` returns `{handleSseRequest, handleWsUpgrade}` ready to wire into `http.Server`. theokit-side Vite plugin + dev-server wiring is a cross-repo follow-up (D430).
+
+### ADRs absorbed
+
+- **D423** — Form 4 Hybrid (low-level primitives + high-level DSL)
+- **D424** — `lastEventId` opaque, server-defined replay semantics
+- **D425** — Transport selection `'ws' | 'sse' | 'auto'` (default `'auto'` = WS-preferred)
+- **D426** — `ws` Node canonical (optional peer); CF Workers / Bun / Deno deferred to v1.8.x as separate packages
+- **D427** — `defineSubscription` AsyncGenerator + Zod input/output
+- **D428** — `subscribe` lives at `@theokit/sdk/subscription` sub-path only (NOT promoted to `Theokit.subscribe` due to pre-existing `agent.ts ↔ fork-agent.ts` rollup-dts cycle; same isolation pattern as `path-safety`)
+- **D429** — W3C SSE wire format (independent of D38 a peer vendor AI Data Stream)
+- **D430** — Server auto-route via `theokit.subscriptions` scanner (cross-repo follow-up for theokit-side wiring)
+
+### Security threats addressed
+
+| Threat | Mitigation |
+|---|---|
+| Resume token replay | Consumer SHOULD bind token to session + rotate per reconnect; SDK ships TTL knob via custom `tracked()` envelope semantics |
+| WS connection hijacking | Auth at HTTP upgrade — `WsAdapter.upgrade(ctx, raw)` exposes the `request` so consumer middleware (G11 `defineAuth`) runs BEFORE upgrade. Rejected upgrade returns null → caller responds 401 |
+| Subscription input tampering | Zod schema validation BEFORE handler invocation; throws `SubscriptionInputError` carrying issues |
+| Resource exhaustion | Per-subscription `AbortSignal`; `SubscriptionRuntime.getActiveConnectionCount()` for ops visibility; consumer wires rate-limit middleware (P#10) at upgrade boundary |
+| Sensitive data in logs | Telemetry seam (D34) captures metadata only (`subscriptionName`, `lastEventId`, `connectionId`); never payloads (per D73 redact at output boundaries) |
+| Long-lived WS survives token expiry | `ctx.disconnect(code, reason)` lets consumer's auth middleware force-close when session revoked |
+
+### Multi-runtime compatibility matrix
+
+| Runtime | v1.7.0 | v1.8.x (planned) |
+|---|---|---|
+| Node 22+ | yes (canonical `ws` peer) | yes |
+| Cloudflare Workers | consumer adapter only | yes (`@theokit/sdk-ws-cloudflare`) |
+| Bun | consumer adapter only | yes (`@theokit/sdk-ws-bun`) |
+| Deno | consumer adapter only | yes (`@theokit/sdk-ws-deno`) |
+
+### Notes
+
+- v1.7.0 is **additive** — no breaking changes. Existing `streamAssistant` (a peer vendor AI Data Stream, D38) untouched.
+- Tests: **45 GREEN + 1 honest-SKIP** under `tests/subscription/` + `tests/integration/subscription-resume.test.ts` (real `ws.WebSocketServer` + `http.Server` real SSE roundtrip + lastEventId resume) + `tests/integration/subscription-real-llm.test.ts` (env-gated `OPENROUTER_API_KEY` — verified GREEN against real OpenRouter `openai/gpt-4o-mini` per `real-llm-validation.md`).
+- Build: `dist/subscription/index.{js,cjs,d.ts,d.cts}` emitted; JS+CJS via tsup, DTS via tsc + `tsconfig.tools-dts.json` (mirrors `tools/` + `path-safety` pattern to avoid pre-existing `types/agent.ts ↔ fork-agent.ts` rollup-dts cycle).
+
+## 1.6.0 - 2026-06-03
+
+### Added
+
+- **`@theokit/sdk/server/auth` sub-path** (per ADR D6 of plan g11-auth-architecture-implementation v1.4) — orchestrator-only auth surface ships `defineAuth<TSession>(opts)` factory + 5 supporting types. Implements **Caminho C (Hybrid)** from discovery blueprint `g11-auth-architecture-decision` (SHIPPABLE 97.9). Providers ship as opt-in `@theokit/auth-*` packages (Tier 1: Google + GitHub + Magic Link — separate packages, semver-independent). Aligned with `AUTH-DELEGATION` lock in `theokit/CLAUDE.md:217-225` (lock's own escape-hatch clause "If we do adopt later: ship providers as separate optional packages under `@theokit/auth-*`, NEVER in the framework core").
+- **6 type exports** at `@theokit/sdk/server/auth`:
+  - `defineAuth<TSession>(opts): AuthOrchestrator<TSession>` factory
+  - `DefineAuthOptions<TSession>` config shape
+  - `AuthOrchestrator<TSession>` 5-method surface (`startSignIn`, `finishSignIn`, `signIn`, `signOut`, `getSession`)
+  - `AuthProvider<TProfile, TName>` provider contract
+  - `AuthResult<TProfile, TName>` callback return shape
+  - `OAuthTransaction` cookie-state transaction shape
+- **4 typed error classes:** `AuthConfigError`, `AuthProviderNotFoundError`, `AuthCallbackError`, `AuthCancelledError` (extends `AuthCallbackError`).
+- **`validateReturnTo(returnTo, baseUrl)` helper** — same-origin validation for OWASP A01:2021 open-redirect mitigation.
+
+### Edge cases absorbed inline (from plan v1.1 edge-case-plan)
+
+- **EC-1** — `AuthCancelledError` thrown on OAuth `?error=access_denied` callback (RFC 6749 §4.1.2.1) BEFORE attempting code-exchange. Apps catch distinctly to render "Login cancelled" UX vs opaque "callback failed".
+- **EC-2** — `validateReturnTo` rejects protocol-relative URLs (`//evil.com`), cross-origin absolute URLs, and bare strings. Defaults to `/` when unsafe.
+- **EC-10** — `rotateSession()` called BEFORE `createSession()` in `finishSignIn` + `signIn` per OWASP A07:2021 session-fixation mitigation.
+- **EC-6** — Typed `oauth_transaction_expired` code on `AuthCallbackError` for expired cookie-state transactions (≥ 10min old).
+- **D5** — OAuth transaction stored in encrypted cookie (`theo_oauth_tx`, AES-256-GCM, 10-min expiry, HttpOnly + Secure + SameSite=Lax).
+
+### Notes
+
+- v1.6.0 is **additive** — no breaking changes. Existing consumers of `createSessionManager` (from `theokit/server/auth`) unaffected.
+- Providers (`@theokit/auth-google`, `@theokit/auth-github`, `@theokit/auth-magic-link`) ship in separate npm packages (Phase 2-4 of plan G11). They will publish to `@next` tag first per ADR D3 (4-6 week telemetry observation window before promote to `@latest`).
+- Tests: 16/16 GREEN in `tests/server-auth.test.ts` covering config validation, EC-1, EC-2, EC-10, Caminho A signIn, expired transaction, unknown provider.
+
+## 1.5.0
+
+### Changed
+
+- **`publishConfig.provenance` removed (alinhado com política do monorepo).** Esta era a única `package.json` de 11 pacotes publicáveis com `provenance: true`; drift arquitetural — a flag prometia attestation criptográfica mas nenhum repo do monorepo tem release.yml com `id-token: write` permission para mintar OIDC token contra o npm registry. Resultado: publishes locais falhavam com `EUSAGE: Automatic provenance generation not supported for provider: null`. Decisão: alinhar intent à infra atual (10/11 outros pacotes não declaram provenance). **Follow-up estratégico:** adicionar release.yml com `id-token: write` em todos os repos (theokit-sdk + theokit + theokit-plugins + theo-ui) habilita provenance universal — escopo separado.
+
+### Breaking Changes
+
+- **`Workflow` and `Eval` moved out of the main barrel into dedicated sub-paths.** The migration is mechanical (rewrite the `from` string); no behavior changes. `@theokit/sdk` main barrel no longer exports:
+  - From workflow: `Workflow`, `WorkflowBuilder`, `agentStep`, `fn`, `WorkflowAlreadyRunningError`, `WorkflowCompensateNotImplementedError`, `WorkflowDuplicateStepIdError`, `WorkflowMaxIterationsExceededError`, `WorkflowNotSerializableError`, `WorkflowParallelError`, `WorkflowResumeStepNotFoundError`, `WorkflowSnapshotNotFoundError` — **import from `@theokit/sdk/workflow` instead**.
+  - From eval: `Eval`, `EvalAlreadyRunningError`, `Scorers` — **import from `@theokit/sdk/eval` instead**.
+  - From `types/*`: type aliases for workflow + eval (e.g., `EvalRun`, `Scorer`, `Score`, `EvalOptions`, `EvalAggregate`, `Step`, `FnStep`, etc.) no longer reach the main barrel via `types/index.ts`; surface only through the new sub-paths.
+
+  Rationale: Interface Segregation. The barrel exported 17+ feature areas, forcing consumers to pay the DTS cost of `Workflow`+`Eval` even if they only used `Agent`+`Memory`. Sub-paths reduce DTS surface and align with the existing pattern (`@theokit/sdk/cron`, `/tools`, `/path-safety`, `/task-store`, `/errors`).
+
+  **Migration:**
+  ```ts
+  // Before
+  import { Workflow, Eval, Scorers } from "@theokit/sdk";
+
+  // After
+  import { Workflow } from "@theokit/sdk/workflow";
+  import { Eval, Scorers } from "@theokit/sdk/eval";
+  ```
+
+### Added
+
+- `@theokit/sdk/workflow` sub-path entry (with full ESM + CJS conditions, `.d.ts` + `.d.cts` mirror for attw compliance).
+- `@theokit/sdk/eval` sub-path entry (same shape; `Scorers` co-located here per locality of reference).
+
+## 1.4.1 (workspace-only — NOT published to npm)
+
+> **Drift note (2026-06-02):** versions 1.4.0 and 1.4.1 landed in workspace and were merged to develop, but never reached the `@latest` npm dist-tag. npm `@theokit/sdk@latest` remains at **1.3.0** (last shipped 2026-05-30). The 1.4.x patch chain will be consolidated into the next published release (1.5.0 or higher) — consumers who need the LanceDB wiring fix (1.4.0) or the zod v3/v4 universal converter (1.4.1) must install `@theokit/sdk@1.5.0-next.X` (when published on `next`) or wait for the consolidated `latest` cut. Drift root cause: 1.4.0 sub-paths extraction work changed the publish requirements (workspace `pnpm changeset version` chain was bumped but `pnpm changeset publish` was deferred while 1.5.0 sub-path API surface stabilized). All entries below reflect REAL code changes that DID land on develop.
 
 ### Patch Changes
 
@@ -8,7 +255,9 @@
 - **`internal/zod/to-json-schema.ts` cross-version safety net:** when the SDK runs under a dev-server (Vite SSR), `createRequire("zod")` resolves to the SDK's OWN `node_modules/zod` (v4 in devDeps), while the schema was built by the consumer's zod v3 instance. Calling v4's `toJSONSchema(v3Schema)` throws. The native path now catches that error and falls through to `zod-to-json-schema` (which understands both v3 and v4 schemas). Mode toggled in cache so subsequent calls go directly to the working path.
 - Added `zod-to-json-schema: "^3.24.0"` as optional `peerDependency` (already silently required by zod-3 consumers; now declared explicitly so `pnpm install` resolves it deterministically).
 
-## 1.4.0
+## 1.4.0 (workspace-only — NOT published to npm)
+
+> See drift note at the top of the 1.4.1 section. Code landed; npm `@latest` still at 1.3.0.
 
 ### Minor Changes
 
@@ -206,13 +455,13 @@ FAIL before the fix).
 
 ### Added — Task observability registry (ADRs D361-D374, Adoption Roadmap gap #2)
 
-- `Task` namespace (`@usetheo/sdk`) exposing static methods `submit`, `list`,
+- `Task` namespace (`@theokit/sdk`) exposing static methods `submit`, `list`,
   `get`, `cancel`, `subscribe`, `configure`. Closed 5-state lifecycle
   (`queued | running | finished | error | cancelled`).
 - Pluggable `TaskStore` interface + 2 backends — `InMemoryTaskStore` (default,
   transient) and `JsonFileTaskStore` (opt-in, one JSON file per task,
   single-process invariant documented). SQLite backend deferred to v0.2.
-- New sub-export `@usetheo/sdk/task-store` for cross-process readers
+- New sub-export `@theokit/sdk/task-store` for cross-process readers
   (the `theokit tasks` CLI consumes this).
 - Ring buffer (cap 64) per task for late-attach `subscribe` replay (D372).
 - Idempotent cancel — `Task.cancel(id, reason?)` returns
@@ -305,7 +554,7 @@ Closes Gap 3 of the TheoKit cross-repo handoff. Makes `AgentRunError` consumer-b
 
 **Added:**
 
-- **`AgentRunErrorCode`** discriminated union (16 codes) exported from `@usetheo/sdk`. Supersets `ErrorCode` with non-HTTP origins (`quota_exceeded`, `tool_runtime_error`, `aborted`, `invalid_model`, `safety_blocked`, `provider_unreachable`). Trailing `(string & {})` keeps autocomplete + accepts legacy provider-prefixed strings.
+- **`AgentRunErrorCode`** discriminated union (16 codes) exported from `@theokit/sdk`. Supersets `ErrorCode` with non-HTTP origins (`quota_exceeded`, `tool_runtime_error`, `aborted`, `invalid_model`, `safety_blocked`, `provider_unreachable`). Trailing `(string & {})` keeps autocomplete + accepts legacy provider-prefixed strings.
 - **`AgentRunError.requestId`** + **`AgentRunError.conversationId`** fields. Provider's `x-request-id` / `request-id` header parsed via `parseRequestId` helper in `internal/errors/mappers/shared.ts`. `conversationId` settable by caller for log correlation.
 - **`AgentRunError.retriable`** getter — alias for `isRetryable` (handoff contract; future v2 deprecates `isRetryable`).
 - **`AgentRunError.retryAfterMs`** computed getter — `metadata.retryAfter * 1000` so callers compose with `Date.now()` / `setTimeout` directly. Returns `0` (not `undefined`) when provider sent `Retry-After: 0` (EC-11).
@@ -344,7 +593,7 @@ Closes Gap 2 of the TheoKit cross-repo handoff. Eliminates OOM in 24/7 Node depl
 
 Closes Gap 1 of the TheoKit cross-repo production-readiness handoff (`docs/handoffs/from-theokit/2026-05-25-production-readiness.md`). Unblocks serverless (a peer vendor, Cloudflare Workers, Lambda) and multi-host (K8s replicas, TheoCloud canary) deploys that cannot use the default `<cwd>/.theokit/agents/<id>/messages.jsonl` filesystem persistence.
 
-- **`ConversationStorageAdapter`** interface exported from `@usetheo/sdk`. 5 methods (`getMessages`, `appendMessage`, `deleteConversation`, optional `listConversationIds`, optional `compact`, optional `dispose`). Implementations return `Promise<>` uniformly for adapter polymorphism (ADR D306).
+- **`ConversationStorageAdapter`** interface exported from `@theokit/sdk`. 5 methods (`getMessages`, `appendMessage`, `deleteConversation`, optional `listConversationIds`, optional `compact`, optional `dispose`). Implementations return `Promise<>` uniformly for adapter polymorphism (ADR D306).
 - **`FileSystemConversationStorage`** exported. Default when `AgentOptions.conversationStorage` is unset (zero migration — existing apps unaffected). Wraps the pre-D303 byte-identical behavior including redaction (D68) + compaction every 50 appends (D18). Path-traversal guard re-applied in `deleteConversation` (EC-1, ADR D304); ENOENT swallowed in `listConversationIds` for first-run deploys (EC-2).
 - **`InMemoryConversationStorage`** exported. `Map<conversationId, StoredMessage[]>` for tests + ephemeral dev. Returns defensive copies from `getMessages`.
 - **`StoredMessage`** widened from `user|assistant` to 5 roles (`user|assistant|system|tool_call|tool_result`) for forward compat with tool-shaped messages flowing through the adapter (EC-10, ADR D304). Legacy JSONL files continue to parse — `readSessionFile` filters defensively.
@@ -370,22 +619,22 @@ Closes Gap 1 of the TheoKit cross-repo production-readiness handoff (`docs/hando
 
 - **Intermediate-symlink escape closed.** Previous implementation called `lstatSync(path)` only on the **terminal** component. If an intermediate directory in the path was itself a symlink to a location outside `base` (`/project/inner → /outside`), accessing `/project/inner/file.txt` would physically read `/outside/file.txt` and the guard would NOT detect the escape — `lstat` followed the intermediate symlink and reported a regular file. **Fix:** walk to the deepest existing ancestor, `realpathSync` it, then re-attach the lexical suffix; compare against the canonical base. Two new tests pin the fix (terminal-not-yet-created variant included). All 27 existing consumer tests (`agent-session-store`, `persistence/paths`, `lint/no-unguarded-path-input`) remain green.
 
-### Added (`@usetheo/sdk/tools` sub-export — built-in tools for coding agents)
+### Added (`@theokit/sdk/tools` sub-export — built-in tools for coding agents)
 
-**Drop-in toolkit any coding agent on top of `@usetheo/sdk` needs without reimplementing: read, list, search, diff, test.**
+**Drop-in toolkit any coding agent on top of `@theokit/sdk` needs without reimplementing: read, list, search, diff, test.**
 
 - **`createReadFileTool({ projectRoot })`** — read a project-relative file as UTF-8. Refuses traversal, sensitive files (`.env*` / `.git/` / `node_modules/` / `.theo/` / lock files), binary files (null-byte detection in first 8 KB; EC-5), and files larger than 5 MB. Returns `{ ok, content, size }` or `{ ok: false, error }`. 12 tests.
 - **`createListDirTool({ projectRoot, max? })`** — list direct entries of a project-relative directory. Defaults to a 500-entry cap (EC-6: avoid 5 MB JSON payloads in 10k-file projects). Each entry exposes `{ name, type: 'file' | 'directory' }`. Result includes `{ truncated, totalCount }` so the agent can refine. 8 tests.
 - **`createSearchTextTool({ projectRoot, maxMatches?, maxFileSize? })`** — recursive literal-text search. Skips sensitive dirs, binary files, and files larger than 1 MB. Defaults to a 100-match cap. Returns `{ matches: [{ file, line, preview }], truncated, totalMatches }`. 8 tests.
 - **`createGitDiffTool({ projectRoot, timeoutMs?, maxStdoutBytes? })`** — `git diff` wrapper. Supports `{ path, cached }` scoping. 30s timeout (kills the whole process group on expiry; EC-7). 5 MB stdout cap. Returns `{ diff, truncated }` or `{ ok: false, error: 'not_a_repo' | 'timeout' | 'git_failed' }`. 7 tests.
 - **`createRunVitestTool({ projectRoot, timeoutMs?, maxStdoutBytes? })`** — vitest runner via `npx --no-install vitest`. **EC-12** fix: parser walks stdout bottom-up to extract the last valid JSON line — skips node deprecation warnings that vitest prepends. 120s timeout + process-group kill. Returns `{ ok, summary }` with `{ numTotalTests, numPassedTests, numFailedTests, success }`. Helper `extractTrailingJson` exported for direct testing. 6 tests.
-- **Public surface** at `@usetheo/sdk/tools`. Tsup entry `tools: "src/tools/index.ts"` produces `dist/tools.js` + `.d.ts`; package.json `exports["./tools"]` resolves both ESM + CJS + types. Sub-export smoke test (`tests/tools/sub-export-smoke.test.ts`) pins the 5 named exports.
+- **Public surface** at `@theokit/sdk/tools`. Tsup entry `tools: "src/tools/index.ts"` produces `dist/tools.js` + `.d.ts`; package.json `exports["./tools"]` resolves both ESM + CJS + types. Sub-export smoke test (`tests/tools/sub-export-smoke.test.ts`) pins the 5 named exports.
 
 44 tests total in `tests/tools/` (12 + 8 + 8 + 7 + 6 + 5 smoke).
 
-### Added (`@usetheo/sdk/path-safety` sub-export — path-traversal primitives go public)
+### Added (`@theokit/sdk/path-safety` sub-export — path-traversal primitives go public)
 
-- **`safePathJoin`, `assertNoSymlinkEscape`, `PathTraversalError`** now exported from `@usetheo/sdk/path-safety`. Previously `@internal`; promoted so consumer agents (TheoKit Studio, cli-bot, future coding agents) can validate user-supplied paths without reinventing the guard. Wire shape is unchanged — same signatures, same `ConfigurationError` code (`path_traversal`).
+- **`safePathJoin`, `assertNoSymlinkEscape`, `PathTraversalError`** now exported from `@theokit/sdk/path-safety`. Previously `@internal`; promoted so consumer agents (TheoKit Studio, cli-bot, future coding agents) can validate user-supplied paths without reinventing the guard. Wire shape is unchanged — same signatures, same `ConfigurationError` code (`path_traversal`).
 - **`isForbiddenPath(input)`** — new public primitive shipping the universal sensitive-file blocklist (`.env*` except `.env.example`, `.git/**`, `node_modules/**`, `.theo/**`, lock files). Cross-platform path normalisation (backslashes folded to forward slashes). 15-case test suite covering each blocklist family. Companion error `ForbiddenPathError` (extends `ConfigurationError`, code `forbidden_path`).
 - **Dedicated sub-export** (`./path-safety` in package.json `exports`, separate from the main barrel). Architectural choice: the path-guard module reaches into `internal/runtime` via `errors.js`, which participates in a known import cycle `types/agent.ts ↔ fork-agent.ts`. The dedicated sub-export keeps DTS bundling decoupled — without it, rollup-plugin-dts surfaces a fatal "ForkOptions not exported" false positive on the main bundle.
 - **Public-API smoke test** (`tests/path-safety-public-api.test.ts`) pins the sub-export so a refactor cannot silently revert these to `@internal`.
@@ -448,7 +697,7 @@ and llama.cpp sibling profiles. 100% local, zero remote API keys required.**
   Returns the resolved `PersonalityPreset` (or `null` when cleared).
   Cloud agents reject with `UnsupportedRunOperationError` (D169).
 - **`PersonalityRegistry`** + **`PersonalityPreset`** re-exported from
-  `@usetheo/sdk` (read-only). Reads from `<cwd>/.theokit/personalities/*.md`
+  `@theokit/sdk` (read-only). Reads from `<cwd>/.theokit/personalities/*.md`
   (project) + `~/.theokit/personalities/*.md` (user) with project-wins-on-
   collision (D162).
 - **Markdown + Zod frontmatter shape** (D161) — `name` (lowercase-only
@@ -587,13 +836,13 @@ context.json` loads CONTENT and emits one-time deprecation warning
 
 ### New workspace packages
 
-- **`@usetheo/memory-supermemory@0.1.0`** — Supermemory wrapper
+- **`@theokit/memory-supermemory@0.1.0`** — Supermemory wrapper
   (`supermemory@^4.21`, zero-dep MIT). EC-C identifier sanitization
   on every containerTag component.
-- **`@usetheo/memory-honcho@0.1.0`** — Honcho wrapper
+- **`@theokit/memory-honcho@0.1.0`** — Honcho wrapper
   (`@honcho-ai/sdk@^2.1`). EC-D session namespaced under userId to
   prevent cross-user leak. AGPL self-host disclosure in README.
-- **`@usetheo/memory-mem0@0.1.0`** — Mem0 cloud-only wrapper (D148:
+- **`@theokit/memory-mem0@0.1.0`** — Mem0 cloud-only wrapper (D148:
   no OSS local mode). Unique `history(id)` capability. Circuit
   breaker (EC-K: 429 does NOT trip). CVSS 8.1 disclosure in README.
 
@@ -1112,7 +1361,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 ### Added (v1.2 features — paridade técnica com a peer vendor AI / a peer framework)
 
 - **`Agent.streamObject<T>({ schema, prompt, ... })`** — typed structured output WITH partial-object streaming via synthetic forced tool (ADR D39). Returns `AsyncIterator<StreamObjectEvent<T>>` emitting zero or more `{ type: "partial", partial: DeepPartial<T>, attempt }` events plus exactly one `{ type: "complete", object: z.infer<T>, ... }` at the end. Reuses 80% of `generateObject` infrastructure. EC-4 (cancellation cleanup), EC-5 (refine/transform fallback), EC-6 (parallel tool-use dedup) covered by tests.
-- **`@usetheo/react` v1.2.0 — family of 3 hooks** (ADR D40): `useTheoChat` (multi-turn, existing) + `useTheoCompletion` (single-shot text gen, equivalent to a peer vendor `useCompletion`) + `useTheoAssistant<T>` (object-shaped streaming, wraps `Agent.streamObject`). Each hook has a matching server-side handler: `streamTheoChat`, `streamCompletion`, `streamAssistant`. Shared SSE parser in `internal/sse-parser.ts` handles all wire codes including new `o:`/`O:` for object streaming (ADR D45).
+- **`@theokit/react` v1.2.0 — family of 3 hooks** (ADR D40): `useTheoChat` (multi-turn, existing) + `useTheoCompletion` (single-shot text gen, equivalent to a peer vendor `useCompletion`) + `useTheoAssistant<T>` (object-shaped streaming, wraps `Agent.streamObject`). Each hook has a matching server-side handler: `streamTheoChat`, `streamCompletion`, `streamAssistant`. Shared SSE parser in `internal/sse-parser.ts` handles all wire codes including new `o:`/`O:` for object streaming (ADR D45).
 - **OAuth 2.1 PKCE for MCP HTTP servers** (ADR D41). `McpAuthConfig.oauth` opts into the flow. Two modes: `manual` (paste callback URL via stdin, SSH-friendly) and `localhost` (auto-spawned http.createServer on a free port). Token storage prefers OS keychain (`keytar`, optional peer dep) with `~/.theokit/mcp-tokens.json` (chmod 600) fallback. EC-2 (state CSRF validation), EC-9 (concurrent refresh serialization), EC-10 (default expires_in 3600s) covered.
 - **Auto-instrumentation of telemetry vendors** (ADR D42). `tracer.ts` feature-detects `@langfuse/node` v3+, `@sentry/node`, and `posthog-node` via `createRequire`. When present + `telemetry.enabled: true`, registers OTel exporter automatically. Opt-out via `telemetry.autoDetect: false` OR `telemetry.disable: ["langfuse"]`. EC-12 (double-billing prevention) covered.
 - **LanceDB backend for Memory.index** (ADR D43). `Memory.create({ index: { backend: "lance" } })` activates `@lancedb/lancedb` (optional peer dep). SQLite remains default. Lance scales to 100k+ facts. Filters use Lance's structured filter API — NO string interpolation, EC-1 MUST FIX. EC-8 (embedding dim mismatch) typed error.
@@ -1137,7 +1386,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 
 - **`Agent.generateObject<T>({ schema, prompt })`** — typed structured output via synthetic forced tool (ADR D33). Returns `{ object: z.infer<T>, raw, usage, finishReason }`. Retry-on-parse-fail with `maxRetries` (default 1). Transient agent disposed AND hard-deleted from registry across retries (EC-3 no leak). Same provider routing/fallback as `agent.send`.
 - **`AgentOptions.telemetry`** — opt-in OpenTelemetry spans for `agent.send`, `llm.call`, `tool.call` (ADR D34). Privacy-by-default: NO content logged unless `includeContent: true`. `@opentelemetry/api` is OPTIONAL peer dep loaded via `createRequire`. All OTel calls wrapped in `safe()` so exporter errors NEVER propagate to `agent.send` (EC-1).
-- **`@usetheo/react` v1.0.0** — new workspace package (ADR D32). `useTheoChat` React hook (HTTP fetch + SSE parser, AbortController on unmount, EC-6 5xx handling, EC-8 graceful close). `streamTheoChat` Next.js-compatible SSE handler (EC-2 pre-stream typed errors return HTTP 400/401). Wire format = a peer vendor AI Data Stream v1 (drop-in `useChat` migration; no `ai` package runtime dep). React peer dep `^18 || ^19`.
+- **`@theokit/react` v1.0.0** — new workspace package (ADR D32). `useTheoChat` React hook (HTTP fetch + SSE parser, AbortController on unmount, EC-6 5xx handling, EC-8 graceful close). `streamTheoChat` Next.js-compatible SSE handler (EC-2 pre-stream typed errors return HTTP 400/401). Wire format = a peer vendor AI Data Stream v1 (drop-in `useChat` migration; no `ai` package runtime dep). React peer dep `^18 || ^19`.
 
 ### Validations (v1.1 pillar audits)
 
@@ -1216,7 +1465,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 
   Pre-release. `Agent.getRun({ runtime: "cloud" })`, `agent.listArtifacts()`, `agent.downloadArtifact()` throw `ConfigurationError(code: "cloud_runtime_pre_release")` when invoked with non-fixture API keys. Fixture mode (`theo_test_*` keys) remains the documented test seam.
 
-All notable changes to `@usetheo/sdk` are documented here.
+All notable changes to `@theokit/sdk` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
@@ -1224,7 +1473,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added (multimodal demo `examples/telegram-pro`)
 
-- **New `examples/telegram-pro/`** — ~600 LoC Telegram bot that reproduces the 5 highest-value patterns from peer-project's `extensions/telegram` (187 production files) on top of `@usetheo/sdk` 1.0.0:
+- **New `examples/telegram-pro/`** — ~600 LoC Telegram bot that reproduces the 5 highest-value patterns from peer-project's `extensions/telegram` (187 production files) on top of `@theokit/sdk` 1.0.0:
   - **Voice transcription** ([`src/transcribe.ts`](../../examples/telegram-pro/src/transcribe.ts)) — downloads the OGG/Opus from Telegram, POSTs multipart to Whisper. Provider order: `OPENAI_API_KEY` → `GROQ_API_KEY` → graceful "voice not configured" reply. Transcript is injected into the agent loop as `[voice transcript: ...]`.
   - **Vision** ([`src/vision.ts`](../../examples/telegram-pro/src/vision.ts)) — photo and sticker descriptions via `google/gemini-2.0-flash-001` multimodal on OpenRouter. Disk-cached at `.theokit/cache/vision/<sha256>.txt` keyed by Telegram's `file_unique_id`, so repeated stickers (common in groups) skip the LLM roundtrip.
   - **Inline buttons** ([`src/buttons.ts`](../../examples/telegram-pro/src/buttons.ts)) — agent emits `[BUTTONS: A | B | C]` at end of reply; example strips the marker, renders a grammy `InlineKeyboard`, and routes button taps back to the agent as `[user tapped button: A]` so conversation history stays consistent.
@@ -1235,7 +1484,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added (chat assistant readiness — flagship demo `examples/telegram-assistant`)
 
-- **New `examples/telegram-assistant/`** — ~300 LoC Personal Assistant Telegram bot built on `@usetheo/sdk` 1.0.0. Demonstrates the full chat-assistant surface end-to-end against a real LLM:
+- **New `examples/telegram-assistant/`** — ~300 LoC Personal Assistant Telegram bot built on `@theokit/sdk` 1.0.0. Demonstrates the full chat-assistant surface end-to-end against a real LLM:
   - **Commands**: `/start /help /me /remember /forget /recall /summary /reset` — covers explicit fact write, fact removal by substring, past-conversation search via `corpus="sessions"`, dreaming consolidation via `Memory.runDreamingSweep`, and conversation reset.
   - **Per-user isolation** — agent id = `tg-assistant-<userId>`, memory namespace pinned to `ctx.from.id` so group chats keep each member's facts separated (EC-11 documented).
   - **Allow-list** — optional `TELEGRAM_ALLOWED_USERS` env var locks the bot to specific Telegram user-ids so a randomly-discovered bot can't burn the operator's LLM budget.
@@ -1258,7 +1507,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   3. **Real process restart** via `spawnSync("npx tsx ...", ...)` runs a fresh node process. The subprocess `Agent.resume`s both chats — pulling registry.json + messages.jsonl + MEMORY.md from disk. Both LLMs answer with the persisted facts ("Vitest + alpha-7", "PostgreSQL + project-beta") after the restart boundary. **PASS** post-restart recall.
   4. Concurrent burst: 5 parallel sends into one chat produce strictly-alternating user/assistant records (16 records total). **PASS** mutex serialization.
   5. Sessions corpus: 11+ `.md` summaries on disk after all runs. **PASS** corpus seeding.
-- **Result**: 10 PASS / 0 WARN / 0 FAIL against real LLM. The chat assistant pattern works end-to-end with `@usetheo/sdk` v1.0.0.
+- **Result**: 10 PASS / 0 WARN / 0 FAIL against real LLM. The chat assistant pattern works end-to-end with `@theokit/sdk` v1.0.0.
 
 ### Added (chat assistant readiness — Phase 4 / `examples/telegram-bot`)
 
@@ -1360,7 +1609,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added (memory-system-peer-project-parity, Increment C — Dogfood examples + Memory namespace)
 
-- **`Memory` public namespace** exported from `@usetheo/sdk` — `Memory.runDreamingSweep({ cwd, embedding })` lets users trigger consolidation outside of `agent.send()` (e.g. from a cron job handler).
+- **`Memory` public namespace** exported from `@theokit/sdk` — `Memory.runDreamingSweep({ cwd, embedding })` lets users trigger consolidation outside of `agent.send()` (e.g. from a cron job handler).
 - **`MemoryEmbeddingRuntime` public type** — `embedding` now accepts either a built-in provider id (`{ provider, model? }`) OR a BYO runtime (`{ runtime: MemoryEmbeddingRuntime }`). Enables self-hosted/local embedding models and self-contained demos without external API creds. Mirrors peer-project's `EmbeddingRuntime` shape from ADR D3.
 - **4 new example apps** under `examples/`:
   - **`memory-search`** — LLM uses `memory_search` to find facts in MEMORY.md.
@@ -1498,7 +1747,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- License standardized to **Apache-2.0** (was MIT). Aligns all usetheo open-core pillars under a single license — see root `CLAUDE.md` strategic review of 2026-05-14.
+- License standardized to **Apache-2.0** (was MIT). Aligns all Theo open-core pillars under a single license — see root `CLAUDE.md` strategic review of 2026-05-14.
 - `UnsupportedRunOperationError` now extends `TheokitAgentError` with `isRetryable: false` and stable `code: "unsupported_run_operation"`. Previously extended `Error` directly — old `instanceof TheokitAgentError` checks against this error now return `true`.
 - `RunOperation` union extended with `"listArtifacts"` and `"downloadArtifact"`. Agent-level operations can now be reported through `UnsupportedRunOperationError.operation`.
 

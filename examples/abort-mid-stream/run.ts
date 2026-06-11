@@ -10,7 +10,7 @@
  *   OPENROUTER_API_KEY=sk-or-... pnpm run
  */
 
-import { Agent, AgentRunError } from "@usetheo/sdk";
+import { Agent, AgentRunError } from "@theokit/sdk";
 
 const apiKey = process.env.OPENROUTER_API_KEY ?? "theo_test_abort_example";
 const realLlm = apiKey.startsWith("sk-or-");

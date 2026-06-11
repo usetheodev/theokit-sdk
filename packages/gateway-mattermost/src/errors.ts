@@ -1,5 +1,5 @@
 /**
- * Typed errors for `@usetheo/gateway-mattermost`.
+ * Typed errors for `@theokit/gateway-mattermost`.
  */
 
 /** @knipignore — public input shape for `ConfigurationError` constructor (caller-extensible). */

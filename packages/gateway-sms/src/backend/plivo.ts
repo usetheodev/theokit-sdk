@@ -9,7 +9,7 @@
  * @internal
  */
 
-import type { SendResult } from "@usetheo/gateway";
+import type { SendResult } from "@theokit/gateway";
 import type { SignatureContext, SMSBackend, SMSInbound } from "../backend-types.js";
 import { BackendNotInstalledError } from "../errors.js";
 import { normalizeE164 } from "../phone.js";

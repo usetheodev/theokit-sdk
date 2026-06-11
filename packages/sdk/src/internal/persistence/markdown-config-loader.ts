@@ -11,8 +11,13 @@
  * @internal
  */
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
+
+// T5.10 — 1 MB cap on individual markdown config files. A crafted
+// multi-MB file would be read into memory in full — a local DoS
+// vector on resource-constrained environments (edge, CI workers).
+const MAX_MD_FILE_BYTES = 1_048_576; // 1 MB
 
 import type { z } from "zod";
 
@@ -60,7 +65,7 @@ export interface LoadOptions<T> {
  *
  * Note on cross-platform: filenames are case-sensitive in Linux, case-insensitive
  * in macOS/Windows. Use lowercase slug convention to avoid collisions.
- * No file size cap enforced — `.theokit/` is trusted source.
+ * T5.10: individual files capped at 1 MB to prevent local DoS on edge/CI.
  *
  * @internal
  */
@@ -73,6 +78,8 @@ export async function loadMarkdownEntities<T>(opts: LoadOptions<T>): Promise<Mar
   for (const entry of entries) {
     const resolved = resolveEntryPath(entry, pattern, dir);
     if (resolved === null) continue;
+    // T5.10 — reject files > 1 MB before reading into memory.
+    await assertFileSizeUnderCap(resolved.source, errorCodePrefix);
     const raw = await readFile(resolved.source, "utf8").catch(() => null);
     if (raw === null) continue;
     const split = splitFrontmatter(raw, resolved.source, errorCodePrefix);
@@ -92,6 +99,23 @@ export async function loadMarkdownEntities<T>(opts: LoadOptions<T>): Promise<Mar
     });
   }
   return out;
+}
+
+/** T5.10 — reject files > 1 MB before reading into memory. */
+async function assertFileSizeUnderCap(source: string, errorCodePrefix: string): Promise<void> {
+  try {
+    const info = await stat(source);
+    if (info.size > MAX_MD_FILE_BYTES) {
+      throw new ConfigurationError(
+        `Config file ${source} exceeds 1 MB size limit (${info.size} bytes). ` +
+          "Reduce the file or split into multiple entities.",
+        { code: `${errorCodePrefix}_file_too_large` },
+      );
+    }
+  } catch (cause) {
+    if (cause instanceof ConfigurationError) throw cause;
+    // stat failed — file unreadable; let readFile handle the ENOENT/EACCES
+  }
 }
 
 async function readDirSafe(

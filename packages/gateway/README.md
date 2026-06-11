@@ -1,16 +1,16 @@
-# @usetheo/gateway
+# @theokit/gateway
 
-Multi-platform messaging gateway for `@usetheo/sdk`. Transport-agnostic primitives — adapters live in separate peer-dep packages.
+Multi-platform messaging gateway for `@theokit/sdk`. Transport-agnostic primitives — adapters live in separate peer-dep packages.
 
 > **Status: 0.1.0 — pre-release.** Breaking changes allowed within the `0.x` line per semver.
 
 ## Install
 
 ```bash
-pnpm add @usetheo/gateway @usetheo/sdk
+pnpm add @theokit/gateway @theokit/sdk
 # Plus one or more transport adapters:
-pnpm add @usetheo/gateway-telegram grammy
-pnpm add @usetheo/gateway-discord discord.js
+pnpm add @theokit/gateway-telegram grammy
+pnpm add @theokit/gateway-discord discord.js
 ```
 
 ## Architecture (5 pieces)
@@ -26,9 +26,9 @@ pnpm add @usetheo/gateway-discord discord.js
 ## Minimal example
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner, SessionRouter } from "@usetheo/gateway";
-import { TelegramAdapter } from "@usetheo/gateway-telegram";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner, SessionRouter } from "@theokit/gateway";
+import { TelegramAdapter } from "@theokit/gateway-telegram";
 
 const router = new SessionRouter();
 const adapter = new TelegramAdapter({ token: process.env.TELEGRAM_BOT_TOKEN! });

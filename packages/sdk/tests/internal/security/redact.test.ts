@@ -5,9 +5,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-
-import { _resetForTests } from "../../../src/internal/security/_test-reset.js";
 import { addPattern, maskToken, redactSecrets } from "../../../src/internal/security/index.js";
+import { _resetForTests } from "../../../src/internal/security/test-reset.js";
 
 describe("redactSecrets — inputs", () => {
   it("returns '' for undefined", () => {

@@ -11,7 +11,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { FileContextManager } from "../../../src/internal/runtime/context-manager.js";
+import { FileContextManager } from "../../../src/internal/runtime/context/context-manager.js";
 
 describe("Backward compat: .theokit/context/*.md (T6.1)", () => {
   let tmp: string;

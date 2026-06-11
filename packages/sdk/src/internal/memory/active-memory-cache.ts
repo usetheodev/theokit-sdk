@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
-import type { ActiveMemoryResult } from "./active-memory.js";
+// T4.1 / D438 — import from leaf to break the active-memory cluster cycle (#10).
+import type { ActiveMemoryResult } from "./active-memory-types.js";
 
 /**
  * TTL-bounded cache for `runActiveMemory` results. Keyed by
@@ -32,8 +33,12 @@ export class ActiveMemoryCache {
 
   constructor(private readonly opts: ActiveMemoryCacheOptions = {}) {}
 
-  get(userText: string, queryMode: string): ActiveMemoryResult | undefined {
-    const key = cacheKey(userText, queryMode);
+  get(
+    userText: string,
+    queryMode: string,
+    tenantCtx?: TenantContext,
+  ): ActiveMemoryResult | undefined {
+    const key = cacheKey(userText, queryMode, tenantCtx);
     const entry = this.map.get(key);
     if (entry === undefined) return undefined;
     if (this.now() >= entry.expiresAtMs) {
@@ -46,8 +51,13 @@ export class ActiveMemoryCache {
     return entry.result;
   }
 
-  set(userText: string, queryMode: string, result: ActiveMemoryResult): void {
-    const key = cacheKey(userText, queryMode);
+  set(
+    userText: string,
+    queryMode: string,
+    result: ActiveMemoryResult,
+    tenantCtx?: TenantContext,
+  ): void {
+    const key = cacheKey(userText, queryMode, tenantCtx);
     if (this.map.size >= (this.opts.capacity ?? DEFAULT_CAPACITY)) {
       const oldest = this.map.keys().next().value;
       if (oldest !== undefined) this.map.delete(oldest);
@@ -67,6 +77,24 @@ export class ActiveMemoryCache {
   }
 }
 
-function cacheKey(userText: string, queryMode: string): string {
-  return createHash("sha256").update(`${queryMode}\x00${userText}`).digest("hex");
+/**
+ * T4.9 — Tenant isolation context for cache key derivation.
+ * Pre-T4.9 the key was `sha256(queryMode + userText)` — two users
+ * sharing a process with the same query got each other's results.
+ * CRITICAL cross-tenant data leak (DR4 finding #9).
+ *
+ * @internal
+ */
+export interface TenantContext {
+  namespace?: string;
+  userId?: string;
+  scope?: string;
+}
+
+// T4.9 — cache key now includes namespace, userId, scope separated by
+// NUL bytes to prevent collision between `user: "ab"` + `scope: "cd"`
+// and `user: "a"` + `scope: "bcd"` (without separator these hash identically).
+function cacheKey(userText: string, queryMode: string, ctx?: TenantContext): string {
+  const parts = [queryMode, ctx?.namespace ?? "", ctx?.userId ?? "", ctx?.scope ?? "", userText];
+  return createHash("sha256").update(parts.join("\x00")).digest("hex");
 }

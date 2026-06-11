@@ -80,11 +80,12 @@ describe("createTelemetry", () => {
     expect(child.isRecording()).toBe(false);
   });
 
-  it("enabled telemetry without OTel installed warns and degrades to no-op", () => {
-    // OTel api is NOT installed in this test environment unless we add it.
-    // Calling with enabled: true should degrade gracefully (returns no-op
-    // handle, logs to stderr once). We assert the returned handle behaves
-    // like no-op.
+  it("enabled telemetry produces a real handle (T0.1 — `@opentelemetry/api` is now devDep)", () => {
+    // T0.1 introduced `@opentelemetry/sdk-trace-base` as devDep so the wiring
+    // triad pillar (b) test for `agent.create` span runs against a real
+    // tracer. The lazy `createRequire("@opentelemetry/api")` in tracer.ts
+    // therefore succeeds in test environments. The no-op fallback path is
+    // still exercised when `telemetry === undefined` or `enabled: false`.
     const stderrWrites: string[] = [];
     const originalWrite = process.stderr.write.bind(process.stderr);
     process.stderr.write = ((chunk: unknown) => {
@@ -93,10 +94,12 @@ describe("createTelemetry", () => {
     }) as typeof process.stderr.write;
     try {
       const handle = createTelemetry({ enabled: true });
-      // Without OTel installed, this should be a no-op handle.
-      expect(handle.enabled).toBe(false);
-      // We may or may not see a stderr warning depending on cache state.
-      // Assertion is weaker: no exception thrown.
+      expect(handle.enabled).toBe(true);
+      // Handle methods still must never throw (EC-1 invariant).
+      const span = handle.startSpan("test");
+      span.setAttribute("k", "v");
+      span.end();
+      handle.endAll();
     } finally {
       process.stderr.write = originalWrite;
     }

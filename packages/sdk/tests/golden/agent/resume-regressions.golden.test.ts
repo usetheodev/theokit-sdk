@@ -8,7 +8,7 @@ import { Agent, UnknownAgentError } from "../../../src/index.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
-} from "../../../src/internal/runtime/agent-registry.js";
+} from "../../../src/internal/runtime/registry/agent-registry.js";
 
 /**
  * Regression tests for the 4 SDK bugs found by the telegram-pro live demo

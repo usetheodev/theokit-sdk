@@ -15,8 +15,8 @@ import {
   WhatsAppAdapter,
   WhatsAppCloudBackend,
   type WhatsAppMessageEvent,
-} from "@usetheo/gateway-whatsapp";
-import { Agent } from "@usetheo/sdk";
+} from "@theokit/gateway-whatsapp";
+import { Agent } from "@theokit/sdk";
 
 const PHONE_NUMBER_ID = required("WHATSAPP_PHONE_NUMBER_ID");
 const ACCESS_TOKEN = required("WHATSAPP_ACCESS_TOKEN");

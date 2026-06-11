@@ -1,13 +1,13 @@
 /**
- * {{projectName}} — a Telegram bot powered by @usetheo/sdk + @usetheo/gateway.
+ * {{projectName}} — a Telegram bot powered by @theokit/sdk + @theokit/gateway.
  *
  * Boots a grammy bot, routes every inbound message through Agent.send,
  * streams the reply back to Telegram.
  */
 
-import { GatewayRunner } from "@usetheo/gateway";
-import { TelegramAdapter } from "@usetheo/gateway-telegram";
-import { createAgentFactory } from "@usetheo/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { TelegramAdapter } from "@theokit/gateway-telegram";
+import { createAgentFactory } from "@theokit/sdk";
 import { Bot } from "grammy";
 
 const TELEGRAM_BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;

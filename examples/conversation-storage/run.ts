@@ -17,7 +17,7 @@ import {
   AgentRunError,
   ConfigurationError,
   InMemoryConversationStorage,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 const apiKey = process.env.OPENROUTER_API_KEY ?? "theo_test_conversation_storage_example";
 const realLlm = apiKey.startsWith("sk-or-");

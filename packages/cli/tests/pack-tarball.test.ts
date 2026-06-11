@@ -3,7 +3,7 @@
  *
  * The published tarball MUST include the bundled `templates/` directory.
  * Without `"files": ["dist", "templates", ...]` in package.json, `npm
- * publish` ships only `dist/` and `npx @usetheo/cli init` fails for
+ * publish` ships only `dist/` and `npx @theokit/cli init` fails for
  * every consumer outside the monorepo.
  *
  * This test reads package.json and asserts the contract directly —
@@ -18,7 +18,7 @@ interface PackageJson {
   files?: string[];
 }
 
-describe("@usetheo/cli published tarball contents (EC-C)", () => {
+describe("@theokit/cli published tarball contents (EC-C)", () => {
   const pkg = JSON.parse(
     readFileSync(new URL("../package.json", import.meta.url), "utf8"),
   ) as PackageJson;

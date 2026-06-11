@@ -11,7 +11,7 @@
  * Prints the EvalRun JSON (aggregate + rows) to stdout.
  */
 
-import { Eval, Scorers, type EvalRun } from "@usetheo/sdk";
+import { Eval, Scorers, type EvalRun } from "@theokit/sdk/eval";
 
 const useCloud = typeof process.env.OPENROUTER_API_KEY === "string";
 

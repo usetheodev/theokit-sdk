@@ -83,6 +83,24 @@ interface Registration<T = unknown> {
 
 /**
  * Lightweight DI container. See `README.md` for usage examples.
+ *
+ * **Auditor-acknowledged size (info-level):** the 2026-06-06 architecture
+ * audit (`/loop-architecture-review` Phase 3 principles-auditor) flagged
+ * this class as 812 LOC (above the 500 LOC heuristic file budget) under
+ * principle violation PV#10 (SRP / clean_function category, INFO severity).
+ * The auditor's own description annotates it as "large but justified DI
+ * orchestrator". The class is the Single-Point-of-Truth for DI resolution:
+ * registry lookup, lifecycle (SINGLETON/TRANSIENT/REQUEST), `@Injectable`
+ * metadata read, alias resolution, request-scope ALS propagation, and
+ * dispose chain. Splitting these concerns into separate classes would
+ * fragment cohesion and force consumers to coordinate across an internal
+ * micro-interface that adds no testability or extensibility per
+ * `rules/architecture.md § 3` (module cohesion) + KISS / YAGNI. ADR D422
+ * documents an ongoing Extract-Method refactor targeting individual long
+ * methods (not class-level split). Plan `arch-review-fixes-2026-06-06`
+ * T11.2 documents this trade-off; audit DB row `principle_violations.id=10`
+ * @ `packages/di/src/container.ts:87`; report at
+ * `architecture-output/final_report.md § Findings by dimension` PV#10.
  */
 export class Container {
   private readonly registrations = new Map<Token, Registration>();
@@ -128,7 +146,7 @@ export class Container {
     if (this.registrations.has(registration.token)) {
       // NestJS behavior: last write wins. Single stderr warn.
       process.stderr.write(
-        `[@usetheo/di] Warning: provider for token ${describeToken(registration.token)} replaced.\n`,
+        `[@theokit/di] Warning: provider for token ${describeToken(registration.token)} replaced.\n`,
       );
     }
     this.registrations.set(registration.token, registration);

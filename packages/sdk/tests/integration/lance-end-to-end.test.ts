@@ -7,8 +7,8 @@
  * warn so the default test run remains fast and dep-free.
  *
  * To run:
- *   pnpm add @lancedb/lancedb --filter @usetheo/sdk
- *   LANCE_E2E=1 pnpm --filter @usetheo/sdk test -- tests/integration/lance-end-to-end.test.ts
+ *   pnpm add @lancedb/lancedb --filter @theokit/sdk
+ *   LANCE_E2E=1 pnpm --filter @theokit/sdk test -- tests/integration/lance-end-to-end.test.ts
  *
  * 10 test cases:
  *   1. addFacts then recall returns semantic match

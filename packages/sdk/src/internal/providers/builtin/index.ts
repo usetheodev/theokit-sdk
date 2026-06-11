@@ -7,6 +7,7 @@
  * @internal
  */
 
+import { registerCatalogProviders } from "../catalog-loader.js";
 import { registerProvider } from "../registry.js";
 import { ANTHROPIC } from "./anthropic.js";
 import { BEDROCK } from "./bedrock.js";
@@ -23,6 +24,7 @@ let registered = false;
 export function registerBuiltins(): void {
   if (registered) return;
   registered = true;
+  // First-party builtins (take priority — registered first)
   registerProvider(ANTHROPIC);
   registerProvider(OPENAI);
   registerProvider(OPENROUTER);
@@ -32,6 +34,8 @@ export function registerBuiltins(): void {
   registerProvider(LLAMACPP);
   registerProvider(BEDROCK);
   registerProvider(VERTEX);
+  // Dynamic catalog — 40+ providers from JSON (T10.1, ADR D447)
+  registerCatalogProviders();
 }
 
 /** Test-only reset. @internal */

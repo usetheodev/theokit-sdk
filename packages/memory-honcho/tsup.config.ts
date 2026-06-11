@@ -11,5 +11,5 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/sdk", "@honcho-ai/sdk"],
+  external: ["@theokit/sdk", "@honcho-ai/sdk"],
 });

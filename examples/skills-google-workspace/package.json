@@ -11,8 +11,8 @@
     "recipe-06": "tsx --env-file=.env recipe-06-combined-meeting-doc.ts"
   },
   "dependencies": {
-    "@usetheo/sdk": "file:../../packages/sdk",
-    "@usetheo/skills-google-workspace": "file:../../packages/skills-google-workspace",
+    "@theokit/sdk": "file:../../packages/sdk",
+    "@theokit/skills-google-workspace": "file:../../packages/skills-google-workspace",
     "zod": "^4.0.0"
   },
   "devDependencies": {

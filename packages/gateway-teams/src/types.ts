@@ -1,5 +1,5 @@
 /**
- * Public option types for `@usetheo/gateway-teams` (ADRs D315-D326).
+ * Public option types for `@theokit/gateway-teams` (ADRs D315-D326).
  *
  * @public
  */

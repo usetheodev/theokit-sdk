@@ -4,7 +4,7 @@
 
 ## Install in Zed
 
-1. Install the package (or use `npx`): `npm i -g @usetheo/acp` (optional — `npx` works too).
+1. Install the package (or use `npx`): `npm i -g @theokit/acp` (optional — `npx` works too).
 2. Copy this directory to `~/.config/zed/external_agents/usetheo-sdk/`:
 
 ```bash
@@ -19,6 +19,6 @@ cp packages/acp/registry/* ~/.config/zed/external_agents/usetheo-sdk/
 
 - `distribution.type: "command"` — the host spawns `npx theokit-acp ...` per session.
 - `${ZED_PROJECT_ROOT}` is interpolated by Zed before spawn.
-- Per ADR D358, the standalone `npx theokit-acp` is shipped from `@usetheo/acp/bin/theokit-acp.mjs` so users don't have to install `@usetheo/cli`.
+- Per ADR D358, the standalone `npx theokit-acp` is shipped from `@theokit/acp/bin/theokit-acp.mjs` so users don't have to install `@theokit/cli`.
 
 See `concepts/acp-server.mdx` for the full integration guide.

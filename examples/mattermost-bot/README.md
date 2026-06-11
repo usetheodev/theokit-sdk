@@ -1,6 +1,6 @@
 # mattermost-bot example
 
-End-to-end Mattermost echo agent using [`@usetheo/gateway-mattermost`](../../packages/gateway-mattermost).
+End-to-end Mattermost echo agent using [`@theokit/gateway-mattermost`](../../packages/gateway-mattermost).
 
 ## Setup
 

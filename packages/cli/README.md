@@ -1,16 +1,16 @@
-# @usetheo/cli — `theokit`
+# @theokit/cli — `theokit`
 
-Developer CLI for `@usetheo/sdk`. Four subcommands at v1: `init`, `dev`,
+Developer CLI for `@theokit/sdk`. Four subcommands at v1: `init`, `dev`,
 `inspect`, `eval`. Adoption Roadmap #1.
 
 ## Install
 
 ```bash
 # One-shot scaffold via npx (recommended for first use):
-npx @usetheo/cli init my-bot
+npx @theokit/cli init my-bot
 
 # Or install globally:
-pnpm add -g @usetheo/cli
+pnpm add -g @theokit/cli
 theokit --help
 ```
 
@@ -28,7 +28,7 @@ theokit init my-bot-tg --template telegram-bot
 
 - `minimal` — smallest possible Agent.create + send + stream.
 - `ollama-local` — 100% local via Ollama (no remote API key).
-- `telegram-bot` — Telegram bot via `@usetheo/gateway` + grammy.
+- `telegram-bot` — Telegram bot via `@theokit/gateway` + grammy.
 
 **Flags:**
 
@@ -70,7 +70,7 @@ theokit eval --config my-eval.ts --output reports/run1.md
 **Example `eval.config.ts`:**
 
 ```ts
-import type { EvalConfig } from "@usetheo/cli";
+import type { EvalConfig } from "@theokit/cli";
 
 export default {
   dataset: [

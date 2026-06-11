@@ -1,5 +1,5 @@
 /**
- * Public option types for `@usetheo/gateway-email` (ADRs D327-D339).
+ * Public option types for `@theokit/gateway-email` (ADRs D327-D339).
  *
  * @public
  */

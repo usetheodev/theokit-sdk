@@ -45,9 +45,15 @@ describe("AgentRunError — discriminated code union (T3.1)", () => {
     }
   });
 
-  it("forward-compat string code accepted via `& {}` escape hatch", () => {
-    const err = new AgentRunError("future", { code: "future_unknown_code" });
-    expect(err.code).toBe("future_unknown_code");
+  it("T1.1 — unknown string codes preserved at runtime via explicit cast", () => {
+    // The `(string & {})` escape hatch was REMOVED in T1.1 (closed union).
+    // Internal callers that MUST surface a legacy raw value still can via
+    // explicit cast; the boundary helper `coerceToKnownAgentRunErrorCode`
+    // is the recommended path for external sources.
+    const explicit = new AgentRunError("future", {
+      code: "future_unknown_code" as never,
+    });
+    expect(explicit.code).toBe("future_unknown_code");
   });
 });
 
@@ -90,13 +96,18 @@ describe("AgentRunError — computed getters (T3.2)", () => {
     expect(err.retryAfterMs === undefined).toBe(false);
   });
 
-  it("providerError aliases metadata.raw", () => {
+  it("T1.5 — providerError surfaces metadata.raw as a redacted string", () => {
+    // T1.5 changed the getter shape: it now returns the redacted JSON form
+    // (string), NOT the original object reference. Object identity is
+    // intentionally NOT preserved so secrets are stripped at the boundary.
     const rawBody = { error: { message: "leak risk" } };
     const err = new AgentRunError("server error", {
       code: "server_error",
       metadata: { provider: "openai", endpoint: "/v1/chat", code: "server_error", raw: rawBody },
     });
-    expect(err.providerError).toBe(rawBody);
+    const surfaced = String(err.providerError ?? "");
+    expect(surfaced).toContain("leak risk");
+    expect(surfaced).toContain("error");
   });
 
   it("providerError undefined when no metadata", () => {
@@ -105,7 +116,7 @@ describe("AgentRunError — computed getters (T3.2)", () => {
   });
 
   it(".message NEVER contains providerError content (anti-leak invariant)", () => {
-    const secretPayload = { x_internal_token: "sk-leak-12345" };
+    const secretPayload = { x_internal_token: "sk-leak-12345abcdef67890" };
     const err = new AgentRunError("server returned 500", {
       code: "server_error",
       metadata: {
@@ -115,10 +126,12 @@ describe("AgentRunError — computed getters (T3.2)", () => {
         raw: secretPayload,
       },
     });
-    expect(err.message).not.toContain("sk-leak-12345");
+    expect(err.message).not.toContain("sk-leak-12345abcdef67890");
     expect(err.message).not.toContain("x_internal_token");
-    // But providerError is reachable for debugging
-    expect(err.providerError).toBe(secretPayload);
+    // T1.5 — providerError still reachable for debugging, but redacted:
+    // the original secret-shaped token is masked, the metadata shell is not.
+    const surfaced = String(err.providerError ?? "");
+    expect(surfaced).not.toContain("sk-leak-12345abcdef67890");
   });
 });
 

@@ -1,6 +1,6 @@
 # skills-google-workspace cookbook
 
-Six runnable recipes for `@usetheo/skills-google-workspace`. All recipes use the bundled `google-workspace-mcp` server (read-only by default; recipes 5 & 6 require `writable: true`).
+Six runnable recipes for `@theokit/skills-google-workspace`. All recipes use the bundled `google-workspace-mcp` server (read-only by default; recipes 5 & 6 require `writable: true`).
 
 ## Setup (one-time, ~5 minutes)
 

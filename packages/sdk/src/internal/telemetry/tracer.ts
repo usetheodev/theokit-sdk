@@ -70,6 +70,17 @@ export interface TelemetryHandle {
     name: string,
     attrs?: Record<string, string | number | boolean>,
   ): OTelSpan;
+  /**
+   * Record a histogram observation. T0.1 ships
+   * `theokit_memory_recall_duration_ms`; downstream tasks add more.
+   * No-op when telemetry is disabled or when `@opentelemetry/api`'s metrics
+   * namespace is unavailable. ADR D34 — exporter errors are swallowed by `safe()`.
+   */
+  recordHistogram(
+    name: string,
+    valueMs: number,
+    attrs?: Record<string, string | number | boolean>,
+  ): void;
   /** End all open spans on this handle (best-effort, used by Agent.dispose). */
   endAll(): void;
 }
@@ -106,6 +117,7 @@ const NOOP_HANDLE: TelemetryHandle = {
   includeContent: false,
   startSpan: () => NOOP_SPAN,
   startChildSpan: () => NOOP_SPAN,
+  recordHistogram: () => {},
   endAll: () => {},
 };
 
@@ -177,11 +189,46 @@ export function createTelemetry(settings: TelemetrySettings | undefined): Teleme
     if (span !== NOOP_SPAN) openSpans.add(span);
     return wrapSpan(span, openSpans);
   };
+  // T0.1: lazy-load metrics namespace separately — `@opentelemetry/api` ships
+  // metrics in `api.metrics`, but older 1.x versions may omit it. Returns null
+  // and we degrade `recordHistogram` to no-op (same EC-1 discipline as spans).
+  const histograms = new Map<string, unknown>();
+  const resolveHistogram = (name: string): unknown | undefined => {
+    const existing = histograms.get(name);
+    if (existing !== undefined) return existing;
+    const otelAny = otel as unknown as {
+      metrics?: { getMeter(n: string, v?: string): unknown };
+    };
+    const meterProvider = otelAny.metrics;
+    if (meterProvider === undefined) return undefined;
+    const meter = meterProvider.getMeter(settings.serviceName ?? "theokit-sdk", "1.2.0") as {
+      createHistogram?: (n: string, opts?: { unit?: string }) => unknown;
+    };
+    if (typeof meter.createHistogram !== "function") return undefined;
+    const created = meter.createHistogram(name, { unit: "ms" });
+    histograms.set(name, created);
+    return created;
+  };
+  const recordHistogram = (
+    name: string,
+    valueMs: number,
+    attrs?: Record<string, string | number | boolean>,
+  ): void => {
+    if (!Number.isFinite(valueMs)) return;
+    safe(() => {
+      const histogram = resolveHistogram(name);
+      if (histogram === undefined) return;
+      const redacted = attrs === undefined ? undefined : redactAttrs(attrs);
+      const h = histogram as { record(value: number, attrs?: Record<string, unknown>): void };
+      h.record(valueMs, redacted);
+    }, undefined);
+  };
   const handle: TelemetryHandle = {
     enabled: true,
     includeContent: settings.includeContent === true,
     startSpan: startNewSpan,
     startChildSpan: (_parent, name, attrs) => startNewSpan(name, attrs),
+    recordHistogram,
     endAll: () => {
       for (const span of openSpans) safe(() => span.end(), undefined);
       openSpans.clear();

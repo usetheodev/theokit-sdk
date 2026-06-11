@@ -9,9 +9,9 @@
   },
   "dependencies": {
     "@line/bot-sdk": "^9.0.0",
-    "@usetheo/gateway": "file:../../packages/gateway",
-    "@usetheo/gateway-line": "file:../../packages/gateway-line",
-    "@usetheo/sdk": "file:../../packages/sdk",
+    "@theokit/gateway": "file:../../packages/gateway",
+    "@theokit/gateway-line": "file:../../packages/gateway-line",
+    "@theokit/sdk": "file:../../packages/sdk",
     "express": "^4.19.0"
   },
   "devDependencies": {

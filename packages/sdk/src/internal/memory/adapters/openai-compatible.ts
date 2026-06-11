@@ -7,7 +7,7 @@ import type {
   EmbeddingRuntime,
   EmbeddingRuntimeStats,
 } from "../embedding-adapter.js";
-import { LruEmbeddingCache } from "../embedding-cache.js";
+import { globalEmbeddingCache } from "../embedding-cache.js";
 
 /**
  * Shared factory for OpenAI-compatible embedding providers (OpenAI, Mistral,
@@ -58,7 +58,8 @@ export async function createOpenAiCompatibleRuntime(
   const envBaseUrl = cfg.baseUrlEnv !== undefined ? process.env[cfg.baseUrlEnv] : undefined;
   const baseUrl = options.baseUrl ?? envBaseUrl ?? cfg.defaultBaseUrl;
   const fetchImpl = options.fetch ?? fetch;
-  const cache = options.cache ?? new LruEmbeddingCache();
+  // T4.4 — default to process-wide singleton (was per-adapter instance).
+  const cache = options.cache ?? globalEmbeddingCache;
   // EC-4: refuse unknown models to prevent vec0 dimension mismatches downstream.
   const dimension = cfg.dimensionByModel[model];
   if (dimension === undefined) {
@@ -157,13 +158,54 @@ function classifyEntry(args: ClassifyEntryArgs): void {
   args.pending.push({ index: args.index, text: args.text, key });
 }
 
+// T4.3 — max concurrent embedding API requests per embed() call.
+// 3 is enough to saturate most embedding APIs without triggering
+// rate limits (each batch is already up to MAX_BATCH=100 texts).
+const MAX_CONCURRENT_BATCHES = 3;
+
+/**
+ * T4.3 — parallel embed batches (DR4 finding #3).
+ *
+ * Pre-T4.3 this was a serial `for` loop — each batch of 100 texts
+ * awaited before the next HTTP request started. With 500 texts the
+ * serial path took 5 × RTT; parallel takes max(RTT) × ceil(5/3).
+ *
+ * Uses bounded-concurrency `Promise.all` capped at 3 concurrent
+ * HTTP requests to avoid overwhelming the embedding API.
+ */
 async function runBatches(
   input: EmbedTextsInput,
   pending: ReadonlyArray<{ index: number; text: string; key: string }>,
   results: Array<number[] | undefined>,
 ): Promise<void> {
+  const batches: Array<ReadonlyArray<{ index: number; text: string; key: string }>> = [];
   for (let offset = 0; offset < pending.length; offset += MAX_BATCH) {
-    const batch = pending.slice(offset, offset + MAX_BATCH);
+    batches.push(pending.slice(offset, offset + MAX_BATCH));
+  }
+  // Bounded parallel: process up to MAX_CONCURRENT_BATCHES at a time.
+  let running = 0;
+  const queue: Array<() => void> = [];
+  await Promise.all(batches.map((batch) => processBatch(input, batch, results, acquire, release)));
+
+  async function acquire(): Promise<void> {
+    if (running >= MAX_CONCURRENT_BATCHES) await new Promise<void>((r) => queue.push(r));
+    running++;
+  }
+  function release(): void {
+    running--;
+    if (queue.length > 0) queue.shift()!();
+  }
+}
+
+async function processBatch(
+  input: EmbedTextsInput,
+  batch: ReadonlyArray<{ index: number; text: string; key: string }>,
+  results: Array<number[] | undefined>,
+  acquire: () => Promise<void>,
+  release: () => void,
+): Promise<void> {
+  await acquire();
+  try {
     const vectors = await embedBatch({
       apiKey: input.apiKey,
       baseUrl: input.baseUrl,
@@ -181,6 +223,8 @@ async function runBatches(
       results[slot.index] = vector;
       input.cache.set(slot.key, vector);
     }
+  } finally {
+    release();
   }
 }
 

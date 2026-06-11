@@ -1,4 +1,4 @@
-import { type AgentFactory, createAgentFactory, type SDKAgent } from "@usetheo/sdk";
+import { type AgentFactory, createAgentFactory, type SDKAgent } from "@theokit/sdk";
 import type { Context } from "grammy";
 
 import { buildMcpServers, buildProviderRouting } from "./sdk-config.js";
@@ -57,7 +57,7 @@ function getFactory(opts: AgentFactoryOptions): AgentFactory {
   // ADR D182/D186: developers running locally can override the model id
   // via `TELEGRAM_PRO_MODEL` (e.g. `ollama/llama3.2:3b` for fully-local
   // operation). Default stays gemini-flash for the OpenRouter happy path.
-  const modelId = process.env.TELEGRAM_PRO_MODEL ?? "google/gemini-2.0-flash-001";
+  const modelId = process.env.TELEGRAM_PRO_MODEL ?? "openai/gpt-4o-mini";
   cachedFactory = createAgentFactory({
     apiKey: opts.apiKey,
     model: { id: modelId },

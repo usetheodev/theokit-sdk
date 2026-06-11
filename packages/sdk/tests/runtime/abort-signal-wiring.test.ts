@@ -18,11 +18,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../src/agent.js";
+import { clearAllSessions } from "../../src/internal/runtime/agent-session.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
-} from "../../src/internal/runtime/agent-registry.js";
-import { clearAllSessions } from "../../src/internal/runtime/agent-session.js";
+} from "../../src/internal/runtime/registry/agent-registry.js";
 
 const FIXTURE_KEY = "theo_test_abort_wiring";
 const MODEL = { id: "openai/gpt-4o-mini" };

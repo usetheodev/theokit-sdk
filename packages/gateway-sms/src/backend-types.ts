@@ -5,7 +5,7 @@
  * @internal
  */
 
-import type { SendResult } from "@usetheo/gateway";
+import type { SendResult } from "@theokit/gateway";
 
 /** Canonical inbound shape every backend produces. */
 export interface SMSInbound {

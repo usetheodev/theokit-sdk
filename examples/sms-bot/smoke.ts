@@ -6,7 +6,7 @@
  * disconnect — no real API call.
  */
 
-import { SMSAdapter } from "@usetheo/gateway-sms";
+import { SMSAdapter } from "@theokit/gateway-sms";
 
 const live = process.env.SMS_LIVE_SMOKE === "1";
 

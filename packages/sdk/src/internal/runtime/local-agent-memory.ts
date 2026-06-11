@@ -8,6 +8,7 @@ import type { EmbeddingRuntime } from "../memory/embedding-adapter.js";
 import { IndexManager } from "../memory/index-manager.js";
 import type { MemoryIndex } from "../memory/memory-index.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../memory/tools.js";
+import type { TelemetryHandle } from "../telemetry/tracer.js";
 
 /**
  * Per-agent memory glue. Owns the lazy `IndexManager`, the memory tools
@@ -27,6 +28,21 @@ export class LocalAgentMemory {
     private readonly workspaceCwd: string,
     private readonly agentId: string,
   ) {}
+
+  /**
+   * Sync view of the tool cache (SDK 2.0 Phase 1 Stage 2b — iter 19+).
+   * Returns the cached MemoryToolSpec[] when `ensureTools()` has run
+   * AND succeeded; undefined otherwise. Lets the
+   * `createLocalAgentMemoryProvider` adapter (`buildTools` is sync per
+   * the port contract) surface the same tools the legacy path would.
+   *
+   * Caller MUST have already awaited `ensureTools()` once
+   * (adapter does this in `init()`) — otherwise the cache is empty
+   * and this returns undefined (matching the "no tools today" semantics).
+   */
+  getCachedTools(): ReadonlyArray<MemoryToolSpec> | undefined {
+    return this.toolsCache;
+  }
 
   async ensureTools(): Promise<ReadonlyArray<MemoryToolSpec> | undefined> {
     const cfg = this.options.memory?.index;
@@ -59,6 +75,7 @@ export class LocalAgentMemory {
   async runActiveMemoryIfEnabled(
     userText: string,
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
+    telemetry?: TelemetryHandle,
   ): Promise<string | undefined> {
     const cfg = this.options.memory?.activeRecall;
     if (cfg?.enabled !== true || this.index === undefined) return undefined;
@@ -68,20 +85,39 @@ export class LocalAgentMemory {
       userText,
       priorMessages,
       index: this.index,
-      options: {
-        enabled: true,
-        ...(cfg.queryMode !== undefined ? { queryMode: cfg.queryMode } : {}),
-        ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
-        ...(cfg.maxSummaryChars !== undefined ? { maxSummaryChars: cfg.maxSummaryChars } : {}),
-      },
+      options: this.buildActiveMemoryOptions(cfg),
       breaker: this.breaker,
       cache: this.cache,
       agentKey: this.agentId,
       cwd: this.workspaceCwd,
       ...(cfg.persistTranscripts === true ? { persistTranscripts: true } : {}),
       runId: `${this.agentId}-${Date.now()}`,
+      ...this.buildTelemetryRecallArgs(telemetry),
     });
     return result.summary;
+  }
+
+  private buildActiveMemoryOptions(cfg: NonNullable<AgentOptions["memory"]>["activeRecall"]) {
+    if (cfg === undefined) return { enabled: true };
+    return {
+      enabled: true,
+      ...(cfg.queryMode !== undefined ? { queryMode: cfg.queryMode } : {}),
+      ...(cfg.timeoutMs !== undefined ? { timeoutMs: cfg.timeoutMs } : {}),
+      ...(cfg.maxSummaryChars !== undefined ? { maxSummaryChars: cfg.maxSummaryChars } : {}),
+    };
+  }
+
+  private buildTelemetryRecallArgs(telemetry?: TelemetryHandle) {
+    const userId =
+      typeof this.options.memoryContext?.userId === "string"
+        ? this.options.memoryContext.userId
+        : undefined;
+    return {
+      ...(telemetry !== undefined ? { telemetry } : {}),
+      ...(userId !== undefined ? { userId } : {}),
+      namespace: "default",
+      scope: "session",
+    };
   }
 
   /**

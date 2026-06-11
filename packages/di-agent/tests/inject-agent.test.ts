@@ -1,4 +1,4 @@
-import { Container, Injectable, Module, Scope, ScopeViolationError } from "@usetheo/di";
+import { Container, Injectable, Module, Scope, ScopeViolationError } from "@theokit/di";
 import { describe, expect, it } from "vitest";
 
 import { AGENT_TOKEN, createAgentProvider, InjectAgent } from "../src/index.js";
@@ -9,7 +9,7 @@ import { AGENT_TOKEN, createAgentProvider, InjectAgent } from "../src/index.js";
 
 /**
  * Minimal Agent stub for unit tests. The full Agent contract lives in
- * @usetheo/sdk; we just need an object that proves DI wires it correctly.
+ * @theokit/sdk; we just need an object that proves DI wires it correctly.
  */
 interface AgentLike {
   readonly id: number;

@@ -5,7 +5,8 @@
  *
  * Usage:
  *
- *   import { Agent, Workflow, fn, agentStep } from "@usetheo/sdk";
+ *   import { Agent } from "@theokit/sdk";
+ *   import { Workflow, fn, agentStep } from "@theokit/sdk/workflow";
  *
  *   const classifier = await Agent.create({ ... });
  *   const wf = Workflow.create({ name: "demo" })
@@ -334,8 +335,13 @@ export function agentStep(
 
 export { __resetSnapshotStoresForTests } from "./internal/workflow/snapshot-store.js";
 
-/* ─── Re-exports for ergonomics (errors only — public types come from `types/workflow.js` via `types/index.ts`). ─── */
+/* ─── Re-exports for ergonomics (errors + all public types). After the
+       sub-path extraction `@theokit/sdk/workflow` is the single import site,
+       so type aliases must surface here (previously they reached consumers
+       via `types/index.ts:25 export type * from "./workflow.js"`, which the
+       extraction removes). ─── */
 
+export type * from "./types/workflow.js";
 export {
   WorkflowAlreadyRunningError,
   WorkflowCompensateNotImplementedError,

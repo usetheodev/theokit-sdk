@@ -4,8 +4,8 @@
  * Read-only mode. Requires a real Google account; without creds, skips.
  */
 
-import { Agent } from "@usetheo/sdk";
-import { googleWorkspace } from "@usetheo/skills-google-workspace";
+import { Agent } from "@theokit/sdk";
+import { googleWorkspace } from "@theokit/skills-google-workspace";
 
 import { requireCreds } from "./lib/scope-gate.js";
 

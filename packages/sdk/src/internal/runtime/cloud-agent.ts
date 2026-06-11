@@ -14,13 +14,18 @@ import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { resolveApiKey } from "../env.js";
 import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
 import { generateCloudAgentId } from "../ids.js";
-import { withCwdMutex } from "../memory/cwd-mutex.js";
-import { flushRegistrySaves, registerAgent, updateRegisteredAgent } from "./agent-registry.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
+import { PathTraversalError, validateArtifactPath } from "../security/path-guard.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
 import { DEFAULT_AGENTIC_MODEL_ID } from "./default-model.js";
 import { createRealCloudRun } from "./real-cloud-run.js";
+import {
+  flushRegistrySaves,
+  registerAgent,
+  updateRegisteredAgent,
+} from "./registry/agent-registry.js";
 import { resolveSystemPromptForSend } from "./system-prompt.js";
 
 /**
@@ -106,8 +111,15 @@ export class CloudAgent implements SDKAgent {
           return;
         }
         resolve(run);
+        // T1.10 — bound the mutex hold on run.wait() so a hanging cloud
+        // run (pre-release runtime is unreliable) doesn't block all
+        // subsequent sends to this agentId forever. The run continues
+        // in the background — only the MUTEX hold is bounded. Default
+        // timeout: 5 minutes (generous for LLM round-trips; operators
+        // override via THEOKIT_CLOUD_SEND_MUTEX_TIMEOUT_MS env var).
+        const mutexTimeoutMs = Number(process.env.THEOKIT_CLOUD_SEND_MUTEX_TIMEOUT_MS) || 300_000;
         try {
-          await run.wait();
+          await Promise.race([run.wait(), new Promise<void>((r) => setTimeout(r, mutexTimeoutMs))]);
         } catch {
           // Caller observes via their own wait/stream.
         }
@@ -202,12 +214,24 @@ export class CloudAgent implements SDKAgent {
   }
 
   downloadArtifact(path: string): Promise<Buffer> {
-    if (path.includes("..") || path.startsWith("/")) {
-      return Promise.reject(
-        new ConfigurationError(`Artifact path must stay inside the workspace: ${path}`, {
-          code: "artifact_path_traversal",
-        }),
-      );
+    // T1.4 — delegate path-traversal rejection to the centralized
+    // path-guard module (handles `..`, backslash, %2e%2e, NUL byte,
+    // Windows drive prefix, home-tilde, absolute paths). The original
+    // 2-vector inline check shipped a typed `artifact_path_traversal`
+    // error; we preserve that error contract here regardless of which
+    // vector trips the validator.
+    try {
+      validateArtifactPath(path);
+    } catch (cause) {
+      if (cause instanceof PathTraversalError) {
+        return Promise.reject(
+          new ConfigurationError(`Artifact path must stay inside the workspace: ${path}`, {
+            code: "artifact_path_traversal",
+            cause,
+          }),
+        );
+      }
+      return Promise.reject(cause as Error);
     }
     if (!this.isFixtureMode()) {
       return Promise.reject(

@@ -7,7 +7,7 @@
  * @internal
  */
 
-import type { MemoryContext } from "@usetheo/sdk";
+import type { MemoryContext } from "@theokit/sdk";
 
 interface Mem0Options {
   user_id?: string;

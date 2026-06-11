@@ -75,12 +75,41 @@ export function safePathJoin(base: string, ...parts: string[]): string {
   if (base === "") {
     throw new Error("safePathJoin: base must be non-empty");
   }
+  // T5.5 — NUL byte + C0/DEL control char rejection at the boundary.
+  // Apply before path resolution so a malicious input never reaches
+  // `resolve` (which on some platforms behaved unexpectedly with NUL
+  // and in N-API callers historically silently truncated).
+  rejectNulAndControlChars(base, "base");
+  for (const part of parts) {
+    rejectNulAndControlChars(part, "path segment");
+  }
   const baseResolved = resolve(base);
   const target = resolve(base, ...parts);
   if (target !== baseResolved && !target.startsWith(baseResolved + sep)) {
     throw new PathTraversalError(parts.join("/"), target);
   }
   return target;
+}
+
+/**
+ * T5.5 — Reject NUL (`\x00`) and C0/DEL control characters
+ * (`\x01-\x1F`, `\x7F`) in any path-shaped or identifier-shaped input.
+ * Centralizes the check so every public path-guard / sanitize entrypoint
+ * shares the same defense.
+ *
+ * Throws `PathTraversalError` (the same shape as other path-shape
+ * rejections) so callers don't need to learn a new error class.
+ *
+ * @internal
+ */
+function rejectNulAndControlChars(input: string, role: string): void {
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+    if (code === 0x00 || (code >= 0x01 && code <= 0x1f) || code === 0x7f) {
+      const label = code === 0x00 ? "<nul-byte>" : `<control-char-0x${code.toString(16)}>`;
+      throw new PathTraversalError(`${role}: ${input}`, label);
+    }
+  }
 }
 
 /**
@@ -102,6 +131,11 @@ export function safePathJoin(base: string, ...parts: string[]): string {
  * @internal
  */
 export function assertNoSymlinkEscape(path: string, base: string): void {
+  // T5.5 — reject NUL / control chars before any FS call (a NUL byte
+  // in the path used to silently truncate at the C boundary on legacy
+  // libc — defense in depth even on modern Node).
+  rejectNulAndControlChars(path, "path");
+  rejectNulAndControlChars(base, "base");
   // Canonical base — symlinks in the base path itself are absorbed once here.
   let baseResolved: string;
   try {
@@ -176,6 +210,38 @@ function realpathOfDeepestExisting(path: string): string | undefined {
 
 const LOCK_FILES = new Set(["pnpm-lock.yaml", "package-lock.json", "yarn.lock", "bun.lockb"]);
 
+// T5.6 — top-level credential dot-dirs / dot-files. Matching against
+// the FIRST path segment (lowercase). Adding any entry here costs a
+// CHANGELOG note + an explicit case-fold test (entries are lowercased
+// at module load).
+const SENSITIVE_FIRST_SEGMENTS = new Set([
+  ".ssh",
+  ".aws",
+  ".docker",
+  ".kube",
+  ".npmrc",
+  ".netrc",
+  ".pgpass",
+]);
+
+// T5.6 — credential basenames blocked at ANY depth (lowercase). Catches
+// the developer-laptop case where an agent recurses into a subdir.
+const SENSITIVE_BASENAMES = new Set([
+  "id_rsa",
+  "id_ed25519",
+  "id_ecdsa",
+  "id_dsa",
+  "authorized_keys",
+  "known_hosts",
+  ".npmrc",
+  ".netrc",
+  ".pgpass",
+]);
+
+// T5.6 — extension suffixes blocked at ANY depth (lowercase). Covers
+// the entire `*.pem` / `*.key` private-material family.
+const SENSITIVE_SUFFIXES = [".pem", ".key", ".p12", ".pfx"];
+
 /**
  * Decide whether a project-relative path points to a known-sensitive file
  * that a coding agent must not read or write.
@@ -198,26 +264,36 @@ const LOCK_FILES = new Set(["pnpm-lock.yaml", "package-lock.json", "yarn.lock", 
  * @public
  */
 export function isForbiddenPath(input: string): boolean {
-  // Normalize: forward slashes only, strip leading "./"
-  const normalized = input.replace(/\\/g, "/").replace(/^\.\//, "");
+  // T5.6 — lowercase normalization defeats case-only bypass on
+  // case-insensitive filesystems (Windows/macOS-default) where `.ENV`
+  // and `.env` map to the same inode but a case-sensitive string
+  // check passes the former.
+  const normalized = input.replace(/\\/g, "/").replace(/^\.\//, "").toLowerCase();
   if (normalized.length === 0) return false;
 
   const segments = normalized.split("/").filter((s) => s.length > 0);
   if (segments.length === 0) return false;
 
-  const first = segments[0]!;
+  if (isForbiddenFirstSegment(segments[0]!)) return true;
+  if (isForbiddenBasename(segments[segments.length - 1]!)) return true;
+  return false;
+}
+
+function isForbiddenFirstSegment(first: string): boolean {
   // .env.example is explicitly allowlisted (template safe to read)
   if (first === ".env.example") return false;
   if (first === ".env") return true;
   if (/^\.env\./.test(first)) return true;
+  if (first === ".git" || first === "node_modules" || first === ".theo") return true;
+  return SENSITIVE_FIRST_SEGMENTS.has(first);
+}
 
-  if (first === ".git") return true;
-  if (first === "node_modules") return true;
-  if (first === ".theo") return true;
-
-  const basename = segments[segments.length - 1]!;
+function isForbiddenBasename(basename: string): boolean {
   if (LOCK_FILES.has(basename)) return true;
-
+  if (SENSITIVE_BASENAMES.has(basename)) return true;
+  for (const suffix of SENSITIVE_SUFFIXES) {
+    if (basename.endsWith(suffix)) return true;
+  }
   return false;
 }
 
@@ -236,6 +312,76 @@ const IDENTIFIER_PATTERN = /^[a-z0-9][a-z0-9\-_]*$/i;
  *
  * @internal
  */
+/**
+ * T1.4 — validate a relative artifact path string BEFORE it is used to look
+ * up a fixture or to fetch from PaaS. Rejects every well-known traversal
+ * vector at the boundary, throwing `PathTraversalError`.
+ *
+ * Vectors rejected:
+ *  - classic `..` parent-directory traversal (any segment).
+ *  - backslash separators (Windows-style `..\\windows`).
+ *  - URL-encoded `%2e%2e` / `%2E%2E` (double-decoded traversal).
+ *  - NUL byte injection (`\x00`).
+ *  - Windows drive letter prefix (`C:`, `D:\\...`).
+ *  - Home-tilde expansion (`~/`, `~root/...`).
+ *  - Absolute paths starting with `/`.
+ *
+ * Does NOT touch the filesystem — the call is shape-only. Live symlink
+ * traversal protection happens via `assertNoSymlinkEscape` at the FS-resolve
+ * boundary.
+ *
+ * @param input - Caller-supplied artifact path.
+ * @throws `PathTraversalError` on any rejection.
+ *
+ * @internal
+ */
+export function validateArtifactPath(input: string): void {
+  rejectKnownPrefixVectors(input);
+  const normalized = decodeAndNormalize(input);
+  rejectParentTraversal(input, normalized);
+}
+
+function rejectKnownPrefixVectors(input: string): void {
+  if (input.includes("\x00")) {
+    throw new PathTraversalError(input, "<nul-byte>");
+  }
+  if (input.startsWith("/") || input.startsWith("~")) {
+    throw new PathTraversalError(input, input);
+  }
+  if (/^[A-Za-z]:[\\/]?/.test(input)) {
+    throw new PathTraversalError(input, input);
+  }
+}
+
+function decodeAndNormalize(input: string): string {
+  // URL-encoded traversal — 2 passes catches `%252e%252e`.
+  // Malformed sequences (decodeURIComponent throws) are themselves a rejection.
+  let decoded = input;
+  for (let i = 0; i < 2; i += 1) {
+    try {
+      const next = decodeURIComponent(decoded);
+      if (next === decoded) break;
+      decoded = next;
+    } catch {
+      throw new PathTraversalError(input, "<malformed-url-encoding>");
+    }
+  }
+  // Normalize backslash to forward slash before segment-walking.
+  return decoded.replace(/\\/g, "/");
+}
+
+function rejectParentTraversal(input: string, normalized: string): void {
+  for (const segment of normalized.split("/")) {
+    if (segment === ".." || segment === "..%00") {
+      throw new PathTraversalError(input, normalized);
+    }
+  }
+  // Defense in depth: literal `..` anywhere in the normalized string.
+  if (normalized.includes("..")) {
+    throw new PathTraversalError(input, normalized);
+  }
+}
+
 export function sanitizeIdentifier(input: string, options?: { maxLen?: number }): string {
   const maxLen = options?.maxLen ?? 64;
   if (input.length === 0 || input.length > maxLen) {
@@ -243,6 +389,14 @@ export function sanitizeIdentifier(input: string, options?: { maxLen?: number })
       code: "invalid_identifier",
     });
   }
+  // T5.5 — explicit NUL / control char rejection ahead of the generic
+  // pattern check. The IDENTIFIER_PATTERN regex already excludes these
+  // (they are not in `[a-z0-9\-_]`), but routing them through the same
+  // helper used by safePathJoin gives operators a precise diagnostic
+  // ("nul-byte" / "control-char-0x..") instead of the generic
+  // "invalid characters" message — making prompt-injection traces
+  // legible per Inquebrável Rule 3.
+  rejectNulAndControlChars(input, "identifier");
   if (!IDENTIFIER_PATTERN.test(input)) {
     throw new ConfigurationError(`Identifier contains invalid characters: "${input}"`, {
       code: "invalid_identifier",

@@ -27,16 +27,55 @@ export async function* parseSseStream(
   const decoder = new TextDecoder("utf-8");
   const state: ParserState = { buffer: "", event: "message", data: "" };
   try {
-    while (true) {
-      if (signal.aborted) return;
-      const { value, done } = await reader.read();
-      if (done) break;
-      state.buffer += decoder.decode(value, { stream: true });
+    for await (const chunk of readChunks(reader, signal)) {
+      state.buffer += decoder.decode(chunk, { stream: true });
       for (const record of drainCompleteRecords(state)) yield record;
     }
     if (state.data.length > 0) yield { event: state.event, data: state.data };
   } finally {
+    // T3.2 + T3.3 — cancel the underlying body stream on EVERY exit path
+    // (abort, normal close, consumer break, consumer throw). Without this
+    // the upstream HTTP TCP socket stays in CLOSE_WAIT until the OS times
+    // it out. cancel() on a finished stream is a no-op so always-cancel
+    // is safe.
+    await cancelReaderQuietly(reader);
     releaseReader(reader);
+  }
+}
+
+/**
+ * T3.2 — yield each chunk from `reader` until `done` OR `signal.aborted`.
+ * Extracted from `parseSseStream` so its complexity stays under budget.
+ *
+ * @internal
+ */
+async function* readChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal,
+): AsyncGenerator<Uint8Array, void, void> {
+  while (true) {
+    if (signal.aborted) return;
+    const { value, done } = await reader.read();
+    if (done) return;
+    if (value !== undefined) yield value;
+  }
+}
+
+/**
+ * T3.2 + T3.3 — cancel the underlying body stream on every exit path.
+ * Swallows any cancel-time error per ADR D34's safe-exporter contract
+ * (cancel-time errors never propagate to caller).
+ *
+ * Calling cancel on a stream that already completed naturally is a no-op
+ * per the WHATWG streams spec, so unconditional cancel is safe.
+ *
+ * @internal
+ */
+async function cancelReaderQuietly(reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> {
+  try {
+    await reader.cancel();
+  } catch {
+    // best-effort — already cancelled OR upstream closed
   }
 }
 
@@ -66,14 +105,31 @@ function applyLine(state: ParserState, line: string): SseRecord | undefined {
   }
   if (line.startsWith(":")) return undefined;
   if (line.startsWith("event:")) {
-    state.event = line.slice(6).trim();
+    // T3.1 — HTML Living Standard § 9.2.6: strip exactly ONE leading
+    // U+0020 SPACE from the value; preserve other whitespace verbatim.
+    state.event = stripOneLeadingSpace(line.slice(6));
     return undefined;
   }
   if (line.startsWith("data:")) {
-    const piece = line.slice(5).trim();
+    const piece = stripOneLeadingSpace(line.slice(5));
     state.data = state.data.length === 0 ? piece : `${state.data}\n${piece}`;
   }
   return undefined;
+}
+
+/**
+ * T3.1 — HTML Living Standard § 9.2.6 step 5 of "Process the field":
+ *   "If the value of field starts with a U+0020 SPACE character, remove
+ *    it from value."
+ *
+ * Pre-T3.1 the parser called `.trim()` which destroyed legitimate trailing
+ * whitespace (and any extra leading whitespace beyond the first space).
+ * This helper strips at most one leading space and leaves everything else.
+ *
+ * @internal
+ */
+function stripOneLeadingSpace(value: string): string {
+  return value.startsWith(" ") ? value.slice(1) : value;
 }
 
 function releaseReader(reader: ReadableStreamDefaultReader<Uint8Array>): void {

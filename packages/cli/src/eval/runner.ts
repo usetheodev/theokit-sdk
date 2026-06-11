@@ -11,7 +11,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { Eval, type EvalRun, type Scorer as SdkScorer } from "@usetheo/sdk";
+import { Eval, type EvalRun, type Scorer as SdkScorer } from "@theokit/sdk/eval";
 
 import type { EvalConfig, EvalRowResult, EvalRunResult } from "./types.js";
 

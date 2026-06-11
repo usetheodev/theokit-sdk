@@ -39,13 +39,61 @@ export interface LlmMessage {
   content: LlmContentPart[];
 }
 
+/**
+ * T3.5 — a single system-prompt block. Used by `LlmRequest.system` when the
+ * caller wants to opt into Anthropic prompt caching: each block whose
+ * `cacheable` is `true` gets the `cache_control: {type: 'ephemeral'}`
+ * annotation in the Anthropic wire body, which lets Anthropic bill
+ * subsequent same-content requests at the cache-read rate (1-3x discount).
+ *
+ * For providers that don't support prompt caching (OpenAI, OpenRouter, etc),
+ * the array is joined into a single string at the wire boundary so the
+ * upstream contract stays unchanged. Back-compat: `LlmRequest.system` still
+ * accepts a plain `string` (pre-T3.5 callers compile unchanged).
+ */
+export interface LlmSystemBlock {
+  text: string;
+  /** When `true`, ask the provider to cache this block (Anthropic only). */
+  cacheable?: boolean;
+}
+
+/**
+ * T3.6 — `LlmRequest.responseFormat` opt-in for OpenAI native structured
+ * outputs. When set, providers that support it emit the response strictly
+ * matching the schema (no parse retries; lower latency than the
+ * synthetic-tool fallback path).
+ *
+ * Two shapes:
+ *  - `{ type: "json_schema", jsonSchema: { name, schema, strict? } }` —
+ *    the canonical structured-outputs shape (`gpt-4o-2024-08-06+`).
+ *    `strict` defaults to `true` (provider guarantees match).
+ *  - `{ type: "json_object" }` — the legacy "JSON mode" hint (older
+ *    OpenAI models). Returns JSON but does NOT guarantee schema match.
+ *
+ * Providers that don't support the field (Anthropic, Ollama) silently
+ * ignore it at the wire layer (`buildAnthropicCommonBody`,
+ * `buildOllamaChatBody`).
+ */
+export type LlmResponseFormat =
+  | { type: "json_object" }
+  | {
+      type: "json_schema";
+      jsonSchema: {
+        name: string;
+        schema: Record<string, unknown>;
+        strict?: boolean;
+      };
+    };
+
 export interface LlmRequest {
   model: string;
-  system?: string;
+  system?: string | LlmSystemBlock[];
   messages: LlmMessage[];
   tools?: LlmTool[];
   maxTokens?: number;
   temperature?: number;
+  /** T3.6 — opt into native structured outputs (OpenAI-compat providers). */
+  responseFormat?: LlmResponseFormat;
 }
 
 export type LlmEvent =

@@ -6,7 +6,7 @@
  */
 
 import type * as acp from "@agentclientprotocol/sdk";
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 import { describe, expect, it, vi } from "vitest";
 import { installPermissionPlugin } from "../src/permission-plugin.js";
 

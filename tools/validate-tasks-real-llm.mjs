@@ -25,7 +25,7 @@
 
 import { resolve } from "node:path";
 
-// Import from the local SDK dist (built by `pnpm --filter @usetheo/sdk build`).
+// Import from the local SDK dist (built by `pnpm --filter @theokit/sdk build`).
 const SDK_DIST = resolve(import.meta.dirname, "..", "packages", "sdk", "dist", "index.js");
 const { Agent, Task } = await import(SDK_DIST);
 

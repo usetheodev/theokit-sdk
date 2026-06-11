@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ContextPromptProvider } from "../../../../src/internal/runtime/system-prompt/providers/context-provider.js";
+import { ContextPromptProvider } from "../../../../src/internal/runtime/system-prompt/sources/context-provider.js";
 import type {
   ContextSnapshotForAssembly,
   SystemPromptAssemblyContext,

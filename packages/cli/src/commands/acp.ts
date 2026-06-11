@@ -115,16 +115,16 @@ function parseFlags(opts: AcpOptions): ParseFlagsResult {
 }
 
 async function importServeAcp(): Promise<
-  { ok: true; serveAcp: typeof import("@usetheo/acp").serveAcp } | { ok: false; exitCode: number }
+  { ok: true; serveAcp: typeof import("@theokit/acp").serveAcp } | { ok: false; exitCode: number }
 > {
   try {
-    const mod = await import("@usetheo/acp");
+    const mod = await import("@theokit/acp");
     return { ok: true, serveAcp: mod.serveAcp };
   } catch (err) {
     return {
       ok: false,
       exitCode: fail(
-        `@usetheo/acp not installed. Run: npm i @usetheo/acp. (${err instanceof Error ? err.message : err})`,
+        `@theokit/acp not installed. Run: npm i @theokit/acp. (${err instanceof Error ? err.message : err})`,
         1,
       ),
     };

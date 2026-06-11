@@ -5,9 +5,26 @@ export default defineConfig({
     index: "src/index.ts",
     errors: "src/errors.ts",
     cron: "src/cron.ts",
-    tools: "src/tools/index.ts",
+    // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
     "path-safety": "src/path-safety.ts",
     "task-store": "src/task-store.ts",
+    workflow: "src/workflow.ts",
+    eval: "src/eval.ts",
+    "server/auth/index": "src/server/auth/index.ts",
+    "server/errors-envelope": "src/server/errors-envelope.ts",
+    "subscription/index": "src/subscription/index.ts",
+    "rag/index": "src/rag/index.ts",
+    "a2a/index": "src/a2a/index.ts",
+    "client/index": "src/client/index.ts",
+    "sandbox/index": "src/sandbox/index.ts",
+    // EC-1 absorbed (SDK 2.0 plan T1.1): internal/persistence + internal/plugins
+    // are publicly accessible sub-paths used by extracted packages (sdk-memory,
+    // sdk-cache, sdk-handoff) for shared persistence primitives and the plugin
+    // contract. Documented as "internal API — semver-exempt" in README.
+    "internal/persistence/index": "src/internal/persistence/index.ts",
+    "internal/plugins/index": "src/internal/plugins/index.ts",
+    "internal/observability/index": "src/internal/observability/index.ts",
+    "internal/security/index": "src/internal/security/index.ts",
   },
   format: ["esm", "cjs"],
   // DTS for `tools/` and `path-safety` is generated via `tsc` (see onSuccess)
@@ -19,8 +36,12 @@ export default defineConfig({
       index: "src/index.ts",
       errors: "src/errors.ts",
       cron: "src/cron.ts",
+      "server/auth/index": "src/server/auth/index.ts",
+      "server/errors-envelope": "src/server/errors-envelope.ts",
     },
   },
+  // Note: `subscription/index` DTS generated via tsc (onSuccess) — see tsconfig.tools-dts.json.
+  // Mirrors tools/ + path-safety pattern to avoid rollup-plugin-dts cycle issues.
   sourcemap: true,
   clean: true,
   treeshake: true,
@@ -30,13 +51,13 @@ export default defineConfig({
   platform: "node",
   // Native + optional peer deps that must not be inlined — they require
   // runtime resolution against the host's node_modules.
-  external: ["@lancedb/lancedb", "better-sqlite3", "node:sqlite", "sqlite-vec"],
+  external: ["@lancedb/lancedb", "better-sqlite3", "node:sqlite", "sqlite-vec", "ws"],
   outExtension({ format }) {
     return { js: format === "esm" ? ".js" : ".cjs" };
   },
   // Generate tools/*.d.ts via tsc (rollup-plugin-dts limitation workaround).
   // Then mirror the resulting `.d.ts` into `.d.cts` so the CJS condition in
   // package.json `exports` resolves to a real `.d.cts` (eliminates attw's
-  // "Masquerading as ESM" warning for `@usetheo/sdk/tools` + `/path-safety`).
+  // "Masquerading as ESM" warning for `@theokit/sdk/tools` + `/path-safety`).
   onSuccess: "tsc --project tsconfig.tools-dts.json && node scripts/mirror-dts-to-cts.mjs",
 });

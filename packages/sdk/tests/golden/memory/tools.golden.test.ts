@@ -6,7 +6,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { ConfigurationError } from "../../../src/errors.js";
 import type { EmbeddingRuntime } from "../../../src/internal/memory/embedding-adapter.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryMdPath } from "../../../src/internal/memory/markdown-store.js";
+import { memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../../../src/internal/memory/tools.js";
 
 /**

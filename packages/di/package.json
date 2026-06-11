@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/di",
+  "name": "@theokit/di",
   "version": "0.1.0",
-  "description": "Lightweight TypeScript dependency injection container for the theokit ecosystem (foundation for @usetheo/orm + @usetheo/http-decorators). NestJS-compatible API with @Injectable, @Inject, @Module + 3 scopes (SINGLETON/TRANSIENT/REQUEST) + agent-aware via @usetheo/di-agent.",
+  "description": "Lightweight TypeScript dependency injection container for the theokit ecosystem (foundation for @theokit/orm + @theokit/http-decorators). NestJS-compatible API with @Injectable, @Inject, @Module + 3 scopes (SINGLETON/TRANSIENT/REQUEST) + agent-aware via @theokit/di-agent.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
   "bugs": "https://github.com/usetheo/theokit-sdk/issues",
@@ -50,21 +50,22 @@
     "ioc",
     "typescript",
     "theokit",
-    "usetheo"
+    "Theo"
   ],
   "peerDependencies": {
     "reflect-metadata": "^0.2.0"
   },
   "devDependencies": {
     "@swc/core": "^1.15.40",
-    "@vitest/coverage-v8": "^3.0.0",
+    "@vitest/coverage-v8": "^4.1.8",
     "reflect-metadata": "^0.2.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
     "unplugin-swc": "^1.5.9",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }

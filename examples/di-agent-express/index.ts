@@ -23,9 +23,9 @@
 import "reflect-metadata";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-import { Container, Injectable, Module, Scope } from "@usetheo/di";
-import { InjectAgent, createAgentProvider } from "@usetheo/di-agent";
-import { Agent, type SDKAgent } from "@usetheo/sdk";
+import { Container, Injectable, Module, Scope } from "@theokit/di";
+import { InjectAgent, createAgentProvider } from "@theokit/di-agent";
+import { Agent, type SDKAgent } from "@theokit/sdk";
 
 const KEY = process.env.OPENROUTER_API_KEY;
 if (KEY === undefined || KEY.length === 0) {

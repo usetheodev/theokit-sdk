@@ -11,7 +11,7 @@ import {
   DEFAULT_MAX_BYTES_PER_FILE,
   loadPlainMarkdown,
   truncateWithMarker,
-} from "../../../src/internal/runtime/context-loaders.js";
+} from "../../../src/internal/runtime/context/context-loaders.js";
 
 describe("truncateWithMarker (T1.2)", () => {
   it("content under max returns verbatim", () => {

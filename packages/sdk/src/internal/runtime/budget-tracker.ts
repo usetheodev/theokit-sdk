@@ -1,0 +1,77 @@
+/**
+ * `BudgetTracker` — runtime contract for budget/usage tracking in the
+ * agent loop (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface inversion).
+ *
+ * This interface is the FOUNDATION for the eventual extraction of the
+ * Budget subsystem to `@theokit/sdk-budget`. The kernel depends on this
+ * contract (not on `UsageAccumulator` / `IterationBudget` concrete classes)
+ * so the implementation can move to a separate package without circular
+ * imports.
+ *
+ * Until Phase 2 completes, the legacy `UsageAccumulator` + `IterationBudget`
+ * remain wired in `internal/agent-loop/loop.ts` as the default impl. Future
+ * iterations:
+ *   - Refactor `Agent.create` to accept `budgetTracker?: BudgetTracker`.
+ *   - When provided, agent-loop uses it; when absent, falls back to the
+ *     internal default for back-compat.
+ *   - Move the default impl to `@theokit/sdk-budget` (extracted package).
+ *   - Phase 6 cohort: drop the internal default, require explicit tracker.
+ *
+ * @public — surface-level interface; impl is internal-but-replaceable.
+ */
+
+/** Single usage event recorded during one LLM call. */
+export interface BudgetUsageEvent {
+  /** Token count for this event. */
+  readonly tokens: number;
+  /** Provider/model identifier (e.g., `"openai/gpt-4o-mini"`). */
+  readonly model: string;
+  /** Whether this is an input (prompt) or output (completion) measurement. */
+  readonly type: "input" | "output";
+  /** Optional ISO 8601 timestamp; defaults to now() if omitted. */
+  readonly at?: string;
+}
+
+/** Decision the tracker returns on each iteration / pre-flight check. */
+export interface BudgetCheck {
+  /** Whether the agent loop is allowed to proceed. */
+  readonly allowed: boolean;
+  /**
+   * When `allowed` is false, names the reason in a stable, codemod-friendly
+   * form. Consumers map this to retry / surface to user / abort behavior.
+   */
+  readonly reason?: "budget_exceeded" | "iteration_limit" | "cost_limit" | "token_limit" | "custom";
+  /** Free-form details for logs / diagnostics. */
+  readonly detail?: string;
+}
+
+/** Aggregate snapshot of usage so far. */
+export interface BudgetTotal {
+  /** Sum of all input + output tokens. */
+  readonly tokens: number;
+  /** USD cost when pricing data is available; `undefined` otherwise. */
+  readonly costUsd?: number;
+  /** Iteration count if the impl tracks it. */
+  readonly iterations?: number;
+}
+
+/**
+ * The kernel-facing contract. Implementations live OUTSIDE the agent loop
+ * (in `@theokit/sdk-budget` after Phase 2 / in `internal/budget/` until then).
+ *
+ * Implementations MUST be:
+ *   - **Synchronous** — every method returns a value, never a Promise.
+ *     `track()` is on the hot path (called on every iteration); async would
+ *     bloat the loop with floating promises and force every call site to
+ *     await.
+ *   - **Non-throwing in track()** — record-only semantics. Validation
+ *     failures bubble up via `check()` instead.
+ */
+export interface BudgetTracker {
+  /** Record a single usage event. MUST be synchronous and non-throwing. */
+  track(event: BudgetUsageEvent): void;
+  /** Pre-flight check before the next iteration. */
+  check(): BudgetCheck;
+  /** Snapshot of accumulated totals (for telemetry / final reporting). */
+  getTotal(): BudgetTotal;
+}
