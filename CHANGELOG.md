@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- LEGO redistribution Phase 1: moved `createPlanModeTool`, `createTodolistTool`, `createQuestionTool`, `truncateOutput` from `@theokit/theocode` to `@theokit/sdk-tools` — these are reusable building blocks for any agent, not coding-assistant-specific. Fixed EC-1: todolist `nextId` now scoped per instance. sdk-tools: 102 -> 130 tests.
+
 ### Added
 
 - TheoCode "mini Claude Code" upgrade — rich system prompt (OpenCode/Claude Code style with tool guidelines, planning discipline, output style rules), `createTodolistTool` (add/complete/in_progress/remove/list/clear_completed with status tracking), `createTaskAgentTool` (delegate sub-tasks to child agents with timeout), interactive REPL upgraded with /plan, /build, /todo commands. 11 new todolist tests. Total theocode: 195 tests. Validated with real LLM: plan mode + todolist + task delegation + 7 coding tools all working end-to-end.
