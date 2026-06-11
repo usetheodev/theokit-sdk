@@ -7,7 +7,6 @@
  * + freezing the contract here de-risks the actual refactor.
  */
 
-import type { MemoryProvider } from "@theokit/sdk";
 import { afterEach, describe, expect, it } from "vitest";
 import type { MemoryToolSpec } from "../src/internal/agent-loop/loop-types.js";
 import {
@@ -17,6 +16,7 @@ import {
   resolveMemoryToolsForLoop,
   shouldUsePortMemoryPath,
 } from "../src/internal/runtime/memory-path-selector.js";
+import type { MemoryProvider } from "../src/internal/runtime/memory-provider.js";
 
 const STUB_PROVIDER: MemoryProvider = {
   init: async () => ({

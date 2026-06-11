@@ -18,7 +18,6 @@
  * provider-*.test.ts.
  */
 
-import type { AgentOptions } from "@theokit/sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent-memory-provider.js";
 import {
@@ -28,6 +27,7 @@ import {
   resolveMemoryToolsForLoop,
   shouldUsePortMemoryPath,
 } from "../src/internal/runtime/memory-path-selector.js";
+import type { AgentOptions } from "../src/types/agent.js";
 
 const STUB_OPTIONS: AgentOptions = {
   agentId: "flip-test-agent",

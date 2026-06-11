@@ -22,10 +22,10 @@
  * `local-agent-memory-provider.test.ts`.
  */
 
-import type { AgentOptions, SDKAgent } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 import { LocalAgentMemory } from "../src/internal/runtime/local-agent-memory.js";
 import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent-memory-provider.js";
+import type { AgentOptions, SDKAgent } from "../src/types/agent.js";
 
 const AGENT_OPTIONS: AgentOptions = {
   agentId: "equivalence-agent",

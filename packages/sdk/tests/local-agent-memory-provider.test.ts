@@ -11,10 +11,10 @@
  * fine for contract validation; richer integration is in Stage 3.
  */
 
-import type { AgentOptions, SDKAgent } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 // Adapter is internal — import via relative path
 import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent-memory-provider.js";
+import type { AgentOptions, SDKAgent } from "../src/types/agent.js";
 
 const STUB_AGENT_OPTIONS: AgentOptions = {
   agentId: "test-agent",
