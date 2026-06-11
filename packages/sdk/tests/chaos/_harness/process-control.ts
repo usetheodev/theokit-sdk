@@ -14,7 +14,7 @@
 
 import { type ChildProcess, spawn } from "node:child_process";
 
-export interface ChildHandle {
+interface ChildHandle {
   child: ChildProcess;
   pid: number;
   /** stdout lines captured chronologically. */
@@ -25,7 +25,7 @@ export interface ChildHandle {
   exitPromise: Promise<{ code: number | null; signal: NodeJS.Signals | null }>;
 }
 
-export interface SpawnOptions {
+interface SpawnOptions {
   /** Node interpreter args (e.g. `--max-old-space-size=128`). */
   nodeArgs?: string[];
   /** Script path the child should execute. */

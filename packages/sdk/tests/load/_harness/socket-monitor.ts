@@ -14,7 +14,7 @@
 import { execFileSync } from "node:child_process";
 import { platform } from "node:os";
 
-export interface SocketSnapshot {
+interface SocketSnapshot {
   pid: number;
   closeWaitCount: number;
   timeWaitCount: number;

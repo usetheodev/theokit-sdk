@@ -21,7 +21,7 @@
 
 import { connect, type Socket } from "node:net";
 
-export interface SseClient {
+interface SseClient {
   connectionId: number;
   eventsReceived: number;
   bytesReceived: number;
@@ -32,7 +32,7 @@ export interface SseClient {
   socket: Socket;
 }
 
-export interface DriverResult {
+interface DriverResult {
   clients: ReadonlyArray<SseClient>;
   durationMs: number;
   successCount: number;
@@ -43,7 +43,7 @@ export interface DriverResult {
   };
 }
 
-export interface DriverOptions {
+interface DriverOptions {
   host: string;
   port: number;
   path?: string;

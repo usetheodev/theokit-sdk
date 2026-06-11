@@ -15,7 +15,7 @@
 // re-exporting locally produces the same runtime behavior with stable types.
 import { createRequire } from "node:module";
 
-export interface SpanLike {
+interface SpanLike {
   setAttribute(key: string, value: string | number | boolean): SpanLike;
   end(): void;
 }
@@ -58,7 +58,7 @@ function getTracer(name: string, version = "1.0.0"): TracerLike | undefined {
   }
 }
 
-export function resetTracerCacheForTests(): void {
+function resetTracerCacheForTests(): void {
   tracerCache.clear();
 }
 
@@ -87,6 +87,6 @@ export function startCacheStoreSpan(info: { namespace: string; embedderId: strin
 }
 
 /** Test seam — reset tracer cache so a fresh require attempt happens. */
-export function __resetCacheTelemetryForTests(): void {
+function __resetCacheTelemetryForTests(): void {
   resetTracerCacheForTests();
 }

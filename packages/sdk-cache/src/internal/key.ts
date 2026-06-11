@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto";
 
-export interface CacheKeyParams {
+interface CacheKeyParams {
   namespace: string;
   embedderId: string;
   modelId: string;

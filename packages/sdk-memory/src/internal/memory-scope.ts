@@ -12,7 +12,7 @@ export function normalizeScopePath(path: string): string {
   return cleaned || "/";
 }
 
-export interface ScopeSearchOptions {
+interface ScopeSearchOptions {
   scopePrefix?: string;
 }
 

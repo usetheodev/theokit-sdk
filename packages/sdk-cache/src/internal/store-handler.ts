@@ -17,7 +17,7 @@ import type { LookupableStore } from "./lookup.js";
 import { startCacheStoreSpan } from "./telemetry.js";
 import { parseTtlMs } from "./ttl.js";
 
-export interface StoreParams {
+interface StoreParams {
   prompt: string;
   response: string;
   /** D266: skip cache when tools were used. */

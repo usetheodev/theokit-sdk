@@ -8,7 +8,7 @@
 
 import type { STTOptions, STTResult, TTSOptions, TTSResult, VoiceProvider } from "./types.js";
 
-export interface OpenAIRealtimeVoiceProviderOptions {
+interface OpenAIRealtimeVoiceProviderOptions {
   apiKey: string;
   baseUrl?: string;
 }

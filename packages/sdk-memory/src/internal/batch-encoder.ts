@@ -9,13 +9,13 @@
 
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
 
-export interface RememberManyOptions {
+interface RememberManyOptions {
   scope?: string;
   importance?: number;
   dedupThreshold?: number;
 }
 
-export interface RememberManyResult {
+interface RememberManyResult {
   total: number;
   deduped: number;
   inserted: number;

@@ -19,11 +19,11 @@ const NAME_GRAMMAR = /^[a-z0-9][a-z0-9_-]*$/;
 
 const registry = new Map<string, BudgetOptions>();
 
-export function __resetRegistryForTests(): void {
+function __resetRegistryForTests(): void {
   registry.clear();
 }
 
-export function validateBudgetName(name: string): void {
+function validateBudgetName(name: string): void {
   if (typeof name !== "string" || name.length === 0) {
     throw new ConfigurationError("Budget name must be a non-empty string", {
       code: "invalid_budget_name",
