@@ -6,6 +6,7 @@
 
 ### Changed
 
+- Resolve 12 jscpd code duplication clones: extract shared server adapter handler, consolidate evented-executor step logic, share NOOP_SPAN/collapseSystemText/sleepWithAbort, deduplicate memory peer routing helpers. 0 clones remaining.
 - Extract helper modules from 5 god-files for SRP compliance: `agent.ts` → `agent-helpers.ts`, `loop.ts` → `loop-context-init.ts` + `loop-llm-stream.ts`, `tool-dispatch.ts` → `tool-executors.ts`, `index-manager.ts` → `index-manager-helpers.ts`, `local-agent.ts` → `local-agent-send.ts`. Total ~1300 lines redistributed; zero behavior change, all 2591 tests GREEN.
 
 ### Added
