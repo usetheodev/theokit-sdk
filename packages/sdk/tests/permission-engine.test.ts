@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { PermissionRule } from "../../src/infra/permissions.js";
-import { PermissionEngine } from "../../src/infra/permissions.js";
+import type { PermissionRule } from "../src/permission-engine.js";
+import { PermissionEngine } from "../src/permission-engine.js";
 
 describe("PermissionEngine", () => {
   it("returns allow by default when no rules match", () => {

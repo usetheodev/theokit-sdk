@@ -49,6 +49,8 @@ export {
   UnsupportedRunOperationError,
   UnsupportedTaskOperationError,
 } from "./errors.js";
+// Infrastructure building blocks (moved from @theokit/theocode — SDK LEGO pieces)
+export { EventBus } from "./event-bus.js";
 // Structured output via synthetic forced tool (ADR D33)
 export {
   GenerateObjectError,
@@ -128,6 +130,7 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
+export { JobQueue } from "./job-queue.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,
@@ -142,6 +145,7 @@ export {
   type MigrateResult,
   migrateSqliteToLance,
 } from "./migrate.js";
+export { PermissionEngine } from "./permission-engine.js";
 // Personality presets (Hermes #26, ADRs D160-D169)
 // `PersonalityPreset` is declared in `types/agent.ts` and reaches consumers
 // via the `types/*` star export below. The runtime registry class lives in

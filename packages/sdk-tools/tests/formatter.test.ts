@@ -5,7 +5,7 @@ import {
   formatError,
   formatFileList,
   formatTruncated,
-} from "../../src/infra/formatter.js";
+} from "../src/formatter.js";
 
 describe("formatCode", () => {
   it("wraps code in fenced block with language", () => {

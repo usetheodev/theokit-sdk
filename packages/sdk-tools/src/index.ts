@@ -25,6 +25,8 @@
 
 export { type CreateApplyPatchToolOptions, createApplyPatchTool } from "./apply-patch.js";
 export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.js";
+// Output formatting utilities (moved from @theokit/theocode — SDK LEGO pieces)
+export { formatCode, formatDiff, formatError, formatFileList } from "./formatter.js";
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
 export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";

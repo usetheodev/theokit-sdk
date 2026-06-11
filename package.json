@@ -45,6 +45,7 @@
     "validate": "pnpm run check && npx turbo run build typecheck test --filter='./packages/*' && pnpm run validate:naming && pnpm run validate:publint && pnpm run validate:attw && pnpm run quality && pnpm run check:bundle",
     "changeset": "changeset",
     "version-packages": "changeset version",
+    "start": "pnpm run build",
     "release": "pnpm run build && changeset publish",
     "prepare": "git config core.hooksPath .githooks 2>/dev/null || true"
   },
