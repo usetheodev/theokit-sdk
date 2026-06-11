@@ -9,6 +9,34 @@
     "declarationMap": false,
     "skipLibCheck": true
   },
-  "include": ["src/**/*"],
-  "exclude": ["src/index.ts", "src/errors.ts", "src/cron.ts", "src/server/auth/**"]
+  "include": [
+    "src/path-safety.ts",
+    "src/task-store.ts",
+    "src/internal/task/store.ts",
+    "src/internal/persistence/**/*",
+    "src/internal/plugins/**/*",
+    "src/internal/observability/**/*",
+    "src/internal/security/**/*",
+    "src/errors.ts",
+    "src/agent.ts",
+    "src/agent-factory.ts",
+    "src/agent-builder.ts",
+    "src/define-tool.ts",
+    "src/types/**/*",
+    "src/workflow.ts",
+    "src/eval.ts",
+    "src/scorers.ts",
+    "src/internal/eval/**/*",
+    "src/internal/workflow/**/*",
+    "src/subscription/**/*",
+    "src/rag/**/*",
+    "src/a2a/**/*",
+    "src/client/**/*",
+    "src/sandbox/**/*",
+    "src/voice/**/*",
+    "src/server/**/*",
+    "src/event-bus.ts",
+    "src/job-queue.ts",
+    "src/permission-engine.ts"
+  ]
 }
