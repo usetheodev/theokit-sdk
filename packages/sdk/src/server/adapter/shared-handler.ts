@@ -9,7 +9,6 @@
 
 import type { AgentHandler, AgentHandlerOptions, AgentLike } from "./types.js";
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: request routing with method+path matching is inherent
 export function createSharedAgentHandler(
   agent: AgentLike,
   opts?: AgentHandlerOptions,
