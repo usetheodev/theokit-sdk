@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Extract helper modules from 5 god-files for SRP compliance: `agent.ts` → `agent-helpers.ts`, `loop.ts` → `loop-context-init.ts` + `loop-llm-stream.ts`, `tool-dispatch.ts` → `tool-executors.ts`, `index-manager.ts` → `index-manager-helpers.ts`, `local-agent.ts` → `local-agent-send.ts`. Total ~1300 lines redistributed; zero behavior change, all 2591 tests GREEN.
+
 ### Added
 
 - **Compression config resolution module (T2.2 step 2/N of plan `sdk-superiority-2026-06-07`, ADR D440)**: `resolveCompressionConfig(agentModel, config): ResolvedCompressionConfig` bridges the compression-model-registry (step 1) with the `Agent.create({compression})` override surface. Resolves: (a) compression model — registry default OR explicit `config.model` override; (b) API key — first-match chain: explicit `config.apiKey` → `THEOKIT_COMPRESSION_API_KEY` env var → undefined (signals aux-LLM client to use agent's main CredentialPool); (c) maxAttempts (default 3) + grace (default 1). Pure config resolution — no I/O. 11 new tests at `tests/internal/runtime/compression-config.test.ts`. Foundation for step 3 (aux-llm-client with OTel span) and step 4 (agent-loop wire).
