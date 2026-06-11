@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { JobQueue } from "../../src/infra/job-queue.js";
+import { JobQueue } from "../src/job-queue.js";
 
 describe("JobQueue", () => {
   it("enqueue returns a job ID immediately", () => {
