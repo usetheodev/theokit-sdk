@@ -9,26 +9,5 @@
     "declarationMap": false,
     "skipLibCheck": true
   },
-  "include": [
-    "src/path-safety.ts",
-    "src/task-store.ts",
-    "src/internal/task/store.ts",
-    "src/internal/persistence/**/*",
-    "src/internal/plugins/**/*",
-    "src/internal/observability/**/*",
-    "src/internal/security/**/*",
-    "src/errors.ts",
-    "src/agent.ts",
-    "src/agent-factory.ts",
-    "src/agent-builder.ts",
-    "src/define-tool.ts",
-    "src/types/**/*",
-    "src/index.ts",
-    "src/workflow.ts",
-    "src/eval.ts",
-    "src/scorers.ts",
-    "src/internal/eval/**/*",
-    "src/internal/workflow/**/*",
-    "src/subscription/**/*"
-  ]
+  "include": ["src/**/*"]
 }

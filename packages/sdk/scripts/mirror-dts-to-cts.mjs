@@ -34,6 +34,12 @@ const targets = [
   join(DIST, "workflow.d.ts"),
   join(DIST, "eval.d.ts"),
   join(DIST, "subscription"),
+  // Sub-path exports that need CTS mirrors.
+  join(DIST, "rag"),
+  join(DIST, "a2a"),
+  join(DIST, "client"),
+  join(DIST, "sandbox"),
+  join(DIST, "server"),
   // EC-1 absorbed: internal sub-paths exposed for extracted packages.
   join(DIST, "internal", "persistence"),
   join(DIST, "internal", "plugins"),
