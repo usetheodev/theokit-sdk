@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Extract helper modules from 5 SDK god-files for SRP compliance: `agent.ts` → `agent-helpers.ts`, `loop.ts` → `loop-context-init.ts` + `loop-llm-stream.ts`, `tool-dispatch.ts` → `tool-executors.ts`, `index-manager.ts` → `index-manager-helpers.ts`, `local-agent.ts` → `local-agent-send.ts`. ~1300 lines redistributed; zero behavior change, all 2591 tests GREEN.
+- Extract helper modules from 5 SDK god-files for SRP compliance: `agent.ts` → `agent-helpers.ts`, `loop.ts` → `loop-context-init.ts` + `loop-llm-stream.ts`, `tool-dispatch.ts` → `tool-executors.ts`, `index-manager.ts` → `index-manager-helpers.ts`, `local-agent.ts` → `local-agent-send.ts`. Moved `ResolvedTool` to `loop-types.ts` to break tool-dispatch/tool-executors cycle. ~1300 lines redistributed; zero behavior change, all 2591 tests GREEN.
 - LEGO redistribution Phase 1: moved `createPlanModeTool`, `createTodolistTool`, `createQuestionTool`, `truncateOutput` from `@theokit/theocode` to `@theokit/sdk-tools` — these are reusable building blocks for any agent, not coding-assistant-specific. Fixed EC-1: todolist `nextId` now scoped per instance. sdk-tools: 102 -> 130 tests.
 - TheoCode system prompt upgraded with explicit 4-phase workflow (PLAN -> TASKS -> EXECUTE -> VERIFY) teaching the agent to use plan_mode + todolist in sequence for complex tasks
 - TheoCode interactive REPL now streams tool calls in real-time (`[tool]` shows invocation, `[done]` shows result) — full visibility into agent reasoning and tool use
