@@ -1,7 +1,6 @@
 import type { LlmToolCallPart } from "../llm/types.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/shell-tool.js";
-import type { AgentLoopInputs } from "./loop-types.js";
-import type { ResolvedTool } from "./tool-dispatch.js";
+import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 
 /** @internal */
 export interface ToolResult {
