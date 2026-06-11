@@ -6,4 +6,4 @@
 export { createAgentHandler as createExpressAgentHandler } from "./express.js";
 export { createAgentHandler as createFastifyAgentHandler } from "./fastify.js";
 export { createAgentHandler as createHonoAgentHandler } from "./hono.js";
-export type { AgentHandler, AgentHandlerOptions, AgentLike } from "./types.js";
+export type { AgentHandlerOptions, AgentLike } from "./types.js";

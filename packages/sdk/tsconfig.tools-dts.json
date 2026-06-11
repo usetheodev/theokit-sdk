@@ -9,5 +9,6 @@
     "declarationMap": false,
     "skipLibCheck": true
   },
-  "include": ["src/**/*"]
+  "include": ["src/**/*"],
+  "exclude": ["src/index.ts", "src/errors.ts", "src/cron.ts", "src/server/auth/**"]
 }
