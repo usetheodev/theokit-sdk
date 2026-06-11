@@ -23,7 +23,10 @@
  * `@theokit/sdk`.
  */
 
+export { type CreateApplyPatchToolOptions, createApplyPatchTool } from "./apply-patch.js";
+export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.js";
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
+export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
 export { type CreateReadFileToolOptions, createReadFileTool } from "./read-file.js";
 export {
@@ -32,3 +35,12 @@ export {
   type VitestSummary,
 } from "./run-vitest.js";
 export { type CreateSearchTextToolOptions, createSearchTextTool } from "./search-text.js";
+export { type CreateShellToolOptions, createShellTool } from "./shell-exec.js";
+export { type CreateWebFetchToolOptions, createWebFetchTool } from "./web-fetch.js";
+export {
+  type CreateWebSearchToolOptions,
+  createWebSearchTool,
+  type WebSearchCallback,
+  type WebSearchResult,
+} from "./web-search.js";
+export { type CreateWriteFileToolOptions, createWriteFileTool } from "./write-file.js";

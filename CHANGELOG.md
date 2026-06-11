@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- TheoCode Phase 1 — 7 new coding tool factories in `@theokit/sdk-tools`: `createWriteFileTool` (file creation with binary guard), `createEditFileTool` (string replacement with exact + whitespace-normalized matching), `createGlobTool` (recursive file search with default exclusions), `createShellTool` (command execution with timeout + output cap), `createApplyPatchTool` (unified diff application), `createWebFetchTool` (URL fetch with protocol validation + size cap), `createWebSearchTool` (provider-agnostic search via callback injection). 56 new tests across 7 files. Total sdk-tools: 12 tool factories, 102 tests.
 - `@theokit/sdk/sandbox` sub-path — `SandboxBackend` abstract class with 2-primitive protocol (`execute` + `uploadFile`), `LocalSandbox` subprocess adapter, `ExecuteResult` type, `SandboxSecurityError` + `SandboxNotAvailableError` typed errors. 10 protocol conformance tests (deepagents-parity-gaps T1.1)
 - `defineSubAgent(spec)` — declarative subagent-as-tool factory at `@theokit/sdk/a2a`. Creates child agent invocable as LLM tool, with delegation depth tracking (`MaxDelegationDepthError` at configurable limit). 10 delegation tests (deepagents-parity-gaps T2.1)
 - `HitlMiddleware` — Human-In-The-Loop interrupt middleware at `internal/runtime/hitl-middleware.ts`. Intercepts configured tool calls, yields to async `approve` callback, fail-closed on timeout/error. 9 HITL tests (deepagents-parity-gaps T4.1)
