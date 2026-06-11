@@ -9,7 +9,7 @@
  * @internal
  */
 
-import { Theokit } from "@usetheo/sdk";
+import { Theokit } from "@theokit/sdk";
 import pc from "picocolors";
 
 import { listGatewayAdapters } from "../inspect/gateway.js";

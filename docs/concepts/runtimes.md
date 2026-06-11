@@ -1,6 +1,6 @@
 # Runtimes — local and cloud
 
-`@usetheo/sdk` wraps two runtimes behind one interface. Your code is the same regardless of where the agent runs.
+`@theokit/sdk` wraps two runtimes behind one interface. Your code is the same regardless of where the agent runs.
 
 | Runtime | What runs the agent | When to use |
 | --- | --- | --- |

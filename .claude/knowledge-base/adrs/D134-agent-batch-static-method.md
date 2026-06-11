@@ -22,7 +22,7 @@ prompts should reach for the next method on the same surface, not a new
 namespace.
 
 Constraints we did NOT pick:
-- Standalone module (`@usetheo/sdk/batch`): worse discoverability.
+- Standalone module (`@theokit/sdk/batch`): worse discoverability.
 - Method on a constructed `Agent` instance: would tempt callers to reuse
   a single agent across prompts, breaking session isolation (D138).
 - Free function on `Theokit` namespace: misaligned with the agent-mental-model

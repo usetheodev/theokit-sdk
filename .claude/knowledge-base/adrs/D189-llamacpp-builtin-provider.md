@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/sdk` registers llama.cpp server (`name: "llamacpp"`,
+`@theokit/sdk` registers llama.cpp server (`name: "llamacpp"`,
 aliases `["llama-cpp", "llama.cpp"]`) as a seventh builtin provider
 profile alongside Ollama and LM Studio. Shape mirrors `OLLAMA`:
 

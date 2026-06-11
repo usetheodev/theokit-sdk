@@ -9,11 +9,11 @@ Each adapter README must include a clearly labeled disclosure section
 when the adapter wraps a provider with non-obvious legal or security
 implications:
 
-- **`@usetheo/memory-honcho`** — `## License & Self-Hosting` section
+- **`@theokit/memory-honcho`** — `## License & Self-Hosting` section
   explaining Honcho server's AGPL-3.0 self-host implications. The
   `@honcho-ai/sdk` npm client is Apache-2.0, so consuming the SDK
   does not itself trigger AGPL; self-hosting the Honcho server does.
-- **`@usetheo/memory-mem0`** — `## Security Disclosure (CVSS 8.1)`
+- **`@theokit/memory-mem0`** — `## Security Disclosure (CVSS 8.1)`
   section noting CVE-2026-XXXX (2026-04-17) injection vulnerability
   in OSS PGVector/MySQL/Neptune backends. Adapter cloud path is
   unaffected; advisory included for users who might also self-host.
@@ -28,7 +28,7 @@ puts downstream consumers at legal/security risk they didn't sign up
 for. The CI grep test ensures we can't accidentally drop the
 disclosure during a future README rewrite.
 
-`@usetheo/memory-supermemory` requires no disclosure: MIT, no known
+`@theokit/memory-supermemory` requires no disclosure: MIT, no known
 high-severity issues.
 
 ## Consequences

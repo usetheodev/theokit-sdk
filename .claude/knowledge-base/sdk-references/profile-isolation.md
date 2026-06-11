@@ -104,7 +104,7 @@ export function applyProfileOverride(profile: string): void {
 
 3. **Profile overrides aplicam ANTES dos imports**: por isso o pattern é
    `applyProfileOverride()` chamado no CLI bootstrap, antes de qualquer
-   `import { Agent } from "@usetheo/sdk"`.
+   `import { Agent } from "@theokit/sdk"`.
 
 4. **Testes monkeypatch ambos `homedir()` e `THEOKIT_HOME`**: senão
    `getProfilesRoot()` (que usa homedir) escapa do tmpdir de teste.

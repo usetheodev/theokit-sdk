@@ -10,6 +10,10 @@ import { z } from "zod";
 
 /**
  * `persistence?` opt-in JSON disk backend with `dir` required when chosen.
+ *
+ * `.refine()` restored after Zod v4-only migration (plan zod-v4-migration
+ * T1.1, ADR D4). With single v4 instance across workspace, ZodEffects
+ * inside `z.object()` works correctly.
  */
 export const PersistenceSchema = z
   .object({

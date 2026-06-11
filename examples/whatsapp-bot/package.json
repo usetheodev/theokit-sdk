@@ -7,9 +7,9 @@
     "smoke": "tsx --env-file=.env smoke.ts"
   },
   "dependencies": {
-    "@usetheo/gateway": "file:../../packages/gateway",
-    "@usetheo/gateway-whatsapp": "file:../../packages/gateway-whatsapp",
-    "@usetheo/sdk": "file:../../packages/sdk",
+    "@theokit/gateway": "file:../../packages/gateway",
+    "@theokit/gateway-whatsapp": "file:../../packages/gateway-whatsapp",
+    "@theokit/sdk": "file:../../packages/sdk",
     "express": "^4.19.0",
     "zod": "^4.0.0"
   },

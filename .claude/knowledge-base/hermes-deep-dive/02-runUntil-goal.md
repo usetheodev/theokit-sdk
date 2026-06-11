@@ -561,7 +561,7 @@ class GoalState:
 
 ## TypeScript API proposal
 
-### Public surface (added to `@usetheo/sdk`)
+### Public surface (added to `@theokit/sdk`)
 
 ```typescript
 // src/index.ts
@@ -664,7 +664,7 @@ declare module "./agent" {
 ### Example usage
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({ /* … */ });
 

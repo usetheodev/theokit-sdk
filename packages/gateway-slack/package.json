@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/gateway-slack",
+  "name": "@theokit/gateway-slack",
   "version": "0.1.0",
-  "description": "Slack (@slack/bolt) platform adapter for @usetheo/gateway. ADRs D267-D285.",
+  "description": "Slack (@slack/bolt) platform adapter for @theokit/gateway. ADRs D267-D285.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -34,16 +34,16 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/gateway": "workspace:^",
-    "@usetheo/sdk": "workspace:^",
-    "@slack/bolt": "^3.20.0"
+    "@slack/bolt": "^3.20.0",
+    "@theokit/gateway": "workspace:^",
+    "@theokit/sdk": "workspace:^"
   },
   "devDependencies": {
-    "@usetheo/gateway": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
     "@slack/bolt": "^3.20.0",
+    "@theokit/gateway": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   }
 }

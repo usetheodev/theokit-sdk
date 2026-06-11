@@ -39,7 +39,7 @@ jobs:
 
       - name: Build
         # Build SDK first so packages/react typecheck can resolve
-        # `@usetheo/sdk` types from `packages/sdk/dist/index.d.ts`.
+        # `@theokit/sdk` types from `packages/sdk/dist/index.d.ts`.
         # Mirrors the `pnpm validate` script order in package.json.
         run: pnpm build
 
@@ -67,3 +67,9 @@ jobs:
 
       - name: Quality (dead code, cycles, LoC, duplication)
         run: pnpm quality
+
+      # SDK 2.0 split — Phase 10 / T10.1 / ADR D9. Locks in extraction
+      # bundle gains: any package whose dist/index.js gzipped exceeds
+      # the declared budget at .bundle-budget.json fails CI before merge.
+      - name: Bundle budget gate
+        run: pnpm check:bundle

@@ -5,7 +5,7 @@
 
 ## Decision
 
-The public eval surface ships as a static class on `@usetheo/sdk`:
+The public eval surface ships as a static class on `@theokit/sdk`:
 
 ```ts
 const evalRun = await Eval.create({ name, dataset, scorers, agent }).run();

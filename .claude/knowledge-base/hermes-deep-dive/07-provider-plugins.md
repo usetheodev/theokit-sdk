@@ -507,4 +507,4 @@ Port Hermes' `tests/providers/`:
 - RELEASE_v0.13.0.md PR #20324 — `ProviderProfile` ABC + `plugins/model-providers/` (salvage of #14424)
 - Theokit ADRs:
   - D24 — `defineTool` schema source = Zod — analogous pattern; provider plugins follow the same `define*` shape
-  - D32 — `@usetheo/react` as separate package — informs our split: providers stay in core for v1.3, ship adapter packages later if needed
+  - D32 — `@theokit/react` as separate package — informs our split: providers stay in core for v1.3, ship adapter packages later if needed

@@ -48,7 +48,7 @@ first-class") starts with Ollama because:
 
 Alternatives rejected:
 
-- **Standalone package `@usetheo/provider-ollama`** — extra install for
+- **Standalone package `@theokit/provider-ollama`** — extra install for
   the most common local-LLM runtime. Friction kills adoption.
 - **Special-case `profile.name === "ollama"` without `authType: "none"`** —
   works but locks the affordance to a single profile; LM Studio and

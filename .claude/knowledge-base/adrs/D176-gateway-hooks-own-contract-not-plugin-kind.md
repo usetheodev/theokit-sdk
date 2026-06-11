@@ -9,7 +9,7 @@
 
 ## Rationale
 
-The SDK's Plugin contract is sealed by design (D98 — "discriminated union by kind"). Adding kinds inflates the contract surface and forces every SDK consumer to know about gateway concerns even when they never touch transport. Keeping gateway hooks in `@usetheo/gateway` keeps the boundary clean. The same logic kept D101 (`pre_tool_call` veto) inside the SDK's plugin contract — because tool calls are SDK-domain. Transport hooks are gateway-domain.
+The SDK's Plugin contract is sealed by design (D98 — "discriminated union by kind"). Adding kinds inflates the contract surface and forces every SDK consumer to know about gateway concerns even when they never touch transport. Keeping gateway hooks in `@theokit/gateway` keeps the boundary clean. The same logic kept D101 (`pre_tool_call` veto) inside the SDK's plugin contract — because tool calls are SDK-domain. Transport hooks are gateway-domain.
 
 ## Consequences
 

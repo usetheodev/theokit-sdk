@@ -1,0 +1,76 @@
+{
+  "plan": ".claude/knowledge-base/discoveries/plans/sdk-subpath-extraction-workflow-eval-plan.md",
+  "plan_version": "1.1",
+  "blueprint": ".claude/knowledge-base/discoveries/blueprints/sdk-subpath-extraction-workflow-eval-blueprint.md",
+  "blueprint_version": "1.1",
+  "started_at": "2026-06-02",
+  "completed_at": "2026-06-02",
+  "execution_mode": "manual-in-session",
+  "execution_mode_rationale": "Plan ADR D2 substitutes empty .claude/knowledge-base/references/ with 4 real sources; ralph-loop halt-condition check (b) regex would mark 100% citations as FABRICATED. User chose manual mode.",
+  "iterations_used": 1,
+  "questions": [
+    {
+      "id": "Q1",
+      "status": "done",
+      "corner": "tests",
+      "blocked_reason": null,
+      "answered_at": "2026-06-02",
+      "notes": "CI gate confirmed at .github/workflows/ci.yml:65,68 (publint+attw run on every push). Existing sub-path consumers: /path-safety in cli/commands/eval.ts; /task-store in cli/commands/tasks.ts."
+    },
+    {
+      "id": "Q2",
+      "status": "done",
+      "corner": "deps",
+      "blocked_reason": null,
+      "answered_at": "2026-06-02",
+      "notes": "Verdict CONDITIONAL → resolved by routing decision (B-ADR-1): use tsc workaround lane. workflow.ts:29 imports SDKAgent type-only, transitively reaches fork-agent.ts:26 ForkOptions. Fase C empirical probe deferred to /implement (5 min, scratch tsup config)."
+    },
+    {
+      "id": "Q3",
+      "status": "done",
+      "corner": "tools",
+      "blocked_reason": null,
+      "answered_at": "2026-06-02",
+      "notes": "5 diffs: tsup.config.ts entry, tsconfig.tools-dts.json include +5 paths, mirror-dts-to-cts.mjs targets +2, package.json#exports +2, index.ts -3 blocks."
+    },
+    {
+      "id": "Q4",
+      "status": "done",
+      "corner": "techniques",
+      "blocked_reason": null,
+      "answered_at": "2026-06-02",
+      "notes": "Anthropic uses wildcard ./* exports. Recommendation: keep @theokit/sdk explicit-entry pattern (7 sub-paths post-extraction, KISS, attw-validated)."
+    },
+    {
+      "id": "Q5",
+      "status": "done",
+      "corner": "deps",
+      "blocked_reason": null,
+      "answered_at": "2026-06-02",
+      "notes": "2 migration sites: cli/src/eval/runner.ts:14, examples/eval/run.ts:14. Zero consumers for Workflow + 10 Workflow*Error + agentStep + fn + WorkflowBuilder."
+    },
+    {
+      "id": "Q6",
+      "status": "done",
+      "corner": "tests",
+      "blocked_reason": null,
+      "answered_at": "2026-06-02",
+      "notes": "auto-propagates: NO. tools/typecheck-examples.sh:35-50 does pnpm install --no-frozen-lockfile but NOT pnpm build. B-ADR-4 mandates explicit pnpm --filter @theokit/sdk build in /implement runbook."
+    }
+  ],
+  "coverage_corners": {
+    "tests": ["Q1", "Q6"],
+    "deps": ["Q2", "Q5"],
+    "tools": ["Q3"],
+    "techniques": ["Q4"]
+  },
+  "coverage_percentage": 100,
+  "citations_verified": 27,
+  "citations_fabricated": 0,
+  "v1_to_v1_1_corrections": "Blueprint v1.0 had multiple fabricated line numbers (sdk package.json claimed validate script + attw --profile node16; tools/typecheck-examples gate framing wrong; workflow.ts:5 instead of :29). v1.1 re-verified every line empirically before finalizing.",
+  "blueprint_complete": true,
+  "blocked_questions": [],
+  "deferred_steps": [
+    "Q2 Fase C empirical probe (scratch tsup config + build, 5 min) — deferred to /implement; safer default (tsc lane) recorded in B-ADR-1"
+  ]
+}

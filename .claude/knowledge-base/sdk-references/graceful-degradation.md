@@ -24,7 +24,7 @@ Não aplique para:
 
 ## Por que importa
 
-User instala `@usetheo/sdk`. Não tem git. SDK tenta `Checkpoints.create()`
+User instala `@theokit/sdk`. Não tem git. SDK tenta `Checkpoints.create()`
 → `child_process.spawn("git", ...)` → ENOENT → crash.
 
 Bad UX. Better: lazy probe → "checkpoints disabled (git not installed)"

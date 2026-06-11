@@ -1,7 +1,7 @@
 # Deep Review: Stubs, Mocks, Unwired Code
 
 > **Data:** 2026-05-16
-> **Escopo:** `packages/sdk/src/**` (código de produção do `@usetheo/sdk`)
+> **Escopo:** `packages/sdk/src/**` (código de produção do `@theokit/sdk`)
 > **Rule aplicada:** [`.claude/rules/no-stubs-no-mocks-no-wired.md`](../../../rules/no-stubs-no-mocks-no-wired.md)
 > **Memória associada:** [`feedback-no-stubs-no-mocks-no-wired`](../../../../home/paulo/.claude/projects/-home-paulo-Projetos-usetheo-theokit-sdk/memory/feedback_no_stubs_no_mocks_no_wired.md)
 > **Status:** ✅ **REMEDIADO 2026-05-16** — 9/9 violações resolvidas, todos os greps retornam vazio.
@@ -275,6 +275,6 @@ grep -rn "composer-2" packages/sdk/src/ packages/sdk/tests/ docs.md docs/ ...  �
 - jscpd ✅ — 0 clones
 - dogfood ✅ — 5/5 exemplos rodam end-to-end com chaves reais (incluindo `memory-dreaming` com OpenRouter embedding: 6 facts → 4 clusters semânticos, 3 paráfrases de Vitest agrupadas)
 - publint ✅ — `pnpm validate:publint` reports "All good!" (pacote npm-shape correto)
-- attw ✅ — `pnpm validate:attw` retorna 🟢 em todos os entry points (`@usetheo/sdk`, `@usetheo/sdk/cron`, `@usetheo/sdk/errors`, `@usetheo/sdk/package.json`) × todos os module resolutions (node10, node16-CJS, node16-ESM, bundler)
+- attw ✅ — `pnpm validate:attw` retorna 🟢 em todos os entry points (`@theokit/sdk`, `@theokit/sdk/cron`, `@theokit/sdk/errors`, `@theokit/sdk/package.json`) × todos os module resolutions (node10, node16-CJS, node16-ESM, bundler)
 
 **Commits:** `c73b975` (remediação completa) + `af0d99b` (refresh do status doc) em `feat/sdk-implementation` (sem co-autoria). Push concluído contra `github-usetheo:usetheodev/theokit-sdk.git`.

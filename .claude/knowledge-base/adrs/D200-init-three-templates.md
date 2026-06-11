@@ -11,7 +11,7 @@ CLI v0.1 ships exactly three bundled templates:
    No provider lock-in (.env.example lists all three cloud keys).
 2. **`ollama-local`** — leverages D182 (Ollama integration). Zero
    remote API key path; runs against `ollama serve`.
-3. **`telegram-bot`** — leverages `@usetheo/gateway` + grammy. Most
+3. **`telegram-bot`** — leverages `@theokit/gateway` + grammy. Most
    common chat-platform onboarding vertical.
 
 Excluded from v1:

@@ -1,4 +1,4 @@
-import type { McpServerConfig, ProviderRoutingSettings } from "@usetheo/sdk";
+import type { McpServerConfig, ProviderRoutingSettings } from "@theokit/sdk";
 
 /**
  * Centralized SDK feature configuration.

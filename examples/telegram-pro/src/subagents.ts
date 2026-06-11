@@ -1,4 +1,4 @@
-import type { AgentDefinition } from "@usetheo/sdk";
+import type { AgentDefinition } from "@theokit/sdk";
 
 /**
  * Inline subagent definitions passed to `Agent.create({ agents })`.

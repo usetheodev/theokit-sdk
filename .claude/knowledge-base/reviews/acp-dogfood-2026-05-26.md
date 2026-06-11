@@ -51,7 +51,7 @@ Both fast (fixture, ~330ms) and real-LLM (Ollama, ~25s) paths verified.
 Setup (one-time, on a Zed-equipped workstation):
 ```bash
 pnpm install
-pnpm --filter @usetheo/acp run build
+pnpm --filter @theokit/acp run build
 mkdir -p ~/.config/zed/external_agents/usetheo-sdk
 cp packages/acp/registry/agent.json ~/.config/zed/external_agents/usetheo-sdk/
 cp packages/acp/registry/icon.svg ~/.config/zed/external_agents/usetheo-sdk/

@@ -13,7 +13,7 @@
  *    sandbox limit: 5 numbers).
  */
 
-import { WhatsAppCloudBackend } from "@usetheo/gateway-whatsapp";
+import { WhatsAppCloudBackend } from "@theokit/gateway-whatsapp";
 
 const PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
@@ -39,7 +39,7 @@ const backend = new WhatsAppCloudBackend({
   appSecret: APP_SECRET,
 });
 
-const text = `[smoke ${new Date().toISOString()}] Hello from @usetheo/gateway-whatsapp`;
+const text = `[smoke ${new Date().toISOString()}] Hello from @theokit/gateway-whatsapp`;
 console.log(`[whatsapp-smoke] sending to ${TEST_PHONE}: "${text}"`);
 
 const r = await backend.send({ to: TEST_PHONE, isGroup: false, text });

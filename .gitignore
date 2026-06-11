@@ -50,9 +50,21 @@ docs/evalscope/
 # Ralph loop local state
 .claude/ralph-loop.local.md
 
+# Transient npx caches created by skill executions (symlinks to ~/.npm/_npx)
+.claude/skills/lib/node_modules
+.claude.backup-*/
+
 # SDK runtime state generated at workspace cwd by Agent.create / Cron.create /
 # memory writes. Test fixtures under tests/fixtures/repos/*/.theokit are
 # explicitly tracked and exempt from this ignore.
 /packages/sdk/.theokit/
 /examples/*/.theokit/
 .gstack/
+
+# Local backups (e.g., .claude.previous.bak/, CLAUDE.md.bak from migrations)
+*.bak
+*.bak/
+
+# Architecture review output (loop-architecture-review plugin output dir)
+# DB + figures + ADR drafts; reproducible by re-running /loop-architecture-review
+architecture-output/

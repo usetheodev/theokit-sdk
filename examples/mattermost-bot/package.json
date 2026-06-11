@@ -9,9 +9,9 @@
   },
   "dependencies": {
     "@mattermost/client": "^9.0.0",
-    "@usetheo/gateway": "file:../../packages/gateway",
-    "@usetheo/gateway-mattermost": "file:../../packages/gateway-mattermost",
-    "@usetheo/sdk": "file:../../packages/sdk",
+    "@theokit/gateway": "file:../../packages/gateway",
+    "@theokit/gateway-mattermost": "file:../../packages/gateway-mattermost",
+    "@theokit/sdk": "file:../../packages/sdk",
     "ws": "^8.16.0"
   },
   "devDependencies": {

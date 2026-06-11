@@ -7,7 +7,7 @@
  * @internal
  */
 
-import type { EmailMessageEvent } from "@usetheo/gateway";
+import type { EmailMessageEvent } from "@theokit/gateway";
 
 /**
  * Sentinel runtime export — workaround for rollup-plugin-dts deep type-only

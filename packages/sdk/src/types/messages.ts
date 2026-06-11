@@ -1,4 +1,5 @@
-import type { ModelSelection } from "./agent.js";
+// T4.1 / D438 — import from leaf to break the 3-node agent->run->messages cycle (#7).
+import type { ModelSelection } from "./agent-prims.js";
 
 /**
  * Plain text content block emitted by the assistant or user.

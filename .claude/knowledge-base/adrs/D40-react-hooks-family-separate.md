@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/react` v1.2 expõe 3 hooks distintos:
+`@theokit/react` v1.2 expõe 3 hooks distintos:
 
 - `useTheoChat` (v1.1, mantido inalterado) — multi-turn conversation com histórico de messages
 - `useTheoCompletion` (v1.2 NEW) — single-shot text generation; input → completion; SEM histórico
@@ -29,5 +29,5 @@ Alternativas consideradas:
 - Mais arquivos no packages/react/src/ (3 hook files + 3 stream handler files + 1 shared parser).
 - `internal/sse-parser.ts` é deep module: parsing SSE Vercel v1 + extensibility para códigos `o:`/`O:` (ADR D45).
 - Refactor de `use-theo-chat.ts` para usar parser compartilhado precisa zero regression (tests existentes 6/6 continuam).
-- Bundle size do `@usetheo/react` cresce ~50% (de ~6KB para ~9KB ESM), mas tree-shakable.
+- Bundle size do `@theokit/react` cresce ~50% (de ~6KB para ~9KB ESM), mas tree-shakable.
 - Future hooks (e.g., `useTheoTool` para chamadas isoladas de tool) seguem mesmo pattern — sem decisão arquitetural nova necessária.

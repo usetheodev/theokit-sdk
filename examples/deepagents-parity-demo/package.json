@@ -1,0 +1,14 @@
+{
+  "name": "@theokit/example-deepagents-parity-demo",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "tsx run.ts"
+  },
+  "dependencies": {
+    "@theokit/sdk": "workspace:*",
+    "reflect-metadata": "^0.2.0",
+    "tsx": "^4.19.0"
+  }
+}

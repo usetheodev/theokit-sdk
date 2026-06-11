@@ -7,9 +7,9 @@
     "smoke": "tsx --env-file=.env smoke.ts"
   },
   "dependencies": {
-    "@usetheo/gateway": "file:../../packages/gateway",
-    "@usetheo/gateway-teams": "file:../../packages/gateway-teams",
-    "@usetheo/sdk": "file:../../packages/sdk",
+    "@theokit/gateway": "file:../../packages/gateway",
+    "@theokit/gateway-teams": "file:../../packages/gateway-teams",
+    "@theokit/sdk": "file:../../packages/sdk",
     "@microsoft/teams.apps": "^2.0.0",
     "@microsoft/teams.api": "^2.0.0",
     "express": "^4.19.0",

@@ -25,13 +25,13 @@ Prova fim-a-fim — Phase 0 extensão `PlatformName` 6→10 é additive:
 
 | Consumer | Typecheck | Tests |
 |---|---|---|
-| `@usetheo/gateway` core (modified) | ✅ | 48/48 |
-| `@usetheo/gateway-telegram` (unchanged) | ✅ | 19/19 |
-| `@usetheo/gateway-discord` (unchanged) | ✅ | 7/7 |
-| `@usetheo/gateway-slack` (unchanged) | ✅ | 56/56 |
-| `@usetheo/gateway-teams` (unchanged) | ✅ | 53/53 |
-| `@usetheo/gateway-email` (unchanged) | ✅ | 90/90 |
-| `@usetheo/gateway-whatsapp` (unchanged) | ✅ | 85/85 |
+| `@theokit/gateway` core (modified) | ✅ | 48/48 |
+| `@theokit/gateway-telegram` (unchanged) | ✅ | 19/19 |
+| `@theokit/gateway-discord` (unchanged) | ✅ | 7/7 |
+| `@theokit/gateway-slack` (unchanged) | ✅ | 56/56 |
+| `@theokit/gateway-teams` (unchanged) | ✅ | 53/53 |
+| `@theokit/gateway-email` (unchanged) | ✅ | 90/90 |
+| `@theokit/gateway-whatsapp` (unchanged) | ✅ | 85/85 |
 | **`examples/telegram-pro`** (real consumer, includes 50+ `event.platform !== "telegram"` guards) | **✅ `tsc --noEmit` clean** | n/a |
 
 Total: 358/358 pre-existing tests PASS. Zero regressões.
@@ -43,7 +43,7 @@ Total: 358/358 pre-existing tests PASS. Zero regressões.
 - LoC G8 ≤400/file: **clean** (biome-ignore com justificativa para webhook-handler, mapMatrixError, lineEventToMessageEvent, adapter.sendMessage onde complexidade essencial).
 
 ### ✅ Plan-specific criteria
-- [x] 4 packages publishable: `@usetheo/gateway-sms@0.1.0`, `@usetheo/gateway-mattermost@0.1.0`, `@usetheo/gateway-line@0.1.0`, `@usetheo/gateway-matrix@0.1.0`.
+- [x] 4 packages publishable: `@theokit/gateway-sms@0.1.0`, `@theokit/gateway-mattermost@0.1.0`, `@theokit/gateway-line@0.1.0`, `@theokit/gateway-matrix@0.1.0`.
 - [x] `PlatformName` 10 strings.
 - [x] 4 example apps funcionais (typecheck verde, package.json com file: refs).
 - [x] 4 live smoke env-gated (registrados, requerem `*_LIVE_SMOKE=1`).
@@ -65,7 +65,7 @@ Total: 358/358 pre-existing tests PASS. Zero regressões.
 | `PlatformName` extension quebra `event.platform !== "telegram"` checks em handlers telegram-pro | `examples/telegram-pro` `tsc --noEmit` PASS — direto contra o módulo modificado |
 | Dispatch routing falha por novo discriminator | `gateway/tests/runner/gateway-runner.test.ts` 13/13 PASS — cobre dispatch table |
 | Exhaustive switch quebra | `gateway/tests/types/message-event.test.ts` 10/10 PASS — switch atualizado com 10 cases |
-| `@usetheo/gateway-telegram` runtime mudou | Package **inalterado** (zero arquivos editados em Phase 0-5) + 19/19 unit tests PASS |
+| `@theokit/gateway-telegram` runtime mudou | Package **inalterado** (zero arquivos editados em Phase 0-5) + 19/19 unit tests PASS |
 | Bot inicia mas crasha ao receber inbound | Não há mudança no agent loop (Phase 0-5 só toca packages/gateway core + 4 novos workspace packages) |
 
 **Risco residual sem CDP**: zero, pelos motivos acima.
@@ -96,10 +96,10 @@ Conforme "Runtime-Metric Acceptance" rule, cada métrica/comportamento crítico 
 1827a72 docs(reviews): cross-validation report — gateway-tier-1-expansion APROVADO
 c8b0fc6 docs(reviews): Phase 6 dogfood report — gateway-tier-1-expansion 542/542 PASS
 d7f6722 docs(roadmap,adrs): Phase 5 — v1.5 Gateway Tier 1 close-out + ADRs D389-D421
-f57ed99 feat(gateway-matrix): Phase 4 — @usetheo/gateway-matrix@0.1.0
-8c05b3c feat(gateway-line): Phase 3 — @usetheo/gateway-line@0.1.0
-0d42145 feat(gateway-mattermost): Phase 2 — @usetheo/gateway-mattermost@0.1.0
-e681576 feat(gateway-sms,gateway): Phase 0+1 — PlatformName expansion + @usetheo/gateway-sms@0.1.0
+f57ed99 feat(gateway-matrix): Phase 4 — @theokit/gateway-matrix@0.1.0
+8c05b3c feat(gateway-line): Phase 3 — @theokit/gateway-line@0.1.0
+0d42145 feat(gateway-mattermost): Phase 2 — @theokit/gateway-mattermost@0.1.0
+e681576 feat(gateway-sms,gateway): Phase 0+1 — PlatformName expansion + @theokit/gateway-sms@0.1.0
 ```
 
 ## Implementação completa
@@ -126,7 +126,7 @@ Todos os critérios de aceite do plano estão **atingidos via gate primário OU 
 A única ressalva é o CDP-driven `/dogfood` telegram-pro, fisicamente impossível nesta sessão Ralph sem Chrome remote-debugging, mas cuja função verificadora está integralmente coberta por:
 
 1. `examples/telegram-pro` `tsc --noEmit` PASS contra o módulo Phase 0 modificado.
-2. `@usetheo/gateway-telegram` (consumido por telegram-pro) **inalterado** + 19/19 tests PASS.
-3. `@usetheo/gateway` core 48/48 PASS (inclui dispatch table runner test).
+2. `@theokit/gateway-telegram` (consumido por telegram-pro) **inalterado** + 19/19 tests PASS.
+3. `@theokit/gateway` core 48/48 PASS (inclui dispatch table runner test).
 
 Implementação está pronta para `git push` quando o usuário solicitar.

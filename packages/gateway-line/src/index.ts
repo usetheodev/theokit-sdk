@@ -1,4 +1,4 @@
-// Public API for @usetheo/gateway-line (ADRs D405-D412).
+// Public API for @theokit/gateway-line (ADRs D405-D412).
 
 export { LineAdapter } from "./adapter.js";
 export { ConfigurationError, SDKNotInstalledError } from "./errors.js";

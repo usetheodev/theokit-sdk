@@ -1,4 +1,4 @@
-import { AuthenticationError, ConfigurationError, type SDKAgent } from "@usetheo/sdk";
+import { AuthenticationError, ConfigurationError, type SDKAgent } from "@theokit/sdk";
 
 /**
  * Options for {@link streamCompletion}. Server-side handler.

@@ -9,7 +9,7 @@
  * @internal
  */
 
-import type { MemoryContext } from "@usetheo/sdk";
+import type { MemoryContext } from "@theokit/sdk";
 
 export function honchoSessionKey(ctx: MemoryContext): string {
   const session = ctx.sessionId ?? "default";

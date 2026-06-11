@@ -1,0 +1,333 @@
+---
+slug: sdk-2-0-package-split
+artifact: progress-log
+started_at: 2026-06-07T22:55Z
+---
+
+# SDK 2.0 split — progress log (ralph-loop)
+
+Tracking which phases/tasks are committed. Updated each iteration.
+
+## Phase 0 — Baseline snapshot
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T0.1 — Subsystem map + bundle baseline | ✅ DONE 2026-06-08 | `aa8b079` | 4/4 GREEN |
+
+**Deliverables shipped:**
+- `.claude/knowledge-base/baselines/sdk-2-0-baseline-bundle-2026-06-07.md`
+- `.claude/knowledge-base/baselines/sdk-2-0-baseline-subsystems-2026-06-07.md`
+- `packages/sdk/tests/sdk-2-0-baseline.test.ts` (4 tests)
+- `packages/sdk/dist/index.js` measured at **138677 bytes gzipped** (matches plan).
+
+## Phase 1 — Extract `@theokit/sdk-memory`
+
+| Task | Status | Notes |
+|---|---|---|
+| T1.1 — Scaffold + move 40 files / 4070 LOC | ⏳ POSTPONED | Pivoted to Phase 3 (Cache) first — see below. Pre-step (EC-1) for Memory already shipped at commit `26c15a6`. |
+
+**Next steps for T1.1:**
+1. `pnpm-workspace.yaml` already captures `packages/*` glob — no edit needed.
+2. Create `packages/sdk-memory/{package.json, tsconfig.json, tsup.config.ts, LICENSE, README.md, src/, tests/}`.
+   - `package.json` peerDeps: `@theokit/sdk-core` (will be sdk-core post-Phase-6; for now use `@theokit/sdk@^1.7.0`), `better-sqlite3@>=11`, `sqlite-vec@>=0.1`, `@lancedb/lancedb@>=0.10`.
+   - **EC-2 absorbed:** `tsup.config.ts` MUST declare `external: [/^@theokit\//, 'better-sqlite3', 'sqlite-vec', '@lancedb/lancedb']`.
+3. **EC-1 absorbed:** Add `./internal/persistence` sub-path to `packages/sdk/package.json` exports BEFORE move (sdk-memory will import via this sub-path).
+4. Write move script `tools/move-memory-subsystem.mjs` (dry-run first).
+5. Move:
+   - `packages/sdk/src/memory.ts` (191 LOC) → `packages/sdk-memory/src/memory.ts`
+   - `packages/sdk/src/memory-adapter-helpers.ts` → `packages/sdk-memory/src/memory-adapter-helpers.ts`
+   - `packages/sdk/src/internal/memory/**` (40 files, 4070 LOC) → `packages/sdk-memory/src/internal/`
+     - Adjust import paths: `from "./internal/memory/X"` → `from "./internal/X"`.
+   - `packages/sdk/src/types/memory-adapter.ts` → `packages/sdk-memory/src/types/memory-adapter.ts`
+   - Tests in `packages/sdk/tests/memory*.test.ts` (and `internal/memory/**/*.test.ts`) → `packages/sdk-memory/tests/`.
+6. Strip Memory exports from `packages/sdk/src/index.ts`:
+   - Remove `export { Memory, ... } from './memory.js';`
+   - Remove `export { extractRawId, mkMemoryId } from './memory-adapter-helpers.js';`
+7. **CRITICAL — external consumers of Memory in sdk/src/:**
+   - theokit.ts, migrate.ts, internal/llm/credential-pool.ts, internal/runtime/fixtures/*, internal/runtime/local-agent-dispatch.ts, internal/runtime/local-agent-personality-extensions.ts
+   - These import `Memory` from `./memory.js`. After move they need `from '@theokit/sdk-memory'` BUT this creates kernel→extension dep direction violation.
+   - **Resolution:** type-only imports stay; runtime imports need redesign. Specifically check which usages are types vs runtime values.
+8. `pnpm install -w` after package created (EC-5 absorbed).
+9. Build + tests in sdk-memory.
+10. Commit: `feat(sdk-memory): extract @theokit/sdk-memory 0.1.0 from @theokit/sdk@1.7.0 (T1.1)`.
+
+**Open concern surfaced during baseline measurement:**
+
+The plan ADR D1 stated "Memory subsystem (4070 LOC) — barrel re-exports Memory namespace mas agent-loop não importa Memory diretamente; Memory é state observada por hooks. Extractable." But empirical grep shows Memory is used by **7+ files outside internal/memory** (theokit.ts, migrate.ts, credential-pool.ts, fixtures, local-agent-dispatch.ts, personality-extensions.ts). These external usages need careful handling — either:
+- (a) move those external users TO sdk-memory if they're memory-tools (theokit.ts probably has the public Memory facade — already moved with memory.ts; migrate.ts handles memory migration scripts — could stay in core OR move).
+- (b) refactor those files to import Memory from `@theokit/sdk-memory` peer (creates kernel→extension dep — bad).
+- (c) leave a thin Memory facade in core that delegates to sdk-memory at runtime (defeats bundle gain).
+
+**Recommendation for T1.1 execution:** classify each external usage as type-only vs runtime. Type-only imports stay (TS only, no bundle impact). Runtime imports require per-case decision. If we find > 3 runtime imports that can't be cleanly resolved, surface as a BLOCKED finding and revisit ADR D1.
+
+## Phase 3 — Extract `@theokit/sdk-cache` (PIVOTED — done before Phase 1)
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| Pre-step EC-1 + plugin types — internal sub-paths | ✅ DONE 2026-06-08 | `26c15a6` | 11/11 GREEN |
+| T3.1 — Cache extraction | ✅ DONE 2026-06-08 | `f67ed6d` | 54/54 GREEN |
+
+**Why pivot:** Phase 0 baseline + iter 2 investigation revealed Memory has 7+ external runtime consumers (theokit.ts, migrate.ts, credential-pool.ts, fixtures, etc.) requiring per-case decisions. Cache had ZERO external runtime consumers — clean extraction. Plan T3.1 explicitly says Phases 1-5 are independent and parallelizable, so reordering doesn't break dependency graph.
+
+**Deliverables Phase 3:**
+- `packages/sdk-cache/` (new package, 18.51 KB ESM / 5.20 KB gzipped — 79% under 25 KB budget).
+- 7 test files (cache-create, consult-remember, cosine-key, lookup, store-handler, store, ttl) all 54 tests GREEN.
+- sdk barrel stripped of `Cache, CacheEmbedderError, CacheInvalidTtlError` (breadcrumb comment points consumers at `@theokit/sdk-cache`).
+- `@theokit/sdk/internal/persistence` sub-path expanded with `atomicWriteText` + `PersistenceSchema`.
+- `@theokit/sdk/internal/observability` sub-path created (infrastructure for Memory/Handoff future work).
+
+**Quality gates Phase 3:**
+- EC-2 verified: `grep -c "class Agent\|function definePlugin" sdk-cache/dist/index.js` = 0.
+- EC-5 verified: `pnpm list @theokit/sdk-cache` finds workspace registration.
+- Dual-Zod-realm bug surfaced + fixed: aligned sdk-cache devDep zod ^3.25.76 → ^4.0.0 to match sdk's resolved zod@4.4.3.
+- Inline tracer-loader workaround documented (rollup-plugin-dts emits empty stub for new internal barrels — runtime works, only DTS affected; future investigation).
+
+## Phase 5 — Extract `@theokit/sdk-tools` (PIVOTED — done before Phase 1)
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T5.1 — Tools extraction | ✅ DONE 2026-06-08 | `e67d1db` | 46/46 GREEN |
+
+**Deliverables Phase 5:**
+- `packages/sdk-tools/` (new package, 19.69 KB ESM / 5.20 KB gzipped — 65% under 15 KB budget).
+- 6 test files (git-diff, list-dir, read-file, run-vitest, search-text, sub-export-smoke) all 46 tests GREEN.
+- sdk barrel additions: `CustomTool` type explicit export (needed by extracted package).
+- `@theokit/sdk/internal/security` sub-path created (parallel to persistence/plugins/observability).
+- Inline `path-guard.ts` in sdk-tools/internal/ — full ~200 LOC duplicate of the security primitives. Rationale: rollup-plugin-dts bug consistently emits incomplete `index.d.ts` for newly-modified internal/ barrels.
+
+**Quality gates Phase 5:**
+- AC1-AC10 all PASS (build, tests, EC-2, EC-5, bundle budget, sdk regression check).
+- EC-2 verified: `grep -c "class Agent" sdk-tools/dist/index.js` = 0.
+- EC-5 verified: `pnpm list @theokit/sdk-tools` finds workspace registration.
+
+## Phase 10 — CI Bundle Budget Gate
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T10.1 — `scripts/check-bundle-budget.mjs` + `.bundle-budget.json` + CI step | ✅ DONE 2026-06-08 | `fb5cb96` | 6/6 GREEN |
+
+**Deliverables Phase 10:**
+- `scripts/check-bundle-budget.mjs` — Node script, zero deps, reads every `packages/<name>/.bundle-budget.json`, measures gzipped, fails CI on overshoot. Supports --json + --package=<name> filter.
+- `packages/sdk-cache/.bundle-budget.json` = `{ "dist/index.js": 25000 }` (current: 5339 / 21%)
+- `packages/sdk-tools/.bundle-budget.json` = `{ "dist/index.js": 15000 }` (current: 5164 / 34%)
+- `pnpm check:bundle` script wired into `pnpm validate`
+- `.github/workflows/ci.yml` "Bundle budget gate" step after Quality
+
+## Phase 8 — Migration Codemod (jscodeshift)
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T8.1 — Codemod `1-x-to-2-0.cjs` + 5 fixtures + 8 tests | ✅ DONE 2026-06-08 | `2b3ad4e` | 8/8 GREEN |
+
+**Deliverables Phase 8:**
+- `scripts/migrations/1-x-to-2-0.cjs` — jscodeshift transformer (CommonJS — jscodeshift loads via require). Five transforms:
+  - (A) Sub-path: `@theokit/sdk/tools` → `@theokit/sdk-tools`
+  - (B) Named import split: `@theokit/sdk` → multiple targets per map.json
+  - (C) Re-export rewrite: `export { X } from "@theokit/sdk"` → new target
+  - (D) EC-3: `Agent.create({...})` sem `budgetTracker` → CODEMOD-WARN comment
+  - (E) EC-4: `Agent.create({ handoffs })` → CODEMOD comment (no auto-rewrite)
+- `scripts/migrations/1-x-to-2-0-map.json` — 21 symbol→target entries (Cache + Tools). Pending: Memory/Budget/Handoff entries land when Phases 1/2/4 extract those.
+- 5 byte-equal fixtures: single-cache-import, mixed-imports, aliased, agent-create-no-budget, agent-create-handoffs.
+- 8 tests including idempotency check (md5-stable on re-run).
+
+**Quality gates Phase 8:**
+- `pnpm vitest run tests/codemod-1-x-to-2-0.test.ts`: 8/8 GREEN
+- Idempotency: PASS (walkUpToStatement helper attaches comments to outer statement, not inner CallExpression, so the hasLeadingComment check finds the marker on subsequent runs)
+
+## Phase 9 — Documentation
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T9.1 — packages/README.md families + 1-x-to-2-0 migration guide | ✅ DONE 2026-06-08 | `0addd94` | 11/11 GREEN |
+
+**Deliverables Phase 9:**
+- `packages/README.md` (NEW) — 5-family table (Core / Channels / Memory adapters / React / Integrations) listing all 24 packages. Status table for SDK 2.0 split phases.
+- `docs/migration/1-x-to-2-0.md` (NEW) — consumer guide with:
+  - 5-row subsystem summary (Cache/Tools shipped; Memory/Budget/Handoff pending)
+  - One-command upgrade snippet (jscodeshift dry-run → apply)
+  - Before/after diff blocks per surface
+  - **⚠ silent breaking change** flag for Agent.create without budgetTracker (EC-3)
+  - Handoff option removal walkthrough (EC-4)
+  - 8-row breaking changes table
+  - Rollback procedure (pin 1.7.0)
+  - Known codemod limitations
+- `packages/sdk/tests/docs-sdk-2-0.test.ts` — 11 validation tests (existence, 5 families, every package name appears, codemod snippet present, ≥4 diff blocks, budget+handoff sections present, sub-package READMEs).
+
+## Phase 4 — Extract `@theokit/sdk-handoff`
+
+| Task | Status | Commit | Tests |
+|---|---|---|---|
+| T4.1 — Handoff extraction + asPlugin + transitional auto-wire | ✅ DONE 2026-06-08 | `b49a6a1` | 29/29 GREEN |
+
+**Deliverables Phase 4:**
+- `packages/sdk-handoff/` (NEW package): 5.4 KB gzipped (36% under 15 KB budget).
+- Moved: handoff.ts (120 LOC) + types/handoff.ts + types/handoff-descriptor.ts (90 LOC) + internal/{dispatcher,registry,telemetry,tool-injector}.ts (491 LOC) + 4 test files (29 tests total).
+- **`Handoff.asPlugin({ targets, parentAgentId?, maxHandoffDepth? })`** — preferred 2.x API.
+- **Optional-peer model for legacy `Agent.create({ handoffs:[] })`** — sdk lazy-imports `@theokit/sdk-handoff/internal/tool-injector`; missing package = actionable `ConfigurationError`.
+- Inline `to-json-schema.ts` + `tracer-loader` in sdk-handoff (rollup-dts barrel workaround).
+- `types/agent.ts` `handoffs?:` field loosened to `SDKAgent|unknown` (full removal in Phase 6 EC-4 absorbed).
+- Codemod map: +14 handoff symbol entries (Handoff, handoffTo, error classes, types).
+- Bundle budget: sdk-handoff `.bundle-budget.json` added (gate now covers 3 packages).
+
+**Quality gates Phase 4:**
+- sdk build: PASS (no regression)
+- sdk-handoff build: PASS (18.0 KB ESM, 5.4 KB gz)
+- sdk-handoff test: 29/29 GREEN (4 files: dispatcher, handoff-create, normalize, registry)
+- sdk tsc --noEmit: exit 0 (needed `exclude: ["tests/fixtures/codemod-1x/**/*"]` in tsconfig — fixtures use intentionally-mismatching imports)
+- sdk-handoff tsc --noEmit: exit 0
+- All 29 SDK 2.0 infrastructure tests still GREEN
+- `pnpm check:bundle`: PASS — sdk-cache 21% / sdk-handoff 36% / sdk-tools 34%
+
+## Phase 1 — Pre-cleanup ONLY (Memory full extract POSTPONED)
+
+| Sub-task | Status | Commit | Notes |
+|---|---|---|---|
+| Remove deprecated `internal/memory/cwd-mutex.ts` shim | ✅ DONE 2026-06-08 | `bf18a84` | 7 consumers (5 sdk-core + 2 intra-memory) re-pointed at canonical `internal/persistence/cwd-mutex.js` |
+| Full source move + integration | ⏳ POSTPONED | — | Iter 7 attempted, **reverted**. Surfaces deep architectural blockers. |
+
+**Deep blocker surfaced iter 7:**
+- `internal/runtime/local-agent-memory.ts`, `post-run-lifecycle.ts`, `agent-session-store.ts`, `memory-store.ts` (4 files) cross-import `internal/memory/*` at runtime.
+- These are AGENT-LOOP files (kernel area) — can't be moved to sdk-memory without creating circular dependency.
+- Per-call dynamic import (try-catch optional peer like handoff) would gut performance on hot path.
+- **Real fix:** interface inversion like Budget (ADR D1). Define `MemoryProvider` interface in sdk-core, runtime depends on interface, sdk-memory provides impl via DI. Multi-iteration architectural change.
+
+**Iter 7 partial work (not committed beyond cwd-mutex cleanup):**
+- sdk-memory package scaffold (package.json, tsup, tsconfig, vitest, README, CHANGELOG, LICENSE) — DELETED (incomplete; would ship empty package).
+- Inline copies of `to-json-schema.ts` (126 LOC), `error-mapper-shared.ts` (91 LOC), `openai-compatible-error-mapper.ts` (126 LOC), `telemetry-shim.ts` (30 LOC) — DELETED.
+- theokit.ts MEMORY_EMBEDDING_ADAPTERS dynamic-import change — REVERTED (breaking change to sync inspect.embeddingAdapters API was premature).
+- Pure-memory test moves (4 files: types/memory-adapter, internal/memory/{migrate-redaction, adapters/ollama-embedding, index-manager-dispatch}) — REVERTED.
+
+**Future Phase 1 strategy (deferred to multi-iteration plan):**
+1. Define `MemoryProvider` interface contracts in sdk-core (types only).
+2. Refactor 4 runtime files to depend on interface instead of concrete `internal/memory/` imports.
+3. Move memory implementation to sdk-memory.
+4. Memory contracts (`MemoryAdapter`, `MemoryContext`, `MemoryFact`) STAY in sdk-core types.
+5. Migration helper (`migrateSqliteToLance`) moves to sdk-memory.
+
+## Phase 2, 6, 7 + Final + Phase 1 (Memory still postponed — see above)
+
+Not started. See `sdk-2-0-package-split-plan.md` for tasks.
+
+**Phase 4 (Handoff) planning notes (surfaced iter 5 — now resolved iter 6):**
+- 491 LOC internal + 120 LOC public + 109 LOC types + 4 tests.
+- agent.ts has lazy `await import("./internal/handoff/tool-injector.js")` in `maybeInjectHandoffTools()` — needs to point at sdk-handoff after move.
+- Handoff.asPlugin() does NOT exist yet — must be added per plan T4.1.
+- EC-4 absorbed in v1.1 mandates `AgentCreateOptions` removes `handoffs?` field (breaking change to `Agent.create`).
+- Strategy for next iter: (a) scaffold sdk-handoff, (b) move source, (c) implement asPlugin via dispatcher wrapper, (d) agent.ts uses try-catch dynamic import of sdk-handoff (optional peer model), (e) keep `handoffs:` option transitional with deprecation warning, (f) full removal lands in Phase 6 cohort.
+
+**Concurrent session note (updated iter 3):** The sdk-superiority session reached iter 10 and finished T3.1 (SSE parser HTML LS compliance) + acknowledged my prior commits via `7f4b98c`. My Phase 5 commit `e67d1db` accidentally swept up 4 pre-staged files from their session (CHANGELOG.md, ollama-native.ts, sse.ts, sse-abort-cancels-body.test.ts) because they were in the git index before I ran `git commit`. Work preserved correctly; their next iteration will recognize their files are committed.
+
+**Concurrent session note:** the sdk-superiority halt-loop session (iter 9+) is ACTIVE in this repo and committed T2.1 (`1af7f5d`, `17d8552`, `351eee0`) AFTER my Phase 0 / pre-step / Phase 3. The two sessions work in orthogonal areas (sdk-superiority touches `internal/agent-loop/loop.ts`; SDK 2.0 split touches subsystem extraction). No conflicts yet but Phase 2 of SDK 2.0 plan WILL touch agent-loop — coordinate before starting.
+
+## Pre-existing uncommitted state (NOT from this loop)
+
+The following files have changes from a prior session (sdk-superiority halt-loop, iteration 8 marked Wave 1 complete). They are NOT touched by this loop and SHOULD be committed/cleaned separately by their owner:
+
+```
+M packages/sdk/src/internal/agent-loop/loop.ts  (+33 lines)
+?? .claude/CHANGELOG.md
+?? packages/sdk/tests/internal/agent-loop/validate-response-nudge.test.ts
+```
+
+The biome errors in `loop.ts` (2 errors) and the warning in `tests/chaos/kill-mid-stream.test.ts` are also pre-existing.
+
+**Impact on SDK 2.0 split:** loop.ts is touched by Phase 2 T2.1 (BudgetTracker interface inversion). The uncommitted +33 lines will need to be either committed by the prior owner OR rebased into the Phase 2 refactor. Surface to user before starting Phase 2.
+
+## Iteration log
+
+| Iteration | Date | Phase/Task | Outcome |
+|---|---|---|---|
+| 1 | 2026-06-08 | Phase 0 / T0.1 | DONE — commit `aa8b079`; 4/4 tests GREEN |
+| 2 | 2026-06-08 | Pre-step + Phase 3 / T3.1 | DONE — commits `26c15a6` + `f67ed6d`; 65/65 cumulative tests GREEN (11 pre-step + 54 cache) |
+| 3 | 2026-06-08 | Phase 5 / T5.1 | DONE — commit `e67d1db`; 46/46 sdk-tools tests GREEN; 165 cumulative tests across 3 packages (sdk baseline + sdk-cache + sdk-tools) |
+| 4 | 2026-06-08 | Phase 10 / T10.1 + Phase 8 / T8.1 | DONE — commits `fb5cb96` (bundle gate) + `2b3ad4e` (codemod); 6+8 = 14 new tests GREEN; cumulative 179 tests |
+| 5 | 2026-06-08 | Phase 9 / T9.1 | DONE — commit `0addd94`; 11/11 docs tests GREEN; cumulative 190 tests across 4 packages |
+| 6 | 2026-06-08 | Phase 4 / T4.1 | DONE — commit `b49a6a1`; 29 handoff tests GREEN; cumulative 219 tests across 5 packages |
+| 7 | 2026-06-08 | Phase 1 pre-cleanup | PARTIAL — commit `bf18a84` cwd-mutex shim removed + 7 consumers fixed. Full source move attempted then REVERTED — needs interface inversion (multi-iteration). |
+| 8 | 2026-06-08 | Cross-package composition smoke test | DONE — commit `1ac4840`; 6 new tests validating Phases 3+4+5 compose cleanly without runtime conflict (Cache.asPlugin + Handoff.asPlugin + tools in single Agent options, plugin names unique across 4 instances). Cumulative 225 tests across 5 packages; all 3 extracted packages within budget. |
+| 9 | 2026-06-08 | Phase 7 prep — npm publish-readiness gate | DONE — commit `6c74797`; +21 publish-readiness tests (7 per extracted package); +`sideEffects: false` in 3 package.jsons. publint "All good!" + attw 4/4 GREEN across resolution modes. Locks Phase 7 cohort bump preconditions empirically. |
+| 10 | 2026-06-08 | Phase 2 foundation — `BudgetTracker` interface | DONE — commit `e9572bb`; new `internal/runtime/budget-tracker.ts` ships 4 types (BudgetTracker + BudgetCheck + BudgetTotal + BudgetUsageEvent). Re-exported from main barrel. 8 contract tests pin shape (sync `track()` invariant, 5-reason enum, all readonly fields). Future iterations: agent-loop wiring → Budget moves to @theokit/sdk-budget → drop internal default. |
+| 11 | 2026-06-08 | Phase 2 reference impl — `createCounterBudgetTracker` | DONE — commit `1899681`; pure token + iteration counter conforming to BudgetTracker contract. Optional maxTokens / maxIterations ceilings; silently clamps invalid values (negative/NaN/Infinity) to 0; no USD pricing (deferred to sdk-budget); instances independent. 8 tests GREEN. Available as fallback before sdk-budget ships + worked example for custom impls. |
+| 12 | 2026-06-08 | Phase 2 type wiring — `Agent.create({ budgetTracker? })` | DONE — commit `8c78e45`; AgentOptions.budgetTracker?: BudgetTracker plumbed at type surface. 5 type tests GREEN (field exists, accepts counter + inline + tracker, rejects invalid shape via @ts-expect-error, optional). Doc string makes runtime wiring deferred to follow-up iteration. Honest scope: type-only step; loop.ts track+check calls land later. Empirical: sdk dist/index.js currently 134306 gz vs 30000 target — gap remains until Memory+Budget moved (multi-iter). |
+| 13 | 2026-06-08 | Phase 2 plumbing — option flows Agent.create → AgentLoopInputs | DONE — commit `241d541`; AgentLoopInputs.budgetTracker?: BudgetTracker added; real-local-run.ts threads the value from AgentOptions through to loop inputs (same pattern as telemetry / onToolStart). Runtime track() / check() calls deferred. tsc clean. When full extraction lands, no further type changes needed. |
+| 14 | 2026-06-08 | Phase 1 pre-cleanup #2 — `internal/memory/atomic-write.ts` shim removal | DONE — commit `9b01fe2`; 2nd dead-shim cleanup (after cwd-mutex iter 7). 5 consumers migrated to canonical `internal/persistence/atomic-write.js`. Cumulative Phase 1 pre-cleanup: 2 shims removed, 12 consumer files migrated. Bundle still 134KB gz (shim was small) but surface area for Phase 1 full extract is now smaller. |
+| 15 | 2026-06-08 | Phase 2 runtime hook #1 — `BudgetTracker.track()` in runIteration | DONE — commit `d15987f`; first RUNTIME wiring of Phase 2 interface inversion. runIteration forwards input/output token counts after every LLM completion as PASSIVE OBSERVATION. Legacy IterationBudget remains sole enforcement. track() exceptions swallowed per non-throwing contract. 7 branch-logic tests pin conditional behavior. Cumulative Phase 2 tests: 28 across 4 files. |
+| 16 | 2026-06-08 | Phase 2 runtime hook #2 — `BudgetTracker.check()` in runAgentLoop | DONE — commit `aab8de2`; outer while-loop calls tracker.check() before each iteration; on allowed:false sets finalStatus=error + breaks. Legacy IterationBudget remains authoritative iteration cap (BudgetTracker is layered consumer gate on top). check() throws treated soft-allow. 6 branch-logic tests. Cumulative Phase 2: 34 tests across 5 files. **Step 6 of 8-step Phase 2 stack complete.** |
+| 17 | 2026-06-08 | ADR — Phase 1+2 architectural decisions | DONE — commit `99fd757`; records 7 ADRs surfaced empirically iter 7-16: Memory kernel coupling, Budget interface inversion success, why Cache/Tools/Handoff cleaner than Memory/Budget, shim cleanup pattern, layered enforcement, bundle budget gating Phase 6, Phase 7 prep independence. Roadmap: ~5-8 iters realistic for full completion. |
+
+## Iter 44-94 (2026-06-08 → 2026-06-09) — Phase 1 Stage 3 source-move + Stage 4 routing + Phase 6/7 prep tooling
+
+### Stage 3 source-move (iter 44-75) — DONE 38/38 files
+
+The hybrid dual-copy extraction: sdk-core retains `internal/memory/*` for v1.x back-compat; sdk-memory ships the canonical copies that Stage 4 routing delegates to. Every iteration moved 1-7 files + shipped tests + commit. Total: 287 GREEN tests across 38 files in sdk-memory.
+
+Closed clusters:
+- Dreaming (iter 54+59+60): phases + diary + run + types
+- Sessions (iter 61+62): writer + loader
+- Storage (iter 53+55-58, 61-62): markdown-store + chunk-markdown + reader + transcript-store + session-* + wiki
+- Index (iter 47+49-50+65-72): contract + schema + memory-index + sqlite-vec + lance + manager
+- Migration (iter 63+71): legacy-json + sqlite→lance
+- Adapters (iter 45+46+73+74): types + cache + shared factory + 6 providers + catalog
+- Core (iter 44+51+52+64+75): circuit-breaker + active-cache + memory-types + tools + active-memory
+
+Cross-package workarounds documented in source:
+- rollup-plugin-dts treeshake inline-duplicates: iter 48/53/55/66/67/69/72 (8 type mirrors)
+- Inlined helpers: iter 73 (adapter-http-error replacing sdk-core's internal mapper), iter 75 (telemetry mirrors)
+- Renames: types.ts→memory-types.ts (iter 52), catalog.ts→adapter-catalog.ts (iter 74), dreaming files (iter 54+59+60)
+- Cross-package public sub-paths added: sanitizeIdentifier in @theokit/sdk/path-safety (iter 52)
+- Optional peers added to sdk-memory: better-sqlite3 (iter 65), sqlite-vec (iter 66), @lancedb/lancedb (iter 68)
+
+### Stage 4 routing (iter 76-80) — DONE 5 surfaces, 24 tests
+
+sdk-core's public `Memory` class + `migrateSqliteToLance` wrapper delegate to `@theokit/sdk-memory` when installed; fall back to legacy internal/ when absent.
+
+- iter 76: `tryLoadSdkMemoryPeer()` loader + SdkMemoryModule structural mirror + test-only escape hatches + 5 tests
+- iter 77: Memory.openIndex + Memory.runDreamingSweep routing wired + 4 tests
+- iter 78: migrateSqliteToLance routing wired + 4 tests + `migrateSqliteToLance` surface added to SdkMemoryModule
+- iter 79: Behavior parity gate — sdk-core (routed) ↔ sdk-memory (direct) produce byte-equivalent results across 5 tests
+- iter 80: Force-absent test flag exercises legacy fallback branch — 6 tests on the if/else other half
+
+Total Stage 4 test coverage: 24 tests across 5 files in `packages/sdk/tests/`.
+
+ADR 0002 (iter 82) documents the architectural decision + sunset condition for SDK 3.0.
+
+### Phase 6 + 7 prep tooling (iter 81+83+84+85)
+
+Operator-runnable scripts for the eventual cohort cutover. All dry-run by default; `--write` to mutate.
+
+- iter 81: `phase6-rename-dry-run.mjs` — reports 398-411 files in scope
+- iter 83: `phase6-rename-write.mjs` — `--write` mutates package.json + source imports + docs; `--backup` creates .bak copies
+- iter 84: `phase7-cohort-analysis.mjs` — enumerates 51 sdk consumers + version spec histogram
+- iter 85: `phase7-peerdep-bump.mjs` — 7 packages need peerDep bumped to `^2.0.0`; `--target` flag overrides
+
+### Validation gates (iter 87+90)
+
+- iter 87: `sdk-2-0-pre-publish-check.mjs` — 5 workspace invariants enforced before pnpm install + npm publish; current state: 57 packages scanned, all gates green
+- iter 90: `sdk-2-0-post-publish-check.mjs` — registry state vs workspace version comparison; `--dry` mode for CI; `--only` flag narrows cohort
+
+### Consumer-facing migration tooling (iter 88+89)
+
+- iter 88: `@theokit/codemod-sdk-2-0` — publishable npm package; consumers run `npx @theokit/codemod-sdk-2-0 --write --backup`; 3 integration scenarios pass
+- iter 89: codemod ↔ phase6-rename-write equivalence test — both tools produce identical diffs on identical input
+
+### Documentation (iter 82+86+92)
+
+- iter 82: `docs/adr/0002-sdk-memory-optional-peer-routing.md` — Stage 4 routing architectural decision + sunset condition
+- iter 86: `docs/runbook/sdk-2-0-release.md` — operator playbook (7 steps + recovery flows)
+- iter 92: `MIGRATION.md` (repo root) — consumer upgrade guide (TL;DR + step-by-step + rollback + edge cases)
+
+### CI + maintenance discipline (iter 91+93+94)
+
+- iter 91: `.github/workflows/sdk-2-0-migration-gates.yml` — 8 dry-mode smoke tests + 5 Stage 4 routing test files; runs on every PR with path filter scoped to migration code
+- iter 93: `sdk-2-0-stage3-drift-detector.mjs` — compares sdk-core's `internal/memory/*` against sdk-memory's canonical copy; catches unsynced patches; 38 pairs / 22 intentional divergences allowlisted / 0 unexpected drift in current workspace state
+- iter 94: bundle budgets for sdk + sdk-memory — locks Phase 10 / T10.1 (ADR D9) coverage on the 2 packages that previously had none; current state: sdk 140K/200K cap (70%), sdk-memory 23K/30K cap (77%)
+
+### Cumulative state at iter 94
+
+- **Stage 3 source-move COMPLETE** — 38/38 files canonical in sdk-memory, 287 GREEN tests, 0 unexpected drift
+- **Stage 4 routing COMPLETE** — 5 surfaces wired (loader + 2 Memory class methods + migrate + parity gate), 24 GREEN tests, both branches covered
+- **Phase 6 + 7 prep tooling COMPLETE** — 5 operator scripts + 8 CI-gated smoke tests
+- **Documentation COMPLETE** — ADR + runbook + MIGRATION.md
+- **Maintenance discipline LOCKED IN** — drift detector + bundle budgets + CI workflow
+
+**What remains:** Phase 6 + 7 execution + cohort npm publish + final dogfood QA against published packages. These are operator-driven coordinated steps requiring npm publish credentials. Per Inquebrável Rule 3 (Honestidade Extrema), the completion promise stays unspoken until execution actually runs against the npm registry.

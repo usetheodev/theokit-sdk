@@ -1,11 +1,11 @@
 /**
- * `@usetheo/memory-supermemory` — Supermemory memory adapter for @usetheo/sdk.
+ * `@theokit/memory-supermemory` — Supermemory memory adapter for @theokit/sdk.
  *
  * Usage:
  *
  * ```ts
- * import { Agent } from "@usetheo/sdk";
- * import { supermemoryMemory } from "@usetheo/memory-supermemory";
+ * import { Agent } from "@theokit/sdk";
+ * import { supermemoryMemory } from "@theokit/memory-supermemory";
  *
  * const agent = await Agent.create({
  *   apiKey: process.env.OPENROUTER_API_KEY,
@@ -22,8 +22,8 @@
  * @public
  */
 
-import type { Plugin } from "@usetheo/sdk";
-import { definePlugin } from "@usetheo/sdk";
+import type { Plugin } from "@theokit/sdk";
+import { definePlugin } from "@theokit/sdk";
 
 import { SupermemoryAdapter, type SupermemoryAdapterOptions } from "./adapter.js";
 
@@ -37,7 +37,7 @@ export type { SupermemoryAdapterOptions } from "./adapter.js";
  */
 export function supermemoryMemory(options: SupermemoryAdapterOptions): Plugin {
   return definePlugin({
-    name: "@usetheo/memory-supermemory",
+    name: "@theokit/memory-supermemory",
     version: "0.1.0",
     kind: "memory",
     createProvider: () => new SupermemoryAdapter(options),

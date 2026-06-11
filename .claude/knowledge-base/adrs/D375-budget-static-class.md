@@ -18,4 +18,4 @@ Consistency across the public API surface.
 
 ## Consequences
 
-Mirrors D361 (Task), D202 (Eval), D194 (Cron). Caller uses `import { Budget } from "@usetheo/sdk"`.
+Mirrors D361 (Task), D202 (Eval), D194 (Cron). Caller uses `import { Budget } from "@theokit/sdk"`.

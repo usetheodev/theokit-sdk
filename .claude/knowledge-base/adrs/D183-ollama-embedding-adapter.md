@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/sdk` adds Ollama as the sixth embedding adapter in
+`@theokit/sdk` adds Ollama as the sixth embedding adapter in
 `MEMORY_EMBEDDING_ADAPTERS`. The adapter:
 
 - Targets Ollama's OpenAI-compatible `/v1/embeddings` endpoint (not the

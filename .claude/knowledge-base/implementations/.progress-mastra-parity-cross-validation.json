@@ -1,0 +1,21 @@
+{
+  "plan_slug": "mastra-parity-cross-validation",
+  "tasks": {
+    "T10.1": { "status": "committed", "sha": "4721728", "iteration": 1 },
+    "T10.2": { "status": "committed", "sha": "d5cd1d0", "iteration": 2 },
+    "T10.3": { "status": "committed", "sha": "b17caaf", "iteration": 2 },
+    "T11.1": { "status": "committed", "sha": "f445ac3", "iteration": 3 },
+    "T11.2": { "status": "committed", "sha": "906c0bc", "iteration": 4 },
+    "T11.3": { "status": "committed", "sha": "1873968", "iteration": 4 },
+    "T11.4": { "status": "committed", "sha": "1873968", "iteration": 4 },
+    "T12.1": { "status": "committed", "sha": "e1aa98f", "iteration": 5 },
+    "T12.2": { "status": "committed", "sha": "e1aa98f", "iteration": 5 },
+    "T12.3": { "status": "committed", "sha": "e1aa98f", "iteration": 5 },
+    "T13.1": { "status": "pending" }
+  },
+  "current_phase": "D",
+  "iteration": 5,
+  "phase_A_complete": true,
+  "phase_B_complete": true,
+  "phase_C_complete": true
+}

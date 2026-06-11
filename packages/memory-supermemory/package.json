@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/memory-supermemory",
+  "name": "@theokit/memory-supermemory",
   "version": "0.1.0",
-  "description": "Supermemory memory adapter for @usetheo/sdk — wraps supermemory@^4 with the MemoryAdapter contract (ADR D141).",
+  "description": "Supermemory memory adapter for @theokit/sdk — wraps supermemory@^4 with the MemoryAdapter contract (ADR D141).",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -34,14 +34,14 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "supermemory": "^4.21.0"
   },
   "devDependencies": {
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "supermemory": "^4.21.1",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   }
 }

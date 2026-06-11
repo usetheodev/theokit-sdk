@@ -179,7 +179,7 @@ Regra inquebrável (per `AGENTS.md:509-513`):
 Tradução TS:
 
 - Plugin não pode patch `Agent.prototype`
-- Plugin não pode monkey-patch módulos do `@usetheo/sdk`
+- Plugin não pode monkey-patch módulos do `@theokit/sdk`
 - Plugin não pode escrever em paths fora do seu próprio dir
 - Plugin acessa core **APENAS via `ctx`**
 
@@ -213,7 +213,7 @@ version: 1.0.0
 kind: general
 description: Does the thing
 requires:
-  - "@usetheo/sdk@^1.3.0"
+  - "@theokit/sdk@^1.3.0"
 disabled: false  # Override via THEOKIT_PLUGIN_DISABLED=my-plugin
 ```
 

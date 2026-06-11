@@ -22,7 +22,7 @@ beginning with `-` or `_`.
   flags in shell-like contexts.
 - No `.` defeats `..` traversal at the grammar layer.
 - No `/` or `\` defeats path traversal via embedded separator.
-- Strict alphanumeric + dash/underscore is what every other usetheo
+- Strict alphanumeric + dash/underscore is what every other Theo
   product (skill names, agent IDs) already uses — relaxing later is
   trivial; tightening later breaks users.
 

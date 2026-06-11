@@ -1,4 +1,4 @@
-import { Inject } from "@usetheo/di";
+import { Inject } from "@theokit/di";
 
 import { AGENT_TOKEN } from "./tokens.js";
 

@@ -10,7 +10,7 @@
  * a real backend hit.
  */
 
-import { TeamsAdapter } from "@usetheo/gateway-teams";
+import { TeamsAdapter } from "@theokit/gateway-teams";
 
 const CLIENT_ID = process.env.TEAMS_CLIENT_ID;
 const CLIENT_SECRET = process.env.TEAMS_CLIENT_SECRET;

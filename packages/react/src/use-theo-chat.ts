@@ -44,7 +44,7 @@ export interface UseTheoChatResult {
 }
 
 /**
- * Chat hook that streams responses from a `@usetheo/sdk`-backed agent over
+ * Chat hook that streams responses from a `@theokit/sdk`-backed agent over
  * an SSE endpoint speaking Vercel Data Stream v1 (see wire-format.md).
  *
  * Pair with {@link streamTheoChat} on the server side.

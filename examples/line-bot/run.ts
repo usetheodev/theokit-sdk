@@ -10,9 +10,9 @@
  * 6. Add the bot as a friend (via Official Account Manager) and DM it.
  */
 
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner } from "@usetheo/gateway";
-import { LineAdapter, createWebhookServer } from "@usetheo/gateway-line";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { LineAdapter, createWebhookServer } from "@theokit/gateway-line";
 
 const requiredEnv = ["LINE_CHANNEL_SECRET", "LINE_CHANNEL_ACCESS_TOKEN", "PUBLIC_URL"];
 for (const k of requiredEnv) {

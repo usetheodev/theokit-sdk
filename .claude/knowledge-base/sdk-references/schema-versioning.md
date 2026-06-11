@@ -201,7 +201,7 @@ Hermes evita rename quando possível — usa `COALESCE(new_col, old_col)` em que
 1. **Upgrade que corrompe DB**: sem migrator, código novo lê schema velho, parse falha, exception em runtime.
    Com pattern: migrator executa no open, DB sempre na versão esperada.
 
-2. **Downgrade silencioso**: dev faz `pnpm install @usetheo/sdk@1.2.0` em produção com DB v1.3, código não nota que está vendo schema "do futuro".
+2. **Downgrade silencioso**: dev faz `pnpm install @theokit/sdk@1.2.0` em produção com DB v1.3, código não nota que está vendo schema "do futuro".
    Com pattern: `SchemaMismatchError` falha explícita.
 
 3. **Migration parcial em crash**: migração v3→v4 escreve metade, processo morre, próximo open vê schema híbrido.

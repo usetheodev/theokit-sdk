@@ -14,7 +14,7 @@ The runtime is inferred from how the job is created: pass `agent.local` or an `a
 ## Creating a job
 
 ```typescript
-import { Cron } from "@usetheo/sdk";
+import { Cron } from "@theokit/sdk";
 
 const job = await Cron.create({
   cron: "0 9 * * *",                 // every day at 09:00

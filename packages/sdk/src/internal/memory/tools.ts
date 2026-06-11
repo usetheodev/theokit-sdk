@@ -2,9 +2,9 @@ import { resolve as resolvePath } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
 import type { MemorySearchHit } from "./index-manager.js";
-import { memoryDir } from "./markdown-store.js";
 import type { MemoryIndex } from "./memory-index.js";
-import { readMemoryFileBounded } from "./reader.js";
+import { memoryDir } from "./storage/markdown-store.js";
+import { readMemoryFileBounded } from "./storage/reader.js";
 
 /**
  * Memory tools (`memory_search` + `memory_get`) — ADR D5 of

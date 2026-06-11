@@ -1,4 +1,4 @@
-# D32 — `@usetheo/react` as a separate workspace package
+# D32 — `@theokit/react` as a separate workspace package
 
 **Status:** Decided
 **Date:** 2026-05-17
@@ -7,8 +7,8 @@
 
 Streaming-to-React helpers (`useTheoChat` hook and the server-side
 `streamTheoChat` SSE handler) ship in a NEW workspace member,
-`@usetheo/react`. They do NOT live inside `@usetheo/sdk`. The new package
-peer-depends on `react ^18 || ^19` and on `@usetheo/sdk` (range pinned to
+`@theokit/react`. They do NOT live inside `@theokit/sdk`. The new package
+peer-depends on `react ^18 || ^19` and on `@theokit/sdk` (range pinned to
 `^1.1.0` for publishing; `workspace:*` for internal dev). The over-the-wire
 streaming protocol follows the **Vercel AI SDK Data Stream v1**
 specification so existing `useChat` consumers can migrate without rewriting
@@ -20,7 +20,7 @@ Three forces drove the split:
 
 1. **Core SDK must stay React-free.** Many consumers run server-side
    (Node, edge, CLI, Telegram bot). Bundling React types into
-   `@usetheo/sdk` would force them to either install React or live with
+   `@theokit/sdk` would force them to either install React or live with
    peer-dep warnings. The Anthropic SDK, OpenAI SDK and Vercel AI all
    keep React in a separate subpath or package for the same reason.
 2. **Independent versioning.** React API stability differs from the SDK
@@ -34,7 +34,7 @@ Three forces drove the split:
 
 Alternatives considered:
 
-- **Subpath export** (`@usetheo/sdk/react`) — rejected because subpaths
+- **Subpath export** (`@theokit/sdk/react`) — rejected because subpaths
   still install React deps into the same package tree, and bundlers may
   not tree-shake reliably across subpaths.
 - **Custom wire format** — rejected because we'd build alone and migrate
@@ -42,9 +42,9 @@ Alternatives considered:
 
 ## Consequences
 
-- Two npm packages to publish on each release (`@usetheo/sdk` and
-  `@usetheo/react`). Release process needs a changeset coordination step.
-- Internal dev uses `"@usetheo/sdk": "workspace:*"` so changes are
+- Two npm packages to publish on each release (`@theokit/sdk` and
+  `@theokit/react`). Release process needs a changeset coordination step.
+- Internal dev uses `"@theokit/sdk": "workspace:*"` so changes are
   reflected immediately; published artifacts pin `^1.1.0` so consumers
   can upgrade independently.
 - We commit to following Vercel Data Stream upgrades — if v2 lands and

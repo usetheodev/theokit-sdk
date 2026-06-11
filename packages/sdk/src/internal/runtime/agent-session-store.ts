@@ -1,9 +1,9 @@
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
-import { replaceFileAtomic } from "../memory/atomic-write.js";
+import { replaceFileAtomic } from "../persistence/atomic-write.js";
 import { redactSecrets, safePathJoin, sanitizeIdentifier } from "../security/index.js";
-import type { SessionMessage } from "./agent-session.js";
+import type { SessionMessage } from "./session-types.js";
 
 /**
  * Persistent session-message storage (ADR D18).

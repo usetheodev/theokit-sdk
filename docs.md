@@ -238,7 +238,7 @@ const result = await Agent.prompt("What does the auth middleware do?", {
 **`throwOnError: true`** (v1.x+) — opt-in flag that makes `Agent.prompt` reject with `AgentRunError` (extends `TheokitAgentError`) instead of resolving with `{ status: 'error', error }`. Cancelled runs still resolve. Reduces idiomatic chat-handler snippets from ~10 lines (`if (result.status === 'error') yield ...`) to ~6 lines (`try { ... } catch (err) { yield ... }`).
 
 ```typescript
-import { Agent, AgentRunError } from "@usetheo/sdk";
+import { Agent, AgentRunError } from "@theokit/sdk";
 
 try {
   const result = await Agent.prompt("hi", {
@@ -698,7 +698,7 @@ interface DefineToolSpec<T extends ZodType> {
 Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
 
 import { z } from "zod";
-import { defineTool } from "@usetheo/sdk";
+import { defineTool } from "@theokit/sdk";
 
 const rollTool = defineTool({
   name: "roll",
@@ -820,7 +820,7 @@ type SDKAgentInfo = {
     }
 );
 Cron jobs
-@usetheo/sdk supports scheduling agent runs on a cron expression. Two runtimes:
+@theokit/sdk supports scheduling agent runs on a cron expression. Two runtimes:
 
 Runtime	What runs the job
 Local	The in-process scheduler activated via Cron.start(). Jobs fire while the host process is alive. Persisted to .theokit/cron/jobs.json.
@@ -1326,7 +1326,7 @@ Returns a typed value matching a Zod schema. The SDK creates a transient local a
 
 
 import { z } from "zod";
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const FactCard = z.object({
   title: z.string().min(1),
@@ -1385,7 +1385,7 @@ AgentOptions.telemetry
 Opt-in OpenTelemetry instrumentation for `agent.send`, `llm.call`, and `tool.call` (ADR D34). Spans only emit when `@opentelemetry/api` is installed AND `telemetry.enabled === true`. Loaded lazily via `createRequire` — no runtime overhead and no peer-dep installation required to use the SDK.
 
 
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY,
@@ -1424,13 +1424,13 @@ Resilience:
 - All OTel calls are wrapped in a `safe()` helper. If the exporter throws or the OTel SDK misbehaves, the error is swallowed — `agent.send` NEVER fails because of telemetry.
 - Open spans owned by an agent are tracked per-handle and closed in `agent.dispose()` so a missing finish event from a cancelled run does not leak.
 
-React helpers (`@usetheo/react`)
-A separate workspace package — installs from npm as `@usetheo/react`, peer-deps `react ^18 || ^19` and `@usetheo/sdk ^1.1.0`. Provides two surfaces:
+React helpers (`@theokit/react`)
+A separate workspace package — installs from npm as `@theokit/react`, peer-deps `react ^18 || ^19` and `@theokit/sdk ^1.1.0`. Provides two surfaces:
 
 useTheoChat — React hook that wires a `<form>` UI to a `/api/chat` endpoint, parses the SSE stream, and exposes message state.
 
 
-import { useTheoChat } from "@usetheo/react";
+import { useTheoChat } from "@theokit/react";
 
 function Chat() {
   const { messages, input, setInput, send, isStreaming, error } = useTheoChat({
@@ -1450,8 +1450,8 @@ function Chat() {
 streamTheoChat — Next.js / framework-agnostic SSE handler. Takes a `Request`, calls `agent.send`, streams SDKMessages to the wire format below.
 
 
-import { streamTheoChat } from "@usetheo/react";
-import { Agent } from "@usetheo/sdk";
+import { streamTheoChat } from "@theokit/react";
+import { Agent } from "@theokit/sdk";
 
 export async function POST(req: Request) {
   const agent = await Agent.getOrCreate("web-bot-shared", {
@@ -1482,7 +1482,7 @@ Streams a typed object alongside intermediate partial deltas as the model produc
 
 
 import { z } from "zod";
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const FactCard = z.object({
   title: z.string().min(1),
@@ -1513,7 +1513,7 @@ Notes:
 - Same retry semantics as `generateObject`: `maxRetries` (default 1), `StreamObjectError(code: "no_tool_call" | "parse_failed")` taxonomy.
 - The `complete.object` is identical to what `Agent.generateObject` would return for the same input — verified by compat test.
 
-@usetheo/react hooks (v1.2+)
+@theokit/react hooks (v1.2+)
 The React package ships **three** complementary hooks. Each is single-purpose; do not conflate them (ADR D40).
 
 | Hook | Use case |
@@ -1539,7 +1539,7 @@ MCP OAuth 2.1 (v1.2+)
 HTTP MCP servers can declare `auth.oauth` to opt into PKCE authentication. ADR D41.
 
 
-import type { McpServerConfig } from "@usetheo/sdk";
+import type { McpServerConfig } from "@theokit/sdk";
 
 const notionMcp: McpServerConfig = {
   type: "http",
@@ -1600,7 +1600,7 @@ Memory backends (v1.2+)
 Memory.index now accepts `backend: "sqlite-vec" | "lance"` (default `"sqlite-vec"`). ADR D43.
 
 
-import { Memory } from "@usetheo/sdk";
+import { Memory } from "@theokit/sdk";
 
 const memory = await Memory.create({
   cwd: process.cwd(),
@@ -1753,7 +1753,7 @@ Skill prompt bodies are not stable public output. Use `agent.skills.list()` for 
 Every output boundary the SDK controls — thrown errors (`metadata.raw`), telemetry span attributes, transcript JSONL appends, migration logger output — passes through a canonical redactor before persisting or emitting. Builtin patterns cover 12 well-known credential prefixes (OpenAI `sk-`, Anthropic `sk-ant-`, GitHub PAT classic + fine-grained, GitLab `glpat-`, AWS `AKIA`, Google `AIza`, Slack `xox*-`, Sentry `sntrys_`, Stripe `sk_live_` / `rk_live_`) plus a parametric `key=value` matcher that masks `access_token=`, `api_key=`, `password=`, `x-api-key=`, and `Authorization: Bearer <token>` in URLs, JSON bodies, and HTTP headers.
 
 ```typescript
-import { Security } from "@usetheo/sdk";
+import { Security } from "@theokit/sdk";
 
 // Add a custom pattern (e.g., org-internal token shape):
 Security.addPattern(/MYORG-[A-Z0-9]{32}/g);
@@ -1773,7 +1773,7 @@ Security.addPattern(/MYORG-[A-Z0-9]{32}/g);
 
 ## Security — path traversal + TOCTOU (v1.6+)
 
-Every callsite that joins user-supplied input with a path passes through a canonical guard (ADRs D79-D85). The SDK ships four primitives and two typed errors. From v1.x they are part of the **public API** via the `@usetheo/sdk/path-safety` sub-export, so consumer agents (TheoKit Studio, cli-bot, custom coding agents) can validate user-supplied paths without reinventing the guard.
+Every callsite that joins user-supplied input with a path passes through a canonical guard (ADRs D79-D85). The SDK ships four primitives and two typed errors. From v1.x they are part of the **public API** via the `@theokit/sdk/path-safety` sub-export, so consumer agents (TheoKit Studio, cli-bot, custom coding agents) can validate user-supplied paths without reinventing the guard.
 
 **Path traversal defense:**
 
@@ -1796,7 +1796,7 @@ import {
   isForbiddenPath,
   PathTraversalError,
   ForbiddenPathError,
-} from "@usetheo/sdk/path-safety";
+} from "@theokit/sdk/path-safety";
 
 // Inside a custom tool handler:
 function readUserFile(projectRoot: string, userPath: string): string {
@@ -1820,21 +1820,21 @@ Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vec
 
 ## Built-in tools for coding agents (v1.x+)
 
-Drop-in toolkit available at `@usetheo/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
+Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
 
 1. **Project-scoped.** Every I/O call passes through `safePathJoin` + `assertNoSymlinkEscape`.
 2. **Sensitive files refused.** `.env*` (except `.env.example`), `.git/`, `node_modules/`, `.theo/`, lock files via `isForbiddenPath`.
 3. **JSON returns, never throws on user mistakes.** Handlers always return a JSON string. Real exceptions reserved for SDK-side bugs (input parse errors).
 
 ```typescript
-import { createAgentFactory } from "@usetheo/sdk";
+import { createAgentFactory } from "@theokit/sdk";
 import {
   createReadFileTool,
   createListDirTool,
   createSearchTextTool,
   createGitDiffTool,
   createRunVitestTool,
-} from "@usetheo/sdk/tools";
+} from "@theokit/sdk/tools";
 
 const projectRoot = process.cwd();
 const factory = createAgentFactory({
@@ -1934,7 +1934,7 @@ The SDK ships **Ollama as a builtin provider** (ADR D182). After
 **zero configuration**:
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 // 1) Start Ollama (one-time, in another terminal):
 //      ollama serve
@@ -1990,7 +1990,7 @@ may not).
 Eval-as-code primitive for production deploy gates. ADRs D202-D213.
 
 ```typescript
-import { Eval, Scorers } from "@usetheo/sdk";
+import { Eval, Scorers } from "@theokit/sdk";
 
 const run = await Eval.create({
   name: "qa-smoke",
@@ -2097,7 +2097,7 @@ Use unique names per matrix run (e.g. include model id in name).
 Peer-to-peer agent handoff primitive. ADRs D214-D229.
 
 ```typescript
-import { Agent, Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "@usetheo/sdk";
+import { Agent, Handoff, RECOMMENDED_HANDOFF_PROMPT_PREFIX } from "@theokit/sdk";
 
 const billing = await Agent.create({
   name: "billing",
@@ -2167,7 +2167,7 @@ Handoff.create(escalation, {
 programmatic flows / tests:
 
 ```typescript
-import { handoffTo } from "@usetheo/sdk";
+import { handoffTo } from "@theokit/sdk";
 
 const reply = await handoffTo(triage, billing, "Why was I charged twice?");
 ```
@@ -2201,7 +2201,7 @@ and friends. ADRs D230-D248. Inspired by Mastra workflows v1; uses explicit
 input/output state propagation (not LangGraph state-machine).
 
 ```typescript
-import { Agent, Workflow, fn, agentStep } from "@usetheo/sdk";
+import { Agent, Workflow, fn, agentStep } from "@theokit/sdk";
 
 const classifier = await Agent.create({ /* ... */ });
 const billingExpert = await Agent.create({ /* ... */ });
@@ -2236,7 +2236,7 @@ console.log(run.status, run.output);
 ### Step types (D232)
 
 ```typescript
-import { fn, agentStep } from "@usetheo/sdk";
+import { fn, agentStep } from "@theokit/sdk";
 
 // fn step — pure function with optional Zod schemas + retry
 fn("validate", (input, ctx) => {...}, {
@@ -2345,7 +2345,7 @@ Inspired by Helicone (KV), LangCache (Redis Vector), GPTCache (layered architect
 ### Quickstart
 
 ```typescript
-import { Agent, Cache } from "@usetheo/sdk";
+import { Agent, Cache } from "@theokit/sdk";
 
 // Reuse any MemoryEmbeddingProviderAdapter (D11) — openai / mistral / voyage / etc.
 // For a quick test, plug a deterministic toy embedder; production uses a real adapter.
@@ -2466,23 +2466,23 @@ with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic
 | `CacheEmbedderError` | Embedder throw surfaced (rare; usually swallowed via EC-1 graceful degradation) |
 | `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
 
-## Slack gateway (v1.19+) — `@usetheo/gateway-slack`
+## Slack gateway (v1.19+) — `@theokit/gateway-slack`
 
-Slack platform adapter for `@usetheo/gateway`. ADRs D267-D285. Inspired by
+Slack platform adapter for `@theokit/gateway`. ADRs D267-D285. Inspired by
 OpenClaw's `extensions/slack/` and Hermes-Agent's `gateway/platforms/slack.py`;
 uses `@slack/bolt` for Socket Mode transport.
 
 ### Install
 
 ```bash
-pnpm add @usetheo/gateway-slack @usetheo/gateway @slack/bolt @slack/web-api
+pnpm add @theokit/gateway-slack @theokit/gateway @slack/bolt @slack/web-api
 ```
 
 ### Quickstart
 
 ```typescript
-import { SlackAdapter } from "@usetheo/gateway-slack";
-import type { GatewayMessageEvent } from "@usetheo/gateway";
+import { SlackAdapter } from "@theokit/gateway-slack";
+import type { GatewayMessageEvent } from "@theokit/gateway";
 
 const adapter = new SlackAdapter({
   botToken: process.env.SLACK_BOT_TOKEN!,    // xoxb-...
@@ -2565,7 +2565,7 @@ No SigV4, no `@aws-sdk/client-bedrock-runtime` peer dep.
 ### Quickstart
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.AWS_BEARER_TOKEN_BEDROCK,
@@ -2623,7 +2623,7 @@ Required peer dep: `google-auth-library`.
 ### Quickstart (Gemini)
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 // `gcloud auth application-default login` first; GOOGLE_CLOUD_PROJECT in env.
 const agent = await Agent.create({
@@ -2728,7 +2728,7 @@ import {
   Agent,
   FileSystemConversationStorage,
   InMemoryConversationStorage,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 // Tests / ephemeral dev
 const ephemeral = new InMemoryConversationStorage();
@@ -2792,7 +2792,7 @@ Live-agent cache for production deploys. Solves OOM in long-running Node servers
 ### Tune for production
 
 ```ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 // At app boot:
 Agent.registry.configure({
@@ -2845,7 +2845,7 @@ Every eviction (LRU, idle, explicit) awaits `agent.dispose()`. Dispose errors ar
 ### Discriminate by code
 
 ```ts
-import { AgentRunError } from "@usetheo/sdk";
+import { AgentRunError } from "@theokit/sdk";
 
 try {
   await agent.send(message);
@@ -2896,7 +2896,7 @@ Wire `AbortSignal` from your route handler / job runner so token billing stops t
 ### Pass user signal
 
 ```ts
-import { Agent, AgentRunError } from "@usetheo/sdk";
+import { Agent, AgentRunError } from "@theokit/sdk";
 
 // Express + Node: request.on('close') fires AbortSignal on disconnect
 const agent = await Agent.getOrCreate(conversationId, { apiKey, model });

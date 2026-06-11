@@ -2,7 +2,7 @@
 
 > Curadoria de **patterns técnicos, design decisions, e lessons learned**
 > extraídos de codebases de agentes maduros (Hermes Agent, OpenClaw, Mastra,
-> Vercel AI SDK) **filtrados pelo escopo do `@usetheo/sdk`** — framework
+> Vercel AI SDK) **filtrados pelo escopo do `@theokit/sdk`** — framework
 > SDK Apache-2.0 do "Harness pillar" do usetheo.
 
 ## O que entra aqui
@@ -78,7 +78,7 @@ independente, citação-rigoroso, com TypeScript translation pronto.
 
 ## Roadmap macro — adoção dos patterns no SDK
 
-Status reflete o que está **implementado no `@usetheo/sdk` hoje** vs o
+Status reflete o que está **implementado no `@theokit/sdk` hoje** vs o
 que é proposed-but-not-wired. Auditado em 2026-05-18 contra
 `packages/sdk/src/`.
 

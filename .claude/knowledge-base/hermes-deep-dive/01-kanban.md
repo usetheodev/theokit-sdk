@@ -7,7 +7,7 @@
 > "stale by TTL but PID alive" and "stale and dead" claims, traps worker
 > hallucinations that claim to have created cards that do not exist, and
 > auto-blocks tasks that consecutively fail. The same shape, expressed in
-> TypeScript, is the v1.3 `Kanban` namespace under `@usetheo/sdk` —
+> TypeScript, is the v1.3 `Kanban` namespace under `@theokit/sdk` —
 > `Kanban.create(boardOptions)`, `Kanban.claimTask()`, `Kanban.heartbeat()`,
 > `Kanban.completeTask({ createdCards })`, and a `Dispatcher` loop with the
 > same circuit breakers.
@@ -195,7 +195,7 @@ USER: hermes kanban create "Write the auth tests" --assignee builder --workspace
 
 - **Alternative rejected**: Distributed locks (Redis, etcd) would have required external infrastructure, breaking "drop-in, runs on a $5 VPS" positioning. In-memory locks would have lost durability across process restarts.
 
-- **TypeScript translation**: `better-sqlite3` is synchronous + WAL-capable. We get the same CAS guarantees with `db.prepare('UPDATE tasks SET … WHERE id=? AND status=? AND claim_lock IS NULL').run(…).changes === 1`. **Do not** use `sqlite3` (async) or Drizzle ORM here — both can introduce JS-level races between read and write that defeat CAS. The whole abstraction in `@usetheo/sdk` must be synchronous (under `Kanban.run`) or use the same statement-prepared CAS pattern.
+- **TypeScript translation**: `better-sqlite3` is synchronous + WAL-capable. We get the same CAS guarantees with `db.prepare('UPDATE tasks SET … WHERE id=? AND status=? AND claim_lock IS NULL').run(…).changes === 1`. **Do not** use `sqlite3` (async) or Drizzle ORM here — both can introduce JS-level races between read and write that defeat CAS. The whole abstraction in `@theokit/sdk` must be synchronous (under `Kanban.run`) or use the same statement-prepared CAS pattern.
 
 ### AD-2: `consecutive_failures` is unified across spawn/timeout/crash; reset only on success
 
@@ -771,7 +771,7 @@ These are the documented edge cases the v0.13 implementation already handles. Ea
 
 ## TypeScript API proposal
 
-### Public surface (added to `@usetheo/sdk`)
+### Public surface (added to `@theokit/sdk`)
 
 ```typescript
 // src/index.ts — public exports
@@ -967,7 +967,7 @@ Resolution chain matches Hermes (`kanban_db.py:281-303`): `dbPath` arg > `THEOKI
 - **Backward-compatible**: Yes. Kanban is a *new namespace*; no existing v1.2 API changes.
 - **Breaking signature changes**: None.
 - **Migration path**: Users opt in by calling `Kanban.create()`. Existing `Agent`, `Memory`, `Cron` APIs unchanged.
-- **Required configuration**: For multi-process (orchestrator + workers) setups, users must install `@usetheo/sdk` in *both* the orchestrator and worker processes, and the worker must invoke `Kanban.fromEnv()` not `Kanban.create()`.
+- **Required configuration**: For multi-process (orchestrator + workers) setups, users must install `@theokit/sdk` in *both* the orchestrator and worker processes, and the worker must invoke `Kanban.fromEnv()` not `Kanban.create()`.
 
 ## Test strategy (mirrors Hermes' approach)
 

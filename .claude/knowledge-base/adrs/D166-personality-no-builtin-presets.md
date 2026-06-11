@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/sdk` does not ship any default personality presets. The
+`@theokit/sdk` does not ship any default personality presets. The
 registry starts empty unless the user populates
 `.theokit/personalities/*.md` (project) or
 `~/.theokit/personalities/*.md` (user). Examples ship a sample preset

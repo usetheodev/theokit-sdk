@@ -6,7 +6,7 @@
 
 ## Context
 
-`theokit-sdk/packages/di` (`@usetheo/di@0.1.0-next.0`) e `theokit-sdk/packages/di-agent` (`@usetheo/di-agent@0.1.0-next.0`) foram publicados em npm a partir de um worktree onde o biome rodou com config diferente da workspace-root. Quando o pre-commit hook (G2 biome) foi acionado pela primeira vez no workspace principal, 17 violações afloraram:
+`theokit-sdk/packages/di` (`@theokit/di@0.1.0-next.0`) e `theokit-sdk/packages/di-agent` (`@theokit/di-agent@0.1.0-next.0`) foram publicados em npm a partir de um worktree onde o biome rodou com config diferente da workspace-root. Quando o pre-commit hook (G2 biome) foi acionado pela primeira vez no workspace principal, 17 violações afloraram:
 
 - **7 parse errors** em test files com `@Inject("X") readonly x: T` em params de constructor — biome 2.4.15 não aceita parameter decorators por default (TC39 stage 3 ainda em finalização).
 - **2 complexity errors** em `packages/di/src/container.ts`:
@@ -31,7 +31,7 @@ Adicionar:
 }
 ```
 
-**Rationale:** Parameter decorators são feature legítima TC39 stage 3 + TypeScript legacy decorators. Biome 2.x marca como "unsafe" apenas porque TC39 stage 3 ainda não finalizou. O ecossistema TS já adota há anos (`reflect-metadata` + TS `experimentalDecorators`). `@usetheo/di` exigiria refactor completo para property injection se não habilitássemos — break em API já publicada.
+**Rationale:** Parameter decorators são feature legítima TC39 stage 3 + TypeScript legacy decorators. Biome 2.x marca como "unsafe" apenas porque TC39 stage 3 ainda não finalizou. O ecossistema TS já adota há anos (`reflect-metadata` + TS `experimentalDecorators`). `@theokit/di` exigiria refactor completo para property injection se não habilitássemos — break em API já publicada.
 
 **Alternative rejected:** Property injection em vez de constructor injection. Custo: API break em `0.1.0-next.0` (já em npm) — inaceitável.
 
@@ -53,7 +53,7 @@ Quebrar em 3 helpers privados:
 **Alternative rejected:** Aumentar `maxAllowedComplexity` em biome.json para 15. Isso normaliza pode-podridão e regride toda outra função do SDK.
 
 **Consequences:**
-- API pública intocada (`@usetheo/di` 0.1.0-next.0 contract preserved).
+- API pública intocada (`@theokit/di` 0.1.0-next.0 contract preserved).
 - 5 unit tests novos cobrem helpers extraídos (validateMetadata × 2, tryResolveSync × 2, resolveAllAsync × 1).
 - Knip não vai flaggar (helpers privados, não exports).
 - publint + attw inalterados (helpers não vazam em `.d.ts`).
@@ -81,11 +81,11 @@ Extrair:
 | Property injection em vez de constructor | Break API published em npm |
 | `maxAllowedComplexity: 15` | Normaliza pode-podridão; regride padrão de todo o SDK |
 | `--no-verify` permanente | Viola regra inviolável global "Never skip hooks" |
-| Mover @usetheo/di pra repo separado | Resolve sintoma, não causa; mesma config issue voltaria |
+| Mover @theokit/di pra repo separado | Resolve sintoma, não causa; mesma config issue voltaria |
 
 ## Related
 
 - `[[theokit-sdk-CLAUDE.md]]` — toolchain biome ^2.4.0 locked
 - `[[ADR D2]]` (knip strict) — helpers privados não conflitam
 - Commit `520fe7d` — débito --no-verify que este ADR resolve
-- `[[@usetheo/di package]]` — API consumer-facing intocada
+- `[[@theokit/di package]]` — API consumer-facing intocada

@@ -5,10 +5,6 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
 import {
-  clearAgentRegistry,
-  invalidateRegistryHydration,
-} from "../../../src/internal/runtime/agent-registry.js";
-import {
   appendSessionMessage,
   clearAllSessions,
   compactSession,
@@ -21,6 +17,10 @@ import {
   readSessionFile,
   sessionFilePath,
 } from "../../../src/internal/runtime/agent-session-store.js";
+import {
+  clearAgentRegistry,
+  invalidateRegistryHydration,
+} from "../../../src/internal/runtime/registry/agent-registry.js";
 
 /**
  * ADR D18 + EC-2/EC-6/EC-7 — session messages persist to

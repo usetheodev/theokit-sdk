@@ -5,7 +5,7 @@
  * @internal
  */
 
-import type { McpStdioServerConfig } from "@usetheo/sdk";
+import type { McpStdioServerConfig } from "@theokit/sdk";
 
 import type { GoogleWorkspaceOptions } from "./types.js";
 

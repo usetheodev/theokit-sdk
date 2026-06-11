@@ -1,22 +1,22 @@
-# @usetheo/di-agent
+# @theokit/di-agent
 
-> Agent-first DI integration for `@usetheo/di`.
+> Agent-first DI integration for `@theokit/di`.
 
-Ships a single `@InjectAgent()` decorator and a `createAgentProvider()` factory helper that produces a **REQUEST-scoped** `Agent` instance — so every HTTP request gets an isolated `@usetheo/sdk` Agent automatically.
+Ships a single `@InjectAgent()` decorator and a `createAgentProvider()` factory helper that produces a **REQUEST-scoped** `Agent` instance — so every HTTP request gets an isolated `@theokit/sdk` Agent automatically.
 
 ## Install
 
 ```bash
-pnpm add @usetheo/di @usetheo/sdk @usetheo/di-agent reflect-metadata
+pnpm add @theokit/di @theokit/sdk @theokit/di-agent reflect-metadata
 ```
 
 ## Quick start
 
 ```typescript
 import "reflect-metadata";
-import { Agent } from "@usetheo/sdk";
-import { Container, Injectable, Module } from "@usetheo/di";
-import { InjectAgent, createAgentProvider } from "@usetheo/di-agent";
+import { Agent } from "@theokit/sdk";
+import { Container, Injectable, Module } from "@theokit/di";
+import { InjectAgent, createAgentProvider } from "@theokit/di-agent";
 
 @Injectable()
 class ChatService {

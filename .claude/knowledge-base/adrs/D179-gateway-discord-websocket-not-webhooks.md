@@ -5,7 +5,7 @@
 
 ## Decision
 
-`@usetheo/gateway-discord` opens a long-lived WebSocket via discord.js's `Client.login()`. The v0.1 release does NOT ship a webhook-based variant.
+`@theokit/gateway-discord` opens a long-lived WebSocket via discord.js's `Client.login()`. The v0.1 release does NOT ship a webhook-based variant.
 
 ## Rationale
 

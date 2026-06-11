@@ -102,11 +102,12 @@ describe("llama.cpp profile (D189)", () => {
   });
 });
 
-describe("Builtin count after D188 + D189 + D286/D288", () => {
-  it("listProviders includes 9 builtins (baseline 5 + lmstudio + llamacpp + bedrock + vertex)", () => {
-    // 5 (D182 baseline) + 2 sibling profiles + 2 cloud profiles = 9.
-    expect(listProviders()).toHaveLength(9);
-    const names = listProviders().map((p) => p.name);
+describe("Builtin count after D188 + D189 + D286/D288 + T10.1 catalog", () => {
+  it("listProviders includes all 9 builtins plus dynamic catalog providers", () => {
+    // 9 first-party builtins + 35 catalog-only providers (T10.1, ADR D447) = 44
+    const providers = listProviders();
+    expect(providers.length).toBeGreaterThanOrEqual(9);
+    const names = providers.map((p) => p.name);
     expect(names).toEqual(
       expect.arrayContaining([
         "anthropic",

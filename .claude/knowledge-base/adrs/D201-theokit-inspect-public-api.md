@@ -1,11 +1,11 @@
-# D201 — `Theokit.inspect.*` public namespace in `@usetheo/sdk`
+# D201 — `Theokit.inspect.*` public namespace in `@theokit/sdk`
 
 **Date:** 2026-05-22
 **Status:** Accepted
 
 ## Decision
 
-`@usetheo/sdk` exposes a public `Theokit.inspect` static namespace
+`@theokit/sdk` exposes a public `Theokit.inspect` static namespace
 with read-only introspection of bundled assets:
 
 ```ts
@@ -23,7 +23,7 @@ under the hood when needed. They mirror the internal registry state.
 ## Rationale
 
 - **EC-E MUST FIX** (from `cli-theokit` edge-case review 2026-05-22):
-  `@usetheo/cli`'s `inspect` command needs to enumerate the builtin
+  `@theokit/cli`'s `inspect` command needs to enumerate the builtin
   providers + embedding adapters. The SDK's internal modules
   (`internal/providers/registry.ts`,
   `internal/memory/adapters/catalog.ts`) are NOT in

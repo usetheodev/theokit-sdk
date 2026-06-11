@@ -1,5 +1,5 @@
 /**
- * Public type contract for `@usetheo/di`. All consumer-facing types live
+ * Public type contract for `@theokit/di`. All consumer-facing types live
  * here; internal types live in `src/internal/`.
  */
 

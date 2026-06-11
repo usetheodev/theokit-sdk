@@ -7,7 +7,13 @@
  */
 
 import { parseToolArguments } from "./finish.js";
-import type { LlmMessage, LlmRequest, LlmStopReason, LlmToolCallPart } from "./types.js";
+import type {
+  LlmMessage,
+  LlmRequest,
+  LlmStopReason,
+  LlmSystemBlock,
+  LlmToolCallPart,
+} from "./types.js";
 
 export interface AnthropicResponseLike {
   content?: Array<
@@ -163,10 +169,16 @@ export async function parseHttpErrorBody(response: Response): Promise<unknown> {
   }
 }
 
+export interface AnthropicTextBlock {
+  type: "text";
+  text: string;
+  cache_control?: { type: "ephemeral" };
+}
+
 export function buildAnthropicCommonBody(request: LlmRequest): {
   max_tokens: number;
   messages: Array<Record<string, unknown>>;
-  system?: string;
+  system?: string | AnthropicTextBlock[];
   temperature?: number;
   tools?: Array<{ name: string; description: string; input_schema: unknown }>;
 } {
@@ -174,7 +186,8 @@ export function buildAnthropicCommonBody(request: LlmRequest): {
     max_tokens: request.maxTokens ?? 4096,
     messages: request.messages.map(toAnthropicWireMessage),
   };
-  if (request.system !== undefined) body.system = request.system;
+  const wireSystem = encodeAnthropicSystem(request.system);
+  if (wireSystem !== undefined) body.system = wireSystem;
   if (request.temperature !== undefined) body.temperature = request.temperature;
   if (request.tools !== undefined && request.tools.length > 0) {
     body.tools = request.tools.map((tool) => ({
@@ -184,4 +197,28 @@ export function buildAnthropicCommonBody(request: LlmRequest): {
     }));
   }
   return body;
+}
+
+/**
+ * T3.5 — translate `LlmRequest.system` to the Anthropic wire shape.
+ *
+ * - `undefined` → omit (`undefined`).
+ * - `string` → forward verbatim (back-compat, no caching).
+ * - `LlmSystemBlock[]` → array of `{type:"text", text, cache_control?}`.
+ *   `cacheable: true` → emit `cache_control:{type:"ephemeral"}`.
+ *   Empty array short-circuits to `undefined`.
+ *
+ * @internal
+ */
+function encodeAnthropicSystem(
+  system: string | LlmSystemBlock[] | undefined,
+): string | AnthropicTextBlock[] | undefined {
+  if (system === undefined) return undefined;
+  if (typeof system === "string") return system;
+  if (system.length === 0) return undefined;
+  return system.map((block) => {
+    const wire: AnthropicTextBlock = { type: "text", text: block.text };
+    if (block.cacheable === true) wire.cache_control = { type: "ephemeral" };
+    return wire;
+  });
 }

@@ -1,9 +1,9 @@
 ---
-"@usetheo/di-agent": minor
+"@theokit/di-agent": minor
 ---
 
-Initial release of `@usetheo/di-agent` — agent-first DI integration for `@usetheo/di`.
+Initial release of `@theokit/di-agent` — agent-first DI integration for `@theokit/di`.
 
-Ships `@InjectAgent()` parameter decorator + `createAgentProvider()` factory helper that produces a REQUEST-scoped `Agent` (from `@usetheo/sdk`) factory provider. Each HTTP request handled inside `container.runInRequest(...)` gets an isolated Agent instance automatically — the wedge that differentiates `@usetheo/di` from generic DI containers.
+Ships `@InjectAgent()` parameter decorator + `createAgentProvider()` factory helper that produces a REQUEST-scoped `Agent` (from `@theokit/sdk`) factory provider. Each HTTP request handled inside `container.runInRequest(...)` gets an isolated Agent instance automatically — the wedge that differentiates `@theokit/di` from generic DI containers.
 
-Peer deps: `@usetheo/di`, `@usetheo/sdk`, `reflect-metadata`.
+Peer deps: `@theokit/di`, `@theokit/sdk`, `reflect-metadata`.

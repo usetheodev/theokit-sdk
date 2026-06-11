@@ -10,7 +10,7 @@ ACP uses stdout as the JSON-RPC framing channel. Any `console.log` or `process.s
 
 ## Decision
 
-All logging from `@usetheo/acp` and the bin shim routes to `process.stderr.write`. The `log?: (msg: string) => void` option on `serveAcp` defaults to a stderr writer. CI lint rule scans `packages/acp/src/**` for `console.log` and treats it as an error.
+All logging from `@theokit/acp` and the bin shim routes to `process.stderr.write`. The `log?: (msg: string) => void` option on `serveAcp` defaults to a stderr writer. CI lint rule scans `packages/acp/src/**` for `console.log` and treats it as an error.
 
 ## Rationale
 

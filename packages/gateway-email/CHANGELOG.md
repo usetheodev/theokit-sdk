@@ -5,22 +5,22 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.3.0
-  - @usetheo/gateway@2.0.0
+  - @theokit/sdk@1.3.0
+  - @theokit/gateway@2.0.0
 
 ## 1.0.0
 
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.2.0
-  - @usetheo/gateway@1.0.0
+  - @theokit/sdk@1.2.0
+  - @theokit/gateway@1.0.0
 
 ## [0.1.0] - 2026-05-24
 
 ### Added
 
-- Initial release. Email platform adapter for `@usetheo/gateway` (Roadmap v1.4 #4).
+- Initial release. Email platform adapter for `@theokit/gateway` (Roadmap v1.4 #4).
 - `EmailAdapter` extending `BasePlatformAdapter` (ADRs D327-D339).
 - Community-standard stack: `nodemailer@^8` (SMTP) + `imapflow@^1` (IMAP IDLE) + `mailparser@^3` (RFC 5322).
 - IMAP IDLE preferred, 15s polling fallback (D328).

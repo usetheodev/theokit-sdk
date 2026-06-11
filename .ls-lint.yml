@@ -1,0 +1,30 @@
+ls:
+  packages/*/src:
+    .ts: regex:^[a-z][a-z0-9-]*$
+    .tsx: regex:^[a-z][a-z0-9-]*$
+  packages/*/src/**:
+    .ts: regex:^[a-z][a-z0-9-]*$
+    .tsx: regex:^[a-z][a-z0-9-]*$
+  packages/*/tests:
+    .ts: regex:^[a-z][a-z0-9-]*$
+  packages/*/tests/**:
+    .ts: regex:^[a-z][a-z0-9-]*$
+
+ignore:
+  - node_modules
+  - dist
+  - dist-runtime
+  - build
+  - target
+  - coverage
+  - .git
+  - .nvm
+  - .pnpm-store
+  - .changeset
+  - .github
+  - .claude.previous.bak
+  - .claude
+  - referencia
+  - docs/evalscope
+  - architecture-output
+  - examples

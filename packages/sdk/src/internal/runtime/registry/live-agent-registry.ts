@@ -1,0 +1,246 @@
+/**
+ * Live-agent cache for production deploys (Production-Readiness #2, ADRs D307-D310).
+ *
+ * Caches `SDKAgent` instances by id with LRU eviction (when `size > maxAgents`)
+ * and an idle-timeout sweep (configurable interval, default 60s). Solves the
+ * "OOM at some point" failure mode of long-running Node servers that keep
+ * spawning fresh agents per conversation.
+ *
+ * **Distinct from `agent-registry.ts`** (the metadata registry that persists
+ * `RegisteredAgent` to `registry.json` per cwd). That module is the "address
+ * book"; this module is the "live cache". Conflating them violates SRP — see
+ * ADR D307.
+ *
+ * Defaults (ADR D308): `maxAgents: 100`, `idleTimeoutMs: 30 min`, sweep `60s`.
+ * Calibrated for indie/small-team Node deploys; high-traffic SaaS should
+ * `configure({ maxAgents: 1000 })`.
+ *
+ * @public (singleton exposed via `Agent.registry`)
+ */
+
+import type { SDKAgent } from "../../../types/agent.js";
+
+export type EvictReason = "lru" | "idle" | "explicit";
+
+export interface AgentRegistryOptions {
+  /**
+   * Maximum number of agents kept alive simultaneously. LRU eviction when
+   * exceeded. Default: 100.
+   *
+   * Setting `0` disables the cache entirely — every `Agent.getOrCreate`
+   * re-initializes (high cost, but predictable memory).
+   */
+  maxAgents?: number;
+
+  /**
+   * Idle timeout in milliseconds. Agents not used for this duration are
+   * evicted on the next sweep tick. Default: 1_800_000 (30 minutes).
+   * Set `0` to disable idle eviction.
+   */
+  idleTimeoutMs?: number;
+
+  /**
+   * Sweep interval in milliseconds. Default: 60_000 (60s).
+   * Lower = more responsive eviction but more CPU. Higher = staler entries.
+   */
+  sweepIntervalMs?: number;
+
+  /**
+   * Called whenever an agent is evicted. Listener errors are swallowed
+   * with a one-shot stderr warn (do not crash the eviction loop).
+   */
+  onEvict?: (id: string, reason: EvictReason) => void;
+}
+
+interface CacheEntry {
+  agent: SDKAgent;
+  lastUsedAt: number;
+}
+
+const DEFAULT_MAX_AGENTS = 100;
+const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const DEFAULT_SWEEP_INTERVAL_MS = 60_000;
+
+export class LiveAgentRegistry {
+  readonly #agents = new Map<string, CacheEntry>();
+  #maxAgents = DEFAULT_MAX_AGENTS;
+  #idleTimeoutMs = DEFAULT_IDLE_TIMEOUT_MS;
+  #sweepIntervalMs = DEFAULT_SWEEP_INTERVAL_MS;
+  #onEvict: ((id: string, reason: EvictReason) => void) | undefined;
+  #sweepTimer: NodeJS.Timeout | undefined;
+
+  /**
+   * Reconfigure registry behavior. Process-wide singleton (D310) — last
+   * configure call wins for all subsequent operations.
+   */
+  configure(opts: AgentRegistryOptions): void {
+    if (opts.maxAgents !== undefined) this.#maxAgents = Math.max(0, opts.maxAgents);
+    if (opts.idleTimeoutMs !== undefined) this.#idleTimeoutMs = Math.max(0, opts.idleTimeoutMs);
+    if (opts.sweepIntervalMs !== undefined)
+      this.#sweepIntervalMs = Math.max(1_000, opts.sweepIntervalMs);
+    this.#onEvict = opts.onEvict;
+    // Reset sweep with new config.
+    this.#stopSweep();
+    if (this.#idleTimeoutMs > 0) this.#startSweep();
+  }
+
+  /**
+   * Lookup a cached agent. `get` is a use — refreshes `lastUsedAt` so the
+   * entry survives LRU eviction.
+   */
+  get(id: string): SDKAgent | undefined {
+    const entry = this.#agents.get(id);
+    if (entry === undefined) return undefined;
+    entry.lastUsedAt = Date.now();
+    return entry.agent;
+  }
+
+  /**
+   * Insert or overwrite an agent in the cache. Triggers fire-and-forget LRU
+   * eviction when `size > maxAgents`.
+   *
+   * EC-4: when `id` already maps to a DIFFERENT agent instance, dispose the
+   * old one before overwriting (race protection against two `getOrCreate`
+   * calls creating two agents but only the second being cached — the first
+   * would leak file handles + lifecycle controllers).
+   */
+  set(id: string, agent: SDKAgent): void {
+    if (this.#maxAgents === 0) return; // cache disabled
+    const existing = this.#agents.get(id);
+    if (existing !== undefined && existing.agent !== agent) {
+      // Dispose the old entry off the hot path. Errors swallowed per D309.
+      void existing.agent.dispose().catch(() => {
+        process.stderr.write(`[theokit-sdk] dispose during overwrite failed (${id})\n`);
+      });
+    }
+    this.#agents.set(id, { agent, lastUsedAt: Date.now() });
+    if (this.#agents.size > this.#maxAgents) void this.#evictLRU();
+  }
+
+  /**
+   * Remove the entry from the cache WITHOUT calling `dispose()` or
+   * `onEvict`. Used by `LocalAgent.dispose()` itself so the disposed
+   * instance can never be returned by a subsequent `get(id)` (dispose-cache
+   * race fix). Idempotent — calling on an unknown id is a no-op.
+   *
+   * @internal
+   */
+  forget(id: string): void {
+    this.#agents.delete(id);
+  }
+
+  /**
+   * Explicitly evict an agent by id. Returns `true` when the entry was
+   * present (false = already gone). Calls `agent.dispose()` + `onEvict`
+   * with reason `"explicit"`.
+   */
+  async evict(id: string): Promise<boolean> {
+    const entry = this.#agents.get(id);
+    if (entry === undefined) return false;
+    this.#agents.delete(id);
+    await this.#disposeAndNotify(id, entry.agent, "explicit");
+    return true;
+  }
+
+  /**
+   * Evict every cached agent. Used by graceful shutdown (`process.on('SIGTERM')`)
+   * or end-of-test cleanup.
+   */
+  async evictAll(): Promise<void> {
+    const entries = Array.from(this.#agents.entries());
+    this.#agents.clear();
+    this.#stopSweep();
+    for (const [id, entry] of entries) {
+      await this.#disposeAndNotify(id, entry.agent, "explicit");
+    }
+  }
+
+  /** Number of currently cached agents. */
+  size(): number {
+    return this.#agents.size;
+  }
+
+  /** Ids of cached agents, newest first (by lastUsedAt). */
+  ids(): readonly string[] {
+    return Array.from(this.#agents.entries())
+      .sort((a, b) => b[1].lastUsedAt - a[1].lastUsedAt)
+      .map(([id]) => id);
+  }
+
+  /**
+   * LRU eviction: drop the entry with the smallest `lastUsedAt`. Runs only
+   * when `size > maxAgents`. Asynchronous because `dispose()` is a Promise;
+   * the hot-path caller (`set`) does not await.
+   *
+   * @internal
+   */
+  async #evictLRU(): Promise<void> {
+    if (this.#agents.size <= this.#maxAgents) return; // size may have shrunk
+    let oldestId: string | undefined;
+    let oldestAt = Infinity;
+    for (const [id, entry] of this.#agents) {
+      if (entry.lastUsedAt < oldestAt) {
+        oldestAt = entry.lastUsedAt;
+        oldestId = id;
+      }
+    }
+    if (oldestId === undefined) return;
+    const entry = this.#agents.get(oldestId);
+    if (entry === undefined) return;
+    this.#agents.delete(oldestId);
+    await this.#disposeAndNotify(oldestId, entry.agent, "lru");
+  }
+
+  /** Background sweep — drops entries whose `lastUsedAt < now - idleTimeoutMs`. */
+  async #sweepIdle(): Promise<void> {
+    if (this.#idleTimeoutMs === 0) return;
+    const threshold = Date.now() - this.#idleTimeoutMs;
+    const toEvict: Array<[string, CacheEntry]> = [];
+    for (const [id, entry] of this.#agents) {
+      if (entry.lastUsedAt < threshold) toEvict.push([id, entry]);
+    }
+    for (const [id, entry] of toEvict) {
+      // EC-8 race safety: re-check the entry identity. If `set(id, newAgent)`
+      // landed during the previous await, the newer entry's `lastUsedAt` is
+      // recent and we must NOT delete it.
+      const current = this.#agents.get(id);
+      if (current === undefined || current.agent !== entry.agent) continue;
+      this.#agents.delete(id);
+      await this.#disposeAndNotify(id, entry.agent, "idle");
+    }
+  }
+
+  #startSweep(): void {
+    this.#sweepTimer = setInterval(() => void this.#sweepIdle(), this.#sweepIntervalMs);
+    // unref so the sweep does not keep the event loop alive on process exit.
+    this.#sweepTimer.unref?.();
+  }
+
+  #stopSweep(): void {
+    if (this.#sweepTimer !== undefined) {
+      clearInterval(this.#sweepTimer);
+      this.#sweepTimer = undefined;
+    }
+  }
+
+  /** Dispose + notify with errors swallowed (D309). Single chokepoint. */
+  async #disposeAndNotify(id: string, agent: SDKAgent, reason: EvictReason): Promise<void> {
+    try {
+      await agent.dispose();
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : String(cause);
+      process.stderr.write(`[theokit-sdk] dispose during eviction failed (${id}): ${msg}\n`);
+    }
+    if (this.#onEvict !== undefined) {
+      try {
+        this.#onEvict(id, reason);
+      } catch (cause) {
+        const msg = cause instanceof Error ? cause.message : String(cause);
+        process.stderr.write(`[theokit-sdk] onEvict listener threw (${id}): ${msg}\n`);
+      }
+    }
+  }
+}
+
+/** Process-wide singleton (ADR D310). */
+export const liveAgentRegistry = new LiveAgentRegistry();

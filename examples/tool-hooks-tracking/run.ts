@@ -9,7 +9,7 @@
  *   OPENROUTER_API_KEY=sk-or-... pnpm run
  */
 
-import { Agent, defineTool } from "@usetheo/sdk";
+import { Agent, defineTool } from "@theokit/sdk";
 import { z } from "zod";
 
 const apiKey = process.env.OPENROUTER_API_KEY ?? "theo_test_tool_hooks_example";

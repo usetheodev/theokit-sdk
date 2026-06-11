@@ -22,7 +22,7 @@ Cross-validation rigorosa: cada task → código real, cada ADR → arquivo, cad
 | `packages/gateway/CHANGELOG.md` entry | `[Unreleased]` block com 4 entries adicionado | ✅ |
 | Test: `pnpm test` em gateway | **48/48 PASS** (5 novos testes para os 4 variants + exhaustive switch atualizado) | ✅ |
 
-### Phase 1 — `@usetheo/gateway-sms@0.1.0` (ADRs D389-D396)
+### Phase 1 — `@theokit/gateway-sms@0.1.0` (ADRs D389-D396)
 
 | Plan item | Implementation | Status |
 |---|---|---|
@@ -39,7 +39,7 @@ Cross-validation rigorosa: cada task → código real, cada ADR → arquivo, cad
 | Concept page | `theo-opendocs/content/theokit-sdk/concepts/gateways.mdx` — SMS row + EC-1/EC-7 notes | ✅ |
 | publint + attw | `publint: All good!` + `attw 4/4 green` | ✅ |
 
-### Phase 2 — `@usetheo/gateway-mattermost@0.1.0` (ADRs D397-D404)
+### Phase 2 — `@theokit/gateway-mattermost@0.1.0` (ADRs D397-D404)
 
 | Plan item | Implementation | Status |
 |---|---|---|
@@ -57,7 +57,7 @@ Cross-validation rigorosa: cada task → código real, cada ADR → arquivo, cad
 | Concept page | `gateways.mdx` Mattermost row + EC-2 explanation | ✅ |
 | publint + attw | All green | ✅ |
 
-### Phase 3 — `@usetheo/gateway-line@0.1.0` (ADRs D405-D412)
+### Phase 3 — `@theokit/gateway-line@0.1.0` (ADRs D405-D412)
 
 | Plan item | Implementation | Status |
 |---|---|---|
@@ -78,7 +78,7 @@ Cross-validation rigorosa: cada task → código real, cada ADR → arquivo, cad
 | Concept page | `gateways.mdx` LINE row + EC-4 explanation | ✅ |
 | publint + attw | All green | ✅ |
 
-### Phase 4 — `@usetheo/gateway-matrix@0.1.0` (ADRs D413-D421)
+### Phase 4 — `@theokit/gateway-matrix@0.1.0` (ADRs D413-D421)
 
 | Plan item | Implementation | Status |
 |---|---|---|

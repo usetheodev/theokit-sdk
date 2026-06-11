@@ -8,9 +8,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@usetheo/gateway": "file:../../packages/gateway",
-    "@usetheo/gateway-matrix": "file:../../packages/gateway-matrix",
-    "@usetheo/sdk": "file:../../packages/sdk",
+    "@theokit/gateway": "file:../../packages/gateway",
+    "@theokit/gateway-matrix": "file:../../packages/gateway-matrix",
+    "@theokit/sdk": "file:../../packages/sdk",
     "matrix-js-sdk": "^32.0.0"
   },
   "devDependencies": {

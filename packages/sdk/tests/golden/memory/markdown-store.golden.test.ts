@@ -3,12 +3,12 @@ import { mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetMigrationStateForTests } from "../../../src/internal/memory/migration.js";
 import {
   appendFactToMarkdown,
   memoryMdPath,
   readFactsFromMarkdown,
-} from "../../../src/internal/memory/markdown-store.js";
-import { resetMigrationStateForTests } from "../../../src/internal/memory/migration.js";
+} from "../../../src/internal/memory/storage/markdown-store.js";
 import {
   appendMemoryFact,
   type MemoryConfig,

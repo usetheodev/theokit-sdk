@@ -1,17 +1,16 @@
-// Type contract for @usetheo/sdk.
+// Type contract for @theokit/sdk.
 // Single source of truth: docs.md at the repository root.
 
 export type * from "./agent.js";
 export type * from "./batch.js";
 export type * from "./budget.js";
-export type * from "./cache.js";
+// cache.ts — EXTRACTED to @theokit/sdk-cache (SDK 2.0 split, Phase 3).
 export type * from "./context.js";
 export type * from "./conversation.js";
 export type * from "./conversation-storage.js";
 export type * from "./cron.js";
-export type * from "./eval.js";
 export type * from "./goal-events.js";
-export type * from "./handoff.js";
+// handoff.ts — EXTRACTED to @theokit/sdk-handoff (SDK 2.0 split, Phase 4).
 export type * from "./mcp.js";
 export type * from "./memory-adapter.js";
 export type * from "./messages.js";
@@ -22,4 +21,3 @@ export type * from "./theokit.js";
 export type * from "./trajectory.js";
 export type * from "./updates.js";
 export type * from "./usage.js";
-export type * from "./workflow.js";

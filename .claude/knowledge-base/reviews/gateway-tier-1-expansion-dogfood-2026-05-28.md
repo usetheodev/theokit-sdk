@@ -25,7 +25,7 @@ Plan-required acceptance criteria for this gate:
 ### Failure analysis: `/personality coder` (1/48)
 
 - **Cause:** dogfood DOM-scan timeout (8s window). The bot log shows the request was received at `10:43:32` and the next command's response arrived correctly (`How do I reverse a string?` → `resultLen=97`).
-- **NOT caused by gateway-tier-1-expansion:** zero code path overlap. The 4 new gateway packages don't touch `@usetheo/sdk` personality module. Phase 0 PlatformName extension is strictly additive — telegram-pro's personality handler doesn't even read `event.platform` near personality dispatch.
+- **NOT caused by gateway-tier-1-expansion:** zero code path overlap. The 4 new gateway packages don't touch `@theokit/sdk` personality module. Phase 0 PlatformName extension is strictly additive — telegram-pro's personality handler doesn't even read `event.platform` near personality dispatch.
 - **Pre-existing flake:** identical or similar timeouts on `/personality coder` recorded in prior dogfood runs (telegram-pro-dogfood-2026-05-27.md predates this plan). Documented in CLAUDE.md as a known telegram-pro example app behavior, not an SDK regression.
 
 ### Plan-touched commands — all PASS
@@ -63,17 +63,17 @@ These manual gates are by design separate from the automated workspace test suit
 
 | Package | Status | Tests | Notes |
 |---|---:|---:|---|
-| `@usetheo/gateway` (core, `MessageEvent` union extended) | ✅ | 48/48 | Phase 0 — 4 new variant interfaces + exhaustive switch test updated (EC-5 absorbed). |
-| `@usetheo/gateway-telegram` | ✅ | 19/19 | Pre-existing; zero regression. telegram-pro is the canonical consumer. |
-| `@usetheo/gateway-discord` | ✅ | 7/7 | Pre-existing. |
-| `@usetheo/gateway-slack` | ✅ | 56/56 | Pre-existing. |
-| `@usetheo/gateway-teams` | ✅ | 53/53 | Pre-existing. |
-| `@usetheo/gateway-email` | ✅ | 90/90 | Pre-existing. |
-| `@usetheo/gateway-whatsapp` | ✅ | 85/85 | Pre-existing (multi-backend Cloud + Web). |
-| `@usetheo/gateway-sms` | ✅ | 32/32 | **NEW Phase 1** (D389-D396). |
-| `@usetheo/gateway-mattermost` | ✅ | 53/53 | **NEW Phase 2** (D397-D404). |
-| `@usetheo/gateway-line` | ✅ | 55/55 | **NEW Phase 3** (D405-D412). |
-| `@usetheo/gateway-matrix` | ✅ | 44/44 | **NEW Phase 4** (D413-D421). |
+| `@theokit/gateway` (core, `MessageEvent` union extended) | ✅ | 48/48 | Phase 0 — 4 new variant interfaces + exhaustive switch test updated (EC-5 absorbed). |
+| `@theokit/gateway-telegram` | ✅ | 19/19 | Pre-existing; zero regression. telegram-pro is the canonical consumer. |
+| `@theokit/gateway-discord` | ✅ | 7/7 | Pre-existing. |
+| `@theokit/gateway-slack` | ✅ | 56/56 | Pre-existing. |
+| `@theokit/gateway-teams` | ✅ | 53/53 | Pre-existing. |
+| `@theokit/gateway-email` | ✅ | 90/90 | Pre-existing. |
+| `@theokit/gateway-whatsapp` | ✅ | 85/85 | Pre-existing (multi-backend Cloud + Web). |
+| `@theokit/gateway-sms` | ✅ | 32/32 | **NEW Phase 1** (D389-D396). |
+| `@theokit/gateway-mattermost` | ✅ | 53/53 | **NEW Phase 2** (D397-D404). |
+| `@theokit/gateway-line` | ✅ | 55/55 | **NEW Phase 3** (D405-D412). |
+| `@theokit/gateway-matrix` | ✅ | 44/44 | **NEW Phase 4** (D413-D421). |
 | **TOTAL** | ✅ | **542/542** | **Zero regressions** in pre-existing gateways. **184 new tests** added for the 4 new packages. |
 
 ## Workspace gate
@@ -81,7 +81,7 @@ These manual gates are by design separate from the automated workspace test suit
 - `pnpm typecheck` — 19/19 packages clean (gateway core + 4 new + sdk + cli + acp + 4 memory + skills-google-workspace + react + 3 pre-existing gateways + 4 new gateways).
 - `pnpm exec biome check` — clean across all 4 new packages + gateway core.
 - Build CJS+ESM+DTS verde for each of the 4 new packages.
-- `publint` — clean for `@usetheo/gateway-sms`, `@usetheo/gateway-mattermost`, `@usetheo/gateway-line`, `@usetheo/gateway-matrix`.
+- `publint` — clean for `@theokit/gateway-sms`, `@theokit/gateway-mattermost`, `@theokit/gateway-line`, `@theokit/gateway-matrix`.
 - `attw --pack` — 4/4 green (node10, node16-CJS, node16-ESM, bundler) for each new package.
 
 ## Edge-case absorption (5 MUST FIX from edge-case review)
@@ -105,6 +105,6 @@ All 5 MUST FIX items from `.claude/knowledge-base/reviews/gateway-tier-1-expansi
 - [x] Zero lint/clippy warnings.
 - [x] Backward compatibility preserved — pre-existing 7 gateway packages 358/358 PASS + `examples/telegram-pro` `tsc --noEmit` PASS + **CDP-driven dogfood 46/48 PASS** (one pre-existing /personality coder flake documented).
 - [x] code-audit (biome + LoC + publint + attw) passing across all 4 new packages.
-- [x] Plan-specific criteria — 4 packages publishable as `@usetheo/gateway-{sms,mattermost,line,matrix}@0.1.0`; 184 unit tests new; 33 ADRs (D389-D421) filed.
+- [x] Plan-specific criteria — 4 packages publishable as `@theokit/gateway-{sms,mattermost,line,matrix}@0.1.0`; 184 unit tests new; 33 ADRs (D389-D421) filed.
 - [x] **CDP-driven telegram-pro `/dogfood`** — 46/48 PASS (95.8% health, >= 70% threshold). 0 CRITICAL caused by plan; 0 HIGH in plan-touched features; 1 pre-existing /personality coder flake documented (unrelated codepath).
 - [x] **Runtime-metric proof** — `sync.test.ts` proves EC-3 freshness filter actually skips events older than 60s (not just compile-tested); `filters.test.ts` proves EC-2 word-boundary actually rejects substring matches; signature tests in `signature.test.ts` (LINE) actually run HMAC.

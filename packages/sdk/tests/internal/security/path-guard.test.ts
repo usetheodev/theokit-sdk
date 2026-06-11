@@ -247,7 +247,11 @@ describe("sanitizeIdentifier (T1.3)", () => {
   });
 
   it("rejects null bytes", () => {
-    expect(() => sanitizeIdentifier("foo\0bar")).toThrow(/invalid characters/);
+    // T5.5 — sanitizeIdentifier now throws a NUL-specific
+    // PathTraversalError (more diagnostic than the pre-T5.5 generic
+    // "invalid characters" message) so operators can pinpoint the
+    // cause.
+    expect(() => sanitizeIdentifier("foo\0bar")).toThrow(/nul/i);
   });
 
   it("rejects spaces", () => {

@@ -5,7 +5,7 @@
  * Without it, dry mode only (constructor validation).
  */
 
-import { MatrixAdapter } from "@usetheo/gateway-matrix";
+import { MatrixAdapter } from "@theokit/gateway-matrix";
 
 const live = process.env.MATRIX_LIVE_SMOKE === "1";
 

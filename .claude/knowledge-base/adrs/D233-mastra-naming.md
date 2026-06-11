@@ -14,5 +14,5 @@ Mastra is the closest reference (TS-first, Zod-driven, GA Jan 2026). Reusing nam
 ## Consequences
 
 - Docs cite Mastra as inspiration explicitly; explain divergences (state model, persistence backend).
-- Migration from Mastra to `@usetheo/sdk` is mostly mechanical (`createWorkflow` → `Workflow.create`).
+- Migration from Mastra to `@theokit/sdk` is mostly mechanical (`createWorkflow` → `Workflow.create`).
 - We can add primitives Mastra lacks (e.g., `compensate` in v1.2) without breaking the naming convention.

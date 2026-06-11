@@ -1,0 +1,74 @@
+{
+  "name": "@theokit/sdk-memory",
+  "version": "0.1.0",
+  "description": "Memory subsystem for @theokit/sdk — MemoryProvider impls (markdown file store today; LanceDB + embeddings + circuit breaker next iters). Consumes the kernel-facing port from sdk-core.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/usetheo/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheo/theokit-sdk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheo/theokit-sdk.git",
+    "directory": "packages/sdk-memory"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup && tsc -p tsconfig.build.json && cp dist/index.d.ts dist/index.d.cts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@theokit/sdk": ">=1.7.0",
+    "better-sqlite3": "^12.0.0",
+    "sqlite-vec": ">=0.1.0",
+    "@lancedb/lancedb": ">=0.20.0"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "sqlite-vec": {
+      "optional": true
+    },
+    "@lancedb/lancedb": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "tsup": "^8.3.5",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.8",
+    "@theokit/sdk": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "better-sqlite3": "^12.10.0",
+    "sqlite-vec": "^0.1.6"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

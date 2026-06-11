@@ -6,7 +6,7 @@
 
 ## Decision
 
-`ConversationStorageAdapter` interface + `FileSystemConversationStorage` + `InMemoryConversationStorage` are exported from the main `@usetheo/sdk` barrel, NOT from a sub-export like `@usetheo/sdk/conversation`.
+`ConversationStorageAdapter` interface + `FileSystemConversationStorage` + `InMemoryConversationStorage` are exported from the main `@theokit/sdk` barrel, NOT from a sub-export like `@theokit/sdk/conversation`.
 
 ## Rationale
 
@@ -16,10 +16,10 @@ Existing SDK sub-export precedent (D24 Zod, D43 LanceDB, `/tools`, `/path-safety
 
 ## Alternatives considered
 
-- **Sub-export `@usetheo/sdk/conversation`** — rejected. Adds import discoverability friction. The interface is 5 methods; type weight is negligible.
-- **Separate package `@usetheo/conversation-storage`** — rejected. Would require maintaining a separate publish + version dance for what is fundamentally a 30-line interface + 2 thin adapter classes. Not worth the cost.
+- **Sub-export `@theokit/sdk/conversation`** — rejected. Adds import discoverability friction. The interface is 5 methods; type weight is negligible.
+- **Separate package `@theokit/conversation-storage`** — rejected. Would require maintaining a separate publish + version dance for what is fundamentally a 30-line interface + 2 thin adapter classes. Not worth the cost.
 
 ## Consequences
 
-- Enables natural discovery via autocomplete on `@usetheo/sdk` import.
+- Enables natural discovery via autocomplete on `@theokit/sdk` import.
 - Future rename of an interface method requires major bump — but the surface is stable (5 methods).

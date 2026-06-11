@@ -10,6 +10,10 @@ import { resolveApiKey } from "./internal/env.js";
 import { isFixtureApiKey, shouldUseFixtureMode } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { MEMORY_EMBEDDING_ADAPTERS } from "./internal/memory/adapters/catalog.js";
+import {
+  getCatalogCapabilities,
+  type ProviderCapabilities,
+} from "./internal/providers/catalog-loader.js";
 import { getProviderProfile, listProviders, registerBuiltins } from "./internal/providers/index.js";
 import type { SDKProvider } from "./types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
@@ -64,6 +68,7 @@ export class Theokit {
    */
   static readonly models: {
     list: (options?: TheokitRequestOptions) => Promise<SDKModel[]>;
+    capabilities: (providerOrModelId: string) => ProviderCapabilities | undefined;
   } = {
     list: async (options = {}) => {
       // ADR D184: when `provider` targets an `authType: "none"` provider,
@@ -78,6 +83,14 @@ export class Theokit {
         fixture: FIXTURE_MODELS,
         path: "/v1/models",
       });
+    },
+    capabilities: (providerOrModelId: string) => {
+      registerBuiltins();
+      // Extract provider name from "provider/model" format
+      const providerId = providerOrModelId.includes("/")
+        ? (providerOrModelId.split("/")[0] ?? providerOrModelId)
+        : providerOrModelId;
+      return getCatalogCapabilities(providerId);
     },
   };
 
@@ -118,7 +131,7 @@ export class Theokit {
    * Local introspection of bundled SDK assets (ADR D201). Unlike the
    * cloud-catalog `providers.list()` (which hits the TheoCloud HTTP API),
    * `inspect.*` reads the SDK's own bundled registries — useful for
-   * tooling (e.g. `@usetheo/cli`'s `theokit inspect`) that needs to know
+   * tooling (e.g. `@theokit/cli`'s `theokit inspect`) that needs to know
    * what's available WITHOUT a network round-trip.
    *
    * @public
@@ -156,6 +169,16 @@ export class Theokit {
         defaultModel: adapter.defaultModel,
       })),
   };
+
+  // NOTE: `Theokit.subscribe` is exported from `@theokit/sdk/subscription`
+  // sub-path entry instead of the main `Theokit` static class to avoid
+  // pulling the subscription module into the main `index.ts` DTS bundle
+  // (which trips on the pre-existing `types/agent.ts ↔ fork-agent.ts` cycle
+  // — same pattern as `path-safety` per ADR D425/D429 + see tsup.config.ts
+  // header comment). Consumers import via:
+  //   `import { subscribe } from "@theokit/sdk/subscription"`
+  // The function shape mirrors a hypothetical `Theokit.subscribe(name, input, opts)`
+  // and may be promoted onto Theokit once the agent.ts cycle is broken.
 }
 
 /**

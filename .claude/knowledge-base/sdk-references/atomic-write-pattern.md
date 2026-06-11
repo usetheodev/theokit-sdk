@@ -72,7 +72,7 @@ def atomic_write_json(path: Path, data: dict) -> None:
         raise
 ```
 
-## TypeScript equivalent (proposto para `@usetheo/sdk`)
+## TypeScript equivalent (proposto para `@theokit/sdk`)
 
 ```typescript
 // packages/sdk/src/internal/persistence/atomic-write.ts

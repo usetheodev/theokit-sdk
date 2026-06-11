@@ -19,4 +19,10 @@ export {
   isForbiddenPath,
   PathTraversalError,
   safePathJoin,
+  // Iter 52 (SDK 2.0 Phase 1 Stage 3 source-move): promoted to public
+  // so sdk-memory's hybrid `internal/memory-types.ts` can sanitize
+  // namespace/scope/userId without reaching into sdk-core internals.
+  // Same strict grammar, same maxLen option — identical behavior to
+  // the v1.x internal export. Stable from this point.
+  sanitizeIdentifier,
 } from "./internal/security/path-guard.js";

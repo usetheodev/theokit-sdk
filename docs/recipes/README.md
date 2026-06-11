@@ -1,4 +1,4 @@
-# `@usetheo/sdk` Recipes
+# `@theokit/sdk` Recipes
 
 Drop-in templates for production scenarios. Each recipe is **copy-paste ready** — install the listed peer deps and paste the file into your project. SDK keeps these out of core deps to stay light (~50KB bundle); the templates are the canonical way to extend the SDK against your infra.
 

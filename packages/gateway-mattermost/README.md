@@ -1,22 +1,22 @@
-# @usetheo/gateway-mattermost
+# @theokit/gateway-mattermost
 
-Mattermost platform adapter for [`@usetheo/gateway`](../gateway).
+Mattermost platform adapter for [`@theokit/gateway`](../gateway).
 
 Works with self-hosted Mattermost (Docker / Kubernetes / bare metal) and Mattermost Cloud. WebSocket gateway for real-time inbound, REST v4 for outbound.
 
 ## Install
 
 ```bash
-pnpm add @usetheo/sdk @usetheo/gateway @usetheo/gateway-mattermost
+pnpm add @theokit/sdk @theokit/gateway @theokit/gateway-mattermost
 pnpm add @mattermost/client ws
 ```
 
 ## Quick start
 
 ```ts
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner } from "@usetheo/gateway";
-import { MattermostAdapter } from "@usetheo/gateway-mattermost";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { MattermostAdapter } from "@theokit/gateway-mattermost";
 
 const adapter = new MattermostAdapter({
   baseUrl: "https://mattermost.acme.com",

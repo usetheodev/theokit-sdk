@@ -11,7 +11,7 @@
  * Override either via env: `ACP_EXAMPLE_MODEL`, `ACP_OLLAMA_MODEL`, `OLLAMA_HOST`.
  */
 
-import { Agent, type SDKAgent } from "@usetheo/sdk";
+import { Agent, type SDKAgent } from "@theokit/sdk";
 
 export default async function createAgentForSession(sessionId: string): Promise<SDKAgent> {
   const openrouterKey = process.env.OPENROUTER_API_KEY;

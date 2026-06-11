@@ -16,8 +16,8 @@
 
 import { join } from "node:path";
 
-import type { TaskFilter, TaskHandle, TaskState } from "@usetheo/sdk";
-import { JsonFileTaskStore, type TaskStore } from "@usetheo/sdk/task-store";
+import type { TaskFilter, TaskHandle, TaskState } from "@theokit/sdk";
+import { JsonFileTaskStore, type TaskStore } from "@theokit/sdk/task-store";
 
 // Local copy of the id grammar — keeps the CLI dependency surface minimal
 // and matches D368 (`^[a-z0-9][a-z0-9_-]*$`). Adapters use reserved

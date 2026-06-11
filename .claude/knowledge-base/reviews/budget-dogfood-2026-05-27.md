@@ -62,7 +62,7 @@ node tools/validate-budget-real-llm.mjs
 `RunResult.usage` + `RunResult.cost` auto-populate (T4.2) is **deferred to v0.2**. Caller-side composition path works today:
 
 ```ts
-import { Budget, computeCost, normalizeUsage, preflightCheck, chargeAndCheckThresholds } from "@usetheo/sdk";
+import { Budget, computeCost, normalizeUsage, preflightCheck, chargeAndCheckThresholds } from "@theokit/sdk";
 // 1. Manually preflight before agent.send (for block-mode budgets)
 preflightCheck("my-budget", estimatedUsd);
 const run = await agent.send(prompt);

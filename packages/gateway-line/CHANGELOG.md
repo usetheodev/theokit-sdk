@@ -5,22 +5,22 @@
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.3.0
-  - @usetheo/gateway@2.0.0
+  - @theokit/sdk@1.3.0
+  - @theokit/gateway@2.0.0
 
 ## 1.0.0
 
 ### Patch Changes
 
 - Updated dependencies
-  - @usetheo/sdk@1.2.0
-  - @usetheo/gateway@1.0.0
+  - @theokit/sdk@1.2.0
+  - @theokit/gateway@1.0.0
 
 ## [Unreleased]
 
-### Added — `@usetheo/gateway-line@0.1.0` (ADRs D405-D412)
+### Added — `@theokit/gateway-line@0.1.0` (ADRs D405-D412)
 
-- Initial release of the LINE Messaging API adapter for `@usetheo/gateway`.
+- Initial release of the LINE Messaging API adapter for `@theokit/gateway`.
 - `@line/bot-sdk@^9.0.0` peer-dep (lazy import + signature support).
 - Webhook-only transport (D406) — `createWebhookServer({ adapter, path, port })` with raw-body capture, HMAC-SHA256 signature middleware (D408), and 401 BEFORE handler dispatch.
 - LineAdapter extends BasePlatformAdapter:

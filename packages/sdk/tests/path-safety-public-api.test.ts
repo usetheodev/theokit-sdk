@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import * as SDK from "../src/path-safety.js";
 
-describe("@usetheo/sdk/path-safety — public sub-export", () => {
+describe("@theokit/sdk/path-safety — public sub-export", () => {
   it("Given the path-safety module, Then safePathJoin is exported", () => {
     expect(typeof SDK.safePathJoin).toBe("function");
   });

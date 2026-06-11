@@ -435,7 +435,7 @@ Real-LLM tests: agent uses each backend to run a `git clone && ls` and assert re
 
 ## Open questions
 
-- **Backend bundling**: ship all 7 in the core SDK or split into peer-dep packages? Recommend split: `@usetheo/sdk-backend-docker`, `@usetheo/sdk-backend-modal`, etc. Keeps core small.
+- **Backend bundling**: ship all 7 in the core SDK or split into peer-dep packages? Recommend split: `@theokit/sdk-backend-docker`, `@theokit/sdk-backend-modal`, etc. Keeps core small.
 - **Vercel Sandbox API stability**: very new (v0.12, May 2026). May change. Build the adapter with a stable internal interface so we can pivot if Vercel's API changes.
 - **Singularity for HPC users**: niche but valuable. Worth including in core docs?
 - **Local-Windows native vs WSL2**: Hermes treats WSL2 as the canonical Windows path; native is "early beta". For TheoKit, do we support native Windows out of the box?

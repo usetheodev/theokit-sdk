@@ -14,7 +14,7 @@ import {
   isSafePattern,
   walkUpForFile,
   walkUpForGlob,
-} from "../../../src/internal/runtime/context-discovery.js";
+} from "../../../src/internal/runtime/context/context-discovery.js";
 
 describe("context-discovery (T1.1)", () => {
   let tmp: string;

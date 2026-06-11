@@ -49,7 +49,7 @@ const SINK_PATTERNS: Sink[] = [
  *   module top.
  * - `internal/persistence/atomic-write.ts` — generic blob writer used
  *   by callers that must redact themselves before passing data in.
- * - `internal/memory/transcript-store.ts` — uses atomic-write
+ * - `internal/memory/storage/transcript-store.ts` — uses atomic-write
  *   primitive; caller redacts (consistent with the runtime/session
  *   store approach).
  * - `internal/mcp/token-storage.ts` — writes encrypted OAuth tokens
@@ -101,32 +101,45 @@ const WHITELIST = new Set<string>([
   "internal/persistence/exclusive-create.ts",
   "internal/persistence/file-lock.ts",
   "internal/persistence/schema-version.ts",
-  "internal/memory/transcript-store.ts",
+  "internal/memory/storage/transcript-store.ts",
   "internal/mcp/token-storage.ts",
-  "internal/runtime/agent-registry-store.ts",
+  "internal/runtime/registry/agent-registry-store.ts",
   "internal/agent-loop/loop.ts",
+  // `setAttribute(s)` callsites use spans returned by `telemetry.startSpan(...)`,
+  // pre-wrapped via `wrapSpan` in `internal/telemetry/tracer.ts`. Structurally safe.
+  // Extracted from loop.ts during G8 LoC split.
+  "internal/agent-loop/loop-llm-stream.ts",
   "internal/agent-loop/tool-dispatch.ts",
   "internal/workflow/telemetry.ts",
   "internal/workflow/executor.ts",
   "internal/workflow/ctx.ts",
-  "internal/cache/telemetry.ts",
-  "internal/cache/lookup.ts",
-  "internal/cache/store-handler.ts",
-  "internal/cache/store-json.ts",
   "internal/eval/telemetry.ts",
   "internal/eval/runner.ts",
-  "internal/handoff/telemetry.ts",
   // `setAttribute` here is a TYPE definition on the shared `SpanLike` interface,
   // not a runtime call. All consumers obtain spans via `getTracer(...)` which
   // returns OTel-wrapped spans; redaction is handled at the agent-loop tracer
   // wrapper level (ADRs D206/D220/D241/D262 — shared loader extracted from
   // those four telemetry modules to remove duplicate clones).
   "internal/observability/tracer-loader.ts",
-  // Shared embed helper extracted from `cache/lookup.ts` + `cache/store-handler.ts`
-  // (clone elimination). `span.setAttribute("cache.bypass_reason", ...)` writes a
-  // static label, not user-supplied data; `console.warn` prints `err.message` only
-  // (no raw prompt). Same rationale as the source modules already in the whitelist.
-  "internal/cache/embed-helper.ts",
+  // `span.setAttributes(...)` on OTel tracer-wrapped spans in the active
+  // memory module — same rationale as agent-loop/loop.ts (redacted via
+  // `wrapSpan` in telemetry/tracer.ts).
+  "internal/memory/active-memory.ts",
+  // `span.setAttribute(...)` on tracer-wrapped spans in the Agent facade —
+  // agentId and workspaceCwd are non-secret structural labels.
+  "agent.ts",
+  // Extracted from agent.ts during G8 LoC split — same span.setAttribute
+  // callsites (agentId + workspaceCwd) on pre-wrapped tracer spans.
+  "agent-helpers.ts",
+  // G8 subscription server-integration: `fs.writeFile` persists the
+  // SubscriptionManifest (declarative registry — version + subscription names
+  // + zod-derived input/output schemas). No user payload, no PII, no secrets.
+  // Manifest is loaded back at server boot to mount routes.
+  "subscription/internal/server-integration.ts",
+  // SandboxBackend abstract class has `console.error(...)` in the default
+  // error handler for derived ops (readFile, writeFile, etc.). The error
+  // message originates from the sandbox process itself, not user payload.
+  "sandbox/types.ts",
 ]);
 
 interface Offender {

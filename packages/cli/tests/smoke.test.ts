@@ -1,5 +1,5 @@
 /**
- * Smoke tests for @usetheo/cli (T0.1).
+ * Smoke tests for @theokit/cli (T0.1).
  *
  * Verifies:
  *  - Programmatic entry `main()` is exported and returns Promise<number>.
@@ -11,7 +11,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { CLI_VERSION, main } from "../src/index.js";
 
-describe("@usetheo/cli smoke (T0.1)", () => {
+describe("@theokit/cli smoke (T0.1)", () => {
   it("exports main as a function returning Promise<number>", () => {
     expect(typeof main).toBe("function");
     const result = main([]);

@@ -1,6 +1,6 @@
 ---
 name: quality-review
-description: Review a TypeScript change against the `@usetheo/sdk` quality gates — SOLID, DRY, Clean Code, design patterns, and contract sync. Use after major feature work, before opening a PR, or when asked for a "quality review", "SOLID check", "PR review", or "review for clean code". Pairs with the hard gates documented in `.claude/quality-gates.md`.
+description: Review a TypeScript change against the `@theokit/sdk` quality gates — SOLID, DRY, Clean Code, design patterns, and contract sync. Use after major feature work, before opening a PR, or when asked for a "quality review", "SOLID check", "PR review", or "review for clean code". Pairs with the hard gates documented in `.claude/quality-gates.md`.
 ---
 
 # Quality Review

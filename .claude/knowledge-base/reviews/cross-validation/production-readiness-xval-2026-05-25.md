@@ -40,8 +40,8 @@ All 7 implementation phases complete and validated end-to-end. 25 ADRs filed (D3
 |---|---|
 | `pnpm typecheck` (full monorepo) | ✅ green |
 | `pnpm check` (biome lint+format) | ✅ green |
-| `pnpm --filter @usetheo/sdk build` | ✅ green (CJS + ESM + DTS) |
-| `pnpm --filter @usetheo/sdk test` | ✅ 1704/1704 PASS (2 ollama timeouts in CI-loaded env are flaky; pass individually) |
+| `pnpm --filter @theokit/sdk build` | ✅ green (CJS + ESM + DTS) |
+| `pnpm --filter @theokit/sdk test` | ✅ 1704/1704 PASS (2 ollama timeouts in CI-loaded env are flaky; pass individually) |
 | `pnpm validate:publint` | ✅ green |
 | `pnpm validate:attw` | ✅ green (node10/16-cjs/16-esm/bundler all 🟢) |
 | **Telegram-pro `/dogfood`** | ✅ **44/44 PASS + 1 SKIP env-gated** |
@@ -56,7 +56,7 @@ To get `pnpm validate` 100% green, Phase 7 cleanup also addressed pre-existing t
 - **`examples/telegram-pro` typecheck:** fixed pre-existing `ModelSelection` drift (string → `{ id }`) in 3 dogfood scripts + added `export {}` for top-level await.
 - **Test type drift:** 4 test files had pre-existing TS errors (SDKAgent import path, HeadersInit DOM types, OutboundMessage platform field, tuple narrowing) — all fixed.
 - **biome.json overrides:** added scoped overrides for pre-existing complexity violations in `cli/gateway-*/sdk-cache/sdk-workflow/sdk-tools/sdk-mappers`. These are tech debt from earlier plans (D194 CLI, D272-D285 gateway-slack, D267-D285 gateway-whatsapp, D286-D302 vertex/bedrock). Documenting separately rather than rewriting now.
-- **attw ignore:** `cjs-resolves-to-esm` + `false-esm` rules excluded for pre-existing sub-export shape (`@usetheo/sdk/tools`, `@usetheo/sdk/path-safety` — addressable only with major bump).
+- **attw ignore:** `cjs-resolves-to-esm` + `false-esm` rules excluded for pre-existing sub-export shape (`@theokit/sdk/tools`, `@theokit/sdk/path-safety` — addressable only with major bump).
 
 These changes are committed separately in `2f9e51c fix: unblock validate gate`.
 
@@ -113,7 +113,7 @@ All 6 MUST FIX + 6 SHOULD TEST + 5 DOCUMENT from the edge-case review absorbed:
 ## Cross-repo TheoKit smoke (T7.2)
 
 Per the handoff, TheoKit team needs to:
-1. Bump `@usetheo/sdk` to a pre-release that ships these 6 gaps
+1. Bump `@theokit/sdk` to a pre-release that ships these 6 gaps
 2. Wire `conversationStorage` (Postgres/Redis recipe), thread `request.signal`, register `onToolStart/End/Error`, branch on `error.code` in their `openrouter-demo` example
 
 The SDK side of the contract is honored. Cross-repo bump + their integration fixture is out of this plan's scope (`docs/handoffs/from-theokit/2026-05-25-production-readiness.md` § "Cross-cutting concerns / Versioning strategy"). Coordination with TheoKit team is the agreed handoff back.
@@ -130,4 +130,4 @@ The SDK side of the contract is honored. Cross-repo bump + their integration fix
 - ✅ All 6 MUST FIX edges absorbed with tests
 - ✅ Pre-existing tech debt resolved as a side effect of the validation gate
 
-The SDK is ready to be published as `@usetheo/sdk@1.1.0-next.1` carrying the 6 gaps. TheoKit team can consume incrementally and write their integration fixture per the handoff.
+The SDK is ready to be published as `@theokit/sdk@1.1.0-next.1` carrying the 6 gaps. TheoKit team can consume incrementally and write their integration fixture per the handoff.

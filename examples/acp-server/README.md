@@ -1,6 +1,6 @@
 # example-acp-server
 
-Minimal `@usetheo/acp` example: default-exports a per-session factory that creates a fresh `Agent` per ACP session.
+Minimal `@theokit/acp` example: default-exports a per-session factory that creates a fresh `Agent` per ACP session.
 
 ## Run
 

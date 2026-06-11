@@ -1,4 +1,4 @@
-# `@usetheo/react` SSE wire format — Vercel AI Data Stream v1
+# `@theokit/react` SSE wire format — Vercel AI Data Stream v1
 
 This document is the **source of truth** at the release version of this
 package for the SSE protocol emitted by `streamTheoChat` and consumed by

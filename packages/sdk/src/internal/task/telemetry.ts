@@ -14,7 +14,7 @@
 
 import { getTracer, noopSpan, type SpanLike } from "../observability/tracer-loader.js";
 
-const TRACER_NAME = "@usetheo/sdk/task";
+const TRACER_NAME = "@theokit/sdk/task";
 
 export function startTaskSubmitSpan(info: { taskId: string; kind: string }): SpanLike {
   const tracer = getTracer(TRACER_NAME);

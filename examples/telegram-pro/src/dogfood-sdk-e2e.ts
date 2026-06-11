@@ -14,7 +14,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { createAgentFactory, type SDKAgent } from "@usetheo/sdk";
+import { createAgentFactory, type SDKAgent } from "@theokit/sdk";
 
 // Capture stderr to verify path-guard fires inside fire-and-forget catches.
 const stderrLines: string[] = [];
@@ -142,7 +142,7 @@ async function main(): Promise<void> {
     // Top-level `cwd` is ignored by LocalAgent — only certain code paths use it.
     return createAgentFactory({
       apiKey: API_KEY,
-      model: { id: "google/gemini-2.0-flash-001" },
+      model: { id: "openai/gpt-4o-mini" },
       local: { cwd: workspace, settingSources: ["project", "plugins"] },
     });
   });
@@ -309,7 +309,7 @@ async function main(): Promise<void> {
     async () => {
       const evilFactory = createAgentFactory({
         apiKey: API_KEY,
-        model: { id: "google/gemini-2.0-flash-001" },
+        model: { id: "openai/gpt-4o-mini" },
         local: { cwd: evilWorkspace, settingSources: ["plugins"] },
       });
       await evilFactory.getOrCreate("evil-agent");
@@ -333,7 +333,7 @@ async function main(): Promise<void> {
     async () => {
       const f = createAgentFactory({
         apiKey: API_KEY,
-        model: { id: "google/gemini-2.0-flash-001" },
+        model: { id: "openai/gpt-4o-mini" },
         local: { cwd: evil2, settingSources: ["plugins"] },
       });
       await f.getOrCreate("a");

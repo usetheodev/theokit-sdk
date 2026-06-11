@@ -1,6 +1,6 @@
 # {{projectName}}
 
-A minimal `@usetheo/sdk` agent scaffolded by `theokit init`.
+A minimal `@theokit/sdk` agent scaffolded by `theokit init`.
 
 ## Setup
 
@@ -24,6 +24,6 @@ pnpm dev
 
 ## Next steps
 
-- Add custom tools via `defineTool` (see `@usetheo/sdk` docs).
+- Add custom tools via `defineTool` (see `@theokit/sdk` docs).
 - Switch to a local Ollama model by setting `AGENT_MODEL=ollama/llama3.2:3b`.
-- Wire to a chat platform via `@usetheo/gateway`.
+- Wire to a chat platform via `@theokit/gateway`.

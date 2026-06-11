@@ -5,7 +5,7 @@ date: 2026-05-16
 updated: 2026-05-31
 plan: sdk-v1-ga-completion
 supersededBy: D43
-shippedIn: "@usetheo/sdk@1.4.0"
+shippedIn: "@theokit/sdk@1.4.0"
 shippedPlan: lancedb-backend-ship-v1-1
 ---
 
@@ -40,7 +40,7 @@ D12 originally deferred LanceDB to v1.1. ADR D43 (2026-05-17) committed to shipp
 
 **Status:** Superseded by D43.
 
-**Shipped in:** `@usetheo/sdk@1.4.0`.
+**Shipped in:** `@theokit/sdk@1.4.0`.
 
 **What landed (`lancedb-backend-ship-v1-1` plan):**
 - `MemoryIndex` interface formal in `internal/memory/memory-index.ts` — IndexManager + LanceMemoryAdapter both implement it.

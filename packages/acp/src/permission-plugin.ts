@@ -12,7 +12,7 @@
 
 import { randomUUID } from "node:crypto";
 import type * as acp from "@agentclientprotocol/sdk";
-import { definePlugin, type SDKAgent } from "@usetheo/sdk";
+import { definePlugin, type SDKAgent } from "@theokit/sdk";
 import { toolKind } from "./translator.js";
 import type { PermissionMode } from "./types.js";
 

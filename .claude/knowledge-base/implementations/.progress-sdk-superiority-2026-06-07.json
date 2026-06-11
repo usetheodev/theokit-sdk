@@ -1,0 +1,107 @@
+{
+  "slug": "sdk-superiority-2026-06-07",
+  "iterations_used": 42,
+  "tasks": [
+    { "id": "T0.1", "status": "partial(iter1)", "sha": "42a3763" },
+    { "id": "T0.2", "status": "committed", "sha": "8d4487e" },
+    { "id": "T0.3", "status": "committed", "sha": "1eb3687" },
+    { "id": "T1.1", "status": "committed", "sha": "5ac8f75" },
+    { "id": "T1.2", "status": "committed", "sha": "a288a02" },
+    { "id": "T1.3", "status": "committed", "sha": "50fd52e" },
+    { "id": "T1.4", "status": "committed", "sha": "78b767a" },
+    { "id": "T1.5", "status": "committed", "sha": "1096531" },
+    { "id": "T2.1", "status": "committed", "sha": "1af7f5d" },
+    {
+      "id": "T2.2-step1",
+      "status": "committed",
+      "sha_artifacts": "52092ee",
+      "note": "Step 1/N of T2.2: compression-model-registry.ts + 18 RED→GREEN tests + CHANGELOGs swept into sdk-2-0 session's commit 52092ee (Stage 4 #1 — optional-peer sdk-memory loader, iter 76). Same contamination pattern as iter 18 T3.9 (1ed2866) + iter 19 T5.4 (8d1325e+62408c1). Post-contamination cognitive-complexity refactor (12→≤10 via matchWildcard + isNoAuthProvider helper extraction) follows. 18/18 tests GREEN at HEAD."
+    },
+    {
+      "id": "T2.2-step2",
+      "status": "committed",
+      "sha": "b102ce2",
+      "note": "Step 2/N of T2.2: compression-config.ts resolves model (registry) + API key (env→explicit→pool-fallback) + maxAttempts/grace defaults. 11 tests. Foundation for step 3 (aux-llm-client) and step 4 (loop.ts wire)."
+    },
+    {
+      "id": "T2.2-step3",
+      "status": "committed",
+      "sha": "0b7c87b",
+      "note": "Step 3/N: compression-summarizer.ts — buildCompressionPrompt + compressConversationWindow + CompressionFailedError. callLlm DI seam for tests. 5 tests."
+    },
+    {
+      "id": "T2.2-step4a",
+      "status": "committed",
+      "sha": "130eddf",
+      "note": "Step 4a/N: compression-decision.ts — shouldAttemptCompression pure function. 8 tests covering decision matrix (error code, enabled flag, grace, attempt cap)."
+    },
+    {
+      "id": "T2.2-step4b",
+      "status": "committed",
+      "sha": "d961920",
+      "note": "Step 4b/N: compression-attempt.ts — attemptCompressionIfNeeded orchestrator integrating decision + selectCompressionWindow + summarizer + counter management. 4 tests. The final loop.ts import-and-call wire is step 4c."
+    },
+    {
+      "id": "T2.2",
+      "status": "pending",
+      "replan_note": "Unblocked 2026-06-09: ADR D440 aux-LLM contract locked in plan. PROVIDER-AGNOSTIC default via same-family-cheaper-tier registry (NOT hardcoded openai/gpt-4o-mini — that would force cross-provider calls breaking SDK's agnostic posture). Registry: openai→gpt-4o-mini, anthropic→claude-3-5-haiku, bedrock→claude-3-haiku, vertex→gemini-1.5-flash, ollama/lmstudio/llamacpp→same model (authType:none branch); unknown model throws CompressionModelUnresolvedError at Agent.create time. Key chain: env THEOKIT_COMPRESSION_API_KEY (cross-provider keys rejected at validation) → explicit Agent.create({compression: {apiKey}}) → fallback to main CredentialPool. Isolated PoolAwareLlmClient. OTel span theokit.agent.compression + RunResult.usage.compressionCost separate bucket. Failure mode: WARN + original conversation unchanged + counter increment + at cap throws CompressionExhaustedError. 6 nested RED tests required."
+    },
+    { "id": "T3.1", "status": "committed", "sha": "a390ea5" },
+    { "id": "T3.2", "status": "committed", "sha_artifacts": "e67d1db+73471ac" },
+    { "id": "T3.3", "status": "committed", "sha": "1384bad" },
+    { "id": "T3.4", "status": "partial(iter13)", "sha": "1e40f5a" },
+    { "id": "T3.5", "status": "committed", "sha": "d15987f" },
+    { "id": "T3.6", "status": "committed", "sha": "3ff01b4" },
+    {
+      "id": "T3.7",
+      "status": "committed",
+      "sha_artifacts": "d465b6e+1570d8c",
+      "note": "errors.ts widening + openai mapper fix + CHANGELOG swept by sdk-2-0 session at d465b6e; my follow-up 1570d8c re-added the test file."
+    },
+    { "id": "T3.8", "status": "committed", "sha": "386fdd9" },
+    {
+      "id": "T3.9",
+      "status": "committed",
+      "sha_artifacts": "1ed2866",
+      "note": "T3.9 source + tests + CHANGELOG entries swept into sdk-2-0 session's commit 1ed2866 (sdk-handoff typesVersions fix). The race occurred when my T3.9 pre-commit hook ran AT the same instant the sdk-2-0 commit hook ran; HEAD advanced under my feet and my own commit lost the lock-ref. The actual T3.9 algorithm + tests are intact at HEAD per Inquebrável Rule 3."
+    },
+    {
+      "id": "T3.10",
+      "status": "split-and-replanned",
+      "replan_note": "2026-06-09: split into T3.10a (vision content parts LARGE), T3.10b (Bedrock streaming flag), T3.10c (capabilities introspection), T3.10d (vertex Anthropic body-massage removal). Each has concrete file:line + Implementation + TDD RED in plan. The 9 unnamed DR3 #13,14,16,18-23,25 findings deferred to NEW T7.4-bis (Phase 7 re-audit via /loop-code-review)."
+    },
+    { "id": "T3.10a", "status": "pending" },
+    { "id": "T3.10b", "status": "pending" },
+    { "id": "T3.10c", "status": "committed", "sha": "dc4862a" },
+    { "id": "T3.10d", "status": "pending" },
+    {
+      "id": "T7.4-bis",
+      "status": "pending",
+      "note": "Deferred sub-tasks from T3.10 — DR3 #13,14,16,18-23,25 re-audit + atomic split. Pre-requisite: T7.4 (/loop-architecture-review) to populate findings with file:line."
+    },
+    {
+      "id": "T5.4",
+      "status": "committed",
+      "sha_artifacts": "8d1325e+62408c1",
+      "note": "T5.4 source (redact.ts) + tests + CHANGELOG entries swept into sdk-2-0 session's commit 8d1325e (iter 52 — memory-types + sanitizeIdentifier public). My follow-up 62408c1 re-staged the biome-auto-fixed test-reset.ts + redact-pattern-expansion.test.ts after biome reordered imports. Same contamination pattern as iter 18's T3.9. T5.4 algorithm intact at HEAD: 158/158 redaction-sink tests GREEN, BUILTIN count = 30 (≥ floor)."
+    },
+    { "id": "T5.1", "status": "committed", "sha": "37294ea" },
+    { "id": "T5.5", "status": "committed", "sha": "9d4264b" },
+    { "id": "T5.6", "status": "committed", "sha": "2bf3f83" },
+    { "id": "T5.3", "status": "committed", "sha": "317dce6" },
+    { "id": "T5.7", "status": "committed", "sha": "7fa6b27" },
+    { "id": "T5.8", "status": "committed", "sha": "ccbcdea" },
+    { "id": "T5.9", "status": "committed", "sha": "ff730b1" },
+    {
+      "id": "T5.10",
+      "status": "committed",
+      "sha_artifacts": "9df68a8",
+      "note": "T5.10 source (schema-version.ts rename-aside + markdown-config-loader.ts 1MB cap) + tests + CHANGELOGs swept into sdk-2-0 session's commit 9df68a8 (iter 100 — sdk-memory publish-readiness gate). Same contamination pattern as T3.9/T5.4/T2.2-step1. Algorithm intact at HEAD: 142/142 persistence tests GREEN."
+    }
+  ],
+  "blocked_count": 0,
+  "partial_count": 2,
+  "pending_count": 42,
+  "halted": false,
+  "cost_usd_cumulative": 0.0
+}

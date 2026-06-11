@@ -6,7 +6,7 @@
 
 ## Decision
 
-v0.1 does NOT integrate `@usetheo/sdk` Budget namespace per outbound SMS.
+v0.1 does NOT integrate `@theokit/sdk` Budget namespace per outbound SMS.
 
 ## Rationale
 

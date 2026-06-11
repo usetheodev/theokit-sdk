@@ -1,6 +1,6 @@
 # {{projectName}}
 
-A Telegram bot powered by `@usetheo/sdk` + `@usetheo/gateway` — scaffolded
+A Telegram bot powered by `@theokit/sdk` + `@theokit/gateway` — scaffolded
 by `theokit init --template telegram-bot`.
 
 ## Setup
@@ -29,7 +29,7 @@ Then DM your bot in Telegram. Every message gets streamed through the agent.
 ## Customize
 
 - Switch model: `AGENT_MODEL=ollama/llama3.2:3b` for local Ollama.
-- Add custom tools: import `defineTool` from `@usetheo/sdk` and pass via
+- Add custom tools: import `defineTool` from `@theokit/sdk` and pass via
   `createAgentFactory({ tools: [...] })`.
 - Slash commands: `runner.command("name", handler)` — see
-  `@usetheo/gateway` docs.
+  `@theokit/gateway` docs.
