@@ -9,11 +9,12 @@
  * itself so the flip can land safely later.
  */
 
-import type { AgentOptions, MemoryProvider } from "@theokit/sdk";
 // Direct import — LocalAgent is internal but tests reach it via the
 // public `Agent.create` factory. We construct LocalAgent directly here
 // to keep the test focused on the new field, not on Agent.create wiring.
 import { describe, expect, it } from "vitest";
+import type { MemoryProvider } from "../src/internal/runtime/memory-provider.js";
+import type { AgentOptions } from "../src/types/agent.js";
 
 const STUB_OPTIONS: AgentOptions = {
   agentId: "stage-2b-test-agent",
