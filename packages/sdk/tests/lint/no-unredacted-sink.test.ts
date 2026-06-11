@@ -105,6 +105,10 @@ const WHITELIST = new Set<string>([
   "internal/mcp/token-storage.ts",
   "internal/runtime/registry/agent-registry-store.ts",
   "internal/agent-loop/loop.ts",
+  // `setAttribute(s)` callsites use spans returned by `telemetry.startSpan(...)`,
+  // pre-wrapped via `wrapSpan` in `internal/telemetry/tracer.ts`. Structurally safe.
+  // Extracted from loop.ts during G8 LoC split.
+  "internal/agent-loop/loop-llm-stream.ts",
   "internal/agent-loop/tool-dispatch.ts",
   "internal/workflow/telemetry.ts",
   "internal/workflow/executor.ts",
@@ -124,6 +128,9 @@ const WHITELIST = new Set<string>([
   // `span.setAttribute(...)` on tracer-wrapped spans in the Agent facade —
   // agentId and workspaceCwd are non-secret structural labels.
   "agent.ts",
+  // Extracted from agent.ts during G8 LoC split — same span.setAttribute
+  // callsites (agentId + workspaceCwd) on pre-wrapped tracer spans.
+  "agent-helpers.ts",
   // G8 subscription server-integration: `fs.writeFile` persists the
   // SubscriptionManifest (declarative registry — version + subscription names
   // + zod-derived input/output schemas). No user payload, no PII, no secrets.
