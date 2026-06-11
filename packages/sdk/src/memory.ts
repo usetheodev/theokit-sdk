@@ -126,7 +126,6 @@ export const Memory = {
    *
    * @public
    */
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: memory index routing branches across backend + SDK peer modes
   async openIndex(opts: OpenMemoryIndexOptions): Promise<MemoryIndexHandle> {
     // SDK 2.0 Phase 4 (Stage 4, iter 77): if @theokit/sdk-memory is
     // installed, route through it. Otherwise fall back to the legacy
@@ -164,11 +163,12 @@ export const Memory = {
     const peer = await tryLoadSdkMemoryPeer();
     const catalog = peer !== null ? peer.MEMORY_EMBEDDING_ADAPTERS : MEMORY_EMBEDDING_ADAPTERS;
     const sweepArgs = await buildDreamingSweepArgs(opts, catalog);
-    // biome-ignore lint/suspicious/noExplicitAny: peer is dynamically loaded — structural compat ensured by sdk-memory
     const result =
       peer !== null
-        ? await peer.runDreamingSweep(sweepArgs as any)
-        : await runDreamingSweepInternal(sweepArgs as any);
+        ? // biome-ignore lint/suspicious/noExplicitAny: peer is dynamically loaded — structural compat ensured by sdk-memory
+          await peer.runDreamingSweep(sweepArgs as any)
+        : // biome-ignore lint/suspicious/noExplicitAny: legacy path accepts the same shape
+          await runDreamingSweepInternal(sweepArgs as any);
     return toDreamingSweepResult(result);
   },
 };
