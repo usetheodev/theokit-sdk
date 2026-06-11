@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-06-11
+
 ### Changed
 
 - Extract helper modules from 5 SDK god-files for SRP compliance: `agent.ts` → `agent-helpers.ts`, `loop.ts` → `loop-context-init.ts` + `loop-llm-stream.ts`, `tool-dispatch.ts` → `tool-executors.ts`, `index-manager.ts` → `index-manager-helpers.ts`, `local-agent.ts` → `local-agent-send.ts`. Moved `ResolvedTool` to `loop-types.ts` to break tool-dispatch/tool-executors cycle. ~1300 lines redistributed; zero behavior change, all 2591 tests GREEN.
