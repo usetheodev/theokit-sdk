@@ -1,6 +1,6 @@
 import { mapOllamaHttpError, mapOllamaTransportError } from "../errors/mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../errors/mappers/openai-compatible.js";
-import { makeLlmFinish, parseToolArguments } from "./finish.js";
+import { collapseSystemText, makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
 import type {
   LlmClient,
@@ -277,16 +277,11 @@ function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
 
 /**
  * T3.5 follow-up — collapse `LlmRequest.system` to the OpenAI wire shape
- * (single string). OpenAI doesn't support per-block prompt caching, so
- * blocks are joined with a blank-line separator.
+ * (single string).
  *
  * @internal
  */
-function openAISystemText(system: LlmRequest["system"]): string {
-  if (system === undefined) return "";
-  if (typeof system === "string") return system;
-  return system.map((b) => b.text).join("\n\n");
-}
+const openAISystemText = collapseSystemText;
 
 /**
  * T3.6 — encode `LlmResponseFormat` into the OpenAI wire shape. The
