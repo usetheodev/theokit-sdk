@@ -25,6 +25,7 @@ import {
   DEFAULT_COOLDOWN_MS,
   type PooledCredential,
 } from "./credential-pool-types.js";
+import { sleepWithAbort } from "./retry.js";
 
 /**
  * Construct a `PooledCredential` with sane defaults.
@@ -153,7 +154,7 @@ export class CredentialPool {
   ): Promise<boolean> {
     if (signal.aborted) return false;
     if (this.hasAvailable()) return true;
-    const sleeper = opts.sleeper ?? defaultSleeper;
+    const sleeper = opts.sleeper ?? sleepWithAbort;
     const deadline = Date.now() + opts.maxWaitMs;
     while (Date.now() < deadline) {
       if (signal.aborted) return false;
@@ -325,29 +326,6 @@ export class CredentialPool {
     }
     return out;
   }
-}
-
-/**
- * Default sleeper for `CredentialPool.waitForAvailable`. Resolves after
- * `ms` milliseconds OR when `signal` aborts, whichever comes first.
- * Pure helper — no module-level timers.
- *
- * @internal
- */
-function defaultSleeper(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
-  if (ms <= 0) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    const timer = setTimeout(() => {
-      signal.removeEventListener("abort", onAbort);
-      resolve();
-    }, ms);
-    const onAbort = (): void => {
-      clearTimeout(timer);
-      resolve();
-    };
-    signal.addEventListener("abort", onAbort, { once: true });
-  });
 }
 
 /**

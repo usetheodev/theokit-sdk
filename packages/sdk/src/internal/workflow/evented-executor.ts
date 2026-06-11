@@ -17,6 +17,50 @@ import { WorkflowScheduler } from "./scheduler.js";
 const noop = () => {};
 const noopLog: StepContext["log"] = { debug: noop, info: noop, warn: noop };
 
+/**
+ * Build a StepContext for step iteration — shared between run() and resume().
+ * @internal
+ */
+function buildStepContext(
+  runId: string,
+  stepIndex: number,
+  currentRef: { value: unknown },
+  suspended: Map<string, SuspendedState>,
+  signal: AbortSignal,
+): StepContext {
+  return {
+    runId,
+    signal,
+    log: noopLog,
+    suspend: (payload?: unknown): Promise<never> => {
+      const name = typeof payload === "string" ? payload : `step-${stepIndex}`;
+      suspended.set(runId, {
+        runId,
+        stepIndex: stepIndex + 1,
+        suspendName: name,
+        input: currentRef.value,
+      });
+      throw new SuspendSignal(name);
+    },
+  };
+}
+
+/**
+ * Handle step execution errors — shared between run() and resume().
+ * Returns a result if the error was handled, or undefined to re-throw.
+ * @internal
+ */
+function handleStepError(err: unknown, runId: string): EventedWorkflowRunResult | undefined {
+  if (err instanceof SuspendSignal) {
+    return { runId, status: "suspended", suspendedAt: err.name };
+  }
+  return {
+    runId,
+    status: "error",
+    error: err instanceof Error ? err : new Error(String(err)),
+  };
+}
+
 export interface EventedWorkflowRunResult {
   runId: string;
   status: "completed" | "suspended" | "error";
@@ -69,53 +113,13 @@ export class EventedWorkflowExecutor {
     return this._scheduler?.isRunning ?? false;
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: step iteration with suspend/abort/error branches is inherent to workflow execution
   async run(input: unknown, opts?: EventedWorkflowRunOptions): Promise<EventedWorkflowRunResult> {
     const runId = randomUUID();
-    let current: unknown = input;
+    const signal = opts?.signal ?? new AbortController().signal;
 
-    for (let i = 0; i < this._steps.length; i++) {
-      if (opts?.signal?.aborted) {
-        return { runId, status: "error", error: new Error("aborted") };
-      }
-
-      const step = this._steps[i];
-      if (!step || step.kind !== "fn") continue;
-
-      const ctx: StepContext = {
-        runId,
-        signal: opts?.signal ?? new AbortController().signal,
-        log: noopLog,
-        suspend: (payload?: unknown): Promise<never> => {
-          const name = typeof payload === "string" ? payload : `step-${i}`;
-          this._suspended.set(runId, {
-            runId,
-            stepIndex: i + 1,
-            suspendName: name,
-            input: current,
-          });
-          throw new SuspendSignal(name);
-        },
-      };
-
-      try {
-        current = await step.fn(current, ctx);
-      } catch (err) {
-        if (err instanceof SuspendSignal) {
-          return { runId, status: "suspended", suspendedAt: err.name };
-        }
-        return {
-          runId,
-          status: "error",
-          error: err instanceof Error ? err : new Error(String(err)),
-        };
-      }
-    }
-
-    return { runId, status: "completed", output: current };
+    return this._executeSteps(runId, input, 0, signal, opts?.signal);
   }
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: resume mirrors run() step iteration with suspend/error branches
   async resume(runId: string, resumeData: unknown): Promise<EventedWorkflowRunResult> {
     const state = this._suspended.get(runId);
     if (!state) {
@@ -127,39 +131,39 @@ export class EventedWorkflowExecutor {
     }
     this._suspended.delete(runId);
 
-    let current: unknown = resumeData;
-    for (let i = state.stepIndex; i < this._steps.length; i++) {
+    return this._executeSteps(runId, resumeData, state.stepIndex, new AbortController().signal);
+  }
+
+  /** Shared step iteration — used by both run() and resume(). */
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: step iteration with suspend/resume + error handling is inherently branchy
+  private async _executeSteps(
+    runId: string,
+    input: unknown,
+    startIndex: number,
+    signal: AbortSignal,
+    abortCheckSignal?: AbortSignal,
+  ): Promise<EventedWorkflowRunResult> {
+    const currentRef = { value: input };
+
+    for (let i = startIndex; i < this._steps.length; i++) {
+      if (abortCheckSignal?.aborted) {
+        return { runId, status: "error", error: new Error("aborted") };
+      }
+
       const step = this._steps[i];
       if (!step || step.kind !== "fn") continue;
+
+      const ctx = buildStepContext(runId, i, currentRef, this._suspended, signal);
+
       try {
-        current = await step.fn(current, {
-          runId,
-          signal: new AbortController().signal,
-          log: noopLog,
-          suspend: (payload?: unknown): Promise<never> => {
-            const name = typeof payload === "string" ? payload : `step-${i}`;
-            this._suspended.set(runId, {
-              runId,
-              stepIndex: i + 1,
-              suspendName: name,
-              input: current,
-            });
-            throw new SuspendSignal(name);
-          },
-        } satisfies StepContext);
+        currentRef.value = await step.fn(currentRef.value, ctx);
       } catch (err) {
-        if (err instanceof SuspendSignal) {
-          return { runId, status: "suspended", suspendedAt: err.name };
-        }
-        return {
-          runId,
-          status: "error",
-          error: err instanceof Error ? err : new Error(String(err)),
-        };
+        const result = handleStepError(err, runId);
+        if (result !== undefined) return result;
       }
     }
 
-    return { runId, status: "completed", output: current };
+    return { runId, status: "completed", output: currentRef.value };
   }
 
   dispose(): void {

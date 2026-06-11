@@ -62,6 +62,7 @@ export class TheoKitClient {
     let buffer = "";
 
     try {
+      // jscpd:ignore-start — SSE stream buffer pattern (different protocol from NDJSON in ollama-native)
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -69,6 +70,7 @@ export class TheoKitClient {
         buffer += decoder.decode(value, { stream: true });
         const lines = buffer.split("\n");
         buffer = lines.pop() ?? "";
+        // jscpd:ignore-end
 
         for (const line of lines) {
           const trimmed = line.trim();
