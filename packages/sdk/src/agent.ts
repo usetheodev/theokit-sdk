@@ -534,9 +534,8 @@ async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOpti
   }
   let mod: ToolInjectorModule;
   try {
-    // @ts-expect-error optional peer — module resolution happens at runtime;
-    // TS doesn't see @theokit/sdk-handoff because @theokit/sdk has no
-    // dependency on it (avoiding the kernel→extension direction violation).
+    // Optional peer — module resolution happens at runtime. Added as
+    // devDependency for type-checking; actual resolution depends on consumer install.
     mod = (await import("@theokit/sdk-handoff/internal/tool-injector")) as ToolInjectorModule;
   } catch (err) {
     throw new ConfigurationError(

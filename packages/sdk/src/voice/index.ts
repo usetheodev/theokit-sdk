@@ -4,8 +4,5 @@
  * @public @experimental
  */
 
-export {
-  OpenAIRealtimeVoiceProvider,
-  type OpenAIRealtimeVoiceProviderOptions,
-} from "./openai-realtime.js";
+export { OpenAIRealtimeVoiceProvider } from "./openai-realtime.js";
 export type { STTOptions, STTResult, TTSOptions, TTSResult, VoiceProvider } from "./types.js";
