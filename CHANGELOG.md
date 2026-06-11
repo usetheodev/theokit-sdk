@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed
 
 - LEGO redistribution Phase 1: moved `createPlanModeTool`, `createTodolistTool`, `createQuestionTool`, `truncateOutput` from `@theokit/theocode` to `@theokit/sdk-tools` — these are reusable building blocks for any agent, not coding-assistant-specific. Fixed EC-1: todolist `nextId` now scoped per instance. sdk-tools: 102 -> 130 tests.
+- TheoCode system prompt upgraded with explicit 4-phase workflow (PLAN -> TASKS -> EXECUTE -> VERIFY) teaching the agent to use plan_mode + todolist in sequence for complex tasks
+- TheoCode interactive REPL now streams tool calls in real-time (`[tool]` shows invocation, `[done]` shows result) — full visibility into agent reasoning and tool use
 
 ### Added
 
