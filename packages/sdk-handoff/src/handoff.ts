@@ -160,11 +160,3 @@ export async function handoffTo(
   });
   return reply;
 }
-
-export {
-  HandoffLoopError,
-  HandoffNameCollisionError,
-  HandoffPairLoopError,
-  HandoffReceiverDisposedError,
-  HandoffSelfReferenceError,
-} from "./types/handoff.js";

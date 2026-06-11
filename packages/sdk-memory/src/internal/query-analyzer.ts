@@ -9,7 +9,7 @@
 
 const MAX_SHORT_QUERY_LENGTH = 250;
 
-export interface QueryAnalysisResult {
+interface QueryAnalysisResult {
   subQueries: string[];
   timeFilter?: number;
   scopeHint?: string;

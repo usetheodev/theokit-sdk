@@ -17,9 +17,9 @@
  */
 
 /** Provider keys this matrix knows how to consume. */
-export type RealLlmProvider = "openai" | "anthropic" | "openrouter";
+type RealLlmProvider = "openai" | "anthropic" | "openrouter";
 
-export interface RealLlmHandle {
+interface RealLlmHandle {
   /** Vitest `skipIf` boolean — true means SKIP. */
   readonly shouldSkip: boolean;
   /** Reason the suite was skipped (empty when shouldSkip === false). */

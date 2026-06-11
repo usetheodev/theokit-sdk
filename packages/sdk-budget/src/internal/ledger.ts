@@ -79,26 +79,26 @@ export function spentIn(name: string, window: BudgetWindow, now: Date = new Date
 }
 
 /** Diagnostic — total logs across all budgets. */
-export function __getLogCountForTests(name?: string): number {
+function __getLogCountForTests(name?: string): number {
   if (name !== undefined) return state.logs.get(name)?.length ?? 0;
   let total = 0;
   for (const arr of state.logs.values()) total += arr.length;
   return total;
 }
 
-export function __resetLedgerForTests(): void {
+function __resetLedgerForTests(): void {
   state = { logs: new Map(), lastGcAt: Date.now() };
 }
 
 /** Force GC manually (tests only). */
-export async function __evictNowForTests(): Promise<void> {
+async function __evictNowForTests(): Promise<void> {
   await withCwdMutex(MUTEX_KEY, async () => {
     gcOlderThanOneYear(Date.now());
   });
 }
 
 /** Force-insert a log at a specific timestamp (tests only). */
-export function __injectLogForTests(name: string, timestamp: number, amountUsd: number): void {
+function __injectLogForTests(name: string, timestamp: number, amountUsd: number): void {
   const list = state.logs.get(name) ?? [];
   list.push({ timestamp, amountUsd });
   state.logs.set(name, list);

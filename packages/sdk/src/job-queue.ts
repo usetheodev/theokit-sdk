@@ -7,9 +7,9 @@
 
 import { randomUUID } from "node:crypto";
 
-export type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
+type JobStatus = "pending" | "running" | "completed" | "failed" | "cancelled";
 
-export interface Job<T> {
+interface Job<T> {
   id: string;
   status: JobStatus;
   result?: T;

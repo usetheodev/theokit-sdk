@@ -15,8 +15,3 @@ export interface AgentLike {
   ): { stream(): AsyncIterable<unknown>; wait(): Promise<unknown> };
   dispose(): void;
 }
-
-export interface AgentHandler {
-  handleSend(input: string, signal?: AbortSignal): Promise<unknown>;
-  handleStream(input: string, signal?: AbortSignal): AsyncIterable<unknown>;
-}

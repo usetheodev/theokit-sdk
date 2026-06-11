@@ -241,7 +241,3 @@ function createStore(
   }
   return new InMemoryCacheStore(maxEntries);
 }
-
-/* ─── Re-exports for ergonomics (errors only — public types come from `types/cache.js` via `types/index.ts`). ─── */
-
-export { CacheEmbedderError, CacheInvalidTtlError } from "./types/cache.js";

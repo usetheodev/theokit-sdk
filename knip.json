@@ -17,13 +17,27 @@
     "tools/validate-tasks-real-llm.mjs",
     "tools/validate-budget-real-llm.mjs"
   ],
-  "ignoreDependencies": ["@arethetypeswrong/cli", "publint"],
+  "ignoreDependencies": [
+    "@arethetypeswrong/cli",
+    "publint",
+    "jscodeshift",
+    "@types/jscodeshift",
+    "madge"
+  ],
+  "ignoreBinaries": ["turbo"],
   "tags": ["-knipignore"],
   "workspaces": {
     "packages/sdk": {
-      "entry": ["tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
+      "entry": ["src/agent.ts", "tests/**/*.test.ts", "tests/helpers/**/*.ts", "bin/*.mjs"],
       "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": ["src/internal/**", "src/**/internal/**"]
+      "ignore": [
+        "src/internal/**",
+        "src/**/internal/**",
+        "tests/fixtures/codemod-1x/**",
+        "src/stream-object.ts",
+        "src/server/adapter/index.ts",
+        "src/voice/index.ts"
+      ]
     },
     "packages/react": {
       "entry": ["tests/**/*.test.ts"],
