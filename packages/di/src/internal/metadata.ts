@@ -49,6 +49,8 @@ export const METADATA_KEYS = {
   RERANKER: "usetheo:di:reranker",
   /** Map<string|symbol, TextSplitterOptions> from `@TextSplitter()` property decorator. */
   TEXT_SPLITTER: "usetheo:di:text-splitter",
+  /** Map<string|symbol, MemoryScopeOptions> from `@MemoryScopeDecorator()` property decorator. */
+  MEMORY_SCOPE: "usetheo:di:memory-scope",
 } as const;
 
 export interface InjectableMetadata {
