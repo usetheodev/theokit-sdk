@@ -12,6 +12,11 @@ export {
   readEvalDecoratorMetadata,
 } from "./decorators/eval-decorator.js";
 export { Hitl, type HitlMetadata, type HitlOptions, readHitlMetadata } from "./decorators/hitl.js";
+export {
+  MemoryScopeDecorator,
+  type MemoryScopeOptions,
+  readMemoryScopeMetadata,
+} from "./decorators/memory-scope.js";
 export { Reranker, type RerankerOptions, readRerankerMetadata } from "./decorators/reranker.js";
 export { Retriever, type RetrieverOptions, readRetrieverMetadata } from "./decorators/retriever.js";
 export { readSubAgentMetadata, SubAgent, type SubAgentOptions } from "./decorators/sub-agent.js";
