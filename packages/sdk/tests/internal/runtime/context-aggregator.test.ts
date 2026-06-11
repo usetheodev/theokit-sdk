@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   type AggregatorSource,
   applyAggregateCap,
-} from "../../../src/internal/runtime/context-aggregator.js";
+} from "../../../src/internal/runtime/context/context-aggregator.js";
 
 function src(id: string, sourcePath: string, content: string, priority: number): AggregatorSource {
   return { id, source: sourcePath, content, priority, truncated: false };

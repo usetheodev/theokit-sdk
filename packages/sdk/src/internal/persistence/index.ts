@@ -6,7 +6,7 @@
  */
 
 export type { AtomicWriteJsonOptions } from "./atomic-write.js";
-export { atomicWriteJson, replaceFileAtomic } from "./atomic-write.js";
+export { atomicWriteJson, atomicWriteText, replaceFileAtomic } from "./atomic-write.js";
 export { withCwdMutex } from "./cwd-mutex.js";
 export type { CreateExclusiveOptions } from "./exclusive-create.js";
 export { createExclusive } from "./exclusive-create.js";
@@ -14,6 +14,7 @@ export type { FileLockOptions } from "./file-lock.js";
 export { withFileLock } from "./file-lock.js";
 export { containsCjk, sanitizeFts5Query } from "./fts5-sanitize.js";
 export { displayTheokitHome, getProfilesRoot, getTheokitHome } from "./paths.js";
+export { PersistenceSchema } from "./persistence-schema.js";
 export type {
   MigrateSchemaOptions,
   MigrateSchemaResult,

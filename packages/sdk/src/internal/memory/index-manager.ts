@@ -1,16 +1,28 @@
 import { createHash } from "node:crypto";
-import { readdir, readFile, stat } from "node:fs/promises";
-import { join, relative } from "node:path";
+import { readFile, stat } from "node:fs/promises";
 
 import { sanitizeFts5Query } from "../persistence/fts5-sanitize.js";
-import { chunkMarkdown } from "./chunk-markdown.js";
 import type { EmbeddingRuntime } from "./embedding-adapter.js";
+import { LruEmbeddingCache } from "./embedding-cache.js";
 import { defaultIndexPath, type MemoryDb, openMemoryDb } from "./index-db.js";
 import { assertValidBackend, openLanceIndex } from "./index-manager-dispatch.js";
-import { memoryDir, memoryMdPath, notesDir } from "./markdown-store.js";
+import {
+  blendScores,
+  collectMarkdownFiles,
+  resolveWeights,
+  sha256,
+  truncateSnippet,
+} from "./index-manager-helpers.js";
 import { type MemoryIndex, parseSearchOptions } from "./memory-index.js";
-import { discoverSessionFiles } from "./session-loader.js";
 import { loadSqliteVecExtension } from "./sqlite-vec-loader.js";
+import { chunkMarkdown } from "./storage/chunk-markdown.js";
+
+// T4.1 — query-vector LRU cache (DR4 finding #1). Keyed by
+// sha256(query); caches the embedding vector so repeated search
+// queries skip the HTTP round-trip (p99 1.5-3s → ~0ms on hit).
+// Process-wide singleton with bounded capacity (default 2000 queries).
+const queryVectorCache = new LruEmbeddingCache(2000);
+
 import {
   createVectorIndex,
   dropVectorIndex,
@@ -20,7 +32,6 @@ import {
   vectorSearch,
   writeEmbeddingIdentity,
 } from "./vec-index.js";
-import { discoverWikiFiles } from "./wiki-loader.js";
 
 /**
  * Memory index manager (ADR D2). FTS5-only at Phase 3; vector index lands in
@@ -35,51 +46,23 @@ import { discoverWikiFiles } from "./wiki-loader.js";
  * @internal
  */
 
-export interface MemorySearchHit {
-  /** Path relative to the memory root. */
-  path: string;
-  startLine: number;
-  endLine: number;
-  /** Combined score (hybrid when vector backend active, else just textScore). */
-  score: number;
-  /** FTS5 BM25 score normalized to 0..1 (higher = better). */
-  textScore: number;
-  /** sqlite-vec distance normalized to 0..1 (higher = better). Omitted when vector backend disabled. */
-  vectorScore?: number;
-  snippet: string;
-  source: "memory" | "sessions" | "wiki";
-  /** path:startLine-endLine for citations. */
-  citation: string;
-}
+// T2.1 / ADR D433 — these types now live in `index-manager-contract.ts`
+// to break the 3-cycle memory cluster. Re-exported here for back-compat
+// with downstream importers that historically pulled from this file.
+export type {
+  IndexStatus,
+  MemoryBackend,
+  MemorySearchHit,
+  OpenIndexOptions,
+  SearchOptions,
+} from "./index-manager-contract.js";
 
-export interface IndexStatus {
-  backend: "fts-only" | "hybrid";
-  filesIndexed: number;
-  chunksIndexed: number;
-  lastSyncMs?: number;
-}
-
-export interface SearchOptions {
-  maxResults?: number;
-  minScore?: number;
-  sources?: ReadonlyArray<"memory" | "sessions" | "wiki">;
-  /** 0..1 — vector vs text weight in hybrid scoring (D4). Default 0.6. */
-  vectorWeight?: number;
-  /** 0..1 — text weight in hybrid scoring. Default 0.4. */
-  textWeight?: number;
-}
-
-/** Vector backend selector. SQLite default; Lance opt-in (ADR D43). */
-export type MemoryBackend = "sqlite-vec" | "lance";
-
-export interface OpenIndexOptions {
-  cwd: string;
-  filePath?: string;
-  /** When provided, vector index is enabled in hybrid mode. */
-  embedding?: EmbeddingRuntime;
-  /** Vector backend. Default and only value today: `"sqlite-vec"`. */
-  backend?: MemoryBackend;
-}
+import type {
+  IndexStatus,
+  MemorySearchHit,
+  OpenIndexOptions,
+  SearchOptions,
+} from "./index-manager-contract.js";
 
 export class IndexManager implements MemoryIndex {
   private lastSyncMs: number | undefined;
@@ -220,7 +203,11 @@ export class IndexManager implements MemoryIndex {
     try {
       rows = stmt.all(sanitized, limit);
     } catch {
-      return [];
+      // T4.8 — CJK fallback: FTS5's default tokenizer chokes on CJK
+      // characters (no word boundaries). Instead of returning empty,
+      // fall back to a LIKE search which handles CJK correctly (slower
+      // but correct). ADR D64 documents the trigram-routing deferral.
+      return this.likeSearchFallback(query, limit);
     }
     return rows.map((row) => {
       const bm25 = Number(row.bm25_score ?? 0);
@@ -244,13 +231,60 @@ export class IndexManager implements MemoryIndex {
     });
   }
 
+  /**
+   * T4.8 — LIKE-based fallback for CJK and other scripts that FTS5's
+   * default tokenizer cannot segment. Slower than FTS5 (full table scan)
+   * but correct for any Unicode input. Returns the same shape as
+   * `ftsSearch` so callers are unaware of the fallback.
+   */
+  private likeSearchFallback(
+    query: string,
+    limit: number,
+  ): Array<MemorySearchHit & { chunkId: number }> {
+    const pattern = `%${query.replace(/%/g, "\\%").replace(/_/g, "\\_")}%`;
+    const stmt = this.db.prepare(
+      `SELECT chunks.id as id, files.rel_path as rel_path, files.source as source,
+              chunks.start_line as start_line, chunks.end_line as end_line,
+              chunks.text as text
+       FROM chunks
+       JOIN files ON chunks.file_id = files.id
+       WHERE chunks.text LIKE ? ESCAPE '\\'
+       LIMIT ?`,
+    );
+    const rows = stmt.all(pattern, limit) as Array<Record<string, unknown>>;
+    return rows.map((row) => {
+      const path = String(row.rel_path ?? "");
+      const startLine = Number(row.start_line ?? 0);
+      const endLine = Number(row.end_line ?? 0);
+      return {
+        path,
+        startLine,
+        endLine,
+        score: 0.5, // LIKE has no relevance score — use a neutral midpoint
+        textScore: 0.5,
+        snippet: truncateSnippet(String(row.text ?? "")),
+        source: String(row.source) as "memory" | "sessions" | "wiki",
+        citation: `${path}:${startLine}-${endLine}`,
+        chunkId: Number(row.id),
+      } as MemorySearchHit & { chunkId: number };
+    });
+  }
+
   private async vectorSearchById(
     query: string,
     limit: number,
   ): Promise<Map<number, { vectorScore: number; snippet?: string }>> {
     if (!this.vectorReady || this.embedding === undefined) return new Map();
-    const [queryVec] = await this.embedding.embed([query]);
+    // T4.1 — query-vector LRU cache. The embed call is the p99 hottest
+    // path (1.5-3s per hit). Cache by sha256(query) so repeated queries
+    // skip the HTTP round-trip entirely. The embedding cache (T4.4
+    // globalEmbeddingCache) catches text-level dedup; this catches the
+    // query-level search-result dedup on top.
+    const cacheKey = createHash("sha256").update(query).digest("hex");
+    const cached = queryVectorCache.get(cacheKey);
+    const queryVec = cached ?? (await this.embedding.embed([query]))[0];
     if (queryVec === undefined) return new Map();
+    if (cached === undefined) queryVectorCache.set(cacheKey, queryVec);
     const rows = vectorSearch(this.db, queryVec, limit);
     // sqlite-vec distance: lower = closer. Normalize to 0..1 with higher = better.
     const out = new Map<number, { vectorScore: number }>();
@@ -369,102 +403,6 @@ export class IndexManager implements MemoryIndex {
   close(): void {
     this.db.close();
   }
-}
-
-// ───── module-level helpers (hybrid scoring) ─────────────────────────────
-
-interface HybridWeights {
-  vectorWeight: number;
-  textWeight: number;
-  total: number;
-}
-
-function resolveWeights(options: SearchOptions): HybridWeights {
-  const vectorWeight = options.vectorWeight ?? 0.6;
-  const textWeight = options.textWeight ?? 0.4;
-  const total = vectorWeight + textWeight || 1;
-  return { vectorWeight, textWeight, total };
-}
-
-function blendScores(
-  hit: MemorySearchHit & { chunkId: number },
-  vectorScore: number,
-  weights: HybridWeights,
-): MemorySearchHit {
-  const score =
-    (vectorScore * weights.vectorWeight + hit.textScore * weights.textWeight) / weights.total;
-  return {
-    path: hit.path,
-    startLine: hit.startLine,
-    endLine: hit.endLine,
-    score,
-    textScore: hit.textScore,
-    snippet: hit.snippet,
-    source: hit.source,
-    citation: hit.citation,
-    ...(vectorScore > 0 ? { vectorScore } : {}),
-  };
-}
-
-interface DiscoveredFile {
-  absolutePath: string;
-  relPath: string;
-  source: "memory" | "wiki" | "sessions";
-}
-
-async function collectMarkdownFiles(cwd: string): Promise<DiscoveredFile[]> {
-  const root = memoryDir(cwd);
-  const results: DiscoveredFile[] = [];
-  // MEMORY.md
-  try {
-    await stat(memoryMdPath(cwd));
-    results.push({
-      absolutePath: memoryMdPath(cwd),
-      relPath: relative(root, memoryMdPath(cwd)),
-      source: "memory",
-    });
-  } catch {
-    // skip
-  }
-  // notes/*.md
-  try {
-    const entries = await readdir(notesDir(cwd));
-    for (const entry of entries) {
-      if (!entry.endsWith(".md")) continue;
-      const abs = join(notesDir(cwd), entry);
-      results.push({ absolutePath: abs, relPath: relative(root, abs), source: "memory" });
-    }
-  } catch {
-    // notes dir doesn't exist yet — that's fine
-  }
-  // wiki/*.md (Phase 10 — read-only supplements)
-  const wikiFiles = await discoverWikiFiles(cwd);
-  for (const wiki of wikiFiles) {
-    results.push({
-      absolutePath: wiki.absolutePath,
-      relPath: wiki.relPath,
-      source: "wiki",
-    });
-  }
-  // sessions/*.md (ADR D20 — per-run summaries for corpus="sessions" recall)
-  const sessionFiles = await discoverSessionFiles(cwd);
-  for (const session of sessionFiles) {
-    results.push({
-      absolutePath: session.absolutePath,
-      relPath: session.relPath,
-      source: "sessions",
-    });
-  }
-  return results;
-}
-
-function sha256(text: string): string {
-  return createHash("sha256").update(text).digest("hex");
-}
-
-function truncateSnippet(text: string): string {
-  const max = 500;
-  return text.length <= max ? text : `${text.slice(0, max)}…`;
 }
 
 // Replaced by `sanitizeFts5Query` from `internal/persistence/fts5-sanitize.ts`

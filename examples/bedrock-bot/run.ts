@@ -10,7 +10,7 @@
  *   pnpm run run
  */
 
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const token = process.env.AWS_BEARER_TOKEN_BEDROCK;
 const modelId =

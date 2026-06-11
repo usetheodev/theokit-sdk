@@ -5,7 +5,7 @@ The fastest way to get a Theo agent running: a local agent against your current 
 ## Hello, agent
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,

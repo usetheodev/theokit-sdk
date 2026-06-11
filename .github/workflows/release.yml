@@ -1,0 +1,50 @@
+name: Release
+
+# Per technical-hardening-sprint plan v1.1 T1.1 (NEW) + ADR D1:
+# theokit-sdk ships 22 packages — changesets/action pattern is the right
+# vehicle for multi-package per-package release notes + sequential publish.
+# OIDC trusted-publisher binding (per-package config at npmjs.com) attests
+# provenance automatically. NPM_TOKEN intentionally NOT used — per EC-2
+# absorbed, token env disables OIDC silently.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency: ${{ github.workflow }}-${{ github.ref }}
+
+jobs:
+  release:
+    name: Release via Changesets (22 packages)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+          registry-url: 'https://registry.npmjs.org'
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - name: Create Release Pull Request or Publish
+        uses: changesets/action@v1
+        with:
+          publish: pnpm changeset publish
+          version: pnpm changeset version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # NPM_TOKEN intentionally absent — per technical-hardening-sprint plan v1.1 EC-2
+          # absorbed: NPM_TOKEN env DISABLES OIDC trusted-publisher binding silently.
+          # Requires npm dashboard trusted-publisher binding at npmjs.com/package/<pkg>/settings
+          # for ALL 22 packages (@theokit/sdk, @theokit/react, @theokit/di, @theokit/orm, etc.).
+          NPM_CONFIG_PROVENANCE: true

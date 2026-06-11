@@ -1,5 +1,5 @@
 {
-  "name": "@usetheo/example-di-agent-express",
+  "name": "@theokit/example-di-agent-express",
   "version": "0.0.0",
   "description": "Dogfood example — minimal HTTP server demonstrating @InjectAgent + REQUEST-scoped Agent isolation per request.",
   "private": true,
@@ -10,9 +10,9 @@
     "start": "tsc && node dist/index.js"
   },
   "dependencies": {
-    "@usetheo/di": "workspace:*",
-    "@usetheo/di-agent": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/di": "workspace:*",
+    "@theokit/di-agent": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "reflect-metadata": "^0.2.0",
     "tsx": "^4.21.0"
   }

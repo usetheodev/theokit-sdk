@@ -1,6 +1,6 @@
 # example: tasks (observable async work)
 
-Demonstrates the `Task` namespace from `@usetheo/sdk` (Adoption Roadmap gap #2; ADRs D361-D374).
+Demonstrates the `Task` namespace from `@theokit/sdk` (Adoption Roadmap gap #2; ADRs D361-D374).
 
 ## Run (no LLM required)
 

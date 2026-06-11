@@ -1,19 +1,19 @@
-# @usetheo/skills-google-workspace
+# @theokit/skills-google-workspace
 
-Google Workspace skill bundle for `@usetheo/sdk` — Calendar, Drive, Sheets, Docs, Gmail, Slides, and Forms via the community-maintained `google-workspace-mcp` server.
+Google Workspace skill bundle for `@theokit/sdk` — Calendar, Drive, Sheets, Docs, Gmail, Slides, and Forms via the community-maintained `google-workspace-mcp` server.
 
 > **NÃO reinventa MCP.** This package is a thin Node factory that emits a single `McpServerConfig` running `npx google-workspace-mcp serve [--read-only] [--account <name>]`. All 95+ tools, OAuth flow, multi-account support, and credential storage come from the upstream server. Our value-add: SDK-branded ergonomics, secure defaults, a CLI wrapper (`theokit setup gworkspace`) that pre-validates credentials, and a cookbook of six recipes.
 
 ## Quick start
 
 ```bash
-pnpm add @usetheo/skills-google-workspace
+pnpm add @theokit/skills-google-workspace
 npx theokit setup gworkspace          # walkthrough — pre-validates OAuth client + delegates to upstream
 ```
 
 ```ts
-import { Agent } from "@usetheo/sdk";
-import { googleWorkspace } from "@usetheo/skills-google-workspace";
+import { Agent } from "@theokit/sdk";
+import { googleWorkspace } from "@theokit/skills-google-workspace";
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY!,

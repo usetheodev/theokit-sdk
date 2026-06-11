@@ -1,6 +1,6 @@
-# @usetheo/memory-honcho
+# @theokit/memory-honcho
 
-Honcho memory adapter for [`@usetheo/sdk`](../sdk).
+Honcho memory adapter for [`@theokit/sdk`](../sdk).
 
 Wraps [`@honcho-ai/sdk@^2`](https://www.npmjs.com/package/@honcho-ai/sdk) (zod
 peer-dep) with the `MemoryAdapter` contract from ADR D141. Honcho's
@@ -10,14 +10,14 @@ answer about the user, not a list of raw facts.
 ## Install
 
 ```bash
-pnpm add @usetheo/memory-honcho @honcho-ai/sdk
+pnpm add @theokit/memory-honcho @honcho-ai/sdk
 ```
 
 ## Usage
 
 ```ts
-import { Agent } from "@usetheo/sdk";
-import { honchoMemory } from "@usetheo/memory-honcho";
+import { Agent } from "@theokit/sdk";
+import { honchoMemory } from "@theokit/memory-honcho";
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,

@@ -9,29 +9,22 @@ import type {
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { generateLocalAgentId } from "../ids.js";
-import { withCwdMutex } from "../memory/cwd-mutex.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import type { PersonalityRegistry } from "../personality/registry.js";
 import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
-import { anySignal } from "./abort-utils.js";
-import { flushRegistrySaves, updateRegisteredAgent } from "./agent-registry.js";
-import {
-  appendSessionMessage,
-  compactSession,
-  flushSessionWrites,
-  getSessionMessages,
-  hydrateSession,
-} from "./agent-session.js";
-import type { FileContextManager } from "./context-manager.js";
+import { SPAN_NAMES } from "../telemetry/span-names.js";
+import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
+import { compactSession, flushSessionWrites, hydrateSession } from "./agent-session.js";
+import type { FileContextManager } from "./context/context-manager.js";
 import { HooksExecutor } from "./hooks-executor.js";
-import { liveAgentRegistry } from "./live-agent-registry.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
-import { consumePending, invalidateCacheImpl } from "./local-agent-invalidate.js";
+import { invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
-import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
+import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
 import {
   applyPersonalityOverlay,
   ensurePersonalityRegistryIfNeeded,
@@ -39,16 +32,16 @@ import {
   resolveActivePersonalityPreset,
 } from "./local-agent-personality-extensions.js";
 import { extractCodePlugins } from "./local-agent-plugins.js";
-import {
-  localAgentFork,
-  localAgentRunUntil,
-  persistMemoryFactIfWritePrompt,
-} from "./local-agent-runtime-extensions.js";
+import { localAgentFork, localAgentRunUntil } from "./local-agent-runtime-extensions.js";
+import { executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
-import { type MemoryFact, readMemoryFacts } from "./memory-store.js";
-import type { PluginMetadata, PluginsManager } from "./plugins-manager.js";
+import { resolveMemoryProviderForLoop, shouldUsePortMemoryPath } from "./memory-path-selector.js";
+import type { MemoryFact } from "./memory-store.js";
+import type { PluginMetadata, PluginsManager } from "./plugins/plugins-manager.js";
 import { runPostRunLifecycle } from "./post-run-lifecycle.js";
 import type { ProvidersManagerImpl } from "./providers-manager.js";
+import { flushRegistrySaves, updateRegisteredAgent } from "./registry/agent-registry.js";
+import { liveAgentRegistry } from "./registry/live-agent-registry.js";
 import type { SkillMetadata, SkillsManager } from "./skills-manager.js";
 import { loadSubagents } from "./subagents-loader.js";
 import {
@@ -57,7 +50,6 @@ import {
   type LocalAssemblyInputs,
 } from "./system-prompt/local-assembly.js";
 import { SystemPromptPipeline } from "./system-prompt/pipeline.js";
-import { safeCall } from "./system-prompt/safe-call.js";
 import { resolveSystemPromptForSend } from "./system-prompt.js";
 import { validateToolCatalog } from "./validate-agent-options.js";
 
@@ -106,14 +98,29 @@ export class LocalAgent implements SDKAgent {
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
   private readonly memoryGlue: LocalAgentMemory;
+  /**
+   * SDK 2.0 Phase 1 physical Stage 2b — iter 19+: pre-built adapter
+   * wrapping `memoryGlue` as a MemoryProvider impl. Constructed eagerly
+   * so future iters can flip `inputs.memoryProvider` to default to
+   * THIS adapter when consumer didn't supply one. NOT YET used by
+   * `send()` — the kernel flip lands in Stage 2b proper after equivalence
+   * regression coverage.
+   *
+   * Accessible to tests via `_defaultMemoryProviderForLoop()` helper.
+   * @internal
+   */
+  private readonly defaultMemoryProviderForLoop: ReturnType<typeof createLocalAgentMemoryProvider>;
   /** T4.1 — PluginManager for code plugins (kind: general/model-provider/memory). @internal */
   private readonly pluginManagerCode: PluginManager = new PluginManager();
   /** Personality presets — lazy-loaded on first `usePersonality` call (ADRs D160-D164). @internal */
   private personalityRegistry: PersonalityRegistry | undefined;
   private readonly personalityStore: PersonalityStore;
+  /** T0.1 — telemetry handle shared with sendLocked + memory recall path. */
+  private readonly _telemetry: TelemetryHandle;
 
   constructor(options: AgentOptions) {
     this.agentId = options.agentId ?? generateLocalAgentId();
+    this._telemetry = createTelemetry(options.telemetry);
     this.model = options.model;
     this.options = options;
     this.workspaceCwd = resolveCwd(options.local?.cwd);
@@ -136,6 +143,17 @@ export class LocalAgent implements SDKAgent {
 
     this.hooksExecutor = new HooksExecutor(this.workspaceCwd);
     this.memoryGlue = new LocalAgentMemory(options, this.workspaceCwd, this.agentId);
+    // SDK 2.0 Phase 1 physical Stage 2b — iter 19+: build the adapter
+    // alongside the legacy glue. Same underlying rich impl; the adapter
+    // exposes it through the MemoryProvider port. NOT YET wired into
+    // send() — agent-loop still consumes `memoryGlue` directly via
+    // `inputs.memoryTools` + `activeMemorySummary` concat path.
+    this.defaultMemoryProviderForLoop = createLocalAgentMemoryProvider({
+      agentOptions: options,
+      workspaceCwd: this.workspaceCwd,
+      agentId: this.agentId,
+      ...(this._telemetry !== undefined ? { telemetry: this._telemetry } : {}),
+    });
     this.personalityStore = new PersonalityStore(this.workspaceCwd);
     // ADR D141 / D142: `agent.memory.*` direct API over plugin-aggregated adapters.
     // Built unconditionally; `requireAdapters` throws ConfigurationError when called
@@ -199,6 +217,12 @@ export class LocalAgent implements SDKAgent {
     if (options.tools !== undefined && options.tools.length > 0) {
       validateToolCatalog(options.tools);
     }
+    // T0.1: `agent.send` parent span spans the FULL lifecycle (mutex acquire +
+    // dispatch + post-run). Child step spans (`agent.send.<step>`) land in T1.7.
+    const sendSpan = this._telemetry.startSpan(SPAN_NAMES.AGENT_SEND, {
+      agentId: this.agentId,
+      ...(this.model?.id !== undefined ? { model: this.model.id } : {}),
+    });
     // ADR D19 (EC-8): per-agent send mutex keyed by `agent-send:${agentId}`.
     // The lock spans the FULL run lifecycle — dispatch + run.wait() + post-run
     // assistant-turn append + session summary write + disk flush — so
@@ -206,147 +230,96 @@ export class LocalAgent implements SDKAgent {
     // records mid-turn AND `agent.dispose()` can never return before the
     // summary write finishes (ADR D20).
     return new Promise<Run>((resolve, reject) => {
-      void withCwdMutex(`agent-send:${this.agentId}`, async () => {
-        const userText = typeof message === "string" ? message : message.text;
-        let run: Run;
-        try {
-          run = await this.sendLocked(message, options);
-        } catch (err) {
-          reject(err);
-          return;
-        }
-        // T3.2: opt-in Task wrapping (ADRs D363/D374).
-        // biome-ignore format: one-liner to stay under G8 LoC budget.
-        if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
-        resolve(run);
-        await runPostRunLifecycle({
-          run,
-          userText,
-          agentId: this.agentId,
-          workspaceCwd: this.workspaceCwd,
-          storageHandle: this.storageHandle(),
-          hooksExecutor: this.hooksExecutor,
-          memoryGlue: this.memoryGlue,
-        });
-      });
+      void withCwdMutex(`agent-send:${this.agentId}`, () =>
+        this.runLockedSendCycle(message, options, sendSpan, resolve, reject),
+      );
     });
+  }
+
+  private async runLockedSendCycle(
+    message: string | SDKUserMessage,
+    options: SendOptions,
+    sendSpan: OTelSpan,
+    resolve: (run: Run) => void,
+    reject: (err: unknown) => void,
+  ): Promise<void> {
+    const userText = typeof message === "string" ? message : message.text;
+    let run: Run;
+    try {
+      run = await this.sendLocked(message, options);
+    } catch (err) {
+      sendSpan.recordException(err);
+      sendSpan.setStatus({ code: 2, message: err instanceof Error ? err.message : String(err) });
+      sendSpan.end();
+      reject(err);
+      return;
+    }
+    // T3.2: opt-in Task wrapping (ADRs D363/D374).
+    // biome-ignore format: one-liner to stay under G8 LoC budget.
+    if (options.task !== undefined) registerRunAsTask(run, this.agentId, options.task, userText);
+    resolve(run);
+    try {
+      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 28: thread the
+      // resolved memoryProvider into post-run-lifecycle so the
+      // recordSessionSummary port method can be invoked (when defined).
+      // Consumer-supplied `options.memoryProvider` always wins; otherwise
+      // when port path is active, the auto-installed adapter takes over.
+      // When neither: undefined → legacy writeSessionSummary path runs.
+      const postRunProvider = resolveMemoryProviderForLoop(
+        this.options.memoryProvider,
+        this.defaultMemoryProviderForLoop,
+        shouldUsePortMemoryPath(),
+      );
+      await runPostRunLifecycle({
+        run,
+        userText,
+        agentId: this.agentId,
+        workspaceCwd: this.workspaceCwd,
+        storageHandle: this.storageHandle(),
+        hooksExecutor: this.hooksExecutor,
+        memoryGlue: this.memoryGlue,
+        ...(postRunProvider !== undefined ? { memoryProvider: postRunProvider } : {}),
+      });
+    } finally {
+      sendSpan.end();
+    }
   }
 
   private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
-    if (this.disposed) throw new Error("Agent has been disposed");
-    // biome-ignore format: keep one-liner to stay under G8 LoC.
-    await consumePending(this.agentId, this.invalidationPending, () => { this.invalidationPending = undefined; }, () => this.reload());
-    this.applyModelOverride(options.model);
-    const userText = typeof message === "string" ? message : message.text;
-    if (this.options.onBeforeSend !== undefined) {
-      await this.options.onBeforeSend({
-        conversationId: this.agentId,
-        previousMessageCount: getSessionMessages(this.agentId).length,
-      });
-    }
-    await this.runPreHook(userText);
-
-    // ADR D145 / EC-A: pre_user_send memory adapter hooks. Recalled context
-    // is capped at maxRecallContextBytes and injected as a <memory-context>
-    // fence BEFORE the user prompt reaches the LLM.
-    const adaptedMessage = await applyPreUserSendHook({
-      pluginManager: this.pluginManagerCode,
-      agentId: this.agentId,
-      options: this.options,
-      original: message,
-      userText,
-      sendOptions: options,
-    });
-
-    // Capture prior history BEFORE appending the current user message so the
-    // resumed/continuation agent loop sees the conversation up to (but not
-    // including) the new send.
-    const priorMessages = [...getSessionMessages(this.agentId)];
-    appendSessionMessage(this.agentId, { role: "user", text: userText }, this.storageHandle());
-
-    // Auto-write-on-send: opt-in via the user typing "Remember: <fact>". Persist
-    // BEFORE the LLM call so the new fact is durable even if the LLM call fails.
-    await this.maybePersistMemoryFactFromUserMessage(userText);
-    const memoryFacts = await this.readMemoryForSend();
-    const memoryTools = await this.memoryGlue.ensureTools();
-    const activeMemorySummary = await this.memoryGlue.runActiveMemoryIfEnabled(
-      userText,
-      priorMessages,
-    );
-    const baseSystemPrompt = await this.resolveSystemPromptForSend(userText, options, memoryFacts);
-    const assembledSystemPrompt = await this.assembleSystemPromptForSend(
-      userText,
-      baseSystemPrompt,
-      memoryFacts,
-      activeMemorySummary,
-    );
-    // D319 — compose user signal + lifecycle signal so either source aborts
-    // the in-flight LLM stream. Pass the composed signal downstream via a
-    // shallow-cloned options object (does NOT mutate the caller's SendOptions).
-    const composedOptions: SendOptions = {
-      ...options,
-      signal: anySignal([options.signal, this.lifecycleAbortController.signal]),
-    };
-    const run = await this.dispatchRun(
-      adaptedMessage,
-      composedOptions,
-      assembledSystemPrompt,
-      memoryFacts,
-      priorMessages,
-      memoryTools,
-    );
-    // ADR D145: wrap `wait()` so post_assistant_reply fires once after the run
-    // completes. Fire-and-forget (errors → stderr) so the caller never blocks.
-    return wrapRunWithPostReplyHook({
-      pluginManager: this.pluginManagerCode,
-      agentId: this.agentId,
-      options: this.options,
-      run,
-      userText,
-    });
-  }
-
-  private readMemoryForSend(): Promise<MemoryFact[]> {
-    const memoryConfig = this.options.memory;
-    if (memoryConfig?.enabled !== true) return Promise.resolve([]);
-    // Wrap in safeCall so a corrupt memory file degrades to "no facts" instead
-    // of crashing the run (edge-case review EC-4).
-    return safeCall(() => readMemoryFacts(this.workspaceCwd, memoryConfig), [], "memory read");
-  }
-
-  // Memory write helper extracted to `local-agent-runtime-extensions.ts` for G8.
-  private maybePersistMemoryFactFromUserMessage(userText: string): Promise<void> {
-    return persistMemoryFactIfWritePrompt(this.workspaceCwd, this.options.memory, userText);
-  }
-
-  private localAssemblyInputs(): LocalAssemblyInputs {
-    return {
-      agentId: this.agentId,
-      workspaceCwd: this.workspaceCwd,
-      model: this.model,
-      options: this.options,
-      context: this.context,
-      skillsManager: this.skillsManager,
-      systemPromptPipeline: this.systemPromptPipeline,
-    };
-  }
-
-  private assembleSystemPromptForSend(
-    userText: string,
-    baseSystemPrompt: string | undefined,
-    memoryFacts: ReadonlyArray<MemoryFact>,
-    activeMemorySummary: string | undefined,
-  ): Promise<string | undefined> {
-    return assembleSystemPromptForSendHelper(
-      this.localAssemblyInputs(),
-      userText,
-      baseSystemPrompt,
-      memoryFacts,
-      activeMemorySummary,
+    return executeSendLocked(
+      {
+        agentId: this.agentId,
+        disposed: this.disposed,
+        invalidationPending: this.invalidationPending,
+        clearInvalidation: () => {
+          this.invalidationPending = undefined;
+        },
+        reload: () => this.reload(),
+        applyModelOverride: (m) => this.applyModelOverride(m),
+        options: this.options,
+        pluginManagerCode: this.pluginManagerCode,
+        memoryGlue: this.memoryGlue,
+        defaultMemoryProviderForLoop: this.defaultMemoryProviderForLoop,
+        workspaceCwd: this.workspaceCwd,
+        storageHandle: this.storageHandle(),
+        telemetry: this._telemetry,
+        lifecycleAbortController: this.lifecycleAbortController,
+        runPreHook: (ut) => this.runPreHook(ut),
+        // biome-ignore format: G8 budget — callbacks wire to private methods.
+        resolveSystemPromptForSend: (ut, o, mf) => this.resolveSystemPrompt(ut, o, mf),
+        assembleSystemPromptForSend: (ut, bp, mf, ams) =>
+          assembleSystemPromptForSendHelper(this.assemblyInputs(), ut, bp, mf, ams),
+        dispatchRun: (msg, o, sp, mf, pm, mt, mp) => this.dispatchRun(msg, o, sp, mf, pm, mt, mp),
+      },
+      message,
+      options,
     );
   }
 
-  private async resolveSystemPromptForSend(
+  // biome-ignore format: G8 budget — thin accessor for the assembly inputs.
+  private assemblyInputs(): LocalAssemblyInputs { return { agentId: this.agentId, workspaceCwd: this.workspaceCwd, model: this.model, options: this.options, context: this.context, skillsManager: this.skillsManager, systemPromptPipeline: this.systemPromptPipeline }; }
+
+  private async resolveSystemPrompt(
     userText: string,
     options: SendOptions,
     memoryFacts: ReadonlyArray<MemoryFact>,
@@ -354,7 +327,7 @@ export class LocalAgent implements SDKAgent {
     const base = await resolveSystemPromptForSend(
       this.options.systemPrompt,
       options.systemPrompt,
-      () => buildSystemPromptContextHelper(this.localAssemblyInputs(), userText, memoryFacts),
+      () => buildSystemPromptContextHelper(this.assemblyInputs(), userText, memoryFacts),
     );
     this.personalityRegistry = await ensurePersonalityRegistryIfNeeded({
       agentId: this.agentId,
@@ -396,12 +369,24 @@ export class LocalAgent implements SDKAgent {
     memoryFacts: ReadonlyArray<MemoryFact>,
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
     memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
+    memoryProviderOverride?: import("./memory-provider.js").MemoryProvider,
   ): Promise<Run> {
+    // SDK 2.0 Phase 1 physical Stage 2b — iter 23 KERNEL FLIP:
+    // When `memoryProviderOverride` is supplied (env-flag path), inject
+    // it via a shallow-cloned `agentOptions` so agent-loop's iter 18
+    // T1.3 wiring threads it into `inputs.memoryProvider` automatically.
+    // When undefined: pass `this.options` verbatim (zero behavior change
+    // — the existing consumer-supplied `options.memoryProvider` path
+    // wins unchanged).
+    const effectiveAgentOptions =
+      memoryProviderOverride !== undefined && this.options.memoryProvider === undefined
+        ? { ...this.options, memoryProvider: memoryProviderOverride }
+        : this.options;
     return dispatchLocalRun({
       inputs: {
         agentId: this.agentId,
         model: this.model,
-        options: this.options,
+        options: effectiveAgentOptions,
         workspaceCwd: this.workspaceCwd,
         hooksExecutor: this.hooksExecutor,
         pluginManager: this.pluginManagerCode,

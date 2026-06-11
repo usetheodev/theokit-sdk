@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/gateway-telegram",
+  "name": "@theokit/gateway-telegram",
   "version": "0.1.0",
-  "description": "Telegram (grammy) platform adapter for @usetheo/gateway. ADR D171.",
+  "description": "Telegram (grammy) platform adapter for @theokit/gateway. ADR D171.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -34,16 +34,16 @@
     "test": "vitest run"
   },
   "peerDependencies": {
-    "@usetheo/gateway": "workspace:^",
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/gateway": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "grammy": "^1.30.0"
   },
   "devDependencies": {
-    "@usetheo/gateway": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/gateway": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "grammy": "^1.30.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   }
 }

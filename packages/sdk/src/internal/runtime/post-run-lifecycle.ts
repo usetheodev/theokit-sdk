@@ -1,9 +1,11 @@
 import type { ConversationStorageAdapter } from "../../types/conversation-storage.js";
 import type { Run } from "../../types/run.js";
-import { writeSessionSummary } from "../memory/session-summary-writer.js";
+import { writeSessionSummary } from "../memory/storage/session-summary-writer.js";
 import { appendSessionMessage, flushSessionWrites } from "./agent-session.js";
 import type { HooksExecutor } from "./hooks-executor.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
+import { shouldUsePortMemoryPath } from "./memory-path-selector.js";
+import type { MemoryProvider } from "./memory-provider.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
@@ -23,6 +25,18 @@ export interface PostRunLifecycleInputs {
   storageHandle: ConversationStorageAdapter | string;
   hooksExecutor: HooksExecutor;
   memoryGlue: LocalAgentMemory;
+  /**
+   * SDK 2.0 Phase 1 physical Stage 3 prep — iter 27 (refined iter 28):
+   * optional port-based session-summary recorder. When supplied AND the
+   * provider implements `recordSessionSummary`, the kernel delegates
+   * the write through the port. When absent, falls back to the
+   * legacy direct `writeSessionSummary` import (current behavior).
+   *
+   * STATELESS — no handle param needed (post-run-lifecycle runs AFTER
+   * runAgentLoop disposes the per-run handle). `cwd` lives on the
+   * args passed to the impl.
+   */
+  memoryProvider?: MemoryProvider;
 }
 
 /**
@@ -42,8 +56,18 @@ export interface PostRunLifecycleInputs {
  *
  * @internal
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: lifecycle orchestrator dispatches across multiple subsystems
 export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promise<void> {
-  const { run, userText, agentId, workspaceCwd, storageHandle, hooksExecutor, memoryGlue } = inputs;
+  const {
+    run,
+    userText,
+    agentId,
+    workspaceCwd,
+    storageHandle,
+    hooksExecutor,
+    memoryGlue,
+    memoryProvider,
+  } = inputs;
   let result: Awaited<ReturnType<Run["wait"]>>;
   try {
     result = await run.wait();
@@ -60,20 +84,39 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
 
   // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
   if (result.status === "finished" && result.result !== undefined) {
+    const summaryArgs = {
+      cwd: workspaceCwd,
+      runId: result.id,
+      agentId,
+      userText,
+      assistantText: result.result,
+      status: "finished" as const,
+      at: Date.now(),
+    };
     try {
-      await writeSessionSummary({
-        cwd: workspaceCwd,
-        runId: result.id,
-        agentId,
-        userText,
-        assistantText: result.result,
-        status: "finished",
-        at: Date.now(),
-      });
+      // SDK 2.0 Phase 1 physical Stage 3 prep — iter 27 (refined iter 28):
+      // prefer the STATELESS port-based `provider.recordSessionSummary`
+      // when defined. Falls back to the direct `writeSessionSummary`
+      // import otherwise (legacy behavior). Both paths handle the
+      // markdown write + disk persistence; the difference is WHERE the
+      // impl lives. Stateless = no handle needed (post-run-lifecycle
+      // runs AFTER runAgentLoop disposed the per-run handle).
+      if (memoryProvider?.recordSessionSummary !== undefined) {
+        await memoryProvider.recordSessionSummary(summaryArgs);
+      } else {
+        await writeSessionSummary(summaryArgs);
+      }
       // EC-3: trigger sync so the next memory_search({corpus:"sessions"})
       // sees the just-written summary. Fire-and-forget; the read path
       // tolerates a missed sync because IndexManager re-scans on each call.
-      void memoryGlue.syncIfReady();
+      //
+      // SDK 2.0 Phase 1 physical Stage 2b — iter 26: under
+      // `THEOKIT_PORT_MEMORY_PATH=1` the agent-loop already fired
+      // `provider.sync()` post-finished-run. Calling syncIfReady() here
+      // would be redundant (double sync). Skip when flag is on.
+      if (!shouldUsePortMemoryPath()) {
+        void memoryGlue.syncIfReady();
+      }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       process.stderr.write(

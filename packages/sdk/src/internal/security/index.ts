@@ -11,8 +11,11 @@
 
 export {
   assertNoSymlinkEscape,
+  ForbiddenPathError,
+  isForbiddenPath,
   PathTraversalError,
   safePathJoin,
   sanitizeIdentifier,
+  validateArtifactPath,
 } from "./path-guard.js";
 export { addPattern, maskToken, redactSecrets } from "./redact.js";

@@ -1,6 +1,6 @@
 # example: bedrock-bot
 
-One-shot Claude prompt via AWS Bedrock (`@usetheo/sdk` Adoption Roadmap #8; ADRs D286-D302).
+One-shot Claude prompt via AWS Bedrock (`@theokit/sdk` Adoption Roadmap #8; ADRs D286-D302).
 
 ## Setup
 

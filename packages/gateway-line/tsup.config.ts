@@ -11,5 +11,5 @@ export default defineConfig({
   outDir: "dist",
   target: "node22",
   platform: "node",
-  external: ["@usetheo/gateway", "@usetheo/sdk", "@line/bot-sdk", "express"],
+  external: ["@theokit/gateway", "@theokit/sdk", "@line/bot-sdk", "express"],
 });

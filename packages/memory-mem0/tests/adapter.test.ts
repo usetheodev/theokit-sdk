@@ -5,7 +5,7 @@
  * EC-L (cloud-only import).
  */
 
-import { MemoryAdapterError, mkMemoryId } from "@usetheo/sdk";
+import { MemoryAdapterError, mkMemoryId } from "@theokit/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Mem0Adapter } from "../src/adapter.js";
 import { mem0Memory } from "../src/index.js";
@@ -241,7 +241,7 @@ describe("Mem0Adapter (T5.1)", () => {
   it("factory returns a valid Plugin", () => {
     const plugin = mem0Memory({ apiKey: "sk-test" });
     expect(plugin.kind).toBe("memory");
-    expect(plugin.name).toBe("@usetheo/memory-mem0");
+    expect(plugin.name).toBe("@theokit/memory-mem0");
   });
 
   it("README contains CVSS 8.1 disclosure section", async () => {

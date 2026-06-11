@@ -1,10 +1,10 @@
 import { ConfigurationError } from "../../../errors.js";
-import { ActiveMemoryPromptProvider } from "./providers/active-memory-provider.js";
-import { BasePromptProvider } from "./providers/base-provider.js";
-import { ContextPromptProvider } from "./providers/context-provider.js";
-import { MemoryPromptProvider } from "./providers/memory-provider.js";
-import { SkillsPromptProvider } from "./providers/skills-provider.js";
 import { safeCall } from "./safe-call.js";
+import { ActiveMemoryPromptProvider } from "./sources/active-memory-provider.js";
+import { BasePromptProvider } from "./sources/base-provider.js";
+import { ContextPromptProvider } from "./sources/context-provider.js";
+import { MemoryPromptProvider } from "./sources/memory-provider.js";
+import { SkillsPromptProvider } from "./sources/skills-provider.js";
 import type { SystemPromptAssemblyContext, SystemPromptProvider } from "./types.js";
 
 /**

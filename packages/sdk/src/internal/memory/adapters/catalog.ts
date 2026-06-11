@@ -1,5 +1,9 @@
 import type { MemoryEmbeddingProviderAdapter } from "../embedding-adapter.js";
+import { azureOpenAiMemoryEmbeddingProviderAdapter } from "./azure-openai-embedding.js";
+import { cohereMemoryEmbeddingProviderAdapter } from "./cohere-embedding.js";
 import { deepinfraMemoryEmbeddingProviderAdapter } from "./deepinfra-embedding.js";
+import { geminiMemoryEmbeddingProviderAdapter } from "./gemini-embedding.js";
+import { jinaMemoryEmbeddingProviderAdapter } from "./jina-embedding.js";
 import { mistralMemoryEmbeddingProviderAdapter } from "./mistral-embedding.js";
 import { ollamaMemoryEmbeddingProviderAdapter } from "./ollama-embedding.js";
 import { openAiMemoryEmbeddingProviderAdapter } from "./openai-embedding.js";
@@ -28,4 +32,9 @@ export const MEMORY_EMBEDDING_ADAPTERS: Readonly<Record<string, MemoryEmbeddingP
   voyage: voyageMemoryEmbeddingProviderAdapter,
   deepinfra: deepinfraMemoryEmbeddingProviderAdapter,
   ollama: ollamaMemoryEmbeddingProviderAdapter,
+  // T4.10 — 4 new adapters expanding embedding provider coverage.
+  "azure-openai": azureOpenAiMemoryEmbeddingProviderAdapter,
+  cohere: cohereMemoryEmbeddingProviderAdapter,
+  jina: jinaMemoryEmbeddingProviderAdapter,
+  gemini: geminiMemoryEmbeddingProviderAdapter,
 };

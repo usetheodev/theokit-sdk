@@ -12,8 +12,8 @@ export default defineConfig({
   target: "node22",
   platform: "node",
   external: [
-    "@usetheo/gateway",
-    "@usetheo/sdk",
+    "@theokit/gateway",
+    "@theokit/sdk",
     "twilio",
     "plivo",
     "@vonage/server-sdk",

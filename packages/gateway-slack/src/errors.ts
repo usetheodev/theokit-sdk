@@ -4,7 +4,7 @@
  * @internal
  */
 
-import type { SendResult } from "@usetheo/gateway";
+import type { SendResult } from "@theokit/gateway";
 
 interface SlackErrorLike {
   code?: string;

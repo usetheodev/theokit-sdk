@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
-import { memoryDir, memoryMdPath } from "../../../src/internal/memory/markdown-store.js";
+import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
 
 /**
  * Increment B — when `memory.activeRecall.enabled === true`, the SDK must

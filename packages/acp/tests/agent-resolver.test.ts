@@ -2,7 +2,7 @@
  * T2.1 — agent-resolver tests (D351).
  */
 
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 import { describe, expect, it, vi } from "vitest";
 import { InvalidAgentError, resolveAgentFactory } from "../src/agent-resolver.js";
 

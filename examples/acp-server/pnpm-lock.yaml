@@ -195,11 +195,15 @@ packages:
     engines: {node: '>=22.12.0'}
     hasBin: true
     peerDependencies:
+      '@lancedb/lancedb': ^0.30.0
       better-sqlite3: ^12.0.0
       proper-lockfile: ^4.1.2
       sqlite-vec: ^0.1.0
       zod: ^3.25.0 || ^4.0.0
+      zod-to-json-schema: ^3.24.0
     peerDependenciesMeta:
+      '@lancedb/lancedb':
+        optional: true
       better-sqlite3:
         optional: true
       proper-lockfile:
@@ -207,6 +211,8 @@ packages:
       sqlite-vec:
         optional: true
       zod:
+        optional: true
+      zod-to-json-schema:
         optional: true
 
   croner@9.1.0:

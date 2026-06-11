@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic } from "../atomic-write.js";
-import { memoryDir } from "../markdown-store.js";
+import { replaceFileAtomic } from "../../persistence/atomic-write.js";
+import { memoryDir } from "../storage/markdown-store.js";
 
 /**
  * Dream-diary append (ADR D7).

@@ -1,10 +1,10 @@
 /**
- * Public types for `@usetheo/acp` (ADRs D349-D360).
+ * Public types for `@theokit/acp` (ADRs D349-D360).
  *
  * @public
  */
 
-import type { SDKAgent } from "@usetheo/sdk";
+import type { SDKAgent } from "@theokit/sdk";
 
 /**
  * Factory function shape: receives the ACP session id (UUID) and returns

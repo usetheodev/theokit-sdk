@@ -1,38 +1,36 @@
-import { stat } from "node:fs/promises";
-
 import { AgentBuilder } from "./agent-builder.js";
 import {
+  getRegisteredAgentOrThrow,
+  rehydrateExistingAgent,
+  resolveAgentPersistenceCwd,
+  runCreateUnderSpan,
+  setArchivedFlag,
+  toAgentInfo,
+} from "./agent-helpers.js";
+import {
   AgentRunError,
-  AuthenticationError,
   ConfigurationError,
+  coerceToKnownAgentRunErrorCode,
   UnknownAgentError,
 } from "./errors.js";
-import { resolveApiKey } from "./internal/env.js";
-import {
-  getConfiguredBaseUrl,
-  isFixtureApiKey,
-  shouldUseRealLocalRuntime,
-} from "./internal/fixture-mode.js";
-import { httpRequest } from "./internal/http.js";
-import { isLocalAgentId } from "./internal/ids.js";
-import { setAgentCreate } from "./internal/runtime/agent-factory-registry.js";
+import { setAgentCreate } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
   getRegisteredAgent,
   hydrateRegistryFromDisk,
   listRegisteredAgents,
   removeRegisteredAgent,
-  updateRegisteredAgent,
-} from "./internal/runtime/agent-registry.js";
-import { CloudAgent } from "./internal/runtime/cloud-agent.js";
-import { validateCloudToolParity } from "./internal/runtime/cloud-tool-parity.js";
+} from "./internal/runtime/registry/agent-registry.js";
 import {
   type LiveAgentRegistry,
   liveAgentRegistry,
-} from "./internal/runtime/live-agent-registry.js";
-import { LocalAgent } from "./internal/runtime/local-agent.js";
-import { getRun as getRegisteredRun, listRunsByAgent } from "./internal/runtime/run-registry.js";
-import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
+} from "./internal/runtime/registry/live-agent-registry.js";
+import {
+  getRun as getRegisteredRun,
+  listRunsByAgent,
+} from "./internal/runtime/registry/run-registry.js";
+import { SPAN_NAMES } from "./internal/telemetry/span-names.js";
+import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
   AgentOperationOptions,
   AgentOptions,
@@ -45,6 +43,11 @@ import type {
   SDKAgentInfo,
 } from "./types/agent.js";
 import type { Run, RunResult } from "./types/run.js";
+
+// T1.8 — memoized dynamic import for streamObject so the second+ call
+// skips the promise resolution chain entirely. Module-level so it
+// survives across Agent.streamObject invocations.
+let streamObjectImport: Promise<typeof import("./stream-object.js")> | undefined;
 
 /**
  * Result of a one-shot {@link Agent.prompt} call.
@@ -92,39 +95,25 @@ export class Agent {
    * @public
    */
   static async create(options: AgentOptions): Promise<SDKAgent> {
-    validateAgentOptions(options);
-    validateCloudToolParity(options);
-    // EC-1: when the caller pins an agentId, hydrate the persisted registry
-    // first and reject collisions explicitly. Without this, restart + create
-    // silently wipes the prior agent's metadata.
-    if (options.agentId !== undefined) {
-      const persistenceCwd = resolveAgentPersistenceCwd(options);
-      await hydrateRegistryFromDisk(persistenceCwd);
-      if (getRegisteredAgent(options.agentId) !== undefined) {
-        throw new ConfigurationError(
-          `Agent "${options.agentId}" already exists. Use Agent.resume("${options.agentId}") to reattach, or pick a different agentId.`,
-          { code: "agent_id_already_exists" },
-        );
-      }
+    // T0.1: emit `agent.create` span around the FULL factory body so validation
+    // throws and quota-gate rejections are recorded with ERROR status before
+    // propagating to the caller.
+    const telemetry = createTelemetry(options.telemetry);
+    const runtime: "local" | "cloud" = options.cloud !== undefined ? "cloud" : "local";
+    const span: OTelSpan = telemetry.startSpan(SPAN_NAMES.AGENT_CREATE, {
+      runtime,
+      pluginCount: options.plugins?.enabled?.length ?? 0,
+    });
+    try {
+      const agent = await runCreateUnderSpan(options, span);
+      return agent;
+    } catch (err) {
+      span.recordException(err);
+      span.setStatus({ code: 2, message: err instanceof Error ? err.message : String(err) });
+      throw err;
+    } finally {
+      span.end();
     }
-    // D322/D323 — quota gate fires BEFORE any side effects (registry insert,
-    // disk persist, MCP boot). Errors propagate (NOT swallowed — gates block).
-    if (options.onBeforeCreate !== undefined) {
-      const userId =
-        typeof options.metadata?.userId === "string" ? options.metadata.userId : undefined;
-      await options.onBeforeCreate({
-        conversationId: options.agentId ?? "auto",
-        ...(userId !== undefined ? { userId } : {}),
-      });
-    }
-    // D214-D229: when `handoffs[]` is set, synthesize `transfer_to_<X>` tools
-    // and merge into options.tools. Validates uniqueness + self-reference
-    // before agent construction (EC-6).
-    const optionsWithHandoffs = await maybeInjectHandoffTools(options);
-    if (optionsWithHandoffs.cloud !== undefined) {
-      return createCloudAgent(optionsWithHandoffs);
-    }
-    return createLocalAgent(optionsWithHandoffs);
   }
 
   /**
@@ -147,13 +136,21 @@ export class Agent {
         result.error !== undefined
       ) {
         throw new AgentRunError(result.error.message, {
-          code: result.error.code ?? "unknown",
+          code: coerceToKnownAgentRunErrorCode(result.error.code),
           cause: result.error.cause,
         });
       }
       return result;
     } finally {
-      await agent.dispose();
+      // T1.9 — dispose error MUST NOT mask the original error from
+      // the try block. A failing dispose is cleanup, not business
+      // logic — swallow silently so the consumer always sees the
+      // real error (or the real result) from agent.send().
+      try {
+        await agent.dispose();
+      } catch {
+        // Swallowed — dispose cleanup must not propagate.
+      }
     }
   }
 
@@ -241,15 +238,18 @@ export class Agent {
     void,
     void
   > {
-    // Lazy-import the implementation so consumers that never call
-    // streamObject don't pay the import cost.
+    // T1.8 — Lazy-import the implementation; memoized so the second+
+    // call skips the promise chain entirely. Consumers that never call
+    // streamObject don't pay the import cost at all.
     const deps = {
       create: (opts: import("./types/agent.js").AgentOptions) => Agent.create(opts),
       delete: (agentId: string) => Agent.delete(agentId),
     };
-    // Async generator wrapper that defers the actual implementation import.
     async function* wrapper() {
-      const { streamObjectImpl } = await import("./stream-object.js");
+      // T1.8 — memoized dynamic import: first call resolves the module;
+      // subsequent calls reuse the cached promise (no re-await overhead).
+      streamObjectImport ??= import("./stream-object.js");
+      const { streamObjectImpl } = await streamObjectImport;
       yield* streamObjectImpl(options, deps);
     }
     return wrapper();
@@ -394,30 +394,6 @@ export class Agent {
   }
 }
 
-/**
- * Resolve the cwd used for persistence routing. Local agents pin a workspace
- * cwd via `options.local.cwd`; cloud agents and unspecified locals default to
- * `process.cwd()`. Matches the routing key set by `LocalAgent`/`CloudAgent`
- * constructors so disk reads and writes hit the same `<cwd>/.theokit/agents/registry.json`.
- *
- * @internal
- */
-/**
- * D214-D229 — when `options.handoffs` is non-empty, synthesize one
- * `transfer_to_<receiver>` tool per destination and merge into options.tools.
- *
- * Skipped when `maxHandoffDepth === 0` (EC-8 — explicit disable).
- *
- * @internal
- */
-/**
- * Wraps the previous `getOrCreate` body — try resume, on UnknownAgentError
- * fall through to create, on `agent_id_already_exists` race retry resume.
- * Extracted so `Agent.getOrCreate` can short-circuit on cache hit before
- * incurring the resume disk read.
- *
- * @internal
- */
 async function getOrCreateUncached(agentId: string, options: AgentOptions): Promise<SDKAgent> {
   try {
     return await Agent.resume(agentId, options);
@@ -427,227 +403,11 @@ async function getOrCreateUncached(agentId: string, options: AgentOptions): Prom
   try {
     return await Agent.create({ ...options, agentId });
   } catch (err) {
-    // EC-1: another caller in the same process won the create race between
-    // our resume miss and our create attempt. Reuse their handle instead of
-    // surfacing the conflict to the caller.
     if (err instanceof ConfigurationError && err.code === "agent_id_already_exists") {
       return await Agent.resume(agentId, options);
     }
     throw err;
   }
-}
-
-async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOptions> {
-  const handoffs = options.handoffs;
-  if (handoffs === undefined || handoffs.length === 0) return options;
-  if (options.maxHandoffDepth === 0) return options;
-
-  // Lazy import to keep the cold path lean for non-handoff agents.
-  const { normalizeHandoffs, buildHandoffTool } = await import(
-    "./internal/handoff/tool-injector.js"
-  );
-  const parentAgentId = options.agentId ?? options.name ?? "anonymous";
-  const normalized = normalizeHandoffs(parentAgentId, handoffs);
-  const maxDepth = options.maxHandoffDepth ?? 5;
-  const handoffTools = normalized.map(({ descriptor }) =>
-    buildHandoffTool(parentAgentId, descriptor, maxDepth),
-  );
-  const existingTools = options.tools ?? [];
-  return {
-    ...options,
-    tools: [...existingTools, ...handoffTools],
-  };
-}
-
-function resolveAgentPersistenceCwd(options: Partial<AgentOptions>): string {
-  const localCwd = options.local?.cwd;
-  if (typeof localCwd === "string") return localCwd;
-  if (Array.isArray(localCwd) && typeof localCwd[0] === "string") return localCwd[0];
-  return process.cwd();
-}
-
-/**
- * D21 validation: when rehydrating a persisted local agent, ensure the
- * recorded workspace cwd still exists on disk. Without this, a stale entry
- * would silently re-initialize against a missing path and fail mysteriously
- * deep inside the loader chain.
- *
- * @internal
- */
-/**
- * Rehydration helper extracted from `Agent.resume` to keep cyclomatic
- * complexity under the 10-cap (G2). Validates the persisted entry, enforces
- * the EC-3 `requiresCustomStorage` integrity check, deep-merges options, then
- * constructs the right runtime class.
- *
- * @internal
- */
-async function rehydrateExistingAgent(
-  agentId: string,
-  existing: RegisteredAgent,
-  options: Partial<AgentOptions>,
-): Promise<SDKAgent> {
-  await validateRehydratedAgent(agentId, existing);
-  // EC-3 / D325: refuse silent FS fallback when the agent was created with a
-  // custom conversationStorage. Reading an empty `.theokit/agents/<id>/messages.jsonl`
-  // for a Postgres-backed agent would corrupt the conversation.
-  if (existing.requiresCustomStorage === true && options.conversationStorage === undefined) {
-    throw new ConfigurationError(
-      `Agent "${agentId}" was created with a custom conversationStorage adapter; pass conversationStorage again on resume to avoid losing history.`,
-      { code: "conversation_storage_required" },
-    );
-  }
-  // Strip inline mcpServers — they don't persist across resume. Deep-merge
-  // `local` so callers passing `local: { cwd }` keep persisted settingSources
-  // and sandboxOptions (shallow spread previously wiped these).
-  const mergedLocal =
-    options.local !== undefined && existing.options.local !== undefined
-      ? { ...existing.options.local, ...options.local }
-      : (options.local ?? existing.options.local);
-  const mergedOptions: AgentOptions = {
-    ...existing.options,
-    ...options,
-    ...(mergedLocal !== undefined ? { local: mergedLocal } : {}),
-    mcpServers: undefined,
-    agentId,
-  };
-  if (existing.runtime === "cloud") {
-    return new CloudAgent(mergedOptions, agentId);
-  }
-  const agent = new LocalAgent({ ...mergedOptions, model: existing.options.model });
-  await agent.initialize();
-  return agent;
-}
-
-async function validateRehydratedAgent(
-  agentId: string,
-  entry: { runtime: "local" | "cloud"; cwd?: string; options: AgentOptions },
-): Promise<void> {
-  if (entry.runtime !== "local") return;
-  const candidate = entry.options.local?.cwd ?? entry.cwd;
-  if (typeof candidate !== "string") return;
-  try {
-    const info = await stat(candidate);
-    if (!info.isDirectory()) {
-      throw new Error(`Workspace path is not a directory: ${candidate}`);
-    }
-  } catch (cause) {
-    throw new UnknownAgentError(
-      `Agent "${agentId}" cannot be rehydrated — workspace cwd "${candidate}" is missing or inaccessible.`,
-      { code: "agent_rehydration_failed", cause },
-    );
-  }
-}
-
-async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
-  const apiKey = resolveApiKey(options.apiKey);
-  if (apiKey === undefined) {
-    throw new AuthenticationError("Missing API key", { code: "missing_api_key" });
-  }
-  if (
-    !isFixtureApiKey(apiKey) &&
-    getConfiguredBaseUrl() === undefined &&
-    !shouldUseRealLocalRuntime(apiKey)
-  ) {
-    throw new AuthenticationError("Invalid API key", {
-      code: "authentication_error",
-    });
-  }
-  const agent = new LocalAgent(options);
-  await agent.initialize();
-  return agent;
-}
-
-async function createCloudAgent(options: AgentOptions): Promise<SDKAgent> {
-  const apiKey = resolveApiKey(options.apiKey);
-  if (apiKey === undefined) {
-    throw new ConfigurationError("Missing API key for cloud agent", {
-      code: "missing_api_key",
-    });
-  }
-
-  const baseUrl = getConfiguredBaseUrl();
-  if (baseUrl === undefined) {
-    return new CloudAgent(options);
-  }
-
-  type CreateResponse = { agentId: string; model?: { id: string } };
-  const response = await httpRequest<CreateResponse>("/v1/agents", {
-    apiKey,
-    method: "POST",
-    body: {
-      model: options.model,
-      name: options.name,
-      cloud: options.cloud,
-      mcpServers: options.mcpServers,
-      agents: options.agents,
-    },
-  });
-  const mergedOptions: AgentOptions = {
-    ...options,
-    agentId: response.agentId,
-    ...(response.model !== undefined ? { model: response.model } : {}),
-  };
-  return new CloudAgent(mergedOptions, response.agentId);
-}
-
-type RegisteredAgent = ReturnType<typeof getRegisteredAgent> & object;
-
-function toAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
-  return isLocalAgentId(agent.agentId) ? toLocalAgentInfo(agent) : toCloudAgentInfo(agent);
-}
-
-function commonAgentInfo(agent: RegisteredAgent, fallbackSummary: string) {
-  return {
-    agentId: agent.agentId,
-    name: agent.name ?? "Untitled agent",
-    summary: agent.summary ?? fallbackSummary,
-    lastModified: agent.lastModified,
-    createdAt: agent.createdAt,
-    ...(agent.status !== undefined ? { status: agent.status } : {}),
-  };
-}
-
-function toLocalAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
-  return {
-    ...commonAgentInfo(agent, "Local contract fixture"),
-    runtime: "local",
-    ...(agent.cwd !== undefined ? { cwd: agent.cwd } : {}),
-  };
-}
-
-function toCloudAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
-  return {
-    ...commonAgentInfo(agent, "Cloud contract fixture"),
-    archived: agent.archived,
-    runtime: "cloud",
-    env: { type: "cloud" },
-    ...(agent.repos !== undefined ? { repos: agent.repos } : {}),
-  };
-}
-
-async function setArchivedFlag(agentId: string, archived: boolean): Promise<void> {
-  await getRegisteredAgentOrThrow(agentId);
-  updateRegisteredAgent(agentId, { archived });
-  // Block until disk reflects the flip so subsequent reads observe it (D17).
-  await flushRegistrySaves();
-}
-
-/**
- * Lookup a registered agent by ID, falling back to disk rehydration (ADR D21)
- * before throwing {@link UnknownAgentError}. Shared by the surfaces that need
- * the resume-aware contract (`get`, `listRuns`, `setArchivedFlag`).
- */
-async function getRegisteredAgentOrThrow(agentId: string): Promise<RegisteredAgent> {
-  let agent = getRegisteredAgent(agentId);
-  if (agent === undefined) {
-    await hydrateRegistryFromDisk(process.cwd());
-    agent = getRegisteredAgent(agentId);
-  }
-  if (agent === undefined) {
-    throw new UnknownAgentError(`Agent ${agentId} not found`, { code: "unknown_agent" });
-  }
-  return agent;
 }
 
 // Module-init registration so LocalAgent.runUntil / LocalAgent.fork can

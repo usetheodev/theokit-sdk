@@ -1,11 +1,11 @@
-# `@usetheo/sdk` Examples
+# `@theokit/sdk` Examples
 
 Self-contained example projects covering the SDK's public surface.
 Each example is its own package — independent `package.json`,
 independent install — so you can copy any folder out of this repo
 and have a working starting point.
 
-We ship **36 examples** covering every feature in the public API surface (`@usetheo/sdk` v1.2+ + `@usetheo/react`). See the Feature matrix below.
+We ship **36 examples** covering every feature in the public API surface (`@theokit/sdk` v1.2+ + `@theokit/react`). See the Feature matrix below.
 
 > **Cleanup pass (2026-05-22):** removed 18 examples that were either cloud
 > pre-release (won't run until TheoCloud GA), single-API smoke (covered
@@ -48,7 +48,7 @@ cp .env.example .env   # paste your provider key (where needed)
 pnpm dev
 ```
 
-The examples link `@usetheo/sdk` from the local source via
+The examples link `@theokit/sdk` from the local source via
 `file:../../packages/sdk`. `--ignore-workspace` prevents pnpm from
 resolving the SDK through the monorepo workspace protocol. When the
 SDK is published to npm you can drop the flag.

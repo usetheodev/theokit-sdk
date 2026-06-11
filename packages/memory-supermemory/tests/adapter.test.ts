@@ -5,7 +5,7 @@
  * Real-LLM validation lives in `examples/memory-supermemory-basic/`.
  */
 
-import { MemoryAdapterError, mkMemoryId } from "@usetheo/sdk";
+import { MemoryAdapterError, mkMemoryId } from "@theokit/sdk";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SupermemoryAdapter } from "../src/adapter.js";
 import { supermemoryMemory } from "../src/index.js";
@@ -193,7 +193,7 @@ describe("SupermemoryAdapter (T3.2)", () => {
   it("factory returns a valid Plugin { kind: 'memory' }", () => {
     const plugin = supermemoryMemory({ apiKey: "sk-test" });
     expect(plugin.kind).toBe("memory");
-    expect(plugin.name).toBe("@usetheo/memory-supermemory");
+    expect(plugin.name).toBe("@theokit/memory-supermemory");
     if (plugin.kind !== "memory") throw new Error("type narrow");
     expect(typeof plugin.createProvider).toBe("function");
   });

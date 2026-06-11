@@ -15,8 +15,8 @@ import { ExpressAdapter } from "@microsoft/teams.apps";
 import {
   TeamsAdapter,
   type TeamsMessageEvent,
-} from "@usetheo/gateway-teams";
-import { Agent } from "@usetheo/sdk";
+} from "@theokit/gateway-teams";
+import { Agent } from "@theokit/sdk";
 
 const CLIENT_ID = required("TEAMS_CLIENT_ID");
 const CLIENT_SECRET = required("TEAMS_CLIENT_SECRET");

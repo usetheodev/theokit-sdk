@@ -1,6 +1,6 @@
 # line-bot example
 
-End-to-end LINE Messaging API echo agent using [`@usetheo/gateway-line`](../../packages/gateway-line).
+End-to-end LINE Messaging API echo agent using [`@theokit/gateway-line`](../../packages/gateway-line).
 
 ## Setup
 

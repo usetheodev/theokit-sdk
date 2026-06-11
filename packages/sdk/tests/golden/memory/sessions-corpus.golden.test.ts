@@ -5,21 +5,21 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
-import { memoryDir } from "../../../src/internal/memory/markdown-store.js";
-import { discoverSessionFiles } from "../../../src/internal/memory/session-loader.js";
+import { memoryDir } from "../../../src/internal/memory/storage/markdown-store.js";
+import { discoverSessionFiles } from "../../../src/internal/memory/storage/session-loader.js";
 import {
   sessionSummaryPath,
   sessionsDir,
   writeSessionSummary,
-} from "../../../src/internal/memory/session-summary-writer.js";
-import {
-  clearAgentRegistry,
-  invalidateRegistryHydration,
-} from "../../../src/internal/runtime/agent-registry.js";
+} from "../../../src/internal/memory/storage/session-summary-writer.js";
 import {
   clearAllSessions,
   flushSessionWrites,
 } from "../../../src/internal/runtime/agent-session.js";
+import {
+  clearAgentRegistry,
+  invalidateRegistryHydration,
+} from "../../../src/internal/runtime/registry/agent-registry.js";
 
 /**
  * ADR D20 + EC-3 + EC-9 — corpus="sessions" recall. After every finished run,

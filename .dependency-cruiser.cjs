@@ -1,16 +1,17 @@
-// Dependency-cruiser config — enforces Quality Gates G6 (no cycles) and
-// G7 (layered architecture). See .claude/quality-gates.md.
+// Dependency-cruiser config — enforces Quality Gate G7 (layered architecture)
+// and orphan-module detection. See .claude/quality-gates.md.
+//
+// T0.1 (arch-review-fixes-2026-06-06): `no-circular` rule removed.
+// dep-cruiser's circular detection silently misses cycles that `madge`
+// catches via the dependency-tree library (root cause: dep-cruiser's
+// tsConfig parse is skipped per the documented `enhancedResolveOptions`
+// rationale, which downgrades TS module resolution). madge is the canonical
+// cycle gate via `pnpm run quality:cycles` (tools/check-cycles.mjs).
+// Empirically observed iter-1: madge=13 cycles vs depcruise=0 violations.
+// dep-cruiser remains the gate for `no-orphans` + layered architecture rules.
 
 module.exports = {
   forbidden: [
-    {
-      name: "no-circular",
-      severity: "error",
-      comment:
-        "G6: Circular dependencies are forbidden. Break the cycle by extracting a shared type or interface.",
-      from: {},
-      to: { circular: true },
-    },
     {
       name: "no-orphans",
       severity: "error",
@@ -26,7 +27,16 @@ module.exports = {
           "(^|/)tests/",
           "(^|/)tools/",
           "(^|/)packages/sdk/src/internal/",
+          // Per-feature internal namespaces (e.g., subscription/internal/) — same rationale as src/internal/:
+          // type-only re-exports erased at JS runtime, plus knip + tsc cover dead-type detection.
+          "(^|/)packages/sdk/src/[^/]+/internal/",
           "(^|/)packages/sdk/src/types/",
+          // G11 auth orchestrator types (type-only exports erased at JS runtime; tsc + knip cover dead-type detection per existing rule rationale)
+          "(^|/)packages/sdk/src/server/auth/types\\.ts$",
+          // Sub-path module types (rag, a2a, client, voice, server/adapter) — imported by their barrel index.ts
+          // which are tsup sub-entries. dep-cruiser cannot trace tsup entry points so marks these as orphans.
+          // knip + tsc verify they are reachable.
+          "(^|/)packages/sdk/src/(rag|a2a|client|voice|server/adapter)/types\\.ts$",
         ],
       },
       to: {},

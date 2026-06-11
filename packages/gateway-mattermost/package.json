@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/gateway-mattermost",
+  "name": "@theokit/gateway-mattermost",
   "version": "0.1.0",
-  "description": "Mattermost platform adapter for @usetheo/gateway. WebSocket gateway + REST. ADRs D397-D404.",
+  "description": "Mattermost platform adapter for @theokit/gateway. WebSocket gateway + REST. ADRs D397-D404.",
   "license": "Apache-2.0",
   "type": "module",
   "engines": {
@@ -36,8 +36,8 @@
   },
   "peerDependencies": {
     "@mattermost/client": "^9.0.0",
-    "@usetheo/gateway": "workspace:^",
-    "@usetheo/sdk": "workspace:^",
+    "@theokit/gateway": "workspace:^",
+    "@theokit/sdk": "workspace:^",
     "ws": "^8.0.0"
   },
   "peerDependenciesMeta": {
@@ -49,10 +49,10 @@
     }
   },
   "devDependencies": {
-    "@usetheo/gateway": "workspace:*",
-    "@usetheo/sdk": "workspace:*",
+    "@theokit/gateway": "workspace:*",
+    "@theokit/sdk": "workspace:*",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   }
 }

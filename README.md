@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <p align="center"><code>@usetheo/sdk</code> · the <strong>Build</strong> (SDK) auxiliary of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
+  <p align="center"><code>@theokit/sdk</code> · the <strong>Build</strong> (SDK) auxiliary of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
   <h1 align="center">Code your agent. Keep your runtime.</h1>
   <p align="center">
     <strong>A TypeScript SDK with an Apache-2.0 local runtime, multi-provider keys, and an opt-in cloud.</strong>
@@ -27,7 +27,7 @@ There is a version of your agent that does not sit in a chat window.
 
 You don't open a panel. You don't type a prompt. You commit code, and the agent runs — the same way every other piece of your stack runs. It writes a PR description after every merge. It summarizes yesterday's incidents at 9 AM. It refactors a module overnight. It answers questions in Slack about the codebase it knows by heart.
 
-That agent is built with `@usetheo/sdk` — and when you decide to leave, the runtime leaves with you. A community auxiliary of the [usetheo](https://usetheo.dev) ecosystem, inspired by the Claude SDK, Cursor SDK, and the open runtime.
+That agent is built with `@theokit/sdk` — and when you decide to leave, the runtime leaves with you. A community auxiliary of the [Theo](https://usetheo.dev) ecosystem, inspired by the Claude SDK, Cursor SDK, and the open runtime.
 
 ## Overview
 
@@ -39,11 +39,11 @@ That agent is built with `@usetheo/sdk` — and when you decide to leave, the ru
 
 Runtime is picked by which key you pass to `Agent.create()` (`local` or `cloud`). Same `THEOKIT_API_KEY` for either.
 
-## Why @usetheo/sdk
+## Why @theokit/sdk
 
 The SDK shape — `Agent` / `Run` / streaming events — is converging across the ecosystem by design. The difference is what runs *underneath*:
 
-| Layer | `@usetheo/sdk` | Closed-runtime alternatives |
+| Layer | `@theokit/sdk` | Closed-runtime alternatives |
 | --- | --- | --- |
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
 | Local agent harness | **Apache-2.0** via [`pi/`](./referencia/runtime) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
@@ -73,7 +73,7 @@ Below this line, full technical vocabulary is in play. Installation, authenticat
 ## Installation
 
 ```bash
-npm install @usetheo/sdk
+npm install @theokit/sdk
 ```
 
 ## Authentication
@@ -91,7 +91,7 @@ User API keys and service account API keys are both supported. Team Admin API ke
 The fastest way in: a local agent against your current working tree, streaming events as they come in.
 
 ```typescript
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.THEOKIT_API_KEY!,
@@ -430,7 +430,7 @@ Schedule agent runs on a cron expression. Two runtimes:
 - **Cloud.** Theo PaaS schedules the job server-side. Fires regardless of any SDK process.
 
 ```typescript
-import { Cron } from "@usetheo/sdk";
+import { Cron } from "@theokit/sdk";
 
 const job = await Cron.create({
   cron: "0 9 * * *",                 // every day at 09:00
@@ -611,12 +611,12 @@ Honest claims only. Production-ready is not the same as "every feature shipped".
 
 ## Where this fits
 
-`@usetheo/sdk` is the **Harness** pillar of the [usetheo stack](../README.md):
+`@theokit/sdk` is the **Harness** pillar of the [Theo stack](../README.md):
 
 | Pillar | Project | What it does |
 | --- | --- | --- |
-| UI | `@usetheo/ui` | Component primitives for AI surfaces. |
-| **Harness** | **`@usetheo/sdk`** (this) | **Agent runtime — local and cloud.** |
+| UI | `@theokit/ui` | Component primitives for AI surfaces. |
+| **Harness** | **`@theokit/sdk`** (this) | **Agent runtime — local and cloud.** |
 | Skills | `theokit` | Full-stack TypeScript framework for shipping agent surfaces. |
 | Runtime | Theo PaaS | Managed deploy target. *Pre-release.* |
 

@@ -14,6 +14,14 @@
 import { Command } from "commander";
 
 import { type AcpOptions, runAcp } from "./commands/acp.js";
+import {
+  runDbCheckSchemaDrift,
+  runDbExportSchema,
+  runDbGenerate,
+  runDbMigrate,
+  runDbPush,
+  runDbStudio,
+} from "./commands/db.js";
 import { type DevOptions, runDev } from "./commands/dev.js";
 import { type EvalOptions, runEval } from "./commands/eval.js";
 import { type InitOptions, runInit } from "./commands/init.js";
@@ -103,6 +111,49 @@ function registerSubcommands(program: Command, setExit: (n: number) => void): vo
       setExit(await runSetup(domain, opts));
     });
 
+  const db = program
+    .command("db")
+    .description(
+      "Database tooling — wraps drizzle-kit (generate/migrate/studio/push) and emits polyglot JSON Schema 7 (export-schema/check-schema-drift). Consumes orm.config.ts that default-exports { schema }.",
+    );
+
+  db.command("generate")
+    .description("drizzle-kit generate — generate SQL migrations from your schema diff")
+    .action(() => {
+      setExit(runDbGenerate());
+    });
+  db.command("migrate")
+    .description("drizzle-kit migrate — apply pending migrations to the database")
+    .action(() => {
+      setExit(runDbMigrate());
+    });
+  db.command("studio")
+    .description("drizzle-kit studio — launch the embedded data browser UI")
+    .action(() => {
+      setExit(runDbStudio());
+    });
+  db.command("push")
+    .description("drizzle-kit push — direct schema sync (dangerous in prod; prototypes only)")
+    .action(() => {
+      setExit(runDbPush());
+    });
+  db.command("export-schema")
+    .description(
+      "Emit JSON Schema 7 per entity to .theokit/schema/{entity}.schema.json (polyglot consumers).",
+    )
+    .option("-o, --out <dir>", "Output directory (default: .theokit/schema)")
+    .option("-c, --config <path>", "Path to orm.config (default: orm.config.ts)")
+    .action(async (opts: { out?: string; config?: string }) => {
+      setExit(await runDbExportSchema(opts));
+    });
+  db.command("check-schema-drift")
+    .description("Re-emit schemas and diff against committed copies. Exit 1 on drift.")
+    .option("-o, --out <dir>", "Output directory (default: .theokit/schema)")
+    .option("-c, --config <path>", "Path to orm.config (default: orm.config.ts)")
+    .action(async (opts: { out?: string; config?: string }) => {
+      setExit(await runDbCheckSchemaDrift(opts));
+    });
+
   const tasks = program
     .command("tasks")
     .description("Observe SDK Task registry (list / inspect / cancel)");
@@ -145,7 +196,7 @@ export async function main(argv: ReadonlyArray<string>): Promise<number> {
   const program = new Command();
   program
     .name("theokit")
-    .description("Developer CLI for @usetheo/sdk — init, dev, inspect, eval.")
+    .description("Developer CLI for @theokit/sdk — init, dev, inspect, eval.")
     .version(CLI_VERSION, "-v, --version", "Print the CLI version and exit.")
     .addHelpText(
       "after",

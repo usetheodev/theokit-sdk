@@ -22,7 +22,7 @@
  * @public
  */
 
-import { Security } from "@usetheo/sdk";
+import { Security } from "@theokit/sdk";
 
 import type { BasePlatformAdapter, SendResult } from "../adapter/base.js";
 import { type GatewayHook, HookExecutor } from "../hooks/types.js";

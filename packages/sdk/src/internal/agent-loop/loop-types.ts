@@ -36,6 +36,26 @@ export interface CustomToolSpec {
 }
 
 /**
+ * Resolved tool descriptor used by dispatch + executor modules.
+ * Lives in loop-types so both tool-dispatch.ts and tool-executors.ts can
+ * import it without creating a circular dependency.
+ *
+ * @internal
+ */
+export interface ResolvedTool {
+  name: string;
+  description: string;
+  inputSchema: Record<string, unknown>;
+  origin: "shell" | "mcp" | "memory" | "custom";
+  mcpServerName?: string;
+  mcpToolName?: string;
+  /** Direct handler for `origin === "memory"` tools — returns JSON-encoded result string. */
+  memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
+  /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`. */
+  customHandler?: (input: Record<string, unknown>) => string | Promise<string>;
+}
+
+/**
  * Shared agent-loop types. Kept in their own module so the dispatch helpers
  * can import `AgentLoopInputs` without pulling the whole orchestrator file.
  *
@@ -105,6 +125,34 @@ export interface AgentLoopInputs {
   customTools?: ReadonlyArray<CustomToolSpec>;
   /** Telemetry handle (D34). No-op when disabled. */
   telemetry?: import("../telemetry/tracer.js").TelemetryHandle;
+  /**
+   * Pluggable budget tracker (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface
+   * inversion). When provided, the loop will call `track()` after each
+   * LLM completion AND `check()` before each iteration. When undefined,
+   * the legacy internal `IterationBudget` + `UsageAccumulator` remain
+   * the sole authority.
+   *
+   * **Status (incremental Phase 2):** plumbed at the type surface only.
+   * Runtime `track()` / `check()` calls land in a follow-up iteration.
+   * Plumbing the option through now lets `Agent.create({ budgetTracker })`
+   * thread the value down to the loop without further type changes when
+   * the runtime hooks land.
+   */
+  budgetTracker?: import("../runtime/budget-tracker.js").BudgetTracker;
+  /**
+   * Pluggable memory provider (SDK 2.0 Phase 1 / T1.4 — Hexagonal
+   * Architecture interface inversion). When provided, the loop will
+   * eventually call `init()` / `buildTools()` / `runActivePass()` /
+   * `dispose()` at the appropriate kernel hooks. When undefined, the
+   * legacy `Memory` class + `internal/memory/*` runtime files remain
+   * the sole authority.
+   *
+   * **Status (incremental Phase 1):** plumbed at the type surface only.
+   * Runtime lifecycle calls land in T1.5. Plumbing the option through
+   * now lets `Agent.create({ memoryProvider })` thread the value down
+   * to the loop without further type changes when the hooks land.
+   */
+  memoryProvider?: import("../runtime/memory-provider.js").MemoryProvider;
 }
 
 /**

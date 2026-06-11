@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { defineConfig } from "vitest/config";
 
 /**
- * Vitest config for @usetheo/cli.
+ * Vitest config for @theokit/cli.
  *
  * `define` mirrors tsup so tests use the same `__SDK_VERSION__` /
  * `__CLI_VERSION__` constants the production build sees.

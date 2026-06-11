@@ -1,5 +1,12 @@
 import type { ToolCall } from "./updates.js";
 
+// T4.1 / D438 — `UserMessage` moved to `./messages-base.ts` (leaf file) so
+// `./updates.ts` can reach it without cycling back through this module.
+// Re-exported here for back-compat with `import type { UserMessage } from "@theokit/sdk"`.
+export type { UserMessage } from "./messages-base.js";
+
+import type { UserMessage } from "./messages-base.js";
+
 /**
  * Plain assistant message in a conversation history.
  *
@@ -17,15 +24,6 @@ export interface AssistantMessage {
 export interface ThinkingMessage {
   text: string;
   thinkingDurationMs?: number;
-}
-
-/**
- * User-authored message in a conversation history.
- *
- * @public
- */
-export interface UserMessage {
-  text: string;
 }
 
 /**
@@ -54,9 +52,26 @@ export interface ShellOutput {
  *
  * @public
  */
+/**
+ * Result of a tool invocation. Pairs with the preceding `toolCall` step
+ * by `callId`. `isError: true` when the tool returned a failure result.
+ *
+ * T2.3 — added so `Run.conversation()` surfaces the full interaction
+ * including tool results (parity with OpenAI Agents `RunResult.new_items`).
+ *
+ * @public
+ */
+export interface ToolResult {
+  callId: string;
+  name: string;
+  result: string;
+  isError: boolean;
+}
+
 export type ConversationStep =
   | { type: "assistantMessage"; message: AssistantMessage }
   | { type: "toolCall"; message: ToolCall }
+  | { type: "toolResult"; message: ToolResult }
   | { type: "thinkingMessage"; message: ThinkingMessage };
 
 /**

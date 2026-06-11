@@ -14,8 +14,8 @@ import {
   WhatsAppAdapter,
   WhatsAppWebBackend,
   type WhatsAppMessageEvent,
-} from "@usetheo/gateway-whatsapp";
-import { Agent } from "@usetheo/sdk";
+} from "@theokit/gateway-whatsapp";
+import { Agent } from "@theokit/sdk";
 
 const PROVIDER_KEY = required("OPENROUTER_API_KEY");
 const SESSION_ID = process.env.WHATSAPP_SESSION_ID ?? "my-bot";

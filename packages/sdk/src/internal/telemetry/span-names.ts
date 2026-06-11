@@ -1,0 +1,42 @@
+/**
+ * Closed-enum of all canonical span names emitted by the SDK telemetry layer.
+ *
+ * Wiring discipline (T0.1 + downstream tasks):
+ * - `agent.create`         — emitted in `Agent.create` static factory (T0.1).
+ * - `agent.send`           — parent span wrapping `LocalAgent.send` (T0.1).
+ * - `agent.send.<step>`    — 8 child spans inside `sendLocked` (T1.7).
+ * - `memory.recall`        — entry to `runActiveMemory` (T0.1).
+ * - `tool.call`            — per tool invocation in `tool-dispatch` (T2.4).
+ * - `llm.call`             — per provider HTTP turn (T3.*).
+ *
+ * Using a closed `as const` map (NOT `string`) means downstream span emitters
+ * cannot drift names; the `SpanName` literal union is exhaustive and the
+ * `(string & {})` discipline from T1.1 applies. ADR D438 anticipates the
+ * "no string-literal escape hatch in public unions" rule for SDK internals.
+ *
+ * @internal
+ */
+export const SPAN_NAMES = {
+  AGENT_CREATE: "agent.create",
+  AGENT_SEND: "agent.send",
+  AGENT_SEND_HYDRATE: "agent.send.hydrate",
+  AGENT_SEND_MODEL_OVERRIDE: "agent.send.model_override",
+  AGENT_SEND_PRE_HOOK: "agent.send.pre_hook",
+  AGENT_SEND_PRE_USER_SEND: "agent.send.pre_user_send",
+  AGENT_SEND_MEMORY_RECALL: "agent.send.memory_recall",
+  AGENT_SEND_SYSTEM_PROMPT: "agent.send.system_prompt",
+  AGENT_SEND_DISPATCH: "agent.send.dispatch",
+  AGENT_SEND_POST_REPLY: "agent.send.post_reply",
+  MEMORY_RECALL: "memory.recall",
+  TOOL_CALL: "tool.call",
+  LLM_CALL: "llm.call",
+} as const;
+
+export type SpanName = (typeof SPAN_NAMES)[keyof typeof SPAN_NAMES];
+
+/** Histogram names emitted by the SDK. T0.1 ships `memory_recall_duration_ms`. */
+export const HISTOGRAM_NAMES = {
+  MEMORY_RECALL_DURATION_MS: "theokit_memory_recall_duration_ms",
+} as const;
+
+export type HistogramName = (typeof HISTOGRAM_NAMES)[keyof typeof HISTOGRAM_NAMES];

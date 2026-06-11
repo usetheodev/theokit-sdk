@@ -1,0 +1,702 @@
+[
+  {
+    "id": "openai",
+    "displayName": "OpenAI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.openai.com/v1",
+    "envVars": ["OPENAI_API_KEY"],
+    "fallbackModels": ["gpt-4o-mini", "gpt-4o"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["openai"]
+  },
+  {
+    "id": "anthropic",
+    "displayName": "Anthropic",
+    "apiMode": "anthropic_messages",
+    "authType": "api_key",
+    "baseUrl": "https://api.anthropic.com/v1",
+    "envVars": ["ANTHROPIC_API_KEY"],
+    "fallbackModels": ["claude-sonnet-4-20250514", "claude-3-5-haiku-latest"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": true
+    },
+    "aliases": ["anthropic"]
+  },
+  {
+    "id": "openrouter",
+    "displayName": "OpenRouter",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://openrouter.ai/api/v1",
+    "envVars": ["OPENROUTER_API_KEY"],
+    "fallbackModels": ["openai/gpt-4o-mini"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["openrouter"]
+  },
+  {
+    "id": "groq",
+    "displayName": "Groq",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.groq.com/openai/v1",
+    "envVars": ["GROQ_API_KEY"],
+    "fallbackModels": ["llama-3.3-70b-versatile"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "mistral",
+    "displayName": "Mistral AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.mistral.ai/v1",
+    "envVars": ["MISTRAL_API_KEY"],
+    "fallbackModels": ["mistral-large-latest"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "deepseek",
+    "displayName": "DeepSeek",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.deepseek.com/v1",
+    "envVars": ["DEEPSEEK_API_KEY"],
+    "fallbackModels": ["deepseek-chat"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "together",
+    "displayName": "Together AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.together.xyz/v1",
+    "envVars": ["TOGETHER_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "fireworks",
+    "displayName": "Fireworks AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.fireworks.ai/inference/v1",
+    "envVars": ["FIREWORKS_API_KEY"],
+    "fallbackModels": ["accounts/fireworks/models/llama-v3p1-70b-instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "google-gemini",
+    "displayName": "Google Gemini",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "envVars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+    "fallbackModels": ["gemini-2.0-flash"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["gemini"]
+  },
+  {
+    "id": "ollama",
+    "displayName": "Ollama",
+    "apiMode": "chat_completions",
+    "authType": "none",
+    "baseUrl": "http://localhost:11434/v1",
+    "envVars": [],
+    "fallbackModels": ["llama3.2"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["ollama"]
+  },
+  {
+    "id": "lmstudio",
+    "displayName": "LM Studio",
+    "apiMode": "chat_completions",
+    "authType": "none",
+    "baseUrl": "http://localhost:1234/v1",
+    "envVars": [],
+    "fallbackModels": ["lmstudio-community/default"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["lmstudio"]
+  },
+  {
+    "id": "llamacpp",
+    "displayName": "llama.cpp",
+    "apiMode": "chat_completions",
+    "authType": "none",
+    "baseUrl": "http://localhost:8080/v1",
+    "envVars": [],
+    "fallbackModels": ["default"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["llamacpp"]
+  },
+  {
+    "id": "bedrock",
+    "displayName": "AWS Bedrock",
+    "apiMode": "bedrock",
+    "authType": "aws_sdk",
+    "baseUrl": "https://bedrock-runtime.us-east-1.amazonaws.com",
+    "envVars": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
+    "fallbackModels": ["anthropic.claude-3-5-sonnet-20241022-v2:0"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": true
+    },
+    "aliases": ["bedrock"]
+  },
+  {
+    "id": "vertex",
+    "displayName": "Google Vertex AI",
+    "apiMode": "chat_completions",
+    "authType": "gcp_oauth",
+    "baseUrl": "https://us-central1-aiplatform.googleapis.com/v1",
+    "envVars": ["GOOGLE_APPLICATION_CREDENTIALS"],
+    "fallbackModels": ["gemini-1.5-pro"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["vertex"]
+  },
+  {
+    "id": "cohere",
+    "displayName": "Cohere",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.cohere.com/v2",
+    "envVars": ["COHERE_API_KEY"],
+    "fallbackModels": ["command-r-plus"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "perplexity",
+    "displayName": "Perplexity",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.perplexity.ai",
+    "envVars": ["PERPLEXITY_API_KEY"],
+    "fallbackModels": ["llama-3.1-sonar-large-128k-online"],
+    "capabilities": {
+      "supportsToolUse": false,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "xai",
+    "displayName": "xAI (Grok)",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.x.ai/v1",
+    "envVars": ["XAI_API_KEY"],
+    "fallbackModels": ["grok-2"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["grok"]
+  },
+  {
+    "id": "sambanova",
+    "displayName": "SambaNova",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.sambanova.ai/v1",
+    "envVars": ["SAMBANOVA_API_KEY"],
+    "fallbackModels": ["Meta-Llama-3.1-70B-Instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "cerebras",
+    "displayName": "Cerebras",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.cerebras.ai/v1",
+    "envVars": ["CEREBRAS_API_KEY"],
+    "fallbackModels": ["llama3.1-70b"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "deepinfra",
+    "displayName": "DeepInfra",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.deepinfra.com/v1/openai",
+    "envVars": ["DEEPINFRA_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3.1-70B-Instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "huggingface",
+    "displayName": "Hugging Face",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api-inference.huggingface.co/v1",
+    "envVars": ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
+    "fallbackModels": ["meta-llama/Llama-3.2-3B-Instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "nvidia",
+    "displayName": "NVIDIA NIM",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://integrate.api.nvidia.com/v1",
+    "envVars": ["NVIDIA_API_KEY"],
+    "fallbackModels": ["meta/llama-3.1-70b-instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "lepton",
+    "displayName": "Lepton AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://llama3-1-70b.lepton.run/api/v1",
+    "envVars": ["LEPTON_API_KEY"],
+    "fallbackModels": ["llama3-1-70b"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "anyscale",
+    "displayName": "Anyscale",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.endpoints.anyscale.com/v1",
+    "envVars": ["ANYSCALE_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3-70B-Instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "replicate",
+    "displayName": "Replicate",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://openai-proxy.replicate.com/v1",
+    "envVars": ["REPLICATE_API_TOKEN"],
+    "fallbackModels": ["meta/meta-llama-3-70b-instruct"],
+    "capabilities": {
+      "supportsToolUse": false,
+      "supportsVision": true,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "ai21",
+    "displayName": "AI21 Labs",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.ai21.com/studio/v1",
+    "envVars": ["AI21_API_KEY"],
+    "fallbackModels": ["jamba-1.5-large"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "aleph-alpha",
+    "displayName": "Aleph Alpha",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.aleph-alpha.com/v1",
+    "envVars": ["ALEPH_ALPHA_API_KEY"],
+    "fallbackModels": ["luminous-extended"],
+    "capabilities": {
+      "supportsToolUse": false,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "cloudflare",
+    "displayName": "Cloudflare Workers AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
+    "envVars": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+    "fallbackModels": ["@cf/meta/llama-3.1-70b-instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "azure-openai",
+    "displayName": "Azure OpenAI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
+    "envVars": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"],
+    "fallbackModels": ["gpt-4o"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "github-models",
+    "displayName": "GitHub Models",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://models.inference.ai.azure.com",
+    "envVars": ["GITHUB_TOKEN"],
+    "fallbackModels": ["gpt-4o-mini"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "hyperbolic",
+    "displayName": "Hyperbolic",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.hyperbolic.xyz/v1",
+    "envVars": ["HYPERBOLIC_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3.1-70B-Instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "novita",
+    "displayName": "Novita AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.novita.ai/v3/openai",
+    "envVars": ["NOVITA_API_KEY"],
+    "fallbackModels": ["meta-llama/llama-3.1-70b-instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "moonshot",
+    "displayName": "Moonshot (Kimi)",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.moonshot.cn/v1",
+    "envVars": ["MOONSHOT_API_KEY"],
+    "fallbackModels": ["moonshot-v1-8k"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "qwen",
+    "displayName": "Qwen (Alibaba)",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    "envVars": ["DASHSCOPE_API_KEY"],
+    "fallbackModels": ["qwen-plus"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["dashscope"]
+  },
+  {
+    "id": "zhipu",
+    "displayName": "Zhipu AI (GLM)",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "envVars": ["ZHIPU_API_KEY"],
+    "fallbackModels": ["glm-4-plus"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    },
+    "aliases": ["glm"]
+  },
+  {
+    "id": "minimax",
+    "displayName": "MiniMax",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.minimax.chat/v1",
+    "envVars": ["MINIMAX_API_KEY"],
+    "fallbackModels": ["MiniMax-Text-01"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "baichuan",
+    "displayName": "Baichuan",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.baichuan-ai.com/v1",
+    "envVars": ["BAICHUAN_API_KEY"],
+    "fallbackModels": ["Baichuan4"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "voyage",
+    "displayName": "Voyage AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.voyageai.com/v1",
+    "envVars": ["VOYAGE_API_KEY"],
+    "fallbackModels": ["voyage-3"],
+    "capabilities": {
+      "supportsToolUse": false,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": false,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "jina",
+    "displayName": "Jina AI",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.jina.ai/v1",
+    "envVars": ["JINA_API_KEY"],
+    "fallbackModels": ["jina-embeddings-v3"],
+    "capabilities": {
+      "supportsToolUse": false,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": false,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "helicone",
+    "displayName": "Helicone (Gateway)",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://oai.helicone.ai/v1",
+    "envVars": ["HELICONE_API_KEY", "OPENAI_API_KEY"],
+    "fallbackModels": ["gpt-4o-mini"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "portkey",
+    "displayName": "Portkey (Gateway)",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.portkey.ai/v1",
+    "envVars": ["PORTKEY_API_KEY"],
+    "fallbackModels": ["gpt-4o-mini"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": true,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "baseten",
+    "displayName": "Baseten",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://bridge.baseten.co/v1",
+    "envVars": ["BASETEN_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3-70B-Instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": true,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  },
+  {
+    "id": "modal",
+    "displayName": "Modal",
+    "apiMode": "chat_completions",
+    "authType": "api_key",
+    "baseUrl": "https://api.modal.com/v1",
+    "envVars": ["MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3-70B-Instruct"],
+    "capabilities": {
+      "supportsToolUse": true,
+      "supportsVision": false,
+      "supportsStructuredOutput": false,
+      "supportsStreaming": true,
+      "supportsCacheControl": false
+    }
+  }
+]

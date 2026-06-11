@@ -57,11 +57,11 @@ describe("builtin providers (T3.3)", () => {
   });
 
   it("registerBuiltins idempotent", () => {
+    const countBefore = listProviders().length;
     registerBuiltins();
     registerBuiltins();
-    // anthropic, openai, openrouter, gemini, ollama (D182), lmstudio (D188),
-    // llamacpp (D189), bedrock (D286), vertex (D288)
-    expect(listProviders()).toHaveLength(9);
+    // Calling registerBuiltins multiple times must not add duplicates
+    expect(listProviders()).toHaveLength(countBefore);
   });
 
   it("ollama profile registered (D182)", () => {

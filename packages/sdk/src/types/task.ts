@@ -5,7 +5,7 @@
  * (`Agent.send`, `Agent.batch`, `Workflow.run`, `Cron` fires). They have
  * a closed 5-state lifecycle (D362), discriminated events (D366), and a
  * pluggable store (D364). The `Task` facade in `task.ts` is the public
- * surface; consumers import these types from `@usetheo/sdk`.
+ * surface; consumers import these types from `@theokit/sdk`.
  *
  * @public
  */

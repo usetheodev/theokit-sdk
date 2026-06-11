@@ -2,10 +2,7 @@
 // the compiled `dist/index.js` does NOT have a top-level `import "zod"`.
 // Consumers who don't call `defineTool` don't need `zod` installed (the peer
 // dependency stays truly optional per ADR D24). The runtime JSON-Schema
-// conversion is delegated to `zodToJsonSchema` (internal/zod/to-json-schema)
-// which feature-detects zod 4 native `toJSONSchema` vs zod 3 +
-// `zod-to-json-schema` peer dep — supporting the SDK's declared peer range
-// `zod: "^3.25.0 || ^4.0.0"`.
+// conversion uses Zod v4's native `z.toJSONSchema()` via the internal shim.
 import type { z as ZodNamespace, ZodType } from "zod";
 
 import { toJsonSchema } from "./internal/zod/to-json-schema.js";
@@ -45,12 +42,7 @@ export interface DefineToolSpec<T extends ZodType> {
  * @public
  */
 export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool {
-  // Universal Zod → JSON Schema converter (feature-detects zod 4 native
-  // `z.toJSONSchema` vs zod 3 + `zod-to-json-schema` peer). Fixes the bug
-  // where consumers pinned to `zod@^3.25.0` (no native `toJSONSchema`) hit
-  // `z.toJSONSchema is not a function` at runtime. The SDK declares
-  // peer `zod: "^3.25.0 || ^4.0.0"` — both must work.
-  //
+  // Zod v4 native JSON Schema converter via internal shim.
   // `unrepresentable: "any"` lets transforms / refinements / branded types
   // round-trip to JSON Schema as `{}` (effectively `any`). The runtime parse
   // still enforces the full Zod contract; the LLM just sees a looser hint.

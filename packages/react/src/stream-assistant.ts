@@ -5,7 +5,7 @@ import {
   type LocalOptions,
   type ModelSelection,
   StreamObjectError,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 import type { ZodType } from "zod";
 
 /**
@@ -54,7 +54,9 @@ export async function streamAssistant<T extends ZodType>(
       const write = (line: string) => controller.enqueue(enc.encode(`${line}\n`));
       try {
         const iter = Agent.streamObject({
-          schema,
+          // T7.1 unblock — pre-existing zod v3/v4 cross-package hazard; cast
+          // narrows the generic T to the loose ZodType the SDK signature expects.
+          schema: schema as unknown as Parameters<typeof Agent.streamObject>[0]["schema"],
           prompt: body.prompt,
           model,
           local,

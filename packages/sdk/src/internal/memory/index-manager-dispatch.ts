@@ -6,7 +6,7 @@
  */
 
 import { ConfigurationError } from "../../errors.js";
-import type { MemoryBackend, OpenIndexOptions } from "./index-manager.js";
+import type { MemoryBackend, OpenIndexOptions } from "./index-manager-contract.js";
 import { LanceIndex } from "./lance-index.js";
 import { LanceMemoryAdapter } from "./lance-memory-adapter.js";
 import type { MemoryIndex } from "./memory-index.js";

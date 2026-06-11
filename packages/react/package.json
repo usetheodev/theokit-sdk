@@ -1,7 +1,7 @@
 {
-  "name": "@usetheo/react",
-  "version": "1.0.0",
-  "description": "React hooks + Next.js helpers for @usetheo/sdk — useTheoChat (SSE streaming) and streamTheoChat (server-side route handler).",
+  "name": "@theokit/react",
+  "version": "1.1.0",
+  "description": "React hooks + Next.js helpers for @theokit/sdk \u2014 useTheoChat (SSE streaming) and streamTheoChat (server-side route handler).",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -11,6 +11,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "require": "./dist/index.cjs"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "require": "./dist/server.cjs"
     }
   },
   "files": [
@@ -25,9 +30,9 @@
     "test": "vitest run"
   },
   "peerDependencies": {
+    "@theokit/sdk": "^1.1.0",
     "react": "^18 || ^19",
-    "@usetheo/sdk": "^1.1.0",
-    "zod": "^3.25 || ^4"
+    "zod": "^4.0.0"
   },
   "peerDependenciesMeta": {
     "zod": {
@@ -35,18 +40,19 @@
     }
   },
   "devDependencies": {
+    "@theokit/sdk": "workspace:*",
     "@types/react": "^18.0.0",
-    "@usetheo/sdk": "workspace:*",
     "react": "^18.3.0",
     "tsup": "^8.5.0",
     "typescript": "^5.8.0",
-    "vitest": "^3.0.0",
+    "vitest": "^4.1.8",
     "zod": "^4.0.0"
   },
   "engines": {
     "node": ">=22.12.0"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   }
 }

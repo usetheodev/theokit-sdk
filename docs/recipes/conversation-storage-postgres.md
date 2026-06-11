@@ -42,7 +42,7 @@ import { Pool } from "pg";
 import type {
   ConversationStorageAdapter,
   StoredMessage,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 export class PostgresConversationStorage implements ConversationStorageAdapter {
   constructor(private readonly pool: Pool) {}
@@ -94,7 +94,7 @@ import { neon } from "@neondatabase/serverless";
 import type {
   ConversationStorageAdapter,
   StoredMessage,
-} from "@usetheo/sdk";
+} from "@theokit/sdk";
 
 export class NeonConversationStorage implements ConversationStorageAdapter {
   private readonly sql: ReturnType<typeof neon>;
@@ -130,7 +130,7 @@ export class NeonConversationStorage implements ConversationStorageAdapter {
 ## Usage with `Agent.create`
 
 ```ts
-import { Agent } from "@usetheo/sdk";
+import { Agent } from "@theokit/sdk";
 import { Pool } from "pg";
 import { PostgresConversationStorage } from "./postgres-conversation-storage.js";
 

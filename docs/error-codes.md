@@ -1,4 +1,4 @@
-# `@usetheo/sdk` Error Codes Reference
+# `@theokit/sdk` Error Codes Reference
 
 Canonical reference for `AgentRunError.code` values + provider-to-code mapping (Production-Readiness #3, ADRs D311-D314).
 
@@ -26,7 +26,7 @@ Canonical reference for `AgentRunError.code` values + provider-to-code mapping (
 ## Exhaustive `switch` pattern
 
 ```ts
-import { AgentRunError } from "@usetheo/sdk";
+import { AgentRunError } from "@theokit/sdk";
 
 try {
   await agent.send(message);

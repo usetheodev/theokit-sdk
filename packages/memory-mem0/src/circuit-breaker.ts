@@ -8,7 +8,7 @@
  * @internal
  */
 
-import { MemoryAdapterError } from "@usetheo/sdk";
+import { MemoryAdapterError } from "@theokit/sdk";
 
 const ADAPTER_ID = "mem0";
 

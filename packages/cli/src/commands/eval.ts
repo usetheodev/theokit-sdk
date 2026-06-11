@@ -11,7 +11,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { PathTraversalError, safePathJoin } from "@usetheo/sdk/path-safety";
+import { PathTraversalError, safePathJoin } from "@theokit/sdk/path-safety";
 import pc from "picocolors";
 
 import { loadEvalConfig } from "../eval/config-loader.js";

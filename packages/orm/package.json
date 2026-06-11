@@ -1,0 +1,93 @@
+{
+  "name": "@theokit/orm",
+  "version": "0.1.0-next.1",
+  "description": "Repository pattern + @InjectRepository decorator + agent-aware columns + @Transactional + schema export polyglot over drizzle-orm, consuming @theokit/di for inversion of control. NestJS TypeORM-equivalent DX for the theokit ecosystem.",
+  "license": "Apache-2.0",
+  "homepage": "https://github.com/usetheo/theokit-sdk#readme",
+  "bugs": "https://github.com/usetheo/theokit-sdk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usetheo/theokit-sdk.git",
+    "directory": "packages/orm"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./schema-export": {
+      "import": {
+        "types": "./dist/schema-export.d.ts",
+        "default": "./dist/schema-export.js"
+      },
+      "require": {
+        "types": "./dist/schema-export.d.cts",
+        "default": "./dist/schema-export.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:coverage": "vitest run --coverage --passWithNoTests"
+  },
+  "keywords": [
+    "orm",
+    "drizzle",
+    "repository",
+    "dependency-injection",
+    "decorators",
+    "transactional",
+    "typescript",
+    "theokit",
+    "Theo"
+  ],
+  "peerDependencies": {
+    "@theokit/di": "^0.1.0",
+    "drizzle-orm": ">=0.36.0",
+    "reflect-metadata": "^0.2.0"
+  },
+  "peerDependenciesMeta": {
+    "drizzle-kit": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@swc/core": "^1.15.40",
+    "@theokit/di": "workspace:*",
+    "@types/better-sqlite3": "^7.6.13",
+    "@vitest/coverage-v8": "^4.1.8",
+    "better-sqlite3": "^11.10.0",
+    "drizzle-orm": "^0.36.4",
+    "reflect-metadata": "^0.2.0",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.0",
+    "unplugin-swc": "^1.5.9",
+    "vitest": "^4.1.8"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}

@@ -46,20 +46,47 @@ if (!REDACT_ENABLED && !warnedOptOut) {
  * @internal
  */
 const BUILTIN_PATTERNS: readonly RegExp[] = [
-  /sk-ant-[A-Za-z0-9_-]{10,}/g, //   Anthropic
+  // T5.4: 30+ vendor prefixes (was 12 pre-T5.4). Order matters — more
+  // specific prefixes precede generic ones (e.g., sk-ant-admin01 before
+  // sk-ant-, sk-proj- before sk-). PEM block deliberately first so its
+  // multi-line span runs before any per-line patterns can fire.
+  /-----BEGIN[ ]+(?:RSA |EC |DSA |OPENSSH |ENCRYPTED |)PRIVATE KEY-----[\s\S]+?-----END[ ]+(?:RSA |EC |DSA |OPENSSH |ENCRYPTED |)PRIVATE KEY-----/g,
+  // JWT — exact 3-segment base64url. Dotted; the body floor of 4 chars per
+  // segment matches the minimum legal payload while skipping `a.b.c` noise.
+  /eyJ[A-Za-z0-9_-]{4,}\.eyJ[A-Za-z0-9_-]{4,}\.[A-Za-z0-9_-]{4,}/g,
+  // Azure Storage SAS — match the sig= component (URL-encoded base64).
+  /(?<=[?&]sig=)[A-Za-z0-9%+/]{20,}/g,
+  // Anthropic
+  /sk-ant-admin01-[A-Za-z0-9_-]{10,}/g, //   Anthropic admin keys (must precede sk-ant-)
+  /sk-ant-[A-Za-z0-9_-]{10,}/g, //           Anthropic regular
+  // OpenAI family + clones (sk- generic must come AFTER all sk-foo- variants)
   /sk-proj-[A-Za-z0-9_-]{10,}/g, //  OpenAI project key (must precede sk- generic)
-  /sk-[A-Za-z0-9_-]{10,}/g, //       OpenAI / OpenRouter / DeepInfra. {10,} body floor —
-  //   real keys are 40+ chars; 10-char floor still skips `sk-test` (4) and
-  //   `sk-test-key` (8). codeFile mode protects placeholders/examples.
-  /ghp_[A-Za-z0-9]{36}/g, //         GitHub PAT classic (exact length)
-  /github_pat_[A-Za-z0-9_]{82}/g, // GitHub PAT fine-grained
-  /glpat-[A-Za-z0-9_-]{20}/g, //     GitLab PAT
-  /AKIA[A-Z0-9]{16}/g, //            AWS access key
+  /sk-[A-Za-z0-9_-]{10,}/g, //       OpenAI / OpenRouter / DeepInfra / Together / DeepSeek
+  // Provider prefixes (alphabetized for maintainability)
   /AIza[A-Za-z0-9_-]{35}/g, //       Google API key
-  /xox[bpasr]-[A-Za-z0-9-]{10,}/g, //Slack tokens
-  /sntrys_[A-Za-z0-9]{40,}/g, //     Sentry user auth
-  /sk_live_[A-Za-z0-9]{20,}/g, //    Stripe secret
+  /AKIA[A-Z0-9]{16}/g, //            AWS access key
+  /fw_[A-Za-z0-9]{20,}/g, //         Fireworks
+  /glpat-[A-Za-z0-9_-]{20}/g, //     GitLab PAT
+  /ghp_[A-Za-z0-9]{36}/g, //         GitHub PAT classic
+  /github_pat_[A-Za-z0-9_]{82}/g, // GitHub PAT fine-grained
+  /gsk_[A-Za-z0-9]{20,}/g, //        Groq
+  /hf_[A-Za-z0-9]{20,}/g, //         HuggingFace
+  /\bpa-[A-Za-z0-9_-]{20,}/g, //     Voyage AI (word-boundary to skip CSS / kebab IDs)
+  /pcsk_[A-Za-z0-9_-]{20,}/g, //     Pinecone
+  /pplx-[A-Za-z0-9_-]{20,}/g, //     Perplexity
+  /r8_[A-Za-z0-9_-]{20,}/g, //       Replicate
   /rk_live_[A-Za-z0-9]{20,}/g, //    Stripe restricted
+  /sk_live_[A-Za-z0-9]{20,}/g, //    Stripe secret
+  /sntrys_[A-Za-z0-9]{40,}/g, //     Sentry user auth
+  /xai-[A-Za-z0-9_-]{20,}/g, //      xAI (Grok)
+  /xox[bpasr]-[A-Za-z0-9-]{10,}/g, //Slack tokens
+  // Additional unique-prefix tokens with low false-positive risk
+  /npm_[A-Za-z0-9]{36}/g, //         npm access token
+  /SG\.[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}/g, // SendGrid
+  /\bSK[A-Za-z0-9]{32}\b/g, //       Twilio API SID (word-boundary to skip CSS class noise)
+  /\bkey-[a-f0-9]{32}\b/g, //        Mailgun (hex-only narrows false positives)
+  /MT[A-Za-z0-9_-]{23}\.[A-Za-z0-9_-]{6}\.[A-Za-z0-9_-]{27}/g, // Discord bot
+  /\b(?:sdk|mob)-[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\b/g, // LaunchDarkly
 ];
 
 // `Bearer <token>` matched as its own first-class pattern so PARAM_PATTERN
@@ -75,8 +102,18 @@ const BEARER_PATTERN = /\b(Bearer\s+)([A-Za-z0-9_\-.+/=]{8,})/g;
 // `authorization` deliberately excluded — BEARER_PATTERN handles the
 // common `Authorization: Bearer xxx` shape. Including it here causes
 // double-masking ("Authorization: *** ***") after Bearer fires.
+// T5.4: keyword set expanded from 6 → 16 to cover the OAuth / JWT / generic
+// credential vocabulary surfaced by DR6 finding #4. `authorization`,
+// `auth`, `bearer` stay excluded — BEARER_PATTERN handles the
+// `Authorization: Bearer xxx` shape and including these here would
+// re-catch the post-BUILTIN-masked form (D71 prefix-preservation
+// contract) and double-mask to `***`.
+//
+// Value class includes `.` so JWT / `.env` / dotted base64url values
+// match; the callback skips already-masked values (containing the
+// `...` D71 separator) to preserve the BUILTIN prefix-mask result.
 const PARAM_PATTERN =
-  /(\b(?:access_token|api_key|api-key|password|secret|x-api-key)\b["']?\s*[:=]\s*["']?)([A-Za-z0-9_\-.+/]+)/gi;
+  /(\b(?:access_token|api_key|api-key|client_secret|credential|credentials|id_token|jwt|password|private_key|refresh_token|secret|service_account|session_token|token|x-api-key)\b["']?\s*[:=]\s*["']?)([A-Za-z0-9_\-.+/]+)/gi;
 
 const _extraPatterns: RegExp[] = [];
 
@@ -158,7 +195,13 @@ export function redactSecrets(text: unknown, opts?: { codeFile?: boolean }): str
     // Must run before PARAM_PATTERN so the bare-whitespace shape doesn't
     // get mis-handled as a value.
     s = s.replace(BEARER_PATTERN, (_, prefix: string) => `${prefix}***`);
-    s = s.replace(PARAM_PATTERN, (_, prefix: string) => `${prefix}***`);
+    // T5.4: skip if value already contains the D71 bucket-mask separator
+    // (`...`) — BUILTIN ran first and produced a prefix-preserved mask;
+    // re-masking would lose the prefix and degrade debuggability.
+    s = s.replace(PARAM_PATTERN, (whole, prefix: string, value: string) => {
+      if (value.includes("...")) return whole;
+      return `${prefix}***`;
+    });
   }
   return s;
 }
@@ -173,4 +216,15 @@ export function redactSecrets(text: unknown, opts?: { codeFile?: boolean }): str
 export function _resetForTests(opts: { enabled?: boolean; clearExtras?: boolean }): void {
   if (opts.enabled !== undefined) REDACT_ENABLED = opts.enabled;
   if (opts.clearExtras === true) _extraPatterns.length = 0;
+}
+
+/**
+ * T5.4 — Test-only count of BUILTIN_PATTERNS. Exposed so the count-floor
+ * assertion can run without re-deriving the array shape in test land.
+ * NOT included in the public barrel.
+ *
+ * @internal
+ */
+export function __TESTING__BUILTIN_PATTERN_COUNT(): number {
+  return BUILTIN_PATTERNS.length;
 }

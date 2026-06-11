@@ -3,27 +3,13 @@ import type { McpServerConfig } from "./mcp.js";
 import type { PluginsSettings, ProviderRoutingSettings, SDKProvidersManager } from "./providers.js";
 import type { Run, SDKUserMessage, SendOptions } from "./run.js";
 
-/**
- * One slot in a {@link ModelSelection.params} array.
- *
- * @public
- */
-export interface ModelParameterValue {
-  id: string;
-  value: string;
-}
+// T4.1 / D438 — primitives now live in `./agent-prims.ts` (leaf file) so
+// `./run.ts` and `./messages.ts` can reach them without cycling through
+// `./agent.ts`. Re-exported here for back-compat with consumers that import
+// `ModelSelection` / `ModelParameterValue` / `CustomTool` from `@theokit/sdk`.
+export type { CustomTool, ModelParameterValue, ModelSelection } from "./agent-prims.js";
 
-/**
- * Identifies a model plus optional per-model parameters (e.g. reasoning effort).
- *
- * Use `Theokit.models.list()` to discover valid ids and parameter definitions.
- *
- * @public
- */
-export interface ModelSelection {
-  id: string;
-  params?: ModelParameterValue[];
-}
+import type { CustomTool, ModelSelection } from "./agent-prims.js";
 
 /**
  * Which on-disk settings layers a local agent loads.
@@ -255,38 +241,10 @@ export interface MemorySettings {
   };
 }
 
-/**
- * Inline custom tool — registered with the LLM under the given name + schema
- * and dispatched locally to {@link CustomTool.handler} when the model emits a
- * `tool_use` for it.
- *
- * Local runtime only (SDK v1.0). Cloud agents reject `tools` (handlers cannot
- * cross the wire — use MCP servers or subagents for cloud tool surfaces).
- *
- * Handlers MUST be re-passed on `Agent.resume()` because closures cannot be
- * persisted. The tool catalog (name + description + schema) is NOT serialized.
- *
- * @public
- */
-export interface CustomTool {
-  /**
-   * Tool name surfaced to the LLM. Must match `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$`
-   * and must not collide with `shell`, `memory_search`, `memory_get`, or any
-   * `mcp_*` prefix (reserved for the SDK's built-in tools).
-   */
-  name: string;
-  /** Description surfaced to the LLM. Required — drives tool-selection accuracy. */
-  description: string;
-  /** JSON Schema (Draft-7 subset) describing the `input` argument. Must be `type: "object"`. */
-  inputSchema: Record<string, unknown>;
-  /**
-   * Local handler invoked when the model emits `tool_use` for this tool.
-   * Returns a string (becomes the `tool_result.content` surfaced back to the
-   * model). Throws → SDK converts to `tool_result` with `isError: true` and
-   * the error `message` as content.
-   */
-  handler: (input: Record<string, unknown>) => string | Promise<string>;
-}
+// T4.1 / D438 — `CustomTool` moved to `./agent-prims.ts` (leaf file) and
+// re-exported at the top of this module. Inline `import("./agent.js")` self-
+// references that previously triggered madge self-cycle #3 have been removed
+// in this same slice.
 
 /**
  * Telemetry configuration for an agent. When `enabled: true`, the SDK emits
@@ -422,9 +380,14 @@ export interface AgentOptions {
    *
    * @public
    */
-  handoffs?: ReadonlyArray<
-    import("./agent.js").SDKAgent | import("./handoff.js").HandoffDescriptor
-  >;
+  // SDK 2.0 split (Phase 4): handoff-descriptor.ts moved to @theokit/sdk-handoff.
+  // The handoffs field is TRANSITIONAL — preferred 2.x pattern is
+  // `plugins: [Handoff.asPlugin({ targets: [...] })]` (see migration guide).
+  // Type loosened to `unknown` here because the kernel must not import from
+  // an extension; consumers using this option must have @theokit/sdk-handoff
+  // installed (optional peer — see agent.ts maybeInjectHandoffTools).
+  // EC-4 absorbed in plan v1.1 removes this field entirely in Phase 6 cohort.
+  handoffs?: ReadonlyArray<SDKAgent | unknown>;
   /**
    * Maximum chain depth across handoffs per `agent.send()` call (D218).
    * Default 5. Exceeding throws `HandoffLoopError`. Set to 0 to disable
@@ -525,6 +488,53 @@ export interface AgentOptions {
    * @public
    */
   conversationStorage?: import("./conversation-storage.js").ConversationStorageAdapter;
+
+  /**
+   * Pluggable budget/usage tracker (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface
+   * inversion). When provided, the agent loop calls `tracker.track(...)`
+   * after each LLM completion and `tracker.check()` before each iteration.
+   *
+   * **Status (Phase 2 incremental):** the option is wired to the type
+   * surface only. Agent-loop runtime wiring is additive and lands in a
+   * subsequent iteration — for now, the kernel still uses the legacy
+   * `UsageAccumulator` + `IterationBudget` from `internal/budget/`.
+   * Consumers passing a custom tracker today get the type guarantee but
+   * NOT runtime enforcement.
+   *
+   * Default impls available today via `@theokit/sdk`:
+   *   - `createCounterBudgetTracker({ maxTokens, maxIterations })`
+   *
+   * Future: post-Phase-2, `@theokit/sdk-budget` ships a richer impl with
+   * USD pricing.
+   *
+   * @public
+   */
+  budgetTracker?: import("../internal/runtime/budget-tracker.js").BudgetTracker;
+
+  /**
+   * Pluggable memory subsystem (SDK 2.0 Phase 1 / T1.3 — Hexagonal
+   * Architecture interface inversion). When provided, the agent loop
+   * calls `provider.init(...)` once per agent, surfaces tools from
+   * `provider.buildTools(...)` to the LLM, runs `provider.runActivePass(...)`
+   * pre-LLM to inject recalled facts, and `provider.dispose(...)` on
+   * Agent shutdown.
+   *
+   * **Status (Phase 1 incremental):** the option is wired to the type
+   * surface only. Agent-loop runtime wiring is additive and lands in
+   * subsequent iterations (T1.4 plumbing, T1.5 runtime hooks). For now,
+   * the kernel still uses the legacy `Memory` class + `internal/memory/*`
+   * runtime files. Consumers passing a custom provider today get the type
+   * guarantee but NOT runtime enforcement.
+   *
+   * Default impls available today via `@theokit/sdk`:
+   *   - `createNoopMemoryProvider()` — degenerate fallback / worked example
+   *
+   * Future: post-Phase-1, `@theokit/sdk-memory` ships a rich impl with
+   * LanceDB / embeddings / circuit breaker / active-memory cache.
+   *
+   * @public
+   */
+  memoryProvider?: import("../internal/runtime/memory-provider.js").MemoryProvider;
 }
 
 /**

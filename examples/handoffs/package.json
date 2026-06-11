@@ -6,7 +6,7 @@
     "run": "tsx --env-file=.env run.ts"
   },
   "dependencies": {
-    "@usetheo/sdk": "file:../../packages/sdk",
+    "@theokit/sdk": "file:../../packages/sdk",
     "zod": "^4.0.0"
   },
   "devDependencies": {

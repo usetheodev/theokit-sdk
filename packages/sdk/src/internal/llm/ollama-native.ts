@@ -241,14 +241,38 @@ async function* parseNdjsonStream(
       }
     }
   } finally {
+    // T3.2 + T3.3 — mirror sse.ts: cancel the underlying body stream on
+    // every exit path (abort, normal close, consumer break, consumer
+    // throw). Without this the upstream Ollama HTTP TCP socket stays in
+    // CLOSE_WAIT until the OS times it out. cancel() on a finished stream
+    // is a no-op so always-cancel is safe.
+    try {
+      await reader.cancel();
+    } catch {
+      // best-effort — already cancelled OR upstream closed
+    }
     reader.releaseLock();
   }
 }
 
+/**
+ * T3.5 — collapse the wider `LlmRequest.system` shape into the legacy
+ * single-string form Ollama expects. Ollama doesn't support per-block
+ * prompt caching, so block content is joined with a blank-line separator.
+ *
+ * @internal
+ */
+function ollamaSystemText(system: LlmRequest["system"]): string {
+  if (system === undefined) return "";
+  if (typeof system === "string") return system;
+  return system.map((b) => b.text).join("\n\n");
+}
+
 function buildOllamaChatBody(request: LlmRequest): Record<string, unknown> {
   const messages: OllamaChatMessage[] = [];
-  if (request.system !== undefined) {
-    messages.push({ role: "system", content: request.system });
+  const systemText = ollamaSystemText(request.system);
+  if (systemText.length > 0) {
+    messages.push({ role: "system", content: systemText });
   }
   for (const message of request.messages) {
     for (const out of toOllamaMessages(message)) messages.push(out);

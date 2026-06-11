@@ -10,7 +10,7 @@
  * a real backend hit.
  */
 
-import { EmailAdapter } from "@usetheo/gateway-email";
+import { EmailAdapter } from "@theokit/gateway-email";
 
 const ADDRESS = process.env.EMAIL_ADDRESS;
 const PASSWORD = process.env.EMAIL_PASSWORD;

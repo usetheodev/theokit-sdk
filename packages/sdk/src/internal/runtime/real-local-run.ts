@@ -10,10 +10,10 @@ import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";
 import type { SessionMessage } from "./agent-session.js";
-import { FixtureRunBase, prepareRunContext } from "./fixture-run-base.js";
-import type { FixtureScript } from "./fixture-types.js";
+import { FixtureRunBase, prepareRunContext } from "./fixtures/fixture-run-base.js";
+import type { FixtureScript } from "./fixtures/fixture-types.js";
 import type { HooksExecutor } from "./hooks-executor.js";
-import { registerRun } from "./run-registry.js";
+import { registerRun } from "./registry/run-registry.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -161,6 +161,21 @@ function buildLoopInputs(
       ? { onToolError: options.agentOptions.onToolError }
       : {}),
     telemetry: createTelemetry(options.agentOptions.telemetry),
+    // SDK 2.0 Phase 2 / T2.1: thread the optional BudgetTracker from
+    // Agent.create options down to the loop. Runtime `track()` / `check()`
+    // calls land in a follow-up iteration; for now the field is plumbed
+    // so future enablement requires no further type changes.
+    ...(options.agentOptions.budgetTracker !== undefined
+      ? { budgetTracker: options.agentOptions.budgetTracker }
+      : {}),
+    // SDK 2.0 Phase 1 / T1.4: thread the optional MemoryProvider from
+    // Agent.create options down to the loop. Runtime `init()` /
+    // `buildTools()` / `runActivePass()` / `dispose()` calls land in
+    // T1.5; for now the field is plumbed so the runtime wiring requires
+    // no further type changes.
+    ...(options.agentOptions.memoryProvider !== undefined
+      ? { memoryProvider: options.agentOptions.memoryProvider }
+      : {}),
   };
 }
 

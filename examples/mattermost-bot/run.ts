@@ -10,9 +10,9 @@
  * 6. @-mention the bot in a channel (or DM it).
  */
 
-import { Agent } from "@usetheo/sdk";
-import { GatewayRunner } from "@usetheo/gateway";
-import { MattermostAdapter } from "@usetheo/gateway-mattermost";
+import { Agent } from "@theokit/sdk";
+import { GatewayRunner } from "@theokit/gateway";
+import { MattermostAdapter } from "@theokit/gateway-mattermost";
 
 const requiredEnv = ["MM_BASE_URL", "MM_BOT_TOKEN"];
 for (const k of requiredEnv) {

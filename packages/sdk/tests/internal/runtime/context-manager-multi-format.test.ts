@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { FileContextManager } from "../../../src/internal/runtime/context-manager.js";
+import { FileContextManager } from "../../../src/internal/runtime/context/context-manager.js";
 
 async function buildRepo(): Promise<string> {
   const tmp = await mkdtemp(join(tmpdir(), "theokit-ctx-integration-"));

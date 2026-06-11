@@ -8,7 +8,7 @@
  * adapter constructed + validation only, no real API call.
  */
 
-import { MattermostAdapter } from "@usetheo/gateway-mattermost";
+import { MattermostAdapter } from "@theokit/gateway-mattermost";
 
 const live = process.env.MATTERMOST_LIVE_SMOKE === "1";
 

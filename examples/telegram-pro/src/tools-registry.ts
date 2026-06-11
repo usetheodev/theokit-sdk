@@ -1,4 +1,4 @@
-import { type CustomTool, defineTool } from "@usetheo/sdk";
+import { type CustomTool, defineTool } from "@theokit/sdk";
 import { z } from "zod";
 
 /**
