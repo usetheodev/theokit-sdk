@@ -17,7 +17,7 @@ import { startCacheLookupSpan } from "./telemetry.js";
 
 export type LookupableStore = InMemoryCacheStore | JsonFileCacheStore;
 
-export interface LookupParams {
+interface LookupParams {
   prompt: string;
   store: LookupableStore;
   embedder: CacheEmbedderRuntime;
@@ -27,7 +27,7 @@ export interface LookupParams {
   modelId: string;
 }
 
-export interface LookupResult {
+interface LookupResult {
   cached: boolean;
   response?: string;
   source?: "kv" | "semantic";

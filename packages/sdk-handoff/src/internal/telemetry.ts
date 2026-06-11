@@ -53,13 +53,13 @@ function getTracer(name: string, version = "1.0.0"): TracerLike | undefined {
   }
 }
 
-export function resetTracerCacheForTests(): void {
+function resetTracerCacheForTests(): void {
   tracerCache.clear();
 }
 
 const TRACER_NAME = "theokit-sdk-handoff";
 
-export interface HandoffSpanHandle {
+interface HandoffSpanHandle {
   setAttribute(key: string, value: string | number | boolean): void;
   end(): void;
 }
@@ -104,6 +104,6 @@ export function startHandoffSpan(attrs: {
 }
 
 /** Test-only — reset cached OTel handle. */
-export function __resetHandoffOtelCacheForTests(): void {
+function __resetHandoffOtelCacheForTests(): void {
   resetTracerCacheForTests();
 }

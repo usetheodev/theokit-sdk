@@ -29,7 +29,7 @@ import { _resetTelemetryCacheForTests } from "../../../src/internal/telemetry/tr
 let provider: BasicTracerProvider | undefined;
 let exporter: InMemorySpanExporter | undefined;
 
-export interface CapturedSpan {
+interface CapturedSpan {
   name: string;
   attributes: Record<string, unknown>;
   status: { code: number; message?: string };
@@ -67,7 +67,7 @@ export async function uninstallOtelTestCollector(): Promise<void> {
 }
 
 /** Return all spans the SDK has emitted since the last `installOtelTestCollector()`. */
-export function getEmittedSpans(): CapturedSpan[] {
+function getEmittedSpans(): CapturedSpan[] {
   if (exporter === undefined) {
     throw new Error("otel-test-collector: getEmittedSpans called before installOtelTestCollector");
   }

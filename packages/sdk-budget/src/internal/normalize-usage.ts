@@ -22,7 +22,7 @@
 
 import type { TokenUsage } from "@theokit/sdk";
 
-export type ApiMode = "anthropic_messages" | "openai_chat_completions" | "openai_responses";
+type ApiMode = "anthropic_messages" | "openai_chat_completions" | "openai_responses";
 
 function int(v: unknown): number {
   if (typeof v === "number") return Number.isFinite(v) ? Math.max(0, Math.trunc(v)) : 0;

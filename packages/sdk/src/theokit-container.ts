@@ -15,7 +15,7 @@ export interface AgentConfig {
   [key: string]: unknown;
 }
 
-export interface TheoKitContainerOptions {
+interface TheoKitContainerOptions {
   agents?: Record<string, AgentConfig>;
   tools?: Record<string, unknown>;
   workflows?: Record<string, unknown>;
