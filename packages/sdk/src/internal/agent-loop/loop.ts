@@ -1,30 +1,13 @@
-import type { CustomTool, SDKAgent } from "../../types/agent.js";
-import type { ConversationTurn } from "../../types/conversation.js";
-import type { SDKMessage } from "../../types/messages.js";
-import type { RunStatus } from "../../types/run.js";
-import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import { generateRequestId } from "../ids.js";
-import type {
-  LlmClient,
-  LlmContentPart,
-  LlmMessage,
-  LlmTool,
-  LlmToolCallPart,
-} from "../llm/types.js";
-import type { McpClient, McpTool } from "../mcp/client.js";
+import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { IterationBudget } from "../runtime/budget.js";
-import type { MemoryProviderHandle } from "../runtime/memory-provider.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validate-response.js";
-import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
-import type { AgentLoopErrorDetail, AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
-import {
-  buildAssistantEvent,
-  buildAssistantTurn,
-  buildSystemEvent,
-  buildUserEvent,
-} from "./message-builders.js";
-import { dispatchTools, type ResolvedTool } from "./tool-dispatch.js";
+import { initLoopContext, type LoopContext } from "./loop-context-init.js";
+import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
+import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
+import { buildAssistantEvent, buildAssistantTurn } from "./message-builders.js";
+import { dispatchTools } from "./tool-dispatch.js";
 import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
 /**
@@ -38,9 +21,11 @@ import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
 export type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 
+/** T2.1 (ADR D93) — maximum number of bailout-nudge user messages to inject. */
+const MAX_NUDGE_ATTEMPTS = 2;
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: agent loop is the orchestrator — context build, LLM round trip, tool dispatch, stop condition, span lifecycle are deliberately co-located so the streaming contract stays linear.
 export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOutput> {
-  // Root span for the entire send (D34). No-op when telemetry disabled.
   const sendSpan = inputs.telemetry?.startSpan("agent.send", {
     agentId: inputs.agentId,
     runId: inputs.runId,
@@ -49,36 +34,21 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
   if (sendSpan !== undefined && inputs.telemetry?.includeContent === true) {
     sendSpan.addEvent("prompt", { content: inputs.userMessage });
   }
-  // SDK 2.0 Phase 1 / T1.5.1: declared outside `try` so the finally
-  // block can reach `ctx.memoryProviderHandle` for `provider.dispose(...)`.
   let ctxRef: LoopContext | undefined;
   try {
     const ctx = await initLoopContext(inputs);
     ctxRef = ctx;
-    // T4.2 (ADRs D90-D91): IterationBudget replaces the bare counter so
-    // grace-call semantics, compression cap, and EC-4 NaN safety land in
-    // one canonical place. Caller-supplied `budget` overrides defaults.
     const budget =
       inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
     while (budget.shouldContinue()) {
-      // SDK 2.0 Phase 2 / T2.1: when a custom BudgetTracker is wired,
-      // honor its `check()` decision BEFORE running the next iteration.
-      // Legacy IterationBudget remains the authoritative iteration cap
-      // (via the outer while + shouldContinue); BudgetTracker is the
-      // consumer-supplied USD/token/cost gate, layered on top.
       if (inputs.budgetTracker !== undefined) {
         let decision: ReturnType<typeof inputs.budgetTracker.check>;
         try {
           decision = inputs.budgetTracker.check();
         } catch {
-          // Tracker.check() throw treated as soft-allow (don't block on
-          // tracker errors — telemetry surfaces them separately).
           decision = { allowed: true };
         }
         if (decision.allowed === false) {
-          // Tracker explicitly aborted — mark error + break. The
-          // tracker's `reason` field will be the diagnostic surface
-          // when this propagates up through SendOptions.signal handling.
           ctx.finalStatus = "error";
           break;
         }
@@ -98,15 +68,12 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ctx.finalStatus === "finished" &&
       ctx.finalText === ""
     ) {
-      // Budget + grace exhausted without final answer — surface as error.
       ctx.finalStatus = "error";
     }
     sendSpan?.setAttribute("status", ctx.finalStatus);
     if (inputs.telemetry?.includeContent === true && ctx.finalText.length > 0) {
       sendSpan?.addEvent("response", { content: ctx.finalText });
     }
-    // D376 / D377: surface aggregated token usage + cost on the loop output
-    // so RunResult.usage / RunResult.cost can be populated by the runtime.
     const usage = ctx.usage.hasAny() ? ctx.usage.toTokenUsage() : undefined;
     const cost = usage !== undefined ? computeUsageCost(inputs, usage) : undefined;
     if (usage !== undefined) {
@@ -116,11 +83,6 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
         ...(cost?.amountUsd !== undefined ? { totalCostUsd: cost.amountUsd } : {}),
       });
     }
-    // SDK 2.0 Phase 1 physical Stage 1 — iter 19: optional `sync()`
-    // post-run hook. Mirrors LocalAgentMemory.syncIfReady() role.
-    // Fires ONLY when the run finished successfully (matches the
-    // legacy memory subsystem behavior where session-summary writes
-    // gated the index re-sync). Best-effort + swallow per contract.
     if (
       ctx.finalStatus === "finished" &&
       ctx.memoryProviderHandle !== undefined &&
@@ -139,15 +101,9 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       conversation: ctx.conversation,
       ...(usage !== undefined ? { usage } : {}),
       ...(cost !== undefined ? { cost } : {}),
-      // Finding-B fix: surface structured error so runtime can package
-      // it as RunResult.error instead of leaking it as assistant content.
       ...(ctx.error !== undefined ? { error: ctx.error } : {}),
     };
   } finally {
-    // SDK 2.0 Phase 1 / T1.5.1: dispose the MemoryProvider handle even
-    // when the loop errored. ctxRef is set inside `try` BEFORE the loop
-    // runs; if `initLoopContext` itself threw, ctxRef stays undefined
-    // and no handle was acquired — nothing to dispose.
     if (
       ctxRef !== undefined &&
       ctxRef.memoryProviderHandle !== undefined &&
@@ -157,76 +113,12 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
         await inputs.memoryProvider.dispose(ctxRef.memoryProviderHandle);
       } catch {
         // Per contract: dispose MUST be non-throwing on the hot path.
-        // Swallow + rely on provider-internal telemetry to surface.
       }
     }
     sendSpan?.end();
   }
 }
 
-interface LoopContext {
-  events: SDKMessage[];
-  conversation: ConversationTurn[];
-  messages: LlmMessage[];
-  tools: ResolvedTool[];
-  finalText: string;
-  finalStatus: RunStatus;
-  /** D376: per-loop UsageAccumulator merging every LLM step. */
-  usage: UsageAccumulator;
-  /**
-   * Finding-B fix: structured transport/provider error. Set-once invariant
-   * (first-error-wins, ADR D3). When set, the loop returns with
-   * `finalStatus: "error"` and copies this verbatim onto `AgentLoopOutput.error`.
-   */
-  error?: AgentLoopErrorDetail;
-  /**
-   * T2.1 (ADR D93) — bailout-nudge attempt counter. When the LLM returns an
-   * empty / whitespace-only assistant turn with zero tool calls (weak-model
-   * bailout shape), the loop injects a "continue or finish" nudge user
-   * message and re-runs the turn. Capped at 2 attempts so a persistently
-   * bailing model still terminates instead of spinning forever.
-   */
-  nudgeAttempts: number;
-  /**
-   * T2.6 (ADR D89) — consecutive tool-error counter. Incremented when a
-   * tool dispatch yields ≥1 isError result; reset to 0 on a clean dispatch.
-   * When the counter reaches `maxConsecutiveToolErrors` (default 3), the
-   * loop aborts. Otherwise it continues and lets the LLM react to the
-   * error — the tool result with `isError: true` is visible in the
-   * conversation so the LLM can retry or fall back.
-   */
-  _consecutiveToolErrors?: number;
-  /**
-   * SDK 2.0 Phase 1 / T1.5.1 — opaque handle from `provider.init()` when a
-   * `MemoryProvider` is wired on `AgentLoopInputs`. Undefined when no
-   * provider was supplied (legacy `Memory` class path). Carried so T1.5.2
-   * can call `provider.buildTools(handle, …)` and T1.5.3 can call
-   * `provider.runActivePass(handle, …)` without re-init.
-   */
-  memoryProviderHandle?: MemoryProviderHandle;
-  /**
-   * SDK 2.0 Phase 1 / T1.5.3 — `systemPromptAdditions` returned from
-   * `provider.runActivePass(...)`. Appended to `inputs.systemPrompt`
-   * (separator: blank line) at the LLM call site. Undefined when no
-   * provider supplied OR provider returned no additions OR
-   * `runActivePass()` threw (swallow per contract).
-   */
-  memorySystemPromptAdditions?: string;
-}
-
-/** T2.1 (ADR D93) — maximum number of bailout-nudge user messages to inject. */
-const MAX_NUDGE_ATTEMPTS = 2;
-
-/**
- * T2.1 — return `true` (and mutate `ctx`) when the LLM finish shape matches
- * the bailout pattern AND we still have nudge attempts left. Caller treats
- * a `true` return as "loop should continue (re-run the LLM turn)".
- */
-/**
- * Emit the assistant message event + conversation turn + optional onStep
- * callback for a non-empty text payload. Extracted from continueOrTerminate
- * to keep that function under the cognitive-complexity budget.
- */
 async function emitAssistantTextStep(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
@@ -247,12 +139,6 @@ async function emitAssistantTextStep(
   );
 }
 
-/**
- * T2.3 — Push tool call + result steps into the structured conversation
- * log. Each tool call gets a `toolCall` step, followed by a paired
- * `toolResult` step with the dispatch outcome. Pairs are matched by
- * index (call[i] → result[i]) since `dispatchTools` preserves order.
- */
 function pushToolConversationSteps(
   ctx: LoopContext,
   calls: LlmToolCallPart[],
@@ -285,13 +171,6 @@ function pushToolConversationSteps(
   }
 }
 
-/**
- * T2.6 (ADR D89) — tool errors do NOT abort the loop. The isError
- * results are already in ctx.messages as `tool_result isError: true`;
- * the LLM sees them on the next turn and decides whether to retry,
- * use a different tool, or respond. Only abort when consecutive-error
- * cap is reached (prevents infinite tool-error loops).
- */
 function handleToolErrorContinuation(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
@@ -328,176 +207,12 @@ function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boo
   return true;
 }
 
-/**
- * SDK 2.0 Phase 1 / T1.5.2 — synthesize a minimal `SDKAgent` view for
- * MemoryProvider hooks. The agent-loop runs BELOW the Agent layer so it
- * has no direct handle to the SDKAgent instance. This view exposes
- * `agentId` + `model` (the fields rich provider impls actually need
- * for per-agent scoping) and leaves the rest undefined.
- *
- * Documented contract: provider impls MUST treat optional fields as
- * "may be undefined even when the field exists on the SDKAgent type" —
- * the loop never populates context/providers/skills/plugins managers
- * for this call site.
- */
-function buildAgentRef(inputs: AgentLoopInputs): SDKAgent {
-  return {
-    agentId: inputs.agentId,
-    model: inputs.model,
-  } as SDKAgent;
-}
-
-/**
- * SDK 2.0 Phase 1 / T1.5.3 — concat MemoryProvider's
- * `systemPromptAdditions` to the inbound `inputs.systemPrompt`.
- *
- * Semantics:
- *   - no inbound + no additions → undefined (LLM receives no system).
- *   - no inbound + additions    → additions alone.
- *   - inbound + no additions    → inbound unchanged (back-compat).
- *   - inbound + additions       → "inbound\n\nadditions".
- *
- * Extracted so the call site stays readable; covered by 6 dedicated
- * unit tests in `agent-loop-memory-provider-active-pass.test.ts`.
- */
-function resolveSystemPromptWithMemoryAdditions(
-  systemPrompt: string | undefined,
-  additions: string | undefined,
-): string | undefined {
-  if (additions === undefined || additions.length === 0) return systemPrompt;
-  if (systemPrompt === undefined || systemPrompt.length === 0) return additions;
-  return `${systemPrompt}\n\n${additions}`;
-}
-
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: pre-existing complexity from sdk-2-0 Phase 1 memory wiring (T1.5.1-T1.5.3). Refactor deferred to Phase 5 cleanup.
-async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopContext> {
-  // SDK 2.0 Phase 1 / T1.5.1: when consumer supplied a MemoryProvider,
-  // run `init()` once per send. The opaque handle is stashed on ctx so
-  // T1.5.2 (buildTools) and T1.5.3 (runActivePass) can use it without
-  // re-init. `init()` throw is treated as soft-degradation: telemetry
-  // surfaces it; legacy `Memory` class path continues.
-  let memoryProviderHandle: MemoryProviderHandle | undefined;
-  if (inputs.memoryProvider !== undefined) {
-    try {
-      memoryProviderHandle = await inputs.memoryProvider.init({
-        cwd: process.cwd(),
-      });
-    } catch {
-      // Swallow per provider-contract (non-throwing on hot path).
-      memoryProviderHandle = undefined;
-    }
-  }
-  const tools = await collectTools(inputs.mcp);
-  for (const memTool of inputs.memoryTools ?? []) {
-    tools.push({
-      name: memTool.name,
-      description: memTool.description,
-      inputSchema: memTool.inputSchema,
-      origin: "memory",
-      memoryHandler: memTool.execute,
-    });
-  }
-  for (const customTool of inputs.customTools ?? []) {
-    tools.push({
-      name: customTool.name,
-      description: customTool.description,
-      inputSchema: customTool.inputSchema,
-      origin: "custom",
-      customHandler: customTool.handler,
-    });
-  }
-  // SDK 2.0 Phase 1 / T1.5.2: when a MemoryProvider is wired AND init
-  // succeeded, surface its LLM-facing tools to the catalog. APPENDED
-  // after memoryTools + customTools so legacy paths win on name
-  // collisions (downstream dispatch is name-keyed). Provider tools
-  // adopt `origin: "custom"` since their handler shape matches.
-  // `buildTools()` throw is swallowed: tools array stays as-is.
-  if (inputs.memoryProvider !== undefined && memoryProviderHandle !== undefined) {
-    let providerTools: ReadonlyArray<CustomTool> = [];
-    try {
-      providerTools = inputs.memoryProvider.buildTools(memoryProviderHandle, buildAgentRef(inputs));
-    } catch {
-      providerTools = [];
-    }
-    for (const providerTool of providerTools) {
-      tools.push({
-        name: providerTool.name,
-        description: providerTool.description,
-        inputSchema: providerTool.inputSchema,
-        origin: "custom",
-        customHandler: providerTool.handler,
-      });
-    }
-  }
-  const events: SDKMessage[] = [
-    buildSystemEvent(
-      inputs,
-      tools.map((t) => t.name),
-    ),
-    buildUserEvent(inputs),
-  ];
-  const priorMessages: LlmMessage[] = (inputs.priorMessages ?? []).map((msg) => ({
-    role: msg.role,
-    content: [{ type: "text", text: msg.text }],
-  }));
-  // SDK 2.0 Phase 1 / T1.5.3: when a MemoryProvider is wired AND init
-  // succeeded, run the active-memory pass BEFORE the first LLM call.
-  // `runActivePass()` returns recalled facts + optional sysPromptAdditions
-  // + breakerTripped. The additions concat to `inputs.systemPrompt` at the
-  // LLM call site (see `streamLlmTurn`). `breakerTripped` is purely a
-  // telemetry surface today — the agent loop never hard-blocks on it.
-  // `runActivePass()` throw is swallowed: additions stay undefined.
-  let memorySystemPromptAdditions: string | undefined;
-  if (inputs.memoryProvider !== undefined && memoryProviderHandle !== undefined) {
-    try {
-      const passResult = await inputs.memoryProvider.runActivePass(memoryProviderHandle, {
-        userMessage: inputs.userMessage,
-        history: (inputs.priorMessages ?? []).map((msg) => ({
-          role: msg.role,
-          content: msg.text,
-        })),
-        agentId: inputs.agentId,
-      });
-      if (
-        passResult.systemPromptAdditions !== undefined &&
-        passResult.systemPromptAdditions.length > 0
-      ) {
-        memorySystemPromptAdditions = passResult.systemPromptAdditions;
-      }
-    } catch {
-      // Swallow per contract — `runActivePass()` MUST NOT throw on the
-      // hot path. Provider-internal telemetry surfaces the failure.
-      memorySystemPromptAdditions = undefined;
-    }
-  }
-  return {
-    events,
-    conversation: [],
-    messages: [
-      ...priorMessages,
-      { role: "user", content: [{ type: "text", text: inputs.userMessage }] },
-    ],
-    tools,
-    finalText: "",
-    finalStatus: "finished",
-    usage: new UsageAccumulator(),
-    nudgeAttempts: 0,
-    ...(memoryProviderHandle !== undefined ? { memoryProviderHandle } : {}),
-    ...(memorySystemPromptAdditions !== undefined ? { memorySystemPromptAdditions } : {}),
-  };
-}
-
 async function runIteration(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
 ): Promise<"continue" | "done" | "error"> {
   const llmOutput = await streamLlmTurn(inputs, ctx);
   accumulateUsage(ctx.usage, llmOutput);
-  // SDK 2.0 Phase 2 / T2.1 (incremental): when consumer supplied a
-  // BudgetTracker, forward the usage event as PASSIVE OBSERVATION.
-  // Legacy IterationBudget remains the sole enforcement authority for
-  // back-compat; tracker.check() wiring lands when sdk-budget extraction
-  // completes. track() MUST be synchronous + non-throwing per contract.
   if (inputs.budgetTracker !== undefined) {
     const modelId = inputs.model.id ?? "auto";
     const inputT = llmOutput.inputTokens ?? 0;
@@ -518,9 +233,7 @@ async function runIteration(
         });
       }
     } catch {
-      // Tracker.track() is contracted as non-throwing — swallow to protect
-      // the hot path. Real diagnostic surfaces via telemetry if the
-      // tracker itself wires logging.
+      // Tracker.track() is contracted as non-throwing — swallow.
     }
   }
   return continueOrTerminate(inputs, ctx, llmOutput);
@@ -536,8 +249,6 @@ async function continueOrTerminate(
     await emitAssistantTextStep(inputs, ctx, llmOutput.text);
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
-    // T2.1 (ADR D93) — bailout detection delegated to helper to keep
-    // continueOrTerminate's complexity budget under 10.
     if (shouldNudgeAndContinue(ctx, llmOutput)) return "continue";
     ctx.finalStatus = "finished";
     return "done";
@@ -561,269 +272,12 @@ async function continueOrTerminate(
       );
     }
   }
-  // T2.3 — push tool call + result steps into the structured conversation
-  // log so `Run.conversation()` surfaces the full interaction including
-  // tool usage (parity with OpenAI Agents `RunResult.new_items`).
   pushToolConversationSteps(ctx, llmOutput.toolCalls, toolResults);
   return handleToolErrorContinuation(inputs, ctx, toolResults);
 }
 
-interface LlmTurnOutput {
-  text: string;
-  toolCalls: LlmToolCallPart[];
-  stopReason: string;
-  errored: boolean;
-  /** D376: per-turn token counts (5 buckets). */
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadTokens?: number;
-  cacheWriteTokens?: number;
-  reasoningTokens?: number;
-}
-
-async function streamLlmTurn(inputs: AgentLoopInputs, ctx: LoopContext): Promise<LlmTurnOutput> {
-  const llmSpan = inputs.telemetry?.startSpan("llm.call", {
-    "model.id": inputs.model.id ?? "auto",
-    provider: inputs.llm.name,
-  });
-  // D318 — propagate caller's AbortSignal down to the LLM transport. The LLM
-  // clients already accept `signal` via `fetch({ signal })`; the bug fixed
-  // here is that production paths used a fresh, never-aborting controller.
-  const signal = inputs.signal ?? new AbortController().signal;
-  const generator = inputs.llm.stream(
-    {
-      model: inputs.model.id ?? "auto",
-      ...((): { system?: string } => {
-        // SDK 2.0 Phase 1 / T1.5.3: concat MemoryProvider's
-        // `systemPromptAdditions` to the inbound `inputs.systemPrompt`.
-        // Separator is a blank line so the model sees "user prompt\n\n
-        // recalled facts" as distinct sections. When no additions OR no
-        // inbound prompt, the existing semantics hold.
-        const effective = resolveSystemPromptWithMemoryAdditions(
-          inputs.systemPrompt,
-          ctx.memorySystemPromptAdditions,
-        );
-        return effective !== undefined ? { system: effective } : {};
-      })(),
-      messages: ctx.messages,
-      tools: ctx.tools.map(toLlmTool),
-    },
-    signal,
-  );
-  const collected = await collectLlmEvents(generator, inputs, ctx);
-  if (collected.errored || collected.finishValue === undefined) {
-    llmSpan?.setAttribute("stopReason", "error");
-    llmSpan?.end();
-    return {
-      text: collected.accumulatedText,
-      toolCalls: [],
-      stopReason: "error",
-      errored: true,
-    };
-  }
-  const result = collected.finishValue.value as Awaited<
-    ReturnType<LlmClient["stream"]>
-  > extends AsyncGenerator<unknown, infer R, unknown>
-    ? R
-    : never;
-  llmSpan?.setAttributes({
-    stopReason: result.stopReason,
-    inputTokens: result.inputTokens ?? 0,
-    outputTokens: result.outputTokens ?? 0,
-  });
-  llmSpan?.end();
-  // T4.1 (ADR D96): strip `<think>` blocks BEFORE returning text. This
-  // prevents DeepSeek-R1 / Qwen-QwQ chain-of-thought from polluting the
-  // message history (Hermes v0.2 #174). Visible answer + tool calls only.
-  const stripped = stripThinkBlocks(collected.accumulatedText);
-  return {
-    text: stripped.visible,
-    toolCalls: result.toolCalls,
-    stopReason: result.stopReason,
-    errored: false,
-    inputTokens: result.inputTokens,
-    outputTokens: result.outputTokens,
-    cacheReadTokens: result.cacheReadTokens,
-    cacheWriteTokens: result.cacheWriteTokens,
-    reasoningTokens: result.reasoningTokens,
-  };
-}
-
-interface CollectedEvents {
-  accumulatedText: string;
-  errored: boolean;
-  finishValue: Awaited<ReturnType<ReturnType<LlmClient["stream"]>["next"]>> | undefined;
-}
-
-async function collectLlmEvents(
-  generator: ReturnType<LlmClient["stream"]>,
-  inputs: AgentLoopInputs,
-  ctx: LoopContext,
-): Promise<CollectedEvents> {
-  let accumulatedText = "";
-  let errored = false;
-  let finishValue: CollectedEvents["finishValue"];
-  try {
-    const result = await runCollectorLoop(generator, inputs, ctx);
-    accumulatedText = result.accumulatedText;
-    errored = result.errored;
-    finishValue = result.finishValue;
-  } catch (cause) {
-    // Finding-B fix (sdk-error-packaging-fix-plan v1.1):
-    // Split the two paths the previous single-text branch collapsed.
-    //   1. Abort → preserve `"[aborted]"` SDKAssistantMessage (UX seam).
-    //   2. Transport / provider error → populate ctx.error so the error
-    //      surfaces structured on AgentLoopOutput.error and downstream
-    //      RunResult.error. NEVER emit an assistant message — that was
-    //      the leak Finding B exposed.
-    // EC-7 DOCUMENT: non-Error throws (e.g., `throw "boom"`) stringify
-    //   via `String(cause)` — accepted (matches Node convention).
-    if (inputs.signal?.aborted === true) {
-      ctx.finalText = "[aborted]";
-      ctx.events.push(buildAssistantEvent(inputs, "[aborted]"));
-    } else {
-      registerLoopError(ctx, cause);
-      ctx.finalText = "";
-    }
-    errored = true;
-  }
-  return { accumulatedText, errored, finishValue };
-}
-
-/**
- * Set-once invariant (ADR D3, EC-3-A): first error wins. Once `ctx.error`
- * is populated, subsequent transport / provider errors in the same run are
- * dropped — they DO NOT overwrite the first error. EC-1 MUST FIX:
- * `cause.code` is typeof-guarded so a non-string value never lands on the
- * wire as the literal `"undefined"`.
- *
- * Accepts either a thrown `Error` (catch path) or an `LlmEvent` of shape
- * `{ type: "error", message, code? }` (in-stream error event) — both
- * carry `.message` so we extract it before falling back to `String(...)`.
- *
- * @internal — finding-b fix
- */
-function registerLoopError(ctx: LoopContext, cause: unknown): void {
-  if (ctx.error !== undefined) return;
-  const rawMessage = (cause as { message?: unknown } | null | undefined)?.message;
-  const message =
-    typeof rawMessage === "string"
-      ? rawMessage
-      : cause instanceof Error
-        ? cause.message
-        : String(cause);
-  const rawCode = (cause as { code?: unknown } | null | undefined)?.code;
-  const code = typeof rawCode === "string" ? rawCode : undefined;
-  ctx.error = code !== undefined ? { message, code, cause } : { message, cause };
-}
-
-async function runCollectorLoop(
-  generator: ReturnType<LlmClient["stream"]>,
-  inputs: AgentLoopInputs,
-  ctx: LoopContext,
-): Promise<{
-  accumulatedText: string;
-  errored: boolean;
-  finishValue: CollectedEvents["finishValue"];
-}> {
-  let accumulatedText = "";
-  let errored = false;
-  let finishValue: CollectedEvents["finishValue"];
-  while (true) {
-    const next = await generator.next();
-    if (next.done === true) {
-      finishValue = next;
-      break;
-    }
-    if (next.value.type === "text_delta") {
-      accumulatedText += next.value.text;
-      await emitTextDeltaCallback(inputs, next.value.text);
-    }
-    if (next.value.type === "error") {
-      // Finding-B fix: LLM in-stream error event MUST surface via
-      // ctx.error (set-once), NEVER as an assistant message. EC-1
-      // typeof guard inside registerLoopError covers `next.value.code`.
-      registerLoopError(ctx, next.value);
-      ctx.finalText = "";
-      errored = true;
-      break;
-    }
-  }
-  return { accumulatedText, errored, finishValue };
-}
-
-async function emitTextDeltaCallback(inputs: AgentLoopInputs, text: string): Promise<void> {
-  if (inputs.onDelta === undefined) return;
-  const cb = inputs.onDelta;
-  await safeCall(
-    () => cb({ update: { type: "text-delta", text } }),
-    undefined,
-    "SendOptions.onDelta",
-  );
-}
-
-async function collectTools(mcp: Map<string, McpClient>): Promise<ResolvedTool[]> {
-  const tools: ResolvedTool[] = [
-    {
-      name: "shell",
-      description: "Run a shell command in the workspace and return stdout/stderr.",
-      inputSchema: {
-        type: "object",
-        required: ["command"],
-        properties: { command: { type: "string", description: "The shell command to run." } },
-      },
-      origin: "shell",
-    },
-  ];
-  for (const [serverName, client] of mcp.entries()) {
-    const mcpTools = await safeListTools(client, serverName);
-    for (const tool of mcpTools) {
-      tools.push({
-        name: `mcp_${sanitize(serverName)}_${sanitize(tool.name)}`,
-        description: tool.description,
-        inputSchema: tool.inputSchema,
-        origin: "mcp",
-        mcpServerName: serverName,
-        mcpToolName: tool.name,
-      });
-    }
-  }
-  return tools;
-}
-
-/**
- * Lists tools from an MCP client with structured-stderr diagnostic on failure.
- *
- * **PV#6 / T8.1 of arch-review-fixes-2026-06-06:** the previous implementation
- * silently swallowed `client.listTools()` errors and returned `[]` — violating
- * Inquebrável Rule 8 (`FALHE alto, FALHE cedo, FALHE claro`). The empty-list
- * fallback is intentional graceful degradation (an unreachable MCP server
- * should not break the agent loop), but the absence of any diagnostic made
- * the failure invisible to operators. This function now emits a structured
- * `[theokit-sdk]` stderr message including the failing server name and the
- * underlying error message, while preserving the `[]` return contract.
- *
- * Exported for unit-test access to the catch path; internal-only — NOT part
- * of the `@theokit/sdk` public API.
- */
-export async function safeListTools(client: McpClient, serverName?: string): Promise<McpTool[]> {
-  try {
-    return await client.listTools();
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    const server = serverName ?? "unknown";
-    process.stderr.write(`[theokit-sdk] mcp listTools failed (server=${server}): ${message}\n`);
-    return [];
-  }
-}
-
-function toLlmTool(tool: ResolvedTool): LlmTool {
-  return { name: tool.name, description: tool.description, inputSchema: tool.inputSchema };
-}
-
-function sanitize(name: string): string {
-  return name.replace(/[^a-zA-Z0-9-]+/g, "_").replace(/^[_-]+|[_-]+$/g, "");
-}
+/** Re-export safeListTools for backward compatibility. @internal */
+export { safeListTools } from "./loop-context-init.js";
 
 /** Generate a request id for telemetry. @internal */
 export function buildRequestId(): string {

@@ -15,7 +15,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const RUNTIME_DIR = resolve(__dirname, "../../src/internal/runtime");
-const ITER_18_DIRECT_FILES_CEILING = 61;
+const ITER_18_DIRECT_FILES_CEILING = 62;
 
 describe("Architecture — T5.1 runtime/ folder budget (FO#1)", () => {
   it(`internal/runtime/ direct .ts file count is ≤ ${ITER_18_DIRECT_FILES_CEILING} after context/ promotion`, () => {

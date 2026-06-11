@@ -2,9 +2,9 @@ import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/async-local-storage.js";
-import { runShell, type ShellExecuteOptions } from "../runtime/shell-tool.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs } from "./loop-types.js";
+import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";
 
 /**
  * Tool dispatch helpers extracted from the main agent loop. Each call goes
@@ -25,12 +25,6 @@ export interface ResolvedTool {
   memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
   /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`. */
   customHandler?: (input: Record<string, unknown>) => string | Promise<string>;
-}
-
-interface ToolResult {
-  stdout: string;
-  stderr: string;
-  exitCode?: number | null;
 }
 
 /**
@@ -413,97 +407,6 @@ async function safeEmitToolHook<E>(
     const msg = cause instanceof Error ? cause.message : String(cause);
     process.stderr.write(`[theokit-sdk] tool lifecycle hook threw: ${msg}\n`);
   }
-}
-
-async function executeTool(
-  inputs: AgentLoopInputs,
-  resolved: ResolvedTool | undefined,
-  call: LlmToolCallPart,
-): Promise<ToolResult> {
-  if (resolved === undefined) {
-    return { stdout: "", stderr: `Unknown tool ${call.name}`, exitCode: 127 };
-  }
-  if (resolved.origin === "shell") return runShellTool(inputs, call);
-  if (resolved.origin === "memory") return runMemoryTool(resolved, call);
-  if (resolved.origin === "custom") return runCustomTool(resolved, call);
-  return runMcpTool(inputs, resolved, call);
-}
-
-async function runMemoryTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
-  return runHandlerTool("memory", resolved.memoryHandler, call);
-}
-
-async function runCustomTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
-  return runHandlerTool("custom", resolved.customHandler, call);
-}
-
-/**
- * Shared dispatch path for in-process handler tools (memory + custom). Wraps
- * the handler call in try/catch and converts the result into the uniform
- * stdout/stderr/exitCode shape the agent loop consumes.
- */
-async function runHandlerTool(
-  kind: "memory" | "custom",
-  handler: ((input: Record<string, unknown>) => string | Promise<string>) | undefined,
-  call: LlmToolCallPart,
-): Promise<ToolResult> {
-  if (handler === undefined) {
-    return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
-  }
-  try {
-    const stdout = await handler(call.input);
-    return { stdout, stderr: "", exitCode: 0 };
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    return { stdout: "", stderr: message, exitCode: 1 };
-  }
-}
-
-async function runShellTool(inputs: AgentLoopInputs, call: LlmToolCallPart): Promise<ToolResult> {
-  const command =
-    typeof call.input.command === "string" ? call.input.command : JSON.stringify(call.input);
-  const shellOptions: ShellExecuteOptions = {
-    command,
-    cwd: inputs.shellCwd,
-    sandbox: inputs.shellSandbox,
-  };
-  const result = await runShell(shellOptions);
-  const final: ToolResult = { stdout: result.stdout, stderr: result.stderr };
-  if (result.exitCode !== null && result.exitCode !== undefined) final.exitCode = result.exitCode;
-  return final;
-}
-
-async function runMcpTool(
-  inputs: AgentLoopInputs,
-  resolved: ResolvedTool,
-  call: LlmToolCallPart,
-): Promise<ToolResult> {
-  const client = inputs.mcp.get(resolved.mcpServerName ?? "");
-  if (client === undefined || resolved.mcpToolName === undefined) {
-    return {
-      stdout: "",
-      stderr: `MCP server ${resolved.mcpServerName ?? "?"} not connected`,
-      exitCode: 127,
-    };
-  }
-  try {
-    const response = await client.callTool(resolved.mcpToolName, call.input);
-    const text = response.content
-      .filter((part) => part.type === "text")
-      .map((part) => part.text)
-      .join("\n");
-    return { stdout: text, stderr: "", exitCode: response.isError === true ? 1 : 0 };
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    return { stdout: "", stderr: message, exitCode: 1 };
-  }
-}
-
-function renderToolResult(result: ToolResult): string {
-  if (result.stderr.length > 0 && (result.exitCode ?? 0) !== 0) {
-    return `${result.stdout}\n[stderr]\n${result.stderr}`.trim();
-  }
-  return result.stdout.trim();
 }
 
 function buildToolUseRunning(
