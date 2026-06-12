@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `.claude/` consumer template with 15 domain-specific passive skills, convention rules, AGENTS.md (cross-agent), and CLAUDE.md for AI coding tool integration. Scaffold via `npx theokit-init-claude`. Skills auto-inject TheoKit API knowledge when editing files matching each domain (Agent Core, Tools, Memory, DI, DI-Agent, Gateways, RAG, Workflows, Eval, Cron, Subscriptions, Errors, Config, Streaming, Budget). 33 tests.
+
 ## [1.7.0] - 2026-06-11
 
 ### Changed
