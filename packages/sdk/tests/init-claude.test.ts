@@ -74,25 +74,50 @@ describe("init-claude CLI", () => {
     expect(existsSync(join(tmpDir, "CLAUDE.md"))).toBe(true);
   });
 
-  it("refuses overwrite without --force (EC-4: checks .claude/ + AGENTS.md + CLAUDE.md)", () => {
+  it("merges into existing .claude/ without overwriting (adds missing files)", () => {
     mkdirSync(join(tmpDir, ".claude"));
+    writeFileSync(join(tmpDir, ".claude", "custom.md"), "user content");
     const result = run(tmpDir);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("--force");
+    expect(result.status).toBe(0);
+    // User's file preserved
+    expect(readFileSync(join(tmpDir, ".claude", "custom.md"), "utf8")).toBe("user content");
+    // TheoKit files added
+    expect(existsSync(join(tmpDir, ".claude", "rules", "theokit-conventions.md"))).toBe(true);
+    expect(result.stdout).toContain("Added");
   });
 
-  it("refuses when only AGENTS.md exists (EC-4)", () => {
-    writeFileSync(join(tmpDir, "AGENTS.md"), "existing");
+  it("preserves existing AGENTS.md and adds .claude/ skills (EC-4 merge)", () => {
+    writeFileSync(join(tmpDir, "AGENTS.md"), "user agents content");
     const result = run(tmpDir);
-    expect(result.status).toBe(1);
-    expect(result.stderr).toContain("AGENTS.md");
+    expect(result.status).toBe(0);
+    // User's AGENTS.md preserved
+    expect(readFileSync(join(tmpDir, "AGENTS.md"), "utf8")).toBe("user agents content");
+    // Skills still added
+    expect(existsSync(join(tmpDir, ".claude", "skills", "theokit-agent-core", "SKILL.md"))).toBe(
+      true,
+    );
+    expect(result.stdout).toContain("Skipped");
   });
 
-  it("force overwrites with --force", () => {
-    mkdirSync(join(tmpDir, ".claude"));
+  it("skips existing skill files without overwriting", () => {
+    mkdirSync(join(tmpDir, ".claude", "skills", "theokit-agent-core"), { recursive: true });
+    writeFileSync(join(tmpDir, ".claude", "skills", "theokit-agent-core", "SKILL.md"), "custom");
+    const result = run(tmpDir);
+    expect(result.status).toBe(0);
+    // User's custom skill preserved
+    expect(
+      readFileSync(join(tmpDir, ".claude", "skills", "theokit-agent-core", "SKILL.md"), "utf8"),
+    ).toBe("custom");
+  });
+
+  it("--force overwrites all files including existing ones", () => {
+    writeFileSync(join(tmpDir, "AGENTS.md"), "old content");
     const result = run(tmpDir, ["--force"]);
     expect(result.status).toBe(0);
-    expect(existsSync(join(tmpDir, ".claude", "rules"))).toBe(true);
+    // AGENTS.md overwritten with template content
+    const content = readFileSync(join(tmpDir, "AGENTS.md"), "utf8");
+    expect(content).toContain("@theokit/sdk");
+    expect(content).not.toBe("old content");
   });
 
   it("copies 15 skill directories", () => {

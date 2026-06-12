@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { cpSync, existsSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 // EC-1: Node version guard (matches SDK engines.node)
@@ -14,21 +14,55 @@ const cwd = process.cwd();
 const targetDir = join(cwd, ".claude");
 const force = process.argv.includes("--force");
 
-// EC-4: Check .claude/, AGENTS.md, CLAUDE.md independently
-const conflicts = [];
-if (existsSync(targetDir)) conflicts.push(".claude/");
-if (existsSync(join(cwd, "AGENTS.md"))) conflicts.push("AGENTS.md");
-if (existsSync(join(cwd, "CLAUDE.md"))) conflicts.push("CLAUDE.md");
-
-if (conflicts.length > 0 && !force) {
-  console.error(`Already exists: ${conflicts.join(", ")}. Use --force to overwrite.`);
-  process.exit(1);
+/**
+ * Merge-copy: recursively copies src into dest, skipping files that already
+ * exist in dest. With --force, overwrites everything.
+ * Returns { added, skipped } counts.
+ */
+function mergeCopy(src, dest) {
+  let added = 0;
+  let skipped = 0;
+  mkdirSync(dest, { recursive: true });
+  for (const entry of readdirSync(src, { withFileTypes: true })) {
+    const srcPath = join(src, entry.name);
+    const destPath = join(dest, entry.name);
+    if (entry.isDirectory()) {
+      const sub = mergeCopy(srcPath, destPath);
+      added += sub.added;
+      skipped += sub.skipped;
+    } else if (force || !existsSync(destPath)) {
+      cpSync(srcPath, destPath);
+      added++;
+    } else {
+      skipped++;
+    }
+  }
+  return { added, skipped };
 }
 
-cpSync(join(templateDir, "dot-claude"), targetDir, { recursive: true });
-cpSync(join(templateDir, "AGENTS.md"), join(cwd, "AGENTS.md"));
-cpSync(join(templateDir, "CLAUDE.md"), join(cwd, "CLAUDE.md"));
+// Merge .claude/ directory (skills, rules, settings)
+const dotClaude = mergeCopy(join(templateDir, "dot-claude"), targetDir);
 
-console.log("Created .claude/ with TheoKit SDK configuration (15 domain skills).");
-console.log("Created AGENTS.md (cross-agent) and CLAUDE.md (Claude Code).");
-console.log("\nNext: open Claude Code and start building with TheoKit.");
+// Merge root files (AGENTS.md, CLAUDE.md)
+let rootAdded = 0;
+let rootSkipped = 0;
+for (const file of ["AGENTS.md", "CLAUDE.md"]) {
+  const dest = join(cwd, file);
+  if (force || !existsSync(dest)) {
+    cpSync(join(templateDir, file), dest);
+    rootAdded++;
+  } else {
+    rootSkipped++;
+  }
+}
+
+const totalAdded = dotClaude.added + rootAdded;
+const totalSkipped = dotClaude.skipped + rootSkipped;
+
+if (totalAdded === 0) {
+  console.log("All TheoKit SDK files already present. Nothing to add.");
+  console.log("Use --force to overwrite existing files.");
+} else {
+  console.log(`Added ${totalAdded} file(s). Skipped ${totalSkipped} existing file(s).`);
+  console.log("\nNext: open Claude Code and start building with TheoKit.");
+}
