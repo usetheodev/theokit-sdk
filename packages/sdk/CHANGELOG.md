@@ -2,6 +2,12 @@
 
 ## [Unreleased]
 
+## [1.8.1] - 2026-06-12
+
+### Changed
+
+- `theokit-init-claude` now merges into existing `.claude/` directories instead of refusing. Adds only missing files, preserves user customizations. Use `--force` to overwrite all files.
+
 ## [1.8.0] - 2026-06-12
 
 ### Added
