@@ -3,6 +3,7 @@ import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { IterationBudget } from "../runtime/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validate-response.js";
+import { evaluateBudgetGate } from "./budget-gate.js";
 import { initLoopContext, type LoopContext } from "./loop-context-init.js";
 import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
@@ -42,14 +43,14 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
     while (budget.shouldContinue()) {
       if (inputs.budgetTracker !== undefined) {
-        let decision: ReturnType<typeof inputs.budgetTracker.check>;
-        try {
-          decision = inputs.budgetTracker.check();
-        } catch {
-          decision = { allowed: true };
-        }
+        // Fail-CLOSED gate: a tracker that throws denies the iteration
+        // instead of silently proceeding past budget (arch-review L1).
+        const decision = evaluateBudgetGate(inputs.budgetTracker);
         if (decision.allowed === false) {
           ctx.finalStatus = "error";
+          if (decision.detail !== undefined) {
+            ctx.error = { message: decision.detail, code: decision.reason ?? "budget" };
+          }
           break;
         }
       }
