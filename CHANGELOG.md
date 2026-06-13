@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `@theokit/sdk`: budget pre-flight gate now fails closed when a custom `budgetTracker.check()` throws, instead of silently proceeding past budget (arch-review L1). See `packages/sdk/CHANGELOG.md`.
+
 ## [1.7.0] - 2026-06-11
 
 ### Changed

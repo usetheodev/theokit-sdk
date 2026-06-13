@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Budget pre-flight gate now **fails closed**: if a custom `budgetTracker.check()` throws (a contract violation — `check()` must return a decision), the agent loop denies the next iteration instead of silently proceeding past budget. Previously a throwing tracker defaulted to `allowed: true` (fail-open), letting a broken cost guard run unbounded. Extracted to a unit-tested `evaluateBudgetGate` helper. (arch-review L1)
+
 ## [1.8.1] - 2026-06-12
 
 ### Changed
