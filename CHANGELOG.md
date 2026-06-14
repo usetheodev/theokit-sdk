@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- Broke 3 of 4 type-only `madge` dependency cycles (arch-review ADR 0001): `@theokit/sdk` `ForkOptions`/`ForkResult` extracted to a leaf `types/fork.ts` (2 cycles), and `@theokit/di` `module-loader` now depends on a narrow `ModuleRegistrar` interface instead of the concrete `Container` (1 cycle). No behavior/API change; all affected tests GREEN. See per-package CHANGELOGs.
+
 ### Fixed
 
 - `@theokit/sdk`: budget pre-flight gate now fails closed when a custom `budgetTracker.check()` throws, instead of silently proceeding past budget (arch-review L1). See `packages/sdk/CHANGELOG.md`.

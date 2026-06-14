@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Broke 2 of 3 type-only dependency cycles in the public type barrel (arch-review ADR 0001). `ForkOptions`/`ForkResult` moved to a leaf `types/fork.ts`, so `types/agent.ts` no longer imports the `internal/runtime/fork-agent.ts` implementation (`fork-agent.ts` re-exports them for back-compat). Eliminates the `types/agent.ts → fork-agent.ts → {plugins/types,(self)}` cycles. No behavior/API change; `madge --circular` drops from 3 to 1 (the remaining `memory-provider` cycle is a genuine bidirectional type relationship, runtime-safe, left intentionally).
+
 ### Fixed
 
 - Budget pre-flight gate now **fails closed**: if a custom `budgetTracker.check()` throws (a contract violation — `check()` must return a decision), the agent loop denies the next iteration instead of silently proceeding past budget. Previously a throwing tracker defaulted to `allowed: true` (fail-open), letting a broken cost guard run unbounded. Extracted to a unit-tested `evaluateBudgetGate` helper. (arch-review L1)
