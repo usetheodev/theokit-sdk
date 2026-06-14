@@ -644,9 +644,7 @@ export interface SDKAgent {
    *
    * @public
    */
-  fork?(
-    options: import("../internal/runtime/fork-agent.js").ForkOptions,
-  ): Promise<import("../internal/runtime/fork-agent.js").ForkResult>;
+  fork?(options: import("./fork.js").ForkOptions): Promise<import("./fork.js").ForkResult>;
   /**
    * Direct API to third-party memory adapter(s) registered via
    * `plugins: [...]` (ADR D141 / D142). Returns `null` when no adapter
