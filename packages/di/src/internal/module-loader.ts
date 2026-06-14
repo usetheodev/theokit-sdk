@@ -7,10 +7,9 @@
  * InvalidModuleError pointing to the missing decorator.
  */
 
-import type { Container } from "../container.js";
 import { type ModuleMetadata, readModuleMetadata } from "../decorators/module.js";
 import { describeToken } from "../errors.js";
-import type { ClassConstructor, Provider, Token } from "../types.js";
+import type { ClassConstructor, ModuleRegistrar, Provider, Token } from "../types.js";
 
 /**
  * Thrown when a class is passed to `Container.registerModule()` without
@@ -68,7 +67,7 @@ interface LoadedModule {
  * pattern). The exports[] field is validated for correctness so users get
  * type-level documentation, but enforcement is deferred to v2.
  */
-export function loadModule(rootModule: ClassConstructor, container: Container): void {
+export function loadModule(rootModule: ClassConstructor, container: ModuleRegistrar): void {
   const visited = new Set<ClassConstructor>();
   const loaded: LoadedModule[] = [];
 
