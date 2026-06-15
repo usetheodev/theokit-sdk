@@ -1,4 +1,4 @@
-import type { EmbeddingRuntime } from "./embedding-adapter.js";
+import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 
 /**
  * **Iter 67 rollup-plugin-dts workaround** (mirrors iter 48/53/55/66 pattern).

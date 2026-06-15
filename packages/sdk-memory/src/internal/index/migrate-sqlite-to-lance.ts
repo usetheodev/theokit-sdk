@@ -2,10 +2,9 @@ import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
 import { join } from "node:path";
 
 import { ConfigurationError } from "@theokit/sdk/errors";
-
+import { redactSecrets } from "../memory-types.js";
 import { defaultIndexPath, openMemoryDb } from "./index-db.js";
 import { LanceIndex, lanceStoragePath } from "./lance-index.js";
-import { redactSecrets } from "./memory-types.js";
 
 /**
  * Migrate Memory.index from SQLite to LanceDB (ADR D44).

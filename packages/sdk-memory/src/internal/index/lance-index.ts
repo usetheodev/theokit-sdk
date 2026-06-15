@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "@theokit/sdk/errors";
 
-import type { EmbeddingRuntime } from "./embedding-adapter.js";
+import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 
 /**
  * LanceDB-backed memory index (ADR D43). Implements the same logical

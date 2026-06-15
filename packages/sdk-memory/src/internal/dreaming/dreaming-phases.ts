@@ -1,5 +1,5 @@
-import type { EmbeddingRuntime } from "./embedding-adapter.js";
-import type { MemoryFact } from "./memory-types.js";
+import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
+import type { MemoryFact } from "../memory-types.js";
 
 /**
  * Dreaming/REM phase logic.

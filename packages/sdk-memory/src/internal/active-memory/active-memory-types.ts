@@ -19,7 +19,7 @@
  * @internal
  */
 
-import type { MemorySearchHit } from "./index-manager-contract.js";
+import type { MemorySearchHit } from "../index/index-manager-contract.js";
 
 export type ActiveMemoryQueryMode = "message" | "recent" | "full";
 
