@@ -5,6 +5,7 @@ export {
   type AutoSummarizeOptions,
   readAutoSummarizeMetadata,
 } from "./decorators/auto-summarize.js";
+export { Crew, type CrewMetadata, readCrewMetadata } from "./decorators/crew.js";
 export { Cron, type CronMetadata, type CronOptions, readCronMetadata } from "./decorators/cron.js";
 export {
   EvalDecorator,
