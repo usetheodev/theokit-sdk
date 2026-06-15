@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `METADATA_KEYS.SQUAD` (`"usetheo:di:squad"`) — metadata key backing the `@Squad()` decorator in `@theokit/di-agent`.
+- `METADATA_KEYS.STEP` (`"usetheo:di:step"`) — metadata key backing the `@Step()` decorator in `@theokit/di-agent`.
 
 ### Changed
 
