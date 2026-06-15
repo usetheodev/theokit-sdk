@@ -29,6 +29,8 @@ export const METADATA_KEYS = {
   SUBAGENT: "usetheo:di:subagent",
   /** Map<string|symbol, SquadMetadata> from `@Squad()` property decorator. */
   SQUAD: "usetheo:di:squad",
+  /** Map<string|symbol, StepMetadata> from `@Step()` method decorator. */
+  STEP: "usetheo:di:step",
   /** HitlOptions from `@Hitl()` method decorator. */
   HITL: "usetheo:di:hitl",
   /** AutoSummarizeConfig from `@AutoSummarize()` class decorator. */

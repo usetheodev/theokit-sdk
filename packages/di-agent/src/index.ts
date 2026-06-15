@@ -20,6 +20,7 @@ export {
 export { Reranker, type RerankerOptions, readRerankerMetadata } from "./decorators/reranker.js";
 export { Retriever, type RetrieverOptions, readRetrieverMetadata } from "./decorators/retriever.js";
 export { readSquadMetadata, Squad, type SquadMetadata } from "./decorators/squad.js";
+export { readStepMetadata, Step, type StepMetadata } from "./decorators/step.js";
 export { readSubAgentMetadata, SubAgent, type SubAgentOptions } from "./decorators/sub-agent.js";
 export {
   readSubscriptionMetadata,
@@ -40,3 +41,4 @@ export {
 export { readWorkflowMetadata, Workflow, type WorkflowOptions } from "./decorators/workflow.js";
 export { InjectAgent } from "./inject-agent.js";
 export { AGENT_TOKEN } from "./tokens.js";
+export { buildWorkflow } from "./workflow-builder.js";
