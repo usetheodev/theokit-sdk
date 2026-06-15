@@ -5,6 +5,12 @@ All notable changes to `@theokit/di-agent` are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `@Squad({ agents, process? })` property decorator + `readSquadMetadata()` — the decorator surface for `@theokit/sdk` `createSquad` (decorator mandate). Stores team metadata via reflect-metadata, mirroring `@SubAgent`.
+
 ## [0.1.0] - 2026-05-31
 
 > First GA release. Promotes `0.1.0-next.0` to stable. API contract preserved — no breaking changes from `0.1.0-next.0`.
