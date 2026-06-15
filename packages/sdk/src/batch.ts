@@ -10,7 +10,7 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { TheokitAgentError } from "./errors.js";
+import { ConfigurationError, TheokitAgentError } from "./errors.js";
 import { CredentialPool, newPooledCredential } from "./internal/llm/credential-pool.js";
 import { withCredentialPool } from "./internal/llm/credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./internal/llm/credential-pool-types.js";
@@ -25,6 +25,49 @@ interface BatchDeps {
 }
 
 /**
+ * Pre-flight boundary validation for `Agent.batch` (arch-review Gap 3).
+ *
+ * Mirrors the in-repo `validateAgentOptions` / `validateCronExpression`
+ * pattern: throws `ConfigurationError` with a stable code on the first
+ * violation, returns silently otherwise. Pure — no I/O.
+ *
+ * Rules:
+ * - `concurrency`, when provided, must be a positive integer (rejects
+ *   0/negative/non-integer/NaN/Infinity). Previously this was caught only
+ *   incidentally deep inside `createSemaphore` with a leaky "permits"
+ *   message, AND after task wrapping (dangling Task on invalid input).
+ * - every prompt item must carry a non-empty string prompt. Previously
+ *   `normalizeItem` passed `prompt: ""` / non-string straight to
+ *   `agent.send`. (Whitespace-only strings are intentionally NOT rejected —
+ *   an empty string is a structural error; judging content is not this
+ *   validator's job, and the repo's property tests treat any length>=1
+ *   string as a valid prompt.)
+ *
+ * @internal
+ */
+export function validateBatchInput(
+  prompts: ReadonlyArray<string | BatchItem>,
+  options: BatchOptions,
+): void {
+  const { concurrency } = options;
+  if (concurrency !== undefined && (!Number.isInteger(concurrency) || concurrency < 1)) {
+    throw new ConfigurationError(
+      `Agent.batch concurrency must be a positive integer, got ${concurrency}`,
+      { code: "invalid_concurrency" },
+    );
+  }
+  for (let i = 0; i < prompts.length; i++) {
+    const item = prompts[i];
+    const prompt = typeof item === "string" ? item : item?.prompt;
+    if (typeof prompt !== "string" || prompt.length === 0) {
+      throw new ConfigurationError(`Agent.batch prompt at index ${i} must be a non-empty string`, {
+        code: "invalid_batch_item",
+      });
+    }
+  }
+}
+
+/**
  * Run N prompts in parallel with bounded concurrency.
  *
  * @internal
@@ -36,6 +79,11 @@ export async function batchImpl(
 ): Promise<BatchResult[]> {
   // EC-1: empty array → no work, no agents created.
   if (prompts.length === 0) return [];
+
+  // Pre-flight boundary validation (arch-review Gap 3). MUST run before pool
+  // build AND before wrapBatchAsTask so invalid input never registers a
+  // dangling Task or builds a credential pool (fail-fast, Rule 8).
+  validateBatchInput(prompts, options);
 
   // EC-A fix: build credential pools ONCE and share via AsyncLocalStorage.
   // Without this each Agent.create() would build its own pool from identical
