@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `@Crew({ agents, process? })` property decorator + `readCrewMetadata()` — the decorator surface for `@theokit/sdk` `createCrew` (decorator mandate). Stores team metadata via reflect-metadata, mirroring `@SubAgent`.
+- `@Squad({ agents, process? })` property decorator + `readSquadMetadata()` — the decorator surface for `@theokit/sdk` `createSquad` (decorator mandate). Stores team metadata via reflect-metadata, mirroring `@SubAgent`.
 
 ## [0.1.0] - 2026-05-31
 

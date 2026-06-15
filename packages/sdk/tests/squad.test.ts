@@ -1,14 +1,14 @@
 /**
- * Tests for createCrew — sequential multi-agent team (cross-val Gap 1, narrowed).
+ * Tests for createSquad — sequential multi-agent team (cross-val Gap 1, narrowed).
  *
- * createCrew is a THIN convenience that COMPOSES Workflow + agentStep (no new
+ * createSquad is a THIN convenience that COMPOSES Workflow + agentStep (no new
  * orchestration engine). It runs agents in order, threading each agent's
  * output into the next agent's prompt.
  */
 
 import { describe, expect, it } from "vitest";
-import { createCrew } from "../src/crew.js";
 import { ConfigurationError } from "../src/errors.js";
+import { createSquad } from "../src/squad.js";
 import type { SDKAgent } from "../src/types/agent.js";
 
 /**
@@ -33,54 +33,54 @@ function fakeAgent(tag: string, seen: string[]): SDKAgent {
   } as unknown as SDKAgent;
 }
 
-describe("createCrew — sequential threading", () => {
-  it("test_createCrew_runs_agents_sequentially_threading_output", async () => {
+describe("createSquad — sequential threading", () => {
+  it("test_createSquad_runs_agents_sequentially_threading_output", async () => {
     const seen: string[] = [];
-    const crew = createCrew({
+    const squad = createSquad({
       agents: [fakeAgent("a", seen), fakeAgent("b", seen), fakeAgent("c", seen)],
     });
-    const run = await crew.run("start");
+    const run = await squad.run("start");
     // a sees "start"; b sees a's output "start>a"; c sees "start>a>b".
     expect(seen).toEqual(["start", "start>a", "start>a>b"]);
     expect(run.result).toBe("start>a>b>c");
     expect(run.status).toBe("completed");
   });
 
-  it("test_createCrew_returns_per_agent_trace", async () => {
+  it("test_createSquad_returns_per_agent_trace", async () => {
     const seen: string[] = [];
-    const crew = createCrew({ agents: [fakeAgent("a", seen), fakeAgent("b", seen)] });
-    const run = await crew.run("go");
+    const squad = createSquad({ agents: [fakeAgent("a", seen), fakeAgent("b", seen)] });
+    const run = await squad.run("go");
     expect(run.steps).toHaveLength(2);
     expect(run.steps.every((s) => s.status === "completed")).toBe(true);
   });
 
   it("test_default_process_is_sequential", async () => {
     const seen: string[] = [];
-    const crew = createCrew({ agents: [fakeAgent("a", seen)] }); // no process specified
-    const run = await crew.run("x");
+    const squad = createSquad({ agents: [fakeAgent("a", seen)] }); // no process specified
+    const run = await squad.run("x");
     expect(run.result).toBe("x>a");
   });
 });
 
-describe("createCrew — validation (fail-fast)", () => {
+describe("createSquad — validation (fail-fast)", () => {
   it("test_rejects_empty_agents", () => {
-    expect(() => createCrew({ agents: [] })).toThrowError(ConfigurationError);
+    expect(() => createSquad({ agents: [] })).toThrowError(ConfigurationError);
     try {
-      createCrew({ agents: [] });
+      createSquad({ agents: [] });
     } catch (e) {
-      expect((e as ConfigurationError).code).toBe("invalid_crew");
+      expect((e as ConfigurationError).code).toBe("invalid_squad");
     }
   });
 
   it("test_rejects_hierarchical_with_guidance", () => {
     const seen: string[] = [];
     expect(() =>
-      createCrew({ agents: [fakeAgent("a", seen)], process: "hierarchical" }),
+      createSquad({ agents: [fakeAgent("a", seen)], process: "hierarchical" }),
     ).toThrowError(ConfigurationError);
     try {
-      createCrew({ agents: [fakeAgent("a", seen)], process: "hierarchical" });
+      createSquad({ agents: [fakeAgent("a", seen)], process: "hierarchical" });
     } catch (e) {
-      expect((e as ConfigurationError).code).toBe("crew_process_unsupported");
+      expect((e as ConfigurationError).code).toBe("squad_process_unsupported");
       // guidance points to the existing delegation primitives
       expect((e as Error).message.toLowerCase()).toMatch(/subagent|handoff/);
     }

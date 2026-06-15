@@ -21,8 +21,6 @@ export {
   preflightCheck,
   UsageAccumulator,
 } from "./budget.js";
-// Crew — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
-export { type Crew, type CrewOptions, type CrewRun, createCrew } from "./crew.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
 // Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
@@ -155,6 +153,8 @@ export { PermissionEngine } from "./permission-engine.js";
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
+// Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
+export { createSquad, type Squad, type SquadOptions, type SquadRun } from "./squad.js";
 // Path safety primitives (ADRs D79-D85) live at `@theokit/sdk/path-safety`,
 // not on the main barrel. That dedicated sub-export keeps the DTS bundle
 // for `index.ts` decoupled from the `internal/runtime` graph (which has
