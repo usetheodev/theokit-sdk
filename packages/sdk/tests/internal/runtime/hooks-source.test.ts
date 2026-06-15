@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   _resetWarnOnceForTests,
   loadHookConfig,
-} from "../../../src/internal/runtime/hooks-source.js";
+} from "../../../src/internal/runtime/hooks/hooks-source.js";
 
 let dir: string;
 const stderrCapture: string[] = [];

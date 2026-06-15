@@ -17,7 +17,7 @@ import { describe, expect, expectTypeOf, it, vi } from "vitest";
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
-} from "../src/internal/runtime/memory-provider.js";
+} from "../src/internal/runtime/memory/memory-provider.js";
 import type { MemoryAdapter } from "../src/types/memory-adapter.js";
 
 function makeStubAdapter(): MemoryAdapter {

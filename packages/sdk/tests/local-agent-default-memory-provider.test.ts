@@ -13,7 +13,7 @@
 // public `Agent.create` factory. We construct LocalAgent directly here
 // to keep the test focused on the new field, not on Agent.create wiring.
 import { describe, expect, it } from "vitest";
-import type { MemoryProvider } from "../src/internal/runtime/memory-provider.js";
+import type { MemoryProvider } from "../src/internal/runtime/memory/memory-provider.js";
 import type { AgentOptions } from "../src/types/agent.js";
 
 const STUB_OPTIONS: AgentOptions = {
@@ -29,7 +29,7 @@ describe("LocalAgent.defaultMemoryProviderForLoop (Stage 2b iter 19+)", () => {
     // `createLocalAgentMemoryProvider({agentOptions, workspaceCwd,
     // agentId, telemetry?})` and stores the return for future use.
     const { createLocalAgentMemoryProvider } = await import(
-      "../src/internal/runtime/local-agent-memory-provider.js"
+      "../src/internal/runtime/local-agent/local-agent-memory-provider.js"
     );
     const provider: MemoryProvider = createLocalAgentMemoryProvider({
       agentOptions: STUB_OPTIONS,
@@ -45,7 +45,7 @@ describe("LocalAgent.defaultMemoryProviderForLoop (Stage 2b iter 19+)", () => {
 
   it("test_default_provider_is_independent_per_LocalAgent", async () => {
     const { createLocalAgentMemoryProvider } = await import(
-      "../src/internal/runtime/local-agent-memory-provider.js"
+      "../src/internal/runtime/local-agent/local-agent-memory-provider.js"
     );
     const a = createLocalAgentMemoryProvider({
       agentOptions: STUB_OPTIONS,
@@ -63,7 +63,7 @@ describe("LocalAgent.defaultMemoryProviderForLoop (Stage 2b iter 19+)", () => {
 
   it("test_default_provider_init_does_not_throw_with_memory_disabled", async () => {
     const { createLocalAgentMemoryProvider } = await import(
-      "../src/internal/runtime/local-agent-memory-provider.js"
+      "../src/internal/runtime/local-agent/local-agent-memory-provider.js"
     );
     const provider = createLocalAgentMemoryProvider({
       agentOptions: STUB_OPTIONS,
@@ -83,7 +83,7 @@ describe("LocalAgent.defaultMemoryProviderForLoop (Stage 2b iter 19+)", () => {
     // writeSessionSummary). This pins the wire-up so a future refactor
     // can't silently drop the impl + regress to the legacy fallback.
     const { createLocalAgentMemoryProvider } = await import(
-      "../src/internal/runtime/local-agent-memory-provider.js"
+      "../src/internal/runtime/local-agent/local-agent-memory-provider.js"
     );
     const provider = createLocalAgentMemoryProvider({
       agentOptions: STUB_OPTIONS,
@@ -97,7 +97,7 @@ describe("LocalAgent.defaultMemoryProviderForLoop (Stage 2b iter 19+)", () => {
   it("test_default_provider_implements_sync_port_method", async () => {
     // Iter 19: optional sync() port method.
     const { createLocalAgentMemoryProvider } = await import(
-      "../src/internal/runtime/local-agent-memory-provider.js"
+      "../src/internal/runtime/local-agent/local-agent-memory-provider.js"
     );
     const provider = createLocalAgentMemoryProvider({
       agentOptions: STUB_OPTIONS,

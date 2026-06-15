@@ -3,7 +3,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { _resetWarnOnceForTests } from "../../../src/internal/runtime/hooks-source.js";
+import { _resetWarnOnceForTests } from "../../../src/internal/runtime/hooks/hooks-source.js";
 import { applyPersonalityFilter } from "../../../src/internal/tool-registry/personality-filter.js";
 
 describe("applyPersonalityFilter (T4.1)", () => {

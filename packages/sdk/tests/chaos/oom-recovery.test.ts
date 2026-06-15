@@ -13,7 +13,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { spawnNodeChild } from "../chaos/_harness/process-control.js";
+import { spawnNodeChild } from "./_harness/process-control.js";
 
 const SKIP_CHAOS = process.env.SKIP_T0_3_CHAOS === "1";
 

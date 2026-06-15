@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../../../src/index.js";
-import { parseSkillFrontmatter } from "../../../src/internal/runtime/skill-frontmatter.js";
+import { parseSkillFrontmatter } from "../../../src/internal/runtime/skills/skill-frontmatter.js";
 
 /**
  * ADR D10 + EC-5 — strict frontmatter schema for skills, malformed YAML

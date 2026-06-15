@@ -29,7 +29,7 @@ import { describe, expect, it } from "vitest";
 import {
   CompressionModelUnresolvedError,
   resolveCompressionModel,
-} from "../../../src/internal/runtime/compression-model-registry.js";
+} from "../../../src/internal/runtime/compression/compression-model-registry.js";
 
 describe("T2.2 — resolveCompressionModel: same-vendor cheaper-tier registry", () => {
   it("OpenAI gpt-4o → gpt-4o-mini (exact match)", () => {

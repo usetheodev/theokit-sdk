@@ -12,9 +12,9 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { attemptCompressionIfNeeded } from "../../../src/internal/runtime/compression-attempt.js";
-import type { CompressionState } from "../../../src/internal/runtime/compression-decision.js";
-import type { CompressibleMessage } from "../../../src/internal/runtime/compression-summarizer.js";
+import { attemptCompressionIfNeeded } from "../../../src/internal/runtime/compression/compression-attempt.js";
+import type { CompressionState } from "../../../src/internal/runtime/compression/compression-decision.js";
+import type { CompressibleMessage } from "../../../src/internal/runtime/compression/compression-summarizer.js";
 
 function makeMessages(n: number): CompressibleMessage[] {
   const msgs: CompressibleMessage[] = [];

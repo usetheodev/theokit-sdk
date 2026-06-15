@@ -8,7 +8,7 @@ import { Agent } from "../../../src/index.js";
 import {
   extractMemoryFact,
   isMemoryWritePrompt,
-} from "../../../src/internal/runtime/memory-store.js";
+} from "../../../src/internal/runtime/memory/memory-store.js";
 
 /**
  * Behaviour gate for memory auto-write-on-send (ADR D1/D2 of v1-completeness).

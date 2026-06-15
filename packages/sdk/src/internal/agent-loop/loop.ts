@@ -1,6 +1,6 @@
 import { generateRequestId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
-import { IterationBudget } from "../runtime/budget.js";
+import { IterationBudget } from "../runtime/budget/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";

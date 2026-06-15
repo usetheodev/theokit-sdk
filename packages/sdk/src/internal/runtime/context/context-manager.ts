@@ -11,7 +11,7 @@ import type {
   SDKContextManager,
 } from "../../../types/context.js";
 import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
-import { warnOnce } from "../hooks-source.js";
+import { warnOnce } from "../hooks/hooks-source.js";
 import {
   type AggregatorSource,
   applyAggregateCap,

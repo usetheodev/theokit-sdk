@@ -3,7 +3,7 @@ import type { SDKMessage } from "../../types/messages.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import type { LlmMessage } from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
-import type { MemoryProviderHandle } from "../runtime/memory-provider.js";
+import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
