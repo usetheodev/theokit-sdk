@@ -21,6 +21,8 @@ export {
   preflightCheck,
   UsageAccumulator,
 } from "./budget.js";
+// Crew — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
+export { type Crew, type CrewOptions, type CrewRun, createCrew } from "./crew.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
 // Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade

@@ -2194,6 +2194,34 @@ When OTel is available and agent telemetry is enabled, each handoff emits a
 `handoff.transfer` span with attributes `handoff.from`, `handoff.to`,
 `handoff.reason`, `handoff.depth`, `handoff.tool_name`.
 
+## Crew (sequential agent teams) — `createCrew`
+
+`createCrew` is a thin convenience for the common "run a team of agents in
+order" case. It **composes `Workflow` + `agentStep`** under the hood — it adds
+no new orchestration engine. Each agent's output is threaded into the next
+agent's prompt; `run()` returns the final result plus a per-agent trace.
+
+```typescript
+import { Agent, createCrew } from "@theokit/sdk";
+
+const researcher = await Agent.create({ /* ... */ });
+const writer = await Agent.create({ /* ... */ });
+const editor = await Agent.create({ /* ... */ });
+
+const crew = createCrew({ agents: [researcher, writer, editor] }); // process defaults to "sequential"
+const run = await crew.run("Write a post about TypeScript agents.");
+console.log(run.result);  // final (editor's) output
+console.log(run.steps);   // StepResult[] — one per agent
+```
+
+- **Sequential is the only `createCrew` process.** For branching/parallel/foreach
+  teams use `Workflow` + `agentStep` directly (more expressive). For
+  manager→worker delegation use **subagents** or **`@theokit/sdk-handoff`** —
+  passing `process: "hierarchical"` throws a `ConfigurationError` pointing you
+  there.
+- Invalid input fails fast: empty `agents` → `ConfigurationError(code: "invalid_crew")`.
+- Decorator form: `@Crew({ agents: [...] })` from `@theokit/di-agent`.
+
 ## Workflows (v1.17+) — `Workflow.create / .run / .resume`
 
 Declarative multi-step orchestration over `Agent.send`, `Handoff`, `Agent.batch`
