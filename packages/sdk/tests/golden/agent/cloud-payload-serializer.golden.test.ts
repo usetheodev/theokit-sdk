@@ -5,7 +5,7 @@ import {
   canonicalize,
   serializeCloudAgentConfig,
   stringifyCloudPayload,
-} from "../../../src/internal/runtime/cloud-config-serializer.js";
+} from "../../../src/internal/runtime/cloud/cloud-config-serializer.js";
 
 /**
  * ADR D15 + EC-1/EC-2/EC-7 — pure JSON serializer with deterministic

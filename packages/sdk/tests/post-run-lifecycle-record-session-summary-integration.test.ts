@@ -19,12 +19,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { HooksExecutor } from "../src/internal/runtime/hooks-executor.js";
-import { LocalAgentMemory } from "../src/internal/runtime/local-agent-memory.js";
+import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
+import { LocalAgentMemory } from "../src/internal/runtime/local-agent/local-agent-memory.js";
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
-} from "../src/internal/runtime/memory-provider.js";
+} from "../src/internal/runtime/memory/memory-provider.js";
 import { runPostRunLifecycle } from "../src/internal/runtime/post-run-lifecycle.js";
 import type { AgentOptions } from "../src/types/agent.js";
 import type { MemoryAdapter } from "../src/types/memory-adapter.js";

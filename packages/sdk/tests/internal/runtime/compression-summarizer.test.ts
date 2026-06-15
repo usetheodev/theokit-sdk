@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildCompressionPrompt,
   compressConversationWindow,
-} from "../../../src/internal/runtime/compression-summarizer.js";
+} from "../../../src/internal/runtime/compression/compression-summarizer.js";
 
 describe("T2.2 step 3 — buildCompressionPrompt", () => {
   it("builds a summarization system prompt with message count", () => {

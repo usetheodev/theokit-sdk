@@ -22,7 +22,7 @@ import { describe, expect, it } from "vitest";
 import { runAgentLoop } from "../../../src/internal/agent-loop/loop.js";
 import type { AgentLoopInputs } from "../../../src/internal/agent-loop/loop-types.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks-executor.js";
+import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 
 interface SequencedFinish {
   text: string;

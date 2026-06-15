@@ -17,7 +17,7 @@
 
 import { AsyncLocalStorage } from "node:async_hooks";
 
-import { warnOnce } from "../runtime/hooks-source.js";
+import { warnOnce } from "../runtime/hooks/hooks-source.js";
 
 /**
  * Snapshot data carried into a fork's async context.

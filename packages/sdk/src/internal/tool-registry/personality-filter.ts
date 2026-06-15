@@ -27,7 +27,7 @@
  * @internal
  */
 
-import { warnOnce } from "../runtime/hooks-source.js";
+import { warnOnce } from "../runtime/hooks/hooks-source.js";
 
 export interface ToolNamed {
   readonly name: string;

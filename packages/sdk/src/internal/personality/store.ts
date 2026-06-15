@@ -31,7 +31,7 @@ import { dirname, join } from "node:path";
 import { atomicWriteJson } from "../persistence/atomic-write.js";
 import { withFileLock } from "../persistence/file-lock.js";
 import { getTheokitHome } from "../persistence/paths.js";
-import { warnOnce } from "../runtime/hooks-source.js";
+import { warnOnce } from "../runtime/hooks/hooks-source.js";
 import { redactSecrets } from "../security/redact.js";
 
 interface PersonalityStateV1 {

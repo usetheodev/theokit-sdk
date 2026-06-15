@@ -19,7 +19,7 @@ import { describe, expect, it } from "vitest";
 import {
   type CompressionState,
   shouldAttemptCompression,
-} from "../../../src/internal/runtime/compression-decision.js";
+} from "../../../src/internal/runtime/compression/compression-decision.js";
 
 function makeState(overrides: Partial<CompressionState> = {}): CompressionState {
   return {

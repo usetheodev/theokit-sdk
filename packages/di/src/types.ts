@@ -125,3 +125,14 @@ export interface DependencyGraph {
   }>;
   cycles: ReadonlyArray<ReadonlyArray<Token>>;
 }
+
+/**
+ * Narrow capability the module-loader needs from a container: the ability to
+ * register a provider. Declared here (a leaf type module) so `module-loader.ts`
+ * depends on this interface instead of the concrete `Container` class — which
+ * imports `loadModule` back from the loader, forming a type-only cycle
+ * (arch-review ADR 0001). The concrete `Container` satisfies this structurally.
+ */
+export interface ModuleRegistrar {
+  register<T>(providerOrClass: Provider<T> | ClassConstructor<T>): void;
+}

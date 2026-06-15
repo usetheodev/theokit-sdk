@@ -1,11 +1,11 @@
 import type { ConversationStorageAdapter } from "../../types/conversation-storage.js";
 import type { Run } from "../../types/run.js";
 import { writeSessionSummary } from "../memory/storage/session-summary-writer.js";
-import { appendSessionMessage, flushSessionWrites } from "./agent-session.js";
-import type { HooksExecutor } from "./hooks-executor.js";
-import type { LocalAgentMemory } from "./local-agent-memory.js";
-import { shouldUsePortMemoryPath } from "./memory-path-selector.js";
-import type { MemoryProvider } from "./memory-provider.js";
+import type { HooksExecutor } from "./hooks/hooks-executor.js";
+import type { LocalAgentMemory } from "./local-agent/local-agent-memory.js";
+import { shouldUsePortMemoryPath } from "./memory/memory-path-selector.js";
+import type { MemoryProvider } from "./memory/memory-provider.js";
+import { appendSessionMessage, flushSessionWrites } from "./session/agent-session.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
