@@ -47,9 +47,24 @@ Invariants to preserve: sdk dist build must not need downstream pkgs; downstream
 
 > **Deferred (YAGNI, not required to unblock):** removing `@theokit/sdk`'s vestigial devDeps on `sdk-handoff`/`sdk-memory` + relocating `peer-parity.test.ts` would also silence the *cosmetic* pnpm circular-dependency warning. Not done — the warning is non-fatal and turbo executes the acyclic task graph. A future cleanup slice may pursue it; a build-cycle CI guard (old A3) is likewise deferred — the CI build itself fails loudly if ordering regresses.
 
-### Phase B — Correct the changesets version cascade
+### Phase B — Correct the changesets version cascade ✅ DONE 2026-06-15
 
-#### Task B1 — Pin the 0.x→1.0.0 cascade root cause (investigation, read-only)
+> **Findings (verified):** the gap work is NOT on npm at all — `sdk@1.8.0/1.8.1` predate `createSquad` (verified by `npm pack` + grep: zero occurrences), and `di@0.1.0` / `di-agent@0.1.0` are scaffolds without `METADATA_KEYS.SQUAD/STEP` / `@Squad`/`@Step`. The 3 pending changesets were all STALE (G8 already shipped in `1.8.1`; di/di-agent scaffolds already shipped as `0.1.0`) — deleted and replaced.
+>
+> **Cascade root cause:** changesets major-bumps EVERY peer-dependent when its dep bumps. Fixed with `___experimentalUnsafeOptions_WILL_CHANGE_IN_PATCH.onlyUpdatePeerDependentsWhenOutOfRange: true` in `.changeset/config.json` — collapses all `workspace:^` / `>=1.7.0` / `^1.1.0` / `^1.3.0` peer-dependents (sdk 1.9.0 stays in range). The remaining di-dependent cascade (di-agent + the unrelated prerelease `@theokit/orm@0.1.0-next.1`, both peer `^0.1.0`) is avoided by shipping **di as a patch (0.1.1)** so it stays inside `^0.1.x`; a di minor (0.2.0) would force both to `1.0.0`.
+
+#### Task B1 — Pin the 0.x→1.0.0 cascade root cause (investigation, read-only) ✅
+- ##### Why this step: must understand WHY pre-1.0 dependents go major before changing config (no guessing on release config).
+- ##### Result: root cause = peer-dependent major bump (changesets default). Oracle `changeset status --verbose` confirmed; fix = `onlyUpdatePeerDependentsWhenOutOfRange: true` + di-as-patch (keeps di inside `^0.1.x` peer ranges of di-agent + orm).
+- ##### Acceptance: **Met** — documented root cause + minimal config/dep change.
+
+#### Task B2 — Create the 3 gap changesets + apply the cascade fix ✅
+- ##### Why this step: the gap features (Squad, @Step/buildWorkflow, METADATA_KEYS) need changesets so CI versions them; the fix from B1 stops the major blast.
+- ##### Result: deleted 3 stale changesets; created `gap-sdk-createsquad-batch.md` (sdk minor), `gap-di-metadata-keys.md` (di **patch** — per cascade), `gap-di-agent-decorators.md` (di-agent minor). Added config option.
+- ##### Acceptance: **Met** — `changeset status` plans `sdk 1.9.0` (minor), `di 0.1.1` (patch), `di-agent 0.2.0` (minor); "release would release NO packages as a major"; private `example-*` packages bumped locally only (not published).
+
+#### (decision note) di bump level
+User initially chose di **minor (0.2.0)** for semver-correctness; switched to **patch (0.1.1)** during implementation because a minor falls outside the `^0.1.x` peer ranges of `@theokit/di-agent` and the in-progress prerelease `@theokit/orm`, forcing both to `1.0.0` (orm wrongly, as it is not part of this work). Patch keeps both dependents in range with zero collateral. The METADATA_KEYS addition (additive) is documented in the changeset as shipped-as-patch with rationale. Override path if minor is still desired: `ignore: ["@theokit/orm"]` + widen di-agent's peer range to include `^0.2.0`.
 - ##### Why this step: must understand WHY pre-1.0 dependents go major before changing config (no guessing on release config).
 - ##### TDD: with the 3 gap changesets present, `npx changeset status --verbose` is the oracle; iterate config hypotheses in a scratch (git-stash) and re-run status until dependents plan at most patch. Document the exact cause (changeset 0.x behavior / `updateInternalDependencies` / `workspace:^` interaction).
 - ##### Acceptance: a written root-cause note + the minimal config/dep change that makes `changeset status` plan: sdk 1.9.0, di 0.1.1, di-agent 0.2.0, dependents ≤ patch.
