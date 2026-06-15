@@ -5,7 +5,6 @@ export {
   type AutoSummarizeOptions,
   readAutoSummarizeMetadata,
 } from "./decorators/auto-summarize.js";
-export { Crew, type CrewMetadata, readCrewMetadata } from "./decorators/crew.js";
 export { Cron, type CronMetadata, type CronOptions, readCronMetadata } from "./decorators/cron.js";
 export {
   EvalDecorator,
@@ -20,6 +19,7 @@ export {
 } from "./decorators/memory-scope.js";
 export { Reranker, type RerankerOptions, readRerankerMetadata } from "./decorators/reranker.js";
 export { Retriever, type RetrieverOptions, readRetrieverMetadata } from "./decorators/retriever.js";
+export { readSquadMetadata, Squad, type SquadMetadata } from "./decorators/squad.js";
 export { readSubAgentMetadata, SubAgent, type SubAgentOptions } from "./decorators/sub-agent.js";
 export {
   readSubscriptionMetadata,

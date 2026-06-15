@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- `@theokit/sdk`: `createCrew` sequential agent-team convenience (composes Workflow+agentStep) + `@theokit/di-agent` `@Crew` decorator + `@theokit/di` `METADATA_KEYS.CREW` — closes the ergonomic residual of cross-validation Gap 1 (multi-agent orchestration). See per-package CHANGELOGs.
+- `@theokit/sdk`: `createSquad` sequential agent-team convenience (composes Workflow+agentStep) + `@theokit/di-agent` `@Squad` decorator + `@theokit/di` `METADATA_KEYS.SQUAD`. See per-package CHANGELOGs.
 
 ### Fixed
 

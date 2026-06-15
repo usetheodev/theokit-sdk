@@ -4,7 +4,7 @@
 
 ### Added
 
-- `createCrew({ agents })` — a thin convenience for sequential multi-agent teams. Runs agents in order, threading each output into the next agent's prompt; returns `{ result, status, steps }`. Composes `Workflow` + `agentStep` internally (no new orchestration engine). `process: "hierarchical"` throws a guiding `ConfigurationError` (use subagents / `@theokit/sdk-handoff`); empty `agents` → `ConfigurationError(code: "invalid_crew")`. Closes the ergonomic residual of cross-validation Gap 1 (multi-agent orchestration). (arch-review)
+- `createSquad({ agents })` — a thin convenience for sequential agent teams. Runs agents in order, threading each output into the next agent's prompt; returns `{ result, status, steps }`. Composes `Workflow` + `agentStep` internally (no new orchestration engine). `process: "hierarchical"` throws a guiding `ConfigurationError` (use subagents / `@theokit/sdk-handoff`); empty `agents` → `ConfigurationError(code: "invalid_squad")`.
 
 ### Fixed
 

@@ -1,11 +1,11 @@
 /**
- * `createCrew` — sequential multi-agent team (cross-validation Gap 1, narrowed).
+ * `createSquad` — a sequential team of agents.
  *
- * A THIN convenience that COMPOSES `Workflow` + `agentStep` — it adds NO new
- * orchestration logic. Agents run in order; each agent's output is threaded
- * into the next agent's prompt. For branching/parallel/foreach teams use
- * `Workflow` directly; for manager→worker delegation use subagents or
- * `@theokit/sdk-handoff` (those already cover a peer project's "hierarchical" process).
+ * A Squad is a thin convenience that COMPOSES `Workflow` + `agentStep` — it
+ * adds NO new orchestration logic. Agents run in array order; each agent's
+ * output is threaded into the next agent's prompt. For branching/parallel/
+ * foreach teams use `Workflow` directly; for manager→worker delegation use
+ * subagents or `@theokit/sdk-handoff`.
  *
  * Mirrors the `createAgentFactory` composition-LEGO precedent (a factory over
  * existing primitives, not a new subsystem).
@@ -19,72 +19,72 @@ import type { StepResult } from "./types/workflow.js";
 import { agentStep, Workflow } from "./workflow.js";
 
 /**
- * Options for {@link createCrew}.
+ * Options for {@link createSquad}.
  *
  * @public
  */
-export interface CrewOptions {
+export interface SquadOptions {
   /** Agents run in array order (sequential pipeline). Must be non-empty. */
   agents: ReadonlyArray<SDKAgent>;
   /**
-   * Orchestration process. Only `"sequential"` is supported by `createCrew`
-   * (the default). `"hierarchical"` is accepted by the type but rejected at
-   * runtime with guidance — use subagents or `@theokit/sdk-handoff` for
-   * manager→worker delegation (those already cover it).
+   * Orchestration process. Only `"sequential"` is supported (the default).
+   * `"hierarchical"` is accepted by the type but rejected at runtime with
+   * guidance — use subagents or `@theokit/sdk-handoff` for manager→worker
+   * delegation (those already cover it).
    */
   process?: "sequential" | "hierarchical";
-  /** Optional crew name (surfaced on the underlying workflow). Default `"crew"`. */
+  /** Optional squad name (surfaced on the underlying workflow). Default `"squad"`. */
   name?: string;
 }
 
 /**
- * Result of a {@link Crew.run}. `result` is the final (last agent's) output;
+ * Result of a {@link Squad.run}. `result` is the final (last agent's) output;
  * `steps` is the per-agent trace from the underlying workflow run.
  *
  * @public
  */
-export interface CrewRun {
+export interface SquadRun {
   readonly result: unknown;
   readonly status: "running" | "completed" | "failed" | "suspended" | "cancelled";
   readonly steps: ReadonlyArray<StepResult>;
 }
 
 /**
- * A sequential agent team produced by {@link createCrew}.
+ * A sequential agent team produced by {@link createSquad}.
  *
  * @public
  */
-export interface Crew {
+export interface Squad {
   /** Run the team over `input`, threading each agent's output to the next. */
-  run(input: unknown): Promise<CrewRun>;
+  run(input: unknown): Promise<SquadRun>;
 }
 
 /**
- * Build a sequential agent team. The returned {@link Crew} composes a
+ * Build a sequential agent team. The returned {@link Squad} composes a
  * `Workflow` of `agentStep`s under the hood — all orchestration is delegated
  * to the workflow engine.
  *
  * @public
  */
-export function createCrew(options: CrewOptions): Crew {
+export function createSquad(options: SquadOptions): Squad {
   const { agents } = options;
   if (!Array.isArray(agents) || agents.length === 0) {
-    throw new ConfigurationError("createCrew requires a non-empty `agents` array", {
-      code: "invalid_crew",
+    throw new ConfigurationError("createSquad requires a non-empty `agents` array", {
+      code: "invalid_squad",
     });
   }
   if (options.process !== undefined && options.process !== "sequential") {
     throw new ConfigurationError(
-      `createCrew only supports process "sequential"; for manager→worker delegation use subagents or @theokit/sdk-handoff`,
-      { code: "crew_process_unsupported" },
+      `createSquad only supports process "sequential"; for manager→worker delegation use subagents or @theokit/sdk-handoff`,
+      { code: "squad_process_unsupported" },
     );
   }
 
   return {
-    run: async (input: unknown): Promise<CrewRun> => {
+    run: async (input: unknown): Promise<SquadRun> => {
       // Compose Workflow + agentStep — identity threading: each agent's prompt
       // is the previous agent's output (the run input for the first agent).
-      let builder = Workflow.create({ name: options.name ?? "crew" });
+      let builder = Workflow.create({ name: options.name ?? "squad" });
       for (let i = 0; i < agents.length; i++) {
         const agent = agents[i];
         if (agent === undefined) continue;
