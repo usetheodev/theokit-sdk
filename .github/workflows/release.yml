@@ -43,8 +43,14 @@ jobs:
           version: pnpm changeset version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NPM_TOKEN intentionally absent — per technical-hardening-sprint plan v1.1 EC-2
-          # absorbed: NPM_TOKEN env DISABLES OIDC trusted-publisher binding silently.
-          # Requires npm dashboard trusted-publisher binding at npmjs.com/package/<pkg>/settings
-          # for ALL 22 packages (@theokit/sdk, @theokit/react, @theokit/di, @theokit/orm, etc.).
+          # Auth via granular npm automation token (NODE_AUTH_TOKEN; setup-node wired
+          # the registry .npmrc to read it). This is the token-auth path — NOT the
+          # tokenless OIDC trusted-publisher binding. We use it because the dashboard
+          # trusted-publisher binding is not yet configured for the @theokit/* packages
+          # (an OIDC publish returned E404 — no trusted-publisher authorizes this repo).
+          # PROVENANCE IS PRESERVED: id-token: write + NPM_CONFIG_PROVENANCE: true still
+          # generate a signed sigstore attestation regardless of the auth mechanism.
+          # Migration path: configure trusted publishers at npmjs.com/package/<pkg>/settings
+          # for all packages, then drop NODE_AUTH_TOKEN to go fully tokenless.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: true
