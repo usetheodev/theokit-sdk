@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-06-15
+
 ### Added
 
 - `@theokit/sdk`: `createSquad` sequential agent-team convenience (composes Workflow+agentStep) + `@theokit/di-agent` `@Squad` decorator + `@theokit/di` `METADATA_KEYS.SQUAD`. See per-package CHANGELOGs.
