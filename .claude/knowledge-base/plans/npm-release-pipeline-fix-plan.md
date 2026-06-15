@@ -1,0 +1,97 @@
+---
+slug: npm-release-pipeline-fix
+created_at: 2026-06-15
+milestone_id: none
+goal: Unblock the CI npm release (release.yml) by breaking the turbo build-graph cycle (sdk ↔ sdk-handoff/sdk-memory) and correcting the changesets 0.x→1.0.0 cascade, so a merge to main publishes the gap packages with OIDC provenance.
+---
+
+# Plan: Fix the npm release pipeline (CI build cycle + changesets cascade)
+
+> **Version 1.0** — Diagnosis: `.claude/knowledge-base/discoveries/npm-release-pipeline-diagnosis.md`. npm is stuck because `release.yml` fails on every merge to `main` at `pnpm build` (turbo devDependency cycle), and even if it built, `changeset version` would mis-bump 16 pre-1.0 packages to `1.0.0`. Publishing is CI/OIDC-only by design (no local publish). Two phases: A unblocks the build; B corrects versions.
+
+## Goal
+
+> "A merge to `main` makes `release.yml` succeed and publish only the intended packages, measured by: (a) a clean-checkout build (`rm -rf packages/*/dist && pnpm build`) succeeds with no circular-dependency warning and no `TS2307`; (b) `npx changeset status` plans `@theokit/sdk` minor (→1.9.0), `@theokit/di` patch (→0.1.1), `@theokit/di-agent` minor (→0.2.0), and dependents bumped at most patch (NOT major 1.0.0); (c) all affected test suites stay green; (d) publishing remains CI/OIDC-only (no local publish, no NPM_TOKEN, provenance preserved)."
+
+## Context / Baseline (current state — verified read-only)
+
+| Fact | Evidence |
+|---|---|
+| `release.yml` triggers on push to `main`, uses `changesets/action` + OIDC (`id-token: write`), NPM_TOKEN intentionally unused | `.github/workflows/release.yml` |
+| Every merge #5–#9 → release `failure` (~1 min), aborts at `pnpm build` | `gh run list --workflow release.yml` |
+| Build cycle: `@theokit/sdk` devDeps `sdk-handoff`+`sdk-memory` (workspace:*); both devDep `sdk` back; turbo `build dependsOn ["^build"]` follows devDeps | package.json ×3 + turbo.json |
+| sdk SRC needs NEITHER at build time — loads via `await import()` + local mirror types (`agent-helpers.ts:91`, `sdk-memory-peer-loader.ts`) | grep |
+| Only the devDeps + cross-package tests keep the edge: **`peer-parity.test.ts` (215 LoC) + `codemod-1-x-to-2-0.test.ts` (148 LoC) + fixture** import `@theokit/sdk-memory` | grep |
+| Cascade: `changeset version` bumps di-agent + gateways + sdk-* to `1.0.0` (major) on an sdk minor; mixed dep decls (`workspace:^` vs `>=1.7.0`) | `changeset status --verbose` |
+| All 3 targets already published at current versions; provenance:true | npm view + publishConfig |
+
+Invariants to preserve: sdk dist build must not need downstream pkgs; downstream→sdk build edge stays (one-way); no local publish; OIDC/provenance untouched; the memory peer-routing + codemod behaviors stay tested.
+
+## Drawbacks & Risks
+
+- **Relocating tests changes their home.** Mitigation: move the 2 cross-package tests to `packages/sdk-memory/tests/` (which already build-depends on sdk one-way — no cycle); keep assertions identical; verify green before/after.
+- **Removing sdk devDeps could hide a real sdk-handoff test need.** Mitigation: first confirm (grep) no remaining static import of `@theokit/sdk-handoff`/`@theokit/sdk-memory` in `packages/sdk/tests` after relocation; if any dynamic-import test needs the peer, relocate it too.
+- **Cascade root cause not yet pinned (Phase B).** Mitigation: Phase B starts with a focused investigation (changeset behavior on 0.x dependents + `updateInternalDependencies`); only then apply the minimal config/dep fix. Validate with `changeset status` (read-only) before any merge.
+- **Irreversible publish.** Mitigation: NO local publish in this plan; the deliverable is a GREEN clean-build + correct `changeset status`. Actual publish happens via CI on the human-approved merge.
+
+## Tasks
+
+### Phase A — Unblock the CI build (fix turbo build ordering) ✅ DONE 2026-06-15
+
+> **Scope correction (during implementation):** the committed `turbo.json` already had `@theokit/sdk#build.dependsOn: []` (which breaks the cycle from sdk's side). The real defect was a single bad override — `@theokit/sdk-memory#build.dependsOn: []` removed the legitimate one-way ordering `sdk-memory → sdk`. Original A1 (relocate tests) + A2 (remove devDeps) were OVER-SCOPED and are NOT needed. See diagnosis § CORRECTION.
+
+#### Task A1 — Fix the `@theokit/sdk-memory#build` ordering override ✅
+- ##### Why this step: `sdk-memory`'s build genuinely needs `@theokit/sdk/dist`; the `[]` override removed that edge, so on a clean checkout `sdk-memory` (tsc) ran before sdk built → `TS2307`.
+- ##### TDD (build-as-test): RED — `turbo run build --filter=@theokit/sdk-memory --dry=json` shows `dependsOn: []`; clean tree (`sdk/dist` absent) fails with `TS2307`. GREEN — set `dependsOn: ["@theokit/sdk#build"]`; dry-run shows the edge; `turbo run build --filter=@theokit/sdk-memory --force` succeeds (sdk built first); `peer-parity.test.ts` 5/5 GREEN.
+- ##### Acceptance: clean-tree build GREEN; no `TS2307`; cosmetic pnpm cycle warning remains (non-fatal). **Met.**
+
+> **Deferred (YAGNI, not required to unblock):** removing `@theokit/sdk`'s vestigial devDeps on `sdk-handoff`/`sdk-memory` + relocating `peer-parity.test.ts` would also silence the *cosmetic* pnpm circular-dependency warning. Not done — the warning is non-fatal and turbo executes the acyclic task graph. A future cleanup slice may pursue it; a build-cycle CI guard (old A3) is likewise deferred — the CI build itself fails loudly if ordering regresses.
+
+### Phase B — Correct the changesets version cascade
+
+#### Task B1 — Pin the 0.x→1.0.0 cascade root cause (investigation, read-only)
+- ##### Why this step: must understand WHY pre-1.0 dependents go major before changing config (no guessing on release config).
+- ##### TDD: with the 3 gap changesets present, `npx changeset status --verbose` is the oracle; iterate config hypotheses in a scratch (git-stash) and re-run status until dependents plan at most patch. Document the exact cause (changeset 0.x behavior / `updateInternalDependencies` / `workspace:^` interaction).
+- ##### Acceptance: a written root-cause note + the minimal config/dep change that makes `changeset status` plan: sdk 1.9.0, di 0.1.1, di-agent 0.2.0, dependents ≤ patch.
+
+#### Task B2 — Create the 3 gap changesets + apply the cascade fix
+- ##### Why this step: the gap features (Squad, @Step/buildWorkflow, METADATA_KEYS) need changesets so CI versions them; the fix from B1 stops the major blast.
+- ##### TDD: create `.changeset` entries — `@theokit/sdk` minor (createSquad + Agent.batch validation), `@theokit/di-agent` minor (@Squad + @Step + buildWorkflow), `@theokit/di` patch (METADATA_KEYS). Re-run `changeset status --verbose` → matches the Goal (b) plan exactly; no unintended 1.0.0.
+- ##### Acceptance: `changeset status` plan = {sdk 1.9.0, di 0.1.1, di-agent 0.2.0, dependents ≤ patch}; no stale changesets remain.
+
+### Phase C — Ship via CI (no local publish)
+
+#### Task C1 — Merge to main → CI publishes
+- ##### Why this step: publishing is OIDC/CI-only; the human-approved merge triggers `release.yml`.
+- ##### Acceptance: after merge, `release.yml` run is `success`; `npm view @theokit/sdk version` = 1.9.0, `@theokit/di` = 0.1.1, `@theokit/di-agent` = 0.2.0; no unintended 1.0.0 packages published. (Verified post-merge; not by a local publish.)
+
+## Coverage Matrix
+
+| Goal claim | Task |
+|---|---|
+| clean-checkout build GREEN, no cycle, no TS2307 | A1, A2 |
+| cycle cannot silently return | A3 |
+| changeset status plans correct bumps (no 1.0.0 cascade) | B1, B2 |
+| affected suites stay green | A1, A2 |
+| publishing stays CI/OIDC-only | C1 (no local publish anywhere) |
+| npm shows 1.9.0 / 0.1.1 / 0.2.0 after merge | C1 |
+
+## Test Plan
+- Build-graph: `rm -rf packages/*/dist && pnpm build` (the CI-reproducing oracle) — must be GREEN with no cycle.
+- Unit/integration: relocated peer-parity + codemod tests green in sdk-memory; sdk/di/di-agent/sdk-memory/sdk-handoff suites green.
+- Release plan: `changeset status --verbose` (read-only) matches the intended bumps.
+- Post-merge: `release.yml` success + `npm view` versions (CI publish, human-gated merge).
+
+## Unresolved Questions
+- Phase B exact config fix (resolved in Task B1 before any change). If the cascade proves intrinsic to changesets 0.x semantics, fallback is per-package explicit version control via separate changesets — to be decided in B1 with evidence.
+
+## Prior Art
+- ADR 0001 (this repo) — break dependency cycles via leaf/one-way edges (same discipline applied to the package graph here).
+- `release.yml` + changesets/action + OIDC trusted publisher (the intended, unchanged publish path).
+- Diagnosis: `.claude/knowledge-base/discoveries/npm-release-pipeline-diagnosis.md`.
+
+## Rationale & Alternatives
+- **Chosen:** cut the `sdk → downstream` devDep edge (relocate 2 tests) + fix changeset cascade + publish via CI. Minimal, idiomatic, preserves provenance.
+- **Rejected:** local `pnpm publish --no-provenance` — publishes unattested packages, contradicts the maintainer's OIDC posture.
+- **Rejected:** keep devDeps + hack turbo to skip them — turbo has no clean per-edge build exclusion; fragile.
+- **Rejected:** accept the 1.0.0 cascade — would wrongly major-bump 16 packages, irreversibly.
