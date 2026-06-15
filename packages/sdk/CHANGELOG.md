@@ -4,6 +4,7 @@
 
 ### Changed
 
+- Reorganized the flat 62-file `src/internal/runtime/` god folder into sub-concern folders (arch-review M4): `local-agent/` (15), `cloud/` (6), `compression/` (6), `hooks/` (4), `budget/` (3), `memory/` (4), `session/` (3), `skills/` (3) — alongside the pre-existing `registry/`, `system-prompt/`, `context/`, `fixtures/`, `plugins/`. 18 cross-cutting singletons (abort-utils, async-*, default-model, fork-agent, run-until, system-prompt, validate-*, etc.) remain at the `runtime/` root (down from 62). Pure file moves + import-path updates (44 files moved, ~100 import sites rewritten incl. 2 lint-allowlist path updates); `internal/runtime` is not an exported subpath and has no tsup entry, so the change is fully internal — no API/behavior change. Full SDK suite GREEN (2629 tests); `madge --circular` unchanged (1 intentional type-only `memory/memory-provider` cycle).
 - Broke 2 of 3 type-only dependency cycles in the public type barrel (arch-review ADR 0001). `ForkOptions`/`ForkResult` moved to a leaf `types/fork.ts`, so `types/agent.ts` no longer imports the `internal/runtime/fork-agent.ts` implementation (`fork-agent.ts` re-exports them for back-compat). Eliminates the `types/agent.ts → fork-agent.ts → {plugins/types,(self)}` cycles. No behavior/API change; `madge --circular` drops from 3 to 1 (the remaining `memory-provider` cycle is a genuine bidirectional type relationship, runtime-safe, left intentionally).
 
 ### Fixed

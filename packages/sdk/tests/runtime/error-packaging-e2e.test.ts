@@ -22,11 +22,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../../src/agent.js";
-import { clearAllSessions } from "../../src/internal/runtime/agent-session.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../../src/internal/runtime/registry/agent-registry.js";
+import { clearAllSessions } from "../../src/internal/runtime/session/agent-session.js";
 
 const REAL_KEY_SHAPE = "sk-or-v1-error-packaging-e2e-1234567890abcdef";
 const MODEL = { id: "openai/gpt-4o-mini" };

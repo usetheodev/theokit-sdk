@@ -14,7 +14,7 @@ import {
   warnPersonalitySwitchInsideFork,
   withPersonalityContext,
 } from "../../../src/internal/personality/context.js";
-import { _resetWarnOnceForTests } from "../../../src/internal/runtime/hooks-source.js";
+import { _resetWarnOnceForTests } from "../../../src/internal/runtime/hooks/hooks-source.js";
 
 describe("Personality fork inheritance (T6.2)", () => {
   beforeEach(() => {

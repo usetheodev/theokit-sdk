@@ -10,7 +10,7 @@ import type {
   LlmFinish,
   LlmRequest,
 } from "../../../src/internal/llm/types.js";
-import { HooksExecutor } from "../../../src/internal/runtime/hooks-executor.js";
+import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
 
 /**
  * Behaviour gate for the real agent loop. Uses a stub LLM client that

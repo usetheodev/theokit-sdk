@@ -10,7 +10,7 @@
 
 import { describe, expect, it } from "vitest";
 import { evaluateBudgetGate } from "../src/internal/agent-loop/budget-gate.js";
-import type { BudgetCheck, BudgetTracker } from "../src/internal/runtime/budget-tracker.js";
+import type { BudgetCheck, BudgetTracker } from "../src/internal/runtime/budget/budget-tracker.js";
 
 function trackerReturning(check: BudgetCheck): BudgetTracker {
   return {

@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ConfigurationError } from "../../../errors.js";
 import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
 import { safePathJoin } from "../../security/path-guard.js";
-import { warnOnce } from "../hooks-source.js";
+import { warnOnce } from "../hooks/hooks-source.js";
 import { readWorkspaceDir } from "../workspace-dir.js";
 import { type PluginFrontmatter, PluginFrontmatterSchema } from "./plugin-frontmatter.js";
 

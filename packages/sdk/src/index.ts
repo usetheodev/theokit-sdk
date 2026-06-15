@@ -99,13 +99,13 @@ export type {
   BudgetTotal,
   BudgetTracker,
   BudgetUsageEvent,
-} from "./internal/runtime/budget-tracker.js";
+} from "./internal/runtime/budget/budget-tracker.js";
 // Reference impl — pure counter, no USD pricing. Consumers can use as a
 // fallback before @theokit/sdk-budget ships or as a worked example.
 export {
   type CounterBudgetTrackerOptions,
   createCounterBudgetTracker,
-} from "./internal/runtime/budget-tracker-counter.js";
+} from "./internal/runtime/budget/budget-tracker-counter.js";
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
@@ -118,11 +118,11 @@ export type {
   MemoryProviderHandle,
   MemoryProviderInitOptions,
   RecordSessionSummaryArgs,
-} from "./internal/runtime/memory-provider.js";
+} from "./internal/runtime/memory/memory-provider.js";
 // Reference impl — pure no-op, no recall, no tools. Consumers can use
 // as fallback before @theokit/sdk-memory ships or as a worked example
 // when authoring custom providers.
-export { createNoopMemoryProvider } from "./internal/runtime/memory-provider-noop.js";
+export { createNoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
