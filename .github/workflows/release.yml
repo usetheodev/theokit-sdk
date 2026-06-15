@@ -44,13 +44,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Auth via granular npm automation token (NODE_AUTH_TOKEN; setup-node wired
-          # the registry .npmrc to read it). This is the token-auth path — NOT the
-          # tokenless OIDC trusted-publisher binding. We use it because the dashboard
-          # trusted-publisher binding is not yet configured for the @theokit/* packages
-          # (an OIDC publish returned E404 — no trusted-publisher authorizes this repo).
-          # PROVENANCE IS PRESERVED: id-token: write + NPM_CONFIG_PROVENANCE: true still
-          # generate a signed sigstore attestation regardless of the auth mechanism.
-          # Migration path: configure trusted publishers at npmjs.com/package/<pkg>/settings
-          # for all packages, then drop NODE_AUTH_TOKEN to go fully tokenless.
+          # the registry .npmrc to read it). Token-auth path — the tokenless OIDC
+          # trusted-publisher binding is not yet configured for the @theokit/* packages.
+          # PROVENANCE IS DISABLED: npm refuses provenance attestation for PRIVATE source
+          # repositories (E422 "Unsupported GitHub Actions source repository visibility:
+          # private"). This repo is currently private, and the already-published versions
+          # have no attestation either — so provenance:true was aspirational and never
+          # worked. `provenance` was removed from each package's publishConfig too.
+          # Migration path: when the repo goes public (Apache-2.0 open SDK), re-add
+          # NPM_CONFIG_PROVENANCE + publishConfig.provenance and configure trusted
+          # publishers at npmjs.com/package/<pkg>/settings to go fully tokenless+attested.
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: true
