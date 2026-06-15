@@ -88,7 +88,13 @@ async function maybeInjectHandoffTools(options: AgentOptions): Promise<AgentOpti
   }
   let mod: ToolInjectorModule;
   try {
-    mod = (await import("@theokit/sdk-handoff/internal/tool-injector")) as ToolInjectorModule;
+    // Dynamic specifier kept in a variable so tsc/bundlers can't statically
+    // resolve it at build time — @theokit/sdk-handoff is an optional peer
+    // loaded at runtime, and resolving its types here would create a build
+    // cycle (sdk-handoff depends on @theokit/sdk). Local ToolInjectorModule
+    // mirrors the surface. Same pattern as internal/memory/sdk-memory-peer-loader.ts.
+    const spec = "@theokit/sdk-handoff/internal/tool-injector";
+    mod = (await import(spec)) as unknown as ToolInjectorModule;
   } catch (err) {
     throw new ConfigurationError(
       "Agent.create({ handoffs: [...] }) requires @theokit/sdk-handoff. " +
