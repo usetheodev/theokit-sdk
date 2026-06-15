@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Added
 
 - `@theokit/sdk`: `createSquad` sequential agent-team convenience (composes Workflow+agentStep) + `@theokit/di-agent` `@Squad` decorator + `@theokit/di` `METADATA_KEYS.SQUAD`. See per-package CHANGELOGs.
+- `@theokit/di-agent`: decorator-driven workflow authoring — `@Step` method decorator + `buildWorkflow(instance)` that compiles a decorated class into a `@theokit/sdk` `Workflow` (composition, no new engine). Backed by `@theokit/di` `METADATA_KEYS.STEP`. See per-package CHANGELOGs.
 
 ### Fixed
 
