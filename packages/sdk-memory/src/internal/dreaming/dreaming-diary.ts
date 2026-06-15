@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
 
-import { memoryDir } from "./markdown-store.js";
+import { memoryDir } from "../store/markdown-store.js";
 
 /**
  * Dream-diary append (ADR D7).

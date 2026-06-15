@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/internal/persistence";
 
-import { type MemoryConfig, type MemoryFact, redactSecrets } from "./memory-types.js";
+import { type MemoryConfig, type MemoryFact, redactSecrets } from "../memory-types.js";
 
 /**
  * Markdown-first memory storage (ADR D1 of memory-system-peer-project-parity).

@@ -2,9 +2,8 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
-
+import { redactSecrets } from "../memory-types.js";
 import { memoryDir } from "./markdown-store.js";
-import { redactSecrets } from "./memory-types.js";
 
 /**
  * Per-run session summary writer (ADR D20).

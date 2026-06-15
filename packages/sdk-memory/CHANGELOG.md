@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Reorganized the flat 43-file `src/internal/` god folder into 5 sub-concern folders (arch-review M5): `embedding/` (10), `index/` (12), `active-memory/` (5), `dreaming/` (3), `store/` (7); 6 cross-cutting files (`adapter-catalog`, `adapter-http-error`, `circuit-breaker`, `memory-scope`, `memory-types`, `tools`) remain at the `internal/` root. Pure file moves + import-path updates — no behavior/API change (the package barrel `index.ts` re-exports identically); all 324 tests GREEN, `madge --circular` clean.
+
 ### Security (drift sync — iter 112/114/115, 2026-06-09)
 
 Three security/perf hardenings shipped in `@theokit/sdk`'s

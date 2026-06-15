@@ -34,6 +34,10 @@
  * @internal
  */
 
+import type { CircuitBreaker } from "../circuit-breaker.js";
+import type { MemorySearchHit } from "../index/index-manager-contract.js";
+import type { MemoryIndex } from "../index/memory-index.js";
+import { persistActiveMemoryTranscript } from "../store/transcript-store.js";
 import type { ActiveMemoryCache } from "./active-memory-cache.js";
 // T4.1 / D438 — `ActiveMemoryResult` and its helpers moved to `./active-memory-types.ts`
 // so `./active-memory-cache.ts` can reach them without cycling back here (cycle #10).
@@ -43,10 +47,6 @@ import type {
   ActiveMemoryResult,
   ActiveMemoryStatus,
 } from "./active-memory-types.js";
-import type { CircuitBreaker } from "./circuit-breaker.js";
-import type { MemorySearchHit } from "./index-manager-contract.js";
-import type { MemoryIndex } from "./memory-index.js";
-import { persistActiveMemoryTranscript } from "./transcript-store.js";
 
 export type { ActiveMemoryQueryMode, ActiveMemoryResult, ActiveMemoryStatus };
 

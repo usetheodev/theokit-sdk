@@ -1,9 +1,9 @@
-import { deepinfraMemoryEmbeddingProviderAdapter } from "./deepinfra-embedding.js";
-import { mistralMemoryEmbeddingProviderAdapter } from "./mistral-embedding.js";
-import { ollamaMemoryEmbeddingProviderAdapter } from "./ollama-embedding.js";
-import { openAiMemoryEmbeddingProviderAdapter } from "./openai-embedding.js";
-import { openRouterMemoryEmbeddingProviderAdapter } from "./openrouter-embedding.js";
-import { voyageMemoryEmbeddingProviderAdapter } from "./voyage-embedding.js";
+import { deepinfraMemoryEmbeddingProviderAdapter } from "./embedding/deepinfra-embedding.js";
+import { mistralMemoryEmbeddingProviderAdapter } from "./embedding/mistral-embedding.js";
+import { ollamaMemoryEmbeddingProviderAdapter } from "./embedding/ollama-embedding.js";
+import { openAiMemoryEmbeddingProviderAdapter } from "./embedding/openai-embedding.js";
+import { openRouterMemoryEmbeddingProviderAdapter } from "./embedding/openrouter-embedding.js";
+import { voyageMemoryEmbeddingProviderAdapter } from "./embedding/voyage-embedding.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
 // Catalog value type is inferred from the literal record; canonical
