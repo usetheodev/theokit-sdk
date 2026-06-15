@@ -1,44 +1,44 @@
 import "reflect-metadata";
 import { describe, expect, it } from "vitest";
 
-import { Crew, type CrewMetadata, readCrewMetadata } from "../src/decorators/crew.js";
+import { readSquadMetadata, Squad, type SquadMetadata } from "../src/decorators/squad.js";
 
-describe("@Crew", () => {
-  const spec: CrewMetadata = {
+describe("@Squad", () => {
+  const spec: SquadMetadata = {
     agents: ["researcher", "writer"],
     process: "sequential",
   };
 
   it("stores spec on decorated property", () => {
     class MyTeam {
-      @Crew(spec)
+      @Squad(spec)
       pipeline!: unknown;
     }
-    expect(readCrewMetadata(MyTeam).get("pipeline")).toEqual(spec);
+    expect(readSquadMetadata(MyTeam).get("pipeline")).toEqual(spec);
   });
 
   it("defaults process to undefined (runtime default = sequential)", () => {
     class T {
-      @Crew({ agents: ["a", "b"] })
+      @Squad({ agents: ["a", "b"] })
       p!: unknown;
     }
-    expect(readCrewMetadata(T).get("p")?.process).toBeUndefined();
+    expect(readSquadMetadata(T).get("p")?.process).toBeUndefined();
   });
 
-  it("supports multiple crew properties", () => {
+  it("supports multiple squad properties", () => {
     class T {
-      @Crew({ agents: ["a"] })
+      @Squad({ agents: ["a"] })
       one!: unknown;
-      @Crew({ agents: ["b", "c"] })
+      @Squad({ agents: ["b", "c"] })
       two!: unknown;
     }
-    const meta = readCrewMetadata(T);
+    const meta = readSquadMetadata(T);
     expect(meta.size).toBe(2);
     expect(meta.get("two")?.agents).toEqual(["b", "c"]);
   });
 
   it("returns empty map for undecorated class", () => {
     class Plain {}
-    expect(readCrewMetadata(Plain).size).toBe(0);
+    expect(readSquadMetadata(Plain).size).toBe(0);
   });
 });
