@@ -2,10 +2,10 @@ import { resolve as resolvePath } from "node:path";
 
 import { ConfigurationError } from "@theokit/sdk/errors";
 
-import type { MemorySearchHit } from "./index-manager-contract.js";
-import { memoryDir } from "./markdown-store.js";
-import type { MemoryIndex } from "./memory-index.js";
-import { readMemoryFileBounded } from "./reader.js";
+import type { MemorySearchHit } from "./index/index-manager-contract.js";
+import type { MemoryIndex } from "./index/memory-index.js";
+import { memoryDir } from "./store/markdown-store.js";
+import { readMemoryFileBounded } from "./store/reader.js";
 
 /**
  * Memory tools (`memory_search` + `memory_get`) — ADR D5 of

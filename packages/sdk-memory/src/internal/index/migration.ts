@@ -1,7 +1,6 @@
 import { access, readFile, unlink } from "node:fs/promises";
-
-import { appendFactToMarkdown, memoryMdPath } from "./markdown-store.js";
-import { legacyMemoryJsonPath, type MemoryConfig, type MemoryFact } from "./memory-types.js";
+import { legacyMemoryJsonPath, type MemoryConfig, type MemoryFact } from "../memory-types.js";
+import { appendFactToMarkdown, memoryMdPath } from "../store/markdown-store.js";
 
 /**
  * One-shot legacy-JSON → markdown migration (ADR D8 of memory-system-openclaw-parity).

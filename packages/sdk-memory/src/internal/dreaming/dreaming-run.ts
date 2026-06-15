@@ -2,11 +2,10 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/internal/persistence";
-
+import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
+import { memoryDir, readFactsFromMarkdown } from "../store/markdown-store.js";
 import { appendDiaryEntry } from "./dreaming-diary.js";
 import { deepPhase, lightPhase, remPhase } from "./dreaming-phases.js";
-import type { EmbeddingRuntime } from "./embedding-adapter.js";
-import { memoryDir, readFactsFromMarkdown } from "./markdown-store.js";
 
 /**
  * Dreaming sweep orchestrator (ADR D7 of memory-system-openclaw-parity).

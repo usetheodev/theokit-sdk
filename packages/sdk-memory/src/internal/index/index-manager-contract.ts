@@ -1,4 +1,4 @@
-import type { EmbeddingRuntime } from "./embedding-adapter.js";
+import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 
 /**
  * Memory index manager contract — leaf types shared by `index-manager.ts`
