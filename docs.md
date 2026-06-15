@@ -2222,6 +2222,41 @@ console.log(run.steps);   // StepResult[] — one per agent
 - Invalid input fails fast: empty `agents` → `ConfigurationError(code: "invalid_squad")`.
 - Decorator form: `@Squad({ agents: [...] })` from `@theokit/di-agent`.
 
+## Decorator-driven workflows — `@Step` + `buildWorkflow`
+
+For an authoring style where each step is a decorated method, `@theokit/di-agent`
+provides `@Step` + `buildWorkflow`. It **compiles** the decorated class into a
+`@theokit/sdk` `Workflow` — it adds no orchestration engine of its own. Each
+step receives the upstream step's return value (or the workflow input for an
+entry step) and returns its own output.
+
+```typescript
+import { Workflow, Step, buildWorkflow } from "@theokit/di-agent";
+
+@Workflow({ name: "refund-pipeline" })
+class RefundPipeline {
+  @Step()
+  validate(input: { claim: string }) {
+    if (!input.claim) throw new Error("missing claim");
+    return input.claim;
+  }
+  @Step({ after: "validate" })
+  classify(claim: string) {
+    return claim.includes("billing") ? "BILLING" : "OTHER";
+  }
+}
+
+const wf = buildWorkflow(new RefundPipeline());      // a real @theokit/sdk Workflow
+const run = await wf.run({ claim: "billing issue" });
+console.log(run.output);  // "BILLING"
+```
+
+- `@Step({ after })` declares a single upstream dependency; steps are
+  topologically ordered into a linear chain. For branching/parallel/foreach use
+  the imperative `Workflow` API directly (below) — it is not duplicated here.
+- Fail-fast: no `@Step` methods, an unknown `after` target, or a cycle throws
+  before the workflow is built.
+
 ## Workflows (v1.17+) — `Workflow.create / .run / .resume`
 
 Declarative multi-step orchestration over `Agent.send`, `Handoff`, `Agent.batch`
