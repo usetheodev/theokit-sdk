@@ -14,43 +14,15 @@
  */
 
 import type { AgentOptions, SDKAgent } from "../../types/agent.js";
+// ForkOptions/ForkResult live in the leaf `types/fork.ts` (arch-review ADR 0001)
+// so `types/agent.ts` can reference them without importing this implementation
+// module (which would form a type-only cycle). Re-exported here for back-compat.
+import type { ForkOptions, ForkResult } from "../../types/fork.js";
 import type { Plugin } from "../plugins/types.js";
 import { withToolWhitelist } from "./async-local-storage.js";
-import { isCodePlugin } from "./local-agent-plugins.js";
+import { isCodePlugin } from "./local-agent/local-agent-plugins.js";
 
-/**
- * Caller-supplied fork configuration. See {@link forkAgentImpl}.
- *
- * @internal
- */
-export interface ForkOptions {
-  /**
-   * Tool subset visible to the fork. Names must match the canonical (post-repair)
-   * tool name — typically lowercase. Tools not in this set return a `tool_result`
-   * with `"Tool blocked by fork whitelist"` content (EC-H).
-   */
-  allowedTools: Set<string>;
-  /** Task prompt sent to the fork. */
-  prompt: string;
-  /** Override system prompt. Default: byte-identical inheritance from parent (D112). */
-  systemPrompt?: string;
-  /** Memory write provenance tag (D114). Default `"fork"`. */
-  forkOrigin?: string;
-}
-
-/**
- * Outcome of a fork run.
- *
- * @internal
- */
-export interface ForkResult {
-  /** Final agent response text (`undefined` when the fork produced no result). */
-  result: string | undefined;
-  /** Tool calls executed inside the fork. */
-  toolCalls: ReadonlyArray<{ name: string; input: Record<string, unknown> }>;
-  /** Aggregate token usage reported by the run. */
-  usage: { inputTokens: number; outputTokens: number };
-}
+export type { ForkOptions, ForkResult } from "../../types/fork.js";
 
 /**
  * Injected dependency contract — keeps fork-agent acyclic with `Agent`.

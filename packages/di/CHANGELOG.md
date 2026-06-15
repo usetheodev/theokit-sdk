@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Broke the `container.ts ↔ internal/module-loader.ts` type-only dependency cycle (arch-review ADR 0001). `loadModule` now takes a narrow `ModuleRegistrar` interface (just `register(...)`) from the leaf `types.ts` instead of importing the concrete `Container`. No behavior change — `Container` satisfies it structurally; all 69 tests GREEN, `madge --circular` clean.
+
+### Changed
+
 - **Documentation only:** expanded JSDoc header on `Container` class (`src/container.ts:87`) acknowledging auditor finding PV#10 from the 2026-06-06 architecture audit. The 812 LOC class size is above the 500 LOC heuristic file budget but justified as the Single-Point-of-Truth for DI resolution (registry lookup, lifecycle SINGLETON/TRANSIENT/REQUEST, `@Injectable` metadata read, alias resolution, request-scope ALS propagation, dispose chain). Splitting would fragment cohesion per `rules/architecture.md § 3` + KISS / YAGNI. ADR D422 tracks ongoing Extract-Method refactor at the method level. No code change. Plan `arch-review-fixes-2026-06-06` T11.2 records the trade-off.
 
 ## [0.1.0] - 2026-05-31

@@ -28,7 +28,7 @@ import {
   compactSessionFile,
   type PersistedSessionMessage,
   readAllPersistedMessages,
-} from "../runtime/agent-session-store.js";
+} from "../runtime/session/agent-session-store.js";
 import { safePathJoin, sanitizeIdentifier } from "../security/index.js";
 
 export interface FileSystemConversationStorageOptions {

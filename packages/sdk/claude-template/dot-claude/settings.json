@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run *)",
+      "Bash(pnpm *)",
+      "Bash(npx *)",
+      "Read(./src/**)",
+      "Read(./docs/**)",
+      "Read(./tests/**)",
+      "Bash(git status)",
+      "Bash(git diff)",
+      "Bash(git log *)"
+    ],
+    "deny": ["Read(.env*)", "Read(**/.env*)", "Bash(sudo *)", "Bash(rm -rf *)"]
+  }
+}

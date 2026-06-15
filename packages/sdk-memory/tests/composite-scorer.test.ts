@@ -4,7 +4,7 @@ import {
   type CompositeScoreConfig,
   compositeScore,
   DEFAULT_COMPOSITE_CONFIG,
-} from "../src/internal/composite-scorer.js";
+} from "../src/internal/active-memory/composite-scorer.js";
 
 describe("compositeScore", () => {
   const config = DEFAULT_COMPOSITE_CONFIG;

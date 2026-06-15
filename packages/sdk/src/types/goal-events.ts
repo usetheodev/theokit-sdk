@@ -60,7 +60,7 @@ export interface GoalResult {
 }
 
 /**
- * Return type of {@link import("../internal/runtime/local-agent.js").LocalAgent.runUntil}.
+ * Return type of {@link import("../internal/runtime/local-agent/local-agent.js").LocalAgent.runUntil}.
  * Extracted so the LocalAgent method signature stays a single line (G8 LoC budget).
  *
  * @public

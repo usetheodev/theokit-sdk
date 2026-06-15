@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { analyzeQuery } from "../src/internal/query-analyzer.js";
+import { analyzeQuery } from "../src/internal/active-memory/query-analyzer.js";
 
 describe("analyzeQuery", () => {
   it("short query returns unchanged without LLM call", async () => {
