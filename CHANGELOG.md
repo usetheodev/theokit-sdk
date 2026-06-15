@@ -13,7 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- CI release auth (`release.yml`): the OIDC publish returned `E404` because no npm trusted-publisher binding authorizes this repo for the `@theokit/*` packages yet. Added token auth via `NODE_AUTH_TOKEN` (GitHub Actions secret `NPM_TOKEN`) so `changeset publish` can authenticate. **Provenance is preserved** — `id-token: write` + `NPM_CONFIG_PROVENANCE: true` still produce a signed sigstore attestation regardless of the auth mechanism. Migration path documented inline: configure dashboard trusted publishers, then drop the token to go fully tokenless.
+- CI release auth (`release.yml`): the OIDC publish returned `E404` because no npm trusted-publisher binding authorizes this repo for the `@theokit/*` packages yet. Added token auth via `NODE_AUTH_TOKEN` (GitHub Actions secret `NPM_TOKEN`) so `changeset publish` can authenticate.
+- CI release provenance (`release.yml` + 7 `publishConfig`s): **disabled provenance attestation.** npm rejects provenance for PRIVATE source repositories (`E422 "Unsupported GitHub Actions source repository visibility: private"`), and this repo is currently private. The already-published versions have no attestation either (`npm view … dist.attestations` empty) — so `provenance: true` was aspirational and never actually worked. Removed `NPM_CONFIG_PROVENANCE` from the workflow and `"provenance": true` from `publishConfig` in `sdk`, `di`, `di-agent`, `acp`, `cli`, `react`, `orm`. Re-enable (workflow env + publishConfig + dashboard trusted publishers) when the repo goes public.
 
 ## [1.8.0] - 2026-06-15
 
