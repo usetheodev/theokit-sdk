@@ -1,7 +1,7 @@
 {
   "name": "@theokit/di-agent",
-  "version": "0.1.0",
-  "description": "Agent-first DI integration for @theokit/di. Ships @InjectAgent() decorator + createAgentProvider() helper that produces a REQUEST-scoped Agent factory \u2014 so every HTTP request gets an isolated @theokit/sdk Agent automatically.",
+  "version": "0.2.0",
+  "description": "Agent-first DI integration for @theokit/di. Ships @InjectAgent() decorator + createAgentProvider() helper that produces a REQUEST-scoped Agent factory — so every HTTP request gets an isolated @theokit/sdk Agent automatically.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
   "bugs": "https://github.com/usetheo/theokit-sdk/issues",

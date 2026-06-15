@@ -1,6 +1,6 @@
 {
   "name": "@theokit/example-di-agent-express",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Dogfood example — minimal HTTP server demonstrating @InjectAgent + REQUEST-scoped Agent isolation per request.",
   "private": true,
   "type": "module",

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.9.0
+
+### Minor Changes
+
+- 461c020: `createSquad` sequential agent-team convenience + `Agent.batch` boundary validation — first real npm publish.
+
+  - **`createSquad(options)`** — composes `Workflow.create()` + `agentStep` into a sequential agent team (own identity; not a framework copy). Throws `ConfigurationError` (`invalid_squad` for empty agents, `squad_process_unsupported` for hierarchical). Cross-validation Gap 1.
+  - **`Agent.batch`** now fail-fast validates `concurrency` + prompt items at the public boundary (`ConfigurationError` with `invalid_concurrency` / `invalid_batch_item`) before any side effect. Cross-validation Gap 3.
+
+  Note: these features were tagged as `v1.8.0` but that version's npm publish failed (CI build cycle, fixed in `turbo.json`); `1.8.0` / `1.8.1` on npm predate them. They are published to npm for the first time in `1.9.0`. The `[1.8.0]` CHANGELOG section is retained as the GitHub-released record and is not rewritten.
+
 ## [Unreleased]
 
 ### Added
@@ -12,7 +23,7 @@
 
 ### Changed
 
-- Reorganized the flat 62-file `src/internal/runtime/` god folder into sub-concern folders (arch-review M4): `local-agent/` (15), `cloud/` (6), `compression/` (6), `hooks/` (4), `budget/` (3), `memory/` (4), `session/` (3), `skills/` (3) — alongside the pre-existing `registry/`, `system-prompt/`, `context/`, `fixtures/`, `plugins/`. 18 cross-cutting singletons (abort-utils, async-*, default-model, fork-agent, run-until, system-prompt, validate-*, etc.) remain at the `runtime/` root (down from 62). Pure file moves + import-path updates (44 files moved, ~100 import sites rewritten incl. 2 lint-allowlist path updates); `internal/runtime` is not an exported subpath and has no tsup entry, so the change is fully internal — no API/behavior change. Full SDK suite GREEN (2629 tests); `madge --circular` unchanged (1 intentional type-only `memory/memory-provider` cycle).
+- Reorganized the flat 62-file `src/internal/runtime/` god folder into sub-concern folders (arch-review M4): `local-agent/` (15), `cloud/` (6), `compression/` (6), `hooks/` (4), `budget/` (3), `memory/` (4), `session/` (3), `skills/` (3) — alongside the pre-existing `registry/`, `system-prompt/`, `context/`, `fixtures/`, `plugins/`. 18 cross-cutting singletons (abort-utils, async-_, default-model, fork-agent, run-until, system-prompt, validate-_, etc.) remain at the `runtime/` root (down from 62). Pure file moves + import-path updates (44 files moved, ~100 import sites rewritten incl. 2 lint-allowlist path updates); `internal/runtime` is not an exported subpath and has no tsup entry, so the change is fully internal — no API/behavior change. Full SDK suite GREEN (2629 tests); `madge --circular` unchanged (1 intentional type-only `memory/memory-provider` cycle).
 - Broke 2 of 3 type-only dependency cycles in the public type barrel (arch-review ADR 0001). `ForkOptions`/`ForkResult` moved to a leaf `types/fork.ts`, so `types/agent.ts` no longer imports the `internal/runtime/fork-agent.ts` implementation (`fork-agent.ts` re-exports them for back-compat). Eliminates the `types/agent.ts → fork-agent.ts → {plugins/types,(self)}` cycles. No behavior/API change; `madge --circular` drops from 3 to 1 (the remaining `memory-provider` cycle is a genuine bidirectional type relationship, runtime-safe, left intentionally).
 
 ### Fixed
@@ -42,7 +53,7 @@
 
 - **Compression config resolution module (T2.2 step 2/N of plan `sdk-superiority-2026-06-07`, ADR D440)**: `resolveCompressionConfig(agentModel, config): ResolvedCompressionConfig` bridges the compression-model-registry (step 1) with the `Agent.create({compression})` override surface. Resolves: (a) compression model — registry default OR explicit `config.model` override; (b) API key — first-match chain: explicit `config.apiKey` → `THEOKIT_COMPRESSION_API_KEY` env var → undefined (signals aux-LLM client to use agent's main CredentialPool); (c) maxAttempts (default 3) + grace (default 1). Pure config resolution — no I/O. 11 new tests at `tests/internal/runtime/compression-config.test.ts`. Foundation for step 3 (aux-llm-client with OTel span) and step 4 (agent-loop wire).
 
-- **Model capabilities introspection registry (T3.10c step 1 of plan `sdk-superiority-2026-06-07`, DR3 #17)**: pre-T3.10c the SDK had no way to query a model's capability flags before sending a request — consumers who sent vision content to a text-only model or structured-output requests to a model without json_schema support got an opaque 400 from the provider. T3.10c step 1 adds the foundation pure-function registry `resolveModelCapabilities(modelId): ModelCapabilities` with typed per-model flags: `supportsVision`, `supportsStructuredOutput`, `supportsToolUse`, `supportsCacheControl`, `maxContextTokens`, `maxOutputTokens`. Resolution algorithm: strip routing prefixes (openrouter/, vertex/, bedrock/), exact-match against the vendor-model registry, then infer vendor from model name (claude-* → anthropic/, gpt-* → openai/, gemini-* → google/) for routing-prefixed lookups. Unknown models return conservative defaults (all false, 4096/4096 token counts) — never optimistic assumptions. Initial registry covers OpenAI (gpt-4o/4o-mini/4-turbo/o1/o3) and Anthropic (claude-opus-4/sonnet-4/3-5-sonnet/3-haiku/3-opus) families. 9 new tests at `tests/internal/llm/model-capabilities.test.ts`. Foundation for step 2 (public `Theokit.models.capabilities()` API) and step 3 (Agent.create boundary gate + `CapabilityNotSupportedError`).
+- **Model capabilities introspection registry (T3.10c step 1 of plan `sdk-superiority-2026-06-07`, DR3 #17)**: pre-T3.10c the SDK had no way to query a model's capability flags before sending a request — consumers who sent vision content to a text-only model or structured-output requests to a model without json_schema support got an opaque 400 from the provider. T3.10c step 1 adds the foundation pure-function registry `resolveModelCapabilities(modelId): ModelCapabilities` with typed per-model flags: `supportsVision`, `supportsStructuredOutput`, `supportsToolUse`, `supportsCacheControl`, `maxContextTokens`, `maxOutputTokens`. Resolution algorithm: strip routing prefixes (openrouter/, vertex/, bedrock/), exact-match against the vendor-model registry, then infer vendor from model name (claude-_ → anthropic/, gpt-_ → openai/, gemini-\* → google/) for routing-prefixed lookups. Unknown models return conservative defaults (all false, 4096/4096 token counts) — never optimistic assumptions. Initial registry covers OpenAI (gpt-4o/4o-mini/4-turbo/o1/o3) and Anthropic (claude-opus-4/sonnet-4/3-5-sonnet/3-haiku/3-opus) families. 9 new tests at `tests/internal/llm/model-capabilities.test.ts`. Foundation for step 2 (public `Theokit.models.capabilities()` API) and step 3 (Agent.create boundary gate + `CapabilityNotSupportedError`).
 
 ### Fixed
 
@@ -87,11 +98,11 @@
 ### Refactored
 
 - **Cycle #4 closed via `types/handoff-descriptor.ts` leaf with TAgent generic (iter-20)**: `HandoffDescriptor` + `HandoffOptions` + `HandoffContext` + `HandoffHistory` + `HandoffResult` moved to a new leaf file. The leaf has `HandoffDescriptor<TInput, TAgent>` parameterized over the target agent shape — no dependency on `SDKAgent` or any other agent.ts type. `types/handoff.ts` re-exports the leaf types with `TAgent = SDKAgent` pinned for back-compat callers. `types/agent.ts` now imports `HandoffDescriptor` from the leaf, breaking the bidirectional `types/agent.ts ↔ types/handoff.ts` edge. madge final state: **2 cycles** (only D428-acknowledged rollup-dts subscribe-at-sub-path remain). Cycle gate threshold tightened ≤ 2.
-- **`internal/runtime/plugins/` sub-folder promotion + T5.1 complete (4 of 4, FO#1)**: 2 plugin-* files moved from `internal/runtime/` to `internal/runtime/plugins/` via `git mv`. Direct file count: 50 → 48. **T5.1 complete across 4 iterations (15-18)**: cumulative 21 files moved across fixtures/ (5) + context/ (8) + registry/ (6) + plugins/ (2). `internal/runtime/` direct file count dropped 69 → 48. Audit ideal heuristic is 25; remaining 23-file gap is documented as out-of-scope (no further cohesive 5+ file cluster remains). 254/254 runtime + architecture tests GREEN.
-- **`internal/runtime/registry/` sub-folder promotion (T5.1 partial 3 of 4, FO#1)**: 6 *-registry* files moved from `internal/runtime/` to `internal/runtime/registry/` via `git mv`. Direct file count: 56 → 50. T5.1 status PARTIAL — 3 of 4 clusters done (fixtures + context + registry). Remaining: plugins/. Cross-package caller surgery covered: `src/agent.ts`, `src/index.ts`, 5 runtime siblings, 4 test files, 1 dynamic `import("./agent-factory-registry.js")` in `local-agent-runtime-extensions.ts`. 253/253 runtime + architecture tests GREEN; madge unchanged.
-- **`internal/runtime/context/` sub-folder promotion (T5.1 partial 2 of 4, FO#1)**: 8 context-* files moved from `internal/runtime/` to `internal/runtime/context/` via `git mv`. Direct file count: 64 → 56. T5.1 status PARTIAL — 2 of 4 clusters done (fixtures + context). Remaining: registry/, plugins/. Sibling callers (`local-agent`, `local-agent-bootstrap`, `system-prompt/local-assembly`) had their imports rewritten to `./context/context-X.js` (or `../context/context-X.js` from system-prompt/). 8 test files updated. 252/252 runtime + architecture tests GREEN.
-- **`internal/runtime/fixtures/` sub-folder promotion (T5.1 partial, FO#1)**: 5 fixture-* files moved from `internal/runtime/` to `internal/runtime/fixtures/` via `git mv`. Direct file count: 69 → 64. T5.1 status PARTIAL — fixtures is 1 of 4 clusters (context/registry/plugins remain for follow-up iterations). Internal-only refactor; sibling callers (`cloud-run`, `local-run`, `real-local-run`, `real-cloud-run`) had their imports rewritten to `./fixtures/fixture-X.js`. 251/251 runtime + architecture tests GREEN; madge cycle count unchanged.
-- **`internal/memory/storage/` sub-folder promotion (T10.1, FO#3)**: 7 storage-primitive files moved from `internal/memory/` to `internal/memory/storage/` via `git mv` — `markdown-store.ts`, `transcript-store.ts`, `session-loader.ts`, `session-summary-writer.ts`, `reader.ts`, `wiki-loader.ts`, `chunk-markdown.ts`. Direct file count in `internal/memory/`: 28 → 22 (under the 25-file god-folder heuristic). Internal-only refactor; zero public API surface change. All sibling imports, runtime/* callers, and test paths updated in the same slice. Architecture guard `tests/architecture/memory-folder-budget.test.ts` (NEW) asserts the budget. 140/140 architecture + memory tests GREEN; madge cycle count unchanged.
+- **`internal/runtime/plugins/` sub-folder promotion + T5.1 complete (4 of 4, FO#1)**: 2 plugin-\* files moved from `internal/runtime/` to `internal/runtime/plugins/` via `git mv`. Direct file count: 50 → 48. **T5.1 complete across 4 iterations (15-18)**: cumulative 21 files moved across fixtures/ (5) + context/ (8) + registry/ (6) + plugins/ (2). `internal/runtime/` direct file count dropped 69 → 48. Audit ideal heuristic is 25; remaining 23-file gap is documented as out-of-scope (no further cohesive 5+ file cluster remains). 254/254 runtime + architecture tests GREEN.
+- **`internal/runtime/registry/` sub-folder promotion (T5.1 partial 3 of 4, FO#1)**: 6 _-registry_ files moved from `internal/runtime/` to `internal/runtime/registry/` via `git mv`. Direct file count: 56 → 50. T5.1 status PARTIAL — 3 of 4 clusters done (fixtures + context + registry). Remaining: plugins/. Cross-package caller surgery covered: `src/agent.ts`, `src/index.ts`, 5 runtime siblings, 4 test files, 1 dynamic `import("./agent-factory-registry.js")` in `local-agent-runtime-extensions.ts`. 253/253 runtime + architecture tests GREEN; madge unchanged.
+- **`internal/runtime/context/` sub-folder promotion (T5.1 partial 2 of 4, FO#1)**: 8 context-\* files moved from `internal/runtime/` to `internal/runtime/context/` via `git mv`. Direct file count: 64 → 56. T5.1 status PARTIAL — 2 of 4 clusters done (fixtures + context). Remaining: registry/, plugins/. Sibling callers (`local-agent`, `local-agent-bootstrap`, `system-prompt/local-assembly`) had their imports rewritten to `./context/context-X.js` (or `../context/context-X.js` from system-prompt/). 8 test files updated. 252/252 runtime + architecture tests GREEN.
+- **`internal/runtime/fixtures/` sub-folder promotion (T5.1 partial, FO#1)**: 5 fixture-\* files moved from `internal/runtime/` to `internal/runtime/fixtures/` via `git mv`. Direct file count: 69 → 64. T5.1 status PARTIAL — fixtures is 1 of 4 clusters (context/registry/plugins remain for follow-up iterations). Internal-only refactor; sibling callers (`cloud-run`, `local-run`, `real-local-run`, `real-cloud-run`) had their imports rewritten to `./fixtures/fixture-X.js`. 251/251 runtime + architecture tests GREEN; madge cycle count unchanged.
+- **`internal/memory/storage/` sub-folder promotion (T10.1, FO#3)**: 7 storage-primitive files moved from `internal/memory/` to `internal/memory/storage/` via `git mv` — `markdown-store.ts`, `transcript-store.ts`, `session-loader.ts`, `session-summary-writer.ts`, `reader.ts`, `wiki-loader.ts`, `chunk-markdown.ts`. Direct file count in `internal/memory/`: 28 → 22 (under the 25-file god-folder heuristic). Internal-only refactor; zero public API surface change. All sibling imports, runtime/\* callers, and test paths updated in the same slice. Architecture guard `tests/architecture/memory-folder-budget.test.ts` (NEW) asserts the budget. 140/140 architecture + memory tests GREEN; madge cycle count unchanged.
 - **`dispatchSingleCall` orchestrator split (T10.4, PV#2)**: the 158 LOC body in `internal/agent-loop/tool-dispatch.ts` was decomposed into 7 named single-concern helpers (`applyRepairAndExtractCall`, `vetoFromForkWhitelist`, `startToolCallSpan`, `vetoFromPluginPreHook`, `vetoFromFileHookPreDecision`, `runToolWithLifecycle`, `finalizeSpanAndPostHook`). The orchestrator now reads as a ~28 LOC sequence; the previous complexity-suppression `biome-ignore` directive is removed. Zero public-API surface change; 51/51 regression tests (tool-dispatch + hooks + golden custom-tools) continue to pass.
 
 ### Fixed
@@ -143,12 +154,12 @@
 
 - **Load + chaos suite scaffold (T0.3 of plan `sdk-superiority-2026-06-07`)**: 6 new test files at `tests/load/{1000-concurrent-sse,leaky-generators,slow-consumer-backpressure}.test.ts` and `tests/chaos/{kill-mid-stream,partition-fs,oom-recovery}.test.ts`. Three harness modules ship alongside: `tests/load/_harness/sse-driver.ts` (in-process SSE driver — NOT autocannon — per SEPA brief § E; tracks p50/p95/p99 latencies + SSE event count via `\n\n` terminators per HTML LS § 9.2.6), `tests/load/_harness/socket-monitor.ts` (Linux-only `ss -tnp` probe with no-op fallback for Mac/Win; CI asserts `closeWaitCount ≤ threshold`), `tests/chaos/_harness/process-control.ts` (child-process spawn + SIGKILL injection per ADR D37 methodology). Today's scaffold uses 100 concurrent SSE (override via `T0_3_CONCURRENCY=1000`); T6.2 ratchets to the full 1000-conn p95 < 200ms perf gate, T6.3 wires the kill-mid-stream chaos against the SDK's real streaming surface, T6.4 wires partition-fs against persistence paths, T6.5 wires OOM against the memory subsystem.
 - **Real-LLM CI matrix scaffold (T0.2 of plan `sdk-superiority-2026-06-07`)**: 15 env-gated integration test files at `tests/integration/real-llm/{openai,anthropic,openrouter}-{tools,vision,stream,cache,structured}.test.ts`. Each file uses `describe.skipIf(...)` so the suite is silent when the relevant API key is absent. `tests/integration/real-llm/_helpers/real-llm-env.ts` centralizes the provider-key resolver with OpenRouter fallback for non-native scenarios (Anthropic cache stays native-only per SEPA initial brief § C). With keys set the matrix validates the happy path for tool use, streaming, vision content parts, prompt caching, and structured outputs across the 3 routes — expanded depth (cache_read_input_tokens > 0 assertion, parallel tool dispatch, error-retry) lands in T3.5 / T3.8 / T6.1. Default model `openai/gpt-4o-mini` per cost budget. Today: 15/15 files skip cleanly.
-- **OTel hot-path wiring foundation (T0.1 of plan `sdk-superiority-2026-06-07`)**: emit canonical spans `agent.create`, `agent.send` (parent), and `memory.recall` when `telemetry.enabled: true`. New closed-enum `internal/telemetry/span-names.ts` (14 names + `SpanName` literal type) anticipates the no-`(string & {})` discipline of T1.1. `TelemetryHandle` interface extended with `recordHistogram(name, valueMs, attrs)` and the OTel `metrics` namespace is lazy-loaded the same way `trace` is (graceful no-op when missing). First histogram name registered: `theokit_memory_recall_duration_ms` (recorded with `userId/namespace/scope/status` dimensions). Integration tests use a real `@opentelemetry/sdk-trace-base` `InMemorySpanExporter` (NOT module mocks) — added as devDep alongside `@opentelemetry/api` and `@opentelemetry/sdk-metrics`. Wiring triad: pillar (a) callers are `Agent.create` (production), `LocalAgent.send` (production), `runActiveMemory` (production); pillar (b) covered by `tests/telemetry/*.test.ts` (8 tests). Remaining acceptance items — `agent.send.<step>` 8 child spans, `tool.call`, `llm.call` spans — deferred to T1.7 / T2.4 / T3.* per SEPA brief (zero plan-deviation).
+- **OTel hot-path wiring foundation (T0.1 of plan `sdk-superiority-2026-06-07`)**: emit canonical spans `agent.create`, `agent.send` (parent), and `memory.recall` when `telemetry.enabled: true`. New closed-enum `internal/telemetry/span-names.ts` (14 names + `SpanName` literal type) anticipates the no-`(string & {})` discipline of T1.1. `TelemetryHandle` interface extended with `recordHistogram(name, valueMs, attrs)` and the OTel `metrics` namespace is lazy-loaded the same way `trace` is (graceful no-op when missing). First histogram name registered: `theokit_memory_recall_duration_ms` (recorded with `userId/namespace/scope/status` dimensions). Integration tests use a real `@opentelemetry/sdk-trace-base` `InMemorySpanExporter` (NOT module mocks) — added as devDep alongside `@opentelemetry/api` and `@opentelemetry/sdk-metrics`. Wiring triad: pillar (a) callers are `Agent.create` (production), `LocalAgent.send` (production), `runActiveMemory` (production); pillar (b) covered by `tests/telemetry/*.test.ts` (8 tests). Remaining acceptance items — `agent.send.<step>` 8 child spans, `tool.call`, `llm.call` spans — deferred to T1.7 / T2.4 / T3.\* per SEPA brief (zero plan-deviation).
 - **`SecretRedactor` interface** at `internal/security/secret-redactor.ts` (T9.1 of plan `arch-review-fixes-2026-06-06`, ADR D437). Types-only — no runtime exports; canonical `redactSecrets` from `redact.ts` satisfies the interface structurally. Closes AF#16 (Martin Zone of Pain D=0.923) from the 2026-06-06 architecture audit through documentation + minimal abstraction without violating D68/D69/D70/D71/D73 (security primitives stay concrete + stable). Rationale + coupling metrics at `internal/security/README.md`.
 
 ### Changed
 
-- **Renamed `internal/runtime/system-prompt/providers/` → `internal/runtime/system-prompt/sources/`** (FO#6, plan `arch-review-fixes-2026-06-06` T10.3). The directory previously shared its basename with `internal/providers/` (LLM provider profiles per ADR D105-D107) — auditor flagged the duplicate folder name as a findability hazard. `sources/` better describes the semantic: these 5 modules are system-prompt *sources* (ActiveMemoryPromptProvider, BasePromptProvider, ContextPromptProvider, MemoryPromptProvider, SkillsPromptProvider), not LLM provider profiles. Internal-only rename; no public API touched. Git-rename detection preserved (5/5 files moved with `git mv`); import paths in `pipeline.ts` + 5 golden tests updated atomically.
+- **Renamed `internal/runtime/system-prompt/providers/` → `internal/runtime/system-prompt/sources/`** (FO#6, plan `arch-review-fixes-2026-06-06` T10.3). The directory previously shared its basename with `internal/providers/` (LLM provider profiles per ADR D105-D107) — auditor flagged the duplicate folder name as a findability hazard. `sources/` better describes the semantic: these 5 modules are system-prompt _sources_ (ActiveMemoryPromptProvider, BasePromptProvider, ContextPromptProvider, MemoryPromptProvider, SkillsPromptProvider), not LLM provider profiles. Internal-only rename; no public API touched. Git-rename detection preserved (5/5 files moved with `git mv`); import paths in `pipeline.ts` + 5 golden tests updated atomically.
 
 ### Fixed
 
@@ -192,23 +203,23 @@
 
 ### Security threats addressed
 
-| Threat | Mitigation |
-|---|---|
-| Resume token replay | Consumer SHOULD bind token to session + rotate per reconnect; SDK ships TTL knob via custom `tracked()` envelope semantics |
-| WS connection hijacking | Auth at HTTP upgrade — `WsAdapter.upgrade(ctx, raw)` exposes the `request` so consumer middleware (G11 `defineAuth`) runs BEFORE upgrade. Rejected upgrade returns null → caller responds 401 |
-| Subscription input tampering | Zod schema validation BEFORE handler invocation; throws `SubscriptionInputError` carrying issues |
-| Resource exhaustion | Per-subscription `AbortSignal`; `SubscriptionRuntime.getActiveConnectionCount()` for ops visibility; consumer wires rate-limit middleware (P#10) at upgrade boundary |
-| Sensitive data in logs | Telemetry seam (D34) captures metadata only (`subscriptionName`, `lastEventId`, `connectionId`); never payloads (per D73 redact at output boundaries) |
-| Long-lived WS survives token expiry | `ctx.disconnect(code, reason)` lets consumer's auth middleware force-close when session revoked |
+| Threat                              | Mitigation                                                                                                                                                                                    |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Resume token replay                 | Consumer SHOULD bind token to session + rotate per reconnect; SDK ships TTL knob via custom `tracked()` envelope semantics                                                                    |
+| WS connection hijacking             | Auth at HTTP upgrade — `WsAdapter.upgrade(ctx, raw)` exposes the `request` so consumer middleware (G11 `defineAuth`) runs BEFORE upgrade. Rejected upgrade returns null → caller responds 401 |
+| Subscription input tampering        | Zod schema validation BEFORE handler invocation; throws `SubscriptionInputError` carrying issues                                                                                              |
+| Resource exhaustion                 | Per-subscription `AbortSignal`; `SubscriptionRuntime.getActiveConnectionCount()` for ops visibility; consumer wires rate-limit middleware (P#10) at upgrade boundary                          |
+| Sensitive data in logs              | Telemetry seam (D34) captures metadata only (`subscriptionName`, `lastEventId`, `connectionId`); never payloads (per D73 redact at output boundaries)                                         |
+| Long-lived WS survives token expiry | `ctx.disconnect(code, reason)` lets consumer's auth middleware force-close when session revoked                                                                                               |
 
 ### Multi-runtime compatibility matrix
 
-| Runtime | v1.7.0 | v1.8.x (planned) |
-|---|---|---|
-| Node 22+ | yes (canonical `ws` peer) | yes |
-| Cloudflare Workers | consumer adapter only | yes (`@theokit/sdk-ws-cloudflare`) |
-| Bun | consumer adapter only | yes (`@theokit/sdk-ws-bun`) |
-| Deno | consumer adapter only | yes (`@theokit/sdk-ws-deno`) |
+| Runtime            | v1.7.0                    | v1.8.x (planned)                   |
+| ------------------ | ------------------------- | ---------------------------------- |
+| Node 22+           | yes (canonical `ws` peer) | yes                                |
+| Cloudflare Workers | consumer adapter only     | yes (`@theokit/sdk-ws-cloudflare`) |
+| Bun                | consumer adapter only     | yes (`@theokit/sdk-ws-bun`)        |
+| Deno               | consumer adapter only     | yes (`@theokit/sdk-ws-deno`)       |
 
 ### Notes
 
@@ -254,6 +265,7 @@
 ### Breaking Changes
 
 - **`Workflow` and `Eval` moved out of the main barrel into dedicated sub-paths.** The migration is mechanical (rewrite the `from` string); no behavior changes. `@theokit/sdk` main barrel no longer exports:
+
   - From workflow: `Workflow`, `WorkflowBuilder`, `agentStep`, `fn`, `WorkflowAlreadyRunningError`, `WorkflowCompensateNotImplementedError`, `WorkflowDuplicateStepIdError`, `WorkflowMaxIterationsExceededError`, `WorkflowNotSerializableError`, `WorkflowParallelError`, `WorkflowResumeStepNotFoundError`, `WorkflowSnapshotNotFoundError` — **import from `@theokit/sdk/workflow` instead**.
   - From eval: `Eval`, `EvalAlreadyRunningError`, `Scorers` — **import from `@theokit/sdk/eval` instead**.
   - From `types/*`: type aliases for workflow + eval (e.g., `EvalRun`, `Scorer`, `Score`, `EvalOptions`, `EvalAggregate`, `Step`, `FnStep`, etc.) no longer reach the main barrel via `types/index.ts`; surface only through the new sub-paths.
@@ -261,6 +273,7 @@
   Rationale: Interface Segregation. The barrel exported 17+ feature areas, forcing consumers to pay the DTS cost of `Workflow`+`Eval` even if they only used `Agent`+`Memory`. Sub-paths reduce DTS surface and align with the existing pattern (`@theokit/sdk/cron`, `/tools`, `/path-safety`, `/task-store`, `/errors`).
 
   **Migration:**
+
   ```ts
   // Before
   import { Workflow, Eval, Scorers } from "@theokit/sdk";
@@ -294,18 +307,22 @@
 - **`Memory.create({ index: { backend: "lance" } })` is now wired end-to-end.** The `LanceIndex` implementation existed since 2026-05-17 (ADR D43) but `IndexManager.open` did not dispatch — public API accepted `backend: "lance"` silently and always fell through to SQLite. Fix: factory dispatcher in `IndexManager.open` + new portable `MemoryIndex` interface + new `LanceMemoryAdapter` wrapper + `@lancedb/lancedb` declared as optional `peerDependency` (`^0.30.0`).
 
   **Migration path:** consumer that wants Lance:
+
   ```bash
   pnpm add @lancedb/lancedb apache-arrow@^18.1.0
   ```
+
   ```ts
   await Memory.create({
     index: { backend: "lance" },
     embedding: { provider: "openai", apiKey: process.env.OPENAI_API_KEY },
   });
   ```
+
   Default keeps SQLite (zero added deps, zero breaking change vs 1.3.0).
 
   **When to opt-in (benchmark evidence — `.claude/knowledge-base/benchmarks/memory-backends-2026-05-31.md`):**
+
   - Lance wins **43x** ingest throughput at 100k facts (59849 ops/s vs SQLite-vec 1875 ops/s).
   - Lance uses **65% less disk** at 100k (33.8 MB vs 93.5 MB).
   - SQLite-vec recall p95 stays competitive up to 100k (~25 ms). Use Lance when ingest velocity or disk pressure matters; SQLite handles latency well below 1M facts.
@@ -313,6 +330,7 @@
   **EC-1 hardening:** new `ConfigurationError({code:"invalid_memory_backend"})` for typo-protection — `backend: "lancedb"` (typo) now throws instead of silently falling back to SQLite. Same hardening for `lance_requires_embedding` and `lance_backend_unavailable` typed errors.
 
   **Gotchas:**
+
   - `@lancedb/lancedb` ships prebuilds for linux-x64-gnu, darwin-arm64, darwin-x64, win32-x64-msvc. Alpine/musl/ARM-Linux require `node-gyp` toolchain. SQLite default covers those cases.
   - Bundlers (Next.js/Vite/webpack/rollup) must externalize `@lancedb/lancedb`:
     - Next.js: `experimental.serverComponentsExternalPackages: ["@lancedb/lancedb"]`

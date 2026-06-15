@@ -1,7 +1,7 @@
 {
   "name": "@theokit/react",
   "version": "1.1.0",
-  "description": "React hooks + Next.js helpers for @theokit/sdk \u2014 useTheoChat (SSE streaming) and streamTheoChat (server-side route handler).",
+  "description": "React hooks + Next.js helpers for @theokit/sdk — useTheoChat (SSE streaming) and streamTheoChat (server-side route handler).",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
