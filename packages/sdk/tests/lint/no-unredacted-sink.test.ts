@@ -43,7 +43,7 @@ const SINK_PATTERNS: Sink[] = [
  * - `internal/telemetry/tracer.ts` — wraps `setAttribute(s)` via
  *   `redactAttrValue`/`redactAttrs` helpers in the wrapSpan closure;
  *   pattern matcher sees raw `setAttribute(` calls inside the wrapper.
- * - `internal/runtime/agent-session-store.ts` — appendFile already
+ * - `internal/runtime/session/agent-session-store.ts` — appendFile already
  *   wraps payload with `redactSecrets(JSON.stringify(record))`.
  * - `internal/memory/migrate-sqlite-to-lance.ts` — logger wrap is at
  *   module top.
@@ -95,7 +95,7 @@ const WHITELIST = new Set<string>([
   "internal/security/redact.ts",
   "internal/errors/mappers/shared.ts",
   "internal/telemetry/tracer.ts",
-  "internal/runtime/agent-session-store.ts",
+  "internal/runtime/session/agent-session-store.ts",
   "internal/memory/migrate-sqlite-to-lance.ts",
   "internal/persistence/atomic-write.ts",
   "internal/persistence/exclusive-create.ts",

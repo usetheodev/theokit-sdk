@@ -19,14 +19,14 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent-memory-provider.js";
+import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent/local-agent-memory-provider.js";
 import {
   PORT_MEMORY_PATH_ENV_VAR,
   resolveActiveMemorySummaryForSend,
   resolveMemoryProviderForLoop,
   resolveMemoryToolsForLoop,
   shouldUsePortMemoryPath,
-} from "../src/internal/runtime/memory-path-selector.js";
+} from "../src/internal/runtime/memory/memory-path-selector.js";
 import type { AgentOptions } from "../src/types/agent.js";
 
 const STUB_OPTIONS: AgentOptions = {

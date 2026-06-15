@@ -509,7 +509,7 @@ export interface AgentOptions {
    *
    * @public
    */
-  budgetTracker?: import("../internal/runtime/budget-tracker.js").BudgetTracker;
+  budgetTracker?: import("../internal/runtime/budget/budget-tracker.js").BudgetTracker;
 
   /**
    * Pluggable memory subsystem (SDK 2.0 Phase 1 / T1.3 — Hexagonal
@@ -534,7 +534,7 @@ export interface AgentOptions {
    *
    * @public
    */
-  memoryProvider?: import("../internal/runtime/memory-provider.js").MemoryProvider;
+  memoryProvider?: import("../internal/runtime/memory/memory-provider.js").MemoryProvider;
 }
 
 /**

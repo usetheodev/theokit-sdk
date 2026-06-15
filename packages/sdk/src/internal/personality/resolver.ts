@@ -33,7 +33,7 @@
  */
 
 import type { SystemPromptContext, SystemPromptResolver } from "../../types/agent.js";
-import { warnOnce } from "../runtime/hooks-source.js";
+import { warnOnce } from "../runtime/hooks/hooks-source.js";
 import type { PersonalityRegistry } from "./registry.js";
 import type { PersonalityStore } from "./store.js";
 

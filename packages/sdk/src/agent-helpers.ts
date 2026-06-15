@@ -10,9 +10,9 @@ import {
 } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
-import { CloudAgent } from "./internal/runtime/cloud-agent.js";
-import { validateCloudToolParity } from "./internal/runtime/cloud-tool-parity.js";
-import { LocalAgent } from "./internal/runtime/local-agent.js";
+import { CloudAgent } from "./internal/runtime/cloud/cloud-agent.js";
+import { validateCloudToolParity } from "./internal/runtime/cloud/cloud-tool-parity.js";
+import { LocalAgent } from "./internal/runtime/local-agent/local-agent.js";
 import {
   flushRegistrySaves,
   getRegisteredAgent,

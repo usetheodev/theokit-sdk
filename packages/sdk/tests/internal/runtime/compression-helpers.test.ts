@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   assertCompressionReduced,
   selectCompressionWindow,
-} from "../../../src/internal/runtime/compression-helpers.js";
+} from "../../../src/internal/runtime/compression/compression-helpers.js";
 
 describe("selectCompressionWindow (T2.3)", () => {
   it("short history preserves all", () => {

@@ -15,8 +15,8 @@ import {
   resolveMemoryProviderForLoop,
   resolveMemoryToolsForLoop,
   shouldUsePortMemoryPath,
-} from "../src/internal/runtime/memory-path-selector.js";
-import type { MemoryProvider } from "../src/internal/runtime/memory-provider.js";
+} from "../src/internal/runtime/memory/memory-path-selector.js";
+import type { MemoryProvider } from "../src/internal/runtime/memory/memory-provider.js";
 
 const STUB_PROVIDER: MemoryProvider = {
   init: async () => ({

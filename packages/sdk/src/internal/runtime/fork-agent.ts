@@ -20,7 +20,7 @@ import type { AgentOptions, SDKAgent } from "../../types/agent.js";
 import type { ForkOptions, ForkResult } from "../../types/fork.js";
 import type { Plugin } from "../plugins/types.js";
 import { withToolWhitelist } from "./async-local-storage.js";
-import { isCodePlugin } from "./local-agent-plugins.js";
+import { isCodePlugin } from "./local-agent/local-agent-plugins.js";
 
 export type { ForkOptions, ForkResult } from "../../types/fork.js";
 

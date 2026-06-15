@@ -4,8 +4,8 @@ import type { SDKMessage } from "../../types/messages.js";
 import type { RunStatus, SendOptions } from "../../types/run.js";
 import type { LlmClient } from "../llm/types.js";
 import type { McpClient } from "../mcp/client.js";
-import type { SessionMessage } from "../runtime/agent-session.js";
-import type { HooksExecutor } from "../runtime/hooks-executor.js";
+import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
+import type { SessionMessage } from "../runtime/session/agent-session.js";
 
 /**
  * Minimal memory-tool spec accepted by the agent loop. Concrete shape lives
@@ -100,7 +100,7 @@ export interface AgentLoopInputs {
    * constructs one from `maxIterations`. Tests can inject a pre-configured
    * instance to verify grace-call / compression-cap semantics.
    */
-  budget?: import("../runtime/budget.js").IterationBudget;
+  budget?: import("../runtime/budget/budget.js").IterationBudget;
   /** Fires after each completed conversation step (text turn or tool batch). */
   onStep?: SendOptions["onStep"];
   /** Fires per raw incremental update (text-delta, …) — finer than onStep. */
@@ -138,7 +138,7 @@ export interface AgentLoopInputs {
    * thread the value down to the loop without further type changes when
    * the runtime hooks land.
    */
-  budgetTracker?: import("../runtime/budget-tracker.js").BudgetTracker;
+  budgetTracker?: import("../runtime/budget/budget-tracker.js").BudgetTracker;
   /**
    * Pluggable memory provider (SDK 2.0 Phase 1 / T1.4 — Hexagonal
    * Architecture interface inversion). When provided, the loop will
@@ -152,7 +152,7 @@ export interface AgentLoopInputs {
    * now lets `Agent.create({ memoryProvider })` thread the value down
    * to the loop without further type changes when the hooks land.
    */
-  memoryProvider?: import("../runtime/memory-provider.js").MemoryProvider;
+  memoryProvider?: import("../runtime/memory/memory-provider.js").MemoryProvider;
 }
 
 /**

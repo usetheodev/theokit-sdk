@@ -9,7 +9,7 @@ import { definePlugin, type Plugin } from "../../../src/internal/plugins/types.j
 import {
   extractCodePlugins,
   isCodePlugin,
-} from "../../../src/internal/runtime/local-agent-plugins.js";
+} from "../../../src/internal/runtime/local-agent/local-agent-plugins.js";
 
 const FIXTURE_KEY = "theo_test_fixture_plugin_wiring";
 

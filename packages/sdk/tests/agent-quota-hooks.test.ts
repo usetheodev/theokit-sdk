@@ -9,11 +9,11 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Agent } from "../src/agent.js";
-import { clearAllSessions } from "../src/internal/runtime/agent-session.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../src/internal/runtime/registry/agent-registry.js";
+import { clearAllSessions } from "../src/internal/runtime/session/agent-session.js";
 
 const FIXTURE_KEY = "theo_test_quota_hooks";
 const MODEL = { id: "openai/gpt-4o-mini" };

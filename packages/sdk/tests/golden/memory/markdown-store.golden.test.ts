@@ -13,7 +13,7 @@ import {
   appendMemoryFact,
   type MemoryConfig,
   readMemoryFacts,
-} from "../../../src/internal/runtime/memory-store.js";
+} from "../../../src/internal/runtime/memory/memory-store.js";
 
 /**
  * Phase 1 T1.1 — Markdown corpus + migration + atomic writes + per-cwd mutex.
