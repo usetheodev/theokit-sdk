@@ -1,5 +1,5 @@
 /**
- * Memory System E2E Demo — exercises CrewAI-inspired memory upgrades with real LLM.
+ * Memory System E2E Demo — exercises the hierarchical memory upgrades with real LLM.
  *
  * Features tested:
  *   1. Batch Encoding (rememberMany) — single embed call for N texts + dedup
@@ -187,9 +187,9 @@ console.log("── 4. Hierarchical Scopes ──\n");
 // Path normalization
 const tests = [
   { input: "/", expected: "/" },
-  { input: "crew/agent", expected: "/crew/agent" },
-  { input: "/crew/agent/", expected: "/crew/agent" },
-  { input: "//crew///agent", expected: "/crew/agent" },
+  { input: "team/agent", expected: "/team/agent" },
+  { input: "/team/agent/", expected: "/team/agent" },
+  { input: "//team///agent", expected: "/team/agent" },
   { input: "", expected: "/" },
 ];
 
@@ -202,13 +202,13 @@ for (const t of tests) {
 
 // Scope composition
 const root = new MemoryScope("/");
-const crew = root.child("crew");
-const agent1 = crew.child("agent-1");
+const team = root.child("team");
+const agent1 = team.child("agent-1");
 const longTerm = agent1.child("long-term");
 
 console.log(`\n  Scope composition:`);
 console.log(`    root: ${root.path}`);
-console.log(`    crew: ${crew.path}`);
+console.log(`    team: ${team.path}`);
 console.log(`    agent-1: ${agent1.path}`);
 console.log(`    long-term: ${longTerm.path}`);
 
@@ -217,8 +217,8 @@ const opts = longTerm.toSearchOptions();
 console.log(`\n  Search options: scopePrefix="${opts.scopePrefix}"`);
 
 // Edge case: child with absolute path (EC-5)
-const ec5 = crew.child("/agent");
-console.log(`  EC-5 (child with "/"): crew.child("/agent") → "${ec5.path}"`);
+const ec5 = team.child("/agent");
+console.log(`  EC-5 (child with "/"): team.child("/agent") → "${ec5.path}"`);
 
 console.log("\n  HIERARCHICAL SCOPES PASS\n");
 
