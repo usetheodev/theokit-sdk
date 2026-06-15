@@ -36,7 +36,9 @@ Invariants to preserve: sdk dist build must not need downstream pkgs; downstream
 
 ## Tasks
 
-### Phase A — Unblock the CI build (fix turbo build ordering) ✅ DONE 2026-06-15
+### Phase A — Unblock the CI build (fix turbo build ordering) ✅ DONE 2026-06-15 (+ follow-up A1.b)
+
+> **Follow-up A1.b (after PR #10 merge revealed a second layer):** with `sdk-memory` ordering fixed, the next CI run failed at `@theokit/sdk#build` — `agent-helpers.ts:91` used a **string-literal** dynamic `import("@theokit/sdk-handoff/internal/tool-injector")`, which `tsc` statically resolves at build time. `sdk#build` cannot depend on `sdk-handoff#build` (re-forms the cycle). Fix: moved the specifier into a variable so `tsc` keeps it opaque (same pattern as `sdk-memory-peer-loader.ts`). The diagnosis's claim "sdk SRC needs NEITHER at build time" was correct only for `sdk-memory` (already opaque) — `sdk-handoff`'s literal import was the exception. Reproduced RED locally (mv `sdk-handoff/dist` aside → `TS2307`), GREEN after fix; handoff tests pass.
 
 > **Scope correction (during implementation):** the committed `turbo.json` already had `@theokit/sdk#build.dependsOn: []` (which breaks the cycle from sdk's side). The real defect was a single bad override — `@theokit/sdk-memory#build.dependsOn: []` removed the legitimate one-way ordering `sdk-memory → sdk`. Original A1 (relocate tests) + A2 (remove devDeps) were OVER-SCOPED and are NOT needed. See diagnosis § CORRECTION.
 

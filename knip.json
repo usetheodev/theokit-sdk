@@ -37,7 +37,8 @@
         "src/stream-object.ts",
         "src/server/adapter/index.ts",
         "src/voice/index.ts"
-      ]
+      ],
+      "ignoreDependencies": ["@theokit/sdk-handoff"]
     },
     "packages/react": {
       "entry": ["tests/**/*.test.ts"],
