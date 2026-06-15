@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
-import { sessionFilePath } from "../../../src/internal/runtime/agent-session-store.js";
+import { sessionFilePath } from "../../../src/internal/runtime/session/agent-session-store.js";
 
 describe("sessionFilePath — path-guard wiring (T3.3)", () => {
   it("rejects agentId with '..'", () => {

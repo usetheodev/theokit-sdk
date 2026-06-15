@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import {
   HookFrontmatterSchema,
   parseHookFrontmatter,
-} from "../../../src/internal/runtime/hooks-frontmatter.js";
+} from "../../../src/internal/runtime/hooks/hooks-frontmatter.js";
 
 describe("HookFrontmatterSchema", () => {
   it("accepts a minimal valid hook", () => {

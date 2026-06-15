@@ -11,7 +11,7 @@ import {
   flushSessionWrites,
   getSessionMessages,
   hydrateSession,
-} from "../../../src/internal/runtime/agent-session.js";
+} from "../../../src/internal/runtime/session/agent-session.js";
 
 describe("agent-session — ConversationStorageAdapter integration", () => {
   beforeEach(() => {

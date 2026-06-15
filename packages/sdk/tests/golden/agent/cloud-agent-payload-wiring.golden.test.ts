@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
-import type { CloudAgent } from "../../../src/internal/runtime/cloud-agent.js";
+import type { CloudAgent } from "../../../src/internal/runtime/cloud/cloud-agent.js";
 
 /**
  * ADR D15 + EC-6 — CloudAgent threads cloudPayload through `send()` AND

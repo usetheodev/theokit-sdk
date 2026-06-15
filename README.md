@@ -76,6 +76,95 @@ Below this line, full technical vocabulary is in play. Installation, authenticat
 npm install @theokit/sdk
 ```
 
+## AI coding assistant setup
+
+Get a TheoKit-specialized AI coding assistant in your project. Works with Claude Code, Cursor, Copilot, Windsurf, Codex, and any tool that reads `AGENTS.md`.
+
+**1. Scaffold the configuration**
+
+```bash
+npx theokit-init-claude
+```
+
+This creates three things in your project root:
+
+| Created | What it does |
+| --- | --- |
+| `AGENTS.md` | Cross-agent instruction file — read by Claude Code, Cursor, Copilot, Windsurf, Codex, Gemini CLI, Aider, Zed. Contains the SDK API reference, import map, common patterns, and anti-patterns. |
+| `CLAUDE.md` | Claude Code-specific extensions — imports `AGENTS.md` and adds the skill directory + settings reference. |
+| `.claude/` | 15 domain-specific skills + convention rules + safe-default permissions. |
+
+**2. Open your AI coding tool**
+
+```bash
+claude          # Claude Code
+cursor .        # Cursor
+code .          # VS Code with Copilot
+```
+
+The tool automatically loads TheoKit knowledge. No internet needed — everything is bundled.
+
+**3. Start building**
+
+Ask your AI assistant anything about TheoKit:
+
+```
+Create an agent that monitors GitHub PRs and posts review comments
+```
+
+```
+Add a cron job that summarizes incidents every morning at 9 AM
+```
+
+```
+Set up a Slack gateway for my support agent
+```
+
+The assistant knows: `Agent.create`, `defineTool`, `Memory`, `@Injectable`, all 15 decorators, 10 gateways, RAG pipeline, workflows, subscriptions, error handling, configuration, and budget tracking.
+
+**4. Customize (optional)**
+
+Edit `CLAUDE.md` to add your project-specific instructions:
+
+```markdown
+## My Project
+
+Build: `npm run build`
+Test: `npm test`
+
+## Architecture
+- `src/agents/` — agent definitions
+- `src/tools/` — tool implementations
+```
+
+**What's inside `.claude/skills/`**
+
+15 passive skills auto-load when you edit files matching each domain:
+
+| Skill | Activates on |
+| --- | --- |
+| `theokit-agent-core` | Files with `agent` or `Agent` in the name |
+| `theokit-tools` | Files with `tool` or `Tool` |
+| `theokit-memory` | Files with `memory`, `Memory`, or `embed` |
+| `theokit-di` | Files with `container`, `inject`, `provider`, `module` |
+| `theokit-di-agent` | Files with `decorator` or `di-agent` |
+| `theokit-gateways` | Files with `gateway`, `telegram`, `slack`, `discord` |
+| `theokit-rag` | Files with `retriev`, `rerank`, `splitter`, `rag` |
+| `theokit-workflows` | Files with `workflow` or `step` |
+| `theokit-eval` | Files with `eval` or `scorer` |
+| `theokit-cron` | Files with `cron`, `job`, or `schedule` |
+| `theokit-subscriptions` | Files with `subscri`, `sse`, or `websocket` |
+| `theokit-errors` | Files with `error` or `exception` |
+| `theokit-config` | `.theokit/` files, `config.*`, `theo.config.*` |
+| `theokit-streaming` | Files with `stream` or `SDKMessage` |
+| `theokit-budget` | Files with `budget`, `cost`, or `token` |
+
+Already have a `.claude/` directory? Use `--force` to overwrite:
+
+```bash
+npx theokit-init-claude --force
+```
+
 ## Authentication
 
 Set `THEOKIT_API_KEY` (or pass `apiKey` explicitly) before creating an agent.

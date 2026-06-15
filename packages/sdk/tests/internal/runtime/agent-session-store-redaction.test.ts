@@ -14,7 +14,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   appendToSessionFile,
   sessionFilePath,
-} from "../../../src/internal/runtime/agent-session-store.js";
+} from "../../../src/internal/runtime/session/agent-session-store.js";
 
 describe("appendToSessionFile T1.3 — secret redaction", () => {
   let cwd: string;

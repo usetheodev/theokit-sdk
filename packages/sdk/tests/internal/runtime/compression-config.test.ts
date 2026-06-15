@@ -13,7 +13,7 @@
  */
 
 import { afterEach, describe, expect, it } from "vitest";
-import { resolveCompressionConfig } from "../../../src/internal/runtime/compression-config.js";
+import { resolveCompressionConfig } from "../../../src/internal/runtime/compression/compression-config.js";
 
 const ANTHROPIC_AGENT = "anthropic/claude-3-5-sonnet";
 const OPENAI_AGENT = "openai/gpt-4o";

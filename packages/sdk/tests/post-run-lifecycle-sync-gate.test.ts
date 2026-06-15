@@ -12,7 +12,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PORT_MEMORY_PATH_ENV_VAR } from "../src/internal/runtime/memory-path-selector.js";
+import { PORT_MEMORY_PATH_ENV_VAR } from "../src/internal/runtime/memory/memory-path-selector.js";
 
 describe("post-run-lifecycle sync gating (Stage 2b iter 26)", () => {
   const original = process.env[PORT_MEMORY_PATH_ENV_VAR];

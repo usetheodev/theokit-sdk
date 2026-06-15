@@ -2,6 +2,27 @@
 
 ## [Unreleased]
 
+### Changed
+
+- Reorganized the flat 62-file `src/internal/runtime/` god folder into sub-concern folders (arch-review M4): `local-agent/` (15), `cloud/` (6), `compression/` (6), `hooks/` (4), `budget/` (3), `memory/` (4), `session/` (3), `skills/` (3) — alongside the pre-existing `registry/`, `system-prompt/`, `context/`, `fixtures/`, `plugins/`. 18 cross-cutting singletons (abort-utils, async-*, default-model, fork-agent, run-until, system-prompt, validate-*, etc.) remain at the `runtime/` root (down from 62). Pure file moves + import-path updates (44 files moved, ~100 import sites rewritten incl. 2 lint-allowlist path updates); `internal/runtime` is not an exported subpath and has no tsup entry, so the change is fully internal — no API/behavior change. Full SDK suite GREEN (2629 tests); `madge --circular` unchanged (1 intentional type-only `memory/memory-provider` cycle).
+- Broke 2 of 3 type-only dependency cycles in the public type barrel (arch-review ADR 0001). `ForkOptions`/`ForkResult` moved to a leaf `types/fork.ts`, so `types/agent.ts` no longer imports the `internal/runtime/fork-agent.ts` implementation (`fork-agent.ts` re-exports them for back-compat). Eliminates the `types/agent.ts → fork-agent.ts → {plugins/types,(self)}` cycles. No behavior/API change; `madge --circular` drops from 3 to 1 (the remaining `memory-provider` cycle is a genuine bidirectional type relationship, runtime-safe, left intentionally).
+
+### Fixed
+
+- Budget pre-flight gate now **fails closed**: if a custom `budgetTracker.check()` throws (a contract violation — `check()` must return a decision), the agent loop denies the next iteration instead of silently proceeding past budget. Previously a throwing tracker defaulted to `allowed: true` (fail-open), letting a broken cost guard run unbounded. Extracted to a unit-tested `evaluateBudgetGate` helper. (arch-review L1)
+
+## [1.8.1] - 2026-06-12
+
+### Changed
+
+- `theokit-init-claude` now merges into existing `.claude/` directories instead of refusing. Adds only missing files, preserves user customizations. Use `--force` to overwrite all files.
+
+## [1.8.0] - 2026-06-12
+
+### Added
+
+- `.claude/` consumer template with 15 domain-specific passive skills, convention rules, AGENTS.md (cross-agent), and CLAUDE.md for AI coding tool integration. Scaffold via `npx theokit-init-claude`. Skills auto-inject TheoKit API knowledge when editing files matching each domain (Agent Core, Tools, Memory, DI, DI-Agent, Gateways, RAG, Workflows, Eval, Cron, Subscriptions, Errors, Config, Streaming, Budget). 33 tests.
+
 ## [1.7.0] - 2026-06-11
 
 ### Changed

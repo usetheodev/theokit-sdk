@@ -23,7 +23,7 @@ import { mapAnthropicError } from "../../../src/internal/errors/mappers/anthropi
 import {
   appendToSessionFile,
   sessionFilePath,
-} from "../../../src/internal/runtime/agent-session-store.js";
+} from "../../../src/internal/runtime/session/agent-session-store.js";
 import { redactSecrets } from "../../../src/internal/security/redact.js";
 import { _redactAttrsForTests } from "../../../src/internal/telemetry/tracer.js";
 

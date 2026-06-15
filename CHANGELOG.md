@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-06-15
+
+### Changed
+
+- Broke 3 of 4 type-only `madge` dependency cycles (arch-review ADR 0001): `@theokit/sdk` `ForkOptions`/`ForkResult` extracted to a leaf `types/fork.ts` (2 cycles), and `@theokit/di` `module-loader` now depends on a narrow `ModuleRegistrar` interface instead of the concrete `Container` (1 cycle). No behavior/API change; all affected tests GREEN. See per-package CHANGELOGs.
+- `@theokit/sdk-memory`: reorganized the flat 43-file `src/internal/` god folder into 5 sub-concern folders (embedding/index/active-memory/dreaming/store) with 6 cross-cutting files kept at root (arch-review M5). Pure file moves; 324 tests GREEN, no API change.
+- `@theokit/sdk`: reorganized the flat 62-file `src/internal/runtime/` god folder into sub-concern folders (local-agent/cloud/compression/hooks/budget/memory/session/skills, alongside existing registry/system-prompt/context/fixtures/plugins); 18 cross-cutting singletons kept at root (arch-review M4). Pure internal file moves (not an exported subpath); 2629 SDK tests GREEN, no API change.
+
+### Fixed
+
+- `@theokit/sdk`: budget pre-flight gate now fails closed when a custom `budgetTracker.check()` throws, instead of silently proceeding past budget (arch-review L1). See `packages/sdk/CHANGELOG.md`.
+
 ## [1.7.0] - 2026-06-11
 
 ### Changed

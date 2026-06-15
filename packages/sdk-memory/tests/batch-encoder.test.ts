@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { cosineSimilarity, rememberMany } from "../src/internal/batch-encoder.js";
+import { cosineSimilarity, rememberMany } from "../src/internal/embedding/batch-encoder.js";
 
 function makeMockEmbedding(dim = 3) {
   return {

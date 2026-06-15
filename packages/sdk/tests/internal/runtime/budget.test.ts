@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { IterationBudget } from "../../../src/internal/runtime/budget.js";
+import { IterationBudget } from "../../../src/internal/runtime/budget/budget.js";
 
 describe("IterationBudget (T2.1)", () => {
   it("remaining starts at max", () => {

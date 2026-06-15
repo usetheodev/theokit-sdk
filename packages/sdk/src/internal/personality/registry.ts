@@ -20,7 +20,7 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
 import { loadMarkdownEntities } from "../persistence/markdown-config-loader.js";
-import { warnOnce } from "../runtime/hooks-source.js";
+import { warnOnce } from "../runtime/hooks/hooks-source.js";
 import {
   type PersonalityFrontmatter,
   PersonalityFrontmatterSchema,
