@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- CI release build (`release.yml`): corrected the turbo task graph so `@theokit/sdk-memory#build` runs after `@theokit/sdk#build`. The override `@theokit/sdk-memory#build.dependsOn` was `[]`, which removed the (one-way, legitimate) build-ordering edge `sdk-memory → sdk`; on a clean checkout (CI) `sdk-memory` compiled before `@theokit/sdk/dist` existed → `TS2307: Cannot find module '@theokit/sdk'`, aborting the release before `changeset publish`. Set it to `["@theokit/sdk#build"]`. Build is GREEN on a clean tree; the cosmetic pnpm/turbo "Circular package dependency detected" warning (from the `sdk ↔ sdk-memory/sdk-handoff` devDependency cycle) is non-fatal and unchanged — turbo executes the acyclic task graph. This is why npm was stuck at `@theokit/sdk@1.8.1` / `@theokit/di@0.1.0` / `@theokit/di-agent@0.1.0`.
+
 ## [1.8.0] - 2026-06-15
 
 ### Added
