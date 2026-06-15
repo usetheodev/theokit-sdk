@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+
+- `@theokit/sdk`: `Agent.batch` now fail-fast validates `concurrency` + prompt items at the boundary (`ConfigurationError` with `invalid_concurrency` / `invalid_batch_item` codes) before any side effect — closes the narrow, genuine slice of cross-validation Gap 3 (runtime validation at public boundaries). See `packages/sdk/CHANGELOG.md`.
+
 ## [1.7.1] - 2026-06-15
 
 ### Changed

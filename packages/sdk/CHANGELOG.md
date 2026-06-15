@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- `Agent.batch` now validates its inputs at the boundary (fail-fast). Invalid `concurrency` (not a positive integer) throws `ConfigurationError(code: "invalid_concurrency")` with a user-facing message, and an empty/non-string prompt item throws `ConfigurationError(code: "invalid_batch_item")` — both BEFORE any credential pool is built or Task is registered. Previously invalid `concurrency` surfaced only deep inside the semaphore with a leaky "permits" message AND after task registration (a dangling Task could be registered with `task: true`), and empty-string prompts flowed silently to `agent.send`. New `validateBatchInput` pre-flight; whitespace-only prompts are intentionally still accepted (non-empty strings; the validator does not judge content). (arch-review cross-validation Gap 3)
+
 ### Changed
 
 - Reorganized the flat 62-file `src/internal/runtime/` god folder into sub-concern folders (arch-review M4): `local-agent/` (15), `cloud/` (6), `compression/` (6), `hooks/` (4), `budget/` (3), `memory/` (4), `session/` (3), `skills/` (3) — alongside the pre-existing `registry/`, `system-prompt/`, `context/`, `fixtures/`, `plugins/`. 18 cross-cutting singletons (abort-utils, async-*, default-model, fork-agent, run-until, system-prompt, validate-*, etc.) remain at the `runtime/` root (down from 62). Pure file moves + import-path updates (44 files moved, ~100 import sites rewritten incl. 2 lint-allowlist path updates); `internal/runtime` is not an exported subpath and has no tsup entry, so the change is fully internal — no API/behavior change. Full SDK suite GREEN (2629 tests); `madge --circular` unchanged (1 intentional type-only `memory/memory-provider` cycle).
