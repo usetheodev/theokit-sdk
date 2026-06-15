@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `@Squad({ agents, process? })` property decorator + `readSquadMetadata()` — the decorator surface for `@theokit/sdk` `createSquad` (decorator mandate). Stores team metadata via reflect-metadata, mirroring `@SubAgent`.
+- `@Step({ after?, name? })` method decorator + `readStepMetadata()` + `buildWorkflow(instance)` — decorator-driven workflow authoring. `@Step` declares steps + a single upstream dependency; `buildWorkflow` compiles the decorated class into a `@theokit/sdk` `Workflow` (composition — no new engine), topologically ordering steps and threading each return value to the next. Fail-fast on no steps / unknown `after` / cycle.
 
 ## [0.1.0] - 2026-05-31
 
