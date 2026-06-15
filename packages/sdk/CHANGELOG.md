@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- `createCrew({ agents })` — a thin convenience for sequential multi-agent teams. Runs agents in order, threading each output into the next agent's prompt; returns `{ result, status, steps }`. Composes `Workflow` + `agentStep` internally (no new orchestration engine). `process: "hierarchical"` throws a guiding `ConfigurationError` (use subagents / `@theokit/sdk-handoff`); empty `agents` → `ConfigurationError(code: "invalid_crew")`. Closes the ergonomic residual of cross-validation Gap 1 (multi-agent orchestration). (arch-review)
+
 ### Fixed
 
 - `Agent.batch` now validates its inputs at the boundary (fail-fast). Invalid `concurrency` (not a positive integer) throws `ConfigurationError(code: "invalid_concurrency")` with a user-facing message, and an empty/non-string prompt item throws `ConfigurationError(code: "invalid_batch_item")` — both BEFORE any credential pool is built or Task is registered. Previously invalid `concurrency` surfaced only deep inside the semaphore with a leaky "permits" message AND after task registration (a dangling Task could be registered with `task: true`), and empty-string prompts flowed silently to `agent.send`. New `validateBatchInput` pre-flight; whitespace-only prompts are intentionally still accepted (non-empty strings; the validator does not judge content). (arch-review cross-validation Gap 3)

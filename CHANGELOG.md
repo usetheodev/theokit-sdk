@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- `@theokit/sdk`: `createCrew` sequential agent-team convenience (composes Workflow+agentStep) + `@theokit/di-agent` `@Crew` decorator + `@theokit/di` `METADATA_KEYS.CREW` — closes the ergonomic residual of cross-validation Gap 1 (multi-agent orchestration). See per-package CHANGELOGs.
+
 ### Fixed
 
 - `@theokit/sdk`: `Agent.batch` now fail-fast validates `concurrency` + prompt items at the boundary (`ConfigurationError` with `invalid_concurrency` / `invalid_batch_item` codes) before any side effect — closes the narrow, genuine slice of cross-validation Gap 3 (runtime validation at public boundaries). See `packages/sdk/CHANGELOG.md`.

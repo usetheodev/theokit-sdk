@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `METADATA_KEYS.CREW` (`"usetheo:di:crew"`) — metadata key backing the `@Crew()` decorator in `@theokit/di-agent`.
+
 ### Changed
 
 - Broke the `container.ts ↔ internal/module-loader.ts` type-only dependency cycle (arch-review ADR 0001). `loadModule` now takes a narrow `ModuleRegistrar` interface (just `register(...)`) from the leaf `types.ts` instead of importing the concrete `Container`. No behavior change — `Container` satisfies it structurally; all 69 tests GREEN, `madge --circular` clean.
