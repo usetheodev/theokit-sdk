@@ -16,7 +16,7 @@
 
 import { ConfigurationError } from "../../errors.js";
 import type { SDKModel } from "../../types/theokit.js";
-import { mapOllamaHttpError, mapOllamaTransportError } from "../errors/mappers/ollama.js";
+import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 
 interface OpenAiModelsResponse {
   object?: string;

@@ -2,7 +2,7 @@
  * Barrel for the canonical secret-redaction module (ADRs D68-D73).
  *
  * Consumers across the SDK output boundaries import from here:
- * `internal/errors/mappers/shared.ts`, `internal/telemetry/tracer.ts`,
+ * `internal/error-mappers/shared.ts`, `internal/telemetry/tracer.ts`,
  * `internal/runtime/agent-session-store.ts`,
  * `internal/memory/migrate-sqlite-to-lance.ts`.
  *

@@ -10,11 +10,11 @@
 
 import { describe, expect, it } from "vitest";
 
-import { ConfigurationError, NetworkError } from "../../../../src/errors.js";
+import { ConfigurationError, NetworkError } from "../../../src/errors.js";
 import {
   mapOllamaHttpError,
   mapOllamaTransportError,
-} from "../../../../src/internal/errors/mappers/ollama.js";
+} from "../../../src/internal/error-mappers/ollama.js";
 
 function headers(record: Record<string, string> = {}): Headers {
   return new Headers(record);
