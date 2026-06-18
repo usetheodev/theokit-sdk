@@ -32,6 +32,7 @@
 
 ### Fixed
 
+- The Agent-facade bootstrap added in Group A (`import "./agent.js"` in `cron.ts`/`eval.ts`) was tree-shaken out of the built `cron.js`/`eval.js` bundles under `package.json "sideEffects": false` + tsup `treeshake: true`. SDK-source tests passed but real **dist** consumers (e.g. `@theokit/cli` via `@theokit/sdk/eval`) hit `internal: Agent facade not registered` at runtime. Declared `agent.{ts,js,cjs}` in the `sideEffects` allowlist so the bootstrap survives bundling while the rest of the package stays tree-shakeable. Bundle size unchanged from the pre-Group-A baseline. (arch-review Group A follow-up; caught by `pnpm validate`)
 - `Agent.batch` now validates its inputs at the boundary (fail-fast). Invalid `concurrency` (not a positive integer) throws `ConfigurationError(code: "invalid_concurrency")` with a user-facing message, and an empty/non-string prompt item throws `ConfigurationError(code: "invalid_batch_item")` — both BEFORE any credential pool is built or Task is registered. Previously invalid `concurrency` surfaced only deep inside the semaphore with a leaky "permits" message AND after task registration (a dangling Task could be registered with `task: true`), and empty-string prompts flowed silently to `agent.send`. New `validateBatchInput` pre-flight; whitespace-only prompts are intentionally still accepted (non-empty strings; the validator does not judge content). (arch-review cross-validation Gap 3)
 
 ### Changed
