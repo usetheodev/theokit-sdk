@@ -26,13 +26,15 @@ describe("SDK 2.0 docs (Phase 9 / T9.1)", () => {
     expect(content.length).toBeGreaterThan(2000);
   });
 
-  it("test_packages_readme_has_5_families — families table includes Core, Channels, Memory adapters, React, Integrations", () => {
+  it("test_packages_readme_has_harness_families — Core, Memory adapters, Integrations (cohesion split removed Channels + React)", () => {
+    // Cohesion split (2026-06-18, plan monorepo-cohesion-split): the Channels (gateways)
+    // and React families were extracted to sibling repos. The Harness monorepo now has
+    // 3 families; extracted clusters are documented in an "Extracted to sibling repos" table.
     const content = readFileSync(packagesReadme, "utf-8");
     expect(content).toMatch(/^### Core/m);
-    expect(content).toMatch(/^### Channels/m);
     expect(content).toMatch(/^### Memory adapters/m);
-    expect(content).toMatch(/^### React/m);
     expect(content).toMatch(/^### Integrations/m);
+    expect(content).toMatch(/^## Extracted to sibling repos/m);
   });
 
   it("test_packages_readme_lists_every_workspace_package", () => {
@@ -47,7 +49,10 @@ describe("SDK 2.0 docs (Phase 9 / T9.1)", () => {
       })
       .filter((n): n is string => n !== null);
 
-    expect(packageNames.length).toBeGreaterThanOrEqual(20);
+    // Cohesion split (2026-06-18, plan monorepo-cohesion-split): the monorepo now
+    // ships only the Harness set (12 packages) — backend-dx/gateways/react/rag/voice/
+    // google-workspace were extracted to sibling repos. Threshold lowered from 20.
+    expect(packageNames.length).toBeGreaterThanOrEqual(10);
     for (const name of packageNames) {
       expect(content, `package ${name} missing from packages/README.md`).toContain(name);
     }

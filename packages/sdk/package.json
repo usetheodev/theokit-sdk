@@ -158,16 +158,6 @@
         "default": "./dist/internal/security/index.cjs"
       }
     },
-    "./rag": {
-      "import": {
-        "types": "./dist/rag/index.d.ts",
-        "default": "./dist/rag/index.js"
-      },
-      "require": {
-        "types": "./dist/rag/index.d.cts",
-        "default": "./dist/rag/index.cjs"
-      }
-    },
     "./a2a": {
       "import": {
         "types": "./dist/a2a/index.d.ts",

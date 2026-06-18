@@ -1,8 +1,11 @@
 name: Release
 
 # Per technical-hardening-sprint plan v1.1 T1.1 (NEW) + ADR D1:
-# theokit-sdk ships 22 packages — changesets/action pattern is the right
+# theokit-sdk ships the Harness package set (sdk + sdk-* extensions + memory
+# adapters + acp + cli + codemod) — changesets/action pattern is the right
 # vehicle for multi-package per-package release notes + sequential publish.
+# (Backend-DX, gateways, react, rag, voice, google-workspace skill were
+# extracted to sibling repos — plan monorepo-cohesion-split, 2026-06-18.)
 # OIDC trusted-publisher binding (per-package config at npmjs.com) attests
 # provenance automatically. NPM_TOKEN intentionally NOT used — per EC-2
 # absorbed, token env disables OIDC silently.
@@ -16,7 +19,7 @@ concurrency: ${{ github.workflow }}-${{ github.ref }}
 
 jobs:
   release:
-    name: Release via Changesets (22 packages)
+    name: Release via Changesets (Harness)
     runs-on: ubuntu-latest
     permissions:
       contents: write
