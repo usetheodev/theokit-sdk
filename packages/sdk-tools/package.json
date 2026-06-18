@@ -1,7 +1,7 @@
 {
   "name": "@theokit/sdk-tools",
   "version": "0.1.0",
-  "description": "Built-in tools for @theokit/sdk agents — file system, git, subprocess, search-text, vitest runner.",
+  "description": "Built-in tools for @theokit/sdk agents \u2014 file system, git, subprocess, search-text, vitest runner.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
   "bugs": "https://github.com/usetheo/theokit-sdk/issues",
@@ -43,7 +43,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@theokit/sdk": ">=1.7.0",
+    "@theokit/sdk": "workspace:^",
     "simple-git": "^3.0.0",
     "vitest": ">=2.0.0",
     "zod": "^4.0.0"
