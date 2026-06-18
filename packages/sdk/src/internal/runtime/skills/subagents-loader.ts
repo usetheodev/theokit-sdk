@@ -3,8 +3,8 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
 import type { AgentDefinition } from "../../../types/agent.js";
-import { readWorkspaceDir } from "../workspace-dir.js";
-import { parseSimpleYaml } from "../yaml-frontmatter.js";
+import { readWorkspaceDir } from "../config/workspace-dir.js";
+import { parseSimpleYaml } from "../context/yaml-frontmatter.js";
 
 /**
  * Load file-based subagents from `.theokit/agents/*.md` and merge with

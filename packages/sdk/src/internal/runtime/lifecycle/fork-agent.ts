@@ -13,16 +13,16 @@
  * @internal
  */
 
-import type { AgentOptions, SDKAgent } from "../../types/agent.js";
+import type { AgentOptions, SDKAgent } from "../../../types/agent.js";
 // ForkOptions/ForkResult live in the leaf `types/fork.ts` (arch-review ADR 0001)
 // so `types/agent.ts` can reference them without importing this implementation
 // module (which would form a type-only cycle). Re-exported here for back-compat.
-import type { ForkOptions, ForkResult } from "../../types/fork.js";
-import type { Plugin } from "../plugins/types.js";
-import { withToolWhitelist } from "./async-local-storage.js";
-import { isCodePlugin } from "./local-agent/local-agent-plugins.js";
+import type { ForkOptions, ForkResult } from "../../../types/fork.js";
+import type { Plugin } from "../../plugins/types.js";
+import { withToolWhitelist } from "../concurrency/async-local-storage.js";
+import { isCodePlugin } from "../local-agent/local-agent-plugins.js";
 
-export type { ForkOptions, ForkResult } from "../../types/fork.js";
+export type { ForkOptions, ForkResult } from "../../../types/fork.js";
 
 /**
  * Injected dependency contract — keeps fork-agent acyclic with `Agent`.

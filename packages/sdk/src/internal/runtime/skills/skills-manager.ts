@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
 import { assertNoSymlinkEscape, safePathJoin } from "../../security/path-guard.js";
-import { readWorkspaceDir } from "../workspace-dir.js";
+import { readWorkspaceDir } from "../config/workspace-dir.js";
 import { parseSkillFrontmatter } from "./skill-frontmatter.js";
 
 /**

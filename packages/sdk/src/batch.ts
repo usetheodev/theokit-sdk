@@ -14,7 +14,7 @@ import { ConfigurationError, TheokitAgentError } from "./errors.js";
 import { CredentialPool, newPooledCredential } from "./internal/llm/credential-pool.js";
 import { withCredentialPool } from "./internal/llm/credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./internal/llm/credential-pool-types.js";
-import { createSemaphore } from "./internal/runtime/async-semaphore.js";
+import { createSemaphore } from "./internal/runtime/concurrency/async-semaphore.js";
 import { get as taskRegistryGet, submit as taskRegistrySubmit } from "./internal/task/registry.js";
 import type { AgentOptions, SDKAgent } from "./types/agent.js";
 import type { BatchItem, BatchOptions, BatchProgress, BatchResult } from "./types/batch.js";

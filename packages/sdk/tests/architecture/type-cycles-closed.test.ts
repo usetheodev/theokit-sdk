@@ -68,7 +68,7 @@ describe("Architecture — T4.1 type-only cycles closed (D438)", () => {
       (line) =>
         line.includes("types/agent.ts") &&
         line.includes("types/run.ts") &&
-        !line.includes("internal/runtime/fork-agent.ts"), // not the same cycle
+        !line.includes("internal/runtime/lifecycle/fork-agent.ts"), // not the same cycle
     );
     expect(offending).toEqual([]);
   }, 90_000);
