@@ -7,8 +7,6 @@
  */
 
 import { randomUUID } from "node:crypto";
-
-import { Agent } from "../../agent.js";
 import type { SDKAgent } from "../../types/agent.js";
 import type { BatchOptions, BatchResult } from "../../types/batch.js";
 import type {
@@ -23,6 +21,7 @@ import type {
   Score,
   Scorer,
 } from "../../types/eval.js";
+import { getAgentFacade } from "../runtime/registry/agent-factory-registry.js";
 import { clampScore, computeAggregate } from "./aggregate.js";
 import { materializeDataset } from "./dataset-iter.js";
 import { acquireSingleFlight, releaseSingleFlight } from "./single-flight.js";
@@ -258,7 +257,7 @@ async function runRowsViaBatch(
     concurrency,
     ...(signal !== undefined ? { signal } : {}),
   };
-  const batchResults = await Agent.batch(prompts, batchOpts);
+  const batchResults = await getAgentFacade().batch(prompts, batchOpts);
   const rows: EvalRowResult[] = [];
   for (let i = 0; i < batchResults.length; i += 1) {
     const entry = entries[i];

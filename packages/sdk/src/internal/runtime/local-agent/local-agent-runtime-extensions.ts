@@ -37,8 +37,8 @@ export function localAgentRunUntil(
   async function* wrap(): AsyncGenerator<GoalEvent, GoalResult, void> {
     const { runUntilImpl } = await import("../run-until.js");
     const { judgeCallImpl } = await import("../../judge/judge-call.js");
-    const { getAgentCreate } = await import("../registry/agent-factory-registry.js");
-    const create = getAgentCreate();
+    const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
+    const create = getAgentFacade().create;
     const deps = {
       judge: async (ctx: JudgeContext, opts?: JudgeOptions) => judgeCallImpl(ctx, opts, { create }),
     };
@@ -58,9 +58,9 @@ export async function localAgentFork(
   options: ForkOptions,
 ): Promise<ForkResult> {
   const { forkAgentImpl } = await import("../fork-agent.js");
-  const { getAgentCreate } = await import("../registry/agent-factory-registry.js");
+  const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
   const { withPersonalityContext } = await import("../../personality/context.js");
-  const create = getAgentCreate();
+  const create = getAgentFacade().create;
   // ADR D168 + EC-A — capture the slug ONCE at fork-construction time.
   // Subsequent parent `usePersonality` calls do NOT mutate this snapshot.
   return withPersonalityContext({ slug: parent.personalitySlugSnapshot, isFork: true }, () =>

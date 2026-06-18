@@ -1,3 +1,10 @@
+// Bootstrap import: loading this facade must register the public Agent facade
+// into the agent-factory-registry seam, because `internal/cron/run-job.ts`
+// resolves it via `getAgentFacade()` at runtime instead of importing `agent.ts`
+// directly (which would invert the public-api -> internal dependency
+// direction). The `@theokit/sdk/cron` sub-path entry would otherwise throw
+// "Agent facade not registered" at runtime.
+import "./agent.js";
 import { ConfigurationError, UnknownAgentError } from "./errors.js";
 import { runCronJob } from "./internal/cron/run-job.js";
 import {
