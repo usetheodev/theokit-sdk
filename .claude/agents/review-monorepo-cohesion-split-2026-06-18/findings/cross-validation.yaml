@@ -1,0 +1,277 @@
+agent: review-monorepo-cohesion-split-cross-validation
+review_target: main..develop for plan monorepo-cohesion-split
+plan: .claude/knowledge-base/plans/monorepo-cohesion-split-plan.md
+implementation: .claude/knowledge-base/implementations/monorepo-cohesion-split-implementation.md
+
+plan_tasks_summary:
+  total_tasks: 13   # T0.1 T0.2 T0.3 T1.1 T2.1 T3.1 T4.1 T5.1 T6.1 T7.1 T7.2 T7.3 T7.4
+  fully_implemented: 10
+  partial: 1        # T7.1/T7.4 (EC-2 example resolution incomplete — F-xval-1)
+  missing: 0
+  diverged: 2       # T6.1 (google-workspace standalone not into theokit) + T7.3 (D435 reverted) — both honestly documented
+
+coverage_matrix_summary:
+  total_gaps: 11
+  fully_resolved: 9
+  partial: 1        # Gap 7 "Harness only + builds clean" — clean build YES, but a dangling example import survives (F-xval-1)
+  diverged_documented: 1   # Gap 9 "correct changeset status" via D435 — reverted, documented (F-xval-2)
+
+acceptance_criteria_summary:
+  total: 28
+  satisfied: 26
+  unverified: 0
+  false_claims: 0
+
+adr_compliance:
+  total_adrs: 5    # D431 D432 D433 D434 D435
+  respected: 4     # D431 D432 D433 D434
+  diverged_with_documented_reason: 1   # D435 reverted — correctly, gate-driven, honestly logged
+
+plan_drift:
+  plan_edited_after_implement: false
+  details: >
+    Plan file last committed at 7ce162b ("monorepo-cohesion-split v1.1 + edge-case review"),
+    which is the FIRST commit of the implementation series. All implementation commits
+    (6866cd3, eb646d1, b53b928, e695535, b9f30a6, 0720590) came AFTER it. The plan was
+    frozen before /implement began. No drift. The v1.1 header documents edge-case absorption,
+    which is the legitimate pre-implement chain (/edge-case-plan), not a mid-flight edit.
+
+coverage_gap_mapping:
+  - gap: 1 (revoke decorators rule)
+    tasks: [T1.1]
+    commit: 6866cd3
+    status: fully_implemented
+    evidence: >
+      ADR D431-revoke-decorators-mandatory.md created with 3 rejected alternatives;
+      CLAUDE.md rule 9 rewritten from "Decorators mandatory" to "Factory functions are the
+      canonical API"; grep "Decorators mandatory" CLAUDE.md is now empty; memory marked REVOKED
+      (per MEMORY.md system context); CHANGELOG Changed entry present.
+  - gap: 2 (extract backend-dx di/di-agent/orm)
+    tasks: [T2.1]
+    status: fully_implemented
+    evidence: >
+      ../theokit-backend-dx exists with packages/{di,di-agent,orm}; 31 total commits;
+      di history = 20 commits (matches the maturity-probe EC-5 baseline of 20 — equality holds,
+      not a flat copy). Impl reports 249 tests green vs npm @theokit/sdk@1.9.0.
+  - gap: 3 (extract gateways core + adapters)
+    tasks: [T3.1]
+    status: fully_implemented
+    evidence: >
+      ../theokit-gateways has gateway core + 10 adapters = 11 packages; 24 total commits;
+      gateway-telegram history = 7 commits (probe baseline 6; ≥ baseline, history preserved).
+      Pre-split monorepo (git ls-tree main:packages) had exactly 11 gateway* dirs — full set
+      captured. Plan prose "11 adapters" is an off-by-one (it is core + 10 adapters); the
+      implementation captured the COMPLETE set. See F-xval-5 (plan-prose error, not impl defect).
+  - gap: 4 (extract react)
+    tasks: [T4.1]
+    status: fully_implemented
+    evidence: >
+      ../theokit-react has packages/react; 14 total commits; react history = 12 (probe baseline 11;
+      ≥ baseline). 34 tests green per impl.
+  - gap: 5 (remove voice/rag from SDK surface)
+    tasks: [T0.2, T5.1]
+    commit: eb646d1 (+ 6866cd3 for the probe)
+    status: fully_implemented
+    evidence: >
+      T0.2 probe (voice-rag-maturity-probe.md) verdict: both EXTRACT (self-contained leaves).
+      T5.1 (eb646d1): src/rag + src/voice dirs deleted; "./rag" removed from package.json exports
+      (grep confirms NONE remain; voice was never exported); rag/index tsup entry + tsconfig-dts
+      refs + depcruiser rag|voice refs removed; tests ported. ../theokit-rag (4 commits) +
+      ../theokit-voice (5 commits) exist and build. Voice extract-vs-delete: plan allowed either;
+      chose extract — honestly documented. ACCEPTABLE.
+  - gap: 6 (relocate google-workspace to Skills pillar)
+    tasks: [T6.1]
+    status: diverged_documented
+    evidence: >
+      Plan T6.1 said "move into the theokit (Skills pillar) repo". Impl created a STANDALONE
+      ../theokit-skills-google-workspace (9 commits, builds) instead, with merge-into-theokit
+      flagged as a documented follow-up. This is the plan's own declared fallback (risk row:
+      "if it doesn't fit cleanly, fall back to theokit-skills-google-workspace standalone") +
+      Unresolved Q2. The skill DID leave the Harness (the cohesion goal is met). Divergence is
+      within the plan's authorized fallback and honestly documented. See F-xval-4 (acceptable).
+  - gap: 7 (monorepo contains only Harness + builds clean)
+    tasks: [T7.1, T7.4]
+    commit: b53b928, e695535
+    status: partial
+    evidence: >
+      Workspace now lists only 12 Harness packages (sdk, sdk-cache, sdk-tools, sdk-memory,
+      sdk-budget, sdk-handoff, memory-honcho/mem0/supermemory, acp, cli, codemod-sdk-2-0) — all
+      extracted dirs removed; pnpm install relocks clean; pnpm build 11/11 GREEN; typecheck 16/16.
+      HOWEVER a git-tracked example (deepagents-parity-demo/run-decorators.ts) still imports the
+      deleted ../../packages/di-agent/src/index.js — a dangling import EC-2 missed. See F-xval-1.
+  - gap: 8 (zero residual cross-cluster imports / guard)
+    tasks: [T0.3, T7.2]
+    commit: e695535
+    status: fully_implemented
+    evidence: >
+      tools/check-cross-cluster.mjs (83 LoC, ≤500 budget) exists, wired into pnpm quality;
+      FORBIDDEN list covers di, di-agent, orm, react, rag, voice, skills-google-workspace +
+      /^@theokit\/gateway(-[a-z]+)?$/. Ran it: "PASS — no Harness file imports an extracted
+      cluster". grep of packages/sdk/src for @theokit/{gateway,di,orm,react} = NONE. Guard is
+      effective for its declared scope (packages/*/src). NOTE its scope EXCLUDES examples/ —
+      which is why F-xval-1 escaped (the guard is not the EC-2 net for examples).
+  - gap: 9 (correct changeset status / no 1.0.0 cascade)
+    tasks: [T7.3]
+    commit: b9f30a6
+    status: diverged_documented
+    evidence: >
+      D435 (normalize survivor specifiers to workspace:^) was REVERTED. The repo's pre-existing
+      publish-readiness gate (test_no_workspace_protocol_in_runtime_deps +
+      test_peer_dep_on_theokit_sdk_uses_semver_range, in sdk-2-0-npm-publish-readiness.test.ts)
+      EXPLICITLY forbids workspace: in runtime/peer deps and REQUIRES peer deps to be a semver
+      range. D435's plan was objectively wrong for this repo and would have broken a green gate.
+      Revert to ">=1.7.0" is CORRECT. Documented in commit b9f30a6 body + impl "Deviations".
+      The 0.x→1.0.0 cascade is moot because the conflicting pre-1.0 leaving packages are gone.
+      Final state: peerDependencies use >=1.7.0 (semver, gate-compliant); devDependencies use
+      workspace:* (gate-exempt local link) — a standard, correct split. See F-xval-2.
+  - gap: 10 (git history preserved per extraction)
+    tasks: [T2.1, T3.1, T4.1, T5.1, T6.1]
+    status: fully_implemented
+    evidence: >
+      Every extracted repo shows multi-commit history for known files, ≥ the source baseline
+      recorded in the maturity probe (di 20=20, gateway-telegram 7≥6, react 12≥11). Not flat
+      copies. EC-1 honored: no origin remote on rag/voice/gateways/gworkspace clones (verified
+      git remote -v empty) — accidental push to source origin is impossible.
+  - gap: 11 (target repos exist — human gate)
+    tasks: [T0.1]
+    status: fully_implemented
+    evidence: >
+      All extracted repos exist as local folders under theokit-tools/ (backend-dx, gateways,
+      react, rag, voice, skills-google-workspace). Impl notes GitHub repos created by the user
+      for gateways + react. Local-only-until-human-creates-remote matches the EC-1 protocol.
+
+findings:
+  - id: F-xval-1
+    severity: HIGH
+    file: examples/deepagents-parity-demo/run-decorators.ts
+    plan_ref: T7.1 step 0 (EC-2 — "Resolve examples FIRST … move or delete BEFORE deleting the package")
+    summary: >
+      Dangling import to a deleted package survives EC-2 resolution. Line 33 imports
+      "../../packages/di-agent/src/index.js" — di-agent was extracted/deleted in b53b928, so the
+      path no longer exists. The example is dead-on-arrival (running `tsx run.ts` would throw
+      ERR_MODULE_NOT_FOUND). Its package.json declares only @theokit/sdk, never @theokit/di-agent,
+      so it could not run even before the path break.
+    why_missed: >
+      EC-2's grep searched for the package SPECIFIER "@theokit/di-agent" etc. This example reaches
+      di-agent via a RELATIVE path ("../../packages/di-agent/src/index.js"), which the specifier
+      grep does not match. The cross-cluster guard (T7.2) also does not catch it: the guard scopes
+      to packages/*/src and explicitly excludes examples/.
+    impact: >
+      Not a build/typecheck/test breaker — the example has no build/typecheck script (only
+      "start": "tsx run.ts") and is not exercised by pnpm build/test, which is why the integration
+      validation passed. But it is a broken, git-tracked example shipped in the trimmed Harness
+      repo, and it documents a decorator-first DX that ADR D431 just revoked — exactly the stale
+      surface the split was meant to remove.
+    evidence: |
+      ls packages/di-agent/src/index.js → MISSING
+      grep -n "from" examples/deepagents-parity-demo/run-decorators.ts
+        33: } from "../../packages/di-agent/src/index.js";
+      examples/deepagents-parity-demo/package.json dependencies: { "@theokit/sdk": "workspace:*" }  # no di-agent
+      node tools/check-cross-cluster.mjs → PASS (guard does not scan examples/)
+    recommended_action: >
+      Either (a) delete examples/deepagents-parity-demo/run-decorators.ts (the decorator demo
+      belongs in theokit-backend-dx now), or (b) move it into theokit-backend-dx/examples/. Also
+      consider widening the guard / an EC-2 follow-up grep to catch RELATIVE paths into
+      packages/{di,di-agent,orm,gateway*,react} from examples/, not just package specifiers.
+
+  - id: F-xval-2
+    severity: INFO
+    file: packages/sdk-{cache,handoff,memory,tools,budget}/package.json
+    plan_ref: ADR D435 + T7.3 (normalize remaining Harness dependency specifiers)
+    summary: >
+      D435 was REVERTED during implementation — and the revert is CORRECT. The plan ordered
+      normalizing surviving @theokit/sdk specifiers to workspace:^. The repo's pre-existing
+      publish-readiness gate requires peer deps to be a SEMVER range and forbids workspace: in
+      runtime/peer deps. D435 would have broken a green gate. Revert to ">=1.7.0" is the right call.
+    is_divergence_honest: true
+    is_divergence_correct: true
+    evidence: |
+      sdk-2-0-npm-publish-readiness.test.ts:103 test_no_workspace_protocol_in_runtime_deps
+      sdk-2-0-npm-publish-readiness.test.ts:116 test_peer_dep_on_theokit_sdk_uses_semver_range
+      commit b9f30a6 reverts 5 packages peerDependencies workspace:^ → >=1.7.0
+      impl summary "Deviations from plan (honest)" documents it explicitly.
+      Final: peerDeps=">=1.7.0" (semver), devDeps="workspace:*" (gate-exempt) — correct split.
+    recommended_action: >
+      No code change. Document a back-reference ADR (e.g. "D435 superseded — peer specifiers stay
+      semver per publish-readiness gate") so the plan-vs-code divergence has a permanent record
+      beyond the commit body, per cycle-review's "divergence must have its own ADR" rule.
+
+  - id: F-xval-3
+    severity: MEDIUM
+    file: .changeset/monorepo-cohesion-split.md
+    plan_ref: D435 + cycle-release.md bump-level derivation
+    summary: >
+      The committed changeset body is internally contradictory and the wrong bump level. (1) It
+      states "Remaining @theokit/sdk-* peer specifiers normalized to workspace:^" — but the SAME
+      commit (b9f30a6) reverted them to >=1.7.0. The changeset describes a state that does not
+      exist in the tree. (2) It is tagged `minor` while removing the public `@theokit/sdk/rag`
+      sub-path export (a breaking change). cycle-release.md derives `major` when [Unreleased]
+      § Removed is non-empty; the CHANGELOG has a Removed entry. The note hand-waves "release owner
+      may elect major", but ships minor.
+    evidence: |
+      .changeset/monorepo-cohesion-split.md: "... peer specifiers normalized to workspace:^."
+      Actual: grep "@theokit/sdk" packages/sdk-*/package.json → peerDeps are ">=1.7.0"
+      Frontmatter: "@theokit/sdk": minor
+      CHANGELOG [Unreleased] § Removed: "(Breaking, no retrocompat) @theokit/sdk/rag … removed"
+    recommended_action: >
+      Edit the changeset: (a) remove or correct the "normalized to workspace:^" sentence to reflect
+      the >=1.7.0 reality; (b) bump to `major` to honor semver for the removed public sub-path
+      (the plan's whole premise is "no backward-compatibility preserved" — that is a major).
+
+  - id: F-xval-4
+    severity: LOW
+    file: ../theokit-skills-google-workspace
+    plan_ref: T6.1 (move into theokit Skills pillar repo) + Coverage Gap 6
+    summary: >
+      google-workspace was extracted to a STANDALONE repo, not merged into the theokit Skills repo
+      as T6.1's primary instruction stated. This is within the plan's own declared fallback (risk
+      row + Unresolved Q2) and is honestly documented as a follow-up. The cohesion goal (skill
+      leaves the Harness) is met. Flagged only so the open follow-up (merge into theokit) is tracked
+      and not silently dropped.
+    evidence: |
+      ../theokit-skills-google-workspace exists (9 commits, builds); no theokit/packages member added.
+      Plan risk row: "if it doesn't fit cleanly, fall back to theokit-skills-google-workspace standalone".
+      impl summary: "merge into theokit Skills repo is a documented follow-up".
+    recommended_action: >
+      Track the "merge into theokit" follow-up as an explicit backlog item / Unresolved-Q2 closure.
+      Acceptable as-is for this PR.
+
+  - id: F-xval-5
+    severity: LOW
+    file: .claude/knowledge-base/plans/monorepo-cohesion-split-plan.md + CHANGELOG.md
+    plan_ref: Plan v1.0 prose, Coverage Gap 3, Sub-goal 3
+    summary: >
+      "11 adapters" off-by-one in plan PROSE and propagated to the public CHANGELOG. The gateways
+      cluster is 1 core (@theokit/gateway) + 10 adapters = 11 PACKAGES. The implementation captured
+      the complete, correct set (verified: pre-split main:packages had exactly 11 gateway* dirs; the
+      extracted repo has all 11). The defect is documentation arithmetic, not a missed package.
+      Honestly flagged in the impl "Deviations" already.
+    evidence: |
+      git ls-tree -d main:packages | grep gateway → 11 entries (gateway + 10 gateway-*)
+      ../theokit-gateways/packages → gateway + 10 adapters = 11 dirs (complete)
+      CHANGELOG.md:11 "theokit-gateways = gateway + 11 adapters"  ← should read "+ 10 adapters" / "11 packages"
+    recommended_action: >
+      Correct CHANGELOG.md line 11 ("11 adapters" → "10 adapters" or "11 packages") since it is the
+      public-facing artifact. Plan prose can be left (frozen contract); the impl summary already
+      records the correction.
+
+cross_validation_verdict:
+  summary: >
+    The implementation faithfully executes the plan. All 11 Coverage-Matrix gaps are addressed:
+    9 fully, 1 partial (Gap 7 — a dangling example import slipped EC-2: F-xval-1, HIGH), 1 diverged-
+    but-correct (Gap 9 — D435 reverted on solid gate-driven grounds: F-xval-2, INFO). 4 of 5 ADRs
+    are respected; the 5th (D435) was reverted CORRECTLY and HONESTLY (the publish-readiness gate
+    objectively required it). History preservation is plausible and verified (commit counts ≥ source
+    baselines; not flat copies; EC-1 origin-strip honored). No plan drift — the plan was frozen
+    before /implement. The two divergences the task asked about (D435 revert, google-workspace
+    standalone) are both honest and justified. The gateway "off-by-one" is plan-prose arithmetic,
+    not a missed package — the full set was captured. voice extract (vs delete) is within the plan's
+    authorized branch.
+  blocking_findings: 0
+  high_findings: 1     # F-xval-1
+  medium_findings: 1   # F-xval-3
+  recommendation: >
+    NEEDS_FIXES on F-xval-1 (delete/relocate the broken decorator example — it is a dead, git-tracked
+    artifact advertising a revoked DX) and F-xval-3 (fix the contradictory/wrong-level changeset
+    before release). F-xval-2/4/5 are documentation/tracking follow-ups, not merge blockers.
+    No false claims, no silent divergence: every deviation is documented in the impl summary.

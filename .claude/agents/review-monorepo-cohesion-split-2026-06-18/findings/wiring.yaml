@@ -1,0 +1,137 @@
+agent: review-monorepo-cohesion-split-wiring
+review_target: main..develop for plan monorepo-cohesion-split
+plan: .claude/knowledge-base/plans/monorepo-cohesion-split-plan.md
+
+summary_verdict: PASS
+one_liner: >
+  Wiring is honest and deep. The cross-cluster guard is genuinely wired into
+  `pnpm quality`, catches real injected imports (verified RED/GREEN), and the
+  trimmed monorepo has ZERO residual STATIC imports of any extracted cluster.
+  All 6 extracted repos exist locally with preserved git history. No staying
+  package dangles. The residual textual references in packages/ are docs,
+  CHANGELOGs, CLI scaffold templates, and runtime string-based feature
+  detection — all correct, none are real Harness src imports.
+
+triad_revalidation:
+  guard_wired_into_quality: true        # quality script chains quality:cross-cluster
+  guard_catches_injected_import: true   # RED on probe import @theokit/gateway -> exit 1
+  guard_passes_clean: true              # GREEN on trimmed tree -> exit 0
+  residual_static_imports_in_harness_src: 0
+  extracted_repos_present_with_history: 6 / 6
+  staying_packages_dangling_deps: 0 / 12
+
+focus_a_guard_wired:
+  status: PASS
+  evidence: |
+    package.json `quality` script:
+      "quality": "pnpm run quality:dead && pnpm run quality:cycles && pnpm run quality:depcruise
+                  && pnpm run quality:cross-cluster && pnpm run quality:loc && pnpm run quality:duplication"
+    "quality:cross-cluster": "node tools/check-cross-cluster.mjs"
+    tools/check-cross-cluster.mjs FORBIDDEN list = @theokit/{di,di-agent,orm,react,rag,voice,
+      skills-google-workspace} + /^@theokit\/gateway(-[a-z]+)?$/.
+    Injected `import { x } from "@theokit/gateway"` into packages/sdk/src -> guard exit 1 (caught).
+    Removed -> guard exit 0. Guard also gated in `validate` script.
+
+focus_b_zero_residual_imports:
+  status: PASS
+  evidence: |
+    git grep "@theokit/{gateway,di,orm,react}" -- packages/ returns ONLY:
+      - packages/README.md (cluster->repo mapping table, docs)
+      - packages/cli/CHANGELOG.md, packages/sdk/CHANGELOG.md (historical entries)
+      - packages/cli/README.md, templates/*, claude-template/* (scaffold material,
+        string interpolation `@theokit/gateway-telegram": "^{{sdkVersion}}"`)
+      - packages/cli/src/inspect/gateway.ts: KNOWN_GATEWAYS string array +
+        require.resolve(g.packageName) — runtime feature detection, NOT a static import
+      - packages/cli/src/commands/db.ts:119: error STRING "@theokit/orm is not installed";
+        loadSchemaExporter uses dynamic import(pathToFileURL(...)) of a runtime-resolved
+        node_modules path, NOT a static `from "@theokit/orm"` specifier
+    git grep for static `from "rag|voice"` / `@theokit/(rag|voice)` in packages/sdk/src -> (none).
+    The guard's anchored regex correctly excludes string/help-text/dynamic-file-URL forms.
+    This is exactly the EC-3 graceful-degradation design (detect-by-resolve, fail friendly).
+
+focus_c_no_dangling_deps:
+  status: PASS
+  evidence: |
+    Every @theokit/* dependency of the 12 staying packages resolves to another
+    staying package:
+      acp -> sdk; cli -> sdk, acp; sdk-tools -> sdk, sdk-cache, sdk-handoff;
+      memory-{honcho,mem0,supermemory} -> sdk; sdk -> sdk-handoff, sdk-memory;
+      sdk-cache/sdk-memory/sdk-budget/sdk-handoff -> sdk; codemod-sdk-2-0 -> none.
+    No reference to any extracted cluster.
+    peerDependencies on sdk-handoff/sdk-memory/sdk-tools use "@theokit/sdk": ">=1.7.0"
+    (semver) — consistent with the documented D435 reversal (publish-readiness gate
+    requires semver, not workspace:). Intra-workspace deps use workspace:* / workspace:^.
+    `pnpm install` relock: 27 workspace projects, lockfile up to date, no
+    missing-workspace errors. Pre-existing cosmetic sdk<->sdk-handoff cyclic warning
+    (non-fatal, unchanged by this plan).
+
+focus_d_extracted_repos:
+  status: PASS
+  evidence: |
+    theokit-backend-dx:               31 commits | di, di-agent, orm
+    theokit-gateways:                 24 commits | gateway + 10 adapters (11 pkgs)
+    theokit-react:                    14 commits | react
+    theokit-rag:                       4 commits | flat single-package (was @theokit/sdk/rag)
+    theokit-voice:                     5 commits | flat single-package (was embedded)
+    theokit-skills-google-workspace:   9 commits | skills-google-workspace
+    All have origin stripped (EC-1: local-only). rag/voice history preserves the
+    ORIGINAL sdk commits (614b87b "feat(sdk): T11.1 — RAG sub-path", d47fce9
+    "feat(sdk): T12.1...voice") — genuine history-preserving extraction, not flat copies.
+
+findings:
+  - id: F-wiring-1
+    severity: INFO
+    file: theokit-gateways/packages/
+    line: 0
+    plan_ref: T3.1 / implementation summary "Gateway count" deviation
+    summary: >
+      Plan prose says "11 adapters / 12 packages"; actual is gateway core + 10
+      adapters = 11 packages. Off-by-one in the plan, already disclosed honestly
+      in the implementation summary. The full `gateway*` set was captured (verified:
+      gateway + discord/email/line/matrix/mattermost/slack/sms/teams/telegram/whatsapp).
+    evidence: |
+      ls theokit-gateways/packages -> 11 dirs. No loss; the count is a prose error,
+      not a missing package.
+    recommended_action: None required (cosmetic plan-prose discrepancy, disclosed).
+
+  - id: F-wiring-2
+    severity: INFO
+    file: packages/skills-google-workspace (extracted)
+    line: 0
+    plan_ref: T6.1 / D434 destination deviation
+    summary: >
+      skills-google-workspace was extracted to a STANDALONE repo
+      (theokit-skills-google-workspace) rather than merged into the `theokit`
+      Skills-pillar repo as the plan intended. Disclosed as a documented follow-up.
+    evidence: |
+      theokit-skills-google-workspace: 9 commits, own pnpm workspace.
+      Implementation summary marks the merge-into-theokit as a follow-up the user runs.
+    recommended_action: >
+      Track the merge-into-theokit follow-up so the Skills pillar consolidation is
+      not silently dropped. Does not block this PR (Harness cohesion goal is met).
+
+  - id: F-wiring-3
+    severity: LOW
+    file: packages/sdk/claude-template/dot-claude/skills/{theokit-di,theokit-di-agent,theokit-gateways,theokit-rag}/SKILL.md
+    line: 0
+    plan_ref: T7.4 docs/surface trim
+    summary: >
+      The SDK ships a `claude-template/` scaffold whose skill docs still describe
+      @theokit/di, di-agent, gateways, and rag as if first-party. These are template
+      assets (shipped to consumers), not Harness src imports, so they do NOT violate
+      the guard or break cohesion — but they advertise now-external packages from
+      inside the Harness package.
+    evidence: |
+      packages/sdk/claude-template/dot-claude/skills/theokit-di-agent/SKILL.md and
+      siblings reference the extracted clusters as install targets. Pure documentation
+      content bundled in the SDK npm tarball.
+    recommended_action: >
+      Optional cleanup pass: update claude-template skill docs to point at the new
+      external repos, or note they are optional add-ons. Non-blocking; advisory only.
+
+anti_patterns_checked:
+  - re_ran_guard_on_samples: true   # ran guard clean + with injected violation
+  - verified_caller_not_noop: true  # cli detection paths are real runtime require.resolve, not dead
+  - reachability_analysis: true     # confirmed no static import path from Harness src to extracted clusters
+  - sanity_checked_magnitudes: true # commit counts >1 per repo (history, not flat copy)
+  - rejected_dead_exports_excuse: n/a  # extraction plan, no new public exports introduced

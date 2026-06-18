@@ -35,44 +35,13 @@
         "src/**/internal/**",
         "tests/fixtures/codemod-1x/**",
         "src/stream-object.ts",
-        "src/server/adapter/index.ts",
-        "src/voice/index.ts"
+        "src/server/adapter/index.ts"
       ],
       "ignoreDependencies": ["@theokit/sdk-handoff"]
-    },
-    "packages/react": {
-      "entry": ["tests/**/*.test.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": ["src/internal/**"]
     },
     "packages/cli": {
       "entry": ["tests/**/*.test.ts"],
       "project": ["src/**/*.ts", "tests/**/*.ts"]
-    },
-    "packages/gateway-whatsapp": {
-      "entry": ["tests/**/*.test.ts", "src/bridge/whatsapp-web-bridge.mjs"],
-      "project": ["src/**/*.{ts,mjs}", "tests/**/*.ts"],
-      "ignoreDependencies": ["whatsapp-web.js"]
-    },
-    "packages/gateway-sms": {
-      "entry": ["tests/**/*.test.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignoreDependencies": ["twilio", "plivo", "@vonage/server-sdk", "express"]
-    },
-    "packages/gateway-mattermost": {
-      "entry": ["tests/**/*.test.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignoreDependencies": ["@mattermost/client"]
-    },
-    "packages/gateway-line": {
-      "entry": ["tests/**/*.test.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignoreDependencies": ["@line/bot-sdk", "express"]
-    },
-    "packages/gateway-matrix": {
-      "entry": ["tests/**/*.test.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignoreDependencies": ["matrix-js-sdk"]
     }
   }
 }

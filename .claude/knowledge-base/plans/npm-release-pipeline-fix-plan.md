@@ -76,11 +76,23 @@ User initially chose di **minor (0.2.0)** for semver-correctness; switched to **
 - ##### TDD: create `.changeset` entries — `@theokit/sdk` minor (createSquad + Agent.batch validation), `@theokit/di-agent` minor (@Squad + @Step + buildWorkflow), `@theokit/di` patch (METADATA_KEYS). Re-run `changeset status --verbose` → matches the Goal (b) plan exactly; no unintended 1.0.0.
 - ##### Acceptance: `changeset status` plan = {sdk 1.9.0, di 0.1.1, di-agent 0.2.0, dependents ≤ patch}; no stale changesets remain.
 
-### Phase C — Ship via CI (no local publish)
+### Phase C — Ship via CI (no local publish) ✅ DONE 2026-06-15
 
-#### Task C1 — Merge to main → CI publishes
-- ##### Why this step: publishing is OIDC/CI-only; the human-approved merge triggers `release.yml`.
-- ##### Acceptance: after merge, `release.yml` run is `success`; `npm view @theokit/sdk version` = 1.9.0, `@theokit/di` = 0.1.1, `@theokit/di-agent` = 0.2.0; no unintended 1.0.0 packages published. (Verified post-merge; not by a local publish.)
+> **Three more latent blockers surfaced at publish time** (each masked by the prior — the CI release had never succeeded before, so every layer was untested):
+> 1. **GitHub Actions cannot create PRs** (`can_approve_pull_request_reviews: false`) → changesets/action built + pushed `changeset-release/main` but couldn't open the Version Packages PR. Worked around by opening it manually (PR #12). (Setting left disabled; manual VP PR is the interim.)
+> 2. **No npm trusted-publisher binding** → OIDC publish `E404`. Switched to token auth via `NODE_AUTH_TOKEN` (secret `NPM_TOKEN`) (PR #13).
+> 3. **Private repo blocks provenance** → token publish `E422` ("Unsupported GitHub Actions source repository visibility: private"). The already-published versions had no attestation either (`dist.attestations` empty) — `provenance:true` was aspirational. Disabled provenance in `release.yml` + 7 `publishConfig`s (PR #14).
+>
+> Also fixed the **develop↔main version divergence** by fast-forwarding develop to main before PR #14 (the Version Packages bump lived only on main).
+
+#### Task C1 — Merge to main → CI publishes ✅
+- ##### Why this step: publishing is CI-only; the human-approved merge triggers `release.yml`.
+- ##### Result: PR #14 merge → `release.yml` published via token (no provenance). **Verified on npm:** `@theokit/sdk@1.9.0`, `@theokit/di@0.1.1`, `@theokit/di-agent@0.2.0`; tarballs confirmed to contain `createSquad` / `@Step`+`readStepMetadata` / `METADATA_KEYS.SQUAD`. No unintended `1.0.0` packages. **Met.**
+
+### Follow-ups (post-publish, not blocking)
+- **Rotate `NPM_TOKEN`** — shared out-of-band; revoke at npmjs.com → Access Tokens.
+- **When the repo goes public** (Apache-2.0 open SDK narrative): re-enable provenance (workflow env + `publishConfig.provenance` + dashboard trusted publishers) to ship attested + tokenless.
+- **Enable "Allow GitHub Actions to create and approve pull requests"** to make the Version Packages PR fully automatic (else open it by hand each release).
 
 ## Coverage Matrix
 
