@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- **Repo cohesion split (`monorepo-cohesion-split`):** `theokit-sdk` is being refocused as the pure Agent-AI Harness. Non-Harness clusters are extracted into history-preserving sibling repos (`theokit-backend-dx` = `di`/`di-agent`/`orm`; `theokit-gateways` = `gateway` + 11 adapters; `theokit-react`; `theokit-rag`; `theokit-voice`; `skills-google-workspace` → `theokit` Skills pillar). See ADR D431 + plan `monorepo-cohesion-split`.
+- **Repo cohesion split (`monorepo-cohesion-split`):** `theokit-sdk` is being refocused as the pure Agent-AI Harness. Non-Harness clusters are extracted into history-preserving sibling repos (`theokit-backend-dx` = `di`/`di-agent`/`orm`; `theokit-gateways` = `gateway` core + 10 platform adapters; `theokit-react`; `theokit-rag`; `theokit-voice`; `skills-google-workspace` → `theokit` Skills pillar). See ADR D431 + plan `monorepo-cohesion-split`.
 - **Decorators no longer mandatory (ADR D431):** revoked the 2026-06-10 inviolable rule "every agentic feature MUST ship a `@Decorator` surface via `@theokit/di`". Factory functions are now the single canonical API; decorators are an optional convenience via the externally-published `@theokit/di`. The Harness no longer depends on `@theokit/di`. Rationale: the rule drove Backend-DX scope creep (di → di-agent → orm → http-decorators), violating "don't reinvent the wheel" + KISS + YAGNI.
 
 ### Removed
