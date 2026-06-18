@@ -253,7 +253,7 @@ Total ADRs registradas: 430 (`./.claude/knowledge-base/adrs/D1` até `D430`).
 6. **Changelog discipline.** Every code change updates `CHANGELOG.md` (workspace-level at root; per-package at `packages/<name>/CHANGELOG.md`).
 7. **Don't reinvent.** Prefer mature libraries — the toolchain table above already does this.
 8. **No emojis** in code, READMEs, or CLAUDE.md files unless explicitly requested.
-9. **Decorators mandatory for agentic features.** Every new agentic capability (tools, middleware, sandbox backends, subagent delegation, memory adapters, etc.) MUST ship with a `@Decorator` API surface via `@theokit/di` in addition to the low-level factory function. Factory functions are the primitive; decorators are the recommended DX. Both must be tested. Established 2026-06-10.
+9. **Factory functions are the canonical API.** Every agentic capability (tools, middleware, sandbox backends, subagent delegation, memory adapters, etc.) ships as a low-level factory function (`defineTool`, `createAgentFactory`, etc.). Decorators are an OPTIONAL convenience layer a consumer may add via the externally-published `@theokit/di` (now in the `theokit-backend-dx` repo) — they are NOT required of Harness features. **Revoked 2026-06-18 via ADR D431** the previous "decorators mandatory via `@theokit/di`" rule (2026-06-10): it forced the Harness to ship a generic IoC container and drove Backend-DX scope creep (di → di-agent → orm → http-decorators), violating Rule 7 (don't reinvent) + KISS + YAGNI.
 
 Full text: `/home/user/.claude/CLAUDE.md`. Cross-project rules: `/home/user/Projetos/usetheo/CLAUDE.md`.
 
