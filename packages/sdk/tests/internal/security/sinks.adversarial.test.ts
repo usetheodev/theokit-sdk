@@ -19,7 +19,7 @@ import { join } from "node:path";
 import * as fc from "fast-check";
 import { afterEach, beforeEach, describe, it } from "vitest";
 
-import { mapAnthropicError } from "../../../src/internal/errors/mappers/anthropic.js";
+import { mapAnthropicError } from "../../../src/internal/error-mappers/anthropic.js";
 import {
   appendToSessionFile,
   sessionFilePath,

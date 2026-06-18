@@ -8,8 +8,8 @@
  * @internal
  */
 
-import type { ErrorCode, ErrorMetadata } from "../../../errors.js";
-import { redactSecrets } from "../../security/index.js";
+import type { ErrorCode, ErrorMetadata } from "../../errors.js";
+import { redactSecrets } from "../security/index.js";
 
 const RAW_MAX_BYTES = 2048;
 

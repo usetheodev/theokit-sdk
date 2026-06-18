@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { AuthenticationError, ConfigurationError, NetworkError } from "../../../errors.js";
-import { mapOpenAICompatibleError } from "../../errors/mappers/openai-compatible.js";
+import { mapOpenAICompatibleError } from "../../error-mappers/openai-compatible.js";
 import type {
   CreateAdapterOptions,
   EmbeddingRuntime,

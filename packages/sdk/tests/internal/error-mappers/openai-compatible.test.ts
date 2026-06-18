@@ -11,8 +11,8 @@ import {
   NetworkError,
   RateLimitError,
   UnknownAgentError,
-} from "../../../../src/errors.js";
-import { mapOpenAICompatibleError } from "../../../../src/internal/errors/mappers/openai-compatible.js";
+} from "../../../src/errors.js";
+import { mapOpenAICompatibleError } from "../../../src/internal/error-mappers/openai-compatible.js";
 
 function headers(record: Record<string, string> = {}): Headers {
   return new Headers(record);
