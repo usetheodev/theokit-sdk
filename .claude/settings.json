@@ -14,6 +14,10 @@
       "Read",
       "Glob",
       "Grep",
+      "Read(.claude/knowledge-base/reference/**)",
+      "Read(.claude/knowledge-base/reference/codex/**)",
+      "Read(.claude/knowledge-base/reference/opencode/**)",
+      "Read(.claude/knowledge-base/reference/crewAI/**)",
       "Bash(ls *)",
       "Bash(tree *)",
       "Bash(wc *)",
@@ -70,10 +74,8 @@
       "Read(**/*secret*)",
       "Read(**/*.pem)",
       "Read(**/*.key)",
-      "Edit(.claude/knowledge-base/references/**)",
-      "Write(.claude/knowledge-base/references/**)",
-      "Edit(.claude/knowledge-base/tools/**)",
-      "Write(.claude/knowledge-base/tools/**)"
+      "Edit(.claude/knowledge-base/**)",
+      "Write(.claude/knowledge-base/**)"
     ]
   },
   "hooks": {

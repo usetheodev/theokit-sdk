@@ -21,6 +21,17 @@ dist-runtime/
 .env.local
 .env.*.local
 
+#Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pycache/
+*.pyo
+*.pyd
+*.pyc
+*.pyo
+
 # Editor (keep shared configs, ignore user state)
 .vscode/*
 !.vscode/extensions.json
@@ -68,3 +79,11 @@ docs/evalscope/
 # Architecture review output (loop-architecture-review plugin output dir)
 # DB + figures + ADR drafts; reproducible by re-running /loop-architecture-review
 architecture-output/
+
+# Reference study material visible to Claude but not versioned
+.claude/knowledge-base/reference/codex/
+.claude/knowledge-base/reference/opencode/
+.claude/knowledge-base/reference/crewAI/
+.compaction-snapshots/
+# Local build artifact (packed tarball) — not versioned
+packages/sdk-tools/*.tgz
