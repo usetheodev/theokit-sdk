@@ -35,15 +35,9 @@
         "src/**/internal/**",
         "tests/fixtures/codemod-1x/**",
         "src/stream-object.ts",
-        "src/server/adapter/index.ts",
-        "src/voice/index.ts"
+        "src/server/adapter/index.ts"
       ],
       "ignoreDependencies": ["@theokit/sdk-handoff"]
-    },
-    "packages/react": {
-      "entry": ["tests/**/*.test.ts"],
-      "project": ["src/**/*.ts", "tests/**/*.ts"],
-      "ignore": ["src/internal/**"]
     },
     "packages/cli": {
       "entry": ["tests/**/*.test.ts"],
