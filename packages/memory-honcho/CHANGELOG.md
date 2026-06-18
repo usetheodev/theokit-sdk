@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0
+
+### Patch Changes
+
+- Updated dependencies [b9f30a6]
+  - @theokit/sdk@2.0.0
+
 ## 2.0.0
 
 ### Patch Changes
