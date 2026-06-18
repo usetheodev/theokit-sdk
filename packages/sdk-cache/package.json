@@ -43,7 +43,7 @@
     "typecheck": "tsc --noEmit"
   },
   "peerDependencies": {
-    "@theokit/sdk": "workspace:^",
+    "@theokit/sdk": ">=1.7.0",
     "zod": "^4.0.0"
   },
   "devDependencies": {
