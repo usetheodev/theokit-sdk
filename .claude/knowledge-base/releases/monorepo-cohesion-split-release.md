@@ -1,8 +1,14 @@
 # Release — monorepo-cohesion-split
 
 **Date:** 2026-06-18
-**Verdict:** PR_OPEN_AWAITING_APPROVAL
+**Verdict:** RELEASED ✅ — `@theokit/sdk@2.0.0` published to npm (`latest`).
 **Source review:** `.claude/knowledge-base/reviews/monorepo-cohesion-split-review-2026-06-18.md` (READY_TO_MERGE)
+
+## Final outcome
+
+`release.yml` run **27777702804 succeeded** (after PR #17 merge). `npm view @theokit/sdk version` → **2.0.0**. Published Harness set: `@theokit/sdk@2.0.0`, `sdk-cache/tools/memory/budget/handoff@0.1.0` (unchanged — peer `>=1.7.0` still satisfied by 2.0.0, no needless cascade), `acp/cli/memory-honcho/mem0/supermemory@1.0.0`.
+
+Path to release (4 merges): PR #15 (split) → CI failed on pre-push hook running flaky tests → PR #16 (hook CI-skip) → CI pushed Version branch but failed to auto-open PR (GH Actions PR-create permission disabled) → PR #17 (Version Packages, opened manually) → **published**.
 
 ## theokit-sdk (monorepo) — changesets-driven
 
