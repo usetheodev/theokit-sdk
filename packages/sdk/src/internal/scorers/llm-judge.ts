@@ -1,17 +1,18 @@
 /**
  * LLM-as-judge scorer implementation (ADR D205).
  *
- * Builds a transient agent with the judge model + apiKey, calls
- * `Agent.prompt` with a structured judge prompt, parses score from
- * the response. Returns 0 (with diagnostic reason) on any parse failure.
+ * Builds a transient agent with the judge model + apiKey, calls the public
+ * Agent facade's `prompt` (via the `getAgentFacade()` inversion seam) with a
+ * structured judge prompt, parses score from the response. Returns 0 (with
+ * diagnostic reason) on any parse failure.
  *
  * @internal
  */
 
-import { Agent } from "../../agent.js";
 import type { ModelSelection } from "../../types/agent.js";
 import type { Score } from "../../types/eval.js";
 import type { ProviderRoutingSettings } from "../../types/providers.js";
+import { getAgentFacade } from "../runtime/registry/agent-factory-registry.js";
 
 export interface LlmJudgeOptions {
   readonly model: ModelSelection;
@@ -60,7 +61,7 @@ async function callJudge(
   options: LlmJudgeOptions,
 ): Promise<{ ok: true; text: string } | { ok: false; reason: string }> {
   try {
-    const result = await Agent.prompt(message, {
+    const result = await getAgentFacade().prompt(message, {
       apiKey: options.apiKey,
       model: options.model,
       local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
