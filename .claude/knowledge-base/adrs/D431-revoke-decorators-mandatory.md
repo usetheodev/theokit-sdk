@@ -10,7 +10,7 @@
 Rescind the rule that every agentic capability MUST ship a `@Decorator` API surface via `@theokit/di`. Going forward:
 
 - **Factory functions** (`defineTool`, `createAgentFactory`, `definePlugin`, etc.) are the single canonical, always-present API for every Harness capability.
-- **Decorators are an OPTIONAL convenience layer** a consumer may add via the externally-published `@theokit/di`, which leaves the Harness monorepo for the `theokit-backend-dx` repo (per ADR D432).
+- **Decorators are an OPTIONAL convenience layer** a consumer may add via the externally-published `@theokit/di`, which leaves the Harness monorepo for the `theokit-di` repo (per ADR D432).
 - The Harness (`@theokit/sdk`) MUST NOT depend on `@theokit/di`.
 
 ## Rationale
@@ -33,7 +33,7 @@ Removing the rule removes the structural pull that generated the Backend-DX clus
 
 - **Enables** a cohesive Harness with one primitive API surface and no generic-framework dependency.
 - **Constrains:** any code or docs advertising decorator-first DX must be reframed as factory-first; the `feedback_decorators_mandatory` memory is rewritten/retired; the `quality-review` skill no longer flags a missing decorator surface.
-- `@theokit/di`, `@theokit/di-agent`, `@theokit/orm` continue to exist as published packages in `theokit-backend-dx`, where decorators remain a first-class (optional) DX for consumers who opt in.
+- `@theokit/di`, `@theokit/di-agent`, `@theokit/orm` continue to exist as published packages in `theokit-di`, where decorators remain a first-class (optional) DX for consumers who opt in.
 
 ## Addendum — D433 guard implementation (2026-06-18, review F-arch-2)
 

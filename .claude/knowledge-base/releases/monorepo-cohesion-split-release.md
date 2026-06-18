@@ -32,7 +32,7 @@ Each will release independently when its `main` is cut (user decision). Their CH
 
 ## Extracted repos NOT yet on GitHub (local folders only)
 
-`theokit-backend-dx`, `theokit-rag`, `theokit-voice`, `theokit-skills-google-workspace` — created locally with preserved history + `origin` stripped (EC-1). The user creates the GitHub repos, then `git remote add origin … && git push origin develop`.
+`theokit-di`, `theokit-rag`, `theokit-voice`, `theokit-skills-google-workspace` — created locally with preserved history + `origin` stripped (EC-1). The user creates the GitHub repos, then `git remote add origin … && git push origin develop`.
 
 ## Next
 

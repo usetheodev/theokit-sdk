@@ -84,7 +84,7 @@ From `rules/architecture.md`: the §1 layering (interface → application → do
 ## Objective
 
 - [ ] Sub-goal 1 — Revoke the decorators-mandatory rule via ADR D431; update `CLAUDE.md`, the root pillar table, and the `[[feedback_decorators_mandatory]]` memory.
-- [ ] Sub-goal 2 — Extract `theokit-backend-dx` (`di`, `di-agent`, `orm`) with history; it builds green against npm `@theokit/sdk`.
+- [ ] Sub-goal 2 — Extract `theokit-di` (`di`, `di-agent`, `orm`) with history; it builds green against npm `@theokit/sdk`.
 - [ ] Sub-goal 3 — Extract `theokit-gateways` (`gateway` + 11 adapters) with history; it builds green.
 - [ ] Sub-goal 4 — Extract `theokit-react` (`react`) with history; it builds green.
 - [ ] Sub-goal 5 — Resolve `voice`/`rag`: carve out of `packages/sdk/src/`, remove the `./rag` + `./voice` exports, and either extract to a repo or delete (per T5.1 maturity finding).
@@ -94,13 +94,13 @@ From `rules/architecture.md`: the §1 layering (interface → application → do
 ## ADRs
 
 ### D431 — Revoke "decorators mandatory via `@theokit/di`"; factory functions are the canonical API
-- **Decision:** Rescind the inviolable rule at `CLAUDE.md:256` (established 2026-06-10). Factory functions (`defineTool`, `createAgentFactory`, etc.) become the sole canonical, always-present API. A decorator surface becomes an OPTIONAL convenience that a consumer may add via the externally-published `@theokit/di` (now in `theokit-backend-dx`).
+- **Decision:** Rescind the inviolable rule at `CLAUDE.md:256` (established 2026-06-10). Factory functions (`defineTool`, `createAgentFactory`, etc.) become the sole canonical, always-present API. A decorator surface becomes an OPTIONAL convenience that a consumer may add via the externally-published `@theokit/di` (now in `theokit-di`).
 - **Rationale:** The rule forced `@theokit/sdk` (and the whole ecosystem) to ship a generic IoC container, which then justified `di-agent`, `orm`, and a planned `http-decorators` — a hand-rolled re-implementation of what `inversify`/`tsyringe`/`NestJS` already provide (violates Unbreakable Rule 9). Removing the rule removes the structural pull toward Backend-DX scope creep. KISS + YAGNI: the SDK needs factories, not a DI framework.
 - **Alternatives considered:** (a) *Keep the rule, keep `@theokit/di` as an external dep of the Harness* — rejected: re-introduces the coupling that makes the Harness depend on a generic framework, and keeps the "every feature must ship decorators" tax. (b) *Keep decorators via a ~50-LoC internal helper* — rejected: still mandates a second API surface per feature with no proven demand (YAGNI); the user chose full revocation.
 - **Consequences:** Enables a clean Harness with one primitive surface. Constrains: any code/docs that currently advertise the decorator-first DX must be reframed as factory-first; the `[[feedback_decorators_mandatory]]` memory must be deleted/rewritten.
 
 ### D432 — Extract by cluster into git-history-preserving sibling repos (not delete, not in-place)
-- **Decision:** Each leaving cluster moves to a new repo under `usetheodev/` (`theokit-backend-dx`, `theokit-gateways`, `theokit-react`) via `git filter-repo`, preserving the commit history of the moved paths. Packages keep their npm name + current version and consume `@theokit/sdk` from npm.
+- **Decision:** Each leaving cluster moves to a new repo under `usetheodev/` (`theokit-di`, `theokit-gateways`, `theokit-react`) via `git filter-repo`, preserving the commit history of the moved paths. Packages keep their npm name + current version and consume `@theokit/sdk` from npm.
 - **Rationale:** The user chose "separate repos preserving history". History matters for `git blame`/audit on code that is still maintained. Each cluster gets independent release cadence, which is the point of de-bundling.
 - **Alternatives considered:** (a) *Delete + npm-deprecate* — rejected by the user; some clusters (gateways) are real products. (b) *Move to `packages-incubator/` in-place* — rejected: keeps the maintenance and config weight inside the Harness repo, defeating cohesion.
 - **Consequences:** Enables independent versioning. Constrains: extraction is a multi-repo operation (each new repo needs its own toolchain scaffold + CI); cross-repo refactors get harder (acceptable — these clusters are decoupled by design).
@@ -179,7 +179,7 @@ Shared, non-negotiable procedure absorbed from the edge-case review (EC-1, EC-4,
 2. **Strip origin (EC-1).** Immediately after filter-repo: `git -C <clone> remote remove origin` (idempotent). **No remote is configured** — extracted repos are local-only folders under `../` (`theokit-tools/`) until the human creates the GitHub repo. This makes an accidental push to the source `theokit-sdk` origin impossible.
 3. **Deterministic capture set (EC-4).** Use explicit `--path packages/<name>` per package OR `--path-glob 'packages/<prefix>*'`; never rely on a bare prefix that could over/under-capture. After extraction assert the member count equals the intended set.
 4. **History-equality verification (EC-5).** Before extraction, record `git log --oneline -- <path> | wc -l` in the source. After extraction, assert the clone's count for the same path **equals** the source count (equality — a flat copy yields 1, a bad glob yields a mismatch).
-5. **Final location.** Move the verified clone to its final folder name under `../` (e.g. `theokit-tools/theokit-backend-dx`), dropping the `-tmp` suffix.
+5. **Final location.** Move the verified clone to its final folder name under `../` (e.g. `theokit-tools/theokit-di`), dropping the `-tmp` suffix.
 
 ---
 
@@ -190,7 +190,7 @@ Shared, non-negotiable procedure absorbed from the edge-case review (EC-1, EC-4,
 ### T0.1 — Create the three target repositories (human gate)
 
 #### Objective
-Have empty `usetheodev/theokit-backend-dx`, `theokit-gateways`, `theokit-react` repos to push extracted history into.
+Have empty `usetheodev/theokit-di`, `theokit-gateways`, `theokit-react` repos to push extracted history into.
 
 #### Why this step (action + reasoning — ReAct discipline)
 
@@ -214,7 +214,7 @@ No files in this repo change. The output is three reachable remotes consumed by 
 
 #### TDD
 ```
-RED:     `git ls-remote git@github-usetheo:usetheodev/theokit-backend-dx.git` errors (repo absent)
+RED:     `git ls-remote git@github-usetheo:usetheodev/theokit-di.git` errors (repo absent)
 GREEN:   the same command returns cleanly (empty repo OK) for all 3
 REFACTOR: None expected
 VERIFY:  all three `git ls-remote` exit 0
@@ -360,14 +360,14 @@ VERIFY:  grep -rn "MUST ship with a" CLAUDE.md → empty
 
 ---
 
-## Phase 2: Extract `theokit-backend-dx` (`di`, `di-agent`, `orm`)
+## Phase 2: Extract `theokit-di` (`di`, `di-agent`, `orm`)
 
 **Objective:** Move the Backend-DX cluster to its own history-preserving repo that builds against npm `@theokit/sdk`.
 
 ### T2.1 — filter-repo extraction of `packages/{di,di-agent,orm}`
 
 #### Objective
-A `theokit-backend-dx` repo containing the three packages with their commit history.
+A `theokit-di` repo containing the three packages with their commit history.
 
 #### Why this step (action + reasoning — ReAct discipline)
 
@@ -379,7 +379,7 @@ A `theokit-backend-dx` repo containing the three packages with their commit hist
 
 #### Files to edit
 ```
-(in the NEW theokit-backend-dx repo, post-filter-repo)
+(in the NEW theokit-di repo, post-filter-repo)
 package.json (NEW) — workspace root (private, pnpm)
 pnpm-workspace.yaml (NEW) — packages/*
 tsconfig.base.json, biome.json, .nvmrc, .changeset/config.json (NEW) — copied + trimmed from sdk repo
@@ -397,7 +397,7 @@ CHANGELOG.md (NEW)
 2. Scaffold workspace root + toolchain configs (copy-trim from sdk repo).
 3. Rewrite `di-agent`'s sdk dep to the published range.
 4. `pnpm install && pnpm build && pnpm test` in the new repo.
-5. Push to `usetheodev/theokit-backend-dx`.
+5. Push to `usetheodev/theokit-di`.
 
 #### TDD
 ```
@@ -867,7 +867,7 @@ node tools/check-cycles.mjs               # no build cycle
 npx changeset status --verbose            # no 1.0.0 cascade
 ```
 
-In each extracted repo (`theokit-backend-dx`, `theokit-gateways`, `theokit-react`, + voice/rag/google-workspace destinations):
+In each extracted repo (`theokit-di`, `theokit-gateways`, `theokit-react`, + voice/rag/google-workspace destinations):
 
 ```
 pnpm install && pnpm -r build && pnpm -r test    # green against npm @theokit/sdk

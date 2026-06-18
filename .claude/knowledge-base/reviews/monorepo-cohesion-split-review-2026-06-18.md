@@ -8,7 +8,7 @@
 ## Findings + resolution
 
 ### HIGH — RESOLVED
-- **F-xval-1** — `examples/deepagents-parity-demo/run-decorators.ts:33` imported `../../packages/di-agent/src/index.js` (a path deleted in the split) via a RELATIVE path. EC-2's package.json-dep grep + the cross-cluster guard (scopes `packages/*/src`, not `examples/`) both missed it. **Fix:** moved the di-agent decorator demo to `theokit-backend-dx/examples/` (import rewritten to `@theokit/di-agent`); removed from the Harness. Verified: `git grep` for relative imports to extracted packages under `examples/` now returns zero.
+- **F-xval-1** — `examples/deepagents-parity-demo/run-decorators.ts:33` imported `../../packages/di-agent/src/index.js` (a path deleted in the split) via a RELATIVE path. EC-2's package.json-dep grep + the cross-cluster guard (scopes `packages/*/src`, not `examples/`) both missed it. **Fix:** moved the di-agent decorator demo to `theokit-di/examples/` (import rewritten to `@theokit/di-agent`); removed from the Harness. Verified: `git grep` for relative imports to extracted packages under `examples/` now returns zero.
 
 ### MEDIUM — RESOLVED
 - **F-arch-1** — cross-cluster guard regex `/^@theokit\/gateway(-[a-z]+)?$/` was `$`-anchored, letting gateway **sub-path** imports (`@theokit/gateway-telegram/dist/...`) slip through. **Fix:** `/^@theokit\/gateway(-[a-z]+)?(\/.*)?$/`; RED/GREEN re-verified (injected sub-path import → exit 1; clean → exit 0).
