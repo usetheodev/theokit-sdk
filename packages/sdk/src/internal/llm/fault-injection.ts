@@ -31,7 +31,7 @@
  * @internal
  */
 
-import { mapOpenAICompatibleError } from "../errors/mappers/openai-compatible.js";
+import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
 
 const ENV_GATE_KEY = "NODE_ENV";

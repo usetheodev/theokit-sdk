@@ -77,7 +77,7 @@ try {
 
 ### Anthropic
 
-Same status-based map as OpenAI. Body code hints are dialect-specific (`overloaded_error` → `server_error`, etc.) — see `internal/errors/mappers/anthropic.ts` for the authoritative list.
+Same status-based map as OpenAI. Body code hints are dialect-specific (`overloaded_error` → `server_error`, etc.) — see `internal/error-mappers/anthropic.ts` for the authoritative list.
 
 ### Vertex AI
 
@@ -153,6 +153,6 @@ The redacted body is safe to log — `redactSecrets` strips known secret pattern
 
 ## See also
 
-- `internal/errors/mappers/` — per-provider mapping implementations
+- `internal/error-mappers/` — per-provider mapping implementations
 - ADRs D311-D314, D65-D68 (the broader error system)
 - `docs/recipes/error-handling.md` (TODO) — common error-handling patterns

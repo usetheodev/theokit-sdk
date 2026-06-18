@@ -11,8 +11,8 @@ import {
   NetworkError,
   RateLimitError,
   UnknownAgentError,
-} from "../../../../src/errors.js";
-import { mapAnthropicError } from "../../../../src/internal/errors/mappers/anthropic.js";
+} from "../../../src/errors.js";
+import { mapAnthropicError } from "../../../src/internal/error-mappers/anthropic.js";
 
 function headers(record: Record<string, string> = {}): Headers {
   return new Headers(record);
