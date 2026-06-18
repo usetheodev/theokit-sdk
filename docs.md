@@ -1424,58 +1424,11 @@ Resilience:
 - All OTel calls are wrapped in a `safe()` helper. If the exporter throws or the OTel SDK misbehaves, the error is swallowed — `agent.send` NEVER fails because of telemetry.
 - Open spans owned by an agent are tracked per-handle and closed in `agent.dispose()` so a missing finish event from a cancelled run does not leak.
 
-React helpers (`@theokit/react`)
-A separate workspace package — installs from npm as `@theokit/react`, peer-deps `react ^18 || ^19` and `@theokit/sdk ^1.1.0`. Provides two surfaces:
-
-useTheoChat — React hook that wires a `<form>` UI to a `/api/chat` endpoint, parses the SSE stream, and exposes message state.
-
-
-import { useTheoChat } from "@theokit/react";
-
-function Chat() {
-  const { messages, input, setInput, send, isStreaming, error } = useTheoChat({
-    api: "/api/chat",            // your endpoint
-    initialMessages: [],
-  });
-  return (
-    <div>
-      {messages.map((m) => <div key={m.id}><b>{m.role}:</b> {m.content}</div>)}
-      <input value={input} onChange={(e) => setInput(e.target.value)} />
-      <button onClick={send} disabled={isStreaming}>{isStreaming ? "..." : "Send"}</button>
-      {error && <p>{error.message}</p>}
-    </div>
-  );
-}
-
-streamTheoChat — Next.js / framework-agnostic SSE handler. Takes a `Request`, calls `agent.send`, streams SDKMessages to the wire format below.
-
-
-import { streamTheoChat } from "@theokit/react";
-import { Agent } from "@theokit/sdk";
-
-export async function POST(req: Request) {
-  const agent = await Agent.getOrCreate("web-bot-shared", {
-    apiKey: process.env.THEOKIT_API_KEY,
-    model: { id: "google/gemini-2.0-flash-001" },
-    local: { cwd: process.cwd() },
-  });
-  return streamTheoChat({ agent, req });
-}
-
-Wire format — a peer vendor AI Data Stream v1 (compat: drop-in for `useChat`).
-
-| Code | Payload          | Meaning |
-|------|------------------|---------|
-| `0`  | string           | Text delta. Append to current assistant message. |
-| `9`  | `{ toolCallId, toolName, args? }` | Tool call started. |
-| `a`  | `{ toolCallId, result }` | Tool call completed. |
-| `d`  | `{ finishReason, usage? }` | Finish event (terminates the stream). |
-| `3`  | string           | Stream-level error (HTTP stays 200; protocol surfaces the error). |
-
-Notes:
-- Pre-stream `ConfigurationError` / `AuthenticationError` returned by `agent.send` are surfaced as HTTP 400 / 401 from `streamTheoChat`, NOT as `3:` events (they happen before the stream starts).
-- The hook attaches an `AbortController` and aborts the fetch on `useEffect` cleanup (unmount-safe).
-- The stream is considered finished when a `d:` record arrives OR the response body closes (graceful EOF).
+React helpers — moved to `@theokit/react` (separate repo `theokit-react`)
+The React hooks (`useTheoChat`, `useTheoCompletion`, `useTheoAssistant`) and the
+`streamTheoChat` / `streamCompletion` / `streamAssistant` server handlers were extracted
+to the standalone `@theokit/react` package (repo `theokit-react`) — plan monorepo-cohesion-split.
+They consume `@theokit/sdk` as a published dependency. See that repo's README for the API.
 
 Agent.streamObject() (v1.2+)
 Streams a typed object alongside intermediate partial deltas as the model produces it. Same synthetic-forced-tool pattern as `Agent.generateObject` (ADR D33), but exposed as an `AsyncIterator<StreamObjectEvent<T>>` so consumers can render partial state as it arrives. ADR D39.
@@ -1512,28 +1465,6 @@ Notes:
 - The transient agent created behind the scenes is disposed AND hard-deleted from the registry in the iterator's `finally` block — including when the consumer calls `iter.return()` mid-stream (EC-4).
 - Same retry semantics as `generateObject`: `maxRetries` (default 1), `StreamObjectError(code: "no_tool_call" | "parse_failed")` taxonomy.
 - The `complete.object` is identical to what `Agent.generateObject` would return for the same input — verified by compat test.
-
-@theokit/react hooks (v1.2+)
-The React package ships **three** complementary hooks. Each is single-purpose; do not conflate them (ADR D40).
-
-| Hook | Use case |
-|------|----------|
-| `useTheoChat` | Multi-turn chat with message history (v1.1) |
-| `useTheoCompletion` | Single-shot text generation (autocomplete, translation, summarization) |
-| `useTheoAssistant<T>` | Object-shaped streaming (wraps `Agent.streamObject<T>`) |
-
-Each hook has a matching server-side handler:
-
-| Hook | Server handler |
-|------|----------------|
-| `useTheoChat` | `streamTheoChat({ agent, body })` |
-| `useTheoCompletion` | `streamCompletion({ agent, body })` |
-| `useTheoAssistant` | `streamAssistant({ schema, body, model, local })` |
-
-Wire format codes (extension of a peer vendor AI Data Stream v1; see `packages/react/src/wire-format.md`):
-- `o:<json>` — partial object delta (only from `streamAssistant`)
-- `O:<json>` — complete object (only from `streamAssistant`)
-- Unknown codes are silently ignored by older clients (forward-compat, EC-11).
 
 MCP OAuth 2.1 (v1.2+)
 HTTP MCP servers can declare `auth.oauth` to opt into PKCE authentication. ADR D41.
@@ -2220,42 +2151,14 @@ console.log(run.steps);   // StepResult[] — one per agent
   passing `process: "hierarchical"` throws a `ConfigurationError` pointing you
   there.
 - Invalid input fails fast: empty `agents` → `ConfigurationError(code: "invalid_squad")`.
-- Decorator form: `@Squad({ agents: [...] })` from `@theokit/di-agent`.
 
-## Decorator-driven workflows — `@Step` + `buildWorkflow`
+## Decorator-driven workflows — moved to `@theokit/di-agent` (repo `theokit-backend-dx`)
 
-For an authoring style where each step is a decorated method, `@theokit/di-agent`
-provides `@Step` + `buildWorkflow`. It **compiles** the decorated class into a
-`@theokit/sdk` `Workflow` — it adds no orchestration engine of its own. Each
-step receives the upstream step's return value (or the workflow input for an
-entry step) and returns its own output.
-
-```typescript
-import { Workflow, Step, buildWorkflow } from "@theokit/di-agent";
-
-@Workflow({ name: "refund-pipeline" })
-class RefundPipeline {
-  @Step()
-  validate(input: { claim: string }) {
-    if (!input.claim) throw new Error("missing claim");
-    return input.claim;
-  }
-  @Step({ after: "validate" })
-  classify(claim: string) {
-    return claim.includes("billing") ? "BILLING" : "OTHER";
-  }
-}
-
-const wf = buildWorkflow(new RefundPipeline());      // a real @theokit/sdk Workflow
-const run = await wf.run({ claim: "billing issue" });
-console.log(run.output);  // "BILLING"
-```
-
-- `@Step({ after })` declares a single upstream dependency; steps are
-  topologically ordered into a linear chain. For branching/parallel/foreach use
-  the imperative `Workflow` API directly (below) — it is not duplicated here.
-- Fail-fast: no `@Step` methods, an unknown `after` target, or a cycle throws
-  before the workflow is built.
+The decorator authoring style (`@Workflow` + `@Step` + `buildWorkflow`, and `@Squad`) was
+extracted to `@theokit/di-agent` in the `theokit-backend-dx` repo (plan monorepo-cohesion-split;
+ADR D431 made decorators an optional layer, not a Harness requirement). It compiles a decorated
+class into a `@theokit/sdk` `Workflow` — the SDK ships the `Workflow` + `agentStep` + `createSquad`
+primitives below; the decorator sugar is opt-in via that package.
 
 ## Workflows (v1.17+) — `Workflow.create / .run / .resume`
 
@@ -2529,96 +2432,6 @@ with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic
 | `CacheEmbedderError` | Embedder throw surfaced (rare; usually swallowed via EC-1 graceful degradation) |
 | `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
 
-## Slack gateway (v1.19+) — `@theokit/gateway-slack`
-
-Slack platform adapter for `@theokit/gateway`. ADRs D267-D285. Inspired by
-peer-project's `extensions/slack/` and peer-agent's `gateway/platforms/slack.py`;
-uses `@slack/bolt` for Socket Mode transport.
-
-### Install
-
-```bash
-pnpm add @theokit/gateway-slack @theokit/gateway @slack/bolt @slack/web-api
-```
-
-### Quickstart
-
-```typescript
-import { SlackAdapter } from "@theokit/gateway-slack";
-import type { GatewayMessageEvent } from "@theokit/gateway";
-
-const adapter = new SlackAdapter({
-  botToken: process.env.SLACK_BOT_TOKEN!,    // xoxb-...
-  appToken: process.env.SLACK_APP_TOKEN!,    // xapp-...
-  requireMention: true,                       // default — public channels need @bot
-});
-
-await adapter.connect();
-adapter.onInbound(async (event: GatewayMessageEvent) => {
-  if (event.platform !== "slack") return;
-  await adapter.sendMessage({
-    channel: event.channel,
-    text: `Echo: ${event.text}`,
-  });
-});
-```
-
-### Slack app setup
-
-1. <https://api.slack.com/apps> → **Create New App** → **From scratch**.
-2. **Socket Mode** → enable.
-3. **OAuth & Permissions** → add bot scopes: `chat:write`, `app_mentions:read`, `channels:history`, `groups:history`, `im:history`, `mpim:history`, `users:read`.
-4. **Event Subscriptions** → subscribe to `message.im`, `message.channels`, `message.groups`, `message.mpim`.
-5. **App-Level Tokens** → generate `connections:write` token (`xapp-...`).
-6. **Install App** to workspace → copy Bot Token (`xoxb-...`).
-
-### Channel type mapping (D270, D271)
-
-| Slack `channel_type` | Canonical `channel.type` | `channel.topicId` |
-|---|---|---|
-| `im` (DM) | `"dm"` | undefined |
-| `mpim` (multi-DM) | `"group"` | undefined |
-| `channel` (public) | `"group"` | undefined |
-| any with `thread_ts !== ts` | `"thread"` | `thread_ts` |
-
-### Mention guard (D285)
-
-By default, the adapter drops public-channel messages that don't `@mention` the
-bot. This prevents cost explosion when the bot is added to busy channels (Slack
-default is to deliver every channel message to the bot's event handler — unlike
-Telegram's privacy mode or Discord's `MessageContent` intent).
-
-```typescript
-new SlackAdapter({
-  botToken, appToken,
-  requireMention: false,   // FAQ bot style — bot hears every channel message
-});
-```
-
-DMs and mpim (multi-DM) always pass through regardless of the flag.
-
-### Error mapping (D273)
-
-| Slack code | Canonical `SendResult.error.code` |
-|---|---|
-| `rate_limited` | `rate_limit` |
-| `channel_not_found` | `channel_not_found` |
-| `not_in_channel` / `missing_scope` | `no_permission` |
-| `invalid_auth` / `token_revoked` / `account_inactive` | `auth_error` |
-| `msg_too_long` / `message_limit_exceeded` | `message_too_long` |
-| anything else | `platform_error` |
-
-### v1 limitations
-
-- **Socket Mode only** (D268). HTTP webhook deferred (D269).
-- **No file uploads** (D280); use `adapter.getApp().client.files.upload_v2(...)` escape hatch.
-- **No Block Kit** in `sendMessage` (D281); plain text + `mrkdwn` only. Use `getApp().client.chat.postMessage({ blocks })` for rich.
-- **No reactions / modals / slash commands** (D282); same escape-hatch pattern.
-- **Single account** per adapter instance; multi-workspace deferred.
-
-### Telemetry
-
-The adapter is transparent to OTel — caller wraps `agent.send` in their own spans. No `gateway-slack`-specific spans in v1.
 
 ## Bedrock provider (v1.20+) — Claude on AWS Bedrock
 
