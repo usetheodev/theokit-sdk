@@ -13,7 +13,7 @@ import {
   coerceToKnownAgentRunErrorCode,
   UnknownAgentError,
 } from "./errors.js";
-import { setAgentCreate } from "./internal/runtime/registry/agent-factory-registry.js";
+import { setAgentFacade } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
   getRegisteredAgent,
@@ -410,7 +410,14 @@ async function getOrCreateUncached(agentId: string, options: AgentOptions): Prom
   }
 }
 
-// Module-init registration so LocalAgent.runUntil / LocalAgent.fork can
-// spawn auxiliary agents without forming an import cycle. See
-// `internal/runtime/agent-factory-registry.ts` for rationale.
-setAgentCreate((options) => Agent.create(options));
+// Module-init registration so internal subsystems (LocalAgent.runUntil /
+// LocalAgent.fork, eval, scorers, cron) can invoke the public facade without
+// inverting the public-api -> internal dependency direction. See
+// `internal/runtime/registry/agent-factory-registry.ts` for rationale.
+setAgentFacade({
+  create: (options) => Agent.create(options),
+  prompt: (message, options) => Agent.prompt(message, options),
+  get: (agentId) => Agent.get(agentId),
+  resume: (agentId, options) => Agent.resume(agentId, options),
+  batch: (prompts, options) => Agent.batch(prompts, options),
+});
