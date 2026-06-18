@@ -1,0 +1,132 @@
+agent: architecture
+review_target: main..develop for plan monorepo-cohesion-split
+plan: .claude/knowledge-base/plans/monorepo-cohesion-split-plan.md
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: tools/check-cross-cluster.mjs:19
+    plan_ref: ADR D433 (cross-cluster guard)
+    summary: >-
+      Gateway FORBIDDEN regex is $-anchored, so sub-path imports of an extracted
+      cluster (e.g. @theokit/gateway/client, @theokit/gateway-telegram/dist)
+      slip through the guard silently.
+    evidence: |
+      const FORBIDDEN = [ ..., /^@theokit\/gateway(-[a-z]+)?$/ ];
+      // isForbidden uses f.test(spec) for the regex with no sub-path handling:
+      //   isForbidden("@theokit/gateway/client")        -> false  (should be true)
+      //   isForbidden("@theokit/gateway-telegram/dist") -> false  (should be true)
+      // The string entries are safe (.startsWith(`${f}/`) covers sub-paths),
+      // but the ONE regex entry — the gateways — does not. Gateway core ships
+      // sub-path exports, so this is the most likely re-coupling vector.
+    recommended_action: >-
+      Change the anchor to allow an optional sub-path, e.g.
+      /^@theokit\/gateway(-[a-z-]+)?(\/.*)?$/, OR normalise spec to its package
+      root before matching (strip everything after the 2nd '/'). Add a unit
+      test asserting isForbidden("@theokit/gateway/client") === true.
+
+  - id: F-arch-2
+    severity: LOW
+    file: .dependency-cruiser.cjs
+    plan_ref: ADR D433, T7.2
+    summary: >-
+      ADR D433 specified the cross-cluster forbidden rule in BOTH
+      .dependency-cruiser.cjs AND a standalone tool; only the standalone
+      tools/check-cross-cluster.mjs was added. depcruiser has no cross-cluster rule.
+    evidence: |
+      grep 'theokit/di|orm|gateway|react|rag|voice|cross-cluster' .dependency-cruiser.cjs
+        -> (no match)
+      ADR D433: "Add a `forbidden` rule in `.dependency-cruiser.cjs` (and a
+      standalone tools/check-cross-cluster.mjs for CI)".
+      Only one of the two mechanisms shipped. Single-mechanism defence; the
+      standalone guard is wired into `pnpm quality` + `pnpm validate`, so the
+      gate is functional, but the plan's two-layer intent is not met.
+    recommended_action: >-
+      Either add the forbidden rule to .dependency-cruiser.cjs as ADR D433
+      specified, or amend the implementation summary/ADR to record that the
+      standalone guard supersedes the depcruiser rule (the standalone tool is
+      actually stronger — it scans packages/*/src, not just packages/sdk/src).
+
+  - id: F-arch-3
+    severity: INFO
+    file: tools/check-cross-cluster.mjs:50
+    plan_ref: ADR D433
+    summary: >-
+      Guard scope is wider than ADR D433 specified (packages/*/src vs
+      packages/sdk/src/**) — this is a strengthening, not a defect. Noted for
+      the record because it diverges from the ADR text.
+    evidence: |
+      for (const pkg of readdirSync(PKGS_ROOT)) { const srcDir = join(..., pkg, "src"); ... }
+      // Walks ALL 12 Harness packages' src dirs, not just sdk. Correct call:
+      // any Harness package re-coupling to an extracted cluster should fail.
+    recommended_action: >-
+      No change. If anything, update ADR D433's prose to match the broader
+      (correct) scope the implementation chose.
+
+  - id: F-arch-4
+    severity: INFO
+    file: packages/cli/src/inspect/gateway.ts:26, packages/cli/src/commands/db.ts:96
+    plan_ref: EC-3, ADR D433
+    summary: >-
+      CLI references extracted clusters only via require.resolve(g.packageName)
+      (soft detection) and dynamic import(url) of a resolved path — no static
+      coupling. DIP boundary preserved; graceful degradation (EC-3) correct.
+    evidence: |
+      const require = createRequire(import.meta.url);
+      require.resolve(g.packageName);     // string constant, optional peer probe
+      const mod = (await import(url)) ...; // url is a resolved file path
+      // Neither is a static `import ... from "@theokit/gateway*"`. The Harness
+      // treats extracted clusters as runtime-optional, exactly as intended.
+    recommended_action: >-
+      No change. The guard correctly does not flag these (line-anchored STATIC_RE
+      avoids string literals; the dynamic import uses a variable). Sound.
+
+  - id: F-arch-5
+    severity: INFO
+    file: packages/sdk-memory/package.json, packages/sdk-handoff/package.json, packages/sdk-tools/package.json
+    plan_ref: ADR D435 (reverted)
+    summary: >-
+      D435 specifier-normalization reversion is architecturally correct. peerDependencies
+      stay semver (>=1.7.0) for npm publish-readiness; devDependencies use
+      workspace:* for local linking. The original D435 premise was wrong for peer deps.
+    evidence: |
+      // peerDependencies: "@theokit/sdk": ">=1.7.0"   (publishable semver)
+      // devDependencies:  "@theokit/sdk": "workspace:*" (local link)
+      // npm cannot publish a peer dep as workspace:* — the publish-readiness
+      // gate (sdk-2-0-npm-publish-readiness) correctly required semver.
+      // Published sdk is 1.9.0, satisfying the >=1.7.0 lower bound.
+    recommended_action: >-
+      No change. The reversion is the right call and is honestly documented in
+      the implementation summary's Deviations section.
+
+  - id: F-arch-6
+    severity: INFO
+    file: CLAUDE.md, .claude/knowledge-base/adrs/D431-revoke-decorators-mandatory.md
+    plan_ref: ADR D431, T1.1
+    summary: >-
+      Decorators-mandatory revocation is coherent. ADR D431 exists; CLAUDE.md
+      rule 9 now states factory functions are canonical with decorators optional
+      via external @theokit/di; no "mandatory decorator" language remains.
+    evidence: |
+      grep "Decorators mandatory|MUST ship with a @Decorator" CLAUDE.md -> empty
+      ADR D431 present (24 non-empty lines). Memory marked REVOKED.
+      Internally consistent with the SDK mantra (LEGO pieces, not a framework)
+      and Unbreakable Rule 9 (don't reinvent inversify/tsyringe).
+    recommended_action: >-
+      No change. Coherent across CLAUDE.md, ADR, and memory.
+
+  - id: F-arch-7
+    severity: INFO
+    file: packages/ (12 Harness packages)
+    plan_ref: Goal, § Module cohesion (architecture.md §3)
+    summary: >-
+      Repo-level cohesion goal met. Monorepo now answers one question ("how do I
+      run an agent?"): sdk, sdk-cache, sdk-tools, sdk-memory, sdk-budget,
+      sdk-handoff, memory-* (3), acp, cli, codemod-sdk-2-0. No residual
+      cross-cluster static import in any Harness src.
+    evidence: |
+      node tools/check-cross-cluster.mjs -> PASS (exit 0)
+      ls packages/ -> only Harness members; all extracted clusters gone.
+      No static `import ... from "@theokit/{di,orm,gateway*,react,rag,voice}"`
+      anywhere under packages/*/src.
+    recommended_action: >-
+      No change. SOLID at the package boundary is satisfied.

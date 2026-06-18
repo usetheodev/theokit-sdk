@@ -1,0 +1,170 @@
+agent: review-monorepo-cohesion-split-tests
+review_target: main..develop for plan monorepo-cohesion-split
+plan: .claude/knowledge-base/plans/monorepo-cohesion-split-plan.md
+verdict: APPROVE_WITH_NOTES
+summary: >
+  The test-side of the cohesion split is honest. rag (26) and voice (5) tests
+  were GENUINELY ported (byte-identical bodies, only import paths rewritten;
+  both suites pass green in the extracted repos with history preserved). The
+  SDK-2.0 meta-tests (docs-sdk-2-0, publish-readiness, codemod) were updated to
+  the new topology CORRECTLY, not weakened — the load-bearing assertions were
+  preserved and one was strengthened. The cross-cluster guard's RED/GREEN
+  behavior is real (verified by injection). The "pre-existing flakiness" claim
+  is plausible (every suite passes in isolation), but the validate report's
+  ROOT-CAUSE FRAMING is factually wrong (see F-tests-1) — a documentation
+  accuracy defect, not a hidden break.
+
+test_pyramid:
+  unit_added: "rag 24 unit + voice 5 unit (ported out); SDK meta-tests unchanged in count"
+  integration_added: "rag 2 e2e (ported out)"
+  e2e_added: 0
+  total_ported_out: 31  # rag 26 + voice 5
+  total_in_extracted_repos_verified: 31
+
+extracted_repo_tests_verified:
+  theokit-rag:
+    files: 5
+    tests: 26
+    result: "26 passed (26) — verified by running npx vitest run"
+    history_preserved: true  # 4 commits incl. original feat 614b87b
+  theokit-voice:
+    files: 1
+    tests: 5
+    result: "5 passed (5) — verified by running npx vitest run"
+    history_preserved: true  # 5 commits incl. original feat d47fce9
+
+port_integrity_check:
+  method: "diff original SDK test (git show eb646d1~1:...) vs ported file"
+  rag_reranker: "identical body; only import path ../../src/rag -> ../src"
+  rag_retriever: "identical body"
+  rag_text_splitter: "identical body"
+  rag_pipeline_e2e: "identical body"
+  rag_text_splitter_edge_cases_e2e: "identical body"
+  voice_openai_realtime: "identical body; only import path ../../src/voice -> ../src"
+  conclusion: "GENUINE ports — no gutting, no weakening, counts match exactly (26+5)"
+
+sdk_2_0_meta_test_assessment:
+  docs_sdk_2_0:
+    change: "package-count threshold 20 -> 10; families test Channels+React removed, '## Extracted to sibling repos' added"
+    weakened: false
+    rationale: >
+      Threshold lowered to match real topology (monorepo went from ~28 to 12
+      packages — verified actual count = 12). The load-bearing gate (the
+      `for (name of packageNames) expect(content).toContain(name)` loop) was
+      LEFT UNTOUCHED — every actual workspace package must still appear in
+      packages/README.md, so no package can silently vanish from docs. The
+      families test was made STRONGER: it now positively asserts the README
+      documents the extraction (`## Extracted to sibling repos`) instead of
+      silently dropping Channels/React. 41 meta-tests pass isolated.
+  publish_readiness:
+    change: "test file NOT modified; package.json specifiers reverted to '>=1.7.0' to satisfy it"
+    weakened: false
+    rationale: >
+      The D435 revert is honest. test_peer_dep_on_theokit_sdk_uses_semver_range
+      + test_no_workspace_protocol_in_runtime_deps still enforce semver. The
+      plan's D435 normalization (workspace:^) would have BROKEN this gate, so
+      the code was reverted to satisfy the unchanged test — the test drove the
+      code, the correct direction. Verified all 5 survivors carry '>=1.7.0'.
+  codemod:
+    change: "only new fixtures added (main..develop = whole SDK-2.0 landing)"
+    weakened: false
+    rationale: "9/9 deterministic across 3 isolated runs."
+
+cross_cluster_guard_assessment:
+  file: tools/check-cross-cluster.mjs
+  red_green_verified: true
+  evidence: >
+    GREEN: clean tree -> exit 0 ("Cross-cluster guard PASS").
+    RED: injected `import { x } from "@theokit/gateway"` into a temp sdk src
+    file -> exit 1 ("Cross-cluster guard FAILED ... imports extracted cluster
+    @theokit/gateway"). Temp file removed after probe.
+  logic_sound: true
+  note: "Anchored regexes avoid false-positives in string literals; FORBIDDEN list matches the full extraction set incl. gateway regex."
+
+flakiness_claim_assessment:
+  claim: "aggregate-parallel test flakiness is pre-existing native-binding contention, not plan-caused"
+  isolated_passes_confirmed:
+    codemod: "9/9 x3"
+    sdk_memory: "324/324"
+    rag: "26/26"
+    voice: "5/5"
+    docs+publish+codemod_combined: "41/41"
+  plausibility: PLAUSIBLE
+  honest: PARTIALLY  # see F-tests-1 — the stated root cause is factually wrong
+
+edge_cases_from_plan:
+  covered: 4  # EC-1 origin strip, EC-2 examples-first, EC-4 deterministic capture, EC-5 history equality
+  ec3_cli_graceful_degradation: "claimed in T7.1 DoD; not independently re-run here (out of tests-agent scope — flagged to wiring/domain agents)"
+  missing: []
+
+findings:
+  - id: F-tests-1
+    severity: MEDIUM
+    file: .claude/knowledge-base/reviews/monorepo-cohesion-split-implement-validate-2026-06-18.md
+    line: 23
+    plan_ref: "Final Phase — pre-existing flakiness logging contract"
+    summary: >
+      The validate report's stated ROOT CAUSE for the parallel-run flakiness is
+      factually wrong. It claims "the vitest-4 migration removed poolOptions,
+      weakening the singleFork isolation CLAUDE.md documents." But
+      packages/sdk/vitest.config.ts STILL HAS poolOptions present, and it is set
+      to `singleFork: false` with `maxForks: 4` — i.e. the SDK suite
+      INTENTIONALLY runs up to 4 parallel subprocesses, not a single fork. The
+      branch change to that file was to ADD a `@ts-expect-error` so poolOptions
+      survives the vitest-4 typecheck — poolOptions was patched to keep working,
+      not removed. The config's own top comment block is internally
+      contradictory (says "singleFork: true ... ONE subprocess sequentially"
+      while the live setting is singleFork:false/maxForks:4).
+    evidence: |
+      git diff main..develop -- packages/sdk/vitest.config.ts
+        => only addition is `+ // @ts-expect-error ...` above `poolOptions: {`
+      packages/sdk/vitest.config.ts:
+        pool: "forks"
+        poolOptions.forks.singleFork: false
+        poolOptions.forks.maxForks: 4
+        fileParallelism: false, maxConcurrency: 1
+      The flakiness is real and pre-existing (native sqlite contention under
+      multi-fork parallelism), but the WRITTEN diagnosis misattributes it.
+    recommended_action: >
+      Correct the validate report's root-cause sentence: the flakiness stems
+      from intentional multi-fork parallelism (singleFork:false, maxForks:4)
+      contending on better-sqlite3/sqlite-vec native bindings — NOT from
+      poolOptions being removed. Also reconcile the contradictory comment block
+      in packages/sdk/vitest.config.ts (top comment claims singleFork:true; live
+      config is singleFork:false). Non-blocking: behavior is correct; the
+      documentation/diagnosis is misleading.
+
+  - id: F-tests-2
+    severity: LOW
+    file: .claude/knowledge-base/implementations/monorepo-cohesion-split-implementation.md
+    line: 56
+    plan_ref: "T3.1 — gateways extraction"
+    summary: >
+      Cosmetic count discrepancy already self-disclosed: plan prose said "11
+      adapters / 12 packages"; actual is gateway core + 10 adapters = 11
+      packages. Verified the extracted theokit-gateways repo has exactly 11
+      package dirs (gateway + 10 adapters). The full gateway* set WAS captured;
+      this is a label error in plan prose, honestly logged as a deviation.
+    evidence: |
+      ls -d theokit-gateways/packages/*/ => 11 dirs
+      (gateway, gateway-{discord,email,line,matrix,mattermost,slack,sms,teams,telegram,whatsapp})
+    recommended_action: "None required — already disclosed in the deviations section."
+
+  - id: F-tests-3
+    severity: INFO
+    file: packages/sdk/tests
+    line: 0
+    plan_ref: "Agent def §6 — skipped tests are BLOCKER"
+    summary: >
+      No unconditional `.skip` / `it.only` / `xit` leaks were introduced by this
+      branch. The only skip patterns in the test diff are env-gated
+      `describe.skipIf(...)` blocks (real-LLM provider keys, chaos flags) — the
+      documented pattern per rules/real-llm-validation.md, NOT a blocker.
+    evidence: |
+      git diff main..develop -- 'packages/sdk/tests/**' | grep '^+.*\.skip|\.only|xit'
+        => all hits are `describe.skipIf(SKIP_CHAOS|env.shouldSkip)(...)`
+    recommended_action: "None — env-gated conditional skips are legitimate."
+
+notes_for_other_agents:
+  - "wiring/domain agents: EC-3 CLI graceful-degradation (db export-schema, inspect gateway) is claimed green but not re-run by the tests agent — verify."
+  - "The full parallel `pnpm test` aggregate is FLAKY by the report's own admission; CI should pin SDK to its forks config or run per-package to get a stable signal."

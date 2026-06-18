@@ -54,7 +54,7 @@ Each repo: own pnpm workspace + tsconfig.base + biome + .changeset + `.github/wo
 - **voice → extracted (not deleted).** Plan allowed delete-or-extract; extracted to preserve the realtime test + keep the option open.
 - **google-workspace → standalone repo**, not merged into `theokit` (avoids surgical git-subtree into an unrelated repo; merge is a follow-up the user can run).
 - **Gateway count:** plan said "11 adapters / 12 packages"; actual is gateway core + 10 adapters = 11 packages. Off-by-one in the plan prose; the full `gateway*` set was captured.
-- **codemod / sdk-memory flakiness:** both pass in isolation; they fail intermittently under turbo parallel contention (native-binding preflight race). Pre-existing concurrency characteristic, not a defect of this change — verified by isolated re-runs (codemod 9/9, sdk-memory 324/324).
+- **Full-suite flakiness (codemod / sdk-memory / sdk memory-peer + bedrock):** every file passes in isolation; the failing set is non-deterministic across runs (signature of pre-existing infra flakiness, not a deterministic break). Failures cluster on native-binding tests (better-sqlite3 / sqlite-vec / lance / bedrock token). `packages/sdk/vitest.config.ts` already uses `pool: forks` + `fileParallelism: false` to mitigate; the exact residual mechanism is not fully pinned. Verified isolated: codemod 9/9, sdk-memory 324/324, memory-peer + bedrock 13/13. (Earlier draft mis-attributed this to "vitest-4 removed poolOptions" — corrected: the config still carries `poolOptions` behind a `@ts-expect-error`.)
 
 ## Validation (integration)
 

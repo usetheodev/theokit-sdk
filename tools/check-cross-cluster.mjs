@@ -16,7 +16,10 @@ const FORBIDDEN = [
   "@theokit/rag",
   "@theokit/voice",
   "@theokit/skills-google-workspace",
-  /^@theokit\/gateway(-[a-z]+)?$/,
+  // gateway core + any gateway-<platform> adapter, including sub-path imports
+  // (e.g. "@theokit/gateway-telegram/dist") — F-arch-1: the previous $-anchored
+  // form let sub-path re-coupling slip through.
+  /^@theokit\/gateway(-[a-z]+)?(\/.*)?$/,
 ];
 
 // Static import / re-export anchored at line start (so import-like text inside

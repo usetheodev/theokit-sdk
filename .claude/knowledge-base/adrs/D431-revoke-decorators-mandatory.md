@@ -34,3 +34,7 @@ Removing the rule removes the structural pull that generated the Backend-DX clus
 - **Enables** a cohesive Harness with one primitive API surface and no generic-framework dependency.
 - **Constrains:** any code or docs advertising decorator-first DX must be reframed as factory-first; the `feedback_decorators_mandatory` memory is rewritten/retired; the `quality-review` skill no longer flags a missing decorator surface.
 - `@theokit/di`, `@theokit/di-agent`, `@theokit/orm` continue to exist as published packages in `theokit-backend-dx`, where decorators remain a first-class (optional) DX for consumers who opt in.
+
+## Addendum — D433 guard implementation (2026-06-18, review F-arch-2)
+
+The companion ADR D433 (in the plan) specified the cross-cluster guard in BOTH `.dependency-cruiser.cjs` AND a standalone `tools/check-cross-cluster.mjs`. Only the standalone tool shipped — by design: it scans **every** `packages/*/src` (the whole Harness), whereas the depcruiser config is scoped to `packages/sdk/src` only, so the standalone tool is strictly wider coverage. It is wired into `pnpm quality` + `pnpm validate`. The depcruiser dual-layer is not added (it would be redundant + narrower); D433's two-layer wording is superseded by this single-but-wider guard.
