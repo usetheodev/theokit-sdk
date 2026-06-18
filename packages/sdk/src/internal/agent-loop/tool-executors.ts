@@ -1,5 +1,5 @@
 import type { LlmToolCallPart } from "../llm/types.js";
-import { runShell, type ShellExecuteOptions } from "../runtime/shell-tool.js";
+import { runShell, type ShellExecuteOptions } from "../runtime/tools/shell-tool.js";
 import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 
 /** @internal */

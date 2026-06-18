@@ -1,4 +1,4 @@
-import { spawnAndCollect } from "../spawn-collect.js";
+import { spawnAndCollect } from "../lifecycle/spawn-collect.js";
 import { loadHookConfig } from "./hooks-source.js";
 
 /**
