@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { JudgeResult } from "../../../src/internal/judge/types.js";
-import { runUntilImpl } from "../../../src/internal/runtime/run-until.js";
+import { runUntilImpl } from "../../../src/internal/runtime/lifecycle/run-until.js";
 import type { SDKAgent } from "../../../src/types/agent.js";
 import type { GoalEvent, GoalResult } from "../../../src/types/goal-events.js";
 

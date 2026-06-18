@@ -6,7 +6,7 @@ import type {
   SDKUserMessage,
   SendOptions,
 } from "../../../types/run.js";
-import { DEFAULT_AGENTIC_MODEL_ID } from "../default-model.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "../config/default-model.js";
 import { buildFixtureScript } from "../fixtures/fixture-responder.js";
 import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
 import type { MemoryFact } from "../memory/memory-store.js";

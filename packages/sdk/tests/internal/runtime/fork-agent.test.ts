@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import type { Plugin } from "../../../src/internal/plugins/types.js";
-import { forkAgentImpl } from "../../../src/internal/runtime/fork-agent.js";
+import { forkAgentImpl } from "../../../src/internal/runtime/lifecycle/fork-agent.js";
 import type { AgentOptions, SDKAgent } from "../../../src/types/agent.js";
 
 interface FakeRun {

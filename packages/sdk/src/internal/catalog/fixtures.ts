@@ -1,6 +1,6 @@
 import type { SDKProvider } from "../../types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "../../types/theokit.js";
-import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/default-model.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/config/default-model.js";
 
 /**
  * Fixture catalog data — returned when fixture-mode is active (no

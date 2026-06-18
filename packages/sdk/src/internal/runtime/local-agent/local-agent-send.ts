@@ -5,7 +5,7 @@ import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
 import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import type { PluginManager } from "../../plugins/manager.js";
 import type { TelemetryHandle } from "../../telemetry/tracer.js";
-import { anySignal } from "../abort-utils.js";
+import { anySignal } from "../concurrency/abort-utils.js";
 import {
   resolveActiveMemorySummaryForSend,
   resolveMemoryProviderForLoop,
