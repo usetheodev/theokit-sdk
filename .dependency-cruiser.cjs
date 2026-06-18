@@ -33,10 +33,10 @@ module.exports = {
           "(^|/)packages/sdk/src/types/",
           // G11 auth orchestrator types (type-only exports erased at JS runtime; tsc + knip cover dead-type detection per existing rule rationale)
           "(^|/)packages/sdk/src/server/auth/types\\.ts$",
-          // Sub-path module types (rag, a2a, client, voice, server/adapter) — imported by their barrel index.ts
+          // Sub-path module types (a2a, client, server/adapter) — imported by their barrel index.ts
           // which are tsup sub-entries. dep-cruiser cannot trace tsup entry points so marks these as orphans.
           // knip + tsc verify they are reachable.
-          "(^|/)packages/sdk/src/(rag|a2a|client|voice|server/adapter)/types\\.ts$",
+          "(^|/)packages/sdk/src/(a2a|client|server/adapter)/types\\.ts$",
         ],
       },
       to: {},
