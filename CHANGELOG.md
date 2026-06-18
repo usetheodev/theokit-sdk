@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Repo cohesion split (`monorepo-cohesion-split`):** `theokit-sdk` is being refocused as the pure Agent-AI Harness. Non-Harness clusters are extracted into history-preserving sibling repos (`theokit-backend-dx` = `di`/`di-agent`/`orm`; `theokit-gateways` = `gateway` + 11 adapters; `theokit-react`; `theokit-rag`; `theokit-voice`; `skills-google-workspace` → `theokit` Skills pillar). See ADR D431 + plan `monorepo-cohesion-split`.
+- **Decorators no longer mandatory (ADR D431):** revoked the 2026-06-10 inviolable rule "every agentic feature MUST ship a `@Decorator` surface via `@theokit/di`". Factory functions are now the single canonical API; decorators are an optional convenience via the externally-published `@theokit/di`. The Harness no longer depends on `@theokit/di`. Rationale: the rule drove Backend-DX scope creep (di → di-agent → orm → http-decorators), violating "don't reinvent the wheel" + KISS + YAGNI.
+
+### Removed
+
+- **(Breaking, no retrocompat)** `@theokit/sdk/rag` sub-path export and the embedded `voice` module — carved out of the Harness core into standalone `theokit-rag` / `theokit-voice` repos. Consumers import `@theokit/rag` / `@theokit/voice` instead.
+
 ### Fixed
 
 - CI release build (`release.yml`): corrected the turbo task graph so `@theokit/sdk-memory#build` runs after `@theokit/sdk#build`. The override `@theokit/sdk-memory#build.dependsOn` was `[]`, which removed the (one-way, legitimate) build-ordering edge `sdk-memory → sdk`; on a clean checkout (CI) `sdk-memory` compiled before `@theokit/sdk/dist` existed → `TS2307: Cannot find module '@theokit/sdk'`, aborting the release before `changeset publish`. Set it to `["@theokit/sdk#build"]`. Build is GREEN on a clean tree; the cosmetic pnpm/turbo "Circular package dependency detected" warning (from the `sdk ↔ sdk-memory/sdk-handoff` devDependency cycle) is non-fatal and unchanged — turbo executes the acyclic task graph. This is why npm was stuck at `@theokit/sdk@1.8.1` / `@theokit/di@0.1.0` / `@theokit/di-agent@0.1.0`.
