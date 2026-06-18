@@ -39,7 +39,7 @@ These clusters left the Harness monorepo (history-preserving `git filter-repo`).
 
 | Cluster | New repo | Packages |
 |---|---|---|
-| Backend-DX | `theokit-backend-dx` | `@theokit/di`, `@theokit/di-agent`, `@theokit/orm` |
+| Backend-DX | `theokit-di` | `@theokit/di`, `@theokit/di-agent`, `@theokit/orm` |
 | Gateways | `theokit-gateways` | `@theokit/gateway` + `gateway-{telegram,discord,slack,whatsapp,teams,email,sms,line,matrix,mattermost}` |
 | React | `theokit-react` | `@theokit/react` |
 | RAG | `theokit-rag` | `@theokit/rag` (was `@theokit/sdk/rag`) |
