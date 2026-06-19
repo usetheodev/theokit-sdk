@@ -1,5 +1,23 @@
 # Changelog
 
+## 2.1.0
+
+### Minor Changes
+
+- 7d53632: Custom LLM providers via the public Plugin protocol (plan `dev-friendly-custom-provider`).
+
+  - **Added** `defineProvider(profile, opts?)` — canonical factory (mirrors `defineTool`/`definePlugin`, Inviolable Rule 9) that wraps a data-only `ProviderProfile` into a `kind: "model-provider"` `Plugin`. Register any OpenAI-/Anthropic-compatible endpoint (Groq, Together, Fireworks, DeepInfra, a private gateway) with `Agent.create({ model: { id: "myprov/model" }, plugins: [defineProvider(profile)] })`, routed via the `provider/model` id prefix. Exported from `@theokit/sdk`.
+  - **Fixed** half-wired `kind: "model-provider"` plugin path: `PluginManager` aggregated provider profiles but nothing registered them, so `getProviderProfile`/`resolveProviderChain` never saw a plugin-contributed provider — a programmatic `model-provider` plugin was silently dropped. The local-agent run now registers plugin-contributed profiles before provider-chain resolution, so custom providers actually route.
+  - **Docs** new "Custom providers (`defineProvider`)" section in `docs.md` (field reference + `apiMode` table) and a worked `examples/custom-provider/`.
+
+- 872c89e: M0 Foundation — expose already-existing internal primitives as public surfaces (plan `m0-foundation-expose-primitives`), so agent/code-assistant builders reuse battle-tested plumbing instead of re-implementing it.
+
+  - `isTransientError(err)` — public retryability predicate delegating to `TheokitAgentError.isRetryable` (T1.1).
+  - `safeFilenameForId(id, { maxLen })` — total id→filename helper via `@theokit/sdk/path-safety` (passthrough when safe, deterministic sha256 token otherwise); `sanitizeRunId` migrated to it (T2.1).
+  - `@theokit/sdk/concurrency` — public `createSemaphore` + new ordered, fail-fast `mapWithConcurrency`; two internal pooling clones deduplicated onto it (T3.1).
+  - `@theokit/sdk/retry` — generic `withRetry(fn, options)` (exponential backoff + full jitter, injectable sleep/rng, default `isRetryable = isTransientError`) (T4.1).
+  - `openSqliteResilient` (`@theokit/sdk/internal/persistence`, semver-exempt) — shared driver-load + WAL + corruption-recovery; both memory `index-db` copies deduplicated onto it (T5.1).
+
 ## 2.0.1
 
 ### Patch Changes
