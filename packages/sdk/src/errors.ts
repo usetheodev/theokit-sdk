@@ -1,3 +1,4 @@
+import { defaultRetriableForCode } from "./internal/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";
 import type { RunOperation } from "./types/run.js";
 
@@ -415,26 +416,6 @@ function safeStringify(value: unknown): string {
     return JSON.stringify(value);
   } catch {
     return String(value);
-  }
-}
-
-/**
- * D311 helper: choose a sensible default `isRetryable` value when the
- * caller did not supply `retriable` explicitly. Conservative defaults —
- * provider mappers override per-status when they know better.
- *
- * @internal
- */
-function defaultRetriableForCode(code: AgentRunErrorCode): boolean {
-  switch (code) {
-    case "rate_limit":
-    case "timeout":
-    case "server_error":
-    case "network":
-    case "provider_unreachable":
-      return true;
-    default:
-      return false;
   }
 }
 
