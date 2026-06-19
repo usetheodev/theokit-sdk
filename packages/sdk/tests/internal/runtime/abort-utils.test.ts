@@ -8,7 +8,7 @@ import {
   abortReasonAsError,
   anySignal,
   isAborted,
-} from "../../../src/internal/runtime/abort-utils.js";
+} from "../../../src/internal/runtime/concurrency/abort-utils.js";
 
 describe("anySignal — native path", () => {
   it("uses AbortSignal.any when available", () => {

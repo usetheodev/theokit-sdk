@@ -11,7 +11,7 @@ import {
   buildErrorMetadata,
   parseRequestId,
   truncateRaw,
-} from "../../../../src/internal/errors/mappers/shared.js";
+} from "../../../src/internal/error-mappers/shared.js";
 
 describe("truncateRaw — secret redaction (T1.1)", () => {
   it("masks long sk-* tokens in string bodies", () => {

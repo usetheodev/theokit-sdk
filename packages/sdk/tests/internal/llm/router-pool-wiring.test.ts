@@ -35,7 +35,7 @@ import {
   registerBuiltins,
 } from "../../../src/internal/providers/builtin/index.js";
 import { _resetProvidersForTests } from "../../../src/internal/providers/registry.js";
-import { validateAgentOptions } from "../../../src/internal/runtime/validate-agent-options.js";
+import { validateAgentOptions } from "../../../src/internal/runtime/validation/validate-agent-options.js";
 import type { AgentOptions } from "../../../src/types/agent.js";
 
 const ORIG_ENV: Record<string, string | undefined> = {};

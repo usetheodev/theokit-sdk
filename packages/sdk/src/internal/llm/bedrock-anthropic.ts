@@ -16,7 +16,7 @@
  */
 
 import { ConfigurationError } from "../../errors.js";
-import { mapBedrockError } from "../errors/mappers/bedrock.js";
+import { mapBedrockError } from "../error-mappers/bedrock.js";
 import {
   inferRegionFromModelId,
   resolveBedrockBaseUrl,

@@ -36,7 +36,7 @@ import {
   type TaskState,
   type TaskStoreOptions,
 } from "../../types/task.js";
-import { type AsyncSemaphore, createSemaphore } from "../runtime/async-semaphore.js";
+import { type AsyncSemaphore, createSemaphore } from "../runtime/concurrency/async-semaphore.js";
 import { RingBuffer } from "./ring-buffer.js";
 import { getTaskStoreFor, InMemoryTaskStore, type TaskStore } from "./store.js";
 import { buildSubscribe } from "./subscribe.js";

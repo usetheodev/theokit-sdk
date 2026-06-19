@@ -10,7 +10,7 @@ import {
   RateLimitError,
   UnknownAgentError,
 } from "../../src/errors.js";
-import { mapVertexError } from "../../src/internal/errors/mappers/vertex.js";
+import { mapVertexError } from "../../src/internal/error-mappers/vertex.js";
 
 describe("mapVertexError", () => {
   it("429 maps to RateLimitError", () => {

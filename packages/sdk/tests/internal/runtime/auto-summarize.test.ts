@@ -5,7 +5,7 @@ import {
   type CompressibleMessage,
   resolveAutoSummarizeConfig,
   shouldSummarize,
-} from "../../../src/internal/runtime/auto-summarize.js";
+} from "../../../src/internal/runtime/lifecycle/auto-summarize.js";
 
 describe("shouldSummarize", () => {
   const config = resolveAutoSummarizeConfig({ triggerFraction: 0.85 });

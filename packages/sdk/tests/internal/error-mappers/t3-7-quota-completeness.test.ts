@@ -16,14 +16,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import {
-  AuthenticationError,
-  NetworkError,
-  type TheokitAgentError,
-} from "../../../../src/errors.js";
-import { mapAnthropicError } from "../../../../src/internal/errors/mappers/anthropic.js";
-import { mapOpenAICompatibleError } from "../../../../src/internal/errors/mappers/openai-compatible.js";
-import { mapVertexError } from "../../../../src/internal/errors/mappers/vertex.js";
+import { AuthenticationError, NetworkError, type TheokitAgentError } from "../../../src/errors.js";
+import { mapAnthropicError } from "../../../src/internal/error-mappers/anthropic.js";
+import { mapOpenAICompatibleError } from "../../../src/internal/error-mappers/openai-compatible.js";
+import { mapVertexError } from "../../../src/internal/error-mappers/vertex.js";
 
 function emptyHeaders(): Headers {
   return new Headers();
