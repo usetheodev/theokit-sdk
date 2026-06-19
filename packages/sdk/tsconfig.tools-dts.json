@@ -13,6 +13,8 @@
     "src/path-safety.ts",
     "src/concurrency.ts",
     "src/internal/runtime/concurrency/**/*",
+    "src/retry.ts",
+    "src/internal/runtime/retry/**/*",
     "src/task-store.ts",
     "src/internal/task/store.ts",
     "src/internal/persistence/**/*",
