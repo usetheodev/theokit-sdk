@@ -185,6 +185,16 @@ export interface SendOptions {
    * @public
    */
   task?: true | { id?: string; meta?: Record<string, unknown> };
+  /**
+   * Per-send ceiling on the agent loop's tool-calling turns (M1-2). Raises (or
+   * lowers) the default cap of 8 for this single send — useful when one heavy
+   * task needs more rounds than the agent's default. Must be a positive
+   * integer; invalid values throw `ConfigurationError` at the boundary. When
+   * unset, the loop uses the default of 8.
+   *
+   * @public
+   */
+  maxIterations?: number;
 }
 
 /**

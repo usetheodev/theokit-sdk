@@ -19,6 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 // optional `nextIteration` member before a rebuild — repo convention
 // (cf. agent-loop-budget-gate.test.ts).
 import type { BudgetTracker } from "../src/internal/runtime/budget/budget-tracker.js";
+import type { SendOptions } from "../src/types/run.js";
 
 /** Mirror of the per-turn advance the loop performs after `budget.consume()`. */
 function advanceIteration(tracker: BudgetTracker | undefined): void {
@@ -67,5 +68,15 @@ describe("M1-1 iteration budget wiring", () => {
     advanceIteration(tracker);
     advanceIteration(tracker);
     expect(spy).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("M1-2 SendOptions.maxIterations knob", () => {
+  it("test_send_maxIterations_is_a_public_optional_field", () => {
+    // Typecheck-level contract: the field exists on SendOptions and is optional.
+    const opts: SendOptions = { maxIterations: 25 };
+    expect(opts.maxIterations).toBe(25);
+    const noKnob: SendOptions = {};
+    expect(noKnob.maxIterations).toBeUndefined();
   });
 });

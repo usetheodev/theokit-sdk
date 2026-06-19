@@ -1,3 +1,4 @@
+import { ConfigurationError } from "../../../errors.js";
 import type { AgentOptions, CustomTool, ModelSelection } from "../../../types/agent.js";
 import type {
   Run,
@@ -151,6 +152,15 @@ function buildLoopInputs(
   runId: string,
   userText: string,
 ): AgentLoopInputs {
+  // M1-2: per-send iteration ceiling. Validate at the boundary so an invalid
+  // knob fails fast with a clear message instead of producing a degenerate budget.
+  const maxIterations = options.sendOptions.maxIterations;
+  if (maxIterations !== undefined && (!Number.isInteger(maxIterations) || maxIterations < 1)) {
+    throw new ConfigurationError(
+      `SendOptions.maxIterations must be a positive integer, got ${maxIterations}`,
+      { code: "invalid_max_iterations" },
+    );
+  }
   const { primary, effectiveModelId } = resolveRunProvider(options);
   const fallback = options.agentOptions.providers?.fallback;
   const apiKeys = options.agentOptions.providers?.apiKeys;
@@ -192,6 +202,9 @@ function buildLoopInputs(
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
     // can attach it to the LLM `fetch({ signal })` call.
     ...(options.sendOptions.signal !== undefined ? { signal: options.sendOptions.signal } : {}),
+    // M1-2: per-send iteration ceiling (validated above). The loop reads
+    // inputs.maxIterations (default 8 when unset).
+    ...(maxIterations !== undefined ? { maxIterations } : {}),
     // D315-D317 — tool lifecycle hooks (cost tracking + audit + retry/alert)
     ...(options.agentOptions.onToolStart !== undefined
       ? { onToolStart: options.agentOptions.onToolStart }
