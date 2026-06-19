@@ -7,3 +7,4 @@ M0 Foundation — expose already-existing internal primitives as public surfaces
 - `isTransientError(err)` — public retryability predicate delegating to `TheokitAgentError.isRetryable` (T1.1).
 - `safeFilenameForId(id, { maxLen })` — total id→filename helper via `@theokit/sdk/path-safety` (passthrough when safe, deterministic sha256 token otherwise); `sanitizeRunId` migrated to it (T2.1).
 - `@theokit/sdk/concurrency` — public `createSemaphore` + new ordered, fail-fast `mapWithConcurrency`; two internal pooling clones deduplicated onto it (T3.1).
+- `@theokit/sdk/retry` — generic `withRetry(fn, options)` (exponential backoff + full jitter, injectable sleep/rng, default `isRetryable = isTransientError`) (T4.1).

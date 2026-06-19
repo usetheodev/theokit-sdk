@@ -1763,6 +1763,18 @@ import { mapWithConcurrency } from "@theokit/sdk/concurrency";
 const results = await mapWithConcurrency(urls, 4, (url) => fetchJson(url)); // ≤4 in flight, ordered
 ```
 
+#### Retry — `@theokit/sdk/retry`
+
+`withRetry(fn, options?)` — run `fn`, retrying transient failures with exponential backoff + full jitter. The default `isRetryable` predicate is `isTransientError`, so it retries exactly what the SDK classifies as transient (rate-limit, network, credential-pool-exhausted) and rethrows the rest immediately. `sleep` and `rng` are injectable for deterministic tests (no real timers).
+
+Options: `retries` (default 3), `isRetryable`, `initialDelayMs` (100), `maxDelayMs` (30_000), `backoffMultiplier` (2), `rng`, `sleep`, `signal`.
+
+```ts
+import { withRetry } from "@theokit/sdk/retry";
+
+const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
+```
+
 ## Built-in tools for coding agents (v1.x+)
 
 Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
