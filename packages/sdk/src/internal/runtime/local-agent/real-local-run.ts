@@ -13,6 +13,7 @@ import { parseModelId } from "../../llm/model-identifier.js";
 import { resolveProviderChain } from "../../llm/router.js";
 import { createMcpClient, type McpClient } from "../../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../../providers/index.js";
+import { registerPluginProviderProfiles } from "../../providers/register-plugin-providers.js";
 import { createTelemetry } from "../../telemetry/tracer.js";
 import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
 import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
@@ -88,20 +89,45 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   return handle;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: spread-conditional builders for optional fields (systemPrompt, onStep, onDelta, priorMessages, memoryTools, customTools, pluginManager) are the canonical pattern for shaping AgentLoopInputs; splitting hurts readability.
-function buildLoopInputs(
-  options: CreateRealLocalRunOptions,
-  runId: string,
-  userText: string,
-): AgentLoopInputs {
-  // ADR D182 / T1.2: infer provider from model.id prefix (`ollama/...`)
-  // when caller didn't pass an explicit `providers.routes[0].provider`.
-  // Aligned with peer-project + Hermes patterns — explicit config wins, prefix
-  // inference is the zero-config fallback, env-var heuristics last.
-  // Builtins must be registered BEFORE the `getProviderProfile` lookup
-  // — `resolveProviderChain` triggers this lazily but the inference path
-  // above runs first.
+// Module-level one-shot: the observability line fires once per process, not
+// once per run, to avoid log spam when many agents are created.
+let pluginProvidersAnnounced = false;
+
+/** Test-only reset for the one-shot announcement. @internal */
+export function _resetPluginProviderAnnounce(): void {
+  pluginProvidersAnnounced = false;
+}
+
+/**
+ * Resolve the run's primary provider + effective model id.
+ *
+ * Registers builtins AND any plugin-contributed `kind: "model-provider"`
+ * profiles FIRST, so the prefix-inference lookup (`model: { id: "myprov/..." }`)
+ * can see a plugin-supplied provider. The aggregated profiles were otherwise
+ * never registered (half-wired path). Extracted from `buildLoopInputs` (SRP)
+ * and exported `@internal` so the plugin-provider wiring is regression-covered.
+ *
+ * ADR D182 / T1.2: explicit `providers.routes[0].provider` wins, then prefix
+ * inference, then env-var heuristics (`detectPrimaryProvider`).
+ *
+ * @internal
+ */
+export function resolveRunProvider(options: CreateRealLocalRunOptions): {
+  primary: string;
+  effectiveModelId: string;
+} {
   registerBuiltins();
+  const profiles = options.pluginManager?.aggregated.providerProfiles ?? [];
+  const registered = registerPluginProviderProfiles(profiles);
+  // Wiring-triad pillar (c): one-shot observability that plugin providers were
+  // wired this process. Silent on the zero-plugin happy path.
+  if (registered > 0 && !pluginProvidersAnnounced) {
+    pluginProvidersAnnounced = true;
+    const names = profiles.map((e) => e.profile.name).join(", ");
+    process.stderr.write(
+      `[theokit-sdk] registered ${registered} plugin provider profile(s): ${names}\n`,
+    );
+  }
   const parsedModel = parseModelId(options.model?.id);
   const inferredProvider =
     parsedModel.provider !== undefined && getProviderProfile(parsedModel.provider) !== undefined
@@ -111,11 +137,21 @@ function buildLoopInputs(
     options.agentOptions.providers?.routes?.[0]?.provider ??
     inferredProvider ??
     detectPrimaryProvider();
-  // When provider was inferred from the prefix, the model name passed to
-  // the LLM must be the stripped form (Ollama expects `llama3.2:3b`, not
+  // When provider was inferred from the prefix, the model name passed to the
+  // LLM must be the stripped form (Ollama expects `llama3.2:3b`, not
   // `ollama/llama3.2:3b`). When no prefix was found, pass id unchanged.
   const effectiveModelId =
     inferredProvider !== undefined ? parsedModel.name : (options.model?.id ?? "claude-sonnet-4-6");
+  return { primary, effectiveModelId };
+}
+
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: spread-conditional builders for optional fields (systemPrompt, onStep, onDelta, priorMessages, memoryTools, customTools, pluginManager) are the canonical pattern for shaping AgentLoopInputs; splitting hurts readability.
+function buildLoopInputs(
+  options: CreateRealLocalRunOptions,
+  runId: string,
+  userText: string,
+): AgentLoopInputs {
+  const { primary, effectiveModelId } = resolveRunProvider(options);
   const fallback = options.agentOptions.providers?.fallback;
   const apiKeys = options.agentOptions.providers?.apiKeys;
   const credentialPoolStrategy = options.agentOptions.providers?.credentialPoolStrategy;

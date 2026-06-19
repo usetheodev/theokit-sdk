@@ -2,6 +2,7 @@ import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
+import { mapWithConcurrency } from "../runtime/concurrency/map-with-concurrency.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";
@@ -35,46 +36,10 @@ export async function dispatchTools(
   events: SDKMessage[],
 ): Promise<LlmContentPart[]> {
   const maxConcurrent = (inputs as { maxConcurrentTools?: number }).maxConcurrentTools ?? 4;
-  return boundedParallel(maxConcurrent, toolCalls, (call) =>
+  // M0-2: consolidated onto the shared ordered bounded pool (was a private
+  // `boundedParallel` clone — see plan m0-foundation-expose-primitives).
+  return mapWithConcurrency(toolCalls, maxConcurrent, (call) =>
     dispatchSingleCall(inputs, tools, call, events),
-  );
-}
-
-/**
- * T2.4 — Bounded-concurrency parallel map (ADR D135 — in-house semaphore).
- * Runs up to `max` tasks concurrently; queues the rest. Preserves input
- * order in the output array. ~15 LoC — no external dep.
- *
- * @internal
- */
-async function boundedParallel<T, R>(
-  max: number,
-  items: T[],
-  fn: (item: T) => Promise<R>,
-): Promise<R[]> {
-  let running = 0;
-  const queue: Array<() => void> = [];
-  async function acquire(): Promise<void> {
-    if (running < max) {
-      running++;
-      return;
-    }
-    await new Promise<void>((resolve) => queue.push(resolve));
-    running++;
-  }
-  function release(): void {
-    running--;
-    if (queue.length > 0) queue.shift()!();
-  }
-  return Promise.all(
-    items.map(async (item) => {
-      await acquire();
-      try {
-        return await fn(item);
-      } finally {
-        release();
-      }
-    }),
   );
 }
 
