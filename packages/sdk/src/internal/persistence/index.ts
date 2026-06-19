@@ -30,5 +30,7 @@ export {
   writeVersionedJson,
 } from "./schema-version.js";
 export { casUpdate } from "./sqlite-cas.js";
+export type { OpenSqliteResilientOptions, ResilientSqliteDb } from "./sqlite-open.js";
+export { isCorruptionError, openSqliteResilient } from "./sqlite-open.js";
 export type { WalApplyResult } from "./sqlite-wal.js";
 export { applyWalWithFallback } from "./sqlite-wal.js";

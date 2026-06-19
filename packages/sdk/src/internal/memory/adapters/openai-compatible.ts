@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { AuthenticationError, ConfigurationError, NetworkError } from "../../../errors.js";
 import { mapOpenAICompatibleError } from "../../error-mappers/openai-compatible.js";
+import { mapWithConcurrency } from "../../runtime/concurrency/map-with-concurrency.js";
 import type {
   CreateAdapterOptions,
   EmbeddingRuntime,
@@ -127,7 +128,7 @@ async function embedTexts(input: EmbedTextsInput): Promise<number[][]> {
       pending,
     });
   }
-  await runBatches(input, pending, results);
+  await embedInBoundedBatches(input, pending, results);
   return results.map((v) => v ?? new Array(dimension).fill(0));
 }
 
@@ -173,7 +174,7 @@ const MAX_CONCURRENT_BATCHES = 3;
  * Uses bounded-concurrency `Promise.all` capped at 3 concurrent
  * HTTP requests to avoid overwhelming the embedding API.
  */
-async function runBatches(
+async function embedInBoundedBatches(
   input: EmbedTextsInput,
   pending: ReadonlyArray<{ index: number; text: string; key: string }>,
   results: Array<number[] | undefined>,
@@ -182,49 +183,34 @@ async function runBatches(
   for (let offset = 0; offset < pending.length; offset += MAX_BATCH) {
     batches.push(pending.slice(offset, offset + MAX_BATCH));
   }
-  // Bounded parallel: process up to MAX_CONCURRENT_BATCHES at a time.
-  let running = 0;
-  const queue: Array<() => void> = [];
-  await Promise.all(batches.map((batch) => processBatch(input, batch, results, acquire, release)));
-
-  async function acquire(): Promise<void> {
-    if (running >= MAX_CONCURRENT_BATCHES) await new Promise<void>((r) => queue.push(r));
-    running++;
-  }
-  function release(): void {
-    running--;
-    if (queue.length > 0) queue.shift()!();
-  }
+  // M0-2: bounded parallel via the shared ordered pool (was an inline
+  // acquire/release clone — see plan m0-foundation-expose-primitives).
+  await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, (batch) =>
+    processBatch(input, batch, results),
+  );
 }
 
 async function processBatch(
   input: EmbedTextsInput,
   batch: ReadonlyArray<{ index: number; text: string; key: string }>,
   results: Array<number[] | undefined>,
-  acquire: () => Promise<void>,
-  release: () => void,
 ): Promise<void> {
-  await acquire();
-  try {
-    const vectors = await embedBatch({
-      apiKey: input.apiKey,
-      baseUrl: input.baseUrl,
-      embeddingsPath: input.embeddingsPath,
-      model: input.model,
-      inputs: batch.map((b) => b.text),
-      fetchImpl: input.fetchImpl,
-      stats: input.stats,
-      providerId: input.providerId,
-    });
-    for (let j = 0; j < batch.length; j++) {
-      const slot = batch[j];
-      const vector = vectors[j];
-      if (slot === undefined || vector === undefined) continue;
-      results[slot.index] = vector;
-      input.cache.set(slot.key, vector);
-    }
-  } finally {
-    release();
+  const vectors = await embedBatch({
+    apiKey: input.apiKey,
+    baseUrl: input.baseUrl,
+    embeddingsPath: input.embeddingsPath,
+    model: input.model,
+    inputs: batch.map((b) => b.text),
+    fetchImpl: input.fetchImpl,
+    stats: input.stats,
+    providerId: input.providerId,
+  });
+  for (let j = 0; j < batch.length; j++) {
+    const slot = batch[j];
+    const vector = vectors[j];
+    if (slot === undefined || vector === undefined) continue;
+    results[slot.index] = vector;
+    input.cache.set(slot.key, vector);
   }
 }
 

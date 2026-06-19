@@ -18,6 +18,10 @@ export {
   ForbiddenPathError,
   isForbiddenPath,
   PathTraversalError,
+  // M0-4 (plan m0-foundation-expose-primitives): total id->filename helper.
+  // Unlike sanitizeIdentifier (throws on non-conforming input), this accepts
+  // ANY opaque id (passthrough when safe, deterministic sha256 token otherwise).
+  safeFilenameForId,
   safePathJoin,
   // Iter 52 (SDK 2.0 Phase 1 Stage 3 source-move): promoted to public
   // so sdk-memory's hybrid `internal/memory-types.ts` can sanitize
