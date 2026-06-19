@@ -58,8 +58,8 @@ referencia/peer-project/
 # Third-party benchmark tool — not SDK code
 docs/evalscope/
 
-# Ralph loop local state
-.claude/ralph-loop.local.md
+# Ralph loop local state (root + any nested package, e.g. packages/sdk/.claude/)
+**/.claude/ralph-loop.local.md
 
 # Transient npx caches created by skill executions (symlinks to ~/.npm/_npx)
 .claude/skills/lib/node_modules
