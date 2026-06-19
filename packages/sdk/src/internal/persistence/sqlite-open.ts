@@ -19,10 +19,12 @@ import { mkdir, rename } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
-import { applyWalWithFallback, type PragmaCapable } from "./sqlite-wal.js";
+import { applyWalWithFallback } from "./sqlite-wal.js";
 
 /** Minimal SQLite handle surface every driver (`better-sqlite3`) exposes. */
-export interface ResilientSqliteDb extends PragmaCapable {
+export interface ResilientSqliteDb {
+  /** SQLite `pragma()` access (used by `applyWalWithFallback`). */
+  pragma(statement: string, options?: { simple?: boolean }): unknown;
   exec(sql: string): void;
   close(): void;
 }
