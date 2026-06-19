@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveSystemPrompt } from "../../../src/internal/runtime/system-prompt.js";
+import { resolveSystemPrompt } from "../../../src/internal/runtime/system-prompt/system-prompt.js";
 import type { SystemPromptContext } from "../../../src/types/agent.js";
 
 /**

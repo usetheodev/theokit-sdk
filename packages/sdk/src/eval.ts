@@ -15,6 +15,13 @@
  * @public
  */
 
+// Bootstrap import: loading this facade must register the public Agent facade
+// into the agent-factory-registry seam, because `internal/eval/runner.ts` and
+// `internal/scorers/llm-judge.ts` resolve it via `getAgentFacade()` at runtime
+// instead of importing `agent.ts` directly (which would invert the
+// public-api -> internal dependency direction). The `@theokit/sdk/eval`
+// sub-path entry would otherwise throw "Agent facade not registered".
+import "./agent.js";
 import { z } from "zod";
 import { runEval } from "./internal/eval/runner.js";
 import type { EvalOptions, EvalRun, EvalRunOptions } from "./types/eval.js";

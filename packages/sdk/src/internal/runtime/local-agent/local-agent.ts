@@ -16,16 +16,16 @@ import type { PersonalityPreset } from "../../personality/types.js";
 import { PluginManager } from "../../plugins/manager.js";
 import { SPAN_NAMES } from "../../telemetry/span-names.js";
 import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../../telemetry/tracer.js";
+import type { ProvidersManagerImpl } from "../config/providers-manager.js";
 import type { FileContextManager } from "../context/context-manager.js";
 import { HooksExecutor } from "../hooks/hooks-executor.js";
+import { runPostRunLifecycle } from "../lifecycle/post-run-lifecycle.js";
 import {
   resolveMemoryProviderForLoop,
   shouldUsePortMemoryPath,
 } from "../memory/memory-path-selector.js";
 import type { MemoryFact } from "../memory/memory-store.js";
 import type { PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
-import { runPostRunLifecycle } from "../post-run-lifecycle.js";
-import type { ProvidersManagerImpl } from "../providers-manager.js";
 import { flushRegistrySaves, updateRegisteredAgent } from "../registry/agent-registry.js";
 import { liveAgentRegistry } from "../registry/live-agent-registry.js";
 import { compactSession, flushSessionWrites, hydrateSession } from "../session/agent-session.js";
@@ -37,8 +37,8 @@ import {
   type LocalAssemblyInputs,
 } from "../system-prompt/local-assembly.js";
 import { SystemPromptPipeline } from "../system-prompt/pipeline.js";
-import { resolveSystemPromptForSend } from "../system-prompt.js";
-import { validateToolCatalog } from "../validate-agent-options.js";
+import { resolveSystemPromptForSend } from "../system-prompt/system-prompt.js";
+import { validateToolCatalog } from "../validation/validate-agent-options.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
@@ -499,7 +499,7 @@ export class LocalAgent implements SDKAgent {
   // biome-ignore format: G8 budget — both methods delegate to `local-agent-runtime-extensions.ts`; signatures kept as 1-line each.
   runUntil(goal: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
-  fork(options: import("../fork-agent.js").ForkOptions): Promise<import("../fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
+  fork(options: import("../lifecycle/fork-agent.js").ForkOptions): Promise<import("../lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {

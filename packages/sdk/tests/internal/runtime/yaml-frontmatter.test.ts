@@ -6,7 +6,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { parseSimpleYaml } from "../../../src/internal/runtime/yaml-frontmatter.js";
+import { parseSimpleYaml } from "../../../src/internal/runtime/context/yaml-frontmatter.js";
 
 describe("parseSimpleYaml — scalar types", () => {
   it("strings stay strings (backward compat)", () => {

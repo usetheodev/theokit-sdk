@@ -19,7 +19,7 @@ import {
   hydrateRegistryFromDisk,
   updateRegisteredAgent,
 } from "./internal/runtime/registry/agent-registry.js";
-import { validateAgentOptions } from "./internal/runtime/validate-agent-options.js";
+import { validateAgentOptions } from "./internal/runtime/validation/validate-agent-options.js";
 import type { OTelSpan } from "./internal/telemetry/tracer.js";
 import type { AgentOptions, CustomTool, SDKAgent, SDKAgentInfo } from "./types/agent.js";
 

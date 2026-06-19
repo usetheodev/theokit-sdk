@@ -1,8 +1,8 @@
-import { Agent } from "../../agent.js";
 import { ConfigurationError, UnknownAgentError } from "../../errors.js";
 import type { AgentOptions } from "../../types/agent.js";
 import type { CronJob } from "../../types/cron.js";
 import type { Run, SDKUserMessage } from "../../types/run.js";
+import { getAgentFacade } from "../runtime/registry/agent-factory-registry.js";
 
 /**
  * Execute a cron job by creating the configured agent (or reusing the
@@ -27,14 +27,16 @@ async function runWithExistingAgent(
   agentId: string,
   message: string | SDKUserMessage,
 ): Promise<Run> {
-  const info = await Agent.get(agentId).catch(() => undefined);
+  const info = await getAgentFacade()
+    .get(agentId)
+    .catch(() => undefined);
   if (info === undefined) {
     throw new UnknownAgentError(
       `Cron job references agentId "${agentId}" but no such agent is registered. The agent may have been disposed or the process restarted without persisting the agent registry.`,
       { code: "agent_not_registered" },
     );
   }
-  const agent = await Agent.resume(agentId);
+  const agent = await getAgentFacade().resume(agentId);
   return agent.send(message);
 }
 
@@ -42,6 +44,6 @@ async function runWithEphemeralAgent(
   baseOptions: AgentOptions,
   message: string | SDKUserMessage,
 ): Promise<Run> {
-  const agent = await Agent.create(baseOptions);
+  const agent = await getAgentFacade().create(baseOptions);
   return agent.send(message);
 }

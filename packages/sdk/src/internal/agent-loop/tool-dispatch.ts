@@ -1,7 +1,7 @@
 import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
-import { checkToolWhitelist } from "../runtime/async-local-storage.js";
+import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";

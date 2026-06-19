@@ -8,7 +8,7 @@
   "dependencies": {
     "@aws-sdk/credential-providers": "^3.1053.0",
     "@aws/bedrock-token-generator": "^1.1.0",
-    "@theokit/sdk": "file:../../packages/sdk",
+    "@theokit/sdk": "workspace:*",
     "zod": "^4.0.0"
   },
   "devDependencies": {

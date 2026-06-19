@@ -1,5 +1,9 @@
-import type { AgentOptions, SystemPromptContext, SystemPromptResolver } from "../../types/agent.js";
-import type { SendOptions } from "../../types/run.js";
+import type {
+  AgentOptions,
+  SystemPromptContext,
+  SystemPromptResolver,
+} from "../../../types/agent.js";
+import type { SendOptions } from "../../../types/run.js";
 
 /**
  * Resolve the effective system prompt for one `agent.send()` call.

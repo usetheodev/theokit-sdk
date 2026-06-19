@@ -14,7 +14,7 @@
 import type { AgentOptions, MemorySettings, SDKAgent } from "../../../types/agent.js";
 import type { GoalEvent, GoalOptions, GoalResult } from "../../../types/goal-events.js";
 import type { JudgeContext, JudgeOptions } from "../../judge/judge-call.js";
-import type { ForkOptions, ForkResult } from "../fork-agent.js";
+import type { ForkOptions, ForkResult } from "../lifecycle/fork-agent.js";
 import {
   appendMemoryFact,
   extractMemoryFact,
@@ -35,10 +35,10 @@ export function localAgentRunUntil(
   options: GoalOptions | undefined,
 ): AsyncGenerator<GoalEvent, GoalResult, void> {
   async function* wrap(): AsyncGenerator<GoalEvent, GoalResult, void> {
-    const { runUntilImpl } = await import("../run-until.js");
+    const { runUntilImpl } = await import("../lifecycle/run-until.js");
     const { judgeCallImpl } = await import("../../judge/judge-call.js");
-    const { getAgentCreate } = await import("../registry/agent-factory-registry.js");
-    const create = getAgentCreate();
+    const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
+    const create = getAgentFacade().create;
     const deps = {
       judge: async (ctx: JudgeContext, opts?: JudgeOptions) => judgeCallImpl(ctx, opts, { create }),
     };
@@ -57,10 +57,10 @@ export async function localAgentFork(
   parent: { agentId: string; options: AgentOptions; personalitySlugSnapshot: string | undefined },
   options: ForkOptions,
 ): Promise<ForkResult> {
-  const { forkAgentImpl } = await import("../fork-agent.js");
-  const { getAgentCreate } = await import("../registry/agent-factory-registry.js");
+  const { forkAgentImpl } = await import("../lifecycle/fork-agent.js");
+  const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
   const { withPersonalityContext } = await import("../../personality/context.js");
-  const create = getAgentCreate();
+  const create = getAgentFacade().create;
   // ADR D168 + EC-A — capture the slug ONCE at fork-construction time.
   // Subsequent parent `usePersonality` calls do NOT mutate this snapshot.
   return withPersonalityContext({ slug: parent.personalitySlugSnapshot, isFork: true }, () =>

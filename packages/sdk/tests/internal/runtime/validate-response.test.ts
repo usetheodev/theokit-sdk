@@ -4,7 +4,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { validateResponse } from "../../../src/internal/runtime/validate-response.js";
+import { validateResponse } from "../../../src/internal/runtime/validation/validate-response.js";
 
 describe("validateResponse (T2.2)", () => {
   it("content present, no tool calls → ok", () => {
