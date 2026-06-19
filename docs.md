@@ -1750,6 +1750,19 @@ try { /* ... */ } catch (err) {
 
 Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vector families + identifier grammar surface. `isForbiddenPath` adds a 15-case suite covering each blocklist family + cross-platform path normalisation.
 
+#### Concurrency — `@theokit/sdk/concurrency`
+
+In-house bounded-concurrency primitives (no `p-limit`/`p-map` dependency), public from the `@theokit/sdk/concurrency` sub-path so agent builders bound parallel work without re-implementing a pool:
+
+- `createSemaphore(permits)` — N-permit async-aware counting semaphore. `acquire()` returns a release function (call once, typically in `finally`). Release is idempotent.
+- `mapWithConcurrency(items, concurrency, fn, { signal? })` — map `fn` over `items` with at most `concurrency` invocations in flight, **preserving input order** in the result array. Fail-fast (rejects with the first task error); an aborted `signal` stops new work from starting. Throws `ConfigurationError` (`invalid_concurrency`) when `concurrency` is not a positive integer.
+
+```ts
+import { mapWithConcurrency } from "@theokit/sdk/concurrency";
+
+const results = await mapWithConcurrency(urls, 4, (url) => fetchJson(url)); // ≤4 in flight, ordered
+```
+
 ## Built-in tools for coding agents (v1.x+)
 
 Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
