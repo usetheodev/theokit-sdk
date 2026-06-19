@@ -34,6 +34,7 @@ const targets = [
   join(DIST, "workflow.d.ts"),
   join(DIST, "eval.d.ts"),
   join(DIST, "subscription"),
+  join(DIST, "concurrency.d.ts"),
   // Sub-path exports that need CTS mirrors.
   join(DIST, "rag"),
   join(DIST, "a2a"),
