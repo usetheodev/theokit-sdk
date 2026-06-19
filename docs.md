@@ -1571,7 +1571,7 @@ Options:
 - `--batch-size <n>` — migration batch size (default: 100)
 
 Errors
-All SDK errors extend TheoAgentError. Use isRetryable to drive retry logic.
+All SDK errors extend TheoAgentError. Use isRetryable to drive retry logic, or the `isTransientError(err: unknown): boolean` helper (exported from `@theokit/sdk`) which returns the SDK's retryability verdict for any caught value (`false` for non-SDK errors; never inspects the message).
 
 
 class TheokitAgentError extends Error {

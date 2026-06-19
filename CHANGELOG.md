@@ -6,6 +6,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+
+- **`isTransientError(err)` public predicate (`@theokit/sdk`, plan `m0-foundation-expose-primitives` T1.1):** exposes the SDK's own retryability verdict so consumers building agents/code-assistants can drive retry/backoff without re-deriving it (the gap the audit found theocode hand-rolling via a brittle `err.message` regex). Returns `TheokitAgentError.isRetryable` for SDK errors and `false` for foreign errors. Importable from `@theokit/sdk`.
+
 ### Changed
 
 - **`@theokit/sdk` error-mapper naming fix (arch-review Group D):** renamed `src/internal/errors/` → `src/internal/error-mappers/` and collapsed the redundant `mappers/` nesting. The directory held only provider error-mapper implementations (anthropic, bedrock, ollama, openai-compatible, vertex, shared) — zero error classes (those live in `src/errors.ts`), so `errors/` was a misnomer. Pure rename + import-path fixups across importers, tests (moved to the mirror `tests/internal/error-mappers/`), and `docs/error-codes.md`; internal-only, behavior-preserving.
