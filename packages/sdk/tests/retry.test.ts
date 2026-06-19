@@ -108,4 +108,12 @@ describe("withRetry", () => {
     ).rejects.toThrow("aborted");
     expect(fn).toHaveBeenCalledTimes(1);
   });
+
+  it("test_withRetry_throws_on_invalid_retries", async () => {
+    await expect(withRetry(async () => "x", { retries: -1 })).rejects.toThrow();
+    await expect(withRetry(async () => "x", { retries: 1.5 })).rejects.toThrow();
+    await expect(
+      withRetry(async () => "x", { retries: Number.POSITIVE_INFINITY }),
+    ).rejects.toThrow();
+  });
 });
