@@ -69,4 +69,30 @@ describe("model-provider plugin → router (integration)", () => {
     registerPluginProviderProfiles(mgr.aggregated.providerProfiles);
     expect(getProviderProfile("anthropic")).toBeDefined();
   });
+
+  it("empty plugin list registers nothing (count 0, no throw)", () => {
+    expect(registerPluginProviderProfiles([])).toBe(0);
+  });
+
+  it("registers multiple custom providers", async () => {
+    const second: ProviderProfile = {
+      ...customProfile,
+      name: "second-llm",
+      baseUrl: "https://api.second.test/v1",
+      fallbackModels: ["second-llm/default"],
+    };
+    const mgr = new PluginManager();
+    await mgr.initialize([defineProvider(customProfile), defineProvider(second)]);
+    expect(registerPluginProviderProfiles(mgr.aggregated.providerProfiles)).toBe(2);
+    expect(getProviderProfile("custom-llm")).toBeDefined();
+    expect(getProviderProfile("second-llm")).toBeDefined();
+  });
+
+  it("resolves a custom provider by its alias", async () => {
+    const aliased: ProviderProfile = { ...customProfile, aliases: ["custom-alias"] };
+    const mgr = new PluginManager();
+    await mgr.initialize([defineProvider(aliased)]);
+    registerPluginProviderProfiles(mgr.aggregated.providerProfiles);
+    expect(getProviderProfile("custom-alias")?.name).toBe("custom-llm");
+  });
 });
