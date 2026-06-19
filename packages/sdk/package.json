@@ -58,6 +58,16 @@
         "default": "./dist/path-safety.cjs"
       }
     },
+    "./concurrency": {
+      "import": {
+        "types": "./dist/concurrency.d.ts",
+        "default": "./dist/concurrency.js"
+      },
+      "require": {
+        "types": "./dist/concurrency.d.cts",
+        "default": "./dist/concurrency.cjs"
+      }
+    },
     "./task-store": {
       "import": {
         "types": "./dist/task-store.d.ts",

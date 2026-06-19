@@ -11,6 +11,8 @@
   },
   "include": [
     "src/path-safety.ts",
+    "src/concurrency.ts",
+    "src/internal/runtime/concurrency/**/*",
     "src/task-store.ts",
     "src/internal/task/store.ts",
     "src/internal/persistence/**/*",
