@@ -22,7 +22,7 @@ const MAX_MD_FILE_BYTES = 1_048_576; // 1 MB
 import type { z } from "zod";
 
 import { ConfigurationError } from "../../errors.js";
-import { parseSimpleYaml } from "../runtime/yaml-frontmatter.js";
+import { parseSimpleYaml } from "../runtime/context/yaml-frontmatter.js";
 
 export interface MarkdownEntity<T> {
   /** Slug from filename (without `.md`) for flat pattern, or subdir name for nested. */

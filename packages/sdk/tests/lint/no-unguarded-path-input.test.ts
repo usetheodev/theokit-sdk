@@ -53,7 +53,6 @@ const ALLOWLIST = new Set<string>([
   "internal/persistence/paths.ts",
   "internal/persistence/markdown-config-loader.ts",
   "internal/runtime/registry/agent-registry-store.ts",
-  "internal/runtime/mcp-tools.ts",
   "internal/runtime/local-agent/local-agent.ts",
 ]);
 

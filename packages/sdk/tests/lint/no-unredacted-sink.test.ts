@@ -36,7 +36,7 @@ const SINK_PATTERNS: Sink[] = [
  *
  * - `internal/security/redact.ts` — the redactor itself; recursion would
  *   be silly.
- * - `internal/errors/mappers/shared.ts` — wires `redactSecrets` inline
+ * - `internal/error-mappers/shared.ts` — wires `redactSecrets` inline
  *   via `truncateRaw`; the audit regex finds `JSON.stringify` not
  *   `redactSecrets` because of formatting (single import + call). The
  *   helper already routes through redact.
@@ -93,7 +93,7 @@ const SINK_PATTERNS: Sink[] = [
  */
 const WHITELIST = new Set<string>([
   "internal/security/redact.ts",
-  "internal/errors/mappers/shared.ts",
+  "internal/error-mappers/shared.ts",
   "internal/telemetry/tracer.ts",
   "internal/runtime/session/agent-session-store.ts",
   "internal/memory/migrate-sqlite-to-lance.ts",

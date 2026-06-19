@@ -1,5 +1,5 @@
-import { mapOllamaHttpError, mapOllamaTransportError } from "../errors/mappers/ollama.js";
-import { mapOpenAICompatibleError } from "../errors/mappers/openai-compatible.js";
+import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
+import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import { collapseSystemText, makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
 import type {

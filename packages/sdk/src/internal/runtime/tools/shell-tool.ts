@@ -1,4 +1,4 @@
-import { spawnAndCollect } from "./spawn-collect.js";
+import { spawnAndCollect } from "../lifecycle/spawn-collect.js";
 
 /**
  * Real shell tool executor. Spawns a single command through `/bin/sh -c`,

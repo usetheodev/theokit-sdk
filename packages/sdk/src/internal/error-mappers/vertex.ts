@@ -14,7 +14,7 @@ import {
   RateLimitError,
   type TheokitAgentError,
   UnknownAgentError,
-} from "../../../errors.js";
+} from "../../errors.js";
 import { buildErrorMetadata } from "./shared.js";
 
 interface VertexErrorBody {

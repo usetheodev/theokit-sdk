@@ -2152,10 +2152,10 @@ console.log(run.steps);   // StepResult[] — one per agent
   there.
 - Invalid input fails fast: empty `agents` → `ConfigurationError(code: "invalid_squad")`.
 
-## Decorator-driven workflows — moved to `@theokit/di-agent` (repo `theokit-backend-dx`)
+## Decorator-driven workflows — moved to `@theokit/di-agent` (repo `theokit-di`)
 
 The decorator authoring style (`@Workflow` + `@Step` + `buildWorkflow`, and `@Squad`) was
-extracted to `@theokit/di-agent` in the `theokit-backend-dx` repo (plan monorepo-cohesion-split;
+extracted to `@theokit/di-agent` in the `theokit-di` repo (plan monorepo-cohesion-split;
 ADR D431 made decorators an optional layer, not a Harness requirement). It compiles a decorated
 class into a `@theokit/sdk` `Workflow` — the SDK ships the `Workflow` + `agentStep` + `createSquad`
 primitives below; the decorator sugar is opt-in via that package.

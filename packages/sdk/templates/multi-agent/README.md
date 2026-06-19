@@ -1,6 +1,6 @@
 # TheoKit Multi-Agent
 
-A multi-agent system using `TheoKitContainer` to manage three specialist agents: a classifier that routes input, a summarizer that condenses text, and a translator that handles language conversion. Demonstrates the container pattern for coordinating multiple agents from a single registry.
+A multi-agent system that coordinates three specialist agents with the canonical `Agent.create()` factory: a classifier that routes input, a summarizer that condenses text, and a translator that handles language conversion. Demonstrates managing multiple agents from a single config map (ADR D431 — factory functions are the SDK's canonical API).
 
 ## Usage
 

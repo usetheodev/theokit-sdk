@@ -1,5 +1,5 @@
 import { ConfigurationError } from "../../../errors.js";
-import { type FrontmatterValue, parseSimpleYaml } from "../yaml-frontmatter.js";
+import { type FrontmatterValue, parseSimpleYaml } from "../context/yaml-frontmatter.js";
 
 type StringFields = Record<string, string | undefined>;
 

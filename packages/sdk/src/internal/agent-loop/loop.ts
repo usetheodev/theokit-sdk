@@ -2,7 +2,7 @@ import { generateRequestId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { IterationBudget } from "../runtime/budget/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
-import { validateResponse } from "../runtime/validate-response.js";
+import { validateResponse } from "../runtime/validation/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";
 import { initLoopContext, type LoopContext } from "./loop-context-init.js";
 import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";

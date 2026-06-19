@@ -1,6 +1,6 @@
 import { readdir } from "node:fs/promises";
 
-import { ConfigurationError } from "../../errors.js";
+import { ConfigurationError } from "../../../errors.js";
 
 /**
  * Entry returned by `readWorkspaceDir`. Mirrors the subset of

@@ -203,7 +203,11 @@
     "theokit-migrate-config": "./bin/theokit-migrate-config.mjs",
     "theokit-migrate-memory": "./bin/theokit-migrate-memory.mjs"
   },
-  "sideEffects": false,
+  "sideEffects": [
+    "**/agent.ts",
+    "**/agent.js",
+    "**/agent.cjs"
+  ],
   "scripts": {
     "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json",
     "test": "vitest run --no-file-parallelism",

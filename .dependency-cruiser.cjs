@@ -53,6 +53,14 @@ module.exports = {
       },
     },
     {
+      name: "internal-must-not-import-facade",
+      severity: "error",
+      comment:
+        "G7: src/internal/* is implementation detail and MUST NOT import the public Agent facade (src/agent.ts) — that inverts the public-api->internal dependency direction. Use the agent-factory-registry inversion seam (getAgentFacade) instead.",
+      from: { path: "(^|/)packages/sdk/src/internal/" },
+      to: { path: "(^|/)packages/sdk/src/agent\\.ts$" },
+    },
+    {
       name: "src-must-not-import-tests",
       severity: "error",
       comment: "G7: Production code under src/ must not import from tests/.",

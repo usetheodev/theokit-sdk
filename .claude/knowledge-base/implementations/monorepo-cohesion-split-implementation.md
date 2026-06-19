@@ -18,7 +18,7 @@
 
 | Repo | Packages | Tests | History |
 |---|---|---|---|
-| `theokit-backend-dx` | di, di-agent, orm | 249 (69+112+68), 2 skip | 29 commits |
+| `theokit-di` | di, di-agent, orm | 249 (69+112+68), 2 skip | 29 commits |
 | `theokit-gateways` | gateway + 10 adapters | 543 | 22 commits |
 | `theokit-react` | react | 34 | 13 commits |
 | `theokit-rag` | rag (was `@theokit/sdk/rag`) | 26 (ported) | 2 commits |

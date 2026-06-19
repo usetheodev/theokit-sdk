@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { ConfigurationError } from "../../../src/errors.js";
-import { createSemaphore } from "../../../src/internal/runtime/async-semaphore.js";
+import { createSemaphore } from "../../../src/internal/runtime/concurrency/async-semaphore.js";
 
 describe("AsyncSemaphore (T1.1)", () => {
   it("one permit serializes two acquires", async () => {

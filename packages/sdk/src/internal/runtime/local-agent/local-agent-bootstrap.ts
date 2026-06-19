@@ -9,9 +9,9 @@
  */
 
 import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
+import { ProvidersManagerImpl } from "../config/providers-manager.js";
 import { FileContextManager } from "../context/context-manager.js";
 import { type PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
-import { ProvidersManagerImpl } from "../providers-manager.js";
 import { registerAgent } from "../registry/agent-registry.js";
 import { type SkillMetadata, SkillsManager } from "../skills/skills-manager.js";
 

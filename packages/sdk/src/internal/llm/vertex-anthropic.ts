@@ -18,7 +18,7 @@
  */
 
 import { ConfigurationError } from "../../errors.js";
-import { mapVertexError } from "../errors/mappers/vertex.js";
+import { mapVertexError } from "../error-mappers/vertex.js";
 import { resolveVertexBaseUrl, stripVertexPrefix } from "../providers/builtin/vertex.js";
 import {
   buildAnthropicCommonBody,

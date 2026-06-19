@@ -10,7 +10,7 @@
  * @internal
  */
 
-import { mapOllamaHttpError, mapOllamaTransportError } from "../errors/mappers/ollama.js";
+import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { collapseSystemText, makeLlmFinish } from "./finish.js";
 import type {
   LlmClient,

@@ -3,7 +3,7 @@
  *
  * Extracted into a leaf type module (arch-review ADR 0001) so the public
  * `types/agent.ts` barrel can reference `ForkOptions`/`ForkResult` without
- * importing the `internal/runtime/fork-agent.ts` implementation — which in
+ * importing the `internal/runtime/lifecycle/fork-agent.ts` implementation — which in
  * turn imports back from `types/agent.ts`. That mutual reference created a
  * type-only `madge` cycle. These interfaces are self-contained (no SDKAgent
  * / AgentOptions references), so co-locating them here breaks the cycle with

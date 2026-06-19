@@ -1,4 +1,4 @@
-import { mapAnthropicError } from "../errors/mappers/anthropic.js";
+import { mapAnthropicError } from "../error-mappers/anthropic.js";
 import { buildAnthropicCommonBody, mapAnthropicStopReason } from "./anthropic-shared.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
