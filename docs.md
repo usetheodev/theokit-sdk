@@ -2459,6 +2459,55 @@ with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic
 | `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
 
 
+## Custom providers (`defineProvider`)
+
+Register any OpenAI-/Anthropic-compatible LLM endpoint (Groq, Together, Fireworks,
+DeepInfra, a private gateway) without forking. A provider is **data-only** — a
+`ProviderProfile` object literal; the transport is selected from `apiMode`, so no
+new code is required for an endpoint that speaks an existing dialect.
+
+`defineProvider(profile)` is the canonical factory (mirrors `defineTool` /
+`definePlugin`). It returns a `Plugin` you pass to `Agent.create({ plugins })`.
+Route to the provider with the `provider/model` id prefix or `providers.routes`.
+
+```ts
+import { Agent, defineProvider } from "@theokit/sdk";
+
+const groq = defineProvider({
+  name: "groq",
+  apiMode: "chat_completions",        // OpenAI-compatible
+  authType: "api_key",
+  envVars: ["GROQ_API_KEY"],          // key read from this env var
+  baseUrl: "https://api.groq.com/openai/v1",
+  fallbackModels: ["groq/llama-3.1-8b-instant"],
+  aliases: ["groq-cloud"],            // optional
+});
+
+const agent = await Agent.create({
+  model: { id: "groq/llama-3.1-8b-instant" }, // prefix selects the provider
+  plugins: [groq],
+});
+```
+
+`ProviderProfile` fields:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `name` | yes | Canonical provider id (used in the `provider/model` prefix). |
+| `apiMode` | yes | HTTP dialect: `chat_completions` \| `anthropic_messages` \| `responses_api` \| `bedrock` \| `bedrock_anthropic`. |
+| `authType` | yes | `api_key` \| `none` \| `oauth_device_code` \| `oauth_external` \| `aws_sdk` \| `aws_bearer` \| `gcp_oauth`. |
+| `envVars` | yes | Env var names checked (in order) for the API key. |
+| `baseUrl` | yes | Endpoint base URL. |
+| `fallbackModels` | yes | Models advertised when discovery is unavailable. |
+| `aliases` | no | Alternate ids that resolve to this provider. |
+| `displayName`, `description`, `signupUrl`, `modelsUrl`, `hostname`, `extraHeaders`, `bodyOverrides` | no | Metadata / transport tweaks. |
+
+`defineProvider(profile, { version })` overrides the plugin version (default
+`"1.0.0"`). Re-registering an existing provider `name` is last-writer-wins and
+emits a one-line stderr WARN. Use `authType: "none"` for local runtimes that
+ignore the `Authorization` header.
+
+
 ## Bedrock provider (v1.20+) — Claude on AWS Bedrock
 
 AWS Bedrock provider via Bearer token + native `fetch`. ADRs D286-D302.

@@ -25,6 +25,7 @@ export {
 // Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
 export { Cron } from "./cron.js";
+export { type DefineProviderOptions, defineProvider } from "./define-provider.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
 // Errors (runtime classes)
 export {
