@@ -6,8 +6,8 @@
     "serve": "theokit-acp --entry ./src/index.ts"
   },
   "dependencies": {
-    "@theokit/acp": "file:../../packages/acp",
-    "@theokit/sdk": "file:../../packages/sdk"
+    "@theokit/acp": "workspace:*",
+    "@theokit/sdk": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.19.0"
