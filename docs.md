@@ -1571,7 +1571,7 @@ Options:
 - `--batch-size <n>` — migration batch size (default: 100)
 
 Errors
-All SDK errors extend TheoAgentError. Use isRetryable to drive retry logic.
+All SDK errors extend TheoAgentError. Use isRetryable to drive retry logic, or the `isTransientError(err: unknown): boolean` helper (exported from `@theokit/sdk`) which returns the SDK's retryability verdict for any caught value (`false` for non-SDK errors; never inspects the message).
 
 
 class TheokitAgentError extends Error {
@@ -1712,6 +1712,7 @@ Every callsite that joins user-supplied input with a path passes through a canon
 - `assertNoSymlinkEscape(path, base)` — uses `realpathSync` to follow the entire symlink chain (multi-level A → B → C) and reject targets outside `base`.
 - `isForbiddenPath(input)` (v1.x+) — universal blocklist for coding agents. Returns `true` for `.env*` (except `.env.example`), `.git/**`, `node_modules/**`, `.theo/**`, and lock files (`pnpm-lock.yaml`, `package-lock.json`, `yarn.lock`, `bun.lockb`). Cross-platform: backslashes normalised before matching.
 - `sanitizeIdentifier(input, { maxLen })` — strict grammar `^[a-z0-9][a-z0-9-_]*$` (case-insensitive on input, lowercase on output). Rejects path separators, `..`, leading `-`/`_`, control chars. Default `maxLen` is 64; agent IDs use 128. (Still `@internal` — used by SDK identifier surfaces.)
+- `safeFilenameForId(id, { maxLen })` — total id→filename helper (public via `@theokit/sdk/path-safety`). Unlike `sanitizeIdentifier`, it NEVER throws on a non-empty string: it returns the lowercased id when it already matches the safe grammar (UUIDs/hashes/slugs stay readable) and a deterministic `h-<16 hex>` sha256 token otherwise. Output charset is always `[a-z0-9_-]`. Default `maxLen` is 128. Use it to turn arbitrary opaque ids (run ids, emails, namespaces) into safe path segments.
 
 Wired in: `plugins-manager` (plugin entry files), `agent-session-store` (session JSONL paths), `skills-manager` (skill directory entries), `legacyMemoryJsonPath` (memory namespace/scope/userId), `mcp/client` (MCP stdio `cwd` for relative paths). CI lint gate `tests/lint/no-unguarded-path-input.test.ts` flags regressions.
 
@@ -1748,6 +1749,31 @@ try { /* ... */ } catch (err) {
 ```
 
 Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vector families + identifier grammar surface. `isForbiddenPath` adds a 15-case suite covering each blocklist family + cross-platform path normalisation.
+
+#### Concurrency — `@theokit/sdk/concurrency`
+
+In-house bounded-concurrency primitives (no `p-limit`/`p-map` dependency), public from the `@theokit/sdk/concurrency` sub-path so agent builders bound parallel work without re-implementing a pool:
+
+- `createSemaphore(permits)` — N-permit async-aware counting semaphore. `acquire()` returns a release function (call once, typically in `finally`). Release is idempotent.
+- `mapWithConcurrency(items, concurrency, fn, { signal? })` — map `fn` over `items` with at most `concurrency` invocations in flight, **preserving input order** in the result array. Fail-fast (rejects with the first task error); an aborted `signal` stops new work from starting. Throws `ConfigurationError` (`invalid_concurrency`) when `concurrency` is not a positive integer.
+
+```ts
+import { mapWithConcurrency } from "@theokit/sdk/concurrency";
+
+const results = await mapWithConcurrency(urls, 4, (url) => fetchJson(url)); // ≤4 in flight, ordered
+```
+
+#### Retry — `@theokit/sdk/retry`
+
+`withRetry(fn, options?)` — run `fn`, retrying transient failures with exponential backoff + full jitter. The default `isRetryable` predicate is `isTransientError`, so it retries exactly what the SDK classifies as transient (rate-limit, network, credential-pool-exhausted) and rethrows the rest immediately. `sleep` and `rng` are injectable for deterministic tests (no real timers).
+
+Options: `retries` (default 3), `isRetryable`, `initialDelayMs` (100), `maxDelayMs` (30_000), `backoffMultiplier` (2), `rng`, `sleep`, `signal`.
+
+```ts
+import { withRetry } from "@theokit/sdk/retry";
+
+const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
+```
 
 ## Built-in tools for coding agents (v1.x+)
 
@@ -2431,6 +2457,55 @@ with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic
 |---|---|
 | `CacheEmbedderError` | Embedder throw surfaced (rare; usually swallowed via EC-1 graceful degradation) |
 | `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
+
+
+## Custom providers (`defineProvider`)
+
+Register any OpenAI-/Anthropic-compatible LLM endpoint (Groq, Together, Fireworks,
+DeepInfra, a private gateway) without forking. A provider is **data-only** — a
+`ProviderProfile` object literal; the transport is selected from `apiMode`, so no
+new code is required for an endpoint that speaks an existing dialect.
+
+`defineProvider(profile)` is the canonical factory (mirrors `defineTool` /
+`definePlugin`). It returns a `Plugin` you pass to `Agent.create({ plugins })`.
+Route to the provider with the `provider/model` id prefix or `providers.routes`.
+
+```ts
+import { Agent, defineProvider } from "@theokit/sdk";
+
+const groq = defineProvider({
+  name: "groq",
+  apiMode: "chat_completions",        // OpenAI-compatible
+  authType: "api_key",
+  envVars: ["GROQ_API_KEY"],          // key read from this env var
+  baseUrl: "https://api.groq.com/openai/v1",
+  fallbackModels: ["groq/llama-3.1-8b-instant"],
+  aliases: ["groq-cloud"],            // optional
+});
+
+const agent = await Agent.create({
+  model: { id: "groq/llama-3.1-8b-instant" }, // prefix selects the provider
+  plugins: [groq],
+});
+```
+
+`ProviderProfile` fields:
+
+| Field | Required | Meaning |
+|---|---|---|
+| `name` | yes | Canonical provider id (used in the `provider/model` prefix). |
+| `apiMode` | yes | HTTP dialect: `chat_completions` \| `anthropic_messages` \| `responses_api` \| `bedrock` \| `bedrock_anthropic`. |
+| `authType` | yes | `api_key` \| `none` \| `oauth_device_code` \| `oauth_external` \| `aws_sdk` \| `aws_bearer` \| `gcp_oauth`. |
+| `envVars` | yes | Env var names checked (in order) for the API key. |
+| `baseUrl` | yes | Endpoint base URL. |
+| `fallbackModels` | yes | Models advertised when discovery is unavailable. |
+| `aliases` | no | Alternate ids that resolve to this provider. |
+| `displayName`, `description`, `signupUrl`, `modelsUrl`, `hostname`, `extraHeaders`, `bodyOverrides` | no | Metadata / transport tweaks. |
+
+`defineProvider(profile, { version })` overrides the plugin version (default
+`"1.0.0"`). Re-registering an existing provider `name` is last-writer-wins and
+emits a one-line stderr WARN. Use `authType: "none"` for local runtimes that
+ignore the `Authorization` header.
 
 
 ## Bedrock provider (v1.20+) — Claude on AWS Bedrock

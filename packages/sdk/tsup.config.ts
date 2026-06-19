@@ -7,6 +7,11 @@ export default defineConfig({
     cron: "src/cron.ts",
     // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
     "path-safety": "src/path-safety.ts",
+    // M0-2: concurrency reaches into internal/runtime, so its DTS is generated
+    // via tsc (tsconfig.tools-dts.json), NOT rollup-plugin-dts (cycle).
+    concurrency: "src/concurrency.ts",
+    // M0-3: retry reaches into internal/runtime, DTS via tsc (see concurrency).
+    retry: "src/retry.ts",
     "task-store": "src/task-store.ts",
     workflow: "src/workflow.ts",
     eval: "src/eval.ts",

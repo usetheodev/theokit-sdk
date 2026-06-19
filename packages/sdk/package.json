@@ -58,6 +58,26 @@
         "default": "./dist/path-safety.cjs"
       }
     },
+    "./concurrency": {
+      "import": {
+        "types": "./dist/concurrency.d.ts",
+        "default": "./dist/concurrency.js"
+      },
+      "require": {
+        "types": "./dist/concurrency.d.cts",
+        "default": "./dist/concurrency.cjs"
+      }
+    },
+    "./retry": {
+      "import": {
+        "types": "./dist/retry.d.ts",
+        "default": "./dist/retry.js"
+      },
+      "require": {
+        "types": "./dist/retry.d.cts",
+        "default": "./dist/retry.cjs"
+      }
+    },
     "./task-store": {
       "import": {
         "types": "./dist/task-store.d.ts",

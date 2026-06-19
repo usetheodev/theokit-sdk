@@ -1,3 +1,4 @@
+import { defaultRetriableForCode } from "./internal/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";
 import type { RunOperation } from "./types/run.js";
 
@@ -419,23 +420,28 @@ function safeStringify(value: unknown): string {
 }
 
 /**
- * D311 helper: choose a sensible default `isRetryable` value when the
- * caller did not supply `retriable` explicitly. Conservative defaults —
- * provider mappers override per-status when they know better.
+ * Is this error transient (worth retrying)?
  *
- * @internal
+ * Returns the SDK's own retryability verdict: every {@link TheokitAgentError}
+ * subclass computes `isRetryable` at construction (rate-limit / network /
+ * credential-pool-exhausted are retryable; auth / configuration / unsupported
+ * are not), so this predicate is a single source of truth rather than a
+ * re-derivation. Non-SDK errors return `false` conservatively — wrap a foreign
+ * error in the appropriate SDK error first if you want it considered transient.
+ * It never inspects `err.message`.
+ *
+ * @example
+ *   try {
+ *     await agent.send(message, { throwOnError: true });
+ *   } catch (err) {
+ *     if (isTransientError(err)) return retryWithBackoff();
+ *     throw err;
+ *   }
+ *
+ * @public
  */
-function defaultRetriableForCode(code: AgentRunErrorCode): boolean {
-  switch (code) {
-    case "rate_limit":
-    case "timeout":
-    case "server_error":
-    case "network":
-    case "provider_unreachable":
-      return true;
-    default:
-      return false;
-  }
+export function isTransientError(err: unknown): boolean {
+  return err instanceof TheokitAgentError && err.isRetryable === true;
 }
 
 /**
