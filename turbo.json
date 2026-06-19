@@ -33,13 +33,13 @@
       "outputLogs": "errors-only"
     },
     "typecheck": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "build"],
       "inputs": ["src/**", "tests/**", "tsconfig.json", "package.json"],
       "outputs": [],
       "outputLogs": "errors-only"
     },
     "test": {
-      "dependsOn": ["^build"],
+      "dependsOn": ["^build", "build"],
       "inputs": ["src/**", "tests/**", "vitest.config.ts", "package.json"],
       "outputs": [],
       "outputLogs": "new-only"
