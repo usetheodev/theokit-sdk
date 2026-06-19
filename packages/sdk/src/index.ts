@@ -38,6 +38,7 @@ export {
   type ErrorMetadata,
   IntegrationNotConnectedError,
   InvalidTaskIdError,
+  isTransientError,
   MemoryAdapterError,
   type MemoryAdapterErrorCode,
   NetworkError,
