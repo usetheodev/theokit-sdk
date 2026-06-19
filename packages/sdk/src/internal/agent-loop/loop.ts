@@ -63,6 +63,10 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
         break;
       }
       budget.consume();
+      // M1-1: advance the pluggable tracker's iteration counter once per turn
+      // so trackers gating on maxIterations actually halt (the counter was dead
+      // because nothing called this). Optional + non-throwing per the contract.
+      inputs.budgetTracker?.nextIteration?.();
     }
     if (
       budget.shouldContinue() === false &&
