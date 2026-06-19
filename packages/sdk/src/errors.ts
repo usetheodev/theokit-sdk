@@ -439,6 +439,31 @@ function defaultRetriableForCode(code: AgentRunErrorCode): boolean {
 }
 
 /**
+ * Is this error transient (worth retrying)?
+ *
+ * Returns the SDK's own retryability verdict: every {@link TheokitAgentError}
+ * subclass computes `isRetryable` at construction (rate-limit / network /
+ * credential-pool-exhausted are retryable; auth / configuration / unsupported
+ * are not), so this predicate is a single source of truth rather than a
+ * re-derivation. Non-SDK errors return `false` conservatively — wrap a foreign
+ * error in the appropriate SDK error first if you want it considered transient.
+ * It never inspects `err.message`.
+ *
+ * @example
+ *   try {
+ *     await agent.send(message, { throwOnError: true });
+ *   } catch (err) {
+ *     if (isTransientError(err)) return retryWithBackoff();
+ *     throw err;
+ *   }
+ *
+ * @public
+ */
+export function isTransientError(err: unknown): boolean {
+  return err instanceof TheokitAgentError && err.isRetryable === true;
+}
+
+/**
  * Thrown when a {@link Run} or agent operation is not available on the current
  * runtime. Check first with `run.supports(operation)`.
  *
