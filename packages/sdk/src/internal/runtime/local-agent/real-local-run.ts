@@ -13,6 +13,7 @@ import { parseModelId } from "../../llm/model-identifier.js";
 import { resolveProviderChain } from "../../llm/router.js";
 import { createMcpClient, type McpClient } from "../../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../../providers/index.js";
+import { registerPluginProviderProfiles } from "../../providers/register-plugin-providers.js";
 import { createTelemetry } from "../../telemetry/tracer.js";
 import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
 import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
@@ -102,6 +103,11 @@ function buildLoopInputs(
   // — `resolveProviderChain` triggers this lazily but the inference path
   // above runs first.
   registerBuiltins();
+  // T1: register provider profiles contributed by `kind: "model-provider"`
+  // plugins BEFORE the prefix-inference lookup below, so `model: { id:
+  // "myprov/model" }` resolves a plugin-supplied provider. The profiles are
+  // aggregated by PluginManager but were otherwise never registered.
+  registerPluginProviderProfiles(options.pluginManager?.aggregated.providerProfiles ?? []);
   const parsedModel = parseModelId(options.model?.id);
   const inferredProvider =
     parsedModel.provider !== undefined && getProviderProfile(parsedModel.provider) !== undefined
