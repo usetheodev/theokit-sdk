@@ -18,6 +18,7 @@
  * @internal
  */
 
+import { createHash } from "node:crypto";
 import { lstatSync, readlinkSync, realpathSync, type Stats } from "node:fs";
 import { dirname, resolve, sep } from "node:path";
 
@@ -403,4 +404,41 @@ export function sanitizeIdentifier(input: string, options?: { maxLen?: number })
     });
   }
   return input.toLowerCase();
+}
+
+/**
+ * Convert ANY opaque id (agent id, run id, conversation id, namespace, email,
+ * arbitrary string) into a deterministic, filesystem-safe filename component.
+ *
+ * Unlike {@link sanitizeIdentifier} (which THROWS on non-conforming input),
+ * this is a total function: it NEVER throws on a non-empty string. It returns
+ * the lowercased id verbatim when it already matches the safe grammar
+ * `^[a-z0-9][a-z0-9-_]*$` and fits `maxLen` (so UUIDs, hashes, and slugs stay
+ * human-readable), otherwise a deterministic `h-<16 hex>` sha256 token
+ * (collision-resistant and always a valid filename). The output charset is
+ * always `[a-z0-9_-]`, safe as a literal path segment on every filesystem.
+ *
+ * @param id - any opaque identifier (must be a non-empty string)
+ * @param options.maxLen - max length for the passthrough branch (default 128).
+ *   Ids longer than this are hashed; the hash token itself is always short.
+ * @throws ConfigurationError (code `invalid_filename_id`) only on empty input.
+ *
+ * @example
+ *   safeFilenameForId("550e8400-e29b-41d4-a716-446655440000") // passthrough
+ *   safeFilenameForId("user@example.com")                      // "h-<16hex>"
+ *
+ * @internal — public via `@theokit/sdk/path-safety`
+ */
+export function safeFilenameForId(id: string, options?: { maxLen?: number }): string {
+  if (id.length === 0) {
+    throw new ConfigurationError("Filename id must be a non-empty string", {
+      code: "invalid_filename_id",
+    });
+  }
+  const maxLen = options?.maxLen ?? 128;
+  const lower = id.toLowerCase();
+  if (lower.length <= maxLen && IDENTIFIER_PATTERN.test(lower)) {
+    return lower;
+  }
+  return `h-${createHash("sha256").update(id).digest("hex").slice(0, 16)}`;
 }

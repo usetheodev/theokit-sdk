@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
+import { safeFilenameForId } from "../../security/path-guard.js";
 import { redactSecrets } from "../types.js";
 import { memoryDir } from "./markdown-store.js";
 
@@ -36,13 +37,10 @@ export function sessionsDir(cwd: string): string {
 }
 
 export function sessionSummaryPath(cwd: string, runId: string): string {
-  return join(sessionsDir(cwd), `${sanitizeRunId(runId)}.md`);
-}
-
-function sanitizeRunId(runId: string): string {
-  // Strip path separators and obvious traversal patterns so a malicious
-  // run-id cannot escape the sessions directory. Keep `[a-zA-Z0-9_-]`.
-  return runId.replace(/[^a-zA-Z0-9_-]/g, "_").slice(0, 128);
+  // M0-4: total id->filename helper. UUID runIds (the production case, from
+  // randomUUID) pass through to the identical name; non-conforming ids get a
+  // deterministic sha256 token instead of the old lossy replace-collapse.
+  return join(sessionsDir(cwd), `${safeFilenameForId(runId, { maxLen: 128 })}.md`);
 }
 
 function truncate(text: string): string {
