@@ -79,6 +79,9 @@ async function loadDriver<T extends ResilientSqliteDb>(filePath: string): Promis
   try {
     const mod = await import("better-sqlite3");
     const Ctor = mod.default ?? mod;
+    if (typeof Ctor !== "function") {
+      throw new Error(`better-sqlite3 export is not a constructor (got ${typeof Ctor})`);
+    }
     return new (Ctor as new (path: string) => unknown)(filePath) as T;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);

@@ -10,7 +10,7 @@
  * @internal — public via `@theokit/sdk/retry`
  */
 
-import { isTransientError } from "../../../errors.js";
+import { ConfigurationError, isTransientError } from "../../../errors.js";
 
 /** Options for {@link withRetry}. All fields optional; sensible defaults applied. */
 export interface RetryOptions {
@@ -62,8 +62,15 @@ interface ResolvedRetry {
 }
 
 function resolveRetryOptions(options?: RetryOptions): ResolvedRetry {
+  const retries = options?.retries ?? 3;
+  if (!Number.isInteger(retries) || retries < 0) {
+    throw new ConfigurationError(
+      `withRetry: retries must be a non-negative integer, got ${retries}`,
+      { code: "invalid_retry_config" },
+    );
+  }
   return {
-    retries: options?.retries ?? 3,
+    retries,
     isRetryable: options?.isRetryable ?? isTransientError,
     initialDelayMs: options?.initialDelayMs ?? 100,
     maxDelayMs: options?.maxDelayMs ?? 30_000,
