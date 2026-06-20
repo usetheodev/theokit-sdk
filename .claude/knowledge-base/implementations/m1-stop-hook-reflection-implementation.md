@@ -37,8 +37,8 @@ The declared-but-dead `HookEvent "stop"` now fires. The agent loop dispatches `s
 
 ## Gates
 
-- Unit tests: 9/9 GREEN.
-- Full SDK suite: 371 files / 2715 tests passed, 0 failed (19/35 skips Ollama/env-gated).
+- Unit tests: 14/14 GREEN (9 + 5 added in the review round).
+- Full SDK suite: 371 files / 2720 tests passed, 0 failed (19/35 skips Ollama/env-gated).
 - `tsc --noEmit`: clean.
 - Biome (cognitive-complexity ≤ 10): clean — `finishOrReflect` extracted to keep `continueOrTerminate` under the cap.
 - knip (dead-code): clean.
