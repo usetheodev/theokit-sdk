@@ -74,4 +74,12 @@ export interface BudgetTracker {
   check(): BudgetCheck;
   /** Snapshot of accumulated totals (for telemetry / final reporting). */
   getTotal(): BudgetTotal;
+  /**
+   * Advance the iteration counter by one. Called by the agent loop ONCE per
+   * completed turn (M1-1) so that trackers which gate on `maxIterations`
+   * (e.g. `createCounterBudgetTracker`) actually halt. OPTIONAL: trackers that
+   * only gate on tokens/USD omit it and the loop no-ops via optional chaining.
+   * MUST be synchronous and non-throwing.
+   */
+  nextIteration?(): void;
 }

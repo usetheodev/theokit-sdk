@@ -82,6 +82,16 @@ export interface RunResult {
    * @public
    */
   cost?: CostBreakdown;
+  /**
+   * M1-2: `true` when the run stopped because the agent loop hit its iteration
+   * ceiling (`SendOptions.maxIterations` or the default of 8) while the model
+   * still wanted to call tools — i.e. the work was silently truncated rather
+   * than finished. `undefined`/absent on a clean finish. A continuation driver
+   * (or a careful caller) inspects this to decide whether to send again.
+   *
+   * @public
+   */
+  stoppedAtIterationLimit?: boolean;
 }
 
 /**
@@ -185,6 +195,16 @@ export interface SendOptions {
    * @public
    */
   task?: true | { id?: string; meta?: Record<string, unknown> };
+  /**
+   * Per-send ceiling on the agent loop's tool-calling turns (M1-2). Raises (or
+   * lowers) the default cap of 8 for this single send — useful when one heavy
+   * task needs more rounds than the agent's default. Must be a positive
+   * integer; invalid values throw `ConfigurationError` at the boundary. When
+   * unset, the loop uses the default of 8.
+   *
+   * @public
+   */
+  maxIterations?: number;
 }
 
 /**
