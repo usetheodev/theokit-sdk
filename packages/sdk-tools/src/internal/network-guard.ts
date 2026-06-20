@@ -120,9 +120,12 @@ export interface ResolveAndScreenOptions {
  * resolution yields no address). Returns the resolved IPs otherwise.
  */
 export async function resolveAndScreen(
-  host: string,
+  rawHost: string,
   options: ResolveAndScreenOptions = {},
 ): Promise<string[]> {
+  // `URL.hostname` wraps IPv6 literals in brackets (`[::1]`) — strip them so
+  // `net.isIP` recognizes the address.
+  const host = rawHost.replace(/^\[|\]$/g, "");
   if (isIP(host) !== 0) {
     if (isBlockedIp(host)) throw new SsrfBlockedError(host);
     return [host];
