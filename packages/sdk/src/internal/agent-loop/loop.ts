@@ -237,7 +237,12 @@ function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boo
  * M1-4 — fire the file-based `stop` hook at the clean-finish terminal and, when a
  * hook returns `decision:"feedback"`, push that feedback as a `user` re-prompt and
  * continue the loop (a bounded reflection ladder). Returns `true` to re-prompt,
- * `false` to finish. Bounded by `MAX_STOP_FEEDBACK_ATTEMPTS` (ADR D3); `allow`/
+ * `false` to finish.
+ *
+ * The hook is ALWAYS fired on a clean finish (so an observer `stop` hook sees
+ * every terminal, even once the re-prompt ceiling is reached). `decision:"deny"`
+ * is authoritative regardless of hook ordering (`result.blocked`) → finish.
+ * Re-prompting is bounded by `MAX_STOP_FEEDBACK_ATTEMPTS` (ADR D3); `allow`/
  * `deny`/no-hook all finish (ADR D2). Reuses the existing `HooksExecutor` (ADR D4).
  *
  * @internal
@@ -246,12 +251,17 @@ export async function reflectAfterStop(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
 ): Promise<boolean> {
-  if (ctx.stopFeedbackAttempts >= MAX_STOP_FEEDBACK_ATTEMPTS) return false;
+  // Always fire `stop` on a clean finish — an observer hook must see the terminal
+  // even at the re-prompt ceiling (the ceiling gates re-prompting, not firing).
   const result = await inputs.hooks.run({
     event: "stop",
     agentId: inputs.agentId,
     runId: inputs.runId,
   });
+  // A `deny` short-circuits the executor (`blocked`) and is authoritative
+  // regardless of hook ordering — a later feedback never overrides an earlier deny.
+  if (result.blocked) return false;
+  if (ctx.stopFeedbackAttempts >= MAX_STOP_FEEDBACK_ATTEMPTS) return false;
   const feedback = result.decisions.find(
     (d) => d.decision === "feedback" && (d.feedback ?? "").length > 0,
   )?.feedback;
