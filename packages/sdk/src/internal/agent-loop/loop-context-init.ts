@@ -31,6 +31,8 @@ export interface LoopContext {
   usage: UsageAccumulator;
   error?: import("./loop-types.js").AgentLoopErrorDetail;
   nudgeAttempts: number;
+  /** M1-4: count of honored `stop`-hook feedback re-prompts, bounded by MAX_STOP_FEEDBACK_ATTEMPTS. */
+  stopFeedbackAttempts: number;
   _consecutiveToolErrors?: number;
   memoryProviderHandle?: MemoryProviderHandle;
   memorySystemPromptAdditions?: string;
@@ -139,6 +141,7 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     finalStatus: "finished",
     usage: new UsageAccumulator(),
     nudgeAttempts: 0,
+    stopFeedbackAttempts: 0,
     ...(memoryProviderHandle !== undefined ? { memoryProviderHandle } : {}),
     ...(memorySystemPromptAdditions !== undefined ? { memorySystemPromptAdditions } : {}),
   };
