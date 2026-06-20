@@ -39,6 +39,12 @@ export interface FixtureScript {
    * how to trust the figure (`estimated` / `unknown` / `included`).
    */
   cost?: CostBreakdown;
+  /**
+   * M1-2 (T2.2): true when the real agent loop stopped at its iteration
+   * ceiling with tool work still pending (silent truncation). Copied from
+   * `AgentLoopOutput.stoppedAtIterationLimit` onto `RunResult`.
+   */
+  stoppedAtIterationLimit?: boolean;
   /** Optional async hook executed before the run terminates. */
   beforeComplete?: () => Promise<void>;
 }
