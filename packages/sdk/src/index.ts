@@ -108,6 +108,11 @@ export {
   type CounterBudgetTrackerOptions,
   createCounterBudgetTracker,
 } from "./internal/runtime/budget/budget-tracker-counter.js";
+// M1-3 — stateless continuation-history rebuild (pure primitive)
+export {
+  buildReplayHistory,
+  type ReplayHistoryOptions,
+} from "./internal/runtime/context/replay-history.js";
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
