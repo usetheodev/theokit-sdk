@@ -94,6 +94,7 @@
 
 ### Added
 
+- `@theokit/sdk/messages` — pure readers over the `SDKMessage` stream so you stop hand-rolling a wire-event mapper. `assistantText(msg)` concatenates an assistant message's text (`""` for non-assistant), `extractToolUses(msg)` returns its tool-use blocks (`[]` for non-assistant; reads the assistant content blocks, not the separate `tool_call` lifecycle event), and `costAmountUsd(cost)` reads `RunResult.cost.amountUsd` preserving `number | undefined` verbatim — an unknown cost stays `undefined`, never silently coerced to `$0` (cost-honesty, ADR D377). Zero new dependencies. (#34)
 - `createSquad({ agents })` — a thin convenience for sequential agent teams. Runs agents in order, threading each output into the next agent's prompt; returns `{ result, status, steps }`. Composes `Workflow` + `agentStep` internally (no new orchestration engine). `process: "hierarchical"` throws a guiding `ConfigurationError` (use subagents / `@theokit/sdk-handoff`); empty `agents` → `ConfigurationError(code: "invalid_squad")`.
 
 ### Fixed

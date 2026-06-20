@@ -1,0 +1,7 @@
+{
+  "slug": "m1-sdkmessage-readers",
+  "tasks": [
+    { "id": "T1.1", "status": "committed", "deps": [], "commit": "69763c7" },
+    { "id": "T2.1", "status": "green", "deps": ["T1.1"] }
+  ]
+}

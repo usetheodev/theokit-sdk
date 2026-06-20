@@ -1837,6 +1837,27 @@ import { withRetry } from "@theokit/sdk/retry";
 const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
 ```
 
+#### Message readers — `@theokit/sdk/messages`
+
+Pure readers over the `SDKMessage` stream, public from the `@theokit/sdk/messages` sub-path, so agent/server builders extract assistant text, tool uses, and honest cost without re-implementing a wire-event mapper. All three are pure (no I/O, inputs never mutated).
+
+- `assistantText(msg)` — concatenates an assistant message's `text` blocks; returns `""` for any non-assistant message (or one with no text blocks). `tool_use` blocks are ignored.
+- `extractToolUses(msg)` — returns the assistant message's `ToolUseBlock[]`; `[]` for non-assistant. It reads the assistant content blocks, NOT the separate `SDKToolUseMessage` (`type:"tool_call"`) lifecycle event — that is a different stream.
+- `costAmountUsd(cost)` — reads `RunResult.cost.amountUsd`, preserving `number | undefined` verbatim. An unknown cost stays `undefined` (never coerced to `$0`), distinct from a real `$0` subscription-included route — the cost-honesty contract (ADR D377). Token counts (where `0` is meaningful) are read directly off `TokenUsage`.
+
+```ts
+import { assistantText, extractToolUses, costAmountUsd } from "@theokit/sdk/messages";
+
+for await (const msg of run.stream()) {
+  const text = assistantText(msg);        // "" unless this is an assistant message
+  const tools = extractToolUses(msg);     // ToolUseBlock[] from the assistant content
+  if (text) process.stdout.write(text);
+  for (const tool of tools) console.log("tool:", tool.name);
+}
+
+const usd = costAmountUsd(result.cost);   // number | undefined — `undefined` means "unknown", never $0
+```
+
 ## Built-in tools for coding agents (v1.x+)
 
 Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
