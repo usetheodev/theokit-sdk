@@ -2,26 +2,29 @@
 #
 # Authoritative source: rules/discover-plan-golden-rule.md
 #
-# Format (one entry per line):
-#   KEY = VALUE
+# Format (verdict bands, one per line — PIPE-delimited, matching the parser
+# `run_discover_plan_score.py::_parse_thresholds` which does `line.split("|")`
+# and the sibling `plan-confidence-thresholds.txt` convention):
 #
-# Lines starting with `#` and blank lines are skipped.
-# Defaults shipped with the skill at:
-#   skills/discover-plan-confidence/templates/ (when present)
+#   BAND_NAME|min_score|sunset(YYYY-MM-DD)|ADR_REF
+#
+# Lines starting with `#` and blank lines are skipped. `_verdict_for` returns
+# the highest-threshold band whose min_score <= final_score; if NO band line
+# parses, it falls back to INVALID (that fallback previously fired for every
+# plan because this file used `key = value` instead of pipe — fixed 2026-06-20).
 #
 # Per-project overrides go here and are CHANGELOG-tracked.
 
-# Soft caps
-soft_cap.question_count_low = 3
-soft_cap.coverage_corner_thin = 1   # questions per corner below which a soft cap fires
+# Verdict bands (names = the canonical discover verdict tokens per golden-rule §5)
+SHIPPABLE|90|2027-01-31|provisional-v1
+SHIPPABLE_WITH_CAVEATS|70|2027-01-31|provisional-v1
+NEEDS_REVISION|50|2027-01-31|provisional-v1
+INVALID|0|2027-01-31|provisional-v1
 
-# Hard caps
-hard_cap.question_count_max = 15
-hard_cap.fabricated_citation = 49
-hard_cap.empty_corner = 49
-
-# Verdict bands
-band.shippable = 90
-band.shippable_with_caveats = 70
-band.needs_revision = 50
-band.invalid = 0
+# --- The following caps are enforced by the check_*.py scripts + the golden
+# --- rule, NOT parsed from this file (documented here for reference only):
+# soft_cap.question_count_low = 3
+# soft_cap.coverage_corner_thin = 1   (questions per corner below which a soft cap fires)
+# hard_cap.question_count_max = 15
+# hard_cap.fabricated_citation = 49
+# hard_cap.empty_corner = 49
