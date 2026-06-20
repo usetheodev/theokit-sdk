@@ -325,6 +325,30 @@ const out = await agent.runToCompletion?.("Refactor the module and run the tests
 if (out !== undefined && out.terminal !== "done") {
   console.warn(`stopped early: ${out.terminal} after ${out.rounds} round(s)`);
 }
+Replay history (stateless continuation)
+
+`runToCompletion` covers the STATEFUL path (a live agent whose session preserves history). For the STATELESS path — a server or serverless handler that re-runs an agent on a fresh request and must reconstruct working memory from persisted stream events — use the pure `buildReplayHistory`.
+
+It serializes the events of a round (`SDKMessage[]`) into a bounded `StoredMessage[]` you can replay as prior history into a fresh agent. It carries tool-result content (the continued model's working memory), drops the oldest turns (pair-safe: a tool_call and its tool_result are never split) until the total fits a context-window-derived char budget, and truncates an oversized single turn rather than dropping it. Pure and synchronous — no LLM, no I/O.
+
+
+function buildReplayHistory(
+  base: readonly StoredMessage[],
+  events: readonly SDKMessage[],
+  options: ReplayHistoryOptions,
+): StoredMessage[];
+
+interface ReplayHistoryOptions {
+  contextWindowTokens: number;   // the continued model's window; drives the budget
+  reserveTokens?: number;        // held back for system + continuation prompt + reply (default 8000)
+  perItemCap?: number;           // max chars for one oversized turn before truncation (default floor(budget/2))
+}
+
+const replay = buildReplayHistory(priorMessages, roundEvents, { contextWindowTokens: 200_000 });
+// feed `replay` as the prior history when re-sending on the next stateless request
+
+Notes: the budget is a char heuristic (~4 chars/token), a SAFETY bound, not an exact token fit; a non-finite `contextWindowTokens` collapses to budget 0 (keep ≥ 1 newest, truncated) rather than returning an unbounded history. Tool turns are emitted with `StoredMessage` roles `tool_call` / `tool_result`; a consumer whose wire-mapper only understands `user` / `assistant` must map those two roles. A single oversized `base` message is NOT truncated (caller-owned durable content) — only event-derived turns are.
+
 Streaming
 
 const run = await agent.send("Find the bug in src/auth.ts");
