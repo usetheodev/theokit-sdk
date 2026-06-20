@@ -141,4 +141,22 @@ describe("compactTranscript (M2-1)", () => {
     const input = [msg("system", "a"), msg("system", "b")];
     expect(await compactTranscript(input, { keepRecent: 1 })).toEqual(input);
   });
+
+  it("test_compactTranscript_drops_old_checkpoint_marker_keeps_system_prompt", async () => {
+    // A checkpoint marker is NOT a system prompt: in the older window it is
+    // dropped (no summarize); the real system prompt is always preserved.
+    const input = [msg("system", "sys"), buildCheckpoint("old"), ...convo(10)];
+    const out = await compactTranscript(input, { keepRecent: 2 });
+    expect(out.some((m) => m.content.startsWith(CHECKPOINT_MARKER))).toBe(false);
+    expect(out[0]).toEqual(msg("system", "sys"));
+    expect(out.at(-1)?.content).toBe("m9");
+  });
+
+  it("test_compactTranscript_keeps_recent_checkpoint_marker", async () => {
+    // A checkpoint marker inside the kept-recent window survives.
+    const input = [...convo(4), buildCheckpoint("recent"), msg("user", "last")];
+    const out = await compactTranscript(input, { keepRecent: 2 });
+    expect(out.some((m) => m.content.startsWith(CHECKPOINT_MARKER))).toBe(true);
+    expect(out.at(-1)?.content).toBe("last");
+  });
 });
