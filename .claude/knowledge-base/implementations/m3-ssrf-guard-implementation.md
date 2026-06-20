@@ -12,7 +12,7 @@
 `packages/sdk-tools/src/internal/network-guard.ts` — `isBlockedIp` (canonical IPv4+IPv6 ranges + IPv4-mapped unwrap), `resolveAndScreen` (resolve-all + throw on any blocked, strips IPv6 brackets), `screenedFetch` (`redirect:"manual"` + per-hop re-screen, rejects non-http redirect), `SsrfBlockedError`. Wired secure-by-default into `createWebFetchTool` (`allowPrivateHosts` opt-out). Exported from the sdk-tools barrel. Node builtins only (D1-D6).
 
 ## Validation gate: PASS
-- network-guard tests 22/22 + web-fetch 11/11 = 33; full sdk-tools suite 164 passed / 0 failed.
+- network-guard 27/27 + web-fetch 11/11 = 38; full sdk-tools suite 169 passed (incl. 5 review regression tests) / 0 failed.
 - typecheck exit 0; Biome clean; knip clean; dep-cruiser clean; build emits dist (index.d.ts/.d.cts).
 - code-quality PASS.
 
