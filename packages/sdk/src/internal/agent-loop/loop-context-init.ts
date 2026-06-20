@@ -21,6 +21,13 @@ export interface LoopContext {
   tools: ResolvedTool[];
   finalText: string;
   finalStatus: import("../../types/run.js").RunStatus;
+  /**
+   * M1-2 (T2.2): set true when the loop stopped because it exhausted the
+   * iteration budget while the model still wanted to call tools (silent
+   * truncation), as opposed to a clean `done` finish. Threaded onto
+   * `AgentLoopOutput` → `RunResult.stoppedAtIterationLimit`.
+   */
+  stoppedAtIterationLimit?: boolean;
   usage: UsageAccumulator;
   error?: import("./loop-types.js").AgentLoopErrorDetail;
   nudgeAttempts: number;
