@@ -48,6 +48,16 @@
         "default": "./dist/errors.cjs"
       }
     },
+    "./compaction": {
+      "import": {
+        "types": "./dist/compaction.d.ts",
+        "default": "./dist/compaction.js"
+      },
+      "require": {
+        "types": "./dist/compaction.d.cts",
+        "default": "./dist/compaction.cjs"
+      }
+    },
     "./messages": {
       "import": {
         "types": "./dist/messages.d.ts",

@@ -12,6 +12,8 @@
   "include": [
     "src/messages.ts",
     "src/path-safety.ts",
+    "src/compaction.ts",
+    "src/internal/runtime/compression/**/*",
     "src/concurrency.ts",
     "src/internal/runtime/concurrency/**/*",
     "src/retry.ts",
