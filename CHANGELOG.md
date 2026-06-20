@@ -18,6 +18,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Security
 
+## [3.1.0] - 2026-06-20
+
+### Added
+
+- **`@theokit/sdk/compaction` — public compaction / context-management helpers (`@theokit/sdk`, plan `m2-compaction-public-api` M2-1).** `compactTranscript(messages, { keepRecent = 6, summarize? })` keeps the last `keepRecent` turns, always preserves leading system PROMPTS, and either summarizes the older window (via an optional callback that can wire the SDK's internal LLM summarizer) or drops it — reusing the internal compaction window (no second algorithm), never mutating its input. Checkpoint markers are not system prompts: they flow through keep-recent (older → summarized/dropped, recent → kept). `buildCheckpoint`/`filterFromLatestCheckpoint`/`CHECKPOINT_MARKER` give a visible string-sentinel checkpoint to bound replay to "since the last checkpoint". `isContextOverflowError(err)` is true for a `TheokitAgentError` reporting the typed `context_too_long` code (checks `code` + `metadata.code`; no message regex). Operates on the SDK's own `CompressibleMessage` (re-exported); zero new dependencies. (M2-1)
+
 ## [3.0.0] - 2026-06-20
 
 ### Added
