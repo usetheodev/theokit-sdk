@@ -59,19 +59,27 @@ export function classifyRound(
   return "continue";
 }
 
-/** Sum a round's usage into the running aggregate (honest about optional buckets). */
+/**
+ * Sum a round's usage into the running aggregate. `requests` is intentionally
+ * dropped (concatenating per-run request breakdowns across continuation rounds
+ * would falsely imply a single multi-call run). `totalTokens` is DERIVED
+ * (`inputTokens + outputTokens`), never summed independently, to preserve the
+ * EC-10 invariant (`usage.ts`) at this aggregation boundary even if a provider
+ * folded extra buckets into a round's own `totalTokens`.
+ */
 function addUsage(acc: TokenUsage | undefined, u: TokenUsage | undefined): TokenUsage | undefined {
   if (u === undefined) return acc;
-  if (acc === undefined) return { ...u, requests: undefined };
+  const inputTokens = (acc?.inputTokens ?? 0) + u.inputTokens;
+  const outputTokens = (acc?.outputTokens ?? 0) + u.outputTokens;
   const sumOpt = (a: number | undefined, b: number | undefined): number | undefined =>
     a === undefined && b === undefined ? undefined : (a ?? 0) + (b ?? 0);
   return {
-    inputTokens: acc.inputTokens + u.inputTokens,
-    outputTokens: acc.outputTokens + u.outputTokens,
-    totalTokens: acc.totalTokens + u.totalTokens,
-    cacheReadTokens: sumOpt(acc.cacheReadTokens, u.cacheReadTokens),
-    cacheWriteTokens: sumOpt(acc.cacheWriteTokens, u.cacheWriteTokens),
-    reasoningTokens: sumOpt(acc.reasoningTokens, u.reasoningTokens),
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    cacheReadTokens: sumOpt(acc?.cacheReadTokens, u.cacheReadTokens),
+    cacheWriteTokens: sumOpt(acc?.cacheWriteTokens, u.cacheWriteTokens),
+    reasoningTokens: sumOpt(acc?.reasoningTokens, u.reasoningTokens),
   };
 }
 

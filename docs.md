@@ -311,16 +311,19 @@ interface RunToCompletionOptions {
 }
 interface RunToCompletionResult {
   terminal: "done" | "step_limit" | "no_progress";
-  rounds: number;                // continuation rounds executed (0 = first send finished)
+  rounds: number;                // index of the final round: 0 = first send finished,
+                                 // N = N continuation re-sends; step_limit → rounds === maxRounds
   lastResult: RunResult;
-  usage?: TokenUsage;            // summed across rounds
+  usage?: TokenUsage;            // summed across rounds; undefined if no round reported usage
 }
 
-const out = await agent.runToCompletion("Refactor the module and run the tests", {
+// runToCompletion is an optional, local-only method (cloud agents throw), so
+// call it through optional chaining or narrow to a local agent first.
+const out = await agent.runToCompletion?.("Refactor the module and run the tests", {
   maxRounds: 8,
 });
-if (out.terminal !== "done") {
-  console.warn(`stopped early: ${out.terminal} after ${out.rounds} rounds`);
+if (out !== undefined && out.terminal !== "done") {
+  console.warn(`stopped early: ${out.terminal} after ${out.rounds} round(s)`);
 }
 Streaming
 

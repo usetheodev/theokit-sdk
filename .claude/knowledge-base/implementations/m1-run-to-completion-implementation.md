@@ -42,8 +42,25 @@ The agent is STATEFUL — `LocalAgent.send` persists conversation history in ses
 
 ## Gates
 
-- Unit + wiring tests: 11/11 GREEN.
+- Unit + wiring tests: 18/18 GREEN (11 initial + 7 added in the review round).
 - Full SDK suite: 368 files / 2678 tests passed, 0 failed (19/35 skips are Ollama/env-gated).
 - `tsc --noEmit`: clean.
 - Biome (incl. cognitive-complexity ≤ 10): clean — core decomposed into `stepRound` + `buildResult` to stay under the cap.
 - knip (dead-code): clean.
+
+## Review round (cycle-review, 5 specialist agents)
+
+Verdicts: 3 READY, 2 NEEDS_FIXES (2 HIGH each). All confirmed findings fixed:
+
+| Finding | Sev | Resolution |
+|---|---|---|
+| `CloudAgent.runToCompletion` throw path untested | HIGH | Added `cloud agents throw UnsupportedRunOperationError` test. |
+| Abort test too weak (couldn't distinguish abort from budget exhaustion) | HIGH | Tightened to assert `sends == ["do X"]` + `rounds === 0`. |
+| docs.md example didn't compile (optional method invoked bare) | HIGH | Example now uses `agent.runToCompletion?.(...)` + `undefined` guard. |
+| `rounds` semantics documented inconsistently | HIGH | Precise JSDoc in `run.ts` + matching docs.md ("round 0 = initial send; step_limit → rounds === maxRounds"). |
+| Root `CHANGELOG.md [Unreleased]` missing entry | MEDIUM | Added `### Added` bullet for `agent.runToCompletion()`. |
+| `totalTokens` aggregation could violate EC-10 invariant | LOW | `addUsage` now DERIVES `totalTokens = Σin + Σout` instead of summing the field. |
+| classifyRound priority (no_progress vs step_limit) untested | MEDIUM | Added boundary tests (no_progress beats step_limit; non-empty-at-budget = step_limit). |
+| no-usage → undefined untested; default continuationPrompt untested; maxRounds=0 untested | LOW | Added the three tests. |
+
+Kept as plan-approved design (documented, not defects): abort maps to `terminal: "step_limit"` (plan said "stop with current terminal"; documented in `run.ts` + docs.md + changeset); `RunOperation` in docs.md stays the Run-scoped subset (agent-level ops documented in prose); `runToCompletion?` optional, consistent with `runUntil?`/`fork?`.
