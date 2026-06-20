@@ -135,7 +135,12 @@ export interface RunToCompletionResult {
    * - `"no_progress"` — two consecutive rounds produced empty output.
    */
   terminal: "done" | "step_limit" | "no_progress";
-  /** Number of continuation rounds executed (0 = finished on the first send). */
+  /**
+   * Index of the final round. Round 0 is the initial `send`; rounds ≥ 1 are
+   * continuation re-sends. So `terminal: "done"` with `rounds: 0` means the
+   * first send finished without truncating; `rounds: N` means N continuation
+   * re-sends happened. For `step_limit`, `rounds` equals `maxRounds`.
+   */
   rounds: number;
   /** The `RunResult` of the final round. */
   lastResult: RunResult;
