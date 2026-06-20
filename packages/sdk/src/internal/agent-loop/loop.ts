@@ -25,6 +25,9 @@ export type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 /** T2.1 (ADR D93) — maximum number of bailout-nudge user messages to inject. */
 const MAX_NUDGE_ATTEMPTS = 2;
 
+/** M1-4 — maximum number of `stop`-hook feedback re-prompts (reflection ceiling), mirroring MAX_NUDGE_ATTEMPTS. */
+export const MAX_STOP_FEEDBACK_ATTEMPTS = 2;
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: agent loop is the orchestrator — context build, LLM round trip, tool dispatch, stop condition, span lifecycle are deliberately co-located so the streaming contract stays linear.
 export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOutput> {
   const sendSpan = inputs.telemetry?.startSpan("agent.send", {
@@ -230,6 +233,51 @@ function shouldNudgeAndContinue(ctx: LoopContext, llmOutput: LlmTurnOutput): boo
   return true;
 }
 
+/**
+ * M1-4 — fire the file-based `stop` hook at the clean-finish terminal and, when a
+ * hook returns `decision:"feedback"`, push that feedback as a `user` re-prompt and
+ * continue the loop (a bounded reflection ladder). Returns `true` to re-prompt,
+ * `false` to finish. Bounded by `MAX_STOP_FEEDBACK_ATTEMPTS` (ADR D3); `allow`/
+ * `deny`/no-hook all finish (ADR D2). Reuses the existing `HooksExecutor` (ADR D4).
+ *
+ * @internal
+ */
+export async function reflectAfterStop(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+): Promise<boolean> {
+  if (ctx.stopFeedbackAttempts >= MAX_STOP_FEEDBACK_ATTEMPTS) return false;
+  const result = await inputs.hooks.run({
+    event: "stop",
+    agentId: inputs.agentId,
+    runId: inputs.runId,
+  });
+  const feedback = result.decisions.find(
+    (d) => d.decision === "feedback" && (d.feedback ?? "").length > 0,
+  )?.feedback;
+  if (feedback === undefined) return false;
+  ctx.stopFeedbackAttempts += 1;
+  ctx.messages.push({ role: "user", content: [{ type: "text", text: feedback }] });
+  return true;
+}
+
+/**
+ * M1-4 — the clean-finish decision: nudge (incomplete answer) OR `stop`-hook
+ * feedback re-prompt (both bounded) keep the loop going; otherwise finish.
+ *
+ * @internal
+ */
+async function finishOrReflect(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+  llmOutput: LlmTurnOutput,
+): Promise<"continue" | "done"> {
+  if (shouldNudgeAndContinue(ctx, llmOutput)) return "continue";
+  if (await reflectAfterStop(inputs, ctx)) return "continue";
+  ctx.finalStatus = "finished";
+  return "done";
+}
+
 async function runIteration(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
@@ -262,7 +310,7 @@ async function runIteration(
   return continueOrTerminate(inputs, ctx, llmOutput);
 }
 
-async function continueOrTerminate(
+export async function continueOrTerminate(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
   llmOutput: LlmTurnOutput,
@@ -272,9 +320,7 @@ async function continueOrTerminate(
     await emitAssistantTextStep(inputs, ctx, llmOutput.text);
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
-    if (shouldNudgeAndContinue(ctx, llmOutput)) return "continue";
-    ctx.finalStatus = "finished";
-    return "done";
+    return finishOrReflect(inputs, ctx, llmOutput);
   }
   ctx.messages.push(buildAssistantTurn(llmOutput.text, llmOutput.toolCalls));
   const toolResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
