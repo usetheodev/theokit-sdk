@@ -54,12 +54,16 @@ describe("reflectAfterStop (M1-4)", () => {
     const inputs = makeInputs(run);
     const ctx = makeCtx();
     let continued = 0;
+    const calls = MAX_STOP_FEEDBACK_ATTEMPTS + 3;
     // Drive reflection repeatedly; it must re-prompt at most MAX times, then finish.
-    for (let i = 0; i < MAX_STOP_FEEDBACK_ATTEMPTS + 3; i += 1) {
+    for (let i = 0; i < calls; i += 1) {
       if (await reflectAfterStop(inputs, ctx)) continued += 1;
     }
     expect(continued).toBe(MAX_STOP_FEEDBACK_ATTEMPTS);
     expect(ctx.stopFeedbackAttempts).toBe(MAX_STOP_FEEDBACK_ATTEMPTS);
+    // F1: the stop hook still FIRES on every clean finish (observer sees the
+    // terminal even at the ceiling) — the ceiling gates re-prompting, not firing.
+    expect(run).toHaveBeenCalledTimes(calls);
   });
 
   it("test_allow_decision_finishes_normally", async () => {
@@ -106,21 +110,121 @@ describe("reflectAfterStop (M1-4)", () => {
     expect(await reflectAfterStop(makeInputs(run), ctx)).toBe(false);
     expect(ctx.stopFeedbackAttempts).toBe(0);
   });
+
+  it("test_deny_is_authoritative_even_when_feedback_precedes_it", async () => {
+    // F3: a deny short-circuits the executor (blocked) even if a feedback decision
+    // was emitted first — deny must win regardless of hook ordering → finish.
+    const run = vi.fn<RunFn>(async () =>
+      decisions({ decision: "feedback", feedback: "go" }, { decision: "deny" }),
+    );
+    const ctx = makeCtx();
+    expect(await reflectAfterStop(makeInputs(run), ctx)).toBe(false);
+    expect(ctx.stopFeedbackAttempts).toBe(0);
+    expect(ctx.messages.length).toBe(0);
+  });
+
+  it("test_first_non_first_feedback_decision_is_honored", async () => {
+    // find() honors the first non-empty feedback among several decisions.
+    const run = vi.fn<RunFn>(async () =>
+      decisions({ decision: "allow" }, { decision: "feedback", feedback: "go" }),
+    );
+    const ctx = makeCtx();
+    expect(await reflectAfterStop(makeInputs(run), ctx)).toBe(true);
+    expect(ctx.stopFeedbackAttempts).toBe(1);
+  });
 });
 
-describe("continueOrTerminate stop routing (M1-4 EC-2)", () => {
+// --- continueOrTerminate routing (the real production path) ---
+
+function makeFullCtx(): LoopContext {
+  return {
+    messages: [],
+    events: [],
+    conversation: [],
+    finalText: "",
+    finalStatus: "running",
+    nudgeAttempts: 0,
+    stopFeedbackAttempts: 0,
+  } as unknown as LoopContext;
+}
+function output(over: Record<string, unknown>): Parameters<typeof continueOrTerminate>[2] {
+  return {
+    text: "",
+    toolCalls: [],
+    stopReason: "end_turn",
+    errored: false,
+    ...over,
+  } as unknown as Parameters<typeof continueOrTerminate>[2];
+}
+
+describe("continueOrTerminate stop routing (M1-4)", () => {
+  it("test_stop_fires_on_clean_finish_and_finishes", async () => {
+    // Clean finish (complete answer, no tools) → stop fires once, run finishes.
+    const run = vi.fn<RunFn>(async () => decisions({ decision: "allow" }));
+    const ctx = makeFullCtx();
+    const result = await continueOrTerminate(
+      makeInputs(run),
+      ctx,
+      output({ text: "final answer", stopReason: "end_turn" }),
+    );
+    expect(result).toBe("done");
+    expect(ctx.finalStatus).toBe("finished");
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run.mock.calls[0]?.[0]).toMatchObject({ event: "stop" });
+  });
+
   it("test_stop_not_fired_on_error_terminal", async () => {
     // EC-2: an errored turn returns "error" BEFORE the clean-finish branch — stop must NOT fire.
     const run = vi.fn<RunFn>(async () => decisions({ decision: "allow" }));
-    const ctx = makeCtx();
-    const erroredOutput = {
-      text: "",
-      toolCalls: [],
-      stopReason: "error",
-      errored: true,
-    } as unknown as Parameters<typeof continueOrTerminate>[2];
-    const result = await continueOrTerminate(makeInputs(run), ctx, erroredOutput);
+    const result = await continueOrTerminate(
+      makeInputs(run),
+      makeFullCtx(),
+      output({ errored: true }),
+    );
     expect(result).toBe("error");
     expect(run).not.toHaveBeenCalled();
+  });
+
+  it("test_nudge_takes_precedence_and_skips_stop", async () => {
+    // An incomplete answer (empty text, no tools) triggers the nudge BEFORE reflect —
+    // the stop hook must NOT fire on a nudged turn.
+    const run = vi.fn<RunFn>(async () => decisions({ decision: "feedback", feedback: "x" }));
+    const ctx = makeFullCtx();
+    const result = await continueOrTerminate(
+      makeInputs(run),
+      ctx,
+      output({ text: "", stopReason: "end_turn" }),
+    );
+    expect(result).toBe("continue");
+    expect(run).not.toHaveBeenCalled(); // nudge won; stop not consulted this pass
+  });
+
+  it("test_reflection_ladder_feedback_then_clean_finish", async () => {
+    // The real ladder: turn 1 finishes clean → stop returns feedback → continue;
+    // turn 2 finishes clean → stop allows → done. stop fires on BOTH clean finishes.
+    let call = 0;
+    const run = vi.fn<RunFn>(async () => {
+      call += 1;
+      return call === 1
+        ? decisions({ decision: "feedback", feedback: "keep going" })
+        : decisions({ decision: "allow" });
+    });
+    const inputs = makeInputs(run);
+    const ctx = makeFullCtx();
+    const r1 = await continueOrTerminate(
+      inputs,
+      ctx,
+      output({ text: "draft", stopReason: "end_turn" }),
+    );
+    expect(r1).toBe("continue");
+    expect(JSON.stringify(ctx.messages)).toContain("keep going");
+    const r2 = await continueOrTerminate(
+      inputs,
+      ctx,
+      output({ text: "final", stopReason: "end_turn" }),
+    );
+    expect(r2).toBe("done");
+    expect(ctx.finalStatus).toBe("finished");
+    expect(run).toHaveBeenCalledTimes(2); // stop fired on each clean finish
   });
 });
