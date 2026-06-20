@@ -162,10 +162,7 @@ export abstract class FixtureRunBase implements Run {
     if (status === "error" && this.script.errorDetail !== undefined) {
       base.error = this.script.errorDetail;
     }
-    // D376/D377: usage + cost flow through RunResult regardless of status
-    // (partial-failure runs that observed ≥1 LLM step still report tokens).
-    if (this.script.usage !== undefined) base.usage = this.script.usage;
-    if (this.script.cost !== undefined) base.cost = this.script.cost;
+    applyScriptMetrics(base, this.script);
     return this.extendRunResult(applyExtraRunFields(base, this.script));
   }
 
@@ -205,4 +202,15 @@ function makeNotifier(): { promise: Promise<void>; resolve: () => void } {
     resolve = res;
   });
   return { promise, resolve };
+}
+
+/**
+ * Copy the script's run-metric fields onto the result (D376/D377 usage + cost
+ * regardless of status; M1-2 silent-truncation signal). Extracted from
+ * `buildResult` to keep it under the cognitive-complexity cap.
+ */
+function applyScriptMetrics(base: RunResult, script: FixtureScript): void {
+  if (script.usage !== undefined) base.usage = script.usage;
+  if (script.cost !== undefined) base.cost = script.cost;
+  if (script.stoppedAtIterationLimit === true) base.stoppedAtIterationLimit = true;
 }

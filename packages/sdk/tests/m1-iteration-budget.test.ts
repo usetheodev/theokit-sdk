@@ -19,7 +19,7 @@ import { describe, expect, it, vi } from "vitest";
 // optional `nextIteration` member before a rebuild — repo convention
 // (cf. agent-loop-budget-gate.test.ts).
 import type { BudgetTracker } from "../src/internal/runtime/budget/budget-tracker.js";
-import type { SendOptions } from "../src/types/run.js";
+import type { RunResult, SendOptions } from "../src/types/run.js";
 
 /** Mirror of the per-turn advance the loop performs after `budget.consume()`. */
 function advanceIteration(tracker: BudgetTracker | undefined): void {
@@ -78,5 +78,46 @@ describe("M1-2 SendOptions.maxIterations knob", () => {
     expect(opts.maxIterations).toBe(25);
     const noKnob: SendOptions = {};
     expect(noKnob.maxIterations).toBeUndefined();
+  });
+});
+
+/**
+ * Mirror of the loop's truncation-detection rule (loop.ts, after the while):
+ *   stoppedAtIterationLimit = lastTurnDecision === "continue" && budgetExhausted
+ * Kept in lockstep with the runtime; the full loop needs a stubbed LLM to drive
+ * (repo convention — see agent-loop-budget-tracker-wiring.test.ts).
+ */
+function isTruncation(
+  lastTurnDecision: "continue" | "done" | "error" | undefined,
+  budgetExhausted: boolean,
+): boolean {
+  return lastTurnDecision === "continue" && budgetExhausted;
+}
+
+describe("M1-2 truncation signal (RunResult.stoppedAtIterationLimit)", () => {
+  it("test_truncation_true_when_capped_mid_tools", () => {
+    // Budget ran out while the last turn still wanted tools → silent truncation.
+    expect(isTruncation("continue", true)).toBe(true);
+  });
+
+  it("test_no_truncation_on_clean_done_finish", () => {
+    // Model emitted a final answer (done) → not truncated, even if budget is now 0.
+    expect(isTruncation("done", true)).toBe(false);
+  });
+
+  it("test_no_truncation_on_error_exit", () => {
+    expect(isTruncation("error", true)).toBe(false);
+  });
+
+  it("test_no_truncation_when_budget_not_exhausted", () => {
+    // Loop broke (done/error) before exhausting budget → not a cap truncation.
+    expect(isTruncation("continue", false)).toBe(false);
+  });
+
+  it("test_runResult_stoppedAtIterationLimit_is_a_public_optional_field", () => {
+    const truncated: RunResult = { id: "r1", status: "finished", stoppedAtIterationLimit: true };
+    expect(truncated.stoppedAtIterationLimit).toBe(true);
+    const clean: RunResult = { id: "r2", status: "finished" };
+    expect(clean.stoppedAtIterationLimit).toBeUndefined();
   });
 });

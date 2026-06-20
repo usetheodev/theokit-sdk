@@ -82,6 +82,16 @@ export interface RunResult {
    * @public
    */
   cost?: CostBreakdown;
+  /**
+   * M1-2: `true` when the run stopped because the agent loop hit its iteration
+   * ceiling (`SendOptions.maxIterations` or the default of 8) while the model
+   * still wanted to call tools — i.e. the work was silently truncated rather
+   * than finished. `undefined`/absent on a clean finish. A continuation driver
+   * (or a careful caller) inspects this to decide whether to send again.
+   *
+   * @public
+   */
+  stoppedAtIterationLimit?: boolean;
 }
 
 /**

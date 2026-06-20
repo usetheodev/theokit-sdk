@@ -380,6 +380,8 @@ class RealLocalRun extends FixtureRunBase {
     if (output.result.length > 0) this.script.result = output.result;
     if (output.usage !== undefined) this.script.usage = output.usage;
     if (output.cost !== undefined) this.script.cost = output.cost;
+    // M1-2 (T2.2): surface the silent-truncation signal onto the RunResult.
+    if (output.stoppedAtIterationLimit === true) this.script.stoppedAtIterationLimit = true;
     if (output.error !== undefined && this.script.errorDetail === undefined) {
       this.script.errorDetail = {
         message: output.error.message,

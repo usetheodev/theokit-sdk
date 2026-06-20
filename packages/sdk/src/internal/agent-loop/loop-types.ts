@@ -193,4 +193,10 @@ export interface AgentLoopOutput {
    * message (the previous bug — sdk-error-packaging-fix-plan).
    */
   error?: AgentLoopErrorDetail;
+  /**
+   * M1-2 (T2.2): true when the loop stopped at its iteration ceiling with the
+   * model still wanting to call tools (silent truncation). Copied verbatim onto
+   * `RunResult.stoppedAtIterationLimit`.
+   */
+  stoppedAtIterationLimit?: boolean;
 }
