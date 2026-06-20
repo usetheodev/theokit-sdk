@@ -1,43 +1,53 @@
-# Discover Edge Case Review — m3-ssrf-guard
+# Edge Case Review — m3-ssrf-guard (PLAN cycle)
 
 Date: 2026-06-20
-Discovery plan analyzed: .claude/knowledge-base/discoveries/plans/m3-ssrf-guard-plan.md
-Research questions analyzed: 5
-Edge cases found: 4 (MUST FIX: 0, SHOULD TEST: 2, DOCUMENT: 2)
+Plan analyzed: knowledge-base/plans/m3-ssrf-guard-plan.md
+Tasks analyzed: 3 (T1.1 block-list, T1.2 resolve+screenedFetch, T2.1 wiring)
+Edge cases found: 4 (MUST FIX: 0, SHOULD TEST: 3, DOCUMENT: 1)
 
-All cited paths (opencode webfetch + test, codex urllib, in-repo path-guard + path-safety, web-fetch.ts) verified to exist by the baseline exploration.
+> Supersedes the discover-cycle edge-case review (EC-1 TOCTOU + EC-2 encoding — both absorbed into blueprint ADRs D4/D5 + the plan). This is the plan-scoped review for `/plan-confidence`.
+
+## Boundary map
+
+The guard's boundary is network I/O: DNS resolution (`resolveAndScreen`) + HTTP fetch with redirects (`screenedFetch`). Live edge families: IP-range/encoding correctness, dual-stack resolution, and redirect-target shape. Both primitives take injectable `lookup`/`fetchImpl` → edges are deterministically testable.
 
 ## MUST FIX
 
-(none — paths resolve, all 4 corners have ≥ 1 question, 5 ≤ 15, no corner empty. The clean-slate reality (no reference implements SSRF) is already handled by ADR D2 + the Q5 honesty gate.)
+(none — the design fails closed: `isBlockedIp` returns `true` for non-IP literals, `resolveAndScreen` throws on any blocked record + on empty results, `screenedFetch` re-screens each hop. The discovery EC-1/EC-2 are absorbed into ADRs D4/D5.)
 
 ## SHOULD TEST
 
-### EC-1: DNS rebinding (TOCTOU) — screen-then-fetch race
-- **Affected question:** Q5
-- **Suggested halt-loop checkpoint:** when designing `resolveAndScreen`, the blueprint MUST decide the TOCTOU mitigation: a naive `resolve(host) → screen → fetch(host)` re-resolves DNS at fetch time, so an attacker pointing `evil.com` at a public IP during screening and at `127.0.0.1` at fetch time bypasses the guard. The canonical fix is to CONNECT to the screened IP (pin the resolved address) OR re-screen the actual socket peer. Record the decision (pin-resolved-IP vs accept-residual-risk) as a blueprint ADR; do not silently ignore it.
+### EC-1: redirect `Location` to a non-http(s) scheme
+- **Affected task:** T1.2
+- **Family:** Format
+- **Scenario:** a 3xx response whose `Location` is `file://…`, `gopher://…`, or `data:…`. `screenedFetch` resolves `new URL(Location, current)` and re-screens the HOST, but a non-http scheme has no meaningful host to screen and must not be followed.
+- **Suggested test:** `test_screenedFetch_blocks_non_http_redirect` — fakeFetch returns 302 `Location: file:///etc/passwd` → `screenedFetch` throws `SsrfBlockedError` (reject non-http(s) redirect target). Add a protocol check on each hop's target in `screenedFetch`.
 
-### EC-2: alternate IP encodings + IPv4-mapped IPv6
-- **Affected question:** Q5
-- **Suggested halt-loop checkpoint:** the screen must normalize before range-checking: decimal (`2130706433` = 127.0.0.1), octal (`0177.0.0.1`), hex (`0x7f.0.0.1`), shortened (`127.1`), and IPv4-mapped IPv6 (`::ffff:127.0.0.1`). The blueprint's block-list must operate on the PARSED/normalized address (via `node:net` / `node:dns` resolution to canonical form), not the raw host string. Pin a test per encoding.
+### EC-2: dual-stack host — IPv4 public but IPv6 private (or vice-versa)
+- **Affected task:** T1.2
+- **Family:** Boundary
+- **Scenario:** `lookup(host,{all:true})` returns `[{8.8.8.8},{::1}]` — one public, one blocked. The resolve-ALL contract must block if ANY family is blocked.
+- **Suggested test:** `test_resolveAndScreen_blocks_dual_stack_when_any_family_blocked` — injected lookup → `[{address:"8.8.8.8"},{address:"::1"}]` → throws (covers the v6-record-blocked path explicitly).
+
+### EC-3: alternate-encoding IP that resolves to a private address
+- **Affected task:** T1.2
+- **Family:** Format
+- **Scenario:** `http://2130706433/` (decimal 127.0.0.1) — `new URL(...).hostname` = "2130706433", `net.isIP` = 0 → treated as a NAME → `lookup("2130706433")` canonicalizes to `127.0.0.1` → `isBlockedIp` blocks. The resolve-then-screen path defends it; pin the behavior.
+- **Suggested test:** `test_resolveAndScreen_blocks_decimal_encoded_localhost` — injected lookup for "2130706433" → `[{address:"127.0.0.1"}]` → throws. Confirms the resolve path catches alternate encodings (D5).
 
 ## DOCUMENT
 
-### EC-3: no reference implements SSRF — Techniques corner is pattern+standard, not implementation-comparison
-- **Accepted risk:** Q5's Techniques corner cites the SDK path-guard (PATTERN) + opencode/codex GAPS (counter-examples) + the canonical SSRF defense (the standard), NOT 2 reference implementations of an SSRF guard (none exist in scope). This is the honest citation shape for a clean-slate security item; ADR D2 + the Q5 honesty gate already lock it. `/discover-confidence` will see real citations (path-guard, opencode webfetch, codex) even though none implement the technique.
-
-### EC-4: `reference/` (singular) vs the golden-rule checker's `references/` (plural)
-- **Accepted risk:** the SDK reference tree is `.claude/knowledge-base/reference/` (singular); the checker keys on `references/` (plural). All cited paths are REAL; the mismatch means the checker treats them as prose (no fabrication flag) — pre-existing divergence under which M1-3/M1-4/M1-5/M2-1 discovery plans passed. Accepted (identical to prior findings).
+### EC-4: 3xx response with no `Location` header
+- **Accepted risk:** `screenedFetch` only follows when `res.headers.Location` is truthy; a 3xx without `Location` is returned as-is (the web-fetch handler treats it like any response). No loop, no crash. Documented; no action.
 
 ## Summary
 
-| Question | Edges found | MUST FIX | SHOULD TEST | DOCUMENT |
-|----------|-------------|----------|-------------|----------|
-| Q1 | 0 | 0 | 0 | 0 |
-| Q2 | 0 | 0 | 0 | 0 |
-| Q3 | 0 | 0 | 0 | 0 |
-| Q4 | 0 | 0 | 0 | 0 |
-| Q5 | 2 | 0 | EC-1, EC-2 | EC-3 |
-| (plan-wide) | 1 | 0 | 0 | EC-4 |
+| Task | Edges found | MUST FIX | SHOULD TEST | DOCUMENT |
+|------|-------------|----------|-------------|----------|
+| T1.1 | 0 | 0 | 0 | 0 |
+| T1.2 | 3 | 0 | EC-1, EC-2, EC-3 | EC-4 |
+| T2.1 | 0 | 0 | 0 | 0 |
 
-**Verdict:** DISCOVERY PLAN OK (no MUST FIX; 2 SHOULD-TEST checkpoints — DNS-rebinding TOCTOU + alternate-IP-encodings — to fold into the execute halt-loop so the blueprint's design addresses them)
+**Verdict:** PLAN OK
+
+3 SHOULD TEST (non-http redirect, dual-stack, decimal-encoding) — fold into T1.2 TDD (plan bump v1.0 → v1.1); EC-1 also adds a redirect-target protocol check to `screenedFetch`. No MUST FIX.
