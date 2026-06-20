@@ -99,11 +99,13 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M2 — Gestão de contexto (Tema B)
 
+> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@3.1.0` (PR #26 merged 2026-06-20, tag v3.1.0; npm publish pendente): M2-1 (`@theokit/sdk/compaction`). PENDENTES: M2-2, M2-3, M2-4.
+
 **Valor entregue:** o agente sobrevive a transcripts que crescem além da janela — modo de falha #1 de agentes de chat em produção.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M2-1 | Compaction não exposta (algoritmo está `@internal`) | sdk · @theokit/sdk | high | L | M1-2 | Exportar `compactTranscript({messages,keepTokens,summarize})` + `buildCheckpoint`/`filterFromLatestCheckpoint`/`CHECKPOINT_MARKER` + `isContextOverflowError`. |
+| M2-1 ✅ (RELEASED `@theokit/sdk@3.1.0`) | Compaction não exposta (algoritmo está `@internal`) | sdk · @theokit/sdk | high | L | M1-2 | Subpath `@theokit/sdk/compaction`: `compactTranscript({messages,keepRecent,summarize?})` (reusa `selectCompressionWindow` interno) + `buildCheckpoint`/`filterFromLatestCheckpoint`/`CHECKPOINT_MARKER` (string-sentinel visível) + `isContextOverflowError` (code tipado `context_too_long`). Opera sobre `CompressibleMessage`; zero deps. Blueprint 98.8, plan 93.2, commits `1fdfff0`+`5b8c9e7`+`9586ab8`. |
 | M2-2 | Token estimate + `shouldCompact` (decisão pré-call) | sdk · @theokit/sdk | low | M | — | `estimateTokens` (chars/4, sem tokenizer) + `shouldCompact({estimated,contextWindow,buffer})`. |
 | M2-3 | Erro `context_too_long` não chega ao boundary | sdk · @theokit/sdk | med | M | M1-5 | Preferir `cause.metadata?.code`; adicionar `code?` ao evento `error` do stream; contract test 400→`context_too_long`. |
 | M2-4 | Catálogo per-model context-window (dead `@internal`) | sdk · @theokit/sdk | med | M | — | Promover `resolveModelCapabilities` ao público; corrigir descarte do sufixo do slug OpenRouter; sync/offline. |
