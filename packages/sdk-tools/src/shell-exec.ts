@@ -14,7 +14,7 @@ import type { CustomTool } from "@theokit/sdk";
 
 import { defineTool } from "@theokit/sdk";
 import { z } from "zod";
-import { catastrophicShellReason } from "./internal/shell-guard.js";
+import { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -58,7 +58,10 @@ export function createShellTool(opts: CreateShellToolOptions): CustomTool {
       if (!allowCatastrophic) {
         const reason = catastrophicShellReason(command);
         if (reason) {
-          return JSON.stringify({ ok: false, error: "catastrophic_command", reason });
+          // Construct the typed error so its `code` is the single source of the
+          // error string (mirrors web_fetch's SsrfBlockedError handling).
+          const err = new CatastrophicCommandError(reason);
+          return JSON.stringify({ ok: false, error: err.code, reason });
         }
       }
       const timeoutMs = Math.min(timeout_ms ?? defaultTimeoutMs, MAX_TIMEOUT_MS);

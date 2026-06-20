@@ -39,8 +39,15 @@ const PREFIX_TOKENS = new Set([
 
 /** Self-named function piping into itself: the classic `:(){ :|:& };:`. */
 const FORK_BOMB = /:\s*\(\s*\)\s*\{[^}]*\|[^}]*&[^}]*\}/;
-/** `> /dev/sda` and friends (NOT /dev/null — that is benign). */
-const DEVICE_REDIRECT = /[>]\s*\/dev\/(?:sd|nvme|hd|vd|mmcblk|disk)\b/;
+/**
+ * `> /dev/sda` and friends (NOT /dev/null|zero|stdout — those are benign).
+ * `\w*` matches the trailing device id (`sda`, `nvme0n1`); a `\b` placed right
+ * after the family token would never match a real node (word→word transition).
+ */
+const DEVICE_REDIRECT = /[>]\s*\/dev\/(?:sd|nvme|hd|vd|mmcblk|disk|loop|dm-)\w*/;
+/** Top-level system directories whose recursive delete bricks the host. */
+const SYSTEM_DIR =
+  /^\/(?:etc|usr|bin|sbin|lib|lib64|var|boot|home|root|opt|sys|proc|dev)(?:\/\*?)?$/;
 
 function basename(p: string): string {
   const i = p.lastIndexOf("/");
@@ -85,11 +92,13 @@ function operandsOf(tokens: string[]): string[] {
 /** Matches the shell HOME variable in `$HOME` or `${HOME}` form. */
 const HOME_VAR = /^\$\{?HOME\}?$/;
 
-/** Root / home / glob targets that make a recursive delete catastrophic. */
+/** Root / home / glob / top-level-system targets that make a recursive op catastrophic. */
 function isRootishPath(op: string): boolean {
   if (op === "~" || op === "*" || op === "." || HOME_VAR.test(op)) return true;
-  const collapsed = op.replace(/\/+/g, "/");
-  return collapsed === "/" || collapsed === "/*" || collapsed === "/.";
+  let collapsed = op.replace(/\/+/g, "/");
+  if (collapsed.length > 1 && collapsed.endsWith("/")) collapsed = collapsed.slice(0, -1);
+  if (collapsed === "/" || collapsed === "/*" || collapsed === "/.") return true;
+  return SYSTEM_DIR.test(collapsed);
 }
 
 function hasRecursiveForce(tokens: string[]): boolean {
@@ -148,13 +157,16 @@ const gitForceCheck: SegmentCheck = (cmd0, tokens) => {
   if (cmd0 !== "git" || !tokens.includes("push") || tokens.includes("--force-with-lease")) {
     return null;
   }
-  const force = tokens.includes("--force") || tokens.some((t) => /^-[a-z]*f[a-z]*$/.test(t));
+  const force =
+    tokens.includes("--force") ||
+    tokens.some((t) => /^-[a-z]*f[a-z]*$/.test(t)) ||
+    operandsOf(tokens).some((op) => /^\+[^+]/.test(op)); // `git push origin +main` refspec
   return force ? "git push --force" : null;
 };
 
-const chmodCheck: SegmentCheck = (cmd0, tokens) => {
-  if (cmd0 !== "chmod" || !hasRecursiveFlag(tokens)) return null;
-  return operandsOf(tokens).some(isRootishPath) ? "chmod -R on a root path" : null;
+const permCheck: SegmentCheck = (cmd0, tokens) => {
+  if ((cmd0 !== "chmod" && cmd0 !== "chown") || !hasRecursiveFlag(tokens)) return null;
+  return operandsOf(tokens).some(isRootishPath) ? `${cmd0} -R on a root path` : null;
 };
 
 const redirectCheck: SegmentCheck = (_cmd0, _tokens, seg) =>
@@ -165,7 +177,7 @@ const SEGMENT_CHECKS: readonly SegmentCheck[] = [
   mkfsCheck,
   ddCheck,
   gitForceCheck,
-  chmodCheck,
+  permCheck,
   redirectCheck,
 ];
 
@@ -174,6 +186,9 @@ const SEGMENT_CHECKS: readonly SegmentCheck[] = [
  * segment, across chains/sudo/pipes), else `null`.
  */
 export function catastrophicShellReason(cmd: string): string | null {
+  // Note: a payload nested inside `sh -c "..."` / `eval "..."` is intentionally
+  // NOT re-screened — that is obfuscation/indirection, out of scope for a
+  // best-effort guardrail (ADR D5). The screen matches surface command position.
   if (FORK_BOMB.test(cmd)) return "fork bomb";
   if (isCurlPipedToShell(cmd)) return "curl/wget piped into a shell";
   for (const seg of splitSegments(cmd)) {
