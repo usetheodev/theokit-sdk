@@ -1905,6 +1905,14 @@ Opt out only for trusted local-dev tooling: `createWebFetchTool({ allowPrivateHo
 
 The screening primitives are also exported from `@theokit/sdk-tools` for reuse: `resolveAndScreen(host)` (resolves ALL A-records, throws `SsrfBlockedError` if any is blocked), `isBlockedIp(ip)`, and `screenedFetch(url, opts)`. Implemented with Node `dns`/`net` builtins — zero dependencies.
 
+### `shell_exec` — catastrophic-command guardrail (secure by default)
+
+`createShellTool()` screens every command against a segment-aware deny-list **by default**. A command that matches a catastrophic pattern in any segment — across `;`/`&&`/`||`/pipe chains, behind a `sudo`/`env` prefix, or piped into a shell — returns `{ ok: false, error: "catastrophic_command", reason }` instead of executing. The screened set: `rm -rf` of a root/home/glob target (a relative target like `./build` stays allowed), `curl`/`wget` piped into `sh`/`bash`, `mkfs`, `dd` writing to a device, the `:(){ :|:& };:` fork bomb, `git push --force` (`--force-with-lease` is allowed), `chmod -R` on a root path, and redirects to a block device. Matching is at command position (the executable, not an arbitrary substring), so a mention like `echo "rm -rf /"` is not over-blocked.
+
+Opt out for legitimate destructive power flows: `createShellTool({ allowCatastrophic: true })`.
+
+This is a heuristic **guardrail, not a sandbox** — it blocks obvious/accidental catastrophes but is bypassable by obfuscation (eval/base64) and is POSIX-only (Windows PowerShell is out of scope). The reusable primitives `catastrophicShellReason(command)` (returns a reason string or `null`) and `CatastrophicCommandError` are exported from `@theokit/sdk-tools`. Zero new dependencies (in-house segment tokenizer).
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {
