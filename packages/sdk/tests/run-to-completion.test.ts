@@ -57,6 +57,18 @@ describe("classifyRound (pure)", () => {
       "no_progress",
     );
   });
+  it("test_no_progress_beats_step_limit_at_boundary", () => {
+    // Empty + prior empty AND at the round budget: no_progress wins (more actionable).
+    expect(classifyRound(rr({ stoppedAtIterationLimit: true, result: "" }), 5, 5, 1)).toBe(
+      "no_progress",
+    );
+  });
+  it("test_non_empty_at_budget_is_step_limit_not_no_progress", () => {
+    // Made progress (non-empty) but ran out of rounds → step_limit, even with prior empty.
+    expect(classifyRound(rr({ stoppedAtIterationLimit: true, result: "x" }), 5, 5, 1)).toBe(
+      "step_limit",
+    );
+  });
 });
 
 describe("runToCompletionImpl", () => {
@@ -122,8 +134,60 @@ describe("runToCompletionImpl", () => {
       signal: controller.signal,
       onTruncated,
     });
-    // Aborted after round 0; must not keep sending to maxRounds.
-    expect(agent.sends.length).toBeLessThan(9);
+    // Aborted in round-0's onTruncated → exactly one send, stops precisely there
+    // (distinct from a maxRounds=9 budget exhaustion, which would send 10×).
+    expect(agent.sends).toEqual(["do X"]);
+    expect(out.rounds).toBe(0);
     expect(out.terminal).toBe("step_limit");
+  });
+
+  it("test_usage_undefined_when_no_round_reports_usage", async () => {
+    const agent = fakeAgent([rr({ stoppedAtIterationLimit: false, result: "final" })]);
+    const out = await runToCompletionImpl(agent, "do X");
+    expect(out.usage).toBeUndefined();
+    expect("usage" in out).toBe(false);
+  });
+
+  it("test_usage_totalTokens_is_derived_not_summed", async () => {
+    // EC-10: a provider folds reasoning into totalTokens (total > in+out). The
+    // driver must re-derive total = Σin + Σout, never propagate the inconsistency.
+    const agent = fakeAgent([
+      rr({
+        stoppedAtIterationLimit: true,
+        result: "p",
+        usage: { inputTokens: 10, outputTokens: 5, totalTokens: 99, reasoningTokens: 84 },
+      }),
+      rr({
+        stoppedAtIterationLimit: false,
+        result: "final",
+        usage: { inputTokens: 20, outputTokens: 8, totalTokens: 50, reasoningTokens: 22 },
+      }),
+    ]);
+    const out = await runToCompletionImpl(agent, "do X");
+    expect(out.usage?.inputTokens).toBe(30);
+    expect(out.usage?.outputTokens).toBe(13);
+    expect(out.usage?.totalTokens).toBe(43); // 30 + 13, NOT 99 + 50
+    expect(out.usage?.reasoningTokens).toBe(106); // optional buckets still sum
+  });
+
+  it("test_default_continuation_prompt_used_when_unset", async () => {
+    const agent = fakeAgent([
+      rr({ stoppedAtIterationLimit: true, result: "p" }),
+      rr({ stoppedAtIterationLimit: false, result: "final" }),
+    ]);
+    const out = await runToCompletionImpl(agent, "do X");
+    expect(out.terminal).toBe("done");
+    expect(agent.sends[0]).toBe("do X");
+    // round-1 prompt is the built-in default, distinct from the original message.
+    expect(agent.sends[1]).not.toBe("do X");
+    expect((agent.sends[1] ?? "").length).toBeGreaterThan(0);
+  });
+
+  it("test_maxRounds_zero_step_limits_on_first_truncation", async () => {
+    const agent = fakeAgent([rr({ stoppedAtIterationLimit: true, result: "x" })]);
+    const out = await runToCompletionImpl(agent, "do X", { maxRounds: 0 });
+    expect(out.terminal).toBe("step_limit");
+    expect(out.rounds).toBe(0);
+    expect(agent.sends).toEqual(["do X"]);
   });
 });

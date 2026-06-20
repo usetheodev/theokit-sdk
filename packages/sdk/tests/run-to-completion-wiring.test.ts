@@ -15,6 +15,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "../src/agent.js";
+import { UnsupportedRunOperationError } from "../src/errors.js";
 
 describe("LocalAgent.runToCompletion wiring (M1 Phase 3)", () => {
   it("method exists and drives a real send to a done terminal", async () => {
@@ -30,6 +31,19 @@ describe("LocalAgent.runToCompletion wiring (M1 Phase 3)", () => {
     expect(out?.terminal).toBe("done");
     expect(out?.rounds).toBe(0);
     expect(typeof out?.lastResult.id).toBe("string");
+
+    await agent.dispose();
+  });
+
+  it("cloud agents throw UnsupportedRunOperationError", async () => {
+    const agent = await Agent.create({
+      apiKey: "theo_test_run_to_completion_cloud",
+      model: { id: "openai/gpt-4o-mini" },
+      cloud: {},
+    });
+
+    // Synchronous throw (mirrors CloudAgent.runUntil/fork), not a rejected promise.
+    expect(() => agent.runToCompletion?.("do the task")).toThrow(UnsupportedRunOperationError);
 
     await agent.dispose();
   });
