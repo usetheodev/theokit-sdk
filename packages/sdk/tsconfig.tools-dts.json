@@ -10,6 +10,7 @@
     "skipLibCheck": true
   },
   "include": [
+    "src/messages.ts",
     "src/path-safety.ts",
     "src/concurrency.ts",
     "src/internal/runtime/concurrency/**/*",
