@@ -21,7 +21,11 @@
  * @public
  */
 export interface StoredMessage {
-  /** Origin of the message. `tool_call` / `tool_result` reserved for forward compat. */
+  /**
+   * Origin of the message. `tool_call` / `tool_result` are produced by
+   * `buildReplayHistory` (M1-3) for stateless replay; a consumer feeding a
+   * `user`/`assistant`-only wire-mapper must map those two roles itself.
+   */
   role: "user" | "assistant" | "system" | "tool_call" | "tool_result";
   /** UTF-8 payload. May be empty string (e.g., a tool with no return value). */
   content: string;

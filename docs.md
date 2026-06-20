@@ -290,7 +290,67 @@ interface RunResult {
   model?: ModelSelection;
   durationMs?: number;
   git?: RunGitInfo;
+  // true when the run stopped at the agent loop's iteration ceiling
+  // (SendOptions.maxIterations or the default) with the model still
+  // wanting to call tools — i.e. silently truncated, not finished.
+  stoppedAtIterationLimit?: boolean;
 }
+Reliable continuation (local agents)
+
+A single agent.send() runs the tool-calling loop up to a ceiling — SendOptions.maxIterations (a positive integer; invalid values throw ConfigurationError) or the default. When the model still wants to call tools at that ceiling, the run stops with result.stoppedAtIterationLimit === true rather than a finished answer.
+
+agent.runToCompletion(message, options?) drives past that truncation. It re-sends a short continuation prompt — the agent's stateful session preserves the conversation, so the prompt need not repeat the task — until a genuine terminal. Local agents only; cloud agents throw UnsupportedRunOperationError (the cloud runtime manages continuation server-side).
+
+
+interface RunToCompletionOptions {
+  maxRounds?: number;            // continuation-round ceiling (default 5)
+  continuationPrompt?: string;   // re-sent after each truncated round
+  onTruncated?: (event: { round: number }) => void | Promise<void>;
+  signal?: AbortSignal;          // checked between rounds
+  sendOptions?: SendOptions;     // forwarded to each underlying send()
+}
+interface RunToCompletionResult {
+  terminal: "done" | "step_limit" | "no_progress";
+  rounds: number;                // index of the final round: 0 = first send finished,
+                                 // N = N continuation re-sends; step_limit → rounds === maxRounds
+  lastResult: RunResult;
+  usage?: TokenUsage;            // summed across rounds; undefined if no round reported usage
+}
+
+// runToCompletion is an optional, local-only method (cloud agents throw), so
+// call it through optional chaining or narrow to a local agent first.
+const out = await agent.runToCompletion?.("Refactor the module and run the tests", {
+  maxRounds: 8,
+});
+if (out !== undefined && out.terminal !== "done") {
+  console.warn(`stopped early: ${out.terminal} after ${out.rounds} round(s)`);
+}
+Replay history (stateless continuation)
+
+`runToCompletion` covers the STATEFUL path (a live agent whose session preserves history). For the STATELESS path — a server or serverless handler that re-runs an agent on a fresh request and must reconstruct working memory from persisted stream events — use the pure `buildReplayHistory`.
+
+It serializes the events of a round (`SDKMessage[]`) into a bounded `StoredMessage[]` you can replay as prior history into a fresh agent. It carries tool-result content (the continued model's working memory), drops the oldest turns (pair-safe: a tool_call and its tool_result are never split) until the total fits a context-window-derived char budget, and truncates an oversized single turn rather than dropping it. Pure and synchronous — no LLM, no I/O.
+
+
+function buildReplayHistory(
+  base: readonly StoredMessage[],
+  events: readonly SDKMessage[],
+  options: ReplayHistoryOptions,
+): StoredMessage[];
+
+interface ReplayHistoryOptions {
+  contextWindowTokens: number;   // the continued model's window; drives the budget
+  reserveTokens?: number;        // held back for system + continuation prompt + reply (default 8000)
+  perItemCap?: number;           // max chars for one oversized turn before truncation (default floor(budget/2))
+}
+
+const replay = buildReplayHistory(priorMessages, roundEvents, { contextWindowTokens: 200_000 });
+// feed `replay` as the prior history when re-sending on the next stateless request
+
+**Important — tool roles need consumer mapping.** Tool turns are emitted with the `StoredMessage` roles `tool_call` and `tool_result` (the result turn carries the tool output — the continued model's working memory). If your replay path feeds a wire-mapper that only understands `user` / `assistant`, you MUST map those two roles yourself; otherwise the tool-result content this function exists to preserve is dropped. The `tool_call` / `tool_result` pair is kept together (or evicted together) by `call_id`, never orphaned, even when calls are interleaved or non-adjacent.
+
+Notes: the budget is a char approximation (~4 chars/token), a SAFETY bound, not an exact token fit. A non-finite `contextWindowTokens` collapses to budget 0 — the history is trimmed toward effectively-empty working memory (event turns truncated, base trimmed to its newest), never an unbounded history. A single oversized `base` message is NOT truncated (caller-owned durable content is assumed pre-bounded) — only event-derived turns are per-item truncated.
+
 Streaming
 
 const run = await agent.send("Find the bug in src/auth.ts");
