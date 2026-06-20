@@ -347,7 +347,9 @@ interface ReplayHistoryOptions {
 const replay = buildReplayHistory(priorMessages, roundEvents, { contextWindowTokens: 200_000 });
 // feed `replay` as the prior history when re-sending on the next stateless request
 
-Notes: the budget is a char heuristic (~4 chars/token), a SAFETY bound, not an exact token fit; a non-finite `contextWindowTokens` collapses to budget 0 (keep ≥ 1 newest, truncated) rather than returning an unbounded history. Tool turns are emitted with `StoredMessage` roles `tool_call` / `tool_result`; a consumer whose wire-mapper only understands `user` / `assistant` must map those two roles. A single oversized `base` message is NOT truncated (caller-owned durable content) — only event-derived turns are.
+**Important — tool roles need consumer mapping.** Tool turns are emitted with the `StoredMessage` roles `tool_call` and `tool_result` (the result turn carries the tool output — the continued model's working memory). If your replay path feeds a wire-mapper that only understands `user` / `assistant`, you MUST map those two roles yourself; otherwise the tool-result content this function exists to preserve is dropped. The `tool_call` / `tool_result` pair is kept together (or evicted together) by `call_id`, never orphaned, even when calls are interleaved or non-adjacent.
+
+Notes: the budget is a char approximation (~4 chars/token), a SAFETY bound, not an exact token fit. A non-finite `contextWindowTokens` collapses to budget 0 — the history is trimmed toward effectively-empty working memory (event turns truncated, base trimmed to its newest), never an unbounded history. A single oversized `base` message is NOT truncated (caller-owned durable content is assumed pre-bounded) — only event-derived turns are per-item truncated.
 
 Streaming
 

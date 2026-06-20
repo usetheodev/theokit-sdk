@@ -21,7 +21,7 @@ import type { StoredMessage } from "../../../types/conversation-storage.js";
 import type { SDKMessage } from "../../../types/messages.js";
 import { truncateWithMarker } from "./context-loaders.js";
 
-/** ~4 characters per token — the field-validated heuristic (ADK-JS, theocode). */
+/** ~4 characters per token — an APPROXIMATION (ADK-JS / theocode), not exact tokenization. */
 const CHARS_PER_TOKEN = 4;
 /** Tokens reserved for system prompt + continuation prompt + the model's reply. */
 const DEFAULT_RESERVE_TOKENS = 8000;
@@ -41,6 +41,13 @@ export interface ReplayHistoryOptions {
    * dropped). Default `floor(budgetChars / 2)`. Guarded to ≥ 0.
    */
   perItemCap?: number;
+}
+
+/** A replay turn plus the `call_id` that pairs a tool_call with its tool_result. */
+interface ReplayTurn {
+  message: StoredMessage;
+  /** `call_id` for tool turns; undefined for assistant/base turns. */
+  pairId?: string;
 }
 
 /** Finite number or fallback (EC-1: a non-finite budget input must never poison the math). */
@@ -69,52 +76,67 @@ function stringifyPayload(value: unknown): string {
   return typeof value === "string" ? value : (JSON.stringify(value) ?? "");
 }
 
-/**
- * Map one stream event to a replay turn, or `null` when it is not replayable
- * (ADR D2). Tool events are collapsed by status: `running` → `tool_call` (args),
- * `completed`/`error` → `tool_result` (result content). Per-item truncation is
- * applied here so one giant result cannot blow the whole budget.
- */
-function mapEvent(event: SDKMessage, perItemCap: number): StoredMessage | null {
-  if (event.type === "assistant") {
-    const text = assistantText(event);
-    return text.length > 0 ? { role: "assistant", content: cap(text, perItemCap) } : null;
-  }
-  if (event.type === "tool_call") {
-    if (event.status === "running") {
-      return {
-        role: "tool_call",
-        content: cap(`[tool_call ${event.name}] ${stringifyPayload(event.args)}`, perItemCap),
-      };
-    }
-    return {
-      role: "tool_result",
-      content: cap(`[tool_result ${event.name}] ${stringifyPayload(event.result)}`, perItemCap),
-    };
-  }
-  return null;
-}
-
 /** Apply the per-item truncation cap, reusing the SDK's marker truncation (Rule 9). */
 function cap(content: string, perItemCap: number): string {
   return truncateWithMarker(content, Math.max(0, perItemCap)).finalContent;
 }
 
-/** True when dropping `messages[0]` would orphan a tool pair that must stay together (ADR D3). */
-function dropCountAt0(messages: StoredMessage[]): number {
-  // A tool_call immediately followed by its tool_result must be dropped as a pair.
-  if (messages[0]?.role === "tool_call" && messages[1]?.role === "tool_result") return 2;
-  return 1;
+/**
+ * Map one stream event to a replay turn, or `null` when it is not replayable
+ * (ADR D2). Tool events are collapsed by status: `running` → `tool_call` (args),
+ * `completed`/`error` → `tool_result` (result content), both carrying `call_id`
+ * so the trim step can keep the pair together. Per-item truncation is applied
+ * here so one giant result cannot blow the whole budget.
+ */
+function mapEvent(event: SDKMessage, perItemCap: number): ReplayTurn | null {
+  if (event.type === "assistant") {
+    const text = assistantText(event);
+    return text.length > 0
+      ? { message: { role: "assistant", content: cap(text, perItemCap) } }
+      : null;
+  }
+  if (event.type === "tool_call") {
+    if (event.status === "running") {
+      const content = cap(`[tool_call ${event.name}] ${stringifyPayload(event.args)}`, perItemCap);
+      return { message: { role: "tool_call", content }, pairId: event.call_id };
+    }
+    const content = cap(
+      `[tool_result ${event.name}] ${stringifyPayload(event.result)}`,
+      perItemCap,
+    );
+    return { message: { role: "tool_result", content }, pairId: event.call_id };
+  }
+  return null;
 }
 
-/** Drop oldest turns (pair-safe) until total content ≤ budget; keep ≥ 1 (ADR D3). */
-function trimToBudget(messages: StoredMessage[], budgetChars: number): StoredMessage[] {
-  const kept = [...messages];
-  let total = kept.reduce((n, m) => n + m.content.length, 0);
-  while (kept.length > 1 && total > budgetChars) {
-    const drop = dropCountAt0(kept);
-    const removed = kept.splice(0, drop);
-    total -= removed.reduce((n, m) => n + m.content.length, 0);
+/**
+ * Indices to evict when dropping `turns[0]` (ADR D3 tool-pair safety): the turn
+ * itself plus every other turn sharing its `call_id`, so a `tool_call` and its
+ * `tool_result` are never split — robust to non-adjacent / interleaved calls.
+ */
+function evictionIndices(turns: ReplayTurn[]): number[] {
+  const head = turns[0];
+  if (head?.pairId === undefined) return [0];
+  const indices: number[] = [];
+  for (let i = 0; i < turns.length; i += 1) {
+    if (turns[i]?.pairId === head.pairId) indices.push(i);
+  }
+  return indices;
+}
+
+/** Total content length across turns. */
+function totalChars(turns: ReplayTurn[]): number {
+  return turns.reduce((n, t) => n + t.message.content.length, 0);
+}
+
+/** Drop oldest turns (pair-safe by call_id) until total ≤ budget; keep ≥ 1 (ADR D3). */
+function trimToBudget(turns: ReplayTurn[], budgetChars: number): ReplayTurn[] {
+  const kept = [...turns];
+  while (kept.length > 1 && totalChars(kept) > budgetChars) {
+    const evict = evictionIndices(kept);
+    // Keep ≥ 1: never evict the whole remainder (a lone over-budget pair stays atomic).
+    if (kept.length - evict.length < 1) break;
+    for (const idx of evict.sort((a, b) => b - a)) kept.splice(idx, 1);
   }
   return kept;
 }
@@ -132,10 +154,10 @@ export function buildReplayHistory(
 ): StoredMessage[] {
   const budgetChars = charBudget(options);
   const perItemCap = Math.max(0, options.perItemCap ?? Math.floor(budgetChars / 2));
-  const turns: StoredMessage[] = [];
+  const turns: ReplayTurn[] = base.map((message) => ({ message }));
   for (const event of events) {
     const turn = mapEvent(event, perItemCap);
     if (turn !== null) turns.push(turn);
   }
-  return trimToBudget([...base, ...turns], budgetChars);
+  return trimToBudget(turns, budgetChars).map((t) => t.message);
 }

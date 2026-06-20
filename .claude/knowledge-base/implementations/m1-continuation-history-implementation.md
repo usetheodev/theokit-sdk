@@ -14,12 +14,13 @@ Pure, sync, dependency-free `buildReplayHistory(base, events, options): StoredMe
 
 | File | Task | Change |
 |---|---|---|
-| `packages/sdk/src/internal/runtime/context/replay-history.ts` | T1.1 | NEW (135 LoC) — `buildReplayHistory` + pure helpers (`charBudget`, `mapEvent`, `cap`, `dropCountAt0`, `trimToBudget`, `finiteOr`, `stringifyPayload`, `assistantText`). |
-| `packages/sdk/tests/replay-history.test.ts` | T1.1 | NEW — 15 unit tests (9 core + EC-1..EC-6). |
+| `packages/sdk/src/internal/runtime/context/replay-history.ts` | T1.1 + review | NEW (158 LoC) — `buildReplayHistory` + pure helpers (`charBudget`, `mapEvent`, `cap`, `evictionIndices`, `totalChars`, `trimToBudget`, `finiteOr`, `stringifyPayload`, `assistantText`); `call_id` pairing added in review. |
+| `packages/sdk/tests/replay-history.test.ts` | T1.1 + review | NEW — 19 unit tests (9 core + EC-1..EC-6 + 4 review: non-adjacent pair drop, interleaved pairs, lone call, error status, mixed text+tool_use). |
 | `packages/sdk/src/index.ts` | T2.1 | barrel export `buildReplayHistory` + `ReplayHistoryOptions`. |
 | `packages/sdk/tests/replay-history-wiring.test.ts` | T2.1 | NEW — 2 integration tests through the public barrel. |
 | `docs.md` | T2.1 | "Replay history (stateless continuation)" section. |
-| `CHANGELOG.md` (root) | T2.1 | `[Unreleased] § Added` entry. |
+| `CHANGELOG.md` (root, workspace-level manual changelog) | T2.1 | `[Unreleased] § Added` entry (the package `CHANGELOG.md` is changeset-generated at version time). |
+| `packages/sdk/src/types/conversation-storage.ts` | review | `StoredMessage.role` JSDoc reconciled — `tool_call`/`tool_result` now produced by `buildReplayHistory`, not "forward compat reserved". |
 | `.changeset/m1-continuation-history.md` | T2.1 | minor changeset. |
 
 ## Design (blueprint ADRs D1-D5 + edge-case EC-1..EC-7)
@@ -37,14 +38,28 @@ Pure, sync, dependency-free `buildReplayHistory(base, events, options): StoredMe
 - **(b) Integration test** — `replay-history-wiring.test.ts` drives it through the public barrel on a realistic event stream (assistant + tool pair), crossing the boundary the unit test bypasses.
 - **(c) Runtime metric** — N/A (pure function; consistent with M0 pure primitives `withRetry`/`mapWithConcurrency`).
 
+## Review round (cycle-review, 5 specialist agents)
+
+Verdicts: 4 READY, 1 NEEDS_FIXES (2 HIGH). All confirmed findings fixed:
+
+| Finding | Sev | Resolution |
+|---|---|---|
+| Tool-pair safety was POSITIONAL (`dropCountAt0` assumed call/result adjacent) → orphaned `tool_result` on interleaved/non-adjacent calls | MEDIUM×2 (correctness) | Re-paired by `call_id`: `mapEvent` attaches `pairId`; `evictionIndices` drops a turn + all turns sharing its `call_id` together — robust to interleaving. |
+| `test_never_splits_tool_call_from_tool_result` was VACUOUS (budget 0 → all content `""` → trim loop never ran) | HIGH | Replaced with a real-drop, NON-ADJACENT pair test that enters the loop + a multiple-interleaved-pairs test. |
+| `error` status tool branch untested | HIGH | Added `test_tool_error_status_maps_to_tool_result`. |
+| lone tool_call / mixed text+tool_use untested | MEDIUM | Added `test_lone_tool_call_survives_and_is_not_paired` + `test_assistant_mixed_text_and_tool_use_maps_text_only`. |
+| docs budget-0 wording imprecise ("keep ≥1 newest") | MEDIUM (DX) | Reworded to "trimmed toward effectively-empty working memory". |
+| `StoredMessage` JSDoc said tool roles "forward compat reserved" but the fn emits them; mapping requirement under-weighted | MEDIUM (DX) | JSDoc reconciled + promoted an **Important** tool-role-mapping note in docs.md. |
+| impl summary claimed package CHANGELOG; entry is in root | INFO | Clarified (root is the manual workspace changelog; package CHANGELOG is changeset-generated). |
+
 ## Gates
 
-- Unit + wiring: 17/17 GREEN (15 + 2).
-- Full SDK suite: 370 files / 2702 tests passed, 0 failed (19/35 skips are Ollama/env-gated).
+- Unit + wiring: 21/21 GREEN (19 unit + 2 wiring).
+- Full SDK suite: 370 files / 2706 tests passed, 0 failed (19/35 skips are Ollama/env-gated).
 - `tsc --noEmit`: clean.
 - Biome (cognitive-complexity ≤ 10): clean — core decomposed into small helpers.
 - knip (dead-code): clean — public export not flagged as orphan.
-- LoC: `replay-history.ts` 135 (≤ 150 target, 500 budget).
+- LoC: `replay-history.ts` 158 (≤ 500 budget; slightly over the 150 target after call_id pairing — acceptable, single cohesive module, 500 budget).
 
 ## Commits (develop)
 
