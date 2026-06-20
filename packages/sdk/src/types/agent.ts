@@ -646,6 +646,23 @@ export interface SDKAgent {
    */
   fork?(options: import("./fork.js").ForkOptions): Promise<import("./fork.js").ForkResult>;
   /**
+   * Drive `send` to completion across iteration-ceiling truncations (M1 Phase 3).
+   * When a `send` stops at the loop's iteration cap (`RunResult.stoppedAtIterationLimit`),
+   * this re-sends a short continuation prompt — the agent's stateful session
+   * preserves the conversation — until a genuine terminal: `done` (finished),
+   * `step_limit` (`maxRounds` exhausted), or `no_progress` (two empty rounds).
+   *
+   * Local agents only. Cloud agents throw
+   * {@link import("../errors.js").UnsupportedRunOperationError} (the cloud
+   * runtime manages its own continuation policy server-side).
+   *
+   * @public
+   */
+  runToCompletion?(
+    message: string,
+    options?: import("./run.js").RunToCompletionOptions,
+  ): Promise<import("./run.js").RunToCompletionResult>;
+  /**
    * Direct API to third-party memory adapter(s) registered via
    * `plugins: [...]` (ADR D141 / D142). Returns `null` when no adapter
    * is registered. In multi-adapter setups `write` fans out to all;

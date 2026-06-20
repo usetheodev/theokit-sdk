@@ -30,6 +30,7 @@ export type RunOperation =
   | "listArtifacts"
   | "downloadArtifact"
   | "runUntil"
+  | "runToCompletion"
   | "fork"
   | "usePersonality"
   | "workflow";
@@ -92,6 +93,54 @@ export interface RunResult {
    * @public
    */
   stoppedAtIterationLimit?: boolean;
+}
+
+/**
+ * Options for {@link SDKAgent.runToCompletion} (M1 Phase 3 — continuation driver).
+ *
+ * @public
+ */
+export interface RunToCompletionOptions {
+  /**
+   * Maximum number of continuation rounds (re-sends) before giving up with
+   * `terminal: "step_limit"`. Default 5. A hard ceiling that prevents a
+   * runaway loop when the model keeps truncating.
+   */
+  maxRounds?: number;
+  /**
+   * The short prompt re-sent after a truncated round to make the (stateful)
+   * agent resume. Defaults to a generic "continue" instruction. The original
+   * conversation is preserved by the agent's session, so this need not repeat
+   * the task.
+   */
+  continuationPrompt?: string;
+  /** Called once per truncated round that triggers a re-send (for metrics/logging). */
+  onTruncated?: (event: { round: number }) => void | Promise<void>;
+  /** Abort signal; checked between rounds — once aborted, no further round starts. */
+  signal?: AbortSignal;
+  /** Per-send options forwarded to each underlying `send()` (e.g. `maxIterations`). */
+  sendOptions?: SendOptions;
+}
+
+/**
+ * Result of {@link SDKAgent.runToCompletion}.
+ *
+ * @public
+ */
+export interface RunToCompletionResult {
+  /**
+   * Why the driver stopped:
+   * - `"done"` — a round finished without truncating (the model is done).
+   * - `"step_limit"` — `maxRounds` exhausted (or aborted) while still truncating.
+   * - `"no_progress"` — two consecutive rounds produced empty output.
+   */
+  terminal: "done" | "step_limit" | "no_progress";
+  /** Number of continuation rounds executed (0 = finished on the first send). */
+  rounds: number;
+  /** The `RunResult` of the final round. */
+  lastResult: RunResult;
+  /** Token usage summed across all rounds; `undefined` when no round reported usage. */
+  usage?: TokenUsage;
 }
 
 /**

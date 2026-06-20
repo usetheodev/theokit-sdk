@@ -13,6 +13,7 @@
 
 import type { AgentOptions, MemorySettings, SDKAgent } from "../../../types/agent.js";
 import type { GoalEvent, GoalOptions, GoalResult } from "../../../types/goal-events.js";
+import type { RunToCompletionOptions, RunToCompletionResult } from "../../../types/run.js";
 import type { JudgeContext, JudgeOptions } from "../../judge/judge-call.js";
 import type { ForkOptions, ForkResult } from "../lifecycle/fork-agent.js";
 import {
@@ -45,6 +46,25 @@ export function localAgentRunUntil(
     return yield* runUntilImpl(agent, goal, options, deps);
   }
   return wrap();
+}
+
+/**
+ * Drive {@link runToCompletionImpl} bound to this agent's stateful `send`
+ * (M1 Phase 3). The agent's session preserves conversation history, so the
+ * driver only re-sends a short continuation prompt after each truncated round.
+ *
+ * @internal
+ */
+export function localAgentRunToCompletion(
+  agent: SDKAgent,
+  message: string,
+  options: RunToCompletionOptions | undefined,
+): Promise<RunToCompletionResult> {
+  async function run(): Promise<RunToCompletionResult> {
+    const { runToCompletionImpl } = await import("../lifecycle/run-to-completion.js");
+    return runToCompletionImpl({ send: (m, o) => agent.send(m, o) }, message, options);
+  }
+  return run();
 }
 
 /**
