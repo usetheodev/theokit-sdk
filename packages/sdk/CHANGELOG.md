@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.3.0
+
+### Minor Changes
+
+- d7d5215: M1-3 — `buildReplayHistory(base, events, options)` pure stateless continuation-history rebuild (plan `m1-continuation-history`).
+
+  The stateless complement to M1 Phase 3's `runToCompletion` (which covers the stateful-session path). For a server / serverless handler that re-runs an agent on a fresh request and must reconstruct working memory from persisted stream events, `buildReplayHistory` serializes a round's `SDKMessage[]` into a bounded `StoredMessage[]` you can replay as prior history:
+
+  - maps assistant text → `assistant`; tool `running` → `tool_call` (args); tool `completed`/`error` → `tool_result` (carrying the result content the continued model needs);
+  - drops the oldest turns — pair-safe (a `tool_call` and its `tool_result` are never split) — until the total fits a context-window-derived char budget, keeping ≥ 1;
+  - truncates an oversized single turn (reusing the SDK's `truncateWithMarker`) rather than dropping it;
+  - pure, synchronous, dependency-free; a non-finite `contextWindowTokens` collapses to budget 0 (never returns an unbounded history).
+
+  Exported from `@theokit/sdk` with `ReplayHistoryOptions`. Replaces the outer-loop history rebuild a code-assistant server otherwise hand-rolls.
+
+- f218630: M1 Phase 3 — `agent.runToCompletion()` continuation driver (plan `m1-run-to-completion`).
+
+  Builds on M1-2's `RunResult.stoppedAtIterationLimit` signal: a single `agent.send()` truncates when the model still wants tools at the loop's iteration ceiling. `runToCompletion(message, options?)` re-sends a short continuation prompt — the agent's stateful session preserves the conversation — until a genuine terminal:
+
+  - `done` — a round finished without truncating.
+  - `step_limit` — `maxRounds` (default 5) exhausted, or aborted via `signal`, while still truncating.
+  - `no_progress` — two consecutive rounds produced empty output.
+
+  Returns `{ terminal, rounds, lastResult, usage }` with token usage summed across rounds. Options: `maxRounds`, `continuationPrompt`, `onTruncated`, `signal`, `sendOptions`. Local agents only — cloud agents throw `UnsupportedRunOperationError` (the cloud runtime manages continuation server-side). This replaces the outer continuation loop a code-assistant builder would otherwise hand-roll.
+
 ## 2.2.0
 
 ### Minor Changes

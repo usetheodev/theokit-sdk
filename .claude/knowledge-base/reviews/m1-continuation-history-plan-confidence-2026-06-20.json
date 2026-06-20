@@ -1,0 +1,154 @@
+{
+  "plan_slug": "m1-continuation-history",
+  "plan_path": ".claude/knowledge-base/plans/m1-continuation-history-plan.md",
+  "plan_version": "1.1",
+  "scored_at": "2026-06-20T13:17:30+00:00",
+  "completude_score": 100.0,
+  "risco_estrutural_score": 87.0,
+  "active_dimensions": ["completeness", "structural_risk"],
+  "weight_normalization_factor": 2.0,
+  "weighted_avg": 94.8,
+  "hard_caps_triggered": [],
+  "final_score_after_caps": 94.8,
+  "verdict": "SHIPPABLE",
+  "reasons": {
+    "completeness": [
+      {
+        "sign": "positive",
+        "label": "Coverage Matrix 100%",
+        "weight": 60.0
+      },
+      {
+        "sign": "positive",
+        "label": "ADR alternatives (6/6)",
+        "weight": 20.0
+      },
+      {
+        "sign": "positive",
+        "label": "TDD in bug-fix (0/0)",
+        "weight": 20.0
+      }
+    ],
+    "evidence": [
+      {
+        "sign": "positive",
+        "label": "51 citations resolved",
+        "weight": 51.0
+      }
+    ],
+    "calibration": [],
+    "structural_risk": [
+      {
+        "sign": "negative",
+        "label": "3 weak_imperatives hits",
+        "weight": -3.0
+      },
+      {
+        "sign": "negative",
+        "label": "2 vague_pronouns hits",
+        "weight": -2.0
+      }
+    ]
+  },
+  "sub_reports": {
+    "coverage_matrix": {
+      "total_gaps": 6,
+      "mapped_gaps": 6,
+      "coverage_ratio": 1.0,
+      "is_complete": true,
+      "orphan_tasks": [],
+      "unmapped_gaps": []
+    },
+    "adr_completeness": {
+      "total_adrs": 6,
+      "with_alternatives": 6,
+      "completeness_ratio": 1.0,
+      "missing_alternatives": []
+    },
+    "tdd_in_bugfix": {
+      "total_bugfix_tasks": 0,
+      "with_tdd": 0,
+      "coverage_ratio": 1.0,
+      "missing_tdd": []
+    },
+    "spec_smells": {
+      "total_hits": 5,
+      "by_category": {
+        "vague_pronouns": 2,
+        "weak_imperatives": 3
+      },
+      "total_penalty": -13
+    },
+    "architecture_compliance": {
+      "compliance_score": 1.0,
+      "project_rules_found_count": 23,
+      "fallback_to_defaults": false,
+      "rules_referenced_in_plan": [
+        "architecture.md",
+        "deps-audit-golden-rule.md",
+        "no-stubs-no-mocks-no-wired.md",
+        "testing.md"
+      ],
+      "principles_cited": ["DIP", "DRY", "KISS", "YAGNI", "TDD"],
+      "has_dod_quality_signal": true,
+      "has_size_budget_signal": true,
+      "reasons": [
+        "References 4 project rule(s): ['architecture.md', 'deps-audit-golden-rule.md', 'no-stubs-no-mocks-no-wired.md']",
+        "Cites 5 principle(s): ['DIP', 'DRY', 'KISS']",
+        "Global DoD references quality gates (lint/complexity/size)",
+        "Plan mentions file-size budget"
+      ]
+    },
+    "evidence": {
+      "total_citations": 51,
+      "unresolved_citations": []
+    },
+    "criterion_executability": {
+      "total_criteria": 19,
+      "vague_count": 0,
+      "weak_count": 0,
+      "acceptable_count": 0,
+      "executable_count": 19,
+      "vague_ratio": 0.0,
+      "acceptable_ratio": 1.0,
+      "executable_ratio": 1.0,
+      "soft_cap_triggered": false,
+      "vague_criteria_sample": []
+    },
+    "baseline_context": {
+      "section_present": true,
+      "is_complete": true,
+      "missing_subsections": [],
+      "file_table_rows": 9,
+      "file_table_placeholder_hits": 0,
+      "glossary_entries": 5,
+      "glossary_placeholder_hits": 0,
+      "reasons": []
+    },
+    "drawbacks_and_unresolved": {
+      "drawbacks_section_present": true,
+      "drawbacks_entries": 4,
+      "drawbacks_placeholder_hits": 0,
+      "drawbacks_is_complete": true,
+      "drawbacks_reasons": [],
+      "unresolved_section_present": true,
+      "unresolved_entries": 0,
+      "unresolved_explicit_none": true,
+      "unresolved_is_complete": true,
+      "unresolved_reasons": []
+    }
+  },
+  "calibration": {
+    "status": "PROVISIONAL_v1",
+    "holdout_count": 0,
+    "holdout_target": 30,
+    "kappa_measured": false
+  },
+  "code_quality": {
+    "verdict": "PASS",
+    "score_cap": 100,
+    "hard_caps_triggered": [],
+    "soft_caps_triggered": [],
+    "languages_audited": []
+  }
+}
