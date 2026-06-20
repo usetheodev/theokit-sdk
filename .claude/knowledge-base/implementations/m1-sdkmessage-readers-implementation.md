@@ -21,8 +21,10 @@
 
 | # | Plan ref | Status | Wiring (a) | Wiring (b) | Wiring (c) | Commit SHA |
 |---|---|---|---|---|---|---|
-| T1.1 | Phase 1 / T1.1 | pending | — | — | — | — |
-| T2.1 | Phase 2 / T2.1 | pending | — | — | — | — |
+| T1.1 | Phase 1 / T1.1 | committed | ✓ (via T2.1 subpath) | ✓ (T2.1 integ) | N/A | `69763c7` |
+| T2.1 | Phase 2 / T2.1 | committed | ✓ (`./messages` export) | ✓ (wiring test) | N/A | `a21949f` |
+
+**Validation gate:** PASS (report `knowledge-base/reviews/m1-sdkmessage-readers-implement-validate-2026-06-20.md`). Full suite 2735 passed / 0 failed; typecheck + Biome + knip + build + attw (`./messages` 🟢) all green. Promise: IMPLEMENTATION_COMPLETE.
 
 Status legend: `pending` / `red` / `green` / `refactor` / `wired` / `committed` / `blocked` / `done`
 
