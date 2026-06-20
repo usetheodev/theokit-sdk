@@ -1178,6 +1178,8 @@ Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL
 Hooks
 Hooks are file-based only. There is no programmatic hook callback. Hooks are a project policy boundary, not a per-run knob.
 
+The `stop` hook fires each time a local agent finishes a turn cleanly (it does NOT fire on an errored run or when the iteration ceiling truncates the turn). A `stop` hook that returns `{"decision":"feedback","feedback":"…"}` re-prompts the agent with that text and the loop continues — a bounded reflection ladder (at most 2 re-prompts per run, mirroring the nudge ceiling, so a hook cannot loop forever; once that ceiling is reached the hook still fires on the final finish but its feedback no longer re-prompts). `{"decision":"allow"}` (or no `stop` hook) finishes normally; `deny` at `stop` also finishes (the answer already exists — there is nothing to block) and is authoritative regardless of hook ordering.
+
 Local: Add `.theokit/hooks/<name>.md` to the repo passed as local.cwd (one file per hook; legacy `.theokit/hooks.json` deprecated since v1.5), or add `~/.theokit/hooks/` for user-level hooks.
 Cloud: Commit `.theokit/hooks/` and its scripts to the repo passed in cloud.repos. SDK-created cloud agents load project hooks automatically. On Enterprise plans, they also run team hooks and enterprise-managed hooks.
 See Hooks for the configuration format and Cloud Agents hooks support for cloud behavior.
@@ -1833,6 +1835,27 @@ Options: `retries` (default 3), `isRetryable`, `initialDelayMs` (100), `maxDelay
 import { withRetry } from "@theokit/sdk/retry";
 
 const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
+```
+
+#### Message readers — `@theokit/sdk/messages`
+
+Pure readers over the `SDKMessage` stream, public from the `@theokit/sdk/messages` sub-path, so agent/server builders extract assistant text, tool uses, and honest cost without re-implementing a wire-event mapper. All three are pure (no I/O, inputs never mutated).
+
+- `assistantText(msg)` — concatenates an assistant message's `text` blocks; returns `""` for any non-assistant message (or one with no text blocks). `tool_use` blocks are ignored.
+- `extractToolUses(msg)` — returns the assistant message's `ToolUseBlock[]`; `[]` for non-assistant. It reads the assistant content blocks, NOT the separate `SDKToolUseMessage` (`type:"tool_call"`) lifecycle event — that is a different stream.
+- `costAmountUsd(cost)` — reads `RunResult.cost.amountUsd`, preserving `number | undefined` verbatim. An unknown cost stays `undefined` (never coerced to `$0`), distinct from a real `$0` subscription-included route — the cost-honesty contract (ADR D377). Token counts (where `0` is meaningful) are read directly off `TokenUsage`.
+
+```ts
+import { assistantText, extractToolUses, costAmountUsd } from "@theokit/sdk/messages";
+
+for await (const msg of run.stream()) {
+  const text = assistantText(msg);        // "" unless this is an assistant message
+  const tools = extractToolUses(msg);     // ToolUseBlock[] from the assistant content
+  if (text) process.stdout.write(text);
+  for (const tool of tools) console.log("tool:", tool.name);
+}
+
+const usd = costAmountUsd(result.cost);   // number | undefined — `undefined` means "unknown", never $0
 ```
 
 ## Built-in tools for coding agents (v1.x+)
