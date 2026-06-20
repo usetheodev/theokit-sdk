@@ -54,6 +54,13 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
           if (decision.detail !== undefined) {
             ctx.error = { message: decision.detail, code: decision.reason ?? "budget" };
           }
+          // M1-2 (T2.2): a pluggable tracker denying on its iteration ceiling is
+          // the same "hit the iteration limit" event as the legacy IterationBudget
+          // exhausting below — surface the same signal so a caller using
+          // createCounterBudgetTracker({maxIterations}) detects it consistently.
+          if (decision.reason === "iteration_limit") {
+            ctx.stoppedAtIterationLimit = true;
+          }
           break;
         }
       }
