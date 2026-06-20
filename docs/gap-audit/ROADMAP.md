@@ -1,0 +1,301 @@
+# Roadmap — Fechamento dos Gaps do Ecossistema Theo
+
+> Plano de execução para resolver os **52 gaps confirmados** em `THEOKIT_GAP_AUDIT.md`.
+>
+> Objetivo-norte: qualquer pessoa constrói um agente / code-assistant sobre o ecossistema Theo sem reinventar plumbing genérico. O `theocode` deixa de ser "prova de que dá" e passa a ser "exemplo de quão pouco código o app precisa".
+>
+> Eixo: milestones de valor (M0–M8), cada item taggeado com repo · package, esforço e dependências.
+
+---
+
+## Como ler
+
+- **Esforço** — `S` = expor/promover/deletar ou 1–2 arquivos contidos; `M` = primitiva nova contida com testes; `L` = primitiva com design não-trivial (driver de continuação, compaction público, renderer, runner durável).
+- **Sev** — severidade do gap na auditoria (`high`/`med`/`low`).
+- **Depende de** — IDs que precisam estar prontos antes (ou `—` quando independente).
+- **Repo · Package** — onde o trabalho acontece. São repositórios git independentes; cada milestone que cruza repos exige coordenar mais de um release.
+- Detalhe técnico completo de cada ação está na **Seção 3 do `THEOKIT_GAP_AUDIT.md`** — aqui fica o resumo de 1 linha.
+
+### Repos envolvidos
+
+| Tag | Repo | Packages tocados |
+|---|---|---|
+| `sdk` | theokit-sdk | @theokit/sdk, sdk-tools, sdk-budget, sdk-memory |
+| `fw` | theokit-a | theokit (packages/theo), theokit/client |
+| `ui` | theo-ui | @theokit/ui |
+| `di` | theokit-di | @theokit/orm |
+| `app` | theocode | correções de Regra 9 (consumidor) |
+
+---
+
+## Visão geral e ondas de execução
+
+```
+M0 Fundação ───────────┬──────────────┬───────────────┬─────────► (destrava tudo)
+                       │              │               │
+   ┌───────────────────┘              │               │
+   ▼                                  ▼               ▼
+M1 Harness confiável            M3 Toolbox segura   M7 HTTP/persistência
+   │        │                        │   │           (quase independente)
+   ▼        ▼                        ▼   ▼
+M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
+   │            ▲                     │
+   │            └──────(M1+M3)        ▼
+   └──────────┐                  M5 UI de agente
+              ▼                       │
+          M8 Runtime dos decorators ◄─┴──(M2+M3+M4)
+```
+
+| Onda | Milestones (paralelizáveis) | Tema | Por quê agora |
+|---|---|---|---|
+| 1 | **M0**, M3 (início), M7 | Fundação, segurança, HTTP | Sem dependências; M0 destrava todo o resto |
+| 2 | **M1**, M4 | Harness, consciência de projeto | Substrato do agente; dependem de M0 |
+| 3 | **M2**, M5, M6 | Contexto, UI, eval | Dependem de M1/M3/M4 |
+| 4 | **M8** | Camada declarativa | Liga decorators aos primitivos das ondas 1–3 |
+
+---
+
+## M0 — Fundação: expor o que já existe e pagar a dívida da Regra 9
+
+> **Status: lado SDK RELEASED** em `@theokit/sdk@2.1.0` (npm, 2026-06-19) — M0-1..M0-5. Lado theocode: M0-6/M0-8 feitos em `develop` (READY_TO_MERGE, ainda não released); M0-7/M0-9/M0-10 deferidos (ver `theocode/.claude/knowledge-base/discoveries/blueprints/m0-deferred-items-blueprint.md`).
+
+**Valor entregue:** elimina reinvenções inferiores dentro do próprio theocode e promove para o barrel público primitivas que já existem `@internal`. Maior razão valor/esforço do roadmap — quase tudo aqui é `S`/`M` e destrava milestones seguintes.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M0-1 ✅ | `isTransientError` não público | sdk · errors.ts | high | S | — | Consolidar `defaultRetriableForCode` + status set + transport codes num predicado exportado. Sem regex sobre `message`. |
+| M0-2 ✅ | `mapWithConcurrency`/`createSemaphore` (5 cópias internas) | sdk · concurrency | med | M | — | Promover semaphore + pool ordenado bounded; dedupe das 5 cópias internas. |
+| M0-3 ✅ | `withRetry` genérico (clock injetável) | sdk · retry | med | S | M0-1 | Subpath `@theokit/sdk/retry` com `sleep`/`signal` injetáveis; workflow interno delega. |
+| M0-4 ✅ | `safeFilenameForId` (4 respostas divergentes) | sdk · path-safety | low | S | — | `safeFilenameForId(id,{maxLen})` determinístico; migrar as 4 variantes. |
+| M0-5 ✅ | SQLite resiliente (corruption-recovery preso em sdk-memory) | sdk · persistence | low | M | — | Extrair `openSqliteResilient({filePath,onOpen})` para `internal/persistence`. |
+| M0-6 ✅ | Atomic write reinventado (inferior: sem fsync/0o600) | app · theocode | med | S | — | FEITO 2026-06-19 (commit 12a1029): adotado `replaceFileAtomic` do SDK; 5 writers async; regression test 0o600. |
+| M0-7 ⏸️ | Migration `ensureColumn` à mão (nasceu de incidente) | app · theocode | high | S | — | DEFERIDO — não bloqueado pelo SDK, mas deletar regride o incidente; precisa task própria (migrations versionadas + CI drift) antes de remover. Ver blueprint m0-deferred-items. |
+| M0-8 ✅ | Logger middleware reimplementa `logRequest` (doubly-orphaned) | app · theocode | med | S | — | FEITO 2026-06-19 (commit 9915703): órfão deletado. |
+| M0-9 ⏸️ | `<memories>` dump verbatim em vez de recall ranqueado | app · theocode | med | M | — | BLOQUEADO — `runActiveMemory` não está no barrel público do SDK 1.9.0; exige SDK expor recall OU rewire de `MemoryProvider`. Ver blueprint m0-deferred-items. |
+| M0-10 ⏸️ | OpenRouter key checa literal hardcoded | app · theocode | low | S | — | BLOQUEADO — `getProviderProfile` não está no barrel público do SDK 1.9.0; baixa severidade. Ver blueprint m0-deferred-items. |
+
+**Concluído quando:** zero reinvenções inferiores no theocode; utilitários (retry/concurrency/path/transient/sqlite) no barrel público com testes.
+
+---
+
+## M1 — Harness de agente confiável (Tema A — maior alavancagem)
+
+> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). FEITO em `develop` (READY_TO_MERGE, aguardando release): Phase 3 `agent.runToCompletion` (plan `m1-run-to-completion`, commits `f218630`+`4d5a215`, 2026-06-20). PENDENTES: M1-3, M1-4, M1-5, M1-6.
+
+**Valor entregue:** `agent.send` deixa de ser single-shot frágil e vira substrato real. A diferença entre "demo que trava em 8 tools" e "agente que termina um refactor".
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M1-1 ✅ (2.2.0) | `budgetTracker.nextIteration()` morto no loop | sdk · @theokit/sdk | high | S | — | Chamar `nextIteration()` 1x/turno no loop; ambos os trackers já implementam. Teste: halt após N. |
+| M1-2 ✅ (knob+sinal em 2.2.0; runToCompletion ✅ em `develop`, aguardando release) | Teto interno de 8 passos sem knob + driver de continuação | sdk · @theokit/sdk | high | L | M1-1, M0-1 | Expor `maxIterations`/`budget` em `SendOptions`; shipar `agent.runToCompletion(msg,{maxRounds,continuationPrompt,onTruncated,signal})` com detecção de truncamento via `stoppedAtIterationLimit` e terminais (`done`/`step_limit`/`no_progress`). Sessão stateful preserva histórico → `buildReplayHistory` (M1-3) não é necessário aqui. |
+| M1-3 ✅ (em `develop`, READY_TO_MERGE, aguardando release) | Continuation-history (event→replayable bounded) | sdk · @theokit/sdk | med | M | M1-2 | `buildReplayHistory(base,events,{contextWindowTokens,reserveTokens?,perItemCap?})` puro, reusando `truncateWithMarker`; mapeia SDKMessage→StoredMessage, drop-oldest pair-safe por `call_id`, exportado do barrel. Plan SHIPPABLE 94.8, blueprint 99.7, commits `54a9f72`+`d7d5215`+`0ffa3ac` (2026-06-20). |
+| M1-4 | Reflection ladder / hook `stop` nunca dispara | sdk · @theokit/sdk | med | M | M1-2 | Disparar o `HookEvent "stop"` já declarado; honrar `feedback` como re-prompt bounded; accessor tipado de tool-result. |
+| M1-5 | Stream-message → wire-event mapper + readers de SDKMessage | sdk · @theokit/sdk | med | M | — | Subpath `./messages`: `assistantText`/`extractToolUses` + helpers de usage/cost (preservar `amountUsd: number\|undefined`). |
+| M1-6 | Agregação de usage multi-round (honest-null) | sdk · sdk-budget | low | M | M1-5 | `unknown` envenena a soma para `null`/`unknown`, nunca $0. Corrigir `usd-pricing.ts:50 return 0`. |
+
+**Concluído quando:** agente roda > 8 tool calls de forma confiável; step-cap fail-closed funciona em 1 linha; custo reportado é honesto.
+
+---
+
+## M2 — Gestão de contexto (Tema B)
+
+**Valor entregue:** o agente sobrevive a transcripts que crescem além da janela — modo de falha #1 de agentes de chat em produção.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M2-1 | Compaction não exposta (algoritmo está `@internal`) | sdk · @theokit/sdk | high | L | M1-2 | Exportar `compactTranscript({messages,keepTokens,summarize})` + `buildCheckpoint`/`filterFromLatestCheckpoint`/`CHECKPOINT_MARKER` + `isContextOverflowError`. |
+| M2-2 | Token estimate + `shouldCompact` (decisão pré-call) | sdk · @theokit/sdk | low | M | — | `estimateTokens` (chars/4, sem tokenizer) + `shouldCompact({estimated,contextWindow,buffer})`. |
+| M2-3 | Erro `context_too_long` não chega ao boundary | sdk · @theokit/sdk | med | M | M1-5 | Preferir `cause.metadata?.code`; adicionar `code?` ao evento `error` do stream; contract test 400→`context_too_long`. |
+| M2-4 | Catálogo per-model context-window (dead `@internal`) | sdk · @theokit/sdk | med | M | — | Promover `resolveModelCapabilities` ao público; corrigir descarte do sufixo do slug OpenRouter; sync/offline. |
+
+**Concluído quando:** compaction é importável; overflow é tipado, não regex; janela por modelo é consultável offline.
+
+---
+
+## M3 — Toolbox segura + orientação no repo (Tema C)
+
+**Valor entregue:** fecha a assimetria de segurança (o SDK protege egress de filesystem mas não de rede/shell) e dá ao agente a capacidade de se orientar num codebase. Paralelizável com M1/M2.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M3-1 | SSRF guard ausente em `web_fetch` | sdk · sdk-tools | high | M | — | `resolveAndScreen(host)` (todos os A-records; bloqueia private/loopback/link-local/metadata; IPv4-mapped IPv6) + `redirect:'manual'`; default-on em `createGuardedWebFetchTool`. |
+| M3-2 | Screen de shell catastrófico ausente | sdk · sdk-tools | high | M | — | `catastrophicShellReason(cmd)` segment-aware (rm/`curl\|sh`/mkfs/dd/fork-bomb/force-push/exfil); opt-out default-on. Guardrail, não sandbox. |
+| M3-3 | Repo-map / env-context builder | sdk · sdk-tools | high | L | — | `buildEnvContext(cwd)` + `buildRepoMap(cwd,{budget,ignore})` node:fs-only, char-bounded, never-throw. |
+| M3-4 | Rich errors (self-correction em tool fail) | sdk · sdk-tools | med | M | — | Cada factory anexa `guidance` ao próprio payload; wrapper `withToolResultGuidance`. |
+| M3-5 | ACI description override + render `<tools>` | sdk · sdk-tools | med | S | — | `withDescription(tool,desc)` + `renderToolList` do mesmo source-of-truth. |
+| M3-6 | Catastrophic shell na camada de agents | sdk · @theokit/agents | low | S | M3-2 | `denyCatastrophicCommands()` composável com `isCommandAllowed`. |
+| M3-7 | Web-search adapter env-driven (opcional, YAGNI: 1 primeiro) | sdk · sdk-tools | low | S | — | `braveWebSearchAdapter`/`tavilyWebSearchAdapter`; manter `createWebSearchTool` provider-agnóstico. |
+
+**Concluído quando:** `web_fetch` é safe-by-default contra SSRF; `shell_exec` tem backstop; `buildRepoMap` orienta o LLM em 1 call.
+
+---
+
+## M4 — Memória, skills, plano e instruções de projeto
+
+**Valor entregue:** "o agente sabe do projeto" deixa de ser código de app. Skills, memória categorizada, plano durável e leitura hierárquica de instruções viram primitivas.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M4-1 | Discovery de skills em dir arbitrário + `<skills>` | sdk · @theokit/sdk | high | M | M0-4 | Subpath `@theokit/sdk/skills`: `discoverSkills(dir)` + `buildSkillsBlock(skills)` (YAML real, symlink-escape guard). |
+| M4-2 | Reader/writer hierárquico de project-instructions | sdk · @theokit/sdk | med | M | M0-6 | `readProjectInstructions(cwd,{filename,scope})` (sobre `walkUpForFile`) + write atômico; THEO.md configurável. |
+| M4-3 | Memory taxonomia tipada (markdown + frontmatter) | sdk · sdk-memory | med | M | M0-4 | `createCategorizedMemory({root,categories})` reusando `safePathJoin`/`frontmatter-zod`; `MemoryFact.category` opcional. |
+| M4-4 | Plan-mode artifact persistence | sdk · sdk-tools | med | M | — | `createSessionArtifactStore({dir,idStrategy})` (generalizar `session-summary-writer`); composição opt-in em `createPlanModeTool`. |
+| M4-5 | `todoItemsToPlanNodes` + tool emite items estruturados (bug latente) | sdk · sdk-tools | med | M | — | Tool emite items estruturados no result (hoje só string → `getItems()` retorna `[]`); adapter versionado. |
+| M4-6 | Tool scoping por `AgentDefinition` (hoje só prompt soft) | sdk · @theokit/sdk | med | M | — | `tools?: string[]` em `AgentDefinition` + frontmatter; enforcement via `withToolWhitelist` (NÃO via PermissionEngine). |
+
+**Concluído quando:** sub-agente read-only é provadamente sem Write/Bash; skills/memória/plano/instruções são chamadas de framework, não ~400 LoC de app.
+
+---
+
+## M5 — Superfície de UI de agente (Tema D)
+
+**Valor entregue:** a ponte faltante entre `theokit/client` (eventos crus) e `@theokit/ui` (componentes). Sinal de urgência: o próprio showcase do `@theokit/ui` e o template do `create-theokit` reinventam isto à mão.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M5-1 | `liveText` + `error` derivados no hook | fw · theokit/client | med | S | M1-5 | Adicionar a `UseAgentStreamReturn` (template default hand-rolla `switch(event.type)`). |
+| M5-2 | Fold de AgentEvent → tool cards | fw · theokit/client | high | M | M1-5 | `foldAgentToolCards(events)` + `useAgentToolCards()` correlacionando call→result por id; resolver de envelope injetável. |
+| M5-3 | `AgentToolRenderer` (despacho tool→componente rico) | ui · @theokit/ui | high | L | M3 (shapes) | Registry overridable Diff/Terminal/Code/CreatedFiles/DataTable + fallback ToolCallPart. |
+| M5-4 | Adapters tool-result→props UI | ui · @theokit/ui | high | M | M3 (shapes) | Subpath `@theokit/ui/sdk-tools-adapters` co-versionado + contract test importando as factories reais. |
+| M5-5 | Auto-scroll stick-to-bottom | ui · @theokit/ui | high | M | — | `useStickToBottom` (ResizeObserver + threshold + guard); encapsula o seletor Radix vazado. |
+| M5-6 | Montagem de `AgentStreamItem[]` (history+live) | ui · @theokit/ui | med | M | M5-2 | `toAgentStreamItems({history,live},{classifyTool})` order-aware. |
+| M5-7 | `splitUsagePoints`/`toUsageMetrics` + props no chart | ui · @theokit/ui | low | S | — | Props `splitSeries`/`maxScale` no `TokenUsageChart`. |
+| M5-8 | `toModelOption` (humanizar slug OpenRouter) | sdk · @theokit/sdk | low | S | M2-4 | `parseModelId` público + `humanizeModelName`. |
+
+**Concluído quando:** o showcase e o template do `create-theokit` deletam seus helpers à mão e importam do framework.
+
+---
+
+## M6 — Eval harness (Tema E)
+
+**Valor entregue:** transforma "agente editou um repo" em "aqui está o patch e ele aplica/passa". Runs SWE-bench são multi-hora e $-heavy; sem resume/flush todo consumidor sério reconstrói crash-durability.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M6-1 | Runner batch resiliente (resume + flush JSONL) | sdk · @theokit/sdk eval | high | L | M1-2 | `appendJsonl`/`readJsonlIds` + `Eval.run` com `{persist:{path,key,resume}}` + flush por linha + `classify()`. |
+| M6-2 | Verify-gate scorer (exit code) | sdk · eval+sandbox | med | M | — | `Scorers.verifyGate({failToPass,passToPass})` via `SandboxBackend.execute`; `EvalRowResult.artifact{diff,applies}`. |
+| M6-3 | `RepoProvisioner` (clone+checkout isolado) | sdk · sandbox | low | M | — | `provisionRepo(sandbox,{repoUrl,ref,instanceId})` portável Local/Docker/E2B; `RepoProvisionError`. |
+| M6-4 | Headless code-runner (git diff + patch validate) | sdk · sdk+sdk-tools | med | M | M1-2 | Diff + validação de patch como artefato gradeável. |
+| M6-5 | `loadJsonl` (loader dataset genérico) | sdk · eval | low | S | — | `loadJsonl(path,{map})` com erro tipado por nº de linha; schema SWE-bench fica no app via `map`. |
+
+**Concluído quando:** uma run SWE-bench cai e resume sem perder trabalho; scoring é por exit-code, não heurística de texto.
+
+---
+
+## M7 — HTTP, persistência e consolidação dual-surface (Tema F)
+
+**Valor entregue:** resolve a tensão das duas superfícies HTTP paralelas (convention dev-server vs imperative TheoApp) que não compartilham primitivos. Quase independente — pode ir na onda 1.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M7-1 | 404 / typed exception em `defineRoute` | fw · theokit | med | M | — | Exportar `TheoError`+`fromUnknown`+sugar via `theokit/server`; rotear catch legado por `serverErrorToEnvelope`. |
+| M7-2 | Health-check route p/ filesystem-route server | fw · theokit | low | S | — | `defineHealthRoute`/`defineReadyRoute` (orquestrador já default-polla `/health`). |
+| M7-3 | Boot programático do server | fw · theokit | low | S | — | Promover `startDevServer`/`startCommand` a `theokit/boot`. |
+| M7-4 | `default-deny` no PermissionEngine | sdk · @theokit/sdk | low | S | — | `defaultAction: PermissionAction` (default `"allow"`); 1 linha, backward-compatible. |
+| M7-5 | PermissionEngine+definePlugin wiring (exemplar) | sdk · @theokit/sdk | low | S | M7-4 | Documentar o wiring como exemplo; só falta default-deny. |
+| M7-6 | Per-mode tool permission + projeção de usage/cost | sdk · server/cost+sdk | low | M | M1-6 | `UsageRecord.costUsd` nullable + `UsageResult.costKnown`; CostMeter renderiza `—`. |
+| M7-7 | Drizzle Repository CRUD (async-only + DI-first são as barreiras) | di · @theokit/orm | med | M | — | `createRepository(db,table)` non-DI + variante sync-aware p/ better-sqlite3; instalar @theokit/orm no theocode. |
+
+**Concluído quando:** um builder não precisa escolher entre "convention sem health/logRequest tipado" e "TheoApp que não serve as rotas do `theokit dev`".
+
+---
+
+## M8 — Camada declarativa: dar runtime aos decorators (Seção 6)
+
+**Valor entregue:** elimina o anti-padrão "decorator sem runtime". Cada decorator passa a compilar para uma chamada real aos primitivos das ondas 1–3. Resolve a tensão estratégica imperativo-vs-declarativo.
+
+| ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
+|---|---|---|---|---|---|---|
+| M8-1 | `@ContextWindow` / `AutoSummarize` sem runtime | sdk · @theokit/sdk · agents | med | M | M2-1, M2-2 | Compilar metadata para chamadas a `compactTranscript`/`shouldCompact`. |
+| M8-2 | `@ProjectContext` sem executor | sdk · @theokit/agents | med | M | M3-3, M4-2 | `getProjectContextConfig` passa a dirigir `buildRepoMap`/`readProjectInstructions`. |
+| M8-3 | `@Skills` sem runtime | sdk · @theokit/agents | med | S | M4-1 | Decorator dirige `discoverSkills`/`buildSkillsBlock`. |
+| M8-4 | Decisão estratégica di/gateways/plugins | — · investigação | — | M | M1–M5 | Avaliar alinhamento: o on-ramp imperativo (o que se usa) precisa das peças que esses pacotes não preenchem. Documentar em ADR. |
+
+**Concluído quando:** nenhum decorator é metadata-only; existe ADR decidindo o futuro de di/gateways à luz do uso real (imperativo, local-first).
+
+---
+
+## Cobertura — os 52 gaps mapeados
+
+Prova de completude: cada gap confirmado da tabela mestra do relatório → milestone.
+
+| # | Gap (título do relatório) | Milestone |
+|---|---|---|
+| 1 | budgetTracker.nextIteration() morto | M1-1 |
+| 2 | Tool scoping por sub-agente sem enforcement | M4-6 |
+| 3 | safeFilenameForId (4 respostas divergentes) | M0-4 |
+| 4 | Token estimate + shouldCompact | M2-2 |
+| 5 | default-deny no PermissionEngine | M7-4 |
+| 6 | Health-check route | M7-2 |
+| 7 | Boot programático do server | M7-3 |
+| 8 | 404 typed exception em defineRoute | M7-1 |
+| 9 | AgentToolRenderer | M5-3 |
+| 10 | Auto-scroll stick-to-bottom | M5-5 |
+| 11 | accumulateAssistantText + streamError | M5-1 |
+| 12 | Fold de AgentEvent → tool cards | M5-2 |
+| 13 | mapWithConcurrency (pool bounded) | M0-2 |
+| 14 | withRetry genérico | M0-3 |
+| 15 | isTransientError | M0-1 |
+| 16 | Loop de continuação sobre teto de 8 passos | M1-2 |
+| 17 | Compaction (summarize→checkpoint→keep-recent) | M2-1 |
+| 18 | Reflection ladder corretiva bounded | M1-4 |
+| 19 | Erro tipado de context-overflow | M2-3 |
+| 20 | Continuation-history (event→replayable) | M1-3 |
+| 21 | Agregação de usage multi-round (honest-null) | M1-6 |
+| 22 | Headless code-runner | M6-4 |
+| 23 | Discovery de skills em dir arbitrário + `<skills>` | M4-1 |
+| 24 | Memory taxonomia tipada | M4-3 |
+| 25 | Plan-mode artifact persistence | M4-4 |
+| 26 | SSRF guard p/ web_fetch | M3-1 |
+| 27 | Screen de shell catastrófico | M3-2 |
+| 28 | Rich errors (self-correction) | M3-4 |
+| 29 | ACI description override + `<tools>` | M3-5 |
+| 30 | Per-mode tool permission + cost projection | M7-6 |
+| 31 | Repo-map / env-context builder | M3-3 |
+| 32 | Reader/writer de project-instructions | M4-2 |
+| 33 | Catastrophic shell (perm.plugin path) | M3-6 |
+| 34 | Stream-message → wire-event mapper | M1-5 |
+| 35 | Catálogo per-model context-window | M2-4 |
+| 36 | Drizzle Repository CRUD | M7-7 |
+| 37 | SQLite bootstrap (WAL+FK) | M0-5 |
+| 38 | Eval seed→agent→verify-gate | M6-2 |
+| 39 | RepoProvisioner | M6-3 |
+| 40 | Runner batch resiliente (resume + flush) | M6-1 |
+| 41 | Adapters tool-result→props UI | M5-4 |
+| 42 | Montagem de AgentStreamItem[] | M5-6 |
+| 43 | splitUsagePoints / toUsageMetrics | M5-7 |
+| 44 | toModelOption (humanizar slug) | M5-8 |
+| 45 | toTaskPlanNodes (TodoItem→PlanNode) | M4-5 |
+| 46 | Loader dataset JSONL | M6-5 |
+| 47 | `<memories>` combinado (doc + facts) | M0-9 |
+| 48 | Atomic write reimplementado | M0-6 |
+| 49 | Persistência+onboarding OpenRouter key | M0-10 |
+| 50 | Migration drizzle-kit (ensureColumn) | M0-7 |
+| 51 | Logger middleware reimplementa logRequest | M0-8 |
+| 52 | Adapter env-driven de web-search | M3-7 |
+
+> Os dois itens de wiring de baixa severidade (`PermissionEngine+definePlugin wiring`, `catálogo per-model` na ótica sdk-integration) estão absorvidos em M7-5 e M2-4. Total: **52/52 cobertos**.
+
+---
+
+## Resumo por repo (planejamento de release)
+
+| Repo | Itens | Milestones que tocam | Releases sugeridos |
+|---|---|---|---|
+| theokit-sdk | ~34 | M0,M1,M2,M3,M4,M6,M7,M8 | minor por milestone; M0 pode ser um único minor de "expose internals" |
+| theocode (app) | 5 | M0 | patch único de Regra 9 |
+| theokit-a (fw) | 5 | M5,M7 | minor (client) + minor (theo) |
+| theo-ui | 6 | M5 | minor (com adapters co-versionados a sdk-tools) |
+| theokit-di | 1 | M7 | minor (orm non-DI) |
+
+**Acoplamento de release a vigiar:** M5 (UI) só fecha com `@theokit/ui` + `theokit/client` + os shapes de `sdk-tools` (M3) alinhados — co-versionar adapters. M8 depende de primitivos publicados em M2/M3/M4.
+
+---
+
+## Sequência recomendada de arranque
+
+1. **M0 inteiro** — fundação; libera retry/concurrency/transient/path/sqlite e zera a dívida de Regra 9 no theocode.
+2. **M1-1** (`nextIteration`) e **M3-1/M3-2** (SSRF + shell) em paralelo — os três HIGH de maior risco/menor esforço.
+3. **M1-2** (continuation driver) — o item L que destrava M2, M6 e M8.
+4. Onda 3 (M2, M5, M6) conforme M1/M3/M4 fecham.
+5. **M8** por último — colhe os primitivos e elimina os decorators-fantasma.

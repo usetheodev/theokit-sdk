@@ -277,6 +277,19 @@ export class CloudAgent implements SDKAgent {
   }
 
   /**
+   * The continuation driver re-sends against a stateful local session; the
+   * cloud runtime manages its own continuation policy server-side (M1 Phase 3).
+   *
+   * @public
+   */
+  runToCompletion(): never {
+    throw new UnsupportedRunOperationError(
+      "Agent.runToCompletion() is not supported on cloud agents. Cloud runtime manages continuation server-side. Use a local agent.",
+      "runToCompletion",
+    );
+  }
+
+  /**
    * Personality presets require consistent server-side enforcement that
    * the cloud runtime (pre-release) does not yet provide. Reject explicitly
    * to avoid silent divergence between local and cloud behaviour (ADR D169).
