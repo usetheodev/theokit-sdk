@@ -1897,6 +1897,14 @@ Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ project
 2. **Sensitive files refused.** `.env*` (except `.env.example`), `.git/`, `node_modules/`, `.theo/`, lock files via `isForbiddenPath`.
 3. **JSON returns, never throws on user mistakes.** Handlers always return a JSON string. Real exceptions reserved for SDK-side bugs (input parse errors).
 
+### `web_fetch` — SSRF guard (secure by default)
+
+`createWebFetchTool()` screens every request (and every redirect hop) against an SSRF block-list **by default**. A URL whose host resolves to a private/loopback/link-local/CGNAT/cloud-metadata/reserved address — IPv4 or IPv6, including IPv4-mapped `::ffff:` and DNS names that resolve to such addresses — returns `{ ok: false, error: "ssrf_blocked", reason }`. Redirects use `redirect:"manual"` and each hop is re-screened (a redirect to `127.0.0.1` or `169.254.169.254` is blocked, not followed); non-http(s) redirect targets are rejected.
+
+Opt out only for trusted local-dev tooling: `createWebFetchTool({ allowPrivateHosts: true })`.
+
+The screening primitives are also exported from `@theokit/sdk-tools` for reuse: `resolveAndScreen(host)` (resolves ALL A-records, throws `SsrfBlockedError` if any is blocked), `isBlockedIp(ip)`, and `screenedFetch(url, opts)`. Implemented with Node `dns`/`net` builtins — zero dependencies.
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {

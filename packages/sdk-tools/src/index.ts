@@ -29,6 +29,14 @@ export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.
 export { formatCode, formatDiff, formatError, formatFileList } from "./formatter.js";
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
 export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
+export {
+  isBlockedIp,
+  type ResolveAndScreenOptions,
+  resolveAndScreen,
+  type ScreenedFetchOptions,
+  SsrfBlockedError,
+  screenedFetch,
+} from "./internal/network-guard.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
 // Agent workflow tools (moved from @theokit/theocode — SDK LEGO pieces)
 export { createPlanModeTool, type PlanModeTool } from "./plan-mode.js";
