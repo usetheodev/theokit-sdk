@@ -28,6 +28,8 @@ async function* walkDts(dir) {
 }
 
 const targets = [
+  // M1-5: SDKMessage readers sub-path.
+  join(DIST, "messages.d.ts"),
   // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
   join(DIST, "path-safety.d.ts"),
   join(DIST, "task-store.d.ts"),

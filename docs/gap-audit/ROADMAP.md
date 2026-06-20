@@ -80,16 +80,16 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M1 — Harness de agente confiável (Tema A — maior alavancagem)
 
-> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). FEITO em `develop` (READY_TO_MERGE, aguardando release): Phase 3 `agent.runToCompletion` (plan `m1-run-to-completion`, commits `f218630`+`4d5a215`, 2026-06-20). PENDENTES: M1-3, M1-4, M1-5, M1-6.
+> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). RELEASED em `@theokit/sdk@2.3.0` (npm, 2026-06-20): Phase 3 `agent.runToCompletion` + M1-3 `buildReplayHistory`. PENDENTES: M1-4, M1-5, M1-6.
 
 **Valor entregue:** `agent.send` deixa de ser single-shot frágil e vira substrato real. A diferença entre "demo que trava em 8 tools" e "agente que termina um refactor".
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
 | M1-1 ✅ (2.2.0) | `budgetTracker.nextIteration()` morto no loop | sdk · @theokit/sdk | high | S | — | Chamar `nextIteration()` 1x/turno no loop; ambos os trackers já implementam. Teste: halt após N. |
-| M1-2 ✅ (knob+sinal em 2.2.0; runToCompletion ✅ em `develop`, aguardando release) | Teto interno de 8 passos sem knob + driver de continuação | sdk · @theokit/sdk | high | L | M1-1, M0-1 | Expor `maxIterations`/`budget` em `SendOptions`; shipar `agent.runToCompletion(msg,{maxRounds,continuationPrompt,onTruncated,signal})` com detecção de truncamento via `stoppedAtIterationLimit` e terminais (`done`/`step_limit`/`no_progress`). Sessão stateful preserva histórico → `buildReplayHistory` (M1-3) não é necessário aqui. |
-| M1-3 ✅ (em `develop`, READY_TO_MERGE, aguardando release) | Continuation-history (event→replayable bounded) | sdk · @theokit/sdk | med | M | M1-2 | `buildReplayHistory(base,events,{contextWindowTokens,reserveTokens?,perItemCap?})` puro, reusando `truncateWithMarker`; mapeia SDKMessage→StoredMessage, drop-oldest pair-safe por `call_id`, exportado do barrel. Plan SHIPPABLE 94.8, blueprint 99.7, commits `54a9f72`+`d7d5215`+`0ffa3ac` (2026-06-20). |
-| M1-4 | Reflection ladder / hook `stop` nunca dispara | sdk · @theokit/sdk | med | M | M1-2 | Disparar o `HookEvent "stop"` já declarado; honrar `feedback` como re-prompt bounded; accessor tipado de tool-result. |
+| M1-2 ✅ (knob+sinal em 2.2.0; runToCompletion ✅ RELEASED 2.3.0) | Teto interno de 8 passos sem knob + driver de continuação | sdk · @theokit/sdk | high | L | M1-1, M0-1 | Expor `maxIterations`/`budget` em `SendOptions`; shipar `agent.runToCompletion(msg,{maxRounds,continuationPrompt,onTruncated,signal})` com detecção de truncamento via `stoppedAtIterationLimit` e terminais (`done`/`step_limit`/`no_progress`). Sessão stateful preserva histórico → `buildReplayHistory` (M1-3) não é necessário aqui. |
+| M1-3 ✅ (RELEASED `@theokit/sdk@2.3.0`) | Continuation-history (event→replayable bounded) | sdk · @theokit/sdk | med | M | M1-2 | `buildReplayHistory(base,events,{contextWindowTokens,reserveTokens?,perItemCap?})` puro, reusando `truncateWithMarker`; mapeia SDKMessage→StoredMessage, drop-oldest pair-safe por `call_id`, exportado do barrel. Plan SHIPPABLE 94.8, blueprint 99.7, commits `54a9f72`+`d7d5215`+`0ffa3ac` (2026-06-20). |
+| M1-4 ✅ (em `develop`, READY_TO_MERGE, aguardando release) | Reflection ladder / hook `stop` nunca dispara | sdk · @theokit/sdk | med | M | M1-2 | Disparar o `HookEvent "stop"` já declarado; honrar `feedback` como re-prompt bounded; accessor tipado de tool-result. |
 | M1-5 | Stream-message → wire-event mapper + readers de SDKMessage | sdk · @theokit/sdk | med | M | — | Subpath `./messages`: `assistantText`/`extractToolUses` + helpers de usage/cost (preservar `amountUsd: number\|undefined`). |
 | M1-6 | Agregação de usage multi-round (honest-null) | sdk · sdk-budget | low | M | M1-5 | `unknown` envenena a soma para `null`/`unknown`, nunca $0. Corrigir `usd-pricing.ts:50 return 0`. |
 

@@ -124,7 +124,7 @@ export default async (sessionId) => {
     apiKey: "theo_test_acp_smoke",
     model: { id: "openai/gpt-4o-mini" },
     local: { cwd: ${JSON.stringify(workDir)} },
-    name: "acp-smoke-" + sessionId,
+    name: \`acp-smoke-\${sessionId}\`,
   });
 };
 `,
