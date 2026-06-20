@@ -52,7 +52,11 @@ import {
   resolveActivePersonalityPreset,
 } from "./local-agent-personality-extensions.js";
 import { extractCodePlugins } from "./local-agent-plugins.js";
-import { localAgentFork, localAgentRunUntil } from "./local-agent-runtime-extensions.js";
+import {
+  localAgentFork,
+  localAgentRunToCompletion,
+  localAgentRunUntil,
+} from "./local-agent-runtime-extensions.js";
 import { executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
 
@@ -500,6 +504,8 @@ export class LocalAgent implements SDKAgent {
   runUntil(goal: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
   fork(options: import("../lifecycle/fork-agent.js").ForkOptions): Promise<import("../lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
+  // biome-ignore format: G8 budget — see runUntil comment above.
+  runToCompletion(message: string, options?: import("../../../types/run.js").RunToCompletionOptions): Promise<import("../../../types/run.js").RunToCompletionResult> { return localAgentRunToCompletion(this, message, options); }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {
