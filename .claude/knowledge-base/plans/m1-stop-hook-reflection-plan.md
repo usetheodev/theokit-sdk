@@ -129,10 +129,10 @@ Per `rules/architecture.md` §2: the change wires through the existing `HooksExe
 ## Dependency Graph
 
 ```
-Phase 1 (fire stop + bounded feedback re-prompt) ──▶ Phase 2 (docs + changelog) ──▶ Final Phase (integration validation)
+Phase 1 (fire stop + bounded feedback re-prompt, incl. docs + changelog) ──▶ Final Phase (integration validation)
 ```
 
-Sequential: Phase 2 documents Phase 1; Final validates both.
+Sequential: Final validates Phase 1.
 
 ---
 
@@ -159,6 +159,9 @@ Design source `.claude/knowledge-base/discoveries/blueprints/m1-stop-hook-reflec
 packages/sdk/src/internal/agent-loop/loop.ts — add reflectAfterStop + MAX_STOP_FEEDBACK_ATTEMPTS; wire into continueOrTerminate clean-finish branch
 packages/sdk/src/internal/agent-loop/loop-context-init.ts — add stopFeedbackAttempts: number (init 0)
 packages/sdk/tests/internal/agent-loop/stop-hook-reflection.test.ts — NEW: RED tests first (TDD)
+docs.md — note in the hooks section: stop fires on clean finish; feedback → bounded re-prompt
+packages/sdk/CHANGELOG.md (root) — [Unreleased] § Added entry
+.changeset/m1-stop-hook-reflection.md — NEW: minor changeset
 ```
 
 #### Deep file dependency analysis
@@ -202,6 +205,8 @@ ctx.finalStatus = "finished"; return "done"
 3. Add `MAX_STOP_FEEDBACK_ATTEMPTS` + `reflectAfterStop` in `loop.ts`.
 4. Wire `reflectAfterStop` into `continueOrTerminate`'s clean-finish branch (after the nudge check).
 5. REFACTOR for Biome cognitive-complexity ≤ 10.
+6. Document the now-live `stop` hook in docs.md hooks section (fires on clean finish; `feedback` → bounded re-prompt; `allow`/`deny` finish; hooks remain file-based).
+7. Add `.changeset/m1-stop-hook-reflection.md` (minor) + root CHANGELOG `[Unreleased] § Added` bullet.
 
 #### TDD
 ```
@@ -225,71 +230,14 @@ VERIFY: pnpm --filter @theokit/sdk exec vitest run tests/internal/agent-loop/sto
 - [ ] `grep -c "event: \"stop\"" packages/sdk/src/internal/agent-loop/loop.ts` returns ≥ 1 (stop is actually dispatched)
 - [ ] `pnpm --filter @theokit/sdk exec biome check packages/sdk/src/internal/agent-loop/loop.ts packages/sdk/src/internal/agent-loop/loop-context-init.ts` reports 0 errors (complexity ≤ 10)
 - [ ] `wc -l packages/sdk/src/internal/agent-loop/loop.ts` returns ≤ 360 (budget 500)
+- [ ] `grep -c "feedback" docs.md` returns ≥ 1 (stop+feedback documented in the hooks section)
+- [ ] `ls .changeset/m1-stop-hook-reflection.md` exists AND `grep -c "stop" packages/sdk/CHANGELOG.md` returns ≥ 1 (Unbreakable Rule 6)
 
 #### DoD
 - [ ] `pnpm --filter @theokit/sdk exec vitest run tests/internal/agent-loop/stop-hook-reflection.test.ts` green
 - [ ] `pnpm --filter @theokit/sdk typecheck` exits 0
 - [ ] `pnpm --filter @theokit/sdk exec biome check` clean on changed files
-
----
-
-## Phase 2: Document the behavior + changelog
-
-**Objective:** document that `stop` now fires + honors `feedback`, and record the change.
-
-### T2.1 — docs.md hooks note + CHANGELOG + changeset
-
-#### Objective
-Add a concise note to the docs.md hooks section that the `stop` event fires on clean finish and a `feedback` decision drives a bounded re-prompt; add a changeset + root CHANGELOG `[Unreleased]` entry.
-
-#### Why this step (action + reasoning — ReAct discipline)
-
-1. **What this step does** — documents the now-live `stop` hook behavior in the public hooks contract + records a changeset/CHANGELOG entry.
-
-2. **Why it is necessary now** — CLAUDE.md mandates `docs.md` reflect any change to the documented surface in the same change; M1-4 changes the observable behavior of the documented file-based `stop` hook (it now fires). Unbreakable Rule 6 requires the changelog entry.
-
-#### Evidence
-docs.md hooks section at `docs.md:1179-1183`. CHANGELOG precedent: prior M1 entries in root `CHANGELOG.md [Unreleased]`. Changeset dir `.changeset/`.
-
-#### Files to edit
-```
-docs.md — note in the hooks section: stop fires on clean finish; feedback → bounded re-prompt
-packages/sdk/CHANGELOG.md (root) — [Unreleased] § Added entry
-.changeset/m1-stop-hook-reflection.md — NEW: minor changeset
-```
-
-#### Deep file dependency analysis
-- `docs.md` — additive note in the existing hooks section (`:1179`); no existing contract changed.
-- root `CHANGELOG.md` — additive `[Unreleased] § Added` bullet (the manual workspace changelog; the package CHANGELOG is changeset-generated at release).
-- `.changeset/` — new minor changeset consumed at the next `changeset version`.
-
-#### Deep Dives
-- **Doc note content:** the `stop` hook fires once when the agent finishes a turn cleanly; a hook returning `{"decision":"feedback","feedback":"…"}` re-prompts the agent with that text (bounded — at most a small number of rounds); `allow`/`deny` finish normally. Behavior change only — no new API symbol.
-- **Invariant:** the doc must NOT claim a programmatic callback (hooks remain file-based per `docs.md:1179`).
-
-#### Tasks
-1. Add the hooks-section note in docs.md.
-2. Add `.changeset/m1-stop-hook-reflection.md` (minor).
-3. Add the root CHANGELOG `[Unreleased] § Added` bullet.
-
-#### TDD
-```
-RED: N/A (documentation-only task — no test). VERIFY via grep oracles in Acceptance Criteria.
-GREEN: write the docs note + changeset + CHANGELOG entry
-REFACTOR: None expected
-VERIFY: grep -c "stop" docs.md (hooks section) + ls .changeset/m1-stop-hook-reflection.md
-```
-
-#### Acceptance Criteria
-- [ ] `grep -c "feedback" docs.md` returns ≥ 1 in the hooks section (stop+feedback documented)
-- [ ] `ls .changeset/m1-stop-hook-reflection.md` exists
-- [ ] `grep -c "stop" packages/sdk/CHANGELOG.md` returns ≥ 1 (root [Unreleased] entry mentions the stop hook)
-- [ ] `pnpm --filter @theokit/sdk exec biome check docs.md` reports 0 errors (or docs.md excluded — no error)
-
-#### DoD
-- [ ] docs.md hooks note present
-- [ ] changeset + CHANGELOG entry present
-- [ ] `pnpm --filter @theokit/sdk typecheck` exits 0 (no code change in this task; sanity)
+- [ ] docs.md hooks note + changeset + root CHANGELOG `[Unreleased]` entry present
 
 ---
 
@@ -302,7 +250,7 @@ VERIFY: grep -c "stop" docs.md (hooks section) + ls .changeset/m1-stop-hook-refl
 | 3 | Bound the reflection (no infinite loop) | T1.1 | `stopFeedbackAttempts` + `MAX_STOP_FEEDBACK_ATTEMPTS` (D3) |
 | 4 | allow/deny/none finish normally | T1.1 | finish branch; deny treated as allow |
 | 5 | Reuse HooksExecutor, zero new deps | T1.1 | `inputs.hooks.run` (D4) |
-| 6 | Document + record the behavior change | T2.1 | docs.md note + changeset + CHANGELOG |
+| 6 | Document + record the behavior change | T1.1 | docs.md note + changeset + CHANGELOG (steps 6-7) |
 
 **Coverage: 6/6 gaps covered (100%)**
 
