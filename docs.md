@@ -1858,6 +1858,37 @@ for await (const msg of run.stream()) {
 const usd = costAmountUsd(result.cost);   // number | undefined — `undefined` means "unknown", never $0
 ```
 
+#### Compaction — `@theokit/sdk/compaction`
+
+Public compaction / context-management helpers, so consumers manage the context window without reaching into `internal/`. They operate on the SDK's own `CompressibleMessage` (`{ role: "user" | "assistant" | "system"; content: string }`, re-exported from this sub-path).
+
+- `compactTranscript(messages, { keepRecent = 6, summarize? })` — keeps the last `keepRecent` turns verbatim, preserves leading `system` turns, and either summarizes the older window (via the optional `summarize` callback) or drops it. Reuses the SDK's internal compaction window; never mutates the input. Always returns a `Promise`. If `summarize` throws (e.g. the LLM call fails), the error propagates — the caller decides the fallback.
+- `buildCheckpoint(label?)` → a `system` marker turn whose content begins with `CHECKPOINT_MARKER`; `filterFromLatestCheckpoint(messages)` → the turns AFTER the most recent marker (all turns if none). Use to bound replay to "since the last checkpoint".
+- `isContextOverflowError(err)` — `true` iff `err` is a `TheokitAgentError` (or subclass) reporting the typed `context_too_long` code (checks `err.code` and `err.metadata?.code`).
+
+```ts
+import {
+  compactTranscript,
+  buildCheckpoint,
+  filterFromLatestCheckpoint,
+  isContextOverflowError,
+} from "@theokit/sdk/compaction";
+
+// Keep the last 6 turns; summarize the rest with the model.
+const compacted = await compactTranscript(history, {
+  keepRecent: 6,
+  summarize: async (older) => ({ role: "assistant", content: await summarizeWithLlm(older) }),
+});
+
+const recent = filterFromLatestCheckpoint([...history, buildCheckpoint("after-tools")]);
+
+try {
+  await agent.send(message, { throwOnError: true });
+} catch (err) {
+  if (isContextOverflowError(err)) history = await compactTranscript(history, { keepRecent: 4 });
+}
+```
+
 ## Built-in tools for coding agents (v1.x+)
 
 Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
