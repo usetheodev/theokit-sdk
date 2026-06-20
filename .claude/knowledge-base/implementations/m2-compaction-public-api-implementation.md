@@ -26,9 +26,9 @@
 
 | Check | Result |
 |---|---|
-| Unit tests (`compaction.test.ts`) | 19/19 |
+| Unit tests (`compaction.test.ts`) | 21/21 (incl. 2 review regression tests) |
 | Integration test (`compaction-wiring.test.ts`) | 2/2 |
-| Full SDK suite | 375 files / 2756 passed, 35 skipped, 0 failed (+21 from M1-5 baseline) |
+| Full SDK suite | 375 files / 2758 passed, 35 skipped, 0 failed (+21 from M1-5 baseline) |
 | Typecheck | exit 0 |
 | Biome | clean on changed files |
 | knip | clean |
