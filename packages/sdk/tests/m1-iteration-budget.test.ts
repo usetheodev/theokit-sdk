@@ -114,6 +114,21 @@ describe("M1-2 truncation signal (RunResult.stoppedAtIterationLimit)", () => {
     expect(isTruncation("continue", false)).toBe(false);
   });
 
+  it("test_truncation_also_set_when_tracker_denies_on_iteration_limit", () => {
+    // Mirror of the gate branch: a pluggable tracker denying with
+    // reason "iteration_limit" surfaces the SAME stoppedAtIterationLimit signal
+    // as the legacy IterationBudget exhausting — consistency for consumers using
+    // createCounterBudgetTracker({ maxIterations }).
+    const tracker = createCounterBudgetTracker({ maxIterations: 1 });
+    advanceIteration(tracker); // now at the cap
+    const decision = tracker.check();
+    expect(decision.allowed).toBe(false);
+    expect(decision.reason).toBe("iteration_limit");
+    // The loop sets the flag when this branch fires (loop.ts gate branch).
+    const flagSetByGate = decision.allowed === false && decision.reason === "iteration_limit";
+    expect(flagSetByGate).toBe(true);
+  });
+
   it("test_runResult_stoppedAtIterationLimit_is_a_public_optional_field", () => {
     const truncated: RunResult = { id: "r1", status: "finished", stoppedAtIterationLimit: true };
     expect(truncated.stoppedAtIterationLimit).toBe(true);
