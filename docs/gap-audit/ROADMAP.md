@@ -80,7 +80,7 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M1 — Harness de agente confiável (Tema A — maior alavancagem)
 
-> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). RELEASED em `@theokit/sdk@2.3.0` (npm, 2026-06-20): Phase 3 `agent.runToCompletion` + M1-3 `buildReplayHistory`. PENDENTES: M1-4, M1-5, M1-6.
+> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). RELEASED em `@theokit/sdk@2.3.0` (npm, 2026-06-20): Phase 3 `agent.runToCompletion` + M1-3 `buildReplayHistory`. RELEASED em `@theokit/sdk@3.0.0` (PR #25 merged 2026-06-20, tag v3.0.0; npm publish pendente): M1-4 (`stop` hook + bounded feedback) + M1-5 (`@theokit/sdk/messages` readers). PENDENTE: M1-6 (último item do M1).
 
 **Valor entregue:** `agent.send` deixa de ser single-shot frágil e vira substrato real. A diferença entre "demo que trava em 8 tools" e "agente que termina um refactor".
 
@@ -89,8 +89,8 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 | M1-1 ✅ (2.2.0) | `budgetTracker.nextIteration()` morto no loop | sdk · @theokit/sdk | high | S | — | Chamar `nextIteration()` 1x/turno no loop; ambos os trackers já implementam. Teste: halt após N. |
 | M1-2 ✅ (knob+sinal em 2.2.0; runToCompletion ✅ RELEASED 2.3.0) | Teto interno de 8 passos sem knob + driver de continuação | sdk · @theokit/sdk | high | L | M1-1, M0-1 | Expor `maxIterations`/`budget` em `SendOptions`; shipar `agent.runToCompletion(msg,{maxRounds,continuationPrompt,onTruncated,signal})` com detecção de truncamento via `stoppedAtIterationLimit` e terminais (`done`/`step_limit`/`no_progress`). Sessão stateful preserva histórico → `buildReplayHistory` (M1-3) não é necessário aqui. |
 | M1-3 ✅ (RELEASED `@theokit/sdk@2.3.0`) | Continuation-history (event→replayable bounded) | sdk · @theokit/sdk | med | M | M1-2 | `buildReplayHistory(base,events,{contextWindowTokens,reserveTokens?,perItemCap?})` puro, reusando `truncateWithMarker`; mapeia SDKMessage→StoredMessage, drop-oldest pair-safe por `call_id`, exportado do barrel. Plan SHIPPABLE 94.8, blueprint 99.7, commits `54a9f72`+`d7d5215`+`0ffa3ac` (2026-06-20). |
-| M1-4 ✅ (em `develop`, READY_TO_MERGE, aguardando release) | Reflection ladder / hook `stop` nunca dispara | sdk · @theokit/sdk | med | M | M1-2 | Disparar o `HookEvent "stop"` já declarado; honrar `feedback` como re-prompt bounded; accessor tipado de tool-result. |
-| M1-5 | Stream-message → wire-event mapper + readers de SDKMessage | sdk · @theokit/sdk | med | M | — | Subpath `./messages`: `assistantText`/`extractToolUses` + helpers de usage/cost (preservar `amountUsd: number\|undefined`). |
+| M1-4 ✅ (RELEASED `@theokit/sdk@3.0.0`) | Reflection ladder / hook `stop` nunca dispara | sdk · @theokit/sdk | med | M | M1-2 | Disparar o `HookEvent "stop"` já declarado; honrar `feedback` como re-prompt bounded; accessor tipado de tool-result. Commits `fb268f9`+`074a5a2`. |
+| M1-5 ✅ (RELEASED `@theokit/sdk@3.0.0`) | Stream-message → wire-event mapper + readers de SDKMessage | sdk · @theokit/sdk | med | M | — | Subpath `./messages`: `assistantText`/`extractToolUses` + `costAmountUsd` (preserva `amountUsd: number\|undefined`, nunca 0 — ADR D377). Plan SHIPPABLE 98.0, blueprint 98.8, commits `69763c7`+`a21949f` (2026-06-20). |
 | M1-6 | Agregação de usage multi-round (honest-null) | sdk · sdk-budget | low | M | M1-5 | `unknown` envenena a soma para `null`/`unknown`, nunca $0. Corrigir `usd-pricing.ts:50 return 0`. |
 
 **Concluído quando:** agente roda > 8 tool calls de forma confiável; step-cap fail-closed funciona em 1 linha; custo reportado é honesto.
