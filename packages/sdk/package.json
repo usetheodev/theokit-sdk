@@ -48,6 +48,16 @@
         "default": "./dist/errors.cjs"
       }
     },
+    "./messages": {
+      "import": {
+        "types": "./dist/messages.d.ts",
+        "default": "./dist/messages.js"
+      },
+      "require": {
+        "types": "./dist/messages.d.cts",
+        "default": "./dist/messages.cjs"
+      }
+    },
     "./path-safety": {
       "import": {
         "types": "./dist/path-safety.d.ts",
