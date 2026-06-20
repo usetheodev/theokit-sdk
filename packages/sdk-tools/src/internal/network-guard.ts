@@ -62,32 +62,67 @@ function isBlockedV4(ip: string): boolean {
   return V4_BLOCKED.some(([base, prefix]) => inV4Cidr(n, base, prefix));
 }
 
-/** Extract the IPv4 tail of an IPv4-mapped IPv6 literal (`::ffff:a.b.c.d` or `::ffff:7f00:1`). */
-function ipv4Mapped(ip: string): string | undefined {
-  const lower = ip.toLowerCase();
-  const dotted = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
-  if (dotted) return dotted[1];
-  const hex = lower.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
-  if (hex) {
-    const hi = Number.parseInt(hex[1] as string, 16);
-    const lo = Number.parseInt(hex[2] as string, 16);
-    return `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
-  }
-  return undefined;
+/** Fold a trailing dotted-quad (`…:1.2.3.4`) into two hex hextets; `null` if invalid. */
+function foldDottedTail(s: string): string | null {
+  const lastColon = s.lastIndexOf(":");
+  const tail = s.slice(lastColon + 1);
+  if (!tail.includes(".")) return s;
+  if (isIP(tail) !== 4) return null;
+  const o = tail.split(".").map(Number);
+  const hi = (((o[0] as number) << 8) | (o[1] as number)).toString(16);
+  const lo = (((o[2] as number) << 8) | (o[3] as number)).toString(16);
+  return `${s.slice(0, lastColon + 1)}${hi}:${lo}`;
 }
 
-function isBlockedV6(ip: string): boolean {
-  const lower = ip.toLowerCase();
-  if (lower === "::1" || lower === "::") return true;
-  if (
-    lower.startsWith("fe8") ||
-    lower.startsWith("fe9") ||
-    lower.startsWith("fea") ||
-    lower.startsWith("feb")
-  ) {
-    return true; // fe80::/10 link-local
+/** Expand a (validated) IPv6 string to exactly 8 hextet strings; `null` if malformed. */
+function expandHextets(s: string): string[] | null {
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tailGroups = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  if (halves.length === 1) return head.length === 8 ? head : null;
+  const missing = 8 - head.length - tailGroups.length;
+  if (missing < 0) return null;
+  return [...head, ...Array(missing).fill("0"), ...tailGroups];
+}
+
+/**
+ * Expand a (net.isIP-validated) IPv6 literal to its 16 bytes. Handles `::`
+ * compression and a trailing dotted-quad (`::ffff:1.2.3.4`). Returns `null` if it
+ * cannot be parsed (caller then fails closed).
+ */
+function ipv6ToBytes(ip: string): number[] | null {
+  const folded = foldDottedTail(ip.toLowerCase().split("%")[0] ?? "");
+  if (folded === null) return null;
+  const groups = expandHextets(folded);
+  if (groups === null || groups.length !== 8) return null;
+  const bytes: number[] = [];
+  for (const g of groups) {
+    const n = Number.parseInt(g || "0", 16);
+    bytes.push(n >> 8, n & 0xff);
   }
-  return lower.startsWith("fc") || lower.startsWith("fd"); // fc00::/7 ULA
+  return bytes;
+}
+
+function allZero(bytes: number[], from: number, to: number): boolean {
+  for (let i = from; i < to; i += 1) if (bytes[i] !== 0) return false;
+  return true;
+}
+
+/** Numeric IPv6 classification over the parsed 16 bytes (no string-prefix guesswork). */
+function isBlockedV6Bytes(b: number[]): boolean {
+  // IPv4-mapped (::ffff:a.b.c.d, any spelling) → re-check the embedded IPv4.
+  if (allZero(b, 0, 10) && b[10] === 0xff && b[11] === 0xff) {
+    return isBlockedV4(`${b[12]}.${b[13]}.${b[14]}.${b[15]}`);
+  }
+  // ::1 loopback and :: unspecified.
+  if (allZero(b, 0, 15) && (b[15] === 1 || b[15] === 0)) return true;
+  // IPv4-compatible (deprecated) ::a.b.c.d → re-check embedded IPv4.
+  if (allZero(b, 0, 12)) return isBlockedV4(`${b[12]}.${b[13]}.${b[14]}.${b[15]}`);
+  // fe80::/10 link-local.
+  if (b[0] === 0xfe && ((b[1] as number) & 0xc0) === 0x80) return true;
+  // fc00::/7 unique-local.
+  return ((b[0] as number) & 0xfe) === 0xfc;
 }
 
 /**
@@ -99,9 +134,8 @@ export function isBlockedIp(ip: string): boolean {
   const fam = isIP(ip);
   if (fam === 4) return isBlockedV4(ip);
   if (fam === 6) {
-    const mapped = ipv4Mapped(ip);
-    if (mapped) return isBlockedV4(mapped);
-    return isBlockedV6(ip);
+    const bytes = ipv6ToBytes(ip);
+    return bytes === null ? true : isBlockedV6Bytes(bytes);
   }
   return true;
 }

@@ -59,6 +59,20 @@ describe("isBlockedIp (M3-1)", () => {
   it("test_isBlockedIp_non_ip_returns_true", () => {
     expect(isBlockedIp("not-an-ip")).toBe(true);
   });
+  it("test_isBlockedIp_expanded_ipv4_mapped_blocked", () => {
+    // review F-dom-1: the EXPANDED IPv4-mapped form must also block.
+    expect(isBlockedIp("0:0:0:0:0:ffff:127.0.0.1")).toBe(true);
+    expect(isBlockedIp("0:0:0:0:0:ffff:169.254.169.254")).toBe(true);
+    expect(isBlockedIp("0:0:0:0:0:ffff:8.8.8.8")).toBe(false);
+  });
+  it("test_isBlockedIp_compressed_v6_shortforms_not_overblocked", () => {
+    // review (architecture): fc::1 (=00fc::1) and fe8::1 (=0fe8::1) are NOT in
+    // fc00::/7 / fe80::/10 — the numeric check must not over-block them.
+    expect(isBlockedIp("fc::1")).toBe(false);
+    expect(isBlockedIp("fe8::1")).toBe(false);
+    expect(isBlockedIp("fc00::1")).toBe(true);
+    expect(isBlockedIp("fe80::1")).toBe(true);
+  });
 });
 
 type FakeAddr = { address: string; family?: number };
@@ -99,6 +113,17 @@ describe("resolveAndScreen (M3-1)", () => {
     await expect(
       resolveAndScreen("2130706433", { lookup: fakeLookup([{ address: "127.0.0.1" }]) }),
     ).rejects.toBeInstanceOf(SsrfBlockedError);
+  });
+  it("test_resolveAndScreen_no_addresses_fails_closed", async () => {
+    // review (tests): the FAILS-CLOSED invariant — empty resolution throws.
+    await expect(resolveAndScreen("ghost.test", { lookup: fakeLookup([]) })).rejects.toBeInstanceOf(
+      SsrfBlockedError,
+    );
+  });
+  it("test_resolveAndScreen_allows_public_ipv6", async () => {
+    await expect(
+      resolveAndScreen("v6.test", { lookup: fakeLookup([{ address: "2606:4700:4700::1111" }]) }),
+    ).resolves.toEqual(["2606:4700:4700::1111"]);
   });
 });
 
@@ -156,6 +181,19 @@ describe("screenedFetch (M3-1)", () => {
       screenedFetch("http://good.test/", {
         fetchImpl: fakeFetchSeq([{ status: 302, location: "file:///etc/passwd" }]),
         ...pub,
+      }),
+    ).rejects.toBeInstanceOf(SsrfBlockedError);
+  });
+  it("test_screenedFetch_308_redirect_to_private_rescreened", async () => {
+    // review (tests): 307/308 method-preserving redirects are re-screened too.
+    await expect(
+      screenedFetch("http://good.test/", {
+        fetchImpl: fakeFetchSeq([{ status: 308, location: "http://10.0.0.5/" }]),
+        lookup: (host: string) =>
+          fakeLookup(host === "10.0.0.5" ? [{ address: "10.0.0.5" }] : [{ address: "8.8.8.8" }])(
+            host,
+            { all: true },
+          ),
       }),
     ).rejects.toBeInstanceOf(SsrfBlockedError);
   });
