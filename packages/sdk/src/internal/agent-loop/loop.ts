@@ -41,6 +41,9 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
     ctxRef = ctx;
     const budget =
       inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
+    // M1-2 (T2.2): track the last turn's decision so we can tell a clean
+    // `done` finish from a silent truncation at the iteration ceiling.
+    let lastTurnDecision: "continue" | "done" | "error" | undefined;
     while (budget.shouldContinue()) {
       if (inputs.budgetTracker !== undefined) {
         // Fail-CLOSED gate: a tracker that throws denies the iteration
@@ -51,18 +54,36 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
           if (decision.detail !== undefined) {
             ctx.error = { message: decision.detail, code: decision.reason ?? "budget" };
           }
+          // M1-2 (T2.2): a pluggable tracker denying on its iteration ceiling is
+          // the same "hit the iteration limit" event as the legacy IterationBudget
+          // exhausting below — surface the same signal so a caller using
+          // createCounterBudgetTracker({maxIterations}) detects it consistently.
+          if (decision.reason === "iteration_limit") {
+            ctx.stoppedAtIterationLimit = true;
+          }
           break;
         }
       }
       const usingGrace = budget.remaining <= 0 && !budget.graceCallUsed;
       if (usingGrace) budget.useGraceCall();
       const decision = await runIteration(inputs, ctx);
+      lastTurnDecision = decision;
       if (decision === "done") break;
       if (decision === "error") {
         ctx.finalStatus = "error";
         break;
       }
       budget.consume();
+      // M1-1: advance the pluggable tracker's iteration counter once per turn
+      // so trackers gating on maxIterations actually halt (the counter was dead
+      // because nothing called this). Optional + non-throwing per the contract.
+      inputs.budgetTracker?.nextIteration?.();
+    }
+    // M1-2 (T2.2): the loop exited because the iteration budget is exhausted
+    // (not via a `done`/`error` break) while the last turn still wanted tools —
+    // a silent truncation the caller (or a continuation driver) must detect.
+    if (lastTurnDecision === "continue" && budget.shouldContinue() === false) {
+      ctx.stoppedAtIterationLimit = true;
     }
     if (
       budget.shouldContinue() === false &&
@@ -103,6 +124,7 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ...(usage !== undefined ? { usage } : {}),
       ...(cost !== undefined ? { cost } : {}),
       ...(ctx.error !== undefined ? { error: ctx.error } : {}),
+      ...(ctx.stoppedAtIterationLimit === true ? { stoppedAtIterationLimit: true } : {}),
     };
   } finally {
     if (
