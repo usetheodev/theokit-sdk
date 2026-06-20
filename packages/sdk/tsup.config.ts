@@ -7,6 +7,8 @@ export default defineConfig({
     cron: "src/cron.ts",
     // M1-5: SDKMessage readers — leaf-type-only deps; DTS via tsc (tsconfig.tools-dts.json).
     messages: "src/messages.ts",
+    // M2-1: compaction helpers reach internal/runtime/compression → DTS via tsc (like retry/concurrency).
+    compaction: "src/compaction.ts",
     // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
     "path-safety": "src/path-safety.ts",
     // M0-2: concurrency reaches into internal/runtime, so its DTS is generated
