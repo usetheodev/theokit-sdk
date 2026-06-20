@@ -30,11 +30,14 @@ function assistantToolOnly(name: string): SDKMessage {
     message: { role: "assistant", content: [{ type: "tool_use", id: "t1", name, input: {} }] },
   };
 }
-function toolRun(name: string, args: unknown): SDKMessage {
-  return { type: "tool_call", ...RUN, call_id: "c1", name, status: "running", args };
+function toolRun(name: string, args: unknown, callId = "c1"): SDKMessage {
+  return { type: "tool_call", ...RUN, call_id: callId, name, status: "running", args };
 }
-function toolDone(name: string, result: unknown): SDKMessage {
-  return { type: "tool_call", ...RUN, call_id: "c1", name, status: "completed", result };
+function toolDone(name: string, result: unknown, callId = "c1"): SDKMessage {
+  return { type: "tool_call", ...RUN, call_id: callId, name, status: "completed", result };
+}
+function toolErr(name: string, result: unknown, callId = "c1"): SDKMessage {
+  return { type: "tool_call", ...RUN, call_id: callId, name, status: "error", result };
 }
 function thinking(): SDKMessage {
   return { type: "thinking", ...RUN, text: "hmm" } as SDKMessage;
@@ -95,16 +98,68 @@ describe("buildReplayHistory (M1-3)", () => {
     expect(out[0]?.content.length).toBeLessThan(big.length); // truncated
   });
 
-  it("test_never_splits_tool_call_from_tool_result", () => {
-    // tight budget that would drop the oldest (tool_call) but must keep the pair intact or drop both
-    const out = buildReplayHistory(
-      [],
-      [toolRun("read", {}), toolDone("read", "R".repeat(50)), assistant("done")],
-      { contextWindowTokens: 20 },
-    );
+  it("test_never_splits_tool_call_from_tool_result_on_real_drop_non_adjacent", () => {
+    // The call and its result are NON-ADJACENT (an assistant turn sits between them),
+    // and the budget forces a REAL eviction of the oldest turns — exercising the
+    // pair-drop branch (not vacuously). The c1 pair must be evicted together.
+    const events = [
+      toolRun("read", "x", "c1"),
+      assistant("thinking between call and result"), // non-adjacent
+      toolDone("read", "R".repeat(40), "c1"),
+      assistant("S".repeat(40)),
+    ];
+    const out = buildReplayHistory([], events, { contextWindowTokens: 20, reserveTokens: 0 }); // budget 80
     const calls = out.filter((m) => m.role === "tool_call").length;
     const results = out.filter((m) => m.role === "tool_result").length;
-    expect(calls).toBe(results); // never an orphan: equal counts (0/0 or 1/1)
+    expect(calls).toBe(results); // no orphan despite non-adjacency
+    expect(out.some((m) => m.role === "tool_call")).toBe(false); // the c1 pair was actually evicted
+    const total = out.reduce((n, m) => n + m.content.length, 0);
+    expect(total).toBeLessThanOrEqual(80); // a real drop happened (loop was entered)
+  });
+
+  it("test_evicts_whole_tool_pair_with_multiple_interleaved_pairs", () => {
+    // Two distinct call_ids; under budget the oldest whole pair is evicted, never orphaned.
+    const events = [
+      toolRun("a", "1", "c1"),
+      toolRun("b", "2", "c2"), // interleaved: both calls before either result
+      toolDone("a", "R".repeat(40), "c1"),
+      toolDone("b", "R".repeat(40), "c2"),
+      assistant("S".repeat(40)),
+    ];
+    const out = buildReplayHistory([], events, { contextWindowTokens: 25, reserveTokens: 0 }); // budget 100
+    expect(out.filter((m) => m.role === "tool_call").length).toBe(
+      out.filter((m) => m.role === "tool_result").length,
+    ); // calls === results after eviction — no orphan from interleaving
+  });
+
+  it("test_lone_tool_call_survives_and_is_not_paired", () => {
+    // A running tool_call with no completed result (agent interrupted mid-tool).
+    const out = buildReplayHistory([], [toolRun("read", {})], OPTS);
+    expect(out.map((m) => m.role)).toEqual(["tool_call"]);
+  });
+
+  it("test_tool_error_status_maps_to_tool_result", () => {
+    const out = buildReplayHistory([], [toolErr("read", "boom")], OPTS);
+    expect(out.length).toBe(1);
+    expect(out[0]?.role).toBe("tool_result");
+    expect(out[0]?.content).toContain("boom");
+  });
+
+  it("test_assistant_mixed_text_and_tool_use_maps_text_only", () => {
+    const event: SDKMessage = {
+      type: "assistant",
+      ...RUN,
+      message: {
+        role: "assistant",
+        content: [
+          { type: "text", text: "thinking" },
+          { type: "tool_use", id: "t1", name: "read", input: {} },
+        ],
+      },
+    };
+    expect(buildReplayHistory([], [event], OPTS)).toEqual([
+      { role: "assistant", content: "thinking" },
+    ]);
   });
 
   it("test_budget_zero_when_reserve_exceeds_window", () => {
