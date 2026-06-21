@@ -14,7 +14,11 @@
 
 import { catastrophicShellReason } from "./shell-guard.js";
 
-/** A pure command-permission predicate: returns a deny reason, or `null` to allow. */
+/**
+ * A pure command-permission predicate: returns a non-empty deny reason, or `null`
+ * to allow. NOTE: return `null` to allow — NOT `""`. An empty string is treated
+ * as a deny with a blank reason (`"" !== null`), which is almost never intended.
+ */
 export type CommandPolicy = (command: string) => string | null;
 
 /** A policy that denies catastrophic commands by composing the M3-2 guardrail. */

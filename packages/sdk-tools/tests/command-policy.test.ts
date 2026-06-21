@@ -33,9 +33,16 @@ describe("isCommandAllowed / commandDenialReason", () => {
     expect(isCommandAllowed("rm -rf /", [denyCatastrophicCommands()])).toBe(false);
   });
 
-  it("commandDenialReason returns the deny reason string", () => {
-    const reason = commandDenialReason("rm -rf /", [denyCatastrophicCommands()]);
-    expect(typeof reason).toBe("string");
+  it("commandDenialReason returns the exact M3-2 deny reason", () => {
+    expect(commandDenialReason("rm -rf /", [denyCatastrophicCommands()])).toBe(
+      catastrophicShellReason("rm -rf /"),
+    );
+  });
+
+  it("treats an empty-string policy return as a deny (not allow) — `null` is the allow sentinel", () => {
+    const emptyReasonPolicy: CommandPolicy = () => "";
+    expect(commandDenialReason("ls", [emptyReasonPolicy])).toBe("");
+    expect(isCommandAllowed("ls", [emptyReasonPolicy])).toBe(false);
   });
 
   it("first deny wins regardless of order (iteration continues past an allower)", () => {
