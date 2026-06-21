@@ -1963,6 +1963,20 @@ if (ctx.name === "shell_exec") {
 
 It inherits the guardrail's honesty: a heuristic gate, not a sandbox. Zero new dependencies.
 
+### Web-search provider adapter — Brave
+
+`createWebSearchTool` is provider-agnostic (it takes a `WebSearchCallback`). `@theokit/sdk-tools` ships ONE concrete env-driven adapter — Brave — that plugs into that seam:
+
+- `createBraveWebSearchAdapter({ apiKey?, fetchImpl?, endpoint? }): WebSearchCallback` — queries the Brave Search API. The key defaults to `process.env.BRAVE_API_KEY`; if neither an explicit `apiKey` nor the env var is set, it throws a typed `ConfigurationError` (code `no_api_key`) at creation (fail-early). `fetchImpl` is injectable (default `globalThis.fetch`) for offline testing. A non-ok HTTP response throws, which `createWebSearchTool` maps to `{ ok: false, error: "search_failed" }`; an empty/odd response maps to `[]`.
+
+```typescript
+import { createWebSearchTool, createBraveWebSearchAdapter } from "@theokit/sdk-tools";
+
+const tool = createWebSearchTool({ search: createBraveWebSearchAdapter() }); // reads BRAVE_API_KEY
+```
+
+The adapter uses a plain `fetch` (not `screenedFetch`): the endpoint host is fixed (no SSRF surface) and the Brave auth header must be sent. Additional providers (e.g. Tavily) are a follow-up — `createWebSearchTool` stays provider-agnostic. Zero new dependencies.
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {
