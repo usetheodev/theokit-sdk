@@ -46,8 +46,23 @@ describe("discoverSkills (M4-1)", () => {
     const names = skills.map((s) => s.name).sort();
     expect(names).toEqual(["code-review", "test-architect"]);
     const cr = skills.find((s) => s.name === "code-review") as Skill;
-    expect(cr.description).toContain("Reviews TypeScript SDK changes");
+    expect(cr.description).toBe("Reviews TypeScript SDK changes for contract regressions.");
     expect(cr.source).toContain("code-review/SKILL.md");
+  });
+
+  it("skips an empty SKILL.md and reports missing_frontmatter", async () => {
+    const root = await mkdtemp(join(tmpdir(), "skills-empty-"));
+    try {
+      await writeSkill(root, "blank", "");
+      const seen: Array<{ name?: string; code?: string }> = [];
+      const skills = await discoverSkills(root, {
+        onInvalidSkill: (info) => seen.push({ name: info.name, code: info.code }),
+      });
+      expect(skills).toEqual([]);
+      expect(seen).toEqual([{ name: "blank", code: "missing_frontmatter" }]);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
   });
 
   it("skips a malformed skill and calls onInvalidSkill with the typed code", async () => {
