@@ -19,6 +19,15 @@ describe("humanizeModelName (M5-8)", () => {
     expect(humanizeModelName("")).toBe("");
   });
 
+  it("keeps the model name when the slug has a trailing slash (no empty label)", () => {
+    expect(humanizeModelName("gpt-4o/")).toBe("GPT 4o");
+  });
+
+  it("degrades to the bare variant when there is no base label", () => {
+    expect(humanizeModelName(":free")).toBe("free");
+    expect(humanizeModelName("anthropic/:free")).toBe("free");
+  });
+
   it("(EC-1) keeps the full variant tail when the slug has multiple colons", () => {
     expect(humanizeModelName("openrouter/x/y:free:beta")).toBe("Y (free:beta)");
   });
