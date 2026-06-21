@@ -99,4 +99,14 @@ describe("createPlanModeTool with artifactStore (M4-4 opt-in persistence)", () =
       expect(await store.list()).toEqual([]);
     });
   });
+
+  it("store variant returns invalid_action for an unknown action (no persist)", async () => {
+    await withStore(async (_dir, store) => {
+      const tool = createPlanModeTool({ artifactStore: store });
+      const result = JSON.parse(await tool.handler({ action: "bogus" }));
+      expect(result.ok).toBe(false);
+      expect(result.error).toBe("invalid_action");
+      expect(await store.list()).toEqual([]);
+    });
+  });
 });
