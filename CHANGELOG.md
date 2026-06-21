@@ -8,6 +8,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+- **`@theokit/sdk-tools` repo-map / env-context builders (plan `m3-repo-map` M3-3).** Two `node:fs`-only, char-bounded, never-throw string builders that orient an LLM coding agent in one call: `buildEnvContext(cwd)` renders an `<env>` block (cwd, platform/arch, Node, is-git via `.git` presence, date, project docs, manifests); `buildRepoMap(cwd, { budget, ignore, maxDepth })` renders a depth-first directory tree bounded by `budget` (default 8000 chars, `… (truncated)` marker), `maxDepth` (default 4), and a per-dir cap, merging default ignores (node_modules/.git/dist/.theo/.next/build/coverage/target/out + dotdirs) with the caller's. Directory symlinks are listed as leaves (not followed). Both NEVER throw — a missing/unreadable path yields an `(unavailable)` marker. Best-effort orientation aid (no `.gitignore` parsing — deferred). Zero new deps. (M3-3)
+
 ### Changed
 
 ### Deprecated

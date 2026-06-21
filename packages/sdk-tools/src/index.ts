@@ -37,6 +37,7 @@ export {
   SsrfBlockedError,
   screenedFetch,
 } from "./internal/network-guard.js";
+export { buildEnvContext, buildRepoMap, type RepoMapOptions } from "./internal/repo-map.js";
 export { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
 // Agent workflow tools (moved from @theokit/theocode — SDK LEGO pieces)
