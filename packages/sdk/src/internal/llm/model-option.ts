@@ -41,7 +41,9 @@ export function humanizeModelName(modelId: string): string {
   const { name } = parseModelId(modelId);
   if (name.length === 0) return "";
   const colon = name.indexOf(":");
-  const base = colon >= 0 ? name.slice(0, colon) : name;
+  // Strip a trailing slash so a typo'd `gpt-4o/` keeps its name (not lost to an
+  // empty last segment).
+  const base = (colon >= 0 ? name.slice(0, colon) : name).replace(/\/+$/, "");
   const variant = colon >= 0 ? name.slice(colon + 1) : "";
   const lastSlash = base.lastIndexOf("/");
   const core = lastSlash >= 0 ? base.slice(lastSlash + 1) : base;
@@ -50,6 +52,7 @@ export function humanizeModelName(modelId: string): string {
     .filter((t) => t.length > 0)
     .map(prettyToken)
     .join(" ");
+  if (label.length === 0) return variant; // no base label (e.g. ":free") → bare variant
   return variant.length > 0 ? `${label} (${variant})` : label;
 }
 
