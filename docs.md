@@ -1905,6 +1905,23 @@ try {
 }
 ```
 
+#### Skills discovery — `@theokit/sdk/skills`
+
+First-party skill discovery + `<skills>` block, so consumers orient an agent with the skills it can invoke without hand-rolling a frontmatter parser. These are the same primitives the SDK runtime uses internally for `.theokit/skills` discovery and `<skills>` injection.
+
+- `discoverSkills(dir, options?)` — discover `<dir>/<name>/SKILL.md` files under an **arbitrary** directory (not a hardcoded `.theokit/skills` root). Parses strict YAML frontmatter (`name`/`description` required; `category`/`dependencies` optional), returning `Skill[]` (`{ name, description, source, category?, dependencies? }` — the skill BODY is never included). A subdirectory whose realpath escapes `dir` via symlink is skipped (symlink-escape guard, reusing `@theokit/sdk/path-safety`). **Never throws** — a missing/unreadable/non-directory path yields `[]`. A `SKILL.md` with malformed frontmatter is excluded and (optionally) reported via `options.onInvalidSkill({ name, source, code, message })`; a directory WITHOUT a `SKILL.md` is silently skipped (not a malformed skill). Discovery order follows the filesystem `readdir` order (OS-dependent) — sort the result before `buildSkillsBlock` if a stable block order matters.
+- `buildSkillsBlock(skills)` — render the prompt-injection-safe `<skills>` block (`- name: description` per skill, both fields XML-escaped). Accepts the structural subset `{ name, description }[]`; returns `undefined` for an empty list (so the caller can omit the block).
+
+```ts
+import { discoverSkills, buildSkillsBlock } from "@theokit/sdk/skills";
+
+const skills = await discoverSkills("./.theokit/skills", {
+  onInvalidSkill: ({ name, code }) => console.warn(`skill ${name} skipped: ${code}`),
+});
+const block = buildSkillsBlock([...skills].sort((a, b) => a.name.localeCompare(b.name)));
+// block: "<skills>\n  - code-review: …\n</skills>" (or undefined when no skills)
+```
+
 ## Built-in tools for coding agents (v1.x+)
 
 Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:

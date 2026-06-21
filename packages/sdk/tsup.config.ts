@@ -11,6 +11,8 @@ export default defineConfig({
     compaction: "src/compaction.ts",
     // M2-4: model-capabilities catalog — leaf module; DTS via tsc (tsconfig.tools-dts.json).
     models: "src/models.ts",
+    // M4-1: skills discovery + <skills> block — reaches internal/runtime/skills; DTS via tsc.
+    skills: "src/skills.ts",
     // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
     "path-safety": "src/path-safety.ts",
     // M0-2: concurrency reaches into internal/runtime, so its DTS is generated
