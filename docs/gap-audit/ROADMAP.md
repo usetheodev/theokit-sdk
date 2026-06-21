@@ -157,6 +157,8 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 **Valor entregue:** a ponte faltante entre `theokit/client` (eventos crus) e `@theokit/ui` (componentes). Sinal de urgência: o próprio showcase do `@theokit/ui` e o template do `create-theokit` reinventam isto à mão.
 
+> **Status: EM ANDAMENTO (1/8).** M5 cruza 3 repos: `@theokit/sdk` (M5-8), `theokit/client` (M5-1/M5-2), `@theokit/ui` (M5-3..M5-7). M5-8 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/models` — parseModelId público + humanizeModelName + toModelOption; release pendente). M5-1..M5-7 pendentes.
+
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
 | M5-1 | `liveText` + `error` derivados no hook | fw · theokit/client | med | S | M1-5 | Adicionar a `UseAgentStreamReturn` (template default hand-rolla `switch(event.type)`). |
@@ -166,7 +168,7 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 | M5-5 | Auto-scroll stick-to-bottom | ui · @theokit/ui | high | M | — | `useStickToBottom` (ResizeObserver + threshold + guard); encapsula o seletor Radix vazado. |
 | M5-6 | Montagem de `AgentStreamItem[]` (history+live) | ui · @theokit/ui | med | M | M5-2 | `toAgentStreamItems({history,live},{classifyTool})` order-aware. |
 | M5-7 | `splitUsagePoints`/`toUsageMetrics` + props no chart | ui · @theokit/ui | low | S | — | Props `splitSeries`/`maxScale` no `TokenUsageChart`. |
-| M5-8 | `toModelOption` (humanizar slug OpenRouter) | sdk · @theokit/sdk | low | S | M2-4 | `parseModelId` público + `humanizeModelName`. |
+| M5-8 ✅ (READY_TO_MERGE 2026-06-21) | `toModelOption` (humanizar slug OpenRouter) | sdk · @theokit/sdk | low | S | M2-4 | `parseModelId` público + `humanizeModelName`. |
 
 **Concluído quando:** o showcase e o template do `create-theokit` deletam seus helpers à mão e importam do framework.
 
