@@ -15,6 +15,8 @@
     "src/compaction.ts",
     "src/models.ts",
     "src/internal/llm/model-capabilities.ts",
+    "src/skills.ts",
+    "src/internal/runtime/skills/**/*",
     "src/internal/runtime/compression/**/*",
     "src/concurrency.ts",
     "src/internal/runtime/concurrency/**/*",
