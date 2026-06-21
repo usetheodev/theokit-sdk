@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **`@theokit/sdk` pre-call token estimate + compaction decision (plan `m2-token-estimate` M2-2).** Two pure zero-dep helpers on the `@theokit/sdk/compaction` subpath: `estimateTokens(text)` (tokenizer-free ~4-chars/token estimate; `""`→0, non-empty→≥1) + `shouldCompact({estimated,contextWindow,buffer})` (decide before sending: `true` when `estimated >= contextWindow - buffer`; pure, caller supplies the window). No tokenizer dep. (M2-2)
 
 ### Changed
 
