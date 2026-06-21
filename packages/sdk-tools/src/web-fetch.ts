@@ -15,16 +15,25 @@ import type { CustomTool } from "@theokit/sdk";
 import { defineTool } from "@theokit/sdk";
 import { z } from "zod";
 
+import { SsrfBlockedError, screenedFetch } from "./internal/network-guard.js";
+
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_BODY_BYTES = 1 * 1024 * 1024; // 1 MB
 
 export interface CreateWebFetchToolOptions {
   /** Default timeout in ms. */
   defaultTimeoutMs?: number;
+  /**
+   * Opt out of the SSRF guard (default `false`). When `true`, requests to
+   * private/loopback/link-local/metadata addresses are NOT blocked — use only for
+   * trusted local-dev tooling.
+   */
+  allowPrivateHosts?: boolean;
 }
 
 export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool {
   const defaultTimeoutMs = opts?.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const allowPrivateHosts = opts?.allowPrivateHosts ?? false;
 
   return defineTool({
     name: "web_fetch",
@@ -65,7 +74,10 @@ export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
       try {
-        const response = await fetch(url, { signal: controller.signal });
+        const response = await screenedFetch(url, {
+          signal: controller.signal,
+          allowPrivateHosts,
+        });
         clearTimeout(timer);
 
         // Check content-length header before downloading
@@ -102,6 +114,9 @@ export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool
         });
       } catch (err) {
         clearTimeout(timer);
+        if (err instanceof SsrfBlockedError) {
+          return JSON.stringify({ ok: false, error: "ssrf_blocked", url, reason: err.message });
+        }
         const e = err as { name?: string; message?: string };
         if (e.name === "AbortError") {
           return JSON.stringify({ ok: false, error: "timeout", url, timeout_ms: timeoutMs });

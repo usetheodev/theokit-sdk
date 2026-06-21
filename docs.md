@@ -1897,6 +1897,86 @@ Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ project
 2. **Sensitive files refused.** `.env*` (except `.env.example`), `.git/`, `node_modules/`, `.theo/`, lock files via `isForbiddenPath`.
 3. **JSON returns, never throws on user mistakes.** Handlers always return a JSON string. Real exceptions reserved for SDK-side bugs (input parse errors).
 
+### `web_fetch` — SSRF guard (secure by default)
+
+`createWebFetchTool()` screens every request (and every redirect hop) against an SSRF block-list **by default**. A URL whose host resolves to a private/loopback/link-local/CGNAT/cloud-metadata/reserved address — IPv4 or IPv6, including IPv4-mapped `::ffff:` and DNS names that resolve to such addresses — returns `{ ok: false, error: "ssrf_blocked", reason }`. Redirects use `redirect:"manual"` and each hop is re-screened (a redirect to `127.0.0.1` or `169.254.169.254` is blocked, not followed); non-http(s) redirect targets are rejected.
+
+Opt out only for trusted local-dev tooling: `createWebFetchTool({ allowPrivateHosts: true })`.
+
+The screening primitives are also exported from `@theokit/sdk-tools` for reuse: `resolveAndScreen(host)` (resolves ALL A-records, throws `SsrfBlockedError` if any is blocked), `isBlockedIp(ip)`, and `screenedFetch(url, opts)`. Implemented with Node `dns`/`net` builtins — zero dependencies.
+
+### `shell_exec` — catastrophic-command guardrail (secure by default)
+
+`createShellTool()` screens every command against a segment-aware deny-list **by default**. A command that matches a catastrophic pattern in any segment — across `;`/`&&`/`||`/pipe chains, behind a `sudo`/`env` prefix, or piped into a shell — returns `{ ok: false, error: "catastrophic_command", reason }` instead of executing. The screened set: `rm -rf` of a root/home/glob or top-level system-dir target (`/`, `~`, `$HOME`, `/etc`, `/usr`, `/var`, … — a relative target like `./build` stays allowed), `curl`/`wget` piped into `sh`/`bash`, `mkfs`, `dd` writing to a device, the `:(){ :|:& };:` fork bomb, `git push --force` (including the `+refspec` form; `--force-with-lease` is allowed), `chmod`/`chown -R` on a root path, and redirects to a block device (`> /dev/sda`). Matching is at command position (the executable, not an arbitrary substring), so a mention like `echo "rm -rf /"` is not over-blocked.
+
+Opt out for legitimate destructive power flows: `createShellTool({ allowCatastrophic: true })`.
+
+This is a heuristic **guardrail, not a sandbox** — it blocks obvious/accidental catastrophes but is bypassable by obfuscation (eval/base64) and is POSIX-only (Windows PowerShell is out of scope). The reusable primitives `catastrophicShellReason(command)` (returns a reason string or `null`) and `CatastrophicCommandError` are exported from `@theokit/sdk-tools`. Zero new dependencies (in-house segment tokenizer).
+
+### Repo-map / env-context builders
+
+`@theokit/sdk-tools` exports two `node:fs`-only, char-bounded, **never-throw** string builders that orient an LLM coding agent in one call — inject them into the system prompt:
+
+- `buildEnvContext(cwd): string` — a short `<env>` block: working directory, platform/arch, Node version, whether the directory is a git repo (detected by the presence of `.git`, no `git` subprocess), today's date, the project docs found (`AGENTS.md`/`CLAUDE.md`/`README.md`, with a bounded head of the first one), and the detected manifests (`package.json`/`pyproject.toml`/`Cargo.toml`/`go.mod`).
+- `buildRepoMap(cwd, { budget?, ignore?, maxDepth? }): string` — a depth-first directory tree bounded by `budget` (default 8000 chars, stops with a `… (truncated)` marker), `maxDepth` (default 4), and a per-directory entry cap. The default ignore set (`node_modules`, `.git`, `dist`, `.theo`, `.next`, `build`, `coverage`, `target`, `out`, plus any dot-entry) is merged with the caller-supplied `ignore`. Directory symlinks are listed as leaves (not followed), so symlink loops cannot hang the walk.
+
+Both NEVER throw — a missing/unreadable `cwd` yields an `(unavailable: …)` marker and an unreadable sub-directory is skipped. They are a best-effort orientation aid, not a complete or `.gitignore`-aware listing (deferred). Zero new dependencies.
+
+### Rich tool errors — self-correction guidance
+
+`@theokit/sdk-tools` exports a composable wrapper that adds an LLM-actionable `guidance` hint to a failing tool result, so the model can self-correct without a human round-trip:
+
+- `withToolResultGuidance(tool, guidance): CustomTool` — wraps any tool; when its result is `{ ok: false, error }`, a `guidance` string from the `guidance` map (keyed by error code) is added to the payload. Preserves name/description/inputSchema.
+- `withDefaultGuidance(tool)` — `withToolResultGuidance` pre-bound to `DEFAULT_TOOL_GUIDANCE`, a curated map for the common codes (`not_found`, `path_traversal`, `forbidden_path`, `no_match`, `timeout`, `invalid_url`, `ssrf_blocked`, `catastrophic_command`, `binary_file`, `too_large`).
+- `injectGuidance(handlerOutput, guidance)` — the pure underlying transform (exported for testing).
+
+Injection is ADDITIVE (only on `ok:false`), IDEMPOTENT (never overwrites an existing `guidance`), and NEVER-THROW: a non-JSON output, an `ok:true` result, a non-object JSON value, or an unknown error code is returned UNCHANGED. Compose it over the built-in tools or your own — no factory edits required. Example: `withDefaultGuidance(createReadFileTool({ projectRoot }))`. Zero new dependencies.
+
+### ACI — tool description override + render `<tools>`
+
+The wording of a tool's `description` (its Agent-Computer Interface) materially affects how reliably the model selects it. `@theokit/sdk-tools` exports two pure, zero-dependency helpers to tune and surface it:
+
+- `withDescription(tool, description): CustomTool` — returns a NEW tool with the description replaced (name/inputSchema/handler preserved); the original tool is not mutated. Use it to tune a built-in tool's wording for your domain without re-implementing it.
+- `renderToolList(tools): string` — renders a `<tools>` block (name + description per tool) from the SAME `CustomTool[]` your agent runs, so the rendered list cannot drift from the real tools (single source of truth). An overridden/added/removed tool is reflected automatically. Descriptions are XML-escaped; an empty array yields `<tools></tools>`; it never throws. The block is a system-prompt orientation aid — the provider tool-call schema stays each tool's `inputSchema`.
+
+### Command-permission policies
+
+For agents that gate shell commands at a permission layer, `@theokit/sdk-tools` exports a small composable policy layer that builds on the `shell_exec` catastrophic guardrail:
+
+- `type CommandPolicy = (command: string) => string | null` — a pure predicate returning a deny REASON, or `null` to allow.
+- `denyCatastrophicCommands(): CommandPolicy` — a policy that denies catastrophic commands by composing `catastrophicShellReason` (no duplicated deny-list).
+- `commandDenialReason(command, policies): string | null` — the first deny reason across the policy array (deny-wins); `null` if every policy allows. An empty array denies nothing.
+- `isCommandAllowed(command, policies): boolean` — the boolean view (`true` when no policy denies).
+
+The policy is framework-agnostic — wire it at your permission layer. Example inside a `pre_tool_call` hook:
+
+```typescript
+import { commandDenialReason, denyCatastrophicCommands } from "@theokit/sdk-tools";
+
+const policies = [denyCatastrophicCommands()];
+// in a pre_tool_call hook:
+if (ctx.name === "shell_exec") {
+  const reason = commandDenialReason(String(ctx.args.command ?? ""), policies);
+  if (reason) return { block: true, message: `Command refused: ${reason}` };
+}
+```
+
+It inherits the guardrail's honesty: a heuristic gate, not a sandbox. Zero new dependencies.
+
+### Web-search provider adapter — Brave
+
+`createWebSearchTool` is provider-agnostic (it takes a `WebSearchCallback`). `@theokit/sdk-tools` ships ONE concrete env-driven adapter — Brave — that plugs into that seam:
+
+- `createBraveWebSearchAdapter({ apiKey?, fetchImpl?, endpoint? }): WebSearchCallback` — queries the Brave Search API. The key defaults to `process.env.BRAVE_API_KEY`; if neither an explicit `apiKey` nor the env var is set, it throws a typed `ConfigurationError` (code `no_api_key`) at creation (fail-early). `fetchImpl` is injectable (default `globalThis.fetch`) for offline testing. A non-ok HTTP response throws, which `createWebSearchTool` maps to `{ ok: false, error: "search_failed" }`; an empty/odd response maps to `[]`.
+
+```typescript
+import { createWebSearchTool, createBraveWebSearchAdapter } from "@theokit/sdk-tools";
+
+const tool = createWebSearchTool({ search: createBraveWebSearchAdapter() }); // reads BRAVE_API_KEY
+```
+
+The adapter uses a plain `fetch` (not `screenedFetch`): the endpoint host is fixed (no SSRF surface) and the Brave auth header must be sent. Additional providers (e.g. Tavily) are a follow-up — `createWebSearchTool` stays provider-agnostic. Zero new dependencies.
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {

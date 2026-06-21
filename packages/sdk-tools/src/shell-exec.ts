@@ -14,6 +14,7 @@ import type { CustomTool } from "@theokit/sdk";
 
 import { defineTool } from "@theokit/sdk";
 import { z } from "zod";
+import { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -25,10 +26,17 @@ export interface CreateShellToolOptions {
   projectRoot: string;
   /** Default timeout in ms. Capped at 300s. */
   defaultTimeoutMs?: number;
+  /**
+   * Opt out of the catastrophic-command guardrail. Default `false` (the
+   * guardrail screens every command before spawn). Set `true` only when the
+   * agent legitimately needs destructive power flows — it is a heuristic
+   * guardrail, not a sandbox.
+   */
+  allowCatastrophic?: boolean;
 }
 
 export function createShellTool(opts: CreateShellToolOptions): CustomTool {
-  const { projectRoot, defaultTimeoutMs = DEFAULT_TIMEOUT_MS } = opts;
+  const { projectRoot, defaultTimeoutMs = DEFAULT_TIMEOUT_MS, allowCatastrophic = false } = opts;
 
   return defineTool({
     name: "shell_exec",
@@ -47,6 +55,15 @@ export function createShellTool(opts: CreateShellToolOptions): CustomTool {
         .describe("Timeout in milliseconds (default 30000, max 300000)."),
     }),
     handler: async ({ command, timeout_ms }) => {
+      if (!allowCatastrophic) {
+        const reason = catastrophicShellReason(command);
+        if (reason) {
+          // Construct the typed error so its `code` is the single source of the
+          // error string (mirrors web_fetch's SsrfBlockedError handling).
+          const err = new CatastrophicCommandError(reason);
+          return JSON.stringify({ ok: false, error: err.code, reason });
+        }
+      }
       const timeoutMs = Math.min(timeout_ms ?? defaultTimeoutMs, MAX_TIMEOUT_MS);
       const result = await runShell(projectRoot, command, timeoutMs);
       return result;
