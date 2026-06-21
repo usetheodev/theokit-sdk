@@ -74,4 +74,8 @@ export {
   type WebSearchCallback,
   type WebSearchResult,
 } from "./web-search.js";
+export {
+  type CreateBraveWebSearchAdapterOptions,
+  createBraveWebSearchAdapter,
+} from "./web-search-brave.js";
 export { type CreateWriteFileToolOptions, createWriteFileTool } from "./write-file.js";
