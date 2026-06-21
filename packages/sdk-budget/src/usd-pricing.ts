@@ -36,18 +36,23 @@ export const BUILTIN_PRICING: Readonly<Record<string, ModelPricing>> = Object.fr
 });
 
 /**
- * Compute USD cost for a single token event. Returns 0 (NOT throws)
- * when the model is unknown — consumers should override the pricing
- * table to add their model.
+ * Compute USD cost for a single token event.
+ *
+ * Returns `undefined` (NOT `0`, NOT throws) when the model is UNKNOWN — its
+ * cost is genuinely unknown, and coercing it to `$0` would be dishonest (cost
+ * contract `D377-cost-status-closed-enum.md`: amount-unknown ≠ `$0`). Consumers
+ * who want a price for a niche model supply an override via
+ * `createUsdBudgetTracker({ pricing })`. A KNOWN model with zero/invalid tokens
+ * returns `0` — that is a real, known `$0`.
  */
 export function computeUsdCost(
   pricing: Readonly<Record<string, ModelPricing>>,
   model: string,
   type: "input" | "output",
   tokens: number,
-): number {
+): number | undefined {
   const entry = pricing[model];
-  if (entry === undefined) return 0;
+  if (entry === undefined) return undefined;
   const ratePerMillion = type === "input" ? entry.inputPerMillionUsd : entry.outputPerMillionUsd;
   if (!Number.isFinite(tokens) || tokens <= 0) return 0;
   return (tokens / 1_000_000) * ratePerMillion;
