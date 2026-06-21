@@ -15,6 +15,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 ### Fixed
+- **`@theokit/sdk-budget` multi-round usage aggregation is honest-null (plan `m1-usage-honest-null` M1-6).** `computeUsdCost` no longer returns `$0` for an unknown model — it returns `undefined` (a known model with zero tokens still returns a real `0`), and `createUsdBudgetTracker` poisons the aggregate so `getTotalUsd()` returns `undefined` once any round's cost is unknown (tokens still counted); `check()` fails closed on a `maxUsd` cap when cost is unknown. Aligns with the cost contract `D377-cost-status-closed-enum.md`. **Type change:** `computeUsdCost`/`getTotalUsd()` now return `number | undefined`. (M1-6)
 
 ### Security
 

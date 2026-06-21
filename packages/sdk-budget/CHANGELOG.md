@@ -2,6 +2,9 @@
 
 ## [Unreleased]
 
+### Fixed
+- **Multi-round usage aggregation is honest-null (M1-6).** `computeUsdCost` returned `0` for an unknown model, so a per-round cost that is genuinely UNKNOWN was silently summed as `$0` — making `getTotalUsd()` report a dishonest cheap/complete total and a `maxUsd` cap evaluate against under-counted spend. Now: `computeUsdCost(...): number | undefined` returns `undefined` for an unknown model (a known model with zero tokens still returns a real `0`); `createUsdBudgetTracker` poisons the aggregate so `getTotalUsd(): number | undefined` returns `undefined` once any round's cost is unknown (sticky; tokens still counted); `check()` fails closed on a `maxUsd` cap when cost is unknown (`cost_limit`). Aligns with the cost contract `D377-cost-status-closed-enum.md`. **Type change:** `computeUsdCost`/`getTotalUsd()` now return `number | undefined`.
+
 ### Added (Phase 2 physical Stage 1 — iter 19, 2026-06-08)
 - Physically-extracted Budget internals into `sdk-budget/src/internal/`:
   - `calendar-window` — UTC-aligned 1h/1d/1w/30d/365d window helpers.
