@@ -180,12 +180,16 @@ const EXACT: ReadonlyMap<string, ModelCapabilities> = new Map([
 const ROUTING_PREFIXES = ["openrouter/", "vertex/", "bedrock/"] as const;
 
 /**
- * Resolve capability flags for a model id. Pure function — no I/O.
+ * Resolve per-model capability flags (vision/structured-output/tool-use/cache +
+ * `maxContextTokens`/`maxOutputTokens`) for a model id. Pure, sync, offline (a
+ * static catalog — no network). Strips routing prefixes (`openrouter/`/`vertex/`/
+ * `bedrock/`) and OpenRouter `:variant` suffixes before lookup; unknown models get
+ * conservative defaults. Public via `@theokit/sdk/models`.
  *
- * @internal
+ * @public
  */
 export function resolveModelCapabilities(modelId: string): ModelCapabilities {
-  const bare = stripRoutingPrefix(modelId);
+  const bare = stripVariantSuffix(stripRoutingPrefix(modelId));
   const exact = EXACT.get(bare);
   if (exact !== undefined) return exact;
   // Routing-prefixed models (vertex/claude-3-5-sonnet) strip to bare
@@ -203,6 +207,16 @@ function stripRoutingPrefix(modelId: string): string {
     if (modelId.startsWith(prefix)) return modelId.slice(prefix.length);
   }
   return modelId;
+}
+
+/**
+ * Strip an OpenRouter variant suffix (`:free`/`:nitro`/`:floor`/`:beta`/…) so the
+ * catalog lookup hits the underlying model. Model slugs contain no `:` except the
+ * variant separator, so cutting at the first `:` is safe.
+ */
+function stripVariantSuffix(modelId: string): string {
+  const i = modelId.indexOf(":");
+  return i >= 0 ? modelId.slice(0, i) : modelId;
 }
 
 /** Infer vendor prefix from bare model name for routing-prefixed lookups. */
