@@ -1932,6 +1932,13 @@ Both NEVER throw — a missing/unreadable `cwd` yields an `(unavailable: …)` m
 
 Injection is ADDITIVE (only on `ok:false`), IDEMPOTENT (never overwrites an existing `guidance`), and NEVER-THROW: a non-JSON output, an `ok:true` result, a non-object JSON value, or an unknown error code is returned UNCHANGED. Compose it over the built-in tools or your own — no factory edits required. Example: `withDefaultGuidance(createReadFileTool({ projectRoot }))`. Zero new dependencies.
 
+### ACI — tool description override + render `<tools>`
+
+The wording of a tool's `description` (its Agent-Computer Interface) materially affects how reliably the model selects it. `@theokit/sdk-tools` exports two pure, zero-dependency helpers to tune and surface it:
+
+- `withDescription(tool, description): CustomTool` — returns a NEW tool with the description replaced (name/inputSchema/handler preserved); the original tool is not mutated. Use it to tune a built-in tool's wording for your domain without re-implementing it.
+- `renderToolList(tools): string` — renders a `<tools>` block (name + description per tool) from the SAME `CustomTool[]` your agent runs, so the rendered list cannot drift from the real tools (single source of truth). An overridden/added/removed tool is reflected automatically. Descriptions are XML-escaped; an empty array yields `<tools></tools>`; it never throws. The block is a system-prompt orientation aid — the provider tool-call schema stays each tool's `inputSchema`.
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {
