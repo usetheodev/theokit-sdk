@@ -5,8 +5,8 @@
  * .git, and dist by default. Returns relative paths.
  *
  * Return shape (always a JSON string):
- *   - `{ ok: true, files: string[] }`
- *   - `{ ok: false, error: 'path_traversal' | 'no_matches' }`
+ *   - `{ ok: true, files: string[], count }` (an empty match is `ok: true` with `files: []`)
+ *   - `{ ok: false, error: 'path_traversal' }`
  */
 
 import { readdir } from "node:fs/promises";
