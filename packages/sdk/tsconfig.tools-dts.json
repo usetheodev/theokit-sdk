@@ -19,6 +19,7 @@
     "src/internal/runtime/skills/**/*",
     "src/project.ts",
     "src/internal/runtime/context/**/*",
+    "src/subagents.ts",
     "src/internal/runtime/compression/**/*",
     "src/concurrency.ts",
     "src/internal/runtime/concurrency/**/*",

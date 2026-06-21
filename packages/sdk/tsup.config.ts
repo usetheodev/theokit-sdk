@@ -15,6 +15,8 @@ export default defineConfig({
     skills: "src/skills.ts",
     // M4-2: project-instruction reader/writer — reaches internal/runtime/context; DTS via tsc.
     project: "src/project.ts",
+    // M4-6: subagent tool scoping — reaches internal/runtime/skills+concurrency; DTS via tsc.
+    subagents: "src/subagents.ts",
     // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
     "path-safety": "src/path-safety.ts",
     // M0-2: concurrency reaches into internal/runtime, so its DTS is generated

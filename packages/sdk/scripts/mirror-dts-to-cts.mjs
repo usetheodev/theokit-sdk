@@ -38,6 +38,8 @@ const targets = [
   join(DIST, "skills.d.ts"),
   // M4-2: project sub-path.
   join(DIST, "project.d.ts"),
+  // M4-6: subagents sub-path.
+  join(DIST, "subagents.d.ts"),
   // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
   join(DIST, "path-safety.d.ts"),
   join(DIST, "task-store.d.ts"),
