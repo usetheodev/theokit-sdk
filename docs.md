@@ -1922,6 +1922,22 @@ const block = buildSkillsBlock([...skills].sort((a, b) => a.name.localeCompare(b
 // block: "<skills>\n  - code-review: …\n</skills>" (or undefined when no skills)
 ```
 
+#### Project instructions — `@theokit/sdk/project`
+
+Hierarchical reader/writer for a project-instruction file (default `THEO.md`; also `CLAUDE.md`/`AGENTS.md`), composing the SDK's own hardened walk-up discovery + atomic writer.
+
+- `readProjectInstructions(cwd, options?)` — walk up from `cwd` collecting `<dir>/<filename>` (default `THEO.md`) up to the filesystem root (or `options.stopDir`). Returns `{ files, content }`: `files` is the found files **nearest-first** (`{ path, content }[]`, each read in full — never truncated), `content` is a reduction chosen by `options.scope` — `"nearest"` (default; innermost file's content) or `"merged"` (all files joined root-first, so the nearest/most-specific text appears last). **Never throws** — a missing/unreadable directory or a path that exists but is not a readable file (e.g. a directory named `THEO.md`) is skipped; no file → `{ files: [], content: undefined }`.
+- `writeProjectInstructions(cwd, content, options?)` — write `<cwd>/<filename>` atomically (temp + fsync + rename). Unlike the reader, this **fails loud**: a write error (e.g. the parent directory does not exist) propagates to the caller.
+
+```ts
+import { readProjectInstructions, writeProjectInstructions } from "@theokit/sdk/project";
+
+const { content, files } = await readProjectInstructions(process.cwd(), { scope: "merged" });
+// content: outer THEO.md + "\n\n" + nearest THEO.md (root-first); files: nearest-first with paths
+
+await writeProjectInstructions(process.cwd(), "# Project rules\n…"); // atomic THEO.md write
+```
+
 ## Built-in tools for coding agents (v1.x+)
 
 Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:

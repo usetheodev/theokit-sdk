@@ -88,6 +88,16 @@
         "default": "./dist/skills.cjs"
       }
     },
+    "./project": {
+      "import": {
+        "types": "./dist/project.d.ts",
+        "default": "./dist/project.js"
+      },
+      "require": {
+        "types": "./dist/project.d.cts",
+        "default": "./dist/project.cjs"
+      }
+    },
     "./path-safety": {
       "import": {
         "types": "./dist/path-safety.d.ts",
