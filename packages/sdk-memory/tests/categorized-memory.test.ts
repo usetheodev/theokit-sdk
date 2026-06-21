@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, readdir, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -58,21 +58,26 @@ describe("createCategorizedMemory (M4-3)", () => {
     });
   });
 
-  it("rejects an unknown category and writes nothing (fail loud)", async () => {
+  it("rejects an unknown category and writes nothing to disk (fail loud)", async () => {
     await withRoot(async (root) => {
       const m = createCategorizedMemory({ root, categories: CATS });
       await expect(m.add("nope", "x")).rejects.toMatchObject({ code: "unknown_category" });
-      // list of every known category is empty — nothing was written
-      expect(await m.list()).toEqual([]);
+      // no file was created at all (stronger than list() === [])
+      const files = await readdir(root).catch(() => [] as string[]);
+      expect(files).toEqual([]);
     });
   });
 
-  it("redacts secrets before persisting", async () => {
+  it("redacts secrets but keeps the surrounding fact (masked, not dropped)", async () => {
     await withRoot(async (root) => {
       const m = createCategorizedMemory({ root, categories: CATS });
       await m.add("user", "my key is sk-ant-api03-AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJ");
       const onDisk = await readFile(join(root, "user.md"), "utf8");
       expect(onDisk).not.toContain("AAAABBBBCCCCDDDDEEEEFFFFGGGGHHHHIIIIJJJJ");
+      expect(onDisk).toContain("- my key is "); // the fact line survived, masked
+      const facts = await m.list("user");
+      expect(facts).toHaveLength(1);
+      expect(facts[0]?.text).toContain("my key is ");
     });
   });
 
@@ -112,6 +117,47 @@ describe("createCategorizedMemory (M4-3)", () => {
   it("(EC-3) rejects an unsanitizable category", async () => {
     await withRoot(async (root) => {
       expect(() => createCategorizedMemory({ root, categories: ["..."] })).toThrow(/categor/i);
+    });
+  });
+
+  it("round-trips a multiline fact faithfully (no split / no truncation)", async () => {
+    await withRoot(async (root) => {
+      const m = createCategorizedMemory({ root, categories: CATS });
+      const multi = "todo:\n- buy milk\n- buy eggs";
+      await m.add("user", multi);
+      const facts = await m.list("user");
+      expect(facts).toHaveLength(1);
+      expect(facts[0]?.text).toBe(multi);
+    });
+  });
+
+  it("round-trips a fact containing a heading-like line without injecting structure", async () => {
+    await withRoot(async (root) => {
+      const m = createCategorizedMemory({ root, categories: CATS });
+      const tricky = "line one\n## Injected\n- smuggled";
+      await m.add("user", tricky);
+      const facts = await m.list("user");
+      expect(facts).toHaveLength(1);
+      expect(facts[0]?.text).toBe(tricky);
+    });
+  });
+
+  it("round-trips a fact containing literal backslash-n", async () => {
+    await withRoot(async (root) => {
+      const m = createCategorizedMemory({ root, categories: CATS });
+      const literal = "path C:\\\\nope and a real\nnewline";
+      await m.add("user", literal);
+      const facts = await m.list("user");
+      expect(facts).toHaveLength(1);
+      expect(facts[0]?.text).toBe(literal);
+    });
+  });
+
+  it("handles a prototype-key category name safely", async () => {
+    await withRoot(async (root) => {
+      const m = createCategorizedMemory({ root, categories: ["constructor", "user"] });
+      await m.add("constructor", "ctor fact");
+      expect((await m.list("constructor")).map((f) => f.text)).toEqual(["ctor fact"]);
     });
   });
 
