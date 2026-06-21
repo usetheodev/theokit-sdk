@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { type ModelCapabilities, resolveModelCapabilities } from "../src/models.js";
+import {
+  type ModelCapabilities,
+  parseModelId,
+  resolveModelCapabilities,
+  toModelOption,
+} from "../src/models.js";
 
 /**
  * M2-4 — integration: the public `@theokit/sdk/models` capability resolver works
@@ -28,5 +33,19 @@ describe("models wiring (M2-4)", () => {
     const pkgPath = fileURLToPath(new URL("../package.json", import.meta.url));
     const pkg = JSON.parse(readFileSync(pkgPath, "utf8")) as { exports: Record<string, unknown> };
     expect(pkg.exports["./models"]).toBeDefined();
+  });
+
+  it("test_models_subpath_exposes_parse_and_option (M5-8)", () => {
+    expect(typeof parseModelId).toBe("function");
+    expect(typeof toModelOption).toBe("function");
+    expect(parseModelId("anthropic/claude-3-5-sonnet")).toEqual({
+      provider: "anthropic",
+      name: "claude-3-5-sonnet",
+    });
+    expect(toModelOption("openrouter/openai/gpt-4o:free")).toEqual({
+      value: "openrouter/openai/gpt-4o:free",
+      label: "GPT 4o (free)",
+      provider: "openrouter",
+    });
   });
 });

@@ -1887,6 +1887,16 @@ Public compaction / context-management helpers, so consumers manage the context 
 
 `resolveModelCapabilities(modelId): ModelCapabilities` returns a model's capability flags + `maxContextTokens`/`maxOutputTokens` from a static, OFFLINE catalog (pure, sync, no network). It strips routing prefixes (`openrouter/`/`vertex/`/`bedrock/`) and OpenRouter `:variant` suffixes (`openai/gpt-4o:free` → `openai/gpt-4o`) before lookup; unknown models get conservative defaults (`4096`/`4096`, all flags false). Pair `maxContextTokens` with `shouldCompact` for a pre-call compaction decision.
 
+The subpath also exports model-id helpers for UIs (M5-8): `parseModelId(modelId): { provider, name }` splits the provider prefix from the model name (handles OpenRouter routing + tag suffixes); `humanizeModelName(modelId): string` is a best-effort human label (strips routing/vendor, title-cases the core, appends an OpenRouter `:variant` in parens — e.g. `"openrouter/openai/gpt-4o:free"` → `"GPT 4o (free)"`); `toModelOption(modelId): { value, label, provider }` builds a dropdown entry. Best-effort labels — not vendor-canonical marketing names; a UI can override per id.
+
+```ts
+import { parseModelId, humanizeModelName, toModelOption } from "@theokit/sdk/models";
+
+parseModelId("openrouter/openai/gpt-4o:free"); // { provider: "openrouter", name: "openai/gpt-4o:free" }
+humanizeModelName("anthropic/claude-3-5-sonnet"); // "Claude 3 5 Sonnet"
+const options = modelIds.map(toModelOption); // [{ value, label, provider }, …] for a <Select>
+```
+
 ```ts
 import { resolveModelCapabilities } from "@theokit/sdk/models";
 import { estimateTokens, shouldCompact } from "@theokit/sdk/compaction";
