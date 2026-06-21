@@ -138,12 +138,12 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 **Valor entregue:** "o agente sabe do projeto" deixa de ser código de app. Skills, memória categorizada, plano durável e leitura hierárquica de instruções viram primitivas.
 
-> **Status: EM ANDAMENTO (1/6).** M4-1 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/skills` — discoverSkills + buildSkillsBlock; release pendente). M4-2..M4-6 pendentes.
+> **Status: EM ANDAMENTO (2/6).** M4-1 ✅ + M4-2 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/skills` + `@theokit/sdk/project`; release pendente). M4-3..M4-6 pendentes.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
 | M4-1 ✅ (READY_TO_MERGE 2026-06-21) | Discovery de skills em dir arbitrário + `<skills>` | sdk · @theokit/sdk | high | M | M0-4 | Subpath `@theokit/sdk/skills`: `discoverSkills(dir)` + `buildSkillsBlock(skills)` (YAML real, symlink-escape guard). |
-| M4-2 | Reader/writer hierárquico de project-instructions | sdk · @theokit/sdk | med | M | M0-6 | `readProjectInstructions(cwd,{filename,scope})` (sobre `walkUpForFile`) + write atômico; THEO.md configurável. |
+| M4-2 ✅ (READY_TO_MERGE 2026-06-21) | Reader/writer hierárquico de project-instructions | sdk · @theokit/sdk | med | M | M0-6 | `readProjectInstructions(cwd,{filename,scope})` (sobre `walkUpForFile`) + write atômico; THEO.md configurável. |
 | M4-3 | Memory taxonomia tipada (markdown + frontmatter) | sdk · sdk-memory | med | M | M0-4 | `createCategorizedMemory({root,categories})` reusando `safePathJoin`/`frontmatter-zod`; `MemoryFact.category` opcional. |
 | M4-4 | Plan-mode artifact persistence | sdk · sdk-tools | med | M | — | `createSessionArtifactStore({dir,idStrategy})` (generalizar `session-summary-writer`); composição opt-in em `createPlanModeTool`. |
 | M4-5 | `todoItemsToPlanNodes` + tool emite items estruturados (bug latente) | sdk · sdk-tools | med | M | — | Tool emite items estruturados no result (hoje só string → `getItems()` retorna `[]`); adapter versionado. |
