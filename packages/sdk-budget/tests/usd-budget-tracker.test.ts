@@ -32,9 +32,15 @@ describe("computeUsdCost (pure helper)", () => {
     expect(cost).toBeCloseTo(0.6, 6);
   });
 
-  it("test_unknown_model_returns_zero", () => {
+  it("test_unknown_model_returns_undefined", () => {
+    // honest-null (D377): an unknown model has UNKNOWN cost, never $0.
     const cost = computeUsdCost(BUILTIN_PRICING, "nonexistent/model", "input", 1_000_000);
-    expect(cost).toBe(0);
+    expect(cost).toBeUndefined();
+  });
+
+  it("test_known_model_zero_tokens_is_zero", () => {
+    // known model + zero tokens IS a real $0 (distinct from unknown → undefined).
+    expect(computeUsdCost(BUILTIN_PRICING, "openai/gpt-4o-mini", "input", 0)).toBe(0);
   });
 
   it("test_invalid_tokens_return_zero", () => {
@@ -117,10 +123,12 @@ describe("createUsdBudgetTracker (BudgetTracker impl)", () => {
     }
   });
 
-  it("test_unknown_model_track_zero_usd_still_counts_tokens", () => {
+  it("test_unknown_round_poisons_total_but_still_counts_tokens", () => {
+    // An unknown-cost round poisons the USD total to undefined (honest-null),
+    // but the tokens are always known and still counted.
     const tracker = createUsdBudgetTracker({ maxTokens: 10_000 });
     tracker.track({ tokens: 500, model: "unknown/model", type: "input" });
-    expect(tracker.getTotalUsd()).toBe(0);
+    expect(tracker.getTotalUsd()).toBeUndefined();
     expect(tracker.getTotal().tokens).toBe(500);
   });
 
@@ -183,5 +191,67 @@ describe("createUsdBudgetTracker (BudgetTracker impl)", () => {
 
     // Cumulative: 4 × $0.000195 = $0.00078 (well under $0.05)
     expect(tracker.getTotalUsd()).toBeCloseTo(0.00078, 6);
+  });
+});
+
+describe("createUsdBudgetTracker — honest-null cost aggregation (M1-6)", () => {
+  it("test_unknown_round_poisons_total", () => {
+    const tracker = createUsdBudgetTracker();
+    tracker.track({ tokens: 1_000_000, model: "openai/gpt-4o-mini", type: "input" });
+    expect(tracker.getTotalUsd()).toBeCloseTo(0.15, 6);
+    tracker.track({ tokens: 1_000_000, model: "unknown/future-model", type: "input" });
+    expect(tracker.getTotalUsd()).toBeUndefined();
+    expect(tracker.getTotal().tokens).toBe(2_000_000);
+  });
+
+  it("test_poison_is_sticky", () => {
+    const tracker = createUsdBudgetTracker();
+    tracker.track({ tokens: 500, model: "unknown/model", type: "input" });
+    expect(tracker.getTotalUsd()).toBeUndefined();
+    // a later KNOWN round does not resurrect the total
+    tracker.track({ tokens: 1_000_000, model: "openai/gpt-4o-mini", type: "input" });
+    expect(tracker.getTotalUsd()).toBeUndefined();
+  });
+
+  it("test_known_only_sums_number", () => {
+    const tracker = createUsdBudgetTracker();
+    tracker.track({ tokens: 1_000_000, model: "openai/gpt-4o-mini", type: "input" });
+    tracker.track({ tokens: 1_000_000, model: "openai/gpt-4o-mini", type: "output" });
+    expect(tracker.getTotalUsd()).toBeCloseTo(0.75, 6);
+  });
+
+  it("test_check_fail_closed_on_unknown_with_maxUsd", () => {
+    const tracker = createUsdBudgetTracker({ maxUsd: 100 });
+    tracker.track({ tokens: 500, model: "unknown/model", type: "input" });
+    const decision = tracker.check();
+    expect(decision.allowed).toBe(false);
+    if (!decision.allowed) {
+      expect(decision.reason).toBe("cost_limit");
+      expect(decision.detail).toMatch(/unknown/i);
+    }
+  });
+
+  it("test_check_allows_known_under_maxUsd", () => {
+    const tracker = createUsdBudgetTracker({ maxUsd: 100 });
+    tracker.track({ tokens: 1000, model: "openai/gpt-4o-mini", type: "input" });
+    expect(tracker.check()).toEqual({ allowed: true });
+  });
+
+  it("test_token_cap_unaffected_by_unknown_cost", () => {
+    // no maxUsd → unknown cost does not block; the token cap still fires
+    const tracker = createUsdBudgetTracker({ maxTokens: 100 });
+    tracker.track({ tokens: 200, model: "unknown/model", type: "input" });
+    const decision = tracker.check();
+    expect(decision.allowed).toBe(false);
+    if (!decision.allowed) expect(decision.reason).toBe("token_limit");
+  });
+
+  it("test_check_unknown_cost_precedes_token_limit", () => {
+    // both caps set + an unknown round over both → cost_limit wins (EC-1, documented precedence)
+    const tracker = createUsdBudgetTracker({ maxTokens: 100, maxUsd: 100 });
+    tracker.track({ tokens: 200, model: "unknown/model", type: "input" });
+    const decision = tracker.check();
+    expect(decision.allowed).toBe(false);
+    if (!decision.allowed) expect(decision.reason).toBe("cost_limit");
   });
 });
