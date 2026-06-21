@@ -1868,6 +1868,20 @@ Public compaction / context-management helpers, so consumers manage the context 
 - `estimateTokens(text)` — a tokenizer-free token estimate (`ceil(text.length / 4)`, the ~4-chars-per-token heuristic): `""` → 0, any non-empty text → ≥ 1. A cheap PRE-CALL gate, not exact tokenization.
 - `shouldCompact({ estimated, contextWindow, buffer })` — decide BEFORE sending whether to compact: `true` when `estimated >= contextWindow - buffer` (the estimate leaves less than `buffer` headroom). Pure — pass the window yourself (e.g. from `resolveModelCapabilities`), so it stays decoupled from any per-model catalog.
 
+#### Model capabilities — `@theokit/sdk/models`
+
+`resolveModelCapabilities(modelId): ModelCapabilities` returns a model's capability flags + `maxContextTokens`/`maxOutputTokens` from a static, OFFLINE catalog (pure, sync, no network). It strips routing prefixes (`openrouter/`/`vertex/`/`bedrock/`) and OpenRouter `:variant` suffixes (`openai/gpt-4o:free` → `openai/gpt-4o`) before lookup; unknown models get conservative defaults (`4096`/`4096`, all flags false). Pair `maxContextTokens` with `shouldCompact` for a pre-call compaction decision.
+
+```ts
+import { resolveModelCapabilities } from "@theokit/sdk/models";
+import { estimateTokens, shouldCompact } from "@theokit/sdk/compaction";
+
+const { maxContextTokens } = resolveModelCapabilities("openrouter/openai/gpt-4o:free");
+if (shouldCompact({ estimated: estimateTokens(prompt), contextWindow: maxContextTokens, buffer: 4000 })) {
+  history = await compactTranscript(history, { keepRecent: 4 });
+}
+```
+
 ```ts
 import {
   compactTranscript,
