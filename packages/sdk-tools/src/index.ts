@@ -75,6 +75,7 @@ export {
 } from "./run-vitest.js";
 export { type CreateSearchTextToolOptions, createSearchTextTool } from "./search-text.js";
 export { type CreateShellToolOptions, createShellTool } from "./shell-exec.js";
+export { type PlanNode, todoItemsToPlanNodes } from "./todo-plan-nodes.js";
 export { createTodolistTool, type TodoItem, type TodolistTool } from "./todolist.js";
 export { type TruncationOptions, type TruncationResult, truncateOutput } from "./truncation.js";
 export { type CreateWebFetchToolOptions, createWebFetchTool } from "./web-fetch.js";

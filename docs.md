@@ -2042,6 +2042,19 @@ const planMode = createPlanModeTool({ artifactStore: store, artifactId: runId })
 await store.read(runId); // the persisted plan, or undefined
 ```
 
+### Todolist structured items + plan nodes
+
+The `todolist` tool (`createTodolistTool`) tracks multi-step work. Every success result carries BOTH a human `items_summary` (formatted text the LLM reads) AND a structured `items: TodoItem[]` snapshot (for a consumer rendering a plan/UI). `todoItemsToPlanNodes(items)` converts those items into versioned `PlanNode`s (`{ id, label, status }` — timestamps dropped).
+
+```typescript
+import { createTodolistTool, todoItemsToPlanNodes } from "@theokit/sdk-tools";
+
+const todo = createTodolistTool();
+const result = JSON.parse(todo.handler({ action: "add", title: "Write the migration" }));
+// result.items === [{ id: "todo-1", title: "Write the migration", status: "pending", createdAt: … }]
+const planNodes = todoItemsToPlanNodes(result.items); // [{ id: "todo-1", label: "Write the migration", status: "pending" }]
+```
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {
