@@ -93,3 +93,36 @@ export function isContextOverflowError(err: unknown): boolean {
     (err.code === "context_too_long" || err.metadata?.code === "context_too_long")
   );
 }
+
+/** Input to {@link shouldCompact}: an estimate, the model's window, and reserved headroom. */
+export interface ShouldCompactInput {
+  /** Estimated token count of the next request (e.g. from {@link estimateTokens}). */
+  readonly estimated: number;
+  /** The model's total context window, in tokens. */
+  readonly contextWindow: number;
+  /** Tokens to reserve as headroom (output + safety margin). */
+  readonly buffer: number;
+}
+
+/**
+ * Tokenizer-free token estimate via the conventional ~4-chars-per-token
+ * heuristic: `ceil(text.length / 4)`. `""` → 0; any non-empty text → ≥ 1.
+ * A cheap PRE-CALL gate for {@link shouldCompact} — NOT exact tokenization
+ * (a consumer needing exactness supplies their own tokenizer). Uses UTF-16
+ * `.length` (code units), so multibyte text is approximate.
+ */
+export function estimateTokens(text: string): number {
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Decide BEFORE sending whether to compact: `true` when the `estimated` token
+ * count leaves less than `buffer` headroom in the `contextWindow`
+ * (`estimated >= contextWindow - buffer`). A `buffer >= contextWindow`
+ * (non-positive threshold) always returns `true`. Pure — the caller supplies
+ * the window (e.g. from `resolveModelCapabilities`), keeping this decoupled
+ * from the per-model catalog.
+ */
+export function shouldCompact(input: ShouldCompactInput): boolean {
+  return input.estimated >= input.contextWindow - input.buffer;
+}
