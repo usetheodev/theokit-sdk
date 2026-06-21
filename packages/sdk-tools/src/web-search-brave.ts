@@ -48,9 +48,11 @@ export function createBraveWebSearchAdapter(
   }
   const fetchImpl = opts.fetchImpl ?? globalThis.fetch;
   const endpoint = opts.endpoint ?? BRAVE_ENDPOINT;
+  // Validate the endpoint at creation (fail-early symmetry with the key check).
+  const base = new URL(endpoint);
 
   return async (query: string, maxResults: number): Promise<WebSearchResult[]> => {
-    const url = new URL(endpoint);
+    const url = new URL(base);
     url.searchParams.set("q", query);
     url.searchParams.set("count", String(maxResults));
     const res = await fetchImpl(url.toString(), {

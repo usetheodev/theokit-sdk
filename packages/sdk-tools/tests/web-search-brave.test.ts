@@ -58,6 +58,21 @@ describe("createBraveWebSearchAdapter — mapping", () => {
     const [r] = await adapter("q", 5);
     expect(r).toEqual({ title: "", url: "https://x", snippet: "" });
   });
+
+  it("coerces non-string result fields to strings", async () => {
+    const { fetchImpl } = stubFetch({
+      web: { results: [{ title: 123, url: null, description: true }] },
+    });
+    const adapter = createBraveWebSearchAdapter({ apiKey: KEY, fetchImpl });
+    const [r] = await adapter("q", 5);
+    expect(r).toEqual({ title: "123", url: "", snippet: "true" });
+  });
+});
+
+describe("createBraveWebSearchAdapter — endpoint validation", () => {
+  it("throws at creation on a malformed endpoint (fail-early)", () => {
+    expect(() => createBraveWebSearchAdapter({ apiKey: KEY, endpoint: "not a url" })).toThrow();
+  });
 });
 
 describe("createBraveWebSearchAdapter — env + auth", () => {
