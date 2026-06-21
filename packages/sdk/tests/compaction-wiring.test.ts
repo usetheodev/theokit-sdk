@@ -7,8 +7,10 @@ import {
   buildCheckpoint,
   type CompressibleMessage,
   compactTranscript,
+  estimateTokens,
   filterFromLatestCheckpoint,
   isContextOverflowError,
+  shouldCompact,
 } from "../src/compaction.js";
 import { TheokitAgentError } from "../src/errors.js";
 
@@ -48,6 +50,12 @@ describe("compaction wiring (M2-1)", () => {
     expect(isContextOverflowError(new TheokitAgentError("boom", { code: "rate_limited" }))).toBe(
       false,
     );
+
+    // M2-2 pre-call helpers importable from the same subpath
+    expect(typeof estimateTokens).toBe("function");
+    expect(typeof shouldCompact).toBe("function");
+    expect(estimateTokens("1234")).toBe(1);
+    expect(shouldCompact({ estimated: 9000, contextWindow: 10_000, buffer: 1000 })).toBe(true);
   });
 
   it("test_subpath_declared_in_package_json", () => {
