@@ -29,6 +29,30 @@ export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.
 export { formatCode, formatDiff, formatError, formatFileList } from "./formatter.js";
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
 export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
+export {
+  type CommandPolicy,
+  commandDenialReason,
+  denyCatastrophicCommands,
+  isCommandAllowed,
+} from "./internal/command-policy.js";
+export {
+  isBlockedIp,
+  type ResolveAndScreenOptions,
+  resolveAndScreen,
+  type ScreenedFetchOptions,
+  SsrfBlockedError,
+  screenedFetch,
+} from "./internal/network-guard.js";
+export { buildEnvContext, buildRepoMap, type RepoMapOptions } from "./internal/repo-map.js";
+export { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
+export { renderToolList, withDescription } from "./internal/tool-aci.js";
+export {
+  DEFAULT_TOOL_GUIDANCE,
+  injectGuidance,
+  type ToolGuidanceMap,
+  withDefaultGuidance,
+  withToolResultGuidance,
+} from "./internal/tool-guidance.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
 // Agent workflow tools (moved from @theokit/theocode — SDK LEGO pieces)
 export { createPlanModeTool, type PlanModeTool } from "./plan-mode.js";
@@ -50,4 +74,8 @@ export {
   type WebSearchCallback,
   type WebSearchResult,
 } from "./web-search.js";
+export {
+  type CreateBraveWebSearchAdapterOptions,
+  createBraveWebSearchAdapter,
+} from "./web-search-brave.js";
 export { type CreateWriteFileToolOptions, createWriteFileTool } from "./write-file.js";
