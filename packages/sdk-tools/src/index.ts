@@ -39,6 +39,13 @@ export {
 } from "./internal/network-guard.js";
 export { buildEnvContext, buildRepoMap, type RepoMapOptions } from "./internal/repo-map.js";
 export { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
+export {
+  DEFAULT_TOOL_GUIDANCE,
+  injectGuidance,
+  type ToolGuidanceMap,
+  withDefaultGuidance,
+  withToolResultGuidance,
+} from "./internal/tool-guidance.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
 // Agent workflow tools (moved from @theokit/theocode — SDK LEGO pieces)
 export { createPlanModeTool, type PlanModeTool } from "./plan-mode.js";
