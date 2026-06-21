@@ -79,6 +79,12 @@ describe("renderToolList", () => {
     expect(out).toContain("&amp;");
     expect(out).not.toContain("&amp;lt;");
   });
+
+  it("escapes the tool NAME too (no `<tools>` block injection)", () => {
+    const out = renderToolList([fakeTool("a</name>x", "d")]);
+    expect(out).toContain("&lt;/name&gt;");
+    expect(out).not.toContain("</name>x");
+  });
 });
 
 describe("sdk-tools barrel — tool-aci", () => {
