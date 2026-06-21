@@ -62,6 +62,14 @@ export function createTodolistTool(): TodolistTool {
     return items.find((i) => i.id === id);
   }
 
+  // M4-5: every list-bearing success result carries BOTH the human `items_summary`
+  // (for the LLM) AND the structured `items` snapshot (for programmatic consumers
+  // that render a plan/UI). Previously only `items_summary` was emitted, so a
+  // consumer parsing the result could never recover structured items.
+  function listResult(extra: Record<string, unknown>): string {
+    return ok({ ...extra, items: [...items], items_summary: formatList() });
+  }
+
   function formatList(): string {
     if (items.length === 0) return "No tasks. Use action 'add' to create one.";
     const lines = items.map((item) => {
@@ -84,7 +92,7 @@ export function createTodolistTool(): TodolistTool {
       createdAt: Date.now(),
     };
     items.push(item);
-    return ok({ id: item.id, message: `Added: ${item.title}`, items_summary: formatList() });
+    return listResult({ id: item.id, message: `Added: ${item.title}` });
   }
 
   function handleSetStatus(input: TodoInput, status: "in_progress" | "done"): string {
@@ -95,7 +103,7 @@ export function createTodolistTool(): TodolistTool {
     item.status = status;
     if (status === "done") item.completedAt = Date.now();
     const verb = status === "done" ? "Completed" : "Started";
-    return ok({ message: `${verb}: ${item.title}`, items_summary: formatList() });
+    return listResult({ message: `${verb}: ${item.title}` });
   }
 
   function handleRemove(input: TodoInput): string {
@@ -104,7 +112,7 @@ export function createTodolistTool(): TodolistTool {
     const idx = items.findIndex((i) => i.id === id);
     if (idx === -1) return fail({ error: "not_found", id });
     const removed = items.splice(idx, 1)[0]!;
-    return ok({ message: `Removed: ${removed.title}`, items_summary: formatList() });
+    return listResult({ message: `Removed: ${removed.title}` });
   }
 
   function handleClearCompleted(): string {
@@ -112,10 +120,7 @@ export function createTodolistTool(): TodolistTool {
     const kept = items.filter((i) => i.status !== "done");
     items.length = 0;
     items.push(...kept);
-    return ok({
-      message: `Cleared ${before - items.length} completed items`,
-      items_summary: formatList(),
-    });
+    return listResult({ message: `Cleared ${before - items.length} completed items` });
   }
 
   const actions: Record<string, (input: TodoInput) => string> = {
@@ -123,7 +128,7 @@ export function createTodolistTool(): TodolistTool {
     in_progress: (input) => handleSetStatus(input, "in_progress"),
     complete: (input) => handleSetStatus(input, "done"),
     remove: handleRemove,
-    list: () => ok({ items_summary: formatList() }),
+    list: () => listResult({}),
     clear_completed: handleClearCompleted,
   };
 
@@ -134,7 +139,7 @@ export function createTodolistTool(): TodolistTool {
       "Actions: 'add' (create task with title), 'complete' (mark done by id), " +
       "'in_progress' (mark started by id), 'remove' (delete by id), " +
       "'list' (show all), 'clear_completed' (remove done items). " +
-      "Returns { ok, items_summary }.",
+      "Returns { ok, items, items_summary } (items = structured array; items_summary = formatted text).",
     inputSchema: {
       type: "object" as const,
       properties: {
