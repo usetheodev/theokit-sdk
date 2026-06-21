@@ -5,6 +5,19 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { buildEnvContext, buildRepoMap } from "../src/internal/repo-map.js";
 
+// Probe symlink capability once so the EC-1 test reports SKIPPED (not a silent
+// green) on platforms/sandboxes that deny symlink creation.
+const SYMLINKS_OK = (() => {
+  try {
+    const d = mkdtempSync(join(tmpdir(), "sdk-symprobe-"));
+    symlinkSync(d, join(d, "l"), "dir");
+    rmSync(d, { recursive: true, force: true });
+    return true;
+  } catch {
+    return false;
+  }
+})();
+
 let root: string;
 
 beforeEach(() => {
@@ -57,16 +70,27 @@ describe("buildRepoMap — tree listing", () => {
     expect(out).not.toContain("deep.txt");
   });
 
-  it("does not follow a directory symlink loop (EC-1)", () => {
+  it.skipIf(!SYMLINKS_OK)("does not follow a directory symlink loop (EC-1)", () => {
     mkdirSync(join(root, "real"));
-    try {
-      symlinkSync(root, join(root, "loop"), "dir");
-    } catch {
-      return; // platform without symlink permission — skip
-    }
+    symlinkSync(root, join(root, "loop"), "dir");
     const out = buildRepoMap(root, { maxDepth: 6 });
-    expect(typeof out).toBe("string");
-    expect(out).toContain("real");
+    // Structural invariant: the symlink is a LEAF (no trailing slash, not descended).
+    // A symlink-following walker would re-list `real/` under `loop/` repeatedly.
+    expect(out).toContain("loop");
+    expect(out).not.toContain("loop/");
+    expect(out.match(/real/g)?.length).toBe(1);
+  });
+
+  it("returns unavailable when cwd is a file, not a directory", () => {
+    writeFileSync(join(root, "f.txt"), "x");
+    expect(buildRepoMap(join(root, "f.txt"))).toContain("unavailable");
+  });
+
+  it("elides over-cap entries with a '(N more)' marker", () => {
+    for (let i = 0; i < 250; i++)
+      writeFileSync(join(root, `f-${String(i).padStart(3, "0")}.txt`), "x");
+    const out = buildRepoMap(root, { budget: 100_000 });
+    expect(out).toContain("(50 more)");
   });
 
   it("truncation is line-clean and ends with the marker (EC-2)", () => {
