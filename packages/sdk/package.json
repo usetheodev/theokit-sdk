@@ -98,6 +98,16 @@
         "default": "./dist/project.cjs"
       }
     },
+    "./subagents": {
+      "import": {
+        "types": "./dist/subagents.d.ts",
+        "default": "./dist/subagents.js"
+      },
+      "require": {
+        "types": "./dist/subagents.d.cts",
+        "default": "./dist/subagents.cjs"
+      }
+    },
     "./path-safety": {
       "import": {
         "types": "./dist/path-safety.d.ts",
