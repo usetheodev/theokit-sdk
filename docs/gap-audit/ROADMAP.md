@@ -157,12 +157,12 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 **Valor entregue:** a ponte faltante entre `theokit/client` (eventos crus) e `@theokit/ui` (componentes). Sinal de urgência: o próprio showcase do `@theokit/ui` e o template do `create-theokit` reinventam isto à mão.
 
-> **Status: EM ANDAMENTO (1/8).** M5 cruza 3 repos: `@theokit/sdk` (M5-8), `theokit/client` (M5-1/M5-2), `@theokit/ui` (M5-3..M5-7). M5-8 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/models` — parseModelId público + humanizeModelName + toModelOption; release pendente). M5-1..M5-7 pendentes.
+> **Status: EM ANDAMENTO (3/8).** M5 cruza 3 repos: `@theokit/sdk` (M5-8), `theokit/client` (M5-1/M5-2), `@theokit/ui` (M5-3..M5-7). M5-8 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/models` — parseModelId público + humanizeModelName + toModelOption; release pendente). M5-1 + M5-2 ✅ READY_TO_MERGE 2026-06-21 (`theokit/client` — `liveText`/`error` derivados em `useAgentStream` + `foldAgentToolCards`/`useAgentToolCards` correlator com resolver de envelope injetável; commits f0f8270 → 07d7e17, release pendente). M5-3..M5-7 pendentes (`@theokit/ui`).
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M5-1 | `liveText` + `error` derivados no hook | fw · theokit/client | med | S | M1-5 | Adicionar a `UseAgentStreamReturn` (template default hand-rolla `switch(event.type)`). |
-| M5-2 | Fold de AgentEvent → tool cards | fw · theokit/client | high | M | M1-5 | `foldAgentToolCards(events)` + `useAgentToolCards()` correlacionando call→result por id; resolver de envelope injetável. |
+| M5-1 ✅ (READY_TO_MERGE 2026-06-21) | `liveText` + `error` derivados no hook | fw · theokit/client | med | S | M1-5 | `deriveLiveText`/`deriveError` + campos em `UseAgentStreamReturn`. |
+| M5-2 ✅ (READY_TO_MERGE 2026-06-21) | Fold de AgentEvent → tool cards | fw · theokit/client | high | M | M1-5 | `foldAgentToolCards(events)` + `useAgentToolCards()` correlacionando call→result por id (FIFO-by-name fallback); resolver de envelope injetável. |
 | M5-3 | `AgentToolRenderer` (despacho tool→componente rico) | ui · @theokit/ui | high | L | M3 (shapes) | Registry overridable Diff/Terminal/Code/CreatedFiles/DataTable + fallback ToolCallPart. |
 | M5-4 | Adapters tool-result→props UI | ui · @theokit/ui | high | M | M3 (shapes) | Subpath `@theokit/ui/sdk-tools-adapters` co-versionado + contract test importando as factories reais. |
 | M5-5 | Auto-scroll stick-to-bottom | ui · @theokit/ui | high | M | — | `useStickToBottom` (ResizeObserver + threshold + guard); encapsula o seletor Radix vazado. |
