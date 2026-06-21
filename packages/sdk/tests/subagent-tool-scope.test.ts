@@ -98,6 +98,29 @@ describe("withSubagentToolScope enforcement (M4-6)", () => {
     const out = await withSubagentToolScope(def({ tools: ["read_file"] }), async () => 42);
     expect(out).toBe(42);
   });
+
+  it("(EC-3) a nested scope shadows the outer set and restores it on return", async () => {
+    await withSubagentToolScope(def({ tools: ["read_file"] }), async () => {
+      expect(checkToolWhitelist("read_file").allowed).toBe(true);
+      expect(checkToolWhitelist("list_dir").allowed).toBe(false);
+      // inner child scoped to a DIFFERENT tool — shadows the outer set
+      await withSubagentToolScope(def({ tools: ["list_dir"] }), async () => {
+        expect(checkToolWhitelist("list_dir").allowed).toBe(true);
+        expect(checkToolWhitelist("read_file").allowed).toBe(false);
+      });
+      // outer set restored after the child returns
+      expect(checkToolWhitelist("read_file").allowed).toBe(true);
+      expect(checkToolWhitelist("list_dir").allowed).toBe(false);
+    });
+  });
+
+  it("(EC-4) tool names are exact-match: a case-mismatched whitelist blocks the canonical name", async () => {
+    await withSubagentToolScope(def({ tools: ["Read_File"] }), async () => {
+      // "Read_File" !== canonical "read_file" → the real tool is vetoed (documented contract)
+      expect(checkToolWhitelist("read_file").allowed).toBe(false);
+      expect(checkToolWhitelist("Read_File").allowed).toBe(true);
+    });
+  });
 });
 
 describe("@theokit/sdk/subagents subpath (M4-6 wiring)", () => {
