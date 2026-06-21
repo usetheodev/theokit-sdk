@@ -29,7 +29,9 @@ export function withDescription(tool: CustomTool, description: string): CustomTo
 
 /** XML-escape for the `<tools>` block. `&` MUST be replaced first (no double-escape). */
 function esc(s: string): string {
-  return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
+  // String() guards the never-throw contract against an untyped/`as any` caller
+  // passing a non-string name/description.
+  return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
 /**
