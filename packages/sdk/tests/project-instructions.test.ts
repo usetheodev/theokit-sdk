@@ -129,4 +129,66 @@ describe("writeProjectInstructions (M4-2)", () => {
       await rm(base, { recursive: true, force: true });
     }
   });
+
+  it("rejects an escaping filename (traversal / absolute) — write cannot leave cwd", async () => {
+    const base = await mkdtemp(join(tmpdir(), "project-instr-w3-"));
+    try {
+      // traversal escape
+      await expect(
+        writeProjectInstructions(base, "ESCAPED", { filename: "../escaped.md" }),
+      ).rejects.toThrow(/unsafe filename/);
+      // absolute path escape
+      await expect(
+        writeProjectInstructions(base, "X", { filename: "/tmp/abs-escape.md" }),
+      ).rejects.toThrow(/unsafe filename/);
+      // the traversal target was NOT created (throw happens before any write)
+      await expect(
+        readProjectInstructions(join(base, ".."), {
+          filename: "escaped.md",
+          stopDir: join(base, ".."),
+        }),
+      ).resolves.toEqual({ files: [], content: undefined });
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
+  it("fails loud when the parent directory does not exist (EC-3)", async () => {
+    const base = await mkdtemp(join(tmpdir(), "project-instr-w4-"));
+    try {
+      await expect(writeProjectInstructions(join(base, "nope-missing"), "X")).rejects.toThrow();
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+
+  it("writes empty content as a present (not absent) file", async () => {
+    const base = await mkdtemp(join(tmpdir(), "project-instr-w5-"));
+    try {
+      await writeProjectInstructions(base, "");
+      const result = await readProjectInstructions(base, { stopDir: base });
+      expect(result.content).toBe("");
+      expect(result.files).toHaveLength(1);
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("readProjectInstructions — merged ordering at depth (M4-2)", () => {
+  it("merges 3 levels root-first (ROOT, MID, LEAF)", async () => {
+    const base = await mkdtemp(join(tmpdir(), "project-instr-3lvl-"));
+    const leaf = join(base, "mid", "leaf");
+    try {
+      await mkdir(leaf, { recursive: true });
+      await writeFile(join(base, "THEO.md"), "ROOT", "utf8");
+      await writeFile(join(base, "mid", "THEO.md"), "MID", "utf8");
+      await writeFile(join(leaf, "THEO.md"), "LEAF", "utf8");
+      const result = await readProjectInstructions(leaf, { scope: "merged", stopDir: base });
+      expect(result.content).toBe("ROOT\n\nMID\n\nLEAF");
+      expect(result.files.map((f) => f.content)).toEqual(["LEAF", "MID", "ROOT"]);
+    } finally {
+      await rm(base, { recursive: true, force: true });
+    }
+  });
 });

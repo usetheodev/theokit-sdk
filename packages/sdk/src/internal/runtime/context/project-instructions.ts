@@ -1,8 +1,9 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import { ConfigurationError } from "../../../errors.js";
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
-import { walkUpForFile } from "./context-discovery.js";
+import { isSafePattern, walkUpForFile } from "./context-discovery.js";
 
 /** How discovered instruction files are reduced to a single `content` string. */
 export type ProjectInstructionScope = "nearest" | "merged";
@@ -98,8 +99,12 @@ function reduceContent(
  * Write project instructions to `<cwd>/<filename>` atomically (temp + fsync +
  * rename, via the shipped `replaceFileAtomic`).
  *
- * Unlike the reader, this FAILS LOUD: a write error (e.g. the parent directory
- * does not exist) propagates to the caller — a failed mutation is a real error.
+ * Unlike the reader, this FAILS LOUD: an unsafe `filename` (path traversal,
+ * separators, absolute) is rejected with `ConfigurationError`
+ * (`code: "unsafe_filename"`) — symmetric with the reader, whose `filename`
+ * flows through the same `isSafePattern` guard — and a write error (e.g. the
+ * parent directory does not exist) propagates to the caller. A failed mutation
+ * is a real error, never silently swallowed.
  *
  * Public via `@theokit/sdk/project`.
  *
@@ -111,5 +116,11 @@ export async function writeProjectInstructions(
   options?: WriteProjectInstructionsOptions,
 ): Promise<void> {
   const filename = options?.filename ?? DEFAULT_FILENAME;
+  if (!isSafePattern(filename)) {
+    throw new ConfigurationError(
+      `writeProjectInstructions: unsafe filename ${JSON.stringify(filename)} (no path traversal, separators, or absolute paths)`,
+      { code: "unsafe_filename" },
+    );
+  }
   await replaceFileAtomic(join(cwd, filename), content);
 }
