@@ -1,4 +1,4 @@
-import { mkdir, readdir, readFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, stat } from "node:fs/promises";
 
 import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
 import { safeFilenameForId, safePathJoin } from "@theokit/sdk/path-safety";
@@ -16,6 +16,10 @@ export interface SessionArtifactStoreOptions {
    * Default: `safeFilenameForId` (accepts ANY id; deterministically hashes
    * non-conforming input). The result is additionally passed through
    * `safePathJoin`, so a traversal id can never escape `dir`.
+   *
+   * NOTE — the default `safeFilenameForId` is CASE-FOLDING: ids differing only
+   * in case (`"Run-1"` vs `"run-1"`) map to the SAME file. If your ids are
+   * case-sensitive (e.g. base64), supply a case-preserving `idStrategy`.
    */
   idStrategy?: (id: string) => string;
   /** File extension (with leading dot). Default `".md"`. */
@@ -30,7 +34,11 @@ export interface SessionArtifactStoreOptions {
  * @public
  */
 export interface SessionArtifactStore {
-  /** Write (overwrite) the artifact atomically; returns the resolved path. */
+  /**
+   * Write (overwrite) the artifact atomically; returns the resolved path.
+   * Content is persisted byte-for-byte. The id is mapped via `idStrategy`
+   * (default case-folding — see {@link SessionArtifactStoreOptions.idStrategy}).
+   */
   write(id: string, content: string): Promise<string>;
   /** Read the artifact, or `undefined` if absent/unreadable (never throws). */
   read(id: string): Promise<string | undefined>;
@@ -76,7 +84,13 @@ export function createSessionArtifactStore(
   }
 
   async function has(id: string): Promise<boolean> {
-    return (await read(id)) !== undefined;
+    // stat (not read) — O(1) existence check, no full-file load. Never throws.
+    try {
+      await stat(path(id));
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async function list(): Promise<string[]> {

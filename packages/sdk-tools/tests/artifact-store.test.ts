@@ -1,6 +1,6 @@
 import { mkdtemp, readdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { createSessionArtifactStore } from "../src/artifact-store.js";
@@ -78,12 +78,47 @@ describe("createSessionArtifactStore (M4-4)", () => {
     });
   });
 
+  it("preserves multiline / empty content byte-for-byte", async () => {
+    await withDir(async (dir) => {
+      const store = createSessionArtifactStore({ dir });
+      const multi = "line1\nline2\r\nline3\n";
+      await store.write("m", multi);
+      expect(await store.read("m")).toBe(multi);
+      await store.write("e", "");
+      expect(await store.read("e")).toBe("");
+      expect(await store.has("e")).toBe(true);
+    });
+  });
+
+  it("case-folds ids via the default strategy (documented lossy contract)", async () => {
+    await withDir(async (dir) => {
+      const store = createSessionArtifactStore({ dir });
+      await store.write("Run-1", "upper");
+      await store.write("run-1", "lower");
+      // INTENTIONAL: default safeFilenameForId is case-folding → same file.
+      // Documented on idStrategy; case-sensitive ids need a custom strategy.
+      expect(await store.read("Run-1")).toBe("lower");
+      expect(await store.list()).toEqual(["run-1"]);
+    });
+  });
+
+  it("excludes files with a different extension from list()", async () => {
+    await withDir(async (dir) => {
+      const md = createSessionArtifactStore({ dir });
+      const json = createSessionArtifactStore({ dir, extension: ".json" });
+      await md.write("a", "md");
+      await json.write("b", "{}");
+      expect(await md.list()).toEqual(["a"]);
+      expect(await json.list()).toEqual(["b"]);
+    });
+  });
+
   it("neutralizes a traversal id — writes inside dir, never escapes", async () => {
     await withDir(async (dir) => {
       const store = createSessionArtifactStore({ dir });
       const path = await store.write("../escape", "x");
       // the written path stays under dir (safeFilenameForId hashes the bad id)
-      expect(path.startsWith(dir)).toBe(true);
+      expect(path.startsWith(dir + sep)).toBe(true);
       expect(path).not.toContain("..");
       // nothing leaked to the parent
       const parent = join(dir, "..");
