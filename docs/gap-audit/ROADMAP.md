@@ -116,17 +116,19 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M3 — Toolbox segura + orientação no repo (Tema C)
 
+> **Status: CONCLUÍDO.** RELEASED em `v3.2.0` (PR #27 merged 2026-06-21, tag v3.2.0; npm publish pendente) — os 7 itens M3-1..M3-7, todos em `@theokit/sdk-tools` (zero deps). Cada um passou pelo cycle completo discover→plan→implement→code-quality→review até READY_TO_MERGE (achados BLOCKER/HIGH/MEDIUM corrigidos com teste de regressão, sem re-trabalho). M3-6 foi entregue em `sdk-tools` (não `@theokit/agents`, que não existe) como predicado puro composável — KISS.
+
 **Valor entregue:** fecha a assimetria de segurança (o SDK protege egress de filesystem mas não de rede/shell) e dá ao agente a capacidade de se orientar num codebase. Paralelizável com M1/M2.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M3-1 | SSRF guard ausente em `web_fetch` | sdk · sdk-tools | high | M | — | `resolveAndScreen(host)` (todos os A-records; bloqueia private/loopback/link-local/metadata; IPv4-mapped IPv6) + `redirect:'manual'`; default-on em `createGuardedWebFetchTool`. |
-| M3-2 | Screen de shell catastrófico ausente | sdk · sdk-tools | high | M | — | `catastrophicShellReason(cmd)` segment-aware (rm/`curl\|sh`/mkfs/dd/fork-bomb/force-push/exfil); opt-out default-on. Guardrail, não sandbox. |
-| M3-3 | Repo-map / env-context builder | sdk · sdk-tools | high | L | — | `buildEnvContext(cwd)` + `buildRepoMap(cwd,{budget,ignore})` node:fs-only, char-bounded, never-throw. |
-| M3-4 | Rich errors (self-correction em tool fail) | sdk · sdk-tools | med | M | — | Cada factory anexa `guidance` ao próprio payload; wrapper `withToolResultGuidance`. |
-| M3-5 | ACI description override + render `<tools>` | sdk · sdk-tools | med | S | — | `withDescription(tool,desc)` + `renderToolList` do mesmo source-of-truth. |
-| M3-6 | Catastrophic shell na camada de agents | sdk · @theokit/agents | low | S | M3-2 | `denyCatastrophicCommands()` composável com `isCommandAllowed`. |
-| M3-7 | Web-search adapter env-driven (opcional, YAGNI: 1 primeiro) | sdk · sdk-tools | low | S | — | `braveWebSearchAdapter`/`tavilyWebSearchAdapter`; manter `createWebSearchTool` provider-agnóstico. |
+| M3-1 ✅ (RELEASED v3.2.0) | SSRF guard ausente em `web_fetch` | sdk · sdk-tools | high | M | — | `resolveAndScreen(host)` (todos os A-records; bloqueia private/loopback/link-local/metadata; IPv4-mapped IPv6) + `redirect:'manual'`; default-on em `createGuardedWebFetchTool`. |
+| M3-2 ✅ (RELEASED v3.2.0) | Screen de shell catastrófico ausente | sdk · sdk-tools | high | M | — | `catastrophicShellReason(cmd)` segment-aware (rm/`curl\|sh`/mkfs/dd/fork-bomb/force-push/exfil); opt-out default-on. Guardrail, não sandbox. |
+| M3-3 ✅ (RELEASED v3.2.0) | Repo-map / env-context builder | sdk · sdk-tools | high | L | — | `buildEnvContext(cwd)` + `buildRepoMap(cwd,{budget,ignore})` node:fs-only, char-bounded, never-throw. |
+| M3-4 ✅ (RELEASED v3.2.0) | Rich errors (self-correction em tool fail) | sdk · sdk-tools | med | M | — | Cada factory anexa `guidance` ao próprio payload; wrapper `withToolResultGuidance`. |
+| M3-5 ✅ (RELEASED v3.2.0) | ACI description override + render `<tools>` | sdk · sdk-tools | med | S | — | `withDescription(tool,desc)` + `renderToolList` do mesmo source-of-truth. |
+| M3-6 ✅ (RELEASED v3.2.0) | Catastrophic shell na camada de agents | sdk · @theokit/agents | low | S | M3-2 | `denyCatastrophicCommands()` composável com `isCommandAllowed`. |
+| M3-7 ✅ (RELEASED v3.2.0) | Web-search adapter env-driven (opcional, YAGNI: 1 primeiro) | sdk · sdk-tools | low | S | — | `braveWebSearchAdapter`/`tavilyWebSearchAdapter`; manter `createWebSearchTool` provider-agnóstico. |
 
 **Concluído quando:** `web_fetch` é safe-by-default contra SSRF; `shell_exec` tem backstop; `buildRepoMap` orienta o LLM em 1 call.
 
