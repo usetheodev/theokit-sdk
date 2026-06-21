@@ -138,7 +138,7 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 **Valor entregue:** "o agente sabe do projeto" deixa de ser código de app. Skills, memória categorizada, plano durável e leitura hierárquica de instruções viram primitivas.
 
-> **Status: EM ANDAMENTO (4/6).** M4-1 ✅ + M4-2 ✅ + M4-3 ✅ + M4-4 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/skills` + `@theokit/sdk/project` + `@theokit/sdk-memory` createCategorizedMemory + `@theokit/sdk-tools` createSessionArtifactStore; release pendente). M4-5..M4-6 pendentes.
+> **Status: EM ANDAMENTO (5/6).** M4-1..M4-5 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/skills` + `@theokit/sdk/project` + `@theokit/sdk-memory` createCategorizedMemory + `@theokit/sdk-tools` createSessionArtifactStore + todolist structured items/todoItemsToPlanNodes; release pendente). M4-6 pendente.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
@@ -146,7 +146,7 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 | M4-2 ✅ (READY_TO_MERGE 2026-06-21) | Reader/writer hierárquico de project-instructions | sdk · @theokit/sdk | med | M | M0-6 | `readProjectInstructions(cwd,{filename,scope})` (sobre `walkUpForFile`) + write atômico; THEO.md configurável. |
 | M4-3 ✅ (READY_TO_MERGE 2026-06-21) | Memory taxonomia tipada (markdown + frontmatter) | sdk · sdk-memory | med | M | M0-4 | `createCategorizedMemory({root,categories})` reusando `safePathJoin`/`frontmatter-zod`; `MemoryFact.category` opcional. |
 | M4-4 ✅ (READY_TO_MERGE 2026-06-21) | Plan-mode artifact persistence | sdk · sdk-tools | med | M | — | `createSessionArtifactStore({dir,idStrategy})` (generalizar `session-summary-writer`); composição opt-in em `createPlanModeTool`. |
-| M4-5 | `todoItemsToPlanNodes` + tool emite items estruturados (bug latente) | sdk · sdk-tools | med | M | — | Tool emite items estruturados no result (hoje só string → `getItems()` retorna `[]`); adapter versionado. |
+| M4-5 ✅ (READY_TO_MERGE 2026-06-21) | `todoItemsToPlanNodes` + tool emite items estruturados (bug latente) | sdk · sdk-tools | med | M | — | Tool emite items estruturados no result (hoje só string → `getItems()` retorna `[]`); adapter versionado. |
 | M4-6 | Tool scoping por `AgentDefinition` (hoje só prompt soft) | sdk · @theokit/sdk | med | M | — | `tools?: string[]` em `AgentDefinition` + frontmatter; enforcement via `withToolWhitelist` (NÃO via PermissionEngine). |
 
 **Concluído quando:** sub-agente read-only é provadamente sem Write/Bash; skills/memória/plano/instruções são chamadas de framework, não ~400 LoC de app.
