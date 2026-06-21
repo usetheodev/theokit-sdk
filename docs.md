@@ -1939,6 +1939,30 @@ The wording of a tool's `description` (its Agent-Computer Interface) materially 
 - `withDescription(tool, description): CustomTool` — returns a NEW tool with the description replaced (name/inputSchema/handler preserved); the original tool is not mutated. Use it to tune a built-in tool's wording for your domain without re-implementing it.
 - `renderToolList(tools): string` — renders a `<tools>` block (name + description per tool) from the SAME `CustomTool[]` your agent runs, so the rendered list cannot drift from the real tools (single source of truth). An overridden/added/removed tool is reflected automatically. Descriptions are XML-escaped; an empty array yields `<tools></tools>`; it never throws. The block is a system-prompt orientation aid — the provider tool-call schema stays each tool's `inputSchema`.
 
+### Command-permission policies
+
+For agents that gate shell commands at a permission layer, `@theokit/sdk-tools` exports a small composable policy layer that builds on the `shell_exec` catastrophic guardrail:
+
+- `type CommandPolicy = (command: string) => string | null` — a pure predicate returning a deny REASON, or `null` to allow.
+- `denyCatastrophicCommands(): CommandPolicy` — a policy that denies catastrophic commands by composing `catastrophicShellReason` (no duplicated deny-list).
+- `commandDenialReason(command, policies): string | null` — the first deny reason across the policy array (deny-wins); `null` if every policy allows. An empty array denies nothing.
+- `isCommandAllowed(command, policies): boolean` — the boolean view (`true` when no policy denies).
+
+The policy is framework-agnostic — wire it at your permission layer. Example inside a `pre_tool_call` hook:
+
+```typescript
+import { commandDenialReason, denyCatastrophicCommands } from "@theokit/sdk-tools";
+
+const policies = [denyCatastrophicCommands()];
+// in a pre_tool_call hook:
+if (ctx.name === "shell_exec") {
+  const reason = commandDenialReason(String(ctx.args.command ?? ""), policies);
+  if (reason) return { block: true, message: `Command refused: ${reason}` };
+}
+```
+
+It inherits the guardrail's honesty: a heuristic gate, not a sandbox. Zero new dependencies.
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {
