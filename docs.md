@@ -1927,7 +1927,7 @@ Both NEVER throw — a missing/unreadable `cwd` yields an `(unavailable: …)` m
 `@theokit/sdk-tools` exports a composable wrapper that adds an LLM-actionable `guidance` hint to a failing tool result, so the model can self-correct without a human round-trip:
 
 - `withToolResultGuidance(tool, guidance): CustomTool` — wraps any tool; when its result is `{ ok: false, error }`, a `guidance` string from the `guidance` map (keyed by error code) is added to the payload. Preserves name/description/inputSchema.
-- `withDefaultGuidance(tool)` — `withToolResultGuidance` pre-bound to `DEFAULT_TOOL_GUIDANCE`, a curated map for the common codes (`not_found`, `path_traversal`, `forbidden_path`, `no_match`, `no_matches`, `timeout`, `ssrf_blocked`, `catastrophic_command`, `binary_file`, `too_large`).
+- `withDefaultGuidance(tool)` — `withToolResultGuidance` pre-bound to `DEFAULT_TOOL_GUIDANCE`, a curated map for the common codes (`not_found`, `path_traversal`, `forbidden_path`, `no_match`, `timeout`, `invalid_url`, `ssrf_blocked`, `catastrophic_command`, `binary_file`, `too_large`).
 - `injectGuidance(handlerOutput, guidance)` — the pure underlying transform (exported for testing).
 
 Injection is ADDITIVE (only on `ok:false`), IDEMPOTENT (never overwrites an existing `guidance`), and NEVER-THROW: a non-JSON output, an `ok:true` result, a non-object JSON value, or an unknown error code is returned UNCHANGED. Compose it over the built-in tools or your own — no factory edits required. Example: `withDefaultGuidance(createReadFileTool({ projectRoot }))`. Zero new dependencies.
