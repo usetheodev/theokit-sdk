@@ -51,19 +51,36 @@ describe("injectGuidance — passthrough (never-throw)", () => {
     const input = '{"ok":false,"error":"not_found","guidance":"mine"}';
     expect(injectGuidance(input, MAP)).toBe(input);
   });
+
+  it("preserves a non-string existing guidance (never touches the key)", () => {
+    const input = '{"ok":false,"error":"not_found","guidance":123}';
+    expect(injectGuidance(input, MAP)).toBe(input);
+  });
+
+  it("passes through when ok is absent or non-boolean (only strict false triggers)", () => {
+    expect(injectGuidance('{"error":"not_found"}', MAP)).toBe('{"error":"not_found"}');
+    expect(injectGuidance('{"ok":0,"error":"not_found"}', MAP)).toBe(
+      '{"ok":0,"error":"not_found"}',
+    );
+  });
 });
 
 describe("DEFAULT_TOOL_GUIDANCE", () => {
-  it("covers the common cross-tool error codes", () => {
+  it("covers the common cross-tool error codes (each actually emitted by a tool)", () => {
     for (const code of [
       "not_found",
       "no_match",
       "timeout",
+      "invalid_url",
       "ssrf_blocked",
       "catastrophic_command",
     ]) {
       expect(typeof DEFAULT_TOOL_GUIDANCE[code]).toBe("string");
     }
+  });
+
+  it("has no hint for a code no tool emits (no dead hints)", () => {
+    expect(DEFAULT_TOOL_GUIDANCE.no_matches).toBeUndefined();
   });
 });
 
@@ -100,6 +117,23 @@ describe("withToolResultGuidance / withDefaultGuidance", () => {
       expect(parsed.ok).toBe(true);
       expect(parsed.guidance).toBeUndefined();
     });
+
+    it("flows a CUSTOM guidance map end-to-end through the wrapper", async () => {
+      const tool = withToolResultGuidance(createReadFileTool({ projectRoot }), MAP);
+      const parsed = JSON.parse(await tool.handler({ path: "nope.txt" }));
+      expect(parsed.guidance).toBe("use list_dir to find the path");
+    });
+  });
+
+  it("works for a synchronous-handler tool (await resolves a plain string)", async () => {
+    const syncTool = {
+      name: "sync_tool",
+      description: "sync",
+      inputSchema: { type: "object" } as Record<string, unknown>,
+      handler: () => '{"ok":false,"error":"not_found"}',
+    };
+    const parsed = JSON.parse(await withDefaultGuidance(syncTool).handler({}));
+    expect(typeof parsed.guidance).toBe("string");
   });
 });
 

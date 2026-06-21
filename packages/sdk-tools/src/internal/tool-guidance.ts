@@ -26,8 +26,8 @@ export const DEFAULT_TOOL_GUIDANCE: ToolGuidanceMap = {
     "That path is a protected file (.env, .git, lock files, etc.). Choose a different, non-sensitive path.",
   no_match:
     "The search text was not found verbatim. Re-read the file with `read_file` and copy the exact text (including whitespace/indentation) before editing.",
-  no_matches: "No files matched. Broaden the glob pattern or check the directory with `list_dir`.",
   timeout: "The operation timed out. Narrow the scope or pass a larger `timeout_ms`.",
+  invalid_url: "The URL is malformed. Provide a full absolute http(s):// URL.",
   ssrf_blocked: "That host is private/loopback/reserved and is blocked. Use a public URL.",
   catastrophic_command:
     "That command is blocked as catastrophic. Use a safer, scoped command (e.g. a relative path instead of `/`).",
@@ -53,7 +53,7 @@ export function injectGuidance(handlerOutput: string, guidance: ToolGuidanceMap)
     return handlerOutput; // non-JSON tool output → passthrough
   }
   if (!isRecord(parsed) || parsed.ok !== false) return handlerOutput;
-  if (typeof parsed.guidance === "string") return handlerOutput; // idempotent
+  if ("guidance" in parsed) return handlerOutput; // idempotent — never touch an existing key
   const code = parsed.error;
   if (typeof code !== "string") return handlerOutput;
   const hint = guidance[code];
