@@ -5,13 +5,14 @@
  * (before hitting the provider) instead of letting opaque 400s surface.
  *
  * Resolution algorithm:
- *   1. Strip routing prefixes (openrouter/, vertex/, bedrock/) to find
- *      the underlying vendor + model id.
- *   2. Exact match in CAPABILITIES_REGISTRY → return entry.
- *   3. Prefix match (e.g., `anthropic/claude-3-5-*`) → return entry.
+ *   1. Strip routing prefixes (openrouter/, vertex/, bedrock/) AND the
+ *      OpenRouter `:variant` suffix (:free/:nitro/…) to find the bare vendor id.
+ *   2. Exact match in the `EXACT` catalog → return entry.
+ *   3. Vendor inference (e.g., `claude-*` → `anthropic/claude-*`) → return entry.
  *   4. No match → conservative defaults (all false, minimum tokens).
  *
- * @internal
+ * Module is internal, but `ModelCapabilities` + `resolveModelCapabilities` are
+ * re-exported publicly via the `@theokit/sdk/models` subpath (see their @public tags).
  */
 
 /**
