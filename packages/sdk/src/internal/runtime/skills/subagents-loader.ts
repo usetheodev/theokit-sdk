@@ -64,6 +64,13 @@ function parseSubagentMarkdown(
   if (fields.model !== undefined) {
     definition.model = fields.model === "inherit" ? "inherit" : { id: fields.model };
   }
+  // M4-6: optional `tools:` whitelist (comma/space-separated → string[]).
+  // Trim + drop empties so the whitelist holds only real tool names.
+  const tools = fields.tools
+    ?.split(/[\s,]+/)
+    .map((t) => t.trim())
+    .filter((t) => t.length > 0);
+  if (tools !== undefined && tools.length > 0) definition.tools = tools;
   return { name, definition };
 }
 

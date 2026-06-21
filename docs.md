@@ -1242,6 +1242,21 @@ description	string	required	When to use this subagent. Shown to the parent agent
 prompt	string	required	System prompt for the subagent.
 model	ModelSelection | "inherit"	"inherit"	Model override. Pass "inherit" to use the parent's selection.
 mcpServers	Array<string | Record<string, McpServerConfig>>		MCP servers available to this subagent. Names reference servers from the parent's mcpServers.
+tools	string[]	(unscoped)	Tool whitelist (M4-6). When set, the subagent may ONLY call tools whose canonical (post-repair, lowercase) name is in this list — any other tool call is vetoed at dispatch via the same `withToolWhitelist` enforcement forks use (NOT `PermissionEngine`). Absent/empty → unscoped (inherits the parent's full toolset). Apply it around a subagent run with `withSubagentToolScope(definition, fn)` from `@theokit/sdk/subagents`; in `.theokit/agents/*.md` declare it as a comma/space-separated frontmatter field (`tools: read_file, list_dir`). A `tools: ["read_file"]` subagent provably cannot Write/Bash.
+
+#### Subagent tool scoping — `@theokit/sdk/subagents`
+
+`subagentToolWhitelist(definition): Set<string> | undefined` derives the whitelist `Set` from `AgentDefinition.tools` (or `undefined` when unscoped). `withSubagentToolScope(definition, fn)` runs `fn` under that whitelist via the SDK's existing `withToolWhitelist` enforcement — the same dispatch veto (`checkToolWhitelist`, exit 126 "Tool blocked by fork whitelist") that `Agent.fork`'s `allowedTools` uses. Enforcement, not `PermissionEngine`.
+
+```typescript
+import { withSubagentToolScope } from "@theokit/sdk/subagents";
+
+// definition.tools = ["read_file"] → inside this scope, write_file / shell_exec are vetoed at dispatch
+await withSubagentToolScope(readOnlyDefinition, async () => {
+  // run the sub-agent here (e.g. via agent.fork) — its non-whitelisted tool calls are blocked
+});
+```
+
 CustomTool
 Property	Type	Default	Description
 name	string	required	Tool name surfaced to the LLM. Must match `/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/`. Reserved (rejected): `shell`, `memory_search`, `memory_get`, anything `mcp_*`.
