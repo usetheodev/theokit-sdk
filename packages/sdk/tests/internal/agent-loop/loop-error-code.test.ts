@@ -76,6 +76,16 @@ describe("registerLoopError — canonical code at the boundary (M2-3)", () => {
     expect(ctx.error?.code).toBe("x");
   });
 
+  it("test_non_object_cause_does_not_throw", () => {
+    const ctx1 = ctxStub();
+    expect(() => registerLoopError(ctx1, null)).not.toThrow();
+    expect(ctx1.error?.code).toBeUndefined();
+    const ctx2 = ctxStub();
+    registerLoopError(ctx2, "boom");
+    expect(ctx2.error?.message).toBe("boom");
+    expect(ctx2.error?.code).toBeUndefined();
+  });
+
   it("test_set_once_first_error_wins", () => {
     const ctx = ctxStub();
     registerLoopError(ctx, new TheokitAgentError("first", { code: "rate_limit" }));
