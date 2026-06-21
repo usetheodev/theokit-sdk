@@ -30,6 +30,12 @@ export { formatCode, formatDiff, formatError, formatFileList } from "./formatter
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
 export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
 export {
+  type CommandPolicy,
+  commandDenialReason,
+  denyCatastrophicCommands,
+  isCommandAllowed,
+} from "./internal/command-policy.js";
+export {
   isBlockedIp,
   type ResolveAndScreenOptions,
   resolveAndScreen,
