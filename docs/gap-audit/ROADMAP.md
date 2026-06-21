@@ -80,7 +80,7 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M1 — Harness de agente confiável (Tema A — maior alavancagem)
 
-> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). RELEASED em `@theokit/sdk@2.3.0` (npm, 2026-06-20): Phase 3 `agent.runToCompletion` + M1-3 `buildReplayHistory`. RELEASED em `@theokit/sdk@3.0.0` (PR #25 merged 2026-06-20, tag v3.0.0; npm publish pendente): M1-4 (`stop` hook + bounded feedback) + M1-5 (`@theokit/sdk/messages` readers). M1-6 READY_TO_MERGE (review 2026-06-21, sdk-budget honest-null cost; release pendente). **M1 CONCLUÍDO** — todos os 6 itens entregues.
+> **Status: IMPLEMENTAÇÃO CONCLUÍDA (6/6 itens; M1-6 release pendente).** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). RELEASED em `@theokit/sdk@2.3.0` (npm, 2026-06-20): Phase 3 `agent.runToCompletion` + M1-3 `buildReplayHistory`. RELEASED em `@theokit/sdk@3.0.0` (PR #25 merged 2026-06-20, tag v3.0.0; npm publish pendente): M1-4 (`stop` hook + bounded feedback) + M1-5 (`@theokit/sdk/messages` readers). M1-6 ✅ READY_TO_MERGE (review 2026-06-21, `@theokit/sdk-budget` honest-null cost; release pendente). Tema A completo.
 
 **Valor entregue:** `agent.send` deixa de ser single-shot frágil e vira substrato real. A diferença entre "demo que trava em 8 tools" e "agente que termina um refactor".
 
