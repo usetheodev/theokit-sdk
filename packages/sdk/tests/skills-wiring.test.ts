@@ -39,7 +39,7 @@ describe("skills wiring (M4-1)", () => {
       >;
     };
     const entry = pkg.exports["./skills"];
-    expect(entry).toBeDefined();
+    if (entry === undefined) throw new Error("package.json is missing the ./skills export");
     expect(entry.import.types).toBe("./dist/skills.d.ts");
     expect(entry.import.default).toBe("./dist/skills.js");
     expect(entry.require.types).toBe("./dist/skills.d.cts");
