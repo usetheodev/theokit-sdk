@@ -102,3 +102,13 @@ describe("withToolResultGuidance / withDefaultGuidance", () => {
     });
   });
 });
+
+describe("sdk-tools barrel — tool-guidance", () => {
+  it("re-exports the guidance wrappers and map", async () => {
+    const mod = await import("../src/index.js");
+    expect(typeof mod.withToolResultGuidance).toBe("function");
+    expect(typeof mod.withDefaultGuidance).toBe("function");
+    expect(typeof mod.injectGuidance).toBe("function");
+    expect(typeof mod.DEFAULT_TOOL_GUIDANCE).toBe("object");
+  });
+});
