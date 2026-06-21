@@ -106,3 +106,11 @@ describe("buildEnvContext — env block", () => {
     expect(typeof buildEnvContext("/no/such/dir-xyz")).toBe("string");
   });
 });
+
+describe("sdk-tools barrel — repo-map builders", () => {
+  it("re-exports buildEnvContext and buildRepoMap", async () => {
+    const mod = await import("../src/index.js");
+    expect(typeof mod.buildEnvContext).toBe("function");
+    expect(typeof mod.buildRepoMap).toBe("function");
+  });
+});

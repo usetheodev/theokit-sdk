@@ -1913,6 +1913,15 @@ Opt out for legitimate destructive power flows: `createShellTool({ allowCatastro
 
 This is a heuristic **guardrail, not a sandbox** — it blocks obvious/accidental catastrophes but is bypassable by obfuscation (eval/base64) and is POSIX-only (Windows PowerShell is out of scope). The reusable primitives `catastrophicShellReason(command)` (returns a reason string or `null`) and `CatastrophicCommandError` are exported from `@theokit/sdk-tools`. Zero new dependencies (in-house segment tokenizer).
 
+### Repo-map / env-context builders
+
+`@theokit/sdk-tools` exports two `node:fs`-only, char-bounded, **never-throw** string builders that orient an LLM coding agent in one call — inject them into the system prompt:
+
+- `buildEnvContext(cwd): string` — a short `<env>` block: working directory, platform/arch, Node version, whether the directory is a git repo (detected by the presence of `.git`, no `git` subprocess), today's date, the project docs found (`AGENTS.md`/`CLAUDE.md`/`README.md`, with a bounded head of the first one), and the detected manifests (`package.json`/`pyproject.toml`/`Cargo.toml`/`go.mod`).
+- `buildRepoMap(cwd, { budget?, ignore?, maxDepth? }): string` — a depth-first directory tree bounded by `budget` (default 8000 chars, stops with a `… (truncated)` marker), `maxDepth` (default 4), and a per-directory entry cap. The default ignore set (`node_modules`, `.git`, `dist`, `.theo`, `.next`, `build`, `coverage`, `target`, `out`, plus dotdirs) is merged with the caller-supplied `ignore`. Directory symlinks are listed as leaves (not followed), so symlink loops cannot hang the walk.
+
+Both NEVER throw — a missing/unreadable `cwd` yields an `(unavailable: …)` marker and an unreadable sub-directory is skipped. They are a best-effort orientation aid, not a complete or `.gitignore`-aware listing (deferred). Zero new dependencies.
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {
