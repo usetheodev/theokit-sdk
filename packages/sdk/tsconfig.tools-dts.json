@@ -13,6 +13,8 @@
     "src/messages.ts",
     "src/path-safety.ts",
     "src/compaction.ts",
+    "src/models.ts",
+    "src/internal/llm/model-capabilities.ts",
     "src/internal/runtime/compression/**/*",
     "src/concurrency.ts",
     "src/internal/runtime/concurrency/**/*",

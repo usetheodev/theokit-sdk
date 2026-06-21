@@ -32,6 +32,8 @@ const targets = [
   join(DIST, "messages.d.ts"),
   // M2-1: compaction sub-path.
   join(DIST, "compaction.d.ts"),
+  // M2-4: models sub-path.
+  join(DIST, "models.d.ts"),
   // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
   join(DIST, "path-safety.d.ts"),
   join(DIST, "task-store.d.ts"),

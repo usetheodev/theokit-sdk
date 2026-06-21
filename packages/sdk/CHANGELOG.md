@@ -94,6 +94,7 @@
 
 ### Added
 - **Pre-call token estimate + compaction decision (M2-2).** `estimateTokens(text)` (tokenizer-free ~4-chars/token; `""`→0, non-empty→≥1) + `shouldCompact({estimated,contextWindow,buffer})` (`true` when `estimated >= contextWindow - buffer`; pure, caller supplies the window) on the `@theokit/sdk/compaction` subpath. No tokenizer dep.
+- **Per-model capability catalog public + OpenRouter slug-suffix fix (M2-4).** New `@theokit/sdk/models` subpath: `resolveModelCapabilities(modelId)` (was `@internal`) — pure/sync/offline capability flags + `maxContextTokens`/`maxOutputTokens`. Fixes an OpenRouter `:variant` suffix lookup miss (fell back to 4096 instead of the real window).
 
 ### Added
 

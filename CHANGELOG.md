@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 - **`@theokit/sdk` pre-call token estimate + compaction decision (plan `m2-token-estimate` M2-2).** Two pure zero-dep helpers on the `@theokit/sdk/compaction` subpath: `estimateTokens(text)` (tokenizer-free ~4-chars/token estimate; `""`→0, non-empty→≥1) + `shouldCompact({estimated,contextWindow,buffer})` (decide before sending: `true` when `estimated >= contextWindow - buffer`; pure, caller supplies the window). No tokenizer dep. (M2-2)
+- **`@theokit/sdk` per-model capability catalog public + OpenRouter slug-suffix fix (plan `m2-model-capabilities` M2-4).** New `@theokit/sdk/models` subpath exposes `resolveModelCapabilities(modelId)` (was dead `@internal`) — a pure/sync/offline catalog of capability flags + `maxContextTokens`/`maxOutputTokens`. Fixes an OpenRouter `:variant` suffix (`:free`/`:nitro`/…) lookup miss that fell back to conservative 4096 instead of the real window. Zero new deps. (M2-4)
 
 ### Changed
 
