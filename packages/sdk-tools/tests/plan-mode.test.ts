@@ -1,4 +1,8 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { createSessionArtifactStore } from "../src/artifact-store.js";
 import { createPlanModeTool } from "../src/plan-mode.js";
 
 describe("createPlanModeTool", () => {
@@ -47,5 +51,52 @@ describe("createPlanModeTool", () => {
     expect(tool.name).toBe("plan_mode");
     expect(tool.description).toBeTruthy();
     expect(tool.inputSchema).toBeDefined();
+  });
+
+  it("zero-arg handler stays synchronous (returns a string, not a Promise)", () => {
+    const tool = createPlanModeTool();
+    const out = tool.handler({ action: "enter" });
+    expect(typeof out).toBe("string");
+  });
+});
+
+describe("createPlanModeTool with artifactStore (M4-4 opt-in persistence)", () => {
+  async function withStore<T>(
+    fn: (dir: string, store: ReturnType<typeof createSessionArtifactStore>) => Promise<T>,
+  ): Promise<T> {
+    const dir = await mkdtemp(join(tmpdir(), "plan-mode-store-"));
+    try {
+      return await fn(dir, createSessionArtifactStore({ dir }));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("persists the plan on exit", async () => {
+    await withStore(async (_dir, store) => {
+      const tool = createPlanModeTool({ artifactStore: store, artifactId: "run-9" });
+      const result = JSON.parse(await tool.handler({ action: "exit", plan: "1. do X\n2. do Y" }));
+      expect(result.persisted).toBe(true);
+      expect(tool.currentMode()).toBe("normal");
+      expect(await store.read("run-9")).toBe("1. do X\n2. do Y");
+    });
+  });
+
+  it("(EC-1) exit without a plan does not persist", async () => {
+    await withStore(async (_dir, store) => {
+      const tool = createPlanModeTool({ artifactStore: store });
+      const result = JSON.parse(await tool.handler({ action: "exit" }));
+      expect(result.persisted).toBe(false);
+      expect(result.mode).toBe("normal");
+      expect(await store.list()).toEqual([]);
+    });
+  });
+
+  it("(EC-2) enter does not persist", async () => {
+    await withStore(async (_dir, store) => {
+      const tool = createPlanModeTool({ artifactStore: store });
+      await tool.handler({ action: "enter" });
+      expect(await store.list()).toEqual([]);
+    });
   });
 });

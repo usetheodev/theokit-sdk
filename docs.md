@@ -2026,6 +2026,22 @@ const tool = createWebSearchTool({ search: createBraveWebSearchAdapter() }); // 
 
 The adapter uses a plain `fetch` (not `screenedFetch`): the endpoint host is fixed (no SSRF surface) and the Brave auth header must be sent. Additional providers (e.g. Tavily) are a follow-up — `createWebSearchTool` stays provider-agnostic. Zero new dependencies.
 
+### Session artifact store + plan-mode persistence
+
+`@theokit/sdk-tools` exports a generic, id-keyed, atomic artifact store (the reusable generalization of the per-run session-summary writer) and wires it opt-in into `createPlanModeTool`:
+
+- `createSessionArtifactStore({ dir, idStrategy?, extension? })` → `{ write, read, has, list, path }`. `write(id, content)` persists `<dir>/<idStrategy(id)><extension>` atomically (temp + fsync + rename) and returns the path; `read(id)` returns the content or `undefined` (never throws); `has`/`list` enumerate stored artifacts; `path(id)` is the traversal-safe location. `idStrategy` defaults to `safeFilenameForId` (accepts ANY id, deterministically hashing non-conforming input), and every id additionally passes through `safePathJoin` — so a `../escape` id can never write outside `dir`. `extension` defaults to `.md`. Reads never throw; writes fail loud.
+- `createPlanModeTool({ artifactStore, artifactId? })` — an OPT-IN overload whose async handler persists the submitted `plan` to the store on `exit` (returning `{ ok, mode, message, persisted, path }`). The zero-arg `createPlanModeTool()` keeps a synchronous handler and never touches disk. Only a non-empty `plan` on `exit` is persisted; `enter`/`status` never write.
+
+```typescript
+import { createSessionArtifactStore, createPlanModeTool } from "@theokit/sdk-tools";
+
+const store = createSessionArtifactStore({ dir: ".theokit/plans" });
+const planMode = createPlanModeTool({ artifactStore: store, artifactId: runId });
+// agent calls plan_mode { action: "exit", plan: "1. …\n2. …" } → persisted to .theokit/plans/<runId>.md
+await store.read(runId); // the persisted plan, or undefined
+```
+
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";
 import {
