@@ -60,6 +60,9 @@ export * from "./internal/active-memory/active-memory-cache.js";
 export * from "./internal/active-memory/active-memory-types.js";
 export * from "./internal/adapter-catalog.js";
 export * from "./internal/adapter-http-error.js";
+// M4-3: createCategorizedMemory — typed taxonomy store over safePathJoin +
+// redactSecrets + replaceFileAtomic/withCwdMutex (per-category .md partition).
+export * from "./internal/categorized-memory.js";
 // Iter 59: sixteenth Stage 3 file move — dreaming-diary (74 LOC).
 // Dream-diary append per ADR D7. Diary lives at
 // `.theokit/memory/dream-diary.md` and grows with one entry per
