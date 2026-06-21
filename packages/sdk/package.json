@@ -68,6 +68,16 @@
         "default": "./dist/messages.cjs"
       }
     },
+    "./models": {
+      "import": {
+        "types": "./dist/models.d.ts",
+        "default": "./dist/models.js"
+      },
+      "require": {
+        "types": "./dist/models.d.cts",
+        "default": "./dist/models.cjs"
+      }
+    },
     "./path-safety": {
       "import": {
         "types": "./dist/path-safety.d.ts",
