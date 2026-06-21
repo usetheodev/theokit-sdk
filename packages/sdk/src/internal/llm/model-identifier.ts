@@ -19,7 +19,9 @@
  * (`OLLAMA_PROVIDER_ID = "ollama"`) and Hermes `hermes_cli/providers.py`
  * (ALIASES table, `normalize_provider`).
  *
- * @internal
+ * Public via `@theokit/sdk/models` (M5-8).
+ *
+ * @public
  */
 
 export interface ParsedModelId {
