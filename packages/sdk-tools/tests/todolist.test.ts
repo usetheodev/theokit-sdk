@@ -114,6 +114,23 @@ describe("createTodolistTool", () => {
     expect(result.items[0].status).toBe("done");
   });
 
+  it("(M4-5) remove and clear_completed results also carry structured items", () => {
+    const a1 = JSON.parse(tool.handler({ action: "add", title: "keep" }));
+    const a2 = JSON.parse(tool.handler({ action: "add", title: "drop" }));
+    const removed = JSON.parse(tool.handler({ action: "remove", id: a2.id }));
+    expect(removed.items.map((i: { title: string }) => i.title)).toEqual(["keep"]);
+    tool.handler({ action: "complete", id: a1.id });
+    const cleared = JSON.parse(tool.handler({ action: "clear_completed" }));
+    expect(Array.isArray(cleared.items)).toBe(true);
+    expect(cleared.items).toEqual([]);
+  });
+
+  it("(M4-5) a title with JSON-special chars round-trips through the result intact", () => {
+    const tricky = 'She said "hi"\nand \\ {edge}';
+    const result = JSON.parse(tool.handler({ action: "add", title: tricky }));
+    expect(result.items[0].title).toBe(tricky);
+  });
+
   it("(M4-5 EC-2) error results carry NO items field", () => {
     const missingTitle = JSON.parse(tool.handler({ action: "add" } as never));
     expect(missingTitle.ok).toBe(false);
