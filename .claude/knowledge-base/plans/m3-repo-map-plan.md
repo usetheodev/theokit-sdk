@@ -290,7 +290,7 @@ pnpm --filter @theokit/sdk-tools build
 - [ ] `pnpm --filter @theokit/sdk-tools exec vitest run tests/repo-map.test.ts` reports 13 tests passed (0 failed)
 - [ ] `pnpm --filter @theokit/sdk-tools exec vitest run` exits 0 with 0 failed tests (full suite, no regression)
 - [ ] `pnpm --filter @theokit/sdk-tools typecheck` exits 0 (0 type errors) and `pnpm --filter @theokit/sdk-tools exec biome check` reports 0 warnings
-- [ ] `pnpm quality:dead` reports 0 unused exports for `buildEnvContext`/`buildRepoMap`
+- [ ] `pnpm quality:dead` (knip) exits 0 — NOTE: `sdk-tools` is not a configured knip workspace, so this does NOT prove these specific exports are wired. The orphan-safety evidence is instead the barrel re-export test (`tests/repo-map.test.ts`) + the consumer-facing LEGO-piece precedent (`formatCode`/`formatDiff`, also barrel-exported with no in-SDK caller) + the documented M8-2 future driver. (The `no-stubs-no-mocks-no-wired.md` §3 caller rule is scoped to `packages/sdk/src/**`; these live in `sdk-tools`.)
 - [ ] `pnpm --filter @theokit/sdk-tools build` succeeds (dist emitted)
 - [ ] Runtime-metric proof — N/A (pure string builders; observable via the returned `<env>`/tree string)
 
