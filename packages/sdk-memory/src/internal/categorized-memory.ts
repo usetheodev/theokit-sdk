@@ -86,13 +86,17 @@ export function createCategorizedMemory(
 
   async function add(category: string, text: string): Promise<void> {
     assertKnown(category);
-    const safe = redactSecrets(text);
+    // Redact secrets, THEN encode newlines/backslashes so a multiline fact (or
+    // one containing a `- ` / `## ` line) stays a single bullet and round-trips
+    // faithfully — `list` decodes it back. Without this, the `## Facts` bullet
+    // parse would split or truncate the fact (silent data loss).
+    const encoded = encodeFact(redactSecrets(text));
     const sane = sanitizeIdentifier(category);
     await withCwdMutex(`catmem:${root}:${sane}`, async () => {
       const path = safePathJoin(root, `${sane}.md`);
       const raw = (await readFileOrEmpty(path)) || header(category);
       await mkdir(root, { recursive: true });
-      await replaceFileAtomic(path, appendBullet(raw, safe));
+      await replaceFileAtomic(path, appendBullet(raw, encoded));
     });
   }
 
@@ -156,7 +160,27 @@ async function readFileOrEmpty(path: string): Promise<string> {
 
 async function readCategory(path: string, category: string): Promise<CategorizedFact[]> {
   const raw = await readFileOrEmpty(path);
-  return parseFactBullets(raw).map((text) => ({ text, category }));
+  return parseFactBullets(raw).map((text) => ({ text: decodeFact(text), category }));
+}
+
+/**
+ * Encode a fact for single-bullet storage: escape `\` first, then `\r`/`\n`, so
+ * the text occupies exactly one `- ` line (no split, no `## ` heading injection).
+ * Pure + reversible by {@link decodeFact}.
+ */
+function encodeFact(text: string): string {
+  return text.replace(/\\/g, "\\\\").replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+}
+
+/**
+ * Reverse {@link encodeFact}. A single left-to-right pass over each `\<char>`
+ * escape: `\n`→newline, `\r`→CR, and any other escaped char (notably `\\`)→the
+ * literal char. Non-overlapping matching makes this exact for encoded input.
+ */
+function decodeFact(text: string): string {
+  return text.replace(/\\(.)/g, (_match, char: string) =>
+    char === "n" ? "\n" : char === "r" ? "\r" : char,
+  );
 }
 
 /** Parse `- text` bullets under the `## Facts` heading. Pure. */
