@@ -93,6 +93,9 @@
 ## [Unreleased]
 
 ### Added
+- **Pre-call token estimate + compaction decision (M2-2).** `estimateTokens(text)` (tokenizer-free ~4-chars/token; `""`→0, non-empty→≥1) + `shouldCompact({estimated,contextWindow,buffer})` (`true` when `estimated >= contextWindow - buffer`; pure, caller supplies the window) on the `@theokit/sdk/compaction` subpath. No tokenizer dep.
+
+### Added
 
 - `@theokit/sdk/compaction` — public compaction / context-management helpers so you manage the context window without reaching into `internal/`. `compactTranscript(messages, { keepRecent = 6, summarize? })` keeps the last `keepRecent` turns, preserves leading system turns, and either summarizes the older window (via an optional callback wiring the internal LLM summarizer) or drops it — reusing the internal compaction window (no second algorithm), never mutating its input. `buildCheckpoint`/`filterFromLatestCheckpoint`/`CHECKPOINT_MARKER` give a string-sentinel checkpoint to bound replay to "since the last checkpoint". `isContextOverflowError(err)` is true for a `TheokitAgentError` reporting the typed `context_too_long` code (checks `code` + `metadata.code`; no message regex). Operates on the SDK's own `CompressibleMessage` (re-exported); zero new dependencies. (M2-1)
 - `@theokit/sdk/messages` — pure readers over the `SDKMessage` stream so you stop hand-rolling a wire-event mapper. `assistantText(msg)` concatenates an assistant message's text (`""` for non-assistant), `extractToolUses(msg)` returns its tool-use blocks (`[]` for non-assistant; reads the assistant content blocks, not the separate `tool_call` lifecycle event), and `costAmountUsd(cost)` reads `RunResult.cost.amountUsd` preserving `number | undefined` verbatim — an unknown cost stays `undefined`, never silently coerced to `$0` (cost-honesty, ADR D377). Zero new dependencies. (#34)
