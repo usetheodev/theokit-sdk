@@ -19,7 +19,8 @@
       "!examples",
       "!docs",
       "!**/.theokit",
-      "!.claude/knowledge-base/reference"
+      "!.claude/knowledge-base/reference",
+      "!.claude/knowledge-base/references"
     ]
   },
   "formatter": {
