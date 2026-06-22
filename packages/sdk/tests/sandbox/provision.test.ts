@@ -76,4 +76,35 @@ describe("provisionRepo (M6-3)", () => {
       }),
     ).rejects.toBeInstanceOf(RepoProvisionError);
   });
+
+  // --- Security regression tests (testing.md §3: every fix ships a regression test) ---
+
+  it("rejects an instanceId with path traversal before touching git", async () => {
+    const sandbox = new LocalSandbox({ workDir: work });
+    for (const bad of ["../escape", "a/b", "..", ".", "-flag", "x;touch y"]) {
+      await expect(
+        provisionRepo(sandbox, { repoUrl: source, ref: headSha, instanceId: bad }),
+      ).rejects.toMatchObject({ name: "RepoProvisionError" });
+    }
+  });
+
+  it("rejects a ref that begins with '-' (git flag injection)", async () => {
+    const sandbox = new LocalSandbox({ workDir: work });
+    await expect(
+      provisionRepo(sandbox, { repoUrl: source, ref: "--orphan", instanceId: "inst-ref" }),
+    ).rejects.toMatchObject({ name: "RepoProvisionError" });
+  });
+
+  it("blocks the ext:: transport (arbitrary-command RCE vector)", async () => {
+    const sandbox = new LocalSandbox({ workDir: work });
+    const marker = join(root, "PWNED");
+    await expect(
+      provisionRepo(sandbox, {
+        repoUrl: `ext::sh -c "touch ${marker}"`,
+        ref: "HEAD",
+        instanceId: "inst-ext",
+      }),
+    ).rejects.toBeInstanceOf(RepoProvisionError);
+    expect(existsSync(marker)).toBe(false); // payload never executed
+  });
 });

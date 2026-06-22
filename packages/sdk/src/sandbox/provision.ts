@@ -55,8 +55,12 @@ export interface ProvisionRepoOptions {
   readonly instanceId: string;
 }
 
-/** Reject ids that would escape the workdir or be parsed as a git flag. */
-const SAFE_INSTANCE_ID = /^[A-Za-z0-9._-]+$/;
+/**
+ * Reject ids that would escape the workdir or be parsed as a git flag. Must
+ * start with an alphanumeric (blocks `.`, `..`, `-foo`, leading-dot names) and
+ * thereafter allow only `[A-Za-z0-9._-]`.
+ */
+const SAFE_INSTANCE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
 
 /**
  * Clone `repoUrl` into `<sandbox workdir>/<instanceId>` and check out `ref`.
