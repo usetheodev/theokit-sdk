@@ -9,6 +9,7 @@
  * @public
  */
 
+import type { SandboxBackend } from "../sandbox/types.js";
 import type { SDKAgent } from "./agent.js";
 
 /** Inferred `Agent.create` options shape — avoid cycling through `AgentOptions` directly. */
@@ -117,6 +118,26 @@ export interface EvalRowResult {
     readonly diff: string;
     readonly applies: boolean;
   };
+}
+
+/**
+ * Options for `Scorers.verifyGate` (M6-2) — grade a patch by running the
+ * project's tests in a provisioned repo and reading the exit code.
+ */
+export interface VerifyGateOptions {
+  /** Sandbox the test command runs in (D2 — Local/Docker/E2B). */
+  readonly sandbox: SandboxBackend;
+  /** Repo dir to run the tests from (typically `provisionRepo`'s `repoDir`). */
+  readonly repoDir: string;
+  /** SWE-bench tests that must flip to passing after the patch. */
+  readonly failToPass: readonly string[];
+  /** SWE-bench tests that must stay passing after the patch. */
+  readonly passToPass: readonly string[];
+  /**
+   * Builds the shell command from the combined test list. Default joins the
+   * tests with spaces; SWE-bench consumers pass e.g. `(t) => "pytest " + t.join(" ")`.
+   */
+  readonly command?: (tests: string[]) => string;
 }
 
 /** Per-scorer breakdown computed across all rows. */
