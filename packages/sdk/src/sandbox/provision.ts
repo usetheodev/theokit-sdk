@@ -14,6 +14,7 @@
  */
 
 import { TheokitAgentError } from "../errors.js";
+import { shellEscapePosix } from "./shell-escape.js";
 import type { SandboxBackend } from "./types.js";
 
 /**
@@ -34,16 +35,6 @@ export class RepoProvisionError extends TheokitAgentError {
       ...(options.cause !== undefined ? { cause: options.cause } : {}),
     });
   }
-}
-
-/**
- * POSIX single-quote escape. `SandboxBackend.execute` runs the command via a
- * shell (`/bin/sh -c`), so every interpolated value MUST be quoted to prevent
- * injection (Drawbacks § security). Single quotes are not in the backend's
- * forbidden-metacharacter set.
- */
-function shEscape(arg: string): string {
-  return `'${arg.replace(/'/g, "'\\''")}'`;
 }
 
 /** Options for {@link provisionRepo}. */
@@ -69,20 +60,22 @@ export async function provisionRepo(
   const { repoUrl, ref, instanceId } = opts;
 
   const clone = await sandbox.execute(
-    `git clone --quiet ${shEscape(repoUrl)} ${shEscape(instanceId)}`,
+    `git clone --quiet ${shellEscapePosix(repoUrl)} ${shellEscapePosix(instanceId)}`,
   );
   if (clone.exitCode !== 0) {
     throw new RepoProvisionError(instanceId, `clone failed: ${clone.stderr.trim()}`);
   }
 
-  const top = await sandbox.execute(`git -C ${shEscape(instanceId)} rev-parse --show-toplevel`);
+  const top = await sandbox.execute(
+    `git -C ${shellEscapePosix(instanceId)} rev-parse --show-toplevel`,
+  );
   if (top.exitCode !== 0) {
     throw new RepoProvisionError(instanceId, `resolve repoDir failed: ${top.stderr.trim()}`);
   }
   const repoDir = top.stdout.trim();
 
   const checkout = await sandbox.execute(
-    `git -C ${shEscape(repoDir)} checkout --quiet ${shEscape(ref)}`,
+    `git -C ${shellEscapePosix(repoDir)} checkout --quiet ${shellEscapePosix(ref)}`,
   );
   if (checkout.exitCode !== 0) {
     throw new RepoProvisionError(instanceId, `checkout ${ref} failed: ${checkout.stderr.trim()}`);
