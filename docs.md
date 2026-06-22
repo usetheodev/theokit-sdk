@@ -2376,8 +2376,9 @@ await Eval.create({ name, dataset, scorers, agent }).run({
   failed rows are retried. Skipped rows are NOT re-emitted in `EvalRun.rows` (a
   resumed run's in-memory aggregate reflects only newly-run rows; the JSONL file
   is the complete durable record).
-- Additive `EvalRowResult` fields: `outcome?: string` (from `classify`),
-  `artifact?: { diff: string; applies: boolean }` (from `captureArtifact`).
+- Additive `EvalRowResult` fields: `outcome?: string` (set by the runner from
+  `classify`), `artifact?: { diff: string; applies: boolean }` (produced by
+  `captureArtifact`; the caller attaches it to the row).
 
 **Dataset loading.** `loadJsonl<T>(path, { map? })` parses JSONL with a
 line-numbered `JsonlParseError`; the dataset schema is the caller's via `map`

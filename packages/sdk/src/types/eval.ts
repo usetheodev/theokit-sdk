@@ -112,7 +112,8 @@ export interface EvalRowResult {
   readonly outcome?: string;
   /**
    * Captured code change (M6-4): the working-tree `git diff` an agent produced
-   * and whether it reverse-applies cleanly. Populated by `captureArtifact`.
+   * and whether it reverse-applies cleanly. Produced by `captureArtifact`; the
+   * caller attaches it to the row (the runner does not set it automatically).
    */
   readonly artifact?: {
     readonly diff: string;
