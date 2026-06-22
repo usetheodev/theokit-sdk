@@ -18,7 +18,7 @@ export interface PermissionRule {
 /** Options for {@link PermissionEngine}. */
 export interface PermissionEngineOptions {
   /** Action when no rule matches. Default `"allow"` (backward-compatible). M7-4. */
-  defaultAction?: PermissionAction;
+  readonly defaultAction?: PermissionAction;
 }
 
 export class PermissionEngine {
