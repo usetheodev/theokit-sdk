@@ -1,5 +1,16 @@
 # Changelog — @theokit/sdk-memory
 
+## 0.2.0
+
+### Minor Changes
+
+- 809418a: M4-3 — typed categorized memory store (plan `m4-categorized-memory`).
+
+  - `createCategorizedMemory({ root, categories })` — a typed, category-partitioned markdown memory store. `add(category, text)` validates `category` against the closed `categories` taxonomy (fail-loud `ConfigurationError(code: "unknown_category")` before any I/O), redacts secrets, and appends a bullet to `<root>/<category>.md` (frontmatter header + `## Facts`) atomically and serialized per category file (`withCwdMutex` — no lost update under concurrent adds). `list(category?)` returns `CategorizedFact[]` for one category or all; never throws (a missing file → no facts). Construction validates the taxonomy is non-empty, unique, sanitizable, and sanitized-unique.
+  - `MemoryFact` gains an optional `category?: string` (backward-compatible — flat-store facts omit it).
+
+  Composes the shipped `safePathJoin`/`sanitizeIdentifier` (`@theokit/sdk/path-safety`), `redactSecrets`, and `replaceFileAtomic`/`withCwdMutex` (`@theokit/sdk/internal/persistence`). Zero new dependencies — explicitly NOT adding `zod` (the closed `categories` set is the runtime-checked schema).
+
 ## [Unreleased]
 
 ### Changed
@@ -32,7 +43,7 @@ they have now been synced. Consumers routing through
 - **T5.2 — Lance SQL escape hardening (iter 115)** —
   `lance-index.ts`'s `escapeSqlValue` now rejects NUL bytes,
   C0 control chars, and DEL via `ConfigurationError({code:
-  'sql_injection_blocked'})`, and escapes backslashes (`\` →
+'sql_injection_blocked'})`, and escapes backslashes (`\` →
   `\\`) in addition to single quotes. Pre-sync, only `'` → `''`
   was applied — `\'` could escape the closing quote on engines
   that interpret backslash-escapes.
@@ -45,6 +56,7 @@ for v1.x back-compat; consumers installing this package get the
 canonical surface that sdk-core's Stage 4 routing delegates to.
 
 **Closed clusters:**
+
 - Dreaming (iter 54+59+60): `dreaming-phases.ts`, `dreaming-diary.ts`,
   `dreaming-run.ts` + `active-memory-types.ts` (iter 48)
 - Sessions (iter 61+62): `session-summary-writer.ts`, `session-loader.ts`
@@ -66,6 +78,7 @@ canonical surface that sdk-core's Stage 4 routing delegates to.
   `active-memory.ts`
 
 **Optional peers** (sdk-memory dynamically loads when present):
+
 - `better-sqlite3` (iter 65)
 - `sqlite-vec` (iter 66)
 - `@lancedb/lancedb` (iter 68)
@@ -75,6 +88,7 @@ canonical surface that sdk-core's Stage 4 routing delegates to.
 (verified by the Stage 3 drift detector, iter 93).
 
 ### Added (Phase 1 Stage 3 prep — iter 33-35, 2026-06-08)
+
 - `createInMemoryMarkdownProvider.recordSessionSummary` ships REAL
   filesystem-backed impl (was no-op). Writes
   `${cwd}/.theokit/memory/sessions/${sanitizeRunId(runId)}.md` via
@@ -93,6 +107,7 @@ canonical surface that sdk-core's Stage 4 routing delegates to.
   conversations. Returns JSON `{ok, count, results: [{id, snippet}]}`.
 
 ### Changed (Phase 1 physical Stage 1 — iter 19, 2026-06-08)
+
 - `createInMemoryMarkdownProvider` now implements the new optional
   `sync(handle)` port method (no-op for the in-process impl — facts
   are written synchronously to the Map at handler-call time; nothing
@@ -103,6 +118,7 @@ canonical surface that sdk-core's Stage 4 routing delegates to.
 ## [0.1.0] — 2026-06-08
 
 ### Added
+
 - Initial release. Consumes the `MemoryProvider` port from `@theokit/sdk@>=1.7.0`
   (SDK 2.0 Phase 1 / T1.6).
 - `createInMemoryMarkdownProvider()` — first concrete impl. In-process
@@ -110,6 +126,7 @@ canonical surface that sdk-core's Stage 4 routing delegates to.
   `systemPromptAdditions` for recalled facts; full lifecycle compliance.
 
 ### Notes
+
 - LanceDB / embeddings / circuit-breaker / dreaming-sweep deferred to future
   versions. This release ships the package foundation + a working impl so
   the SDK 2.0 cohort can publish (Phase 7).
