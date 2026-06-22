@@ -176,15 +176,17 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M6 — Eval harness (Tema E)
 
+> **Status: RELEASED (5/5)** — código em `main` via tag repo-wide `v3.3.0` (2026-06-22, PR #30 merged). npm `@theokit/sdk@2.5.0` (changeset minor) via Version Packages PR pós-merge. Plan `m6-eval-harness` SHIPPABLE_WITH_CAVEATS 70.0, blueprint 89.0, review READY_TO_MERGE; suíte 2860 verde, zero deps novas. Tema E completo.
+
 **Valor entregue:** transforma "agente editou um repo" em "aqui está o patch e ele aplica/passa". Runs SWE-bench são multi-hora e $-heavy; sem resume/flush todo consumidor sério reconstrói crash-durability.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M6-1 | Runner batch resiliente (resume + flush JSONL) | sdk · @theokit/sdk eval | high | L | M1-2 | `appendJsonl`/`readJsonlIds` + `Eval.run` com `{persist:{path,key,resume}}` + flush por linha + `classify()`. |
-| M6-2 | Verify-gate scorer (exit code) | sdk · eval+sandbox | med | M | — | `Scorers.verifyGate({failToPass,passToPass})` via `SandboxBackend.execute`; `EvalRowResult.artifact{diff,applies}`. |
-| M6-3 | `RepoProvisioner` (clone+checkout isolado) | sdk · sandbox | low | M | — | `provisionRepo(sandbox,{repoUrl,ref,instanceId})` portável Local/Docker/E2B; `RepoProvisionError`. |
-| M6-4 | Headless code-runner (git diff + patch validate) | sdk · sdk+sdk-tools | med | M | M1-2 | Diff + validação de patch como artefato gradeável. |
-| M6-5 | `loadJsonl` (loader dataset genérico) | sdk · eval | low | S | — | `loadJsonl(path,{map})` com erro tipado por nº de linha; schema SWE-bench fica no app via `map`. |
+| M6-1 ✅ | Runner batch resiliente (resume + flush JSONL) | sdk · @theokit/sdk eval | high | L | M1-2 | `appendJsonl`/`readJsonlIds` + `Eval.run` com `{persist:{path,key,resume}}` + flush por linha + `classify()`. |
+| M6-2 ✅ | Verify-gate scorer (exit code) | sdk · eval+sandbox | med | M | — | `Scorers.verifyGate({failToPass,passToPass})` via `SandboxBackend.execute`; `EvalRowResult.artifact{diff,applies}`. |
+| M6-3 ✅ | `RepoProvisioner` (clone+checkout isolado) | sdk · sandbox | low | M | — | `provisionRepo(sandbox,{repoUrl,ref,instanceId})` portável Local/Docker/E2B; `RepoProvisionError`. |
+| M6-4 ✅ | Headless code-runner (git diff + patch validate) | sdk · sdk+sdk-tools | med | M | M1-2 | Diff + validação de patch como artefato gradeável. |
+| M6-5 ✅ | `loadJsonl` (loader dataset genérico) | sdk · eval | low | S | — | `loadJsonl(path,{map})` com erro tipado por nº de linha; schema SWE-bench fica no app via `map`. |
 
 **Concluído quando:** uma run SWE-bench cai e resume sem perder trabalho; scoring é por exit-code, não heurística de texto.
 
