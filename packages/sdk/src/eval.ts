@@ -82,5 +82,7 @@ export class Eval {
 }
 
 export { EvalAlreadyRunningError } from "./internal/eval/single-flight.js";
+// M6-5: generic JSONL dataset loader (schema delegated to the caller's `map`, ADR D3).
+export { JsonlParseError, loadJsonl } from "./internal/persistence/jsonl.js";
 export { Scorers } from "./scorers.js";
 export type * from "./types/eval.js";
