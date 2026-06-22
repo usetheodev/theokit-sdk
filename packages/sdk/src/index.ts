@@ -152,7 +152,17 @@ export {
   type MigrateResult,
   migrateSqliteToLance,
 } from "./migrate.js";
-export { PermissionEngine } from "./permission-engine.js";
+export {
+  type PermissionAction,
+  PermissionEngine,
+  type PermissionEngineOptions,
+  type PermissionRule,
+} from "./permission-engine.js";
+// M7-5: PermissionEngine -> plugin veto exemplar.
+export {
+  createPermissionPlugin,
+  type PermissionPluginOptions,
+} from "./permission-plugin.js";
 // Personality presets (Hermes #26, ADRs D160-D169)
 // `PersonalityPreset` is declared in `types/agent.ts` and reaches consumers
 // via the `types/*` star export below. The runtime registry class lives in

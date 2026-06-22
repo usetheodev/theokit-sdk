@@ -176,21 +176,25 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M6 — Eval harness (Tema E)
 
+> **Status: RELEASED (5/5)** — código em `main` via tag repo-wide `v3.3.0` (2026-06-22, PR #30 merged). npm `@theokit/sdk@2.5.0` (changeset minor) via Version Packages PR pós-merge. Plan `m6-eval-harness` SHIPPABLE_WITH_CAVEATS 70.0, blueprint 89.0, review READY_TO_MERGE; suíte 2860 verde, zero deps novas. Tema E completo.
+
 **Valor entregue:** transforma "agente editou um repo" em "aqui está o patch e ele aplica/passa". Runs SWE-bench são multi-hora e $-heavy; sem resume/flush todo consumidor sério reconstrói crash-durability.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M6-1 | Runner batch resiliente (resume + flush JSONL) | sdk · @theokit/sdk eval | high | L | M1-2 | `appendJsonl`/`readJsonlIds` + `Eval.run` com `{persist:{path,key,resume}}` + flush por linha + `classify()`. |
-| M6-2 | Verify-gate scorer (exit code) | sdk · eval+sandbox | med | M | — | `Scorers.verifyGate({failToPass,passToPass})` via `SandboxBackend.execute`; `EvalRowResult.artifact{diff,applies}`. |
-| M6-3 | `RepoProvisioner` (clone+checkout isolado) | sdk · sandbox | low | M | — | `provisionRepo(sandbox,{repoUrl,ref,instanceId})` portável Local/Docker/E2B; `RepoProvisionError`. |
-| M6-4 | Headless code-runner (git diff + patch validate) | sdk · sdk+sdk-tools | med | M | M1-2 | Diff + validação de patch como artefato gradeável. |
-| M6-5 | `loadJsonl` (loader dataset genérico) | sdk · eval | low | S | — | `loadJsonl(path,{map})` com erro tipado por nº de linha; schema SWE-bench fica no app via `map`. |
+| M6-1 ✅ | Runner batch resiliente (resume + flush JSONL) | sdk · @theokit/sdk eval | high | L | M1-2 | `appendJsonl`/`readJsonlIds` + `Eval.run` com `{persist:{path,key,resume}}` + flush por linha + `classify()`. |
+| M6-2 ✅ | Verify-gate scorer (exit code) | sdk · eval+sandbox | med | M | — | `Scorers.verifyGate({failToPass,passToPass})` via `SandboxBackend.execute`; `EvalRowResult.artifact{diff,applies}`. |
+| M6-3 ✅ | `RepoProvisioner` (clone+checkout isolado) | sdk · sandbox | low | M | — | `provisionRepo(sandbox,{repoUrl,ref,instanceId})` portável Local/Docker/E2B; `RepoProvisionError`. |
+| M6-4 ✅ | Headless code-runner (git diff + patch validate) | sdk · sdk+sdk-tools | med | M | M1-2 | Diff + validação de patch como artefato gradeável. |
+| M6-5 ✅ | `loadJsonl` (loader dataset genérico) | sdk · eval | low | S | — | `loadJsonl(path,{map})` com erro tipado por nº de linha; schema SWE-bench fica no app via `map`. |
 
 **Concluído quando:** uma run SWE-bench cai e resume sem perder trabalho; scoring é por exit-code, não heurística de texto.
 
 ---
 
 ## M7 — HTTP, persistência e consolidação dual-surface (Tema F)
+
+> **Status: READY_TO_MERGE (3/3 slices) — pending release cut (2026-06-22).** cycle discover→plan→implement→review completo nos 3 repos: **theokit** M7-1/2/3 (typed errors/404 no defineRoute + defineHealthRoute/Ready + theokit/boot; review READY_TO_MERGE, commits de77073…717bc06); **theokit-sdk** M7-4/5/6 (PermissionEngine defaultAction + createPermissionPlugin + formatCostUsd honest-null; review READY_TO_MERGE, 32180fe/dd0a334); **@theokit/orm** M7-7 (createRepository non-DI factory; review READY_TO_MERGE, c957088/e2a7d49). Zero deps novas; nenhum pacote depende do principal theokit. Follow-ups documentados: variante sync better-sqlite3 do orm + instalar @theokit/orm no theocode. Releases per-repo pendentes.
 
 **Valor entregue:** resolve a tensão das duas superfícies HTTP paralelas (convention dev-server vs imperative TheoApp) que não compartilham primitivos. Quase independente — pode ir na onda 1.
 
