@@ -109,6 +109,14 @@ export interface EvalRowResult {
    * Persisted alongside the row when `persist` is set.
    */
   readonly outcome?: string;
+  /**
+   * Captured code change (M6-4): the working-tree `git diff` an agent produced
+   * and whether it reverse-applies cleanly. Populated by `captureArtifact`.
+   */
+  readonly artifact?: {
+    readonly diff: string;
+    readonly applies: boolean;
+  };
 }
 
 /** Per-scorer breakdown computed across all rows. */
