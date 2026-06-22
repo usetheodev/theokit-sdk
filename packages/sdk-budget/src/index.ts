@@ -7,6 +7,8 @@
 // usage, calendar-window) — ~568 LOC moved out of sdk-core into this
 // package per ADR-008.
 
+// M7-6: honest-null cost render helper (`—` for unknown, never a dishonest `$0`).
+export { type FormatCostUsdOptions, formatCostUsd } from "./format-cost.js";
 // Calendar window helpers — UTC-aligned 1h/1d/1w/30d/365d.
 export { startOfDayUtc, startOfWeekUtc, windowStartMs } from "./internal/calendar-window.js";
 // Budget enforcement — preflight check + threshold callbacks.
