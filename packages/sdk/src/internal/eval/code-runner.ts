@@ -12,7 +12,10 @@
  * (build prediction from captured diff), :157 (reverse apply-check on the
  * mutated tree).
  *
- * @internal
+ * Re-exported from `@theokit/sdk/eval` for consumers composing a code-eval
+ * harness.
+ *
+ * @public
  */
 
 import { shellEscapePosix } from "../../sandbox/shell-escape.js";
