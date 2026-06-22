@@ -1,14 +1,13 @@
-import { escapeBlockBody } from "../escape.js";
+import { buildSkillsBlock } from "../../skills/skills-block.js";
 import type { SystemPromptAssemblyContext, SystemPromptProvider } from "../types.js";
 
 /**
  * Contributes the `<skills>` block (ADR D4 / D9).
  *
- * Input is `ReadonlyArray<{ name, description }>` — the skill body is NOT in
- * the type, so there is no path for it to leak into the system prompt.
- *
- * Both name and description are passed through `escapeBlockBody` to neutralise
- * prompt-injection vectors hidden in user-controlled SKILL.md frontmatter.
+ * Delegates rendering to the shared `buildSkillsBlock` primitive (M4-1, single
+ * source of truth, also public via `@theokit/sdk/skills`). The block builder
+ * escapes name + description to neutralise prompt-injection vectors; the skill
+ * body is not in the input type, so it cannot leak into the system prompt.
  *
  * @internal
  */
@@ -18,12 +17,6 @@ export class SkillsPromptProvider implements SystemPromptProvider {
 
   contribute(ctx: SystemPromptAssemblyContext): Promise<string | undefined> {
     if (ctx.skillsAutoInject === false) return Promise.resolve(undefined);
-    if (ctx.skills.length === 0) return Promise.resolve(undefined);
-    const lines = ctx.skills.map((skill) => {
-      const name = escapeBlockBody(skill.name);
-      const description = escapeBlockBody(skill.description);
-      return `  - ${name}: ${description}`;
-    });
-    return Promise.resolve(`<skills>\n${lines.join("\n")}\n</skills>`);
+    return Promise.resolve(buildSkillsBlock(ctx.skills));
   }
 }

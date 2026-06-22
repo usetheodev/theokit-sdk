@@ -92,6 +92,13 @@
 
 ## [Unreleased]
 
+### Fixed
+- **`context_too_long` reaches the run boundary (M2-3).** `registerLoopError` now prefers the canonical `cause.metadata?.code` over the provider-prefixed top-level `.code`, so `RunResult.error.code` is `context_too_long` (not `anthropic_context_too_long`) for every provider. Set-once + top-level fallback preserved.
+
+### Added
+- **Pre-call token estimate + compaction decision (M2-2).** `estimateTokens(text)` (tokenizer-free ~4-chars/token; `""`→0, non-empty→≥1) + `shouldCompact({estimated,contextWindow,buffer})` (`true` when `estimated >= contextWindow - buffer`; pure, caller supplies the window) on the `@theokit/sdk/compaction` subpath. No tokenizer dep.
+- **Per-model capability catalog public + OpenRouter slug-suffix fix (M2-4).** New `@theokit/sdk/models` subpath: `resolveModelCapabilities(modelId)` (was `@internal`) — pure/sync/offline capability flags + `maxContextTokens`/`maxOutputTokens`. Fixes an OpenRouter `:variant` suffix lookup miss (fell back to 4096 instead of the real window).
+
 ### Added
 
 - `@theokit/sdk/compaction` — public compaction / context-management helpers so you manage the context window without reaching into `internal/`. `compactTranscript(messages, { keepRecent = 6, summarize? })` keeps the last `keepRecent` turns, preserves leading system turns, and either summarizes the older window (via an optional callback wiring the internal LLM summarizer) or drops it — reusing the internal compaction window (no second algorithm), never mutating its input. `buildCheckpoint`/`filterFromLatestCheckpoint`/`CHECKPOINT_MARKER` give a string-sentinel checkpoint to bound replay to "since the last checkpoint". `isContextOverflowError(err)` is true for a `TheokitAgentError` reporting the typed `context_too_long` code (checks `code` + `metadata.code`; no message regex). Operates on the SDK's own `CompressibleMessage` (re-exported); zero new dependencies. (M2-1)

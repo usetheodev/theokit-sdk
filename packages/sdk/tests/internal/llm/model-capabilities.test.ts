@@ -91,3 +91,36 @@ describe("T3.10c — resolveModelCapabilities", () => {
     expect(caps.supportsCacheControl).toBe(true);
   });
 });
+
+describe("OpenRouter variant-suffix resolution (M2-4)", () => {
+  it("test_openrouter_free_suffix_resolves_real_model", () => {
+    expect(resolveModelCapabilities("openrouter/openai/gpt-4o:free").maxContextTokens).toBe(
+      128_000,
+    );
+  });
+
+  it("test_variant_suffix_on_anthropic", () => {
+    expect(
+      resolveModelCapabilities("openrouter/anthropic/claude-3-5-sonnet:beta").maxContextTokens,
+    ).toBeGreaterThan(4096);
+  });
+
+  it("test_bare_suffix_without_routing_prefix", () => {
+    expect(resolveModelCapabilities("openai/gpt-4o:nitro").maxContextTokens).toBe(128_000);
+  });
+
+  it("test_suffix_strip_combines_with_vendor_inference", () => {
+    // vertex/ strips routing; :nitro strips suffix; then vendor inference adds anthropic/
+    expect(
+      resolveModelCapabilities("vertex/claude-3-5-sonnet:nitro").maxContextTokens,
+    ).toBeGreaterThan(4096);
+  });
+
+  it("test_no_suffix_unchanged", () => {
+    expect(resolveModelCapabilities("openrouter/openai/gpt-4o").maxContextTokens).toBe(128_000);
+  });
+
+  it("test_unknown_still_conservative", () => {
+    expect(resolveModelCapabilities("totally/unknown:free").maxContextTokens).toBe(4096);
+  });
+});
