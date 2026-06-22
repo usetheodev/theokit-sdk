@@ -134,10 +134,14 @@ export interface VerifyGateOptions {
   /** SWE-bench tests that must stay passing after the patch. */
   readonly passToPass: readonly string[];
   /**
-   * Builds the shell command from the combined test list. Default joins the
-   * tests with spaces; SWE-bench consumers pass e.g. `(t) => "pytest " + t.join(" ")`.
+   * REQUIRED — builds the shell command from the combined test list, e.g.
+   * `(t) => "pytest " + t.join(" ")`. The builder OWNS shell-safety of the test
+   * identifiers: the SDK runs the returned string in a shell, so a builder that
+   * concatenates untrusted dataset test names without quoting is an injection
+   * vector (the SDK deliberately ships NO unsafe default that would run bare
+   * identifiers — see SECURITY note on `verifyGate`).
    */
-  readonly command?: (tests: string[]) => string;
+  readonly command: (tests: readonly string[]) => string;
 }
 
 /** Per-scorer breakdown computed across all rows. */
@@ -187,11 +191,13 @@ export interface EvalPersistOptions {
   /** JSONL output path. Parent directories are created on first append. */
   readonly path: string;
   /**
-   * Stable identity of a row, used for resume. Computed from durable fields
-   * (`input` / `metadata`) so it matches between a pre-execution probe and the
-   * persisted record.
+   * Stable identity of a row, used for resume. MUST be computed only from the
+   * fields available at resume-probe time (`index` / `input` / `expected` /
+   * `metadata`) — the type enforces this: at resume the key is computed from a
+   * probe row BEFORE the agent runs, so `output` / `scores` / `meanScore` are
+   * not yet known. Reading any non-durable field would silently break resume.
    */
-  readonly key: (row: EvalRowResult) => string;
+  readonly key: (row: Pick<EvalRowResult, "index" | "input" | "expected" | "metadata">) => string;
   /**
    * When `true`, rows whose `key` already appears in `path` with a SUCCESSFUL
    * (no `error`) result are skipped — not re-executed and not re-emitted in

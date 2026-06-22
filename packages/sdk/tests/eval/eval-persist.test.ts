@@ -47,6 +47,8 @@ describe("Eval.run persist (M6-1)", () => {
         linesAtSend.push(n);
       },
     );
+    // concurrency:1 is load-bearing: it forces strictly-serial
+    // finalize→append→next-send so the line-count sequence is deterministic.
     await Eval.create({
       name: "flush",
       dataset: [{ input: "a" }, { input: "b" }, { input: "c" }],
@@ -137,6 +139,25 @@ describe("Eval.run persist (M6-1)", () => {
     expect(run.rows[0]?.outcome).toBe("pass");
     const persisted = JSON.parse(readFileSync(path, "utf8").trim());
     expect(persisted.outcome).toBe("pass");
+  });
+
+  it("appends interleave-safe under concurrency (one valid JSON line per row)", async () => {
+    // Plan Drawbacks mitigation: appendFileSync serializes within one process,
+    // so even at concurrency > 1 the file holds exactly N un-torn JSON lines.
+    const path = join(dir, "concurrent.jsonl");
+    const rows = Array.from({ length: 24 }, (_, i) => ({ input: `row-${i}` }));
+    await Eval.create({
+      name: "concurrent-persist",
+      dataset: rows,
+      scorers: [() => ({ score: 1 })],
+      agent: fakeAgent((i) => `out-${i}`),
+      concurrency: 8,
+    }).run({ persist: { path, key: (r) => r.input } });
+
+    const lines = readFileSync(path, "utf8").trim().split("\n");
+    expect(lines).toHaveLength(24);
+    const inputs = lines.map((l) => JSON.parse(l).input).sort();
+    expect(inputs).toEqual(rows.map((r) => r.input).sort());
   });
 
   it("without persist behaves identically (no file, no outcome)", async () => {

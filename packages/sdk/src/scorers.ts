@@ -132,15 +132,24 @@ export const Scorers = {
    * else `0` with the exit code + truncated stderr in `reason`. Grades the
    * artifact captured by `captureArtifact` (D2 — rides `execute`, never a
    * direct `child_process`).
+   *
+   * SECURITY: `command` is REQUIRED and the caller's builder owns shell-safety
+   * of the (potentially untrusted, dataset-derived) test identifiers. There is
+   * NO default that runs bare test names — that would interpolate untrusted
+   * `failToPass`/`passToPass` straight into a shell. `repoDir` is shell-escaped
+   * by the SDK; the test list is the builder's responsibility to render safely.
+   *
+   * PORTABILITY: the command is wrapped as `cd <repoDir> && <cmd>`, which
+   * assumes a shell-backed `SandboxBackend` (LocalSandbox/Docker). A backend
+   * that rejects shell metacharacters in `execute` is unsupported for this scorer.
    */
   verifyGate(opts: VerifyGateOptions): NamedScorer {
     const { sandbox, repoDir, failToPass, passToPass, command } = opts;
     return {
       name: "verify-gate",
       score: async (): Promise<Score> => {
-        const tests = [...failToPass, ...passToPass];
-        const cmd = command ? command(tests) : tests.join(" ");
-        if (cmd.trim().length === 0) {
+        const cmd = command([...failToPass, ...passToPass]).trim();
+        if (cmd.length === 0) {
           return { score: 0, reason: "verify_gate_empty_command" };
         }
         const r = await sandbox.execute(`cd ${shellEscapePosix(repoDir)} && ${cmd}`);

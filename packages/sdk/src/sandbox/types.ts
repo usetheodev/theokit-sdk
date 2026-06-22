@@ -8,6 +8,8 @@
  * @public
  */
 
+import { shellEscapePosix } from "./shell-escape.js";
+
 export interface ExecuteResult {
   stdout: string;
   stderr: string;
@@ -107,6 +109,6 @@ export abstract class SandboxBackend {
   }
 
   private shellEscape(arg: string): string {
-    return `'${arg.replace(/'/g, "'\\''")}'`;
+    return shellEscapePosix(arg);
   }
 }
