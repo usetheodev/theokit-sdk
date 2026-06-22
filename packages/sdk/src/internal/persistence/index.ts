@@ -13,6 +13,7 @@ export { createExclusive } from "./exclusive-create.js";
 export type { FileLockOptions } from "./file-lock.js";
 export { withFileLock } from "./file-lock.js";
 export { containsCjk, sanitizeFts5Query } from "./fts5-sanitize.js";
+export { appendJsonl, JsonlParseError, loadJsonl, readJsonlIds } from "./jsonl.js";
 export { displayTheokitHome, getProfilesRoot, getTheokitHome } from "./paths.js";
 export { PersistenceSchema } from "./persistence-schema.js";
 export type {
