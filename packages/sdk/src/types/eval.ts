@@ -104,6 +104,11 @@ export interface EvalRowResult {
   readonly tokensOut?: number;
   readonly error?: string;
   readonly metadata?: Record<string, unknown>;
+  /**
+   * Free-form taxonomy label assigned by `EvalRunOptions.classify` (M6-1).
+   * Persisted alongside the row when `persist` is set.
+   */
+  readonly outcome?: string;
 }
 
 /** Per-scorer breakdown computed across all rows. */
@@ -141,8 +146,40 @@ export interface EvalRun {
   readonly metadata?: Record<string, unknown>;
 }
 
+/**
+ * Crash-durable persistence for `eval.run(...)` (M6-1). Each completed row is
+ * appended to `path` the instant it finishes (one `\n`-terminated JSON line),
+ * so a crashed multi-hour run resumes without re-paying completed work.
+ *
+ * Single-process contract: `appendFileSync` serializes writes within one Node
+ * process; do NOT point two concurrent processes at the same `path`.
+ */
+export interface EvalPersistOptions {
+  /** JSONL output path. Parent directories are created on first append. */
+  readonly path: string;
+  /**
+   * Stable identity of a row, used for resume. Computed from durable fields
+   * (`input` / `metadata`) so it matches between a pre-execution probe and the
+   * persisted record.
+   */
+  readonly key: (row: EvalRowResult) => string;
+  /**
+   * When `true`, rows whose `key` already appears in `path` with a SUCCESSFUL
+   * (no `error`) result are skipped — not re-executed and not re-emitted in
+   * `EvalRun.rows`. Failed rows are always retried.
+   */
+  readonly resume?: boolean;
+}
+
 /** Per-call options for `eval.run(...)`. */
 export interface EvalRunOptions {
   /** Cancels pending rows; in-flight rows complete (D140 pattern). */
   readonly signal?: AbortSignal;
+  /** Durable, resumable per-row persistence (M6-1). Absent → no file is written. */
+  readonly persist?: EvalPersistOptions;
+  /**
+   * Optional taxonomy classifier applied to each completed row; the result is
+   * stored on `EvalRowResult.outcome` and persisted (M6-1).
+   */
+  readonly classify?: (row: EvalRowResult) => string;
 }

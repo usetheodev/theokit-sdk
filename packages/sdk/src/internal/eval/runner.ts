@@ -14,6 +14,7 @@ import type {
   EvalAggregate,
   EvalHooks,
   EvalOptions,
+  EvalPersistOptions,
   EvalRowResult,
   EvalRun,
   EvalRunOptions,
@@ -21,6 +22,7 @@ import type {
   Score,
   Scorer,
 } from "../../types/eval.js";
+import { appendJsonl, readJsonlIds } from "../persistence/jsonl.js";
 import { getAgentFacade } from "../runtime/registry/agent-factory-registry.js";
 import { clampScore, computeAggregate } from "./aggregate.js";
 import { materializeDataset } from "./dataset-iter.js";
@@ -61,6 +63,74 @@ function normalizeScorers(input: ReadonlyArray<Scorer | NamedScorer>): Normalize
     }
     return { name: s.name, score: s.score };
   });
+}
+
+/**
+ * M6-1 durable-persist sink. `isResumed` answers the pre-execution skip
+ * question (success-only); `finalize` applies `classify` + per-row flush the
+ * instant a row completes. When neither `persist` nor `classify` is set, both
+ * are no-ops and behavior is byte-identical to the pre-M6 runner.
+ */
+interface RowSink {
+  isResumed(entry: DatasetEntry, index: number): boolean;
+  finalize(row: EvalRowResult): EvalRowResult;
+}
+
+/**
+ * A row-shaped probe built from a dataset entry, used to compute `persist.key`
+ * BEFORE the agent runs (so a resumed row is skipped without paying for it).
+ * A well-behaved `key` reads only durable fields (`input` / `metadata`).
+ */
+function probeRow(entry: DatasetEntry, index: number): EvalRowResult {
+  return {
+    index,
+    input: entry.input,
+    output: "",
+    ...(entry.expected !== undefined ? { expected: entry.expected } : {}),
+    scores: [],
+    meanScore: 0,
+    durationMs: 0,
+    ...(entry.metadata !== undefined ? { metadata: entry.metadata } : {}),
+  };
+}
+
+/** Success-only resume key-set: keys of persisted rows that completed without `error`. */
+function computeDoneKeys(persist: EvalPersistOptions): Set<string> {
+  if (persist.resume !== true) return new Set<string>();
+  return readJsonlIds(persist.path, (parsed) =>
+    parsed.error === undefined ? persist.key(parsed as unknown as EvalRowResult) : undefined,
+  );
+}
+
+/** Append a row without ever aborting the batch on an I/O error (mirror swebench-batch.ts:206). */
+function appendRowSafely(path: string, row: EvalRowResult): void {
+  try {
+    appendJsonl(path, row);
+  } catch (err) {
+    console.warn(
+      "[eval] persist append failed (ignored):",
+      err instanceof Error ? err.message : err,
+    );
+  }
+}
+
+function makeRowSink(
+  persist: EvalPersistOptions | undefined,
+  classify: ((row: EvalRowResult) => string) | undefined,
+): RowSink {
+  const doneKeys = persist !== undefined ? computeDoneKeys(persist) : new Set<string>();
+  return {
+    isResumed(entry, index) {
+      if (persist === undefined || doneKeys.size === 0) return false;
+      return doneKeys.has(persist.key(probeRow(entry, index)));
+    },
+    finalize(row) {
+      const outcome = classify?.(row);
+      const finalRow = outcome !== undefined ? { ...row, outcome } : row;
+      if (persist !== undefined) appendRowSafely(persist.path, finalRow);
+      return finalRow;
+    },
+  };
 }
 
 async function applyScorer(
@@ -148,13 +218,39 @@ function makeAgentForBatch(
  * (which requires AgentOptions to create fresh agents). Run a hand-rolled
  * bounded loop instead.
  */
+type AgentSpec = SDKAgent | ((entry: DatasetEntry) => SDKAgent | Promise<SDKAgent>);
+
+/** Run a single manual-path slot: skip if resumed, else execute + finalize + record. */
+async function runManualSlot(
+  idx: number,
+  entries: ReadonlyArray<DatasetEntry>,
+  spec: AgentSpec,
+  scorers: ReadonlyArray<NormalizedScorer>,
+  sink: RowSink,
+  rows: EvalRowResult[],
+  onRow: (row: EvalRowResult, index: number) => void,
+): Promise<void> {
+  const entry = entries[idx];
+  if (entry === undefined) return;
+  if (sink.isResumed(entry, idx)) return; // M6-1: already persisted successfully
+  const row = sink.finalize(await runOneEntry(spec, entry, idx, scorers));
+  rows[idx] = row;
+  onRow(row, idx);
+}
+
+/**
+ * For Agent-instance OR factory-function shapes, we can't use Agent.batch
+ * (which requires AgentOptions to create fresh agents). Run a hand-rolled
+ * bounded loop instead.
+ */
 async function runRowsManually(
   entries: ReadonlyArray<DatasetEntry>,
-  spec: SDKAgent | ((entry: DatasetEntry) => SDKAgent | Promise<SDKAgent>),
+  spec: AgentSpec,
   scorers: ReadonlyArray<NormalizedScorer>,
   concurrency: number,
   signal: AbortSignal | undefined,
   onRow: (row: EvalRowResult, index: number) => void,
+  sink: RowSink,
 ): Promise<EvalRowResult[]> {
   const rows: EvalRowResult[] = new Array(entries.length);
   const state = { cursor: 0 };
@@ -164,11 +260,7 @@ async function runRowsManually(
       if (signal?.aborted === true) return;
       const idx = state.cursor;
       state.cursor += 1;
-      const entry = entries[idx];
-      if (entry === undefined) continue;
-      const row = await runOneEntry(spec, entry, idx, scorers);
-      rows[idx] = row;
-      onRow(row, idx);
+      await runManualSlot(idx, entries, spec, scorers, sink, rows, onRow);
     }
   };
 
@@ -176,8 +268,6 @@ async function runRowsManually(
   await Promise.all(workers);
   return rows.filter((r): r is EvalRowResult => r !== undefined);
 }
-
-type AgentSpec = SDKAgent | ((entry: DatasetEntry) => SDKAgent | Promise<SDKAgent>);
 
 async function executeAgent(
   spec: AgentSpec,
@@ -250,23 +340,34 @@ async function runRowsViaBatch(
   concurrency: number,
   signal: AbortSignal | undefined,
   onRow: (row: EvalRowResult, index: number) => void,
+  sink: RowSink,
 ): Promise<EvalRowResult[]> {
-  const prompts = entries.map((e) => e.input);
+  // M6-1: resumed rows are filtered out BEFORE the batch so they cost nothing.
+  const pending: Array<{ entry: DatasetEntry; index: number }> = [];
+  for (let i = 0; i < entries.length; i += 1) {
+    const entry = entries[i];
+    if (entry === undefined) continue;
+    if (sink.isResumed(entry, i)) continue;
+    pending.push({ entry, index: i });
+  }
   const batchOpts: BatchOptions = {
     ...agentOptions,
     concurrency,
     ...(signal !== undefined ? { signal } : {}),
   };
-  const batchResults = await getAgentFacade().batch(prompts, batchOpts);
+  const batchResults = await getAgentFacade().batch(
+    pending.map((p) => p.entry.input),
+    batchOpts,
+  );
   const rows: EvalRowResult[] = [];
   for (let i = 0; i < batchResults.length; i += 1) {
-    const entry = entries[i];
+    const slot = pending[i];
     const br = batchResults[i];
-    if (entry === undefined || br === undefined) continue;
-    const scoreEntries = await scoreBatchOutput(br, entry.expected, scorers);
-    const row = rowFromBatchResult(entry, br, scoreEntries, i);
+    if (slot === undefined || br === undefined) continue;
+    const scoreEntries = await scoreBatchOutput(br, slot.entry.expected, scorers);
+    const row = sink.finalize(rowFromBatchResult(slot.entry, br, scoreEntries, slot.index));
     rows.push(row);
-    onRow(row, i);
+    onRow(row, slot.index);
   }
   return rows;
 }
@@ -297,6 +398,8 @@ export async function runEval(
     const onRow = (row: EvalRowResult, i: number): void => {
       safeHook(() => hooks?.afterRow?.(row, i));
     };
+    // M6-1: durable per-row persist + resume + classify (no-op when unset).
+    const sink = makeRowSink(runOpts?.persist, runOpts?.classify);
 
     let rows: EvalRowResult[];
     if (isAgentInstance(options.agent) || typeof options.agent === "function") {
@@ -307,10 +410,11 @@ export async function runEval(
         concurrency,
         signal,
         onRow,
+        sink,
       );
     } else {
       const batchOpts = makeAgentForBatch(options.agent, indexed);
-      rows = await runRowsViaBatch(indexed, batchOpts, scorers, concurrency, signal, onRow);
+      rows = await runRowsViaBatch(indexed, batchOpts, scorers, concurrency, signal, onRow, sink);
     }
 
     const aggregate: EvalAggregate = computeAggregate(rows);
