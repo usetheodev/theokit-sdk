@@ -7,6 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+
+### Changed
+
+### Deprecated
+
+### Removed
+
+### Fixed
+
+### Security
+
+## [3.3.0] - 2026-06-22
+
+### Added
+- **`@theokit/sdk` first-party eval harness — durable batch + repo provisioning + verify-gate (plan `m6-eval-harness` M6).** New SWE-bench-style primitives over the existing `Eval`/`Scorers`/`SandboxBackend` surface, zero new runtime deps: `loadJsonl(path,{map})` + `JsonlParseError` (`@theokit/sdk/eval`); `Eval.run({persist:{path,key,resume},classify})` — crash-durable per-row flush + success-only resume + `EvalRowResult.outcome`; `provisionRepo(sandbox,{repoUrl,ref,instanceId})` + `RepoProvisionError` (`@theokit/sdk/sandbox`, injection-hardened: `--`/`ext::`-disabled/validated ids); `captureArtifact(sandbox,repoDir)` → `EvalRowResult.artifact{diff,applies}`; `Scorers.verifyGate({sandbox,repoDir,failToPass,passToPass,command})` exit-code grading. Per-package detail at `packages/sdk/CHANGELOG.md` (changeset `@theokit/sdk` minor → 2.5.0). (M6)
 - **`@theokit/sdk` public model-id parsing + UI label helpers (plan `m5-model-option` M5-8).** `@theokit/sdk/models` now also exports `parseModelId(modelId)` (promoted from `@internal` — splits provider prefix from name, OpenRouter-routing-aware), `humanizeModelName(modelId)` (best-effort human label — `"openrouter/openai/gpt-4o:free"` → `"GPT 4o (free)"`), and `toModelOption(modelId)` (`{ value, label, provider }` dropdown entry). Lets UIs/`create-theokit` stop hand-rolling slug→label. Zero new deps. (M5-8)
 - **`@theokit/sdk` sub-agent tool scoping via `AgentDefinition.tools` (plan `m4-tool-scoping` M4-6).** `AgentDefinition` gains an optional `tools?: string[]` whitelist (also parseable from a `.theokit/agents/*.md` `tools:` frontmatter field), and a new `@theokit/sdk/subagents` subpath ships `subagentToolWhitelist(definition)` + `withSubagentToolScope(definition, fn)` that enforce it via the existing `withToolWhitelist` dispatch veto (the same one `Agent.fork`'s `allowedTools` uses — NOT `PermissionEngine`). A `tools: ["read_file"]` sub-agent provably has `write_file`/`shell_exec` vetoed. Backward-compatible (no `tools` → unscoped). Zero new deps. (M4-6)
 - **`@theokit/sdk-tools` `todoItemsToPlanNodes` adapter + structured `todolist` items (plan `m4-todo-plan-nodes` M4-5).** The `todolist` tool now emits a structured `items: TodoItem[]` array in every list-bearing result (alongside the existing `items_summary` string), and a new versioned `todoItemsToPlanNodes(items): PlanNode[]` adapter (+ `PlanNode` type) converts them to a stable plan-render shape. Zero new deps. (M4-5)
@@ -17,18 +32,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - **`@theokit/sdk` pre-call token estimate + compaction decision (plan `m2-token-estimate` M2-2).** Two pure zero-dep helpers on the `@theokit/sdk/compaction` subpath: `estimateTokens(text)` (tokenizer-free ~4-chars/token estimate; `""`→0, non-empty→≥1) + `shouldCompact({estimated,contextWindow,buffer})` (decide before sending: `true` when `estimated >= contextWindow - buffer`; pure, caller supplies the window). No tokenizer dep. (M2-2)
 - **`@theokit/sdk` per-model capability catalog public + OpenRouter slug-suffix fix (plan `m2-model-capabilities` M2-4).** New `@theokit/sdk/models` subpath exposes `resolveModelCapabilities(modelId)` (was dead `@internal`) — a pure/sync/offline catalog of capability flags + `maxContextTokens`/`maxOutputTokens`. Fixes an OpenRouter `:variant` suffix (`:free`/`:nitro`/…) lookup miss that fell back to conservative 4096 instead of the real window. Zero new deps. (M2-4)
 
-### Changed
-
-### Deprecated
-
-### Removed
 
 ### Fixed
 - **`@theokit/sdk-tools` `todolist` tool emits structured items (latent bug, plan `m4-todo-plan-nodes` M4-5).** The tool returned only a formatted `items_summary` STRING — never the structured `items` array — so a consumer parsing the result to render a plan/UI always got `[]`. Every list-bearing result now also carries `items: TodoItem[]` (a snapshot). `items_summary` + `getItems()` + error shapes are unchanged. (M4-5)
 - **`@theokit/sdk` `context_too_long` reaches the run boundary (plan `m2-context-overflow-boundary` M2-3).** The loop captured the error code from the top-level `.code` (which the mappers set provider-prefixed, e.g. `anthropic_context_too_long`) instead of the canonical `metadata.code` (`context_too_long`), so `RunResult.error.code` surfaced the prefixed form. `registerLoopError` now prefers `cause.metadata?.code`; the canonical code reaches the boundary for every provider (400-overflow contract test). Top-level fallback + set-once preserved. (M2-3)
 - **`@theokit/sdk-budget` multi-round usage aggregation is honest-null (plan `m1-usage-honest-null` M1-6).** `computeUsdCost` no longer returns `$0` for an unknown model — it returns `undefined` (a known model with zero tokens still returns a real `0`), and `createUsdBudgetTracker` poisons the aggregate so `getTotalUsd()` returns `undefined` once any round's cost is unknown (tokens still counted); `check()` fails closed on a `maxUsd` cap when cost is unknown. Aligns with the cost contract `D377-cost-status-closed-enum.md`. **Type change:** `computeUsdCost`/`getTotalUsd()` now return `number | undefined`. (M1-6)
-
-### Security
 
 ## [3.2.0] - 2026-06-21
 
