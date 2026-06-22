@@ -80,7 +80,7 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M1 — Harness de agente confiável (Tema A — maior alavancagem)
 
-> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). RELEASED em `@theokit/sdk@2.3.0` (npm, 2026-06-20): Phase 3 `agent.runToCompletion` + M1-3 `buildReplayHistory`. RELEASED em `@theokit/sdk@3.0.0` (PR #25 merged 2026-06-20, tag v3.0.0; npm publish pendente): M1-4 (`stop` hook + bounded feedback) + M1-5 (`@theokit/sdk/messages` readers). PENDENTE: M1-6 (último item do M1).
+> **Status: IMPLEMENTAÇÃO CONCLUÍDA (6/6 itens; M1-6 release pendente).** RELEASED em `@theokit/sdk@2.2.0` (npm, 2026-06-20) — M1-1 + M1-2 (knob `SendOptions.maxIterations` + sinal `RunResult.stoppedAtIterationLimit`). RELEASED em `@theokit/sdk@2.3.0` (npm, 2026-06-20): Phase 3 `agent.runToCompletion` + M1-3 `buildReplayHistory`. RELEASED em `@theokit/sdk@3.0.0` (PR #25 merged 2026-06-20, tag v3.0.0; npm publish pendente): M1-4 (`stop` hook + bounded feedback) + M1-5 (`@theokit/sdk/messages` readers). M1-6 ✅ READY_TO_MERGE (review 2026-06-21, `@theokit/sdk-budget` honest-null cost; release pendente). Tema A completo.
 
 **Valor entregue:** `agent.send` deixa de ser single-shot frágil e vira substrato real. A diferença entre "demo que trava em 8 tools" e "agente que termina um refactor".
 
@@ -91,7 +91,7 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 | M1-3 ✅ (RELEASED `@theokit/sdk@2.3.0`) | Continuation-history (event→replayable bounded) | sdk · @theokit/sdk | med | M | M1-2 | `buildReplayHistory(base,events,{contextWindowTokens,reserveTokens?,perItemCap?})` puro, reusando `truncateWithMarker`; mapeia SDKMessage→StoredMessage, drop-oldest pair-safe por `call_id`, exportado do barrel. Plan SHIPPABLE 94.8, blueprint 99.7, commits `54a9f72`+`d7d5215`+`0ffa3ac` (2026-06-20). |
 | M1-4 ✅ (RELEASED `@theokit/sdk@3.0.0`) | Reflection ladder / hook `stop` nunca dispara | sdk · @theokit/sdk | med | M | M1-2 | Disparar o `HookEvent "stop"` já declarado; honrar `feedback` como re-prompt bounded; accessor tipado de tool-result. Commits `fb268f9`+`074a5a2`. |
 | M1-5 ✅ (RELEASED `@theokit/sdk@3.0.0`) | Stream-message → wire-event mapper + readers de SDKMessage | sdk · @theokit/sdk | med | M | — | Subpath `./messages`: `assistantText`/`extractToolUses` + `costAmountUsd` (preserva `amountUsd: number\|undefined`, nunca 0 — ADR D377). Plan SHIPPABLE 98.0, blueprint 98.8, commits `69763c7`+`a21949f` (2026-06-20). |
-| M1-6 | Agregação de usage multi-round (honest-null) | sdk · sdk-budget | low | M | M1-5 | `unknown` envenena a soma para `null`/`unknown`, nunca $0. Corrigir `usd-pricing.ts:50 return 0`. |
+| M1-6 ✅ (READY_TO_MERGE — review 2026-06-21) | Agregação de usage multi-round (honest-null) | sdk · sdk-budget | low | M | M1-5 | `unknown` envenena a soma para `null`/`unknown`, nunca $0. Corrigir `usd-pricing.ts:50 return 0`. |
 
 **Concluído quando:** agente roda > 8 tool calls de forma confiável; step-cap fail-closed funciona em 1 linha; custo reportado é honesto.
 
@@ -99,16 +99,16 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M2 — Gestão de contexto (Tema B)
 
-> **Status: PARCIALMENTE CONCLUÍDO.** RELEASED em `@theokit/sdk@3.1.0` (PR #26 merged 2026-06-20, tag v3.1.0; npm publish pendente): M2-1 (`@theokit/sdk/compaction`). PENDENTES: M2-2, M2-3, M2-4.
+> **Status: IMPLEMENTAÇÃO CONCLUÍDA (4/4; M2-2/3/4 release pendente).** RELEASED em `@theokit/sdk@3.1.0` (PR #26 merged 2026-06-20, tag v3.1.0; npm publish pendente): M2-1 (`@theokit/sdk/compaction`). M2-2 (estimateTokens/shouldCompact), M2-3 (context_too_long no boundary), M2-4 (@theokit/sdk/models + OpenRouter slug fix) READY_TO_MERGE 2026-06-21 (release pendente). **M2 CONCLUÍDO** — Tema B completo.
 
 **Valor entregue:** o agente sobrevive a transcripts que crescem além da janela — modo de falha #1 de agentes de chat em produção.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
 | M2-1 ✅ (RELEASED `@theokit/sdk@3.1.0`) | Compaction não exposta (algoritmo está `@internal`) | sdk · @theokit/sdk | high | L | M1-2 | Subpath `@theokit/sdk/compaction`: `compactTranscript({messages,keepRecent,summarize?})` (reusa `selectCompressionWindow` interno) + `buildCheckpoint`/`filterFromLatestCheckpoint`/`CHECKPOINT_MARKER` (string-sentinel visível) + `isContextOverflowError` (code tipado `context_too_long`). Opera sobre `CompressibleMessage`; zero deps. Blueprint 98.8, plan 93.2, commits `1fdfff0`+`5b8c9e7`+`9586ab8`. |
-| M2-2 | Token estimate + `shouldCompact` (decisão pré-call) | sdk · @theokit/sdk | low | M | — | `estimateTokens` (chars/4, sem tokenizer) + `shouldCompact({estimated,contextWindow,buffer})`. |
-| M2-3 | Erro `context_too_long` não chega ao boundary | sdk · @theokit/sdk | med | M | M1-5 | Preferir `cause.metadata?.code`; adicionar `code?` ao evento `error` do stream; contract test 400→`context_too_long`. |
-| M2-4 | Catálogo per-model context-window (dead `@internal`) | sdk · @theokit/sdk | med | M | — | Promover `resolveModelCapabilities` ao público; corrigir descarte do sufixo do slug OpenRouter; sync/offline. |
+| M2-2 ✅ (READY_TO_MERGE 2026-06-21) | Token estimate + `shouldCompact` (decisão pré-call) | sdk · @theokit/sdk | low | M | — | `estimateTokens` (chars/4, sem tokenizer) + `shouldCompact({estimated,contextWindow,buffer})`. |
+| M2-3 ✅ (READY_TO_MERGE 2026-06-21) | Erro `context_too_long` não chega ao boundary | sdk · @theokit/sdk | med | M | M1-5 | Preferir `cause.metadata?.code`; adicionar `code?` ao evento `error` do stream; contract test 400→`context_too_long`. |
+| M2-4 ✅ (READY_TO_MERGE 2026-06-21) | Catálogo per-model context-window (dead `@internal`) | sdk · @theokit/sdk | med | M | — | Promover `resolveModelCapabilities` ao público; corrigir descarte do sufixo do slug OpenRouter; sync/offline. |
 
 **Concluído quando:** compaction é importável; overflow é tipado, não regex; janela por modelo é consultável offline.
 
@@ -116,17 +116,19 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M3 — Toolbox segura + orientação no repo (Tema C)
 
+> **Status: CONCLUÍDO.** RELEASED em `v3.2.0` (PR #27 merged 2026-06-21, tag v3.2.0; npm publish pendente) — os 7 itens M3-1..M3-7, todos em `@theokit/sdk-tools` (zero deps). Cada um passou pelo cycle completo discover→plan→implement→code-quality→review até READY_TO_MERGE (achados BLOCKER/HIGH/MEDIUM corrigidos com teste de regressão, sem re-trabalho). M3-6 foi entregue em `sdk-tools` (não `@theokit/agents`, que não existe) como predicado puro composável — KISS.
+
 **Valor entregue:** fecha a assimetria de segurança (o SDK protege egress de filesystem mas não de rede/shell) e dá ao agente a capacidade de se orientar num codebase. Paralelizável com M1/M2.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M3-1 | SSRF guard ausente em `web_fetch` | sdk · sdk-tools | high | M | — | `resolveAndScreen(host)` (todos os A-records; bloqueia private/loopback/link-local/metadata; IPv4-mapped IPv6) + `redirect:'manual'`; default-on em `createGuardedWebFetchTool`. |
-| M3-2 | Screen de shell catastrófico ausente | sdk · sdk-tools | high | M | — | `catastrophicShellReason(cmd)` segment-aware (rm/`curl\|sh`/mkfs/dd/fork-bomb/force-push/exfil); opt-out default-on. Guardrail, não sandbox. |
-| M3-3 | Repo-map / env-context builder | sdk · sdk-tools | high | L | — | `buildEnvContext(cwd)` + `buildRepoMap(cwd,{budget,ignore})` node:fs-only, char-bounded, never-throw. |
-| M3-4 | Rich errors (self-correction em tool fail) | sdk · sdk-tools | med | M | — | Cada factory anexa `guidance` ao próprio payload; wrapper `withToolResultGuidance`. |
-| M3-5 | ACI description override + render `<tools>` | sdk · sdk-tools | med | S | — | `withDescription(tool,desc)` + `renderToolList` do mesmo source-of-truth. |
-| M3-6 | Catastrophic shell na camada de agents | sdk · @theokit/agents | low | S | M3-2 | `denyCatastrophicCommands()` composável com `isCommandAllowed`. |
-| M3-7 | Web-search adapter env-driven (opcional, YAGNI: 1 primeiro) | sdk · sdk-tools | low | S | — | `braveWebSearchAdapter`/`tavilyWebSearchAdapter`; manter `createWebSearchTool` provider-agnóstico. |
+| M3-1 ✅ (RELEASED v3.2.0) | SSRF guard ausente em `web_fetch` | sdk · sdk-tools | high | M | — | `resolveAndScreen(host)` (todos os A-records; bloqueia private/loopback/link-local/metadata; IPv4-mapped IPv6) + `redirect:'manual'`; default-on em `createGuardedWebFetchTool`. |
+| M3-2 ✅ (RELEASED v3.2.0) | Screen de shell catastrófico ausente | sdk · sdk-tools | high | M | — | `catastrophicShellReason(cmd)` segment-aware (rm/`curl\|sh`/mkfs/dd/fork-bomb/force-push/exfil); opt-out default-on. Guardrail, não sandbox. |
+| M3-3 ✅ (RELEASED v3.2.0) | Repo-map / env-context builder | sdk · sdk-tools | high | L | — | `buildEnvContext(cwd)` + `buildRepoMap(cwd,{budget,ignore})` node:fs-only, char-bounded, never-throw. |
+| M3-4 ✅ (RELEASED v3.2.0) | Rich errors (self-correction em tool fail) | sdk · sdk-tools | med | M | — | Cada factory anexa `guidance` ao próprio payload; wrapper `withToolResultGuidance`. |
+| M3-5 ✅ (RELEASED v3.2.0) | ACI description override + render `<tools>` | sdk · sdk-tools | med | S | — | `withDescription(tool,desc)` + `renderToolList` do mesmo source-of-truth. |
+| M3-6 ✅ (RELEASED v3.2.0) | Catastrophic shell na camada de agents | sdk · @theokit/agents | low | S | M3-2 | `denyCatastrophicCommands()` composável com `isCommandAllowed`. |
+| M3-7 ✅ (RELEASED v3.2.0) | Web-search adapter env-driven (opcional, YAGNI: 1 primeiro) | sdk · sdk-tools | low | S | — | `braveWebSearchAdapter`/`tavilyWebSearchAdapter`; manter `createWebSearchTool` provider-agnóstico. |
 
 **Concluído quando:** `web_fetch` é safe-by-default contra SSRF; `shell_exec` tem backstop; `buildRepoMap` orienta o LLM em 1 call.
 
@@ -136,14 +138,16 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 **Valor entregue:** "o agente sabe do projeto" deixa de ser código de app. Skills, memória categorizada, plano durável e leitura hierárquica de instruções viram primitivas.
 
+> **Status: IMPLEMENTAÇÃO CONCLUÍDA (6/6; release pendente).** M4-1..M4-6 ✅ READY_TO_MERGE 2026-06-21 — `@theokit/sdk/skills` (discoverSkills/buildSkillsBlock) + `@theokit/sdk/project` (readProjectInstructions/write) + `@theokit/sdk-memory` createCategorizedMemory + `@theokit/sdk-tools` createSessionArtifactStore + todolist structured items/todoItemsToPlanNodes + `@theokit/sdk/subagents` tool scoping (AgentDefinition.tools + withSubagentToolScope, enforce via withToolWhitelist). Cada item passou pelo cycle completo discover(baseline)→plan→edge-cases→deps-audit→plan-confidence→implement(TDD)→code-quality→review(2 agentes) até READY_TO_MERGE (achados BLOCKER/HIGH/MEDIUM corrigidos com teste de regressão, sem re-trabalho). **M4 CONCLUÍDO** — Tema A (harness completo de agente: skills/memória/plano/instruções/scoping) completo.
+
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M4-1 | Discovery de skills em dir arbitrário + `<skills>` | sdk · @theokit/sdk | high | M | M0-4 | Subpath `@theokit/sdk/skills`: `discoverSkills(dir)` + `buildSkillsBlock(skills)` (YAML real, symlink-escape guard). |
-| M4-2 | Reader/writer hierárquico de project-instructions | sdk · @theokit/sdk | med | M | M0-6 | `readProjectInstructions(cwd,{filename,scope})` (sobre `walkUpForFile`) + write atômico; THEO.md configurável. |
-| M4-3 | Memory taxonomia tipada (markdown + frontmatter) | sdk · sdk-memory | med | M | M0-4 | `createCategorizedMemory({root,categories})` reusando `safePathJoin`/`frontmatter-zod`; `MemoryFact.category` opcional. |
-| M4-4 | Plan-mode artifact persistence | sdk · sdk-tools | med | M | — | `createSessionArtifactStore({dir,idStrategy})` (generalizar `session-summary-writer`); composição opt-in em `createPlanModeTool`. |
-| M4-5 | `todoItemsToPlanNodes` + tool emite items estruturados (bug latente) | sdk · sdk-tools | med | M | — | Tool emite items estruturados no result (hoje só string → `getItems()` retorna `[]`); adapter versionado. |
-| M4-6 | Tool scoping por `AgentDefinition` (hoje só prompt soft) | sdk · @theokit/sdk | med | M | — | `tools?: string[]` em `AgentDefinition` + frontmatter; enforcement via `withToolWhitelist` (NÃO via PermissionEngine). |
+| M4-1 ✅ (READY_TO_MERGE 2026-06-21) | Discovery de skills em dir arbitrário + `<skills>` | sdk · @theokit/sdk | high | M | M0-4 | Subpath `@theokit/sdk/skills`: `discoverSkills(dir)` + `buildSkillsBlock(skills)` (YAML real, symlink-escape guard). |
+| M4-2 ✅ (READY_TO_MERGE 2026-06-21) | Reader/writer hierárquico de project-instructions | sdk · @theokit/sdk | med | M | M0-6 | `readProjectInstructions(cwd,{filename,scope})` (sobre `walkUpForFile`) + write atômico; THEO.md configurável. |
+| M4-3 ✅ (READY_TO_MERGE 2026-06-21) | Memory taxonomia tipada (markdown + frontmatter) | sdk · sdk-memory | med | M | M0-4 | `createCategorizedMemory({root,categories})` reusando `safePathJoin`/`frontmatter-zod`; `MemoryFact.category` opcional. |
+| M4-4 ✅ (READY_TO_MERGE 2026-06-21) | Plan-mode artifact persistence | sdk · sdk-tools | med | M | — | `createSessionArtifactStore({dir,idStrategy})` (generalizar `session-summary-writer`); composição opt-in em `createPlanModeTool`. |
+| M4-5 ✅ (READY_TO_MERGE 2026-06-21) | `todoItemsToPlanNodes` + tool emite items estruturados (bug latente) | sdk · sdk-tools | med | M | — | Tool emite items estruturados no result (hoje só string → `getItems()` retorna `[]`); adapter versionado. |
+| M4-6 ✅ (READY_TO_MERGE 2026-06-21) | Tool scoping por `AgentDefinition` (hoje só prompt soft) | sdk · @theokit/sdk | med | M | — | `tools?: string[]` em `AgentDefinition` + frontmatter; enforcement via `withToolWhitelist` (NÃO via PermissionEngine). |
 
 **Concluído quando:** sub-agente read-only é provadamente sem Write/Bash; skills/memória/plano/instruções são chamadas de framework, não ~400 LoC de app.
 
@@ -153,16 +157,18 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 **Valor entregue:** a ponte faltante entre `theokit/client` (eventos crus) e `@theokit/ui` (componentes). Sinal de urgência: o próprio showcase do `@theokit/ui` e o template do `create-theokit` reinventam isto à mão.
 
+> **Status: CONCLUÍDO (8/8).** M5 cruza 3 repos: `@theokit/sdk` (M5-8), `theokit/client` (M5-1/M5-2), `@theokit/ui` (M5-3..M5-7). M5-8 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/sdk/models` — parseModelId público + humanizeModelName + toModelOption; release pendente). M5-1 + M5-2 ✅ READY_TO_MERGE 2026-06-21 (`theokit/client` — `liveText`/`error` derivados em `useAgentStream` + `foldAgentToolCards`/`useAgentToolCards` correlator com resolver de envelope injetável; commits f0f8270 → 07d7e17, release pendente). M5-3 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/ui` — `AgentToolRenderer` registry overridable + classify + fallback ToolCallPart; commits 3bcd83e → 978d1b2, release pendente). M5-4 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/ui/sdk-tools-adapters` — adapters puros tool-result→props + contract test contra factories reais via dev-only file: link; commits → fdb2cd8, release pendente). M5-5 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/ui` — `useStickToBottom` MutationObserver+threshold guard, encapsula seletor Radix; commits → 764f53f, release pendente). M5-6 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/ui` — `toAgentStreamItems` order-aware history+live builder; commits → ed26c76). M5-7 ✅ READY_TO_MERGE 2026-06-21 (`@theokit/ui` — `TokenUsageChart` maxScale/splitSeries + toUsageMetrics/splitUsagePoints; commits → 45348f6). **Todos os 8 itens M5 READY_TO_MERGE — release pendente (cross-repo: @theokit/sdk + theokit/client + @theokit/ui).**
+
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M5-1 | `liveText` + `error` derivados no hook | fw · theokit/client | med | S | M1-5 | Adicionar a `UseAgentStreamReturn` (template default hand-rolla `switch(event.type)`). |
-| M5-2 | Fold de AgentEvent → tool cards | fw · theokit/client | high | M | M1-5 | `foldAgentToolCards(events)` + `useAgentToolCards()` correlacionando call→result por id; resolver de envelope injetável. |
-| M5-3 | `AgentToolRenderer` (despacho tool→componente rico) | ui · @theokit/ui | high | L | M3 (shapes) | Registry overridable Diff/Terminal/Code/CreatedFiles/DataTable + fallback ToolCallPart. |
-| M5-4 | Adapters tool-result→props UI | ui · @theokit/ui | high | M | M3 (shapes) | Subpath `@theokit/ui/sdk-tools-adapters` co-versionado + contract test importando as factories reais. |
-| M5-5 | Auto-scroll stick-to-bottom | ui · @theokit/ui | high | M | — | `useStickToBottom` (ResizeObserver + threshold + guard); encapsula o seletor Radix vazado. |
-| M5-6 | Montagem de `AgentStreamItem[]` (history+live) | ui · @theokit/ui | med | M | M5-2 | `toAgentStreamItems({history,live},{classifyTool})` order-aware. |
-| M5-7 | `splitUsagePoints`/`toUsageMetrics` + props no chart | ui · @theokit/ui | low | S | — | Props `splitSeries`/`maxScale` no `TokenUsageChart`. |
-| M5-8 | `toModelOption` (humanizar slug OpenRouter) | sdk · @theokit/sdk | low | S | M2-4 | `parseModelId` público + `humanizeModelName`. |
+| M5-1 ✅ (READY_TO_MERGE 2026-06-21) | `liveText` + `error` derivados no hook | fw · theokit/client | med | S | M1-5 | `deriveLiveText`/`deriveError` + campos em `UseAgentStreamReturn`. |
+| M5-2 ✅ (READY_TO_MERGE 2026-06-21) | Fold de AgentEvent → tool cards | fw · theokit/client | high | M | M1-5 | `foldAgentToolCards(events)` + `useAgentToolCards()` correlacionando call→result por id (FIFO-by-name fallback); resolver de envelope injetável. |
+| M5-3 ✅ (READY_TO_MERGE 2026-06-21) | `AgentToolRenderer` (despacho tool→componente rico) | ui · @theokit/ui | high | L | M3 (shapes) | Registry overridable por kind (Diff/Terminal/Code/CreatedFiles/DataTable) + classifyTool + fallback ToolCallPart; renderers ricos só em state output-available. Adapters fiéis = M5-4. |
+| M5-4 ✅ (READY_TO_MERGE 2026-06-21) | Adapters tool-result→props UI | ui · @theokit/ui | high | M | M3 (shapes) | Subpath `@theokit/ui/sdk-tools-adapters` (adapters puros git_diff/read_file/shell/list_dir/apply_patch + parseUnifiedDiff; zero runtime dep) + contract test importando as factories reais (dev-only file: link). |
+| M5-5 ✅ (READY_TO_MERGE 2026-06-21) | Auto-scroll stick-to-bottom | ui · @theokit/ui | high | M | — | `useStickToBottom` (MutationObserver p/ crescimento + ResizeObserver p/ tamanho + threshold guard); encapsula o seletor Radix vazado; pure `isNearBottom`. |
+| M5-6 ✅ (READY_TO_MERGE 2026-06-21) | Montagem de `AgentStreamItem[]` (history+live) | ui · @theokit/ui | med | M | M5-2 | `toAgentStreamItems({history,live},{classifyTool})` order-aware puro; history→message, live AgentEvent→tool-call. |
+| M5-7 ✅ (READY_TO_MERGE 2026-06-21) | `splitUsagePoints`/`toUsageMetrics` + props no chart | ui · @theokit/ui | low | S | — | Props `splitSeries`/`maxScale` (clamp proporcional no stacked) no `TokenUsageChart` + helpers puros. |
+| M5-8 ✅ (READY_TO_MERGE 2026-06-21) | `toModelOption` (humanizar slug OpenRouter) | sdk · @theokit/sdk | low | S | M2-4 | `parseModelId` público + `humanizeModelName`. |
 
 **Concluído quando:** o showcase e o template do `create-theokit` deletam seus helpers à mão e importam do framework.
 

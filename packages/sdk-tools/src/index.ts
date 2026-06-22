@@ -24,6 +24,12 @@
  */
 
 export { type CreateApplyPatchToolOptions, createApplyPatchTool } from "./apply-patch.js";
+// Agent workflow tools (moved from @theokit/theocode — SDK LEGO pieces)
+export {
+  createSessionArtifactStore,
+  type SessionArtifactStore,
+  type SessionArtifactStoreOptions,
+} from "./artifact-store.js";
 export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.js";
 // Output formatting utilities (moved from @theokit/theocode — SDK LEGO pieces)
 export { formatCode, formatDiff, formatError, formatFileList } from "./formatter.js";
@@ -54,8 +60,12 @@ export {
   withToolResultGuidance,
 } from "./internal/tool-guidance.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
-// Agent workflow tools (moved from @theokit/theocode — SDK LEGO pieces)
-export { createPlanModeTool, type PlanModeTool } from "./plan-mode.js";
+export {
+  createPlanModeTool,
+  type PlanModeTool,
+  type PlanModeToolOptions,
+  type PlanModeToolWithStore,
+} from "./plan-mode.js";
 export { createQuestionTool, type QuestionTool, type QuestionToolOptions } from "./question.js";
 export { type CreateReadFileToolOptions, createReadFileTool } from "./read-file.js";
 export {
@@ -65,6 +75,7 @@ export {
 } from "./run-vitest.js";
 export { type CreateSearchTextToolOptions, createSearchTextTool } from "./search-text.js";
 export { type CreateShellToolOptions, createShellTool } from "./shell-exec.js";
+export { type PlanNode, todoItemsToPlanNodes } from "./todo-plan-nodes.js";
 export { createTodolistTool, type TodoItem, type TodolistTool } from "./todolist.js";
 export { type TruncationOptions, type TruncationResult, truncateOutput } from "./truncation.js";
 export { type CreateWebFetchToolOptions, createWebFetchTool } from "./web-fetch.js";

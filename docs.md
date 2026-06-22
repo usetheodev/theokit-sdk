@@ -1242,6 +1242,21 @@ description	string	required	When to use this subagent. Shown to the parent agent
 prompt	string	required	System prompt for the subagent.
 model	ModelSelection | "inherit"	"inherit"	Model override. Pass "inherit" to use the parent's selection.
 mcpServers	Array<string | Record<string, McpServerConfig>>		MCP servers available to this subagent. Names reference servers from the parent's mcpServers.
+tools	string[]	(unscoped)	Tool whitelist (M4-6). When set, the subagent may ONLY call tools whose canonical (post-repair, lowercase) name is in this list — any other tool call is vetoed at dispatch via the same `withToolWhitelist` enforcement forks use (NOT `PermissionEngine`). Absent/empty → unscoped (inherits the parent's full toolset). Apply it around a subagent run with `withSubagentToolScope(definition, fn)` from `@theokit/sdk/subagents`; in `.theokit/agents/*.md` declare it as a comma/space-separated frontmatter field (`tools: read_file, list_dir`). A `tools: ["read_file"]` subagent provably cannot Write/Bash.
+
+#### Subagent tool scoping — `@theokit/sdk/subagents`
+
+`subagentToolWhitelist(definition): Set<string> | undefined` derives the whitelist `Set` from `AgentDefinition.tools` (or `undefined` when unscoped). `withSubagentToolScope(definition, fn)` runs `fn` under that whitelist via the SDK's existing `withToolWhitelist` enforcement — the same dispatch veto (`checkToolWhitelist`, exit 126 "Tool blocked by fork whitelist") that `Agent.fork`'s `allowedTools` uses. Enforcement, not `PermissionEngine`.
+
+```typescript
+import { withSubagentToolScope } from "@theokit/sdk/subagents";
+
+// definition.tools = ["read_file"] → inside this scope, write_file / shell_exec are vetoed at dispatch
+await withSubagentToolScope(readOnlyDefinition, async () => {
+  // run the sub-agent here (e.g. via agent.fork) — its non-whitelisted tool calls are blocked
+});
+```
+
 CustomTool
 Property	Type	Default	Description
 name	string	required	Tool name surfaced to the LLM. Must match `/^[a-zA-Z][a-zA-Z0-9_-]{0,63}$/`. Reserved (rejected): `shell`, `memory_search`, `memory_get`, anything `mcp_*`.
@@ -1865,6 +1880,32 @@ Public compaction / context-management helpers, so consumers manage the context 
 - `compactTranscript(messages, { keepRecent = 6, summarize? })` — keeps the last `keepRecent` turns verbatim, always preserves leading `system` PROMPTS, and either summarizes the older window (via the optional `summarize` callback) or drops it. Checkpoint markers are NOT system prompts — they flow through the keep-recent window as ordinary turns (a marker in the older window is summarized/dropped; one in the recent window is kept). Reuses the SDK's internal compaction window; never mutates the input. Always returns a `Promise`. If `summarize` throws (e.g. the LLM call fails), the error propagates — the caller decides the fallback.
 - `buildCheckpoint(label?)` → a `system` marker turn whose content begins with `CHECKPOINT_MARKER` (a visible, prose-unlikely sentinel — no invisible control bytes, safe to persist); `filterFromLatestCheckpoint(messages)` → the turns AFTER the most recent marker (all turns if none). Use to bound replay to "since the last checkpoint".
 - `isContextOverflowError(err)` — `true` iff `err` is a `TheokitAgentError` (or subclass) reporting the typed `context_too_long` code (checks `err.code` and `err.metadata?.code`).
+- `estimateTokens(text)` — a tokenizer-free token estimate (`ceil(text.length / 4)`, the ~4-chars-per-token heuristic): `""` → 0, any non-empty text → ≥ 1. A cheap PRE-CALL gate, not exact tokenization.
+- `shouldCompact({ estimated, contextWindow, buffer })` — decide BEFORE sending whether to compact: `true` when `estimated >= contextWindow - buffer` (the estimate leaves less than `buffer` headroom). Pure — pass the window yourself (e.g. from `resolveModelCapabilities`), so it stays decoupled from any per-model catalog.
+
+#### Model capabilities — `@theokit/sdk/models`
+
+`resolveModelCapabilities(modelId): ModelCapabilities` returns a model's capability flags + `maxContextTokens`/`maxOutputTokens` from a static, OFFLINE catalog (pure, sync, no network). It strips routing prefixes (`openrouter/`/`vertex/`/`bedrock/`) and OpenRouter `:variant` suffixes (`openai/gpt-4o:free` → `openai/gpt-4o`) before lookup; unknown models get conservative defaults (`4096`/`4096`, all flags false). Pair `maxContextTokens` with `shouldCompact` for a pre-call compaction decision.
+
+The subpath also exports model-id helpers for UIs (M5-8): `parseModelId(modelId): { provider, name }` splits the provider prefix from the model name (handles OpenRouter routing + tag suffixes); `humanizeModelName(modelId): string` is a best-effort human label (strips routing/vendor, title-cases the core, appends an OpenRouter `:variant` in parens — e.g. `"openrouter/openai/gpt-4o:free"` → `"GPT 4o (free)"`); `toModelOption(modelId): { value, label, provider }` builds a dropdown entry. Best-effort labels — not vendor-canonical marketing names; a UI can override per id.
+
+```ts
+import { parseModelId, humanizeModelName, toModelOption } from "@theokit/sdk/models";
+
+parseModelId("openrouter/openai/gpt-4o:free"); // { provider: "openrouter", name: "openai/gpt-4o:free" }
+humanizeModelName("anthropic/claude-3-5-sonnet"); // "Claude 3 5 Sonnet"
+const options = modelIds.map(toModelOption); // [{ value, label, provider }, …] for a <Select>
+```
+
+```ts
+import { resolveModelCapabilities } from "@theokit/sdk/models";
+import { estimateTokens, shouldCompact } from "@theokit/sdk/compaction";
+
+const { maxContextTokens } = resolveModelCapabilities("openrouter/openai/gpt-4o:free");
+if (shouldCompact({ estimated: estimateTokens(prompt), contextWindow: maxContextTokens, buffer: 4000 })) {
+  history = await compactTranscript(history, { keepRecent: 4 });
+}
+```
 
 ```ts
 import {
@@ -1887,6 +1928,39 @@ try {
 } catch (err) {
   if (isContextOverflowError(err)) history = await compactTranscript(history, { keepRecent: 4 });
 }
+```
+
+#### Skills discovery — `@theokit/sdk/skills`
+
+First-party skill discovery + `<skills>` block, so consumers orient an agent with the skills it can invoke without hand-rolling a frontmatter parser. These are the same primitives the SDK runtime uses internally for `.theokit/skills` discovery and `<skills>` injection.
+
+- `discoverSkills(dir, options?)` — discover `<dir>/<name>/SKILL.md` files under an **arbitrary** directory (not a hardcoded `.theokit/skills` root). Parses strict YAML frontmatter (`name`/`description` required; `category`/`dependencies` optional), returning `Skill[]` (`{ name, description, source, category?, dependencies? }` — the skill BODY is never included). A subdirectory whose realpath escapes `dir` via symlink is skipped (symlink-escape guard, reusing `@theokit/sdk/path-safety`). **Never throws** — a missing/unreadable/non-directory path yields `[]`. A `SKILL.md` with malformed frontmatter is excluded and (optionally) reported via `options.onInvalidSkill({ name, source, code, message })`; a directory WITHOUT a `SKILL.md` is silently skipped (not a malformed skill). Discovery order follows the filesystem `readdir` order (OS-dependent) — sort the result before `buildSkillsBlock` if a stable block order matters.
+- `buildSkillsBlock(skills)` — render the prompt-injection-safe `<skills>` block (`- name: description` per skill, both fields XML-escaped). Accepts the structural subset `{ name, description }[]`; returns `undefined` for an empty list (so the caller can omit the block).
+
+```ts
+import { discoverSkills, buildSkillsBlock } from "@theokit/sdk/skills";
+
+const skills = await discoverSkills("./.theokit/skills", {
+  onInvalidSkill: ({ name, code }) => console.warn(`skill ${name} skipped: ${code}`),
+});
+const block = buildSkillsBlock([...skills].sort((a, b) => a.name.localeCompare(b.name)));
+// block: "<skills>\n  - code-review: …\n</skills>" (or undefined when no skills)
+```
+
+#### Project instructions — `@theokit/sdk/project`
+
+Hierarchical reader/writer for a project-instruction file (default `THEO.md`; also `CLAUDE.md`/`AGENTS.md`), composing the SDK's own hardened walk-up discovery + atomic writer.
+
+- `readProjectInstructions(cwd, options?)` — walk up from `cwd` collecting `<dir>/<filename>` (default `THEO.md`) up to the filesystem root (or `options.stopDir`). Returns `{ files, content }`: `files` is the found files **nearest-first** (`{ path, content }[]`, each read in full — never truncated), `content` is a reduction chosen by `options.scope` — `"nearest"` (default; innermost file's content) or `"merged"` (all files joined root-first, so the nearest/most-specific text appears last). **Never throws** — a missing/unreadable directory or a path that exists but is not a readable file (e.g. a directory named `THEO.md`) is skipped; no file → `{ files: [], content: undefined }`.
+- `writeProjectInstructions(cwd, content, options?)` — write `<cwd>/<filename>` atomically (temp + fsync + rename). Unlike the reader, this **fails loud**: a write error (e.g. the parent directory does not exist) propagates to the caller.
+
+```ts
+import { readProjectInstructions, writeProjectInstructions } from "@theokit/sdk/project";
+
+const { content, files } = await readProjectInstructions(process.cwd(), { scope: "merged" });
+// content: outer THEO.md + "\n\n" + nearest THEO.md (root-first); files: nearest-first with paths
+
+await writeProjectInstructions(process.cwd(), "# Project rules\n…"); // atomic THEO.md write
 ```
 
 ## Built-in tools for coding agents (v1.x+)
@@ -1976,6 +2050,35 @@ const tool = createWebSearchTool({ search: createBraveWebSearchAdapter() }); // 
 ```
 
 The adapter uses a plain `fetch` (not `screenedFetch`): the endpoint host is fixed (no SSRF surface) and the Brave auth header must be sent. Additional providers (e.g. Tavily) are a follow-up — `createWebSearchTool` stays provider-agnostic. Zero new dependencies.
+
+### Session artifact store + plan-mode persistence
+
+`@theokit/sdk-tools` exports a generic, id-keyed, atomic artifact store (the reusable generalization of the per-run session-summary writer) and wires it opt-in into `createPlanModeTool`:
+
+- `createSessionArtifactStore({ dir, idStrategy?, extension? })` → `{ write, read, has, list, path }`. `write(id, content)` persists `<dir>/<idStrategy(id)><extension>` atomically (temp + fsync + rename) and returns the path; `read(id)` returns the content or `undefined` (never throws); `has`/`list` enumerate stored artifacts; `path(id)` is the traversal-safe location. `idStrategy` defaults to `safeFilenameForId` (accepts ANY id, deterministically hashing non-conforming input), and every id additionally passes through `safePathJoin` — so a `../escape` id can never write outside `dir`. `extension` defaults to `.md`. Reads never throw; writes fail loud.
+- `createPlanModeTool({ artifactStore, artifactId? })` — an OPT-IN overload whose async handler persists the submitted `plan` to the store on `exit` (returning `{ ok, mode, message, persisted, path }`). The zero-arg `createPlanModeTool()` keeps a synchronous handler and never touches disk. Only a non-empty `plan` on `exit` is persisted; `enter`/`status` never write.
+
+```typescript
+import { createSessionArtifactStore, createPlanModeTool } from "@theokit/sdk-tools";
+
+const store = createSessionArtifactStore({ dir: ".theokit/plans" });
+const planMode = createPlanModeTool({ artifactStore: store, artifactId: runId });
+// agent calls plan_mode { action: "exit", plan: "1. …\n2. …" } → persisted to .theokit/plans/<runId>.md
+await store.read(runId); // the persisted plan, or undefined
+```
+
+### Todolist structured items + plan nodes
+
+The `todolist` tool (`createTodolistTool`) tracks multi-step work. Every success result carries BOTH a human `items_summary` (formatted text the LLM reads) AND a structured `items: TodoItem[]` snapshot (for a consumer rendering a plan/UI). `todoItemsToPlanNodes(items)` converts those items into versioned `PlanNode`s (`{ id, label, status }` — timestamps dropped).
+
+```typescript
+import { createTodolistTool, todoItemsToPlanNodes } from "@theokit/sdk-tools";
+
+const todo = createTodolistTool();
+const result = JSON.parse(todo.handler({ action: "add", title: "Write the migration" }));
+// result.items === [{ id: "todo-1", title: "Write the migration", status: "pending", createdAt: … }]
+const planNodes = todoItemsToPlanNodes(result.items); // [{ id: "todo-1", label: "Write the migration", status: "pending" }]
+```
 
 ```typescript
 import { createAgentFactory } from "@theokit/sdk";

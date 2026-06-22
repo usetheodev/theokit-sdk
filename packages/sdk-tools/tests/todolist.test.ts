@@ -93,6 +93,52 @@ describe("createTodolistTool", () => {
     expect(items[0]!.status).toBe("pending");
   });
 
+  it("(M4-5 bug fix) add result includes the structured items array", () => {
+    const result = JSON.parse(tool.handler({ action: "add", title: "Fix the bug" }));
+    expect(Array.isArray(result.items)).toBe(true);
+    expect(result.items).toHaveLength(1);
+    expect(result.items[0]).toMatchObject({ title: "Fix the bug", status: "pending" });
+    expect(result.items[0].id).toMatch(/^todo-\d+$/);
+  });
+
+  it("(M4-5) list result includes structured items reflecting all items", () => {
+    tool.handler({ action: "add", title: "A" });
+    tool.handler({ action: "add", title: "B" });
+    const result = JSON.parse(tool.handler({ action: "list" }));
+    expect(result.items.map((i: { title: string }) => i.title)).toEqual(["A", "B"]);
+  });
+
+  it("(M4-5) complete result items reflect the new status", () => {
+    const added = JSON.parse(tool.handler({ action: "add", title: "Ship" }));
+    const result = JSON.parse(tool.handler({ action: "complete", id: added.id }));
+    expect(result.items[0].status).toBe("done");
+  });
+
+  it("(M4-5) remove and clear_completed results also carry structured items", () => {
+    const a1 = JSON.parse(tool.handler({ action: "add", title: "keep" }));
+    const a2 = JSON.parse(tool.handler({ action: "add", title: "drop" }));
+    const removed = JSON.parse(tool.handler({ action: "remove", id: a2.id }));
+    expect(removed.items.map((i: { title: string }) => i.title)).toEqual(["keep"]);
+    tool.handler({ action: "complete", id: a1.id });
+    const cleared = JSON.parse(tool.handler({ action: "clear_completed" }));
+    expect(Array.isArray(cleared.items)).toBe(true);
+    expect(cleared.items).toEqual([]);
+  });
+
+  it("(M4-5) a title with JSON-special chars round-trips through the result intact", () => {
+    const tricky = 'She said "hi"\nand \\ {edge}';
+    const result = JSON.parse(tool.handler({ action: "add", title: tricky }));
+    expect(result.items[0].title).toBe(tricky);
+  });
+
+  it("(M4-5 EC-2) error results carry NO items field", () => {
+    const missingTitle = JSON.parse(tool.handler({ action: "add" } as never));
+    expect(missingTitle.ok).toBe(false);
+    expect("items" in missingTitle).toBe(false);
+    const notFound = JSON.parse(tool.handler({ action: "complete", id: "nope" }));
+    expect("items" in notFound).toBe(false);
+  });
+
   it("two instances have independent IDs (EC-1)", () => {
     const tool1 = createTodolistTool();
     const tool2 = createTodolistTool();
