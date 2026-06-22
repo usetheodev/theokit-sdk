@@ -1,5 +1,91 @@
 # Changelog
 
+## 2.4.0
+
+### Minor Changes
+
+- a21949f: M1-5 — `@theokit/sdk/messages`: pure readers over the `SDKMessage` stream (plan `m1-sdkmessage-readers`).
+
+  Consumers reading the `SDKMessage` stream had to hand-roll a wire-event mapper. The SDK now ships three pure readers on a dedicated sub-path, promoting the proven first-party hand-roll onto the SDK's own types:
+
+  - `assistantText(msg)` — concatenates an assistant message's `text` blocks; `""` for any non-assistant message (or one with no text). `tool_use` blocks are ignored.
+  - `extractToolUses(msg)` — returns the assistant message's `ToolUseBlock`s; `[]` for non-assistant. Reads the assistant content blocks, NOT the separate `SDKToolUseMessage` (`type:"tool_call"`) lifecycle event.
+  - `costAmountUsd(cost)` — reads `RunResult.cost.amountUsd` preserving `number | undefined` verbatim. An unknown cost stays `undefined` (never coerced to `$0`), distinct from a real `$0` subscription-included route — the cost-honesty contract (ADR D377).
+
+  All three are pure (no I/O, inputs never mutated). Zero new dependencies.
+
+- fb268f9: M1-4 — fire the `stop` file-based hook + honor `feedback` as a bounded re-prompt (plan `m1-stop-hook-reflection`).
+
+  The `HookEvent "stop"` was declared but never dispatched. A local agent now fires `stop` once when it finishes a turn cleanly (not on an errored run or an iteration-ceiling truncation). A `stop` hook returning `{"decision":"feedback","feedback":"…"}` re-prompts the agent with that text and the loop continues — a bounded reflection ladder capped at `MAX_STOP_FEEDBACK_ATTEMPTS` (2), mirroring the existing nudge ceiling, so a hook cannot loop forever. `allow`/no-hook finish normally; `deny` at `stop` finishes (the answer already exists). Reuses the existing `HooksExecutor` — zero new dependencies. Hooks remain file-based (no programmatic callback).
+
+- 5b8c9e7: M2-1 — `@theokit/sdk/compaction`: public compaction / context-management helpers (plan `m2-compaction-public-api`).
+
+  Promotes the SDK's compaction capability to a public sub-path so consumers can manage the context window without reaching into `internal/`:
+
+  - `compactTranscript(messages, { keepRecent = 6, summarize? })` — keep the last `keepRecent` turns verbatim, preserve leading system turns, and either summarize the older window (via an optional `summarize` callback that can wire the SDK's internal LLM summarizer) or drop it. Reuses the internal `selectCompressionWindow` (no second algorithm). Never mutates its input.
+  - `buildCheckpoint(label?)` / `filterFromLatestCheckpoint(messages)` / `CHECKPOINT_MARKER` — a string-sentinel checkpoint: mark a point in a transcript and later filter back to the turns after the most recent marker.
+  - `isContextOverflowError(err)` — true iff `err` is a `TheokitAgentError` (or subclass) reporting the typed `context_too_long` code (reads both `err.code` and `err.metadata?.code`; no brittle message regex).
+
+  Operates on the SDK's own `CompressibleMessage` type (re-exported). Zero new dependencies.
+
+- 1cf9c16: M2-4 — per-model capability catalog public + OpenRouter slug-suffix fix (plan `m2-model-capabilities`).
+
+  - **New `@theokit/sdk/models` subpath.** `resolveModelCapabilities(modelId): ModelCapabilities` (previously dead `@internal`) is now public — returns a model's capability flags + `maxContextTokens`/`maxOutputTokens` from a static, OFFLINE catalog (pure, sync, no network). Pair `maxContextTokens` with `@theokit/sdk/compaction`'s `shouldCompact`.
+  - **Fix:** OpenRouter `:variant` suffixes (`:free`/`:nitro`/`:floor`/`:beta`) were not stripped before the catalog lookup, so `openrouter/openai/gpt-4o:free` fell back to conservative defaults (4096) instead of the real 128k window. The suffix is now stripped (alongside the existing routing-prefix strip); unknown models still get conservative defaults.
+
+  Zero new dependencies.
+
+- b31283c: M2-2 — pre-call token estimate + compaction decision (plan `m2-token-estimate`).
+
+  Two pure, zero-dependency helpers on the `@theokit/sdk/compaction` subpath (siblings of `compactTranscript`/`isContextOverflowError`):
+
+  - `estimateTokens(text)` — a tokenizer-free token estimate via the ~4-chars-per-token heuristic (`ceil(text.length / 4)`): `""` → 0, any non-empty text → ≥ 1. A cheap PRE-CALL gate, not exact tokenization.
+  - `shouldCompact({ estimated, contextWindow, buffer })` — decide BEFORE sending whether to compact: `true` when `estimated >= contextWindow - buffer`. Pure; the caller supplies the window (e.g. from `resolveModelCapabilities`), keeping it decoupled from any per-model catalog.
+
+  No tokenizer dependency.
+
+- 29b1c8c: M4-2 — hierarchical project-instruction reader/writer (plan `m4-project-instructions`).
+
+  New `@theokit/sdk/project` subpath:
+
+  - `readProjectInstructions(cwd, options?)` — walk up from `cwd` collecting `<dir>/<filename>` (default `THEO.md`; configurable) up to the filesystem root (or `options.stopDir`). Returns `{ files, content }`: `files` are the found files nearest-first (`{ path, content }[]`, read in full), `content` is a reduction chosen by `options.scope` — `"nearest"` (innermost) or `"merged"` (all joined root-first, nearest text last). NEVER throws — missing/unreadable/non-file paths are skipped.
+  - `writeProjectInstructions(cwd, content, options?)` — write `<cwd>/<filename>` atomically (temp + fsync + rename). Fails loud on write errors (unlike the best-effort reader).
+
+  Composes the SDK's hardened `walkUpForFile` discovery + the atomic `replaceFileAtomic` writer (Rule 9). Zero new dependencies.
+
+- f9be17a: M4-1 — first-party skill discovery + `<skills>` block (plan `m4-skills-discovery`).
+
+  New `@theokit/sdk/skills` subpath exposing two pure first-party primitives the SDK runtime already uses internally:
+
+  - `discoverSkills(dir, options?)` — discover `<dir>/<name>/SKILL.md` files under an ARBITRARY directory (not a hardcoded `.theokit/skills` root), parsing strict YAML frontmatter (`name`/`description` required; `category`/`dependencies` optional) and returning `Skill[]` (the skill BODY is never included). A subdirectory whose realpath escapes `dir` via symlink is skipped (symlink-escape guard, reusing `@theokit/sdk/path-safety`). NEVER throws — a missing/unreadable/non-directory path yields `[]`. A `SKILL.md` with malformed frontmatter is excluded and optionally reported via `options.onInvalidSkill`; a directory WITHOUT a `SKILL.md` is silently skipped.
+  - `buildSkillsBlock(skills)` — render the prompt-injection-safe `<skills>` system-prompt block (name + description XML-escaped); returns `undefined` for an empty list.
+
+  The internal `SkillsManager` (`.theokit/skills` discovery) and `SkillsPromptProvider` (`<skills>` injection) now delegate to these primitives — single source of truth, behavior preserved (golden + contract tests unchanged). Zero new dependencies.
+
+- f2265d7: M4-6 — sub-agent tool scoping via `AgentDefinition.tools` (plan `m4-tool-scoping`).
+
+  - `AgentDefinition` gains an optional `tools?: string[]` — a tool-name whitelist. When set, the sub-agent may ONLY call tools whose canonical (post-repair, lowercase) name is in the list; any other call is vetoed at dispatch. Absent/empty → unscoped (inherits the parent's full toolset). Backward-compatible.
+  - `.theokit/agents/*.md` subagents can declare it as a comma/space-separated frontmatter field (`tools: read_file, list_dir`).
+  - New `@theokit/sdk/subagents` subpath: `subagentToolWhitelist(definition): Set<string> | undefined` + `withSubagentToolScope(definition, fn)` enforce the whitelist via the SDK's existing `withToolWhitelist` dispatch veto — the same enforcement `Agent.fork`'s `allowedTools` uses, NOT `PermissionEngine`. A `tools: ["read_file"]` sub-agent provably cannot call `write_file`/`shell_exec`.
+
+  Zero new dependencies.
+
+- f1de451: M5-8 — public `parseModelId` + `humanizeModelName` + `toModelOption` on `@theokit/sdk/models` (plan `m5-model-option`).
+
+  - `parseModelId(modelId): { provider, name }` is now public (promoted from `@internal`) — splits the provider prefix from the model name, OpenRouter-routing + tag-suffix aware.
+  - `humanizeModelName(modelId): string` — a best-effort, deterministic human label: strips the routing/vendor prefix, title-cases the core model segment (known acronyms upper-cased), and appends an OpenRouter `:variant` in parens (`"openrouter/openai/gpt-4o:free"` → `"GPT 4o (free)"`). Not vendor-canonical marketing names.
+  - `toModelOption(modelId): { value, label, provider }` — a dropdown-ready entry composing the two.
+
+  Lets `@theokit/ui` model selectors + the `create-theokit` template stop hand-rolling slug→label. Zero new dependencies.
+
+### Patch Changes
+
+- 1abda16: M2-3 — `context_too_long` reaches the run boundary (plan `m2-context-overflow-boundary`).
+
+  Fixes a code-at-boundary bug: the loop captured the error code from the error's top-level `.code`, which the provider mappers set to a PROVIDER-PREFIXED string (`anthropic_context_too_long` / `${providerId}_context_too_long`), while the CANONICAL `ErrorCode` (`context_too_long`) lives on `metadata.code`. So `RunResult.error.code` surfaced the prefixed form and a consumer checking `result.error.code === "context_too_long"` missed it.
+
+  `registerLoopError` now prefers `cause.metadata?.code` over the top-level `.code`, so the canonical code reaches the boundary for every provider (verified by a 400-context-overflow contract test through the real `mapAnthropicError`/`mapOpenAICompatibleError`). The prefixed form remains on the thrown `TheokitAgentError.code` for telemetry. Set-once invariant preserved; top-level `.code` fallback unchanged when there is no `metadata.code`.
+
 ## 2.3.0
 
 ### Minor Changes
@@ -93,9 +179,11 @@
 ## [Unreleased]
 
 ### Fixed
+
 - **`context_too_long` reaches the run boundary (M2-3).** `registerLoopError` now prefers the canonical `cause.metadata?.code` over the provider-prefixed top-level `.code`, so `RunResult.error.code` is `context_too_long` (not `anthropic_context_too_long`) for every provider. Set-once + top-level fallback preserved.
 
 ### Added
+
 - **Pre-call token estimate + compaction decision (M2-2).** `estimateTokens(text)` (tokenizer-free ~4-chars/token; `""`→0, non-empty→≥1) + `shouldCompact({estimated,contextWindow,buffer})` (`true` when `estimated >= contextWindow - buffer`; pure, caller supplies the window) on the `@theokit/sdk/compaction` subpath. No tokenizer dep.
 - **Per-model capability catalog public + OpenRouter slug-suffix fix (M2-4).** New `@theokit/sdk/models` subpath: `resolveModelCapabilities(modelId)` (was `@internal`) — pure/sync/offline capability flags + `maxContextTokens`/`maxOutputTokens`. Fixes an OpenRouter `:variant` suffix lookup miss (fell back to 4096 instead of the real window).
 
