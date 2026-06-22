@@ -194,19 +194,19 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M7 — HTTP, persistência e consolidação dual-surface (Tema F)
 
-> **Status: READY_TO_MERGE (3/3 slices) — pending release cut (2026-06-22).** cycle discover→plan→implement→review completo nos 3 repos: **theokit** M7-1/2/3 (typed errors/404 no defineRoute + defineHealthRoute/Ready + theokit/boot; review READY_TO_MERGE, commits de77073…717bc06); **theokit-sdk** M7-4/5/6 (PermissionEngine defaultAction + createPermissionPlugin + formatCostUsd honest-null; review READY_TO_MERGE, 32180fe/dd0a334); **@theokit/orm** M7-7 (createRepository non-DI factory; review READY_TO_MERGE, c957088/e2a7d49). Zero deps novas; nenhum pacote depende do principal theokit. Follow-ups documentados: variante sync better-sqlite3 do orm + instalar @theokit/orm no theocode. Releases per-repo pendentes.
+> **Status: MERGED TO MAIN (3/3 slices) — 2026-06-22.** cycle discover→plan→implement→review completo nos 3 repos: **theokit** M7-1/2/3 (typed errors/404 no defineRoute + defineHealthRoute/Ready + theokit/boot; review READY_TO_MERGE, commits de77073…717bc06); **theokit-sdk** M7-4/5/6 (PermissionEngine defaultAction + createPermissionPlugin + formatCostUsd honest-null; review READY_TO_MERGE, 32180fe/dd0a334); **@theokit/orm** M7-7 (createRepository non-DI factory; review READY_TO_MERGE, c957088/e2a7d49). Zero deps novas; nenhum pacote depende do principal theokit. Follow-ups documentados: variante sync better-sqlite3 do orm + instalar @theokit/orm no theocode. Merged: theokit PR #20 + theokit-sdk PR #31; @theokit/orm M7-7 em main (branch criada de develop). npm via Changesets Version Packages PRs (CI pós-merge).
 
 **Valor entregue:** resolve a tensão das duas superfícies HTTP paralelas (convention dev-server vs imperative TheoApp) que não compartilham primitivos. Quase independente — pode ir na onda 1.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M7-1 | 404 / typed exception em `defineRoute` | fw · theokit | med | M | — | Exportar `TheoError`+`fromUnknown`+sugar via `theokit/server`; rotear catch legado por `serverErrorToEnvelope`. |
-| M7-2 | Health-check route p/ filesystem-route server | fw · theokit | low | S | — | `defineHealthRoute`/`defineReadyRoute` (orquestrador já default-polla `/health`). |
-| M7-3 | Boot programático do server | fw · theokit | low | S | — | Promover `startDevServer`/`startCommand` a `theokit/boot`. |
-| M7-4 | `default-deny` no PermissionEngine | sdk · @theokit/sdk | low | S | — | `defaultAction: PermissionAction` (default `"allow"`); 1 linha, backward-compatible. |
-| M7-5 | PermissionEngine+definePlugin wiring (exemplar) | sdk · @theokit/sdk | low | S | M7-4 | Documentar o wiring como exemplo; só falta default-deny. |
-| M7-6 | Per-mode tool permission + projeção de usage/cost | sdk · server/cost+sdk | low | M | M1-6 | `UsageRecord.costUsd` nullable + `UsageResult.costKnown`; CostMeter renderiza `—`. |
-| M7-7 | Drizzle Repository CRUD (async-only + DI-first são as barreiras) | di · @theokit/orm | med | M | — | `createRepository(db,table)` non-DI + variante sync-aware p/ better-sqlite3; instalar @theokit/orm no theocode. |
+| M7-1 ✅ | 404 / typed exception em `defineRoute` | fw · theokit | med | M | — | Exportar `TheoError`+`fromUnknown`+sugar via `theokit/server`; rotear catch legado por `serverErrorToEnvelope`. |
+| M7-2 ✅ | Health-check route p/ filesystem-route server | fw · theokit | low | S | — | `defineHealthRoute`/`defineReadyRoute` (orquestrador já default-polla `/health`). |
+| M7-3 ✅ | Boot programático do server | fw · theokit | low | S | — | Promover `startDevServer`/`startCommand` a `theokit/boot`. |
+| M7-4 ✅ | `default-deny` no PermissionEngine | sdk · @theokit/sdk | low | S | — | `defaultAction: PermissionAction` (default `"allow"`); 1 linha, backward-compatible. |
+| M7-5 ✅ | PermissionEngine+definePlugin wiring (exemplar) | sdk · @theokit/sdk | low | S | M7-4 ✅ | Documentar o wiring como exemplo; só falta default-deny. |
+| M7-6 ✅ | Per-mode tool permission + projeção de usage/cost | sdk · server/cost+sdk | low | M | M1-6 | `UsageRecord.costUsd` nullable + `UsageResult.costKnown`; CostMeter renderiza `—`. |
+| M7-7 ✅ | Drizzle Repository CRUD (async-only + DI-first são as barreiras) | di · @theokit/orm | med | M | — | `createRepository(db,table)` non-DI + variante sync-aware p/ better-sqlite3; instalar @theokit/orm no theocode. |
 
 **Concluído quando:** um builder não precisa escolher entre "convention sem health/logRequest tipado" e "TheoApp que não serve as rotas do `theokit dev`".
 
@@ -237,10 +237,10 @@ Prova de completude: cada gap confirmado da tabela mestra do relatório → mile
 | 2 | Tool scoping por sub-agente sem enforcement | M4-6 |
 | 3 | safeFilenameForId (4 respostas divergentes) | M0-4 |
 | 4 | Token estimate + shouldCompact | M2-2 |
-| 5 | default-deny no PermissionEngine | M7-4 |
-| 6 | Health-check route | M7-2 |
-| 7 | Boot programático do server | M7-3 |
-| 8 | 404 typed exception em defineRoute | M7-1 |
+| 5 | default-deny no PermissionEngine | M7-4 ✅ |
+| 6 | Health-check route | M7-2 ✅ |
+| 7 | Boot programático do server | M7-3 ✅ |
+| 8 | 404 typed exception em defineRoute | M7-1 ✅ |
 | 9 | AgentToolRenderer | M5-3 |
 | 10 | Auto-scroll stick-to-bottom | M5-5 |
 | 11 | accumulateAssistantText + streamError | M5-1 |
@@ -262,13 +262,13 @@ Prova de completude: cada gap confirmado da tabela mestra do relatório → mile
 | 27 | Screen de shell catastrófico | M3-2 |
 | 28 | Rich errors (self-correction) | M3-4 |
 | 29 | ACI description override + `<tools>` | M3-5 |
-| 30 | Per-mode tool permission + cost projection | M7-6 |
+| 30 | Per-mode tool permission + cost projection | M7-6 ✅ |
 | 31 | Repo-map / env-context builder | M3-3 |
 | 32 | Reader/writer de project-instructions | M4-2 |
 | 33 | Catastrophic shell (perm.plugin path) | M3-6 |
 | 34 | Stream-message → wire-event mapper | M1-5 |
 | 35 | Catálogo per-model context-window | M2-4 |
-| 36 | Drizzle Repository CRUD | M7-7 |
+| 36 | Drizzle Repository CRUD | M7-7 ✅ |
 | 37 | SQLite bootstrap (WAL+FK) | M0-5 |
 | 38 | Eval seed→agent→verify-gate | M6-2 |
 | 39 | RepoProvisioner | M6-3 |
