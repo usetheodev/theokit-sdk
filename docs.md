@@ -2279,6 +2279,7 @@ console.log(run.aggregate.durationMsP95); // 1830 (latency tail)
 | `Scorers.regex(pattern)` | `pattern.test(output)` | EC-10: user-supplied pattern; test against adversarial outputs to avoid ReDoS |
 | `Scorers.jsonShape(zodSchema, { strict? })` | `JSON.parse(output)` + Zod validation | EC-2: caps output at 1 MB before parse |
 | `Scorers.llmJudge({ model, apiKey, criteria, rubric? })` | Second LLM scores against criteria | EC-12: doubles per-row cost; requires SEPARATE apiKey (D205) |
+| `Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command })` | Runs the project's tests in a provisioned repo via `SandboxBackend.execute`; scores `1` iff the command exits `0` (M6-2) | SECURITY: `command` is REQUIRED and owns shell-safety of dataset-derived test names — there is no bare-identifier default. Assumes a shell-backed sandbox. |
 
 ### `EvalRun` shape
 
@@ -2345,6 +2346,65 @@ dep — no install required when telemetry is off.
 Per-process single-flight per name (D213). Two `Eval.run` calls with the
 same `name` running at the same time throw `EvalAlreadyRunningError`.
 Use unique names per matrix run (e.g. include model id in name).
+
+### Code-eval harness (M6) — durable batch, provisioning, verify-gate, artifact
+
+First-party SWE-bench-style primitives over the existing `Eval` / `Scorers` /
+`SandboxBackend` surface, with zero new runtime dependencies (ADRs D1-D3).
+
+**Durable, resumable runs.** `Eval.run` accepts an additive `persist` block:
+
+```typescript
+import { Eval, Scorers, loadJsonl, captureArtifact } from "@theokit/sdk/eval";
+
+await Eval.create({ name, dataset, scorers, agent }).run({
+  persist: {
+    path: "runs/out.jsonl",
+    // key MUST read only durable fields (index/input/expected/metadata) — it is
+    // computed from a probe row BEFORE the agent runs, so output/scores are absent.
+    key: (row) => String(row.metadata?.instanceId ?? row.input),
+    resume: true,        // skip rows already persisted with a SUCCESSFUL (no-error) result
+  },
+  classify: (row) => (row.meanScore >= 0.5 ? "pass" : "fail"), // → EvalRowResult.outcome
+});
+```
+
+- Each completed row is appended as one `\n`-terminated JSON line the instant it
+  finishes (crash-durable; interleave-safe within one process). Single-process
+  contract — do not point two processes at the same `path`.
+- `resume: true` skips rows whose `key` already appears with a successful result;
+  failed rows are retried. Skipped rows are NOT re-emitted in `EvalRun.rows` (a
+  resumed run's in-memory aggregate reflects only newly-run rows; the JSONL file
+  is the complete durable record).
+- Additive `EvalRowResult` fields: `outcome?: string` (from `classify`),
+  `artifact?: { diff: string; applies: boolean }` (from `captureArtifact`).
+
+**Dataset loading.** `loadJsonl<T>(path, { map? })` parses JSONL with a
+line-numbered `JsonlParseError`; the dataset schema is the caller's via `map`
+(the SWE-bench shape lives in your `map`, not the SDK).
+
+**Repo provisioning** (`@theokit/sdk/sandbox`):
+
+```typescript
+import { provisionRepo, RepoProvisionError } from "@theokit/sdk/sandbox";
+
+const { repoDir } = await provisionRepo(sandbox, { repoUrl, ref, instanceId });
+```
+
+Clones + checks out a ref into `<workdir>/<instanceId>` via
+`SandboxBackend.execute` (portable). SECURITY: `instanceId` is validated to
+`[A-Za-z0-9._-]` (no path traversal), `ref` may not begin with `-`, clone uses a
+`--` option terminator and disables the `ext::` transport. Throws
+`RepoProvisionError` (extends `TheokitAgentError`, carries `instanceId`) on git failure.
+
+**Artifact capture.** `captureArtifact(sandbox, repoDir)` returns
+`{ diff, applies }` — the working-tree `git diff` plus a reverse
+`git apply --check` coherence test. An empty diff returns `{ diff: "", applies: false }`.
+
+**Grading.** `Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command })`
+runs `command([...failToPass, ...passToPass])` in `repoDir` and scores by exit
+code. `command` is REQUIRED — the SDK ships no default that would run untrusted
+test identifiers as a shell command.
 
 ## Agent handoffs (v1.16+) — `handoffs[]` + `Handoff.create`
 
