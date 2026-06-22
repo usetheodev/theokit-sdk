@@ -4,7 +4,8 @@ milestone_id: M6
 date: 2026-06-22
 plan: .claude/knowledge-base/plans/m6-eval-harness-plan.md
 blueprint: .claude/knowledge-base/discoveries/blueprints/m6-eval-harness-blueprint.md
-status: IMPLEMENTATION_COMPLETE
+status: READY_TO_MERGE
+review: .claude/knowledge-base/reviews/m6-eval-harness-review-2026-06-22.md
 ---
 
 # M6 — Eval Harness (Tema E) — Implementation Summary
@@ -40,7 +41,7 @@ runtime dependencies**.
 
 ## Validation gates
 
-- **Full suite:** `2856 passed | 0 failed | 35 skipped` (`vitest run --no-file-parallelism`).
+- **Full suite:** `2860 passed | 0 failed | 35 skipped` (`vitest run --no-file-parallelism`) — incl. security regression tests added during review.
 - **Build:** `tsup` success — all subpath entries (`eval`, `sandbox`) emit ESM+CJS+dts.
 - **Typecheck:** `tsc --noEmit` clean.
 - **Lint:** biome clean on all changed files; cognitive complexity ≤ 10 (extracted `runManualSlot`, `tryParseObjectLine`).
