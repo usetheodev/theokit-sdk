@@ -6,7 +6,12 @@
  * Return shape (always a JSON string):
  *   - `{ ok: true, mode: string, message: string }`
  *   - `{ ok: false, error: "invalid_action" }`
+ *
+ * Opt-in persistence (M4-4): `createPlanModeTool({ artifactStore })` returns a
+ * variant whose async handler persists the submitted `plan` on `exit`.
  */
+
+import type { SessionArtifactStore } from "./artifact-store.js";
 
 type Mode = "normal" | "plan";
 
@@ -29,43 +34,123 @@ export interface PlanModeTool {
   currentMode: () => Mode;
 }
 
-export function createPlanModeTool(): PlanModeTool {
+/**
+ * Plan-mode tool with opt-in artifact persistence (M4-4). Same surface as
+ * {@link PlanModeTool} but the handler is ASYNC (it may write to the store) and
+ * accepts an optional `plan` to persist on `exit`.
+ *
+ * @public
+ */
+export interface PlanModeToolWithStore {
+  name: string;
+  description: string;
+  inputSchema: unknown;
+  handler: (input: { action: string; plan?: string }) => Promise<string>;
+  currentMode: () => Mode;
+}
+
+/**
+ * Options for the persistence-enabled {@link createPlanModeTool} overload.
+ *
+ * @public
+ */
+export interface PlanModeToolOptions {
+  /** Store the submitted `plan` is persisted to on `exit`. */
+  artifactStore: SessionArtifactStore;
+  /** Artifact id under which the plan is stored. Default `"plan"`. */
+  artifactId?: string;
+}
+
+const DESCRIPTION =
+  "Toggle between normal and plan mode. " +
+  "Actions: 'enter' (switch to plan mode), 'exit' (return to normal), 'status' (check current mode). " +
+  "Returns { ok, mode, message }.";
+
+function planModeSchema(withPlan: boolean): unknown {
+  const properties: Record<string, unknown> = {
+    action: {
+      type: "string",
+      enum: ["enter", "exit", "status"],
+      description: "The action to perform.",
+    },
+  };
+  if (withPlan) {
+    properties.plan = {
+      type: "string",
+      description: "On 'exit', the plan text to persist to the artifact store.",
+    };
+  }
+  return { type: "object" as const, properties, required: ["action"] };
+}
+
+function renderMode(action: string, mode: Mode): string | undefined {
+  switch (action) {
+    case "enter":
+      return JSON.stringify({ ok: true, mode, message: PLAN_INSTRUCTIONS });
+    case "exit":
+      return JSON.stringify({ ok: true, mode, message: NORMAL_INSTRUCTIONS });
+    case "status":
+      return JSON.stringify({ ok: true, mode, message: `Current mode: ${mode}` });
+    default:
+      return undefined;
+  }
+}
+
+function invalidAction(action: string): string {
+  return JSON.stringify({
+    ok: false,
+    error: "invalid_action",
+    message: `Unknown action '${action}'. Valid: enter, exit, status.`,
+  });
+}
+
+export function createPlanModeTool(): PlanModeTool;
+export function createPlanModeTool(options: PlanModeToolOptions): PlanModeToolWithStore;
+export function createPlanModeTool(
+  options?: PlanModeToolOptions,
+): PlanModeTool | PlanModeToolWithStore {
   let mode: Mode = "normal";
 
+  if (options === undefined) {
+    return {
+      name: "plan_mode",
+      description: DESCRIPTION,
+      inputSchema: planModeSchema(false),
+      handler: (input: { action: string }): string => {
+        if (input.action === "enter") mode = "plan";
+        else if (input.action === "exit") mode = "normal";
+        return renderMode(input.action, mode) ?? invalidAction(input.action);
+      },
+      currentMode: () => mode,
+    };
+  }
+
+  const { artifactStore, artifactId = "plan" } = options;
   return {
     name: "plan_mode",
-    description:
-      "Toggle between normal and plan mode. " +
-      "Actions: 'enter' (switch to plan mode), 'exit' (return to normal), 'status' (check current mode). " +
-      "Returns { ok, mode, message }.",
-    inputSchema: {
-      type: "object" as const,
-      properties: {
-        action: {
-          type: "string",
-          enum: ["enter", "exit", "status"],
-          description: "The action to perform.",
-        },
-      },
-      required: ["action"],
-    },
-    handler: (input: { action: string }): string => {
-      switch (input.action) {
-        case "enter":
-          mode = "plan";
-          return JSON.stringify({ ok: true, mode, message: PLAN_INSTRUCTIONS });
-        case "exit":
-          mode = "normal";
-          return JSON.stringify({ ok: true, mode, message: NORMAL_INSTRUCTIONS });
-        case "status":
-          return JSON.stringify({ ok: true, mode, message: `Current mode: ${mode}` });
-        default:
-          return JSON.stringify({
-            ok: false,
-            error: "invalid_action",
-            message: `Unknown action '${input.action}'. Valid: enter, exit, status.`,
-          });
+    description: DESCRIPTION,
+    inputSchema: planModeSchema(true),
+    handler: async (input: { action: string; plan?: string }): Promise<string> => {
+      if (input.action === "enter") {
+        mode = "plan";
+        return JSON.stringify({ ok: true, mode, message: PLAN_INSTRUCTIONS });
       }
+      if (input.action === "exit") {
+        mode = "normal";
+        // Persist only a non-empty plan (EC-1); enter/status never persist (EC-2).
+        if (typeof input.plan === "string" && input.plan.length > 0) {
+          const path = await artifactStore.write(artifactId, input.plan);
+          return JSON.stringify({
+            ok: true,
+            mode,
+            message: NORMAL_INSTRUCTIONS,
+            persisted: true,
+            path,
+          });
+        }
+        return JSON.stringify({ ok: true, mode, message: NORMAL_INSTRUCTIONS, persisted: false });
+      }
+      return renderMode(input.action, mode) ?? invalidAction(input.action);
     },
     currentMode: () => mode,
   };

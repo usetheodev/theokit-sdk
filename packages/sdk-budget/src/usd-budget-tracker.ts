@@ -38,6 +38,44 @@ export interface UsdBudgetTrackerOptions {
   readonly pricing?: Readonly<Record<string, ModelPricing>>;
 }
 
+/** The cost-cap denial for the current state, or `null` if the cost cap is satisfied. */
+function evaluateCostCap(
+  maxUsd: number | undefined,
+  costKnown: boolean,
+  totalUsd: number,
+): BudgetCheck | null {
+  if (maxUsd === undefined) return null;
+  if (!costKnown) {
+    // Fail closed: a spend cap is set but cost is unknown — we cannot prove the
+    // run is under budget, so deny rather than allow unbounded spend.
+    return {
+      allowed: false,
+      reason: "cost_limit",
+      detail: `cost unknown — cannot verify maxUsd ${maxUsd}`,
+    };
+  }
+  if (totalUsd >= maxUsd) {
+    return {
+      allowed: false,
+      reason: "cost_limit",
+      detail: `USD ${totalUsd.toFixed(6)} >= maxUsd ${maxUsd}`,
+    };
+  }
+  return null;
+}
+
+/** The token-cap denial for the current state, or `null` if the token cap is satisfied. */
+function evaluateTokenCap(maxTokens: number | undefined, totalTokens: number): BudgetCheck | null {
+  if (maxTokens !== undefined && totalTokens >= maxTokens) {
+    return {
+      allowed: false,
+      reason: "token_limit",
+      detail: `${totalTokens} >= maxTokens ${maxTokens}`,
+    };
+  }
+  return null;
+}
+
 /**
  * Build a fresh USD-aware tracker. The returned object exposes the
  * `BudgetTracker` contract PLUS `getTotalUsd()` + `nextIteration()`
@@ -45,10 +83,13 @@ export interface UsdBudgetTrackerOptions {
  */
 export function createUsdBudgetTracker(
   options: UsdBudgetTrackerOptions = {},
-): BudgetTracker & { nextIteration(): void; getTotalUsd(): number } {
+): BudgetTracker & { nextIteration(): void; getTotalUsd(): number | undefined } {
   let totalTokens = 0;
   let iterations = 0;
   let totalUsd = 0;
+  // Honest-null (D377): once any round's cost is UNKNOWN, the aggregate becomes
+  // unknown and STAYS unknown — a later known round does not resurrect it.
+  let costKnown = true;
   const maxTokens = options.maxTokens;
   const maxUsd = options.maxUsd;
   const pricing: Readonly<Record<string, ModelPricing>> =
@@ -60,33 +101,28 @@ export function createUsdBudgetTracker(
       const t = Number.isFinite(event.tokens) && event.tokens > 0 ? event.tokens : 0;
       if (t === 0) return;
       totalTokens += t;
-      totalUsd += computeUsdCost(pricing, event.model, event.type, t);
+      const cost = computeUsdCost(pricing, event.model, event.type, t);
+      if (cost === undefined) {
+        costKnown = false; // poison — do NOT add 0 (that would be a dishonest $0)
+        return;
+      }
+      if (costKnown) totalUsd += cost;
     },
 
     check(): BudgetCheck {
-      if (maxUsd !== undefined && totalUsd >= maxUsd) {
-        return {
-          allowed: false,
-          reason: "cost_limit",
-          detail: `USD ${totalUsd.toFixed(6)} >= maxUsd ${maxUsd}`,
-        };
-      }
-      if (maxTokens !== undefined && totalTokens >= maxTokens) {
-        return {
-          allowed: false,
-          reason: "token_limit",
-          detail: `${totalTokens} >= maxTokens ${maxTokens}`,
-        };
-      }
-      return { allowed: true };
+      // Cost cap is evaluated first (USD is the higher-signal denial for a human).
+      return (
+        evaluateCostCap(maxUsd, costKnown, totalUsd) ??
+        evaluateTokenCap(maxTokens, totalTokens) ?? { allowed: true }
+      );
     },
 
     getTotal(): BudgetTotal {
       return { tokens: totalTokens, iterations };
     },
 
-    getTotalUsd(): number {
-      return totalUsd;
+    getTotalUsd(): number | undefined {
+      return costKnown ? totalUsd : undefined;
     },
 
     nextIteration(): void {

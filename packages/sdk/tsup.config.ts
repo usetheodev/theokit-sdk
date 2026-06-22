@@ -9,6 +9,14 @@ export default defineConfig({
     messages: "src/messages.ts",
     // M2-1: compaction helpers reach internal/runtime/compression → DTS via tsc (like retry/concurrency).
     compaction: "src/compaction.ts",
+    // M2-4: model-capabilities catalog — leaf module; DTS via tsc (tsconfig.tools-dts.json).
+    models: "src/models.ts",
+    // M4-1: skills discovery + <skills> block — reaches internal/runtime/skills; DTS via tsc.
+    skills: "src/skills.ts",
+    // M4-2: project-instruction reader/writer — reaches internal/runtime/context; DTS via tsc.
+    project: "src/project.ts",
+    // M4-6: subagent tool scoping — reaches internal/runtime/skills+concurrency; DTS via tsc.
+    subagents: "src/subagents.ts",
     // tools — EXTRACTED to @theokit/sdk-tools (SDK 2.0 split, Phase 5).
     "path-safety": "src/path-safety.ts",
     // M0-2: concurrency reaches into internal/runtime, so its DTS is generated

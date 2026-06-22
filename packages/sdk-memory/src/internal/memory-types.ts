@@ -35,6 +35,11 @@ export interface MemoryConfig {
 
 export interface MemoryFact {
   text: string;
+  /**
+   * Optional taxonomy bucket (M4-3). Backward-compatible — flat-store facts
+   * omit it; the categorized store (`createCategorizedMemory`) always sets it.
+   */
+  category?: string;
 }
 
 /**

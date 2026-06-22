@@ -143,8 +143,15 @@ export function registerLoopError(ctx: LoopContext, cause: unknown): void {
       : cause instanceof Error
         ? cause.message
         : String(cause);
+  // Prefer the CANONICAL `metadata.code` (e.g. "context_too_long") over the
+  // provider-PREFIXED top-level `.code` (e.g. "anthropic_context_too_long") that
+  // the error mappers set for telemetry — so the run boundary (`RunResult.error.code`)
+  // reports the canonical `ErrorCode` and consumer checks like
+  // `result.error.code === "context_too_long"` work for every provider.
+  const metaCode = (cause as { metadata?: { code?: unknown } } | null | undefined)?.metadata?.code;
   const rawCode = (cause as { code?: unknown } | null | undefined)?.code;
-  const code = typeof rawCode === "string" ? rawCode : undefined;
+  const code =
+    typeof metaCode === "string" ? metaCode : typeof rawCode === "string" ? rawCode : undefined;
   ctx.error = code !== undefined ? { message, code, cause } : { message, cause };
 }
 

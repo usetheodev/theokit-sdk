@@ -78,6 +78,14 @@ export interface AgentDefinition {
   prompt: string;
   model?: ModelSelection | "inherit";
   mcpServers?: Array<string | Record<string, McpServerConfig>>;
+  /**
+   * Tool whitelist (M4-6). When set, the sub-agent may ONLY call tools whose
+   * canonical (post-repair, lowercase) name is in this list — any other tool
+   * call is vetoed at dispatch via the same `withToolWhitelist` enforcement
+   * forks use (NOT `PermissionEngine`). Absent/empty → unscoped (inherits the
+   * parent's full toolset). Apply with `withSubagentToolScope`.
+   */
+  tools?: string[];
 }
 
 /**

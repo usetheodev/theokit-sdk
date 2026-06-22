@@ -5,8 +5,10 @@ import {
   CHECKPOINT_MARKER,
   type CompressibleMessage,
   compactTranscript,
+  estimateTokens,
   filterFromLatestCheckpoint,
   isContextOverflowError,
+  shouldCompact,
 } from "../src/compaction.js";
 import { RateLimitError, TheokitAgentError } from "../src/errors.js";
 
@@ -158,5 +160,37 @@ describe("compactTranscript (M2-1)", () => {
     const out = await compactTranscript(input, { keepRecent: 2 });
     expect(out.some((m) => m.content.startsWith(CHECKPOINT_MARKER))).toBe(true);
     expect(out.at(-1)?.content).toBe("last");
+  });
+});
+
+describe("estimateTokens + shouldCompact (M2-2 pre-call helpers)", () => {
+  it("test_estimate_tokens_chars_over_4", () => {
+    expect(estimateTokens("12345678")).toBe(2);
+    expect(estimateTokens("123")).toBe(1);
+  });
+
+  it("test_estimate_tokens_empty_is_zero", () => {
+    expect(estimateTokens("")).toBe(0);
+  });
+
+  it("test_estimate_tokens_nonempty_min_one", () => {
+    expect(estimateTokens(" ")).toBe(1);
+    expect(estimateTokens("ab")).toBe(1);
+  });
+
+  it("test_should_compact_true_at_threshold", () => {
+    expect(shouldCompact({ estimated: 9000, contextWindow: 10_000, buffer: 1000 })).toBe(true);
+  });
+
+  it("test_should_compact_false_with_headroom", () => {
+    expect(shouldCompact({ estimated: 5000, contextWindow: 10_000, buffer: 1000 })).toBe(false);
+  });
+
+  it("test_should_compact_true_over_window", () => {
+    expect(shouldCompact({ estimated: 11_000, contextWindow: 10_000, buffer: 1000 })).toBe(true);
+  });
+
+  it("test_should_compact_buffer_ge_window_always_true", () => {
+    expect(shouldCompact({ estimated: 0, contextWindow: 1000, buffer: 1000 })).toBe(true);
   });
 });
