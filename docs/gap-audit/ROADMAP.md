@@ -194,6 +194,8 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M7 — HTTP, persistência e consolidação dual-surface (Tema F)
 
+> **Status: READY_TO_MERGE (3/3 slices) — pending release cut (2026-06-22).** cycle discover→plan→implement→review completo nos 3 repos: **theokit** M7-1/2/3 (typed errors/404 no defineRoute + defineHealthRoute/Ready + theokit/boot; review READY_TO_MERGE, commits de77073…717bc06); **theokit-sdk** M7-4/5/6 (PermissionEngine defaultAction + createPermissionPlugin + formatCostUsd honest-null; review READY_TO_MERGE, 32180fe/dd0a334); **@theokit/orm** M7-7 (createRepository non-DI factory; review READY_TO_MERGE, c957088/e2a7d49). Zero deps novas; nenhum pacote depende do principal theokit. Follow-ups documentados: variante sync better-sqlite3 do orm + instalar @theokit/orm no theocode. Releases per-repo pendentes.
+
 **Valor entregue:** resolve a tensão das duas superfícies HTTP paralelas (convention dev-server vs imperative TheoApp) que não compartilham primitivos. Quase independente — pode ir na onda 1.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
