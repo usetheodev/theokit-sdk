@@ -1,0 +1,58 @@
+/**
+ * M6-2 — `Scorers.verifyGate`: grade a patch by test-command exit code.
+ *
+ * Drives the real `LocalSandbox` (no mocks): a command that exits 0 scores 1,
+ * a command that exits non-zero scores 0 with the exit code in the reason.
+ */
+
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { LocalSandbox } from "../../src/sandbox/local-sandbox.js";
+import { Scorers } from "../../src/scorers.js";
+
+describe("Scorers.verifyGate (M6-2)", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "theo-verify-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("scores 1 when the test command exits zero", async () => {
+    const sandbox = new LocalSandbox({ workDir: dir });
+    const scorer = Scorers.verifyGate({
+      sandbox,
+      repoDir: dir,
+      failToPass: ["t1"],
+      passToPass: [],
+      command: () => "true",
+    });
+    const result = await scorer.score("", undefined);
+    expect(result.score).toBe(1);
+  });
+
+  it("scores 0 with the exit code in the reason when the command exits non-zero", async () => {
+    const sandbox = new LocalSandbox({ workDir: dir });
+    const scorer = Scorers.verifyGate({
+      sandbox,
+      repoDir: dir,
+      failToPass: ["t1"],
+      passToPass: ["t2"],
+      command: () => "false",
+    });
+    const result = await scorer.score("", undefined);
+    expect(result.score).toBe(0);
+    expect(result.reason).toContain("exit=1");
+  });
+
+  it("scores 0 when no command and no tests are specified", async () => {
+    const sandbox = new LocalSandbox({ workDir: dir });
+    const scorer = Scorers.verifyGate({ sandbox, repoDir: dir, failToPass: [], passToPass: [] });
+    const result = await scorer.score("", undefined);
+    expect(result.score).toBe(0);
+    expect(result.reason).toContain("empty_command");
+  });
+});
