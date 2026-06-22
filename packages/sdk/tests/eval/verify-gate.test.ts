@@ -48,9 +48,15 @@ describe("Scorers.verifyGate (M6-2)", () => {
     expect(result.reason).toContain("exit=1");
   });
 
-  it("scores 0 when no command and no tests are specified", async () => {
+  it("scores 0 when the command builder yields an empty command", async () => {
     const sandbox = new LocalSandbox({ workDir: dir });
-    const scorer = Scorers.verifyGate({ sandbox, repoDir: dir, failToPass: [], passToPass: [] });
+    const scorer = Scorers.verifyGate({
+      sandbox,
+      repoDir: dir,
+      failToPass: [],
+      passToPass: [],
+      command: () => "",
+    });
     const result = await scorer.score("", undefined);
     expect(result.score).toBe(0);
     expect(result.reason).toContain("empty_command");
