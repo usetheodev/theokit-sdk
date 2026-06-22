@@ -16,7 +16,8 @@
 import type { ZodType, z } from "zod";
 
 import { type LlmJudgeOptions, llmJudgeScore } from "./internal/scorers/llm-judge.js";
-import type { NamedScorer, Score } from "./types/eval.js";
+import { shellEscapePosix } from "./sandbox/shell-escape.js";
+import type { NamedScorer, Score, VerifyGateOptions } from "./types/eval.js";
 
 /** EC-2 fix: cap JSON parse input to bound memory. 1 MB is generous for structured output. */
 const JSON_SHAPE_MAX_BYTES = 1_000_000;
@@ -121,6 +122,39 @@ export const Scorers = {
         const callOpts: LlmJudgeOptions & { output: string; expected?: unknown } =
           expected !== undefined ? { ...opts, output, expected } : { ...opts, output };
         return llmJudgeScore(callOpts);
+      },
+    };
+  },
+
+  /**
+   * Verify-gate scorer (M6-2): runs the project's tests in the provisioned
+   * repo via `SandboxBackend.execute` and scores `1` iff the command exits `0`,
+   * else `0` with the exit code + truncated stderr in `reason`. Grades the
+   * artifact captured by `captureArtifact` (D2 — rides `execute`, never a
+   * direct `child_process`).
+   *
+   * SECURITY: `command` is REQUIRED and the caller's builder owns shell-safety
+   * of the (potentially untrusted, dataset-derived) test identifiers. There is
+   * NO default that runs bare test names — that would interpolate untrusted
+   * `failToPass`/`passToPass` straight into a shell. `repoDir` is shell-escaped
+   * by the SDK; the test list is the builder's responsibility to render safely.
+   *
+   * PORTABILITY: the command is wrapped as `cd <repoDir> && <cmd>`, which
+   * assumes a shell-backed `SandboxBackend` (LocalSandbox/Docker). A backend
+   * that rejects shell metacharacters in `execute` is unsupported for this scorer.
+   */
+  verifyGate(opts: VerifyGateOptions): NamedScorer {
+    const { sandbox, repoDir, failToPass, passToPass, command } = opts;
+    return {
+      name: "verify-gate",
+      score: async (): Promise<Score> => {
+        const cmd = command([...failToPass, ...passToPass]).trim();
+        if (cmd.length === 0) {
+          return { score: 0, reason: "verify_gate_empty_command" };
+        }
+        const r = await sandbox.execute(`cd ${shellEscapePosix(repoDir)} && ${cmd}`);
+        if (r.exitCode === 0) return { score: 1 };
+        return { score: 0, reason: `exit=${r.exitCode} ${r.stderr.slice(0, 200)}`.trim() };
       },
     };
   },

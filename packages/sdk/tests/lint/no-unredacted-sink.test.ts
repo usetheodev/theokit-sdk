@@ -49,6 +49,10 @@ const SINK_PATTERNS: Sink[] = [
  *   module top.
  * - `internal/persistence/atomic-write.ts` — generic blob writer used
  *   by callers that must redact themselves before passing data in.
+ * - `internal/persistence/jsonl.ts` — generic JSONL writer (`appendJsonl`)
+ *   for the eval harness (M6). Persists caller-supplied eval-row records to a
+ *   caller-chosen path; same contract as atomic-write — the consumer owns its
+ *   payload. No SDK-originated secret flows through it.
  * - `internal/memory/storage/transcript-store.ts` — uses atomic-write
  *   primitive; caller redacts (consistent with the runtime/session
  *   store approach).
@@ -98,6 +102,7 @@ const WHITELIST = new Set<string>([
   "internal/runtime/session/agent-session-store.ts",
   "internal/memory/migrate-sqlite-to-lance.ts",
   "internal/persistence/atomic-write.ts",
+  "internal/persistence/jsonl.ts",
   "internal/persistence/exclusive-create.ts",
   "internal/persistence/file-lock.ts",
   "internal/persistence/schema-version.ts",
