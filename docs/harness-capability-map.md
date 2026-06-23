@@ -5,7 +5,7 @@ primitive with its real import path, a one-line description, and a minimal
 example. The goal: find `compactTranscript`, `buildRepoMap`, `isTransientError`,
 or any other capability **without reading source**.
 
-- Every `import` line below resolves against the published packages (verified in CI by the V2-3 resolve-check).
+- Every `import` line below resolves against the published packages — verified by the committed resolve-check `scripts/check-capability-map.mjs` (run it after `pnpm --filter @theokit/sdk build`; intended to be wired into CI).
 - Public `@theokit/sdk/*` and `@theokit/sdk-tools` sub-paths are **semver-protected**. The `@theokit/sdk/internal/*` sub-paths are **semver-exempt** (may break) — prefer the public homes listed here.
 - The canonical, exhaustive API contract is [`docs.md`](../docs.md); this map is the discovery front-door, organized by capability.
 
@@ -173,6 +173,19 @@ import { Cron } from "@theokit/sdk/cron"; // Cron.create(...) scheduled agent ru
 import { defineSubscription, subscribe, tracked } from "@theokit/sdk/subscription"; // streaming subscriptions + resume tokens
 import { AgentMailbox, MessageBus, defineSubAgent } from "@theokit/sdk/a2a"; // agent-to-agent messaging
 import { TheoKitClient } from "@theokit/sdk/client"; // typed client for the cloud runtime
+```
+
+## Server-side (cloud runtime) — `@theokit/sdk/server/*`
+
+For building the server that backs the cloud runtime (OAuth callbacks + a canonical error envelope across HTTP surfaces).
+
+```typescript
+import { defineAuth, validateReturnTo } from "@theokit/sdk/server/auth";
+// defineAuth({ providers, ... }) → auth handler; validateReturnTo(url, allowlist) → safe redirect target
+// + typed errors: AuthCallbackError, AuthCancelledError, AuthConfigError, AuthProviderNotFoundError, AuthSecretTooShortError
+
+import { toEnvelope, fromEnvelope } from "@theokit/sdk/server/errors-envelope";
+// toEnvelope(err) → a canonical wire error envelope; fromEnvelope(envelope) → a typed error (cross-surface error contract)
 ```
 
 ---
