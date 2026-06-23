@@ -214,14 +214,16 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M8 — Camada declarativa: dar runtime aos decorators (Seção 6)
 
+> **Status: READY_TO_MERGE (4/4) — 2026-06-23, no repo `theokit` (develop), pré-release.** Cycle discover→plan→implement→review completo. Os 3 decorators metadata-only de `@theokit/agents` (`@ContextWindow`/`@AutoSummarize`, `@ProjectContext`, `@Skills`) agora compilam para campos nativos do `Agent.create()` do SDK e são executados por ele (sdk-runtime.md: bridge compila, SDK executa) — M8-1 `@ContextWindow`→`ContextSettings.maxTokens` (+warning metadata-only nos knobs de estratégia), M8-2 `@ProjectContext`→`SystemPromptResolver` (buildEnvContext+buildRepoMap+readProjectInstructions via `@theokit/sdk-tools`/`@theokit/sdk/project`), M8-3 `@Skills`→`SkillsSettings`; M8-4 = ADR 0031 (di/gateways/plugins ficam imperative-first/optional, à luz do decorators-optional rule 9 do SDK). `@theokit/sdk` bumpado 2.0.1→2.5.0 + `@theokit/sdk-tools` (optional peer); direção agents→sdk apenas (ADR 0030). plan-confidence SHIPPABLE 93.2; review 0 BLOCKER/0 HIGH (2 HIGH de "cwd no-op" refutados via contrato `resolveCwd` do SDK; MEDIUM dual-compile-path corrigido). Nota: M8 mora no repo principal `theokit/packages/agents`, não no SDK — as tags "sdk ·" da tabela são imprecisas. Release pendente (merge do dono).
+
 **Valor entregue:** elimina o anti-padrão "decorator sem runtime". Cada decorator passa a compilar para uma chamada real aos primitivos das ondas 1–3. Resolve a tensão estratégica imperativo-vs-declarativo.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M8-1 | `@ContextWindow` / `AutoSummarize` sem runtime | sdk · @theokit/sdk · agents | med | M | M2-1, M2-2 | Compilar metadata para chamadas a `compactTranscript`/`shouldCompact`. |
-| M8-2 | `@ProjectContext` sem executor | sdk · @theokit/agents | med | M | M3-3, M4-2 | `getProjectContextConfig` passa a dirigir `buildRepoMap`/`readProjectInstructions`. |
-| M8-3 | `@Skills` sem runtime | sdk · @theokit/agents | med | S | M4-1 | Decorator dirige `discoverSkills`/`buildSkillsBlock`. |
-| M8-4 | Decisão estratégica di/gateways/plugins | — · investigação | — | M | M1–M5 | Avaliar alinhamento: o on-ramp imperativo (o que se usa) precisa das peças que esses pacotes não preenchem. Documentar em ADR. |
+| M8-1 ✅ | `@ContextWindow` / `AutoSummarize` sem runtime | sdk · @theokit/sdk · agents | med | M | M2-1, M2-2 | Compilar metadata para chamadas a `compactTranscript`/`shouldCompact`. |
+| M8-2 ✅ | `@ProjectContext` sem executor | sdk · @theokit/agents | med | M | M3-3, M4-2 | `getProjectContextConfig` passa a dirigir `buildRepoMap`/`readProjectInstructions`. |
+| M8-3 ✅ | `@Skills` sem runtime | sdk · @theokit/agents | med | S | M4-1 | Decorator dirige `discoverSkills`/`buildSkillsBlock`. |
+| M8-4 ✅ | Decisão estratégica di/gateways/plugins | — · investigação | — | M | M1–M5 | Avaliar alinhamento: o on-ramp imperativo (o que se usa) precisa das peças que esses pacotes não preenchem. Documentar em ADR. |
 
 **Concluído quando:** nenhum decorator é metadata-only; existe ADR decidindo o futuro de di/gateways à luz do uso real (imperativo, local-first).
 
