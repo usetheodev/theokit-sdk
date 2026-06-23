@@ -24,6 +24,8 @@ export default defineConfig({
     concurrency: "src/concurrency.ts",
     // M0-3: retry reaches into internal/runtime, DTS via tsc (see concurrency).
     retry: "src/retry.ts",
+    // V2-3: persistence helpers re-export internal/persistence; DTS via tsc (see concurrency/retry).
+    persistence: "src/persistence.ts",
     "task-store": "src/task-store.ts",
     workflow: "src/workflow.ts",
     eval: "src/eval.ts",

@@ -2239,6 +2239,39 @@ reasons all work the same way. Tool-calling quality depends on the
 underlying model (Llama 3.1+, Mistral, Qwen2.5 work well; older models
 may not).
 
+## Persistence helpers (v2.6+) — `@theokit/sdk/persistence`
+
+Stable, semver-protected persistence primitives for harness consumers (eval
+runners, config/plan stores). Promoted from the semver-exempt
+`internal/persistence` so you adopt them without coupling to `internal/`.
+
+```typescript
+import {
+  appendJsonl,      // append one record as a \n-terminated JSON line (mkdirs parent)
+  readJsonlIds,     // resume helper: Set of keys for which keyFn(parsed) is non-empty (tolerates a trailing partial line)
+  loadJsonl,        // parse a JSONL file → rows (throws JsonlParseError on a malformed line); also re-exported from @theokit/sdk/eval
+  replaceFileAtomic, // atomic write: temp + fsync + 0o600 + rename (never a torn write)
+  atomicWriteText,
+  atomicWriteJson,
+  withFileLock,      // cross-process advisory lock around an async critical section
+  openSqliteResilient, // open SQLite with corruption recovery
+  applyWalWithFallback, // WAL + foreign-keys pragma with a journal fallback
+  isCorruptionError,
+} from "@theokit/sdk/persistence";
+
+// Durable, crash-safe, resumable batch run:
+appendJsonl("out/preds.jsonl", { id: "task-1", patch: "diff..." });
+const done = readJsonlIds("out/preds.jsonl", (r) =>
+  typeof r.id === "string" && typeof r.patch === "string" && r.patch.length > 0 ? r.id : undefined,
+);
+// `done` holds the ids already completed — skip them on resume.
+
+await replaceFileAtomic("config.json", JSON.stringify(cfg)); // no torn write on crash
+```
+
+`loadJsonl` is the same symbol exported from `@theokit/sdk/eval` (dataset
+loading); the `persistence` sub-path co-locates it with the write/resume helpers.
+
 ## Eval suite (v1.15+) — `Eval.create / .run`
 
 Eval-as-code primitive for production deploy gates. ADRs D202-D213.
