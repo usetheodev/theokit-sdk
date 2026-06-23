@@ -53,7 +53,7 @@ Dois atritos operacionais que o V2 expôs:
 
 ---
 
-## V3-1 — Endurecer `catastrophicShellReason` (segurança) — [ ]
+## V3-1 — Endurecer `catastrophicShellReason` (segurança) — [x] (shipped @theokit/sdk-tools@0.3.0)
 
 **Esforço:** S-M · **Repo:** `theokit-sdk` (packages/sdk-tools) · **Depende de:** — · **Valor:** ALTO (segurança)
 
