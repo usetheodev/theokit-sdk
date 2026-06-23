@@ -136,15 +136,15 @@ Meta: as ~720 LoC de orquestração do theocode → ~40 LoC + strategies nomeada
 ### ✅ V4-A — Diagnóstico de adoção (GATE) — CONCLUÍDO (2026-06-23)
 **Resultado:** [`V4A-adoption-gap-diagnosis.md`](./V4A-adoption-gap-diagnosis.md). **Gap localizado:** `@MainLoop` é metadata-only — `strategy: 'plan-act-reflect'|'react'` é declarada + obrigatória + compilada + surfaceada no manifest, mas o orquestrador (`agent-orchestrator.ts:159-172`) é single-shot e nunca faz branch nela; `maxIterations` compilado e nunca lido. O theocode não adota porque o que ele precisa (loop reflexivo) é exatamente o que o `@MainLoop` promete e não cumpre. **Implicação:** V4 = "M8 Fase 2" (dar runtime ao `@MainLoop`). Escopo de V4-B..V4-H confirmado.
 
-### V4-B — Builder layer (`AgentBuilder` / `AgentRunner.builder()`) — [ ]
+### V4-B — Builder layer (`AgentBuilder` / `AgentRunner.builder()`) — [x] (shipped @theokit/agents@0.6.0)
 **Esforço:** M · **Padrão:** Builder · **Depende de:** V4-A · **Valor:** Alto
 A peça fluente que não existe. `AgentRunner.builder(AgentClass).reflection().compaction().stream().build()`. Compõe decorators + strategies → compila para `Agent.create` + driver. **Loop:** theocode constrói o runner via builder.
 
-### V4-C — `ReflectionStrategy` = dar runtime a `@MainLoop strategy:'plan-act-reflect'` — [ ]
+### V4-C — `ReflectionStrategy` = dar runtime a `@MainLoop strategy:'plan-act-reflect'` — [x] (shipped @theokit/agents@0.6.0)
 **Esforço:** M · **Padrão:** Strategy · **Depende de:** V4-B · **Valor:** ALTO (maior ganho)
 Implementa o que o `@MainLoop({strategy:'plan-act-reflect'})` já declara mas não executa (metadata-only — V4-A). A reflection ladder de 248 LoC do theocode (`agent-loop.ts`: `classifyRoundOutcome`/`selectReflection`) vira a `ReflectionStrategy` default no `theokit`. Igual ao M8: o bridge compila, o runtime executa. **Loop:** theocode declara `@MainLoop({strategy:'plan-act-reflect'})` (ou `.reflection('ladder')` no builder); `agent-loop.ts` vira a default da strategy (domínio→framework) OU strategy custom.
 
-### V4-D — `LoopStrategy` = dar runtime a `@MainLoop strategy:'react'` + `AgentRunner` — [ ]
+### V4-D — `LoopStrategy` = dar runtime a `@MainLoop strategy:'react'` + `AgentRunner` — [x] (shipped @theokit/agents@0.7.0)
 **Esforço:** L · **Padrão:** Builder + Strategy · **Depende de:** V4-B, **V3-4** · **Valor:** ALTO
 Implementa o `strategy:'react'` (hoje metadata-only) como loop multi-round real, substituindo o single-shot do `agent-orchestrator.ts`. O outer loop de 470 LoC do theocode (`agent-stream.ts`) vira `AgentRunner` configurado sobre o continuation driver do V3-4 (streaming+stateless). `LoopStrategy` = terminais (`done`/`step_limit`/`no_progress`) + re-prompt bounded + honra `maxIterations` (hoje compilado e ignorado). **Loop:** theocode troca `agent-stream.ts` por `AgentRunner.builder(...)`.
 
