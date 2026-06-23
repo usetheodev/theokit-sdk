@@ -223,17 +223,24 @@ Insight: o `@theokit/agents` já tem o que a peer project/LlamaIndex/Semantic-Ke
 ## 9. Como executar
 
 ```
-V4-A diagnóstico (in-repo): declarar o code-agent do theocode com @Agent, medir o que sobra
+✅ V4-A diagnóstico (in-repo) ......... FEITO → gap = @MainLoop metadata-only
+✅ /discover (cycle completo) ......... FEITO → blueprint SHIPPABLE (99.0)
         ↓
-/discover-plan declarative-agent-orchestration  (narrow)
-   — pergunta: "Como expor ORQUESTRAÇÃO (loop/reflection/guard/compaction) como builder fluente
-     + strategies nomeadas em @theokit/agents, compilando para o factory core (ADR 0031),
-     de modo que o theocode finalmente adote?"
-   — refs: in-repo @theokit/agents (bridge/decorators) + Spring AI + a peer framework (só builder/strategy/starter)
-        ↓
-V4-B..V4-F: por milestone, /to-plan → ... → /implement → /review (em @theokit/agents)
+   V4-B..V4-F: por milestone, /to-plan → ... → /implement → /review (em @theokit/agents)
         → release → theocode adota → mede LoC/legibilidade/adoção
 ```
+
+### Discovery concluído (2026-06-23) — decisões fixadas com evidência
+
+Cycle-discover inteiro rodado pelas skills reais (`theokit/.claude/knowledge-base/discoveries/blueprints/declarative-agent-orchestration-blueprint.md`, **SHIPPABLE 99.0**). Conclusões que ancoram V4-B..V4-D:
+
+1. **`LoopStrategy` modela-se no a peer framework `agentic-loop`/`stopWhen` (multi-round), NÃO no Advisor do Spring** — o Advisor é interceptor per-call (middleware), não decide entre rounds (EC-4). Contrato proposto: `LoopStrategy.shouldContinue(outcome): boolean` + `maxIterations`.
+2. **`ReflectionStrategy.reflect(outcome) → { feedback?, continue }`** — espelha o `onIterationComplete` do a peer framework.
+3. **`AgentRunner.builder(AgentClass).reflection().compaction().stream().build()`** — e o builder do Spring (`DefaultChatClient`) prova que **builder + decorator coexistem standalone, sem IoC** (zero `@Autowired`) → valida a restrição ADR 0031.
+4. **EC-2 pagou:** o `tool-loop-agent/` do a peer framework é adapter alpha (AI-SDK v6 interop), NÃO o loop canônico — o blueprint modelou sobre o `agentic-loop` canônico. Sem o cross-check, teríamos copiado um experimento.
+5. Tudo compila do campo `@MainLoop({strategy})` → `Agent.create()`/`Run.stream()` (bridge compila, SDK executa, sem IoC — `sdk-runtime.md`/ADR 0031). Mecanismos Java/Spring marcados como não-portáveis (EC-3).
+
+**Próximo:** `/to-plan` para V4-B (builder) + V4-C (`strategy:'plan-act-reflect'` runtime) em `theokit/packages/agents`, usando este blueprint como prior-art.
 
 ---
 
