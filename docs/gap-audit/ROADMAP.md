@@ -194,19 +194,19 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M7 — HTTP, persistência e consolidação dual-surface (Tema F)
 
-> **Status: READY_TO_MERGE (3/3 slices) — pending release cut (2026-06-22).** cycle discover→plan→implement→review completo nos 3 repos: **theokit** M7-1/2/3 (typed errors/404 no defineRoute + defineHealthRoute/Ready + theokit/boot; review READY_TO_MERGE, commits de77073…717bc06); **theokit-sdk** M7-4/5/6 (PermissionEngine defaultAction + createPermissionPlugin + formatCostUsd honest-null; review READY_TO_MERGE, 32180fe/dd0a334); **@theokit/orm** M7-7 (createRepository non-DI factory; review READY_TO_MERGE, c957088/e2a7d49). Zero deps novas; nenhum pacote depende do principal theokit. Follow-ups documentados: variante sync better-sqlite3 do orm + instalar @theokit/orm no theocode. Releases per-repo pendentes.
+> **Status: RELEASED (3/3 slices) — 2026-06-22.** npm: `theokit@0.8.0`, `@theokit/sdk@2.5.0`, `@theokit/sdk-budget@0.3.0`, `@theokit/orm@0.1.0` (first stable, dropped -next). Published manually via token; per-package tags pushed. cycle discover→plan→implement→review completo nos 3 repos: **theokit** M7-1/2/3 (typed errors/404 no defineRoute + defineHealthRoute/Ready + theokit/boot; review READY_TO_MERGE, commits de77073…717bc06); **theokit-sdk** M7-4/5/6 (PermissionEngine defaultAction + createPermissionPlugin + formatCostUsd honest-null; review READY_TO_MERGE, 32180fe/dd0a334); **@theokit/orm** M7-7 (createRepository non-DI factory; review READY_TO_MERGE, c957088/e2a7d49). Zero deps novas; nenhum pacote depende do principal theokit. Follow-ups documentados: variante sync better-sqlite3 do orm + instalar @theokit/orm no theocode. Merged: theokit PR #20 + theokit-sdk PR #31; @theokit/orm M7-7 via main (branch criada de develop).
 
 **Valor entregue:** resolve a tensão das duas superfícies HTTP paralelas (convention dev-server vs imperative TheoApp) que não compartilham primitivos. Quase independente — pode ir na onda 1.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M7-1 | 404 / typed exception em `defineRoute` | fw · theokit | med | M | — | Exportar `TheoError`+`fromUnknown`+sugar via `theokit/server`; rotear catch legado por `serverErrorToEnvelope`. |
-| M7-2 | Health-check route p/ filesystem-route server | fw · theokit | low | S | — | `defineHealthRoute`/`defineReadyRoute` (orquestrador já default-polla `/health`). |
-| M7-3 | Boot programático do server | fw · theokit | low | S | — | Promover `startDevServer`/`startCommand` a `theokit/boot`. |
-| M7-4 | `default-deny` no PermissionEngine | sdk · @theokit/sdk | low | S | — | `defaultAction: PermissionAction` (default `"allow"`); 1 linha, backward-compatible. |
-| M7-5 | PermissionEngine+definePlugin wiring (exemplar) | sdk · @theokit/sdk | low | S | M7-4 | Documentar o wiring como exemplo; só falta default-deny. |
-| M7-6 | Per-mode tool permission + projeção de usage/cost | sdk · server/cost+sdk | low | M | M1-6 | `UsageRecord.costUsd` nullable + `UsageResult.costKnown`; CostMeter renderiza `—`. |
-| M7-7 | Drizzle Repository CRUD (async-only + DI-first são as barreiras) | di · @theokit/orm | med | M | — | `createRepository(db,table)` non-DI + variante sync-aware p/ better-sqlite3; instalar @theokit/orm no theocode. |
+| M7-1 ✅ | 404 / typed exception em `defineRoute` | fw · theokit | med | M | — | Exportar `TheoError`+`fromUnknown`+sugar via `theokit/server`; rotear catch legado por `serverErrorToEnvelope`. |
+| M7-2 ✅ | Health-check route p/ filesystem-route server | fw · theokit | low | S | — | `defineHealthRoute`/`defineReadyRoute` (orquestrador já default-polla `/health`). |
+| M7-3 ✅ | Boot programático do server | fw · theokit | low | S | — | Promover `startDevServer`/`startCommand` a `theokit/boot`. |
+| M7-4 ✅ | `default-deny` no PermissionEngine | sdk · @theokit/sdk | low | S | — | `defaultAction: PermissionAction` (default `"allow"`); 1 linha, backward-compatible. |
+| M7-5 ✅ | PermissionEngine+definePlugin wiring (exemplar) | sdk · @theokit/sdk | low | S | M7-4 ✅ | Documentar o wiring como exemplo; só falta default-deny. |
+| M7-6 ✅ | Per-mode tool permission + projeção de usage/cost | sdk · server/cost+sdk | low | M | M1-6 | `UsageRecord.costUsd` nullable + `UsageResult.costKnown`; CostMeter renderiza `—`. |
+| M7-7 ✅ | Drizzle Repository CRUD (async-only + DI-first são as barreiras) | di · @theokit/orm | med | M | — | `createRepository(db,table)` non-DI + variante sync-aware p/ better-sqlite3; instalar @theokit/orm no theocode. |
 
 **Concluído quando:** um builder não precisa escolher entre "convention sem health/logRequest tipado" e "TheoApp que não serve as rotas do `theokit dev`".
 
@@ -214,14 +214,16 @@ M2 Contexto  M6 Eval harness    M4 Skills/memória/projeto
 
 ## M8 — Camada declarativa: dar runtime aos decorators (Seção 6)
 
+> **Status: RELEASED (4/4) — 2026-06-23.** npm: **`@theokit/agents@0.5.0`** + **`theokit@0.8.1`** (publicados via token; OIDC não configurado). Cycle discover→plan→implement→review completo no repo `theokit` (PR #21 merged; PR #22 finaliza o bump+lockfile). Os 3 decorators metadata-only de `@theokit/agents` compilam para campos nativos do `Agent.create()` e são executados pelo SDK (sdk-runtime.md) — M8-1 `@ContextWindow`→`ContextSettings.maxTokens` (+warning metadata-only), M8-2 `@ProjectContext`→`SystemPromptResolver` (buildEnvContext+buildRepoMap+readProjectInstructions), M8-3 `@Skills`→`SkillsSettings`; M8-4 = ADR 0031 (di/gateways imperative-first/optional). `@theokit/sdk` 2.0.1→2.5.0 + `@theokit/sdk-tools` (optional peer); direção agents→sdk apenas (ADR 0030). review READY_TO_MERGE (0 BLOCKER/0 HIGH). **Roadmap M0–M8 completo.** M8 mora no repo principal `theokit/packages/agents` (tags "sdk ·" da tabela são imprecisas).
+
 **Valor entregue:** elimina o anti-padrão "decorator sem runtime". Cada decorator passa a compilar para uma chamada real aos primitivos das ondas 1–3. Resolve a tensão estratégica imperativo-vs-declarativo.
 
 | ID | Gap | Repo · Package | Sev | Esf | Depende de | Ação |
 |---|---|---|---|---|---|---|
-| M8-1 | `@ContextWindow` / `AutoSummarize` sem runtime | sdk · @theokit/sdk · agents | med | M | M2-1, M2-2 | Compilar metadata para chamadas a `compactTranscript`/`shouldCompact`. |
-| M8-2 | `@ProjectContext` sem executor | sdk · @theokit/agents | med | M | M3-3, M4-2 | `getProjectContextConfig` passa a dirigir `buildRepoMap`/`readProjectInstructions`. |
-| M8-3 | `@Skills` sem runtime | sdk · @theokit/agents | med | S | M4-1 | Decorator dirige `discoverSkills`/`buildSkillsBlock`. |
-| M8-4 | Decisão estratégica di/gateways/plugins | — · investigação | — | M | M1–M5 | Avaliar alinhamento: o on-ramp imperativo (o que se usa) precisa das peças que esses pacotes não preenchem. Documentar em ADR. |
+| M8-1 ✅ | `@ContextWindow` / `AutoSummarize` sem runtime | sdk · @theokit/sdk · agents | med | M | M2-1, M2-2 | Compilar metadata para chamadas a `compactTranscript`/`shouldCompact`. |
+| M8-2 ✅ | `@ProjectContext` sem executor | sdk · @theokit/agents | med | M | M3-3, M4-2 | `getProjectContextConfig` passa a dirigir `buildRepoMap`/`readProjectInstructions`. |
+| M8-3 ✅ | `@Skills` sem runtime | sdk · @theokit/agents | med | S | M4-1 | Decorator dirige `discoverSkills`/`buildSkillsBlock`. |
+| M8-4 ✅ | Decisão estratégica di/gateways/plugins | — · investigação | — | M | M1–M5 | Avaliar alinhamento: o on-ramp imperativo (o que se usa) precisa das peças que esses pacotes não preenchem. Documentar em ADR. |
 
 **Concluído quando:** nenhum decorator é metadata-only; existe ADR decidindo o futuro de di/gateways à luz do uso real (imperativo, local-first).
 
@@ -237,10 +239,10 @@ Prova de completude: cada gap confirmado da tabela mestra do relatório → mile
 | 2 | Tool scoping por sub-agente sem enforcement | M4-6 |
 | 3 | safeFilenameForId (4 respostas divergentes) | M0-4 |
 | 4 | Token estimate + shouldCompact | M2-2 |
-| 5 | default-deny no PermissionEngine | M7-4 |
-| 6 | Health-check route | M7-2 |
-| 7 | Boot programático do server | M7-3 |
-| 8 | 404 typed exception em defineRoute | M7-1 |
+| 5 | default-deny no PermissionEngine | M7-4 ✅ |
+| 6 | Health-check route | M7-2 ✅ |
+| 7 | Boot programático do server | M7-3 ✅ |
+| 8 | 404 typed exception em defineRoute | M7-1 ✅ |
 | 9 | AgentToolRenderer | M5-3 |
 | 10 | Auto-scroll stick-to-bottom | M5-5 |
 | 11 | accumulateAssistantText + streamError | M5-1 |
@@ -262,13 +264,13 @@ Prova de completude: cada gap confirmado da tabela mestra do relatório → mile
 | 27 | Screen de shell catastrófico | M3-2 |
 | 28 | Rich errors (self-correction) | M3-4 |
 | 29 | ACI description override + `<tools>` | M3-5 |
-| 30 | Per-mode tool permission + cost projection | M7-6 |
+| 30 | Per-mode tool permission + cost projection | M7-6 ✅ |
 | 31 | Repo-map / env-context builder | M3-3 |
 | 32 | Reader/writer de project-instructions | M4-2 |
 | 33 | Catastrophic shell (perm.plugin path) | M3-6 |
 | 34 | Stream-message → wire-event mapper | M1-5 |
 | 35 | Catálogo per-model context-window | M2-4 |
-| 36 | Drizzle Repository CRUD | M7-7 |
+| 36 | Drizzle Repository CRUD | M7-7 ✅ |
 | 37 | SQLite bootstrap (WAL+FK) | M0-5 |
 | 38 | Eval seed→agent→verify-gate | M6-2 |
 | 39 | RepoProvisioner | M6-3 |
