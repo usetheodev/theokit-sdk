@@ -1,15 +1,26 @@
 /**
- * Catastrophic-command guardrail for `shell_exec` (M3-2).
+ * Catastrophic-command guardrail for `shell_exec` (M3-2; hardened V3-1).
  *
- * `catastrophicShellReason` is a pure, segment-aware deny-list: it splits a
- * command on top-level connectors (`;`, `&&`, `||`, pipe), strips `sudo`/`env`
- * prefixes, and matches at COMMAND POSITION (the executable, not an arbitrary
- * substring) so a mention like `echo "rm -rf /"` is not over-blocked. It returns
- * a human reason for the first catastrophic segment, else `null`.
+ * `catastrophicShellReason` is a pure, segment-aware deny-list ported from
+ * theocode's security-reviewed `shell-guard.ts` (the proven spec: 42-blocked +
+ * 24-allowed corpus, 0 misses / 0 false-positives). It splits a command on shell
+ * separators (`;`, `&&`, `||`, `|`, `&`, newline), inspects EVERY segment (so a
+ * chained `rm -rf <safe>; rm -rf /` cannot hide), and matches at COMMAND POSITION
+ * (the executable, not an arbitrary substring) so a mention like `echo "rm -rf /"`
+ * is not over-blocked. Returns a human reason for the first catastrophic segment,
+ * else `null`.
  *
- * This is a heuristic GUARDRAIL, NOT a sandbox: it is bypassable by obfuscation
- * (eval/base64) and is best-effort. POSIX `/bin/sh` only; Windows PowerShell is
- * out of scope. Design: blueprint m3-catastrophic-shell. Zero new deps.
+ * Categories: recursive-force `rm` of an absolute/home/parent path; destructive git
+ * (force-push, `reset --hard`, `clean -fd`); remote-code-execution (curl/wget piped
+ * OR command-substitution `$( )` / `<( )` / eval / source); disk/raw-device wipe
+ * (mkfs, `dd of=/dev/`, `truncate /dev/`, `> /dev/<blockdev>`); recursive chmod/chown
+ * of a root path (SDK extra); fork bomb; `find -delete` / `-exec rm`; secret-file
+ * exfiltration over the network.
+ *
+ * This is a heuristic GUARDRAIL, NOT a sandbox: it is bypassable by deep obfuscation
+ * (base64/env-indirection) and is best-effort. POSIX `/bin/sh` only; Windows
+ * PowerShell is out of scope. True isolation needs a container.
+ * referencia: .claude/knowledge-base/references/theocode-shell-guard/server-lib/shell-guard.ts
  */
 
 import { ConfigurationError } from "@theokit/sdk";
@@ -24,182 +35,174 @@ export class CatastrophicCommandError extends ConfigurationError {
   }
 }
 
-const SHELL_NAMES = new Set(["sh", "bash", "zsh", "dash", "ksh", "ash"]);
-const PREFIX_TOKENS = new Set([
-  "sudo",
-  "doas",
-  "env",
-  "command",
-  "time",
-  "nice",
-  "nohup",
-  "exec",
-  "builtin",
-]);
+/** Strip a single layer of surrounding quotes from a token (so `"/"` -> `/`). */
+function unquote(token: string): string {
+  return token.replace(/^(['"])(.*)\1$/, "$2").replace(/^['"]|['"]$/g, "");
+}
 
-/** Self-named function piping into itself: the classic `:(){ :|:& };:`. */
-const FORK_BOMB = /:\s*\(\s*\)\s*\{[^}]*\|[^}]*&[^}]*\}/;
 /**
- * `> /dev/sda` and friends (NOT /dev/null|zero|stdout — those are benign).
- * `\w*` matches the trailing device id (`sda`, `nvme0n1`); a `\b` placed right
- * after the family token would never match a real node (word→word transition).
+ * Split a command line into statement segments on shell separators
+ * (`;`, `&&`, `||`, `|`, `&`, newline). The rm screen inspects EVERY segment (C1).
+ * Quote-aware splitting is out of scope (a guardrail, not a parser).
  */
-const DEVICE_REDIRECT = /[>]\s*\/dev\/(?:sd|nvme|hd|vd|mmcblk|disk|loop|dm-)\w*/;
-/** Top-level system directories whose recursive delete bricks the host. */
-const SYSTEM_DIR =
-  /^\/(?:etc|usr|bin|sbin|lib|lib64|var|boot|home|root|opt|sys|proc|dev)(?:\/\*?)?$/;
-
-function basename(p: string): string {
-  const i = p.lastIndexOf("/");
-  return i >= 0 ? p.slice(i + 1) : p;
+function commandSegments(command: string): string[] {
+  return command
+    .split(/&&|\|\||[;|&\n]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
 }
 
-function unquote(t: string): string {
-  if (t.length >= 2) {
-    const a = t[0];
-    const b = t[t.length - 1];
-    if ((a === '"' && b === '"') || (a === "'" && b === "'")) return t.slice(1, -1);
-  }
-  return t;
+/** Arg tokens of a segment whose command is `name` (after an optional `sudo`); `null` otherwise. */
+function commandArgs(segment: string, name: string): string[] | null {
+  const tokens = segment.split(/\s+/);
+  let i = 0;
+  if (tokens[i] === "sudo") i += 1;
+  if (tokens[i] !== name) return null; // must be the COMMAND, not a substring/arg
+  return tokens.slice(i + 1);
 }
 
-function tokenize(s: string): string[] {
-  return s.trim().split(/\s+/).filter(Boolean);
+/** Every segment whose command is `name` -> its arg list. */
+function commandSegmentsNamed(command: string, name: string): string[][] {
+  return commandSegments(command)
+    .map((s) => commandArgs(s, name))
+    .filter((args): args is string[] => args !== null);
 }
 
-/** Split on top-level connectors. Order matters: `&&`/`||` before single `|`. */
-function splitSegments(cmd: string): string[] {
-  return cmd.split(/&&|\|\||;|\|/);
-}
-
-function stripPrefixTokens(tokens: string[]): string[] {
-  let t = tokens;
-  let head = t[0];
-  while (head !== undefined && PREFIX_TOKENS.has(basename(unquote(head)))) {
-    t = t.slice(1);
-    head = t[0];
-  }
-  return t;
-}
-
-function operandsOf(tokens: string[]): string[] {
-  return tokens
-    .slice(1)
-    .filter((t) => !t.startsWith("-"))
-    .map(unquote);
-}
-
-/** Matches the shell HOME variable in `$HOME` or `${HOME}` form. */
-const HOME_VAR = /^\$\{?HOME\}?$/;
-
-/** Root / home / glob / top-level-system targets that make a recursive op catastrophic. */
-function isRootishPath(op: string): boolean {
-  if (op === "~" || op === "*" || op === "." || HOME_VAR.test(op)) return true;
-  let collapsed = op.replace(/\/+/g, "/");
-  if (collapsed.length > 1 && collapsed.endsWith("/")) collapsed = collapsed.slice(0, -1);
-  if (collapsed === "/" || collapsed === "/*" || collapsed === "/.") return true;
-  return SYSTEM_DIR.test(collapsed);
-}
-
-function hasRecursiveForce(tokens: string[]): boolean {
-  const flags = tokens.slice(1).filter((t) => t.startsWith("-"));
-  const recursive = flags.some(
-    (f) => f === "--recursive" || (!f.startsWith("--") && /[rR]/.test(f)),
-  );
-  const force = flags.some((f) => f === "--force" || (!f.startsWith("--") && f.includes("f")));
+/** Does an arg list carry BOTH a recursive and a force flag, in ANY position/spelling? */
+function isRecursiveForce(args: string[]): boolean {
+  const flags = args.filter((t) => t.startsWith("-")).join(" ");
+  if (flags.length === 0) return false;
+  const recursive = /-[a-z]*r/i.test(flags) || /--recursive/.test(flags);
+  const force = /-[a-z]*f/i.test(flags) || /--force/.test(flags);
   return recursive && force;
 }
 
-function hasRecursiveFlag(tokens: string[]): boolean {
-  return tokens
-    .slice(1)
-    .some(
-      (t) => t === "--recursive" || (t.startsWith("-") && !t.startsWith("--") && /[rR]/.test(t)),
+/** Does an arg list carry a recursive flag (for chmod/chown -R)? */
+function isRecursive(args: string[]): boolean {
+  const flags = args.filter((t) => t.startsWith("-")).join(" ");
+  return /-[a-z]*r/i.test(flags) || /--recursive/.test(flags);
+}
+
+/** Absolute paths that are safe to recursively delete (scratch/throwaway). */
+const SAFE_ABSOLUTE_TARGET = /^\/(tmp|var\/tmp)(\/|$)/;
+
+/** True when an arg list targets root, home, `$HOME`, an absolute path, or `..`. */
+function targetsDangerousPath(args: string[]): boolean {
+  const targets = args.filter((token) => token.length > 0 && !token.startsWith("-")).map(unquote);
+  return targets.some((raw) => {
+    const t = raw.replace(/\/+/g, "/"); // collapse `//` -> `/` (SDK extra)
+    if (t === "/dev/null" || SAFE_ABSOLUTE_TARGET.test(t)) return false;
+    return (
+      /^\/($|\*)/.test(t) || // "/" or "/*"
+      /^\/[^/]/.test(t) || // an absolute path like /etc, /usr/local, /home/user/x
+      t === "~" ||
+      t.startsWith("~/") ||
+      /\$\{?HOME\b\}?/.test(t) || // $HOME or ${HOME}
+      t === ".." ||
+      t.startsWith("../") ||
+      t.includes("/..") ||
+      t === "*"
     );
+  });
 }
 
-/** `curl`/`wget` output piped into `sh`/`bash`/... anywhere in the command. */
-function isCurlPipedToShell(cmd: string): boolean {
-  const segs = cmd
-    .replace(/\|\|/g, ";")
-    .split(/[;|]/)
-    .map((s) => s.trim())
-    .filter(Boolean);
-  let fetcher = false;
-  let shell = false;
-  for (const s of segs) {
-    const tk = stripPrefixTokens(tokenize(s));
-    const head = tk[0];
-    if (head === undefined) continue;
-    const c = basename(unquote(head));
-    if (c === "curl" || c === "wget") fetcher = true;
-    if (SHELL_NAMES.has(c)) shell = true;
+/** mkfs / dd-to-device / truncate-device / redirect-to-blockdev (families incl. SDK extras). */
+const DEVICE_WIPE = [
+  /\bmkfs(\.\w+)?\b/,
+  /\bdd\b[^\n]*\bof=\/dev\//,
+  /\btruncate\b[^\n]*\s\/dev\//,
+  />\s*\/dev\/(sd|nvme|hd|vd|mmcblk|disk|loop|dm-)/,
+];
+
+/** A single catastrophic-category screen: returns a reason or `null`. */
+type CategoryCheck = (cmd: string) => string | null;
+
+/** Remote code execution: a remote download fed into an interpreter (pipe / `$( )` / `<( )` / eval / source). */
+const checkRemoteExec: CategoryCheck = (cmd) =>
+  /\b(curl|wget|fetch)\b[^\n]*\|\s*(sudo\s+)?(sh|bash|zsh|dash|python[0-9.]*|node|ruby|perl)\b/i.test(
+    cmd,
+  ) ||
+  /(\$\(|<\()\s*(sudo\s+)?(curl|wget|fetch)\b/i.test(cmd) ||
+  /\b(eval|source)\b[^\n]*\b(curl|wget|fetch)\b/i.test(cmd)
+    ? "executes a remote download (pipe / command-substitution / eval) — remote code execution"
+    : null;
+
+/** Disk / raw block-device wipe (mkfs, dd-to-device, truncate-device, redirect-to-blockdev). */
+const checkDeviceWipe: CategoryCheck = (cmd) =>
+  DEVICE_WIPE.some((re) => re.test(cmd)) ? "writes to a raw block device / formats a disk" : null;
+
+/** Fork bomb. */
+const checkForkBomb: CategoryCheck = (cmd) =>
+  /:\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:/.test(cmd) ? "fork bomb" : null;
+
+/** Destructive git: force-push (NOT --force-with-lease), hard reset, aggressive clean. */
+const checkDestructiveGit: CategoryCheck = (cmd) => {
+  if (/\bgit\b[^\n]*\bpush\b[^\n]*(--force(?!-with-lease)\b|\s-f\b|\s\+\S)/.test(cmd)) {
+    return "git force-push (overwrites remote history)";
   }
-  return fetcher && shell;
-}
-
-type SegmentCheck = (cmd0: string, tokens: string[], seg: string) => string | null;
-
-const rmCheck: SegmentCheck = (cmd0, tokens) => {
-  if (cmd0 !== "rm" || !hasRecursiveForce(tokens)) return null;
-  const ops = operandsOf(tokens);
-  return ops.length === 0 || ops.some(isRootishPath) ? "rm -rf of a root/home/glob path" : null;
-};
-
-const mkfsCheck: SegmentCheck = (cmd0) => (cmd0.startsWith("mkfs") ? "mkfs on a device" : null);
-
-const ddCheck: SegmentCheck = (cmd0, tokens) => {
-  if (cmd0 !== "dd") return null;
-  return tokens.some((t) => unquote(t).startsWith("of=/dev/")) ? "dd writing to a device" : null;
-};
-
-const gitForceCheck: SegmentCheck = (cmd0, tokens) => {
-  if (cmd0 !== "git" || !tokens.includes("push") || tokens.includes("--force-with-lease")) {
-    return null;
+  if (/\bgit\b[^\n]*\breset\b[^\n]*--hard\b/.test(cmd)) {
+    return "git reset --hard (discards committed and working changes)";
   }
-  const force =
-    tokens.includes("--force") ||
-    tokens.some((t) => /^-[a-z]*f[a-z]*$/.test(t)) ||
-    operandsOf(tokens).some((op) => /^\+[^+]/.test(op)); // `git push origin +main` refspec
-  return force ? "git push --force" : null;
+  if (/\bgit\b[^\n]*\bclean\b[^\n]*(-[a-z]*f[a-z]*d|-[a-z]*d[a-z]*f)/.test(cmd)) {
+    return "git clean -fd (permanently deletes untracked files)";
+  }
+  return null;
 };
 
-const permCheck: SegmentCheck = (cmd0, tokens) => {
-  if ((cmd0 !== "chmod" && cmd0 !== "chown") || !hasRecursiveFlag(tokens)) return null;
-  return operandsOf(tokens).some(isRootishPath) ? `${cmd0} -R on a root path` : null;
+/** Recursive force-delete of a path outside the workspace — checked on EVERY rm segment (C1). */
+const checkRm: CategoryCheck = (cmd) =>
+  commandSegmentsNamed(cmd, "rm").some((a) => isRecursiveForce(a) && targetsDangerousPath(a))
+    ? "recursive force-delete of an absolute, home, or parent path"
+    : null;
+
+/** Recursive chmod/chown of a root/home/parent path (SDK extra — not in theocode). */
+const checkPerm: CategoryCheck = (cmd) =>
+  (["chmod", "chown"] as const).some((name) =>
+    commandSegmentsNamed(cmd, name).some((a) => isRecursive(a) && targetsDangerousPath(a)),
+  )
+    ? "recursive permission change on an absolute, home, or parent path"
+    : null;
+
+/** find with -delete / -exec rm targeting an absolute or home root. */
+const checkFind: CategoryCheck = (cmd) =>
+  /\bfind\s+(\/\S*|~\S*|\$\{?HOME\}?\S*)\s[^\n]*(-delete\b|-exec\s+rm\b)/.test(cmd)
+    ? "find -delete / -exec rm on an absolute or home path"
+    : null;
+
+/** Exfiltration: a secret/credential file referenced together with a network sender. */
+const checkExfiltration: CategoryCheck = (cmd) => {
+  const touchesSecret =
+    /(^|[\s/'"])(\.env(\.\w+)?|id_rsa|id_ed25519|\.ssh(\/|\b)|credentials|\.aws(\/|\b)|\.npmrc)\b/.test(
+      cmd,
+    );
+  const sendsNetwork =
+    /\b(curl|wget|nc|netcat|scp|ftp|telnet)\b/.test(cmd) || /\bpython[0-9.]*\s+-m\s+http/.test(cmd);
+  return touchesSecret && sendsNetwork
+    ? "sends a secret/credential file over the network (exfiltration)"
+    : null;
 };
 
-const redirectCheck: SegmentCheck = (_cmd0, _tokens, seg) =>
-  DEVICE_REDIRECT.test(seg) ? "redirect to a device" : null;
-
-const SEGMENT_CHECKS: readonly SegmentCheck[] = [
-  rmCheck,
-  mkfsCheck,
-  ddCheck,
-  gitForceCheck,
-  permCheck,
-  redirectCheck,
+const CATEGORY_CHECKS: readonly CategoryCheck[] = [
+  checkRemoteExec,
+  checkDeviceWipe,
+  checkForkBomb,
+  checkDestructiveGit,
+  checkRm,
+  checkPerm,
+  checkFind,
+  checkExfiltration,
 ];
 
 /**
- * Returns a human reason if `cmd` contains a catastrophic command (in any
- * segment, across chains/sudo/pipes), else `null`.
+ * Return a human-readable reason when `command` is catastrophic/irreversible, or `null`.
+ * The message is surfaced to the model so it self-corrects.
  */
-export function catastrophicShellReason(cmd: string): string | null {
-  // Note: a payload nested inside `sh -c "..."` / `eval "..."` is intentionally
-  // NOT re-screened — that is obfuscation/indirection, out of scope for a
-  // best-effort guardrail (ADR D5). The screen matches surface command position.
-  if (FORK_BOMB.test(cmd)) return "fork bomb";
-  if (isCurlPipedToShell(cmd)) return "curl/wget piped into a shell";
-  for (const seg of splitSegments(cmd)) {
-    const tokens = stripPrefixTokens(tokenize(seg));
-    const head = tokens[0];
-    if (head === undefined) continue;
-    const cmd0 = basename(unquote(head));
-    for (const check of SEGMENT_CHECKS) {
-      const reason = check(cmd0, tokens, seg);
-      if (reason) return reason;
-    }
+export function catastrophicShellReason(command: string): string | null {
+  const cmd = command.trim();
+  if (cmd.length === 0) return null;
+  for (const check of CATEGORY_CHECKS) {
+    const reason = check(cmd);
+    if (reason) return reason;
   }
   return null;
 }
