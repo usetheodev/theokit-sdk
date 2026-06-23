@@ -53,6 +53,8 @@ Fazer V2-3 (inventário) ou V2-4 (estratégia) **antes** da adoção repetiria o
 
 **Esforço:** S · **Depende de:** — · **Bloqueia:** V2-2
 
+> **Status: READY_TO_MERGE (2026-06-23)** — cycle discover→plan→implement→review completo no `theocode` (commits `83c921d`/`77087b8`/`70c70ee` em `develop` local; theocode não tem remote git → sem PR). Bump `@theokit/sdk` ^1.9.0→^2.5.0 + `@theokit/sdk-tools` ^0.1.0→^0.2.0; **aditivo p/ a surface do theocode** (barrel/eval/path-safety) → zero adaptação de código. Removidas as deps mortas `@theokit/di`+`@theokit/di-agent` (não-importadas; seu peer stale `sdk@^1.3.0` era a única causa do ERESOLVE) → install limpo. `@theokit/orm`/`@theokit/agents` **diferidos** (não importados; entram nos slices de adoção que os usam — refino de escopo vs a redação original abaixo). Gates: plan-confidence SHIPPABLE 100; deps-audit PASS_WITH_CAVEATS (3 HIGH `valibot` pré-existentes via `@theokit/ui`, fora de escopo → V2-2D); code-quality PASS_WITH_CAVEATS (symbol-fab unverifiable em subpaths scoped, falsos-positivos); review READY_TO_MERGE (2 agentes, 0 BLOCKER/0 HIGH). Verde: tsc 0 · suíte 527 (probe novo) · build 0 · ERESOLVE 0.
+
 Bumpar o `theocode` para `@theokit/sdk@^2.5.0`, `@theokit/sdk-tools@^0.2.0`, `@theokit/agents@^0.5.0` e instalar `@theokit/orm@^0.1.0`. Sem isso nada pode ser adotado — o theocode hoje nem tem as versões com os primitivos.
 
 **Concluído quando:** `theocode` instala as novas versões; build + suíte verdes no baseline (antes de qualquer deleção).
