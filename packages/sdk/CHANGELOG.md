@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.5.0
+
+### Minor Changes
+
+- 301d4a3: Eval harness (M6, Tema E): first-party SWE-bench-style primitives over the existing `Eval`/`Scorers`/`SandboxBackend` surface, with zero new runtime dependencies.
+
+  - `loadJsonl(path, { map? })` from `@theokit/sdk/eval` — generic JSONL dataset loader with line-numbered `JsonlParseError`; the dataset schema is the caller's via `map`.
+  - Durable batch: `Eval.run({ persist: { path, key, resume }, classify })` flushes each row the instant it completes and resumes a crashed run by skipping already-persisted rows.
+  - `provisionRepo(sandbox, { repoUrl, ref, instanceId })` + `RepoProvisionError` — portable git clone+checkout over `SandboxBackend.execute`.
+  - `Scorers.verifyGate({ failToPass, passToPass })` — grades a patch by test exit-code via the sandbox; `EvalRowResult.artifact` carries `{ diff, applies }`.
+
+- 32180fe: M7 (Tema F) SDK slice — PermissionEngine default-deny + plugin wiring.
+
+  - `PermissionEngine` now takes `{ defaultAction }` (default `"allow"`, backward-compatible) — opt into default-deny with `new PermissionEngine(rules, { defaultAction: "deny" })`. `PermissionAction`/`PermissionRule`/`PermissionEngineOptions` types are now exported.
+  - New `createPermissionPlugin(engine, opts?)` wires a `PermissionEngine` into the `definePlugin` `pre_tool_call` veto (the engine was previously exported-but-unwired): `deny` blocks, `ask` defers to `opts.onAsk` (fail-closed block by default), `allow` passes.
+
 ## 2.4.0
 
 ### Minor Changes
