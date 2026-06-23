@@ -65,6 +65,10 @@ Bumpar o `theocode` para `@theokit/sdk@^2.5.0`, `@theokit/sdk-tools@^0.2.0`, `@t
 
 **Esforço:** M · **Depende de:** — · **Roda:** paralelo, cedo
 
+> **Status: V2-1a READY_TO_MERGE (2026-06-23)** — guard anti-reinvenção (#3) entregue no `theocode` (commits `bbf18f9`/`18e9a69`/`3c865de` em `develop` local). Ratchet node:fs-only (`scripts/anti-reinvention-guard.mjs` + `anti-reinvention-baseline.json`) ancorado na DEFINIÇÃO local de 6 primitivos reinventados (stepCapTracker→runToCompletion, compactTranscript→`@theokit/sdk/compaction`, isBlockedAddress→SSRF, catastrophicShellReason→sdk-tools, isTransientLlmError→`isTransientError`, ensureColumn→theokit db). Verde no estado atual (6 defs baselined = dívida que o V2-2 paga, só encolhe); vermelho numa def NOVA fora do baseline. Wired no `ci.yml` (`npm run guard:anti-reinvention`) + vitest planted-fixture (RED por signature, GREEN no real + GREEN na forma de adoção `import { X }` — non-regression do V2-2). Gates: plan-confidence SHIPPABLE 100; deps-audit PASS_WITH_CAVEATS (sem deps novas); code-quality PASS_WITH_CAVEATS (sem findings V2-1); review 2 agentes READY_TO_MERGE (0 BLOCKER/0 HIGH, 2 LOW corrigidos). Verde: guard exit 0 · suíte 536 · tsc 0 · lint 0.
+>
+> **V2-1b (PENDENTE)** — detectores #1 (decorator-sem-runtime) + #2 (`@internal` selado) scaneiam **source do framework** (theokit/theokit-sdk, sob `theokit-tools/`) ausente no theocode → pertencem aos CIs daqueles repos (architecture-guards/validate). Split forçado pela realidade (node_modules do theocode só tem `dist`), não preferência.
+
 Check de CI (no ecossistema framework + no theocode) que falha nos três anti-padrões que a auditoria identificou como geradores de quase todos os gaps:
 
 1. **Decorator sem runtime** — decorator de `@theokit/agents` com `getXConfig` sem consumidor de runtime (o anti-padrão #1 do GAP_AUDIT §1).
