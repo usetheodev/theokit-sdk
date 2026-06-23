@@ -26,6 +26,10 @@
 
 For the full reference, see the [root README](../../README.md) and [`docs.md`](../../docs.md).
 
+## Capability map
+
+New here? The [**Theo Harness Capability Map**](../../docs/harness-capability-map.md) is the discovery front-door — every harness primitive with its import path, signature, and a one-line example (find `compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ... without reading source). The exhaustive contract is [`docs.md`](../../docs.md).
+
 ## Install
 
 ```bash

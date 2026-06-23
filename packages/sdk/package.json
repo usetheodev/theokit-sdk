@@ -138,6 +138,16 @@
         "default": "./dist/retry.cjs"
       }
     },
+    "./persistence": {
+      "import": {
+        "types": "./dist/persistence.d.ts",
+        "default": "./dist/persistence.js"
+      },
+      "require": {
+        "types": "./dist/persistence.d.cts",
+        "default": "./dist/persistence.cjs"
+      }
+    },
     "./task-store": {
       "import": {
         "types": "./dist/task-store.d.ts",

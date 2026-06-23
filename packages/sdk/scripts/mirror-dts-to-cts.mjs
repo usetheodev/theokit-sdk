@@ -48,6 +48,8 @@ const targets = [
   join(DIST, "subscription"),
   join(DIST, "concurrency.d.ts"),
   join(DIST, "retry.d.ts"),
+  // V2-3: persistence sub-path.
+  join(DIST, "persistence.d.ts"),
   // Sub-path exports that need CTS mirrors.
   join(DIST, "rag"),
   join(DIST, "a2a"),
