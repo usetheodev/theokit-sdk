@@ -1,0 +1,5 @@
+---
+"@theokit/sdk-tools": minor
+---
+
+V3-1 — harden `catastrophicShellReason` to theocode's security-reviewed shell-guard. The `shell_exec` guardrail previously missed 18 of 42 catastrophic commands (empirical probe): `git reset --hard`, `git clean -fd`, secret-file exfiltration (`cat .env | curl`, `tar ~/.aws | nc`), command-substitution / eval RCE (`eval "$(curl)"`, `. <(curl)`, `bash -c "$(curl)"`), `find / -delete` / `-exec rm`, `truncate /dev/sda`, and a range of `rm -rf` targets (`~/sub`, `/usr/local`, `../..`, `$HOME/x`, flags after the operand, any absolute non-scratch path). The rules are ported from theocode's hardened guard (proven by a 42-blocked + 24-allowed corpus at 0 misses / 0 false-positives) as a SUPERSET — the SDK's extra screens (recursive `chmod`/`chown` on a root path, extra block-device families, `//` collapse) are kept, and the segment splitter now also covers `&` and newlines. Reason strings widened to describe each category; the public API (`catastrophicShellReason(cmd): string | null`, `CatastrophicCommandError`) is unchanged. No new dependency.
