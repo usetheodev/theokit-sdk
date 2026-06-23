@@ -28,6 +28,7 @@
     "src/task-store.ts",
     "src/internal/task/store.ts",
     "src/internal/persistence/**/*",
+    "src/persistence.ts",
     "src/internal/plugins/**/*",
     "src/internal/observability/**/*",
     "src/internal/security/**/*",

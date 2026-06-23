@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Added
+- **Public `@theokit/sdk/persistence` sub-path + Theo Harness Capability Map (V2-3).** Promoted the consumer-grade persistence cluster (`appendJsonl`/`readJsonlIds`/`loadJsonl`, `replaceFileAtomic`/`atomicWriteText`/`atomicWriteJson`, `withFileLock`, `openSqliteResilient`/`applyWalWithFallback`/`isCorruptionError`) from the semver-exempt `internal/persistence` to a stable, semver-protected sub-path so consumers adopt them without coupling to `internal/` (closes the theocode V2-2E-1/V2-2F-2 follow-up). Added `docs/harness-capability-map.md` — a navigable inventory of every harness primitive with a resolvable import + signature + example, linked from the `@theokit/sdk` and `@theokit/sdk-tools` READMEs. (`packages/sdk/src/persistence.ts`, `packages/sdk/package.json`, `packages/sdk/tsup.config.ts`, `docs.md`, `docs/harness-capability-map.md`)
 
 ### Changed
 
