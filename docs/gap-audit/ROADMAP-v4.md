@@ -1,354 +1,242 @@
 # ROADMAP-v4 — Declarative Agent Authoring (decorators + builders, o jeito TheoKit)
 
-> **Status:** PROPOSTO (2026-06-23). Iniciativa estratégica nova — uma **camada de autoria declarativa** sobre o core factory. Reabre a postura do ADR D431 (de forma controlada) e exige um ADR de ratificação antes de qualquer código. Escopo primário: `theokit` (framework) + `@theokit/di-agent` (ou novo `@theokit/authoring`). Prova: `theocode`.
-> Irmão de [`ROADMAP-v2.md`](./ROADMAP-v2.md) (adoção) e [`ROADMAP-v3.md`](./ROADMAP-v3.md) (hardening de framework). O V4 é a camada de **DX/autoria**: tornar a construção de agentes tão legível e simples quanto montar um app Spring Boot.
+> **Status:** PROPOSTO · **Revisão 2 (2026-06-23)** — premissa CORRIGIDA após ler o prior-art (`@theokit/agents@0.5.0`, ADR 0031, `sdk-runtime.md`, a patterns-skill do http-decorators). A v1 deste roadmap assumia greenfield e propunha "reabrir o D431"; isso estava **factualmente errado** — a fundação já existe e o D431 já está reconciliado. Esta revisão re-mira no que é genuinamente aberto.
+> Escopo: `theokit/packages/agents` (`@theokit/agents`). Prova: `theocode`. Irmão de [`ROADMAP-v2`](./ROADMAP-v2.md) (adoção) e [`ROADMAP-v3`](./ROADMAP-v3.md) (hardening).
 
 ---
 
-## 0. Premissa e decisão estratégica
+## 0. Premissa CORRIGIDA — o que já existe (e o que o V4 v1 errou)
 
-### 0.1 O problema
+### 0.1 A fundação já está construída e em produção
 
-Hoje, construir um agente sério no stack (provado pelo `theocode`) ainda exige escrever **~3.000 LoC de plumbing imperativo** em `server/lib/`. Os maiores hand-rolls — `agent-stream.ts` (470), `agent-loop.ts`/reflection ladder (248), `compaction.ts` (150), `shell-guard.ts` (143) — são **lógica de orquestração e política** que se repete em qualquer agente sério. Não há padrão claro, nomeável e reutilizável. Um recém-chegado lê 470 linhas para entender "o que esse agente faz".
+`@theokit/agents@0.5.0` é um pacote shipando com **exatamente a arquitetura que o V4 v1 propôs como "risco alto a provar"**:
 
-A claim "o theokit simplifica construir agentes" é verdadeira para o **core single-turn** (providers, tools, streaming, retry) — mas **falsa para a orquestração**: o loop, a reflexão, os guards, a compaction são DIY. **Essa é a oportunidade.**
+- **Metadata registry leve, sem IoC** (`src/metadata/{keys,index}.ts`).
+- **Bridge que compila decorator metadata → `Agent.create()` do SDK** (`bridge/walk-agent-metadata.ts` → `agent-compiler.ts` → `sdk-adapter.ts`).
+- **Integração no framework** via `agentsPlugin()` (`theokit-plugin.ts`).
+- **Decorators de DECLARAÇÃO já implementados:** `@Agent`, `@Tool`, `@Skills`, `@ContextWindow`, `@ProjectContext`, `@Memory`, `@Gateway`, `@Checkpoint`, `@Conversation`.
 
-### 0.2 A decisão (e o que aprendemos com o D431)
+E as decisões estratégicas que o V4 v1 achou que precisava tomar **já foram tomadas**:
 
-O **ADR D431 (2026-06-18)** revogou "decorators obrigatórios via `@theokit/di`" — porque forçava o **Harness a shipar um IoC container genérico** e puxou scope creep (`di → di-agent → orm → http-decorators`), ferindo Rule 9 + KISS + YAGNI. O **ADR 0032** locked: factory-first canônico; `di/orm` externos + opt-in.
+- **ADR 0031 (2026-06-22)** — *"o bridge compila; o SDK executa; nenhum runtime novo; sem IoC."* É o princípio central do V4, já locked.
+- **`sdk-runtime.md` (INQUEBRÁVEL)** — "decorators descrevem, bridge compila, SDK executa."
+- **O D431 já está reconciliado** — não precisa reabrir. ADR 0031 cravou a regra: *"um decorator ganha runtime quando mapeia para um campo nativo do SDK; senão, avisa metadata-only (nunca silencia)."*
 
-**O V4 NÃO reverte o D431. Ele honra a lição e reabre só a parte segura:**
+### 0.2 O que o V4 v1 errou (correções de honestidade)
 
-> Decorators e builders são **AÇÚCAR DE TEMPO-DE-CARGA que compila para as factory calls do `@theokit/sdk`**. Não há IoC container, não há `reflect-metadata`, não há injeção por tipo. O Harness permanece factory-first e **nunca importa a camada declarativa**. A camada vive no `theokit`; é 100% opt-in; o `theocode` a prova.
+| V4 v1 dizia | Realidade |
+|---|---|
+| "V4-0: decidir pacote, reabrir D431, provar no-IoC num spike" | **Já feito** — `@theokit/agents` + ADR 0031 + `sdk-runtime.md`. |
+| "Tier 1: construir `@Tool`/`@Agent` do zero" | **Já existem** (+ `@Skills`/`@Memory`/`@ContextWindow`/etc.). |
+| "Princípio #2: sem `reflect-metadata`, TC39 only" | **ERRADO** — o pacote usa `reflect-metadata` (peer dep) + Legacy decorators, decisão consciente (idêntica ao Pattern D1 da patterns-skill do http-decorators: param-injection precisa de runtime type emit). Honrar, não brigar. |
+| "Clonar 5 frameworks pra decidir decorator vs no-IoC" | **Redundante** — respondido in-repo. |
 
-Isso é exatamente o que o Spring faz bem: `@Bean` e o registro programático produzem o mesmo bean. A diferença para a tentativa anterior: **a tentativa anterior pôs o container no núcleo; o V4 põe só um assembler fino na camada de framework.**
+### 0.3 A tese CORRIGIDA (mais afiada)
 
-**Esta postura exige um ADR de ratificação (V4-0) antes de qualquer código.** A regra 9 do `theokit-sdk/CLAUDE.md` precisa de uma nota: "decorators permitidos como sugar opt-in que compila para factories; Harness segue independente."
-
-### 0.3 O loop de prova (dogfooding)
-
-Idêntico ao V2/V3: cada milestone shipa um primitivo declarativo no `theokit` → **o `theocode` refatora o hand-roll equivalente para usá-lo** → mede-se a redução de LoC + legibilidade. Se o `theocode` não adotar (como hoje rejeita os `@Agent`/`@Tool` atuais), o primitivo **não é bom o suficiente** — e o roadmap diz por quê.
+> Os decorators do `@theokit/agents` cobrem **DECLARAÇÃO** (que modelo, que tools, que skills) mas **NÃO cobrem ORQUESTRAÇÃO** (o loop, a reflexão, os guards, a compaction). Por isso o `theocode` **não os adota** — mesmo declarando `@Agent`, ele ainda escreveria os ~720 LoC de outer-loop + reflection ladder à mão. O decorator só cobriria metade, então o split não compensa.
+>
+> **O V4 = tornar a ORQUESTRAÇÃO declarativa** (builder fluente + strategies nomeadas), que é o que finalmente faz a adoção valer a pena. É também onde os maiores hand-rolls do theocode colapsam.
 
 ---
 
-## 1. Princípios de design (os "padrões claros" que você pediu)
+## 1. Princípios de design (os "padrões claros") — CORRIGIDOS
 
-A camada inteira segue **4 papéis, um runtime**:
+Os 4 papéis, um runtime (inalterado — e já é a arquitetura do `@theokit/agents`):
 
-| Papel | Mecanismo | Padrão GoF | Exemplo |
+| Papel | Mecanismo | Padrão | Estado |
 |---|---|---|---|
-| **DECLARAR** o quê | Decorator | — | `@Tool`, `@Agent`, `@Guard` |
-| **CONSTRUIR / compor** | Builder fluente | Builder | `AgentRunner.builder()...` |
-| **VARIAR comportamento** | Strategy nomeada | Strategy | `ReflectionStrategy`, `CompactionStrategy` |
-| **EXECUTAR** | Factory do SDK | Factory | `Agent.create`, `defineTool` |
+| **DECLARAR** | Decorator | — | ✅ existe (`@Agent`, `@Tool`, ...) |
+| **CONSTRUIR/compor** | Builder fluente | Builder | ❌ **não existe — V4** |
+| **VARIAR comportamento** | Strategy nomeada | Strategy | ❌ **não existe — V4** |
+| **EXECUTAR** | Factory do SDK | Factory | ✅ existe (`Agent.create`) |
 
-**Invariante "três sintaxes, um runtime"** — toda capacidade é expressável das 3 formas, e as 3 produzem o MESMO resultado de factory:
+**Restrições inquebráveis (já vigentes via ADR 0031 / `sdk-runtime.md` — o V4 as HONRA):**
 
-```ts
-// 1. Decorator (declarativo, Spring-like)
-@Tool({ name: 'read_file', schema: ReadSchema })
-class ReadFile { async run(p) { /* ... */ } }
-
-// 2. Builder (fluente)
-const readFile = ToolBuilder.create('read_file').schema(ReadSchema).run(fn).build();
-
-// 3. Factory (o que ambos compilam — o SDK de hoje, intocado)
-const readFile = defineTool({ name: 'read_file', schema: ReadSchema, run: fn });
-```
-
-**Restrições inquebráveis (o que mantém isso simples e fora da armadilha do D431):**
-
-1. **Sem IoC container.** Decorators só coletam metadata num registry leve; um assembler fino monta a factory call. Nada de `ApplicationContext`.
-2. **Sem `reflect-metadata` / sem injeção por tipo.** Args sempre explícitos (`@Tool({ schema })`, não inferência por tipo do parâmetro). Usa decorators TC39 (Stage 3, nativo no TS 5.x).
-3. **Harness independente.** `@theokit/sdk` nunca importa a camada de autoria. A dependência é unidirecional: `theokit (authoring) → @theokit/sdk (factories)`.
-4. **Strategy = interface + factory + default.** O `theokit` define a interface e uma implementação default; o `theocode` (ou qualquer app) provê a implementação de domínio só quando difere. Sem mágica de resolução.
-5. **Opt-in total.** O on-ramp imperativo (factory) continua canônico e suportado para sempre. Decorators são para quem quer legibilidade; builders para quem quer composição programática.
+1. **Sem IoC container.** Metadata registry + bridge compile→factory. (Já é assim.)
+2. **`reflect-metadata` + Legacy decorators é a escolha ESTABELECIDA.** Não inventar TC39-no-reflect-metadata; param-injection precisa de runtime type emit (Pattern D1). Custo: ~3KB gzip opt-in. *(Correção da v1.)*
+3. **Harness independente.** Direção `@theokit/agents → @theokit/sdk` only (ADR 0030). O SDK nunca importa a camada.
+4. **Decorator ganha runtime só se mapeia para campo nativo do SDK; senão warn metadata-only.** (ADR 0031.) Toda strategy/builder nova do V4 deve compilar para um campo que o SDK executa — ou justificar o warn.
+5. **Strategy = interface + factory + default.** `theokit` provê interface + default; `theocode` provê implementação de domínio só quando difere.
 
 ---
 
-## 2. O headline: antes vs depois (o `theocode`)
+## 2. O que existe vs o que está aberto (a tabela honesta)
 
-**HOJE** (imperativo, espalhado por `agent-stream.ts` 470 + `agent-loop.ts` 248 + `tools/` + `config-loader.ts`):
+| Camada | `@theokit/agents@0.5.0` | Gap (V4) |
+|---|---|---|
+| Metadata registry (no-IoC) | ✅ `metadata/` | — |
+| Bridge compile→factory | ✅ `bridge/` | — |
+| Plugin no framework | ✅ `agentsPlugin()` | — |
+| Decorators de declaração | ✅ `@Agent`/`@Tool`/`@Skills`/`@Memory`/`@ContextWindow`/`@ProjectContext`/`@Gateway`/`@Checkpoint`/`@Conversation` | — |
+| **Builder fluente** | ❌ | **V4-B** |
+| **ReflectionStrategy + `@Reflection`** | ❌ | **V4-C** (theocode 248 LoC) |
+| **LoopStrategy + AgentRunner** | ❌ | **V4-D** (theocode 470 LoC; depende V3-4) |
+| **GuardStrategy + `@Guard`** | ❌ | **V4-E** (theocode 143 LoC; depende V3-1) |
+| **CompactionStrategy + `@Compaction`** | ❌ (só `@ContextWindow` knob) | **V4-F** (theocode 150 LoC; depende V3-3) |
+| **Starters** | ❌ | **V4-H** |
+| **Adoção pelo theocode** | ❌ (o app evita) | **V4-A — diagnóstico (gate de tudo)** |
+
+---
+
+## 3. Headline: antes vs depois — CORRIGIDO
+
+**HOJE** (o `@Agent` já existe, mas a orquestração não — então o theocode nem usa o decorator):
 
 ```ts
-const agent = await Agent.create({
-  model, instructions: codePrompt,
-  tools: toolsForMode(cwd),
-  plugins: [codePermissionPlugin],
-  local: { cwd, settingSources: ['project'] },
-});
-// + ~720 LoC de outer loop à mão: streaming, classifyRoundOutcome,
-//   reflection ladder, compaction, continuation history, no-progress detection...
+// @theokit/agents JÁ permite isto:
+@Agent({ model, instructions, tools: [...], skills: [...] })
+class CodeAgent {}
+// ...MAS o theocode ainda escreveria ~720 LoC à mão para o que importa:
+//   agent-stream.ts (470): streaming + classifyRoundOutcome + no-progress + continuation
+//   agent-loop.ts   (248): reflection ladder (reflect/verify/verify-fix)
+// → adotar o @Agent só cobre metade → o theocode não adota.
 ```
 
-**COM V4** (declarativo + builder + strategies — compila para o `Agent.create` acima):
+**COM V4** (a orquestração vira declarativa — aí sim a adoção compensa):
 
 ```ts
-@Agent({
-  model: 'claude-opus-4-8',
-  instructions: codePrompt,
-  tools: [ReadTool, WriteTool, ShellTool],   // classes @Tool
-  guards: [ShellGuard, ReadOnlyGuard],        // strategies @Guard (V3-1)
-})
+@Agent({ model, instructions, tools: [...] })
+@Reflection('ladder')            // V4-C — ReflectionStrategy nomeada
+@Guard([ShellGuard])             // V4-E — GuardStrategy (V3-1)
 class CodeAgent {}
 
-const runner = AgentRunner.builder(CodeAgent)
-  .reflection('ladder')                                 // ReflectionStrategy nomeada
-  .compaction('token-budget', { keepTokens: 8000 })     // CompactionStrategy (V3-3)
-  .stream(true)                                         // LoopStrategy streaming (V3-4)
+const runner = AgentRunner.builder(CodeAgent)   // V4-B + V4-D
+  .compaction('token-budget', { keepTokens: 8000 })  // V4-F (V3-3)
+  .stream(true)                                       // LoopStrategy (V3-4)
   .build();
 
 for await (const event of runner.run(prompt, { cwd })) { /* ... */ }
 ```
 
-Meta mensurável: as **~720 LoC de orquestração** do `theocode` viram **~40 LoC declarativas + N strategies nomeadas e testáveis isoladamente**. Um recém-chegado entende o agente em 30 segundos.
+Meta: as ~720 LoC de orquestração do theocode → ~40 LoC + strategies nomeadas e testáveis. **E o theocode finalmente adota** (porque agora cobre o que importa).
 
 ---
 
-## 3. Sequência (dependency graph)
+## 4. Milestones
 
 ```
-V4-0 (assembler core + ADR ratifica D431-revisit) ─── FUNDAÇÃO, bloqueia tudo
-   │
-   ├─ Tier 1 (MVP declarativo — prova a tese rápido)
-   │     V4-1 @Tool+ToolBuilder ─▶ theocode tools/
-   │     V4-2 @Agent+AgentBuilder ─▶ theocode agent decl.
-   │
-   ├─ Tier 2 (o payoff de legibilidade — os grandes hand-rolls colapsam)
-   │     V4-3 @Guard+GuardStrategy        (depende V3-1 shell-guard)
-   │     V4-4 @Reflection+ReflectionStrategy   ◀── maior ganho de leitura
-   │     V4-5 AgentRunner+LoopStrategy     (depende V3-4 continuation)
-   │
-   ├─ Tier 3 (completude)
-   │     V4-6 @Compaction (depende V3-3) · V4-7 @ContextProvider
-   │     V4-8 @SubAgent/handoff · V4-9 @Memory/@Skill
-   │
-   └─ Tier 4 (adoção em massa)
-         V4-10 Starters (Spring Boot starters) ◀── "qualquer um constrói"
-         V4-11 @Eval+EvalBuilder (depende V3-5)
+✅ V4-0 FUNDAÇÃO (metadata+bridge+no-IoC) ......... FEITO (ADR 0031 + @theokit/agents)
+✅ V4-1 Decorators de declaração (@Agent/@Tool/...) FEITO (@theokit/agents 0.5.0)
+
+   V4-A Diagnóstico de adoção (POR QUE o theocode não usa) ── GATE de tudo
+        │
+        ├─ V4-B Builder layer (AgentBuilder / AgentRunner.builder())
+        │     V4-C ReflectionStrategy + @Reflection          (theocode 248 LoC)
+        │     V4-D LoopStrategy + AgentRunner   (V3-4)        (theocode 470 LoC)
+        │     V4-E GuardStrategy + @Guard       (V3-1)        (theocode 143 LoC)
+        │     V4-F CompactionStrategy + @Compaction (V3-3)    (theocode 150 LoC)
+        │     V4-G ContextProvider strategy (estende @ProjectContext)
+        │
+        └─ V4-H Starters ("qualquer um constrói")
+           V4-I Eval builder  (V3-5)
 ```
 
-Ordem por valor: **V4-0 → Tier 1 (prova) → Tier 2 (wow) → Tier 3 → Tier 4 (escala).** Tier 2 consome os primitivos endurecidos do V3 — **V3 e V4 são complementares**: o V3 endurece o primitivo, o V4 o embrulha declarativamente.
+### V4-A — Diagnóstico de adoção (GATE — faz primeiro) — [ ]
+**Esforço:** S · **Tipo:** discovery/spike · **Depende de:** — · **Valor:** CRÍTICO
+
+A pergunta que reorienta tudo: **por que o `theocode` evita o `@theokit/agents` mesmo com `@Agent`/`@Tool` prontos?** (O prompt dele manda evitar.) Hipótese: cobre só declaração, não orquestração. Confirmar empiricamente: tentar declarar o code-agent do theocode com `@Agent` e medir o que SOBRA hand-rolled. O resultado define o escopo real de V4-B..V4-H. **Concluído quando:** documento honesto "o que o `@theokit/agents` cobre vs o que falta para o theocode adotar".
+
+### V4-B — Builder layer (`AgentBuilder` / `AgentRunner.builder()`) — [ ]
+**Esforço:** M · **Padrão:** Builder · **Depende de:** V4-A · **Valor:** Alto
+A peça fluente que não existe. `AgentRunner.builder(AgentClass).reflection().compaction().stream().build()`. Compõe decorators + strategies → compila para `Agent.create` + driver. **Loop:** theocode constrói o runner via builder.
+
+### V4-C — `ReflectionStrategy` + `@Reflection` — [ ]
+**Esforço:** M · **Padrão:** Strategy · **Depende de:** V4-B · **Valor:** ALTO (maior ganho)
+A reflection ladder de 248 LoC do theocode (`agent-loop.ts`: `classifyRoundOutcome`/`selectReflection`) vira strategy nomeada (`'ladder'`/`'none'`/custom). Default `'ladder'` no `theokit`. **Loop:** theocode usa `@Reflection('ladder')`; `agent-loop.ts` vira a default da strategy (domínio→framework) OU strategy custom.
+
+### V4-D — `LoopStrategy` + `AgentRunner` — [ ]
+**Esforço:** L · **Padrão:** Builder + Strategy · **Depende de:** V4-B, **V3-4** · **Valor:** ALTO
+O outer loop de 470 LoC (`agent-stream.ts`) vira runner configurado sobre o continuation driver do V3-4 (streaming+stateless). `LoopStrategy` = terminais (`done`/`step_limit`/`no_progress`) + re-prompt bounded. **Loop:** theocode troca `agent-stream.ts` por `AgentRunner`.
+
+### V4-E — `GuardStrategy` + `@Guard` — [ ]
+**Esforço:** M · **Padrão:** Strategy · **Depende de:** V4-B, **V3-1** · **Valor:** Alto
+Permissões/guards declaráveis e swappáveis. Defaults usam o `catastrophicShellReason` endurecido do V3-1. **Loop:** theocode declara `@Guard([ShellGuard, ReadOnlyGuard])`; `permission.plugin.ts` + `shell-guard.ts` viram strategies.
+
+### V4-F — `CompactionStrategy` + `@Compaction` — [ ]
+**Esforço:** S · **Padrão:** Strategy · **Depende de:** V4-B, **V3-3** · **Valor:** Médio
+Hoje só existe o knob `@ContextWindow`. Promover a strategy nomeada (`'token-budget'` usa o `compactTranscript` do V3-3). **Loop:** theocode usa `.compaction('token-budget')`; `compaction.ts` (150) some.
+
+### V4-G — `ContextProvider` strategy (estende `@ProjectContext`) — [ ]
+**Esforço:** M · **Padrão:** Strategy (chain) · **Depende de:** V4-B · **Valor:** Médio
+O `@ProjectContext` já existe como knob; promover a providers encadeáveis (`project files`, `git state`). **Loop:** theocode `project-context.ts` (217) vira providers nomeados.
+
+### V4-H — Starters (Spring Boot starters) — [ ]
+**Esforço:** M · **Padrão:** Auto-config/Facade · **Depende de:** V4-B..V4-F · **Valor:** ALTO (adoção em massa)
+`@theokit/starter-code-agent`: bundle opinativo (reflection ladder + shell guard + compaction) em <10 LoC. **Loop:** o theocode poderia ser reescrito sobre o starter (prova máxima).
+
+### V4-I — Eval builder — [ ]
+**Esforço:** M · **Padrão:** Builder · **Depende de:** V4-B, **V3-5** · **Valor:** Baixo-Médio
+`EvalBuilder.create().dataset().scorer().build()` sobre o eval ergonômico do V3-5. **Loop:** theocode `eval-suite.ts`/`swebench-*`.
 
 ---
 
-## V4-0 — Assembler core + ADR de ratificação — [ ]
+## 5. theocode vs theokit — padrões claros
 
-**Esforço:** M · **Repo:** `theokit` / decisão `@theokit/di-agent` vs novo `@theokit/authoring` · **Padrão:** Registry + Assembler · **Depende de:** — · **Valor:** FUNDAÇÃO
-
-O coração que torna tudo possível **sem IoC**. Um registry leve (coleta metadata de decorators no load) + um assembler fino (metadata → factory call do SDK).
-
-**Decisões deste milestone (ADR):**
-1. **Reabrir a postura do D431** — registrar ADR: "decorators permitidos como sugar opt-in que compila para factories; Harness independente; sem IoC/sem reflect-metadata." Atualizar a Rule 9 do `theokit-sdk/CLAUDE.md` com a nota.
-2. **`@theokit/di-agent` slim-down vs `@theokit/authoring` novo** — o `di-agent` atual carrega a bagagem IoC do scope creep. Avaliar: enxugar (remover o container, manter só decorators→factory) OU começar limpo. *(Provável: novo `@theokit/authoring` mínimo; deprecar o di-agent pesado.)*
-3. **TC39 decorators, sem `reflect-metadata`** — provar num spike que `@Tool`/`@Agent` funcionam com args explícitos e TS 5.x stage-3, zero metadata reflection.
-
-**Concluído quando:** spike prova decorator→factory sem IoC/sem reflect-metadata; ADR ratificado + Rule 9 atualizada; pacote-alvo decidido. **Loop:** —(é fundação).
-
----
-
-## V4-1 — `@Tool` + `ToolBuilder` — [ ]
-
-**Esforço:** S · **Repo:** `theokit` · **Padrão:** Factory sugar + Builder · **Depende de:** V4-0 · **Valor:** Alto (frequência)
-
-Tools são o primitivo mais frequente e mais simples — começar por eles prova a tese com baixo risco. `@Tool({ name, schema, description })` numa classe/método → emite `defineTool`. `ToolBuilder.create()` fluente para composição programática.
-
-**Spec executável:** `theocode/server/tools/index.ts` (`defineTool` x N) + `web-fetch-guard.ts` (tool com guard embutido).
-
-**Concluído quando:** as 3 sintaxes produzem `defineTool` idêntico (teste de paridade). **Loop fechado:** o `theocode` converte `server/tools/index.ts` + `web-fetch-guard` para `@Tool`/`ToolBuilder`; mede-se legibilidade + LoC.
-
----
-
-## V4-2 — `@Agent` + `AgentBuilder` — [ ]
-
-**Esforço:** M · **Repo:** `theokit` · **Padrão:** Factory sugar + Builder · **Depende de:** V4-0, V4-1 · **Valor:** Alto
-
-A declaração do agente. `@Agent({ model, instructions, tools, guards })` → `Agent.create`. `AgentBuilder` fluente. Resolve a referência a classes `@Tool` (sem IoC — o assembler resolve a lista explícita de classes para suas factory calls).
-
-**Spec executável:** `theocode/server/lib/config-loader.ts` (`mapToAgentCreate`) + `agent-stream.ts` (montagem do `Agent.create`).
-
-**Concluído quando:** `@Agent` + `AgentBuilder` compilam para `Agent.create` idêntico; paridade testada. **Loop fechado:** o `theocode` declara o code-agent com `@Agent` + `AgentBuilder`; a montagem imperativa em `config-loader`/`agent-stream` encolhe.
-
----
-
-## V4-3 — `@Guard` + `GuardStrategy` (Strategy) — [ ]
-
-**Esforço:** M · **Repo:** `theokit` · **Padrão:** Strategy · **Depende de:** V4-2, **V3-1** (shell-guard endurecido) · **Valor:** Alto (segurança legível)
-
-Permissões e guards viram **strategies nomeadas e testáveis**. `@Guard(ShellGuard)` / `guards: [ShellGuard, ReadOnlyGuard]`. O `GuardStrategy` é interface + defaults (`ShellGuard` usa o `catastrophicShellReason` endurecido do V3-1; `ReadOnlyGuard` bloqueia escrita).
-
-**Spec executável:** `theocode/server/agents/permission.plugin.ts` (codePermissionPlugin + readOnlyPermissionPlugin) + `shell-guard.ts`.
-
-**Concluído quando:** guards declaráveis + swappáveis; defaults usam V3-1. **Loop fechado:** o `theocode` declara `guards: [...]` no `@Agent`; `permission.plugin` vira strategies nomeadas.
-
----
-
-## V4-4 — `@Reflection` + `ReflectionStrategy` (Strategy) — [ ]
-
-**Esforço:** M · **Repo:** `theokit` · **Padrão:** Strategy · **Depende de:** V4-2 · **Valor:** ALTO (maior ganho de leitura)
-
-**O milestone-assinatura.** A reflection ladder de 248 LoC do `theocode` (reflect/verify/verify-fix por outcome de round) vira uma **`ReflectionStrategy` nomeada** (`'ladder'`, `'none'`, custom). O `theokit` provê a interface + a default `'ladder'`; apps com política própria implementam a interface.
-
-**Spec executável:** `theocode/server/lib/agent-loop.ts` (`classifyRoundOutcome`, `selectReflection`).
-
-**Concluído quando:** `ReflectionStrategy` com default `'ladder'` testável isoladamente; `.reflection('ladder')` no builder. **Loop fechado:** o `theocode` usa `.reflection('ladder')`; `agent-loop.ts` vira a implementação default da strategy no `theokit` (promovida de domínio para framework) OU fica como strategy custom se for específica demais.
-
----
-
-## V4-5 — `AgentRunner` builder + `LoopStrategy` (Builder + Strategy) — [ ]
-
-**Esforço:** L · **Repo:** `theokit` · **Padrão:** Builder + Strategy · **Depende de:** V4-4, **V3-4** (continuation driver streaming) · **Valor:** ALTO
-
-O outer loop de 470 LoC vira um **runner configurado**. `AgentRunner.builder(CodeAgent).reflection().compaction().stream().build()` → roda sobre o continuation driver do V3-4 (streaming + stateless). `LoopStrategy` encapsula terminais (`done`/`step_limit`/`no_progress`) + re-prompt bounded.
-
-**Spec executável:** `theocode/server/lib/agent-stream.ts` (`runCodeAgent`) + `continuation-history.ts`.
-
-**Concluído quando:** `AgentRunner` emite `AsyncGenerator<AgentEvent>` sobre o driver V3-4; terminais via `LoopStrategy`. **Loop fechado:** o `theocode` substitui `agent-stream.ts` por `AgentRunner.builder(...)`; as ~470 LoC colapsam para ~40 + strategies.
-
----
-
-## V4-6 — `@Compaction` + `CompactionStrategy` (Strategy) — [ ]
-
-**Esforço:** S · **Repo:** `theokit` · **Padrão:** Strategy · **Depende de:** V4-5, **V3-3** (token-budget) · **Valor:** Médio
-
-`.compaction('token-budget', { keepTokens })` → usa o `compactTranscript` endurecido do V3-3. `CompactionStrategy` nomeada (`'token-budget'`, `'turn-count'`, custom).
-
-**Loop fechado:** o `theocode` usa `.compaction('token-budget')`; `compaction.ts` (150 LoC) some.
-
----
-
-## V4-7 — `@ContextProvider` (Strategy/Builder) — [ ]
-
-**Esforço:** M · **Repo:** `theokit` · **Padrão:** Strategy (chain) · **Depende de:** V4-2 · **Valor:** Médio
-
-Injeção de contexto (project files, AGENTS.md, system info) vira providers declaráveis encadeáveis. `@ContextProvider` / `.context([ProjectFiles, GitState])`.
-
-**Spec executável:** `theocode/server/lib/project-context.ts` (217 LoC).
-
-**Loop fechado:** o `theocode` declara providers; `project-context` vira providers nomeados.
-
----
-
-## V4-8 — `@SubAgent` + handoff builder — [ ]
-
-**Esforço:** M · **Repo:** `theokit` · **Padrão:** Factory sugar + Builder · **Depende de:** V4-2 · **Valor:** Médio
-
-Sub-agentes e handoffs declarativos. `@SubAgent` / `.handoffs([ExploreAgent])`. Compila para o suporte de subagents do SDK.
-
-**Spec executável:** o explore-agent do `theocode` (`tool-catalog.ts` + agents/).
-
----
-
-## V4-9 — `@Memory` + `@Skill` (config declarativa) — [ ]
-
-**Esforço:** S · **Repo:** `theokit` · **Padrão:** Factory sugar · **Depende de:** V4-2 · **Valor:** Médio
-
-Memória e skills via decorator de config. `@Memory({ backend, activeRecall })` / `@Skill`. Compila para o config de `Agent.create`.
-
-**Spec executável:** `theocode/server/lib/memory-store.ts` + `skills-store.ts`.
-
----
-
-## V4-10 — Starters (Spring Boot starters) — [ ]
-
-**Esforço:** M · **Repo:** `theokit` (novos `@theokit/starter-*`) · **Padrão:** Auto-config / Facade · **Depende de:** Tier 1+2 · **Valor:** ALTO (adoção em massa)
-
-**O capstone de "qualquer pessoa constrói facilmente".** Bundles opinativos, à la Spring Boot starters: `npm i @theokit/starter-code-agent` entrega um code-agent funcional pré-configurado (reflection ladder + shell guard + compaction token-budget + tools de código). O dev sobrescreve só o que quer.
-
-```ts
-import { CodeAgentStarter } from '@theokit/starter-code-agent';
-const runner = CodeAgentStarter.builder().instructions(myPrompt).build();  // pronto
-```
-
-**Concluído quando:** ≥1 starter (`code-agent`) shipa um agente funcional em <10 LoC; documentado. **Loop fechado:** o `theocode` poderia ser reescrito sobre o starter (prova máxima — o app de referência cabe num starter + domínio).
-
----
-
-## V4-11 — `@Eval` + `EvalBuilder` — [ ]
-
-**Esforço:** M · **Repo:** `theokit` · **Padrão:** Builder · **Depende de:** V4-2, **V3-5** (eval ergonomics) · **Valor:** Baixo-Médio
-
-Harness de avaliação declarativo. `@Eval` / `EvalBuilder.create().dataset().scorer().build()`. Sobre o eval ergonômico do V3-5.
-
-**Spec executável:** `theocode/server/lib/eval-suite.ts` + `swebench-*`.
-
----
-
-## 4. theocode vs theokit — padrões claros (a fronteira)
-
-| Conceito | `@theokit/sdk` (Harness) | `theokit` (framework / authoring) | `theocode` (app de referência) |
+| Conceito | `@theokit/sdk` (Harness) | `@theokit/agents` (authoring) | `theocode` (prova) |
 |---|---|---|---|
-| Tool | `defineTool` (factory) | `@Tool` / `ToolBuilder` | declara suas tools de código com `@Tool` |
-| Agent | `Agent.create` (factory) | `@Agent` / `AgentBuilder` | declara o `CodeAgent` |
-| Reflection | — | `ReflectionStrategy` + default `'ladder'` | usa `'ladder'` (ou custom de domínio) |
-| Loop | continuation driver (V3-4) | `AgentRunner` + `LoopStrategy` | `AgentRunner.builder(...)` |
-| Guard | `catastrophicShellReason` (V3-1) | `GuardStrategy` + defaults | declara `guards: [ShellGuard]` |
-| Compaction | `compactTranscript` (V3-3) | `CompactionStrategy` | `.compaction('token-budget')` |
-| Starter | — | `@theokit/starter-code-agent` | (poderia ser construído sobre ele) |
+| Tool/Agent | `defineTool`/`Agent.create` | ✅ `@Tool`/`@Agent` | declara |
+| Reflection | — | `ReflectionStrategy`+`'ladder'` (**V4-C**) | `@Reflection('ladder')` |
+| Loop | continuation driver (V3-4) | `AgentRunner`+`LoopStrategy` (**V4-D**) | `AgentRunner.builder(...)` |
+| Guard | `catastrophicShellReason` (V3-1) | `GuardStrategy` (**V4-E**) | `@Guard([ShellGuard])` |
+| Compaction | `compactTranscript` (V3-3) | `CompactionStrategy` (**V4-F**) | `.compaction('token-budget')` |
+| Starter | — | `@theokit/starter-code-agent` (**V4-H**) | construído sobre |
 
-**Regra de ouro do boundary:** o `theokit` provê **interface + default** de cada strategy; o `theocode` provê **implementação só quando o domínio genuinamente difere**. Tudo compila para o factory core do `@theokit/sdk`, que **nunca** sabe que a camada declarativa existe.
-
----
-
-## 5. Definição de "V4 completa"
-
-- [ ] V4-0: ADR ratifica decorators-como-sugar; spike prova sem IoC/sem reflect-metadata; pacote decidido.
-- [ ] Tier 1 (V4-1, V4-2): um recém-chegado declara agente + tools declarativamente; theocode adota tools + agent decl.
-- [ ] Tier 2 (V4-3, V4-4, V4-5): os ~720 LoC de orquestração do theocode colapsam para ~40 LoC + strategies nomeadas; legibilidade comprovada.
-- [ ] Tier 3 (V4-6..V4-9): compaction/context/subagent/memory declaráveis; theocode adota.
-- [ ] Tier 4 (V4-10, V4-11): ≥1 starter funcional em <10 LoC; eval declarativo.
-- [ ] **Métrica de prova:** `server/lib/` do theocode encolhe de ~2.977 LoC para majoritariamente **domínio puro** (sem plumbing de orquestração). Um agente novo de exemplo é construível em <30 LoC declarativas.
-- [ ] **Claim reescrita:** "o theokit torna a construção de agentes declarativa e legível — decorators para declarar, builders para compor, strategies nomeadas para variar, tudo compilando para um core factory testado — e o theocode prova com -90% de plumbing de orquestração."
+Regra de ouro: `@theokit/agents` provê interface + default; `theocode` provê implementação só quando o domínio difere; tudo compila para o factory core do SDK (que nunca sabe da camada).
 
 ---
 
-## 6. Riscos honestos a vigiar
+## 6. Definição de "V4 completa"
 
-| Risco | Severidade | Mitigação |
+- [ ] V4-A: documento honesto do gap de adoção (cobre declaração, falta orquestração).
+- [ ] V4-B..V4-F: builder + 4 strategies nomeadas; os ~720 LoC de orquestração do theocode colapsam para ~40 + strategies.
+- [ ] **O theocode ADOTA o `@theokit/agents`** (a prova que faltava — o app de referência para de evitá-lo).
+- [ ] V4-H: ≥1 starter funcional em <10 LoC.
+- [ ] Claim reescrita: "construir um agente no theokit é declarativo e legível — `@Agent`/`@Tool`/`@Reflection`/`@Guard` para declarar, `AgentRunner.builder()` para compor, strategies nomeadas para variar, tudo compilando para um core factory testado — e o theocode prova adotando."
+
+---
+
+## 7. Riscos honestos
+
+| Risco | Sev. | Mitigação |
 |---|---|---|
-| **Repetir o D431** (camada declarativa vira IoC container no núcleo) | **Alta** | Restrição inquebrável #1-3: sugar→factory, sem IoC, sem reflect-metadata, Harness independente. V4-0 prova isso num spike ANTES de qualquer feature. |
-| Over-abstração (strategies/decorators que ninguém entende — fere KISS) | Alta | Regra de 3: só promove strategy quando há ≥2 implementações reais (theocode + ≥1). Default sempre presente; opt-in sempre. |
-| Decorators TC39 instáveis / pegadinhas de TS | Média | V4-0 valida stage-3 no TS pinado; sem `reflect-metadata`; args explícitos evitam a parte instável (metadata de tipo). |
-| O próprio theocode rejeitar de novo (como rejeita o di-agent hoje) | Média | Cada milestone fecha o loop NO MESMO ciclo; se o theocode não adotar, o primitivo é reprovado e o roadmap diz por quê. |
-| Concorrer com o on-ramp imperativo (fragmentar a API) | Média | "Três sintaxes, um runtime" — não é fork, é açúcar. O imperativo segue canônico e suportado para sempre. |
-| Escopo gigante (12 milestones) | Média | Tiers: Tier 1+2 já provam a tese e entregam o WOW; Tier 3+4 são incrementais e deferíveis. |
+| **Repetir o erro da v1** (planejar sobre suposição) | **Alta** | V4-A (diagnóstico empírico) é o gate; nada se constrói antes de medir o gap real. |
+| O gap de adoção NÃO ser falta de feature (ser DX/maturidade/`reflect-metadata` friction) | **Alta** | V4-A pode concluir que o problema é outro — então o V4 muda de "estender" para "consertar". Honestidade > momentum. |
+| Over-abstração (strategies que ninguém entende — KISS) | Alta | Regra de 3: só promove strategy com ≥2 implementações reais. Default sempre presente. |
+| `reflect-metadata`/Legacy decorators friction | Média | É a escolha estabelecida (Pattern D1); custo ~3KB opt-in; não rebrigar. |
+| Concorrer com o on-ramp imperativo | Média | "Três sintaxes, um runtime" — açúcar, não fork. Imperativo segue canônico. |
 
 ---
 
-## 7. Prior art — quem resolve isso e o que pegamos/rejeitamos
+## 8. Prior art — narrow (só a parte aberta: builder/strategy/starter)
 
-| Framework | Stack | O que pegar | O que rejeitar |
-|---|---|---|---|
-| **Spring AI** | Java | starters opinativos; `@`-declaração + builders coexistindo; auto-config | annotations por reflection de tipo (não cabe no nosso "sem reflect-metadata") |
-| **Microsoft Semantic Kernel** | .NET/Py | plugins como unidade declarativa; `[KernelFunction]` | container/kernel pesado |
-| **a peer project** | Python | legibilidade de `@agent`/`@task`; role-based | acoplamento ao runtime deles |
-| **LlamaIndex Workflows** | Python | `@step` event-driven (inspiração p/ `LoopStrategy`) | event bus completo (YAGNI hoje) |
-| **a peer framework** | **TypeScript** | **a prova de que DX excelente em TS é possível**; config-object tipado + workflow graph | é config-object puro (sem decorators) — nós combinamos os dois |
+O decorator-foundation já está in-repo, então a pesquisa externa foca só no que é novo:
 
-**Insight decisivo:** decorator-declarativo domina em Java/.NET/Python (annotation cultural + reflection nativa). Em TS, o líder (a peer framework) é config-object. **A aposta do V4 é combinar os dois** (decorator para declarar + builder/config para compor), evitando a parte do TS que dói (reflect-metadata/IoC). É um espaço genuinamente aberto — ninguém domina o slot "NestJS dos agentes" em TS.
+| Framework | Stack | O que estudar (builder/strategy/starter) |
+|---|---|---|
+| **Spring AI** | Java | `ChatClient.builder()` (builder) + Advisors (strategy) + starters opinativos |
+| **a peer framework** | **TypeScript** | config-object + workflow graph (strategy em TS sem decorator) — a prova de DX em TS |
+
+Insight: o `@theokit/agents` já tem o que a peer project/LlamaIndex/Semantic-Kernel dariam (decorators→runtime). O que falta (builder fluente + strategies nomeadas) é o forte do **Spring AI** (builder+advisor+starter) e do **a peer framework** (strategy tipada em TS). Discovery narrow nesses dois.
 
 ---
 
-## 8. Como executar (discover-first — obrigatório)
-
-Porque o V4 reabre uma decisão estratégica (D431) e já queimamos escopo uma vez, o **primeiro passo é um `/discover`**, não código:
+## 9. Como executar
 
 ```
-/discover-plan declarative-agent-authoring
-   — pergunta central: "Qual a forma de autoria declarativa (decorator + builder)
-     que maximiza legibilidade/manutenção p/ agentes em TS, compilando para o
-     factory core, SEM IoC e SEM reflect-metadata (respeitando D431)?"
-   — refs a clonar: spring-ai, semantic-kernel, a peer framework, llamaindex (workflows), a peer project
-   — produz blueprint → vira ADR de V4-0
+V4-A diagnóstico (in-repo): declarar o code-agent do theocode com @Agent, medir o que sobra
         ↓
-V4-0 (ADR ratifica + spike) → Tier 1 → Tier 2 → ...
-   cada milestone: /to-plan → ... → /implement → /review (no theokit)
-        → release → theocode adota de volta (cycle no theocode) → mede LoC/legibilidade
+/discover-plan declarative-agent-orchestration  (narrow)
+   — pergunta: "Como expor ORQUESTRAÇÃO (loop/reflection/guard/compaction) como builder fluente
+     + strategies nomeadas em @theokit/agents, compilando para o factory core (ADR 0031),
+     de modo que o theocode finalmente adote?"
+   — refs: in-repo @theokit/agents (bridge/decorators) + Spring AI + a peer framework (só builder/strategy/starter)
+        ↓
+V4-B..V4-F: por milestone, /to-plan → ... → /implement → /review (em @theokit/agents)
+        → release → theocode adota → mede LoC/legibilidade/adoção
 ```
-
-FAANG-level, sem workarounds, sem reinventar IoC. Só parar quando READY_TO_MERGE + loop fechado + métrica de redução comprovada.
 
 ---
 
-> **Sincronização:** manter em sincronia com a cópia top-level de `gap-audit/` (mesma regra do ROADMAP-v2/v3). Versão canônica: `theokit-sdk/docs/gap-audit/ROADMAP-v4.md`.
-> **Dependência cruzada:** os milestones Tier 2 consomem primitivos do [`ROADMAP-v3.md`](./ROADMAP-v3.md) (V3-1 shell, V3-3 compaction, V3-4 continuation, V3-5 eval). V3 endurece; V4 embrulha.
+> **Sincronização:** manter em sincronia com a cópia top-level de `gap-audit/`. Canônico: `theokit-sdk/docs/gap-audit/ROADMAP-v4.md`.
+> **Dependência cruzada:** V4-C..V4-F consomem primitivos do [`ROADMAP-v3`](./ROADMAP-v3.md) (V3-1/V3-3/V3-4/V3-5). V3 endurece; V4 embrulha declarativamente.
+> **Histórico:** v1 (2026-06-23) assumia greenfield; revisão 2 corrigiu após ler `@theokit/agents@0.5.0` + ADR 0031.
