@@ -1,6 +1,6 @@
 # ROADMAP-v4 — Declarative Agent Authoring (decorators + builders, o jeito TheoKit)
 
-> **Status:** PROPOSTO · **Revisão 2 (2026-06-23)** — premissa CORRIGIDA após ler o prior-art (`@theokit/agents@0.5.0`, ADR 0031, `sdk-runtime.md`, a patterns-skill do http-decorators). A v1 deste roadmap assumia greenfield e propunha "reabrir o D431"; isso estava **factualmente errado** — a fundação já existe e o D431 já está reconciliado. Esta revisão re-mira no que é genuinamente aberto.
+> **Status:** PROPOSTO · **Revisão 3 (2026-06-23)** — V4-A (diagnóstico empírico) CONCLUÍDO: o gap foi localizado com precisão — não é "orquestração ausente", é **`@MainLoop` metadata-only** (a `strategy: 'plan-act-reflect'|'react'` é declarada e obrigatória, mas o runtime a ignora e faz single-shot). Ver [`V4A-adoption-gap-diagnosis.md`](./V4A-adoption-gap-diagnosis.md). O V4 é, com precisão, **"M8 Fase 2"**: dar runtime ao `@MainLoop` como o M8 deu ao `@ContextWindow`/`@Skills`. (Rev. 2 corrigira a premissa greenfield da v1; rev. 1 errou ao assumir que `@Agent`/`@Tool` não existiam.)
 > Escopo: `theokit/packages/agents` (`@theokit/agents`). Prova: `theocode`. Irmão de [`ROADMAP-v2`](./ROADMAP-v2.md) (adoção) e [`ROADMAP-v3`](./ROADMAP-v3.md) (hardening).
 
 ---
@@ -31,11 +31,13 @@ E as decisões estratégicas que o V4 v1 achou que precisava tomar **já foram t
 | "Princípio #2: sem `reflect-metadata`, TC39 only" | **ERRADO** — o pacote usa `reflect-metadata` (peer dep) + Legacy decorators, decisão consciente (idêntica ao Pattern D1 da patterns-skill do http-decorators: param-injection precisa de runtime type emit). Honrar, não brigar. |
 | "Clonar 5 frameworks pra decidir decorator vs no-IoC" | **Redundante** — respondido in-repo. |
 
-### 0.3 A tese CORRIGIDA (mais afiada)
+### 0.3 A tese — agora EMPÍRICA (V4-A concluído)
 
-> Os decorators do `@theokit/agents` cobrem **DECLARAÇÃO** (que modelo, que tools, que skills) mas **NÃO cobrem ORQUESTRAÇÃO** (o loop, a reflexão, os guards, a compaction). Por isso o `theocode` **não os adota** — mesmo declarando `@Agent`, ele ainda escreveria os ~720 LoC de outer-loop + reflection ladder à mão. O decorator só cobriria metade, então o split não compensa.
+> O `@theokit/agents` cobre **declaração** (`@Agent`/`@Tool`/`@Skills`/...) + streaming **single-shot**. A orquestração **existe declarada** — `@MainLoop({ strategy: 'simple-chat' | 'plan-act-reflect' | 'react' })` é **obrigatória** (`walk-agent-metadata.ts:5`) — **mas é metadata-only**: o orquestrador (`agent-orchestrator.ts`) nunca faz branch em `strategy`; só consome um `Run.stream()`. `maxIterations` é compilado e nunca lido.
 >
-> **O V4 = tornar a ORQUESTRAÇÃO declarativa** (builder fluente + strategies nomeadas), que é o que finalmente faz a adoção valer a pena. É também onde os maiores hand-rolls do theocode colapsam.
+> **Por isso o theocode não adota:** declarar `@MainLoop({strategy:'plan-act-reflect'})` seria no-op → ele receberia chat single-shot, **não** sua reflection ladder, e ainda escreveria os 718 LoC de orquestração à mão num codebase partido. Zero ganho. (Ver [`V4A-adoption-gap-diagnosis.md`](./V4A-adoption-gap-diagnosis.md).)
+>
+> **O V4 = "M8 Fase 2": dar RUNTIME ao `strategy` do `@MainLoop`** — `plan-act-reflect` (= ReflectionStrategy) e `react` (= LoopStrategy) — exatamente como o M8 deu runtime ao `@ContextWindow`/`@Skills` (ADR 0031). E (confirmado pelo owner) expor a mesma capacidade **como decorator OU builder fluente, padrão Spring Boot** (três sintaxes, um runtime). É onde os maiores hand-rolls do theocode colapsam — e a promessa que o `@MainLoop` já faz finalmente é cumprida.
 
 ---
 
@@ -68,9 +70,9 @@ Os 4 papéis, um runtime (inalterado — e já é a arquitetura do `@theokit/age
 | Bridge compile→factory | ✅ `bridge/` | — |
 | Plugin no framework | ✅ `agentsPlugin()` | — |
 | Decorators de declaração | ✅ `@Agent`/`@Tool`/`@Skills`/`@Memory`/`@ContextWindow`/`@ProjectContext`/`@Gateway`/`@Checkpoint`/`@Conversation` | — |
-| **Builder fluente** | ❌ | **V4-B** |
-| **ReflectionStrategy + `@Reflection`** | ❌ | **V4-C** (theocode 248 LoC) |
-| **LoopStrategy + AgentRunner** | ❌ | **V4-D** (theocode 470 LoC; depende V3-4) |
+| **Builder fluente** | ❌ | **V4-B** (gêmeo imperativo do `@MainLoop`) |
+| **ReflectionStrategy (`@MainLoop strategy:'plan-act-reflect'`)** | ⚠️ declarado **metadata-only** | **V4-C** — dar runtime (theocode 248 LoC) |
+| **LoopStrategy / `react` (`@MainLoop strategy:'react'`)** | ⚠️ declarado **metadata-only** | **V4-D** — dar runtime (theocode 470 LoC; depende V3-4) |
 | **GuardStrategy + `@Guard`** | ❌ | **V4-E** (theocode 143 LoC; depende V3-1) |
 | **CompactionStrategy + `@Compaction`** | ❌ (só `@ContextWindow` knob) | **V4-F** (theocode 150 LoC; depende V3-3) |
 | **Starters** | ❌ | **V4-H** |
@@ -131,22 +133,20 @@ Meta: as ~720 LoC de orquestração do theocode → ~40 LoC + strategies nomeada
            V4-I Eval builder  (V3-5)
 ```
 
-### V4-A — Diagnóstico de adoção (GATE — faz primeiro) — [ ]
-**Esforço:** S · **Tipo:** discovery/spike · **Depende de:** — · **Valor:** CRÍTICO
-
-A pergunta que reorienta tudo: **por que o `theocode` evita o `@theokit/agents` mesmo com `@Agent`/`@Tool` prontos?** (O prompt dele manda evitar.) Hipótese: cobre só declaração, não orquestração. Confirmar empiricamente: tentar declarar o code-agent do theocode com `@Agent` e medir o que SOBRA hand-rolled. O resultado define o escopo real de V4-B..V4-H. **Concluído quando:** documento honesto "o que o `@theokit/agents` cobre vs o que falta para o theocode adotar".
+### ✅ V4-A — Diagnóstico de adoção (GATE) — CONCLUÍDO (2026-06-23)
+**Resultado:** [`V4A-adoption-gap-diagnosis.md`](./V4A-adoption-gap-diagnosis.md). **Gap localizado:** `@MainLoop` é metadata-only — `strategy: 'plan-act-reflect'|'react'` é declarada + obrigatória + compilada + surfaceada no manifest, mas o orquestrador (`agent-orchestrator.ts:159-172`) é single-shot e nunca faz branch nela; `maxIterations` compilado e nunca lido. O theocode não adota porque o que ele precisa (loop reflexivo) é exatamente o que o `@MainLoop` promete e não cumpre. **Implicação:** V4 = "M8 Fase 2" (dar runtime ao `@MainLoop`). Escopo de V4-B..V4-H confirmado.
 
 ### V4-B — Builder layer (`AgentBuilder` / `AgentRunner.builder()`) — [ ]
 **Esforço:** M · **Padrão:** Builder · **Depende de:** V4-A · **Valor:** Alto
 A peça fluente que não existe. `AgentRunner.builder(AgentClass).reflection().compaction().stream().build()`. Compõe decorators + strategies → compila para `Agent.create` + driver. **Loop:** theocode constrói o runner via builder.
 
-### V4-C — `ReflectionStrategy` + `@Reflection` — [ ]
+### V4-C — `ReflectionStrategy` = dar runtime a `@MainLoop strategy:'plan-act-reflect'` — [ ]
 **Esforço:** M · **Padrão:** Strategy · **Depende de:** V4-B · **Valor:** ALTO (maior ganho)
-A reflection ladder de 248 LoC do theocode (`agent-loop.ts`: `classifyRoundOutcome`/`selectReflection`) vira strategy nomeada (`'ladder'`/`'none'`/custom). Default `'ladder'` no `theokit`. **Loop:** theocode usa `@Reflection('ladder')`; `agent-loop.ts` vira a default da strategy (domínio→framework) OU strategy custom.
+Implementa o que o `@MainLoop({strategy:'plan-act-reflect'})` já declara mas não executa (metadata-only — V4-A). A reflection ladder de 248 LoC do theocode (`agent-loop.ts`: `classifyRoundOutcome`/`selectReflection`) vira a `ReflectionStrategy` default no `theokit`. Igual ao M8: o bridge compila, o runtime executa. **Loop:** theocode declara `@MainLoop({strategy:'plan-act-reflect'})` (ou `.reflection('ladder')` no builder); `agent-loop.ts` vira a default da strategy (domínio→framework) OU strategy custom.
 
-### V4-D — `LoopStrategy` + `AgentRunner` — [ ]
+### V4-D — `LoopStrategy` = dar runtime a `@MainLoop strategy:'react'` + `AgentRunner` — [ ]
 **Esforço:** L · **Padrão:** Builder + Strategy · **Depende de:** V4-B, **V3-4** · **Valor:** ALTO
-O outer loop de 470 LoC (`agent-stream.ts`) vira runner configurado sobre o continuation driver do V3-4 (streaming+stateless). `LoopStrategy` = terminais (`done`/`step_limit`/`no_progress`) + re-prompt bounded. **Loop:** theocode troca `agent-stream.ts` por `AgentRunner`.
+Implementa o `strategy:'react'` (hoje metadata-only) como loop multi-round real, substituindo o single-shot do `agent-orchestrator.ts`. O outer loop de 470 LoC do theocode (`agent-stream.ts`) vira `AgentRunner` configurado sobre o continuation driver do V3-4 (streaming+stateless). `LoopStrategy` = terminais (`done`/`step_limit`/`no_progress`) + re-prompt bounded + honra `maxIterations` (hoje compilado e ignorado). **Loop:** theocode troca `agent-stream.ts` por `AgentRunner.builder(...)`.
 
 ### V4-E — `GuardStrategy` + `@Guard` — [ ]
 **Esforço:** M · **Padrão:** Strategy · **Depende de:** V4-B, **V3-1** · **Valor:** Alto
