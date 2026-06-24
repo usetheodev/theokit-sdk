@@ -41,7 +41,7 @@ Ordem por valor: **V3-1 (segurança) > V3-2 (desbloqueio + CVE) > V3-3 > V3-4 > 
 
 ---
 
-## V3-0 — Higiene operacional (infra) — [ ]
+## V3-0 — Higiene operacional (infra) — [x] (117 .pyc destrackeados + .gitignore Python deduped; GitHub Actions can_approve_pull_request_reviews=true no repo theokit-sdk — confirmação plena da Version-PR automática é follow-up do próximo release real)
 
 **Esforço:** S · **Repo:** org GitHub + theokit-sdk + theocode · **Depende de:** —
 
