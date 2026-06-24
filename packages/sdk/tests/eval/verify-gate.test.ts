@@ -21,6 +21,34 @@ describe("Scorers.verifyGate (M6-2)", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
+  it("test_verifyGate_defaults_to_local_sandbox", async () => {
+    // V3-5 (b): sandbox is optional; verifyGate defaults to a LocalSandbox. It is
+    // workdir-independent (always `cd`s to the explicit repoDir), so no isolation
+    // needed (EC-3).
+    const scorer = Scorers.verifyGate({
+      repoDir: dir,
+      failToPass: ["t1"],
+      passToPass: [],
+      command: () => "true",
+    });
+    const result = await scorer.score("", undefined);
+    expect(result.score).toBe(1);
+  });
+
+  it("test_verifyGate_explicit_sandbox_unchanged", async () => {
+    // Regression: an explicit sandbox is still honored.
+    const sandbox = new LocalSandbox({ workDir: dir });
+    const scorer = Scorers.verifyGate({
+      sandbox,
+      repoDir: dir,
+      failToPass: ["t1"],
+      passToPass: [],
+      command: () => "false",
+    });
+    const result = await scorer.score("", undefined);
+    expect(result.score).toBe(0);
+  });
+
   it("scores 1 when the test command exits zero", async () => {
     const sandbox = new LocalSandbox({ workDir: dir });
     const scorer = Scorers.verifyGate({

@@ -16,6 +16,7 @@
 import type { ZodType, z } from "zod";
 
 import { type LlmJudgeOptions, llmJudgeScore } from "./internal/scorers/llm-judge.js";
+import { LocalSandbox } from "./sandbox/local-sandbox.js";
 import { shellEscapePosix } from "./sandbox/shell-escape.js";
 import type { NamedScorer, Score, VerifyGateOptions } from "./types/eval.js";
 
@@ -144,7 +145,7 @@ export const Scorers = {
    * that rejects shell metacharacters in `execute` is unsupported for this scorer.
    */
   verifyGate(opts: VerifyGateOptions): NamedScorer {
-    const { sandbox, repoDir, failToPass, passToPass, command } = opts;
+    const { sandbox = new LocalSandbox(), repoDir, failToPass, passToPass, command } = opts;
     return {
       name: "verify-gate",
       score: async (): Promise<Score> => {
