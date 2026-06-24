@@ -55,6 +55,32 @@ describe("provisionRepo (M6-3)", () => {
     expect(git(repoDir, "rev-parse", "HEAD")).toBe(headSha);
   });
 
+  it("test_provisionRepo_defaults_to_local_sandbox", async () => {
+    // V3-5 (b): the 1-arg overload defaults sandbox to a new LocalSandbox().
+    // Isolate via process.chdir so the default (workDir=cwd) clone lands in `work`,
+    // never the package tree (EC-1).
+    const prevCwd = process.cwd();
+    process.chdir(work);
+    try {
+      const { repoDir } = await provisionRepo({
+        repoUrl: source,
+        ref: headSha,
+        instanceId: "inst-default",
+      });
+      expect(existsSync(join(repoDir, "README.md"))).toBe(true);
+      expect(git(repoDir, "rev-parse", "HEAD")).toBe(headSha);
+    } finally {
+      process.chdir(prevCwd);
+    }
+  });
+
+  it("test_provisionRepo_single_arg_invalid_instanceId_throws", async () => {
+    // EC-2: a single arg is routed to `opts` (not `sandbox`); validation runs.
+    await expect(
+      provisionRepo({ repoUrl: source, ref: headSha, instanceId: "../evil" }),
+    ).rejects.toBeInstanceOf(RepoProvisionError);
+  });
+
   it("throws RepoProvisionError naming the instanceId on a bad ref", async () => {
     const sandbox = new LocalSandbox({ workDir: work });
     await expect(

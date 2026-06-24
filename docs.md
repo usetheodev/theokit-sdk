@@ -2340,7 +2340,7 @@ console.log(run.aggregate.durationMsP95); // 1830 (latency tail)
 | `Scorers.regex(pattern)` | `pattern.test(output)` | EC-10: user-supplied pattern; test against adversarial outputs to avoid ReDoS |
 | `Scorers.jsonShape(zodSchema, { strict? })` | `JSON.parse(output)` + Zod validation | EC-2: caps output at 1 MB before parse |
 | `Scorers.llmJudge({ model, apiKey, criteria, rubric? })` | Second LLM scores against criteria | EC-12: doubles per-row cost; requires SEPARATE apiKey (D205) |
-| `Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command })` | Runs the project's tests in a provisioned repo via `SandboxBackend.execute`; scores `1` iff the command exits `0` (M6-2) | SECURITY: `command` is REQUIRED and owns shell-safety of dataset-derived test names — there is no bare-identifier default. Assumes a shell-backed sandbox. |
+| `Scorers.verifyGate({ sandbox?, repoDir, failToPass, passToPass, command })` | Runs the project's tests in a provisioned repo via `SandboxBackend.execute`; scores `1` iff the command exits `0` (M6-2). `sandbox` optional (v2.9+) — defaults to `LocalSandbox`. | SECURITY: `command` is REQUIRED and owns shell-safety of dataset-derived test names — there is no bare-identifier default. Assumes a shell-backed sandbox. |
 
 ### `EvalRun` shape
 
@@ -2451,8 +2451,13 @@ line-numbered `JsonlParseError`; the dataset schema is the caller's via `map`
 import { provisionRepo, RepoProvisionError } from "@theokit/sdk/sandbox";
 
 const { repoDir } = await provisionRepo(sandbox, { repoUrl, ref, instanceId });
+// or, with a default local sandbox (clones into the process cwd):
+const { repoDir: d2 } = await provisionRepo({ repoUrl, ref, instanceId });
 ```
 
+The `sandbox` is OPTIONAL (v2.9+): omit it to default to a `LocalSandbox`. The
+default clones into `<process cwd>/<instanceId>` — pass an explicit
+`LocalSandbox({ workDir })` (or Docker/E2B backend) to control the workdir.
 Clones + checks out a ref into `<workdir>/<instanceId>` via
 `SandboxBackend.execute` (portable). SECURITY: `instanceId` is validated to
 `[A-Za-z0-9._-]` (no path traversal), `ref` may not begin with `-`, clone uses a
@@ -2463,9 +2468,11 @@ Clones + checks out a ref into `<workdir>/<instanceId>` via
 `{ diff, applies }` — the working-tree `git diff` plus a reverse
 `git apply --check` coherence test. An empty diff returns `{ diff: "", applies: false }`.
 
-**Grading.** `Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command })`
+**Grading.** `Scorers.verifyGate({ sandbox?, repoDir, failToPass, passToPass, command })`
 runs `command([...failToPass, ...passToPass])` in `repoDir` and scores by exit
-code. `command` is REQUIRED — the SDK ships no default that would run untrusted
+code. `sandbox` is OPTIONAL (v2.9+): omit it to default to a `LocalSandbox`
+(workdir-independent here — `verifyGate` always `cd`s to the explicit `repoDir`).
+`command` is REQUIRED — the SDK ships no default that would run untrusted
 test identifiers as a shell command.
 
 ## Agent handoffs (v1.16+) — `handoffs[]` + `Handoff.create`
