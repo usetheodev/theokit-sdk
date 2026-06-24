@@ -513,14 +513,14 @@ VERIFY: npx vitest run packages/sdk/tests/compaction.test.ts
 ### T4.1 — theocode-corpus parity suite
 
 #### Objective
-Add a parity test suite reproducing theocode's 9-test corpus against the SDK's token-budget mode + marker + template + fail-safe + filter('from').
+Add a parity test suite reproducing theocode's corpus against the SDK's token-budget mode + marker + template + fail-safe + filter('from'). theocode has 8 `it()` blocks; 7 are mirrored behaviorally. The 8th (`test_isOverflowError_matches_context_length_signatures`) is INTENTIONALLY NOT mirrored — theocode matches overflow via message-string regex, while the SDK uses the typed `context_too_long` code (`isContextOverflowError`, a deliberately superior design) covered by the separate M2 `isContextOverflowError` suite. So the parity scope is 7-of-8 behavioral + 1 intentional divergence.
 
 #### Why this step (action + reasoning)
 1. **What this step does** — pins behavioral parity (the Goal's metric).
 2. **Why it is necessary now** — it is the executable proof theocode can adopt + delete its file. Cited by the Goal + roadmap "Concluído quando".
 
 #### Evidence
-- `theocode/tests/unit/compaction.test.ts:21-110` (the 9 tests: split keeps recent within budget, replaces head with checkpoint, noop under budget, falls back on summarizer error, template 7 sections, filters from latest checkpoint inclusive, returns all when no checkpoint).
+- `theocode/tests/unit/compaction.test.ts:21-110` (8 `it()` blocks; the 7 mirrored: split keeps recent within budget, replaces head with checkpoint, noop under budget, falls back on summarizer error, template 7 sections, filters from latest checkpoint inclusive, returns all when no checkpoint. The 8th, `isOverflowError`, is intentionally NOT mirrored — see T4.1 objective).
 
 #### Files to edit
 ```
