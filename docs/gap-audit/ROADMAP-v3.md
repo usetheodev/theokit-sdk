@@ -89,7 +89,7 @@ Dois atritos operacionais que o V2 expôs:
 
 ---
 
-## V3-4 — Driver de continuação streaming + stateless + reflection-aware — [ ]
+## V3-4 — Driver de continuação streaming + stateless + reflection-aware — [x] (agent.streamToCompletion no @theokit/sdk; reflection-ladder = app-policy do theocode)
 
 **Esforço:** M-L · **Repo:** `theokit-sdk` (packages/sdk) · **Depende de:** — · **Valor:** Médio
 
