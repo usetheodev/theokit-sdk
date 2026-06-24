@@ -27,10 +27,6 @@ __pycache__/
 *.pyo
 *.pyd
 *.pycache/
-*.pyo
-*.pyd
-*.pyc
-*.pyo
 
 # Editor (keep shared configs, ignore user state)
 .vscode/*
