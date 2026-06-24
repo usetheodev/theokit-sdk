@@ -9,12 +9,15 @@ import {
 } from "../src/compaction.js";
 
 /**
- * V3-3 parity suite — mirrors theocode's `tests/unit/compaction.test.ts` corpus
- * against the SDK's token-budget mode + `<conversation-checkpoint>` marker +
- * `failSafe:true` + `include:'from'`. Proves theocode can adopt the SDK
+ * V3-3 parity suite — mirrors 7 of theocode's 8 `tests/unit/compaction.test.ts`
+ * blocks against the SDK's token-budget mode + `<conversation-checkpoint>` marker
+ * + `failSafe:true` + `include:'from'`. Proves theocode can adopt the SDK
  * `compactTranscript` and delete its local `server/lib/compaction.ts` (anti-
  * reinvention baseline 2→1). Parity is BEHAVIORAL (split points, marker,
- * template, fail-safe, filter), not signature-identical (Q1).
+ * template, fail-safe, filter), not signature-identical (Q1). theocode's 8th test
+ * (`isOverflowError`, message-regex) is INTENTIONALLY not mirrored — the SDK uses
+ * the typed `context_too_long` code (`isContextOverflowError`, covered in
+ * `compaction.test.ts`), a deliberately superior, non-parity design.
  */
 const MARKER = "<conversation-checkpoint>";
 const msg = (role: CompressibleMessage["role"], content: string): CompressibleMessage => ({
