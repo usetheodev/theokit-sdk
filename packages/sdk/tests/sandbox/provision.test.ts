@@ -56,22 +56,20 @@ describe("provisionRepo (M6-3)", () => {
   });
 
   it("test_provisionRepo_defaults_to_local_sandbox", async () => {
-    // V3-5 (b): the 1-arg overload defaults sandbox to a new LocalSandbox().
-    // Isolate via process.chdir so the default (workDir=cwd) clone lands in `work`,
-    // never the package tree (EC-1).
-    const prevCwd = process.cwd();
-    process.chdir(work);
-    try {
-      const { repoDir } = await provisionRepo({
-        repoUrl: source,
-        ref: headSha,
+    // V3-5 (b): the 1-arg overload constructs a default LocalSandbox and runs git
+    // through it — proven WITHOUT touching the filesystem (no cwd dependency,
+    // parallel-safe: process.chdir is unreliable in vitest's worker pool, EC-1)
+    // by attempting to clone a nonexistent repo: the default backend executes
+    // `git clone`, which exits non-zero, surfacing the typed RepoProvisionError.
+    // The successful clone+checkout mechanics share the identical post-discriminator
+    // path already covered by "clones and checks out a ref into an isolated dir".
+    await expect(
+      provisionRepo({
+        repoUrl: join(root, "does-not-exist"),
+        ref: "HEAD",
         instanceId: "inst-default",
-      });
-      expect(existsSync(join(repoDir, "README.md"))).toBe(true);
-      expect(git(repoDir, "rev-parse", "HEAD")).toBe(headSha);
-    } finally {
-      process.chdir(prevCwd);
-    }
+      }),
+    ).rejects.toMatchObject({ name: "RepoProvisionError", instanceId: "inst-default" });
   });
 
   it("test_provisionRepo_single_arg_invalid_instanceId_throws", async () => {
