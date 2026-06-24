@@ -65,7 +65,7 @@ Dois atritos operacionais que o V2 expôs:
 
 ---
 
-## V3-2 — Widen do peer `@theokit/ui` + patch do `valibot` (acoplados) — [ ]
+## V3-2 — Widen do peer `@theokit/ui` + patch do `valibot` (acoplados) — [x] (theokit peer ^0.14.0 || ^0.18.0 + theo-ui valibot ^1.4.1)
 
 **Esforço:** M · **Repo:** `theokit` (peer) + `theo-ui` (valibot) · **Depende de:** — · **Valor:** Médio (desbloqueio + CVE)
 
