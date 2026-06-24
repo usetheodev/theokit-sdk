@@ -28,14 +28,19 @@ export interface RunToCompletionAgent {
   send(message: string, options?: SendOptions): Promise<{ wait(): Promise<RunResult> }>;
 }
 
-const DEFAULT_MAX_ROUNDS = 5;
-const DEFAULT_CONTINUATION_PROMPT =
+/** @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4). */
+export const DEFAULT_MAX_ROUNDS = 5;
+/** @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4). */
+export const DEFAULT_CONTINUATION_PROMPT =
   "Continue from where you left off and finish the task. If it is already complete, give the final answer.";
 
 type RoundDecision = "done" | "continue" | "step_limit" | "no_progress";
 
-/** True when a round produced no observable output text. */
-function isEmptyRound(result: RunResult): boolean {
+/**
+ * True when a round produced no observable output text.
+ * @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4).
+ */
+export function isEmptyRound(result: RunResult): boolean {
   return (result.result ?? "").trim() === "";
 }
 
@@ -67,7 +72,11 @@ export function classifyRound(
  * EC-10 invariant (`usage.ts`) at this aggregation boundary even if a provider
  * folded extra buckets into a round's own `totalTokens`.
  */
-function addUsage(acc: TokenUsage | undefined, u: TokenUsage | undefined): TokenUsage | undefined {
+/** @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4). */
+export function addUsage(
+  acc: TokenUsage | undefined,
+  u: TokenUsage | undefined,
+): TokenUsage | undefined {
   if (u === undefined) return acc;
   const inputTokens = (acc?.inputTokens ?? 0) + u.inputTokens;
   const outputTokens = (acc?.outputTokens ?? 0) + u.outputTokens;
