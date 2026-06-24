@@ -26,14 +26,16 @@ import type {
   SendOptions,
   StreamToCompletionResult,
 } from "../../../types/run.js";
-import type { TokenUsage } from "../../../types/usage.js";
 
 import {
   addUsage,
+  buildResult,
   classifyRound,
-  DEFAULT_CONTINUATION_PROMPT,
-  DEFAULT_MAX_ROUNDS,
+  continuationTail,
   isEmptyRound,
+  promptForRound,
+  type RoundState,
+  resolveContinuation,
 } from "./run-to-completion.js";
 
 /** One streamed round handle: drain `stream()` (live events) then `wait()` (terminal result). */
@@ -45,22 +47,6 @@ interface StreamRun {
 /** Minimal agent port the streaming driver needs — the instance `.send()` surface. */
 export interface StreamToCompletionAgent {
   send(message: string, options?: SendOptions): Promise<StreamRun>;
-}
-
-/** Build the terminal result object, omitting `usage` when no round reported any. */
-function buildResult(
-  terminal: StreamToCompletionResult["terminal"],
-  rounds: number,
-  lastResult: RunResult,
-  usage: TokenUsage | undefined,
-): StreamToCompletionResult {
-  return { terminal, rounds, lastResult, ...(usage !== undefined ? { usage } : {}) };
-}
-
-/** State carried between continuation rounds. */
-interface RoundState {
-  usage: TokenUsage | undefined;
-  emptyStreak: number;
 }
 
 /** A round either reaches a terminal, or yields the state to carry forward. */
@@ -95,26 +81,22 @@ export async function* streamToCompletionImpl(
   message: string,
   options?: RunToCompletionOptions,
 ): AsyncGenerator<SDKMessage, StreamToCompletionResult> {
-  const maxRounds = options?.maxRounds ?? DEFAULT_MAX_ROUNDS;
-  const continuationPrompt = options?.continuationPrompt ?? DEFAULT_CONTINUATION_PROMPT;
-  const { onTruncated, signal, sendOptions } = options ?? {};
-
-  let state: RoundState = { usage: undefined, emptyStreak: 0 };
+  const cfg = resolveContinuation(options);
+  let state = cfg.state;
 
   for (let round = 0; ; round += 1) {
-    const prompt = round === 0 ? message : continuationPrompt;
-    const run = await agent.send(prompt, sendOptions);
+    const prompt = promptForRound(round, message, cfg.continuationPrompt);
+    const run = await agent.send(prompt, cfg.sendOptions);
 
     // (a) STREAMING: delegate the round's events live, before classifying.
     yield* run.stream();
     const result = await run.wait();
 
-    const decision = decideRound(result, round, maxRounds, state);
+    const decision = decideRound(result, round, cfg.maxRounds, state);
     if ("terminal" in decision) return decision.terminal;
 
     state = decision.next;
-    await onTruncated?.({ round });
-    // Re-read `aborted` each round (getter that can flip between rounds).
-    if (signal?.aborted === true) return buildResult("step_limit", round, result, state.usage);
+    const aborted = await continuationTail(round, result, state.usage, cfg.onTruncated, cfg.signal);
+    if (aborted !== undefined) return aborted;
   }
 }
