@@ -101,7 +101,7 @@ Dois atritos operacionais que o V2 expôs:
 
 ---
 
-## V3-5 — Ergonomia do eval harness (opcional) — [ ]
+## V3-5 — Ergonomia do eval harness (opcional) — [x] (provisionRepo + Scorers.verifyGate ganharam default LocalSandbox no @theokit/sdk — sem exigir SandboxBackend explícito; jsonl re-export (a) já era V2-3; (c) task-centric Eval fora do DoD, deferido)
 
 **Esforço:** M · **Repo:** `theokit-sdk` (eval + sandbox) · **Depende de:** — · **Valor:** Baixo (opportunity)
 
