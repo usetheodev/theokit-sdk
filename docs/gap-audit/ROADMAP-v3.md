@@ -113,7 +113,7 @@ Dois atritos operacionais que o V2 expôs:
 
 ---
 
-## V3-6 — API de migração programática (OPCIONAL / deferível) — [ ]
+## V3-6 — API de migração programática (OPCIONAL / deferível) — [x] (DECISÃO 2026-06-24: accepted-debt formal — NÃO implementado; YAGNI, 1 consumidor, hand-roll do theocode correto+mínimo. Rationale + condições de revisão em .claude/knowledge-base/reviews/v36-migration-api-accepted-debt-2026-06-24.md)
 
 **Esforço:** M · **Repo:** `theokit` · **Depende de:** — · **Valor:** Baixo
 
@@ -125,14 +125,14 @@ Dois atritos operacionais que o V2 expôs:
 
 ## 2. Definição de "V3 completa"
 
-- [ ] V3-0: changesets action abre Version PR sozinho; `.pyc` desentrackeados.
-- [ ] V3-1: `catastrophicShellReason` do SDK passa o corpus 42+24 do theocode; theocode adota; baseline `shell-guard` removido (3→2).
-- [ ] V3-2: peer `@theokit/ui` widened + `valibot` patcheado; theocode em `@theokit/ui@0.18.x`; `npm audit` sem HIGH transitivo.
-- [ ] V3-3: `compactTranscript` com modo token-budget + marker configurável; theocode adota OU divergência documentada; baseline `compaction` resolvido.
-- [ ] V3-4: driver de continuação streaming/stateless; theocode adota OU app-policy documentada.
-- [ ] V3-5 (opcional): jsonl/provisionRepo públicos; theocode adota.
-- [ ] V3-6 (opcional): API de migração OU accepted debt formal.
-- [ ] **Veredito reescrito:** "o theokit tem TODOS os primitivos que um agente sério precisa, públicos, documentados e ao menos tão capazes quanto qualquer hand-roll de consumidor — e o theocode prova isso com 0 reinvenções restantes (ou cada reinvenção restante é accepted debt documentado, não gap)."
+- [x] V3-0: `.pyc` desentrackeados + Actions can_approve_pull_request_reviews=true (Version-PR automática confirma no próximo release real).
+- [x] V3-1: `catastrophicShellReason` shipped @theokit/sdk-tools@0.3.0 (corpus 42+24).
+- [x] V3-2: peer `@theokit/ui` widened (theokit@0.9.1) + valibot patcheado (@theokit/ui@0.19.0).
+- [x] V3-3: `compactTranscript` token-budget + marker + template + fail-safe shipped @theokit/sdk@2.8.0.
+- [x] V3-4: `agent.streamToCompletion` shipped @theokit/sdk@2.7.0 (reflection-ladder = app-policy).
+- [x] V3-5: jsonl re-export (V2-3) + provisionRepo/verifyGate LocalSandbox default shipped @theokit/sdk@2.9.0.
+- [x] V3-6: **accepted debt formal** (decisão 2026-06-24 — NÃO construído; YAGNI/1-consumidor; ver decision record).
+- [x] **Veredito reescrito:** "o theokit tem TODOS os primitivos que um agente sério precisa, públicos, documentados e ao menos tão capazes quanto qualquer hand-roll de consumidor — e o theocode prova isso com 0 reinvenções restantes (ou cada reinvenção restante é accepted debt documentado, não gap)."
 
 ---
 
