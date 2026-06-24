@@ -77,7 +77,7 @@ Dois atritos operacionais que o V2 expôs:
 
 ---
 
-## V3-3 — Modo token-budget no `@theokit/sdk/compaction` — [ ]
+## V3-3 — Modo token-budget no `@theokit/sdk/compaction` — [x] (compactTranscript ganhou keepTokens + marker configurável + SUMMARY_TEMPLATE 7-seções + failSafe opt-in no @theokit/sdk; paridade comportamental com theocode; theocode adota + deleta server/lib/compaction.ts → baseline 2→1)
 
 **Esforço:** M · **Repo:** `theokit-sdk` (packages/sdk, compaction) · **Depende de:** — · **Valor:** Médio
 
