@@ -176,7 +176,7 @@ provisionRepo(myDockerSandbox, { repoUrl, ref, instanceId })  // explicit (uncha
 
 #### TDD
 ```
-RED:   test_provisionRepo_defaults_to_local_sandbox() — provisionRepo({repoUrl:<file:// tmp git>, ref, instanceId}) resolves a repoDir without an explicit sandbox. ISOLATION (EC-1): run in a tmp cwd (LocalSandbox({workDir: tmp}) is NOT used here since that would mask the default; instead process.chdir(tmp) in the test + restore in finally) so the default clone never pollutes the package tree.
+RED:   test_provisionRepo_defaults_to_local_sandbox() — the 1-arg overload constructs a default LocalSandbox and runs git through it. Proven WITHOUT fs side effects (EC-1: process.chdir is unreliable in vitest's worker pool) by cloning a nonexistent repo → the default backend executes `git clone`, exits non-zero, surfacing RepoProvisionError{instanceId}. The successful clone+checkout mechanics share the identical post-discriminator path already covered by the explicit-sandbox "clones and checks out a ref" test.
 RED:   test_provisionRepo_explicit_sandbox_unchanged() — provisionRepo(fakeSandbox, opts) still routes through the passed sandbox (regression).
 RED:   test_provisionRepo_single_arg_missing_repoUrl_throws() — a 1-arg call whose object lacks repoUrl throws the normal validation error (EC-2: discriminator routes a single arg to opts cleanly).
 GREEN: add overload + discriminator
