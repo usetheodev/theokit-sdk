@@ -325,6 +325,29 @@ const out = await agent.runToCompletion?.("Refactor the module and run the tests
 if (out !== undefined && out.terminal !== "done") {
   console.warn(`stopped early: ${out.terminal} after ${out.rounds} round(s)`);
 }
+
+agent.streamToCompletion(message, options?) is the STREAMING twin of runToCompletion: same options (RunToCompletionOptions) and the same terminal policy (done / step_limit / no_progress + bounded re-prompt), but it returns an AsyncGenerator that yields each round's SDKMessages LIVE — so a UI can render tool calls and text as they happen across continuation rounds, instead of waiting for the final result. Local agents only; cloud agents throw UnsupportedRunOperationError.
+
+The StreamToCompletionResult (terminal / rounds / usage — same shape as RunToCompletionResult) is the generator's RETURN value, NOT a yielded value. A plain `for await...of` consumes the messages but discards it — read it with a manual `next()` loop:
+
+```
+// streamToCompletion is optional + local-only (cloud agents throw).
+const gen = agent.streamToCompletion?.("Refactor the module and run the tests", { maxRounds: 8 });
+if (gen !== undefined) {
+  let res = await gen.next();
+  while (!res.done) {
+    render(res.value);          // res.value is an SDKMessage (live)
+    res = await gen.next();
+  }
+  const summary = res.value;    // StreamToCompletionResult — the return value
+  if (summary.terminal !== "done") {
+    console.warn(`stopped early: ${summary.terminal} after ${summary.rounds} round(s)`);
+  }
+}
+```
+
+Both drivers are STATEFUL (the agent's session preserves history). For the STATELESS + streaming combination — a serverless handler that reconstructs working memory then streams a multi-round continuation — reconstruct history with `buildReplayHistory` (below) into a fresh agent, then drive `streamToCompletion`.
+
 Replay history (stateless continuation)
 
 `runToCompletion` covers the STATEFUL path (a live agent whose session preserves history). For the STATELESS path — a server or serverless handler that re-runs an agent on a fresh request and must reconstruct working memory from persisted stream events — use the pure `buildReplayHistory`.
