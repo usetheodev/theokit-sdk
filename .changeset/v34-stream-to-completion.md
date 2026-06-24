@@ -1,5 +1,0 @@
----
-"@theokit/sdk": minor
----
-
-V3-4 — add `agent.streamToCompletion(message, options?)`, the STREAMING twin of `runToCompletion`. It returns an `AsyncGenerator<SDKMessage, StreamToCompletionResult>` that yields each continuation round's messages LIVE (so a UI can render tool calls + text as they happen across rounds), reusing the exact same terminal policy as the M1 driver — `classifyRound` (`done`/`step_limit`/`no_progress`) + bounded re-prompt + usage aggregation (no new policy; the only difference from `runToCompletion` is surfacing events over `Run.stream()` instead of `Run.wait()`). Local agents only; cloud agents throw `UnsupportedRunOperationError`. Stateful like `runToCompletion`; the STATELESS+streaming combination reconstructs history with `buildReplayHistory` into a fresh session first. The `StreamToCompletionResult` is the generator's return value (read via a manual `next()` loop — a plain `for await...of` discards it). Closes the V3-4 (a) streaming gap; (b) stateless and (c) terminals were already covered by `buildReplayHistory` + `runToCompletion`. Zero new dependency.
