@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 
 import { streamToCompletionImpl } from "../src/internal/runtime/lifecycle/stream-to-completion.js";
 import type { SDKMessage } from "../src/types/messages.js";
-import type { RunResult } from "../src/types/run.js";
+import type {
+  RunOperation,
+  RunResult,
+  RunToCompletionResult,
+  StreamToCompletionResult,
+} from "../src/types/run.js";
 
 /**
  * V3-4 (plan v34-stream-to-completion) — the STREAMING continuation driver.
@@ -58,6 +63,22 @@ async function drive(gen: AsyncGenerator<SDKMessage, unknown>) {
 const truncated = (over: Partial<RunResult> = {}) => rr({ stoppedAtIterationLimit: true, ...over });
 
 describe("streamToCompletionImpl (V3-4)", () => {
+  it("test_stream_to_completion_types — StreamToCompletionResult shape + RunOperation member", () => {
+    // The plan's T1.1 type contract (expectTypeOf, not a runtime cast).
+    // StreamToCompletionResult is the same shape + terminal semantics as the M1 result.
+    expectTypeOf<StreamToCompletionResult>().toEqualTypeOf<RunToCompletionResult>();
+    expectTypeOf<StreamToCompletionResult["terminal"]>().toEqualTypeOf<
+      "done" | "step_limit" | "no_progress"
+    >();
+    expectTypeOf<StreamToCompletionResult["lastResult"]>().toEqualTypeOf<RunResult>();
+    // RunOperation must accept the new operation (cloud-throw + supports() key).
+    expectTypeOf<"streamToCompletion">().toMatchTypeOf<RunOperation>();
+    // The impl returns an AsyncGenerator yielding SDKMessage, returning the result.
+    expectTypeOf(streamToCompletionImpl).returns.toEqualTypeOf<
+      AsyncGenerator<SDKMessage, StreamToCompletionResult>
+    >();
+  });
+
   it("test_stream_to_completion_yields_each_round_events_in_order", async () => {
     const agent = fakeAgent([
       { events: [msg("m0a"), msg("m0b")], result: truncated() },
