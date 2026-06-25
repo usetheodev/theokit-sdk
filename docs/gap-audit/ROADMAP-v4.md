@@ -144,7 +144,7 @@ A peça fluente que não existe. `AgentRunner.builder(AgentClass).reflection().c
 **Esforço:** M · **Padrão:** Strategy · **Depende de:** V4-B · **Valor:** ALTO (maior ganho)
 Implementa o que o `@MainLoop({strategy:'plan-act-reflect'})` já declara mas não executa (metadata-only — V4-A). A reflection ladder de 248 LoC do theocode (`agent-loop.ts`: `classifyRoundOutcome`/`selectReflection`) vira a `ReflectionStrategy` default no `theokit`. Igual ao M8: o bridge compila, o runtime executa. **Loop:** theocode declara `@MainLoop({strategy:'plan-act-reflect'})` (ou `.reflection('ladder')` no builder); `agent-loop.ts` vira a default da strategy (domínio→framework) OU strategy custom.
 
-### V4-D — `LoopStrategy` = dar runtime a `@MainLoop strategy:'react'` + `AgentRunner` — [x] (terminais shipped @theokit/agents@0.7.0; **V4-D-stream READY_TO_MERGE** on develop)
+### V4-D — `LoopStrategy` = dar runtime a `@MainLoop strategy:'react'` + `AgentRunner` — [x] (terminais shipped @theokit/agents@0.7.0; **V4-D-stream shipped @theokit/agents@0.8.0**)
 **Esforço:** L · **Padrão:** Builder + Strategy · **Depende de:** V4-B, **V3-4** · **Valor:** ALTO
 Implementa o `strategy:'react'` (hoje metadata-only) como loop multi-round real, substituindo o single-shot do `agent-orchestrator.ts`. O outer loop de 470 LoC do theocode (`agent-stream.ts`) vira `AgentRunner` configurado sobre o continuation driver do V3-4 (streaming+stateless). `LoopStrategy` = terminais (`done`/`step_limit`/`no_progress`) + re-prompt bounded + honra `maxIterations` (hoje compilado e ignorado). **Loop:** theocode troca `agent-stream.ts` por `AgentRunner.builder(...)`. **V4-D-stream (RTM, commit `e1f73fb`):** o loop reflexivo agora é um twin streaming — `runReflectiveLoopStream` (`AsyncGenerator<StreamEvent, DelegationResult>`) + `AgentRunner.stream()` emitem eventos ao vivo (pré-requisito p/ o SSE-first do theocode); `run()` drena, retrocompatível.
 
@@ -152,7 +152,7 @@ Implementa o `strategy:'react'` (hoje metadata-only) como loop multi-round real,
 **Esforço:** M · **Padrão:** Strategy · **Depende de:** V4-B, **V3-1** · **Valor:** Alto
 Permissões/guards declaráveis e swappáveis. Defaults usam o `catastrophicShellReason` endurecido do V3-1. **Loop:** theocode declara `@Guard([ShellGuard, ReadOnlyGuard])`; `permission.plugin.ts` + `shell-guard.ts` viram strategies.
 
-### V4-F — `CompactionStrategy` + `@Compaction` — [x] (**READY_TO_MERGE** on develop — pending changeset release; @theokit/agents next minor)
+### V4-F — `CompactionStrategy` + `@Compaction` — [x] (**shipped @theokit/agents@0.8.0**)
 **Esforço:** S · **Padrão:** Strategy · **Depende de:** V4-B, **V3-3** · **Valor:** Médio
 Promove o knob `@ContextWindow` a strategy nomeada + callable. Interface **`TranscriptCompactionStrategy`** (o nome `CompactionStrategy` já estava ocupado no barrel por `conversation.ts`) + `@Compaction('token-budget', { keepTokens })` + `runner.compaction`. **Decisão C:** layer callable, NÃO dono do transcript (`sdk-runtime.md`: o SDK é dono do contexto por-turno) — o app chama `runner.compaction?.compact(msgs, { summarize })`. `'token-budget'` DELEGA ao `compactTranscript` do SDK (G2 — sem reimplementação); forward fiel de `keepTokens`/`summarize(older,template)`/`marker`/`summaryTemplate`/`failSafe` (default-safe). **Correção empírica:** `keepTokens` só existe no `@theokit/sdk ≥ 2.9.0` (o theokit consumia 2.5.0) — Phase 0 subiu o floor; o ROADMAP dizia "no new dependency" (refutado). **Loop:** theocode troca o wrapper `compactHistory` por `.compaction('token-budget')`; o colapso é **parcial** (as 150 LoC do `compaction.ts` são majoritariamente app-policy: `SUMMARY_TEMPLATE`/`CHECKPOINT_MARKER`/`isOverflowError` ficam no app). Commits `2f05e3c`→`1e2a2f0`; SHIPPABLE 90.8; suíte agents 348.
 
@@ -188,8 +188,8 @@ Regra de ouro: `@theokit/agents` provê interface + default; `theocode` provê i
 ## 6. Definição de "V4 completa"
 
 - [ ] V4-A: documento honesto do gap de adoção (cobre declaração, falta orquestração).
-- [x] V4-B/V4-C/V4-D shipped (@theokit/agents 0.6.0/0.7.0); **V4-D-stream + V4-F READY_TO_MERGE** on develop (pending changeset release). V4-E/V4-G/V4-H remain.
-- [ ] Adoção pelo theocode (colapso dos ~720 LoC) — BLOQUEADA no release: o theocode consome o `@theokit/agents` PUBLICADO; adota só após o próximo minor sair.
+- [x] V4-B/V4-C/V4-D + **V4-D-stream + V4-F shipped** (@theokit/agents 0.6.0→**0.8.0**; theokit@0.9.3 declara @theokit/sdk optional peer). V4-E/V4-G/V4-H remain.
+- [ ] Adoção pelo theocode (colapso dos ~720 LoC) — **DESBLOQUEADA** (@theokit/agents@0.8.0 publicado no npm); pode rodar agora.
 - [ ] **O theocode ADOTA o `@theokit/agents`** (a prova que faltava — o app de referência para de evitá-lo).
 - [ ] V4-H: ≥1 starter funcional em <10 LoC.
 - [ ] Claim reescrita: "construir um agente no theokit é declarativo e legível — `@Agent`/`@Tool`/`@Reflection`/`@Guard` para declarar, `AgentRunner.builder()` para compor, strategies nomeadas para variar, tudo compilando para um core factory testado — e o theocode prova adotando."
