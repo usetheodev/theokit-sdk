@@ -406,4 +406,25 @@ describe("estimateTokens + shouldCompact (M2-2 pre-call helpers)", () => {
   it("test_should_compact_buffer_ge_window_always_true", () => {
     expect(shouldCompact({ estimated: 0, contextWindow: 1000, buffer: 1000 })).toBe(true);
   });
+
+  it("test_should_compact_max_output_tightens_budget", () => {
+    // Without maxOutput: 100 >= 200 - 50 = 150 -> false
+    expect(shouldCompact({ estimated: 100, contextWindow: 200, buffer: 50 })).toBe(false);
+    // With maxOutput 60: 100 >= 200 - 50 - 60 = 90 -> true
+    expect(shouldCompact({ estimated: 100, contextWindow: 200, buffer: 50, maxOutput: 60 })).toBe(
+      true,
+    );
+  });
+
+  it("test_should_compact_omitted_max_output_matches_legacy", () => {
+    const input = { estimated: 5000, contextWindow: 10_000, buffer: 1000 };
+    expect(shouldCompact(input)).toBe(shouldCompact({ ...input }));
+    expect(shouldCompact(input)).toBe(false);
+  });
+
+  it("test_should_compact_max_output_zero_equals_omitted", () => {
+    expect(shouldCompact({ estimated: 100, contextWindow: 200, buffer: 50, maxOutput: 0 })).toBe(
+      shouldCompact({ estimated: 100, contextWindow: 200, buffer: 50 }),
+    );
+  });
 });
