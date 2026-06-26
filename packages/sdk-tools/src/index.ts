@@ -57,6 +57,7 @@ export {
   injectGuidance,
   type ToolGuidanceMap,
   withDefaultGuidance,
+  withShellExitGuidance,
   withToolResultGuidance,
 } from "./internal/tool-guidance.js";
 export { type CreateListDirToolOptions, createListDirTool } from "./list-dir.js";
