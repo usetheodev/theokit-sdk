@@ -48,6 +48,11 @@ export function createEditFileTool(opts: CreateEditFileToolOptions): CustomTool 
     }),
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: unified diff parsing is inherently complex
     handler: async ({ path, old_string, new_string }) => {
+      // A no-op edit (old === new) cannot change the file; refuse early so the description's
+      // "old_string must differ from new_string" precondition is enforced, not just documented.
+      if (old_string === new_string) {
+        return JSON.stringify({ ok: false, error: "no_change", path });
+      }
       if (isForbiddenPath(path)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });
       }
