@@ -35,8 +35,10 @@ export function createWebSearchTool(opts: CreateWebSearchToolOptions): CustomToo
   return defineTool({
     name: "web_search",
     description:
-      "Search the web for a query. Returns a list of results with title, " +
-      "URL, and snippet. The search provider is injected by the consumer. " +
+      "Search the web for a query — use when you need current information beyond the repo or your " +
+      "training cutoff (library docs, an error message, an API). Returns a list of results with " +
+      "title, URL, and snippet; follow up with web_fetch on a promising result to read it in full. " +
+      "The search provider is injected by the consumer (if none is configured, returns no results). " +
       "Returns { ok, results } or { ok: false, error }.",
     inputSchema: z.object({
       query: z.string().min(1).describe("Search query."),

@@ -41,9 +41,12 @@ export function createShellTool(opts: CreateShellToolOptions): CustomTool {
   return defineTool({
     name: "shell_exec",
     description:
-      "Execute a shell command in the project directory. Returns stdout, " +
-      "stderr, and exit code. Default timeout 30s, max 5 minutes. Output " +
-      "capped at 5 MB. Returns { ok, stdout, stderr, exit_code } or " +
+      "Execute a shell command in the project directory. Use this for terminal operations — running " +
+      "tests, git, package managers, build tools. Do NOT use it for file operations (reading, " +
+      "writing, editing, finding files): prefer the specialized read_file/write_file/edit_file/" +
+      "glob_files/search_text tools, which are path-checked and safer. Only commit, push, or change " +
+      "git state when the user explicitly asks. timeout_ms defaults to 30000 (max 300000); " +
+      "stdout/stderr are capped (~5 MB). Returns { ok, stdout, stderr, exit_code } or " +
       "{ ok: false, error }.",
     inputSchema: z.object({
       command: z.string().min(1).describe("Shell command to execute."),
