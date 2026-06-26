@@ -66,10 +66,13 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
   return defineTool({
     name: "search_text",
     description:
-      `Search the project tree for a literal text query. Skips sensitive ` +
-      `dirs (.env/.git/node_modules/.theo), binary files, and files over ` +
-      `1 MB. Returns up to ${String(maxMatches)} matches as { file, line, preview }. ` +
-      `Use 'path' to scope the search to a subdirectory.`,
+      `Search file CONTENTS for a LITERAL, CASE-SENSITIVE query across the project tree (the query ` +
+      `is matched as a substring, not a regex). Use search_text when you know the content; use ` +
+      `glob_files when you know the filename shape; use read_file when you know the exact path. ` +
+      `Skips sensitive dirs (.env/.git/node_modules/.theo), binary files, and files over 1 MB; ` +
+      `'path' scopes the search to a subdirectory. Returns up to ${String(maxMatches)} matches as ` +
+      `{ file, line, preview } — cite locations to the user as file:line. Returns { ok, matches } ` +
+      `or { ok: false, error }.`,
     inputSchema: z.object({
       query: z.string().min(1).describe("Literal text to search for. Case-sensitive."),
       path: z

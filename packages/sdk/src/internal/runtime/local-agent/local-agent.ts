@@ -56,6 +56,7 @@ import {
   localAgentFork,
   localAgentRunToCompletion,
   localAgentRunUntil,
+  localAgentStreamToCompletion,
 } from "./local-agent-runtime-extensions.js";
 import { executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
@@ -506,6 +507,8 @@ export class LocalAgent implements SDKAgent {
   fork(options: import("../lifecycle/fork-agent.js").ForkOptions): Promise<import("../lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
   runToCompletion(message: string, options?: import("../../../types/run.js").RunToCompletionOptions): Promise<import("../../../types/run.js").RunToCompletionResult> { return localAgentRunToCompletion(this, message, options); }
+  // biome-ignore format: G8 budget — see runUntil comment above.
+  streamToCompletion(message: string, options?: import("../../../types/run.js").RunToCompletionOptions): AsyncGenerator<import("../../../types/messages.js").SDKMessage, import("../../../types/run.js").StreamToCompletionResult> { return localAgentStreamToCompletion(this, message, options); }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {

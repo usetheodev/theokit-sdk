@@ -325,6 +325,29 @@ const out = await agent.runToCompletion?.("Refactor the module and run the tests
 if (out !== undefined && out.terminal !== "done") {
   console.warn(`stopped early: ${out.terminal} after ${out.rounds} round(s)`);
 }
+
+agent.streamToCompletion(message, options?) is the STREAMING twin of runToCompletion: same options (RunToCompletionOptions) and the same terminal policy (done / step_limit / no_progress + bounded re-prompt), but it returns an AsyncGenerator that yields each round's SDKMessages LIVE — so a UI can render tool calls and text as they happen across continuation rounds, instead of waiting for the final result. Local agents only; cloud agents throw UnsupportedRunOperationError.
+
+The StreamToCompletionResult (terminal / rounds / usage — same shape as RunToCompletionResult) is the generator's RETURN value, NOT a yielded value. A plain `for await...of` consumes the messages but discards it — read it with a manual `next()` loop:
+
+```
+// streamToCompletion is optional + local-only (cloud agents throw).
+const gen = agent.streamToCompletion?.("Refactor the module and run the tests", { maxRounds: 8 });
+if (gen !== undefined) {
+  let res = await gen.next();
+  while (!res.done) {
+    render(res.value);          // res.value is an SDKMessage (live)
+    res = await gen.next();
+  }
+  const summary = res.value;    // StreamToCompletionResult — the return value
+  if (summary.terminal !== "done") {
+    console.warn(`stopped early: ${summary.terminal} after ${summary.rounds} round(s)`);
+  }
+}
+```
+
+Both drivers are STATEFUL (the agent's session preserves history). For the STATELESS + streaming combination — a serverless handler that reconstructs working memory then streams a multi-round continuation — reconstruct history with `buildReplayHistory` (below) into a fresh agent, then drive `streamToCompletion`.
+
 Replay history (stateless continuation)
 
 `runToCompletion` covers the STATEFUL path (a live agent whose session preserves history). For the STATELESS path — a server or serverless handler that re-runs an agent on a fresh request and must reconstruct working memory from persisted stream events — use the pure `buildReplayHistory`.
@@ -1877,8 +1900,13 @@ const usd = costAmountUsd(result.cost);   // number | undefined — `undefined` 
 
 Public compaction / context-management helpers, so consumers manage the context window without reaching into `internal/`. They operate on the SDK's own `CompressibleMessage` (`{ role: "user" | "assistant" | "system"; content: string }`, re-exported from this sub-path).
 
-- `compactTranscript(messages, { keepRecent = 6, summarize? })` — keeps the last `keepRecent` turns verbatim, always preserves leading `system` PROMPTS, and either summarizes the older window (via the optional `summarize` callback) or drops it. Checkpoint markers are NOT system prompts — they flow through the keep-recent window as ordinary turns (a marker in the older window is summarized/dropped; one in the recent window is kept). Reuses the SDK's internal compaction window; never mutates the input. Always returns a `Promise`. If `summarize` throws (e.g. the LLM call fails), the error propagates — the caller decides the fallback.
-- `buildCheckpoint(label?)` → a `system` marker turn whose content begins with `CHECKPOINT_MARKER` (a visible, prose-unlikely sentinel — no invisible control bytes, safe to persist); `filterFromLatestCheckpoint(messages)` → the turns AFTER the most recent marker (all turns if none). Use to bound replay to "since the last checkpoint".
+- `compactTranscript(messages, { keepRecent = 6, keepTokens?, marker?, summaryTemplate?, summarize?, failSafe? })` — keeps a recent window verbatim and either summarizes the older window (via the optional `summarize` callback) or drops it. Two recent-window modes:
+  - **turn-count (default):** `keepRecent` (default 6) keeps the last N turns and **always preserves leading `system` PROMPTS**. Checkpoint markers are NOT system prompts — they flow through the keep-recent window as ordinary turns. Reuses the SDK's internal compaction window.
+  - **token-budget:** set `keepTokens` to keep the trailing turns whose accumulated `estimateTokens` fits the budget (walks from the end, always keeps ≥ 1 turn). When `keepTokens` is set it takes precedence over `keepRecent` AND leading system prompts are **not** specially preserved (they participate in the budget walk like any turn).
+
+  `summarize` receives `(older, template)` and returns the summary turn; `template` defaults to `SUMMARY_TEMPLATE` (a 7-section template: Goal / Constraints / Progress / Decisions / Next / Critical / Files) and is overridable via `summaryTemplate`. `marker` (default `CHECKPOINT_MARKER`, must be non-empty) lets a consumer use a custom checkpoint sentinel (e.g. an already-persisted `<conversation-checkpoint>`). Never mutates the input; always returns a `Promise`. **Error handling:** by default a thrown `summarize` **propagates** — the caller decides the fallback. Set `failSafe: true` to instead return the ORIGINAL transcript unchanged + a structured `console.warn` (compaction as an optimization that never loses data).
+- `buildCheckpoint(label?, marker = CHECKPOINT_MARKER)` → a `system` marker turn whose content begins with `marker` (a visible, prose-unlikely sentinel — no invisible control bytes, safe to persist; empty `marker` throws). `filterFromLatestCheckpoint(messages, { marker?, include = "after" })` → relative to the most recent marker (all turns if none): `"after"` (default) returns the turns AFTER the marker (exclusive, the M2 default); `"from"` returns the turns FROM the marker inclusive (the summary checkpoint stands in for the pruned head). Use to bound replay to "since the last checkpoint".
+- `SUMMARY_TEMPLATE` — the default 7-section summary template handed to `summarize`. Exported so a consumer can reuse or extend the exact section shape.
 - `isContextOverflowError(err)` — `true` iff `err` is a `TheokitAgentError` (or subclass) reporting the typed `context_too_long` code (checks `err.code` and `err.metadata?.code`).
 - `estimateTokens(text)` — a tokenizer-free token estimate (`ceil(text.length / 4)`, the ~4-chars-per-token heuristic): `""` → 0, any non-empty text → ≥ 1. A cheap PRE-CALL gate, not exact tokenization.
 - `shouldCompact({ estimated, contextWindow, buffer })` — decide BEFORE sending whether to compact: `true` when `estimated >= contextWindow - buffer` (the estimate leaves less than `buffer` headroom). Pure — pass the window yourself (e.g. from `resolveModelCapabilities`), so it stays decoupled from any per-model catalog.
@@ -2312,7 +2340,7 @@ console.log(run.aggregate.durationMsP95); // 1830 (latency tail)
 | `Scorers.regex(pattern)` | `pattern.test(output)` | EC-10: user-supplied pattern; test against adversarial outputs to avoid ReDoS |
 | `Scorers.jsonShape(zodSchema, { strict? })` | `JSON.parse(output)` + Zod validation | EC-2: caps output at 1 MB before parse |
 | `Scorers.llmJudge({ model, apiKey, criteria, rubric? })` | Second LLM scores against criteria | EC-12: doubles per-row cost; requires SEPARATE apiKey (D205) |
-| `Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command })` | Runs the project's tests in a provisioned repo via `SandboxBackend.execute`; scores `1` iff the command exits `0` (M6-2) | SECURITY: `command` is REQUIRED and owns shell-safety of dataset-derived test names — there is no bare-identifier default. Assumes a shell-backed sandbox. |
+| `Scorers.verifyGate({ sandbox?, repoDir, failToPass, passToPass, command })` | Runs the project's tests in a provisioned repo via `SandboxBackend.execute`; scores `1` iff the command exits `0` (M6-2). `sandbox` optional (v2.9+) — defaults to `LocalSandbox`. | SECURITY: `command` is REQUIRED and owns shell-safety of dataset-derived test names — there is no bare-identifier default. Assumes a shell-backed sandbox. |
 
 ### `EvalRun` shape
 
@@ -2423,8 +2451,13 @@ line-numbered `JsonlParseError`; the dataset schema is the caller's via `map`
 import { provisionRepo, RepoProvisionError } from "@theokit/sdk/sandbox";
 
 const { repoDir } = await provisionRepo(sandbox, { repoUrl, ref, instanceId });
+// or, with a default local sandbox (clones into the process cwd):
+const { repoDir: d2 } = await provisionRepo({ repoUrl, ref, instanceId });
 ```
 
+The `sandbox` is OPTIONAL (v2.9+): omit it to default to a `LocalSandbox`. The
+default clones into `<process cwd>/<instanceId>` — pass an explicit
+`LocalSandbox({ workDir })` (or Docker/E2B backend) to control the workdir.
 Clones + checks out a ref into `<workdir>/<instanceId>` via
 `SandboxBackend.execute` (portable). SECURITY: `instanceId` is validated to
 `[A-Za-z0-9._-]` (no path traversal), `ref` may not begin with `-`, clone uses a
@@ -2435,9 +2468,11 @@ Clones + checks out a ref into `<workdir>/<instanceId>` via
 `{ diff, applies }` — the working-tree `git diff` plus a reverse
 `git apply --check` coherence test. An empty diff returns `{ diff: "", applies: false }`.
 
-**Grading.** `Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command })`
+**Grading.** `Scorers.verifyGate({ sandbox?, repoDir, failToPass, passToPass, command })`
 runs `command([...failToPass, ...passToPass])` in `repoDir` and scores by exit
-code. `command` is REQUIRED — the SDK ships no default that would run untrusted
+code. `sandbox` is OPTIONAL (v2.9+): omit it to default to a `LocalSandbox`
+(workdir-independent here — `verifyGate` always `cd`s to the explicit `repoDir`).
+`command` is REQUIRED — the SDK ships no default that would run untrusted
 test identifiers as a shell command.
 
 ## Agent handoffs (v1.16+) — `handoffs[]` + `Handoff.create`

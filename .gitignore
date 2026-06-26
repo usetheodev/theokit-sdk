@@ -27,10 +27,6 @@ __pycache__/
 *.pyo
 *.pyd
 *.pycache/
-*.pyo
-*.pyd
-*.pyc
-*.pyo
 
 # Editor (keep shared configs, ignore user state)
 .vscode/*
@@ -95,3 +91,6 @@ architect-output/
 .compaction-snapshots/
 # Local build artifact (packed tarball) — not versioned
 packages/sdk-tools/*.tgz
+
+# ACP serve-smoke generated entry — written by serve-smoke.test.ts at runtime (tmp cwd), not source
+packages/acp/tests/_smoke-entry.mjs

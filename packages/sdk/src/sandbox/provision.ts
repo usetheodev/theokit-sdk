@@ -14,6 +14,7 @@
  */
 
 import { TheokitAgentError } from "../errors.js";
+import { LocalSandbox } from "./local-sandbox.js";
 import { shellEscapePosix } from "./shell-escape.js";
 import type { SandboxBackend } from "./types.js";
 
@@ -67,11 +68,22 @@ const SAFE_INSTANCE_ID = /^[A-Za-z0-9][A-Za-z0-9._-]*$/;
  * Returns the absolute `repoDir` (resolved via `git rev-parse --show-toplevel`,
  * which is portable across backends). Throws {@link RepoProvisionError} naming
  * the `instanceId` when clone or checkout exits non-zero.
+ *
+ * The `sandbox` is optional (V3-5): when omitted, a default {@link LocalSandbox}
+ * is used (clones into the process cwd's `<instanceId>`) — pass an explicit
+ * sandbox (e.g. `LocalSandbox({ workDir })` / Docker / E2B) to control the workdir.
  */
-export async function provisionRepo(
+export function provisionRepo(opts: ProvisionRepoOptions): Promise<{ repoDir: string }>;
+export function provisionRepo(
   sandbox: SandboxBackend,
   opts: ProvisionRepoOptions,
+): Promise<{ repoDir: string }>;
+export async function provisionRepo(
+  sandboxOrOpts: SandboxBackend | ProvisionRepoOptions,
+  maybeOpts?: ProvisionRepoOptions,
 ): Promise<{ repoDir: string }> {
+  const sandbox = maybeOpts !== undefined ? (sandboxOrOpts as SandboxBackend) : new LocalSandbox();
+  const opts = maybeOpts ?? (sandboxOrOpts as ProvisionRepoOptions);
   const { repoUrl, ref, instanceId } = opts;
 
   // Validate untrusted-derivable inputs before they reach git/the shell.

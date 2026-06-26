@@ -36,10 +36,11 @@ export function createGlobTool(opts: CreateGlobToolOptions): CustomTool {
   return defineTool({
     name: "glob_files",
     description:
-      "List project files matching a glob-like pattern. Excludes " +
-      "node_modules, .git, dist, .theo by default. Returns relative " +
-      "paths. Pattern supports * and ** wildcards. Returns { ok, files } " +
-      "or { ok: false, error }.",
+      "Find files by glob pattern across the project — fast at any repo size. Use glob_files when " +
+      "you know the filename SHAPE; use search_text when you know the file CONTENT; use read_file " +
+      "when you know the exact path. The pattern supports * and ** wildcards (e.g. '**/*.ts', " +
+      "'src/**/*.json'); node_modules/.git/dist/.theo are excluded and results are relative paths. " +
+      "Returns { ok, files } or { ok: false, error }.",
     inputSchema: z.object({
       pattern: z.string().min(1).describe("Glob pattern (e.g. '**/*.ts', 'src/**/*.json')."),
       cwd: z.string().optional().describe("Project-relative subdirectory to search from."),

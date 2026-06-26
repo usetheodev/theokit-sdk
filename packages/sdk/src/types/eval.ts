@@ -126,8 +126,12 @@ export interface EvalRowResult {
  * project's tests in a provisioned repo and reading the exit code.
  */
 export interface VerifyGateOptions {
-  /** Sandbox the test command runs in (D2 — Local/Docker/E2B). */
-  readonly sandbox: SandboxBackend;
+  /**
+   * Sandbox the test command runs in (D2 — Local/Docker/E2B). Optional (V3-5):
+   * defaults to a `LocalSandbox`. `verifyGate` always `cd`s to the explicit
+   * `repoDir`, so the default's workdir is irrelevant here.
+   */
+  readonly sandbox?: SandboxBackend;
   /** Repo dir to run the tests from (typically `provisionRepo`'s `repoDir`). */
   readonly repoDir: string;
   /** SWE-bench tests that must flip to passing after the patch. */

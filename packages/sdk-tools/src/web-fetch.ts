@@ -38,9 +38,11 @@ export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool
   return defineTool({
     name: "web_fetch",
     description:
-      "Fetch content from a URL via HTTP/HTTPS. Rejects non-http(s) URLs. " +
-      "Response body capped at 1 MB. Returns { ok, content, status_code } " +
-      "or { ok: false, error }.",
+      "Fetch the contents of a URL via HTTP/HTTPS. Use only for URLs the user provided or that you " +
+      "are confident help with the task; never invent or guess URLs. Rejects non-http(s) URLs and " +
+      "is SSRF-guarded by default (private/loopback/link-local/cloud-metadata hosts are refused " +
+      "with an ssrf_blocked error). The response body is capped at 1 MB. Returns " +
+      "{ ok, content, status_code, content_type } or { ok: false, error }.",
     inputSchema: z.object({
       url: z.string().min(1).describe("URL to fetch (http or https only)."),
       timeout_ms: z
