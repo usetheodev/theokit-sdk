@@ -27,6 +27,21 @@ export class SsrfBlockedError extends ConfigurationError {
   }
 }
 
+/**
+ * Thrown when a request is refused by the REDIRECT policy (the `maxRedirects` hop limit was
+ * exceeded) — a distinct event from {@link SsrfBlockedError} (a blocked host). With `maxRedirects: 0`
+ * this fires on the first 3xx (block-all-redirects). Carries `code: "redirect_blocked"`.
+ */
+export class RedirectBlockedError extends ConfigurationError {
+  override readonly name = "RedirectBlockedError";
+  constructor(url: string, detail?: string) {
+    super(
+      `Blocked redirect for "${url}"${detail ? ` (${detail})` : ""}: redirect-hop limit exceeded (redirect policy).`,
+      { code: "redirect_blocked" },
+    );
+  }
+}
+
 /** Parse an IPv4 dotted-quad to a 32-bit unsigned integer (assumes a valid literal). */
 function v4ToInt(ip: string): number {
   const parts = ip.split(".");
@@ -226,5 +241,5 @@ export async function screenedFetch(
     if (next === undefined) return res;
     current = next;
   }
-  throw new SsrfBlockedError(url, "too many redirects");
+  throw new RedirectBlockedError(url, "too many redirects");
 }

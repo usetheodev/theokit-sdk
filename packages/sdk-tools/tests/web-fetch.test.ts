@@ -97,3 +97,55 @@ describe("createWebFetchTool — happy path (live)", () => {
     }
   }, 15_000);
 });
+
+describe("createWebFetchTool — redirect policy + injection seam (no network)", () => {
+  // Typed seams (NOT `as never`) — a wrong lookup/fetch shape must fail to compile, so the test
+  // actually exercises the public injection contract (review LOW).
+  type Opts = NonNullable<Parameters<typeof createWebFetchTool>[0]>;
+  const pubLookup: Opts["lookup"] = async () => [{ address: "8.8.8.8" }];
+  const privLookup: Opts["lookup"] = async () => [{ address: "10.0.0.1" }];
+  const fetch3xx: Opts["fetchImpl"] = async () =>
+    new Response(null, { status: 302, headers: { location: "http://elsewhere.test/" } });
+  const fetch200: Opts["fetchImpl"] = async () =>
+    new Response("hello", { status: 200, headers: { "content-type": "text/plain" } });
+
+  it("Given maxRedirects:0 and a 3xx, Then error is 'redirect_blocked'", async () => {
+    const tool = createWebFetchTool({ maxRedirects: 0, lookup: pubLookup, fetchImpl: fetch3xx });
+    const out = JSON.parse(await tool.handler({ url: "http://public.test/redir" }));
+    expect(out.ok).toBe(false);
+    expect(out.error).toBe("redirect_blocked");
+  });
+
+  it("Given a private host, Then error is 'ssrf_blocked' (distinct from redirect)", async () => {
+    const tool = createWebFetchTool({ maxRedirects: 0, lookup: privLookup, fetchImpl: fetch200 });
+    const out = JSON.parse(await tool.handler({ url: "http://private.test/" }));
+    expect(out.ok).toBe(false);
+    expect(out.error).toBe("ssrf_blocked");
+  });
+
+  it("Given a public host and a 200, Then content is returned (no spurious block)", async () => {
+    const tool = createWebFetchTool({ maxRedirects: 0, lookup: pubLookup, fetchImpl: fetch200 });
+    const out = JSON.parse(await tool.handler({ url: "http://public.test/ok" }));
+    expect(out.ok).toBe(true);
+    expect(out.content).toBe("hello");
+  });
+
+  it("Default (no maxRedirects) still follows one screened hop to a public host", async () => {
+    let hop = 0;
+    const fetchSeq: Opts["fetchImpl"] = async () => {
+      hop += 1;
+      return hop === 1
+        ? new Response(null, { status: 302, headers: { location: "http://public.test/final" } })
+        : new Response("final", { status: 200, headers: { "content-type": "text/plain" } });
+    };
+    const tool = createWebFetchTool({ lookup: pubLookup, fetchImpl: fetchSeq });
+    const out = JSON.parse(await tool.handler({ url: "http://public.test/start" }));
+    expect(out.ok).toBe(true);
+    expect(out.content).toBe("final");
+  });
+
+  it("exports RedirectBlockedError from the barrel", async () => {
+    const mod = await import("../src/index.js");
+    expect(typeof mod.RedirectBlockedError).toBe("function");
+  });
+});

@@ -43,6 +43,7 @@ export {
 } from "./internal/command-policy.js";
 export {
   isBlockedIp,
+  RedirectBlockedError,
   type ResolveAndScreenOptions,
   resolveAndScreen,
   type ScreenedFetchOptions,

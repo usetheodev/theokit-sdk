@@ -7,7 +7,7 @@
  * Return shape (always a JSON string):
  *   - `{ ok: true, content, status_code, content_type }`
  *   - `{ ok: false, error: 'invalid_url' | 'fetch_failed' |
- *        'timeout' | 'too_large' }`
+ *        'timeout' | 'too_large' | 'ssrf_blocked' | 'redirect_blocked' }`
  */
 
 import type { CustomTool } from "@theokit/sdk";
@@ -15,7 +15,12 @@ import type { CustomTool } from "@theokit/sdk";
 import { defineTool } from "@theokit/sdk";
 import { z } from "zod";
 
-import { SsrfBlockedError, screenedFetch } from "./internal/network-guard.js";
+import {
+  RedirectBlockedError,
+  type ScreenedFetchOptions,
+  SsrfBlockedError,
+  screenedFetch,
+} from "./internal/network-guard.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_BODY_BYTES = 1 * 1024 * 1024; // 1 MB
@@ -29,11 +34,24 @@ export interface CreateWebFetchToolOptions {
    * trusted local-dev tooling.
    */
   allowPrivateHosts?: boolean;
+  /**
+   * Max redirect hops to follow (each SSRF-screened). Default 5. Set `0` to BLOCK ALL
+   * redirects — a 3xx then returns `{ ok: false, error: "redirect_blocked" }` (a strict
+   * no-redirect policy for untrusted, model-chosen URLs).
+   */
+  maxRedirects?: number;
+  /** Fetch implementation (injectable for tests — drive paths with no real network). */
+  fetchImpl?: ScreenedFetchOptions["fetchImpl"];
+  /** DNS resolver (injectable for tests — drive the SSRF path with no real DNS). */
+  lookup?: ScreenedFetchOptions["lookup"];
 }
 
 export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool {
   const defaultTimeoutMs = opts?.defaultTimeoutMs ?? DEFAULT_TIMEOUT_MS;
   const allowPrivateHosts = opts?.allowPrivateHosts ?? false;
+  const maxRedirects = opts?.maxRedirects;
+  const fetchImpl = opts?.fetchImpl;
+  const lookup = opts?.lookup;
 
   return defineTool({
     name: "web_fetch",
@@ -79,6 +97,9 @@ export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool
         const response = await screenedFetch(url, {
           signal: controller.signal,
           allowPrivateHosts,
+          ...(maxRedirects !== undefined ? { maxRedirects } : {}),
+          ...(fetchImpl ? { fetchImpl } : {}),
+          ...(lookup ? { lookup } : {}),
         });
         clearTimeout(timer);
 
@@ -116,6 +137,9 @@ export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool
         });
       } catch (err) {
         clearTimeout(timer);
+        if (err instanceof RedirectBlockedError) {
+          return JSON.stringify({ ok: false, error: "redirect_blocked", url, reason: err.message });
+        }
         if (err instanceof SsrfBlockedError) {
           return JSON.stringify({ ok: false, error: "ssrf_blocked", url, reason: err.message });
         }
