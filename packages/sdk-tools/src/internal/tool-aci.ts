@@ -34,8 +34,10 @@ function esc(s: string): string {
   return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
-/** Render mode for {@link renderToolList}. */
-export type ToolListMode = "full" | "summary" | "names";
+/** Render mode for {@link renderToolList}. Local — the published `renderToolList`
+ *  signature inlines this union into its `.d.ts`, so consumers pass the literal
+ *  ("summary" | "names" | "full") without needing the named type exported. */
+type ToolListMode = "full" | "summary" | "names";
 
 /**
  * Extract the first sentence of a description, abbreviation-safe: a period is
