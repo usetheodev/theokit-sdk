@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   isBlockedIp,
+  RedirectBlockedError,
   resolveAndScreen,
   SsrfBlockedError,
   screenedFetch,
@@ -168,13 +169,15 @@ describe("screenedFetch (M3-1)", () => {
     expect(res.status).toBe(200);
   });
   it("test_screenedFetch_too_many_redirects", async () => {
+    // A redirect-limit hit is now a DISTINCT RedirectBlockedError (was SsrfBlockedError) — the
+    // redirect policy is separate from the SSRF host block (web-fetch-redirect-policy ADR D2).
     await expect(
       screenedFetch("http://good.test/", {
         fetchImpl: fakeFetchSeq([{ status: 302, location: "http://good.test/loop" }]),
         ...pub,
         maxRedirects: 3,
       }),
-    ).rejects.toBeInstanceOf(SsrfBlockedError);
+    ).rejects.toBeInstanceOf(RedirectBlockedError);
   });
   it("test_screenedFetch_blocks_non_http_redirect", async () => {
     await expect(
