@@ -265,6 +265,12 @@ export interface ShouldCompactInput {
   readonly contextWindow: number;
   /** Tokens to reserve as headroom (output + safety margin). */
   readonly buffer: number;
+  /**
+   * Tokens reserved for the model's response generation, SEPARATE from `buffer`.
+   * Default 0 — omitting it preserves the legacy
+   * `estimated >= contextWindow - buffer` result.
+   */
+  readonly maxOutput?: number;
 }
 
 /**
@@ -287,5 +293,5 @@ export function estimateTokens(text: string): number {
  * from the per-model catalog.
  */
 export function shouldCompact(input: ShouldCompactInput): boolean {
-  return input.estimated >= input.contextWindow - input.buffer;
+  return input.estimated >= input.contextWindow - input.buffer - (input.maxOutput ?? 0);
 }
