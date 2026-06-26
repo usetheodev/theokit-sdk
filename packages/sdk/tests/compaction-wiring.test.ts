@@ -10,6 +10,7 @@ import {
   estimateTokens,
   filterFromLatestCheckpoint,
   isContextOverflowError,
+  SUMMARY_TEMPLATE,
   shouldCompact,
 } from "../src/compaction.js";
 import { TheokitAgentError } from "../src/errors.js";
@@ -56,6 +57,14 @@ describe("compaction wiring (M2-1)", () => {
     expect(typeof shouldCompact).toBe("function");
     expect(estimateTokens("1234")).toBe(1);
     expect(shouldCompact({ estimated: 9000, contextWindow: 10_000, buffer: 1000 })).toBe(true);
+  });
+
+  it("test_summary_template_exported_from_subpath", () => {
+    // V3-3: SUMMARY_TEMPLATE is a new public export on the @theokit/sdk/compaction subpath.
+    expect(typeof SUMMARY_TEMPLATE).toBe("string");
+    for (const h of ["Goal", "Constraints", "Progress", "Decisions", "Next", "Critical", "Files"]) {
+      expect(SUMMARY_TEMPLATE).toContain(`## ${h}`);
+    }
   });
 
   it("test_subpath_declared_in_package_json", () => {

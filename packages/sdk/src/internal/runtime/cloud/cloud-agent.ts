@@ -290,6 +290,19 @@ export class CloudAgent implements SDKAgent {
   }
 
   /**
+   * Cloud agents do not expose the streaming continuation driver (V3-4);
+   * the cloud runtime manages continuation server-side.
+   *
+   * @public
+   */
+  streamToCompletion(): never {
+    throw new UnsupportedRunOperationError(
+      "Agent.streamToCompletion() is not supported on cloud agents. Cloud runtime manages continuation server-side. Use a local agent.",
+      "streamToCompletion",
+    );
+  }
+
+  /**
    * Personality presets require consistent server-side enforcement that
    * the cloud runtime (pre-release) does not yet provide. Reject explicitly
    * to avoid silent divergence between local and cloud behaviour (ADR D169).

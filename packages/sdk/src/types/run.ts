@@ -31,6 +31,7 @@ export type RunOperation =
   | "downloadArtifact"
   | "runUntil"
   | "runToCompletion"
+  | "streamToCompletion"
   | "fork"
   | "usePersonality"
   | "workflow";
@@ -147,6 +148,16 @@ export interface RunToCompletionResult {
   /** Token usage summed across all rounds; `undefined` when no round reported usage. */
   usage?: TokenUsage;
 }
+
+/**
+ * Result of {@link SDKAgent.streamToCompletion} (V3-4 — the STREAMING continuation
+ * driver). Same shape + terminal semantics as {@link RunToCompletionResult}; it is
+ * the generator's RETURN value (read it via a manual `gen.next()` loop — a plain
+ * `for await...of` consumes the yielded `SDKMessage`s but discards this return value).
+ *
+ * @public
+ */
+export type StreamToCompletionResult = RunToCompletionResult;
 
 /**
  * Structured error attached to a {@link RunResult} when the underlying run

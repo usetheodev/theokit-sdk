@@ -54,11 +54,13 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
   return defineTool({
     name: "read_file",
     description:
-      "Read a single project-relative text file as UTF-8. Refuses paths " +
-      "that escape the project root, are in the sensitive-file blocklist " +
-      "(.env, .git/, node_modules/, .theo/, lock files), or contain a null " +
-      "byte in the first 8 KB (binary file). Returns { ok, content } or " +
-      "{ ok: false, error }.",
+      "Read a project-relative text file as UTF-8. ALWAYS read a file before you edit it " +
+      "(edit_file) or overwrite it (write_file), so your old_string / new content matches the " +
+      "real bytes exactly. Returns the WHOLE file (there is no offset or line-range parameter); " +
+      "to locate a symbol inside a large file, use search_text instead of re-reading. Refuses " +
+      "paths that escape the project root, sensitive files (.env, .git/, node_modules/, .theo/, " +
+      "lock files), and binary files (null byte in the first 8 KB); caps at 5 MB. Returns " +
+      "{ ok, content, size } or { ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
     }),

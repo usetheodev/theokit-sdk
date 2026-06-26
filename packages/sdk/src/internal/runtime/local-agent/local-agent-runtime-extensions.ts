@@ -68,6 +68,24 @@ export function localAgentRunToCompletion(
 }
 
 /**
+ * Drive the STREAMING continuation twin (V3-4) bound to this agent's stateful
+ * `send` — yields each round's `SDKMessage`s live, reusing the M1 terminal policy.
+ *
+ * @internal
+ */
+export async function* localAgentStreamToCompletion(
+  agent: SDKAgent,
+  message: string,
+  options: RunToCompletionOptions | undefined,
+): AsyncGenerator<
+  import("../../../types/messages.js").SDKMessage,
+  import("../../../types/run.js").StreamToCompletionResult
+> {
+  const { streamToCompletionImpl } = await import("../lifecycle/stream-to-completion.js");
+  return yield* streamToCompletionImpl({ send: (m, o) => agent.send(m, o) }, message, options);
+}
+
+/**
  * Spawn a forked auxiliary agent (ADR D110). Reads `Agent.create` from
  * the DI registry.
  *

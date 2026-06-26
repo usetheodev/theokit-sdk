@@ -34,9 +34,12 @@ export function createEditFileTool(opts: CreateEditFileToolOptions): CustomTool 
   return defineTool({
     name: "edit_file",
     description:
-      "Replace the first occurrence of old_string with new_string in a " +
-      "project-relative file. Falls back to whitespace-normalized matching " +
-      "when the exact match fails. Creates a .bak backup before editing. " +
+      "Make an exact string replacement in a project-relative file. Replaces the FIRST occurrence " +
+      "of old_string with new_string (a whitespace-normalized fallback is attempted if the exact " +
+      "match fails) and writes a .bak backup first. Read the file first so old_string matches the " +
+      "on-disk text exactly; include enough surrounding context to make it unique — only the first " +
+      "match is replaced, so a too-short old_string can edit the wrong location. old_string must be " +
+      "non-empty and differ from new_string; to change every occurrence, call edit_file repeatedly. " +
       "Returns { ok, replacements } or { ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
@@ -45,6 +48,11 @@ export function createEditFileTool(opts: CreateEditFileToolOptions): CustomTool 
     }),
     // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: unified diff parsing is inherently complex
     handler: async ({ path, old_string, new_string }) => {
+      // A no-op edit (old === new) cannot change the file; refuse early so the description's
+      // "old_string must differ from new_string" precondition is enforced, not just documented.
+      if (old_string === new_string) {
+        return JSON.stringify({ ok: false, error: "no_change", path });
+      }
       if (isForbiddenPath(path)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });
       }
