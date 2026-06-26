@@ -39,10 +39,12 @@ export function createWriteFileTool(opts: CreateWriteFileToolOptions): CustomToo
   return defineTool({
     name: "write_file",
     description:
-      "Write UTF-8 content to a project-relative file. Creates parent " +
-      "directories recursively. Refuses paths that escape the project root, " +
-      "sensitive files (.env, .git/, node_modules/, .theo/, lock files), " +
-      "and binary-file overwrites. Returns { ok, path, bytes } or " +
+      "Write UTF-8 content to a project-relative file, creating parent directories as needed. " +
+      "OVERWRITES any existing file at the path. Prefer editing an existing file with edit_file " +
+      "over rewriting it; use write_file to create a NEW file or fully replace a small one. If the " +
+      "file already exists, read_file it first so you do not discard content you have not seen. " +
+      "Refuses paths that escape the project root, sensitive files (.env, .git/, node_modules/, " +
+      ".theo/, lock files), and binary-file overwrites. Returns { ok, path, bytes } or " +
       "{ ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
