@@ -46,6 +46,13 @@ describe("withShellExitGuidance — shell_exec ok:true soft failure", () => {
     const garbage = "not json <<<";
     expect(await withShellExitGuidance(fakeTool("shell_exec", garbage)).handler({})).toBe(garbage);
   });
+  it("preserves the wrapped tool's name/description/inputSchema", () => {
+    const base = fakeTool("shell_exec", "{}");
+    const wrapped = withShellExitGuidance(base);
+    expect(wrapped.name).toBe(base.name);
+    expect(wrapped.description).toBe(base.description);
+    expect(wrapped.inputSchema).toEqual(base.inputSchema);
+  });
 });
 
 const MAP = { not_found: "use list_dir to find the path" };
