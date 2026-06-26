@@ -135,10 +135,12 @@ export function createTodolistTool(): TodolistTool {
   return {
     name: "todolist",
     description:
-      "Track multi-step task progress. " +
-      "Actions: 'add' (create task with title), 'complete' (mark done by id), " +
-      "'in_progress' (mark started by id), 'remove' (delete by id), " +
-      "'list' (show all), 'clear_completed' (remove done items). " +
+      "Create and maintain a structured task list for the current session — tracks progress and " +
+      "keeps a multi-step plan visible across turns. Use it proactively when the work has 3+ steps " +
+      "or the user gave multiple tasks; skip it for a single trivial step. Keep exactly ONE item " +
+      "'in_progress' at a time, and mark 'complete' only after the work is actually done. " +
+      "Actions: 'add' (create with title), 'in_progress' (mark started by id), 'complete' (mark done " +
+      "by id), 'remove' (delete by id), 'list' (show all), 'clear_completed' (remove done items). " +
       "Returns { ok, items, items_summary } (items = structured array; items_summary = formatted text).",
     inputSchema: {
       type: "object" as const,

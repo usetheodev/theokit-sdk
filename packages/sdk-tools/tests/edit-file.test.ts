@@ -23,6 +23,18 @@ describe("createEditFileTool — tool shape", () => {
   });
 });
 
+describe("createEditFileTool — no-op guard (old_string === new_string)", () => {
+  it("Given equal old/new strings, When edit_file is invoked, Then it refuses with no_change and does not write", async () => {
+    writeFileSync(join(projectRoot, "same.ts"), 'const x = "v";');
+    const tool = createEditFileTool({ projectRoot });
+    const out = await tool.handler({ path: "same.ts", old_string: '"v"', new_string: '"v"' });
+    const parsed = JSON.parse(out);
+    expect(parsed.ok).toBe(false);
+    expect(parsed.error).toBe("no_change");
+    expect(existsSync(join(projectRoot, "same.ts.bak"))).toBe(false);
+  });
+});
+
 describe("createEditFileTool — exact match", () => {
   it("Given a file with target string, When edit_file is invoked, Then string is replaced", async () => {
     writeFileSync(join(projectRoot, "code.ts"), 'const x = "old";\nconst y = 1;');

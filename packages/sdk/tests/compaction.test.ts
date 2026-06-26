@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import {
   buildCheckpoint,
@@ -8,6 +8,7 @@ import {
   estimateTokens,
   filterFromLatestCheckpoint,
   isContextOverflowError,
+  SUMMARY_TEMPLATE,
   shouldCompact,
 } from "../src/compaction.js";
 import { RateLimitError, TheokitAgentError } from "../src/errors.js";
@@ -160,6 +161,218 @@ describe("compactTranscript (M2-1)", () => {
     const out = await compactTranscript(input, { keepRecent: 2 });
     expect(out.some((m) => m.content.startsWith(CHECKPOINT_MARKER))).toBe(true);
     expect(out.at(-1)?.content).toBe("last");
+  });
+});
+
+describe("compactTranscript token-budget mode (V3-3 — keepTokens)", () => {
+  // Each message ~100 tokens (400 chars) so keepTokens math is predictable.
+  const big = (id: string): CompressibleMessage => msg("user", `${id}:${"x".repeat(400)}`);
+
+  it("test_compactTranscript_token_budget_keeps_recent_within_keepTokens", async () => {
+    // 4 msgs ~100 tok each; keepTokens=250 → ~2 recent (tail), head dropped (no summarize).
+    const input = [big("a"), big("b"), big("c"), big("d")];
+    const out = await compactTranscript(input, { keepTokens: 250 });
+    expect(out.length).toBeGreaterThan(0);
+    expect(out.length).toBeLessThan(input.length);
+    expect(out.at(-1)).toEqual(input.at(-1)); // recent is the TAIL
+  });
+
+  it("test_compactTranscript_token_budget_drops_head_when_no_summarize", async () => {
+    const input = [big("a"), big("b"), big("c"), big("d")];
+    const out = await compactTranscript(input, { keepTokens: 250 });
+    // No summarize → head is dropped, only the recent tail remains.
+    expect(out.every((m) => m.content.startsWith("c") || m.content.startsWith("d"))).toBe(true);
+  });
+
+  it("test_compactTranscript_token_budget_summarize_prepends", async () => {
+    const input = [big("a"), big("b"), big("c"), big("d")];
+    const out = await compactTranscript(input, {
+      keepTokens: 250,
+      summarize: async () => msg("system", "SUM"),
+    });
+    expect(out[0]).toEqual(msg("system", "SUM"));
+    expect(out.at(-1)).toEqual(input.at(-1));
+  });
+
+  it("test_compactTranscript_token_budget_noop_when_under_budget", async () => {
+    const input = [big("a"), big("b")];
+    const out = await compactTranscript(input, { keepTokens: 8000 });
+    expect(out).toEqual(input); // far under budget → nothing to compact
+  });
+
+  it("test_compactTranscript_keepTokens_wins_over_keepRecent", async () => {
+    // Both set: token-budget path taken; keepRecent ignored (ADR D1).
+    const input = [big("a"), big("b"), big("c"), big("d")];
+    const out = await compactTranscript(input, { keepTokens: 250, keepRecent: 4 });
+    // keepRecent=4 would keep all 4; keepTokens=250 keeps fewer → proves keepTokens wins.
+    expect(out.length).toBeLessThan(input.length);
+  });
+
+  it("test_compactTranscript_token_budget_zero_keepTokens_keeps_one_recent", async () => {
+    const input = [big("a"), big("b"), big("c")];
+    const out = await compactTranscript(input, { keepTokens: 0 });
+    expect(out).toHaveLength(1); // always ≥1 recent (Q3)
+    expect(out[0]).toEqual(input.at(-1));
+    // negative behaves identically
+    const outNeg = await compactTranscript(input, { keepTokens: -5 });
+    expect(outNeg).toHaveLength(1);
+  });
+
+  it("test_compactTranscript_token_budget_does_not_mutate_input", async () => {
+    const input = [big("a"), big("b"), big("c")];
+    const snapshot = JSON.stringify(input);
+    await compactTranscript(input, { keepTokens: 100 });
+    expect(JSON.stringify(input)).toBe(snapshot);
+  });
+
+  it("test_compactTranscript_token_budget_no_system_special_casing", async () => {
+    // D6: token-budget mode does NOT preserve leading system prompts separately.
+    const input = [msg("system", "sys"), big("a"), big("b"), big("c")];
+    const out = await compactTranscript(input, { keepTokens: 150 });
+    // The old system prompt falls into the head and is dropped (no summarize) —
+    // unlike keepRecent mode which always preserves it.
+    expect(out.some((m) => m.content === "sys")).toBe(false);
+  });
+});
+
+describe("compactTranscript configurable marker (V3-3 — D2)", () => {
+  const THEO = "<conversation-checkpoint>";
+
+  it("test_buildCheckpoint_custom_marker", () => {
+    expect(buildCheckpoint("s", THEO).content.startsWith(THEO)).toBe(true);
+  });
+
+  it("test_buildCheckpoint_default_marker_unchanged", () => {
+    expect(buildCheckpoint("s").content.startsWith(CHECKPOINT_MARKER)).toBe(true);
+  });
+
+  it("test_buildCheckpoint_rejects_empty_marker", () => {
+    expect(() => buildCheckpoint("s", "")).toThrow(TheokitAgentError);
+  });
+
+  it("test_filterFromLatestCheckpoint_custom_marker", () => {
+    const out = filterFromLatestCheckpoint(
+      [msg("user", "a"), buildCheckpoint("c", THEO), msg("user", "b")],
+      { marker: THEO },
+    );
+    expect(out.map((m) => m.content)).toEqual(["b"]);
+  });
+
+  it("test_compactTranscript_custom_marker_not_treated_as_system", async () => {
+    // A <conversation-checkpoint> turn in the older window must be dropped, not
+    // preserved as a leading system prompt.
+    const convo = Array.from({ length: 8 }, (_, i) => msg("user", `m${i}`));
+    const input = [buildCheckpoint("old", THEO), ...convo];
+    const out = await compactTranscript(input, { keepRecent: 2, marker: THEO });
+    expect(out.some((m) => m.content.startsWith(THEO))).toBe(false);
+  });
+});
+
+describe("filterFromLatestCheckpoint include semantic (V3-3 — D5)", () => {
+  it("test_filterFromLatestCheckpoint_include_from_keeps_checkpoint", () => {
+    const cp = buildCheckpoint("SUMMARY");
+    const out = filterFromLatestCheckpoint([msg("user", "a"), cp, msg("user", "b")], {
+      include: "from",
+    });
+    expect(out[0]).toEqual(cp); // checkpoint included
+    expect(out.at(-1)?.content).toBe("b");
+  });
+
+  it("test_filterFromLatestCheckpoint_default_after_unchanged", () => {
+    const out = filterFromLatestCheckpoint([msg("user", "a"), buildCheckpoint(), msg("user", "b")]);
+    expect(out.map((m) => m.content)).toEqual(["b"]); // turns AFTER (M2 default)
+  });
+});
+
+describe("compactTranscript template + fail-safe (V3-3 — D3/D4)", () => {
+  const convo = Array.from({ length: 8 }, (_, i) => msg("user", `m${i}`));
+
+  it("test_summary_template_has_seven_sections", () => {
+    for (const h of ["Goal", "Constraints", "Progress", "Decisions", "Next", "Critical", "Files"]) {
+      expect(SUMMARY_TEMPLATE).toContain(`## ${h}`);
+    }
+  });
+
+  it("test_compactTranscript_passes_template_to_summarize", async () => {
+    let received = "";
+    await compactTranscript(convo, {
+      keepRecent: 2,
+      summarize: async (_older, template) => {
+        received = template;
+        return msg("system", "S");
+      },
+    });
+    expect(received).toBe(SUMMARY_TEMPLATE);
+  });
+
+  it("test_compactTranscript_custom_summaryTemplate_passed", async () => {
+    let received = "";
+    await compactTranscript(convo, {
+      keepRecent: 2,
+      summaryTemplate: "CUSTOM",
+      summarize: async (_older, template) => {
+        received = template;
+        return msg("system", "S");
+      },
+    });
+    expect(received).toBe("CUSTOM");
+  });
+
+  it("test_compactTranscript_one_param_summarize_still_works", async () => {
+    // A 1-arg callback (M2 shape, ignores template) still compiles + runs.
+    const oneArg = async (_older: CompressibleMessage[]) => msg("system", "S1");
+    const out = await compactTranscript(convo, { keepRecent: 2, summarize: oneArg });
+    expect(out[0]).toEqual(msg("system", "S1"));
+  });
+
+  it("test_compactTranscript_default_propagates_on_throw", async () => {
+    await expect(
+      compactTranscript(convo, {
+        keepRecent: 2,
+        summarize: async () => {
+          throw new Error("boom");
+        },
+      }),
+    ).rejects.toThrow("boom");
+  });
+
+  it("test_compactTranscript_failSafe_returns_original_on_throw", async () => {
+    const out = await compactTranscript(convo, {
+      keepRecent: 2,
+      failSafe: true,
+      summarize: async () => {
+        throw new Error("boom");
+      },
+    });
+    expect(out).toEqual(convo); // original returned unchanged
+  });
+
+  it("test_compactTranscript_failSafe_warns_on_throw", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await compactTranscript(convo, {
+      keepRecent: 2,
+      failSafe: true,
+      summarize: async () => {
+        throw new Error("boom");
+      },
+    });
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("[compaction]"));
+    warn.mockRestore();
+  });
+
+  it("test_compactTranscript_failSafe_handles_non_error_throw", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const out = await compactTranscript(convo, {
+      keepRecent: 2,
+      failSafe: true,
+      summarize: async () => {
+        // deliberately throwing a non-Error value (EC-4)
+        return Promise.reject("string-failure");
+      },
+    });
+    expect(out).toEqual(convo);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("string-failure"));
+    warn.mockRestore();
   });
 });
 

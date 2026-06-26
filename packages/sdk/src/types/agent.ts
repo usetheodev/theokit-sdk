@@ -671,6 +671,30 @@ export interface SDKAgent {
     options?: import("./run.js").RunToCompletionOptions,
   ): Promise<import("./run.js").RunToCompletionResult>;
   /**
+   * STREAMING continuation driver (V3-4) — the streaming twin of
+   * {@link SDKAgent.runToCompletion}. Returns an `AsyncGenerator` that yields each
+   * round's {@link import("./messages.js").SDKMessage}s LIVE (for a UI), reusing the
+   * same terminal policy (`done`/`step_limit`/`no_progress` + bounded re-prompt).
+   *
+   * The {@link import("./run.js").StreamToCompletionResult} is the generator's RETURN
+   * value — read it via a manual `gen.next()` loop (`while (!res.done) res = await
+   * gen.next()` → `res.value`); a plain `for await...of` consumes the yielded
+   * messages but discards the return value. For the STATELESS path, reconstruct
+   * history with `buildReplayHistory` into a fresh session first.
+   *
+   * Local agents only. Cloud agents throw
+   * {@link import("../errors.js").UnsupportedRunOperationError}.
+   *
+   * @public
+   */
+  streamToCompletion?(
+    message: string,
+    options?: import("./run.js").RunToCompletionOptions,
+  ): AsyncGenerator<
+    import("./messages.js").SDKMessage,
+    import("./run.js").StreamToCompletionResult
+  >;
+  /**
    * Direct API to third-party memory adapter(s) registered via
    * `plugins: [...]` (ADR D141 / D142). Returns `null` when no adapter
    * is registered. In multi-adapter setups `write` fans out to all;

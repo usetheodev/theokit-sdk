@@ -28,14 +28,19 @@ export interface RunToCompletionAgent {
   send(message: string, options?: SendOptions): Promise<{ wait(): Promise<RunResult> }>;
 }
 
-const DEFAULT_MAX_ROUNDS = 5;
-const DEFAULT_CONTINUATION_PROMPT =
+/** @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4). */
+export const DEFAULT_MAX_ROUNDS = 5;
+/** @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4). */
+export const DEFAULT_CONTINUATION_PROMPT =
   "Continue from where you left off and finish the task. If it is already complete, give the final answer.";
 
 type RoundDecision = "done" | "continue" | "step_limit" | "no_progress";
 
-/** True when a round produced no observable output text. */
-function isEmptyRound(result: RunResult): boolean {
+/**
+ * True when a round produced no observable output text.
+ * @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4).
+ */
+export function isEmptyRound(result: RunResult): boolean {
   return (result.result ?? "").trim() === "";
 }
 
@@ -67,7 +72,11 @@ export function classifyRound(
  * EC-10 invariant (`usage.ts`) at this aggregation boundary even if a provider
  * folded extra buckets into a round's own `totalTokens`.
  */
-function addUsage(acc: TokenUsage | undefined, u: TokenUsage | undefined): TokenUsage | undefined {
+/** @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4). */
+export function addUsage(
+  acc: TokenUsage | undefined,
+  u: TokenUsage | undefined,
+): TokenUsage | undefined {
   if (u === undefined) return acc;
   const inputTokens = (acc?.inputTokens ?? 0) + u.inputTokens;
   const outputTokens = (acc?.outputTokens ?? 0) + u.outputTokens;
@@ -83,8 +92,11 @@ function addUsage(acc: TokenUsage | undefined, u: TokenUsage | undefined): Token
   };
 }
 
-/** Assemble the result object, omitting `usage` when no round reported any. */
-function buildResult(
+/**
+ * Assemble the result object, omitting `usage` when no round reported any.
+ * @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4).
+ */
+export function buildResult(
   terminal: RunToCompletionResult["terminal"],
   rounds: number,
   lastResult: RunResult,
@@ -93,10 +105,58 @@ function buildResult(
   return { terminal, rounds, lastResult, ...(usage !== undefined ? { usage } : {}) };
 }
 
-/** Carried state between continuation rounds. */
-interface RoundState {
+/**
+ * The shared between-rounds tail: fire `onTruncated`, then — re-reading `aborted`
+ * (a getter that can flip between rounds) — return a `step_limit` result if the
+ * signal aborted, else `undefined` to continue. Used by BOTH the stateful driver
+ * and its streaming twin (V3-4), so the continuation-end policy has one home.
+ * @internal
+ */
+export async function continuationTail(
+  round: number,
+  lastResult: RunResult,
+  usage: TokenUsage | undefined,
+  onTruncated: ((event: { round: number }) => void | Promise<void>) | undefined,
+  signal: AbortSignal | undefined,
+): Promise<RunToCompletionResult | undefined> {
+  await onTruncated?.({ round });
+  return signal?.aborted === true ? buildResult("step_limit", round, lastResult, usage) : undefined;
+}
+
+/**
+ * Carried state between continuation rounds.
+ * @internal — shared with the streaming twin (`stream-to-completion.ts`, V3-4).
+ */
+export interface RoundState {
   usage: TokenUsage | undefined;
   emptyStreak: number;
+}
+
+/** Resolved continuation config + fresh initial state — shared by both drivers. @internal */
+export interface ResolvedContinuation {
+  maxRounds: number;
+  continuationPrompt: string;
+  onTruncated: ((event: { round: number }) => void | Promise<void>) | undefined;
+  signal: AbortSignal | undefined;
+  sendOptions: SendOptions | undefined;
+  state: RoundState;
+}
+
+/** Resolve options to the continuation config + a fresh state. One home for the defaults. @internal */
+export function resolveContinuation(options?: RunToCompletionOptions): ResolvedContinuation {
+  return {
+    maxRounds: options?.maxRounds ?? DEFAULT_MAX_ROUNDS,
+    continuationPrompt: options?.continuationPrompt ?? DEFAULT_CONTINUATION_PROMPT,
+    onTruncated: options?.onTruncated,
+    signal: options?.signal,
+    sendOptions: options?.sendOptions,
+    state: { usage: undefined, emptyStreak: 0 },
+  };
+}
+
+/** The round's prompt: the task on round 0, the continuation prompt after. @internal */
+export function promptForRound(round: number, message: string, continuationPrompt: string): string {
+  return round === 0 ? message : continuationPrompt;
 }
 
 /** A round either reaches a terminal, or yields the state to carry into the next round. */
@@ -132,23 +192,23 @@ export async function runToCompletionImpl(
   message: string,
   options?: RunToCompletionOptions,
 ): Promise<RunToCompletionResult> {
-  const maxRounds = options?.maxRounds ?? DEFAULT_MAX_ROUNDS;
-  const continuationPrompt = options?.continuationPrompt ?? DEFAULT_CONTINUATION_PROMPT;
-  const { onTruncated, signal, sendOptions } = options ?? {};
-
-  let state: RoundState = { usage: undefined, emptyStreak: 0 };
+  const cfg = resolveContinuation(options);
+  let state = cfg.state;
 
   for (let round = 0; ; round += 1) {
-    const prompt = round === 0 ? message : continuationPrompt;
-    const outcome = await stepRound(agent, prompt, sendOptions, round, maxRounds, state);
+    const prompt = promptForRound(round, message, cfg.continuationPrompt);
+    const outcome = await stepRound(agent, prompt, cfg.sendOptions, round, cfg.maxRounds, state);
     if ("terminal" in outcome) return outcome.terminal;
 
     // Truncated and below the round budget — re-send next iteration.
     state = outcome.next;
-    await onTruncated?.({ round });
-    // Re-read `aborted` each round (it is a getter that can flip between rounds).
-    if (signal?.aborted === true) {
-      return buildResult("step_limit", round, outcome.lastResult, state.usage);
-    }
+    const aborted = await continuationTail(
+      round,
+      outcome.lastResult,
+      state.usage,
+      cfg.onTruncated,
+      cfg.signal,
+    );
+    if (aborted !== undefined) return aborted;
   }
 }
