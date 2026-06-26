@@ -78,3 +78,39 @@ export function withToolResultGuidance(tool: CustomTool, guidance: ToolGuidanceM
 export function withDefaultGuidance(tool: CustomTool): CustomTool {
   return withToolResultGuidance(tool, DEFAULT_TOOL_GUIDANCE);
 }
+
+/**
+ * Wrap `shell_exec` so a SOFT failure — `{ ok: true, exit_code != 0 }` (the TOOL ran, the COMMAND
+ * failed) — gains a `guidance` hint. This is the one case {@link injectGuidance} does not cover (it
+ * is `ok:false`-only by design). ADDITIVE, IDEMPOTENT, NEVER-THROW; a no-op for any other tool, for
+ * `exit_code 0`, and for non-JSON output. Compose AFTER {@link withDefaultGuidance} (the two domains —
+ * `ok:false` vs `ok:true` soft-fail — are disjoint, so there is no double-injection).
+ */
+export function withShellExitGuidance(tool: CustomTool): CustomTool {
+  if (tool.name !== "shell_exec") return tool;
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    handler: async (input) => {
+      const out = await tool.handler(input);
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(out);
+      } catch {
+        return out; // non-JSON tool output → passthrough
+      }
+      if (
+        isRecord(parsed) &&
+        parsed.ok === true &&
+        typeof parsed.exit_code === "number" &&
+        parsed.exit_code !== 0 &&
+        !("guidance" in parsed)
+      ) {
+        const guidance = `The command exited ${parsed.exit_code}. Read the stderr above, fix the cause, then retry.`;
+        return JSON.stringify({ ...parsed, guidance });
+      }
+      return out;
+    },
+  };
+}

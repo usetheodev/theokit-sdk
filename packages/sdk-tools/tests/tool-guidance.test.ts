@@ -1,14 +1,52 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { CustomTool } from "@theokit/sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
   DEFAULT_TOOL_GUIDANCE,
   injectGuidance,
   withDefaultGuidance,
+  withShellExitGuidance,
   withToolResultGuidance,
 } from "../src/internal/tool-guidance.js";
 import { createReadFileTool } from "../src/read-file.js";
+
+const fakeTool = (name: string, output: string): CustomTool => ({
+  name,
+  description: "x",
+  inputSchema: { type: "object" },
+  handler: async () => output,
+});
+
+describe("withShellExitGuidance — shell_exec ok:true soft failure", () => {
+  it("adds guidance on a non-zero exit_code", async () => {
+    const t = withShellExitGuidance(
+      fakeTool("shell_exec", '{"ok":true,"stderr":"boom","exit_code":2}'),
+    );
+    const r = JSON.parse(await t.handler({}));
+    expect(r.guidance).toMatch(/exit/i);
+    expect(r.guidance).toMatch(/2/);
+  });
+  it("is a no-op on exit_code 0 (even with json-ish stdout)", async () => {
+    const ok = '{"ok":true,"stdout":"{\\"ok\\":false}","exit_code":0}';
+    expect(await withShellExitGuidance(fakeTool("shell_exec", ok)).handler({})).toBe(ok);
+  });
+  it("is a no-op for non-shell tools", async () => {
+    const failed = '{"ok":false,"error":"no_match"}';
+    expect(await withShellExitGuidance(fakeTool("edit_file", failed)).handler({})).toBe(failed);
+  });
+  it("is idempotent when guidance already present", async () => {
+    const withG = '{"ok":true,"exit_code":1,"guidance":"keep me"}';
+    expect(
+      JSON.parse(await withShellExitGuidance(fakeTool("shell_exec", withG)).handler({})).guidance,
+    ).toBe("keep me");
+  });
+  it("never throws on non-JSON output", async () => {
+    const garbage = "not json <<<";
+    expect(await withShellExitGuidance(fakeTool("shell_exec", garbage)).handler({})).toBe(garbage);
+  });
+});
 
 const MAP = { not_found: "use list_dir to find the path" };
 
@@ -142,6 +180,7 @@ describe("sdk-tools barrel — tool-guidance", () => {
     const mod = await import("../src/index.js");
     expect(typeof mod.withToolResultGuidance).toBe("function");
     expect(typeof mod.withDefaultGuidance).toBe("function");
+    expect(typeof mod.withShellExitGuidance).toBe("function");
     expect(typeof mod.injectGuidance).toBe("function");
     expect(typeof mod.DEFAULT_TOOL_GUIDANCE).toBe("object");
   });
