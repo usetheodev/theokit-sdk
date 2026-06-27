@@ -48,6 +48,16 @@ Constructs a semantic cache instance with vector similarity + FTS hybrid lookup.
 | `modelId` | `string` | (required) | LLM model identifier (used in cache key composition). |
 | `store` | `"memory" \| { backend: "json", dir }` | `"memory"` | Persistence backend. |
 
+### `createLexicalEmbedder(dimension = 256): CacheEmbedderRuntime`
+
+A built-in, zero-dependency embedder so you can use `Cache.semantic` without wiring an LLM embedding API. It produces a deterministic token-hash frequency vector, L2-normalized (id `theokit-lexical-v1-d{dimension}`, model `theokit-lexical-hash`). Identical text yields identical vectors (exact-repeat hits) and lexically similar text yields nearby vectors (cosine-similar hits). It carries no semantic understanding — for that, supply an LLM-backed `CacheEmbedderRuntime`. Empty/whitespace text maps to the zero vector.
+
+```ts
+import { Cache, createLexicalEmbedder } from "@theokit/sdk-cache";
+
+const cache = Cache.semantic({ embedder: createLexicalEmbedder() });
+```
+
 ### `cache.asPlugin(): Plugin`
 
 Returns a `Plugin` compatible with `Agent.create({ plugins })`. The plugin hooks `preUserSend` (cache lookup) and `postAssistantReply` (cache store).
