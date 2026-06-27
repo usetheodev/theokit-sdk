@@ -58,16 +58,41 @@ function safeReadHead(p: string, n: number): string {
   }
 }
 
+export interface EnvContextOptions {
+  /** Injectable clock for the date line (deterministic tests). Default `new Date()`. */
+  now?: Date;
+  /** Path to the git `HEAD` file. Default `<cwd>/.git/HEAD`. */
+  gitHeadPath?: string;
+}
+
+/**
+ * Read the current git branch from `HEAD` — a PURE file read (never a
+ * `child_process` spawn, which could hang the request path or expose
+ * arg-injection). Returns `undefined` for a detached HEAD, a missing file,
+ * or any read error. Borrowed from theocode's `project-context.ts`.
+ */
+function gitBranch(headPath: string): string | undefined {
+  try {
+    const head = readFileSync(headPath, "utf-8").trim();
+    const match = head.match(/^ref:\s*refs\/heads\/(.+)$/);
+    return match ? match[1] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /** Render a portable `<env>` orientation block. Never throws. */
-export function buildEnvContext(cwd: string): string {
+export function buildEnvContext(cwd: string, opts: EnvContextOptions = {}): string {
   const lines = [
     "<env>",
     `  Working directory: ${cwd}`,
     `  Platform: ${process.platform} (${process.arch})`,
     `  Node: ${process.version}`,
     `  Is git repo: ${safeExists(join(cwd, ".git")) ? "yes" : "no"}`,
-    `  Today's date: ${new Date().toDateString()}`,
   ];
+  const branch = gitBranch(opts.gitHeadPath ?? join(cwd, ".git", "HEAD"));
+  if (branch) lines.push(`  Branch: ${branch}`);
+  lines.push(`  Today's date: ${(opts.now ?? new Date()).toDateString()}`);
   const docs = PROJECT_DOCS.filter((d) => safeExists(join(cwd, d)));
   if (docs.length > 0) {
     lines.push(`  Project docs: ${docs.join(", ")}`);

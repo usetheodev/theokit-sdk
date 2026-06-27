@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { buildEnvContext, buildRepoMap } from "../src/internal/repo-map.js";
+import { buildEnvContext, buildRepoMap, type EnvContextOptions } from "../src/internal/repo-map.js";
 
 // Probe symlink capability once so the EC-1 test reports SKIPPED (not a silent
 // green) on platforms/sandboxes that deny symlink creation.
@@ -128,6 +128,47 @@ describe("buildEnvContext — env block", () => {
   it("never throws on a missing cwd", () => {
     expect(() => buildEnvContext("/no/such/dir-xyz")).not.toThrow();
     expect(typeof buildEnvContext("/no/such/dir-xyz")).toBe("string");
+  });
+});
+
+describe("buildEnvContext — git branch + injectable clock (RADAR #92.b)", () => {
+  it("shows the branch when .git/HEAD points at a ref", () => {
+    const headPath = join(root, "HEAD");
+    writeFileSync(headPath, "ref: refs/heads/feature/cool-thing\n");
+    const out = buildEnvContext(root, { gitHeadPath: headPath });
+    expect(out).toContain("Branch: feature/cool-thing");
+  });
+
+  it("omits the branch for a detached HEAD (no ref line)", () => {
+    const headPath = join(root, "HEAD");
+    writeFileSync(headPath, "9fceb02d0ae598e95dc970b74767f19372d61af8\n");
+    const out = buildEnvContext(root, { gitHeadPath: headPath });
+    expect(out).not.toContain("Branch:");
+  });
+
+  it("omits the branch when the HEAD file is unreadable / missing", () => {
+    const out = buildEnvContext(root, { gitHeadPath: join(root, "does-not-exist") });
+    expect(out).not.toContain("Branch:");
+  });
+
+  it("defaults gitHeadPath to <cwd>/.git/HEAD", () => {
+    mkdirSync(join(root, ".git"));
+    writeFileSync(join(root, ".git", "HEAD"), "ref: refs/heads/main\n");
+    const out = buildEnvContext(root);
+    expect(out).toContain("Branch: main");
+  });
+
+  it("uses the injected clock for the date line (deterministic)", () => {
+    const fixed = new Date("2030-01-02T03:04:05Z");
+    const opts: EnvContextOptions = { now: fixed };
+    const out = buildEnvContext(root, opts);
+    expect(out).toContain(fixed.toDateString());
+  });
+
+  it("backward-compatible: no opts still produces the env block", () => {
+    const out = buildEnvContext(root);
+    expect(out).toContain("<env>");
+    expect(out).toContain(root);
   });
 });
 
