@@ -13,6 +13,7 @@ import {
   coerceToKnownAgentRunErrorCode,
   UnknownAgentError,
 } from "./errors.js";
+import { enabledPluginNames } from "./internal/plugins/enabled-names.js";
 import { setAgentFacade } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
@@ -102,7 +103,7 @@ export class Agent {
     const runtime: "local" | "cloud" = options.cloud !== undefined ? "cloud" : "local";
     const span: OTelSpan = telemetry.startSpan(SPAN_NAMES.AGENT_CREATE, {
       runtime,
-      pluginCount: options.plugins?.enabled?.length ?? 0,
+      pluginCount: enabledPluginNames(options.plugins).length,
     });
     try {
       const agent = await runCreateUnderSpan(options, span);

@@ -5,6 +5,8 @@ import type {
   ResolvedProviderRoute,
   SDKProvidersManager,
 } from "../../../types/providers.js";
+import { enabledPluginNames } from "../../plugins/enabled-names.js";
+import type { Plugin } from "../../plugins/types.js";
 
 /**
  * Provider routing inspector. Computes the resolved capability →
@@ -17,7 +19,7 @@ export class ProvidersManagerImpl implements SDKProvidersManager {
   constructor(
     private readonly model: ModelSelection | undefined,
     private readonly providers: ProviderRoutingSettings | undefined,
-    private readonly plugins: PluginsSettings | undefined,
+    private readonly plugins: PluginsSettings | readonly Plugin[] | undefined,
   ) {}
 
   routes(): Promise<ResolvedProviderRoute[]> {
@@ -47,7 +49,7 @@ function providerFromModel(model: ModelSelection | undefined): string | undefine
 function resolveRoute(
   route: { capability: string; provider: string; model?: string },
   modelProvider: string | undefined,
-  plugins: PluginsSettings | undefined,
+  plugins: PluginsSettings | readonly Plugin[] | undefined,
 ): ResolvedProviderRoute {
   if (route.capability === "chat" && modelProvider === route.provider) {
     const modelName = extractModelName(modelProvider, route);
@@ -59,7 +61,7 @@ function resolveRoute(
     if (modelName !== undefined) base.model = modelName;
     return base;
   }
-  if (plugins?.enabled !== undefined && plugins.enabled.length > 0) {
+  if (enabledPluginNames(plugins).length > 0) {
     return {
       capability: route.capability,
       provider: route.provider,
