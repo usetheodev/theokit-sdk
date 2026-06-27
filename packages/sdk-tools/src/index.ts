@@ -50,7 +50,12 @@ export {
   SsrfBlockedError,
   screenedFetch,
 } from "./internal/network-guard.js";
-export { buildEnvContext, buildRepoMap, type RepoMapOptions } from "./internal/repo-map.js";
+export {
+  buildEnvContext,
+  buildRepoMap,
+  type EnvContextOptions,
+  type RepoMapOptions,
+} from "./internal/repo-map.js";
 export { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
 export { renderToolList, withDescription } from "./internal/tool-aci.js";
 export {
@@ -91,4 +96,8 @@ export {
   type CreateBraveWebSearchAdapterOptions,
   createBraveWebSearchAdapter,
 } from "./web-search-brave.js";
+export {
+  type CreateGenericHttpSearchAdapterOptions,
+  createGenericHttpSearchAdapter,
+} from "./web-search-http.js";
 export { type CreateWriteFileToolOptions, createWriteFileTool } from "./write-file.js";

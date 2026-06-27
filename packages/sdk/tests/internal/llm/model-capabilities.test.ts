@@ -124,3 +124,57 @@ describe("OpenRouter variant-suffix resolution (M2-4)", () => {
     expect(resolveModelCapabilities("totally/unknown:free").maxContextTokens).toBe(4096);
   });
 });
+
+describe("RADAR #92.a — cheap OpenRouter slugs resolve real context windows", () => {
+  it("qwen3-coder-30b resolves 160000 + tool use (text-only)", () => {
+    const caps = resolveModelCapabilities("qwen/qwen3-coder-30b-a3b-instruct");
+    expect(caps.maxContextTokens).toBe(160_000);
+    expect(caps.supportsToolUse).toBe(true);
+    expect(caps.supportsVision).toBe(false);
+    expect(caps.supportsStructuredOutput).toBe(false);
+    expect(caps.supportsCacheControl).toBe(false);
+  });
+
+  it("deepseek-v4-flash resolves 1048576", () => {
+    expect(resolveModelCapabilities("deepseek/deepseek-v4-flash").maxContextTokens).toBe(1_048_576);
+  });
+
+  it("deepseek-v3.2 resolves 131072", () => {
+    expect(resolveModelCapabilities("deepseek/deepseek-v3.2").maxContextTokens).toBe(131_072);
+  });
+
+  it("glm-4.7-flash resolves 202752", () => {
+    expect(resolveModelCapabilities("z-ai/glm-4.7-flash").maxContextTokens).toBe(202_752);
+  });
+
+  it("gemini-2.5-flash-lite resolves 1048576 + vision + structured", () => {
+    const caps = resolveModelCapabilities("google/gemini-2.5-flash-lite");
+    expect(caps.maxContextTokens).toBe(1_048_576);
+    expect(caps.supportsVision).toBe(true);
+    expect(caps.supportsStructuredOutput).toBe(true);
+    expect(caps.supportsToolUse).toBe(true);
+  });
+
+  it("gemini-2.5-pro resolves 1048576 + vision + structured", () => {
+    const caps = resolveModelCapabilities("google/gemini-2.5-pro");
+    expect(caps.maxContextTokens).toBe(1_048_576);
+    expect(caps.supportsVision).toBe(true);
+    expect(caps.supportsStructuredOutput).toBe(true);
+  });
+
+  it("gpt-4.1 resolves 1047576 (not the 4096 default)", () => {
+    expect(resolveModelCapabilities("openai/gpt-4.1").maxContextTokens).toBe(1_047_576);
+  });
+
+  it("dot-form anthropic slugs theocode uses resolve real windows (not 4096)", () => {
+    // theocode uses dotted OpenRouter slugs; the catalog historically had only dash forms.
+    expect(resolveModelCapabilities("anthropic/claude-sonnet-4.5").maxContextTokens).toBe(200_000);
+    expect(resolveModelCapabilities("anthropic/claude-opus-4.1").maxContextTokens).toBe(200_000);
+    expect(resolveModelCapabilities("anthropic/claude-3.5-sonnet").maxContextTokens).toBe(200_000);
+    // capability parity with their dash-form siblings (cache control on, no structured output)
+    expect(resolveModelCapabilities("anthropic/claude-3.5-sonnet").supportsCacheControl).toBe(true);
+    expect(resolveModelCapabilities("anthropic/claude-3.5-sonnet").supportsStructuredOutput).toBe(
+      false,
+    );
+  });
+});
