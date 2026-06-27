@@ -97,6 +97,18 @@ const EXACT: ReadonlyMap<string, ModelCapabilities> = new Map([
       maxOutputTokens: 100_000,
     },
   ],
+  [
+    // GPT-4.1 — 1M-context flagship; multimodal + structured output (RADAR #92.a).
+    "openai/gpt-4.1",
+    {
+      supportsVision: true,
+      supportsStructuredOutput: true,
+      supportsToolUse: true,
+      supportsCacheControl: false,
+      maxContextTokens: 1_047_576,
+      maxOutputTokens: 32_768,
+    },
+  ],
   // Anthropic family
   [
     "anthropic/claude-opus-4",
@@ -173,6 +185,111 @@ const EXACT: ReadonlyMap<string, ModelCapabilities> = new Map([
       supportsCacheControl: true,
       maxContextTokens: 200_000,
       maxOutputTokens: 4096,
+    },
+  ],
+  // Dot-form OpenRouter slugs theocode uses (RADAR #92.a). These are the same
+  // models as their dash-form siblings above; capability parity is intentional.
+  // Without these entries the dotted slugs fall through to the 4096 default
+  // (`anthropic/claude-3.5-sonnet` ≠ `anthropic/claude-3-5-sonnet`).
+  [
+    "anthropic/claude-opus-4.1",
+    {
+      supportsVision: true,
+      supportsStructuredOutput: false,
+      supportsToolUse: true,
+      supportsCacheControl: true,
+      maxContextTokens: 200_000,
+      maxOutputTokens: 32_000,
+    },
+  ],
+  [
+    "anthropic/claude-sonnet-4.5",
+    {
+      supportsVision: true,
+      supportsStructuredOutput: false,
+      supportsToolUse: true,
+      supportsCacheControl: true,
+      maxContextTokens: 200_000,
+      maxOutputTokens: 16_000,
+    },
+  ],
+  [
+    "anthropic/claude-3.5-sonnet",
+    {
+      supportsVision: true,
+      supportsStructuredOutput: false,
+      supportsToolUse: true,
+      supportsCacheControl: true,
+      maxContextTokens: 200_000,
+      maxOutputTokens: 8192,
+    },
+  ],
+  // Cheap OpenRouter slugs (RADAR #92.a) — previously fell to the 4096
+  // CONSERVATIVE default. toolUse on; vision/structuredOutput only for Gemini.
+  [
+    "qwen/qwen3-coder-30b-a3b-instruct",
+    {
+      supportsVision: false,
+      supportsStructuredOutput: false,
+      supportsToolUse: true,
+      supportsCacheControl: false,
+      maxContextTokens: 160_000,
+      maxOutputTokens: 8000,
+    },
+  ],
+  [
+    "deepseek/deepseek-v4-flash",
+    {
+      supportsVision: false,
+      supportsStructuredOutput: false,
+      supportsToolUse: true,
+      supportsCacheControl: false,
+      maxContextTokens: 1_048_576,
+      maxOutputTokens: 8000,
+    },
+  ],
+  [
+    "deepseek/deepseek-v3.2",
+    {
+      supportsVision: false,
+      supportsStructuredOutput: false,
+      supportsToolUse: true,
+      supportsCacheControl: false,
+      maxContextTokens: 131_072,
+      maxOutputTokens: 8000,
+    },
+  ],
+  [
+    "z-ai/glm-4.7-flash",
+    {
+      supportsVision: false,
+      supportsStructuredOutput: false,
+      supportsToolUse: true,
+      supportsCacheControl: false,
+      maxContextTokens: 202_752,
+      maxOutputTokens: 8000,
+    },
+  ],
+  [
+    "google/gemini-2.5-flash-lite",
+    {
+      supportsVision: true,
+      supportsStructuredOutput: true,
+      supportsToolUse: true,
+      supportsCacheControl: false,
+      maxContextTokens: 1_048_576,
+      maxOutputTokens: 8000,
+    },
+  ],
+  [
+    "google/gemini-2.5-pro",
+    {
+      supportsVision: true,
+      supportsStructuredOutput: true,
+      supportsToolUse: true,
+      supportsCacheControl: false,
+      maxContextTokens: 1_048_576,
+      maxOutputTokens: 8000,
     },
   ],
 ]);
