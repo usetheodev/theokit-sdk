@@ -9,6 +9,7 @@
  */
 
 export { Cache } from "./cache.js";
+export { createLexicalEmbedder } from "./lexical-embedder.js";
 export type {
   CacheEmbedderRuntime,
   CacheEntry,
