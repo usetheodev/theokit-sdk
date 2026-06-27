@@ -3,6 +3,7 @@ import { join } from "node:path";
 import type { AgentOptions } from "../../../types/agent.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { readVersionedJson, writeVersionedJson } from "../../persistence/schema-version.js";
+import { asPluginsSettings } from "../../plugins/enabled-names.js";
 import type { AgentRuntime, RegisteredAgent } from "./agent-registry-contract.js";
 
 /**
@@ -70,7 +71,9 @@ export function stripSecretsFromOptions(options: AgentOptions): SerializedAgentO
     cloud: serializeCloud(options.cloud),
     memory: serializeMemory(options.memory),
     skills: serializeEnabledList(options.skills),
-    plugins: serializeEnabledList(options.plugins),
+    // Code-`Plugin` objects are closures and cannot be persisted (like custom
+    // tools); only the named-enable settings form is serialized.
+    plugins: serializeEnabledList(asPluginsSettings(options.plugins)),
     context: serializeContext(options.context),
     providers: serializeProviders(options.providers),
     agents: serializeAgents(options.agents),

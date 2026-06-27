@@ -34,12 +34,42 @@ function esc(s: string): string {
   return String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 }
 
+/** Render mode for {@link renderToolList}. Local — the published `renderToolList`
+ *  signature inlines this union into its `.d.ts`, so consumers pass the literal
+ *  ("summary" | "names" | "full") without needing the named type exported. */
+type ToolListMode = "full" | "summary" | "names";
+
 /**
- * Render a `<tools>` block (name + description per tool) from the agent's actual
- * `CustomTool[]` — single source of truth, so an overridden/added/removed tool
- * is reflected automatically. An empty array yields `<tools></tools>`. Never throws.
+ * Extract the first sentence of a description, abbreviation-safe: a period is
+ * only a sentence boundary when followed by whitespace + a capital/paren/EOF, so
+ * `e.g.`, `i.e.`, `vs.` do NOT split. Falls back to the whole (trimmed) string.
  */
-export function renderToolList(tools: CustomTool[]): string {
+function firstSentence(d: string): string {
+  const m = d.trim().match(/\.\s+(?=[A-Z(]|$)/);
+  return m?.index == null ? d.trim() : d.trim().slice(0, m.index + 1);
+}
+
+/**
+ * Render the agent's actual `CustomTool[]` — single source of truth, so an
+ * overridden/added/removed tool is reflected automatically. Never throws.
+ *
+ * Modes (`options.mode`, default `"full"`):
+ * - `"full"`: a `<tools>` XML block (name + description per tool, XML-escaped).
+ *   An empty array yields `<tools></tools>`.
+ * - `"summary"`: markdown `- name: <first sentence>` per tool (NOT XML-escaped).
+ * - `"names"`: markdown `- name` per tool (NOT XML-escaped).
+ *
+ * Markdown modes on an empty array yield `""`. A non-object `options` arg (e.g. a
+ * map index from `tools.map(renderToolList)`) has no `.mode` → falls back to `"full"`.
+ */
+export function renderToolList(tools: CustomTool[], options?: { mode?: ToolListMode }): string {
+  const mode = options?.mode ?? "full";
+  if (mode === "summary") {
+    return tools.map((t) => `- ${t.name}: ${firstSentence(t.description)}`).join("\n");
+  }
+  if (mode === "names") {
+    return tools.map((t) => `- ${t.name}`).join("\n");
+  }
   if (tools.length === 0) return "<tools></tools>";
   const lines = ["<tools>"];
   for (const t of tools) {

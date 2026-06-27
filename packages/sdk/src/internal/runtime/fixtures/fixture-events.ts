@@ -10,6 +10,7 @@ import type {
   SDKUserMessageEvent,
 } from "../../../types/messages.js";
 import { generateRequestId } from "../../ids.js";
+import { enabledPluginNames } from "../../plugins/enabled-names.js";
 import type { FixtureRequest } from "./fixture-types.js";
 
 /**
@@ -145,11 +146,8 @@ export function defaultLocalTools(request: FixtureRequest): string[] {
       tools.push(`mcp_${sanitizeMcpName(name)}_call`);
     }
   }
-  const plugins = request.agentOptions.plugins;
-  if (plugins?.enabled !== undefined) {
-    for (const _pluginName of plugins.enabled) {
-      tools.push("mcp_search_provider_web_search");
-    }
+  for (const _pluginName of enabledPluginNames(request.agentOptions.plugins)) {
+    tools.push("mcp_search_provider_web_search");
   }
   return tools;
 }
