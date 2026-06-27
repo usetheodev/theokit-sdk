@@ -9,6 +9,10 @@ import type { Run, SDKUserMessage, SendOptions } from "./run.js";
 // `ModelSelection` / `ModelParameterValue` / `CustomTool` from `@theokit/sdk`.
 export type { CustomTool, ModelParameterValue, ModelSelection } from "./agent-prims.js";
 
+// Code `Plugin` objects (the array form of `AgentOptions.plugins`) are the
+// public discriminated union re-exported from the barrel. Type-only import —
+// erased at compile, so the types↔internal reference introduces no runtime cycle.
+import type { Plugin } from "../internal/plugins/types.js";
 import type { CustomTool, ModelSelection } from "./agent-prims.js";
 
 /**
@@ -332,8 +336,19 @@ export interface AgentOptions {
   context?: ContextSettings;
   /** Provider routing configuration. See `agent.providers`. */
   providers?: ProviderRoutingSettings;
-  /** Plugins to enable. Plugin sources must also be active via `local.settingSources`. */
-  plugins?: PluginsSettings;
+  /**
+   * Plugins for this agent, in one of two forms:
+   *
+   * - **Named-enable settings** — `{ enabled: ["name", ...] }`. Selects which
+   *   file-discovered plugin providers (under `.theokit/plugins/`) are active.
+   *   Plugin sources must also be active via `local.settingSources`.
+   * - **Code `Plugin` objects** — an array of `Plugin` instances, e.g.
+   *   `plugins: [Handoff.asPlugin({ ... })]`. These are registered directly by
+   *   the runtime (`extractCodePlugins`); no `settingSources` entry is needed.
+   *
+   * The two forms are mutually exclusive — pass one or the other.
+   */
+  plugins?: PluginsSettings | readonly Plugin[];
   /** Skills configuration. See `agent.skills`. */
   skills?: SkillsSettings;
   /** Memory configuration. Persists durable facts; auto-recalled on send. */

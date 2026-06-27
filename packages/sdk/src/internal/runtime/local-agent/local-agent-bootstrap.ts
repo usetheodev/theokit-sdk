@@ -9,6 +9,7 @@
  */
 
 import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
+import { asPluginsSettings, enabledPluginNames } from "../../plugins/enabled-names.js";
 import { ProvidersManagerImpl } from "../config/providers-manager.js";
 import { FileContextManager } from "../context/context-manager.js";
 import { type PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
@@ -61,7 +62,7 @@ export function bootstrapSubmanagers(args: {
     );
   }
   const providerCount =
-    (args.options.providers?.routes?.length ?? 0) + (args.options.plugins?.enabled?.length ?? 0);
+    (args.options.providers?.routes?.length ?? 0) + enabledPluginNames(args.options.plugins).length;
   if (providerCount > 0 || args.options.providers !== undefined) {
     out.providers = new ProvidersManagerImpl(
       args.options.model,
@@ -81,7 +82,9 @@ export function bootstrapSubmanagers(args: {
   if (args.options.plugins !== undefined || args.settingSourcesIncludePlugins) {
     out.pluginsManager = new PluginsManager(
       args.workspaceCwd,
-      args.options.plugins?.enabled,
+      // The array (code-`Plugin`) form has no named-enable list; `undefined`
+      // here preserves "no filter / load all file-discovered plugins".
+      asPluginsSettings(args.options.plugins)?.enabled,
       args.settingSourcesIncludePlugins,
       false,
       undefined,
