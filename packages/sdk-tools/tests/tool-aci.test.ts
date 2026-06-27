@@ -85,6 +85,72 @@ describe("renderToolList", () => {
     expect(out).toContain("&lt;/name&gt;");
     expect(out).not.toContain("</name>x");
   });
+
+  it("summary mode renders `- name: <first sentence>`", () => {
+    const out = renderToolList([fakeTool("read_file", "Read a file. More detail here.")], {
+      mode: "summary",
+    });
+    expect(out).toBe("- read_file: Read a file.");
+  });
+
+  it("summary mode first-sentence extraction is abbreviation-safe", () => {
+    const out = renderToolList([fakeTool("t", "Use e.g. this. Second.")], { mode: "summary" });
+    expect(out).toBe("- t: Use e.g. this.");
+  });
+
+  it("summary mode joins multiple tools with newlines", () => {
+    const out = renderToolList(
+      [fakeTool("read_file", "Read a file."), fakeTool("list_dir", "List a dir.")],
+      { mode: "summary" },
+    );
+    expect(out).toBe("- read_file: Read a file.\n- list_dir: List a dir.");
+  });
+
+  it("summary mode on empty array yields empty string", () => {
+    expect(renderToolList([], { mode: "summary" })).toBe("");
+  });
+
+  it("names mode renders `- name` lines only, no descriptions", () => {
+    const out = renderToolList(
+      [fakeTool("read_file", "Read a file."), fakeTool("list_dir", "List a dir.")],
+      { mode: "names" },
+    );
+    expect(out).toBe("- read_file\n- list_dir");
+  });
+
+  it("names mode on empty array yields empty string", () => {
+    expect(renderToolList([], { mode: "names" })).toBe("");
+  });
+
+  it("default (no options) equals the existing <tools> XML", () => {
+    const tools = [fakeTool("read_file", "Read a file"), fakeTool("list_dir", "List a dir")];
+    const expected = [
+      "<tools>",
+      "  <tool>",
+      "    <name>read_file</name>",
+      "    <description>Read a file</description>",
+      "  </tool>",
+      "  <tool>",
+      "    <name>list_dir</name>",
+      "    <description>List a dir</description>",
+      "  </tool>",
+      "</tools>",
+    ].join("\n");
+    expect(renderToolList(tools)).toBe(expected);
+    expect(renderToolList(tools, { mode: "full" })).toBe(expected);
+  });
+
+  it("non-object 2nd arg (e.g. a map index) falls back to full XML (no crash)", () => {
+    const tools = [fakeTool("read_file", "Read a file")];
+    // Simulates tools.map(renderToolList) passing (item, index)
+    expect(renderToolList(tools, 1 as never)).toBe(renderToolList(tools));
+  });
+
+  it("summary mode does NOT xml-escape (markdown, not XML)", () => {
+    const out = renderToolList([fakeTool("t", "<b> stays literal.")], { mode: "summary" });
+    expect(out).toBe("- t: <b> stays literal.");
+    expect(out).not.toContain("&lt;b&gt;");
+  });
 });
 
 describe("sdk-tools barrel — tool-aci", () => {

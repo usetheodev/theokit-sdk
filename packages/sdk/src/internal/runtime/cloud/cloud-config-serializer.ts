@@ -1,4 +1,5 @@
 import type { AgentOptions } from "../../../types/agent.js";
+import { enabledPluginNames } from "../../plugins/enabled-names.js";
 import type {
   CloudAgentPayload,
   HookRule,
@@ -110,8 +111,9 @@ function serializeSkills(skills: AgentOptions["skills"]): CloudAgentPayload["ski
 function serializePlugins(
   plugins: AgentOptions["plugins"],
 ): CloudAgentPayload["plugins"] | undefined {
-  if (plugins?.enabled === undefined || plugins.enabled.length === 0) return undefined;
-  return { enabled: [...plugins.enabled] };
+  const enabled = enabledPluginNames(plugins);
+  if (enabled.length === 0) return undefined;
+  return { enabled: [...enabled] };
 }
 
 function serializeMcp(
