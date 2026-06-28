@@ -1,5 +1,7 @@
 ---
 name: discover-plan
+version: 0.1.0
+requires: []
 description: Turn the current context + any reference projects under knowledge-base/references/ + allowlisted external sources into a discovery plan saved at knowledge-base/discoveries/plans/{slug}-plan.md. Use when you want to plan a deep-research investigation into a technology or pattern before producing a blueprint.
 user-invocable: true
 allowed-tools: Read Glob Grep Bash Write
@@ -24,7 +26,7 @@ User explicitly invokes `/discover-plan {topic-slug}` when they want to:
 
 This skill is **phase 1** of [`cycle-discover`](../../rules/cycle-discover.md). The cycle rule is the **source of truth** for:
 
-- Chain order (this skill → `/discover-edge-cases` → `/discover-execute` → `/discover-confidence` → optional `/discover-improve` → skill-distillation tail `/skill-writer` → `/skill-validator` → `/skill-register`)
+- Chain order (this skill → `/discover-edge-cases` → `/discover-execute` → `/discover-confidence` → optional `/discover-improve`; the blueprint is terminal — optional out-of-cycle skill distillation via the standalone `/skill-creator`)
 - Hard gates, soft gates, stop conditions
 - Anti-patterns at the cycle level
 - Rollback procedures

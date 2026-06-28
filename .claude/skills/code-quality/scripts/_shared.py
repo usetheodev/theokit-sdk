@@ -399,7 +399,7 @@ def _verdict_to_cap(verdict: str) -> int:
         "PASS_WITH_CAVEATS": 89,
         "FAIL_SOFT": 70,
         "FAIL_HARD": 49,
-        "INVALID": 49,
+        "INVALID": 0,  # structural integrity broken — golden rule § 1 caps INVALID at 0
     }.get(verdict, 49)
 
 

@@ -43,6 +43,22 @@ Source of Truth for test discipline. Stack-agnostic.
 | Error / fallback scenarios | Third-party libraries (they have their own tests) |
 | API contracts (request/response) | Layout/CSS unless it's a product requirement |
 
+## § 4.1 — Edge cases vs negative cases
+
+Two distinct lenses. Cover **both** — not just whichever is easier to imagine. A suite with only edge cases is half done.
+
+| | **Edge case** | **Negative case** |
+|---|---|---|
+| What it is | An extreme of a **valid** scenario | An **invalid / wrong / unexpected** input |
+| Why it happens | Caller pushes a limit; a rare-but-real event occurs | Caller makes a mistake; a system fails |
+| Question it answers | "Does it hold **at the boundary**?" | "Does it **fail-fast and recover gracefully**?" |
+| Passing behavior | Correct result at the extreme | Typed error + clear message, no corruption |
+| Examples | password of exactly 8 or 16 chars; empty-but-valid list; leap day (Feb 29); max int | letters in a phone field; missing required email; network down on submit; `null` where a value is required |
+
+- **Edge cases test boundaries; negative cases test error handling.** They fail differently: an unhandled edge produces a *wrong answer*; an unhandled negative produces a *crash or a silent swallow*.
+- Negative cases are where **Error Handling** is proven (fail-fast, fail-clear, **typed errors**, validate at the boundary). A negative-case test asserts the *specific typed error and message* — not merely "it throws".
+- For every input boundary, ask both questions: "what is the largest/smallest **valid** value?" (edge) **and** "what is the first **invalid** value past it?" (negative).
+
 ## § 5 — Test pairing convention
 
 The default convention assumed by stop-validation.sh:
@@ -60,5 +76,5 @@ If your project uses a different convention (e.g., separate `tests/` mirror tree
 - Tests asserting on internal structure (break on every refactor).
 - Excessive mocking: if you need 10 mocks to test a function, the design is wrong (revisit SRP).
 - Commented-out or permanently `@skip`'d tests — invisible technical debt.
-- Testing only the happy path. Bugs live in edge cases.
+- Testing only the happy path. Bugs live in edge cases **and** negative cases (see § 4.1) — covering one lens while ignoring the other is half a suite.
 - Time/randomness in unit tests — inject a clock/RNG so the test is deterministic.
