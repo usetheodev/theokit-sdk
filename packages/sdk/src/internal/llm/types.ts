@@ -96,11 +96,14 @@ export interface LlmRequest {
   responseFormat?: LlmResponseFormat;
   /**
    * Reasoning / extended-thinking request (issue #47). Derived from `ModelSelection.params` (the
-   * `thinking` param). For OpenAI-compat providers (OpenRouter) this maps to the unified
-   * `reasoning: { effort }` request field so the model produces reasoning, streamed back as
-   * `delta.reasoning` and surfaced as `reasoning_delta` events.
+   * `thinking` param). The wire encoding is provider-specific: OpenRouter (and OpenAI-compatible
+   * passthroughs) use the unified `reasoning: { effort }` object; native OpenAI Chat Completions uses
+   * the top-level `reasoning_effort` string (see `buildOpenAIBody`). The model streams reasoning back
+   * as `delta.reasoning` (or `delta.reasoning_content` on some compat providers), surfaced as
+   * `reasoning_delta` events. `effort` is required once the object is present — an empty object would
+   * request nothing.
    */
-  reasoning?: { effort?: string };
+  reasoning?: { effort: string };
 }
 
 export type LlmEvent =
