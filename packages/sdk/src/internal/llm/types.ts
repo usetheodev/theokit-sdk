@@ -94,10 +94,18 @@ export interface LlmRequest {
   temperature?: number;
   /** T3.6 — opt into native structured outputs (OpenAI-compat providers). */
   responseFormat?: LlmResponseFormat;
+  /**
+   * Reasoning / extended-thinking request (issue #47). Derived from `ModelSelection.params` (the
+   * `thinking` param). For OpenAI-compat providers (OpenRouter) this maps to the unified
+   * `reasoning: { effort }` request field so the model produces reasoning, streamed back as
+   * `delta.reasoning` and surfaced as `reasoning_delta` events.
+   */
+  reasoning?: { effort?: string };
 }
 
 export type LlmEvent =
   | { type: "text_delta"; text: string }
+  | { type: "reasoning_delta"; text: string }
   | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
   | { type: "stop"; reason: LlmStopReason }
   | { type: "error"; message: string };

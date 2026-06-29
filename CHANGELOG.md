@@ -16,6 +16,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Removed
 
 ### Fixed
+- **Reasoning request is now actually sent to OpenRouter / OpenAI-compat providers (issue #47).** `ModelSelection.params` (the `thinking` reasoning param) was silently discarded — every model-resolution site kept only `model.id`, and the request-body builder had no `reasoning` field. As a result `Agent.send` never asked the provider to reason and never surfaced reasoning, making the `params` reasoning surface a no-op for the OpenRouter provider. Now `ModelSelection.params` flows through the local run into the LLM request: a `thinking` param maps to OpenRouter's unified `reasoning: { effort }` field, and the streamed `delta.reasoning` is surfaced as `thinking-delta` `InteractionUpdate`s (live, via `onDelta`) plus a `thinking` `SDKMessage` (replayed by `Run.stream`), kept on a separate channel from the visible answer text. Validated end-to-end against `deepseek/deepseek-r1` via OpenRouter (142 reasoning deltas surfaced). (`packages/sdk/src/internal/llm/{openai,types}.ts`, `packages/sdk/src/internal/agent-loop/{loop-llm-stream,message-builders}.ts`, `packages/sdk/src/internal/runtime/local-agent/real-local-run.ts`)
 
 ### Security
 

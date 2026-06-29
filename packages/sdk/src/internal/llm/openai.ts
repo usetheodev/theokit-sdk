@@ -40,6 +40,8 @@ interface OpenAIDeltaChunk {
     index: number;
     delta?: {
       content?: string;
+      /** OpenRouter unified reasoning delta (issue #47) — streamed separately from `content`. */
+      reasoning?: string;
       tool_calls?: Array<{
         index: number;
         id?: string;
@@ -165,12 +167,22 @@ class OpenAIStreamAccumulator {
     const events: LlmEvent[] = [];
     this.applyUsage(chunk.usage);
     for (const choice of chunk.choices ?? []) {
+      // issue #47: reasoning delta (OpenRouter) precedes the visible text in arrival order.
+      const reasoningEvent = this.applyReasoningDelta(choice.delta?.reasoning);
+      if (reasoningEvent !== undefined) events.push(reasoningEvent);
       const textEvent = this.applyContentDelta(choice.delta?.content);
       if (textEvent !== undefined) events.push(textEvent);
       this.mergeToolCallDeltas(choice.delta?.tool_calls);
       this.applyFinishReason(choice.finish_reason);
     }
     return events;
+  }
+
+  private applyReasoningDelta(reasoning: string | undefined): LlmEvent | undefined {
+    // issue #47: reasoning is NOT accumulated into `this.text` (the visible answer) — it is a
+    // separate channel surfaced as `reasoning_delta` (→ thinking events at the loop layer).
+    if (typeof reasoning !== "string" || reasoning.length === 0) return undefined;
+    return { type: "reasoning_delta", text: reasoning };
   }
 
   private applyUsage(usage: OpenAIDeltaChunk["usage"]): void {
@@ -264,6 +276,9 @@ function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
   };
   if (request.maxTokens !== undefined) body.max_tokens = request.maxTokens;
   if (request.temperature !== undefined) body.temperature = request.temperature;
+  // issue #47: OpenRouter unified reasoning request — only when an effort was requested.
+  if (request.reasoning?.effort !== undefined)
+    body.reasoning = { effort: request.reasoning.effort };
   if (request.tools !== undefined && request.tools.length > 0) {
     body.tools = request.tools.map((tool) => ({
       type: "function",
@@ -313,6 +328,8 @@ function encodeOpenAIResponseFormat(
  * @internal
  */
 export const __testing__buildOpenAIBody = buildOpenAIBody;
+/** issue #47 test seam — exercise reasoning-delta parsing without a live stream. */
+export const __testing__OpenAIStreamAccumulator = OpenAIStreamAccumulator;
 
 function toOpenAIMessages(message: LlmMessage): Array<Record<string, unknown>> {
   if (message.role === "system") return [systemMessage(message)];
