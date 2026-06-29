@@ -1,6 +1,7 @@
 import type {
   SDKAssistantMessage,
   SDKSystemMessage,
+  SDKThinkingMessage,
   SDKUserMessageEvent,
 } from "../../types/messages.js";
 import type { LlmContentPart, LlmMessage, LlmToolCallPart } from "../llm/types.js";
@@ -40,6 +41,16 @@ export function buildAssistantEvent(inputs: AgentLoopInputs, text: string): SDKA
     agent_id: inputs.agentId,
     run_id: inputs.runId,
     message: { role: "assistant", content: [{ type: "text", text }] },
+  };
+}
+
+/** issue #47: the reasoning the model produced this turn, as a `thinking` SDKMessage. */
+export function buildThinkingEvent(inputs: AgentLoopInputs, text: string): SDKThinkingMessage {
+  return {
+    type: "thinking",
+    agent_id: inputs.agentId,
+    run_id: inputs.runId,
+    text,
   };
 }
 

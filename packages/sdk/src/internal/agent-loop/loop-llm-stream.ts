@@ -3,7 +3,7 @@ import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { LoopContext } from "./loop-context-init.js";
 import type { AgentLoopInputs } from "./loop-types.js";
-import { buildAssistantEvent } from "./message-builders.js";
+import { buildAssistantEvent, buildThinkingEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
 
 /** @internal */
@@ -37,6 +37,19 @@ function toLlmTool(tool: ResolvedTool): LlmTool {
   return { name: tool.name, description: tool.description, inputSchema: tool.inputSchema };
 }
 
+/**
+ * issue #47: extract the reasoning effort from `ModelSelection.params` — the canonical `thinking`
+ * param (`{ id: "thinking", value: "high" }`) the agents bridge sets from `reasoningEffort`. Returns
+ * undefined when absent so the provider request stays bare (no reasoning requested).
+ * @internal
+ */
+export function reasoningEffortFromParams(
+  params: AgentLoopInputs["model"]["params"],
+): string | undefined {
+  const thinking = params?.find((p) => p.id === "thinking");
+  return thinking !== undefined && thinking.value.length > 0 ? thinking.value : undefined;
+}
+
 /** @internal */
 export async function streamLlmTurn(
   inputs: AgentLoopInputs,
@@ -56,6 +69,12 @@ export async function streamLlmTurn(
           ctx.memorySystemPromptAdditions,
         );
         return effective !== undefined ? { system: effective } : {};
+      })(),
+      // issue #47: forward the reasoning effort from ModelSelection.params (the `thinking` param)
+      // so the provider produces reasoning. Absent param ⇒ no `reasoning` field (bare request).
+      ...((): { reasoning?: { effort: string } } => {
+        const effort = reasoningEffortFromParams(inputs.model.params);
+        return effort !== undefined ? { reasoning: { effort } } : {};
       })(),
       messages: ctx.messages,
       tools: ctx.tools.map(toLlmTool),
@@ -165,6 +184,7 @@ async function runCollectorLoop(
   finishValue: CollectedEvents["finishValue"];
 }> {
   let accumulatedText = "";
+  let reasoningText = "";
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
   while (true) {
@@ -177,12 +197,23 @@ async function runCollectorLoop(
       accumulatedText += next.value.text;
       await emitTextDeltaCallback(inputs, next.value.text);
     }
+    // issue #47: reasoning streams on a separate channel — surfaced live via onDelta as a
+    // `thinking-delta` and accumulated so run.stream() can replay a `thinking` SDKMessage.
+    if (next.value.type === "reasoning_delta") {
+      reasoningText += next.value.text;
+      await emitReasoningDeltaCallback(inputs, next.value.text);
+    }
     if (next.value.type === "error") {
       registerLoopError(ctx, next.value);
       ctx.finalText = "";
       errored = true;
       break;
     }
+  }
+  // issue #47: emit the accumulated reasoning as a `thinking` SDKMessage (run.stream replay) BEFORE
+  // the assistant turn, preserving reason-then-answer order. onDelta already delivered it live.
+  if (reasoningText.length > 0) {
+    ctx.events.push(buildThinkingEvent(inputs, reasoningText));
   }
   return { accumulatedText, errored, finishValue };
 }
@@ -192,6 +223,17 @@ async function emitTextDeltaCallback(inputs: AgentLoopInputs, text: string): Pro
   const cb = inputs.onDelta;
   await safeCall(
     () => cb({ update: { type: "text-delta", text } }),
+    undefined,
+    "SendOptions.onDelta",
+  );
+}
+
+/** issue #47: deliver a reasoning delta live as a `thinking-delta` InteractionUpdate. */
+async function emitReasoningDeltaCallback(inputs: AgentLoopInputs, text: string): Promise<void> {
+  if (inputs.onDelta === undefined) return;
+  const cb = inputs.onDelta;
+  await safeCall(
+    () => cb({ update: { type: "thinking-delta", text } }),
     undefined,
     "SendOptions.onDelta",
   );
