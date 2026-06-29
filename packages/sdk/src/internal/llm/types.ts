@@ -104,6 +104,14 @@ export interface LlmRequest {
    * request nothing.
    */
   reasoning?: { effort: string };
+  /**
+   * Step-cap force-close: per-request tool gating. `"none"` tells the provider to emit no tool
+   * calls even when `tools` are present (forcing a text answer); `"required"` forces a tool call;
+   * `"auto"` (or omitted) is the default. Maps to OpenAI/OpenRouter `tool_choice`. The agent loop
+   * sets `"none"` on a final/ceiling round so a cached agent (whose tools cannot be un-registered)
+   * is still forced to produce a closing summary.
+   */
+  toolChoice?: "auto" | "none" | "required";
 }
 
 export type LlmEvent =
