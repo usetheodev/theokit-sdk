@@ -176,7 +176,12 @@ function buildLoopInputs(
   return {
     agentId: options.agentId,
     runId,
-    model: { id: effectiveModelId },
+    // issue #47: carry ModelSelection.params (the reasoning `thinking` param) into the loop so the
+    // request can forward reasoning. The id is stripped/normalized above; params pass through as-is.
+    model: {
+      id: effectiveModelId,
+      ...(options.model?.params !== undefined ? { params: options.model.params } : {}),
+    },
     userMessage: userText,
     llm,
     mcp: buildMcpMap(options),

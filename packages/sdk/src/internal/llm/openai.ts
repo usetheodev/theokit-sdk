@@ -40,6 +40,15 @@ interface OpenAIDeltaChunk {
     index: number;
     delta?: {
       content?: string;
+      /** OpenRouter unified reasoning delta (issue #47) — streamed separately from `content`. */
+      reasoning?: string;
+      /**
+       * Sibling reasoning field used by some OpenAI-compatible providers (DeepSeek's direct API,
+       * many vLLM / LMStudio reasoning parsers). Treated identically to `reasoning` (issue #47,
+       * F-domain-2). OpenRouter normalizes to `reasoning`; this is the fallback for non-OpenRouter
+       * compat endpoints reached via `baseUrl` override.
+       */
+      reasoning_content?: string;
       tool_calls?: Array<{
         index: number;
         id?: string;
@@ -93,7 +102,7 @@ export class OpenAIClient implements LlmClient {
         method: "POST",
         signal,
         headers,
-        body: JSON.stringify(buildOpenAIBody(request)),
+        body: JSON.stringify(buildOpenAIBody(request, providerId)),
       });
     } catch (fetchErr) {
       // T1.1: Ollama-specific transport error mapping (ECONNREFUSED / ENOTFOUND).
@@ -165,12 +174,25 @@ class OpenAIStreamAccumulator {
     const events: LlmEvent[] = [];
     this.applyUsage(chunk.usage);
     for (const choice of chunk.choices ?? []) {
+      // issue #47: reasoning delta precedes the visible text in arrival order. OpenRouter streams it
+      // as `reasoning`; some compat providers use `reasoning_content` (F-domain-2) — accept either.
+      const reasoningEvent = this.applyReasoningDelta(
+        choice.delta?.reasoning ?? choice.delta?.reasoning_content,
+      );
+      if (reasoningEvent !== undefined) events.push(reasoningEvent);
       const textEvent = this.applyContentDelta(choice.delta?.content);
       if (textEvent !== undefined) events.push(textEvent);
       this.mergeToolCallDeltas(choice.delta?.tool_calls);
       this.applyFinishReason(choice.finish_reason);
     }
     return events;
+  }
+
+  private applyReasoningDelta(reasoning: string | undefined): LlmEvent | undefined {
+    // issue #47: reasoning is NOT accumulated into `this.text` (the visible answer) — it is a
+    // separate channel surfaced as `reasoning_delta` (→ thinking events at the loop layer).
+    if (typeof reasoning !== "string" || reasoning.length === 0) return undefined;
+    return { type: "reasoning_delta", text: reasoning };
   }
 
   private applyUsage(usage: OpenAIDeltaChunk["usage"]): void {
@@ -245,7 +267,27 @@ function mapOpenAIFinish(reason: string): LlmStopReason {
   }
 }
 
-function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
+/**
+ * issue #47 / F-domain-1: encode the reasoning request in the shape the target provider accepts.
+ * Native OpenAI Chat Completions rejects unknown body params and expects the top-level
+ * `reasoning_effort` string; OpenRouter (and OpenAI-compatible passthroughs) use the unified
+ * `reasoning: { effort }` object. `stream()` always passes the resolved provider id, so a native
+ * OpenAI request never 400s on the OpenRouter shape. When `providerName` is unspecified (test seam),
+ * the unified object is used — the broader-compatibility default.
+ */
+function applyReasoningRequest(
+  body: Record<string, unknown>,
+  effort: string,
+  providerName: string | undefined,
+): void {
+  if (providerName === "openai") {
+    body.reasoning_effort = effort;
+    return;
+  }
+  body.reasoning = { effort };
+}
+
+function buildOpenAIBody(request: LlmRequest, providerName?: string): Record<string, unknown> {
   const messages: Array<Record<string, unknown>> = [];
   const systemText = openAISystemText(request.system);
   if (systemText.length > 0) {
@@ -264,6 +306,9 @@ function buildOpenAIBody(request: LlmRequest): Record<string, unknown> {
   };
   if (request.maxTokens !== undefined) body.max_tokens = request.maxTokens;
   if (request.temperature !== undefined) body.temperature = request.temperature;
+  // issue #47: reasoning request — only when an effort was requested. Provider-specific wire shape.
+  if (request.reasoning?.effort !== undefined)
+    applyReasoningRequest(body, request.reasoning.effort, providerName);
   if (request.tools !== undefined && request.tools.length > 0) {
     body.tools = request.tools.map((tool) => ({
       type: "function",
@@ -313,6 +358,8 @@ function encodeOpenAIResponseFormat(
  * @internal
  */
 export const __testing__buildOpenAIBody = buildOpenAIBody;
+/** issue #47 test seam — exercise reasoning-delta parsing without a live stream. */
+export const __testing__OpenAIStreamAccumulator = OpenAIStreamAccumulator;
 
 function toOpenAIMessages(message: LlmMessage): Array<Record<string, unknown>> {
   if (message.role === "system") return [systemMessage(message)];
