@@ -287,6 +287,20 @@ function applyReasoningRequest(
   body.reasoning = { effort };
 }
 
+/**
+ * Encode the `tools` array + per-request `tool_choice` gate (step-cap force-close). `tool_choice`
+ * is meaningful only alongside `tools`, so both are emitted together (or neither). `"none"` advertises
+ * the tools but forbids calling them — forcing a text answer from an agent whose tools are registered.
+ */
+function applyToolsRequest(body: Record<string, unknown>, request: LlmRequest): void {
+  if (request.tools === undefined || request.tools.length === 0) return;
+  body.tools = request.tools.map((tool) => ({
+    type: "function",
+    function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
+  }));
+  if (request.toolChoice !== undefined) body.tool_choice = request.toolChoice;
+}
+
 function buildOpenAIBody(request: LlmRequest, providerName?: string): Record<string, unknown> {
   const messages: Array<Record<string, unknown>> = [];
   const systemText = openAISystemText(request.system);
@@ -309,12 +323,7 @@ function buildOpenAIBody(request: LlmRequest, providerName?: string): Record<str
   // issue #47: reasoning request — only when an effort was requested. Provider-specific wire shape.
   if (request.reasoning?.effort !== undefined)
     applyReasoningRequest(body, request.reasoning.effort, providerName);
-  if (request.tools !== undefined && request.tools.length > 0) {
-    body.tools = request.tools.map((tool) => ({
-      type: "function",
-      function: { name: tool.name, description: tool.description, parameters: tool.inputSchema },
-    }));
-  }
+  applyToolsRequest(body, request);
   const responseFormat = encodeOpenAIResponseFormat(request.responseFormat);
   if (responseFormat !== undefined) body.response_format = responseFormat;
   return body;

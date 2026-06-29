@@ -105,6 +105,8 @@ export interface AgentLoopInputs {
   onStep?: SendOptions["onStep"];
   /** Fires per raw incremental update (text-delta, …) — finer than onStep. */
   onDelta?: SendOptions["onDelta"];
+  /** Step-cap force-close: per-run tool gate forwarded to the LLM request (`tool_choice`). */
+  toolChoice?: SendOptions["toolChoice"];
   /**
    * Prior conversation history (user + assistant turns) from previous
    * `agent.send()` calls on the same agent. Excludes the current user
