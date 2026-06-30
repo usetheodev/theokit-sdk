@@ -76,6 +76,9 @@ export async function streamLlmTurn(
         const effort = reasoningEffortFromParams(inputs.model.params);
         return effort !== undefined ? { reasoning: { effort } } : {};
       })(),
+      // Step-cap force-close: forward the per-run tool gate (`"none"` on a ceiling round forces a
+      // text close even though tools are advertised). Absent ⇒ provider default (auto).
+      ...(inputs.toolChoice !== undefined ? { toolChoice: inputs.toolChoice } : {}),
       messages: ctx.messages,
       tools: ctx.tools.map(toLlmTool),
     },
