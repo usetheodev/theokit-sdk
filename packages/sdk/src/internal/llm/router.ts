@@ -257,6 +257,10 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // T1.1 (ADR D185): forward provider name so OpenAIClient can dispatch
     // Ollama-specific error mapping for ECONNREFUSED / 404-not-pulled / 503-loading.
     opts.providerName = profile.name;
+    // theokit#58 follow-up: opt-in leaked-dialect safe-parse, declared per-profile (default off).
+    if (profile.extractToolCallsFromContent === true) {
+      opts.extractToolCallsFromContent = true;
+    }
     if (profile.name === "openai" && process.env.OPENAI_ORGANIZATION !== undefined) {
       opts.organization = process.env.OPENAI_ORGANIZATION;
     }
