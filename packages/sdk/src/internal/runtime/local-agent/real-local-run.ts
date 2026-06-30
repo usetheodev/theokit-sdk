@@ -191,6 +191,9 @@ function buildLoopInputs(
     ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
     ...(options.onStep !== undefined ? { onStep: options.onStep } : {}),
     ...(options.onDelta !== undefined ? { onDelta: options.onDelta } : {}),
+    ...(options.sendOptions.toolChoice !== undefined
+      ? { toolChoice: options.sendOptions.toolChoice }
+      : {}),
     ...(options.priorMessages !== undefined ? { priorMessages: options.priorMessages } : {}),
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
