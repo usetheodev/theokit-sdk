@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.12.0
+
+### Minor Changes
+
+- 95e9cba: Add opt-in leaked-dialect safe-parse for OpenAI-compatible providers (`ProviderProfile.extractToolCallsFromContent`, default off). Some models — notably qwen3-coder via OpenRouter — intermittently emit their Hermes tool-call dialect (`<function=NAME><parameter=KEY>VALUE</parameter></function></tool_call>`) as assistant TEXT instead of native `tool_calls`. When that happens the provider sends ZERO native `tool_calls`, so the agent loop sees a plain `end_turn` and the intended call is silently lost (theokit#58 follow-up). With the flag enabled, a `chat_completions` finish that has no native `tool_calls` has its assistant content scanned for the leaked dialect; any recovered calls are surfaced as real `tool_calls` and the stop reason flips to `tool_use` so the loop dispatches them. Fail-open like `stripThinkBlocks` — a partial/unclosed block is left as text and never fabricates a call. Default off, dedup-guarded (native `tool_calls` always win, no double-count), and scoped per-provider so a code assistant printing a literal `<function=` in a fenced block on a non-leaking route is unaffected.
+
 ## 2.11.3
 
 ### Patch Changes
