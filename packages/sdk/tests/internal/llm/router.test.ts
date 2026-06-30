@@ -4,10 +4,13 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { FaultInjectingLlmClient } from "../../../src/internal/llm/fault-injection.js";
+import type { OpenAIClient } from "../../../src/internal/llm/openai.js";
 import {
   _resetNoAuthApiKeyWarnings,
   resolveProviderChain,
 } from "../../../src/internal/llm/router.js";
+import type { LlmClient } from "../../../src/internal/llm/types.js";
 import {
   _resetBuiltinsRegistered,
   registerBuiltins,
@@ -133,5 +136,29 @@ describe("router (T4.3)", () => {
     expect(warnCallsAgain.length).toBe(0);
 
     stderrSpy.mockRestore();
+  });
+});
+
+describe("router — leaked-dialect recovery route flag (theokit#58 follow-up)", () => {
+  // In NODE_ENV=test every client is wrapped by FaultInjectingLlmClient (D14);
+  // the real transport is on `.inner`.
+  const unwrap = (client: LlmClient): OpenAIClient =>
+    (client instanceof FaultInjectingLlmClient ? client.inner : client) as OpenAIClient;
+
+  it("clones the resolved profile with extractToolCallsFromContent when the route opts in", () => {
+    process.env.OPENROUTER_API_KEY = "k1";
+    const chain = resolveProviderChain({
+      primary: "openrouter",
+      extractToolCallsFromContent: true,
+    });
+    expect(chain).toHaveLength(1);
+    expect(unwrap(chain[0] as LlmClient).recoversLeakedToolCalls).toBe(true);
+  });
+
+  it("leaves recovery off when the route does not opt in (default-off backward compat)", () => {
+    process.env.OPENROUTER_API_KEY = "k1";
+    const chain = resolveProviderChain({ primary: "openrouter" });
+    expect(chain).toHaveLength(1);
+    expect(unwrap(chain[0] as LlmClient).recoversLeakedToolCalls).toBe(false);
   });
 });

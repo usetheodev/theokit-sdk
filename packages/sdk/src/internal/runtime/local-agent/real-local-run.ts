@@ -165,11 +165,16 @@ function buildLoopInputs(
   const fallback = options.agentOptions.providers?.fallback;
   const apiKeys = options.agentOptions.providers?.apiKeys;
   const credentialPoolStrategy = options.agentOptions.providers?.credentialPoolStrategy;
+  // theokit#58 follow-up: the chat route may opt into leaked-dialect recovery.
+  // Mirrors how `primary` derives from routes[0]; applied to the resolved chain.
+  const extractToolCallsFromContent =
+    options.agentOptions.providers?.routes?.[0]?.extractToolCallsFromContent;
   const chain = resolveProviderChain({
     primary,
     ...(fallback !== undefined ? { fallback } : {}),
     ...(apiKeys !== undefined ? { apiKeys } : {}),
     ...(credentialPoolStrategy !== undefined ? { credentialPoolStrategy } : {}),
+    ...(extractToolCallsFromContent === true ? { extractToolCallsFromContent: true } : {}),
   });
   const llm =
     chain.length === 1 ? (chain[0] as (typeof chain)[number]) : new FallbackLlmClient(chain);

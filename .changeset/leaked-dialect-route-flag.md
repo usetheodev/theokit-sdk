@@ -1,0 +1,5 @@
+---
+"@theokit/sdk": minor
+---
+
+Add per-route opt-in for leaked-dialect safe-parse (`ProviderRoute.extractToolCallsFromContent`, default off). The 2.12.0 release exposed the recovery flag only on a static `ProviderProfile`; enabling it required redeclaring a provider profile. This adds the same flag at the routing layer, so a consumer can opt a single chat route into recovery without cloning the built-in provider: `providers: { routes: [{ capability: "chat", provider: "openrouter", extractToolCallsFromContent: true }] }`. The router clones the resolved profile with the flag for that run (built-in profiles still ship the flag off), so the OpenAI-compatible transport recovers the Hermes `<function=…></tool_call>` dialect leaked as text by models like qwen3-coder. Derived from `routes[0]` (mirrors how the primary provider is derived) and applied to the resolved chat chain; fail-open and default-off, so a non-leaking route is unaffected. This is the enablement path consumed by `@theokit/agents`' `recoverLeakedToolCalls` knob.
