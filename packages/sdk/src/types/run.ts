@@ -231,6 +231,13 @@ export interface SendOptions {
   tools?: CustomTool[];
   onStep?: (args: { step: ConversationStep }) => void | Promise<void>;
   onDelta?: (args: { update: InteractionUpdate }) => void | Promise<void>;
+  /**
+   * Per-call tool gate (OpenAI/OpenRouter `tool_choice`). `"none"` forces a text answer even when
+   * the agent has tools registered — used by an agent loop to force a closing summary at its step
+   * ceiling (a cached agent's tools cannot be un-registered, so the gate is per-send). `"required"`
+   * forces a tool call; `"auto"` (or omitted) is the default. Local runtime; OpenAI-compat providers.
+   */
+  toolChoice?: "auto" | "none" | "required";
   /** Local agents only. Expire a stuck active run before starting this message. */
   local?: { force?: boolean };
   /**
