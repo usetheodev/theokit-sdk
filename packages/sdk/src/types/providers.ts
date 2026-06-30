@@ -15,6 +15,17 @@ export interface ProviderRoute {
   capability: ProviderCapability;
   provider: string;
   model?: string;
+  /**
+   * Opt-in leaked-dialect safe-parse for this route's provider (theokit#58
+   * follow-up). When `true`, a `chat_completions` finish that carries ZERO
+   * native `tool_calls` has its assistant text scanned for the Hermes
+   * `<function=…></tool_call>` dialect, and any recovered calls are surfaced as
+   * real `tool_calls` so the loop executes them — for models (qwen3-coder via
+   * OpenRouter) that intermittently leak tool calls as text. Default `false`;
+   * fail-open (a partial/unclosed block never fabricates a call). Scoped to the
+   * resolved chat chain, so a non-leaking route is unaffected.
+   */
+  extractToolCallsFromContent?: boolean;
 }
 
 /**
