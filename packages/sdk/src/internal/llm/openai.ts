@@ -71,6 +71,14 @@ interface OpenAIDeltaChunk {
     cache_creation_input_tokens?: number;
     cache_read_input_tokens?: number;
   };
+  /**
+   * In-stream provider error. OpenRouter (and some OpenAI-compatible proxies)
+   * report auth / quota / rate-limit failures as an HTTP 200 SSE body carrying
+   * `data: {"error":{"message":"...","code":401}}` instead of a non-2xx status.
+   * Without surfacing this, the round finishes empty and the failure is silent
+   * (usetheodev/theocode#31).
+   */
+  error?: { message?: string; code?: number | string; type?: string };
 }
 
 export class OpenAIClient implements LlmClient {
@@ -152,6 +160,20 @@ export class OpenAIClient implements LlmClient {
         chunk = JSON.parse(record.data) as OpenAIDeltaChunk;
       } catch {
         continue;
+      }
+      // Fail-loud on an in-stream provider error (OpenRouter HTTP-200 error body).
+      // The accumulator only reads `choices`, so an error-only chunk would finish
+      // the round empty and swallow the failure (theocode#31). Map it to the same
+      // typed error a non-2xx HTTP status would have produced.
+      if (chunk.error !== undefined && chunk.error !== null) {
+        const status = typeof chunk.error.code === "number" ? chunk.error.code : 502;
+        throw mapOpenAICompatibleError({
+          providerId,
+          status,
+          body: chunk,
+          headers: response.headers,
+          endpoint: "/v1/chat/completions",
+        });
       }
       const events = accumulator.consume(chunk);
       for (const event of events) yield event;
