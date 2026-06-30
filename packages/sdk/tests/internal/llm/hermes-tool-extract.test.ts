@@ -1,0 +1,136 @@
+/**
+ * theokit#58 follow-up — leaked-dialect safe-parse.
+ *
+ * Some models (qwen3-coder via OpenRouter) emit their Hermes tool-call dialect as assistant TEXT
+ * instead of native `tool_calls`. With ZERO native tool_calls the loop drops the intended call.
+ * The OPT-IN extractor recovers those calls from content so the loop executes them. Tests cover the
+ * pure helper + the accumulator integration (flag off = bug state preserved; flag on = recovery;
+ * native tool_calls = no double-count).
+ */
+import { describe, expect, it } from "vitest";
+import { extractHermesToolCalls } from "../../../src/internal/llm/hermes-tool-extract.js";
+import { __testing__OpenAIStreamAccumulator } from "../../../src/internal/llm/openai.js";
+
+const LEAK = "<function=shell_exec><parameter=command>echo hi</parameter></function></tool_call>";
+
+describe("extractHermesToolCalls (pure helper)", () => {
+  it("test_extracts_single_block_with_param", () => {
+    let n = 0;
+    const r = extractHermesToolCalls(LEAK, () => `id-${++n}`);
+    expect(r.toolCalls).toEqual([
+      { type: "tool_use", id: "id-1", name: "shell_exec", input: { command: "echo hi" } },
+    ]);
+    expect(r.residualText).toBe("");
+  });
+
+  it("test_extracts_multiple_params", () => {
+    const block =
+      "<function=write_file><parameter=path>/tmp/x</parameter><parameter=content>hello</parameter></function></tool_call>";
+    const r = extractHermesToolCalls(block, () => "id");
+    expect(r.toolCalls[0]?.input).toEqual({ path: "/tmp/x", content: "hello" });
+  });
+
+  it("test_extracts_multiple_blocks", () => {
+    let n = 0;
+    const r = extractHermesToolCalls(`${LEAK}${LEAK}`, () => `id-${++n}`);
+    expect(r.toolCalls).toHaveLength(2);
+    expect(r.toolCalls.map((c) => c.name)).toEqual(["shell_exec", "shell_exec"]);
+  });
+
+  it("test_no_block_returns_original_text_no_calls", () => {
+    const text = "just a normal answer with no dialect";
+    const r = extractHermesToolCalls(text, () => "id");
+    expect(r.toolCalls).toHaveLength(0);
+    expect(r.residualText).toBe(text);
+  });
+
+  it("test_partial_block_fails_open_preserved_as_text", () => {
+    // Missing the closing </tool_call> — fail-open: NOT matched, left as text, no fabricated call.
+    const partial = "<function=shell_exec><parameter=command>echo hi</parameter></function>";
+    const r = extractHermesToolCalls(partial, () => "id");
+    expect(r.toolCalls).toHaveLength(0);
+    expect(r.residualText).toBe(partial);
+  });
+
+  it("test_preserves_surrounding_prose_in_residual", () => {
+    const r = extractHermesToolCalls(`I'll run it. ${LEAK} done.`, () => "id");
+    expect(r.toolCalls).toHaveLength(1);
+    expect(r.residualText).toContain("I'll run it.");
+    expect(r.residualText).toContain("done.");
+    expect(r.residualText).not.toContain("<function=");
+  });
+});
+
+function leakChunk(text: string) {
+  return { choices: [{ index: 0, delta: { content: text } }] };
+}
+function stopChunk() {
+  return { choices: [{ index: 0, finish_reason: "stop" }] };
+}
+
+describe("OpenAIStreamAccumulator — leaked-dialect safe-parse integration", () => {
+  it("test_flag_off_leaves_leaked_dialect_as_text_no_tool_calls (bug state preserved)", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(false);
+    acc.consume(leakChunk(LEAK));
+    acc.consume(stopChunk());
+    const finish = acc.finish();
+    expect(finish.toolCalls).toHaveLength(0);
+    expect(finish.stopReason).toBe("end_turn");
+    expect(finish.text).toContain("<function=");
+  });
+
+  it("test_flag_on_recovers_tool_call_and_flips_stop_reason", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true);
+    acc.consume(leakChunk(LEAK));
+    acc.consume(stopChunk());
+    const finish = acc.finish();
+    expect(finish.toolCalls).toEqual([
+      {
+        type: "tool_use",
+        id: expect.stringMatching(/^hermes-/),
+        name: "shell_exec",
+        input: { command: "echo hi" },
+      },
+    ]);
+    expect(finish.stopReason).toBe("tool_use");
+    expect(finish.text).not.toContain("<function=");
+  });
+
+  it("test_flag_on_with_native_tool_calls_does_not_double_extract", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true);
+    // Native tool_call delta present...
+    acc.consume({
+      choices: [
+        {
+          index: 0,
+          delta: {
+            tool_calls: [
+              {
+                index: 0,
+                id: "call_native",
+                function: { name: "real_tool", arguments: '{"a":1}' },
+              },
+            ],
+          },
+        },
+      ],
+    });
+    // ...AND the content ALSO contains a leaked block (must be ignored — native wins).
+    acc.consume(leakChunk(LEAK));
+    acc.consume({ choices: [{ index: 0, finish_reason: "tool_calls" }] });
+    const finish = acc.finish();
+    expect(finish.toolCalls).toHaveLength(1);
+    expect(finish.toolCalls[0]?.name).toBe("real_tool");
+    expect(finish.toolCalls[0]?.id).toBe("call_native");
+  });
+
+  it("test_flag_on_no_dialect_is_plain_text_no_calls", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true);
+    acc.consume(leakChunk("a normal answer"));
+    acc.consume(stopChunk());
+    const finish = acc.finish();
+    expect(finish.toolCalls).toHaveLength(0);
+    expect(finish.stopReason).toBe("end_turn");
+    expect(finish.text).toBe("a normal answer");
+  });
+});
