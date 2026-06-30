@@ -1,6 +1,7 @@
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import { collapseSystemText, makeLlmFinish, parseToolArguments } from "./finish.js";
+import { extractHermesToolCalls } from "./hermes-tool-extract.js";
 import { parseSseStream } from "./sse.js";
 import type {
   LlmClient,
@@ -33,6 +34,13 @@ export interface OpenAIClientOptions {
    * the generic OpenAI-compatible mapper. Default `"openai"`.
    */
   providerName?: string;
+  /**
+   * Opt-in leaked-dialect safe-parse (theokit#58 follow-up). When `true`, a finish that carries
+   * ZERO native `tool_calls` has its assistant text scanned for the Hermes `<function=…></tool_call>`
+   * dialect; any recovered calls are surfaced as real `tool_calls` so the loop executes them.
+   * Default `false` — a code assistant can legitimately print a literal `<function=` in code text.
+   */
+  extractToolCallsFromContent?: boolean;
 }
 
 interface OpenAIDeltaChunk {
@@ -152,7 +160,10 @@ export class OpenAIClient implements LlmClient {
       });
     }
 
-    const accumulator = new OpenAIStreamAccumulator();
+    const accumulator = new OpenAIStreamAccumulator(
+      this.options.extractToolCallsFromContent ?? false,
+      providerId,
+    );
     for await (const record of parseSseStream(response.body, signal)) {
       if (record.data === "[DONE]") break;
       let chunk: OpenAIDeltaChunk;
@@ -191,6 +202,15 @@ class OpenAIStreamAccumulator {
   private cacheWriteTokens?: number;
   private reasoningTokens?: number;
   private readonly toolCalls = new Map<number, { id: string; name: string; args: string }>();
+
+  /**
+   * @param extractFromContent opt-in leaked-dialect safe-parse (theokit#58). Default false.
+   * @param providerName provider id, used only to label the recovery log line.
+   */
+  constructor(
+    private readonly extractFromContent = false,
+    private readonly providerName = "openai",
+  ) {}
 
   consume(chunk: OpenAIDeltaChunk): LlmEvent[] {
     const events: LlmEvent[] = [];
@@ -263,9 +283,32 @@ class OpenAIStreamAccumulator {
       const input = parseToolArguments(call.args);
       toolCalls.push({ type: "tool_use", id: call.id, name: call.name, input });
     }
+    let text = this.text;
+    let stopReason = this.stopReason;
+    // theokit#58 follow-up: leaked-dialect safe-parse. Opt-in, and ONLY when the provider sent no
+    // native tool_calls (the size-guard prevents double-counting a real call). Recovered calls flip
+    // the stopReason to "tool_use" so the agent loop dispatches them; the consumed dialect is stripped
+    // from the visible text.
+    if (this.extractFromContent && toolCalls.length === 0) {
+      const recovered = extractHermesToolCalls(
+        this.text,
+        () => `hermes-${globalThis.crypto.randomUUID()}`,
+      );
+      if (recovered.toolCalls.length > 0) {
+        toolCalls.push(...recovered.toolCalls);
+        text = recovered.residualText;
+        stopReason = "tool_use";
+        // Observability (wiring triad pillar c): recovery is a model-misbehavior workaround, so make
+        // it visible — a route that leaks often should be diagnosable without a debugger.
+        process.stderr.write(
+          `[theokit-sdk] recovered ${recovered.toolCalls.length} leaked tool call(s) from assistant content ` +
+            `(provider="${this.providerName}", names=${recovered.toolCalls.map((c) => c.name).join(",")})\n`,
+        );
+      }
+    }
     return makeLlmFinish({
-      stopReason: this.stopReason,
-      text: this.text,
+      stopReason,
+      text,
       toolCalls,
       inputTokens: this.inputTokens,
       outputTokens: this.outputTokens,

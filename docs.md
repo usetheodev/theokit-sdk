@@ -2927,6 +2927,7 @@ const agent = await Agent.create({
 | `baseUrl` | yes | Endpoint base URL. |
 | `fallbackModels` | yes | Models advertised when discovery is unavailable. |
 | `aliases` | no | Alternate ids that resolve to this provider. |
+| `extractToolCallsFromContent` | no | Opt-in leaked-dialect safe-parse (default off). When `true`, a `chat_completions` finish with ZERO native `tool_calls` has its assistant content scanned for the Hermes `<function=…></tool_call>` dialect; recovered calls surface as real `tool_calls`. Enable only for routes/models known to leak (e.g. a qwen3-coder profile variant) — a code assistant can legitimately print a literal `<function=` in a fenced block, so default-off contains the blast radius. Native `tool_calls` always win (no double-count). |
 | `displayName`, `description`, `signupUrl`, `modelsUrl`, `hostname`, `extraHeaders`, `bodyOverrides` | no | Metadata / transport tweaks. |
 
 `defineProvider(profile, { version })` overrides the plugin version (default

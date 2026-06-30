@@ -39,4 +39,11 @@ export interface ProviderProfile {
   fallbackModels: ReadonlyArray<string>;
   extraHeaders?: Record<string, string>;
   bodyOverrides?: Record<string, unknown>;
+  /**
+   * Opt-in leaked-dialect safe-parse (theokit#58 follow-up). When `true`, a chat_completions finish
+   * with ZERO native `tool_calls` has its assistant content scanned for the Hermes
+   * `<function=…></tool_call>` dialect and any recovered calls are surfaced as real `tool_calls`.
+   * Default off — only enable for routes/models known to leak (e.g. a qwen3-coder profile variant).
+   */
+  extractToolCallsFromContent?: boolean;
 }
