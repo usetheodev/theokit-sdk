@@ -294,10 +294,16 @@ interface RunResult {
   // (SendOptions.maxIterations or the default) with the model still
   // wanting to call tools — i.e. silently truncated, not finished.
   stoppedAtIterationLimit?: boolean;
+  // true when the run stopped because the DOOM-LOOP GUARD detected the model
+  // repeating IDENTICAL tool calls (same name + input) to the hard threshold —
+  // making no progress. Surfaces as terminal "no_progress" through the driver.
+  stoppedByDoomLoop?: boolean;
 }
 Reliable continuation (local agents)
 
 A single agent.send() runs the tool-calling loop up to a ceiling — SendOptions.maxIterations (a positive integer; invalid values throw ConfigurationError) or the default. When the model still wants to call tools at that ceiling, the run stops with result.stoppedAtIterationLimit === true rather than a finished answer.
+
+Doom-loop guard. Independently, the loop stops early when the model repeats IDENTICAL tool calls (same name + same input) that make no progress — e.g. a tool that keeps failing and is retried unchanged. This is on by default with generous thresholds (soft 3 / hard 5): at the soft threshold a one-time guidance nudge is injected; at the hard threshold the run stops with result.stoppedByDoomLoop === true (surfacing as terminal "no_progress" through runToCompletion — a controlled stop, not a truncation to re-send). Tune or disable per call with SendOptions.doomLoop: false to disable, or { softThreshold, hardThreshold } to tune. It complements stoppedAtIterationLimit (a different failure mode: model stuck repeating vs work truncated at the ceiling).
 
 agent.runToCompletion(message, options?) drives past that truncation. It re-sends a short continuation prompt — the agent's stateful session preserves the conversation, so the prompt need not repeat the task — until a genuine terminal. Local agents only; cloud agents throw UnsupportedRunOperationError (the cloud runtime manages continuation server-side).
 
