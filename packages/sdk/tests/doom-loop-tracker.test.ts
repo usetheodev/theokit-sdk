@@ -7,7 +7,12 @@
  * (.claude/knowledge-base/references/a peer/.../safety/loop-detection.ts).
  */
 import { describe, expect, it } from "vitest";
-import { DoomLoopTracker, signatureOf } from "../src/internal/agent-loop/doom-loop-tracker.js";
+import { ConfigurationError } from "../src/errors.js";
+import {
+  createDoomLoopTracker,
+  DoomLoopTracker,
+  signatureOf,
+} from "../src/internal/agent-loop/doom-loop-tracker.js";
 
 describe("signatureOf", () => {
   it("test_signature_is_canonical_key_order_insensitive", () => {
@@ -54,6 +59,20 @@ describe("signatureOf", () => {
     // collide here ("a b" + "c" vs "a" + "b c" → "a b c" both ways); this pins the stronger choice.
     expect(signatureOf({ name: "a b", input: "c" })).not.toBe(
       signatureOf({ name: "a", input: "b c" }),
+    );
+  });
+
+  it("test_signature_is_array_order_sensitive", () => {
+    // Arrays are ordered — [1,2] and [2,1] are different tool arguments, so different signatures.
+    expect(signatureOf({ name: "t", input: [1, 2] })).not.toBe(
+      signatureOf({ name: "t", input: [2, 1] }),
+    );
+  });
+
+  it("test_signature_canonicalizes_nested_object_key_order", () => {
+    // Key-sort recurses: nested {a,b} and {b,a} canonicalize identically.
+    expect(signatureOf({ name: "t", input: { x: { a: 1, b: 2 } } })).toBe(
+      signatureOf({ name: "t", input: { x: { b: 2, a: 1 } } }),
     );
   });
 });
@@ -133,5 +152,42 @@ describe("DoomLoopTracker", () => {
     expect(t.inspect(call()).kind).toBe("ok"); // 1
     expect(t.inspect(call()).kind).toBe("soft"); // 2
     expect(t.inspect(call()).kind).toBe("hard"); // 3
+  });
+
+  it("test_soft_ge_hard_suppresses_nudge_and_still_hard_stops", () => {
+    // Documented (not rejected) config: soft >= hard means the nudge never fires (hard is checked
+    // first and wins). Ergonomic case: `{ hardThreshold: 2 }` keeps the default soft=3 → no nudge.
+    const t = new DoomLoopTracker({ hardThreshold: 2 }); // soft defaults to 3 (>= hard)
+    expect(t.inspect(call()).kind).toBe("ok"); // 1
+    expect(t.inspect(call()).kind).toBe("hard"); // 2 — hard stop, "soft" never emitted
+  });
+});
+
+describe("createDoomLoopTracker / threshold validation (fail-fast)", () => {
+  it("test_false_option_disables_guard", () => {
+    expect(createDoomLoopTracker(false)).toBeUndefined();
+  });
+
+  it("test_absent_option_enables_default_guard", () => {
+    expect(createDoomLoopTracker()).toBeInstanceOf(DoomLoopTracker);
+    expect(createDoomLoopTracker({})).toBeInstanceOf(DoomLoopTracker);
+  });
+
+  it("test_rejects_zero_threshold_with_typed_error", () => {
+    // NEGATIVE case (testing.md §4.1): the first invalid value past the boundary is a typed error,
+    // not a silent stop-on-turn-1. Asserts the specific ConfigurationError, not merely "throws".
+    expect(() => createDoomLoopTracker({ hardThreshold: 0 })).toThrow(ConfigurationError);
+    expect(() => createDoomLoopTracker({ hardThreshold: 0 })).toThrow(/positive integer/);
+  });
+
+  it("test_rejects_negative_threshold_with_typed_error", () => {
+    expect(() => createDoomLoopTracker({ softThreshold: -1 })).toThrow(ConfigurationError);
+  });
+
+  it("test_rejects_non_integer_threshold_with_typed_error", () => {
+    // A non-integer soft would make `count === softThreshold` never true → the nudge silently
+    // never fires. Fail-fast instead.
+    expect(() => createDoomLoopTracker({ softThreshold: 2.5 })).toThrow(ConfigurationError);
+    expect(() => createDoomLoopTracker({ hardThreshold: Number.NaN })).toThrow(ConfigurationError);
   });
 });
