@@ -45,6 +45,9 @@ export interface FixtureScript {
    * `AgentLoopOutput.stoppedAtIterationLimit` onto `RunResult`.
    */
   stoppedAtIterationLimit?: boolean;
+  /** Doom-loop guard: true when the loop stopped on identical-repeat tool calls. Copied from
+   *  `AgentLoopOutput.stoppedByDoomLoop` onto `RunResult.stoppedByDoomLoop`. */
+  stoppedByDoomLoop?: boolean;
   /** Optional async hook executed before the run terminates. */
   beforeComplete?: () => Promise<void>;
 }

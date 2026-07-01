@@ -4,6 +4,7 @@ import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import type { LlmMessage } from "../llm/types.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
+import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
@@ -28,6 +29,13 @@ export interface LoopContext {
    * `AgentLoopOutput` → `RunResult.stoppedAtIterationLimit`.
    */
   stoppedAtIterationLimit?: boolean;
+  /**
+   * Doom-loop guard: set true when the loop stopped because the model repeated IDENTICAL tool calls
+   * to the hard threshold (no progress). Threaded onto `AgentLoopOutput` → `RunResult.stoppedByDoomLoop`.
+   */
+  stoppedByDoomLoop?: boolean;
+  /** Per-run doom-loop detector; `undefined` when disabled via `SendOptions.doomLoop: false`. */
+  doomLoop?: DoomLoopTracker;
   usage: UsageAccumulator;
   error?: import("./loop-types.js").AgentLoopErrorDetail;
   nudgeAttempts: number;
@@ -139,6 +147,7 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     tools,
     finalText: "",
     finalStatus: "finished",
+    doomLoop: createDoomLoopTracker(inputs.doomLoop),
     usage: new UsageAccumulator(),
     nudgeAttempts: 0,
     stopFeedbackAttempts: 0,

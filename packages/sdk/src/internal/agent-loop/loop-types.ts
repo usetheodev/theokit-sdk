@@ -76,6 +76,9 @@ export interface AgentLoopInputs {
   shellCwd: string;
   shellSandbox: boolean;
   maxIterations?: number;
+  /** Doom-loop guard config (from `SendOptions.doomLoop`): `false` disables; an object tunes the
+   *  soft/hard thresholds; absent = on with defaults (3/5). See `doom-loop-tracker.ts`. */
+  doomLoop?: import("./doom-loop-tracker.js").DoomLoopOption;
   /**
    * Production-Readiness #5 (ADR D318): caller-supplied `AbortSignal` from
    * `SendOptions.signal`, plus the agent's lifecycle controller. When fired
@@ -201,4 +204,10 @@ export interface AgentLoopOutput {
    * `RunResult.stoppedAtIterationLimit`.
    */
   stoppedAtIterationLimit?: boolean;
+  /**
+   * Doom-loop guard: true when the loop stopped because the model repeated IDENTICAL tool calls to
+   * the hard threshold. Copied verbatim onto `RunResult.stoppedByDoomLoop`; the continuation driver
+   * classifies it as a `no_progress` terminal (a controlled stop, not a truncation to re-send).
+   */
+  stoppedByDoomLoop?: boolean;
 }

@@ -218,6 +218,10 @@ function buildLoopInputs(
     // M1-2: per-send iteration ceiling (validated above). The loop reads
     // inputs.maxIterations (default 8 when unset).
     ...(maxIterations !== undefined ? { maxIterations } : {}),
+    // Doom-loop guard config (default on; `false` disables, object tunes thresholds).
+    ...(options.sendOptions.doomLoop !== undefined
+      ? { doomLoop: options.sendOptions.doomLoop }
+      : {}),
     // D315-D317 — tool lifecycle hooks (cost tracking + audit + retry/alert)
     ...(options.agentOptions.onToolStart !== undefined
       ? { onToolStart: options.agentOptions.onToolStart }
@@ -395,6 +399,8 @@ class RealLocalRun extends FixtureRunBase {
     if (output.cost !== undefined) this.script.cost = output.cost;
     // M1-2 (T2.2): surface the silent-truncation signal onto the RunResult.
     if (output.stoppedAtIterationLimit === true) this.script.stoppedAtIterationLimit = true;
+    // Doom-loop guard: surface the identical-repeat stop signal onto the RunResult.
+    if (output.stoppedByDoomLoop === true) this.script.stoppedByDoomLoop = true;
     if (output.error !== undefined && this.script.errorDetail === undefined) {
       this.script.errorDetail = {
         message: output.error.message,
