@@ -313,3 +313,78 @@ describe("streamToolCallBufferState (R7 suppression FSM)", () => {
     expect(streamToolCallBufferState("<Function=read>", READ)).toBe("impossible");
   });
 });
+
+describe("OpenAIStreamAccumulator — R7 stream suppression (T2.1)", () => {
+  const collectEvents = (
+    acc: InstanceType<typeof __testing__OpenAIStreamAccumulator>,
+    chunks: unknown[],
+  ) => {
+    const events: { type: string; text?: string }[] = [];
+    for (const c of chunks) events.push(...(acc.consume(c as never) as never[]));
+    return events;
+  };
+  const textOf = (events: { type: string; text?: string }[]) =>
+    events
+      .filter((e) => e.type === "text_delta")
+      .map((e) => e.text ?? "")
+      .join("");
+
+  it("test_accumulator_holds_leaked_call_emits_no_text_delta", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [
+      leakChunk("<function=shell_exec><parameter=command>echo hi"),
+      leakChunk("</parameter></function></tool_call>"),
+      stopChunk(),
+    ]);
+    expect(textOf(events)).not.toContain("<function=");
+    const finish = acc.finish();
+    expect(finish.toolCalls).toHaveLength(1);
+    expect(finish.toolCalls[0]?.name).toBe("shell_exec");
+  });
+
+  it("test_accumulator_flushes_normal_prose_immediately", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [leakChunk("hello "), leakChunk("world"), stopChunk()]);
+    expect(textOf(events)).toBe("hello world");
+  });
+
+  it("test_accumulator_flushes_unallowed_marker_as_text", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["other"]));
+    const events = collectEvents(acc, [leakChunk(LEAK), stopChunk()]);
+    expect(textOf(events)).toContain("<function=shell_exec");
+    expect(acc.finish().toolCalls).toHaveLength(0);
+  });
+
+  it("test_accumulator_terminal_residual_flush_equals_finish_text", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [leakChunk(`${LEAK} bye`), stopChunk()]);
+    const finish = acc.finish();
+    expect(textOf(events)).toBe(finish.text);
+    expect(finish.text?.trim()).toBe("bye");
+    expect(finish.toolCalls).toHaveLength(1);
+  });
+
+  it("test_accumulator_flag_off_streams_immediately", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(false, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [leakChunk(LEAK), stopChunk()]);
+    expect(textOf(events)).toBe(LEAK);
+  });
+
+  it("test_accumulator_terminal_chunk_with_content_and_finish_reason (EC-2)", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [
+      leakChunk("<function=shell_exec><parameter=command>echo hi</parameter></function>"),
+      { choices: [{ index: 0, delta: { content: "</tool_call>" }, finish_reason: "stop" }] },
+    ]);
+    expect(textOf(events)).not.toContain("<function=");
+    expect(acc.finish().toolCalls).toHaveLength(1);
+  });
+
+  it("test_accumulator_held_block_still_recovered_by_finish (EC-3)", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    collectEvents(acc, [leakChunk(LEAK), stopChunk()]);
+    const finish = acc.finish();
+    expect(finish.toolCalls).toHaveLength(1);
+    expect(finish.stopReason).toBe("tool_use");
+  });
+});

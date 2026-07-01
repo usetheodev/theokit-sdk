@@ -1,7 +1,7 @@
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import { collapseSystemText, makeLlmFinish, parseToolArguments } from "./finish.js";
-import { extractHermesToolCalls } from "./hermes-tool-extract.js";
+import { extractHermesToolCalls, streamToolCallBufferState } from "./hermes-tool-extract.js";
 import { parseSseStream } from "./sse.js";
 import type {
   LlmClient,
@@ -207,6 +207,9 @@ export class OpenAIClient implements LlmClient {
 
 class OpenAIStreamAccumulator {
   private text = "";
+  /** R7: suspicion buffer of streamed content that could still be a leaked `<function=NAME>` tool
+   *  call — held back from `text_delta` until it is confirmed not one (flush) or the stream ends. */
+  private heldText = "";
   private stopReason: LlmStopReason = "end_turn";
   private inputTokens?: number;
   private outputTokens?: number;
@@ -232,16 +235,28 @@ class OpenAIStreamAccumulator {
     const events: LlmEvent[] = [];
     this.applyUsage(chunk.usage);
     for (const choice of chunk.choices ?? []) {
-      // issue #47: reasoning delta precedes the visible text in arrival order. OpenRouter streams it
-      // as `reasoning`; some compat providers use `reasoning_content` (F-domain-2) — accept either.
-      const reasoningEvent = this.applyReasoningDelta(
-        choice.delta?.reasoning ?? choice.delta?.reasoning_content,
-      );
-      if (reasoningEvent !== undefined) events.push(reasoningEvent);
-      const textEvent = this.applyContentDelta(choice.delta?.content);
-      if (textEvent !== undefined) events.push(textEvent);
-      this.mergeToolCallDeltas(choice.delta?.tool_calls);
-      this.applyFinishReason(choice.finish_reason);
+      events.push(...this.applyChoice(choice));
+    }
+    return events;
+  }
+
+  private applyChoice(choice: NonNullable<OpenAIDeltaChunk["choices"]>[number]): LlmEvent[] {
+    const events: LlmEvent[] = [];
+    // issue #47: reasoning delta precedes the visible text in arrival order. OpenRouter streams it
+    // as `reasoning`; some compat providers use `reasoning_content` (F-domain-2) — accept either.
+    const reasoningEvent = this.applyReasoningDelta(
+      choice.delta?.reasoning ?? choice.delta?.reasoning_content,
+    );
+    if (reasoningEvent !== undefined) events.push(reasoningEvent);
+    const textEvent = this.applyContentDelta(choice.delta?.content);
+    if (textEvent !== undefined) events.push(textEvent);
+    this.mergeToolCallDeltas(choice.delta?.tool_calls);
+    this.applyFinishReason(choice.finish_reason);
+    // R7: at the terminal chunk, flush the held buffer's residual (held minus recoverable blocks)
+    // AFTER this chunk's content was appended above — so `accumulatedText == finish.text`.
+    if (choice.finish_reason !== undefined && choice.finish_reason !== null) {
+      const flushEvent = this.flushHeldTextAtTerminal();
+      if (flushEvent !== undefined) events.push(flushEvent);
     }
     return events;
   }
@@ -273,7 +288,36 @@ class OpenAIStreamAccumulator {
   private applyContentDelta(content: string | undefined): LlmEvent | undefined {
     if (typeof content !== "string" || content.length === 0) return undefined;
     this.text += content;
-    return { type: "text_delta", text: content };
+    // R7: when recovery is enabled and the request declares tools, HOLD content that could still be
+    // a leaked `<function=NAME>` tool call so the raw dialect is never streamed as `text_delta`. When
+    // the buffer is confirmed NOT a tool call ("impossible"), flush it as one `text_delta`.
+    if (
+      this.allowedToolNames === undefined ||
+      this.allowedToolNames.size === 0 ||
+      !this.extractFromContent
+    ) {
+      return { type: "text_delta", text: content };
+    }
+    this.heldText += content;
+    if (streamToolCallBufferState(this.heldText, this.allowedToolNames) === "possible") {
+      return undefined; // hold — could still become a tool call
+    }
+    const flushed = this.heldText;
+    this.heldText = "";
+    return { type: "text_delta", text: flushed };
+  }
+
+  /** R7 terminal flush: at the stream's `finish_reason` chunk, emit the held buffer MINUS the complete
+   *  tool-call blocks `finish()` will recover — so the streamed `text_delta`s equal the final text. */
+  private flushHeldTextAtTerminal(): LlmEvent | undefined {
+    if (this.heldText.length === 0) return undefined;
+    const residual = extractHermesToolCalls(
+      this.heldText,
+      () => "held",
+      this.allowedToolNames,
+    ).residualText;
+    this.heldText = "";
+    return residual.length > 0 ? { type: "text_delta", text: residual } : undefined;
   }
 
   private mergeToolCallDeltas(
