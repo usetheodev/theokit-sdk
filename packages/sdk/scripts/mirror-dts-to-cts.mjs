@@ -46,6 +46,8 @@ const targets = [
   join(DIST, "workflow.d.ts"),
   join(DIST, "eval.d.ts"),
   join(DIST, "subscription"),
+  // Public tool-input sanitization sub-path.
+  join(DIST, "sanitize"),
   join(DIST, "concurrency.d.ts"),
   join(DIST, "retry.d.ts"),
   // V2-3: persistence sub-path.
