@@ -44,9 +44,14 @@ async function collect(
   return { events, finish: step.value };
 }
 
+const TOOL = (name: string) => ({ name, description: name, inputSchema: { type: "object" } });
+
+// R5: recovery is request-scoped — the request MUST declare the tools whose leaked blocks it expects
+// to recover (`shell_exec`, `read_file`). A leaked name absent from `tools` is NOT promoted.
 const REQUEST = {
   model: "qwen/qwen3-coder",
   messages: [{ role: "user" as const, content: [{ type: "text" as const, text: "run it" }] }],
+  tools: [TOOL("shell_exec"), TOOL("read_file")],
 };
 
 describe("OpenAI client — leaked-dialect safe-parse (full SSE → finish path)", () => {
@@ -135,5 +140,46 @@ describe("OpenAI client — leaked-dialect safe-parse (full SSE → finish path)
     expect(finish.toolCalls).toHaveLength(0);
     expect(finish.stopReason).toBe("end_turn");
     expect(finish.text).toBe("just a normal answer");
+  });
+
+  const LEAK_FRAMES = [
+    'data: {"choices":[{"index":0,"delta":{"content":"<function=shell_exec><parameter=command>echo hi"}}]}\n\n',
+    'data: {"choices":[{"index":0,"delta":{"content":"</parameter></function></tool_call>"},"finish_reason":"stop"}]}\n\n',
+    "data: [DONE]\n\n",
+  ];
+
+  it("test_flag_on_leaked_name_not_in_request_tools_is_not_recovered (R5)", async () => {
+    // The route leaks a `shell_exec` call, but the request declares only `other_tool` — request-scoped
+    // matching drops it (it is not a tool the model was given), leaving the text visible.
+    const request = {
+      model: "qwen/qwen3-coder",
+      messages: [{ role: "user" as const, content: [{ type: "text" as const, text: "x" }] }],
+      tools: [TOOL("other_tool")],
+    };
+    const client = new OpenAIClient({
+      apiKey: "sk-test",
+      extractToolCallsFromContent: true,
+      fetch: async () => sseStream(LEAK_FRAMES),
+    });
+    const { finish } = await collect(client.stream(request, new AbortController().signal));
+    expect(finish.toolCalls).toHaveLength(0);
+    expect(finish.stopReason).toBe("end_turn");
+    expect(finish.text).toContain("<function=");
+  });
+
+  it("test_flag_on_empty_request_tools_recovers_nothing (R5)", async () => {
+    // A request with no tools has nothing legitimate to recover — the leak stays visible for debugging.
+    const request = {
+      model: "qwen/qwen3-coder",
+      messages: [{ role: "user" as const, content: [{ type: "text" as const, text: "x" }] }],
+    };
+    const client = new OpenAIClient({
+      apiKey: "sk-test",
+      extractToolCallsFromContent: true,
+      fetch: async () => sseStream(LEAK_FRAMES),
+    });
+    const { finish } = await collect(client.stream(request, new AbortController().signal));
+    expect(finish.toolCalls).toHaveLength(0);
+    expect(finish.text).toContain("<function=");
   });
 });
