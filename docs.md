@@ -2935,6 +2935,25 @@ const agent = await Agent.create({
 emits a one-line stderr WARN. Use `authType: "none"` for local runtimes that
 ignore the `Authorization` header.
 
+**Per-route leaked-dialect recovery (v2.13+).** `extractToolCallsFromContent`
+can also be set on a single `providers.routes[]` entry instead of redeclaring a
+provider profile:
+
+```ts
+const agent = await Agent.create({
+  providers: {
+    routes: [{ capability: "chat", provider: "openrouter", extractToolCallsFromContent: true }],
+  },
+});
+```
+
+The router clones the resolved profile with the flag for that run (built-in
+profiles still ship the flag off), so a built-in provider opts into recovery for
+one route without a custom profile. Derived from `routes[0]` and applied to the
+resolved chat chain; fail-open and default-off, so a non-leaking route is
+unaffected. This is the enablement path `@theokit/agents`' `recoverLeakedToolCalls`
+knob uses.
+
 
 ## Bedrock provider (v1.20+) — Claude on AWS Bedrock
 
