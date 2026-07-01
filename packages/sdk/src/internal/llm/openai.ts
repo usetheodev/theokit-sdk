@@ -172,6 +172,9 @@ export class OpenAIClient implements LlmClient {
     const accumulator = new OpenAIStreamAccumulator(
       this.options.extractToolCallsFromContent ?? false,
       providerId,
+      // R5: request-scoped allowlist — leaked recovery only promotes a block whose name is a tool the
+      // model was actually given. Empty set (no tools) recovers nothing.
+      new Set(request.tools?.map((tool) => tool.name) ?? []),
     );
     for await (const record of parseSseStream(response.body, signal)) {
       if (record.data === "[DONE]") break;
@@ -215,10 +218,14 @@ class OpenAIStreamAccumulator {
   /**
    * @param extractFromContent opt-in leaked-dialect safe-parse (theokit#58). Default false.
    * @param providerName provider id, used only to label the recovery log line.
+   * @param allowedToolNames R5 request-scoped allowlist — built from `request.tools` at `stream()`;
+   *   leaked recovery in `finish()` only promotes a block whose name is in this set. `undefined`
+   *   (direct construction) recovers all (back-compat); an empty set recovers nothing.
    */
   constructor(
     private readonly extractFromContent = false,
     private readonly providerName = "openai",
+    private readonly allowedToolNames?: ReadonlySet<string>,
   ) {}
 
   consume(chunk: OpenAIDeltaChunk): LlmEvent[] {
@@ -302,6 +309,7 @@ class OpenAIStreamAccumulator {
       const recovered = extractHermesToolCalls(
         this.text,
         () => `hermes-${globalThis.crypto.randomUUID()}`,
+        this.allowedToolNames,
       );
       if (recovered.toolCalls.length > 0) {
         toolCalls.push(...recovered.toolCalls);
