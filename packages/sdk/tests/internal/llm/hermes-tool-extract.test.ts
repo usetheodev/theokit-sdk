@@ -224,4 +224,26 @@ describe("OpenAIStreamAccumulator — leaked-dialect safe-parse integration", ()
     expect(finish.stopReason).toBe("end_turn");
     expect(finish.text).toBe("a normal answer");
   });
+
+  it("test_accumulator_request_scoped_gate_recovers_declared_tool (R5, T2.1 wiring)", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    acc.consume(leakChunk(LEAK));
+    acc.consume(stopChunk());
+    const finish = acc.finish();
+    expect(finish.toolCalls).toHaveLength(1);
+    expect(finish.toolCalls[0]?.name).toBe("shell_exec");
+    expect(finish.stopReason).toBe("tool_use");
+  });
+
+  it("test_accumulator_request_scoped_gate_drops_undeclared_tool (R5, T2.1 wiring)", () => {
+    // The allowlist threaded through the constructor reaches finish() — an undeclared leaked name is
+    // not promoted, proving the constructor→finish wiring (not just the pure gate).
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["other_tool"]));
+    acc.consume(leakChunk(LEAK));
+    acc.consume(stopChunk());
+    const finish = acc.finish();
+    expect(finish.toolCalls).toHaveLength(0);
+    expect(finish.stopReason).toBe("end_turn");
+    expect(finish.text).toContain("<function=");
+  });
 });
