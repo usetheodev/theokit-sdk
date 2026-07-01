@@ -30,6 +30,28 @@ describe("extractHermesToolCalls (pure helper)", () => {
     expect(r.toolCalls[0]?.input).toEqual({ path: "/tmp/x", content: "hello" });
   });
 
+  it("test_trims_leading_trailing_whitespace_from_param_value (leaked-newline root cause)", () => {
+    // qwen3-coder leaks the dialect with the value on its own line, so the param VALUE carries
+    // leading/trailing formatting newlines: `<parameter=path>\npackage.json\n</parameter>`. Untrimmed,
+    // read_file / glob_files / search_text receive path:"\npackage.json\n" -> not_found (only
+    // shell_exec tolerates it, since bash ignores blank lines), so a multi-read investigation loops
+    // on not_found and never converges (the "hang"). Trim the value at the extraction boundary.
+    // Mirrors the agentfw reference `parseInvokeParameters` (`(m[2] ?? '').trim()`, xml-tool-calls.ts:179).
+    const block =
+      "<function=read_file><parameter=path>\npackage.json\n</parameter></function></tool_call>";
+    const r = extractHermesToolCalls(block, () => "id");
+    expect(r.toolCalls[0]?.input).toEqual({ path: "package.json" });
+  });
+
+  it("test_preserves_internal_newlines_of_multiline_param_value", () => {
+    // The trim removes only the leading/trailing whitespace — a legitimate multi-line command keeps
+    // its internal newlines intact (edge case: a valid extreme, not a malformed input).
+    const block =
+      "<function=shell_exec><parameter=command>\nline1\nline2\n</parameter></function></tool_call>";
+    const r = extractHermesToolCalls(block, () => "id");
+    expect(r.toolCalls[0]?.input).toEqual({ command: "line1\nline2" });
+  });
+
   it("test_extracts_multiple_blocks", () => {
     let n = 0;
     const r = extractHermesToolCalls(`${LEAK}${LEAK}`, () => `id-${++n}`);

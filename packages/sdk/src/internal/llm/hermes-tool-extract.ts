@@ -75,7 +75,13 @@ function parseHermesParams(inner: string): Record<string, unknown> {
     const key = param[1];
     const value = param[2];
     if (key === undefined || value === undefined) continue;
-    input[key.trim()] = value;
+    // Trim BOTH key and value. Leaked-dialect emitters (qwen3-coder) put the value on its own line,
+    // so the captured VALUE carries the formatting newlines (`<parameter=path>\npackage.json\n</…>`).
+    // Untrimmed, a path/pattern gets `"\npackage.json\n"` and read_file / glob_files / search_text
+    // fail `not_found` (only shell_exec tolerates it), stalling a multi-read investigation loop.
+    // Trim removes only leading/trailing whitespace — internal newlines of a legitimate multi-line
+    // value survive. Mirrors agentfw `parseInvokeParameters` (`(m[2] ?? '').trim()`, xml-tool-calls.ts:179).
+    input[key.trim()] = value.trim();
   }
   return input;
 }
