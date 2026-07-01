@@ -208,6 +208,16 @@
         "default": "./dist/subscription/index.cjs"
       }
     },
+    "./sanitize": {
+      "import": {
+        "types": "./dist/sanitize/index.d.ts",
+        "default": "./dist/sanitize/index.js"
+      },
+      "require": {
+        "types": "./dist/sanitize/index.d.cts",
+        "default": "./dist/sanitize/index.cjs"
+      }
+    },
     "./internal/persistence": {
       "import": {
         "types": "./dist/internal/persistence/index.d.ts",
