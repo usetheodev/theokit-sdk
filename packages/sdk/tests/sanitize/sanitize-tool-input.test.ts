@@ -170,3 +170,76 @@ describe("sanitizeToolInput — total contract (never throws)", () => {
     expect(() => sanitizeToolInput(weird as Record<string, unknown>)).not.toThrow();
   });
 });
+
+describe("sanitizeToolInput — review-hardening (Finding 1 + coverage gaps)", () => {
+  // Review Finding 1 (HIGH) regression: coerce+repairJson must NOT clobber a schema-confirmed
+  // raw string (a z.string() field holding a JSON-looking value) back into an object.
+  it("test_coerce_and_repairJson_keep_schema_confirmed_string_field", () => {
+    const schema = z.object({ payload: z.string() });
+    const r = sanitizeToolInput(
+      { payload: '{"key":"val"}' },
+      { coerce: true, repairJson: true, schema },
+    );
+    expect(r.value).toEqual({ payload: '{"key":"val"}' });
+    expect(schema.safeParse(r.value).success).toBe(true);
+  });
+
+  // coerce+repairJson STILL repairs into an object field (via coerceCandidates), not lost.
+  it("test_coerce_and_repairJson_repairs_into_object_field", () => {
+    const schema = z.object({ o: z.object({ k: z.number() }) });
+    const r = sanitizeToolInput({ o: "{k:1}" }, { coerce: true, repairJson: true, schema });
+    expect(r.value).toEqual({ o: { k: 1 } });
+  });
+
+  it("test_coerce_scientific_notation_stays_string", () => {
+    expect(sanitizeToolInput({ n: "1e3" }, { coerce: true }).value).toEqual({ n: "1e3" });
+  });
+
+  it("test_schema_union_fallback_heuristic_coerces_value", () => {
+    const union = z.union([z.string(), z.number()]);
+    const r = sanitizeToolInput({ x: "5" }, { coerce: true, schema: union });
+    expect(r.value).toEqual({ x: 5 });
+    expect(r.changed).toBe(true);
+  });
+
+  it("test_deep_recursion_leaves_values_beyond_maxDepth_untouched", () => {
+    let nested: Record<string, unknown> = { leaf: " deep " };
+    for (let i = 0; i < 20; i++) nested = { child: nested };
+    const r = sanitizeToolInput(nested, { deep: true, maxDepth: 2 });
+    // Walk to the leaf and confirm it kept its surrounding whitespace (was beyond the cap).
+    let cur: Record<string, unknown> = r.value;
+    while (cur && typeof cur === "object" && "child" in cur)
+      cur = cur.child as Record<string, unknown>;
+    expect(cur.leaf).toBe(" deep ");
+  });
+
+  it("test_deep_and_coerce_combination", () => {
+    const r = sanitizeToolInput({ a: { n: "5" } }, { deep: true, coerce: true });
+    expect(r.value).toEqual({ a: { n: 5 } });
+  });
+
+  it("test_repair_json_malformed_array", () => {
+    expect(sanitizeToolInput({ a: '["x","y"' }, { repairJson: true }).value).toEqual({
+      a: ["x", "y"],
+    });
+  });
+
+  it("test_trim_false_suppresses_default_trim", () => {
+    expect(sanitizeToolInput({ path: "\na.ts\n" }, { trim: false }).value).toEqual({
+      path: "\na.ts\n",
+    });
+  });
+
+  it("test_coerce_true_leaves_already_typed_values_alone", () => {
+    const r = sanitizeToolInput({ n: 5, b: true }, { coerce: true });
+    expect(r.value).toEqual({ n: 5, b: true });
+    expect(r.changed).toBe(false);
+  });
+
+  it("test_notes_content_is_stable", () => {
+    const r = sanitizeToolInput({ a: " x ", n: "5" }, { coerce: true });
+    expect(r.notes).toContain('trimmed "a"');
+    expect(r.notes).toContain('coerced "n"');
+    expect(r.changed).toBe(true);
+  });
+});

@@ -15,9 +15,11 @@ export interface SanitizeOptions {
   /** Repair-then-parse malformed JSON-looking string values (via `jsonrepair`). Default `false`. */
   repairJson?: boolean;
   /**
-   * Optional Zod schema. When it is a `z.object(...)`, coercion is schema-aware: each field is
-   * coerced only toward a candidate its field-schema accepts (so a `z.string()` field keeps `"5"`
-   * as a string). Non-object schemas fall back to heuristic coercion.
+   * Optional Zod schema. When it is a `z.object(...)`, coercion is schema-aware: each TOP-LEVEL
+   * field is coerced only toward a candidate its field-schema accepts (so a `z.string()` field
+   * keeps `"5"` as a string). Non-object schemas (union/record) fall back to heuristic coercion.
+   * Note: with `deep: true`, nested fields always use heuristic coercion (the schema is not
+   * descended into).
    */
   schema?: ZodType;
   /** Recurse into nested objects/arrays. Default `false` (shallow). */
