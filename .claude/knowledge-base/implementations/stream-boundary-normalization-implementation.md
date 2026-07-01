@@ -30,7 +30,19 @@ Verdict: **IMPLEMENTATION_COMPLETE** · 2026-07-01 · branch `develop`
 - `tests/internal/llm/hermes-tool-extract.test.ts` (16 new: 9 FSM + 7 accumulator) + golden (1 new) = 17 new tests, green. 49 tests across the two files.
 - `hermes-tool-extract.ts` (121 → 181 LoC), `openai.ts` (518 → 562 LoC — +44; the `applyChoice` extraction was required by the cognitive-complexity gate, still well under the 500-per-symbol / file budget). typecheck clean; biome clean; NUL 0.
 - No public API change (`docs.md` — the suppression is automatic behavior of the existing `extractToolCallsFromContent` flag; the R5 doc note already covers request-scoping). No new dependency (deps-audit PASS).
-- Full `pnpm validate` — pending (Integration Validation phase).
+- Full `pnpm validate` — **exit 0**: sdk 3093 passed / 36 skipped (0 failed — the earlier telemetry failure was the documented `.githooks/pre-push:11` parallel-contention flake, code-path-isolated from R7; clean re-run). publint + attw + knip + depcruise + loc + duplication + bundle all pass.
+
+## Review round (4-agent) — fixes applied
+
+See `.claude/knowledge-base/reviews/stream-boundary-normalization-review-2026-07-01.md`. Landed after IMPLEMENT (`3d089a6`):
+
+- **MEDIUM (correctness):** prose+marker in one delta streamed the dialect → `firstPossibleMarkerStart` flushes the prose prefix, holds the suffix.
+- **MEDIUM (correctness, fail-loud):** held text silently dropped if no `finish_reason` chunk → `stream()` drains `finalizeHeldText()` post-loop.
+- **MEDIUM (native divergence):** terminal flush stripped unconditionally vs `finish()`'s size-guard → `finalizeHeldText` streams held WHOLE when native calls exist.
+- **MEDIUM/LOW (tests):** never-closing fail-open, exact-vs-prefix, bare-marker, empty-name, held-then-recovered-zero-delta, prose+marker split.
+- **LOW (docs):** docs.md documents the streaming suppression.
+
+R7 test count after review: **23 new** (14 FSM/split + 8 accumulator + 1 golden). Full suite green.
 
 ## Known limitations (fail-open, documented — no regression)
 
