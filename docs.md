@@ -2964,7 +2964,7 @@ const agent = await Agent.create({
 | `baseUrl` | yes | Endpoint base URL. |
 | `fallbackModels` | yes | Models advertised when discovery is unavailable. |
 | `aliases` | no | Alternate ids that resolve to this provider. |
-| `extractToolCallsFromContent` | no | Opt-in leaked-dialect safe-parse (default off). When `true`, a `chat_completions` finish with ZERO native `tool_calls` has its assistant content scanned for the Hermes `<function=…></tool_call>` dialect; recovered calls surface as real `tool_calls`. Enable only for routes/models known to leak (e.g. a qwen3-coder profile variant) — a code assistant can legitimately print a literal `<function=` in a fenced block, so default-off contains the blast radius. Native `tool_calls` always win (no double-count). |
+| `extractToolCallsFromContent` | no | Opt-in leaked-dialect safe-parse (default off). When `true`, a `chat_completions` finish with ZERO native `tool_calls` has its assistant content scanned for the Hermes `<function=…></tool_call>` dialect; a recovered call surfaces as a real `tool_call` **only when its name matches a tool declared in the request** (request-scoped — a leaked block for a tool the model was not given stays as visible text and is not promoted). Enable only for routes/models known to leak (e.g. a qwen3-coder profile variant) — a code assistant can legitimately print a literal `<function=` in a fenced block, so the flag is the coarse enable and the request-tool allowlist is the precise false-positive guard. Native `tool_calls` always win (no double-count). |
 | `displayName`, `description`, `signupUrl`, `modelsUrl`, `hostname`, `extraHeaders`, `bodyOverrides` | no | Metadata / transport tweaks. |
 
 `defineProvider(profile, { version })` overrides the plugin version (default

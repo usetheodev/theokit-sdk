@@ -180,6 +180,7 @@ describe("OpenAI client — leaked-dialect safe-parse (full SSE → finish path)
     });
     const { finish } = await collect(client.stream(request, new AbortController().signal));
     expect(finish.toolCalls).toHaveLength(0);
+    expect(finish.stopReason).toBe("end_turn");
     expect(finish.text).toContain("<function=");
   });
 });

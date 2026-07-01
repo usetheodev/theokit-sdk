@@ -140,6 +140,8 @@ describe("extractHermesToolCalls (pure helper)", () => {
     expect(r.toolCalls).toHaveLength(1);
     expect(r.toolCalls[0]?.name).toBe("write");
     expect(r.residualText).toContain("<function=example");
+    // EC-5 full contract: the PROMOTED block is also stripped (not just the gated-out one preserved).
+    expect(r.residualText).not.toContain("<function=write");
   });
 
   it("test_gate_uses_same_trimmed_name_for_match_and_call (EC-1)", () => {
@@ -149,6 +151,34 @@ describe("extractHermesToolCalls (pure helper)", () => {
     const r = extractHermesToolCalls(spaced, () => "id", new Set(["write"]));
     expect(r.toolCalls).toHaveLength(1);
     expect(r.toolCalls[0]?.name).toBe("write");
+  });
+
+  it("test_gate_is_exact_not_substring_or_superstring", () => {
+    // The gate is EXACT membership, NOT prefix/substring — a refactor to `.some(t => t.includes(name))`
+    // would re-open the false-positive hole. `read` is a substring of the declared `read_file`.
+    const READ_BLOCK = "<function=read><parameter=p>y</parameter></function></tool_call>";
+    const dropShort = extractHermesToolCalls(READ_BLOCK, () => "id", new Set(["read_file"]));
+    expect(dropShort.toolCalls).toHaveLength(0);
+    expect(dropShort.residualText).toContain("<function=read");
+    // And the superstring direction: leaked `read_file`, allowlist only `read`.
+    const dropLong = extractHermesToolCalls(READ, () => "id", new Set(["rea"]));
+    expect(dropLong.toolCalls).toHaveLength(0);
+  });
+
+  it("test_gate_case_mismatch_leaked_name_is_not_recovered", () => {
+    // Exact match is CASE-SENSITIVE — a declared `Write` does not authorize a leaked `write`.
+    const r = extractHermesToolCalls(WRITE, () => "id", new Set(["Write"]));
+    expect(r.toolCalls).toHaveLength(0);
+    expect(r.residualText).toContain("<function=write");
+  });
+
+  it("test_gate_reports_dropped_names_for_observability", () => {
+    // A well-formed leaked block gated out by a defined allowlist is reported in droppedNames so the
+    // caller can log the guard firing. Recover-all (undefined) reports nothing.
+    const dropped = extractHermesToolCalls(WRITE, () => "id", new Set(["read"]));
+    expect(dropped.droppedNames).toEqual(["write"]);
+    const recoverAll = extractHermesToolCalls(WRITE, () => "id");
+    expect(recoverAll.droppedNames).toEqual([]);
   });
 });
 

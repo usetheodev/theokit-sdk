@@ -47,6 +47,10 @@ export interface HermesExtractResult {
   toolCalls: LlmToolCallPart[];
   /** Content with every PROMOTED block removed + trimmed; gated-out and unmatched blocks stay visible. */
   residualText: string;
+  /** Names of well-formed leaked blocks that WERE dropped by the request-scoped allowlist (R5) — a
+   *  block whose name is not a tool in the current request. Empty when no allowlist was applied or
+   *  nothing was gated out. The caller logs these so a guard firing is observable in production. */
+  droppedNames: string[];
 }
 
 /**
@@ -70,9 +74,14 @@ export function extractHermesToolCalls(
   const isPromoted = (name: string): boolean =>
     name.length > 0 && (allowedToolNames === undefined || allowedToolNames.has(name));
   const toolCalls: LlmToolCallPart[] = [];
+  const droppedNames: string[] = [];
   for (const block of content.matchAll(HERMES_BLOCK)) {
     const name = (block[1] ?? "").trim();
-    if (!isPromoted(name)) continue;
+    if (!isPromoted(name)) {
+      // A well-formed leaked block gated out by a defined allowlist — record it for observability.
+      if (name.length > 0 && allowedToolNames !== undefined) droppedNames.push(name);
+      continue;
+    }
     toolCalls.push({
       type: "tool_use",
       id: makeId(),
@@ -90,7 +99,7 @@ export function extractHermesToolCalls(
             isPromoted((rawName ?? "").trim()) ? "" : full,
           )
           .trim();
-  return { toolCalls, residualText };
+  return { toolCalls, residualText, droppedNames };
 }
 
 /** Parse the `<parameter=KEY>VALUE</parameter>` pairs inside a block's inner text into an input map.
