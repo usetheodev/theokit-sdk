@@ -179,3 +179,61 @@ function someToolNameStartsWith(allowedToolNames: ReadonlySet<string>, prefix: s
   }
   return false;
 }
+
+/**
+ * R7 mixed-delta split: given a suspicion buffer that is NOT itself a possible tool call as a whole,
+ * find the first `<` index whose suffix COULD still become a `<function=NAME>` tool call for a request
+ * tool — so the caller flushes the definitely-prose prefix and holds only the suspicious suffix (e.g.
+ * a `hello <function=read` delta flushes `hello ` and holds `<function=read`). Returns `-1` when no
+ * suffix is suspicious (flush the whole buffer). Bounded: scans only `<` positions. @internal
+ */
+export function firstPossibleMarkerStart(
+  held: string,
+  allowedToolNames: ReadonlySet<string>,
+): number {
+  for (let i = held.indexOf("<"); i !== -1; i = held.indexOf("<", i + 1)) {
+    if (streamToolCallBufferState(held.slice(i), allowedToolNames) === "possible") return i;
+  }
+  return -1;
+}
+
+/**
+ * R7 stateful stream-suppression buffer. Owns the held-content buffer for one stream: `push` feeds a
+ * content delta and returns the text to emit now (or `undefined` to HOLD while it could still be a
+ * `<function=NAME>` tool call for a request tool); `drain` finalizes at stream end. Extracted from the
+ * OpenAI accumulator so the adapter stays thin (G8). @internal
+ */
+export class StreamSuppressionBuffer {
+  #held = "";
+  constructor(private readonly allowedToolNames: ReadonlySet<string>) {}
+
+  /** Feed a content delta; returns the text to emit as a `text_delta` now, or `undefined` to hold. */
+  push(content: string): string | undefined {
+    this.#held += content;
+    if (streamToolCallBufferState(this.#held, this.allowedToolNames) === "possible")
+      return undefined;
+    // Whole buffer is not a tool call, but a marker for a request tool may start mid-buffer (prose +
+    // marker in one delta) — flush the prose prefix, hold the suspicious suffix.
+    const holdStart = firstPossibleMarkerStart(this.#held, this.allowedToolNames);
+    if (holdStart > 0) {
+      const flush = this.#held.slice(0, holdStart);
+      this.#held = this.#held.slice(holdStart);
+      return flush;
+    }
+    const flush = this.#held;
+    this.#held = "";
+    return flush;
+  }
+
+  /** Drain the held buffer at stream end. `hasNativeCalls` mirrors `finish()`'s size-guard: when
+   *  native `tool_calls` exist, `finish()` won't strip the leaked block, so stream the held text WHOLE
+   *  (keeping `accumulatedText == finish.text`); otherwise strip the recoverable blocks. Idempotent. */
+  drain(hasNativeCalls: boolean): string | undefined {
+    if (this.#held.length === 0) return undefined;
+    const held = this.#held;
+    this.#held = "";
+    if (hasNativeCalls) return held;
+    const residual = extractHermesToolCalls(held, () => "held", this.allowedToolNames).residualText;
+    return residual.length > 0 ? residual : undefined;
+  }
+}

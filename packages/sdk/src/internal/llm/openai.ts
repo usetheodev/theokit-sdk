@@ -1,7 +1,7 @@
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import { collapseSystemText, makeLlmFinish, parseToolArguments } from "./finish.js";
-import { extractHermesToolCalls, streamToolCallBufferState } from "./hermes-tool-extract.js";
+import { extractHermesToolCalls, StreamSuppressionBuffer } from "./hermes-tool-extract.js";
 import { parseSseStream } from "./sse.js";
 import type {
   LlmClient,
@@ -201,15 +201,16 @@ export class OpenAIClient implements LlmClient {
       const events = accumulator.consume(chunk);
       for (const event of events) yield event;
     }
+    // R7: drain any held buffer that survived the loop (a stream that ended without a `finish_reason`
+    // terminal chunk — truncation / non-conformant proxy) so held text is never silently dropped.
+    const drainEvent = accumulator.finalizeHeldText();
+    if (drainEvent !== undefined) yield drainEvent;
     return accumulator.finish();
   }
 }
 
 class OpenAIStreamAccumulator {
   private text = "";
-  /** R7: suspicion buffer of streamed content that could still be a leaked `<function=NAME>` tool
-   *  call — held back from `text_delta` until it is confirmed not one (flush) or the stream ends. */
-  private heldText = "";
   private stopReason: LlmStopReason = "end_turn";
   private inputTokens?: number;
   private outputTokens?: number;
@@ -217,6 +218,9 @@ class OpenAIStreamAccumulator {
   private cacheWriteTokens?: number;
   private reasoningTokens?: number;
   private readonly toolCalls = new Map<number, { id: string; name: string; args: string }>();
+  /** R7: present only when recovery is enabled AND the request declares tools — holds suspected
+   *  leaked-dialect content back from the `text_delta` stream. `undefined` ⇒ stream immediately. */
+  private readonly suppress?: StreamSuppressionBuffer;
 
   /**
    * @param extractFromContent opt-in leaked-dialect safe-parse (theokit#58). Default false.
@@ -229,7 +233,12 @@ class OpenAIStreamAccumulator {
     private readonly extractFromContent = false,
     private readonly providerName = "openai",
     private readonly allowedToolNames?: ReadonlySet<string>,
-  ) {}
+  ) {
+    this.suppress =
+      extractFromContent && allowedToolNames !== undefined && allowedToolNames.size > 0
+        ? new StreamSuppressionBuffer(allowedToolNames)
+        : undefined;
+  }
 
   consume(chunk: OpenAIDeltaChunk): LlmEvent[] {
     const events: LlmEvent[] = [];
@@ -255,7 +264,7 @@ class OpenAIStreamAccumulator {
     // R7: at the terminal chunk, flush the held buffer's residual (held minus recoverable blocks)
     // AFTER this chunk's content was appended above — so `accumulatedText == finish.text`.
     if (choice.finish_reason !== undefined && choice.finish_reason !== null) {
-      const flushEvent = this.flushHeldTextAtTerminal();
+      const flushEvent = this.finalizeHeldText();
       if (flushEvent !== undefined) events.push(flushEvent);
     }
     return events;
@@ -288,36 +297,20 @@ class OpenAIStreamAccumulator {
   private applyContentDelta(content: string | undefined): LlmEvent | undefined {
     if (typeof content !== "string" || content.length === 0) return undefined;
     this.text += content;
-    // R7: when recovery is enabled and the request declares tools, HOLD content that could still be
-    // a leaked `<function=NAME>` tool call so the raw dialect is never streamed as `text_delta`. When
-    // the buffer is confirmed NOT a tool call ("impossible"), flush it as one `text_delta`.
-    if (
-      this.allowedToolNames === undefined ||
-      this.allowedToolNames.size === 0 ||
-      !this.extractFromContent
-    ) {
-      return { type: "text_delta", text: content };
-    }
-    this.heldText += content;
-    if (streamToolCallBufferState(this.heldText, this.allowedToolNames) === "possible") {
-      return undefined; // hold — could still become a tool call
-    }
-    const flushed = this.heldText;
-    this.heldText = "";
-    return { type: "text_delta", text: flushed };
+    // R7: when suppression is active, HOLD content that could still be a leaked tool call (the buffer
+    // returns the text to emit now, or `undefined` to hold). Otherwise stream immediately.
+    if (this.suppress === undefined) return { type: "text_delta", text: content };
+    const emit = this.suppress.push(content);
+    return emit !== undefined ? { type: "text_delta", text: emit } : undefined;
   }
 
-  /** R7 terminal flush: at the stream's `finish_reason` chunk, emit the held buffer MINUS the complete
-   *  tool-call blocks `finish()` will recover — so the streamed `text_delta`s equal the final text. */
-  private flushHeldTextAtTerminal(): LlmEvent | undefined {
-    if (this.heldText.length === 0) return undefined;
-    const residual = extractHermesToolCalls(
-      this.heldText,
-      () => "held",
-      this.allowedToolNames,
-    ).residualText;
-    this.heldText = "";
-    return residual.length > 0 ? { type: "text_delta", text: residual } : undefined;
+  /** R7 held-buffer finalizer, called at the `finish_reason` chunk (in `applyChoice`) AND after the
+   *  SSE loop in `stream()` — so a stream that omits a `finish_reason` terminal never silently drops
+   *  held text. `toolCalls.size > 0` (native calls present) makes `finish()` skip recovery, so the
+   *  buffer streams the held text whole. Idempotent once drained. */
+  finalizeHeldText(): LlmEvent | undefined {
+    const emit = this.suppress?.drain(this.toolCalls.size > 0);
+    return emit !== undefined ? { type: "text_delta", text: emit } : undefined;
   }
 
   private mergeToolCallDeltas(
