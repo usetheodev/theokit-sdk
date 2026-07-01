@@ -183,4 +183,27 @@ describe("OpenAI client — leaked-dialect safe-parse (full SSE → finish path)
     expect(finish.stopReason).toBe("end_turn");
     expect(finish.text).toContain("<function=");
   });
+
+  it("test_flag_on_leaked_call_is_not_streamed_as_text (R7)", async () => {
+    // R7: the leaked <function=…> dialect is HELD during streaming and never emitted as a text_delta;
+    // finish() still recovers the call. shell_exec is declared in REQUEST.tools.
+    const frames = [
+      'data: {"choices":[{"index":0,"delta":{"content":"<function=shell_exec><parameter=command>echo hi"}}]}\n\n',
+      'data: {"choices":[{"index":0,"delta":{"content":"</parameter></function></tool_call>"},"finish_reason":"stop"}]}\n\n',
+      "data: [DONE]\n\n",
+    ];
+    const client = new OpenAIClient({
+      apiKey: "sk-test",
+      extractToolCallsFromContent: true,
+      fetch: async () => sseStream(frames),
+    });
+    const { events, finish } = await collect(client.stream(REQUEST, new AbortController().signal));
+    const streamedText = events
+      .filter((e) => e.type === "text_delta")
+      .map((e) => (e as { text: string }).text)
+      .join("");
+    expect(streamedText).not.toContain("<function=");
+    expect(finish.toolCalls).toHaveLength(1);
+    expect(finish.toolCalls[0]?.name).toBe("shell_exec");
+  });
 });
