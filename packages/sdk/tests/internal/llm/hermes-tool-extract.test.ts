@@ -90,6 +90,66 @@ describe("extractHermesToolCalls (pure helper)", () => {
     expect(r.residualText).toContain("done.");
     expect(r.residualText).not.toContain("<function=");
   });
+
+  // R5 — request-scoped tool-name gate (blueprint request-scoped-matching, ADR D1).
+  const WRITE = "<function=write><parameter=p>x</parameter></function></tool_call>";
+  const READ = "<function=read><parameter=p>y</parameter></function></tool_call>";
+  const EXAMPLE = "<function=example><parameter=p>z</parameter></function></tool_call>";
+
+  it("test_gate_recovers_block_when_name_in_allowlist", () => {
+    const r = extractHermesToolCalls(LEAK, () => "id", new Set(["shell_exec"]));
+    expect(r.toolCalls).toHaveLength(1);
+    expect(r.toolCalls[0]?.name).toBe("shell_exec");
+  });
+
+  it("test_gate_drops_block_when_name_not_in_allowlist", () => {
+    const r = extractHermesToolCalls(WRITE, () => "id", new Set(["read"]));
+    expect(r.toolCalls).toHaveLength(0);
+    expect(r.residualText).toContain("<function=write");
+  });
+
+  it("test_gate_empty_allowlist_recovers_nothing", () => {
+    const r = extractHermesToolCalls(LEAK, () => "id", new Set());
+    expect(r.toolCalls).toHaveLength(0);
+    expect(r.residualText).toContain("<function=shell_exec");
+  });
+
+  it("test_absent_allowlist_recovers_all_backcompat", () => {
+    // 2-arg call (no allowlist) → recover-all, unchanged behavior.
+    const r = extractHermesToolCalls(WRITE, () => "id");
+    expect(r.toolCalls).toHaveLength(1);
+    expect(r.toolCalls[0]?.name).toBe("write");
+  });
+
+  it("test_gate_mixed_blocks_keeps_only_allowed", () => {
+    let n = 0;
+    const r = extractHermesToolCalls(`${WRITE}${READ}`, () => `id-${++n}`, new Set(["read"]));
+    expect(r.toolCalls).toHaveLength(1);
+    expect(r.toolCalls[0]?.name).toBe("read");
+  });
+
+  it("test_gate_residual_preserves_gated_out_block_text (EC-5)", () => {
+    // One recovered (write) + one gated-out (example) in the same content: the gated-out block's
+    // text MUST stay visible in residual, not be stripped by the blanket block-removal.
+    let n = 0;
+    const r = extractHermesToolCalls(
+      `${WRITE} see ${EXAMPLE}`,
+      () => `id-${++n}`,
+      new Set(["write"]),
+    );
+    expect(r.toolCalls).toHaveLength(1);
+    expect(r.toolCalls[0]?.name).toBe("write");
+    expect(r.residualText).toContain("<function=example");
+  });
+
+  it("test_gate_uses_same_trimmed_name_for_match_and_call (EC-1)", () => {
+    // Incidental whitespace around the leaked name: the gate must match the SAME trimmed name that
+    // becomes the recovered call's name.
+    const spaced = "<function= write ><parameter=p>x</parameter></function></tool_call>";
+    const r = extractHermesToolCalls(spaced, () => "id", new Set(["write"]));
+    expect(r.toolCalls).toHaveLength(1);
+    expect(r.toolCalls[0]?.name).toBe("write");
+  });
 });
 
 function leakChunk(text: string) {
