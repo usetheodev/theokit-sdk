@@ -4,6 +4,7 @@ import { IterationBudget } from "../runtime/budget/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validation/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";
+import { firstDoomLoopVerdict } from "./doom-loop-tracker.js";
 import { initLoopContext, type LoopContext } from "./loop-context-init.js";
 import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
@@ -128,6 +129,7 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ...(cost !== undefined ? { cost } : {}),
       ...(ctx.error !== undefined ? { error: ctx.error } : {}),
       ...(ctx.stoppedAtIterationLimit === true ? { stoppedAtIterationLimit: true } : {}),
+      ...(ctx.stoppedByDoomLoop === true ? { stoppedByDoomLoop: true } : {}),
     };
   } finally {
     if (
@@ -352,7 +354,37 @@ export async function continueOrTerminate(
     }
   }
   pushToolConversationSteps(ctx, llmOutput.toolCalls, toolResults);
+  if ((await inspectDoomLoop(inputs, ctx, llmOutput.toolCalls)) === "stop") return "done";
   return handleToolErrorContinuation(inputs, ctx, toolResults);
+}
+
+/**
+ * Doom-loop guard, inspected after each turn's tools dispatch (kept in lockstep with the pure
+ * `firstDoomLoopVerdict` — see agent-loop-doom-loop-wiring.test.ts). A `hard` verdict emits the stop
+ * message as the final assistant text, flags `ctx.stoppedByDoomLoop`, and stops the run (a controlled
+ * `done`). A `soft` verdict injects a one-time guidance nudge (once per streak, by the `==softThreshold`
+ * semantics) and continues. No tracker (`doomLoop: false`) ⇒ never fires. @internal
+ */
+async function inspectDoomLoop(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+  toolCalls: LlmToolCallPart[],
+): Promise<"stop" | "continue"> {
+  if (ctx.doomLoop === undefined) return "continue";
+  const verdict = firstDoomLoopVerdict(ctx.doomLoop, toolCalls);
+  if (verdict.kind === "hard") {
+    ctx.stoppedByDoomLoop = true;
+    await emitAssistantTextStep(
+      inputs,
+      ctx,
+      verdict.message ?? "Stopped: repeated identical tool calls made no progress.",
+    );
+    return "stop";
+  }
+  if (verdict.kind === "soft") {
+    ctx.messages.push({ role: "user", content: [{ type: "text", text: verdict.message ?? "" }] });
+  }
+  return "continue";
 }
 
 /** Re-export safeListTools for backward compatibility. @internal */
