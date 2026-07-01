@@ -47,6 +47,15 @@ describe("signatureOf", () => {
     expect(() => signatureOf({ name: "t", input: circular })).not.toThrow();
     expect(() => signatureOf({ name: "t", input: { s: Symbol("x") } })).not.toThrow();
   });
+
+  it("test_signature_delimiter_is_collision_proof_across_name_input_boundary", () => {
+    // The name/input delimiter is NUL (\u0000), which cannot occur in a tool name — so a name
+    // ending in text and an input beginning with that text never alias. A space delimiter WOULD
+    // collide here ("a b" + "c" vs "a" + "b c" → "a b c" both ways); this pins the stronger choice.
+    expect(signatureOf({ name: "a b", input: "c" })).not.toBe(
+      signatureOf({ name: "a", input: "b c" }),
+    );
+  });
 });
 
 describe("DoomLoopTracker", () => {
