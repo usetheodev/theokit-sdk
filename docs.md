@@ -777,9 +777,12 @@ interface DefineToolSpec<T extends ZodType> {
   description: string;
   inputSchema: T;
   handler: (input: z.infer<T>) => string | Promise<string>;
+  sanitize?: boolean | SanitizeOptions;
 }
 
 Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
+
+`sanitize` (optional) cleans the raw model-emitted args BEFORE `inputSchema.parse`, using the primitive from `@theokit/sdk/sanitize` (see below). `sanitize: true` trims whitespace from string values (so a leaked `"\npackage.json\n"` path validates as `"package.json"`); `sanitize: { coerce: true }` additionally coerces string values toward this tool's own schema (a `z.number()` field accepts `"5"`). Absent ⇒ args reach validation untouched. Sanitize is hygiene, not a validity bypass — a genuinely invalid arg still becomes `tool_result(isError)`.
 
 import { z } from "zod";
 import { defineTool } from "@theokit/sdk";
@@ -1875,6 +1878,34 @@ import { withRetry } from "@theokit/sdk/retry";
 
 const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
 ```
+
+#### Tool input sanitization — `@theokit/sdk/sanitize`
+
+Public, isolated primitive for cleaning the raw arguments a model emits for a tool call, so custom-tool authors don't hand-roll defensive parsing. Pure, synchronous, and **total** — it never throws (a non-object input is returned unchanged) and never changes a value's meaning, only its hygiene/representation.
+
+```ts
+function sanitizeToolInput(input: Record<string, unknown>, options?: SanitizeOptions): SanitizeResult;
+interface SanitizeOptions {
+  trim?: boolean;       // default true
+  coerce?: boolean;     // default false — "5"→5, "true"→true, "null"→null, JSON strings→arrays/objects
+  repairJson?: boolean; // default false — repair-then-parse malformed JSON-looking strings (via jsonrepair)
+  schema?: ZodType;     // when a z.object, coercion is schema-aware (a z.string() field keeps "5")
+  deep?: boolean;       // default false — recurse into nested objects (bounded by maxDepth, default 8)
+  maxDepth?: number;
+}
+interface SanitizeResult<T = Record<string, unknown>> { value: T; changed: boolean; notes: string[]; }
+```
+
+Coercion is guarded against silent corruption: numeric coercion round-trips and stays finite, so ID-like strings (`"12345678901234567890"`, `"007"`) and `NaN`/`Infinity` are left as strings; JSON repair only runs on `{`/`[`-looking values. `notes` records a line per change for logging.
+
+```ts
+import { sanitizeToolInput } from "@theokit/sdk/sanitize";
+
+const { value } = sanitizeToolInput({ path: "\nsrc/index.ts\n", n: "5" }, { coerce: true });
+// value → { path: "src/index.ts", n: 5 }
+```
+
+Most consumers use it declaratively via `defineTool({ sanitize })` (above) rather than calling it directly. The SDK's own leaked-dialect recovery reuses this same primitive, so the public surface and the internal path never diverge.
 
 #### Message readers — `@theokit/sdk/messages`
 
