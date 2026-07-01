@@ -10,6 +10,7 @@
 import { describe, expect, it } from "vitest";
 import {
   extractHermesToolCalls,
+  firstPossibleMarkerStart,
   streamToolCallBufferState,
 } from "../../../src/internal/llm/hermes-tool-extract.js";
 import { __testing__OpenAIStreamAccumulator } from "../../../src/internal/llm/openai.js";
@@ -386,5 +387,105 @@ describe("OpenAIStreamAccumulator — R7 stream suppression (T2.1)", () => {
     const finish = acc.finish();
     expect(finish.toolCalls).toHaveLength(1);
     expect(finish.stopReason).toBe("tool_use");
+  });
+});
+
+describe("streamToolCallBufferState + firstPossibleMarkerStart (R7 review-fixes)", () => {
+  const READ = new Set(["read"]);
+  it("test_state_possible_for_bare_marker_no_name", () => {
+    expect(streamToolCallBufferState("<function=", READ)).toBe("possible");
+  });
+  it("test_state_impossible_for_empty_name_closed", () => {
+    expect(streamToolCallBufferState("<function=>", READ)).toBe("impossible");
+  });
+  it("test_state_impossible_for_complete_name_prefix_of_allowed", () => {
+    // Complete name uses EXACT match: `read` is a prefix of `read_file` but not equal → not a tool.
+    expect(streamToolCallBufferState("<function=read>", new Set(["read_file"]))).toBe("impossible");
+  });
+  it("test_first_possible_marker_start_splits_prose_prefix", () => {
+    expect(firstPossibleMarkerStart("hello <function=read", READ)).toBe(6);
+  });
+  it("test_first_possible_marker_start_none_for_pure_prose", () => {
+    expect(firstPossibleMarkerStart("hello <div> world", READ)).toBe(-1);
+  });
+});
+
+describe("OpenAIStreamAccumulator — R7 review-fixes", () => {
+  const collectEvents = (
+    acc: InstanceType<typeof __testing__OpenAIStreamAccumulator>,
+    chunks: unknown[],
+  ) => {
+    const events: { type: string; text?: string }[] = [];
+    for (const c of chunks) events.push(...(acc.consume(c as never) as never[]));
+    return events;
+  };
+  const textOf = (events: { type: string; text?: string }[]) =>
+    events
+      .filter((e) => e.type === "text_delta")
+      .map((e) => e.text ?? "")
+      .join("");
+
+  it("test_accumulator_prose_then_marker_in_one_delta_flushes_prefix_only", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [leakChunk(`hello ${LEAK}`), stopChunk()]);
+    expect(textOf(events)).not.toContain("<function=");
+    expect(textOf(events)).toContain("hello");
+    expect(acc.finish().toolCalls).toHaveLength(1);
+  });
+
+  it("test_accumulator_never_closing_marker_fails_open_to_text", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [
+      leakChunk("<function=shell_exec><parameter=command>echo"),
+      stopChunk(),
+    ]);
+    expect(textOf(events)).toContain("<function=shell_exec");
+    expect(acc.finish().toolCalls).toHaveLength(0);
+  });
+
+  it("test_accumulator_drains_held_when_no_finish_reason_chunk", () => {
+    // A stream that ends WITHOUT a finish_reason terminal must not silently drop held text — the
+    // post-loop finalizeHeldText() drains it. Here we call it directly (stream() calls it post-loop).
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [leakChunk(`${LEAK} tail`)]); // no stopChunk
+    const drain = acc.finalizeHeldText();
+    const drainText = drain?.type === "text_delta" ? drain.text : "";
+    const streamed = textOf(events) + drainText;
+    expect(streamed).toContain("tail");
+    expect(streamed).not.toContain("<function=");
+    expect(acc.finish().toolCalls).toHaveLength(1);
+  });
+
+  it("test_accumulator_native_wins_streamed_text_equals_finish_text", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [
+      {
+        choices: [
+          {
+            index: 0,
+            delta: {
+              tool_calls: [
+                { index: 0, id: "call_native", function: { name: "real", arguments: "{}" } },
+              ],
+            },
+          },
+        ],
+      },
+      leakChunk(LEAK),
+      { choices: [{ index: 0, finish_reason: "tool_calls" }] },
+    ]);
+    const finish = acc.finish();
+    // Native call wins → finish() does NOT recover/strip the leaked block; streamed text must match.
+    expect(textOf(events)).toBe(finish.text);
+    expect(finish.toolCalls).toHaveLength(1);
+    expect(finish.toolCalls[0]?.name).toBe("real");
+  });
+
+  it("test_accumulator_held_then_recovered_emits_zero_text_delta", () => {
+    const acc = new __testing__OpenAIStreamAccumulator(true, "openai", new Set(["shell_exec"]));
+    const events = collectEvents(acc, [leakChunk(LEAK), stopChunk()]);
+    expect(events.filter((e) => e.type === "text_delta")).toHaveLength(0);
+    expect(textOf(events)).toBe("");
+    expect(acc.finish().toolCalls).toHaveLength(1);
   });
 });
