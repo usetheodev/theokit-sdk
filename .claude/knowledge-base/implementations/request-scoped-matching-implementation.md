@@ -31,6 +31,18 @@ Verdict: **IMPLEMENTATION_COMPLETE** · 2026-07-01 · branch `develop`
 - EC-2 empty-tools leak stays visible → `test_flag_on_empty_request_tools_recovers_nothing` asserts `finish.text` contains `<function=`.
 - EC-3 case-sensitive (DOCUMENT) → CHANGELOG notes exact/case-sensitive.
 
+## Review round (4-agent) — fixes applied
+
+See `.claude/knowledge-base/reviews/request-scoped-matching-review-2026-07-01.md`. Landed after IMPLEMENT, before READY_TO_MERGE:
+
+- **MEDIUM (test):** exact-match untested (substring/superstring) → `test_gate_is_exact_not_substring_or_superstring`.
+- **MEDIUM (test):** case-sensitivity untested → `test_gate_case_mismatch_leaked_name_is_not_recovered`.
+- **MEDIUM (wiring):** drop-path observability — `HermesExtractResult.droppedNames` + stderr log in `openai.ts` finish() naming the dropped tools; `test_gate_reports_dropped_names_for_observability`.
+- **LOW (arch):** docs.md:2967 now documents the request-scoped behavior of `extractToolCallsFromContent`.
+- **LOW (test):** EC-5 test also asserts the promoted block is stripped; empty-tools golden asserts `stopReason`.
+
+Correctness + architecture + wiring agents returned READY (EC-5 proven by trace + single-closure invariant); test-quality NEEDS_FIXES (the 2 boundary tests) — all addressed. R5 test count after review: **14 new tests** (12 hermes-file: 7 pure gate + 2 accumulator wiring + 3 review-round; 2 golden negative). Full suite green.
+
 ## Gate evidence
 
 - `tests/internal/llm/hermes-tool-extract.test.ts` (9 new: 7 pure gate + 2 accumulator wiring) + `tests/golden/llm/openai-leaked-dialect-safe-parse.golden.test.ts` (2 new negative) = 11 new tests, green.

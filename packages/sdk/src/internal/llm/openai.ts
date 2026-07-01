@@ -322,6 +322,14 @@ class OpenAIStreamAccumulator {
             `(provider="${this.providerName}", names=${recovered.toolCalls.map((c) => c.name).join(",")})\n`,
         );
       }
+      // R5 observability: a leaked block DROPPED by the request-scoped allowlist is the guard firing —
+      // surface it too, so a model emitting `<function=NAME>` for an undeclared tool is diagnosable.
+      if (recovered.droppedNames.length > 0) {
+        process.stderr.write(
+          `[theokit-sdk] dropped ${recovered.droppedNames.length} leaked block(s) whose name is not a ` +
+            `tool in the request (provider="${this.providerName}", names=${recovered.droppedNames.join(",")})\n`,
+        );
+      }
     }
     return makeLlmFinish({
       stopReason,
