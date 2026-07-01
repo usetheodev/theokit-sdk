@@ -31,6 +31,7 @@
  *
  * @internal
  */
+import { sanitizeToolInput } from "../../sanitize/sanitize-tool-input.js";
 import type { LlmToolCallPart } from "./types.js";
 
 /** A full leaked block: `<function=NAME> …inner… </tool_call>`. The closing `</tool_call>` is
@@ -68,20 +69,20 @@ export function extractHermesToolCalls(content: string, makeId: () => string): H
   return { toolCalls, residualText };
 }
 
-/** Parse the `<parameter=KEY>VALUE</parameter>` pairs inside a block's inner text into an input map. */
+/** Parse the `<parameter=KEY>VALUE</parameter>` pairs inside a block's inner text into an input map.
+ *
+ * Value hygiene is DELEGATED to the public `sanitizeToolInput` primitive (`@theokit/sdk/sanitize`,
+ * trim-only) so the internal recovery and the public sanitizer share ONE source of truth (DRY) — the
+ * P0 bug (`\n`-wrapped paths → `not_found` → stalled multi-read loops) was born from an ad-hoc,
+ * un-shared trim. Keys are trimmed here (the regex already excludes whitespace from the key capture);
+ * values stay strings (the doc-comment invariant), trimmed by the shared primitive. */
 function parseHermesParams(inner: string): Record<string, unknown> {
   const input: Record<string, unknown> = {};
   for (const param of inner.matchAll(HERMES_PARAM)) {
     const key = param[1];
     const value = param[2];
     if (key === undefined || value === undefined) continue;
-    // Trim BOTH key and value. Leaked-dialect emitters (qwen3-coder) put the value on its own line,
-    // so the captured VALUE carries the formatting newlines (`<parameter=path>\npackage.json\n</…>`).
-    // Untrimmed, a path/pattern gets `"\npackage.json\n"` and read_file / glob_files / search_text
-    // fail `not_found` (only shell_exec tolerates it), stalling a multi-read investigation loop.
-    // Trim removes only leading/trailing whitespace — internal newlines of a legitimate multi-line
-    // value survive. Mirrors agentfw `parseInvokeParameters` (`(m[2] ?? '').trim()`, xml-tool-calls.ts:179).
-    input[key.trim()] = value.trim();
+    input[key.trim()] = value;
   }
-  return input;
+  return sanitizeToolInput(input, { trim: true }).value;
 }

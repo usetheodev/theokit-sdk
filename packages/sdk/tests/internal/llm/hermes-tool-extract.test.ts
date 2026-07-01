@@ -52,6 +52,15 @@ describe("extractHermesToolCalls (pure helper)", () => {
     expect(r.toolCalls[0]?.input).toEqual({ command: "line1\nline2" });
   });
 
+  it("test_parseHermesParams_still_trims_key (EC-7)", () => {
+    // T3.1 DRY: value-trim delegates to sanitizeToolInput; the KEY stays clean (whitespace around
+    // the key never reaches the input map). Guards against the delegation dropping key hygiene.
+    const block =
+      "<function=read_file><parameter= path >\npackage.json\n</parameter></function></tool_call>";
+    const r = extractHermesToolCalls(block, () => "id");
+    expect(r.toolCalls[0]?.input).toEqual({ path: "package.json" });
+  });
+
   it("test_extracts_multiple_blocks", () => {
     let n = 0;
     const r = extractHermesToolCalls(`${LEAK}${LEAK}`, () => `id-${++n}`);
