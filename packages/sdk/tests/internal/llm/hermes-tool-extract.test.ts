@@ -8,7 +8,10 @@
  * native tool_calls = no double-count).
  */
 import { describe, expect, it } from "vitest";
-import { extractHermesToolCalls } from "../../../src/internal/llm/hermes-tool-extract.js";
+import {
+  extractHermesToolCalls,
+  streamToolCallBufferState,
+} from "../../../src/internal/llm/hermes-tool-extract.js";
 import { __testing__OpenAIStreamAccumulator } from "../../../src/internal/llm/openai.js";
 
 const LEAK = "<function=shell_exec><parameter=command>echo hi</parameter></function></tool_call>";
@@ -275,5 +278,38 @@ describe("OpenAIStreamAccumulator — leaked-dialect safe-parse integration", ()
     expect(finish.toolCalls).toHaveLength(0);
     expect(finish.stopReason).toBe("end_turn");
     expect(finish.text).toContain("<function=");
+  });
+});
+
+describe("streamToolCallBufferState (R7 suppression FSM)", () => {
+  const READ = new Set(["read"]);
+  it("test_state_impossible_for_normal_prose", () => {
+    expect(streamToolCallBufferState("hello", READ)).toBe("impossible");
+  });
+  it("test_state_possible_for_partial_marker", () => {
+    expect(streamToolCallBufferState("<fun", READ)).toBe("possible");
+  });
+  it("test_state_possible_for_partial_allowed_name", () => {
+    expect(streamToolCallBufferState("<function=rea", new Set(["read_file"]))).toBe("possible");
+  });
+  it("test_state_impossible_for_unallowed_name", () => {
+    expect(streamToolCallBufferState("<function=xyz", READ)).toBe("impossible");
+  });
+  it("test_state_possible_for_complete_allowed_open", () => {
+    expect(streamToolCallBufferState("<function=read>", READ)).toBe("possible");
+  });
+  it("test_state_impossible_for_complete_unallowed", () => {
+    expect(streamToolCallBufferState("<function=read>", new Set(["write"]))).toBe("impossible");
+  });
+  it("test_state_impossible_empty_allowlist", () => {
+    expect(streamToolCallBufferState("<function=read>", new Set())).toBe("impossible");
+  });
+  it("test_state_impossible_over_cap", () => {
+    const big = `<function=read>${"x".repeat(9000)}`;
+    expect(streamToolCallBufferState(big, READ, 8192)).toBe("impossible");
+  });
+  it("test_state_impossible_for_wrong_case_marker (EC-1)", () => {
+    // Case-sensitive: HERMES_BLOCK regex has no /i flag, so a <Function=read> is NOT recoverable.
+    expect(streamToolCallBufferState("<Function=read>", READ)).toBe("impossible");
   });
 });

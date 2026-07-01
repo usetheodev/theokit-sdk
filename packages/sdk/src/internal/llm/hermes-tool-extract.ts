@@ -119,3 +119,63 @@ function parseHermesParams(inner: string): Record<string, unknown> {
   }
   return sanitizeToolInput(input, { trim: true }).value;
 }
+
+const STREAM_MARKER = "<function=";
+const DEFAULT_STREAM_BUFFER_CAP = 8192;
+
+const isStreamWs = (c: string | undefined): boolean =>
+  c === " " || c === "\t" || c === "\n" || c === "\r";
+
+/**
+ * R7 stream-boundary suppression FSM. Classifies a suspicion buffer (accumulated streamed content)
+ * as `"possible"` — it could still become a `<function=NAME>` tool call for a request tool, so the
+ * caller HOLDS it (emits no text_delta) — or `"impossible"` — confirmed NOT a tool call, so the
+ * caller FLUSHES it as visible text. The marker match is CASE-SENSITIVE, identical to `HERMES_BLOCK`
+ * (no `/i`), so the FSM never holds a block `extractHermesToolCalls` would not recover (EC-1). An
+ * empty allowlist promotes nothing (`"impossible"`); over `cap` while still tool-call-like fails open
+ * to `"impossible"` (flush) so a never-closing marker cannot grow unbounded. Pure — never throws.
+ * @internal
+ */
+export function streamToolCallBufferState(
+  held: string,
+  allowedToolNames: ReadonlySet<string>,
+  cap: number = DEFAULT_STREAM_BUFFER_CAP,
+): "possible" | "impossible" {
+  if (allowedToolNames.size === 0) return "impossible";
+  const t = held.trimStart();
+  if (t.length < STREAM_MARKER.length) {
+    // Still building the marker itself (e.g. "<fun").
+    return STREAM_MARKER.startsWith(t) ? "possible" : "impossible";
+  }
+  if (!t.startsWith(STREAM_MARKER)) return "impossible";
+  const parsed = parseStreamMarkerName(t);
+  if (parsed === "building") return "possible";
+  if (parsed === "invalid") return "impossible";
+  const nameOk = parsed.complete
+    ? allowedToolNames.has(parsed.name)
+    : someToolNameStartsWith(allowedToolNames, parsed.name);
+  if (!nameOk) return "impossible";
+  return held.length > cap ? "impossible" : "possible";
+}
+
+/** Read the (partial) tool name after a confirmed `<function=` marker (skipping the regex `\s*`).
+ *  `"building"` = only the marker(+ws) so far; `"invalid"` = a `>`/other char with no name. */
+function parseStreamMarkerName(
+  t: string,
+): { name: string; complete: boolean } | "building" | "invalid" {
+  let cursor = STREAM_MARKER.length;
+  while (cursor < t.length && isStreamWs(t[cursor])) cursor += 1;
+  const nameStart = cursor;
+  while (cursor < t.length && t[cursor] !== ">" && !isStreamWs(t[cursor])) cursor += 1;
+  const name = t.slice(nameStart, cursor);
+  if (name.length === 0) return cursor >= t.length ? "building" : "invalid";
+  return { name, complete: cursor < t.length && t[cursor] === ">" };
+}
+
+/** True when any allowed tool name starts with `prefix` — the streaming partial-name probe (R7 D2). */
+function someToolNameStartsWith(allowedToolNames: ReadonlySet<string>, prefix: string): boolean {
+  for (const name of allowedToolNames) {
+    if (name.startsWith(prefix)) return true;
+  }
+  return false;
+}
