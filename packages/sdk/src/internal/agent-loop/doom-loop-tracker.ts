@@ -1,10 +1,15 @@
 /**
  * Doom-loop guard — detects consecutive IDENTICAL tool calls (same name + same canonical input)
- * and escalates `ok` → `soft` (one-time nudge) → `hard` (stop). Pure, dependency-free, TOTAL (never
- * throws). Ported in shape from a peer `LoopDetectionTracker`. Complements the empty-round
- * `no_progress` terminal (a DIFFERENT failure mode: model stuck repeating vs model gone silent).
+ * and escalates `ok` → `soft` (one-time nudge) → `hard` (stop). Inspection is TOTAL — `signatureOf`
+ * and `inspect` never throw on any tool-call input. The constructor validates thresholds and throws
+ * a typed `ConfigurationError` on invalid config (fail-fast at the boundary — a 0/negative/non-integer
+ * threshold is a caller bug, not a loop input). Ported in shape from a peer `LoopDetectionTracker`.
+ * Complements the empty-round `no_progress` terminal (a DIFFERENT failure mode: model stuck repeating
+ * vs model gone silent).
  * @internal
  */
+
+import { ConfigurationError } from "../../errors.js";
 
 /** Verdict from {@link DoomLoopTracker.inspect}. `soft` carries a guidance message, `hard` a stop message. */
 export interface DoomLoopVerdict {
@@ -28,6 +33,24 @@ export function createDoomLoopTracker(option?: DoomLoopOption): DoomLoopTracker 
 }
 
 const DEFAULT_CONFIG: DoomLoopConfig = { softThreshold: 3, hardThreshold: 5 };
+
+/** Fail-fast on caller misconfig: both thresholds must be positive integers. A `0` / negative /
+ *  non-integer would silently misbehave (stop on turn 1, or never fire). `soft >= hard` is NOT
+ *  rejected — it is a valid "stop hard with no earlier nudge" config (hard is checked first, so it
+ *  just wins and the nudge is suppressed), which also keeps `{ hardThreshold: N }` ergonomic. @internal */
+function assertValidThresholds(soft: number, hard: number): void {
+  for (const [label, value] of [
+    ["softThreshold", soft],
+    ["hardThreshold", hard],
+  ] as const) {
+    if (!Number.isInteger(value) || value < 1) {
+      throw new ConfigurationError(
+        `doomLoop.${label} must be a positive integer (received ${value}).`,
+        { code: "invalid_doom_loop_threshold" },
+      );
+    }
+  }
+}
 
 /** Recursively key-sort an object so `{a,b}` and `{b,a}` canonicalize identically. */
 function sortKeys(value: unknown): unknown {
@@ -67,10 +90,10 @@ export class DoomLoopTracker {
   #count = 0;
 
   constructor(config?: Partial<DoomLoopConfig>) {
-    this.#config = {
-      softThreshold: config?.softThreshold ?? DEFAULT_CONFIG.softThreshold,
-      hardThreshold: config?.hardThreshold ?? DEFAULT_CONFIG.hardThreshold,
-    };
+    const softThreshold = config?.softThreshold ?? DEFAULT_CONFIG.softThreshold;
+    const hardThreshold = config?.hardThreshold ?? DEFAULT_CONFIG.hardThreshold;
+    assertValidThresholds(softThreshold, hardThreshold);
+    this.#config = { softThreshold, hardThreshold };
   }
 
   inspect(call: { name: string; input: unknown }): DoomLoopVerdict {

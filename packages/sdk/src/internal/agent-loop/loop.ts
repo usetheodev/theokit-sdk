@@ -97,6 +97,10 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ctx.finalStatus = "error";
     }
     sendSpan?.setAttribute("status", ctx.finalStatus);
+    // Observability: a doom-loop stop reports finalStatus "finished" (a controlled stop), so
+    // without this attribute it is indistinguishable from a clean finish in traces. Ops watching
+    // OTel spans need to see the guard fire.
+    if (ctx.stoppedByDoomLoop === true) sendSpan?.setAttribute("stoppedByDoomLoop", true);
     if (inputs.telemetry?.includeContent === true && ctx.finalText.length > 0) {
       sendSpan?.addEvent("response", { content: ctx.finalText });
     }
