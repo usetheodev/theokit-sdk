@@ -37,6 +37,14 @@ export interface ProviderRouterOptions {
   apiKeys?: Record<string, string[]>;
   /** Pool rotation strategy per provider. Optional; default `"fill_first"`. */
   credentialPoolStrategy?: Record<string, CredentialPoolStrategy>;
+  /**
+   * Per-run opt-in leaked-dialect safe-parse derived from the chat route
+   * (theokit#58 follow-up). When `true`, the resolved profile is cloned with
+   * `extractToolCallsFromContent: true` so the OpenAI-compatible transport
+   * recovers Hermes `<function=…></tool_call>` dialect leaked as text. Applied
+   * to the resolved chain; fail-open, so a non-leaking provider is unaffected.
+   */
+  extractToolCallsFromContent?: boolean;
 }
 
 export async function resolveProviderChainAsync(
@@ -86,8 +94,17 @@ function buildChain(options: ProviderRouterOptions): LlmClient[] {
 }
 
 function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmClient | undefined {
-  const profile = getProviderProfile(name);
-  if (profile === undefined) return undefined;
+  const baseProfile = getProviderProfile(name);
+  if (baseProfile === undefined) return undefined;
+  // theokit#58 follow-up: per-run route opt-in clones the resolved profile with
+  // the leaked-dialect recovery flag so the OpenAI-compatible transport surfaces
+  // Hermes `<function=…></tool_call>` calls leaked as text. Built-in profiles
+  // ship the flag off; this is the per-run enablement path.
+  const profile =
+    routerOptions.extractToolCallsFromContent === true &&
+    baseProfile.extractToolCallsFromContent !== true
+      ? { ...baseProfile, extractToolCallsFromContent: true }
+      : baseProfile;
   const ambient = currentCredentialPool(name);
   if (ambient !== undefined) {
     return new PoolAwareLlmClient(ambient, (apiKey) => selectTransport(profile, apiKey));
