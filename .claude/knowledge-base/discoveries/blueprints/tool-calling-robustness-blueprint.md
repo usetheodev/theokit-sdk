@@ -1,154 +1,155 @@
-# Blueprint — Robust multi-model tool-calling for `@theokit/sdk`
+# Blueprint: A professional, isolated Tool-Input **Sanitization** system for `@theokit/sdk` custom tools
 
-Discovery synthesis (2026-07-01) from a 6-way deep read of SOTA multi-model agents:
-Cline, Vercel AI SDK, opencode, openguardrails-agentfw (MIT), OpenAI Agents SDK (Python),
-OpenClaw. Triggered by a production hang (qwen3-coder investigation task) whose root cause is a
-**symptom of a broader architectural gap** in our leaked-dialect handling.
+> **Discovery verdict:** SHIPPABLE (98.0, 2026-07-01 — 14/14 citations verified, 0 caps) · **Slug:** `tool-calling-robustness` · **Date:** 2026-07-01
+>
+> Synthesizes how five SOTA multi-model agents sanitize/normalize/repair tool-call inputs, to design a **public, isolated, reusable sanitization primitive** that our SDK users apply inside their own `defineTool` custom tools — and that the SDK's OWN leaked-dialect recovery consumes internally (DRY). Supersedes the informal 2026-07-01 synthesis at this path with a gated, citation-backed blueprint.
 
-> Rule reminder: references are STUDY material. We **adapt patterns and cite**, we do **not** copy
-> code (SDK CLAUDE.md). We respect the SDK's deliberate "values are strings; Zod coerces downstream"
-> decision. YAGNI: we do not add parsers for dialects no model we route ever emits.
+## Context
 
----
+The P0 fix `@theokit/sdk@2.13.1` trimmed leaked-dialect parameter values (`packages/sdk/src/internal/llm/hermes-tool-extract.ts` `parseHermesParams` was not trimming the VALUE → qwen3-coder paths carried `\n` → `read_file`/`glob_files`/`search_text` failed `not_found` → multi-read loops never converged). That fix revealed a broader product opportunity: **the same class of input hygiene (trim, schema-aware coercion, JSON-repair, validation-with-clear-errors) is valuable to every user writing a custom tool**, not just to the SDK's internal recovery path. Today a consumer's `defineTool` receives raw model-emitted args and must hand-roll their own defensive parsing. This discovery studies the prior art to design a **first-class, isolated Sanitization surface** exposed to custom tools. Project rules constraining the design: `rules/architecture.md` (DIP — the sanitizer is a pure domain primitive with no LLM/transport coupling), `rules/testing.md` (every sanitizer rule unit-testable in isolation), `rules/parsimony-ladder.md` (don't reinvent JSON-repair — reuse a mature lib).
 
-## 0. The confirmed root cause (the symptom)
+## Objective
 
-`hermes-tool-extract.ts` `parseHermesParams:78` does `input[key.trim()] = value` — it trims the KEY
-but **not the VALUE**. qwen3-coder (default theocode model) leaks the Hermes dialect
-`<function=read_file><parameter=path>\npackage.json\n</parameter></function></tool_call>`; the value
-carries the XML formatting newlines. `read_file`/`glob_files`/`search_text` then get
-`path:"\npackage.json\n"` → `not_found`; `shell_exec` tolerates it (bash ignores blank lines). In an
-investigation (many reads) the model loops on `not_found` and never converges → UI "hang". Determinism
-proven via a `runCodeAgent` trace; cross-model control (Sonnet, native tool_calls) works. `theocode#35`
-(card shows `$\ncmd`) was a **workaround of the same symptom at the render layer**.
+Decide the **public API shape, isolation boundary, and default behavior** of a Tool-Input Sanitization system that (a) SDK users invoke inside their custom tools, and (b) the SDK's internal leaked-dialect recovery reuses — grounded in how openclaw, agentfw, opencode, cline, and vercel-ai-sdk solve tool-input hygiene.
 
-## 1. The tool-calling lifecycle (10 stages) — the frame
+- [x] All research questions answered with citations to `.claude/knowledge-base/references/`
+- [x] Cross-cutting comparison table populated for every in-scope reference project
+- [x] Recommendations section provides ≥1 concrete decision proposal per research question
+- [x] `/discover-confidence` verdict = SHIPPABLE (98.0)
 
-INPUT PARSE → NORMALIZE → STREAM-RECONSTRUCT → MULTI/PARALLEL → ASYNC DISPATCH → RESULT/OUTPUT →
-ERROR-FEEDBACK/SELF-CORRECT → MALFORMED-RECOVERY → RICH RENDER → CROSS-MODEL ABSTRACTION.
+## Coverage Corner 1 — Integration Tests
 
-## 2. Two camps for INPUT (the key architectural choice)
+How the references unit-test their tool-input parsing/sanitization — the RED-set template for OUR sanitizer's TDD.
 
-- **Native-only + repair** — Vercel AI SDK, OpenAI Agents, opencode. Trust native `tool_calls`; on bad
-  args, a `repairToolCall` hook (Vercel) or error-to-model self-correction. opencode's own verdict:
-  *"absence of text-leakage detection is the single largest production reliability gap."*
-- **Stream-level dialect NORMALIZATION** — OpenClaw, Cline, agentfw. Convert leaked text dialects into
-  synthetic native `tool_call` events AT THE STREAM BOUNDARY; downstream is dialect-blind. **This is the
-  SOTA for multi-model robustness and the camp we half-live-in (badly).**
+### agentfw — dialect parser + coercion test inventory (Q4)
 
-**Closest reference to OUR exact `<function=><parameter=>` dialect: OpenClaw
-`packages/tool-call-repair/`** — a dedicated package that handles 5 dialects (bracket `[tool]{json}`,
-XML-ish `<function=><parameter=>`, Harmony `<|channel|>...<|call|>`, `[END_TOOL_REQUEST]`, XML param
-bodies), with trim + schema-aware coercion + 3-tier JSON repair + stream-level normalizer +
-request-scoped tool-name matching + synthetic IDs. `stream-normalizer.ts` is the reference impl.
+`.claude/knowledge-base/references/agentfw/packages/agentfw/src/daemon/translate/xml-tool-calls.test.ts` is a dense behavior suite that maps almost 1:1 to the cases a sanitizer must cover:
 
-## 3. Techniques worth adopting (per stage) — with citations
+| Case | Line | What it proves for OUR sanitizer |
+|---|---|---|
+| returns null when no markup | `:9` | no-op on clean input (never fabricate) |
+| single bare block, object args | `:14` | happy path |
+| JSON-encoded-string args parsed | `:40` | double-serialized args must be unwrapped (cline `normalizeJsonLikeStringsForSchema` analog) |
+| empty-nested-wrapper without leaking XML | `:48` | malformed input never leaks raw markup downstream |
+| drops malformed inner blocks, keeps valid | `:60` | partial-failure resilience |
+| coerces booleans / null / numbers + inline JSON | `:90` | the core coercion contract (string→typed) |
+| malformed duplicated-opening real-user payload | `:112` | real-world tolerant recovery |
+| unclosed `<tool_call name>/<parameter>` fallback | `:158` | tolerant fallback path |
+| single unterminated tag | `:181` | fail-open, no fabricated call |
+| zero `tool_use` when no `<parameter>` | `:190` | honest empty result |
 
-**PARSE (multi-dialect, robust):**
-- Multi-dialect cascade + `ANY_TAG_RE` fast pre-gate + **tolerant fallback** for malformed/unterminated/
-  misspelled tags ("last named open wins") — agentfw `xml-tool-calls.ts:47,59-73,231-271`.
-- Dialects our models actually emit: `<function=NAME><parameter=KEY>` (qwen3-coder), `<tool_call>{JSON}`
-  (Hermes/Qwen JSON), Harmony `<|channel|>...<|call|>` (gpt-oss family). OpenClaw covers all
-  (`tool-call-repair/src/grammar.ts`, `payload.ts`).
-- **Request-scoped tool-name matching** — only recover a leaked call whose name is in the CURRENT tool
-  set — OpenClaw `provider-stream-shared.ts:125`. This is the correct fix for our documented "a code
-  assistant printing a literal `<function=` in a fenced block" concern (currently handled only by
-  default-off, which is blunt).
+Take-away: the sanitizer's test suite must cover **edge cases (extremes of valid: multi-block, JSON-string args, coercion) AND negative cases (malformed/unterminated → typed empty, never a crash or leak)** — exactly the two lenses in `rules/testing.md § 4.1`.
 
-**NORMALIZE:**
-- **TRIM values** — agentfw `coerceParameter` via `(m[2]??'').trim()` (`:179`); OpenClaw
-  `coerceWithJsonSchema`; Cline `normalizeJsonLikeStringsForSchema`. ← the P0 fix.
-- **Schema-aware coercion** (string→num/bool, JSON-string→array/object, bounded 64KB) — OpenClaw
-  `validation.ts:347-365`; agentfw `coerceParameter:191-208`. NOTE: overlaps our "Zod coerces" decision;
-  keep coercion OUT of the extractor, let it stay strings + trim, and let Zod coerce (aligns with Vercel).
-- **3-tier JSON repair** (repairJson → JSON.parse → partial-json → `{}`) for the JSON-carrying dialects —
-  OpenClaw `parseStreamingJson`; Cline `jsonrepair` + `repairBareObjectValue`.
-- **Synthetic stable IDs** for leaked calls (`agentfw_xml_0` / `call_${uuid}`) — agentfw
-  `from-openai-chat.ts:100`; OpenClaw `provider-stream-shared.ts:62`.
+### opencode — streaming accumulator test shape (Q5)
 
-**STREAM-RECONSTRUCT:**
-- Stream-level normalizer: buffer `text_*` while "possible", release as text on "impossible", promote to
-  `toolcall_*` on confirmed-complete, with an over-cap buffer (256KB + 64KB tail window) — OpenClaw
-  `stream-normalizer.ts`. Cline's `PendingToolAssembly` + interleaved `sequence` array
-  (`agent-runtime.ts:843-992`) is the native-tool-calls equivalent.
-- Eager finalize: parse-check args on every delta, finalize as soon as parseable — Vercel
-  `StreamingToolCallTracker` (`isParsableJson`); opencode `finishWithInput` (final authoritative value
-  overrides accumulated deltas).
+`.claude/knowledge-base/references/opencode/packages/llm/test/tool-stream.test.ts` verifies the streaming reconstruction (relevant to the SDK's internal recovery consumer, not the public sanitizer per se):
 
-**PARALLEL / ASYNC:**
-- Parallel exec w/ controlled concurrency + failure arbitration — OpenAI Agents
-  `_FunctionToolBatchExecutor` (slot-filling, `FIRST_COMPLETED`, priority failure, 0.25s cancel drain).
-  Vercel/Cline/OpenClaw: configurable parallel-vs-sequential (any sequential tool → whole batch serial).
-- Per-tool timeouts via merged abort signals — Vercel `mergeAbortSignals`+`AbortSignal.any`; OpenAI
-  Agents `asyncio.wait_for` with `timeout_behavior: error_as_result | raise`.
-- HITL approval as serializable state, not callback — OpenAI Agents `NextStepInterruption` /
-  `RunState.approve()`; Vercel signed approvals.
+- `describe("ToolStream", ...)` `:9`; asserts `tool-input-delta` fragment accumulation `:24-28`; the finalized shape `:29`,`:57`,`:82`; a missing-tool delta surfaces a typed `LLMError` `:43-44`. Runner: `bun:test` (`:1`).
 
-**RESULT / OUTPUT:**
-- Multi-layer truncation (per-result 8K + aggregate 6MB + image budget, **middle-truncation** with
-  markers) — Cline `message-builder.ts`. Rich result content (text/image/json/structured) via
-  `toModelOutput` — Vercel; opencode/OpenClaw carry images in tool results.
-- **`addMissingToolResults`** — synthesize placeholder error results for orphaned `tool_use` blocks
-  BEFORE dispatch so the provider doesn't 400 — Cline `message-builder.ts:502-600`. High-value.
+Take-away: streaming arg-fragment tests assert **accumulate-then-finalize** with a typed error on malformed identity — our internal stream path (if P3 lands) tests the same way in vitest.
 
-**ERROR FEEDBACK / SELF-CORRECT (universal):**
-- Surface every tool error (parse / validation-with-path / not-found / exec) as the tool_result the model
-  sees next turn → self-correction — ALL. Best signal: OpenClaw validation error with JSON-pointer path +
-  received args (`validation.ts:377-380`). Vercel `invalid:true`+`tool-error` part (dynamic tools only).
-  OpenAI Agents `failure_error_function` (default gives actionable JSON-parse guidance).
-- **`repairToolCall` hook** (schema + error + message history → corrected call, one attempt, fires only on
-  error) — Vercel `parse-tool-call.ts:51-93`, `tool-call-repair-function.ts`. Gold standard for arg repair.
-- **Loop / no-progress detection** — opencode `doom_loop` (same name + `JSON.stringify(input)` over last
-  3 parts → ask permission; `processor.ts:519-545`); Cline `LoopDetectionTracker` (soft 3 / hard 5) +
-  `MistakeTracker` (max 6). **This alone would have caught our hang** even before the root fix.
+## Coverage Corner 2 — Dependencies
 
-**CROSS-MODEL:**
-- Provider capability profiles (native-tool support, thinking format, cache format, "leaks dialect?") —
-  OpenClaw 16+ flags (`llm-core/types.ts:411-454`), Cline capabilities, Vercel `LanguageModelV4`.
-- Per-model quirk registry (Qwen OAuth, Z.ai `tool_stream`, DeepSeek thinking, Gemini `thinkingLevel`) —
-  OpenClaw `provider-stream-shared.ts`.
+Is tool-input sanitization dependency-free, or does it lean on a mature JSON-repair lib? (Q6 — informs `rules/parsimony-ladder.md` don't-reinvent.)
 
-## 4. `@theokit/sdk` gap analysis (baseline)
+- **cline uses the `jsonrepair` npm lib** — declared `"jsonrepair": "^3.13.2"` in `.claude/knowledge-base/references/cline/sdk/packages/shared/package.json:59`, imported at `.claude/knowledge-base/references/cline/sdk/packages/shared/src/parse/json.ts:1` (`import { jsonrepair } from "jsonrepair"`). Cline does NOT hand-roll structural JSON repair.
+- **openclaw's stream-normalizer package is dependency-free** — `.claude/knowledge-base/references/openclaw/packages/tool-call-repair/package.json` declares **no `dependencies` field at all** (name `@openclaw/tool-call-repair`, `private: true`, `exports: { ".": "./src/index.ts" }`). Its grammar/state-machine is pure TS; the *arg-JSON* parsing is delegated to the caller (promotion emits provider-native events, and JSON parsing of the promoted args happens in the provider layer, not in the normalizer).
 
-| Stage | SOTA | Our SDK today | Gap |
-|---|---|---|---|
-| Leaked-dialect parse | multi-dialect cascade + tolerant fallback | ONE dialect (`<function=>`), no fallback | HIGH |
-| Value normalize | trim + coerce + JSON-repair | none (no trim ← the bug) | HIGH |
-| Stream-level normalize | at stream boundary | post-hoc at finish only | HIGH |
-| False-positive guard | request-scoped name match | default-off flag (blunt) | MED |
-| repair hook | Vercel `repairToolCall` | none | MED |
-| loop/no-progress | doom-loop / MistakeTracker | theocode `no_progress` (partial) | MED |
-| error→model self-correct | universal + rich paths | guidance wrappers (theocode) | LOW-MED |
-| parallel exec | controlled + arbitration | (verify) | ? |
-| orphaned tool_result repair | Cline addMissingToolResults | none (verify) | MED |
-| output truncation | multi-layer middle-truncate | (theocode partial) | LOW |
+**Verdict for our design:** the sanitizer's *structure* (trim, coerce, strip, state-machine) is dependency-free pure TS; its *JSON-repair* rung should reuse **`jsonrepair`** (mature, `^3.x`, the same lib cline trusts) rather than hand-rolling — Rung 2/4 of `rules/parsimony-ladder.md`. Zod stays the validation layer (already a peer dep per SDK `CLAUDE.md § Locked toolchain`).
 
-## 5. Proposed solution — phased (behavior-preserving, adapted-not-copied)
+## Coverage Corner 3 — Tools
 
-- **P0 (bug fix, ship now):** trim the value in `parseHermesParams` (`value.trim()`), cite agentfw:179.
-  TDD: `<parameter=path>\npackage.json\n</parameter>` → `{path:"package.json"}`; multi-line command keeps
-  internal `\n`. Then theocode#35's render `.trim()` becomes redundant/defensive.
-- **P1 (robustness of the ONE dialect we have):** tolerant matching (whitespace around `<function=`/
-  `<parameter=`), synthetic-ID already present, add request-scoped tool-name matching to replace the blunt
-  default-off; add JSON-repair only where a dialect carries JSON. Keep values as strings (Zod coerces).
-- **P2 (multi-dialect + loop guard):** add the `<tool_call>{JSON}` and Harmony dialects IF we route a
-  model that emits them (evidence-gated, YAGNI); add loop/no-progress detection (doom-loop fingerprint) in
-  the loop — this is the safety net that turns "silent hang" into "typed stop".
-- **P3 (stream-level normalization):** move recovery from finish-only to the stream boundary (OpenClaw
-  pattern) so UI/loop are dialect-blind — the true architectural fix; bigger change, own cycle.
-- **P4 (repair hook + orphaned-result repair):** optional `repairToolCall`-style hook; `addMissingToolResults`.
+Where does the sanitization/normalization layer LIVE, and how is it exercised? (Q7 — informs OUR isolation boundary.)
 
-## 6. What NOT to do
-- Copy any reference file verbatim (rules). Adapt + cite.
-- Add coercion INSIDE the extractor (conflicts with the "strings + Zod" decision) — trim only; let Zod coerce.
-- Add parsers for dialects no routed model emits (YAGNI). Gate P2 dialects on real evidence.
-- Treat P3/P4 as blockers for P0 — P0 fixes the live production break today.
+- **openclaw ships it as an ISOLATED package** — `@openclaw/tool-call-repair` (`.claude/knowledge-base/references/openclaw/packages/tool-call-repair/package.json`, `exports: { ".": "./src/index.ts" }`), separate from every provider adapter. Downstream is dialect-blind: the provider stream is wrapped via the **`PlainTextToolCallStreamNormalizerOptions` seam** (`.claude/knowledge-base/references/openclaw/packages/tool-call-repair/src/stream-normalizer.ts:26`) — an options object injecting `createPromotedToolCallEvents` (`:29`), `matcher` (`:31`), and `normalizeDoneMessage` (`:33`). Pure DIP: the package defines the contract; the provider satisfies it.
+- **opencode** exercises its tool-stream layer under `bun:test` (`.claude/knowledge-base/references/opencode/packages/llm/test/tool-stream.test.ts:1`; `.claude/knowledge-base/references/opencode/packages/llm/package.json` `scripts.test = "bun test --timeout 30000 --only-failures"`).
 
-## 7. Licenses / provenance
-- agentfw: **MIT** (confirmed) — patterns citeable.
-- OpenClaw / Cline / Vercel AI SDK: verify LICENSE before adopting any pattern text; we adapt behavior +
-  cite, never copy.
+**Verdict for our design:** the sanitizer must be an **isolated module with a narrow public surface** — a dedicated subpath export of `@theokit/sdk` (e.g. `@theokit/sdk/sanitize`, mirroring the existing `@theokit/sdk/subscription` subpath precedent in `CLAUDE.md § Roadmap`), consumed by user custom tools AND by the SDK's internal recovery. Tested in vitest (SDK toolchain), pure — no transport import (DIP boundary in `rules/architecture.md`).
 
-## Cross-refs
-- Root cause + trace: session 2026-07-01. Extractor: `packages/sdk/src/internal/llm/hermes-tool-extract.ts`.
-- Cloned study repos (scratch, remove after): `tool-calling-study/{cline,ai,openclaw}`.
+## Coverage Corner 4 — Techniques
+
+The algorithms to borrow. (Q1 openclaw stream-normalization + request-scoping, Q2 agentfw cascade+trim+coerce+tolerant, Q3 opencode/cline loop-guard.)
+
+### T1 — Stream-boundary normalization state machine + request-scoped matching (openclaw, Q1)
+
+`.claude/knowledge-base/references/openclaw/packages/tool-call-repair/src/stream-normalizer.ts` normalizes leaked dialects **at the stream boundary** via a 3-state machine `PlainTextToolCallBufferState = "possible" | "impossible" | "over-cap"` (`:50`), computed by `getPlainTextToolCallBufferState` (`:339`) which tests three dialect matchers (`:348-350`):
+- `couldStillBeXmlishFunctionToolCall` (`:155`) — **our exact `<function=NAME>` dialect**;
+- `couldStillBeHarmonyStandaloneToolCall` (`:188`) — gpt-oss `<|channel|>…<|call|>`;
+- `couldStillBeBracketedStandaloneToolCall` (`:75`) — `[tool:name]{json}`.
+
+Buffer discipline: `TEXT_TOOL_CALL_BUFFER_MAX_CHARS = 256_000` (`:41`) + a `+64_000` tail window (`:45`) so a huge leaked payload neither grows unbounded nor loses its visible suffix. Completed blocks are stripped via `stripSerializedToolCallPrefixes` (`:316`, bounded 32-iteration loop).
+
+**Request-scoped matching is the load-bearing safety technique**: every matcher gates on `matcher.hasNamePrefix(name)` / `matcher.hasExactName(name)` (`:16`,`:18`, used at `:93`,`:102`,`:173`,`:182`,…) — recovery only fires for a tool name **in the current request's tool set**. This is the correct fix for our documented "a code assistant printing a literal `<function=` in a fenced block" concern (currently handled by a blunt default-off flag in `packages/sdk/src/internal/llm/hermes-tool-extract.ts`). Promotion emits provider-native events via `createPromotedToolCallEvents` (`:29`); `.claude/knowledge-base/references/openclaw/packages/tool-call-repair/src/promote.ts:60` trims every promoted text run (also `:79`, `:141`, `:169`, `:187`; `promoteStandalonePlainTextToolCallMessage:174`). The dialect grammars (`findXmlishToolCallEnd`, `END_TOOL_REQUEST`, Harmony markers) live in `.claude/knowledge-base/references/openclaw/packages/tool-call-repair/src/grammar.ts:2`.
+
+### T2 — Multi-dialect cascade + fast gate + TRIM + `coerceParameter` + tolerant fallback + always-strip (agentfw, Q2)
+
+`.claude/knowledge-base/references/agentfw/packages/agentfw/src/daemon/translate/xml-tool-calls.ts` (**MIT — citable**) is the sanitization gold standard:
+- **Fast pre-gate** `ANY_TAG_RE` (`:47`) screens before any parser runs; `extractInlineToolCallsXml` (`:59`) returns null immediately on miss (`:60`).
+- **Cascade**: Hermes-JSON (`:62`), Anthropic-invoke (`:65`), tolerant fallback (`:68`).
+- **TRIM at every value site**: `(match[1] ?? '').trim()` (`:89`), name `:155`, `(m[2] ?? '').trim()` (`:179`) — the exact reference for our P0 fix — and tolerant value `:249`.
+- **`coerceParameter`** (`:191`): the per-value type cascade `'' → ''`; `'true'/'false' → bool`; `'null' → null`; numeric-regex → Number; `{…}`/`[…]` → `JSON.parse` else raw string. **This is the core public-sanitizer primitive.**
+- **Tolerant fallback** `extractTolerantNamedCalls` (`:231`) — "last named open wins" (`:252`) for malformed/misspelled tags; `NAMED_OPEN_RE` (`:226`) + `STRIP_ALL_XML_RE` (`:228`).
+- **Always-strip invariant**: even on zero recovered calls, `stripTrim` (`:263`) removes residual markup from visible text so the model never re-ingests its own broken XML.
+
+**Scope note (EC-3):** agentfw parses the JSON `<tool_call>{…}` + `<invoke>` grammars, NOT our attribute-inline `<function=NAME><parameter=KEY>` (that grammar is T1/openclaw + our own extractor). The borrowed value is the **technique** (gate→cascade→trim→coerce→tolerant→always-strip), applicable to our grammar.
+
+### T3 — Loop / no-progress safety net (opencode + cline, Q3)
+
+The sanitizer prevents malformed args; a loop-guard prevents the *symptom* (repeated failing calls) from hanging the run — it would have caught our P0 hang even before the root fix.
+- **opencode doom-loop**: `DOOM_LOOP_THRESHOLD = 3` (`.claude/knowledge-base/references/opencode/packages/opencode/src/session/processor.ts:35`); the last 3 parts with same tool name + identical `JSON.stringify(part.state.input) === JSON.stringify(input)` (`:522-531`) → `permission: "doom_loop"` (`:539`), not a silent abort; `continue_loop_on_deny` opt-in (`:966`).
+- **cline**: `toolCallSignature` (key-sorted JSON, `.claude/knowledge-base/references/cline/sdk/packages/core/src/runtime/safety/loop-detection.ts:50`) drives `consecutiveIdenticalCount` (`:23`) with `softWarning`/`hardEscalation` thresholds (`:62-63`); `MistakeTracker.maxConsecutiveMistakes` (`.claude/knowledge-base/references/cline/sdk/packages/core/src/runtime/safety/mistake-tracker.ts:57`) with `forceAtLimit` (`:48`,`:84`) → typed stop (`:54`).
+
+**Take-away:** a fingerprint (name + serialized input) over the last N calls → guidance/permission nudge (not hard abort) is the cross-model convergent design.
+
+## Cross-cutting comparison table
+
+| Dimension | openclaw | agentfw (MIT) | opencode | cline | vercel-ai-sdk | → OUR sanitizer |
+|---|---|---|---|---|---|---|
+| trim values | promote.ts (`:60`…) | `:89`,`:179`,`:249` | n/a | normalize | n/a | **yes, default** |
+| schema-aware coerce | `.claude/knowledge-base/references/openclaw/packages/llm-core/src/validation.ts` `coerceWithJsonSchema` | `coerceParameter:191` | n/a | `normalizeJsonLikeStringsForSchema` | Zod | **opt-in, schema-driven** |
+| JSON-repair | delegated | JSON.parse fallback | n/a | **jsonrepair lib** | isParsableJson | **reuse `jsonrepair`** |
+| tolerant fallback | strip 32-iter `:316` | last-open `:252` | n/a | n/a | repairToolCall hook | **yes (recovery path)** |
+| request-scoped guard | `matcher.*` `:16/18` | n/a | n/a | n/a | tool-set | **yes (recovery path)** |
+| isolation | own pkg | translate module | protocol util | shared/parse | core/generate-text | **`@theokit/sdk/sanitize` subpath** |
+| loop guard | n/a | n/a | doom-loop `:35` | Loop+Mistake trackers | stopWhen | **doom-loop fingerprint** |
+
+## Recommendations
+
+1. **Ship a public `sanitizeToolInput` primitive** (isolated `@theokit/sdk/sanitize` subpath). Signature (proposal): `sanitizeToolInput(input, { schema?, trim=true, coerce=false, repairJson=false }): { value, changed, notes }`. Default = trim-only (the P0 lesson, safe for everyone); `coerce`/`repairJson` opt-in (respects the SDK's locked "values are strings; Zod coerces" decision — see D3). Modeled on agentfw `coerceParameter` (`:191`) + cline schema-walk. — answers Q2/Q6.
+2. **Expose it to custom tools via `defineTool`** — a declarative `sanitize?: boolean | SanitizeOptions` field so a user's tool opts in without wiring, PLUS the standalone function for manual use inside `execute`. — answers the user's core ask.
+3. **Reuse `jsonrepair ^3.x`** for the repair rung, not hand-rolled (cline precedent `shared/package.json:59`). — answers Q6, `parsimony-ladder`.
+4. **Internal DRY**: the SDK's leaked-dialect recovery (`hermes-tool-extract.ts`) calls the SAME `sanitizeToolInput` for its trim/coerce, so the public primitive and the internal recovery never diverge. — answers Q1/Q2.
+5. **Add request-scoped tool-name matching** to the internal recovery (openclaw `matcher.*` `:16/18`) to replace the blunt default-off flag. — answers Q1.
+6. **Add a doom-loop no-progress guard** (opencode `:35/531`) as the safety net that converts a silent hang into a typed stop. — answers Q3.
+7. **Stream-boundary normalization (openclaw T1)** is the eventual architectural fix but is the largest change — recommend it as a LATER phase, gated on the public sanitizer + recovery robustness landing first. — answers Q1.
+
+## ADRs
+
+### D1 — Public surface: a standalone `sanitizeToolInput` + a `defineTool` `sanitize` field
+**Decision:** ship both a pure function (`@theokit/sdk/sanitize`) and a declarative `defineTool({ sanitize })` opt-in.
+**Rationale:** two consumer shapes — power users sanitize manually inside `execute`; most users want a one-flag opt-in. Mirrors agentfw's pure `coerceParameter` + vercel's per-tool config. **Alternatives:** function-only (rejected — most users won't wire it); auto-apply-always (rejected — violates the strings-stay-strings decision + surprises).
+**Consequences:** two entry points to document in `docs.md`; one shared implementation.
+
+### D2 — Isolation boundary: dedicated `@theokit/sdk/sanitize` subpath, pure, no transport import
+**Decision:** the sanitizer lives in its own subpath/module with zero LLM/transport dependency.
+**Rationale:** `rules/architecture.md` DIP — a domain primitive; openclaw ships it as an isolated package (`@openclaw/tool-call-repair`), the proven pattern. Isolation is exactly the user's ask ("de forma isolada"). **Alternatives:** bury it in the internal extractor (rejected — not reusable by custom tools).
+**Consequences:** new subpath export (precedent: `@theokit/sdk/subscription`); publint/attw must cover it.
+
+### D3 — Default = trim-only; coercion/repair are opt-in (preserve "values are strings; Zod coerces")
+**Decision:** `sanitizeToolInput` trims by default; `coerce` and `repairJson` are explicit opts.
+**Rationale:** the SDK deliberately keeps type-coercion out of the extractor (`hermes-tool-extract.ts:26-30`; aligns with vercel validating via Zod). Trim is hygiene (safe); coercion changes types (must be opt-in). `rules/parsimony-ladder § Never on the chopping block` — don't weaken the typed-error boundary. **Alternatives:** coerce-by-default (rejected — silent type changes).
+**Consequences:** honest, non-surprising default; power users opt into more.
+
+### D4 — Don't reinvent JSON-repair: reuse `jsonrepair ^3.x`
+**Decision:** the `repairJson` rung wraps the `jsonrepair` lib.
+**Rationale:** `rules/parsimony-ladder` Rung 2/4; cline trusts it (`shared/package.json:59`); structural JSON repair is a solved, spec-adjacent problem (Unbreakable Rule 9). **Alternatives:** hand-roll (rejected — maintenance + correctness risk).
+**Consequences:** one new optional dependency, isolated behind the opt-in flag.
+
+### D5 — Internal recovery reuses the public sanitizer + gains request-scoped matching
+**Decision:** `hermes-tool-extract.ts` calls `sanitizeToolInput` for trim/coerce, and gates recovery on the request's tool-name set (openclaw `matcher.*`).
+**Rationale:** DRY (`CLAUDE.md` Rule 12) — the public primitive and internal recovery must not diverge; request-scoping (openclaw `:16/18`) is the precise false-positive guard the current default-off flag approximates bluntly. **Alternatives:** keep them separate (rejected — divergence risk, re-introduces the P0 class of bug).
+**Consequences:** the internal path depends on the public module (correct direction — infra→domain).
+
+## Blocked questions (if any)
+
+None — all 7 research questions answered with verified citations; `openai-agents-python` was descoped in the plan (clone empty on disk).
