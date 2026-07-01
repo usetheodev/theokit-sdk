@@ -25,7 +25,7 @@ The P0 fix `@theokit/sdk@2.13.1` trimmed leaked-dialect parameter values inside 
 | `packages/sdk/src/sanitize/index.ts` | (NEW) | — | subpath barrel | exports only the public surface |
 | `packages/sdk/package.json` | ~ | — | `exports` map (has `./subscription`, `./compaction`, `./cron`, `./errors`) | dual ESM+CJS shape per existing entries |
 | `packages/sdk/tsup.config.ts` | ~ | — | entry map incl. `"subscription/index": "src/subscription/index.ts"` (line 34) | DTS-via-tsc onSuccess pattern for subpaths |
-| `packages/sdk/docs.md` | ~ | — | canonical public API contract | any new public surface reflected here (SDK CLAUDE.md checklist) |
+| `docs.md` | ~ | — | canonical public API contract | any new public surface reflected here (SDK CLAUDE.md checklist) |
 | `packages/sdk/tests/sanitize/*.test.ts` | (NEW) | — | RED suites | `tests/**/*.test.ts` picked up by vitest (`vitest.config.ts:12`) |
 
 ### Current callers / dependents
@@ -410,7 +410,7 @@ REFACTOR: none
 - [ ] `pnpm --filter @theokit/sdk build` emits the `dist/sanitize/*` artifacts.
 - [ ] `pnpm --filter @theokit/sdk validate` (publint + attw) exits 0 with the new subpath.
 - [ ] `pnpm --filter @theokit/sdk exec vitest run tests/define-tool tests/internal/llm/hermes-tool-extract.test.ts` exits 0 (existing suites, no regression).
-- [ ] `grep -q "@theokit/sdk/sanitize" packages/sdk/docs.md` succeeds AND a `.changeset/*.md` for `@theokit/sdk` exists (Unbreakable Rule 6).
+- [ ] `grep -q "@theokit/sdk/sanitize" docs.md` succeeds AND a `.changeset/*.md` for `@theokit/sdk` exists (Unbreakable Rule 6).
 - [ ] `wc -l` on each new `src/sanitize/*.ts` reports < 500 (sanitizer file < 120).
 - [ ] `pnpm --filter @theokit/sdk quality:dead` (knip) reports zero orphan exports under `src/sanitize/`.
 
@@ -426,7 +426,7 @@ Prove the whole feature works end-to-end and the public contract is documented.
 
 #### Files to edit
 ```
-packages/sdk/docs.md — document @theokit/sdk/sanitize + defineTool({ sanitize })
+docs.md — document @theokit/sdk/sanitize + defineTool({ sanitize })
 packages/sdk/CHANGELOG.md OR .changeset/* — Added entry (Rule 6)
 packages/sdk/tests/sanitize/integration.test.ts — (NEW) a defineTool({sanitize}) end-to-end: loose args → handler receives clean typed input
 ```
@@ -447,5 +447,5 @@ GREEN: (feature already implemented in P1-P3; this is the wiring proof)
 - `pnpm --filter @theokit/sdk test` (full suite) exits 0.
 - `pnpm --filter @theokit/sdk typecheck && pnpm --filter @theokit/sdk lint` both exit 0.
 - `pnpm --filter @theokit/sdk validate` exits 0.
-- `grep -q "@theokit/sdk/sanitize" packages/sdk/docs.md` succeeds and a `@theokit/sdk` changeset file exists.
+- `grep -q "@theokit/sdk/sanitize" docs.md` succeeds and a `@theokit/sdk` changeset file exists.
 - `/code-quality` emits a verdict ∉ {FAIL_HARD, INVALID}; `/review` emits `READY_TO_MERGE`.

@@ -57,7 +57,10 @@ function applyRepair(key: string, value: string, ctx: Ctx): unknown {
 function sanitizeString(key: string, value: string, ctx: Ctx): unknown {
   let out: unknown = ctx.trim ? applyTrim(key, value, ctx) : value;
   if (ctx.coerce && typeof out === "string") out = applyCoerce(key, out, ctx);
-  if (ctx.repairJson && typeof out === "string") out = applyRepair(key, out, ctx);
+  // Standalone repair runs ONLY when coerce is off. When coerce is on it already embedded the
+  // repair candidate (via coerceCandidates / heuristicCoerce), and a schema-confirmed raw string
+  // (e.g. a JSON string a `z.string()` field accepted) must not be clobbered back into an object.
+  if (ctx.repairJson && !ctx.coerce && typeof out === "string") out = applyRepair(key, out, ctx);
   return out;
 }
 
