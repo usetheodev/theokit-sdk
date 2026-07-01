@@ -127,6 +127,16 @@ describe("runToCompletionImpl", () => {
     expect(out.rounds).toBe(2);
   });
 
+  it("test_end_to_end_doom_loop_terminates_no_progress", async () => {
+    // A run that doom-loop-stopped surfaces `stoppedByDoomLoop`; the driver terminates immediately
+    // with `no_progress` and does NOT re-send (rounds 0), even with maxRounds budget left.
+    const agent = fakeAgent([rr({ stoppedByDoomLoop: true, result: "Stopped: repeated calls." })]);
+    const out = await runToCompletionImpl(agent, "do X", { maxRounds: 9 });
+    expect(out.terminal).toBe("no_progress");
+    expect(out.rounds).toBe(0);
+    expect(agent.sends).toEqual(["do X"]); // no continuation re-send
+  });
+
   it("test_no_progress_after_two_empty_rounds", async () => {
     const agent = fakeAgent([rr({ stoppedAtIterationLimit: true, result: "" })]);
     const out = await runToCompletionImpl(agent, "do X", { maxRounds: 9 });
