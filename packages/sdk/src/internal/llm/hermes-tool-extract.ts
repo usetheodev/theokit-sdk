@@ -11,9 +11,11 @@
  * those calls from the content so the loop can execute them.
  *
  * OPT-IN only (`ProviderProfile.extractToolCallsFromContent`) and run ONLY when the provider
- * emitted no native tool_calls — a code assistant can legitimately print a literal `<function=`
- * in a fenced code block, so default-off contains the blast radius and the size-guard prevents
- * double-counting a real native call.
+ * emitted no native tool_calls. A code assistant can legitimately print a literal `<function=` in a
+ * fenced code block, so recovery is gated TWICE: the per-route flag is the coarse enable, and the R5
+ * request-scoped `allowedToolNames` allowlist below is the precise false-positive guard — a block is
+ * promoted only when its name is a real tool in the current request. The size-guard (no native call)
+ * prevents double-counting a real native call.
  *
  * Fail-open like `stripThinkBlocks`: a partial/unclosed block (missing the `</tool_call>`
  * marker) is NOT matched — it stays in the residual text and yields no tool call, so a corrupted
@@ -43,7 +45,7 @@ const HERMES_PARAM = /<parameter=\s*([^>\s]+)\s*>([\s\S]*?)<\/parameter>/g;
 export interface HermesExtractResult {
   /** Recovered tool calls (empty when none matched). */
   toolCalls: LlmToolCallPart[];
-  /** Content with every recovered block removed + trimmed; original content when nothing matched. */
+  /** Content with every PROMOTED block removed + trimmed; gated-out and unmatched blocks stay visible. */
   residualText: string;
 }
 
@@ -51,13 +53,26 @@ export interface HermesExtractResult {
  * Recover Hermes-dialect tool calls leaked into assistant text. `makeId` supplies a unique id per
  * recovered call (the provider gave none). Pure — no side effects.
  *
+ * @param allowedToolNames R5 request-scoped gate — when provided, only a block whose name is in the
+ *   set is promoted (exact, case-sensitive); an empty set promotes nothing; `undefined` recovers all
+ *   (back-compat). Gated-out blocks stay as visible text (they are not tool calls).
  * @internal
  */
-export function extractHermesToolCalls(content: string, makeId: () => string): HermesExtractResult {
+export function extractHermesToolCalls(
+  content: string,
+  makeId: () => string,
+  allowedToolNames?: ReadonlySet<string>,
+): HermesExtractResult {
+  // R5 request-scoped gate: promote a block only when its name is a real tool in the current request
+  // (exact, case-sensitive — peer-project payload.ts:190). `undefined` allowlist → recover-all (back-compat
+  // for direct callers); an EMPTY set recovers nothing (a request with no tools has nothing legitimate
+  // to recover). The name is already trimmed above, so the gate and the emitted call agree (EC-1).
+  const isPromoted = (name: string): boolean =>
+    name.length > 0 && (allowedToolNames === undefined || allowedToolNames.has(name));
   const toolCalls: LlmToolCallPart[] = [];
   for (const block of content.matchAll(HERMES_BLOCK)) {
     const name = (block[1] ?? "").trim();
-    if (name.length === 0) continue;
+    if (!isPromoted(name)) continue;
     toolCalls.push({
       type: "tool_use",
       id: makeId(),
@@ -65,7 +80,16 @@ export function extractHermesToolCalls(content: string, makeId: () => string): H
       input: parseHermesParams(block[2] ?? ""),
     });
   }
-  const residualText = toolCalls.length === 0 ? content : content.replace(HERMES_BLOCK, "").trim();
+  // EC-5: strip ONLY promoted blocks — a gated-out block (e.g. a `<function=example>` in a code fence
+  // whose name is not a request tool) keeps its text visible instead of being silently deleted.
+  const residualText =
+    toolCalls.length === 0
+      ? content
+      : content
+          .replace(HERMES_BLOCK, (full, rawName) =>
+            isPromoted((rawName ?? "").trim()) ? "" : full,
+          )
+          .trim();
   return { toolCalls, residualText };
 }
 
