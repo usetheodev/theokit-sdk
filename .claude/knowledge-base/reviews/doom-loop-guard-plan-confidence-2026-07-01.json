@@ -1,0 +1,186 @@
+{
+  "plan_slug": "doom-loop-guard",
+  "plan_path": "/home/paulo/Projetos/usetheo/theokit-tools/theokit-sdk/.claude/knowledge-base/plans/doom-loop-guard-plan.md",
+  "plan_version": "unknown",
+  "scored_at": "2026-07-01T14:13:58+00:00",
+  "completude_score": 100.0,
+  "risco_estrutural_score": 75.0,
+  "active_dimensions": ["completeness", "structural_risk"],
+  "weight_normalization_factor": 2.0,
+  "weighted_avg": 90.0,
+  "hard_caps_triggered": [],
+  "final_score_after_caps": 90.0,
+  "verdict": "SHIPPABLE",
+  "reasons": {
+    "completeness": [
+      {
+        "sign": "positive",
+        "label": "Coverage Matrix 100%",
+        "weight": 60.0
+      },
+      {
+        "sign": "positive",
+        "label": "ADR alternatives (5/5)",
+        "weight": 20.0
+      },
+      {
+        "sign": "positive",
+        "label": "TDD in bug-fix (0/0)",
+        "weight": 20.0
+      }
+    ],
+    "evidence": [
+      {
+        "sign": "positive",
+        "label": "30 citations resolved",
+        "weight": 30.0
+      }
+    ],
+    "calibration": [],
+    "structural_risk": [
+      {
+        "sign": "negative",
+        "label": "4 loopholes hits",
+        "weight": -4.0
+      },
+      {
+        "sign": "negative",
+        "label": "3 weak_imperatives hits",
+        "weight": -3.0
+      },
+      {
+        "sign": "negative",
+        "label": "2 vague_pronouns hits",
+        "weight": -2.0
+      }
+    ]
+  },
+  "sub_reports": {
+    "coverage_matrix": {
+      "total_gaps": 0,
+      "mapped_gaps": 0,
+      "coverage_ratio": 1.0,
+      "is_complete": true,
+      "orphan_tasks": [],
+      "unmapped_gaps": []
+    },
+    "adr_completeness": {
+      "total_adrs": 5,
+      "with_alternatives": 5,
+      "completeness_ratio": 1.0,
+      "missing_alternatives": []
+    },
+    "tdd_in_bugfix": {
+      "total_bugfix_tasks": 0,
+      "with_tdd": 0,
+      "coverage_ratio": 1.0,
+      "missing_tdd": []
+    },
+    "spec_smells": {
+      "total_hits": 9,
+      "by_category": {
+        "loopholes": 4,
+        "vague_pronouns": 2,
+        "weak_imperatives": 3
+      },
+      "total_penalty": -25
+    },
+    "architecture_compliance": {
+      "compliance_score": 0.85,
+      "project_rules_found_count": 29,
+      "fallback_to_defaults": false,
+      "rules_referenced_in_plan": [
+        "architecture.md",
+        "error-handling.md",
+        "parsimony-ladder.md",
+        "testing.md"
+      ],
+      "principles_cited": ["ISP", "DIP", "KISS", "YAGNI", "TDD"],
+      "has_dod_quality_signal": false,
+      "has_size_budget_signal": true,
+      "reasons": [
+        "References 4 project rule(s): ['architecture.md', 'error-handling.md', 'parsimony-ladder.md']",
+        "Cites 5 principle(s): ['ISP', 'DIP', 'KISS']",
+        "Global DoD does NOT mention quality gates",
+        "Plan mentions file-size budget"
+      ]
+    },
+    "evidence": {
+      "total_citations": 30,
+      "unresolved_citations": []
+    },
+    "criterion_executability": {
+      "total_criteria": 9,
+      "vague_count": 0,
+      "weak_count": 1,
+      "acceptable_count": 0,
+      "executable_count": 8,
+      "vague_ratio": 0.0,
+      "acceptable_ratio": 0.889,
+      "executable_ratio": 0.889,
+      "soft_cap_triggered": false,
+      "vague_criteria_sample": []
+    },
+    "baseline_context": {
+      "section_present": true,
+      "is_complete": true,
+      "missing_subsections": [],
+      "file_table_rows": 10,
+      "file_table_placeholder_hits": 0,
+      "glossary_entries": 5,
+      "glossary_placeholder_hits": 0,
+      "reasons": []
+    },
+    "drawbacks_and_unresolved": {
+      "drawbacks_section_present": true,
+      "drawbacks_entries": 4,
+      "drawbacks_placeholder_hits": 0,
+      "drawbacks_is_complete": true,
+      "drawbacks_reasons": [],
+      "unresolved_section_present": true,
+      "unresolved_entries": 0,
+      "unresolved_explicit_none": true,
+      "unresolved_is_complete": true,
+      "unresolved_reasons": []
+    },
+    "concurrency_tests": {
+      "signals_detected": true,
+      "signals_sample": ["Concurrency"],
+      "tasks_with_concurrency_subsection": 4,
+      "tasks_with_acceptable_test_or_escape": 4,
+      "tasks_failing": [],
+      "is_complete": true,
+      "reasons": []
+    },
+    "patterns_consumption": {
+      "applicable": [],
+      "cited": [],
+      "overridden": [],
+      "ignored": [],
+      "is_clean": true,
+      "reasons": []
+    },
+    "failure_scenarios": {
+      "external_io_detected": false,
+      "signals_sample": [],
+      "section_present": false,
+      "explicit_none": false,
+      "scenarios_count": 0,
+      "is_complete": true,
+      "reasons": ["no external-I/O signals detected; check skipped"]
+    }
+  },
+  "calibration": {
+    "status": "PROVISIONAL_v1",
+    "holdout_count": 0,
+    "holdout_target": 30,
+    "kappa_measured": false
+  },
+  "code_quality": {
+    "verdict": "PASS",
+    "score_cap": 100,
+    "hard_caps_triggered": [],
+    "soft_caps_triggered": [],
+    "languages_audited": []
+  }
+}

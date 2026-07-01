@@ -1,50 +1,49 @@
-# Discover Edge Case Review — doom-loop-guard
+# Edge Case Review — doom-loop-guard
 
 Date: 2026-07-01
-Discovery plan analyzed: .claude/knowledge-base/discoveries/plans/doom-loop-guard-plan.md
-Research questions analyzed: 6
-Edge cases found: 3 (MUST FIX: 3, SHOULD TEST: 0, DOCUMENT: 0)
+Tasks analyzed: 4 (T1.1, T2.1, T3.1, T4.1)
+Cases found: 4 (EDGE: 2, NEGATIVE: 2 | MUST FIX: 2, SHOULD TEST: 1, DOCUMENT: 1)
 
 ## MUST FIX
 
-### EC-1: Q4 target file is ~2400 lines — a naive full Read wastes budget / risks truncation
-- **Affected question:** Q4
-- **Family:** Method
-- **Scenario:** `session-runtime-orchestrator.test.ts` is a large integration suite; the loop-detection/mistake scenarios sit at ~`:1923`, `:2080`, `:2140`. A "Read the file" step pulls thousands of irrelevant lines.
-- **Impact:** budget blown / relevant scenario buried; blueprint may under-cite the exact test.
-- **Suggested fix:** Q4 Fase B reads ONLY the scenario blocks via offset (`Read` around `:1920-:2170`), driven by the Fase-A grep line numbers — never the whole file.
+### EC-1: the soft nudge must fire EXACTLY ONCE per streak (no nudge spam)
+- **Affected task:** T2.1
+- **Kind:** NEGATIVE
+- **Family:** State
+- **Scenario:** if `inspect` returned "soft" for every count `>= softThreshold`, the loop would inject a guidance message on EVERY identical call between the soft and hard thresholds — spamming the conversation.
+- **Impact:** a noisy, degraded run (and wasted tokens) between soft and hard.
+- **Suggested fix:** `inspect` returns `soft` ONLY at `count === softThreshold` (exact, per cline `loop-detection.ts:84` `softWarning: count === softThreshold`); counts strictly between soft and hard return `ok`. Add `test_soft_fires_once_then_ok_until_hard` asserting a single nudge injection.
 
-### EC-2: Q1 target file (opencode `processor.ts`) is large — read only the doom-loop region
-- **Affected question:** Q1
-- **Family:** Method
-- **Scenario:** `processor.ts` is ~1000 lines; the doom-loop logic is a compact region (`:35` const, `:519-545` check, `:966` knob). A full read is wasteful.
-- **Impact:** budget/context blown on unrelated session-processing code.
-- **Suggested fix:** Q1 Fase B reads ONLY the doom-loop region (the grep'd line windows `:30-40`, `:515-545`, `:960-970`), not the whole file.
-
-### EC-3: opencode's ACTION is a permission-ask (opencode-specific) — do NOT borrow the permission model
-- **Affected question:** Q1
-- **Family:** Interpretation
-- **Scenario:** opencode's doom-loop resolves to `permission: "doom_loop"` — an ask routed through opencode's permission subsystem, which OUR SDK does not have. The blueprint could wrongly recommend a permission model.
-- **Impact:** a design-conflation error — recommending opencode's permission gate instead of OUR typed terminal/reason (ADR D3).
-- **Suggested fix:** Q1 gains a one-line scope note: "the borrowed value is the FINGERPRINT + WINDOW + THRESHOLD + break-decision TECHNIQUE — NOT opencode's permission model. OUR action is a typed terminal/reason plugged into the existing iteration-tracker seam (cline's `MistakeOutcome` stop/continue is the closer action analog, Q3)."
+### EC-2: classifyRound must check `stoppedByDoomLoop` BEFORE `stoppedAtIterationLimit`
+- **Affected task:** T3.1
+- **Kind:** NEGATIVE
+- **Family:** Boundary
+- **Scenario:** a run that doom-loops AND happens to also be flagged `stoppedAtIterationLimit` (e.g. the hard threshold equals the iteration ceiling). If the iteration-limit check runs first, the run is classified as a truncation (`step_limit`/continue) and RE-SENT — re-triggering the doom loop.
+- **Impact:** the guard is defeated when both flags coincide — the exact hang it fixes.
+- **Suggested fix:** in `classifyRound`, the `stoppedByDoomLoop === true → "no_progress"` branch MUST precede the `stoppedAtIterationLimit` check. Add `test_classifyRound_doom_loop_wins_over_iteration_limit` (both flags set → "no_progress").
 
 ## SHOULD TEST
 
-_(none — the small-module read-full fallback checkpoint is already in the plan; the large-file read-scoping is handled by the MUST-FIX method refinements above.)_
+### EC-3: signature of inputs differing only by an `undefined`-valued key
+- **Affected task:** T1.1
+- **Kind:** EDGE
+- **Suggested test:** `test_signature_treats_undefined_valued_key_as_absent` — `sig({a:1,b:undefined})` vs `sig({a:1})`: `JSON.stringify` drops `undefined`, so both are the SAME signature. Assert this is the intended behavior (an `undefined` arg is not a distinguishing input) — pins the contract so a future `signatureOf` change can't silently regress it.
 
 ## DOCUMENT
 
-_(none)_
+### EC-4: a legitimately-repeating tool (poll / wait / retry) trips the guard
+- **Kind:** NEGATIVE
+- **Accepted risk:** already captured as Drawbacks R1 — mitigated by soft-then-hard (nudge first), a generous default hard threshold (5), and `SendOptions.doomLoop:false` / per-threshold tuning (ADR D5). A tool that must be called identically ≥5 times in a row is rare; the opt-out is the escape hatch. No plan change beyond R1.
 
 ## Summary
 
-| Question | Edges found | MUST FIX | SHOULD TEST | DOCUMENT |
-|----------|-------------|----------|-------------|----------|
-| Q1 | 2 | 2 | 0 | 0 |
-| Q2 | 0 | 0 | 0 | 0 |
-| Q3 | 0 | 0 | 0 | 0 |
-| Q4 | 1 | 1 | 0 | 0 |
-| Q5 | 0 | 0 | 0 | 0 |
-| Q6 | 0 | 0 | 0 | 0 |
+| Task | EDGE | NEGATIVE | MUST FIX | SHOULD TEST | DOCUMENT |
+|------|------|----------|----------|-------------|----------|
+| T1.1 | 1 | 0 | 0 | 1 | 0 |
+| T2.1 | 0 | 1 | 1 | 0 | 1 |
+| T3.1 | 1 | 1 | 1 | 0 | 0 |
+| T4.1 | 0 | 0 | 0 | 0 | 0 |
 
-**Verdict:** DISCOVERY PLAN NEEDS ADJUSTMENT (3 MUST FIX absorbed into v1.1)
+**Coverage check:** T1.1/T2.1/T3.1 (the real logic boundaries) each carry both lenses; T4.1 is validation.
+
+**Verdict:** PLAN NEEDS ADJUSTMENT (2 MUST FIX absorbed into v1.1)
