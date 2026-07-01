@@ -99,6 +99,15 @@ export class OpenAIClient implements LlmClient {
     this.fetchImpl = options.fetch ?? fetch;
   }
 
+  /**
+   * Whether this client recovers leaked Hermes tool-call dialect from assistant
+   * text (theokit#58 follow-up). Observability for the route→client wiring of
+   * `extractToolCallsFromContent`. @internal
+   */
+  get recoversLeakedToolCalls(): boolean {
+    return this.options.extractToolCallsFromContent ?? false;
+  }
+
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: HTTP+SSE handshake + accumulator is intentionally one block
   async *stream(
     request: LlmRequest,
