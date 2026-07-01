@@ -358,7 +358,8 @@
     "Theo"
   ],
   "dependencies": {
-    "croner": "^9.0.0"
+    "croner": "^9.0.0",
+    "jsonrepair": "^3.13.2"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",
