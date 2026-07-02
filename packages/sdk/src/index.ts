@@ -138,7 +138,7 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
-export { JobQueue } from "./job-queue.js";
+export { JobQueue, type JobQueueOptions } from "./job-queue.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,
