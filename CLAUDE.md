@@ -10,7 +10,7 @@ This file complements `/home/paulo/Projetos/usetheo/CLAUDE.md` and `/home/paulo/
 
 `@theokit/sdk` is the **TypeScript SDK for the Theo agent harness**. It implements the public contract defined in [`./docs.md`](./docs.md) — `Agent.create()`, `Agent.send()`, `Run.stream()`, MCP servers, hooks, subagents — as a standalone TypeScript package.
 
-The SDK is implemented from scratch, informed by reference projects under `./referencia/` (notably `pi` and the `openai-agents-python` SDK). The reference tree is read-only; we study it, we do not depend on it.
+The SDK is implemented from scratch, informed by reference projects (notably `pi` and the `openai-agents-python` SDK). Those peers are no longer vendored in-tree — they are cloned on demand under `.claude/knowledge-base/reference/` (gitignored; each dev may hold a different clone set). The reference material is read-only; we study it, we do not depend on it.
 
 Layout:
 
@@ -37,10 +37,7 @@ theokit-sdk/
 │       │   ├── types/           # Public type contract from docs.md
 │       │   └── internal/        # Implementation details
 │       └── tests/
-└── referencia/         # Study material, NOT workspace members
-    ├── pi/             # Fork of earendil-works/pi
-    ├── cookbook/       # Pi's example recipes
-    └── openai-agents-python/   # OpenAI Agents Python SDK
+└── .claude/            # Plan-cycle ecosystem; knowledge-base/reference/ holds SOTA study peers (cloned on demand, gitignored — NOT workspace members)
 ```
 
 The pillar split (UI · Harness · Skills · Runtime) is locked in the root `CLAUDE.md`. Do not propose copy that drifts from "this is the Harness".
@@ -170,24 +167,25 @@ The cloud runtime depends on **Theo PaaS**, currently pre-release per the root `
 >
 > Verify the actual import / dependency before claiming wiring exists in copy or in examples. `grep` first, claim second.
 
-## Working with `referencia/`
+## Working with reference material
 
-`./referencia/` is **read-only study material** for the SDK implementation. It is not part of the pnpm workspace, not imported, and never modified from this project.
+Study peers are **read-only study material** for the SDK implementation. They are not part of the pnpm workspace, not imported, and never modified from this project. They are **no longer vendored in-tree** as `referencia/` submodules — they are cloned on demand under `.claude/knowledge-base/reference/` (gitignored; the `/to-reference` skill clones the set a task needs). Distilled implementation guides land at `.claude/knowledge-base/reference/{topic}.md`.
 
-Reference projects currently present:
+Reference projects studied (clone on demand; not all present in every checkout):
 
-- **`referencia/pi/`** — fork of [`earendil-works/pi`](https://github.com/earendil-works/pi). Primary inspiration for `pi-agent-core` (Agent runtime), `pi-ai` (multi-provider LLM API), and `pi-coding-agent` (CLI patterns).
-- **`referencia/cookbook/`** — Pi's example recipes. Useful for understanding intended API ergonomics.
-- **`referencia/openai-agents-python/`** — OpenAI Agents Python SDK. Useful for `Agent` / `Run` / streaming API design.
+- **`pi`** — fork of [`earendil-works/pi`](https://github.com/earendil-works/pi). Primary inspiration for `pi-agent-core` (Agent runtime), `pi-ai` (multi-provider LLM API), and `pi-coding-agent` (CLI patterns).
+- **`cookbook`** — Pi's example recipes. Useful for understanding intended API ergonomics.
+- **`openai-agents-python`** — OpenAI Agents Python SDK. Useful for `Agent` / `Run` / streaming API design.
+- Others cloned as tasks require (e.g. `openclaw`, `mastra`, `opencode`, `hermes-agent`, `codex`).
 
-Rules when consulting `referencia/`:
+Rules when consulting reference material:
 
-1. **Read, do not run.** Reference projects have their own dependencies, lockfiles, and engines. Do not `npm install` or `pip install` inside `referencia/`. If you need to run them, do so outside this repo.
+1. **Read, do not run.** Reference projects have their own dependencies, lockfiles, and engines. Do not `npm install` or `pip install` inside a clone. If you need to run them, do so outside this repo.
 2. **Never edit.** If you find a bug in a reference project, file it upstream or note it in our `docs.md` rationale. Do not patch.
 3. **Cite when borrowing patterns.** When the SDK implementation copies a pattern from a reference, add a code comment: `// referencia: pi/packages/agent/src/foo.ts` so future maintainers can trace the lineage.
-4. **No transitive dependencies.** The SDK must not import from `referencia/*`. If you find yourself wanting to, you are wrapping rather than implementing — surface the decision (see Open Decisions).
+4. **No transitive dependencies.** The SDK must not import from any reference clone. If you find yourself wanting to, you are wrapping rather than implementing — surface the decision (see Open Decisions).
 
-`biome.json` and `pnpm-workspace.yaml` exclude `referencia/`. Do not change those exclusions silently.
+`biome.json` still carries a vestigial `!referencia` exclusion (harmless now that the tree is gone); `.claude/knowledge-base/reference/` is gitignored. Do not change those exclusions silently.
 
 ## First-time setup
 
@@ -266,7 +264,7 @@ Full text: `/home/paulo/.claude/CLAUDE.md`. Cross-project rules: `/home/paulo/Pr
 - [ ] No reference to "Theo IDE" or other surfaces that do not exist in the Theo stack.
 - [ ] No promise of cloud-only features as GA.
 - [ ] No silent integration claims with `@theokit/ui` or `theokit` — verify the import exists.
-- [ ] No imports from `referencia/*` — that tree is read-only study material.
+- [ ] No imports from any reference clone under `.claude/knowledge-base/reference/` — it is read-only study material.
 
 ## Pipeline de ciclos (plan ecosystem)
 
@@ -289,7 +287,7 @@ Instalado em `.claude/` via `bash scripts/install.sh` do template [`plan`](file:
 - **Release**: `/release` (develop→main PR + semver tag)
 - **Honesty gate**: `/dogfood`
 - **Orchestrator**: `/auto-plan {topic-slug}`
-- **SDK-specific**: `/to-reference {topic}` (deep-dive em `referencia/` → guia de implementação em `knowledge-base/reference/{topic}.md`)
+- **SDK-specific**: `/to-reference {topic}` (deep-dive nos clones sob `.claude/knowledge-base/reference/` → guia de implementação em `knowledge-base/reference/{topic}.md`)
 
 **Hooks ativos** (`.claude/settings.json`): SessionStart, UserPromptSubmit, PreToolUse(Bash + Edit|Write), PostToolUse(linter + public-copy-lint), Stop (TDD + CHANGELOG gate), PreCompact (plan snapshot).
 
