@@ -16,17 +16,31 @@ import type {
   ConversationStorageAdapter,
   StoredMessage,
 } from "../../types/conversation-storage.js";
+import { paginate } from "./conversation-storage-fs.js";
 
 export class InMemoryConversationStorage implements ConversationStorageAdapter {
   readonly #store = new Map<string, StoredMessage[]>();
 
-  async getMessages(conversationId: string): Promise<readonly StoredMessage[]> {
+  async getMessages(
+    conversationId: string,
+    opts?: { offset?: number; limit?: number },
+  ): Promise<readonly StoredMessage[]> {
     const existing = this.#store.get(conversationId);
     // Defensive copy — caller mutation MUST NOT affect storage state.
-    return existing === undefined ? [] : existing.slice();
+    // M2 #63 — apply the optional pagination window (true bounded read in memory).
+    return existing === undefined ? [] : paginate(existing.slice(), opts);
   }
 
   async appendMessage(conversationId: string, message: StoredMessage): Promise<void> {
+    this.#appendOne(conversationId, message);
+  }
+
+  async appendMessages(conversationId: string, messages: readonly StoredMessage[]): Promise<void> {
+    // M2 #63 — single-threaded runtime makes the loop atomic as a unit.
+    for (const message of messages) this.#appendOne(conversationId, message);
+  }
+
+  #appendOne(conversationId: string, message: StoredMessage): void {
     const existing = this.#store.get(conversationId);
     const stamped: StoredMessage =
       message.at === undefined ? { ...message, at: Date.now() } : message;
