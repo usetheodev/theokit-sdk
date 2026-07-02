@@ -1,6 +1,6 @@
 ---
 name: to-reference
-description: "Deep dive nas implementações de referência em `referencias/` para extrair técnicas, padrões, dependências externas, design patterns, algoritmos, edge cases — TUDO necessário para escrever o módulo equivalente no TheoKit. Gera um guia de implementação completo em `.claude/knowledge-base/reference/{topic}.md`. Use ANTES de começar a codar qualquer módulo não-trivial."
+description: "Deep dive nas implementações de referência em `.claude/knowledge-base/reference/` para extrair técnicas, padrões, dependências externas, design patterns, algoritmos, edge cases — TUDO necessário para escrever o módulo equivalente no TheoKit. Gera um guia de implementação completo em `.claude/knowledge-base/reference/{topic}.md`. Use ANTES de começar a codar qualquer módulo não-trivial."
 user-invocable: true
 allowed-tools: Read, Glob, Grep, Bash, Write, Agent
 argument-hint: "<topic> [--impl nextjs,hono,...] [--depth exhaustive|standard]"
@@ -22,7 +22,7 @@ Quem ler esse documento depois deve conseguir abrir um editor e começar a digit
 ## Argumentos
 
 - `$ARGUMENTS` primeira parte = tópico em natural language (ex: `Server Components (RSC)`, `routing`, `HMR`, `type-safe forms`)
-- `--impl <names>` = subset de implementações em `referencias/` (default: todas que tiverem o keyword)
+- `--impl <names>` = subset de implementações em `.claude/knowledge-base/reference/` (default: todas que tiverem o keyword)
 - `--depth exhaustive|standard` (**default `exhaustive`** — o output desta skill é o blueprint da implementação; vale a hora extra)
   - `exhaustive` ≈ 2h — TODOS os frameworks com keyword, deep read do inventário completo, git arqueologia, RFCs públicas, edge case enumeration. **Padrão.**
   - `standard` ≈ 45–60 min — escape hatch quando o tópico já tem `.claude/knowledge-base/reference/{slug}.md` recente e você só precisa de refresh pontual. 3+ frameworks, padrões extraídos, deps catalogadas, implementation guide. Quality bar é o mesmo — só o número mínimo de frameworks cai de "todos com keyword" para 3.
@@ -48,18 +48,18 @@ test -f .claude/knowledge-base/reference/{slug}.md && \
 
 ## Discovery dinâmica
 
-**NUNCA hardcode a lista de frameworks.** A pasta `referencias/` é gitignored — diferentes devs podem ter clones diferentes. Sempre comece com:
+**NUNCA hardcode a lista de frameworks.** Os clones-peer vivem em `.claude/knowledge-base/reference/` (alguns rastreados no repo, outros gitignored per-dev — o conjunto varia por checkout). Os `.md` no mesmo diretório são guias destilados, não clones; o glob `*/` abaixo lista só os diretórios (clones). Sempre comece com:
 
 ```bash
-ls -d referencias/*/ 2>/dev/null | sed 's|referencias/||;s|/$||'
+ls -d .claude/knowledge-base/reference/*/ 2>/dev/null | sed 's|.claude/knowledge-base/reference/||;s|/$||'
 ```
 
-Se `referencias/` estiver vazia, **pare e instrua o usuário a clonar** (ver seção de clonagem no final). Não invente prior art.
+Se não houver nenhum clone (só `.md`), **pare e instrua o usuário a clonar** (ver seção de clonagem no final). Não invente prior art.
 
 Para cada framework presente, descubra a linguagem e o tamanho:
 
 ```bash
-for ref in referencias/*/; do
+for ref in .claude/knowledge-base/reference/*/; do
   name=$(basename "$ref")
   ts=$(find "$ref" -name "*.ts" ! -path "*/node_modules/*" 2>/dev/null | wc -l)
   rs=$(find "$ref" -name "*.rs" ! -path "*/node_modules/*" 2>/dev/null | wc -l)
@@ -74,7 +74,7 @@ done
 
 ### Passo 1 — Mapear o problema
 
-Antes de tocar `referencias/`:
+Antes de tocar `.claude/knowledge-base/reference/`:
 
 1. **Qual o problema concreto** o TheoKit quer resolver com este módulo?
 2. **Qual o package do TheoKit afetado?** (`packages/theo/src/{router,server,client,vite-plugin,...}`)
@@ -87,13 +87,13 @@ Salve esses 4 itens em um buffer mental — viram a primeira seção do doc.
 
 **Regra inviolável:** o output cita TODOS os arquivos que tocam o tópico — não uma amostra, não os "principais". Se um arquivo aparece num grep do keyword e não é descartado por motivo explícito (test fixture trivial, generated code), ele entra no inventário.
 
-Para cada framework em `referencias/`, gere o inventário com 3 passadas complementares:
+Para cada framework em `.claude/knowledge-base/reference/`, gere o inventário com 3 passadas complementares:
 
 ```bash
 KEYWORD="<termo principal>"   # ex: server-component, rsc, route, hmr
 ALT_KEYWORDS="<sinônimos>"    # ex: "rsc|use-client|use-server|react-server"
 
-for fw in $(ls -d referencias/*/); do
+for fw in $(ls -d .claude/knowledge-base/reference/*/); do
   name=$(basename "$fw")
   echo "=== $name ==="
 
@@ -159,7 +159,7 @@ Resultado: notas estruturadas por framework. Não passe para o Passo 4 sem ter f
 
 ```bash
 # Filtra imports não-stdlib relevantes ao tópico
-grep -rn "^import.*from ['\"][^./]" referencias/$FW --include="*.ts" 2>/dev/null \
+grep -rn "^import.*from ['\"][^./]" .claude/knowledge-base/reference/$FW --include="*.ts" 2>/dev/null \
   | grep -i "$KEYWORD" \
   | awk -F"'" '{print $2}' | awk -F'"' '{print $1}' \
   | sort -u
@@ -187,7 +187,7 @@ Como cada framework descobriu os edge cases? Olhe:
 
 ```bash
 # Commits que mencionam fix/bug no tópico
-cd referencias/$FW
+cd .claude/knowledge-base/reference/$FW
 git log --oneline --grep="$KEYWORD" --grep="fix\|hotfix\|bug" --all-match 2>/dev/null | head -30
 
 # CHANGELOG entries
@@ -250,7 +250,7 @@ Lista exaustiva — todo arquivo que o grep capturou nas 3 passadas (nome / cont
 | `docs/architecture/rsc.md` | doc | 320 | ✅ | §4 |
 | ... | ... | ... | ... | ... |
 
-(uma tabela como esta para CADA framework do `referencias/`)
+(uma tabela como esta para CADA framework do `.claude/knowledge-base/reference/`)
 
 ### Arquivos avaliados e descartados (com motivo)
 
@@ -473,7 +473,7 @@ Toda asserção no documento DEVE estar ancorada num item desta seção 11. Sem 
 
 Toda execução (default `exhaustive`, ou `standard` quando explicitamente passado) DEVE produzir:
 
-- [ ] Discovery dinâmica de `referencias/*/` (não hardcoded)
+- [ ] Discovery dinâmica de `.claude/knowledge-base/reference/*/` (não hardcoded)
 - [ ] **Inventário completo de arquivos por framework** — todos os hits das 3 passadas (nome + conteúdo + docs), triados em `core` / `support` / `test` / `doc`, sem cherry-picking
 - [ ] **Seção "Arquivos avaliados e descartados"** com 1 frase de justificativa por arquivo removido — se a seção está vazia OU se tem "..." no final, o inventário está incompleto
 - [ ] Mínimo **3 frameworks** com deep-read (TODOS os arquivos `core` + `support` + `doc` lidos inteiros por framework)
@@ -559,38 +559,32 @@ grep -A 999 "## 2\." "$DOC" | grep -B 1 "^## 3\." | grep -q "\.\.\." && \
 
 ## Clonagem de referências (uma vez por máquina)
 
-`referencias/` é gitignored — cada dev clona localmente. Tier 1 essencial:
+Os peers vivem em `.claude/knowledge-base/reference/`. Alguns já estão versionados no repo; os demais cada dev clona localmente (parte do diretório é gitignored per-dev — verifique `.gitignore` antes de commitar um novo clone). Como `@theokit/sdk` é um harness de **agentes**, os peers são SDKs/runtimes de agente, não web frameworks. Peers já presentes com conteúdo (remote verificado):
 
 ```bash
-cd /home/paulo/Projetos/usetheo/theokit
-mkdir -p referencias && cd referencias
+cd /home/paulo/Projetos/usetheo/theokit-tools/theokit-sdk
+mkdir -p .claude/knowledge-base/reference && cd .claude/knowledge-base/reference
 
-git clone --depth 1 https://github.com/vercel/next.js.git           next.js
-git clone --depth 1 https://github.com/remix-run/remix.git          remix
-git clone --depth 1 https://github.com/honojs/hono.git              hono
-git clone --depth 1 https://github.com/nitrojs/nitro.git            nitro
-git clone --depth 1 https://github.com/TanStack/router.git          tanstack-router
-git clone --depth 1 https://github.com/vitejs/vite.git              vite
-git clone --depth 1 https://github.com/withastro/astro.git          astro
-git clone --depth 1 https://github.com/sveltejs/kit.git             sveltekit
-git clone --depth 1 https://github.com/fastify/fastify.git          fastify
-git clone --depth 1 https://github.com/trpc/trpc.git                trpc
-git clone --depth 1 https://github.com/rails/rails.git              rails
+git clone --depth 1 https://github.com/openai/openai-agents-python.git openai-agents-python
+git clone --depth 1 https://github.com/earendil-works/pi.git            pi
+git clone --depth 1 https://github.com/openai/codex.git                 codex
+git clone --depth 1 https://github.com/google/adk-js.git                adk-js
+git clone --depth 1 https://github.com/crewAIInc/crewAI.git             crewAI
+# ...clone outros peers conforme o tópico exigir (mastra, opencode, hermes-agent, openclaw, cookbook).
 ```
 
-`.gitignore` já contém `referencias/` (verificar antes de clonar).
+Antes de commitar um clone novo, confirme se ele deve ficar versionado ou entrar no `.gitignore` (o diretório hoje mistura ambos).
 
 ---
 
 ## Exemplo de invocação
 
 ```
-/to-reference Server Components (RSC)
+/to-reference streaming tool-call recovery
 ```
 
 Espera-se:
-1. Discovery: lista frameworks com `'use client'` / `'use server'` no source
-2. Deep read em `referencias/next.js/packages/next/src/build/webpack/...` (RSC machinery)
-3. Comparação com `referencias/remix/` (Remix está implementando RSC — capturar onde estão)
-4. Comparação com `referencias/astro/` (server islands são RSC-like)
-5. Output: `.claude/knowledge-base/reference/server-components-rsc.md` com Implementation Guide concreto para `packages/theo/src/router/rsc.ts` (ou decisão fundamentada de NÃO adotar RSC, com risk analysis).
+1. Discovery: lista os peers com machinery de tool-call/streaming no source (`pi`, `openai-agents-python`, `opencode`, ...)
+2. Deep read em `.claude/knowledge-base/reference/openai-agents-python/...` (accumulator + finish semantics)
+3. Comparação com `.claude/knowledge-base/reference/pi/` (multi-provider LLM API) e `.claude/knowledge-base/reference/opencode/` (loop/tool dispatch)
+4. Output: `.claude/knowledge-base/reference/streaming-tool-call-recovery.md` com Implementation Guide concreto para `packages/sdk/src/internal/llm/` (ou decisão fundamentada de NÃO adotar, com risk analysis).
