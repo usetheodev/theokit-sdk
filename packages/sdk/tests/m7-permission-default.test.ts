@@ -10,9 +10,13 @@ describe("PermissionEngine defaultAction (M7-4)", () => {
     expect(engine.evaluate("anything")).toBe("deny");
   });
 
-  it("defaults to allow when no option is given (backward-compatible)", () => {
+  it("defaults to ask (fail-closed) when no option is given (#55)", () => {
+    // #55 — flipped from the previous fail-open "allow" default. A permission
+    // engine that cannot positively allow must not silently allow.
     const engine = new PermissionEngine([]);
-    expect(engine.evaluate("anything")).toBe("allow");
+    expect(engine.evaluate("anything")).toBe("ask");
+    // Opt back into fail-open explicitly:
+    expect(new PermissionEngine([], { defaultAction: "allow" }).evaluate("anything")).toBe("allow");
   });
 
   it("first matching rule still wins over the defaultAction", () => {
