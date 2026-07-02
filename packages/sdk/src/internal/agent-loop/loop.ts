@@ -10,6 +10,7 @@ import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { buildAssistantEvent, buildAssistantTurn } from "./message-builders.js";
 import { dispatchTools } from "./tool-dispatch.js";
+import { applyToolResultGuard } from "./tool-result-guard.js";
 import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
 /**
@@ -345,6 +346,30 @@ async function runIteration(
   return continueOrTerminate(inputs, ctx, llmOutput);
 }
 
+/** #65 — apply the transform_llm_output hook fold (no-op when no plugin manager). */
+async function transformLlmOutputText(
+  inputs: AgentLoopInputs,
+  text: string,
+  ctx: { agentId: string; runId: string },
+): Promise<string> {
+  return inputs.pluginManager !== undefined
+    ? inputs.pluginManager.runTransformLlmOutputHooks(text, ctx)
+    : text;
+}
+
+/** #57/#65 — built-in tool-result guard then the transform_tool_result hook fold. */
+async function guardAndTransformToolResults(
+  inputs: AgentLoopInputs,
+  raw: LlmContentPart[],
+  ctx: { agentId: string; runId: string },
+): Promise<LlmContentPart[]> {
+  const guarded =
+    inputs.toolResultGuard !== undefined ? applyToolResultGuard(raw, inputs.toolResultGuard) : raw;
+  return inputs.pluginManager !== undefined
+    ? inputs.pluginManager.runTransformToolResultHooks(guarded, ctx)
+    : guarded;
+}
+
 export async function continueOrTerminate(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
@@ -357,20 +382,11 @@ export async function continueOrTerminate(
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     return finishOrReflect(inputs, ctx, llmOutput);
   }
-  // #65 — transform_llm_output (previously dead) may rewrite the recorded output.
   const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
-  const outText =
-    inputs.pluginManager !== undefined
-      ? await inputs.pluginManager.runTransformLlmOutputHooks(llmOutput.text, tCtx)
-      : llmOutput.text;
+  const outText = await transformLlmOutputText(inputs, llmOutput.text, tCtx);
   ctx.messages.push(buildAssistantTurn(outText, llmOutput.toolCalls));
   const rawResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
-  // #65/#57 — transform_tool_result (previously dead) is the seam that scrubs /
-  // delimits tool output before it reaches the LLM.
-  const toolResults =
-    inputs.pluginManager !== undefined
-      ? await inputs.pluginManager.runTransformToolResultHooks(rawResults, tCtx)
-      : rawResults;
+  const toolResults = await guardAndTransformToolResults(inputs, rawResults, tCtx);
   ctx.messages.push({ role: "user", content: toolResults });
   if (inputs.onStep !== undefined) {
     const cb = inputs.onStep;
