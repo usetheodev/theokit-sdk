@@ -2,6 +2,7 @@ import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
+import { withFileLock } from "../../persistence/file-lock.js";
 import { redactSecrets, safePathJoin, sanitizeIdentifier } from "../../security/index.js";
 import type { SessionMessage } from "./session-types.js";
 
@@ -166,9 +167,35 @@ export async function appendAnyPersistedMessage(
   agentId: string,
   record: PersistedSessionMessage,
 ): Promise<void> {
+  await appendPersistedMessages(cwd, agentId, [record]);
+}
+
+/**
+ * M2 #63 — batch-append a whole conversation turn (user + assistant + N tool
+ * results) in ONE write under a cross-process file lock. Replaces the pre-M2
+ * per-message `mkdir` + `appendFile` cycle (N opens per turn) with a single
+ * `mkdir` + single `appendFile`, and closes the cross-process race: two Node
+ * processes sharing a cwd (CLI + daemon, parallel workers) can no longer tear a
+ * >4KB line or interleave lines. `withFileLock` uses `proper-lockfile` when
+ * installed (cross-process) and falls back to an in-process mutex otherwise.
+ * A no-op for an empty batch.
+ *
+ * @internal
+ */
+export async function appendPersistedMessages(
+  cwd: string,
+  agentId: string,
+  records: readonly PersistedSessionMessage[],
+): Promise<void> {
+  if (records.length === 0) return;
   const path = sessionFilePath(cwd, agentId);
+  const payload = records.map((r) => `${redactSecrets(JSON.stringify(r))}\n`).join("");
+  // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the
+  // parent dir to exist. One mkdir per turn (batch) replaces the pre-M2 per-message mkdir.
   await mkdir(dirname(path), { recursive: true });
-  await appendFile(path, `${redactSecrets(JSON.stringify(record))}\n`, "utf8");
+  await withFileLock(path, async () => {
+    await appendFile(path, payload, "utf8");
+  });
 }
 
 /**
@@ -190,14 +217,19 @@ export async function compactSessionFile(
   maxTurns: number,
 ): Promise<void> {
   const path = sessionFilePath(cwd, agentId);
-  let raw: string;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch {
-    return;
-  }
-  const lines = raw.split("\n").filter((line) => line.length > 0);
-  if (lines.length <= maxTurns * 2) return;
-  const trimmed = `${lines.slice(-maxTurns).join("\n")}\n`;
-  await replaceFileAtomic(path, trimmed);
+  // M2 #63 — hold the SAME cross-process lock as appendPersistedMessages so the
+  // read→slice→rename window can no longer drop a line another process appends
+  // concurrently. Append and compact are now mutually exclusive across processes.
+  await withFileLock(path, async () => {
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf8");
+    } catch {
+      return;
+    }
+    const lines = raw.split("\n").filter((line) => line.length > 0);
+    if (lines.length <= maxTurns * 2) return;
+    const trimmed = `${lines.slice(-maxTurns).join("\n")}\n`;
+    await replaceFileAtomic(path, trimmed);
+  });
 }
