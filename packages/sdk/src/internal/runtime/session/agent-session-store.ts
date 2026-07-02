@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
@@ -190,12 +191,22 @@ export async function appendPersistedMessages(
   if (records.length === 0) return;
   const path = sessionFilePath(cwd, agentId);
   const payload = records.map((r) => `${redactSecrets(JSON.stringify(r))}\n`).join("");
-  // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the
-  // parent dir to exist. One mkdir per turn (batch) replaces the pre-M2 per-message mkdir.
-  await mkdir(dirname(path), { recursive: true });
-  await withFileLock(path, async () => {
-    await appendFile(path, payload, "utf8");
-  });
+  const dir = dirname(path);
+  // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the parent
+  // dir to exist. One mkdir per turn (batch) replaces the pre-M2 per-message mkdir.
+  // Retry ONCE on ENOENT: a fire-and-forget append can race a concurrent removal
+  // of the session dir (e.g. a test tearing down `.theokit/` while an async append
+  // is still in flight); the lock's mkdir-based `.lock` then fails mid-acquire.
+  // Re-creating the dir + retrying closes the widened window without masking a real
+  // fault (a second ENOENT propagates).
+  try {
+    await mkdir(dir, { recursive: true });
+    await withFileLock(path, () => appendFile(path, payload, "utf8"));
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+    await mkdir(dir, { recursive: true });
+    await withFileLock(path, () => appendFile(path, payload, "utf8"));
+  }
 }
 
 /**
@@ -217,6 +228,10 @@ export async function compactSessionFile(
   maxTurns: number,
 ): Promise<void> {
   const path = sessionFilePath(cwd, agentId);
+  // Nothing to compact if the log does not exist yet — and locking a missing
+  // file's (missing) dir would fail the lock's own `.lock` mkdir. Pre-check
+  // OUTSIDE the lock (M2 #63).
+  if (!existsSync(path)) return;
   // M2 #63 — hold the SAME cross-process lock as appendPersistedMessages so the
   // read→slice→rename window can no longer drop a line another process appends
   // concurrently. Append and compact are now mutually exclusive across processes.
