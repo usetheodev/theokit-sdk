@@ -100,3 +100,4 @@ packages/acp/tests/_smoke-entry.mjs
 .claude/knowledge-base/reference/hermes-agent/
 .claude/knowledge-base/reference/openai-agents-python/
 .claude/knowledge-base/reference/pi/
+.claude/knowledge-base/audits/cross-validation/
