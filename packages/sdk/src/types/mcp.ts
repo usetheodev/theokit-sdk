@@ -16,6 +16,14 @@ export type McpStdioServerConfig = {
    * of hanging the agent loop forever. Default 30_000.
    */
   requestTimeoutMs?: number;
+  /**
+   * #54 — env inherit/scrub policy for the spawned MCP server process. Defaults
+   * to `"inherit-scrubbed"` (drop secret-like host vars: `*KEY*`/`*SECRET*`/
+   * `*TOKEN*`/`*PASSWORD*`/`*_AUTH*`/…) so a third-party MCP server binary cannot
+   * exfiltrate host secrets via the environment. `env` above is merged AFTER the
+   * policy and always wins. Pass `"all"` to restore full inheritance.
+   */
+  envPolicy?: import("../internal/runtime/lifecycle/env-policy.js").EnvPolicy;
 };
 
 /**
