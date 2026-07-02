@@ -128,7 +128,11 @@ export async function runActiveMemory(args: RunActiveMemoryArgs): Promise<Active
         hits: [],
       });
     }
-    const cached = args.cache?.get(args.userText, cfg.queryMode);
+    // T4.9 wiring (#56) — pass the tenant tuple so two callers with the same
+    // query text but different identity never share a cache entry. The cache
+    // key infra already supports this; only the wiring was missing.
+    const tenantCtx = { namespace: args.namespace, userId: args.userId, scope: args.scope };
+    const cached = args.cache?.get(args.userText, cfg.queryMode, tenantCtx);
     if (cached !== undefined) return endRecallSpan(span, args, cached);
 
     const query = buildQuery(args.userText, args.priorMessages, cfg.queryMode, cfg.recentUserTurns);
@@ -244,7 +248,12 @@ async function finalize(
   queryMode: ActiveMemoryQueryMode,
   result: ActiveMemoryResult,
 ): Promise<ActiveMemoryResult> {
-  args.cache?.set(args.userText, queryMode, result);
+  // #56 — key the cache entry by tenant identity (see get-side wiring above).
+  args.cache?.set(args.userText, queryMode, result, {
+    namespace: args.namespace,
+    userId: args.userId,
+    scope: args.scope,
+  });
   if (args.persistTranscripts === true && args.cwd !== undefined) {
     await persistActiveMemoryTranscript(args.cwd, {
       runId: args.runId ?? `run-${Date.now()}`,
