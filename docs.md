@@ -1133,6 +1133,8 @@ const agent = await Agent.create({
     },
   },
 });
+Both stdio and http/sse MCP server configs accept an optional requestTimeoutMs (default 30000). A request that receives no reply within this window rejects with a typed NetworkError (code: "mcp_timeout") instead of hanging the agent loop — for stdio a silent server process, for http/sse an unresponsive endpoint (enforced via AbortSignal.timeout).
+
 Cloud
 Cloud agents can receive authenticated MCP configs inline too. Use HTTP auth when Theo should proxy a remote MCP through the backend. Use stdio env when the server runs inside the cloud VM and reads credentials from environment variables.
 
