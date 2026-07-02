@@ -63,6 +63,24 @@ describe("classifyRound (pure)", () => {
       "no_progress",
     );
   });
+  it("test_classifyRound_doom_loop_returns_no_progress", () => {
+    // A doom-loop stop is a genuine terminal — not a truncation to continue.
+    expect(classifyRound(rr({ stoppedByDoomLoop: true, result: "stopped" }), 0, 5, 0)).toBe(
+      "no_progress",
+    );
+  });
+  it("test_classifyRound_doom_loop_stops_below_maxRounds", () => {
+    // Even with rounds/budget left, a doom-loop stop does NOT re-send.
+    expect(classifyRound(rr({ stoppedByDoomLoop: true, result: "stopped" }), 0, 5, 0)).not.toBe(
+      "continue",
+    );
+  });
+  it("test_classifyRound_doom_loop_wins_over_iteration_limit (EC-2)", () => {
+    // Both flags set → the doom-loop branch precedes the iteration-limit check → "no_progress".
+    expect(
+      classifyRound(rr({ stoppedByDoomLoop: true, stoppedAtIterationLimit: true }), 1, 5, 0),
+    ).toBe("no_progress");
+  });
   it("test_non_empty_at_budget_is_step_limit_not_no_progress", () => {
     // Made progress (non-empty) but ran out of rounds → step_limit, even with prior empty.
     expect(classifyRound(rr({ stoppedAtIterationLimit: true, result: "x" }), 5, 5, 1)).toBe(
@@ -107,6 +125,16 @@ describe("runToCompletionImpl", () => {
     const out = await runToCompletionImpl(agent, "do X", { maxRounds: 2 });
     expect(out.terminal).toBe("step_limit");
     expect(out.rounds).toBe(2);
+  });
+
+  it("test_end_to_end_doom_loop_terminates_no_progress", async () => {
+    // A run that doom-loop-stopped surfaces `stoppedByDoomLoop`; the driver terminates immediately
+    // with `no_progress` and does NOT re-send (rounds 0), even with maxRounds budget left.
+    const agent = fakeAgent([rr({ stoppedByDoomLoop: true, result: "Stopped: repeated calls." })]);
+    const out = await runToCompletionImpl(agent, "do X", { maxRounds: 9 });
+    expect(out.terminal).toBe("no_progress");
+    expect(out.rounds).toBe(0);
+    expect(agent.sends).toEqual(["do X"]); // no continuation re-send
   });
 
   it("test_no_progress_after_two_empty_rounds", async () => {

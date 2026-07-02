@@ -57,6 +57,10 @@ export function classifyRound(
   maxRounds: number,
   emptyStreak: number,
 ): RoundDecision {
+  // Doom-loop stop is a genuine terminal (the model repeated identical tool calls) — classify it as
+  // `no_progress` FIRST, before the iteration-limit check, so it is never mistaken for a truncation
+  // to re-send (which would re-trigger the loop). Complements the empty-round `no_progress` below.
+  if (result.stoppedByDoomLoop === true) return "no_progress";
   if (result.stoppedAtIterationLimit !== true) return "done";
   // Truncated at the iteration ceiling.
   if (isEmptyRound(result) && emptyStreak >= 1) return "no_progress";
