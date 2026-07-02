@@ -6,6 +6,7 @@
  * @internal
  */
 
+import { ConfigurationError } from "../../errors.js";
 import type { ProviderProfile } from "../providers/types.js";
 import { createPluginContext, type PluginRegistrations } from "./context.js";
 import type {
@@ -48,6 +49,9 @@ export class PluginManager {
     memoryProviders: [],
   };
   #initialized = false;
+  // #68 — registrations of plugins added post-init via `register()`, keyed by
+  // plugin name so a re-register REPLACES (not appends) the prior hooks.
+  readonly #byName = new Map<string, PluginRegistrations>();
 
   async initialize(plugins: ReadonlyArray<Plugin>): Promise<void> {
     if (this.#initialized) {
@@ -66,6 +70,37 @@ export class PluginManager {
       seen.add(plugin.name);
       await this.#dispatchPlugin(plugin);
     }
+  }
+
+  /**
+   * #68 — register a single `general` plugin AFTER `initialize()` has run.
+   *
+   * The bulk `initialize()` is single-shot (one call per process); late
+   * registration is a distinct, named operation used by adapters that install
+   * a plugin per-session/per-request (e.g. the ACP permission veto, which is
+   * installed once the permission mode + connection are known — after the
+   * agent's own plugins were already initialized).
+   *
+   * Idempotent by plugin NAME: re-registering a plugin with the same name
+   * REPLACES its prior hooks/tools instead of appending duplicates (the ACP
+   * permission plugin is re-installed on every prompt).
+   *
+   * Only `general` plugins may be registered late — model-provider / memory
+   * plugins are resolved during the bulk init and cannot be added afterwards.
+   */
+  async register(plugin: Plugin): Promise<void> {
+    if (plugin.kind !== "general") {
+      throw new ConfigurationError(
+        `late register supports general plugins only (got "${plugin.kind}" for "${plugin.name}")`,
+        { code: "plugin_late_register_kind" },
+      );
+    }
+    const prior = this.#byName.get(plugin.name);
+    if (prior !== undefined) this.#unmerge(prior);
+    const { ctx, registrations } = createPluginContext();
+    await plugin.register(ctx);
+    this.#byName.set(plugin.name, registrations);
+    this.#merge(registrations);
   }
 
   get aggregated(): Readonly<AggregatedPlugins> {
@@ -189,5 +224,30 @@ export class PluginManager {
       this.#aggregated.hooks.set(hook, existing);
     }
     this.#aggregated.injected.push(...r.injected);
+  }
+
+  /**
+   * #68 — inverse of #merge: remove a prior registration's contributions from
+   * the aggregated view by object identity. Used by `register()` to replace a
+   * same-named plugin's hooks/tools instead of accumulating duplicates.
+   */
+  #unmerge(r: PluginRegistrations): void {
+    removeAll(this.#aggregated.tools, r.tools);
+    removeAll(this.#aggregated.commands, r.commands);
+    removeAll(this.#aggregated.injected, r.injected);
+    for (const [hook, handlers] of r.hooks.entries()) {
+      const existing = this.#aggregated.hooks.get(hook);
+      if (existing === undefined) continue;
+      removeAll(existing, handlers);
+      if (existing.length === 0) this.#aggregated.hooks.delete(hook);
+    }
+  }
+}
+
+/** Remove each element of `toRemove` from `arr` in place (by identity). */
+function removeAll<T>(arr: T[], toRemove: ReadonlyArray<T>): void {
+  for (const item of toRemove) {
+    const idx = arr.indexOf(item);
+    if (idx !== -1) arr.splice(idx, 1);
   }
 }

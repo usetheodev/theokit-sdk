@@ -1,7 +1,7 @@
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import { collapseSystemText, makeLlmFinish, parseToolArguments } from "./finish.js";
-import { extractHermesToolCalls } from "./hermes-tool-extract.js";
+import { extractHermesToolCalls, StreamSuppressionBuffer } from "./hermes-tool-extract.js";
 import { parseSseStream } from "./sse.js";
 import type {
   LlmClient,
@@ -172,6 +172,9 @@ export class OpenAIClient implements LlmClient {
     const accumulator = new OpenAIStreamAccumulator(
       this.options.extractToolCallsFromContent ?? false,
       providerId,
+      // R5: request-scoped allowlist — leaked recovery only promotes a block whose name is a tool the
+      // model was actually given. Empty set (no tools) recovers nothing.
+      new Set(request.tools?.map((tool) => tool.name) ?? []),
     );
     for await (const record of parseSseStream(response.body, signal)) {
       if (record.data === "[DONE]") break;
@@ -198,6 +201,10 @@ export class OpenAIClient implements LlmClient {
       const events = accumulator.consume(chunk);
       for (const event of events) yield event;
     }
+    // R7: drain any held buffer that survived the loop (a stream that ended without a `finish_reason`
+    // terminal chunk — truncation / non-conformant proxy) so held text is never silently dropped.
+    const drainEvent = accumulator.finalizeHeldText();
+    if (drainEvent !== undefined) yield drainEvent;
     return accumulator.finish();
   }
 }
@@ -211,30 +218,54 @@ class OpenAIStreamAccumulator {
   private cacheWriteTokens?: number;
   private reasoningTokens?: number;
   private readonly toolCalls = new Map<number, { id: string; name: string; args: string }>();
+  /** R7: present only when recovery is enabled AND the request declares tools — holds suspected
+   *  leaked-dialect content back from the `text_delta` stream. `undefined` ⇒ stream immediately. */
+  private readonly suppress?: StreamSuppressionBuffer;
 
   /**
    * @param extractFromContent opt-in leaked-dialect safe-parse (theokit#58). Default false.
    * @param providerName provider id, used only to label the recovery log line.
+   * @param allowedToolNames R5 request-scoped allowlist — built from `request.tools` at `stream()`;
+   *   leaked recovery in `finish()` only promotes a block whose name is in this set. `undefined`
+   *   (direct construction) recovers all (back-compat); an empty set recovers nothing.
    */
   constructor(
     private readonly extractFromContent = false,
     private readonly providerName = "openai",
-  ) {}
+    private readonly allowedToolNames?: ReadonlySet<string>,
+  ) {
+    this.suppress =
+      extractFromContent && allowedToolNames !== undefined && allowedToolNames.size > 0
+        ? new StreamSuppressionBuffer(allowedToolNames)
+        : undefined;
+  }
 
   consume(chunk: OpenAIDeltaChunk): LlmEvent[] {
     const events: LlmEvent[] = [];
     this.applyUsage(chunk.usage);
     for (const choice of chunk.choices ?? []) {
-      // issue #47: reasoning delta precedes the visible text in arrival order. OpenRouter streams it
-      // as `reasoning`; some compat providers use `reasoning_content` (F-domain-2) — accept either.
-      const reasoningEvent = this.applyReasoningDelta(
-        choice.delta?.reasoning ?? choice.delta?.reasoning_content,
-      );
-      if (reasoningEvent !== undefined) events.push(reasoningEvent);
-      const textEvent = this.applyContentDelta(choice.delta?.content);
-      if (textEvent !== undefined) events.push(textEvent);
-      this.mergeToolCallDeltas(choice.delta?.tool_calls);
-      this.applyFinishReason(choice.finish_reason);
+      events.push(...this.applyChoice(choice));
+    }
+    return events;
+  }
+
+  private applyChoice(choice: NonNullable<OpenAIDeltaChunk["choices"]>[number]): LlmEvent[] {
+    const events: LlmEvent[] = [];
+    // issue #47: reasoning delta precedes the visible text in arrival order. OpenRouter streams it
+    // as `reasoning`; some compat providers use `reasoning_content` (F-domain-2) — accept either.
+    const reasoningEvent = this.applyReasoningDelta(
+      choice.delta?.reasoning ?? choice.delta?.reasoning_content,
+    );
+    if (reasoningEvent !== undefined) events.push(reasoningEvent);
+    const textEvent = this.applyContentDelta(choice.delta?.content);
+    if (textEvent !== undefined) events.push(textEvent);
+    this.mergeToolCallDeltas(choice.delta?.tool_calls);
+    this.applyFinishReason(choice.finish_reason);
+    // R7: at the terminal chunk, flush the held buffer's residual (held minus recoverable blocks)
+    // AFTER this chunk's content was appended above — so `accumulatedText == finish.text`.
+    if (choice.finish_reason !== undefined && choice.finish_reason !== null) {
+      const flushEvent = this.finalizeHeldText();
+      if (flushEvent !== undefined) events.push(flushEvent);
     }
     return events;
   }
@@ -266,7 +297,20 @@ class OpenAIStreamAccumulator {
   private applyContentDelta(content: string | undefined): LlmEvent | undefined {
     if (typeof content !== "string" || content.length === 0) return undefined;
     this.text += content;
-    return { type: "text_delta", text: content };
+    // R7: when suppression is active, HOLD content that could still be a leaked tool call (the buffer
+    // returns the text to emit now, or `undefined` to hold). Otherwise stream immediately.
+    if (this.suppress === undefined) return { type: "text_delta", text: content };
+    const emit = this.suppress.push(content);
+    return emit !== undefined ? { type: "text_delta", text: emit } : undefined;
+  }
+
+  /** R7 held-buffer finalizer, called at the `finish_reason` chunk (in `applyChoice`) AND after the
+   *  SSE loop in `stream()` — so a stream that omits a `finish_reason` terminal never silently drops
+   *  held text. `toolCalls.size > 0` (native calls present) makes `finish()` skip recovery, so the
+   *  buffer streams the held text whole. Idempotent once drained. */
+  finalizeHeldText(): LlmEvent | undefined {
+    const emit = this.suppress?.drain(this.toolCalls.size > 0);
+    return emit !== undefined ? { type: "text_delta", text: emit } : undefined;
   }
 
   private mergeToolCallDeltas(
@@ -302,6 +346,7 @@ class OpenAIStreamAccumulator {
       const recovered = extractHermesToolCalls(
         this.text,
         () => `hermes-${globalThis.crypto.randomUUID()}`,
+        this.allowedToolNames,
       );
       if (recovered.toolCalls.length > 0) {
         toolCalls.push(...recovered.toolCalls);
@@ -312,6 +357,14 @@ class OpenAIStreamAccumulator {
         process.stderr.write(
           `[theokit-sdk] recovered ${recovered.toolCalls.length} leaked tool call(s) from assistant content ` +
             `(provider="${this.providerName}", names=${recovered.toolCalls.map((c) => c.name).join(",")})\n`,
+        );
+      }
+      // R5 observability: a leaked block DROPPED by the request-scoped allowlist is the guard firing —
+      // surface it too, so a model emitting `<function=NAME>` for an undeclared tool is diagnosable.
+      if (recovered.droppedNames.length > 0) {
+        process.stderr.write(
+          `[theokit-sdk] dropped ${recovered.droppedNames.length} leaked block(s) whose name is not a ` +
+            `tool in the request (provider="${this.providerName}", names=${recovered.droppedNames.join(",")})\n`,
         );
       }
     }

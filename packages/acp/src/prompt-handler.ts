@@ -79,6 +79,32 @@ async function runPrompt(
   return mapStopReason(result.status, errorCode);
 }
 
+/**
+ * SEC-M0-03 — install the permission veto (fail-closed). Returns an AcpError to
+ * REFUSE the prompt when the requested mode cannot be enforced on this runtime,
+ * or `undefined` when installation succeeded (or mode is `auto`).
+ */
+async function installPermissionOrError(
+  session: AcpSession,
+  params: acp.PromptRequest,
+  deps: HandlePromptDeps,
+): Promise<AcpError | undefined> {
+  if (deps.permissionMode === "auto") return undefined;
+  try {
+    await installPermissionPlugin(session.agent, {
+      conn: deps.conn,
+      sessionId: params.sessionId,
+      mode: deps.permissionMode,
+      trustedTools: deps.trustedTools,
+      timeoutMs: deps.permissionTimeoutMs,
+    });
+    return undefined;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { code: ACP_ERR.INTERNAL_ERROR, message: msg };
+  }
+}
+
 export async function handlePrompt(
   params: acp.PromptRequest,
   deps: HandlePromptDeps,
@@ -94,15 +120,8 @@ export async function handlePrompt(
   const extracted = extractOrError(params, deps);
   if (!extracted.ok) return { error: extracted.error };
 
-  if (deps.permissionMode !== "auto") {
-    installPermissionPlugin(session.agent, {
-      conn: deps.conn,
-      sessionId: params.sessionId,
-      mode: deps.permissionMode,
-      trustedTools: deps.trustedTools,
-      timeoutMs: deps.permissionTimeoutMs,
-    });
-  }
+  const permError = await installPermissionOrError(session, params, deps);
+  if (permError !== undefined) return { error: permError };
 
   try {
     const stopReason = await runPrompt(session, extracted.text, params, deps);

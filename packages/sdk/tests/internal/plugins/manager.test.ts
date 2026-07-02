@@ -219,3 +219,106 @@ describe("PluginManager (T1.3)", () => {
     expect(calls).toContain("dup");
   });
 });
+
+describe("PluginManager.register — post-init single-plugin registration (#68)", () => {
+  it("aggregates a pre_tool_call hook AFTER initialize (veto now wired)", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]); // manager already initialized, like a live agent
+    const plugin: Plugin = {
+      name: "acp-permission-s1",
+      version: "1.0",
+      kind: "general",
+      register: (ctx) => {
+        ctx.on("pre_tool_call", () => ({ block: true, message: "denied" }));
+      },
+    };
+    await mgr.register(plugin);
+    const result = await mgr.runPreToolCallHooks({ name: "x", args: {}, agentId: "a", runId: "r" });
+    expect(result?.block).toBe(true);
+    expect(result?.message).toBe("denied");
+  });
+
+  it("re-registering the same plugin name REPLACES its hooks (no duplicate handler)", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]);
+    let calls = 0;
+    const make = (): Plugin => ({
+      name: "acp-permission-s1",
+      version: "1.0",
+      kind: "general",
+      register: (ctx) => {
+        ctx.on("pre_tool_call", () => {
+          calls += 1;
+          return undefined;
+        });
+      },
+    });
+    await mgr.register(make());
+    await mgr.register(make()); // same name → replace, not append
+    await mgr.runPreToolCallHooks({ name: "x", args: {}, agentId: "a", runId: "r" });
+    expect(calls).toBe(1); // exactly one handler survives (replaced), not two
+  });
+
+  it("rejects a non-general plugin registered post-init", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]);
+    const provider: Plugin = {
+      name: "prov",
+      version: "1.0",
+      kind: "model-provider",
+      profile: {
+        name: "anthropic",
+        apiMode: "anthropic_messages",
+        envVars: ["ANTHROPIC_API_KEY"],
+        authType: "api_key",
+        baseUrl: "https://api.anthropic.com",
+        fallbackModels: ["claude-opus-4-7"],
+      },
+    };
+    await expect(mgr.register(provider)).rejects.toThrow(/general/i);
+  });
+
+  // F-H2 / TQ-01 — integration against the REAL PluginManager (NOT a mock), so
+  // the veto is proven on the exact wiring that the ACP install goes through.
+  // The original #68 bug was masked by a mock manager that already had register().
+  it("veto integration: a deny pre_tool_call plugin registered post-init blocks a tool, an allowed tool passes", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]); // agent already initialized
+
+    // Exactly what installPermissionPlugin(deny) builds: a general plugin whose
+    // pre_tool_call returns {block:true} for a non-trusted tool.
+    const denyPlugin: Plugin = {
+      name: "acp-permission-session-x",
+      version: "1.0.0",
+      kind: "general",
+      register: (ctx) => {
+        ctx.on("pre_tool_call", (raw) => {
+          const ev = raw as { name: string };
+          if (ev.name === "trusted_tool") return undefined; // allowed
+          return { block: true, message: "denied (permissionDefault=deny)" };
+        });
+      },
+    };
+    await mgr.register(denyPlugin);
+
+    // A guarded tool is vetoed — the block decision the loop uses to SKIP the
+    // handler (tool-dispatch.ts honors {block:true} before runToolWithLifecycle).
+    const blocked = await mgr.runPreToolCallHooks({
+      name: "shell",
+      args: {},
+      agentId: "a",
+      runId: "r",
+    });
+    expect(blocked?.block).toBe(true);
+    expect(blocked?.message).toMatch(/denied/);
+
+    // A trusted tool is NOT vetoed → the loop proceeds to run it.
+    const allowed = await mgr.runPreToolCallHooks({
+      name: "trusted_tool",
+      args: {},
+      agentId: "a",
+      runId: "r",
+    });
+    expect(allowed).toBeUndefined();
+  });
+});

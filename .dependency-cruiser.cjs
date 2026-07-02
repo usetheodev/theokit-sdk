@@ -36,7 +36,7 @@ module.exports = {
           // Sub-path module types (a2a, client, server/adapter) — imported by their barrel index.ts
           // which are tsup sub-entries. dep-cruiser cannot trace tsup entry points so marks these as orphans.
           // knip + tsc verify they are reachable.
-          "(^|/)packages/sdk/src/(a2a|client|server/adapter)/types\\.ts$",
+          "(^|/)packages/sdk/src/(a2a|client|server/adapter|sanitize)/types\\.ts$",
           // M1-5: `@theokit/sdk/messages` readers — a public tsup sub-entry whose only imports are
           // type-only (`import type` from types/messages + types/usage, erased at JS runtime), so the
           // module has no value-level edges and dep-cruiser marks it orphan. Reachable via the `messages`

@@ -294,10 +294,16 @@ interface RunResult {
   // (SendOptions.maxIterations or the default) with the model still
   // wanting to call tools — i.e. silently truncated, not finished.
   stoppedAtIterationLimit?: boolean;
+  // true when the run stopped because the DOOM-LOOP GUARD detected the model
+  // repeating IDENTICAL tool calls (same name + input) to the hard threshold —
+  // making no progress. Surfaces as terminal "no_progress" through the driver.
+  stoppedByDoomLoop?: boolean;
 }
 Reliable continuation (local agents)
 
 A single agent.send() runs the tool-calling loop up to a ceiling — SendOptions.maxIterations (a positive integer; invalid values throw ConfigurationError) or the default. When the model still wants to call tools at that ceiling, the run stops with result.stoppedAtIterationLimit === true rather than a finished answer.
+
+Doom-loop guard. Independently, the loop stops early when the model repeats IDENTICAL tool calls (same name + same input) that make no progress — e.g. a tool that keeps failing and is retried unchanged. This is on by default with generous thresholds (soft 3 / hard 5): at the soft threshold a one-time guidance nudge is injected as a user message in the transcript; at the hard threshold the run stops with result.stoppedByDoomLoop === true (surfacing as terminal "no_progress" through runToCompletion — a controlled stop, not a truncation to re-send). Because it is on by default, a run that previously ground to the iteration ceiling on an identical-repeat loop now terminates earlier with stoppedByDoomLoop instead of stoppedAtIterationLimit. Tune or disable per call with SendOptions.doomLoop: false to disable, or { softThreshold, hardThreshold } to tune (each a positive integer; invalid values throw ConfigurationError). It complements stoppedAtIterationLimit (a different failure mode: model stuck repeating vs work truncated at the ceiling).
 
 agent.runToCompletion(message, options?) drives past that truncation. It re-sends a short continuation prompt — the agent's stateful session preserves the conversation, so the prompt need not repeat the task — until a genuine terminal. Local agents only; cloud agents throw UnsupportedRunOperationError (the cloud runtime manages continuation server-side).
 
@@ -777,9 +783,12 @@ interface DefineToolSpec<T extends ZodType> {
   description: string;
   inputSchema: T;
   handler: (input: z.infer<T>) => string | Promise<string>;
+  sanitize?: boolean | SanitizeOptions;
 }
 
 Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
+
+`sanitize` (optional) cleans the raw model-emitted args BEFORE `inputSchema.parse`, using the primitive from `@theokit/sdk/sanitize` (see below). `sanitize: true` trims whitespace from string values (so a leaked `"\npackage.json\n"` path validates as `"package.json"`); `sanitize: { coerce: true }` additionally coerces string values toward this tool's own schema (a `z.number()` field accepts `"5"`). Absent ⇒ args reach validation untouched. Sanitize is hygiene, not a validity bypass — a genuinely invalid arg still becomes `tool_result(isError)`.
 
 import { z } from "zod";
 import { defineTool } from "@theokit/sdk";
@@ -1124,6 +1133,8 @@ const agent = await Agent.create({
     },
   },
 });
+Both stdio and http/sse MCP server configs accept an optional requestTimeoutMs (default 30000). A request that receives no reply within this window rejects with a typed NetworkError (code: "mcp_timeout") instead of hanging the agent loop — for stdio a silent server process, for http/sse an unresponsive endpoint (enforced via AbortSignal.timeout).
+
 Cloud
 Cloud agents can receive authenticated MCP configs inline too. Use HTTP auth when Theo should proxy a remote MCP through the backend. Use stdio env when the server runs inside the cloud VM and reads credentials from environment variables.
 
@@ -1875,6 +1886,34 @@ import { withRetry } from "@theokit/sdk/retry";
 
 const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
 ```
+
+#### Tool input sanitization — `@theokit/sdk/sanitize`
+
+Public, isolated primitive for cleaning the raw arguments a model emits for a tool call, so custom-tool authors don't hand-roll defensive parsing. Pure, synchronous, and **total** — it never throws (a non-object input is returned unchanged) and never changes a value's meaning, only its hygiene/representation.
+
+```ts
+function sanitizeToolInput(input: Record<string, unknown>, options?: SanitizeOptions): SanitizeResult;
+interface SanitizeOptions {
+  trim?: boolean;       // default true
+  coerce?: boolean;     // default false — "5"→5, "true"→true, "null"→null, JSON strings→arrays/objects
+  repairJson?: boolean; // default false — repair-then-parse malformed JSON-looking strings (via jsonrepair)
+  schema?: ZodType;     // when a z.object, coercion is schema-aware (a z.string() field keeps "5")
+  deep?: boolean;       // default false — recurse into nested objects (bounded by maxDepth, default 8)
+  maxDepth?: number;
+}
+interface SanitizeResult<T = Record<string, unknown>> { value: T; changed: boolean; notes: string[]; }
+```
+
+Coercion is guarded against silent corruption: numeric coercion round-trips and stays finite, so ID-like strings (`"12345678901234567890"`, `"007"`) and `NaN`/`Infinity` are left as strings; JSON repair only runs on `{`/`[`-looking values. `notes` records a line per change for logging.
+
+```ts
+import { sanitizeToolInput } from "@theokit/sdk/sanitize";
+
+const { value } = sanitizeToolInput({ path: "\nsrc/index.ts\n", n: "5" }, { coerce: true });
+// value → { path: "src/index.ts", n: 5 }
+```
+
+Most consumers use it declaratively via `defineTool({ sanitize })` (above) rather than calling it directly. The SDK's own leaked-dialect recovery reuses this same primitive, so the public surface and the internal path never diverge.
 
 #### Message readers — `@theokit/sdk/messages`
 
@@ -2927,7 +2966,7 @@ const agent = await Agent.create({
 | `baseUrl` | yes | Endpoint base URL. |
 | `fallbackModels` | yes | Models advertised when discovery is unavailable. |
 | `aliases` | no | Alternate ids that resolve to this provider. |
-| `extractToolCallsFromContent` | no | Opt-in leaked-dialect safe-parse (default off). When `true`, a `chat_completions` finish with ZERO native `tool_calls` has its assistant content scanned for the Hermes `<function=…></tool_call>` dialect; recovered calls surface as real `tool_calls`. Enable only for routes/models known to leak (e.g. a qwen3-coder profile variant) — a code assistant can legitimately print a literal `<function=` in a fenced block, so default-off contains the blast radius. Native `tool_calls` always win (no double-count). |
+| `extractToolCallsFromContent` | no | Opt-in leaked-dialect safe-parse (default off). When `true`, a `chat_completions` finish with ZERO native `tool_calls` has its assistant content scanned for the Hermes `<function=…></tool_call>` dialect; a recovered call surfaces as a real `tool_call` **only when its name matches a tool declared in the request** (request-scoped — a leaked block for a tool the model was not given stays as visible text and is not promoted). Enable only for routes/models known to leak (e.g. a qwen3-coder profile variant) — a code assistant can legitimately print a literal `<function=` in a fenced block, so the flag is the coarse enable and the request-tool allowlist is the precise false-positive guard. While streaming with the flag on, the suspected dialect is held back at the stream boundary and never emitted as a visible `text_delta` (so the raw `<function=…>` markup does not flash by in the live stream); a never-closing marker fails open to visible text. Native `tool_calls` always win (no double-count). |
 | `displayName`, `description`, `signupUrl`, `modelsUrl`, `hostname`, `extraHeaders`, `bodyOverrides` | no | Metadata / transport tweaks. |
 
 `defineProvider(profile, { version })` overrides the plugin version (default

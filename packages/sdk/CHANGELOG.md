@@ -1,5 +1,49 @@
 # Changelog
 
+## 2.15.3
+
+### Patch Changes
+
+- 5412d7a: Stop leaking host secrets into child processes and stop overclaiming sandbox isolation (#54). Every subprocess the SDK spawned (hook scripts via the hooks executor, the shell tool, and `LocalSandbox`) inherited the FULL `process.env`, so API keys, tokens and passwords were exposed to executed commands. A new stdlib env-policy helper (`resolveChildEnv`, modeled on codex's `ShellEnvironmentPolicy`) now scrubs secret-like variable names (`*KEY*`, `*SECRET*`, `*TOKEN*`, `*PASSWORD*`, `*_AUTH*`) from the child environment by default (`inherit-scrubbed`). Non-secret vars (including `PATH`/`HOME`) are preserved, and an explicit `env` override always wins, so this is non-breaking for legitimate use. Opt out with policy `"all"` or tighten with `"core"` via `SandboxConfig.env`. `LocalSandbox`'s documentation is corrected to state plainly that it provides NO OS/filesystem/network isolation — only a timeout, an output cap, and env scrubbing.
+
+  The scrub is also applied to the **MCP stdio server subprocess** (via a new `envPolicy` field on the stdio server config), which previously inherited the full `process.env` — the highest-risk path, since MCP servers are often third-party binaries launched via `npx`. The secret-name denylist covers `*KEY*`, `*SECRET*`, `*TOKEN*`, `*PASSWORD*`, `*PASSWD*`, `*PASSPHRASE*`, `*[_-]PWD*`, `*CREDENTIAL*` (incl. `GOOGLE_APPLICATION_CREDENTIALS`), `*PRIVATE*`, `*_AUTH*`; for untrusted children use policy `"core"` (allowlist), the only fail-closed model (a denylist cannot catch creds embedded in a value such as `DATABASE_URL`). **Behavior change:** hook scripts and the shell tool no longer inherit secret-named host vars by default — pass them explicitly via the tool's `env`, or use policy `"all"`.
+
+- 58f440d: Fix a cross-tenant active-recall cache leak (#56). Active Memory recall results were cached keyed only by `(queryMode, userText)`, so two callers in the same process issuing the same query text — but belonging to different tenants (namespace / userId / scope) — could receive each other's recall results. The cache key infrastructure already supported a tenant tuple; `runActiveMemory` now threads `{namespace, userId, scope}` into both `cache.get` and `cache.set`, so recall entries are isolated per tenant. Same-tenant cache hits are preserved (no over-keying). No public API change.
+- e4cc6e9: Bound every MCP request with a timeout so a non-responding server can no longer hang the agent loop (#59). The stdio transport's `request` returned a Promise that never resolved when the server read the request but never replied; the http transport's `fetch` had no timeout. Both now enforce a per-request `requestTimeoutMs` (default 30000, configurable per server): stdio races the pending request against a timer that rejects a typed `NetworkError` (`code: "mcp_timeout"`) and drops the pending map entry (a late reply after timeout is a no-op — never a double-settle); http passes `AbortSignal.timeout` and maps an abort to the same typed error while surfacing any other fetch failure unchanged. `close()` now also settles any in-flight requests (`code: "mcp_closed"`) instead of leaking their timers. A timed-out stdio server is torn down (SIGKILL) so it cannot linger as a zombie, and the stdout read buffer is capped (8 MB) so a hostile/broken server flooding stdout without a newline (`code: "mcp_buffer_overflow"`) cannot pin memory.
+- 98ac0d0: Fix a live security defect: the ACP `pre_tool_call` permission veto was never enforced (#68). `installPermissionPlugin` tried to register its veto hook via `pluginManager.register(...)`, but `PluginManager` exposed no `register()` method — only a single-shot `initialize()` that throws when called twice. The call fell through to `void mgr.initialize([plugin])`, whose "called twice" rejection was swallowed, so the permission hook was never aggregated and guarded tools ran **without** the permission check even under `permissionMode: "deny"`/`"ask"`.
+
+  `PluginManager` now exposes `register(plugin)` — a post-init, `general`-only registration that REPLACES a same-named plugin's hooks (idempotent for the per-prompt ACP re-install) instead of appending duplicates. Additionally, `installPermissionPlugin` is now **fail-closed**: when the runtime has no plugin manager (e.g. a CloudAgent) and the mode is `deny`/`ask`, it throws a `ConfigurationError` (`code: "permission_enforcement_unavailable"`) and the ACP prompt is refused — rather than letting tools run ungated while the operator believes they are gated. It is also now `async` and awaits registration, so the veto hook is guaranteed aggregated before the first tool dispatch (no fire-and-forget window).
+
+## 2.15.2
+
+### Patch Changes
+
+- 6336f81: Suppress the leaked-dialect tool-call from the visible stream (R7). When `extractToolCallsFromContent` is enabled and a model leaks a `<function=NAME>` tool call as assistant text, the OpenAI-compat streaming now HOLDS that text back at the stream boundary (a small suspicion-buffer FSM that reuses the request-scoped allowlist from R5) instead of emitting it as `text_delta` events — so the raw dialect no longer flashes by in the live stream or lands in the final assistant text. `finish()` still recovers the call (unchanged). Fail-open: a never-closing marker or un-suppressable input is flushed as visible text (never held forever). Flag-off streaming is byte-for-byte unchanged. Grounded in openclaw's stream-normalizer FSM.
+
+## 2.15.1
+
+### Patch Changes
+
+- bec2077: Make the leaked-dialect recovery **request-scoped (R5)**. The opt-in `extractToolCallsFromContent` recovery previously promoted ANY `<function=NAME>` block leaked into assistant text on an enabled route, so a code assistant printing a literal `<function=example>` in a fenced code block could be wrongly turned into a tool call. Recovery now gates on an exact, case-sensitive allowlist derived automatically from the current request's declared tools (`request.tools`): the per-route flag stays the coarse enable, and the allowlist is the precise false-positive guard. A request with no tools recovers nothing; a gated-out block keeps its text visible (it is not silently deleted). No public API change — the allowlist is derived from the tools you already pass. Mirrors openclaw's `@openclaw/tool-call-repair` allowlist.
+
+## 2.15.0
+
+### Minor Changes
+
+- d7057f2: Add a **doom-loop / no-progress guard** to the agent loop. The loop now detects when the model repeats IDENTICAL tool calls (same name + same canonical input) that make no progress — the qwen3-coder `read_file`/`not_found` failure mode where the model retries the same failing call and the run grinds to the iteration ceiling — and stops early with a typed `no_progress` terminal instead of hanging. A pure `DoomLoopTracker` (canonical key-sorted-JSON signature + a consecutive-identical counter) escalates from a one-time guidance nudge at a soft threshold to a hard stop; the hard stop surfaces on `RunResult.stoppedByDoomLoop` and, through the continuation driver, as `terminal: "no_progress"` (so the outer loop does not re-send). It complements — does not replace — the existing empty-round `no_progress` (a different failure mode: model stuck repeating vs model gone silent). On by default with generous thresholds (soft 3 / hard 5); tune or disable per send via `SendOptions.doomLoop` (`false` to disable, or `{ softThreshold, hardThreshold }` to tune). Dependency-free. Grounded in a SOTA study of cline's LoopDetectionTracker + opencode's doom-loop.
+
+## 2.14.0
+
+### Minor Changes
+
+- 6ee4217: Add a public, isolated tool-input **sanitization** primitive on the new `@theokit/sdk/sanitize` subpath, plus a declarative `defineTool({ sanitize })` opt-in. Custom tools can now clean the raw arguments a model emits before they reach the tool schema: `sanitizeToolInput(input, options?)` trims whitespace by default and — opt-in — coerces string values toward their expected type (`"5"`→`5`, `"true"`→`true`, JSON-encoded strings→arrays/objects) and repairs malformed JSON (via `jsonrepair`). Coercion is guarded against silent corruption: numeric coercion round-trips and stays finite, so ID-like strings (`"12345678901234567890"`, `"007"`) and `NaN`/`Infinity` are left as strings; JSON repair only runs on JSON-looking values; a non-object input is returned untouched (the primitive is total — it never throws). When a Zod object schema is passed, coercion is schema-aware (a `z.string()` field keeps `"5"` a string). `defineTool({ sanitize: true })` trims the raw args before validation; `defineTool({ sanitize: { coerce: true } })` additionally coerces toward the tool's own schema — absent, `defineTool` behaviour is unchanged. Internally, the leaked-dialect recovery (`hermes-tool-extract`) now reuses the same primitive, so the public surface and the internal path never diverge. Grounded in a SOTA study of openclaw / agentfw / opencode / cline / vercel-ai-sdk.
+
+## 2.13.1
+
+### Patch Changes
+
+- 65763b9: Trim leaked-dialect tool-call parameter values during recovery. Models that leak the Hermes dialect as text (qwen3-coder) emit each parameter on its own line, so the recovered value carried the formatting newlines: `<parameter=path>\npackage.json\n</parameter>` produced `{ path: "\npackage.json\n" }`. Untrimmed, `read_file` / `glob_files` / `search_text` received a path/pattern wrapped in newlines and failed `not_found` (only `shell_exec` tolerated it, since bash ignores blank lines), so a multi-read investigation loop kept re-reading, never converged, and appeared to hang. The recovery extractor now trims each parameter value (leading/trailing whitespace only — internal newlines of a legitimate multi-line command survive), matching the native `tool_calls` path where such formatting noise never occurs. Values remain strings; downstream schema coercion is unchanged.
+
 ## 2.13.0
 
 ### Minor Changes

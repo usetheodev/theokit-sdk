@@ -32,6 +32,9 @@ export default defineConfig({
     "server/auth/index": "src/server/auth/index.ts",
     "server/errors-envelope": "src/server/errors-envelope.ts",
     "subscription/index": "src/subscription/index.ts",
+    // Public tool-input sanitization primitive — leaf module (zod type-only + node:module +
+    // lazy jsonrepair); DTS via tsc (tsconfig.tools-dts.json), mirrors the subscription pattern.
+    "sanitize/index": "src/sanitize/index.ts",
     "a2a/index": "src/a2a/index.ts",
     "client/index": "src/client/index.ts",
     "sandbox/index": "src/sandbox/index.ts",
