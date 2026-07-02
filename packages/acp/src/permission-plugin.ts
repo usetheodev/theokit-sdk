@@ -114,7 +114,16 @@ export function installPermissionPlugin(agent: SDKAgent, args: PermissionPluginA
   };
   const mgr = agentLike.pluginManager?.();
   if (mgr === undefined) {
-    return; // CloudAgent — no plugin manager, no permission flow available
+    // EC-1 — do NOT silently no-op. If the operator asked for `deny`/`ask` but
+    // this runtime (e.g. CloudAgent) has no plugin manager, the tools would run
+    // UNGATED while the operator believes they are gated — a silent security
+    // hole. Warn loudly instead (Unbreakable Rule 3 — honesty).
+    process.stderr.write(
+      `[theokit-acp] permission enforcement unavailable on this runtime ` +
+        `(no plugin manager) — tools will NOT be gated for session "${args.sessionId}" ` +
+        `(mode="${args.mode}")\n`,
+    );
+    return;
   }
   if (typeof mgr.register === "function") {
     mgr.register(plugin);

@@ -178,7 +178,7 @@ describe("installPermissionPlugin", () => {
     expect(conn.requestPermission).not.toHaveBeenCalled();
   });
 
-  it("agent_without_plugin_manager_no_op", () => {
+  it("agent_without_plugin_manager_does_not_throw", () => {
     const agent = { agentId: "a-1" } as unknown as SDKAgent;
     expect(() =>
       installPermissionPlugin(agent, {
@@ -189,5 +189,25 @@ describe("installPermissionPlugin", () => {
         timeoutMs: 1000,
       }),
     ).not.toThrow();
+  });
+
+  it("EC-1: warns (not silent) when no plugin manager AND mode is not auto", () => {
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    try {
+      const agent = { agentId: "a-1" } as unknown as SDKAgent;
+      installPermissionPlugin(agent, {
+        conn: {} as unknown as acp.AgentSideConnection,
+        sessionId: "s-1",
+        mode: "deny",
+        trustedTools: new Set(),
+        timeoutMs: 1000,
+      });
+      const written = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
+      // A denied-by-config request on a runtime that cannot gate MUST NOT be silent.
+      expect(written).toMatch(/permission enforcement unavailable/);
+      expect(written).toContain("s-1");
+    } finally {
+      stderrSpy.mockRestore();
+    }
   });
 });
