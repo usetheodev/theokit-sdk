@@ -2083,6 +2083,8 @@ The wording of a tool's `description` (its Agent-Computer Interface) materially 
 
 ### Command-permission policies
 
+`PermissionEngine` (from `@theokit/sdk`) gates a tool call by name AND, since #55, by its argument values: a `PermissionRule` may declare `args?: Record<string, string | RegExp | (v) => boolean>`, and `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared arg predicate matches — so a single `shell` rule can deny `rm -rf` while allowing `ls`. A missing argument fails its predicate (the rule does not match; never throws). **Behavior change (#55):** the default when no rule matches is now `"ask"` (fail-closed) — a permission engine that cannot positively allow must not silently allow. Restore the previous fail-open behavior with `new PermissionEngine(rules, { defaultAction: "allow" })`. `createPermissionPlugin(engine)` forwards the tool arguments into `evaluate`, so arg-level gating works through the `pre_tool_call` flow automatically.
+
 For agents that gate shell commands at a permission layer, `@theokit/sdk-tools` exports a small composable policy layer that builds on the `shell_exec` catastrophic guardrail:
 
 - `type CommandPolicy = (command: string) => string | null` — a pure predicate returning a deny REASON, or `null` to allow.
