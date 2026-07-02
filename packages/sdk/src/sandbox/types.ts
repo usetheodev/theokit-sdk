@@ -21,6 +21,13 @@ export interface SandboxConfig {
   workDir?: string;
   timeoutMs?: number;
   maxOutputBytes?: number;
+  /**
+   * #54 — env inherit/scrub policy for the executed command's child process.
+   * Defaults to `"inherit-scrubbed"` (drop secret-like vars: `*KEY*`, `*SECRET*`,
+   * `*TOKEN*`, `*PASSWORD*`, `*_AUTH*`). Pass `"all"` to restore full inheritance
+   * or `"core"` for a minimal safe allowlist.
+   */
+  env?: import("../internal/runtime/lifecycle/env-policy.js").EnvPolicy;
 }
 
 export class SandboxSecurityError extends Error {
@@ -49,6 +56,8 @@ export abstract class SandboxBackend {
       workDir: config.workDir ?? "/tmp",
       timeoutMs: config.timeoutMs ?? 30_000,
       maxOutputBytes: config.maxOutputBytes ?? 5 * 1024 * 1024,
+      // #54 — preserve the env policy so backends can scrub secrets.
+      env: config.env ?? "inherit-scrubbed",
     };
   }
 
