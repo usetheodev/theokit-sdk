@@ -94,3 +94,9 @@ packages/sdk-tools/*.tgz
 
 # ACP serve-smoke generated entry — written by serve-smoke.test.ts at runtime (tmp cwd), not source
 packages/acp/tests/_smoke-entry.mjs
+.claude/knowledge-base/reference/a peer framework/
+.claude/knowledge-base/reference/peer-js/
+.claude/knowledge-base/reference/cookbook/
+.claude/knowledge-base/reference/peer-agent/
+.claude/knowledge-base/reference/a peer SDK/
+.claude/knowledge-base/reference/pi/
