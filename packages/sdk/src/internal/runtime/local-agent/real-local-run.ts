@@ -215,6 +215,14 @@ function buildLoopInputs(
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
     // can attach it to the LLM `fetch({ signal })` call.
     ...(options.sendOptions.signal !== undefined ? { signal: options.sendOptions.signal } : {}),
+    // #58 / #57 — forward the per-tool timeout + tool-result guard so a consumer
+    // can enable them via SendOptions (not only internal AgentLoopInputs).
+    ...(options.sendOptions.perToolTimeoutMs !== undefined
+      ? { perToolTimeoutMs: options.sendOptions.perToolTimeoutMs }
+      : {}),
+    ...(options.sendOptions.toolResultGuard !== undefined
+      ? { toolResultGuard: options.sendOptions.toolResultGuard }
+      : {}),
     // M1-2: per-send iteration ceiling (validated above). The loop reads
     // inputs.maxIterations (default 8 when unset).
     ...(maxIterations !== undefined ? { maxIterations } : {}),

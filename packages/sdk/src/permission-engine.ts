@@ -1,9 +1,11 @@
 /**
  * `PermissionEngine` — first-match permission rules for tool invocations.
  *
- * Evaluates a tool name against an ordered list of rules. First matching rule
- * wins; when no rule matches the `defaultAction` is returned (M7-4 — default
- * `"allow"`, opt into default-deny via `{ defaultAction: "deny" }`).
+ * Evaluates a tool name (and optional arguments, #55) against an ordered list
+ * of rules. First matching rule wins; when no rule matches the `defaultAction`
+ * is returned. #55 — the default is now `"ask"` (FAIL-CLOSED): a permission
+ * engine that cannot positively allow must not silently allow. Opt back into
+ * the previous fail-open behavior with `{ defaultAction: "allow" }`.
  */
 
 export type PermissionAction = "allow" | "deny" | "ask";
