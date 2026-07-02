@@ -10,6 +10,7 @@ import { type LlmTurnOutput, streamLlmTurn } from "./loop-llm-stream.js";
 import type { AgentLoopInputs, AgentLoopOutput } from "./loop-types.js";
 import { buildAssistantEvent, buildAssistantTurn } from "./message-builders.js";
 import { dispatchTools } from "./tool-dispatch.js";
+import { applyToolResultGuard } from "./tool-result-guard.js";
 import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
 
 /**
@@ -43,6 +44,11 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
   try {
     const ctx = await initLoopContext(inputs);
     ctxRef = ctx;
+    // #65 — on_session_start hook (previously dead) fires once per run.
+    await inputs.pluginManager?.runOnSessionStartHooks({
+      agentId: inputs.agentId,
+      runId: inputs.runId,
+    });
     const budget =
       inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
     // M1-2 (T2.2): track the last turn's decision so we can tell a clean
@@ -82,6 +88,11 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       // so trackers gating on maxIterations actually halt (the counter was dead
       // because nothing called this). Optional + non-throwing per the contract.
       inputs.budgetTracker?.nextIteration?.();
+      // #58 — after a completed turn, stop before starting a new one if the run
+      // was cancelled mid-round. The first turn always runs (its own abort UX,
+      // "[aborted]", is produced inside runIteration); this only prevents a NEW
+      // LLM turn after a cancel lands.
+      if (inputs.signal?.aborted === true) break;
     }
     // M1-2 (T2.2): the loop exited because the iteration budget is exhausted
     // (not via a `done`/`error` break) while the last turn still wanted tools —
@@ -136,6 +147,11 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ...(ctx.stoppedByDoomLoop === true ? { stoppedByDoomLoop: true } : {}),
     };
   } finally {
+    // #65 — on_session_end hook (previously dead) fires once per run, even on error.
+    await inputs.pluginManager?.runOnSessionEndHooks({
+      agentId: inputs.agentId,
+      runId: inputs.runId,
+    });
     if (
       ctxRef !== undefined &&
       ctxRef.memoryProviderHandle !== undefined &&
@@ -298,7 +314,11 @@ async function runIteration(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
 ): Promise<"continue" | "done" | "error"> {
+  // #65 — pre/post_llm_call hooks (previously dead) fire around each LLM turn.
+  const hookCtx = { agentId: inputs.agentId, runId: inputs.runId };
+  await inputs.pluginManager?.runPreLlmCallHooks(hookCtx);
   const llmOutput = await streamLlmTurn(inputs, ctx);
+  await inputs.pluginManager?.runPostLlmCallHooks(hookCtx);
   accumulateUsage(ctx.usage, llmOutput);
   if (inputs.budgetTracker !== undefined) {
     const modelId = inputs.model.id ?? "auto";
@@ -326,6 +346,30 @@ async function runIteration(
   return continueOrTerminate(inputs, ctx, llmOutput);
 }
 
+/** #65 — apply the transform_llm_output hook fold (no-op when no plugin manager). */
+async function transformLlmOutputText(
+  inputs: AgentLoopInputs,
+  text: string,
+  ctx: { agentId: string; runId: string },
+): Promise<string> {
+  return inputs.pluginManager !== undefined
+    ? inputs.pluginManager.runTransformLlmOutputHooks(text, ctx)
+    : text;
+}
+
+/** #57/#65 — built-in tool-result guard then the transform_tool_result hook fold. */
+async function guardAndTransformToolResults(
+  inputs: AgentLoopInputs,
+  raw: LlmContentPart[],
+  ctx: { agentId: string; runId: string },
+): Promise<LlmContentPart[]> {
+  const guarded =
+    inputs.toolResultGuard !== undefined ? applyToolResultGuard(raw, inputs.toolResultGuard) : raw;
+  return inputs.pluginManager !== undefined
+    ? inputs.pluginManager.runTransformToolResultHooks(guarded, ctx)
+    : guarded;
+}
+
 export async function continueOrTerminate(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
@@ -338,8 +382,11 @@ export async function continueOrTerminate(
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     return finishOrReflect(inputs, ctx, llmOutput);
   }
-  ctx.messages.push(buildAssistantTurn(llmOutput.text, llmOutput.toolCalls));
-  const toolResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
+  const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
+  const outText = await transformLlmOutputText(inputs, llmOutput.text, tCtx);
+  ctx.messages.push(buildAssistantTurn(outText, llmOutput.toolCalls));
+  const rawResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
+  const toolResults = await guardAndTransformToolResults(inputs, rawResults, tCtx);
   ctx.messages.push({ role: "user", content: toolResults });
   if (inputs.onStep !== undefined) {
     const cb = inputs.onStep;

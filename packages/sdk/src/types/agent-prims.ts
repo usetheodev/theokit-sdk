@@ -58,7 +58,12 @@ export interface CustomTool {
    * Local handler invoked when the model emits `tool_use` for this tool.
    * Returns a string (becomes the `tool_result.content` surfaced back to the
    * model). Throws → SDK converts to `tool_result` with `isError: true` and
-   * the error `message` as content.
+   * the error `message` as content. #65 — an optional 2nd `ToolContext`
+   * argument carries the run's `AbortSignal`; single-argument handlers are
+   * unaffected.
    */
-  handler: (input: Record<string, unknown>) => string | Promise<string>;
+  handler: (
+    input: Record<string, unknown>,
+    ctx?: { signal?: AbortSignal },
+  ) => string | Promise<string>;
 }

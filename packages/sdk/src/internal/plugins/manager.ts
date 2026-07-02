@@ -11,13 +11,18 @@ import type { ProviderProfile } from "../providers/types.js";
 import { createPluginContext, type PluginRegistrations } from "./context.js";
 import type {
   HookHandler,
+  HookName,
+  LlmCallContext,
   MemoryProviderFactory,
   Plugin,
   PostAssistantReplyContext,
+  PostToolCallContext,
   PreToolCallContext,
   PreToolCallDecision,
   PreUserSendContext,
   PreUserSendResult,
+  SessionLifecycleContext,
+  TransformContext,
 } from "./types.js";
 
 export interface ProviderEntry {
@@ -195,6 +200,70 @@ export class PluginManager {
         );
       }
     }
+  }
+
+  // #65 — the previously-dead hooks, now wired. Fire-and-forget hooks run
+  // in order (per-handler errors logged, never thrown); transform hooks fold
+  // over the payload (a handler returning a value replaces it).
+
+  /** @internal */
+  async #runFireAndForget<C>(name: HookName, ctx: C): Promise<void> {
+    for (const h of this.#aggregated.hooks.get(name) ?? []) {
+      try {
+        await (h as (c: C) => unknown)(ctx);
+      } catch (err) {
+        process.stderr.write(
+          `[theokit-sdk] ${name} hook failed: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+      }
+    }
+  }
+
+  /** @internal — fold: each handler may return a replacement payload; a throw keeps the prior value. */
+  async #runTransform<P>(name: HookName, payload: P, ctx: unknown): Promise<P> {
+    let current = payload;
+    for (const h of this.#aggregated.hooks.get(name) ?? []) {
+      try {
+        const out = (await (h as (p: P, c: unknown) => unknown)(current, ctx)) as P | undefined;
+        if (out !== undefined) current = out;
+      } catch (err) {
+        process.stderr.write(
+          `[theokit-sdk] ${name} hook failed: ${err instanceof Error ? err.message : String(err)}\n`,
+        );
+      }
+    }
+    return current;
+  }
+
+  /** #65 — fired after a tool call completes. @internal */
+  runPostToolCallHooks(ctx: PostToolCallContext): Promise<void> {
+    return this.#runFireAndForget("post_tool_call", ctx);
+  }
+
+  /** #65 — fired before / after each LLM turn. @internal */
+  runPreLlmCallHooks(ctx: LlmCallContext): Promise<void> {
+    return this.#runFireAndForget("pre_llm_call", ctx);
+  }
+  runPostLlmCallHooks(ctx: LlmCallContext): Promise<void> {
+    return this.#runFireAndForget("post_llm_call", ctx);
+  }
+
+  /** #65 — fired at run start / end. @internal */
+  runOnSessionStartHooks(ctx: SessionLifecycleContext): Promise<void> {
+    return this.#runFireAndForget("on_session_start", ctx);
+  }
+  runOnSessionEndHooks(ctx: SessionLifecycleContext): Promise<void> {
+    return this.#runFireAndForget("on_session_end", ctx);
+  }
+
+  /** #65/#57 — transform tool results before they reach the LLM (the #57 seam). @internal */
+  runTransformToolResultHooks<T>(results: T, ctx: TransformContext): Promise<T> {
+    return this.#runTransform("transform_tool_result", results, ctx);
+  }
+
+  /** #65 — transform the LLM output text before it is consumed. @internal */
+  runTransformLlmOutputHooks(output: string, ctx: TransformContext): Promise<string> {
+    return this.#runTransform("transform_llm_output", output, ctx);
   }
 
   async #dispatchPlugin(plugin: Plugin): Promise<void> {

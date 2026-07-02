@@ -5,7 +5,6 @@
 
 // Agent façade
 export { Agent, type AgentPromptResult } from "./agent.js";
-
 // DX helpers — agent construction patterns (ADR D22-D26)
 export { AgentBuilder } from "./agent-builder.js";
 export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
@@ -59,6 +58,8 @@ export {
   type GenerateObjectOptions,
   type GenerateObjectResult,
 } from "./generate-object.js";
+// #57 — tool-result content guard options (SendOptions.toolResultGuard).
+export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-guard.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
 // Transitional: `Agent.create({ handoffs: [...] })` still works while
@@ -137,7 +138,7 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
-export { JobQueue } from "./job-queue.js";
+export { JobQueue, type JobQueueOptions } from "./job-queue.js";
 // Memory subsystem (public surfaces)
 export {
   type DreamingSweepOptions,
