@@ -90,6 +90,12 @@ export interface AgentLoopInputs {
    */
   signal?: AbortSignal;
   /**
+   * #58 — per-tool execution timeout in ms. When set, each tool call is bounded
+   * by `AbortSignal.timeout(perToolTimeoutMs)` merged with `signal`, so a hung
+   * tool rejects (exit 124) instead of wedging the loop. Undefined = no timeout.
+   */
+  perToolTimeoutMs?: number;
+  /**
    * Production-Readiness #4 (ADRs D315-D317): tool lifecycle observability
    * callbacks forwarded from `AgentOptions`. Wrapped around tool dispatch
    * so cost-tracking + audit log can correlate start/end/error events via
