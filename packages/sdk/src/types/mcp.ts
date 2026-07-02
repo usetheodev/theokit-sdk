@@ -10,6 +10,12 @@ export type McpStdioServerConfig = {
   env?: Record<string, string>;
   /** Local agents only. Cloud rejects this field. */
   cwd?: string;
+  /**
+   * #59 — per-request timeout in ms. A request that gets no reply within this
+   * window rejects with a typed `NetworkError` (`code: "mcp_timeout"`) instead
+   * of hanging the agent loop forever. Default 30_000.
+   */
+  requestTimeoutMs?: number;
 };
 
 /**
@@ -58,6 +64,12 @@ export type McpHttpServerConfig = {
   /** Passed through. `Authorization` works here. */
   headers?: Record<string, string>;
   auth?: McpAuthConfig;
+  /**
+   * #59 — per-request timeout in ms, enforced via `AbortSignal.timeout`. A
+   * fetch that does not respond within this window rejects with a typed
+   * `NetworkError` (`code: "mcp_timeout"`). Default 30_000.
+   */
+  requestTimeoutMs?: number;
 };
 
 /**
