@@ -90,6 +90,19 @@ export interface AgentLoopInputs {
    */
   signal?: AbortSignal;
   /**
+   * #58 — per-tool execution timeout in ms. When set, each tool call is bounded
+   * by `AbortSignal.timeout(perToolTimeoutMs)` merged with `signal`, so a hung
+   * tool rejects (exit 124) instead of wedging the loop. Undefined = no timeout.
+   */
+  perToolTimeoutMs?: number;
+  /**
+   * #57 — opt-in tool-result content guard applied before results reach the
+   * LLM: `{ delimit: true }` frames untrusted tool output as data (prompt-
+   * injection mitigation); `{ redactPii: true }` redacts email/phone PII.
+   * Undefined = no guard (unchanged behavior).
+   */
+  toolResultGuard?: import("./tool-result-guard.js").ToolResultGuardOptions;
+  /**
    * Production-Readiness #4 (ADRs D315-D317): tool lifecycle observability
    * callbacks forwarded from `AgentOptions`. Wrapped around tool dispatch
    * so cost-tracking + audit log can correlate start/end/error events via

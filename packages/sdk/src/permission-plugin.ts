@@ -38,8 +38,10 @@ export function createPermissionPlugin(
     kind: "general",
     register(ctx) {
       ctx.on("pre_tool_call", (rawCtx) => {
-        const { name } = rawCtx as { name: string };
-        const action = engine.evaluate(name);
+        const { name, args } = rawCtx as { name: string; args: Record<string, unknown> };
+        // #55 — pass the tool arguments so a rule can gate on the command/args,
+        // not just the tool name (e.g. deny `shell` only when it runs `rm -rf`).
+        const action = engine.evaluate(name, args);
         if (action === "deny") {
           return { block: true, message: `denied by permission engine: ${name}` };
         }

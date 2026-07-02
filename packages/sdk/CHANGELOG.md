@@ -1,5 +1,21 @@
 # Changelog
 
+## 2.16.0
+
+### Minor Changes
+
+- f93bb9a: `PermissionEngine` now gates on tool **arguments**, not just the tool name, and defaults **fail-closed** (#55). A `PermissionRule` may declare `args?: Record<string, string | RegExp | (value) => boolean>`; `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared argument predicate matches the corresponding call argument — so a single `shell` rule can deny `rm -rf` while letting `ls` fall through. A missing/undefined argument fails its predicate (the rule does not match; it never throws). Name-only rules are unchanged. `createPermissionPlugin(engine)` now forwards the tool arguments into `evaluate`, so argument-level gating works through the `pre_tool_call` flow automatically.
+
+  **BREAKING (behavior):** the action returned when NO rule matches is now `"ask"` (fail-closed), changed from the previous `"allow"` (fail-open). A permission engine that cannot positively allow must not silently allow. If you relied on the fail-open default, restore it explicitly with `new PermissionEngine(rules, { defaultAction: "allow" })`.
+
+- 16e24a3: Add an opt-in tool-result content guard against prompt injection and PII leakage (#57). Tool results are untrusted input to the model; the new guard runs at the `transform_tool_result` seam before results reach the LLM. Enable it per send via `SendOptions.toolResultGuard`: `{ delimit: true }` frames tool output in explicit `<untrusted-tool-output>` data boundaries ("spotlighting") so the model treats it as data rather than instructions — a forged closing boundary inside the content is neutralized so it cannot break out of the frame; `{ redactPii: true }` replaces email/phone PII with `[REDACTED]`. Both are opt-in and non-breaking (undefined = unchanged behavior). The `defineTool` / `CustomTool` handler type is also widened to accept the optional `ToolContext` 2nd argument (completing the #65 wiring): single-argument handlers are unaffected.
+- c004a3b: Cancellation now actually interrupts in-flight work, tools get a per-call timeout, and the job queue is bounded (#58).
+
+  - `JobQueue` runs each job under an `AbortController` whose signal is passed to the job fn, so `cancel(id)` interrupts a cooperative running job instead of only flipping a status flag. A new `maxConcurrency` option bounds how many jobs run at once (omit for the previous unbounded behavior; values < 1 clamp to 1). The job fn signature is now `(signal: AbortSignal) => Promise<T>` — existing `() => Promise<T>` callers are unaffected (the signal is simply ignored).
+  - Tool dispatch threads the run's `AbortSignal` into each tool handler and bounds each tool call with an optional per-tool timeout (`SendOptions.perToolTimeoutMs`) (via `AbortSignal.any([runSignal, AbortSignal.timeout(ms)])`), so cancelling a run interrupts a running tool and a hung tool rejects a typed timeout instead of wedging the loop; the loop also checks for cancellation between iterations. All stdlib (Node ≥22.12) — no new dependency.
+
+- 01b4edd: Wire the 7 previously-dead plugin hooks and add a `ToolContext` to tool handlers (#65). `HookName` declared 10 hooks but only 3 (`pre_tool_call`, `pre_user_send`, `post_assistant_reply`) were ever invoked — a plugin registering `post_tool_call`, `pre_llm_call`, `post_llm_call`, `on_session_start`, `on_session_end`, `transform_tool_result`, or `transform_llm_output` got a silent no-op. All 7 now fire at their real site in the agent loop: `on_session_start`/`on_session_end` at run start/end (even on error), `pre_llm_call`/`post_llm_call` around each LLM turn, `post_tool_call` after each tool completes, and the two `transform_*` hooks fold over their payload (a handler's return value replaces it) before it reaches the LLM — `transform_tool_result` is the seam for tool-result content defense. Per-handler errors are logged, never thrown (a throwing transform keeps the prior payload). Additionally, tool handlers defined via `defineTool` now receive an optional 2nd `ToolContext` argument carrying the run's `AbortSignal`, so a cooperative handler can stop early on cancellation; existing single-argument handlers are unaffected.
+
 ## 2.15.3
 
 ### Patch Changes
