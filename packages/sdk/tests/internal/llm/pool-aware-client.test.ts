@@ -91,7 +91,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
   it("passes through on first-attempt success", async () => {
     const pool = poolOf(["k1", "k2"]);
     const factory = buildFakeFactory({ onCall: () => "ok" });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     const { finish } = await drain(client.stream({} as LlmRequest, new AbortController().signal));
     expect(finish.text).toContain("k1");
   });
@@ -115,7 +115,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         return "ok";
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     const { finish } = await drain(client.stream({} as LlmRequest, new AbortController().signal));
     expect(finish.text).toContain("k1"); // retried same key, succeeded
   });
@@ -137,7 +137,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         return "ok";
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     const { finish } = await drain(client.stream({} as LlmRequest, new AbortController().signal));
     expect(finish.text).toContain("k2"); // rotated to k2
   });
@@ -161,7 +161,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         return "ok";
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     const { finish } = await drain(client.stream({} as LlmRequest, new AbortController().signal));
     expect(k1Calls).toBe(1); // no retry on 402
     expect(finish.text).toContain("k2");
@@ -184,7 +184,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         return "ok";
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     const { finish } = await drain(client.stream({} as LlmRequest, new AbortController().signal));
     expect(finish.text).toContain("k2");
   });
@@ -206,7 +206,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
     // (waitForAvailableMs = 0) so this test keeps the throw-fast contract
     // it was written against. The wait path has its own coverage in
     // tests/internal/llm/credential-pool-wait-for-available.test.ts.
-    const client = new PoolAwareLlmClient(pool, factory, 0);
+    const client = new PoolAwareLlmClient(pool, factory, 0, { backoffBaseMs: 0 });
     await expect(
       drain(client.stream({} as LlmRequest, new AbortController().signal)),
     ).rejects.toThrow(CredentialPoolExhaustedError);
@@ -223,7 +223,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         });
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     await expect(
       drain(client.stream({} as LlmRequest, new AbortController().signal)),
     ).rejects.toThrow(NetworkError);
@@ -248,7 +248,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         return "ok";
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     await drain(client.stream({} as LlmRequest, new AbortController().signal));
     // k1 should be in cooldown for ~30s
     const k1 = pool.list().find((e) => e.accessToken === "k1");
@@ -274,7 +274,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         });
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     await expect(
       drain(client.stream({} as LlmRequest, new AbortController().signal)),
     ).rejects.toThrow(RateLimitError);
@@ -299,7 +299,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         return "ok";
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     await expect(drain(client.stream({} as LlmRequest, controller.signal))).rejects.toThrow();
   });
 
@@ -318,7 +318,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         }),
     });
     // T3.9 — opt out of waitForAvailable (see comment in dry-test above).
-    const client = new PoolAwareLlmClient(pool, factory, 0);
+    const client = new PoolAwareLlmClient(pool, factory, 0, { backoffBaseMs: 0 });
     try {
       await drain(client.stream({} as LlmRequest, new AbortController().signal));
       expect.fail("should have thrown");
@@ -358,7 +358,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
         return "ok";
       },
     });
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     // Even though markExhaustedAndRotate threw, the stream should continue.
     // Note: because rotate threw, pool state isn't updated → k1 still picked next.
     // BUT the wrapper falls through to the next loop iteration and re-selects.
@@ -376,7 +376,7 @@ describe("PoolAwareLlmClient (T3.1)", () => {
     const factory = (_apiKey: string): LlmClient => {
       throw new Error("invalid baseUrl");
     };
-    const client = new PoolAwareLlmClient(pool, factory);
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, { backoffBaseMs: 0 });
     await expect(
       drain(client.stream({} as LlmRequest, new AbortController().signal)),
     ).rejects.toThrow("invalid baseUrl");

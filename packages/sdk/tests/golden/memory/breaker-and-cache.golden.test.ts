@@ -6,9 +6,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { runActiveMemory } from "../../../src/internal/memory/active-memory.js";
 import { ActiveMemoryCache } from "../../../src/internal/memory/active-memory-cache.js";
-import { CircuitBreaker } from "../../../src/internal/memory/circuit-breaker.js";
 import { IndexManager } from "../../../src/internal/memory/index-manager.js";
 import { memoryDir, memoryMdPath } from "../../../src/internal/memory/storage/markdown-store.js";
+import { CircuitBreaker } from "../../../src/internal/resilience/circuit-breaker.js";
 
 /**
  * Phase 8 T8.1 — Circuit breaker + cache + transcripts.
