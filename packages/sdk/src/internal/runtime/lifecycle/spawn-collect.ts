@@ -1,4 +1,5 @@
 import { type SpawnOptions, spawn } from "node:child_process";
+import { type EnvPolicy, resolveChildEnv } from "./env-policy.js";
 
 /**
  * Shared `child_process.spawn` wrapper that collects stdout/stderr text and
@@ -13,6 +14,12 @@ export interface SpawnCollectOptions {
   args?: string[];
   cwd: string;
   env?: Record<string, string>;
+  /**
+   * #54 — env inherit/scrub policy for the child. Defaults to
+   * `inherit-scrubbed` (drop secret-like vars). `env` above is merged AFTER the
+   * policy and always wins. Pass `"all"` to restore full inheritance.
+   */
+  envPolicy?: EnvPolicy;
   timeoutMs?: number;
   stdin?: string;
 }
@@ -30,7 +37,8 @@ export function spawnAndCollect(options: SpawnCollectOptions): Promise<SpawnColl
     const timeoutMs = options.timeoutMs ?? 30_000;
     const spawnOptions: SpawnOptions = {
       cwd: options.cwd,
-      env: { ...process.env, ...(options.env ?? {}) },
+      // #54 — scrub secret-like parent env by default; `options.env` still wins.
+      env: resolveChildEnv({ policy: options.envPolicy, overrides: options.env }),
     };
     const child = spawn(options.command, options.args ?? [], spawnOptions);
     let stdout = "";
