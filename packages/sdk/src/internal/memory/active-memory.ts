@@ -1,6 +1,6 @@
 import { HISTOGRAM_NAMES, SPAN_NAMES } from "../telemetry/span-names.js";
 import { NOOP_SPAN, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
-import type { ActiveMemoryCache } from "./active-memory-cache.js";
+import type { ActiveMemoryCache, TenantContext } from "./active-memory-cache.js";
 // T4.1 / D438 — `ActiveMemoryResult` and its helpers moved to `./active-memory-types.ts`
 // so `./active-memory-cache.ts` can reach them without cycling back here (cycle #10).
 // Re-exported below for back-compat with in-tree consumers.
@@ -131,7 +131,11 @@ export async function runActiveMemory(args: RunActiveMemoryArgs): Promise<Active
     // T4.9 wiring (#56) — pass the tenant tuple so two callers with the same
     // query text but different identity never share a cache entry. The cache
     // key infra already supports this; only the wiring was missing.
-    const tenantCtx = { namespace: args.namespace, userId: args.userId, scope: args.scope };
+    const tenantCtx: TenantContext = {
+      namespace: args.namespace,
+      userId: args.userId,
+      scope: args.scope,
+    };
     const cached = args.cache?.get(args.userText, cfg.queryMode, tenantCtx);
     if (cached !== undefined) return endRecallSpan(span, args, cached);
 
@@ -249,11 +253,12 @@ async function finalize(
   result: ActiveMemoryResult,
 ): Promise<ActiveMemoryResult> {
   // #56 — key the cache entry by tenant identity (see get-side wiring above).
-  args.cache?.set(args.userText, queryMode, result, {
+  const tenantCtx: TenantContext = {
     namespace: args.namespace,
     userId: args.userId,
     scope: args.scope,
-  });
+  };
+  args.cache?.set(args.userText, queryMode, result, tenantCtx);
   if (args.persistTranscripts === true && args.cwd !== undefined) {
     await persistActiveMemoryTranscript(args.cwd, {
       runId: args.runId ?? `run-${Date.now()}`,
