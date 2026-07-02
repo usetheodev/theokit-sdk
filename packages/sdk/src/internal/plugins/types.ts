@@ -43,6 +43,47 @@ export interface PreToolCallDecision {
 }
 
 /**
+ * #65 — a 2nd argument passed to a tool handler, carrying the run's cancellation
+ * signal (ties into #58) so a cooperative tool can stop when the run is
+ * cancelled. Optional and additive — existing single-arg handlers are unaffected.
+ * (requestConfirmation/requestCredential are a documented follow-up.)
+ *
+ * @public
+ */
+export interface ToolContext {
+  signal?: AbortSignal;
+}
+
+/** #65 — context for the `post_tool_call` hook (fired after a tool runs). @public */
+export interface PostToolCallContext {
+  name: string;
+  args: Record<string, unknown>;
+  result: { stdout: string; stderr: string; exitCode?: number | null };
+  agentId: string;
+  runId: string;
+}
+
+/** #65 — context for the `pre_llm_call` / `post_llm_call` hooks. @public */
+export interface LlmCallContext {
+  agentId: string;
+  runId: string;
+  /** Iteration index (0-based) of the current turn, when available. */
+  iteration?: number;
+}
+
+/** #65 — context for the `on_session_start` / `on_session_end` hooks. @public */
+export interface SessionLifecycleContext {
+  agentId: string;
+  runId: string;
+}
+
+/** #65 — context for the `transform_tool_result` / `transform_llm_output` hooks. @public */
+export interface TransformContext {
+  agentId: string;
+  runId: string;
+}
+
+/**
  * Context passed to `pre_user_send` hook handlers (ADR D145).
  *
  * @public

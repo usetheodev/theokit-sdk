@@ -1,0 +1,5 @@
+---
+"@theokit/sdk": minor
+---
+
+Wire the 7 previously-dead plugin hooks and add a `ToolContext` to tool handlers (#65). `HookName` declared 10 hooks but only 3 (`pre_tool_call`, `pre_user_send`, `post_assistant_reply`) were ever invoked — a plugin registering `post_tool_call`, `pre_llm_call`, `post_llm_call`, `on_session_start`, `on_session_end`, `transform_tool_result`, or `transform_llm_output` got a silent no-op. All 7 now fire at their real site in the agent loop: `on_session_start`/`on_session_end` at run start/end (even on error), `pre_llm_call`/`post_llm_call` around each LLM turn, `post_tool_call` after each tool completes, and the two `transform_*` hooks fold over their payload (a handler's return value replaces it) before it reaches the LLM — `transform_tool_result` is the seam for tool-result content defense. Per-handler errors are logged, never thrown (a throwing transform keeps the prior payload). Additionally, tool handlers defined via `defineTool` now receive an optional 2nd `ToolContext` argument carrying the run's `AbortSignal`, so a cooperative handler can stop early on cancellation; existing single-argument handlers are unaffected.

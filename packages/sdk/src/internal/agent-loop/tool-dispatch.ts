@@ -96,6 +96,14 @@ async function dispatchSingleCall(
   }
 
   const result = await runToolWithLifecycle(inputs, resolved, workingCall, callId);
+  // #65 — post_tool_call hook (previously dead) fires after each tool completes.
+  await inputs.pluginManager?.runPostToolCallHooks({
+    name: workingCall.name,
+    args: workingCall.input,
+    result: { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode },
+    agentId: inputs.agentId,
+    runId: inputs.runId,
+  });
   return finalizeSpanAndPostHook(inputs, workingCall, callId, result, events, toolSpan);
 }
 

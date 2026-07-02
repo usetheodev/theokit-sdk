@@ -43,6 +43,11 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
   try {
     const ctx = await initLoopContext(inputs);
     ctxRef = ctx;
+    // #65 — on_session_start hook (previously dead) fires once per run.
+    await inputs.pluginManager?.runOnSessionStartHooks({
+      agentId: inputs.agentId,
+      runId: inputs.runId,
+    });
     const budget =
       inputs.budget ?? new IterationBudget({ maxIterations: inputs.maxIterations ?? 8 });
     // M1-2 (T2.2): track the last turn's decision so we can tell a clean
@@ -141,6 +146,11 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       ...(ctx.stoppedByDoomLoop === true ? { stoppedByDoomLoop: true } : {}),
     };
   } finally {
+    // #65 — on_session_end hook (previously dead) fires once per run, even on error.
+    await inputs.pluginManager?.runOnSessionEndHooks({
+      agentId: inputs.agentId,
+      runId: inputs.runId,
+    });
     if (
       ctxRef !== undefined &&
       ctxRef.memoryProviderHandle !== undefined &&
@@ -303,7 +313,11 @@ async function runIteration(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
 ): Promise<"continue" | "done" | "error"> {
+  // #65 — pre/post_llm_call hooks (previously dead) fire around each LLM turn.
+  const hookCtx = { agentId: inputs.agentId, runId: inputs.runId };
+  await inputs.pluginManager?.runPreLlmCallHooks(hookCtx);
   const llmOutput = await streamLlmTurn(inputs, ctx);
+  await inputs.pluginManager?.runPostLlmCallHooks(hookCtx);
   accumulateUsage(ctx.usage, llmOutput);
   if (inputs.budgetTracker !== undefined) {
     const modelId = inputs.model.id ?? "auto";
@@ -343,8 +357,20 @@ export async function continueOrTerminate(
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     return finishOrReflect(inputs, ctx, llmOutput);
   }
-  ctx.messages.push(buildAssistantTurn(llmOutput.text, llmOutput.toolCalls));
-  const toolResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
+  // #65 — transform_llm_output (previously dead) may rewrite the recorded output.
+  const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
+  const outText =
+    inputs.pluginManager !== undefined
+      ? await inputs.pluginManager.runTransformLlmOutputHooks(llmOutput.text, tCtx)
+      : llmOutput.text;
+  ctx.messages.push(buildAssistantTurn(outText, llmOutput.toolCalls));
+  const rawResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
+  // #65/#57 — transform_tool_result (previously dead) is the seam that scrubs /
+  // delimits tool output before it reaches the LLM.
+  const toolResults =
+    inputs.pluginManager !== undefined
+      ? await inputs.pluginManager.runTransformToolResultHooks(rawResults, tCtx)
+      : rawResults;
   ctx.messages.push({ role: "user", content: toolResults });
   if (inputs.onStep !== undefined) {
     const cb = inputs.onStep;

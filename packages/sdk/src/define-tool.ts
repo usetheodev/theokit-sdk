@@ -23,8 +23,16 @@ export interface DefineToolSpec<T extends ZodType> {
   description: string;
   /** Zod schema describing the input. Must be `z.object(...)` at the root for the LLM tool contract. */
   inputSchema: T;
-  /** Handler invoked with the parsed input. Type is inferred via `z.infer<T>`. */
-  handler: (input: ZodNamespace.infer<T>) => string | Promise<string>;
+  /**
+   * Handler invoked with the parsed input. Type is inferred via `z.infer<T>`.
+   * #65 — an optional 2nd `ToolContext` argument carries the run's `AbortSignal`,
+   * so a cooperative handler can stop early when the run is cancelled. Existing
+   * single-argument handlers are unaffected.
+   */
+  handler: (
+    input: ZodNamespace.infer<T>,
+    ctx?: { signal?: AbortSignal },
+  ) => string | Promise<string>;
   /**
    * Sanitize the raw model-emitted args BEFORE schema validation (`@theokit/sdk/sanitize`).
    * `true` trims whitespace; an object opts into coercion / JSON-repair. Coercion is schema-aware
@@ -62,7 +70,10 @@ export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTo
     name: spec.name,
     description: spec.description,
     inputSchema,
-    handler: async (input: Record<string, unknown>): Promise<string> => {
+    handler: async (
+      input: Record<string, unknown>,
+      ctx?: { signal?: AbortSignal },
+    ): Promise<string> => {
       const raw = spec.sanitize
         ? sanitizeToolInput(input, {
             ...(spec.sanitize === true ? {} : spec.sanitize),
@@ -70,7 +81,8 @@ export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTo
           }).value
         : input;
       const parsed = spec.inputSchema.parse(raw) as ZodNamespace.infer<T>;
-      return await spec.handler(parsed);
+      // #65 — forward the ToolContext (run signal) to the user's handler.
+      return await spec.handler(parsed, ctx);
     },
   };
 }
