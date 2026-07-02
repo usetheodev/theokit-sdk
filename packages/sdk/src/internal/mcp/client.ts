@@ -7,6 +7,7 @@ import type {
   McpServerConfig,
   McpStdioServerConfig,
 } from "../../types/mcp.js";
+import { resolveChildEnv } from "../runtime/lifecycle/env-policy.js";
 import { safePathJoin } from "../security/path-guard.js";
 
 /**
@@ -37,9 +38,37 @@ export interface McpClient {
   close(): Promise<void>;
 }
 
-export function createMcpClient(name: string, config: McpServerConfig): McpClient {
+export function createMcpClient(
+  name: string,
+  config: McpServerConfig,
+  fetchImpl: typeof fetch = fetch,
+): McpClient {
   if (isStdio(config)) return new StdioMcpClient(name, config);
-  return new HttpMcpClient(name, config as McpHttpServerConfig);
+  return new HttpMcpClient(name, config as McpHttpServerConfig, fetchImpl);
+}
+
+/** Default per-request MCP timeout (#59). */
+const DEFAULT_MCP_TIMEOUT_MS = 30_000;
+
+/** Max buffered stdout bytes before a flooding stdio server is torn down (SEC-M0-04). */
+const MAX_STDIO_BUFFER_BYTES = 8 * 1024 * 1024;
+
+/** Typed timeout error shared by both transports (#59). */
+function mcpTimeoutError(name: string, timeoutMs: number): NetworkError {
+  return new NetworkError(`MCP ${name} request timed out after ${timeoutMs}ms`, {
+    code: "mcp_timeout",
+  });
+}
+
+/**
+ * True when a rejected fetch was aborted by our `AbortSignal.timeout` (#59).
+ * `AbortSignal.timeout` rejects with a `DOMException` (name `TimeoutError`),
+ * which is not always `instanceof Error`, so we inspect `.name` directly.
+ */
+function isAbortLike(cause: unknown): boolean {
+  if (typeof cause !== "object" || cause === null || !("name" in cause)) return false;
+  const name = (cause as { name: unknown }).name;
+  return name === "TimeoutError" || name === "AbortError";
 }
 
 type RpcRequester = (method: string, params: Record<string, unknown>) => Promise<unknown>;
@@ -109,7 +138,16 @@ class StdioMcpClient extends BaseMcpClient {
   readonly name: string;
   private child: ChildProcessWithoutNullStreams | undefined;
   private nextId = 1;
-  private readonly pending = new Map<number, (response: unknown) => void>();
+  // #59 — pending requests carry a reject + timer so a silent server times out
+  // (typed error), a late reply after timeout is a no-op, and close() settles them.
+  private readonly pending = new Map<
+    number,
+    {
+      resolve: (response: unknown) => void;
+      reject: (error: unknown) => void;
+      timer: NodeJS.Timeout;
+    }
+  >();
   private buffer = "";
 
   constructor(
@@ -120,6 +158,10 @@ class StdioMcpClient extends BaseMcpClient {
     this.name = name;
   }
 
+  private get timeoutMs(): number {
+    return this.config.requestTimeoutMs ?? DEFAULT_MCP_TIMEOUT_MS;
+  }
+
   override async initialize(): Promise<void> {
     // ADR D79-D80: relative MCP `cwd` paths must safe-join under process.cwd()
     // so a malicious `.theokit/mcp.json` cannot point a server process at
@@ -127,28 +169,53 @@ class StdioMcpClient extends BaseMcpClient {
     const resolvedCwd = resolveMcpCwd(this.config.cwd);
     const child = spawn(this.config.command, this.config.args ?? [], {
       cwd: resolvedCwd,
-      env: { ...process.env, ...(this.config.env ?? {}) },
+      // #54 (F-H1) — a third-party MCP server binary must not inherit host
+      // secrets. Scrub secret-like vars by default; `config.env` still wins.
+      env: resolveChildEnv({ policy: this.config.envPolicy, overrides: this.config.env }),
     });
     this.child = child;
     child.stdout.on("data", (chunk: Buffer) => this.consume(chunk));
     child.stderr.on("data", () => undefined);
     child.on("error", () => {
-      for (const resolver of this.pending.values()) {
-        resolver({ error: { message: "MCP process crashed" } });
-      }
-      this.pending.clear();
+      this.rejectAllPending(
+        new NetworkError(`MCP ${this.name} process crashed`, { code: "mcp_crashed" }),
+      );
     });
     await super.initialize();
   }
 
   async close(): Promise<void> {
+    // #59 — settle in-flight requests instead of leaking their timers/promises.
+    this.rejectAllPending(new NetworkError(`MCP ${this.name} closed`, { code: "mcp_closed" }));
     if (this.child === undefined) return;
     this.child.kill("SIGTERM");
     this.child = undefined;
   }
 
+  /** Reject + clear every pending request (crash / close). @internal */
+  private rejectAllPending(error: NetworkError): void {
+    for (const entry of this.pending.values()) {
+      clearTimeout(entry.timer);
+      entry.reject(error);
+    }
+    this.pending.clear();
+  }
+
   private consume(chunk: Buffer): void {
     this.buffer += chunk.toString("utf8");
+    // SEC-M0-04 — a hostile/broken server flooding stdout with no newline must
+    // not pin memory. Cap the buffer; on overflow tear the client down.
+    if (this.buffer.length > MAX_STDIO_BUFFER_BYTES) {
+      this.buffer = "";
+      this.rejectAllPending(
+        new NetworkError(`MCP ${this.name} exceeded stdout buffer limit`, {
+          code: "mcp_buffer_overflow",
+        }),
+      );
+      this.child?.kill("SIGKILL");
+      this.child = undefined;
+      return;
+    }
     let newlineIndex = this.buffer.indexOf("\n");
     while (newlineIndex !== -1) {
       const line = this.buffer.slice(0, newlineIndex).trim();
@@ -166,10 +233,12 @@ class StdioMcpClient extends BaseMcpClient {
       return;
     }
     if (typeof message.id !== "number") return;
-    const resolver = this.pending.get(message.id);
-    if (resolver === undefined) return;
+    const entry = this.pending.get(message.id);
+    // #59 — a late reply after timeout finds no entry → no-op (never double-settles).
+    if (entry === undefined) return;
     this.pending.delete(message.id);
-    resolver(message);
+    clearTimeout(entry.timer);
+    entry.resolve(message);
   }
 
   protected request(method: string, params: Record<string, unknown>): Promise<unknown> {
@@ -181,8 +250,18 @@ class StdioMcpClient extends BaseMcpClient {
     const id = this.nextId++;
     const payload: RpcRequest = { jsonrpc: "2.0", id, method, params };
     this.child.stdin.write(`${JSON.stringify(payload)}\n`);
-    return new Promise<unknown>((resolve) => {
-      this.pending.set(id, resolve);
+    return new Promise<unknown>((resolve, reject) => {
+      // #59 — a silent server rejects with a typed timeout and drops the pending
+      // entry (no leak) instead of hanging forever. SEC-M0-04 — an unresponsive
+      // server is torn down (SIGKILL) so it cannot linger as a zombie / keep
+      // flooding stdout past the deadline.
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        reject(mcpTimeoutError(this.name, this.timeoutMs));
+        this.child?.kill("SIGKILL");
+        this.child = undefined;
+      }, this.timeoutMs);
+      this.pending.set(id, { resolve, reject, timer });
     });
   }
 }
@@ -214,11 +293,22 @@ class HttpMcpClient extends BaseMcpClient {
       accept: "application/json",
       ...(this.config.headers ?? {}),
     };
-    const response = await this.fetchImpl(this.config.url, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(payload),
-    });
+    const timeoutMs = this.config.requestTimeoutMs ?? DEFAULT_MCP_TIMEOUT_MS;
+    let response: Response;
+    try {
+      response = await this.fetchImpl(this.config.url, {
+        method: "POST",
+        headers,
+        body: JSON.stringify(payload),
+        // #59 — bound the request; a non-responding endpoint aborts here.
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (cause) {
+      // #59 — map an abort/timeout to the typed timeout error; surface any
+      // other fetch failure (DNS, connection refused, …) unchanged.
+      if (isAbortLike(cause)) throw mcpTimeoutError(this.name, timeoutMs);
+      throw cause;
+    }
     if (!response.ok) {
       throw new NetworkError(`MCP ${this.name} returned ${response.status}`, {
         code: "mcp_http_error",

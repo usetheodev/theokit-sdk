@@ -1,6 +1,6 @@
 {
   "name": "@theokit/sdk",
-  "version": "2.13.0",
+  "version": "2.15.3",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
@@ -208,6 +208,16 @@
         "default": "./dist/subscription/index.cjs"
       }
     },
+    "./sanitize": {
+      "import": {
+        "types": "./dist/sanitize/index.d.ts",
+        "default": "./dist/sanitize/index.js"
+      },
+      "require": {
+        "types": "./dist/sanitize/index.d.cts",
+        "default": "./dist/sanitize/index.cjs"
+      }
+    },
     "./internal/persistence": {
       "import": {
         "types": "./dist/internal/persistence/index.d.ts",
@@ -358,7 +368,8 @@
     "Theo"
   ],
   "dependencies": {
-    "croner": "^9.0.0"
+    "croner": "^9.0.0",
+    "jsonrepair": "^3.13.2"
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.1",

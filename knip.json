@@ -37,7 +37,7 @@
         "src/stream-object.ts",
         "src/server/adapter/index.ts"
       ],
-      "ignoreDependencies": ["@theokit/sdk-handoff"]
+      "ignoreDependencies": ["@theokit/sdk-handoff", "jsonrepair"]
     },
     "packages/cli": {
       "entry": ["tests/**/*.test.ts"],

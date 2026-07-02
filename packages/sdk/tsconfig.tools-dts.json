@@ -44,6 +44,7 @@
     "src/internal/eval/**/*",
     "src/internal/workflow/**/*",
     "src/subscription/**/*",
+    "src/sanitize/**/*",
     "src/a2a/**/*",
     "src/client/**/*",
     "src/sandbox/**/*",

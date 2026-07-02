@@ -1,5 +1,50 @@
 # @theokit/example-theocode-e2e
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies [5412d7a]
+- Updated dependencies [58f440d]
+- Updated dependencies [e4cc6e9]
+- Updated dependencies [98ac0d0]
+  - @theokit/sdk@2.15.3
+
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies [6336f81]
+  - @theokit/sdk@2.15.2
+
+## 0.0.22
+
+### Patch Changes
+
+- Updated dependencies [bec2077]
+  - @theokit/sdk@2.15.1
+
+## 0.0.21
+
+### Patch Changes
+
+- Updated dependencies [d7057f2]
+  - @theokit/sdk@2.15.0
+
+## 0.0.20
+
+### Patch Changes
+
+- Updated dependencies [6ee4217]
+  - @theokit/sdk@2.14.0
+
+## 0.0.19
+
+### Patch Changes
+
+- Updated dependencies [65763b9]
+  - @theokit/sdk@2.13.1
+
 ## 0.0.18
 
 ### Patch Changes

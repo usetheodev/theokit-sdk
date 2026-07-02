@@ -10,6 +10,20 @@ export type McpStdioServerConfig = {
   env?: Record<string, string>;
   /** Local agents only. Cloud rejects this field. */
   cwd?: string;
+  /**
+   * #59 — per-request timeout in ms. A request that gets no reply within this
+   * window rejects with a typed `NetworkError` (`code: "mcp_timeout"`) instead
+   * of hanging the agent loop forever. Default 30_000.
+   */
+  requestTimeoutMs?: number;
+  /**
+   * #54 — env inherit/scrub policy for the spawned MCP server process. Defaults
+   * to `"inherit-scrubbed"` (drop secret-like host vars: `*KEY*`/`*SECRET*`/
+   * `*TOKEN*`/`*PASSWORD*`/`*_AUTH*`/…) so a third-party MCP server binary cannot
+   * exfiltrate host secrets via the environment. `env` above is merged AFTER the
+   * policy and always wins. Pass `"all"` to restore full inheritance.
+   */
+  envPolicy?: import("../internal/runtime/lifecycle/env-policy.js").EnvPolicy;
 };
 
 /**
@@ -58,6 +72,12 @@ export type McpHttpServerConfig = {
   /** Passed through. `Authorization` works here. */
   headers?: Record<string, string>;
   auth?: McpAuthConfig;
+  /**
+   * #59 — per-request timeout in ms, enforced via `AbortSignal.timeout`. A
+   * fetch that does not respond within this window rejects with a typed
+   * `NetworkError` (`code: "mcp_timeout"`). Default 30_000.
+   */
+  requestTimeoutMs?: number;
 };
 
 /**

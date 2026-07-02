@@ -94,6 +94,29 @@ export interface RunResult {
    * @public
    */
   stoppedAtIterationLimit?: boolean;
+  /**
+   * `true` when the run stopped because the **doom-loop guard** detected the model repeating
+   * IDENTICAL tool calls (same name + same input) to the hard threshold — making no progress (e.g.
+   * a tool that keeps failing and is retried unchanged). `undefined`/absent otherwise. Through the
+   * continuation driver this surfaces as `terminal: "no_progress"` (a controlled stop, NOT a
+   * truncation to re-send). Tune or disable via {@link SendOptions.doomLoop}.
+   *
+   * @public
+   */
+  stoppedByDoomLoop?: boolean;
+}
+
+/**
+ * Doom-loop guard thresholds (see {@link SendOptions.doomLoop}). Both are counts of CONSECUTIVE
+ * identical tool calls: `softThreshold` injects a one-time guidance nudge; `hardThreshold` stops.
+ *
+ * @public
+ */
+export interface DoomLoopThresholds {
+  /** Consecutive-identical count at which a one-time guidance nudge is injected. Default 3. */
+  softThreshold?: number;
+  /** Consecutive-identical count at which the run stops (`no_progress`). Default 5. */
+  hardThreshold?: number;
 }
 
 /**
@@ -211,6 +234,12 @@ export interface SDKUserMessage {
  */
 export interface SendOptions {
   model?: ModelSelection;
+  /**
+   * Doom-loop guard config. The loop stops (with `terminal: "no_progress"`, `RunResult.stoppedByDoomLoop`)
+   * when the model repeats IDENTICAL tool calls to the hard threshold. On by default with generous
+   * thresholds (soft 3 / hard 5). Set `false` to disable, or an object to tune the thresholds.
+   */
+  doomLoop?: false | DoomLoopThresholds;
   /**
    * Per-call system prompt override. Wins over `AgentOptions.systemPrompt`.
    * String only — for dynamic resolvers, configure on `AgentOptions`. An

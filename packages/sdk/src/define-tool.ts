@@ -6,6 +6,8 @@
 import type { z as ZodNamespace, ZodType } from "zod";
 
 import { toJsonSchema } from "./internal/zod/to-json-schema.js";
+import { sanitizeToolInput } from "./sanitize/sanitize-tool-input.js";
+import type { SanitizeOptions } from "./sanitize/types.js";
 import type { CustomTool } from "./types/agent.js";
 
 /**
@@ -23,6 +25,13 @@ export interface DefineToolSpec<T extends ZodType> {
   inputSchema: T;
   /** Handler invoked with the parsed input. Type is inferred via `z.infer<T>`. */
   handler: (input: ZodNamespace.infer<T>) => string | Promise<string>;
+  /**
+   * Sanitize the raw model-emitted args BEFORE schema validation (`@theokit/sdk/sanitize`).
+   * `true` trims whitespace; an object opts into coercion / JSON-repair. Coercion is schema-aware
+   * against this tool's `inputSchema`. Absent ⇒ args reach validation untouched. Sanitize is
+   * hygiene, not a validity bypass — a genuinely invalid arg still raises `ZodError`.
+   */
+  sanitize?: boolean | SanitizeOptions;
 }
 
 /**
@@ -54,7 +63,13 @@ export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTo
     description: spec.description,
     inputSchema,
     handler: async (input: Record<string, unknown>): Promise<string> => {
-      const parsed = spec.inputSchema.parse(input) as ZodNamespace.infer<T>;
+      const raw = spec.sanitize
+        ? sanitizeToolInput(input, {
+            ...(spec.sanitize === true ? {} : spec.sanitize),
+            schema: spec.inputSchema,
+          }).value
+        : input;
+      const parsed = spec.inputSchema.parse(raw) as ZodNamespace.infer<T>;
       return await spec.handler(parsed);
     },
   };

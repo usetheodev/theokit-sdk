@@ -12,7 +12,7 @@
 
 import { randomUUID } from "node:crypto";
 import type * as acp from "@agentclientprotocol/sdk";
-import { definePlugin, type SDKAgent } from "@theokit/sdk";
+import { ConfigurationError, definePlugin, type SDKAgent } from "@theokit/sdk";
 import { toolKind } from "./translator.js";
 import type { PermissionMode } from "./types.js";
 
@@ -82,8 +82,17 @@ async function askWithTimeout(
  * Install the permission plugin on an SDK agent. Idempotent — calling on the
  * same agent twice replaces the prior listener (per the SDK's pre_tool_call
  * subscription contract).
+ *
+ * **Fail-closed (SEC-M0-03):** when `mode` is `deny`/`ask` but the runtime has
+ * no plugin manager (e.g. a CloudAgent), enforcement is impossible — this
+ * THROWS a `ConfigurationError` rather than letting tools run ungated. Awaiting
+ * `register` (ARCH-08/SEC-M0-05) guarantees the veto hook is aggregated before
+ * the first tool dispatch.
  */
-export function installPermissionPlugin(agent: SDKAgent, args: PermissionPluginArgs): void {
+export async function installPermissionPlugin(
+  agent: SDKAgent,
+  args: PermissionPluginArgs,
+): Promise<void> {
   const plugin = definePlugin({
     name: `acp-permission-${args.sessionId}`,
     version: "1.0.0",
@@ -108,17 +117,28 @@ export function installPermissionPlugin(agent: SDKAgent, args: PermissionPluginA
   // ACP's one-process-per-session model (D356).
   const agentLike = agent as SDKAgent & {
     pluginManager?: () => {
-      register?: (p: unknown) => void;
+      register?: (p: unknown) => Promise<void> | void;
       initialize?: (plugins: unknown[]) => Promise<void>;
     };
   };
   const mgr = agentLike.pluginManager?.();
   if (mgr === undefined) {
-    return; // CloudAgent — no plugin manager, no permission flow available
+    // SEC-M0-03 — FAIL CLOSED. If the operator asked for `deny`/`ask` but this
+    // runtime (e.g. CloudAgent) has no plugin manager, tools would run UNGATED
+    // while the operator believes they are gated. A security control must not
+    // fail open: refuse the session instead of warning-and-continuing.
+    throw new ConfigurationError(
+      `permission enforcement unavailable on this runtime (no plugin manager) — ` +
+        `cannot honor permissionDefault="${args.mode}" for session "${args.sessionId}"`,
+      { code: "permission_enforcement_unavailable" },
+    );
   }
+  // ARCH-08/SEC-M0-05 — await so the veto hook is aggregated before any tool
+  // dispatch, and an async registration failure surfaces (not an unhandled
+  // rejection).
   if (typeof mgr.register === "function") {
-    mgr.register(plugin);
+    await mgr.register(plugin);
   } else if (typeof mgr.initialize === "function") {
-    void mgr.initialize([plugin]);
+    await mgr.initialize([plugin]);
   }
 }

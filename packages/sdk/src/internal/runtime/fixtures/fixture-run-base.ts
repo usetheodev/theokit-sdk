@@ -213,4 +213,5 @@ function applyScriptMetrics(base: RunResult, script: FixtureScript): void {
   if (script.usage !== undefined) base.usage = script.usage;
   if (script.cost !== undefined) base.cost = script.cost;
   if (script.stoppedAtIterationLimit === true) base.stoppedAtIterationLimit = true;
+  if (script.stoppedByDoomLoop === true) base.stoppedByDoomLoop = true;
 }
