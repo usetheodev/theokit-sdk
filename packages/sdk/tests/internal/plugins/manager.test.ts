@@ -219,3 +219,62 @@ describe("PluginManager (T1.3)", () => {
     expect(calls).toContain("dup");
   });
 });
+
+describe("PluginManager.register — post-init single-plugin registration (#68)", () => {
+  it("aggregates a pre_tool_call hook AFTER initialize (veto now wired)", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]); // manager already initialized, like a live agent
+    const plugin: Plugin = {
+      name: "acp-permission-s1",
+      version: "1.0",
+      kind: "general",
+      register: (ctx) => {
+        ctx.on("pre_tool_call", () => ({ block: true, message: "denied" }));
+      },
+    };
+    await mgr.register(plugin);
+    const result = await mgr.runPreToolCallHooks({ name: "x", args: {}, agentId: "a", runId: "r" });
+    expect(result?.block).toBe(true);
+    expect(result?.message).toBe("denied");
+  });
+
+  it("re-registering the same plugin name REPLACES its hooks (no duplicate handler)", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]);
+    let calls = 0;
+    const make = (): Plugin => ({
+      name: "acp-permission-s1",
+      version: "1.0",
+      kind: "general",
+      register: (ctx) => {
+        ctx.on("pre_tool_call", () => {
+          calls += 1;
+          return undefined;
+        });
+      },
+    });
+    await mgr.register(make());
+    await mgr.register(make()); // same name → replace, not append
+    await mgr.runPreToolCallHooks({ name: "x", args: {}, agentId: "a", runId: "r" });
+    expect(calls).toBe(1); // exactly one handler survives (replaced), not two
+  });
+
+  it("rejects a non-general plugin registered post-init", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]);
+    const provider: Plugin = {
+      name: "prov",
+      version: "1.0",
+      kind: "model-provider",
+      profile: {
+        name: "anthropic",
+        apiMode: "anthropic_messages",
+        envVars: ["ANTHROPIC_API_KEY"],
+        authType: "api_key",
+        baseUrl: "https://api.anthropic.com",
+        fallbackModels: ["claude-opus-4-7"],
+      },
+    };
+    await expect(mgr.register(provider)).rejects.toThrow(/general/i);
+  });
+});
