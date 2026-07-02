@@ -1,3 +1,4 @@
+import { NetworkError } from "../../errors.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import { collapseSystemText, makeLlmFinish, parseToolArguments } from "./finish.js";
@@ -176,8 +177,12 @@ export class OpenAIClient implements LlmClient {
       // model was actually given. Empty set (no tools) recovers nothing.
       new Set(request.tools?.map((tool) => tool.name) ?? []),
     );
+    let sawDone = false;
     for await (const record of parseSseStream(response.body, signal)) {
-      if (record.data === "[DONE]") break;
+      if (record.data === "[DONE]") {
+        sawDone = true;
+        break;
+      }
       let chunk: OpenAIDeltaChunk;
       try {
         chunk = JSON.parse(record.data) as OpenAIDeltaChunk;
@@ -201,8 +206,17 @@ export class OpenAIClient implements LlmClient {
       const events = accumulator.consume(chunk);
       for (const event of events) yield event;
     }
-    // R7: drain any held buffer that survived the loop (a stream that ended without a `finish_reason`
-    // terminal chunk — truncation / non-conformant proxy) so held text is never silently dropped.
+    // M2 #61 — a stream that ended with NEITHER a `[DONE]` sentinel NOR any
+    // `finish_reason` was truncated (dropped connection / proxy hiccup after
+    // partial output). Do not commit the partial turn as a clean `end_turn`;
+    // throw a typed error so retry/fallback can route it (codex prior art).
+    if (!sawDone && !accumulator.finishReasonSeen) {
+      throw new NetworkError("SSE stream ended without finish_reason or [DONE] — truncated", {
+        code: "stream_truncated",
+      });
+    }
+    // R7: drain any held buffer that survived the loop so held text is never
+    // silently dropped (leaked-dialect recovery; only when a finish_reason was seen).
     const drainEvent = accumulator.finalizeHeldText();
     if (drainEvent !== undefined) yield drainEvent;
     return accumulator.finish();
@@ -325,8 +339,18 @@ class OpenAIStreamAccumulator {
     }
   }
 
+  /** M2 #61 — true once any chunk carried a non-null `finish_reason`. A stream
+   *  that ends without this AND without `[DONE]` is a truncation, not a clean end. */
+  private sawFinishReason = false;
+
+  /** M2 #61 — did any chunk in this stream carry a terminal `finish_reason`? */
+  get finishReasonSeen(): boolean {
+    return this.sawFinishReason;
+  }
+
   private applyFinishReason(reason: string | null | undefined): void {
     if (reason === undefined || reason === null) return;
+    this.sawFinishReason = true;
     this.stopReason = mapOpenAIFinish(reason);
   }
 

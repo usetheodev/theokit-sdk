@@ -1,3 +1,4 @@
+import { isPlainObject, tryJson } from "../../sanitize/coerce.js";
 import type { LlmFinish, LlmRequest, LlmStopReason, LlmToolCallPart } from "./types.js";
 
 /**
@@ -26,6 +27,12 @@ export function parseToolArguments(buffered: string | undefined): Record<string,
   try {
     return JSON.parse(buffered) as Record<string, unknown>;
   } catch {
+    // M2 #61 — attempt jsonrepair (reusing the sanitize coerce helper, Rule 9)
+    // before giving up, so a slightly-malformed native tool call (trailing
+    // comma, unquoted key — the Kimi/K2 class) parses instead of landing in
+    // `{ raw }` and bouncing to the model as an invalid_request round-trip.
+    const repaired = tryJson(buffered, true);
+    if (isPlainObject(repaired)) return repaired;
     return { raw: buffered };
   }
 }
