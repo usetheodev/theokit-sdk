@@ -277,4 +277,48 @@ describe("PluginManager.register — post-init single-plugin registration (#68)"
     };
     await expect(mgr.register(provider)).rejects.toThrow(/general/i);
   });
+
+  // F-H2 / TQ-01 — integration against the REAL PluginManager (NOT a mock), so
+  // the veto is proven on the exact wiring that the ACP install goes through.
+  // The original #68 bug was masked by a mock manager that already had register().
+  it("veto integration: a deny pre_tool_call plugin registered post-init blocks a tool, an allowed tool passes", async () => {
+    const mgr = new PluginManager();
+    await mgr.initialize([]); // agent already initialized
+
+    // Exactly what installPermissionPlugin(deny) builds: a general plugin whose
+    // pre_tool_call returns {block:true} for a non-trusted tool.
+    const denyPlugin: Plugin = {
+      name: "acp-permission-session-x",
+      version: "1.0.0",
+      kind: "general",
+      register: (ctx) => {
+        ctx.on("pre_tool_call", (raw) => {
+          const ev = raw as { name: string };
+          if (ev.name === "trusted_tool") return undefined; // allowed
+          return { block: true, message: "denied (permissionDefault=deny)" };
+        });
+      },
+    };
+    await mgr.register(denyPlugin);
+
+    // A guarded tool is vetoed — the block decision the loop uses to SKIP the
+    // handler (tool-dispatch.ts honors {block:true} before runToolWithLifecycle).
+    const blocked = await mgr.runPreToolCallHooks({
+      name: "shell",
+      args: {},
+      agentId: "a",
+      runId: "r",
+    });
+    expect(blocked?.block).toBe(true);
+    expect(blocked?.message).toMatch(/denied/);
+
+    // A trusted tool is NOT vetoed → the loop proceeds to run it.
+    const allowed = await mgr.runPreToolCallHooks({
+      name: "trusted_tool",
+      args: {},
+      agentId: "a",
+      runId: "r",
+    });
+    expect(allowed).toBeUndefined();
+  });
 });

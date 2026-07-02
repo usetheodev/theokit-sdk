@@ -55,7 +55,7 @@ describe("installPermissionPlugin", () => {
     const conn = fakeConn(async () => {
       throw new Error("should not be called");
     });
-    installPermissionPlugin(agent, {
+    await installPermissionPlugin(agent, {
       conn,
       sessionId: "s-1",
       mode: "deny",
@@ -69,6 +69,8 @@ describe("installPermissionPlugin", () => {
     expect(result).toBeDefined();
     expect(result?.block).toBe(true);
     expect(result?.message).toMatch(/permissionDefault=deny/);
+    // TQ-04 — deny short-circuits before any ACP round-trip.
+    expect(conn.requestPermission).not.toHaveBeenCalled();
   });
 
   it("plugin_ask_mode_sends_request_and_blocks_on_deny", async () => {
@@ -76,7 +78,7 @@ describe("installPermissionPlugin", () => {
     const conn = fakeConn(async () => ({
       outcome: { outcome: "selected", optionId: "deny" },
     }));
-    installPermissionPlugin(agent, {
+    await installPermissionPlugin(agent, {
       conn,
       sessionId: "s-1",
       mode: "ask",
@@ -96,7 +98,7 @@ describe("installPermissionPlugin", () => {
     const conn = fakeConn(async () => ({
       outcome: { outcome: "selected", optionId: "allow" },
     }));
-    installPermissionPlugin(agent, {
+    await installPermissionPlugin(agent, {
       conn,
       sessionId: "s-1",
       mode: "ask",
@@ -110,7 +112,7 @@ describe("installPermissionPlugin", () => {
   it("plugin_ask_mode_blocks_on_cancelled", async () => {
     const { agent, hooks } = makeAgentWithMockPluginManager();
     const conn = fakeConn(async () => ({ outcome: { outcome: "cancelled" } }));
-    installPermissionPlugin(agent, {
+    await installPermissionPlugin(agent, {
       conn,
       sessionId: "s-1",
       mode: "ask",
@@ -129,7 +131,7 @@ describe("installPermissionPlugin", () => {
     const conn = fakeConn(async () => {
       throw new Error("disconnected");
     });
-    installPermissionPlugin(agent, {
+    await installPermissionPlugin(agent, {
       conn,
       sessionId: "s-1",
       mode: "ask",
@@ -147,7 +149,7 @@ describe("installPermissionPlugin", () => {
     const { agent, hooks } = makeAgentWithMockPluginManager();
     // requestPermission never resolves
     const conn = fakeConn(() => new Promise(() => undefined));
-    installPermissionPlugin(agent, {
+    await installPermissionPlugin(agent, {
       conn,
       sessionId: "s-1",
       mode: "ask",
@@ -166,7 +168,7 @@ describe("installPermissionPlugin", () => {
     const conn = fakeConn(async () => {
       throw new Error("should not be called");
     });
-    installPermissionPlugin(agent, {
+    await installPermissionPlugin(agent, {
       conn,
       sessionId: "s-1",
       mode: "ask",
@@ -178,36 +180,17 @@ describe("installPermissionPlugin", () => {
     expect(conn.requestPermission).not.toHaveBeenCalled();
   });
 
-  it("agent_without_plugin_manager_does_not_throw", () => {
+  it("SEC-M0-03: FAILS CLOSED (throws) when no plugin manager AND mode is deny/ask", async () => {
     const agent = { agentId: "a-1" } as unknown as SDKAgent;
-    expect(() =>
-      installPermissionPlugin(agent, {
-        conn: {} as unknown as acp.AgentSideConnection,
-        sessionId: "s-1",
-        mode: "ask",
-        trustedTools: new Set(),
-        timeoutMs: 1000,
-      }),
-    ).not.toThrow();
-  });
-
-  it("EC-1: warns (not silent) when no plugin manager AND mode is not auto", () => {
-    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
-    try {
-      const agent = { agentId: "a-1" } as unknown as SDKAgent;
+    // A security control that cannot be enforced must refuse, not run ungated.
+    await expect(
       installPermissionPlugin(agent, {
         conn: {} as unknown as acp.AgentSideConnection,
         sessionId: "s-1",
         mode: "deny",
         trustedTools: new Set(),
         timeoutMs: 1000,
-      });
-      const written = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
-      // A denied-by-config request on a runtime that cannot gate MUST NOT be silent.
-      expect(written).toMatch(/permission enforcement unavailable/);
-      expect(written).toContain("s-1");
-    } finally {
-      stderrSpy.mockRestore();
-    }
+      }),
+    ).rejects.toMatchObject({ code: "permission_enforcement_unavailable" });
   });
 });

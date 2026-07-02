@@ -34,9 +34,24 @@ export interface ResolveChildEnvOptions {
 /**
  * Secret-like variable-name patterns (case-insensitive). A parent var whose
  * name matches any of these is dropped under `inherit-scrubbed`. Conservative
- * by design — see the EC-4 false-positive test.
+ * by design — see the EC-4 false-positive test. `[_-]PWD` (not bare `PWD`)
+ * catches `DB_PWD` without dropping the shell's working-directory `PWD`.
+ * `CREDENTIAL` catches `GOOGLE_APPLICATION_CREDENTIALS`. NOTE: a denylist cannot
+ * catch creds embedded in a value (e.g. `DATABASE_URL=postgres://u:pw@…`) — for
+ * untrusted children use policy `"core"` (allowlist), the only fail-closed mode.
  */
-const SECRET_PATTERNS: readonly RegExp[] = [/KEY/i, /SECRET/i, /TOKEN/i, /PASSWORD/i, /_AUTH/i];
+const SECRET_PATTERNS: readonly RegExp[] = [
+  /KEY/i,
+  /SECRET/i,
+  /TOKEN/i,
+  /PASSWORD/i,
+  /PASSWD/i,
+  /PASSPHRASE/i,
+  /[_-]PWD/i,
+  /CREDENTIAL/i,
+  /PRIVATE/i,
+  /_AUTH/i,
+];
 
 /**
  * Safe base variables kept under the `core` policy. Process-hygiene vars a

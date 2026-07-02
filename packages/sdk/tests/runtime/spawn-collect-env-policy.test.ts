@@ -50,6 +50,29 @@ describe("resolveChildEnv env policy (#54)", () => {
     expect(env.API_KEY).toBe("explicit");
   });
 
+  it("SEC-M0-02: drops additional secret conventions (credentials/passwd/pwd/passphrase/private)", () => {
+    const env = resolveChildEnv({
+      parent: {
+        PATH: "/usr/bin",
+        PWD: "/home/u", // shell working-dir — MUST be kept (bare PWD is not a secret)
+        GOOGLE_APPLICATION_CREDENTIALS: "/etc/gcp/sa.json",
+        DB_PWD: "p",
+        SSH_PASSPHRASE: "p",
+        MY_PRIVATE: "p",
+        VAULT_CREDENTIAL: "p",
+        PGPASSWD: "p",
+      },
+    });
+    expect(env.PATH).toBe("/usr/bin");
+    expect(env.PWD).toBe("/home/u"); // not dropped — bare PWD is the shell cwd
+    expect(env.GOOGLE_APPLICATION_CREDENTIALS).toBeUndefined();
+    expect(env.DB_PWD).toBeUndefined();
+    expect(env.SSH_PASSPHRASE).toBeUndefined();
+    expect(env.MY_PRIVATE).toBeUndefined();
+    expect(env.VAULT_CREDENTIAL).toBeUndefined();
+    expect(env.PGPASSWD).toBeUndefined();
+  });
+
   it("policy 'core' keeps only the safe base allowlist (+ explicit adds)", () => {
     const env = resolveChildEnv({ parent, policy: "core" });
     expect(env.PATH).toBe("/usr/bin");
