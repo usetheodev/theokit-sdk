@@ -6,6 +6,7 @@ import { mapWithConcurrency } from "../runtime/concurrency/map-with-concurrency.
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";
+import { raceToolExecution } from "./tool-timeout.js";
 
 export type { ResolvedTool } from "./loop-types.js";
 
@@ -95,6 +96,14 @@ async function dispatchSingleCall(
   }
 
   const result = await runToolWithLifecycle(inputs, resolved, workingCall, callId);
+  // #65 — post_tool_call hook (previously dead) fires after each tool completes.
+  await inputs.pluginManager?.runPostToolCallHooks({
+    name: workingCall.name,
+    args: workingCall.input,
+    result: { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode },
+    agentId: inputs.agentId,
+    runId: inputs.runId,
+  });
   return finalizeSpanAndPostHook(inputs, workingCall, callId, result, events, toolSpan);
 }
 
@@ -260,7 +269,12 @@ async function runToolWithLifecycle(
     conversationId: inputs.agentId,
     callId,
   });
-  const result = await executeTool(inputs, resolved, call);
+  // #58 — bound the tool by the run's cancellation signal + optional per-tool
+  // timeout so a hung tool cannot wedge the loop and cancel interrupts it.
+  const result = await raceToolExecution(executeTool(inputs, resolved, call), {
+    signal: inputs.signal,
+    timeoutMs: inputs.perToolTimeoutMs,
+  });
   const durationMs = Date.now() - startAt;
   if (result.exitCode !== undefined && result.exitCode !== 0 && result.exitCode !== null) {
     await safeEmitToolHook(inputs.onToolError, {

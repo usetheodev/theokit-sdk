@@ -20,7 +20,7 @@ export async function executeTool(
   }
   if (resolved.origin === "shell") return runShellTool(inputs, call);
   if (resolved.origin === "memory") return runMemoryTool(resolved, call);
-  if (resolved.origin === "custom") return runCustomTool(resolved, call);
+  if (resolved.origin === "custom") return runCustomTool(resolved, call, inputs.signal);
   return runMcpTool(inputs, resolved, call);
 }
 
@@ -28,20 +28,29 @@ async function runMemoryTool(resolved: ResolvedTool, call: LlmToolCallPart): Pro
   return runHandlerTool("memory", resolved.memoryHandler, call);
 }
 
-async function runCustomTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
-  return runHandlerTool("custom", resolved.customHandler, call);
+async function runCustomTool(
+  resolved: ResolvedTool,
+  call: LlmToolCallPart,
+  signal?: AbortSignal,
+): Promise<ToolResult> {
+  return runHandlerTool("custom", resolved.customHandler, call, signal);
 }
 
 async function runHandlerTool(
   kind: "memory" | "custom",
-  handler: ((input: Record<string, unknown>) => string | Promise<string>) | undefined,
+  handler:
+    | ((input: Record<string, unknown>, ctx?: { signal?: AbortSignal }) => string | Promise<string>)
+    | undefined,
   call: LlmToolCallPart,
+  signal?: AbortSignal,
 ): Promise<ToolResult> {
   if (handler === undefined) {
     return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
   }
   try {
-    const stdout = await handler(call.input);
+    // #65 — pass a minimal ToolContext (the run's abort signal) as the 2nd arg.
+    // Single-arg handlers ignore it; cooperative handlers can observe cancellation.
+    const stdout = await handler(call.input, { signal });
     return { stdout, stderr: "", exitCode: 0 };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
