@@ -1,7 +1,7 @@
 # Release: @theokit/sdk@2.16.0 — M1 Harness correctness core
 
 **Date:** 2026-07-02
-**Verdict:** PR_OPEN_AWAITING_APPROVAL
+**Verdict:** RELEASED (PR #71 merged 2026-07-02T22:12:36Z; merge `49bdfef`; tag `@theokit/sdk@2.16.0` pushed; GitHub release published; ROADMAP.md M1 flipped `[x]` in commit `53bdf8d`)
 **Milestone:** M1 (Harness correctness core — kill silent no-ops & dead safety)
 **Mechanism:** Changesets (`pnpm changeset version` consumed the 4 M1 changesets: m1-55/57/58/65)
 **Source review:** `knowledge-base/reviews/m1-harness-correctness-review-2026-07-02.md` (READY_TO_MERGE)
