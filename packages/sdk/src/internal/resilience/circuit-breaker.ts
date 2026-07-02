@@ -1,5 +1,9 @@
 /**
- * Consecutive-timeout circuit breaker for Active Memory recall.
+ * Consecutive-failure circuit breaker — a cross-cutting resilience primitive.
+ *
+ * Used by Active Memory recall (timeout-driven) and the LLM credential pool
+ * (429/terminal-failure-driven). Domain-neutral: it counts consecutive
+ * failure events per key and trips after N, staying open for `cooldownMs`.
  *
  * Mirrors peer-project's `circuitBreakerMaxTimeouts` + `circuitBreakerCooldownMs`
  * config: after N consecutive timeouts the breaker trips and `shouldSkip`
