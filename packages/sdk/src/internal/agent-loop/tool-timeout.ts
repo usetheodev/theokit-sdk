@@ -49,13 +49,33 @@ export function raceToolExecution(
   if (timeoutMs !== undefined) signals.push(AbortSignal.timeout(timeoutMs));
   const merged = signals.length === 1 ? signals[0]! : AbortSignal.any(signals);
 
-  const aborted = new Promise<ToolResult>((resolve) => {
-    if (merged.aborted) {
-      resolve(abortedResult(merged));
-      return;
-    }
-    merged.addEventListener("abort", () => resolve(abortedResult(merged)), { once: true });
-  });
+  if (merged.aborted) return Promise.resolve(abortedResult(merged));
 
-  return Promise.race([exec, aborted]);
+  // ARCH-03 — attach the listener to a per-call controller, not the caller's
+  // long-lived run signal, and remove it once the race settles, so tool-heavy
+  // runs do not accumulate listeners on the shared signal.
+  return new Promise<ToolResult>((resolve, reject) => {
+    let settled = false;
+    const onAbort = (): void => {
+      if (settled) return;
+      settled = true;
+      resolve(abortedResult(merged));
+    };
+    merged.addEventListener("abort", onAbort, { once: true });
+    exec.then(
+      (r) => {
+        if (settled) return;
+        settled = true;
+        merged.removeEventListener("abort", onAbort);
+        resolve(r);
+      },
+      (e) => {
+        if (settled) return;
+        settled = true;
+        merged.removeEventListener("abort", onAbort);
+        // Preserve the original rejection (existing dispatch error handling catches it).
+        reject(e);
+      },
+    );
+  });
 }
