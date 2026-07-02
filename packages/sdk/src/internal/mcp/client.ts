@@ -53,6 +53,19 @@ const DEFAULT_MCP_TIMEOUT_MS = 30_000;
 /** Max buffered stdout bytes before a flooding stdio server is torn down (SEC-M0-04). */
 const MAX_STDIO_BUFFER_BYTES = 8 * 1024 * 1024;
 
+/** M2 #59 — reconnect-after-drop bounds. Base for the full-jitter backoff between
+ * reconnect attempts, and the max attempts before surfacing a typed error. */
+const RECONNECT_BASE_MS = 250;
+const MAX_RECONNECT_ATTEMPTS = 2;
+
+/** M2 #59 — full-jitter backoff (AWS Brooker 2015) for the Nth reconnect attempt,
+ * then a plain delay. MCP requests carry no AbortSignal so the delay is unabortable. */
+function reconnectDelay(attempt: number): Promise<void> {
+  const ceiling = RECONNECT_BASE_MS * 2 ** attempt;
+  const ms = Math.floor(Math.random() * ceiling);
+  return ms <= 0 ? Promise.resolve() : new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Typed timeout error shared by both transports (#59). */
 function mcpTimeoutError(name: string, timeoutMs: number): NetworkError {
   return new NetworkError(`MCP ${name} request timed out after ${timeoutMs}ms`, {
@@ -149,6 +162,11 @@ class StdioMcpClient extends BaseMcpClient {
     }
   >();
   private buffer = "";
+  // M2 #59 — reconnect-after-drop state. `dropped` is set when the child exits
+  // unexpectedly (not via close()); the next request re-spawns with backoff.
+  private dropped = false;
+  private reconnectAttempts = 0;
+  private reconnecting = false;
 
   constructor(
     name: string,
@@ -162,7 +180,9 @@ class StdioMcpClient extends BaseMcpClient {
     return this.config.requestTimeoutMs ?? DEFAULT_MCP_TIMEOUT_MS;
   }
 
-  override async initialize(): Promise<void> {
+  /** Spawn the server child and wire stdout/stderr/error/exit handlers.
+   * Shared by `initialize()` and the M2 #59 reconnect path. */
+  private spawnChild(): void {
     // ADR D79-D80: relative MCP `cwd` paths must safe-join under process.cwd()
     // so a malicious `.theokit/mcp.json` cannot point a server process at
     // `../../../etc`. Absolute paths are trusted (user explicitly chose).
@@ -181,15 +201,59 @@ class StdioMcpClient extends BaseMcpClient {
         new NetworkError(`MCP ${this.name} process crashed`, { code: "mcp_crashed" }),
       );
     });
+    // M2 #59 — a clean-exit / close mid-session used to leave pending requests
+    // hung forever (a second permanent-hang vector distinct from timeout). Now
+    // an unexpected exit of the ACTIVE child rejects all pending with a typed
+    // error and marks the client dropped so the next request reconnects. The
+    // `this.child === child` guard skips deliberate close()/replace teardowns.
+    child.on("exit", () => {
+      if (this.child !== child) return;
+      this.child = undefined;
+      this.dropped = true;
+      this.rejectAllPending(
+        new NetworkError(`MCP ${this.name} disconnected`, { code: "mcp_disconnected" }),
+      );
+    });
+  }
+
+  override async initialize(): Promise<void> {
+    this.spawnChild();
     await super.initialize();
+  }
+
+  /** M2 #59 — ensure a live child before a request. Reconnect (bounded, with
+   * full-jitter backoff) when the client was dropped; fail fast when never
+   * initialized. A no-op when already connected or mid-reconnect handshake. */
+  private async ensureConnected(): Promise<void> {
+    if (this.child !== undefined || this.reconnecting) return;
+    if (!this.dropped) {
+      throw new ConfigurationError(`MCP ${this.name} is not initialized`, { code: "mcp_not_init" });
+    }
+    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+      throw new NetworkError(`MCP ${this.name} reconnect exhausted`, { code: "mcp_disconnected" });
+    }
+    await reconnectDelay(this.reconnectAttempts);
+    this.reconnectAttempts += 1;
+    this.reconnecting = true;
+    try {
+      this.spawnChild();
+      await super.initialize(); // handshake; request() skips ensureConnected while reconnecting
+      this.dropped = false;
+      this.reconnectAttempts = 0;
+    } finally {
+      this.reconnecting = false;
+    }
   }
 
   async close(): Promise<void> {
     // #59 — settle in-flight requests instead of leaking their timers/promises.
     this.rejectAllPending(new NetworkError(`MCP ${this.name} closed`, { code: "mcp_closed" }));
-    if (this.child === undefined) return;
-    this.child.kill("SIGTERM");
+    // Clear the ref BEFORE kill so the exit handler's `this.child === child`
+    // guard treats this as a deliberate close (no drop / no reconnect).
+    const child = this.child;
     this.child = undefined;
+    this.dropped = false;
+    child?.kill("SIGTERM");
   }
 
   /** Reject + clear every pending request (crash / close). @internal */
@@ -242,14 +306,40 @@ class StdioMcpClient extends BaseMcpClient {
   }
 
   protected request(method: string, params: Record<string, unknown>): Promise<unknown> {
-    if (this.child === undefined) {
-      return Promise.reject(
-        new ConfigurationError(`MCP ${this.name} is not initialized`, { code: "mcp_not_init" }),
-      );
+    const child = this.child;
+    // Happy path stays fully synchronous (no extra `await` tick that could race
+    // with a concurrent close()): a live child sends immediately.
+    if (child !== undefined) return this.send(child, method, params);
+    // M2 #59 — dropped (was initialized, child exited): reconnect on this request.
+    if (this.dropped && !this.reconnecting) return this.reconnectAndRequest(method, params);
+    // Never initialized.
+    return Promise.reject(
+      new ConfigurationError(`MCP ${this.name} is not initialized`, { code: "mcp_not_init" }),
+    );
+  }
+
+  /** M2 #59 — reconnect a dropped client, then send. Separate async path so the
+   * happy path above never pays an extra microtask tick. */
+  private async reconnectAndRequest(
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
+    await this.ensureConnected();
+    const child = this.child;
+    if (child === undefined) {
+      throw new ConfigurationError(`MCP ${this.name} is not initialized`, { code: "mcp_not_init" });
     }
+    return this.send(child, method, params);
+  }
+
+  private send(
+    child: ChildProcessWithoutNullStreams,
+    method: string,
+    params: Record<string, unknown>,
+  ): Promise<unknown> {
     const id = this.nextId++;
     const payload: RpcRequest = { jsonrpc: "2.0", id, method, params };
-    this.child.stdin.write(`${JSON.stringify(payload)}\n`);
+    child.stdin.write(`${JSON.stringify(payload)}\n`);
     return new Promise<unknown>((resolve, reject) => {
       // #59 — a silent server rejects with a typed timeout and drops the pending
       // entry (no leak) instead of hanging forever. SEC-M0-04 — an unresponsive
@@ -304,8 +394,12 @@ class HttpMcpClient extends BaseMcpClient {
         signal: AbortSignal.timeout(timeoutMs),
       });
     } catch (cause) {
-      // #59 — map an abort/timeout to the typed timeout error; surface any
-      // other fetch failure (DNS, connection refused, …) unchanged.
+      // #59 — map an abort/timeout to the typed timeout error; surface any other
+      // fetch failure unchanged. The http transport is stateless, so a failed
+      // request does not "drop" a connection — the next request reconnects
+      // inherently (each POST opens a fresh connection). No in-call retry: that
+      // would change the M0 error-surfacing contract and add latency to hard
+      // failures. Stdio (a persistent child) is where explicit reconnect lives.
       if (isAbortLike(cause)) throw mcpTimeoutError(this.name, timeoutMs);
       throw cause;
     }
