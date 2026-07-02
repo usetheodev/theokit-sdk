@@ -20,7 +20,7 @@ updates `CHANGELOG.md`.
 
 ---
 
-### M0 — [ ] Harness security floor (3 CRITICALs + live ACP defect)
+### M0 — [x] Harness security floor (3 CRITICALs + live ACP defect)
 
 **Objective:** Nothing is built atop a leaking, injectable Harness.
 
