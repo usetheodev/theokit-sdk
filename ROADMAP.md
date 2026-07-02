@@ -33,7 +33,7 @@ updates `CHANGELOG.md`.
 
 ---
 
-### M1 — [ ] Harness correctness core (kill silent no-ops)
+### M1 — [x] Harness correctness core (kill silent no-ops)
 
 **Objective:** No surface exists that silently does nothing (`no-stubs-no-mocks-no-wired`).
 
