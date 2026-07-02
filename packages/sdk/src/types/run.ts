@@ -278,6 +278,23 @@ export interface SendOptions {
    */
   signal?: AbortSignal;
   /**
+   * #58 — per-tool execution timeout in ms. Each tool call is bounded by this
+   * deadline (merged with `signal`); a hung tool yields a typed timeout result
+   * (exit 124) instead of wedging the run. Undefined = no per-tool timeout.
+   *
+   * @public
+   */
+  perToolTimeoutMs?: number;
+  /**
+   * #57 — opt-in tool-result content guard applied before tool output reaches
+   * the LLM. `{ delimit: true }` frames untrusted tool output as data
+   * (prompt-injection mitigation); `{ redactPii: true }` redacts email/phone.
+   * Undefined = no guard.
+   *
+   * @public
+   */
+  toolResultGuard?: import("../internal/agent-loop/tool-result-guard.js").ToolResultGuardOptions;
+  /**
    * Opt-in task wrapping (ADRs D363, D374). When truthy, the entire
    * run is registered as a `Task` in the SDK's observable registry —
    * caller can list / inspect / cancel / subscribe via the `Task`
