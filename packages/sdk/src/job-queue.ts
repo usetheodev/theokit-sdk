@@ -1,8 +1,13 @@
 /**
- * `JobQueue` — background job queue with status tracking.
+ * `JobQueue` — background job queue with status tracking, cancellation, and an
+ * optional concurrency bound.
  *
- * EC-1: all enqueued functions are wrapped in Promise.resolve().then()
- * to ensure synchronous throws become rejections.
+ * EC-1: all enqueued functions are wrapped in Promise.resolve().then() so
+ * synchronous throws become rejections.
+ *
+ * #58: each job runs under an `AbortController` whose signal is passed to the
+ * job fn, so `cancel()` actually interrupts a running job (not just a status
+ * flip); an optional `maxConcurrency` bounds how many jobs run at once.
  */
 
 import { randomUUID } from "node:crypto";
@@ -16,31 +21,63 @@ interface Job<T> {
   error?: string;
 }
 
+/** #58 — construction options. */
+export interface JobQueueOptions {
+  /**
+   * Max jobs running concurrently. Omit for unbounded (previous behavior).
+   * Values < 1 are clamped to 1 (an invalid bound must not deadlock).
+   */
+  maxConcurrency?: number;
+}
+
 export class JobQueue {
   private jobs = new Map<string, Job<unknown>>();
+  private controllers = new Map<string, AbortController>();
+  private readonly maxConcurrency: number;
+  private running = 0;
+  private readonly waiting: Array<() => void> = [];
+
+  constructor(options: JobQueueOptions = {}) {
+    this.maxConcurrency =
+      options.maxConcurrency === undefined
+        ? Number.POSITIVE_INFINITY
+        : Math.max(1, options.maxConcurrency);
+  }
 
   /**
-   * Enqueue a background function. Returns the job ID immediately.
-   * EC-1: wraps fn in Promise.resolve().then() so sync throws are caught.
+   * Enqueue a background function. Returns the job ID immediately. The function
+   * receives an `AbortSignal` that fires when the job is cancelled (#58) — a
+   * cooperative job should observe it to stop early. Existing `() => Promise<T>`
+   * callers are unaffected (the signal argument is simply ignored).
    */
-  enqueue<T>(fn: () => Promise<T>): string {
+  enqueue<T>(fn: (signal: AbortSignal) => Promise<T>): string {
     const id = randomUUID();
     const job: Job<T> = { id, status: "pending" };
     this.jobs.set(id, job as Job<unknown>);
+    const controller = new AbortController();
+    this.controllers.set(id, controller);
 
-    job.status = "running";
-    Promise.resolve()
-      .then(() => fn())
-      .then((result) => {
-        if (job.status === "cancelled") return;
-        job.result = result;
-        job.status = "completed";
-      })
-      .catch((err: unknown) => {
-        if (job.status === "cancelled") return;
-        job.error = err instanceof Error ? err.message : String(err);
-        job.status = "failed";
-      });
+    void this.#acquire().then(() => {
+      // Cancelled while waiting for a slot → never start.
+      if (job.status === "cancelled") {
+        this.#release(id);
+        return;
+      }
+      job.status = "running";
+      Promise.resolve()
+        .then(() => fn(controller.signal))
+        .then((result) => {
+          if (job.status === "cancelled") return;
+          job.result = result;
+          job.status = "completed";
+        })
+        .catch((err: unknown) => {
+          if (job.status === "cancelled") return;
+          job.error = err instanceof Error ? err.message : String(err);
+          job.status = "failed";
+        })
+        .finally(() => this.#release(id));
+    });
 
     return id;
   }
@@ -54,15 +91,39 @@ export class JobQueue {
   }
 
   /**
-   * Cancel a pending or running job. Returns true if cancelled.
+   * Cancel a pending or running job. Returns true if cancelled. #58 — aborts the
+   * job's `AbortSignal` so a cooperative running job is actually interrupted.
    */
   cancel(id: string): boolean {
     const job = this.jobs.get(id);
     if (!job) return false;
     if (job.status === "pending" || job.status === "running") {
       job.status = "cancelled";
+      this.controllers.get(id)?.abort();
       return true;
     }
     return false;
+  }
+
+  /** Acquire a concurrency slot (resolves immediately when unbounded/free). */
+  #acquire(): Promise<void> {
+    if (this.running < this.maxConcurrency) {
+      this.running += 1;
+      return Promise.resolve();
+    }
+    return new Promise<void>((resolve) => {
+      this.waiting.push(() => {
+        this.running += 1;
+        resolve();
+      });
+    });
+  }
+
+  /** Release a slot + clean up the controller; start the next waiting job. */
+  #release(id: string): void {
+    this.controllers.delete(id);
+    this.running -= 1;
+    const next = this.waiting.shift();
+    if (next !== undefined) next();
   }
 }
