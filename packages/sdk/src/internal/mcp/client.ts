@@ -7,6 +7,7 @@ import type {
   McpServerConfig,
   McpStdioServerConfig,
 } from "../../types/mcp.js";
+import { resolveChildEnv } from "../runtime/lifecycle/env-policy.js";
 import { safePathJoin } from "../security/path-guard.js";
 
 /**
@@ -48,6 +49,9 @@ export function createMcpClient(
 
 /** Default per-request MCP timeout (#59). */
 const DEFAULT_MCP_TIMEOUT_MS = 30_000;
+
+/** Max buffered stdout bytes before a flooding stdio server is torn down (SEC-M0-04). */
+const MAX_STDIO_BUFFER_BYTES = 8 * 1024 * 1024;
 
 /** Typed timeout error shared by both transports (#59). */
 function mcpTimeoutError(name: string, timeoutMs: number): NetworkError {
@@ -165,7 +169,9 @@ class StdioMcpClient extends BaseMcpClient {
     const resolvedCwd = resolveMcpCwd(this.config.cwd);
     const child = spawn(this.config.command, this.config.args ?? [], {
       cwd: resolvedCwd,
-      env: { ...process.env, ...(this.config.env ?? {}) },
+      // #54 (F-H1) — a third-party MCP server binary must not inherit host
+      // secrets. Scrub secret-like vars by default; `config.env` still wins.
+      env: resolveChildEnv({ policy: this.config.envPolicy, overrides: this.config.env }),
     });
     this.child = child;
     child.stdout.on("data", (chunk: Buffer) => this.consume(chunk));
@@ -197,6 +203,19 @@ class StdioMcpClient extends BaseMcpClient {
 
   private consume(chunk: Buffer): void {
     this.buffer += chunk.toString("utf8");
+    // SEC-M0-04 — a hostile/broken server flooding stdout with no newline must
+    // not pin memory. Cap the buffer; on overflow tear the client down.
+    if (this.buffer.length > MAX_STDIO_BUFFER_BYTES) {
+      this.buffer = "";
+      this.rejectAllPending(
+        new NetworkError(`MCP ${this.name} exceeded stdout buffer limit`, {
+          code: "mcp_buffer_overflow",
+        }),
+      );
+      this.child?.kill("SIGKILL");
+      this.child = undefined;
+      return;
+    }
     let newlineIndex = this.buffer.indexOf("\n");
     while (newlineIndex !== -1) {
       const line = this.buffer.slice(0, newlineIndex).trim();
@@ -233,10 +252,14 @@ class StdioMcpClient extends BaseMcpClient {
     this.child.stdin.write(`${JSON.stringify(payload)}\n`);
     return new Promise<unknown>((resolve, reject) => {
       // #59 — a silent server rejects with a typed timeout and drops the pending
-      // entry (no leak) instead of hanging forever.
+      // entry (no leak) instead of hanging forever. SEC-M0-04 — an unresponsive
+      // server is torn down (SIGKILL) so it cannot linger as a zombie / keep
+      // flooding stdout past the deadline.
       const timer = setTimeout(() => {
         this.pending.delete(id);
         reject(mcpTimeoutError(this.name, this.timeoutMs));
+        this.child?.kill("SIGKILL");
+        this.child = undefined;
       }, this.timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
     });
