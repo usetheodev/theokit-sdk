@@ -47,10 +47,18 @@ export interface StoredMessage {
  */
 export interface ConversationStorageAdapter {
   /**
-   * Return the full message history for a conversation, in insertion order.
+   * Return the message history for a conversation, in insertion order.
    * MUST return `[]` (not throw) when the conversation does not exist.
+   *
+   * M2 #63 — an optional `{ offset, limit }` window paginates the result so a
+   * caller hydrating a long history is not forced to materialize the whole log.
+   * Omitting `opts` returns the full history (backward-compatible). `offset`
+   * counts from the oldest message; `limit` bounds the returned count.
    */
-  getMessages(conversationId: string): Promise<readonly StoredMessage[]>;
+  getMessages(
+    conversationId: string,
+    opts?: { offset?: number; limit?: number },
+  ): Promise<readonly StoredMessage[]>;
 
   /**
    * Append a single message to the conversation.
@@ -58,6 +66,15 @@ export interface ConversationStorageAdapter {
    * MUST create the conversation lazily if it does not exist.
    */
   appendMessage(conversationId: string, message: StoredMessage): Promise<void>;
+
+  /**
+   * M2 #63 — optional batch append: write a whole conversation turn
+   * (user + assistant + N tool results) in ONE atomic operation. The default FS
+   * adapter uses a single locked `appendFile` (one open per turn instead of N).
+   * Adapters that do not implement it fall back to looping `appendMessage`.
+   * MUST be atomic as a unit — a partial batch MUST NOT be observable.
+   */
+  appendMessages?(conversationId: string, messages: readonly StoredMessage[]): Promise<void>;
 
   /**
    * Delete the entire conversation. MUST be idempotent (delete-of-missing = ok).
