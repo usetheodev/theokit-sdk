@@ -21,6 +21,8 @@ Cloud (Theo-hosted)	Runs in an isolated VM with your repo cloned in. Theo runs t
 Cloud (self-hosted)	Same shape, but you run the VMs via a self-hosted pool.	Same reasons as Theo-hosted, plus code, secrets, and build artifacts must stay in your environment.
 Runtime is picked by which key you pass to Agent.create() (local or cloud). Use the same Theo_API_KEY for either.
 
+> **Cloud runtime — pre-release.** The cloud runtime depends on **Theo PaaS**, currently pre-release. The **local runtime is the primary, fully-tested path** and works without it. Every cloud API in this document describes the **contract for when Theo PaaS reaches general availability** — it is validated against the SDK's contract tests (payload shape, determinism, secret filtering, HTTP protocol) but **not yet against a live PaaS endpoint**. Cloud-only surfaces (`cloud.envVars`, `cloud.autoCreatePR`, `result.git`, artifacts) are labeled inline below; treat them as contract-only until PaaS ships.
+
 For the REST API, see the Cloud Agents API.
 
 Authentication
@@ -88,7 +90,7 @@ agent.agentId is populated immediately. Local agents get an agent-<uuid> ID; clo
 Cloud agents started by the SDK are filtered out of the default agent list. To view them in Theo Web or a Theo window, click Filter > Source > SDK.
 
 Session environment variables
-For cloud agents, pass cloud.envVars when a run needs short-lived credentials or other values that should live only with that agent.
+**Cloud-only, pre-release.** For cloud agents, pass cloud.envVars when a run needs short-lived credentials or other values that should live only with that agent. These are sent to Theo PaaS at agent-create time over TLS (never in the redacted per-run cloudPayload). This is the contract for when Theo PaaS ships; it is not yet wired to a live endpoint.
 
 
 const agent = await Agent.create({
@@ -424,7 +426,7 @@ console.log(result.status);      // "finished" | "error" | "cancelled"
 console.log(result.result);      // final assistant text, if any
 console.log(result.model);       // resolved ModelSelection used for this run
 console.log(result.durationMs);
-console.log(result.git);         // { branches: [{ repoUrl, branch?, prUrl? }] } on cloud
+console.log(result.git);         // cloud-only (pre-release): { branches: [{ repoUrl, branch?, prUrl? }] }
 Cancelling a run
 
 await run.cancel();
@@ -1279,7 +1281,7 @@ Property	Type	Default	Description
 env	{ type: "cloud"; name?: string } | { type: "pool"; name?: string } | { type: "machine"; name?: string }	{ type: "cloud" }	Execution environment. cloud uses Theo-hosted VMs; pool and machine target a self-hosted pool.
 repos	Array<{ url: string; startingRef?: string; prUrl?: string }>		Repositories to clone into the VM. Pass prUrl to attach the agent to an existing PR.
 workOnCurrentBranch	boolean	false	Push commits to the existing branch instead of a new one.
-autoCreatePR	boolean	false	Open a PR when the run finishes.
+autoCreatePR	boolean	false	Cloud-only (pre-release). Open a PR when the run finishes. Sent to Theo PaaS; contract-only until PaaS ships.
 skipReviewerRequest	boolean	false	Skip requesting the calling user as a reviewer on the PR.
 AgentDefinition
 Property	Type	Default	Description
