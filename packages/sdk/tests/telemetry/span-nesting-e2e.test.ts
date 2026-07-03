@@ -16,6 +16,7 @@ import type {
 import { HooksExecutor } from "../../src/internal/runtime/hooks/hooks-executor.js";
 import { createTelemetry } from "../../src/internal/telemetry/tracer.js";
 import {
+  findSpanEventually,
   findSpanOrThrow,
   installOtelTestCollector,
   uninstallOtelTestCollector,
@@ -78,10 +79,10 @@ describe("M3 #64 — span nesting end-to-end (production threading)", () => {
       ],
     };
     await runAgentLoop(inputs);
-    // Give the finally-block sendSpan.end() a tick to flush.
-    await new Promise((r) => setTimeout(r, 30));
-
-    const send = findSpanOrThrow("agent.send");
+    // Poll (deterministic) for agent.send — it ends last, in the finally; once it is
+    // present, llm.call/tool.call (ended earlier in the loop) are guaranteed present too.
+    // Replaces a magic 30ms sleep that flaked under scheduling jitter.
+    const send = await findSpanEventually("agent.send");
     const llm = findSpanOrThrow("llm.call");
     const tool = findSpanOrThrow("tool.call");
     // The production threading nests both children under the run span.

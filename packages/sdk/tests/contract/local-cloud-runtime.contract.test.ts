@@ -40,6 +40,12 @@ describe("local and cloud runtime contract", () => {
       expect.arrayContaining([expect.objectContaining({ type: "status" })]),
     );
     expect(normalizeForGolden(cloudResult)).toEqual(waitFinishedCloud);
+
+    // Dispose flushes the fire-and-forget session appends before `afterEach`
+    // removes the temp workspace — otherwise `rm(recursive)` races an in-flight
+    // append into `.theokit/agents/<id>/` and fails `ENOTEMPTY`.
+    await localAgent.dispose();
+    await cloudAgent.dispose();
   });
 
   it("Theokit models and repositories expose catalog contracts", async () => {

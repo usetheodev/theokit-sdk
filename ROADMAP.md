@@ -57,12 +57,12 @@ updates `CHANGELOG.md`.
 
 ---
 
-### M3 — [ ] Harness state & observability
+### M3 — [x] Harness state & observability
 
-- [ ] **#62** resume no longer lossy + scoped session state (app:/user:/temp:) (`src/internal/.../executor.ts:370`, `agent-session-store.ts:102`). *(5 gaps — public-API change → `docs.md` + Changeset)*
-- [ ] **#64** nested spans + metric gap + EventBus stops swallowing handler errors (`src/event-bus.ts:36`). *(5 gaps)*
-- [ ] **#66** artifacts scope decision + token-undercount fix. *(2 gaps)*
-- [ ] **#67** cross-model cache correctness + session revert. *(3 gaps)*
+- [x] **#62** resume no longer lossy + scoped session state (app:/user:/temp:) (`src/internal/.../executor.ts:370`, `agent-session-store.ts:102`). *(5 gaps — public-API change → `docs.md` + Changeset)*
+- [x] **#64** nested spans + metric gap + EventBus stops swallowing handler errors (`src/event-bus.ts:36`). *(5 gaps)*
+- [x] **#66** artifacts scope decision + token-undercount fix. *(2 gaps)*
+- [x] **#67** cross-model cache correctness + session revert. *(3 gaps)*
 
 **Dependencies:** M0, M1. **Milestone id:** `M3`.
 

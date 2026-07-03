@@ -1,5 +1,11 @@
 import { defineConfig } from "vitest/config";
 
+// Upper bound on concurrent test subprocesses. Each fork re-runs the native-bindings
+// preflight + imports the full SDK (~1.5GB RSS), so 4 forks can OOM a memory-constrained
+// machine or CI runner. `SDK_TEST_MAX_FORKS` lets those environments dial it down without
+// editing this file (default 4 preserves local wall-time). Floor of 1 keeps it always valid.
+const MAX_FORKS = Math.max(1, Number(process.env.SDK_TEST_MAX_FORKS) || 4);
+
 // Default `pnpm test` runs only green-eligible suites (smoke + golden hygiene).
 // RED roadmap suites (`tests/contract/**`, `tests/golden/**/*.golden.test.ts`
 // other than hygiene) are pinned specs that wait for the runtime adapters; run
@@ -54,7 +60,7 @@ export default defineConfig({
         // Allow multiple subprocesses so the suite finishes in reasonable
         // wall-time. Each fork is its own env, so no HOME race.
         minForks: 1,
-        maxForks: 4,
+        maxForks: MAX_FORKS,
       },
     },
     // Force file-level serial execution. `singleFork: true` only guarantees
