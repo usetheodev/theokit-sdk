@@ -44,6 +44,8 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
   try {
     const ctx = await initLoopContext(inputs);
     ctxRef = ctx;
+    // M3 #64 — expose the run span so child spans nest under it.
+    ctx.sendSpan = sendSpan;
     // #65 — on_session_start hook (previously dead) fires once per run.
     await inputs.pluginManager?.runOnSessionStartHooks({
       agentId: inputs.agentId,
@@ -385,7 +387,13 @@ export async function continueOrTerminate(
   const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
   const outText = await transformLlmOutputText(inputs, llmOutput.text, tCtx);
   ctx.messages.push(buildAssistantTurn(outText, llmOutput.toolCalls));
-  const rawResults = await dispatchTools(inputs, ctx.tools, llmOutput.toolCalls, ctx.events);
+  const rawResults = await dispatchTools(
+    inputs,
+    ctx.tools,
+    llmOutput.toolCalls,
+    ctx.events,
+    ctx.sendSpan, // M3 #64 — nest tool.call spans under agent.send
+  );
   const toolResults = await guardAndTransformToolResults(inputs, rawResults, tCtx);
   ctx.messages.push({ role: "user", content: toolResults });
   if (inputs.onStep !== undefined) {
