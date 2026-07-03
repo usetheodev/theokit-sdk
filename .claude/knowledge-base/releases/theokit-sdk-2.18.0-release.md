@@ -1,11 +1,13 @@
 # Release @theokit/sdk@2.18.0 (+ @theokit/sdk-cache@0.3.0)
 
 **Date:** 2026-07-03
-**Verdict:** PR_OPEN_AWAITING_APPROVAL
+**Verdict:** RELEASED
 **Scope:** ecosystem M3 (Harness state & observability) + M4 (Skills↔Harness provider routing)
 **Source reviews:** knowledge-base/reviews/m3-harness-state-observability-review-2026-07-03.md · m4-provider-routing-apikey-fix-review-2026-07-03.md (both READY_TO_MERGE)
 **Changesets consumed:** m3-62-resume, m3-64-observability, m3-66-token-undercount, m3-67-cache-revert, m4-provider-routing-apikey (5)
-**PR:** https://github.com/usetheodev/theokit-sdk/pull/73
+**PR:** https://github.com/usetheodev/theokit-sdk/pull/73 (MERGED)
+**Merge commit:** 75ea2758754475893d132c50ee5f930a9937d694
+**GitHub release:** https://github.com/usetheodev/theokit-sdk/releases/tag/%40theokit%2Fsdk%402.18.0
 **Tag (post-merge):** @theokit/sdk@2.18.0 (Changesets per-package format)
 
 ## Bump derivation
