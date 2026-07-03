@@ -3005,6 +3005,20 @@ resolved chat chain; fail-open and default-off, so a non-leaking route is
 unaffected. This is the enablement path `@theokit/agents`' `recoverLeakedToolCalls`
 knob uses.
 
+**Provider selection from the API key (v2.18+).** The provider is resolved in
+this order: an explicit `providers.routes[0].provider` wins; otherwise the
+**API-key prefix** is consulted (`sk-or-` → `openrouter`, `sk-ant-` → `anthropic`,
+`sk-` → `openai`); otherwise the **model-id prefix** (`anthropic/claude-…` →
+`anthropic`); otherwise an env-var heuristic. The key outranks the model prefix
+because it is the credential that will actually be called — so
+`Agent.create({ apiKey: "sk-or-…", model: { id: "openai/gpt-4o-mini" } })` routes
+to OpenRouter and passes the full `openai/gpt-4o-mini` slug through (the vendor
+prefix is stripped only when it names the resolved provider). The explicitly
+passed `apiKey` is also used as the credential for the resolved provider even
+when the matching env var is unset (an explicit `providers.apiKeys` pool for that
+provider still wins; fixture `theo_test_*` and the `local` sentinel are never
+threaded as credentials).
+
 
 ## Bedrock provider (v1.20+) — Claude on AWS Bedrock
 
