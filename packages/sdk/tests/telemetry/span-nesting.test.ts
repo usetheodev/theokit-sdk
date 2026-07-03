@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Agent } from "../../src/agent.js";
 import { createTelemetry } from "../../src/internal/telemetry/tracer.js";
 import {
+  findSpanEventually,
   findSpanOrThrow,
   installOtelTestCollector,
   uninstallOtelTestCollector,
@@ -47,8 +48,9 @@ describe("M3 #64 — span nesting (trace tree)", () => {
       });
       const run = await agent.send(`turn ${i}`);
       await run.wait();
-      await new Promise((r) => setTimeout(r, 30));
-      expect(findSpanOrThrow("agent.send").ended).toBe(true);
+      // Poll (deterministic) instead of a fixed sleep: the agent.send span ends in a
+      // callback that fires just after run.wait() resolves; a magic 30ms bet flaked.
+      expect((await findSpanEventually("agent.send")).ended).toBe(true);
       await agent.dispose();
       await uninstallOtelTestCollector();
       installOtelTestCollector();
