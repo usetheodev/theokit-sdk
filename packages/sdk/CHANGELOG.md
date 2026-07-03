@@ -1,5 +1,30 @@
 # Changelog
 
+## 2.18.1
+
+### Patch Changes
+
+- fc09700: Label the cloud-only surfaces as pre-release in `docs.md` (M7). The README already
+  carried a "Cloud runtime — pre-release" banner; `docs.md` (the canonical API
+  contract) only labeled artifacts. It now carries an explicit cloud pre-release
+  banner in the Overview and inline "cloud-only, pre-release" labels on `cloud.envVars`,
+  `cloud.autoCreatePR`, and `result.git` — matching the SDK's pre-release-honesty
+  contract (cloud depends on Theo PaaS, currently pre-release; every cloud API
+  describes the contract for when PaaS reaches GA, validated by the SDK's cloud
+  contract/golden tests against a stub, not a live endpoint). No API or behavior
+  change; no GA claim. Also fixed a teardown race in the cloud runtime contract test
+  (dispose flushes the fire-and-forget session appends before the temp workspace is
+  removed, so `rm(recursive)` no longer races an in-flight write into `ENOTEMPTY`).
+- e132c2d: Strengthen the README cross-pillar front door (M8 GA-readiness): the "Where this
+  fits" section now explains the 4-pillar OPEN-STACK composition (UI · Harness ·
+  Skills · Runtime), how they compose end-to-end (local agent + tools/plugins +
+  `useAgentStream` render, zero Theo-backend dependency), the honest per-pillar status
+  (Runtime/cloud pre-release), and the validated cross-pillar wiring (Skills↔Harness +
+  UI↔Harness green vs SDK 2.18.0; Runtime↔Harness contract-only). Also fixes a stale
+  reference to the removed `referencia/` directory (study peers are cloned on demand
+  under `.claude/knowledge-base/reference/`). Docs-only; no API/behavior change; no GA
+  claim.
+
 ## 2.18.0
 
 ### Minor Changes
