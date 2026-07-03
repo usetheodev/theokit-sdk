@@ -1,3 +1,4 @@
+import { isPlainObject, tryJson } from "../../sanitize/coerce.js";
 import type { LlmFinish, LlmRequest, LlmStopReason, LlmToolCallPart } from "./types.js";
 
 /**
@@ -26,7 +27,30 @@ export function parseToolArguments(buffered: string | undefined): Record<string,
   try {
     return JSON.parse(buffered) as Record<string, unknown>;
   } catch {
+    // M2 #61 — attempt jsonrepair (reusing the sanitize coerce helper, Rule 9)
+    // before giving up, so a slightly-malformed native tool call (trailing
+    // comma, unquoted key — the Kimi/K2 class) parses instead of landing in
+    // `{ raw }` and bouncing to the model as an invalid_request round-trip.
+    const repaired = tryJson(buffered, true);
+    if (isPlainObject(repaired)) return repaired;
     return { raw: buffered };
+  }
+}
+
+/**
+ * Map an OpenAI-compatible `finish_reason` to the provider-agnostic stop reason.
+ * Shared by the OpenAI stream accumulator. Unknown reasons fall back to `end_turn`.
+ *
+ * @internal
+ */
+export function mapOpenAIFinish(reason: string): LlmStopReason {
+  switch (reason) {
+    case "tool_calls":
+      return "tool_use";
+    case "length":
+      return "max_tokens";
+    default:
+      return "end_turn";
   }
 }
 
