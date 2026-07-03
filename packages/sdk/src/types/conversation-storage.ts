@@ -91,7 +91,7 @@ export interface ConversationStorageAdapter {
 
   /**
    * M3 #62 — delete every conversation whose id starts with `prefix`
-   * (e.g. `"temp:"` from {@link sessionScopePrefix}) so a whole session scope
+   * (e.g. `"temp__"` from {@link sessionScopePrefix}) so a whole session scope
    * can be pruned in one call. Returns the number deleted. Optional — adapters
    * that cannot enumerate MAY omit it.
    */
