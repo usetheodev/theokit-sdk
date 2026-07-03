@@ -8,11 +8,11 @@ Without this file, `/dogfood` emits `EVIDENCE_INSUFFICIENT` with flag `golden_ru
 
 The anchor scenario is the single use case that, if you cannot dogfood it, you cannot claim production-ready. Pick one. Be specific.
 
-**Slug:** `<anchor-slug>` (kebab-case identifier referenced in the manifest)
+**Slug:** `open-stack-agent` (referenced in `knowledge-base/dogfood/manifest.md`)
 
-**Description:** Replace this paragraph with a concrete user-visible scenario in which your team — not synthetic load — exercises the product end-to-end on infrastructure you actually own. The scenario should be uncomfortable: the kind of thing that proves the product works when its creators depend on it, not just when synthetic benchmarks do.
+**Description:** An external developer runs a real agent on the **open stack** with their own provider key — create an agent on the SDK **local runtime** (Harness), have it call a **tool** (the Skills extension mechanism the published `@theokit/*` plugins ride on), and render the streamed result through **theo-ui**'s `useAgentStream` mapper (UI) — all against a real LLM (OpenRouter), with **zero dependency on Theo's backend**. The 4th pillar (Runtime / Theo PaaS cloud) is pre-release (contract-only, M7) and is documented, not exercised live.
 
-**Why this scenario:** Why is THIS the scenario that, if it works, justifies the v1.0 claim? Tie it to the product's primary promise.
+**Why this scenario:** It is the product's load-bearing promise — "open stack underneath: run an agent fully locally against your own keys and never call our backend." If this end-to-end path does not work, no GA / production-ready claim is honest. The team must be able to depend on it, not just pass synthetic benchmarks.
 
 ## § 2 — Status vocabulary (LOCKED — do not change without ADR)
 
