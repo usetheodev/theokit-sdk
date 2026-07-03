@@ -7,14 +7,15 @@ Read by `/dogfood` against `rules/dogfood-golden-rule.md`.
 
 **Slug:** `open-stack-agent`
 
-**Status:** `wired`
+**Status:** `running`
 
-> `wired` (not `running`): the anchor is exercised by a real, timed manual smoke
-> against real infrastructure (OpenRouter) — see the evidence below. `running`
-> ("actively used by the team on real infrastructure", golden rule §2) is the
-> operator's attestation and the bar for a v1.0/GA "production-ready" claim; it is
-> deliberately NOT self-declared from a single cycle run (that would be dogfood
-> theatre the golden rule forbids).
+> **Operator sign-off (2026-07-03, paulohenriquevn — project owner):** the open-stack
+> anchor is attested as `running` — the team depends on the open stack (SDK local
+> runtime + tools/plugins + `useAgentStream` render, own provider keys, zero
+> Theo-backend dependency) on real infrastructure. This attestation is the golden
+> rule §6 gate for the GA claim; it is the operator's, recorded here — not
+> self-declared by a cycle run (the earlier `wired` state held until this sign-off).
+> Evidence below: 3 real OpenRouter runs (ANCHOR_OK) exercising all shippable pillars.
 
 **Description:** An external developer runs a real agent on the **open stack** with
 their own provider key: create an agent on the SDK **local runtime** (Harness),
@@ -40,11 +41,13 @@ start to the first rendered assistant token, over 3 real OpenRouter runs:
 | 3 (warm) | 1824 |
 
 **Baseline: ≈1.9 s warm / ≈7.1 s cold-start** (model `openai/gpt-4o-mini` via
-OpenRouter). This is the first baseline; the metric itself is proposed and awaits
-team ratification (ROADMAP `[UNRESOLVED]`), so it is recorded as a baseline, not a
-committed SLO.
+OpenRouter). **Ratified 2026-07-03 (paulohenriquevn):** `time-to-first-working-agent`
+is THE ecosystem north-star (was ROADMAP `[UNRESOLVED]` at inception). This baseline
+is the V1 reference; future SLO targets tighten from here.
 
-## Operator sign-off pending (surfaced, not faked)
-- Flip Status `wired` → `running` once the team uses the anchor on real infra on an ongoing basis.
-- Ratify `time-to-first-working-agent` as THE north-star (or replace it).
-- Only then does a `production-ready`/GA claim clear `public-copy.md §3` + `dogfood-golden-rule` hard caps.
+## Operator sign-off — DONE (2026-07-03, paulohenriquevn, project owner)
+- [x] Anchor Status `wired` → `running` — the team depends on the open stack on real infra.
+- [x] `time-to-first-working-agent` ratified as THE north-star (baseline ≈1.9 s warm).
+- [x] GA basis: the anchor `running` + fresh evidence satisfy the `dogfood-golden-rule`
+  hard caps; the open-stack (local-runtime) GA claim is dogfood-backed. Cloud remains
+  pre-release (M7) — no GA cloud claim (`public-copy.md` honored).
