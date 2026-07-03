@@ -255,3 +255,38 @@ export async function compactSessionFile(
     await replaceFileAtomic(path, trimmed);
   });
 }
+
+/**
+ * M3 #67 — revert a session transcript back to the first `keepCount` records
+ * ("undo the last turn(s)"), rewriting the JSONL atomically under the same
+ * cross-process lock as append/compact. `keepCount <= 0` empties the transcript;
+ * `keepCount >= length` is a no-op. Returns the number of records kept so the
+ * caller can prune its in-memory cache to match. Transcript-only — git-backed
+ * workspace restore is a separate optional primitive.
+ *
+ * @internal
+ */
+export async function truncateSessionTo(
+  cwd: string,
+  agentId: string,
+  keepCount: number,
+): Promise<number> {
+  const path = sessionFilePath(cwd, agentId);
+  if (!existsSync(path)) return 0;
+  let kept = 0;
+  await withFileLock(path, async () => {
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf8");
+    } catch {
+      return;
+    }
+    const lines = raw.split("\n").filter((line) => line.length > 0);
+    const keep = Math.max(0, Math.min(keepCount, lines.length));
+    kept = keep;
+    if (keep === lines.length) return; // no-op
+    const rewritten = keep === 0 ? "" : `${lines.slice(0, keep).join("\n")}\n`;
+    await replaceFileAtomic(path, rewritten);
+  });
+  return kept;
+}
