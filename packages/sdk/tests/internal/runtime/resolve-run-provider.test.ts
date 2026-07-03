@@ -23,6 +23,7 @@ import type { ProviderProfile } from "../../../src/internal/providers/types.js";
 import type { CreateRealLocalRunOptions } from "../../../src/internal/runtime/local-agent/real-local-run.js";
 import {
   _resetPluginProviderAnnounce,
+  mergeExplicitApiKey,
   resolveRunProvider,
 } from "../../../src/internal/runtime/local-agent/real-local-run.js";
 
@@ -91,5 +92,94 @@ describe("resolveRunProvider — model-provider plugin wiring (caller)", () => {
     const { primary } = resolveRunProvider(optionsWith(undefined, undefined));
     expect(getProviderProfile("custom-llm")).toBeUndefined();
     expect(typeof primary).toBe("string"); // falls back to env detection / default
+  });
+});
+
+/**
+ * M4 (plan m4-provider-routing-apikey-fix) — the explicitly-passed API key is the
+ * ground-truth credential of which endpoint will be called; it MUST outrank the
+ * model-prefix inference for choosing `primary`. A `sk-or-` (OpenRouter) key +
+ * an `openai/gpt-4o-mini` model MUST route to OpenRouter, keeping the full slug.
+ */
+function optionsWithKey(args: {
+  modelId?: string;
+  apiKey?: string;
+  routeProvider?: string;
+}): CreateRealLocalRunOptions {
+  return {
+    ...(args.modelId === undefined ? {} : { model: { id: args.modelId } }),
+    agentOptions: {
+      ...(args.apiKey === undefined ? {} : { apiKey: args.apiKey }),
+      ...(args.routeProvider === undefined
+        ? {}
+        : { providers: { routes: [{ provider: args.routeProvider }] } }),
+    },
+  } as unknown as CreateRealLocalRunOptions;
+}
+
+describe("resolveRunProvider — explicit API key selects the provider (M4)", () => {
+  beforeEach(() => {
+    _resetProvidersForTests();
+    _resetBuiltinsRegistered();
+    _resetPluginProviderAnnounce();
+    registerBuiltins();
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("openrouter key routes an openai/… model to openrouter keeping the full slug", () => {
+    const { primary, effectiveModelId } = resolveRunProvider(
+      optionsWithKey({ apiKey: "sk-or-v1-test", modelId: "openai/gpt-4o-mini" }),
+    );
+    expect(primary).toBe("openrouter");
+    // OpenRouter's model slug legitimately embeds a vendor segment — do NOT strip.
+    expect(effectiveModelId).toBe("openai/gpt-4o-mini");
+  });
+
+  it("anthropic key with anthropic/… model strips the matching prefix", () => {
+    const { primary, effectiveModelId } = resolveRunProvider(
+      optionsWithKey({ apiKey: "sk-ant-test", modelId: "anthropic/claude-3-5-haiku-latest" }),
+    );
+    expect(primary).toBe("anthropic");
+    expect(effectiveModelId).toBe("claude-3-5-haiku-latest");
+  });
+
+  it("explicit providers.routes[0].provider overrides the key inference", () => {
+    const { primary } = resolveRunProvider(
+      optionsWithKey({
+        apiKey: "sk-or-test",
+        modelId: "openai/gpt-4o-mini",
+        routeProvider: "openai",
+      }),
+    );
+    expect(primary).toBe("openai");
+  });
+
+  it("no key falls back to model-prefix inference (unchanged legacy behavior)", () => {
+    const { primary, effectiveModelId } = resolveRunProvider(
+      optionsWithKey({ modelId: "openai/gpt-4o-mini" }),
+    );
+    expect(primary).toBe("openai");
+    expect(effectiveModelId).toBe("gpt-4o-mini");
+  });
+});
+
+describe("mergeExplicitApiKey — thread the single credential into the router pool (M4)", () => {
+  it("threads a single explicit key for the resolved primary", () => {
+    expect(mergeExplicitApiKey(undefined, "openrouter", "sk-or-x")).toEqual({
+      openrouter: ["sk-or-x"],
+    });
+  });
+
+  it("an existing per-provider pool wins over the single key", () => {
+    expect(
+      mergeExplicitApiKey({ openrouter: ["sk-or-pool"] }, "openrouter", "sk-or-single"),
+    ).toEqual({ openrouter: ["sk-or-pool"] });
+  });
+
+  it("never threads fixture or local mock keys as credentials", () => {
+    expect(mergeExplicitApiKey(undefined, "openrouter", "theo_test_x")).toBeUndefined();
+    expect(mergeExplicitApiKey(undefined, "openrouter", "local")).toBeUndefined();
   });
 });
