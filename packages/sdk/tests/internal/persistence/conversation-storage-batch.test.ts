@@ -9,6 +9,10 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { FileSystemConversationStorage } from "../../../src/internal/persistence/conversation-storage-fs.js";
 import { InMemoryConversationStorage } from "../../../src/internal/persistence/conversation-storage-memory.js";
+import {
+  appendPersistedMessages,
+  compactSessionFile,
+} from "../../../src/internal/runtime/session/agent-session-store.js";
 import type { StoredMessage } from "../../../src/types/conversation-storage.js";
 
 function turn(): StoredMessage[] {
@@ -59,6 +63,44 @@ describe("M2 #63 — FS batch append + pagination", () => {
     }
   });
 
+  it("concurrent batch turns are written contiguously — proves single-write batching, not per-message interleave (M6)", async () => {
+    // A per-message-loop implementation would interleave the two turns (A1,B1,A2,…);
+    // a single locked appendFile per turn keeps each turn's lines contiguous.
+    const turnA: StoredMessage[] = [
+      { role: "user", content: "A1" },
+      { role: "assistant", content: "A2" },
+      { role: "tool_result", content: "A3" },
+    ];
+    const turnB: StoredMessage[] = [
+      { role: "user", content: "B1" },
+      { role: "assistant", content: "B2" },
+      { role: "tool_result", content: "B3" },
+    ];
+    await Promise.all([store.appendMessages("m6", turnA), store.appendMessages("m6", turnB)]);
+    const joined = (await store.getMessages("m6")).map((m) => m.content).join(",");
+    expect(joined).toMatch(/A1,A2,A3/); // turn A whole
+    expect(joined).toMatch(/B1,B2,B3/); // turn B whole
+  });
+
+  it("compaction under the lock never drops a concurrently-appended line (H2)", async () => {
+    // Seed enough lines that a compaction to maxTurns=2 (trims to 4 lines) will fire.
+    await store.appendMessages(
+      "h2",
+      Array.from({ length: 10 }, (_, i) => ({ role: "user" as const, content: `seed-${i}` })),
+    );
+    const dir = store.root;
+    // Fire compaction (read→slice→rename) and a concurrent append together. The
+    // shared withFileLock serializes them: the appended line survives (compaction
+    // either ran before it — then it's the newest kept line — or after — untouched).
+    await Promise.all([
+      compactSessionFile(dir, "h2", 2),
+      appendPersistedMessages(dir, "h2", [{ role: "assistant", text: "RACER", at: 1 }]),
+    ]);
+    const contents = (await store.getMessages("h2")).map((m) => m.content);
+    // The racing append is never dropped by the compaction rename window.
+    expect(contents).toContain("RACER");
+  });
+
   it("appendMessage (single) still works and shares the same log", async () => {
     await store.appendMessage("c2", { role: "user", content: "hi" });
     await store.appendMessage("c2", { role: "assistant", content: "yo" });
@@ -79,6 +121,9 @@ describe("M2 #63 — FS batch append + pagination", () => {
     ]);
     expect((await store.getMessages("c3", { limit: 1 })).map((m) => m.content)).toEqual(["0"]);
     expect((await store.getMessages("c3", { offset: 3 })).map((m) => m.content)).toEqual(["3"]);
+    // L7 — edge/negative windows: offset past the end → [], limit 0 → [].
+    expect(await store.getMessages("c3", { offset: 99 })).toEqual([]);
+    expect(await store.getMessages("c3", { limit: 0 })).toEqual([]);
   });
 });
 

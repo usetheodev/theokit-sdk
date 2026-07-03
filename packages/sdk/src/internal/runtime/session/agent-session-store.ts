@@ -197,15 +197,22 @@ export async function appendPersistedMessages(
   // Retry ONCE on ENOENT: a fire-and-forget append can race a concurrent removal
   // of the session dir (e.g. a test tearing down `.theokit/` while an async append
   // is still in flight); the lock's mkdir-based `.lock` then fails mid-acquire.
-  // Re-creating the dir + retrying closes the widened window without masking a real
-  // fault (a second ENOENT propagates).
+  // The `written` guard makes the retry idempotent — a post-write ENOENT (e.g. from
+  // the lock RELEASE after appendFile already succeeded) must NOT re-append and
+  // duplicate the turn; only a pre-write failure retries. A second ENOENT propagates.
+  let written = false;
+  const attempt = async (): Promise<void> => {
+    await mkdir(dir, { recursive: true });
+    await withFileLock(path, async () => {
+      await appendFile(path, payload, "utf8");
+      written = true;
+    });
+  };
   try {
-    await mkdir(dir, { recursive: true });
-    await withFileLock(path, () => appendFile(path, payload, "utf8"));
+    await attempt();
   } catch (cause) {
-    if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
-    await mkdir(dir, { recursive: true });
-    await withFileLock(path, () => appendFile(path, payload, "utf8"));
+    if (written || (cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+    await attempt();
   }
 }
 
