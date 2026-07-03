@@ -704,7 +704,7 @@ Honest claims only. Production-ready is not the same as "every feature shipped".
 
 | Pillar | Project | What it does | Status |
 | --- | --- | --- | --- |
-| UI | `@theokit/ui` (`theo-ui`) | Component primitives + the `useAgentStream` hook that renders a live agent stream. | shipped |
+| UI | `@theokit/ui` (`theo-ui`) | AI-native primitives for agent surfaces (coding-agent + chat) + the `useAgentStream` hook that renders a live agent stream. | shipped |
 | **Harness** | **`@theokit/sdk`** (this) | **Agent runtime — local (fully tested) and cloud.** | shipped |
 | Skills | `@theokit/*` plugins + `theokit` | Auth providers, capability plugins, and the framework for shipping agent surfaces. | shipped (10 plugins on npm) |
 | Runtime | Theo PaaS | Managed cloud deploy target. | **pre-release** |
