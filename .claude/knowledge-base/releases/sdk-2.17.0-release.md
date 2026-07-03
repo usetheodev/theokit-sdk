@@ -1,7 +1,7 @@
 # Release: @theokit/sdk@2.17.0 — M2 Harness resilience & I/O robustness
 
 **Date:** 2026-07-03
-**Verdict:** PR_OPEN_AWAITING_APPROVAL
+**Verdict:** RELEASED (PR #72 merged 2026-07-03T04:18:44Z; merge `3eb9487`; tag `@theokit/sdk@2.17.0` pushed; GitHub release published; ROADMAP.md M2 flipped `[x]`)
 **Milestone:** M2 (Harness resilience & I/O robustness)
 **Mechanism:** Changesets (`pnpm changeset version` consumed the 4 M2 changesets: m2-59/60/61/63)
 **Source review:** `knowledge-base/reviews/m2-harness-resilience-review-2026-07-02.md` (READY_TO_MERGE)
