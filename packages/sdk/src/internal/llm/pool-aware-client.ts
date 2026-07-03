@@ -20,9 +20,25 @@ import {
   NetworkError,
   RateLimitError,
 } from "../../errors.js";
+import { CircuitBreaker } from "../resilience/circuit-breaker.js";
 import type { CredentialPool } from "./credential-pool.js";
+import { computeBackoffMs, sleepWithAbort } from "./retry.js";
 import { relayStream, tryFirstEvent } from "./stream-relay.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
+
+/**
+ * M2 #60 — optional resilience knobs. `breaker` guards the provider with a
+ * consecutive-failure circuit breaker; `backoffBaseMs`/`rng` tune the
+ * full-jitter sleep inserted before a same-key 429 retry (tests inject a
+ * deterministic `rng` + a small base). All optional — omit for defaults.
+ *
+ * @internal
+ */
+export interface PoolResilienceOptions {
+  breaker?: CircuitBreaker;
+  backoffBaseMs?: number;
+  rng?: () => number;
+}
 
 /** Decision returned by `classifyAndDecide`. */
 type Decision = "retry" | "rotate" | "propagate";
@@ -55,15 +71,31 @@ export class PoolAwareLlmClient implements LlmClient {
      * @internal
      */
     private readonly waitForAvailableMs: number = 30_000,
+    resilience: PoolResilienceOptions = {},
   ) {
     this.name = `pool-aware:${pool.provider}`;
+    this.breaker = resilience.breaker ?? new CircuitBreaker();
+    this.backoffBaseMs = resilience.backoffBaseMs;
+    this.rng = resilience.rng;
   }
+
+  /** M2 #60 — provider-level circuit breaker (consecutive-failure). */
+  private readonly breaker: CircuitBreaker;
+  private readonly backoffBaseMs: number | undefined;
+  private readonly rng: (() => number) | undefined;
 
   // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: stream() must serialize pool-select → build client → first-event probe → classify → retry/rotate/propagate. Extracting helpers fragments the linear narrative; the comments above each branch keep it readable.
   async *stream(
     request: LlmRequest,
     signal: AbortSignal,
   ): AsyncGenerator<LlmEvent, LlmFinish, void> {
+    // M2 #60 — fail fast while the provider circuit is open, instead of
+    // re-running the whole select→retry→rotate dance against a down provider.
+    if (this.breaker.shouldSkip(this.pool.provider)) {
+      throw new NetworkError(`${this.pool.provider} circuit open — failing fast`, {
+        code: "circuit_open",
+      });
+    }
     let hasRetried429 = false;
     while (true) {
       if (signal.aborted) throw abortError(signal);
@@ -87,6 +119,8 @@ export class PoolAwareLlmClient implements LlmClient {
           }
         }
         if (entry === null) {
+          // M2 #60 — a whole-attempt terminal failure trips the breaker.
+          this.breaker.recordTimeout(this.pool.provider);
           throw new CredentialPoolExhaustedError(
             `All ${this.pool.provider} credentials exhausted; next retry available at ${
               this.nextRetryHint() ?? "unknown"
@@ -103,17 +137,28 @@ export class PoolAwareLlmClient implements LlmClient {
 
       const attempt = await tryFirstEvent(realClient, request, signal);
       if (attempt.kind === "ok") {
-        // Stream started — rotation is no longer possible.
+        // Stream started — rotation is no longer possible. A healthy start
+        // closes the circuit breaker (M2 #60).
+        this.breaker.recordSuccess(this.pool.provider);
         return yield* relayStream(attempt.generator, attempt.firstResult);
       }
 
       const decision = classifyAndDecide(attempt.error, hasRetried429);
       if (decision === "retry") {
         // D126: first 429 retries the same key. Don't mark exhausted yet.
-        // NOTE — T3.4 introduced `internal/llm/retry.ts` with
-        // `computeBackoffMs` + `sleepWithAbort` helpers but wiring them
-        // here requires updating tests that use `vi.useFakeTimers()` to
-        // advance the new sleeps. Wiring deferred to a follow-up slice.
+        // M2 #60 — back off with full jitter before re-hitting the SAME key,
+        // so a shared-quota thundering herd no longer burns the retry in <1ms
+        // (AWS Brooker 2015). We use full jitter (not the provider's possibly
+        // long Retry-After) here because the retry-after cooldown is honored
+        // on the ROTATE path below; a same-key retry should be brief.
+        await sleepWithAbort(
+          computeBackoffMs({
+            attempt: 0,
+            ...(this.backoffBaseMs !== undefined ? { baseMs: this.backoffBaseMs } : {}),
+            ...(this.rng !== undefined ? { rng: this.rng } : {}),
+          }),
+          signal,
+        );
         hasRetried429 = true;
         continue;
       }
@@ -139,7 +184,8 @@ export class PoolAwareLlmClient implements LlmClient {
         hasRetried429 = false;
         continue;
       }
-      // decision === "propagate"
+      // decision === "propagate" — a whole-attempt terminal failure (M2 #60).
+      this.breaker.recordTimeout(this.pool.provider);
       throw attempt.error;
     }
   }
