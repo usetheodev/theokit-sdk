@@ -101,21 +101,36 @@ function warnMalformed(agentId: string, line: string): void {
   );
 }
 
+/**
+ * M3 #62 — map one persisted line to a hydrated `SessionMessage`, or `undefined`
+ * when the line carries no usable text. Tool turns are folded into assistant-role
+ * context (see `readSessionFile`). Extracted to keep `readSessionFile` under the
+ * complexity budget.
+ */
+function hydrateSessionLine(parsed: Partial<PersistedSessionMessage>): SessionMessage | undefined {
+  if (typeof parsed.text !== "string" || parsed.role === undefined) return undefined;
+  if (parsed.role === "user" || parsed.role === "assistant") {
+    return { role: parsed.role, text: parsed.text };
+  }
+  if (parsed.role === "tool_call" || parsed.role === "tool_result") {
+    const label = parsed.role === "tool_call" ? "tool call" : "tool result";
+    return { role: "assistant", text: `[${label}] ${parsed.text}` };
+  }
+  return undefined;
+}
+
 export async function readSessionFile(cwd: string, agentId: string): Promise<SessionMessage[]> {
   const lines = await readJsonlLines(cwd, agentId);
   const messages: SessionMessage[] = [];
   for (const line of lines) {
+    // M3 #62 — resume was LOSSY: tool turns were silently dropped from the hydrated
+    // context, so a resumed agent forgot every tool it had run. `hydrateSessionLine`
+    // now folds them into assistant-role context so the tool history survives resume.
+    // (Exact tool_use/tool_result LLM-block reconstruction for mid-call resume needs
+    // persisted tool-use ids — a schema change deferred; see docs.md.)
     try {
-      const parsed = JSON.parse(line) as Partial<PersistedSessionMessage>;
-      // Backward compat: legacy JSONL only had user/assistant. New: 5 roles
-      // (EC-10). `SessionMessage` in-memory cache still narrows to
-      // user/assistant — broader roles round-trip through the storage adapter.
-      if (
-        (parsed.role === "user" || parsed.role === "assistant") &&
-        typeof parsed.text === "string"
-      ) {
-        messages.push({ role: parsed.role, text: parsed.text });
-      }
+      const msg = hydrateSessionLine(JSON.parse(line) as Partial<PersistedSessionMessage>);
+      if (msg !== undefined) messages.push(msg);
     } catch {
       warnMalformed(agentId, line);
     }
@@ -229,6 +244,35 @@ export async function appendPersistedMessages(
  *
  * @internal
  */
+/**
+ * M2 #63 — run a locked read → transform → atomic-rewrite over a session JSONL.
+ * Reads the non-empty lines under the SAME cross-process lock as
+ * `appendPersistedMessages` (so the read→rewrite window can never drop a line a
+ * concurrent process appends), passes them to `transform`, and atomically writes
+ * the result — unless `transform` returns `undefined` (no-op). Shared by
+ * compaction (`compactSessionFile`) and truncation (`truncateSessionTo`) — the
+ * lock/read/split/rewrite skeleton is identical (DRY).
+ *
+ * @internal
+ */
+async function rewriteLockedSession(
+  path: string,
+  transform: (lines: string[]) => string | undefined,
+): Promise<void> {
+  await withFileLock(path, async () => {
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf8");
+    } catch {
+      return;
+    }
+    const lines = raw.split("\n").filter((line) => line.length > 0);
+    const next = transform(lines);
+    if (next === undefined) return;
+    await replaceFileAtomic(path, next);
+  });
+}
+
 export async function compactSessionFile(
   cwd: string,
   agentId: string,
@@ -239,19 +283,34 @@ export async function compactSessionFile(
   // file's (missing) dir would fail the lock's own `.lock` mkdir. Pre-check
   // OUTSIDE the lock (M2 #63).
   if (!existsSync(path)) return;
-  // M2 #63 — hold the SAME cross-process lock as appendPersistedMessages so the
-  // read→slice→rename window can no longer drop a line another process appends
-  // concurrently. Append and compact are now mutually exclusive across processes.
-  await withFileLock(path, async () => {
-    let raw: string;
-    try {
-      raw = await readFile(path, "utf8");
-    } catch {
-      return;
-    }
-    const lines = raw.split("\n").filter((line) => line.length > 0);
-    if (lines.length <= maxTurns * 2) return;
-    const trimmed = `${lines.slice(-maxTurns).join("\n")}\n`;
-    await replaceFileAtomic(path, trimmed);
+  await rewriteLockedSession(path, (lines) =>
+    lines.length <= maxTurns * 2 ? undefined : `${lines.slice(-maxTurns).join("\n")}\n`,
+  );
+}
+
+/**
+ * M3 #67 — revert a session transcript back to the first `keepCount` records
+ * ("undo the last turn(s)"), rewriting the JSONL atomically under the same
+ * cross-process lock as append/compact. `keepCount <= 0` empties the transcript;
+ * `keepCount >= length` is a no-op. Returns the number of records kept so the
+ * caller can prune its in-memory cache to match. Transcript-only — git-backed
+ * workspace restore is a separate optional primitive.
+ *
+ * @internal
+ */
+export async function truncateSessionTo(
+  cwd: string,
+  agentId: string,
+  keepCount: number,
+): Promise<number> {
+  const path = sessionFilePath(cwd, agentId);
+  if (!existsSync(path)) return 0;
+  let kept = 0;
+  await rewriteLockedSession(path, (lines) => {
+    const keep = Math.max(0, Math.min(keepCount, lines.length));
+    kept = keep;
+    if (keep === lines.length) return undefined; // no-op
+    return keep === 0 ? "" : `${lines.slice(0, keep).join("\n")}\n`;
   });
+  return kept;
 }

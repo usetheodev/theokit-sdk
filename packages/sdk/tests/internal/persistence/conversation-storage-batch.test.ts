@@ -125,6 +125,29 @@ describe("M2 #63 — FS batch append + pagination", () => {
     expect(await store.getMessages("c3", { offset: 99 })).toEqual([]);
     expect(await store.getMessages("c3", { limit: 0 })).toEqual([]);
   });
+
+  it("truncateConversation reverts to the first keepCount messages (M3 #67)", async () => {
+    await store.appendMessages("t67", [
+      { role: "user", content: "0" },
+      { role: "assistant", content: "1" },
+      { role: "user", content: "2" },
+      { role: "assistant", content: "3" },
+    ]);
+    const kept = await store.truncateConversation("t67", 2);
+    expect(kept).toBe(2);
+    expect((await store.getMessages("t67")).map((m) => m.content)).toEqual(["0", "1"]);
+  });
+
+  it("truncateConversation is safe out of range: keep>=len no-op, keep<=0 empties (M3 #67)", async () => {
+    await store.appendMessages("t67b", [
+      { role: "user", content: "a" },
+      { role: "assistant", content: "b" },
+    ]);
+    expect(await store.truncateConversation("t67b", 99)).toBe(2); // no-op
+    expect((await store.getMessages("t67b")).length).toBe(2);
+    expect(await store.truncateConversation("t67b", 0)).toBe(0); // empties
+    expect((await store.getMessages("t67b")).length).toBe(0);
+  });
 });
 
 describe("M2 #63 — in-memory batch append + pagination", () => {

@@ -183,11 +183,24 @@ async function readPersistedForCache(
   const records = await adapter.getMessages(agentId);
   const out: SessionMessage[] = [];
   for (const r of records) {
-    if (r.role === "user" || r.role === "assistant") {
-      out.push({ role: r.role, text: r.content });
-    }
+    const folded = foldStoredToSession(r);
+    if (folded !== undefined) out.push(folded);
   }
   return out;
+}
+
+/**
+ * M3 #62 — map a stored record to a hydrated `SessionMessage`. Non-FS adapters
+ * must keep tool history on resume (parity with `readSessionFile`'s fold), else
+ * custom/in-memory-backed resume is lossy. Extracted for the complexity budget.
+ */
+function foldStoredToSession(r: StoredMessage): SessionMessage | undefined {
+  if (r.role === "user" || r.role === "assistant") return { role: r.role, text: r.content };
+  if (r.role === "tool_call" || r.role === "tool_result") {
+    const label = r.role === "tool_call" ? "tool call" : "tool result";
+    return { role: "assistant", text: `[${label}] ${r.content}` };
+  }
+  return undefined;
 }
 
 /**

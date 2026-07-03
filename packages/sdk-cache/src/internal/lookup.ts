@@ -74,7 +74,14 @@ export async function performLookup(p: LookupParams): Promise<LookupResult> {
     const vec = await embedOrDegrade(p.embedder, p.prompt, p.store, span, "lookup");
     if (vec === undefined) return { cached: false };
 
-    const match = p.store.semanticSearch(vec, p.threshold, p.embedder.id, p.namespace, now);
+    const match = p.store.semanticSearch(
+      vec,
+      p.threshold,
+      p.embedder.id,
+      p.namespace,
+      now,
+      p.modelId,
+    );
     if (match !== undefined) {
       p.store.incrementSemanticHits();
       span.setAttribute("cache.hit", "semantic");
