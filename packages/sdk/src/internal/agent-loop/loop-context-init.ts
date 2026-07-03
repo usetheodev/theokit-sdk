@@ -44,6 +44,9 @@ export interface LoopContext {
   _consecutiveToolErrors?: number;
   memoryProviderHandle?: MemoryProviderHandle;
   memorySystemPromptAdditions?: string;
+  /** M3 #64 — the run's `agent.send` span, threaded so child spans (llm.call,
+   *  tool.call) nest under it via `startChildSpan` instead of being flat siblings. */
+  sendSpan?: import("../telemetry/tracer.js").OTelSpan;
 }
 
 /**

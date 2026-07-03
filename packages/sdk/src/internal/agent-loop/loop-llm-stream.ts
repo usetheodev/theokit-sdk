@@ -55,7 +55,8 @@ export async function streamLlmTurn(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
 ): Promise<LlmTurnOutput> {
-  const llmSpan = inputs.telemetry?.startSpan("llm.call", {
+  // M3 #64 — nest llm.call under the run's agent.send span (not a flat sibling).
+  const llmSpan = inputs.telemetry?.startChildSpan(ctx.sendSpan, "llm.call", {
     "model.id": inputs.model.id ?? "auto",
     provider: inputs.llm.name,
   });
