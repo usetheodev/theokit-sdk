@@ -3,6 +3,7 @@ import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
 import { mapWithConcurrency } from "../runtime/concurrency/map-with-concurrency.js";
+import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";
@@ -35,14 +36,19 @@ export async function dispatchTools(
   tools: ResolvedTool[],
   toolCalls: LlmToolCallPart[],
   events: SDKMessage[],
+  // M3 #64 — the run's agent.send span, so each tool.call span nests under it.
+  parentSpan?: ToolSpan,
 ): Promise<LlmContentPart[]> {
   const maxConcurrent = (inputs as { maxConcurrentTools?: number }).maxConcurrentTools ?? 4;
   // M0-2: consolidated onto the shared ordered bounded pool (was a private
   // `boundedParallel` clone — see plan m0-foundation-expose-primitives).
   return mapWithConcurrency(toolCalls, maxConcurrent, (call) =>
-    dispatchSingleCall(inputs, tools, call, events),
+    dispatchSingleCall(inputs, tools, call, events, parentSpan),
   );
 }
+
+/** M3 #64 — the OTel span type threaded for tool-span nesting. */
+type ToolSpan = ReturnType<NonNullable<AgentLoopInputs["telemetry"]>["startSpan"]> | undefined;
 
 /**
  * T10.4 / PV#2 — `dispatchSingleCall` orchestrator split into named sub-steps.
@@ -65,6 +71,7 @@ async function dispatchSingleCall(
   tools: ResolvedTool[],
   call: LlmToolCallPart,
   events: SDKMessage[],
+  parentSpan?: ToolSpan,
 ): Promise<LlmContentPart> {
   const { call: workingCall, repairs } = applyRepairAndExtractCall(tools, call);
   const callId = generateCallId();
@@ -73,7 +80,7 @@ async function dispatchSingleCall(
   if (forkVeto !== undefined) return forkVeto;
 
   const resolved = tools.find((tool) => tool.name === workingCall.name);
-  const toolSpan = startToolCallSpan(inputs, workingCall, resolved, callId, repairs);
+  const toolSpan = startToolCallSpan(inputs, workingCall, resolved, callId, repairs, parentSpan);
   events.push(buildToolUseRunning(inputs, callId, workingCall));
 
   const pluginVeto = await vetoFromPluginPreHook(inputs, workingCall, callId, events);
@@ -171,8 +178,10 @@ function startToolCallSpan(
   resolved: ResolvedTool | undefined,
   callId: string,
   repairs: ReadonlyArray<string>,
-): ReturnType<NonNullable<AgentLoopInputs["telemetry"]>["startSpan"]> | undefined {
-  const toolSpan = inputs.telemetry?.startSpan("tool.call", {
+  parentSpan?: ToolSpan,
+): ToolSpan {
+  // M3 #64 — nest tool.call under the run's agent.send span (not a flat sibling).
+  const toolSpan = inputs.telemetry?.startChildSpan(parentSpan, "tool.call", {
     "tool.name": call.name,
     "tool.origin": resolved?.origin ?? "unknown",
     callId,
@@ -276,6 +285,10 @@ async function runToolWithLifecycle(
     timeoutMs: inputs.perToolTimeoutMs,
   });
   const durationMs = Date.now() - startAt;
+  // M3 #64 — emit the tool-call duration as a metric (was hook-only).
+  inputs.telemetry?.recordHistogram(HISTOGRAM_NAMES.TOOL_CALL_DURATION_MS, durationMs, {
+    "tool.name": call.name,
+  });
   if (result.exitCode !== undefined && result.exitCode !== 0 && result.exitCode !== null) {
     await safeEmitToolHook(inputs.onToolError, {
       toolName: call.name,

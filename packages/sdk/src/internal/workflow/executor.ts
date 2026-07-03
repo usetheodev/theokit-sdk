@@ -164,11 +164,14 @@ interface LoopParams {
   runId: string;
   startedAt: number;
   signal: AbortSignal;
+  /** M3 #62 — prior step outputs restored on resume (else resume is lossy). */
+  initialStepResults?: ReadonlyArray<StepResult>;
 }
 
 async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
   const { options, steps, ctx, runId, startedAt, signal } = params;
-  const stepResults: StepResult[] = [];
+  // M3 #62 — seed with prior step outputs so a resumed workflow is not lossy.
+  const stepResults: StepResult[] = [...(params.initialStepResults ?? [])];
   let acc: unknown = params.input;
   for (const step of steps) {
     if (signal.aborted) return abortRun<TO>(options.name, runId, startedAt, stepResults, signal);
@@ -206,6 +209,13 @@ async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
   });
 }
 
+/** M3 #62 — internal-only resume seam: prior step outputs are NOT on the public
+ * WorkflowRunOptions (a consumer must not inject fabricated results into a fresh run);
+ * resumeWorkflow sets them via this cast. */
+type InternalRunOpts = WorkflowRunOptions & {
+  readonly initialStepResults?: ReadonlyArray<StepResult>;
+};
+
 export async function executeWorkflow<TInput, TOutput>(
   options: WorkflowOptions,
   steps: ReadonlyArray<Step>,
@@ -236,6 +246,9 @@ export async function executeWorkflow<TInput, TOutput>(
       runId,
       startedAt,
       signal,
+      ...((runOpts as InternalRunOpts | undefined)?.initialStepResults !== undefined
+        ? { initialStepResults: (runOpts as InternalRunOpts).initialStepResults }
+        : {}),
     });
   } finally {
     runSpan.end();
@@ -381,5 +394,7 @@ export async function resumeWorkflow<TO>(opts: WorkflowResumeOptions): Promise<W
   return executeWorkflow<unknown, TO>(options, remainingSteps, resumeInput, {
     signal: opts.signal,
     runId: opts.runId,
-  });
+    // M3 #62 — restore prior step outputs so the resumed run is not lossy (internal seam).
+    initialStepResults: snapshot.stepResults,
+  } as InternalRunOpts);
 }

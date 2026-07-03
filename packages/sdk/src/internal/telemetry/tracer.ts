@@ -18,6 +18,13 @@ import { tryAutoRegisterAdapters } from "./adapter-registry.js";
 interface OTelApi {
   trace: {
     getTracer(name: string, version?: string): OTelTracer;
+    // M3 #64 — set a parent SpanContext on a context so the next `startSpan`
+    // (run within `context.with`) nests under it. traceFlags is present at
+    // runtime on a real span context even though `OTelSpan.spanContext()` narrows it.
+    setSpanContext(
+      ctx: OTelContext,
+      spanContext: { traceId: string; spanId: string; traceFlags?: number },
+    ): OTelContext;
   };
   context: {
     active(): OTelContext;
@@ -44,7 +51,13 @@ interface OTelContext {
 }
 
 interface OTelTracer {
-  startSpan(name: string, options?: { attributes?: Record<string, unknown> }): OTelSpan;
+  // M3 #64 — the real OTel Tracer accepts an explicit parent `context` as the 3rd
+  // arg (independent of a registered ContextManager, which the test collector omits).
+  startSpan(
+    name: string,
+    options?: { attributes?: Record<string, unknown> },
+    context?: OTelContext,
+  ): OTelSpan;
   startActiveSpan<T>(
     name: string,
     options: { attributes?: Record<string, unknown> } | undefined,
@@ -64,9 +77,10 @@ export interface TelemetryHandle {
   readonly includeContent: boolean;
   /** Start a span. Returns a no-op span if telemetry is disabled. */
   startSpan(name: string, attrs?: Record<string, string | number | boolean>): OTelSpan;
-  /** Start a child span inheriting the current active context. */
+  /** Start a child span nested under `parent` (M3 #64). `undefined` parent →
+   *  a root span (parentless callers, or telemetry with no run span). */
   startChildSpan(
-    parent: OTelSpan,
+    parent: OTelSpan | undefined,
     name: string,
     attrs?: Record<string, string | number | boolean>,
   ): OTelSpan;
@@ -227,7 +241,27 @@ export function createTelemetry(settings: TelemetrySettings | undefined): Teleme
     enabled: true,
     includeContent: settings.includeContent === true,
     startSpan: startNewSpan,
-    startChildSpan: (_parent, name, attrs) => startNewSpan(name, attrs),
+    // M3 #64 — actually nest the child under its parent instead of discarding it.
+    // The parent's SpanContext is set on a fresh OTel context so the child links
+    // to it (traceId + parentSpanId), reconstructing the causal trace tree. Falls
+    // back to a root span when the parent has no valid span id (telemetry off /
+    // NOOP), preserving the pre-M3 behavior for parentless callers.
+    startChildSpan: (parent, name, attrs) => {
+      const redactedAttrs = attrs === undefined ? undefined : redactAttrs(attrs);
+      const opts = redactedAttrs ? { attributes: redactedAttrs } : undefined;
+      const pctx = safe(() => parent?.spanContext(), undefined);
+      const span = safe(() => {
+        if (pctx !== undefined && pctx.spanId !== "0".repeat(16)) {
+          // Pass the parent context EXPLICITLY (3rd arg) so the child links to it
+          // without needing a registered ContextManager.
+          const childCtx = otel.trace.setSpanContext(otel.context.active(), pctx);
+          return tracer.startSpan(name, opts, childCtx);
+        }
+        return tracer.startSpan(name, opts);
+      }, NOOP_SPAN);
+      if (span !== NOOP_SPAN) openSpans.add(span);
+      return wrapSpan(span, openSpans);
+    },
     recordHistogram,
     endAll: () => {
       for (const span of openSpans) safe(() => span.end(), undefined);

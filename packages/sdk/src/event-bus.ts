@@ -9,6 +9,15 @@ type EventHandler<T> = (payload: T) => void;
 
 export class EventBus<Events extends Record<string, unknown>> {
   private handlers = new Map<keyof Events, Set<EventHandler<never>>>();
+  // M3 #64 — a swallowed handler error used to vanish without a trace (fail-loud
+  // violation). We now log it AND expose an observable count so ops/tests can see
+  // that a subscriber is silently failing, without breaking the EC-2 contract.
+  #handlerErrorCount = 0;
+
+  /** M3 #64 — number of handler invocations that threw (and were logged). */
+  get handlerErrorCount(): number {
+    return this.#handlerErrorCount;
+  }
 
   /**
    * Subscribe to an event. Returns an unsubscribe function.
@@ -33,8 +42,15 @@ export class EventBus<Events extends Record<string, unknown>> {
     for (const handler of set) {
       try {
         (handler as EventHandler<Events[K]>)(payload);
-      } catch {
-        // EC-2: swallow per-handler errors so other handlers still fire
+      } catch (cause) {
+        // EC-2: an error in one handler MUST NOT break the others — but M3 #64
+        // makes it fail-loud: log with the event key + message and count it,
+        // instead of the pre-M3 empty catch that discarded it without a trace.
+        this.#handlerErrorCount += 1;
+        const message = cause instanceof Error ? cause.message : String(cause);
+        process.stderr.write(
+          `[theokit-sdk] event-bus: handler for "${String(event)}" threw: ${message}\n`,
+        );
       }
     }
   }
