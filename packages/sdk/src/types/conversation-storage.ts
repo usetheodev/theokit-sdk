@@ -77,6 +77,14 @@ export interface ConversationStorageAdapter {
   appendMessages?(conversationId: string, messages: readonly StoredMessage[]): Promise<void>;
 
   /**
+   * M3 #67 — revert a conversation back to its first `keepCount` messages
+   * ("undo the last turn(s)"). Atomic rewrite; `keepCount <= 0` empties it,
+   * `keepCount >= length` is a no-op. Returns the number of messages kept.
+   * Transcript-only; adapters that cannot truncate MAY omit it.
+   */
+  truncateConversation?(conversationId: string, keepCount: number): Promise<number>;
+
+  /**
    * Delete the entire conversation. MUST be idempotent (delete-of-missing = ok).
    */
   deleteConversation(conversationId: string): Promise<void>;
