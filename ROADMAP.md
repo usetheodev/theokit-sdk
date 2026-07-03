@@ -46,7 +46,7 @@ updates `CHANGELOG.md`.
 
 ---
 
-### M2 — [ ] Harness resilience & I/O robustness
+### M2 — [x] Harness resilience & I/O robustness
 
 - [ ] **#60** 429 backoff (reuse full-jitter helper, `src/internal/llm/pool-aware-client.ts:111`) + circuit breaker. *(3 gaps)*
 - [ ] **#61** streaming idle timeout + truncation flag + `{raw}` passthrough. *(7 gaps)*
