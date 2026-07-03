@@ -17,7 +17,12 @@
  */
 
 const FIXTURE_KEY_PREFIX = "theo_test_";
-const LOCAL_RUNTIME_MOCK_KEY = "local";
+/**
+ * The sentinel key that forces the local runtime without a real provider
+ * credential. Exported so callers threading an explicit `apiKey` into the
+ * provider router can skip it (it is not a real credential). @internal
+ */
+export const LOCAL_RUNTIME_MOCK_KEY = "local";
 const MIN_KEY_LENGTH = 16;
 
 interface ProviderPrefixHint {
