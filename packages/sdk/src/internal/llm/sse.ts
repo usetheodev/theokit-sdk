@@ -7,10 +7,21 @@
  * @internal
  */
 
+import { NetworkError } from "../../errors.js";
+
 export interface SseRecord {
   event: string;
   data: string;
 }
+
+/**
+ * M2 #61 — default idle timeout (ms) between SSE reads. "Idle" means *no bytes
+ * at all* arrive within the window — distinct from a slow-but-alive stream that
+ * keeps trickling chunks. A stalled upstream that handshakes then goes silent no
+ * longer hangs the AsyncGenerator forever; it rejects a typed NetworkError so
+ * FallbackLlmClient / retry can route it. Pass `0` to disable.
+ */
+export const DEFAULT_SSE_IDLE_MS = 60_000;
 
 interface ParserState {
   buffer: string;
@@ -21,13 +32,14 @@ interface ParserState {
 export async function* parseSseStream(
   body: ReadableStream<Uint8Array> | null,
   signal: AbortSignal,
+  idleTimeoutMs: number = DEFAULT_SSE_IDLE_MS,
 ): AsyncGenerator<SseRecord, void, void> {
   if (body === null) return;
   const reader = body.getReader();
   const decoder = new TextDecoder("utf-8");
   const state: ParserState = { buffer: "", event: "message", data: "" };
   try {
-    for await (const chunk of readChunks(reader, signal)) {
+    for await (const chunk of readChunks(reader, signal, idleTimeoutMs)) {
       state.buffer += decoder.decode(chunk, { stream: true });
       for (const record of drainCompleteRecords(state)) yield record;
     }
@@ -52,13 +64,51 @@ export async function* parseSseStream(
 async function* readChunks(
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal: AbortSignal,
+  idleTimeoutMs: number,
 ): AsyncGenerator<Uint8Array, void, void> {
   while (true) {
     if (signal.aborted) return;
-    const { value, done } = await reader.read();
+    const { value, done } = await readWithIdleTimeout(reader, idleTimeoutMs);
     if (done) return;
     if (value !== undefined) yield value;
   }
+}
+
+/**
+ * M2 #61 — race a single `reader.read()` against an idle timer. The timer is
+ * cleared the moment the read settles (success OR error), so a healthy stream
+ * never leaves a dangling timeout. When the timer wins, reject a typed
+ * `NetworkError` (`code: "stream_idle_timeout"`); the caller's `finally` cancels
+ * the body socket. `idleTimeoutMs <= 0` disables the bound (legacy behavior).
+ *
+ * @internal
+ */
+function readWithIdleTimeout(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  idleTimeoutMs: number,
+): Promise<Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>> {
+  if (idleTimeoutMs <= 0) return reader.read();
+  return new Promise<Awaited<ReturnType<ReadableStreamDefaultReader<Uint8Array>["read"]>>>(
+    (resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(
+          new NetworkError(`SSE stream idle for ${idleTimeoutMs}ms — upstream stalled`, {
+            code: "stream_idle_timeout",
+          }),
+        );
+      }, idleTimeoutMs);
+      reader.read().then(
+        (result) => {
+          clearTimeout(timer);
+          resolve(result);
+        },
+        (err: unknown) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    },
+  );
 }
 
 /**

@@ -1141,6 +1141,10 @@ const agent = await Agent.create({
 });
 Both stdio and http/sse MCP server configs accept an optional requestTimeoutMs (default 30000). A request that receives no reply within this window rejects with a typed NetworkError (code: "mcp_timeout") instead of hanging the agent loop — for stdio a silent server process, for http/sse an unresponsive endpoint (enforced via AbortSignal.timeout).
 
+Reconnect-after-drop (M2 #59): if a stdio MCP server child exits or closes mid-session, every in-flight request rejects with a typed NetworkError (code: "mcp_disconnected") instead of hanging, and the next request re-spawns the server + re-runs the initialize handshake with a bounded full-jitter backoff (2 attempts) before surfacing mcp_disconnected. A deliberate close() is not treated as a drop. The http transport is stateless (each request opens a fresh connection), so it reconnects inherently on the next call. Elicitation, server notifications, and adopting the upstream MCP SDK are out of scope.
+
+Resilience error codes (M2). The runtime surfaces these typed NetworkError codes so retry / fallback can route them: circuit_open (#60 — a provider's circuit breaker is open after N consecutive failures; fails fast until a cooldown elapses), stream_idle_timeout (#61 — an SSE stream produced no bytes within the idle bound, default 60s, and was cancelled), stream_truncated (#61 — a stream ended without a finish_reason or [DONE] sentinel; the partial turn is not committed as a clean end_turn), and mcp_disconnected (#59, above). The pool also inserts a full-jitter backoff before retrying a rate-limited (429) key.
+
 Cloud
 Cloud agents can receive authenticated MCP configs inline too. Use HTTP auth when Theo should proxy a remote MCP through the backend. Use stdio env when the server runs inside the cloud VM and reads credentials from environment variables.
 
@@ -3139,8 +3143,16 @@ Pluggable conversation persistence. Default behavior is unchanged (`<cwd>/.theok
 
 ```ts
 interface ConversationStorageAdapter {
-  getMessages(conversationId: string): Promise<readonly StoredMessage[]>;
+  // M2 #63 — optional { offset, limit } paginates the result (omit for full history).
+  getMessages(
+    conversationId: string,
+    opts?: { offset?: number; limit?: number },
+  ): Promise<readonly StoredMessage[]>;
   appendMessage(conversationId: string, message: StoredMessage): Promise<void>;
+  // M2 #63 — optional batch append: a whole turn in one atomic write. The FS
+  // adapter uses a single lock-guarded appendFile (one open per turn, not N);
+  // adapters that omit it fall back to looping appendMessage.
+  appendMessages?(conversationId: string, messages: readonly StoredMessage[]): Promise<void>;
   deleteConversation(conversationId: string): Promise<void>;
   listConversationIds?(opts?: { limit?: number }): Promise<readonly string[] | undefined>;
   compact?(conversationId: string, maxTurns: number): Promise<void>;

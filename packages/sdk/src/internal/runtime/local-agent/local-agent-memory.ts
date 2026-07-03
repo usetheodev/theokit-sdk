@@ -3,11 +3,11 @@ import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import { runActiveMemory } from "../../memory/active-memory.js";
 import { ActiveMemoryCache } from "../../memory/active-memory-cache.js";
 import { MEMORY_EMBEDDING_ADAPTERS } from "../../memory/adapters/catalog.js";
-import { CircuitBreaker } from "../../memory/circuit-breaker.js";
 import type { EmbeddingRuntime } from "../../memory/embedding-adapter.js";
 import { IndexManager } from "../../memory/index-manager.js";
 import type { MemoryIndex } from "../../memory/memory-index.js";
 import { createMemoryGetTool, createMemorySearchTool } from "../../memory/tools.js";
+import { CircuitBreaker } from "../../resilience/circuit-breaker.js";
 import type { TelemetryHandle } from "../../telemetry/tracer.js";
 
 /**

@@ -25,11 +25,13 @@ import type {
 } from "../../types/conversation-storage.js";
 import {
   appendAnyPersistedMessage,
+  appendPersistedMessages,
   compactSessionFile,
   type PersistedSessionMessage,
   readAllPersistedMessages,
 } from "../runtime/session/agent-session-store.js";
 import { safePathJoin, sanitizeIdentifier } from "../security/index.js";
+import { paginate } from "./pagination.js";
 
 export interface FileSystemConversationStorageOptions {
   /** Root directory under which `.theokit/agents/<id>/` lives. Defaults to `process.cwd()`. */
@@ -48,18 +50,25 @@ export class FileSystemConversationStorage implements ConversationStorageAdapter
     return this.#root;
   }
 
-  async getMessages(conversationId: string): Promise<readonly StoredMessage[]> {
+  async getMessages(
+    conversationId: string,
+    opts?: { offset?: number; limit?: number },
+  ): Promise<readonly StoredMessage[]> {
     const records = await readAllPersistedMessages(this.#root, conversationId);
-    return records.map(toStoredMessage);
+    const all = records.map(toStoredMessage);
+    // M2 #63 — bounded window. JSONL has no index, so the read is still O(N)
+    // (a SQLite backend would give a true indexed read); the API bounds the
+    // materialized RESULT so a caller need not hold the whole history.
+    return paginate(all, opts);
   }
 
   async appendMessage(conversationId: string, message: StoredMessage): Promise<void> {
-    const record: PersistedSessionMessage = {
-      role: message.role,
-      text: message.content,
-      at: message.at ?? Date.now(),
-    };
-    await appendAnyPersistedMessage(this.#root, conversationId, record);
+    await appendAnyPersistedMessage(this.#root, conversationId, toRecord(message));
+  }
+
+  async appendMessages(conversationId: string, messages: readonly StoredMessage[]): Promise<void> {
+    // M2 #63 — one locked appendFile for the whole turn (one open, not N).
+    await appendPersistedMessages(this.#root, conversationId, messages.map(toRecord));
   }
 
   async deleteConversation(conversationId: string): Promise<void> {
@@ -103,4 +112,8 @@ function toStoredMessage(record: PersistedSessionMessage): StoredMessage {
     content: record.text,
     at: record.at,
   };
+}
+
+function toRecord(message: StoredMessage): PersistedSessionMessage {
+  return { role: message.role, text: message.content, at: message.at ?? Date.now() };
 }

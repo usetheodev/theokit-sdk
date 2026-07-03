@@ -1,0 +1,175 @@
+{
+  "plan_slug": "m2-harness-resilience",
+  "plan_path": "../../knowledge-base/plans/m2-harness-resilience-plan.md",
+  "plan_version": "unknown",
+  "scored_at": "2026-07-02T22:29:05+00:00",
+  "completude_score": 100.0,
+  "risco_estrutural_score": 93.0,
+  "active_dimensions": ["completeness", "structural_risk"],
+  "weight_normalization_factor": 2.0,
+  "weighted_avg": 97.2,
+  "hard_caps_triggered": [],
+  "final_score_after_caps": 97.2,
+  "verdict": "SHIPPABLE",
+  "reasons": {
+    "completeness": [
+      {
+        "sign": "positive",
+        "label": "Coverage Matrix 100%",
+        "weight": 60.0
+      },
+      {
+        "sign": "positive",
+        "label": "ADR alternatives (4/4)",
+        "weight": 20.0
+      },
+      {
+        "sign": "positive",
+        "label": "TDD in bug-fix (0/0)",
+        "weight": 20.0
+      }
+    ],
+    "evidence": [
+      {
+        "sign": "positive",
+        "label": "15 citations resolved",
+        "weight": 15.0
+      }
+    ],
+    "calibration": [],
+    "structural_risk": [
+      {
+        "sign": "negative",
+        "label": "2 subjective_adjectives hits",
+        "weight": -2.0
+      },
+      {
+        "sign": "negative",
+        "label": "1 weak_imperatives hits",
+        "weight": -1.0
+      }
+    ]
+  },
+  "sub_reports": {
+    "coverage_matrix": {
+      "total_gaps": 0,
+      "mapped_gaps": 0,
+      "coverage_ratio": 1.0,
+      "is_complete": true,
+      "orphan_tasks": [],
+      "unmapped_gaps": []
+    },
+    "adr_completeness": {
+      "total_adrs": 4,
+      "with_alternatives": 4,
+      "completeness_ratio": 1.0,
+      "missing_alternatives": []
+    },
+    "tdd_in_bugfix": {
+      "total_bugfix_tasks": 0,
+      "with_tdd": 0,
+      "coverage_ratio": 1.0,
+      "missing_tdd": []
+    },
+    "spec_smells": {
+      "total_hits": 3,
+      "by_category": {
+        "subjective_adjectives": 2,
+        "weak_imperatives": 1
+      },
+      "total_penalty": -7
+    },
+    "architecture_compliance": {
+      "compliance_score": 1.0,
+      "project_rules_found_count": 29,
+      "fallback_to_defaults": false,
+      "rules_referenced_in_plan": ["architecture.md"],
+      "principles_cited": ["SRP", "DIP", "DRY", "KISS", "YAGNI", "TDD"],
+      "has_dod_quality_signal": true,
+      "has_size_budget_signal": true,
+      "reasons": [
+        "References 1 project rule(s): ['architecture.md']",
+        "Cites 6 principle(s): ['SRP', 'DIP', 'DRY']",
+        "Global DoD references quality gates (lint/complexity/size)",
+        "Plan mentions file-size budget"
+      ]
+    },
+    "evidence": {
+      "total_citations": 15,
+      "unresolved_citations": []
+    },
+    "criterion_executability": {
+      "total_criteria": 3,
+      "vague_count": 0,
+      "weak_count": 0,
+      "acceptable_count": 0,
+      "executable_count": 3,
+      "vague_ratio": 0.0,
+      "acceptable_ratio": 1.0,
+      "executable_ratio": 1.0,
+      "soft_cap_triggered": false,
+      "vague_criteria_sample": []
+    },
+    "baseline_context": {
+      "section_present": true,
+      "is_complete": true,
+      "missing_subsections": [],
+      "file_table_rows": 10,
+      "file_table_placeholder_hits": 0,
+      "glossary_entries": 0,
+      "glossary_placeholder_hits": 0,
+      "reasons": ["'### Domain glossary' has no entries and no '(none)' marker"]
+    },
+    "drawbacks_and_unresolved": {
+      "drawbacks_section_present": true,
+      "drawbacks_entries": 5,
+      "drawbacks_placeholder_hits": 0,
+      "drawbacks_is_complete": true,
+      "drawbacks_reasons": [],
+      "unresolved_section_present": true,
+      "unresolved_entries": 0,
+      "unresolved_explicit_none": true,
+      "unresolved_is_complete": true,
+      "unresolved_reasons": []
+    },
+    "concurrency_tests": {
+      "signals_detected": true,
+      "signals_sample": ["await ", "Concurrency", "atomic", "race condition"],
+      "tasks_with_concurrency_subsection": 7,
+      "tasks_with_acceptable_test_or_escape": 7,
+      "tasks_failing": [],
+      "is_complete": true,
+      "reasons": []
+    },
+    "patterns_consumption": {
+      "applicable": [],
+      "cited": [],
+      "overridden": [],
+      "ignored": [],
+      "is_clean": true,
+      "reasons": []
+    },
+    "failure_scenarios": {
+      "external_io_detected": true,
+      "signals_sample": ["SQLite"],
+      "section_present": true,
+      "explicit_none": false,
+      "scenarios_count": 8,
+      "is_complete": true,
+      "reasons": []
+    }
+  },
+  "calibration": {
+    "status": "PROVISIONAL_v1",
+    "holdout_count": 0,
+    "holdout_target": 30,
+    "kappa_measured": false
+  },
+  "code_quality": {
+    "verdict": "PASS",
+    "score_cap": 100,
+    "hard_caps_triggered": [],
+    "soft_caps_triggered": [],
+    "languages_audited": []
+  }
+}

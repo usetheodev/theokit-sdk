@@ -1,3 +1,4 @@
+import type { CircuitBreaker } from "../resilience/circuit-breaker.js";
 import { HISTOGRAM_NAMES, SPAN_NAMES } from "../telemetry/span-names.js";
 import { NOOP_SPAN, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import type { ActiveMemoryCache, TenantContext } from "./active-memory-cache.js";
@@ -9,7 +10,6 @@ import type {
   ActiveMemoryResult,
   ActiveMemoryStatus,
 } from "./active-memory-types.js";
-import type { CircuitBreaker } from "./circuit-breaker.js";
 import type { MemorySearchHit } from "./index-manager.js";
 import type { MemoryIndex } from "./memory-index.js";
 import { persistActiveMemoryTranscript } from "./storage/transcript-store.js";
