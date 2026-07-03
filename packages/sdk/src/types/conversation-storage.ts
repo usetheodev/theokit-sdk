@@ -90,6 +90,14 @@ export interface ConversationStorageAdapter {
   deleteConversation(conversationId: string): Promise<void>;
 
   /**
+   * M3 #62 — delete every conversation whose id starts with `prefix`
+   * (e.g. `"temp:"` from {@link sessionScopePrefix}) so a whole session scope
+   * can be pruned in one call. Returns the number deleted. Optional — adapters
+   * that cannot enumerate MAY omit it.
+   */
+  deleteScope?(prefix: string): Promise<number>;
+
+  /**
    * Optional: list conversation ids. Used by housekeeping flows.
    * Implementations that cannot enumerate (e.g., wildcards too expensive on
    * production Redis) MAY return `undefined` to signal "not supported".

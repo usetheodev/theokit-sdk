@@ -65,6 +65,18 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
     this.#store.delete(conversationId);
   }
 
+  async deleteScope(prefix: string): Promise<number> {
+    // M3 #62 — prune a whole session scope (e.g. "temp:") in one call.
+    let n = 0;
+    for (const id of [...this.#store.keys()]) {
+      if (id.startsWith(prefix)) {
+        this.#store.delete(id);
+        n += 1;
+      }
+    }
+    return n;
+  }
+
   async listConversationIds(opts?: { limit?: number }): Promise<readonly string[]> {
     const all = Array.from(this.#store.keys());
     if (opts?.limit !== undefined) return all.slice(0, opts.limit);
