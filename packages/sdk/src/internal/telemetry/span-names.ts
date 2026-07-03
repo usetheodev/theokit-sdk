@@ -34,9 +34,15 @@ export const SPAN_NAMES = {
 
 export type SpanName = (typeof SPAN_NAMES)[keyof typeof SPAN_NAMES];
 
-/** Histogram names emitted by the SDK. T0.1 ships `memory_recall_duration_ms`. */
+/** Histogram names emitted by the SDK. M3 #64 closes the wiring-triad pillar-c
+ * gap: tool/LLM durations + LLM token throughput were measured but never emitted. */
 export const HISTOGRAM_NAMES = {
   MEMORY_RECALL_DURATION_MS: "theokit_memory_recall_duration_ms",
+  TOOL_CALL_DURATION_MS: "theokit_tool_call_duration_ms",
+  LLM_CALL_DURATION_MS: "theokit_llm_call_duration_ms",
+  LLM_TOKENS: "theokit_llm_tokens",
+  /** M3 #66 — count of finishes where the provider omitted usage (silent undercount). */
+  LLM_USAGE_MISSING: "theokit_llm_usage_missing",
 } as const;
 
 export type HistogramName = (typeof HISTOGRAM_NAMES)[keyof typeof HISTOGRAM_NAMES];

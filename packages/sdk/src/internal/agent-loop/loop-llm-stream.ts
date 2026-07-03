@@ -1,5 +1,6 @@
 import type { LlmClient, LlmTool, LlmToolCallPart } from "../llm/types.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
+import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
 import type { LoopContext } from "./loop-context-init.js";
 import type { AgentLoopInputs } from "./loop-types.js";
@@ -50,6 +51,36 @@ export function reasoningEffortFromParams(
   return thinking !== undefined && thinking.value.length > 0 ? thinking.value : undefined;
 }
 
+/**
+ * M3 #64/#66 — emit the LLM-call duration + token throughput as metrics (were
+ * span-attributes only); a provider that omits usage WARNs + counts
+ * `llm_usage_missing` so budget undercount is observable instead of a silent 0.
+ * @internal
+ */
+function emitLlmMetrics(
+  inputs: AgentLoopInputs,
+  result: { inputTokens?: number; outputTokens?: number },
+  startAt: number,
+): void {
+  inputs.telemetry?.recordHistogram(HISTOGRAM_NAMES.LLM_CALL_DURATION_MS, Date.now() - startAt, {
+    provider: inputs.llm.name,
+  });
+  if (result.inputTokens === undefined && result.outputTokens === undefined) {
+    inputs.telemetry?.recordHistogram(HISTOGRAM_NAMES.LLM_USAGE_MISSING, 1, {
+      provider: inputs.llm.name,
+    });
+    process.stderr.write(
+      `[theokit-sdk] llm usage missing from ${inputs.llm.name} finish — budget may undercount\n`,
+    );
+    return;
+  }
+  inputs.telemetry?.recordHistogram(
+    HISTOGRAM_NAMES.LLM_TOKENS,
+    (result.inputTokens ?? 0) + (result.outputTokens ?? 0),
+    { provider: inputs.llm.name },
+  );
+}
+
 /** @internal */
 export async function streamLlmTurn(
   inputs: AgentLoopInputs,
@@ -60,6 +91,7 @@ export async function streamLlmTurn(
     "model.id": inputs.model.id ?? "auto",
     provider: inputs.llm.name,
   });
+  const startAt = Date.now();
   const signal = inputs.signal ?? new AbortController().signal;
   const generator = inputs.llm.stream(
     {
@@ -106,6 +138,7 @@ export async function streamLlmTurn(
     inputTokens: result.inputTokens ?? 0,
     outputTokens: result.outputTokens ?? 0,
   });
+  emitLlmMetrics(inputs, result, startAt);
   llmSpan?.end();
   const stripped = stripThinkBlocks(collected.accumulatedText);
   return {
