@@ -3,6 +3,7 @@ import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
 import { mapWithConcurrency } from "../runtime/concurrency/map-with-concurrency.js";
+import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
 import { type RepairableTool, repairToolCall } from "../tool-dispatch/repair-middleware.js";
 import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
 import { executeTool, renderToolResult, type ToolResult } from "./tool-executors.js";
@@ -284,6 +285,10 @@ async function runToolWithLifecycle(
     timeoutMs: inputs.perToolTimeoutMs,
   });
   const durationMs = Date.now() - startAt;
+  // M3 #64 — emit the tool-call duration as a metric (was hook-only).
+  inputs.telemetry?.recordHistogram(HISTOGRAM_NAMES.TOOL_CALL_DURATION_MS, durationMs, {
+    "tool.name": call.name,
+  });
   if (result.exitCode !== undefined && result.exitCode !== 0 && result.exitCode !== null) {
     await safeEmitToolHook(inputs.onToolError, {
       toolName: call.name,
