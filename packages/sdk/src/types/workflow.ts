@@ -176,8 +176,6 @@ export interface WorkflowRunOptions {
   readonly signal?: AbortSignal;
   /** Override run ID for deterministic resume (advanced; default = mintRunId). */
   readonly runId?: string;
-  /** M3 #62 — prior step outputs restored on resume (internal; resumeWorkflow sets it). */
-  readonly initialStepResults?: ReadonlyArray<StepResult>;
   /**
    * Opt-in Task wrapping (ADRs D363, D374). Registers the workflow run
    * as a `Task` (kind="workflow") with a `wf-` namespaced id (D368,

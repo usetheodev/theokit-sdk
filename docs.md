@@ -3172,11 +3172,11 @@ interface StoredMessage {
 
 ### Scoped session state (M3 #62)
 
-A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated in the same store: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe). Prune a whole scope with `adapter.deleteScope(sessionScopePrefix("temp"))` on logout / session end. Additive — an un-scoped id behaves exactly as before.
+A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated in the same store: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe). Prune a whole scope with `adapter.deleteScope(sessionScopePrefix("temp"))` on logout / session end — pruning is explicit (auto-prune of `temp:` on dispose is deferred). Additive — an un-scoped id behaves exactly as before.
 
 ### Resume is non-lossy (M3 #62)
 
-Session hydration used to drop `tool_call`/`tool_result` turns from the rebuilt context; they are now folded into the resumed context (as assistant-role context) so a resumed agent keeps its tool history. Exact tool_use/tool_result LLM-block reconstruction for mid-call resume needs persisted tool-use ids — a schema change deferred. Workflow resume restores the snapshot's accumulated step outputs (a post-suspend step sees prior results), instead of continuing with only the resume payload.
+Session hydration used to drop `tool_call`/`tool_result` turns from the rebuilt context; they are now folded into the resumed context (as assistant-role context) so a resumed agent keeps its tool history. Exact tool_use/tool_result LLM-block reconstruction for mid-call resume needs persisted tool-use ids — a schema change deferred. Workflow resume restores the snapshot's accumulated step outputs (a post-suspend step sees prior results), instead of continuing with only the resume payload. Resume of router/cycle workflows and suspend nested inside parallel/branch/foreach is not yet supported (deferred).
 
 ### Observability (M3 #64)
 
