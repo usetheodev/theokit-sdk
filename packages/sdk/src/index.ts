@@ -171,6 +171,8 @@ export {
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
+// M3 #62 — scoped session state helpers (app:/user:/temp:).
+export { type SessionScope, scopedConversationId, sessionScopePrefix } from "./session-scope.js";
 // Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
 export { createSquad, type Squad, type SquadOptions, type SquadRun } from "./squad.js";
 // Path safety primitives (ADRs D79-D85) live at `@theokit/sdk/path-safety`,

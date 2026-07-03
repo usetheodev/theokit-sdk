@@ -87,6 +87,14 @@ export class FileSystemConversationStorage implements ConversationStorageAdapter
     await rm(dirPath, { recursive: true, force: true });
   }
 
+  async deleteScope(prefix: string): Promise<number> {
+    // M3 #62 — prune a whole session scope (e.g. "temp:") in one call.
+    const ids = await this.listConversationIds();
+    const matching = ids.filter((id) => id.startsWith(prefix));
+    for (const id of matching) await this.deleteConversation(id);
+    return matching.length;
+  }
+
   async listConversationIds(opts: { limit?: number } = {}): Promise<readonly string[]> {
     // EC-2: ENOENT swallowed — projeto novo (no `.theokit/agents/` yet)
     // returns `[]` instead of crashing the caller (SIGTERM handlers, telemetry
