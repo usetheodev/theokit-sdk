@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Agent } from "../../src/agent.js";
 import { SPAN_NAMES } from "../../src/internal/telemetry/span-names.js";
 import {
-  findSpanOrThrow,
+  findSpanEventually,
   installOtelTestCollector,
   uninstallOtelTestCollector,
 } from "./helpers/otel-test-collector.js";
@@ -32,10 +32,9 @@ describe("agent.send parent span (T0.1)", () => {
     });
     const run = await agent.send("hello world");
     await run.wait();
-    // Give post-run lifecycle time to call sendSpan.end() in finally.
-    await new Promise((r) => setTimeout(r, 50));
-
-    const sendSpan = findSpanOrThrow(SPAN_NAMES.AGENT_SEND);
+    // Poll (deterministic) instead of a fixed sleep: sendSpan.end() runs in a finally
+    // that fires just after run.wait() resolves; a magic 50ms bet flaked under jitter.
+    const sendSpan = await findSpanEventually(SPAN_NAMES.AGENT_SEND);
     expect(sendSpan.ended).toBe(true);
     expect(sendSpan.attributes).toMatchObject({
       agentId: expect.stringMatching(/^agent-/),
