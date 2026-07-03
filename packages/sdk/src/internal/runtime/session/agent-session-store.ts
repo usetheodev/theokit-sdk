@@ -244,6 +244,35 @@ export async function appendPersistedMessages(
  *
  * @internal
  */
+/**
+ * M2 #63 — run a locked read → transform → atomic-rewrite over a session JSONL.
+ * Reads the non-empty lines under the SAME cross-process lock as
+ * `appendPersistedMessages` (so the read→rewrite window can never drop a line a
+ * concurrent process appends), passes them to `transform`, and atomically writes
+ * the result — unless `transform` returns `undefined` (no-op). Shared by
+ * compaction (`compactSessionFile`) and truncation (`truncateSessionTo`) — the
+ * lock/read/split/rewrite skeleton is identical (DRY).
+ *
+ * @internal
+ */
+async function rewriteLockedSession(
+  path: string,
+  transform: (lines: string[]) => string | undefined,
+): Promise<void> {
+  await withFileLock(path, async () => {
+    let raw: string;
+    try {
+      raw = await readFile(path, "utf8");
+    } catch {
+      return;
+    }
+    const lines = raw.split("\n").filter((line) => line.length > 0);
+    const next = transform(lines);
+    if (next === undefined) return;
+    await replaceFileAtomic(path, next);
+  });
+}
+
 export async function compactSessionFile(
   cwd: string,
   agentId: string,
@@ -254,21 +283,9 @@ export async function compactSessionFile(
   // file's (missing) dir would fail the lock's own `.lock` mkdir. Pre-check
   // OUTSIDE the lock (M2 #63).
   if (!existsSync(path)) return;
-  // M2 #63 — hold the SAME cross-process lock as appendPersistedMessages so the
-  // read→slice→rename window can no longer drop a line another process appends
-  // concurrently. Append and compact are now mutually exclusive across processes.
-  await withFileLock(path, async () => {
-    let raw: string;
-    try {
-      raw = await readFile(path, "utf8");
-    } catch {
-      return;
-    }
-    const lines = raw.split("\n").filter((line) => line.length > 0);
-    if (lines.length <= maxTurns * 2) return;
-    const trimmed = `${lines.slice(-maxTurns).join("\n")}\n`;
-    await replaceFileAtomic(path, trimmed);
-  });
+  await rewriteLockedSession(path, (lines) =>
+    lines.length <= maxTurns * 2 ? undefined : `${lines.slice(-maxTurns).join("\n")}\n`,
+  );
 }
 
 /**
@@ -289,19 +306,11 @@ export async function truncateSessionTo(
   const path = sessionFilePath(cwd, agentId);
   if (!existsSync(path)) return 0;
   let kept = 0;
-  await withFileLock(path, async () => {
-    let raw: string;
-    try {
-      raw = await readFile(path, "utf8");
-    } catch {
-      return;
-    }
-    const lines = raw.split("\n").filter((line) => line.length > 0);
+  await rewriteLockedSession(path, (lines) => {
     const keep = Math.max(0, Math.min(keepCount, lines.length));
     kept = keep;
-    if (keep === lines.length) return; // no-op
-    const rewritten = keep === 0 ? "" : `${lines.slice(0, keep).join("\n")}\n`;
-    await replaceFileAtomic(path, rewritten);
+    if (keep === lines.length) return undefined; // no-op
+    return keep === 0 ? "" : `${lines.slice(0, keep).join("\n")}\n`;
   });
   return kept;
 }
