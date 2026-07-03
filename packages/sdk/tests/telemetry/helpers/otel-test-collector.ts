@@ -101,6 +101,28 @@ export function findSpanOrThrow(name: string): CapturedSpan {
   return found;
 }
 
+/**
+ * Poll for a span by name until it appears or `timeoutMs` elapses. Deterministic
+ * replacement for a fixed sleep: `SimpleSpanProcessor` exports on `span.end()`, so
+ * a span whose `.end()` fires in a callback slightly after `run.wait()` resolves
+ * shows up as soon as that microtask runs — polling waits exactly that long instead
+ * of betting on a magic constant. A genuinely never-emitted span still fails (the
+ * poll times out), so this tolerates scheduling jitter without masking a real bug.
+ */
+export async function findSpanEventually(name: string, timeoutMs = 1000): Promise<CapturedSpan> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const spans = exporter === undefined ? [] : getEmittedSpans();
+    const found = spans.find((s) => s.name === name);
+    if (found !== undefined) return found;
+    if (Date.now() >= deadline) {
+      const names = spans.map((s) => s.name).join(", ");
+      throw new Error(`No span named "${name}" emitted within ${timeoutMs}ms. Saw: [${names}]`);
+    }
+    await new Promise((r) => setTimeout(r, 10));
+  }
+}
+
 /** Return distinct span names emitted (useful for ≥ 6 name DoD assertion). */
 export function distinctSpanNames(): Set<string> {
   return new Set(getEmittedSpans().map((s) => s.name));
