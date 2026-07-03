@@ -199,6 +199,11 @@ class StdioMcpClient extends BaseMcpClient {
     this.child = child;
     child.stdout.on("data", (chunk: Buffer) => this.consume(chunk));
     child.stderr.on("data", () => undefined);
+    // M2 #59 — a write to a dead child's stdin (e.g. a request racing the child's
+    // exit) emits an EPIPE on the stdin stream; without a listener Node escalates
+    // it to an uncaught error. Swallow it — the exit handler + request timeout
+    // already drive the drop/reconnect bookkeeping.
+    child.stdin.on("error", () => undefined);
     child.on("error", () => {
       this.rejectAllPending(
         new NetworkError(`MCP ${this.name} process crashed`, { code: "mcp_crashed" }),
