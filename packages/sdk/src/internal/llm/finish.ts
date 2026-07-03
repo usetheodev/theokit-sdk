@@ -38,6 +38,23 @@ export function parseToolArguments(buffered: string | undefined): Record<string,
 }
 
 /**
+ * Map an OpenAI-compatible `finish_reason` to the provider-agnostic stop reason.
+ * Shared by the OpenAI stream accumulator. Unknown reasons fall back to `end_turn`.
+ *
+ * @internal
+ */
+export function mapOpenAIFinish(reason: string): LlmStopReason {
+  switch (reason) {
+    case "tool_calls":
+      return "tool_use";
+    case "length":
+      return "max_tokens";
+    default:
+      return "end_turn";
+  }
+}
+
+/**
  * Build the provider-agnostic `LlmFinish` shape from accumulator state.
  * Shared between the Anthropic and OpenAI stream parsers so the two
  * implementations don't drift on token-usage fields.
