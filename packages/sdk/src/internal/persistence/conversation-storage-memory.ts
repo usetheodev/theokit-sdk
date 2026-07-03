@@ -16,7 +16,7 @@ import type {
   ConversationStorageAdapter,
   StoredMessage,
 } from "../../types/conversation-storage.js";
-import { paginate } from "./conversation-storage-fs.js";
+import { paginate } from "./pagination.js";
 
 export class InMemoryConversationStorage implements ConversationStorageAdapter {
   readonly #store = new Map<string, StoredMessage[]>();

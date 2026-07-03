@@ -163,10 +163,13 @@ class StdioMcpClient extends BaseMcpClient {
   >();
   private buffer = "";
   // M2 #59 — reconnect-after-drop state. `dropped` is set when the child exits
-  // unexpectedly (not via close()); the next request re-spawns with backoff.
+  // unexpectedly OR times out (not via close()); the next request re-spawns with
+  // backoff. `reconnectPromise` is a SINGLE in-flight reconnect shared by every
+  // concurrent request so parallel tool dispatch after a drop awaits one handshake
+  // instead of racing (or spuriously failing with mcp_not_init).
   private dropped = false;
   private reconnectAttempts = 0;
-  private reconnecting = false;
+  private reconnectPromise: Promise<void> | undefined;
 
   constructor(
     name: string,
@@ -223,26 +226,33 @@ class StdioMcpClient extends BaseMcpClient {
 
   /** M2 #59 — ensure a live child before a request. Reconnect (bounded, with
    * full-jitter backoff) when the client was dropped; fail fast when never
-   * initialized. A no-op when already connected or mid-reconnect handshake. */
-  private async ensureConnected(): Promise<void> {
-    if (this.child !== undefined || this.reconnecting) return;
+   * initialized. Concurrent callers share ONE reconnect handshake. */
+  private ensureConnected(): Promise<void> {
+    if (this.child !== undefined) return Promise.resolve();
     if (!this.dropped) {
-      throw new ConfigurationError(`MCP ${this.name} is not initialized`, { code: "mcp_not_init" });
+      return Promise.reject(
+        new ConfigurationError(`MCP ${this.name} is not initialized`, { code: "mcp_not_init" }),
+      );
     }
+    // Share a single in-flight reconnect across concurrent requests.
+    this.reconnectPromise ??= this.reconnect().finally(() => {
+      this.reconnectPromise = undefined;
+    });
+    return this.reconnectPromise;
+  }
+
+  private async reconnect(): Promise<void> {
     if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       throw new NetworkError(`MCP ${this.name} reconnect exhausted`, { code: "mcp_disconnected" });
     }
     await reconnectDelay(this.reconnectAttempts);
     this.reconnectAttempts += 1;
-    this.reconnecting = true;
-    try {
-      this.spawnChild();
-      await super.initialize(); // handshake; request() skips ensureConnected while reconnecting
-      this.dropped = false;
-      this.reconnectAttempts = 0;
-    } finally {
-      this.reconnecting = false;
-    }
+    this.spawnChild();
+    // The handshake uses send() directly (child is now live) so it does not
+    // re-enter ensureConnected.
+    await super.initialize();
+    this.dropped = false;
+    this.reconnectAttempts = 0;
   }
 
   async close(): Promise<void> {
@@ -310,8 +320,9 @@ class StdioMcpClient extends BaseMcpClient {
     // Happy path stays fully synchronous (no extra `await` tick that could race
     // with a concurrent close()): a live child sends immediately.
     if (child !== undefined) return this.send(child, method, params);
-    // M2 #59 — dropped (was initialized, child exited): reconnect on this request.
-    if (this.dropped && !this.reconnecting) return this.reconnectAndRequest(method, params);
+    // M2 #59 — dropped (child exited or timed out): reconnect on this request.
+    // Concurrent requests all await the single shared reconnect via ensureConnected.
+    if (this.dropped) return this.reconnectAndRequest(method, params);
     // Never initialized.
     return Promise.reject(
       new ConfigurationError(`MCP ${this.name} is not initialized`, { code: "mcp_not_init" }),
@@ -350,6 +361,14 @@ class StdioMcpClient extends BaseMcpClient {
         reject(mcpTimeoutError(this.name, this.timeoutMs));
         this.child?.kill("SIGKILL");
         this.child = undefined;
+        // M2 #59 — a timed-out server is a DROP: mark reconnectable (was missing,
+        // leaving a timed-out client permanently un-reconnectable) and settle any
+        // OTHER in-flight requests with the typed disconnect instead of letting
+        // them each wait out their own timeout.
+        this.dropped = true;
+        this.rejectAllPending(
+          new NetworkError(`MCP ${this.name} disconnected`, { code: "mcp_disconnected" }),
+        );
       }, this.timeoutMs);
       this.pending.set(id, { resolve, reject, timer });
     });
