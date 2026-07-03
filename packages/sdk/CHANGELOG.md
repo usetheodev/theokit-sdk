@@ -1,5 +1,27 @@
 # Changelog
 
+## 2.17.0
+
+### Minor Changes
+
+- beb1e9a: The stdio MCP client now reconnects after a transport drop (#59, completing the M0 timeout work). A server child that exits or closes mid-session used to leave pending requests hung forever (a second permanent-hang vector distinct from the request timeout). Now an unexpected exit of the active child rejects every pending request with a typed `NetworkError` (`code: "mcp_disconnected"`) and marks the client dropped; the next request re-spawns the server and re-runs the `initialize` handshake with a bounded full-jitter backoff (2 attempts) before failing with `mcp_disconnected`. A deliberate `close()` is not treated as a drop (no reconnect). The http transport is stateless — each request opens a fresh connection, so it reconnects inherently on the next call; its error-surfacing contract is unchanged. Elicitation, server notifications, and adopting the upstream MCP SDK remain out of scope (documented boundary). No new dependency.
+- 3765aed: The credential pool now backs off before retrying a rate-limited key and trips a circuit breaker when a provider is down (#60). On the first 429 the pool used to re-hit the same key immediately (a `continue` with no sleep), burning every retry in under a millisecond under a shared-quota storm; it now sleeps a full-jitter backoff (`computeBackoffMs` + `sleepWithAbort`, already in-tree, now wired) before the same-key retry. A consecutive-failure circuit breaker (relocated to a neutral `internal/resilience/` module and shared with Active Memory) guards each provider: after N consecutive whole-attempt failures the pool fails fast with a typed `NetworkError` (`code: "circuit_open"`) until a cooldown elapses, instead of re-running the whole select→retry→rotate dance against a provider that is down. All stdlib — no new dependency. Existing name-only behavior and the provider's `Retry-After` cooldown on the rotate path are unchanged.
+- a1d0f3d: Harden the streaming path against stalls, truncation, and malformed tool-call JSON (#61).
+
+  - **Idle timeout:** every SSE `reader.read()` is now raced against an idle timer (default 60s, `parseSseStream(body, signal, idleTimeoutMs)`; pass `0` to disable). An upstream that handshakes then goes silent no longer hangs the agent loop forever — it rejects a typed `NetworkError` (`code: "stream_idle_timeout"`) and the body socket is cancelled. "Idle" means _no bytes at all_ within the window, so a slow-but-alive stream is unaffected.
+  - **Truncation detection:** an OpenAI-compatible stream that ends with NEITHER a `finish_reason` NOR a `[DONE]` sentinel was truncated (dropped connection / proxy hiccup). It now throws a typed `NetworkError` (`code: "stream_truncated"`) instead of silently committing the partial turn as a clean `end_turn`, so retry/fallback can route it.
+  - **Tool-call JSON repair:** `parseToolArguments` now attempts `jsonrepair` (already an in-tree dependency) before the `{ raw }` fallback, so a slightly-malformed native tool call (trailing comma, unquoted key — the Kimi/K2 class) parses instead of bouncing to the model as an `invalid_request` round-trip. Genuinely unrepairable input still lands in `{ raw }`.
+
+  All stdlib + an existing dependency — no new runtime dependency.
+
+- daa71de: Conversation persistence is now batched, cross-process-safe, and paginated (#63).
+
+  - **Batch turn append:** `ConversationStorageAdapter.appendMessages(id, messages[])` writes a whole turn (user + assistant + N tool results) in ONE atomic write instead of N separate `mkdir` + `appendFile` cycles. It is a public adapter capability for consumers that persist a turn or bulk-import history; the SDK's own runtime still appends incrementally (one message per loop event), but every such append now funnels through the same lock-guarded write path below, so the cross-process hardening is live regardless. The single `appendMessage` delegates to the batch of one.
+  - **Cross-process atomicity:** FS append and compaction now hold the same `proper-lockfile` cross-process lock (falls back to an in-process mutex when `proper-lockfile` is absent). Two Node processes sharing a cwd (CLI + daemon, parallel workers) can no longer tear a >4KB JSONL line or drop a line in the compaction read→rename window.
+  - **Pagination:** `getMessages(id, { offset, limit })` returns a bounded window so a caller hydrating a long history need not materialize the whole log (omit `opts` for the previous full read — backward-compatible). The in-memory adapter reads a true bounded slice; the FS/JSONL adapter bounds the materialized result (a future SQLite backend would bound the read itself).
+
+  No new dependency (`proper-lockfile` was already declared).
+
 ## 2.16.0
 
 ### Minor Changes
