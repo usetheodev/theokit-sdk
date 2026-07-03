@@ -36,6 +36,9 @@ interface CapturedSpan {
   ended: boolean;
   endTimeNs: number;
   startTimeNs: number;
+  /** M3 #64 — this span's own id + its parent's id (for trace-tree assertions). */
+  spanId: string;
+  parentSpanId: string | undefined;
 }
 
 /**
@@ -78,6 +81,12 @@ function getEmittedSpans(): CapturedSpan[] {
     ended: s.ended,
     endTimeNs: s.endTime[0] * 1e9 + s.endTime[1],
     startTimeNs: s.startTime[0] * 1e9 + s.startTime[1],
+    // M3 #64 — OTel ReadableSpan exposes the parent via `parentSpanContext`
+    // (newer) or `parentSpanId` (older). Support both.
+    spanId: s.spanContext().spanId,
+    parentSpanId:
+      (s as { parentSpanContext?: { spanId?: string } }).parentSpanContext?.spanId ??
+      (s as { parentSpanId?: string }).parentSpanId,
   }));
 }
 
