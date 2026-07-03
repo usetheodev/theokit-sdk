@@ -700,16 +700,30 @@ Honest claims only. Production-ready is not the same as "every feature shipped".
 
 ## Where this fits
 
-`@theokit/sdk` is the **Harness** pillar of the [Theo stack](../README.md):
+`@theokit/sdk` is the **Harness** pillar of the Theo stack — four pillars that compose into one **open stack**:
 
-| Pillar | Project | What it does |
-| --- | --- | --- |
-| UI | `@theokit/ui` | Component primitives for AI surfaces. |
-| **Harness** | **`@theokit/sdk`** (this) | **Agent runtime — local and cloud.** |
-| Skills | `theokit` | Full-stack TypeScript framework for shipping agent surfaces. |
-| Runtime | Theo PaaS | Managed deploy target. *Pre-release.* |
+| Pillar | Project | What it does | Status |
+| --- | --- | --- | --- |
+| UI | `@theokit/ui` (`theo-ui`) | Component primitives + the `useAgentStream` hook that renders a live agent stream. | shipped |
+| **Harness** | **`@theokit/sdk`** (this) | **Agent runtime — local (fully tested) and cloud.** | shipped |
+| Skills | `@theokit/*` plugins + `theokit` | Auth providers, capability plugins, and the framework for shipping agent surfaces. | shipped (10 plugins on npm) |
+| Runtime | Theo PaaS | Managed cloud deploy target. | **pre-release** |
 
-The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). The `referencia/` directory contains read-only study material — including a fork of [`earendil-works/pi`](https://github.com/earendil-works/pi) and the OpenAI Agents Python SDK — that informed the design but is not a runtime dependency.
+**How they compose (the open stack).** A developer creates an agent on the SDK's
+**local runtime** (Harness) with their own provider key, wires in **tools/plugins**
+(Skills), and renders the streamed result through **`useAgentStream`** (UI) — a real
+agent, end-to-end, against their own LLM, with **zero dependency on Theo's backend**.
+The managed **cloud runtime** (Runtime / Theo PaaS) is an opt-in deploy convenience,
+currently **pre-release** (its APIs describe the contract for when PaaS reaches GA —
+see [Cloud runtime — pre-release](#cloud-runtime--pre-release)). This open-stack path
+is the project's load-bearing promise; the dogfood anchor `open-stack-agent` exercises
+it on real infrastructure (Harness + Skills tool-use + UI render, real LLM).
+
+Cross-pillar wiring status: Skills↔Harness and UI↔Harness are validated against the
+current Harness (plugins build + test green vs SDK 2.18.0; the `useAgentStream` mapper
+renders a real `Run.stream()`); Runtime↔Harness is contract-only until PaaS ships.
+
+The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). Study peers (a fork of [`earendil-works/pi`](https://github.com/earendil-works/pi), the OpenAI Agents Python SDK, and others) are cloned on demand under `.claude/knowledge-base/reference/` (read-only, gitignored) — they informed the design but are never a runtime dependency.
 
 ## Documentation
 
