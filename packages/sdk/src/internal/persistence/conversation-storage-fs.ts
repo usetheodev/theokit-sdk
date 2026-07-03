@@ -29,6 +29,7 @@ import {
   compactSessionFile,
   type PersistedSessionMessage,
   readAllPersistedMessages,
+  truncateSessionTo,
 } from "../runtime/session/agent-session-store.js";
 import { safePathJoin, sanitizeIdentifier } from "../security/index.js";
 import { paginate } from "./pagination.js";
@@ -69,6 +70,11 @@ export class FileSystemConversationStorage implements ConversationStorageAdapter
   async appendMessages(conversationId: string, messages: readonly StoredMessage[]): Promise<void> {
     // M2 #63 — one locked appendFile for the whole turn (one open, not N).
     await appendPersistedMessages(this.#root, conversationId, messages.map(toRecord));
+  }
+
+  async truncateConversation(conversationId: string, keepCount: number): Promise<number> {
+    // M3 #67 — atomic transcript revert under the shared file lock.
+    return truncateSessionTo(this.#root, conversationId, keepCount);
   }
 
   async deleteConversation(conversationId: string): Promise<void> {

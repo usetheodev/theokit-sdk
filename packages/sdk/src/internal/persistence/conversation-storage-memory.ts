@@ -51,6 +51,15 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
     existing.push(stamped);
   }
 
+  async truncateConversation(conversationId: string, keepCount: number): Promise<number> {
+    // M3 #67 — transcript revert (single-threaded runtime → atomic).
+    const existing = this.#store.get(conversationId);
+    if (existing === undefined) return 0;
+    const keep = Math.max(0, Math.min(keepCount, existing.length));
+    this.#store.set(conversationId, existing.slice(0, keep));
+    return keep;
+  }
+
   async deleteConversation(conversationId: string): Promise<void> {
     // Idempotent — delete-of-missing is OK (Map.delete returns false silently).
     this.#store.delete(conversationId);
