@@ -29,6 +29,7 @@ import {
   compactSessionFile,
   type PersistedSessionMessage,
   readAllPersistedMessages,
+  truncateSessionTo,
 } from "../runtime/session/agent-session-store.js";
 import { safePathJoin, sanitizeIdentifier } from "../security/index.js";
 import { paginate } from "./pagination.js";
@@ -71,6 +72,11 @@ export class FileSystemConversationStorage implements ConversationStorageAdapter
     await appendPersistedMessages(this.#root, conversationId, messages.map(toRecord));
   }
 
+  async truncateConversation(conversationId: string, keepCount: number): Promise<number> {
+    // M3 #67 — atomic transcript revert under the shared file lock.
+    return truncateSessionTo(this.#root, conversationId, keepCount);
+  }
+
   async deleteConversation(conversationId: string): Promise<void> {
     // EC-1: re-apply path-guard. `sanitizeIdentifier` + `safePathJoin` reject
     // traversal attempts BEFORE we hand a string to `rm({ recursive: true })`.
@@ -79,6 +85,14 @@ export class FileSystemConversationStorage implements ConversationStorageAdapter
     const safe = sanitizeIdentifier(conversationId, { maxLen: 128 });
     const dirPath = safePathJoin(this.#root, ".theokit", "agents", safe);
     await rm(dirPath, { recursive: true, force: true });
+  }
+
+  async deleteScope(prefix: string): Promise<number> {
+    // M3 #62 — prune a whole session scope (e.g. "temp:") in one call.
+    const ids = await this.listConversationIds();
+    const matching = ids.filter((id) => id.startsWith(prefix));
+    for (const id of matching) await this.deleteConversation(id);
+    return matching.length;
   }
 
   async listConversationIds(opts: { limit?: number } = {}): Promise<readonly string[]> {

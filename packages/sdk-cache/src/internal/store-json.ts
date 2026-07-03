@@ -81,8 +81,9 @@ export class JsonFileCacheStore implements CacheStore {
     embedderId: string,
     namespace: string,
     now: number,
+    modelId: string,
   ): { entry: CacheEntry; distance: number } | undefined {
-    return this.inner.semanticSearch(vector, threshold, embedderId, namespace, now);
+    return this.inner.semanticSearch(vector, threshold, embedderId, namespace, now, modelId);
   }
 
   set(entry: CacheEntry): void {

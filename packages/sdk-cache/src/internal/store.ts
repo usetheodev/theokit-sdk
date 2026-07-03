@@ -23,6 +23,7 @@ export interface CacheStore {
     embedderId: string,
     namespace: string,
     now: number,
+    modelId: string,
   ): { entry: CacheEntry; distance: number } | undefined;
   set(entry: CacheEntry): void;
   delete(key: string): void;
@@ -77,8 +78,11 @@ export class InMemoryCacheStore implements CacheStore {
     namespace: string,
     dim: number,
     now: number,
+    modelId: string,
   ): boolean {
     if (e.embedderId !== embedderId) return false;
+    // M3 #67 — a stored entry only matches a query for the SAME model.
+    if (e.modelId !== modelId) return false;
     if (e.namespace !== namespace) return false;
     if (e.vector.length !== dim) return false;
     if (e.expiresAt <= now) return false;
@@ -91,10 +95,14 @@ export class InMemoryCacheStore implements CacheStore {
     embedderId: string,
     namespace: string,
     now: number,
+    // M3 #67 — model-scoped: without this the semantic path can return a
+    // response cached for a DIFFERENT model that shares the embedder + namespace.
+    modelId: string,
   ): { entry: CacheEntry; distance: number } | undefined {
     let best: { entry: CacheEntry; distance: number } | undefined;
     for (const e of this.map.values()) {
-      if (!this.isEligibleForSearch(e, embedderId, namespace, vector.length, now)) continue;
+      if (!this.isEligibleForSearch(e, embedderId, namespace, vector.length, now, modelId))
+        continue;
       const d = cosineDistance(e.vector, vector);
       if (d <= threshold && (best === undefined || d < best.distance)) {
         best = { entry: e, distance: d };

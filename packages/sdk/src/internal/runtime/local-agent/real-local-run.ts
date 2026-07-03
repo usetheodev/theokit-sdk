@@ -9,6 +9,8 @@ import type {
 } from "../../../types/run.js";
 import { type AgentLoopInputs, runAgentLoop } from "../../agent-loop/loop.js";
 import type { CustomToolSpec, MemoryToolSpec } from "../../agent-loop/loop-types.js";
+import { LOCAL_RUNTIME_MOCK_KEY } from "../../auth/api-key-validator.js";
+import { isFixtureApiKey } from "../../fixture-mode.js";
 import { FallbackLlmClient } from "../../llm/fallback-client.js";
 import { parseModelId } from "../../llm/model-identifier.js";
 import { resolveProviderChain } from "../../llm/router.js";
@@ -130,20 +132,71 @@ export function resolveRunProvider(options: CreateRealLocalRunOptions): {
     );
   }
   const parsedModel = parseModelId(options.model?.id);
-  const inferredProvider =
+  const modelInferredProvider =
     parsedModel.provider !== undefined && getProviderProfile(parsedModel.provider) !== undefined
       ? parsedModel.provider
       : undefined;
+  // M4 (plan m4-provider-routing-apikey-fix): the explicitly-passed API key is
+  // the ground-truth credential of which endpoint will be called, so it outranks
+  // model-prefix inference for `primary` — a `sk-or-` key + an `openai/gpt-4o-mini`
+  // model MUST route to OpenRouter, not the OpenAI provider. An explicit
+  // `providers.routes[0].provider` still wins (user override).
+  const keyInferredProvider = inferProviderFromApiKey(options.agentOptions.apiKey);
   const primary =
     options.agentOptions.providers?.routes?.[0]?.provider ??
-    inferredProvider ??
+    keyInferredProvider ??
+    modelInferredProvider ??
     detectPrimaryProvider();
-  // When provider was inferred from the prefix, the model name passed to the
-  // LLM must be the stripped form (Ollama expects `llama3.2:3b`, not
-  // `ollama/llama3.2:3b`). When no prefix was found, pass id unchanged.
+  // Strip the vendor prefix ONLY when the model's own prefix names the resolved
+  // primary (anthropic/claude → claude for the anthropic provider). When primary
+  // is an aggregator (openrouter) whose slug legitimately embeds a `vendor/`
+  // segment (openai/gpt-4o-mini), pass the id through unstripped.
   const effectiveModelId =
-    inferredProvider !== undefined ? parsedModel.name : (options.model?.id ?? "claude-sonnet-4-6");
+    modelInferredProvider !== undefined && modelInferredProvider === primary
+      ? parsedModel.name
+      : (options.model?.id ?? "claude-sonnet-4-6");
   return { primary, effectiveModelId };
+}
+
+/**
+ * M4: infer the provider from an explicitly-passed API key prefix. Reuses the
+ * KNOWN_PROVIDER_PREFIXES mapping (`api-key-validator.ts`) — longest prefix wins
+ * so `sk-or-` (openrouter) / `sk-ant-` (anthropic) are matched before `sk-`
+ * (openai). Returns `undefined` for fixture / `local` / empty keys and for
+ * providers that are not registered. @internal
+ */
+function inferProviderFromApiKey(apiKey: string | undefined): string | undefined {
+  if (apiKey === undefined || apiKey.length === 0) return undefined;
+  const byPrefix: ReadonlyArray<{ provider: string; prefix: string }> = [
+    { provider: "openrouter", prefix: "sk-or-" },
+    { provider: "anthropic", prefix: "sk-ant-" },
+    { provider: "openai", prefix: "sk-" },
+  ];
+  for (const { provider, prefix } of byPrefix) {
+    if (apiKey.startsWith(prefix) && getProviderProfile(provider) !== undefined) {
+      return provider;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * M4: thread the single `Agent.create({ apiKey })` credential into the router's
+ * per-provider pool for the resolved `primary`, so an explicitly-passed key is
+ * used even when the matching env var is unset. An existing `providers.apiKeys`
+ * pool for the provider wins (it is the more-specific config); fixture and
+ * `local` sentinels are never threaded (they are not real credentials). @internal
+ */
+export function mergeExplicitApiKey(
+  pools: Record<string, string[]> | undefined,
+  primary: string,
+  apiKey: string | undefined,
+): Record<string, string[]> | undefined {
+  if (apiKey === undefined || apiKey.length === 0) return pools;
+  if (isFixtureApiKey(apiKey) || apiKey === LOCAL_RUNTIME_MOCK_KEY) return pools;
+  const existing = pools?.[primary];
+  if (existing !== undefined && existing.length > 0) return pools;
+  return { ...(pools ?? {}), [primary]: [apiKey] };
 }
 
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: spread-conditional builders for optional fields (systemPrompt, onStep, onDelta, priorMessages, memoryTools, customTools, pluginManager) are the canonical pattern for shaping AgentLoopInputs; splitting hurts readability.
@@ -163,7 +216,13 @@ function buildLoopInputs(
   }
   const { primary, effectiveModelId } = resolveRunProvider(options);
   const fallback = options.agentOptions.providers?.fallback;
-  const apiKeys = options.agentOptions.providers?.apiKeys;
+  // M4: thread the single explicit `apiKey` into the pool for `primary` so an
+  // explicitly-passed credential is used even without the matching env var.
+  const apiKeys = mergeExplicitApiKey(
+    options.agentOptions.providers?.apiKeys,
+    primary,
+    options.agentOptions.apiKey,
+  );
   const credentialPoolStrategy = options.agentOptions.providers?.credentialPoolStrategy;
   // theokit#58 follow-up: the chat route may opt into leaked-dialect recovery.
   // Mirrors how `primary` derives from routes[0]; applied to the resolved chain.

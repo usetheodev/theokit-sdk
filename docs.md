@@ -3005,6 +3005,20 @@ resolved chat chain; fail-open and default-off, so a non-leaking route is
 unaffected. This is the enablement path `@theokit/agents`' `recoverLeakedToolCalls`
 knob uses.
 
+**Provider selection from the API key (v2.18+).** The provider is resolved in
+this order: an explicit `providers.routes[0].provider` wins; otherwise the
+**API-key prefix** is consulted (`sk-or-` → `openrouter`, `sk-ant-` → `anthropic`,
+`sk-` → `openai`); otherwise the **model-id prefix** (`anthropic/claude-…` →
+`anthropic`); otherwise an env-var heuristic. The key outranks the model prefix
+because it is the credential that will actually be called — so
+`Agent.create({ apiKey: "sk-or-…", model: { id: "openai/gpt-4o-mini" } })` routes
+to OpenRouter and passes the full `openai/gpt-4o-mini` slug through (the vendor
+prefix is stripped only when it names the resolved provider). The explicitly
+passed `apiKey` is also used as the credential for the resolved provider even
+when the matching env var is unset (an explicit `providers.apiKeys` pool for that
+provider still wins; fixture `theo_test_*` and the `local` sentinel are never
+threaded as credentials).
+
 
 ## Bedrock provider (v1.20+) — Claude on AWS Bedrock
 
@@ -3153,7 +3167,11 @@ interface ConversationStorageAdapter {
   // adapter uses a single lock-guarded appendFile (one open per turn, not N);
   // adapters that omit it fall back to looping appendMessage.
   appendMessages?(conversationId: string, messages: readonly StoredMessage[]): Promise<void>;
+  // M3 #67 — revert a transcript back to its first keepCount messages ("undo last turn(s)").
+  truncateConversation?(conversationId: string, keepCount: number): Promise<number>;
   deleteConversation(conversationId: string): Promise<void>;
+  // M3 #62 — delete every conversation whose id starts with prefix (scope pruning).
+  deleteScope?(prefix: string): Promise<number>;
   listConversationIds?(opts?: { limit?: number }): Promise<readonly string[] | undefined>;
   compact?(conversationId: string, maxTurns: number): Promise<void>;
   dispose?(): Promise<void>;
@@ -3165,6 +3183,22 @@ interface StoredMessage {
   at?: number; // epoch ms
 }
 ```
+
+### Scoped session state (M3 #62)
+
+A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated in the same store: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe). Prune a whole scope with `adapter.deleteScope(sessionScopePrefix("temp"))` on logout / session end — pruning is explicit (auto-prune of `temp:` on dispose is deferred). Additive — an un-scoped id behaves exactly as before.
+
+### Resume is non-lossy (M3 #62)
+
+Session hydration used to drop `tool_call`/`tool_result` turns from the rebuilt context; they are now folded into the resumed context (as assistant-role context) so a resumed agent keeps its tool history. Exact tool_use/tool_result LLM-block reconstruction for mid-call resume needs persisted tool-use ids — a schema change deferred. Workflow resume restores the snapshot's accumulated step outputs (a post-suspend step sees prior results), instead of continuing with only the resume payload. Resume of router/cycle workflows and suspend nested inside parallel/branch/foreach is not yet supported (deferred).
+
+### Observability (M3 #64)
+
+Telemetry spans now nest: `llm.call` / `tool.call` / `memory.recall` are children of the run's `agent.send` span, so a trace backend can reconstruct the causal tree. Tool-call / LLM-call durations and LLM token throughput are emitted as metrics (`theokit_tool_call_duration_ms`, `theokit_llm_call_duration_ms`, `theokit_llm_tokens`) via the existing histogram path. A missing provider `usage` on a finish emits a `theokit_llm_usage_missing` metric + a WARN instead of a silent token undercount (M3 #66). `EventBus.publish` no longer silently swallows a throwing handler — it logs (event key + message) and increments an observable `handlerErrorCount`, while sibling handlers still fire.
+
+### Artifacts — scope decision (M3 #66)
+
+Artifacts are a **cloud-only, pre-release** surface. A `CloudAgent` returns fixture artifacts until Theo PaaS ships; a `LocalAgent` returns an empty `listArtifacts()` and throws `UnsupportedRunOperationError` for `downloadArtifact`. A first-class local `ArtifactService` (versioned / namespaced / multi-backend, adk-js-style) is **deferred** — consumers that need cross-turn file persistence today build it on the persistence + path-safety primitives. This is a documented decision, not an omission.
 
 ### Default behavior (no configuration)
 

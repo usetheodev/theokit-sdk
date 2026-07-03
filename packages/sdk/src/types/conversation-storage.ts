@@ -77,9 +77,25 @@ export interface ConversationStorageAdapter {
   appendMessages?(conversationId: string, messages: readonly StoredMessage[]): Promise<void>;
 
   /**
+   * M3 #67 — revert a conversation back to its first `keepCount` messages
+   * ("undo the last turn(s)"). Atomic rewrite; `keepCount <= 0` empties it,
+   * `keepCount >= length` is a no-op. Returns the number of messages kept.
+   * Transcript-only; adapters that cannot truncate MAY omit it.
+   */
+  truncateConversation?(conversationId: string, keepCount: number): Promise<number>;
+
+  /**
    * Delete the entire conversation. MUST be idempotent (delete-of-missing = ok).
    */
   deleteConversation(conversationId: string): Promise<void>;
+
+  /**
+   * M3 #62 — delete every conversation whose id starts with `prefix`
+   * (e.g. `"temp__"` from {@link sessionScopePrefix}) so a whole session scope
+   * can be pruned in one call. Returns the number deleted. Optional — adapters
+   * that cannot enumerate MAY omit it.
+   */
+  deleteScope?(prefix: string): Promise<number>;
 
   /**
    * Optional: list conversation ids. Used by housekeeping flows.
