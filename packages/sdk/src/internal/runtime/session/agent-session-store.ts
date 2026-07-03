@@ -101,21 +101,36 @@ function warnMalformed(agentId: string, line: string): void {
   );
 }
 
+/**
+ * M3 #62 — map one persisted line to a hydrated `SessionMessage`, or `undefined`
+ * when the line carries no usable text. Tool turns are folded into assistant-role
+ * context (see `readSessionFile`). Extracted to keep `readSessionFile` under the
+ * complexity budget.
+ */
+function hydrateSessionLine(parsed: Partial<PersistedSessionMessage>): SessionMessage | undefined {
+  if (typeof parsed.text !== "string" || parsed.role === undefined) return undefined;
+  if (parsed.role === "user" || parsed.role === "assistant") {
+    return { role: parsed.role, text: parsed.text };
+  }
+  if (parsed.role === "tool_call" || parsed.role === "tool_result") {
+    const label = parsed.role === "tool_call" ? "tool call" : "tool result";
+    return { role: "assistant", text: `[${label}] ${parsed.text}` };
+  }
+  return undefined;
+}
+
 export async function readSessionFile(cwd: string, agentId: string): Promise<SessionMessage[]> {
   const lines = await readJsonlLines(cwd, agentId);
   const messages: SessionMessage[] = [];
   for (const line of lines) {
+    // M3 #62 — resume was LOSSY: tool turns were silently dropped from the hydrated
+    // context, so a resumed agent forgot every tool it had run. `hydrateSessionLine`
+    // now folds them into assistant-role context so the tool history survives resume.
+    // (Exact tool_use/tool_result LLM-block reconstruction for mid-call resume needs
+    // persisted tool-use ids — a schema change deferred; see docs.md.)
     try {
-      const parsed = JSON.parse(line) as Partial<PersistedSessionMessage>;
-      // Backward compat: legacy JSONL only had user/assistant. New: 5 roles
-      // (EC-10). `SessionMessage` in-memory cache still narrows to
-      // user/assistant — broader roles round-trip through the storage adapter.
-      if (
-        (parsed.role === "user" || parsed.role === "assistant") &&
-        typeof parsed.text === "string"
-      ) {
-        messages.push({ role: parsed.role, text: parsed.text });
-      }
+      const msg = hydrateSessionLine(JSON.parse(line) as Partial<PersistedSessionMessage>);
+      if (msg !== undefined) messages.push(msg);
     } catch {
       warnMalformed(agentId, line);
     }
