@@ -75,6 +75,36 @@ describe("M2 #61 — SSE idle timeout", () => {
     expect(records).toEqual(["a", "b"]);
   });
 
+  it("a slow-but-alive stream with sub-bound gaps does NOT trip (M5 — real inter-read delay)", async () => {
+    // Each read resolves after 4s — UNDER the 5s idle bound — so the idle timer is
+    // always cleared before it fires. Proves the bound tolerates a genuinely slow
+    // (but still trickling) upstream, the ROADMAP "false-positive on slow-but-alive" risk.
+    const chunks = ["data: a\n\n", "data: b\n\n", "data: c\n\n"];
+    let i = 0;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        return new Promise<void>((resolve) => {
+          setTimeout(() => {
+            if (i < chunks.length) controller.enqueue(enc.encode(chunks[i++] as string));
+            else controller.close();
+            resolve();
+          }, 4_000);
+        });
+      },
+    });
+    const gen = parseSseStream(body, new AbortController().signal, 5_000);
+    const collected: string[] = [];
+    // Drive the generator, advancing 4s per read (each < the 5s bound).
+    for (let step = 0; step < chunks.length + 1; step++) {
+      const next = gen.next();
+      await vi.advanceTimersByTimeAsync(4_000);
+      const r = await next;
+      if (r.done === true) break;
+      collected.push(r.value.data);
+    }
+    expect(collected).toEqual(["a", "b", "c"]);
+  });
+
   it("idleTimeoutMs<=0 disables the bound (legacy behavior)", async () => {
     const records: string[] = [];
     for await (const r of parseSseStream(

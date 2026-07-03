@@ -70,6 +70,65 @@ describe("MCP stdio reconnect-after-drop (#59)", () => {
     await client.close();
   });
 
+  it("a timed-out server is reconnectable on the next request (not permanently wedged)", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "mcp-timeout-reconnect-"));
+    const counterFile = join(dir, "count");
+    writeFileSync(counterFile, "0");
+    // Mock: first spawn (n=0) reads but NEVER replies (forces a request timeout);
+    // later spawns reply normally so the reconnect can succeed.
+    const script = `
+      const fs = require("node:fs");
+      let n = 0;
+      try { n = parseInt(fs.readFileSync(${JSON.stringify(counterFile)}, "utf8"), 10) || 0; } catch {}
+      fs.writeFileSync(${JSON.stringify(counterFile)}, String(n + 1));
+      let buf = "";
+      process.stdin.on("data", (d) => {
+        buf += d; let i;
+        while ((i = buf.indexOf("\\n")) >= 0) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1);
+          if (!line.trim()) continue;
+          if (n === 0) continue; // first spawn: swallow, never reply → timeout
+          const msg = JSON.parse(line);
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools: [] } }) + "\\n");
+        }
+      });
+    `;
+    const client = createMcpClient("timeout-reconnect", {
+      type: "stdio",
+      command: "node",
+      args: ["-e", script],
+      requestTimeoutMs: 300, // short — the first initialize times out
+    });
+    // First spawn never replies → initialize times out (typed) + marks the client dropped.
+    await expect(client.initialize()).rejects.toMatchObject({ code: "mcp_timeout" });
+    // The next request reconnects to a fresh (replying) spawn — no permanent wedge.
+    expect(await client.listTools()).toEqual([]);
+    await client.close();
+  });
+
+  it("reconnect is bounded — repeated drops surface a typed 'reconnect exhausted' (H3)", async () => {
+    // A server that spawns then exits immediately: every reconnect handshake drops,
+    // so the bounded loop must eventually surface mcp_disconnected instead of looping forever.
+    const client = createMcpClient("exhaust", {
+      type: "stdio",
+      command: "sh",
+      args: ["-c", "exit 0"],
+      requestTimeoutMs: 5_000,
+    });
+    await expect(client.initialize()).rejects.toBeDefined(); // spawn exits → drop
+    let last: unknown;
+    for (let i = 0; i < 6; i++) {
+      try {
+        await client.listTools();
+      } catch (err) {
+        last = err;
+      }
+    }
+    expect(last).toMatchObject({ code: "mcp_disconnected" });
+    expect(String((last as Error).message)).toMatch(/exhausted/i);
+    await client.close();
+  });
+
   it("a request before initialize fails fast with mcp_not_init (never-initialized ≠ dropped)", async () => {
     const client = createMcpClient("uninit", {
       type: "stdio",

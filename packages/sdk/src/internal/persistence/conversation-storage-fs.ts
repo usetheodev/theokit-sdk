@@ -31,6 +31,7 @@ import {
   readAllPersistedMessages,
 } from "../runtime/session/agent-session-store.js";
 import { safePathJoin, sanitizeIdentifier } from "../security/index.js";
+import { paginate } from "./pagination.js";
 
 export interface FileSystemConversationStorageOptions {
   /** Root directory under which `.theokit/agents/<id>/` lives. Defaults to `process.cwd()`. */
@@ -115,21 +116,4 @@ function toStoredMessage(record: PersistedSessionMessage): StoredMessage {
 
 function toRecord(message: StoredMessage): PersistedSessionMessage {
   return { role: message.role, text: message.content, at: message.at ?? Date.now() };
-}
-
-/**
- * M2 #63 — apply an optional `{ offset, limit }` window to an ordered list.
- * `undefined` opts returns the list unchanged. Negative/undefined offset ⇒ 0;
- * undefined limit ⇒ to the end.
- *
- * @internal
- */
-export function paginate<T>(
-  items: readonly T[],
-  opts?: { offset?: number; limit?: number },
-): readonly T[] {
-  if (opts === undefined || (opts.offset === undefined && opts.limit === undefined)) return items;
-  const start = Math.max(0, opts.offset ?? 0);
-  const end = opts.limit === undefined ? items.length : start + Math.max(0, opts.limit);
-  return items.slice(start, end);
 }
