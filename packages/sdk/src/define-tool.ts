@@ -31,7 +31,7 @@ export interface DefineToolSpec<T extends ZodType> {
    */
   handler: (
     input: ZodNamespace.infer<T>,
-    ctx?: { signal?: AbortSignal },
+    ctx?: { signal?: AbortSignal; context?: unknown },
   ) => string | Promise<string>;
   /**
    * Sanitize the raw model-emitted args BEFORE schema validation (`@theokit/sdk/sanitize`).
@@ -72,7 +72,7 @@ export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTo
     inputSchema,
     handler: async (
       input: Record<string, unknown>,
-      ctx?: { signal?: AbortSignal },
+      ctx?: { signal?: AbortSignal; context?: unknown },
     ): Promise<string> => {
       const raw = spec.sanitize
         ? sanitizeToolInput(input, {

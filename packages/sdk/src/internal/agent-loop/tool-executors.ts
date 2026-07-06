@@ -19,38 +19,49 @@ export async function executeTool(
     return { stdout: "", stderr: `Unknown tool ${call.name}`, exitCode: 127 };
   }
   if (resolved.origin === "shell") return runShellTool(inputs, call);
-  if (resolved.origin === "memory") return runMemoryTool(resolved, call);
-  if (resolved.origin === "custom") return runCustomTool(resolved, call, inputs.signal);
+  if (resolved.origin === "memory") return runMemoryTool(resolved, call, inputs.context);
+  if (resolved.origin === "custom")
+    return runCustomTool(resolved, call, inputs.signal, inputs.context);
   return runMcpTool(inputs, resolved, call);
 }
 
-async function runMemoryTool(resolved: ResolvedTool, call: LlmToolCallPart): Promise<ToolResult> {
-  return runHandlerTool("memory", resolved.memoryHandler, call);
+async function runMemoryTool(
+  resolved: ResolvedTool,
+  call: LlmToolCallPart,
+  context?: unknown,
+): Promise<ToolResult> {
+  return runHandlerTool("memory", resolved.memoryHandler, call, undefined, context);
 }
 
 async function runCustomTool(
   resolved: ResolvedTool,
   call: LlmToolCallPart,
   signal?: AbortSignal,
+  context?: unknown,
 ): Promise<ToolResult> {
-  return runHandlerTool("custom", resolved.customHandler, call, signal);
+  return runHandlerTool("custom", resolved.customHandler, call, signal, context);
 }
 
 async function runHandlerTool(
   kind: "memory" | "custom",
   handler:
-    | ((input: Record<string, unknown>, ctx?: { signal?: AbortSignal }) => string | Promise<string>)
+    | ((
+        input: Record<string, unknown>,
+        ctx?: { signal?: AbortSignal; context?: unknown },
+      ) => string | Promise<string>)
     | undefined,
   call: LlmToolCallPart,
   signal?: AbortSignal,
+  context?: unknown,
 ): Promise<ToolResult> {
   if (handler === undefined) {
     return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
   }
   try {
-    // #65 — pass a minimal ToolContext (the run's abort signal) as the 2nd arg.
-    // Single-arg handlers ignore it; cooperative handlers can observe cancellation.
-    const stdout = await handler(call.input, { signal });
+    // #65 — the run's abort signal on the ToolContext. M7 — also the run's user
+    // `context` (from SendOptions.context), so tools read shared config (e.g.
+    // projectRoot) set once at the run. Single-arg handlers ignore both.
+    const stdout = await handler(call.input, { signal, context });
     return { stdout, stderr: "", exitCode: 0 };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
