@@ -278,6 +278,15 @@ export interface SendOptions {
    */
   signal?: AbortSignal;
   /**
+   * M7 — an opaque user `context` forwarded to every tool handler's `ctx.context`
+   * for this run. Set shared config (e.g. `projectRoot`) once here instead of
+   * baking it into each tool factory (mirrors ai-sdk `experimental_context`,
+   * mastra `RuntimeContext`, openai-agents-js `RunContext`).
+   *
+   * @public
+   */
+  context?: unknown;
+  /**
    * #58 — per-tool execution timeout in ms. Each tool call is bounded by this
    * deadline (merged with `signal`); a hung tool yields a typed timeout result
    * (exit 124) instead of wedging the run. Undefined = no per-tool timeout.
