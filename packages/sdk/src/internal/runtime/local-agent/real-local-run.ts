@@ -274,6 +274,9 @@ function buildLoopInputs(
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
     // can attach it to the LLM `fetch({ signal })` call.
     ...(options.sendOptions.signal !== undefined ? { signal: options.sendOptions.signal } : {}),
+    // M7 — forward SendOptions.context to the loop so every tool handler receives
+    // it on `ctx.context` (shared run config set once, e.g. projectRoot).
+    ...(options.sendOptions.context !== undefined ? { context: options.sendOptions.context } : {}),
     // #58 / #57 — forward the per-tool timeout + tool-result guard so a consumer
     // can enable them via SendOptions (not only internal AgentLoopInputs).
     ...(options.sendOptions.perToolTimeoutMs !== undefined

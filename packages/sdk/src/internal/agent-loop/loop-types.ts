@@ -90,6 +90,12 @@ export interface AgentLoopInputs {
    */
   signal?: AbortSignal;
   /**
+   * M7 — caller-supplied run `context` from `SendOptions.context`, forwarded to
+   * every tool handler's `ctx.context`. Shared config (e.g. `projectRoot`) is set
+   * once here instead of baked into each tool factory. Opaque to the loop.
+   */
+  context?: unknown;
+  /**
    * #58 — per-tool execution timeout in ms. When set, each tool call is bounded
    * by `AbortSignal.timeout(perToolTimeoutMs)` merged with `signal`, so a hung
    * tool rejects (exit 124) instead of wedging the loop. Undefined = no timeout.
