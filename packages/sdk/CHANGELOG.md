@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.0
+
+### Minor Changes
+
+- `GenerateObjectOptions.errorStrategy` (`"throw" | "return-partial" | "return-raw"`, default `"throw"`) — controls what `Agent.generateObject` does when the model's output still fails schema validation after all retries. `"return-raw"` resolves with the raw unvalidated input; `"return-partial"` salvages best-effort (object schemas keep only fields that individually validate). Additive + backward-compatible (M14).
+
 ## 2.18.1
 
 ### Patch Changes
