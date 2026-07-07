@@ -5,8 +5,14 @@ import { createTempWorkspace, type TempWorkspace } from "../helpers/temp-workspa
 
 describe("skills contract", () => {
   let workspace: TempWorkspace | undefined;
+  let agent: ProposedSDKAgent | undefined;
 
   afterEach(async () => {
+    // Dispose the agent BEFORE removing the workspace so its async session-summary / registry
+    // writes (fire-and-forget after a run) never race the directory removal — the ENOTEMPTY /
+    // ENOENT-on-rename flakiness this suite used to emit. Each test assigns the shared `agent`.
+    await agent?.dispose();
+    agent = undefined;
     await workspace?.cleanup();
     workspace = undefined;
   });
@@ -21,7 +27,7 @@ describe("skills contract", () => {
         enabled: ["code-review", "test-architect"],
       },
     };
-    const agent = (await Agent.create(options)) as ProposedSDKAgent;
+    agent = (await Agent.create(options)) as ProposedSDKAgent;
 
     const skills = await agent.skills.list();
     const run = await agent.send("Use the code-review skill to review this SDK contract.");
@@ -46,7 +52,7 @@ describe("skills contract", () => {
     );
   });
 
-  it("reload picks up new skills and rejects malformed skill frontmatter", async () => {
+  it("reload picks up new skills and SKIPS malformed skill frontmatter (graceful-degrade, EC-5)", async () => {
     workspace = await createTempWorkspace("project-with-skills");
     const options: ProposedAgentOptions = {
       apiKey: "theo_test_contract_key",
@@ -54,7 +60,7 @@ describe("skills contract", () => {
       local: { cwd: workspace.cwd, settingSources: ["project"] },
       skills: { enabled: ["code-review"] },
     };
-    const agent = (await Agent.create(options)) as ProposedSDKAgent;
+    agent = (await Agent.create(options)) as ProposedSDKAgent;
 
     await workspace.writeText(
       ".theokit/skills/security/SKILL.md",
@@ -65,14 +71,18 @@ describe("skills contract", () => {
       expect.arrayContaining([expect.objectContaining({ name: "security" })]),
     );
 
+    // A malformed skill (missing `description`) is SKIPPED with a stderr warning — reload does NOT
+    // throw (strict-frontmatter ADR / EC-5: a broken skill never blocks the agent; it is just
+    // excluded from `list()`). The previously-loaded valid skills remain visible. (afterEach disposes
+    // the agent before the workspace is removed, so no async write races the cleanup.)
     await workspace.writeText(
       ".theokit/skills/bad/SKILL.md",
       "---\nname: bad\n---\n\nMissing description.",
     );
-    await expect(agent.reload()).rejects.toMatchObject({
-      name: "ConfigurationError",
-      message: expect.stringMatching(/skill|description/i),
-    });
+    await expect(agent.reload()).resolves.toBeUndefined();
+    const names = (await agent.skills.list()).map((s) => s.name);
+    expect(names).toContain("security");
+    expect(names).not.toContain("bad");
   });
 });
 
