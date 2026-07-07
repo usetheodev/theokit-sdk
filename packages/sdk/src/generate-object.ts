@@ -44,6 +44,17 @@ export interface GenerateObjectOptions<T extends ZodType> {
    * when the right env key is set under a different provider name.
    */
   providers?: ProviderRoutingSettings;
+  /**
+   * What to do when the model's output fails schema validation after all
+   * retries are exhausted (M14):
+   * - `'throw'` (default) — throw {@link GenerateObjectError} `parse_failed`.
+   * - `'return-raw'` — resolve with the raw, UNVALIDATED input the model sent
+   *   (`object` may not match the schema; inspect `raw` too).
+   * - `'return-partial'` — for object schemas, resolve with only the fields that
+   *   individually validate (best-effort salvage); non-object schemas fall back
+   *   to raw.
+   */
+  errorStrategy?: "throw" | "return-partial" | "return-raw";
 }
 
 /**
@@ -83,6 +94,25 @@ interface GenerateObjectDeps {
   create: (options: AgentOptions) => Promise<SDKAgent>;
   /** Hard-delete the transient agent from the registry after dispose. */
   delete: (agentId: string) => Promise<void>;
+}
+
+/**
+ * M14 — best-effort partial salvage for `errorStrategy: 'return-partial'`. For an object schema,
+ * keep only the fields that individually validate; anything else (non-object schema or non-object
+ * raw) falls back to the raw value. Works across Zod v3/v4 via the `.shape` record both expose.
+ */
+function salvagePartial<T extends ZodType>(schema: T, raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null) return raw;
+  const shape = (schema as { shape?: Record<string, ZodType> }).shape;
+  if (shape === undefined || typeof shape !== "object") return raw;
+  const rawObj = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, fieldSchema] of Object.entries(shape)) {
+    if (typeof fieldSchema?.safeParse !== "function") continue;
+    const parsed = fieldSchema.safeParse(rawObj[key]);
+    if (parsed.success) out[key] = parsed.data;
+  }
+  return out;
 }
 
 /**
@@ -188,6 +218,24 @@ export async function generateObjectImpl<T extends ZodType>(
       lastParseError = parsed.error;
     }
 
+    // M14 — all retries exhausted with a parse failure. `errorStrategy` decides the outcome; the
+    // tool WAS called (capturedRaw is set), so `finishReason` stays `tool_use`.
+    if (options.errorStrategy === "return-raw") {
+      return {
+        object: capturedRaw as ZodNamespace.infer<T>,
+        raw: capturedRaw,
+        usage: lastUsage,
+        finishReason: "tool_use",
+      };
+    }
+    if (options.errorStrategy === "return-partial") {
+      return {
+        object: salvagePartial(options.schema, capturedRaw) as ZodNamespace.infer<T>,
+        raw: capturedRaw,
+        usage: lastUsage,
+        finishReason: "tool_use",
+      };
+    }
     throw new GenerateObjectError(
       "parse_failed",
       "Schema parse failed after all retries.",

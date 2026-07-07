@@ -400,4 +400,70 @@ describe("Agent.generateObject", () => {
     // the same count as before — no leaked transient agents.
     expect(after).toBe(before);
   });
+
+  // M14 — errorStrategy on parse failure after all retries.
+  it("errorStrategy 'return-raw' resolves with the raw unvalidated input", async () => {
+    if (cwd === undefined) throw new Error("missing workspace");
+    const stub = await startStubAnthropic({
+      iterations: [{ toolName: "output", rawInput: JSON.stringify({ name: "alice", age: "NaN" }) }],
+    });
+    server = stub.server;
+    process.env.ANTHROPIC_API_KEY = "sk-stub";
+    process.env.ANTHROPIC_API_BASE_URL = stub.url;
+
+    const result = await Agent.generateObject({
+      apiKey: "real-not-fixture",
+      model: { id: "claude-sonnet-4-6" },
+      schema: z.object({ name: z.string(), age: z.number() }),
+      prompt: "Tell me about Alice",
+      local: { cwd },
+      maxRetries: 0,
+      errorStrategy: "return-raw",
+    });
+    expect(result.object).toEqual({ name: "alice", age: "NaN" });
+    expect(result.raw).toEqual({ name: "alice", age: "NaN" });
+  });
+
+  it("errorStrategy 'return-partial' salvages only the fields that validate", async () => {
+    if (cwd === undefined) throw new Error("missing workspace");
+    const stub = await startStubAnthropic({
+      iterations: [{ toolName: "output", rawInput: JSON.stringify({ name: "alice", age: "NaN" }) }],
+    });
+    server = stub.server;
+    process.env.ANTHROPIC_API_KEY = "sk-stub";
+    process.env.ANTHROPIC_API_BASE_URL = stub.url;
+
+    const result = await Agent.generateObject({
+      apiKey: "real-not-fixture",
+      model: { id: "claude-sonnet-4-6" },
+      schema: z.object({ name: z.string(), age: z.number() }),
+      prompt: "Tell me about Alice",
+      local: { cwd },
+      maxRetries: 0,
+      errorStrategy: "return-partial",
+    });
+    // `name` validates and is kept; `age` (a string) is dropped.
+    expect(result.object).toEqual({ name: "alice" });
+  });
+
+  it("errorStrategy defaults to 'throw'", async () => {
+    if (cwd === undefined) throw new Error("missing workspace");
+    const stub = await startStubAnthropic({
+      iterations: [{ toolName: "output", rawInput: JSON.stringify({ name: "alice", age: "NaN" }) }],
+    });
+    server = stub.server;
+    process.env.ANTHROPIC_API_KEY = "sk-stub";
+    process.env.ANTHROPIC_API_BASE_URL = stub.url;
+
+    await expect(
+      Agent.generateObject({
+        apiKey: "real-not-fixture",
+        model: { id: "claude-sonnet-4-6" },
+        schema: z.object({ name: z.string(), age: z.number() }),
+        prompt: "Tell me about Alice",
+        local: { cwd },
+        maxRetries: 0,
+      }),
+    ).rejects.toThrow(/parse/i);
+  });
 });
