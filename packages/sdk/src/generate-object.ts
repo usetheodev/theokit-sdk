@@ -26,6 +26,13 @@ export interface GenerateObjectOptions<T extends ZodType> {
   systemPrompt?: string;
   /** Model selection. Required (transient agents need a model). */
   model: ModelSelection;
+  /**
+   * M21 — optional separate model for the STRUCTURING step. When set, `model` first produces a
+   * free-text reasoned answer to the prompt (phase 1), then `structuringModel` extracts the
+   * schema-matched object by calling the `output` tool over that answer (phase 2). Lets a large
+   * model reason while a cheap fast model does the extraction. Absent ⇒ today's single-model flow.
+   */
+  structuringModel?: ModelSelection;
   /** API key. Falls back to env (THEOKIT_API_KEY etc). */
   apiKey?: string;
   /** Local runtime config (cwd, sandbox). Required to keep the transient agent local-only. */
@@ -137,6 +144,33 @@ function salvagePartial<T extends ZodType>(schema: T, raw: unknown): unknown {
  *
  * @internal
  */
+/**
+ * M21 — phase 1: run `options.model` as a plain reasoning agent (no output tool) and return its
+ * free-text answer, which phase 2's structuring model then extracts. The transient reasoning agent
+ * is disposed + hard-deleted so the registry count stays stable (EC-3, mirrors the phase-2 finally).
+ */
+async function runReasoningPhase<T extends ZodType>(
+  options: GenerateObjectOptions<T>,
+  deps: GenerateObjectDeps,
+): Promise<string> {
+  const reasoningOptions: AgentOptions = {
+    model: options.model,
+    local: options.local,
+    ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
+    ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
+    ...(options.providers !== undefined ? { providers: options.providers } : {}),
+  };
+  const reasoningAgent = await deps.create(reasoningOptions);
+  try {
+    const run = await reasoningAgent.send(options.prompt);
+    const result = await run.wait();
+    const text = (result as { result?: unknown }).result;
+    return typeof text === "string" ? text : options.prompt;
+  } finally {
+    await disposeAndDeleteTransient(reasoningAgent, deps.delete);
+  }
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: retry loop + capture sentinel + dispose-and-delete is a single transaction; splitting harms locality and the finally block.
 export async function generateObjectImpl<T extends ZodType>(
   options: GenerateObjectOptions<T>,
@@ -165,8 +199,15 @@ export async function generateObjectImpl<T extends ZodType>(
     throw new CaptureSentinel(input);
   });
 
+  // M21 — when a separate structuring model is set, `model` first reasons in free text (phase 1),
+  // and `structuringModel` extracts the object over that text (phase 2). Absent ⇒ single-model flow.
+  const reasoningText =
+    options.structuringModel !== undefined ? await runReasoningPhase(options, deps) : undefined;
+  const structuringModel = options.structuringModel ?? options.model;
+  const structuringPrompt = reasoningText ?? options.prompt;
+
   const agentOptions: AgentOptions = buildTransientAgentOptions({
-    model: options.model,
+    model: structuringModel,
     local: options.local,
     outputTool,
     ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
@@ -176,7 +217,7 @@ export async function generateObjectImpl<T extends ZodType>(
   const agent = await deps.create(agentOptions);
 
   try {
-    const userMessage = buildToolPrompt(options.prompt);
+    const userMessage = buildToolPrompt(structuringPrompt);
     let lastParseError: unknown;
 
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
