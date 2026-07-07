@@ -1,0 +1,43 @@
+/**
+ * M22 — `createSkill`: define a skill in TypeScript, without a `SKILL.md` file on disk.
+ *
+ * An inline skill is usable ALONGSIDE filesystem skills (`AgentOptions.skills.inline`), and points
+ * an agent at code-defined capabilities without a `.theokit/skills/<name>/SKILL.md`. Like file
+ * skills, its `name` + `description` surface in the `<skills>` system-prompt block; its
+ * `instructions` (the body) travel on the object for the consumer (the SDK injects name+description,
+ * not bodies — inline and file skills are symmetric there). Inline skills override file skills on a
+ * name conflict (mirrors the subagents-loader precedent).
+ */
+import type { Skill } from "./internal/runtime/skills/discover-skills.js";
+
+/** A code-defined skill (from {@link createSkill}) — a {@link Skill} plus its inline body. */
+export interface InlineSkill extends Skill {
+  /** The skill body/instructions (inline skills carry it here instead of a SKILL.md file). */
+  instructions: string;
+}
+
+/** Spec accepted by {@link createSkill}. */
+export interface CreateSkillSpec {
+  name: string;
+  description: string;
+  instructions: string;
+  category?: string;
+  dependencies?: string[];
+}
+
+/**
+ * Build an {@link InlineSkill} from a code spec. Fails fast on an empty `name`/`description`
+ * (error-handling.md). The synthetic `source` (`inline://<name>`) marks it as file-less.
+ */
+export function createSkill(spec: CreateSkillSpec): InlineSkill {
+  if (!spec.name) throw new Error("createSkill: `name` is required.");
+  if (!spec.description) throw new Error("createSkill: `description` is required.");
+  return {
+    name: spec.name,
+    description: spec.description,
+    source: `inline://${spec.name}`,
+    instructions: spec.instructions,
+    ...(spec.category !== undefined ? { category: spec.category } : {}),
+    ...(spec.dependencies !== undefined ? { dependencies: spec.dependencies } : {}),
+  };
+}
