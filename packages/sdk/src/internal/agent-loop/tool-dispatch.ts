@@ -1,4 +1,5 @@
 import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
+import { emitRunEvent } from "../../types/run-events.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
@@ -102,6 +103,12 @@ async function dispatchSingleCall(
     return fileVeto;
   }
 
+  // SE2 — all vetoes passed; the tool is about to dispatch. Emit tool_progress.
+  emitRunEvent(inputs.runEventSink, {
+    type: "tool_progress",
+    toolName: workingCall.name,
+    toolCallId: callId,
+  });
   const result = await runToolWithLifecycle(inputs, resolved, workingCall, callId);
   // #65 — post_tool_call hook (previously dead) fires after each tool completes.
   await inputs.pluginManager?.runPostToolCallHooks({
@@ -153,6 +160,14 @@ function vetoFromForkWhitelist(
 ): LlmContentPart | undefined {
   const whitelistDecision = checkToolWhitelist(call.name);
   if (whitelistDecision.allowed) return undefined;
+  // SE2 — fork-whitelist denial is also an observable permission_denied.
+  emitRunEvent(inputs.runEventSink, {
+    type: "permission_denied",
+    toolName: call.name,
+    toolCallId: callId,
+    source: "fork_whitelist",
+    message: whitelistDecision.reason ?? "tool not available in fork",
+  });
   events.push(buildToolUseRunning(inputs, callId, call));
   events.push(
     buildToolUseCompleted(inputs, callId, call, {
@@ -212,6 +227,15 @@ async function vetoFromPluginPreHook(
     runId: inputs.runId,
   });
   if (pluginVeto === undefined) return undefined;
+  // SE2 — a plugin veto (e.g. the permission gate) is a runtime-observability
+  // signal: emit a typed `permission_denied` event out-of-band.
+  emitRunEvent(inputs.runEventSink, {
+    type: "permission_denied",
+    toolName: call.name,
+    toolCallId: callId,
+    source: "plugin",
+    message: pluginVeto.message,
+  });
   events.push(
     buildToolUseCompleted(inputs, callId, call, {
       stdout: "",
@@ -246,6 +270,14 @@ async function vetoFromFileHookPreDecision(
     runId: inputs.runId,
   });
   if (!preDecision.blocked) return undefined;
+  // SE2 — operator file-hook `preToolUse` denial is also an observable event.
+  emitRunEvent(inputs.runEventSink, {
+    type: "permission_denied",
+    toolName: call.name,
+    toolCallId: callId,
+    source: "file_hook",
+    message: preDecision.reason ?? "blocked by hook",
+  });
   events.push(
     buildToolUseCompleted(inputs, callId, call, {
       stdout: "",

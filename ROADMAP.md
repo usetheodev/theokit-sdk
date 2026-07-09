@@ -116,7 +116,7 @@ and framework-neutral. This is our single weakest surface vs a mature runtime.
 
 **Why now:** the Anthropic comparison ranked this our biggest operational gap; TheoKit already leans this way (#99 HITL fix, M34 default-DENY) and is the natural consumer.
 
-### SE2 — [ ] Typed runtime event stream
+### SE2 — [x] Typed runtime event stream
 
 **Objective:** Expose a richer, discriminated runtime event stream from `Run.stream()` — surfacing
 progress, rate-limit, permission-denied, and task-lifecycle events as **typed** messages (the Anthropic
