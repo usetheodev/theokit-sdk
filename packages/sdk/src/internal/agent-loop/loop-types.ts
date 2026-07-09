@@ -73,6 +73,13 @@ export interface AgentLoopInputs {
   hooks: HooksExecutor;
   /** T4.2 — PluginManager whose `pre_tool_call` hooks fire BEFORE file-based hooks. */
   pluginManager?: import("../plugins/manager.js").PluginManager;
+  /**
+   * SE2 — opt-in typed runtime-event sink (from `SendOptions.onRunEvent`). The loop
+   * emits `RunEvent`s (permission_denied, tool_progress, rate_limit, task_*,
+   * compact_boundary) to it out-of-band, best-effort (a throwing sink never breaks
+   * the run). Absent ⇒ no events emitted.
+   */
+  runEventSink?: import("../../types/run-events.js").RunEventSink;
   shellCwd: string;
   shellSandbox: boolean;
   maxIterations?: number;

@@ -215,3 +215,16 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 export type { CustomTool, SDKAgent } from "./types/agent.js";
 // Type contract
 export type * from "./types/index.js";
+// SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
+export {
+  emitRunEvent,
+  type RunCompactBoundaryEvent,
+  type RunEvent,
+  type RunEventSink,
+  type RunPermissionDeniedEvent,
+  type RunRateLimitEvent,
+  type RunTaskCompletedEvent,
+  type RunTaskStartedEvent,
+  type RunTaskUpdatedEvent,
+  type RunToolProgressEvent,
+} from "./types/run-events.js";
