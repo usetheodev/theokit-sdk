@@ -38,13 +38,16 @@ export default defineConfig({
     "a2a/index": "src/a2a/index.ts",
     "client/index": "src/client/index.ts",
     "sandbox/index": "src/sandbox/index.ts",
-    // EC-1 absorbed (SDK 2.0 plan T1.1): internal/persistence + internal/plugins
-    // are publicly accessible sub-paths used by extracted packages (sdk-memory,
-    // sdk-cache, sdk-handoff) for shared persistence primitives and the plugin
-    // contract. Documented as "internal API — semver-exempt" in README.
+    // internal/persistence is a publicly accessible sub-path used by extracted
+    // packages (sdk-memory, sdk-cache) for shared persistence primitives.
+    // Documented as "internal API — semver-exempt" in README. The plugin
+    // contract (definePlugin/Plugin) is exposed from the main `.` entry, NOT a
+    // sub-path (see src/index.ts) — the former `internal/plugins` +
+    // `internal/observability` sub-paths were removed (dead public surface,
+    // 2026-07-09 dead-code review): `internal/plugins/index.ts` stays as an
+    // internal relative import; `internal/observability` is reached via the
+    // live `tracer-loader.ts` directly, its barrel was dead.
     "internal/persistence/index": "src/internal/persistence/index.ts",
-    "internal/plugins/index": "src/internal/plugins/index.ts",
-    "internal/observability/index": "src/internal/observability/index.ts",
     "internal/security/index": "src/internal/security/index.ts",
   },
   format: ["esm", "cjs"],
