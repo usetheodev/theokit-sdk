@@ -51,7 +51,7 @@ Official documentation for `@theokit/sdk` — the TypeScript SDK for the Theo ag
 
 | Pillar | Project | What it does |
 | --- | --- | --- |
-| UI | `@theokit/ui` | Component primitives for AI surfaces |
+| UI | `@theokit/ui` | AI-native primitives for agent surfaces (coding-agent + chat) |
 | **Harness** | **`@theokit/sdk`** | Agent runtime, local or cloud |
 | Skills | `theokit` | Full-stack TypeScript framework |
 | Runtime | Theo PaaS | Managed deploy target *(pre-release)* |

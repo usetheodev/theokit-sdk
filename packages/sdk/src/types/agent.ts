@@ -199,6 +199,16 @@ export interface SkillsSettings {
    * skills itself.
    */
   autoInject?: boolean;
+  /**
+   * M22 — discover skills from a CUSTOM directory (containing `<name>/SKILL.md`) instead of the
+   * default `<cwd>/.theokit/skills`. Absent ⇒ the default root.
+   */
+  skillsDir?: string;
+  /**
+   * M22 — code-defined skills (from `createSkill`) merged with the discovered ones. An inline skill
+   * overrides a discovered file skill of the same name.
+   */
+  inline?: import("../create-skill.js").InlineSkill[];
 }
 
 /**

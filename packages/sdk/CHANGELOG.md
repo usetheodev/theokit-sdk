@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.20.0
+
+### Minor Changes
+
+- **M21 — `GenerateObjectOptions.structuringModel`.** An optional separate model for the structured-extraction step: when set, `model` first produces a free-text reasoned answer (phase 1), then `structuringModel` extracts the schema-matched object by calling the synthetic `output` tool over that answer (phase 2). Lets a large model reason while a cheap fast model structures. Absent ⇒ today's single-model flow (backward-compatible). Proven by a golden test asserting two distinct model ids in the run.
+- **M22 — `createSkill()` + `SkillsSettings.skillsDir` / `.inline`.** `createSkill({ name, description, instructions })` defines a skill in TypeScript without a `SKILL.md` file; pass code-defined skills via `skills.inline` (they surface in `list()` + the `<skills>` block alongside filesystem skills, overriding a file skill of the same name). `skills.skillsDir` discovers skills from a custom directory instead of `<cwd>/.theokit/skills`. Both compose with the per-request enabled-name resolver.
+- **M23 — `normalizeSchema()`.** Converts a schema from Zod (default), JSON Schema (passthrough), ArkType (`.toJsonSchema()`), or Valibot (via the optional `@valibot/to-json-schema` peer) to the internal JSON Schema the synthetic `output` tool uses. Zod stays the default and the documented recommendation; thin adapter, uniform parse-failure handling. A golden test per provider.
+
+## 2.19.0
+
+### Minor Changes
+
+- `GenerateObjectOptions.errorStrategy` (`"throw" | "return-partial" | "return-raw"`, default `"throw"`) — controls what `Agent.generateObject` does when the model's output still fails schema validation after all retries. `"return-raw"` resolves with the raw unvalidated input; `"return-partial"` salvages best-effort (object schemas keep only fields that individually validate). Additive + backward-compatible (M14).
+
 ## 2.18.1
 
 ### Patch Changes

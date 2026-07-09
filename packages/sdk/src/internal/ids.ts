@@ -77,12 +77,3 @@ export function generateRequestId(): string {
 export function isLocalAgentId(id: string): boolean {
   return id.startsWith(PREFIX.localAgent);
 }
-
-/**
- * Detect whether an agent ID belongs to the cloud runtime.
- *
- * @internal
- */
-export function isCloudAgentId(id: string): boolean {
-  return id.startsWith(PREFIX.cloudAgent);
-}
