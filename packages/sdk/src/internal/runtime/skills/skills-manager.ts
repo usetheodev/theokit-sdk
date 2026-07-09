@@ -28,27 +28,40 @@ export class SkillsManager {
     private readonly cwd: string,
     _enabled: string[] | undefined,
     private readonly settingSourcesIncludeProject: boolean,
+    // M22 — optional custom skills directory + inline (code-defined) skills.
+    private readonly skillsDir?: string,
+    private readonly inline?: SkillMetadata[],
   ) {
     void _enabled;
   }
 
   async initialize(): Promise<void> {
+    // M22 — inline skills work even without project setting sources (they need no filesystem).
     if (!this.settingSourcesIncludeProject) {
-      this.skills = [];
+      this.skills = this.mergeInline([]);
       return;
     }
     await this.refresh();
   }
 
   async refresh(): Promise<void> {
-    const skillsRoot = join(this.cwd, ".theokit", "skills");
-    this.skills = await discoverSkills(skillsRoot, {
+    // M22 — a custom skillsDir overrides the default `<cwd>/.theokit/skills` root.
+    const skillsRoot = this.skillsDir ?? join(this.cwd, ".theokit", "skills");
+    const discovered = await discoverSkills(skillsRoot, {
       onInvalidSkill: (info) => {
         process.stderr.write(
           `[theokit-sdk] skill ${info.name} skipped (${info.code}): ${info.message}\n`,
         );
       },
     });
+    this.skills = this.mergeInline(discovered);
+  }
+
+  /** M22 — merge inline skills over discovered ones; inline wins on a name conflict. */
+  private mergeInline(discovered: SkillMetadata[]): SkillMetadata[] {
+    if (this.inline === undefined || this.inline.length === 0) return discovered;
+    const inlineNames = new Set(this.inline.map((s) => s.name));
+    return [...discovered.filter((s) => !inlineNames.has(s.name)), ...this.inline];
   }
 
   list(): Promise<SkillMetadata[]> {

@@ -26,6 +26,13 @@ export interface GenerateObjectOptions<T extends ZodType> {
   systemPrompt?: string;
   /** Model selection. Required (transient agents need a model). */
   model: ModelSelection;
+  /**
+   * M21 — optional separate model for the STRUCTURING step. When set, `model` first produces a
+   * free-text reasoned answer to the prompt (phase 1), then `structuringModel` extracts the
+   * schema-matched object by calling the `output` tool over that answer (phase 2). Lets a large
+   * model reason while a cheap fast model does the extraction. Absent ⇒ today's single-model flow.
+   */
+  structuringModel?: ModelSelection;
   /** API key. Falls back to env (THEOKIT_API_KEY etc). */
   apiKey?: string;
   /** Local runtime config (cwd, sandbox). Required to keep the transient agent local-only. */
@@ -44,6 +51,17 @@ export interface GenerateObjectOptions<T extends ZodType> {
    * when the right env key is set under a different provider name.
    */
   providers?: ProviderRoutingSettings;
+  /**
+   * What to do when the model's output fails schema validation after all
+   * retries are exhausted (M14):
+   * - `'throw'` (default) — throw {@link GenerateObjectError} `parse_failed`.
+   * - `'return-raw'` — resolve with the raw, UNVALIDATED input the model sent
+   *   (`object` may not match the schema; inspect `raw` too).
+   * - `'return-partial'` — for object schemas, resolve with only the fields that
+   *   individually validate (best-effort salvage); non-object schemas fall back
+   *   to raw.
+   */
+  errorStrategy?: "throw" | "return-partial" | "return-raw";
 }
 
 /**
@@ -86,6 +104,25 @@ interface GenerateObjectDeps {
 }
 
 /**
+ * M14 — best-effort partial salvage for `errorStrategy: 'return-partial'`. For an object schema,
+ * keep only the fields that individually validate; anything else (non-object schema or non-object
+ * raw) falls back to the raw value. Works across Zod v3/v4 via the `.shape` record both expose.
+ */
+function salvagePartial<T extends ZodType>(schema: T, raw: unknown): unknown {
+  if (typeof raw !== "object" || raw === null) return raw;
+  const shape = (schema as { shape?: Record<string, ZodType> }).shape;
+  if (shape === undefined || typeof shape !== "object") return raw;
+  const rawObj = raw as Record<string, unknown>;
+  const out: Record<string, unknown> = {};
+  for (const [key, fieldSchema] of Object.entries(shape)) {
+    if (typeof fieldSchema?.safeParse !== "function") continue;
+    const parsed = fieldSchema.safeParse(rawObj[key]);
+    if (parsed.success) out[key] = parsed.data;
+  }
+  return out;
+}
+
+/**
  * Implementation of `Agent.generateObject`. Receives the `Agent.create`
  * factory as a callback to keep the dependency graph acyclic (mirrors the
  * AgentBuilder pattern in D25 / agent.ts injection).
@@ -107,6 +144,33 @@ interface GenerateObjectDeps {
  *
  * @internal
  */
+/**
+ * M21 — phase 1: run `options.model` as a plain reasoning agent (no output tool) and return its
+ * free-text answer, which phase 2's structuring model then extracts. The transient reasoning agent
+ * is disposed + hard-deleted so the registry count stays stable (EC-3, mirrors the phase-2 finally).
+ */
+async function runReasoningPhase<T extends ZodType>(
+  options: GenerateObjectOptions<T>,
+  deps: GenerateObjectDeps,
+): Promise<string> {
+  const reasoningOptions: AgentOptions = {
+    model: options.model,
+    local: options.local,
+    ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
+    ...(options.apiKey !== undefined ? { apiKey: options.apiKey } : {}),
+    ...(options.providers !== undefined ? { providers: options.providers } : {}),
+  };
+  const reasoningAgent = await deps.create(reasoningOptions);
+  try {
+    const run = await reasoningAgent.send(options.prompt);
+    const result = await run.wait();
+    const text = (result as { result?: unknown }).result;
+    return typeof text === "string" ? text : options.prompt;
+  } finally {
+    await disposeAndDeleteTransient(reasoningAgent, deps.delete);
+  }
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: retry loop + capture sentinel + dispose-and-delete is a single transaction; splitting harms locality and the finally block.
 export async function generateObjectImpl<T extends ZodType>(
   options: GenerateObjectOptions<T>,
@@ -135,8 +199,15 @@ export async function generateObjectImpl<T extends ZodType>(
     throw new CaptureSentinel(input);
   });
 
+  // M21 — when a separate structuring model is set, `model` first reasons in free text (phase 1),
+  // and `structuringModel` extracts the object over that text (phase 2). Absent ⇒ single-model flow.
+  const reasoningText =
+    options.structuringModel !== undefined ? await runReasoningPhase(options, deps) : undefined;
+  const structuringModel = options.structuringModel ?? options.model;
+  const structuringPrompt = reasoningText ?? options.prompt;
+
   const agentOptions: AgentOptions = buildTransientAgentOptions({
-    model: options.model,
+    model: structuringModel,
     local: options.local,
     outputTool,
     ...(options.systemPrompt !== undefined ? { systemPrompt: options.systemPrompt } : {}),
@@ -146,7 +217,7 @@ export async function generateObjectImpl<T extends ZodType>(
   const agent = await deps.create(agentOptions);
 
   try {
-    const userMessage = buildToolPrompt(options.prompt);
+    const userMessage = buildToolPrompt(structuringPrompt);
     let lastParseError: unknown;
 
     for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
@@ -188,6 +259,24 @@ export async function generateObjectImpl<T extends ZodType>(
       lastParseError = parsed.error;
     }
 
+    // M14 — all retries exhausted with a parse failure. `errorStrategy` decides the outcome; the
+    // tool WAS called (capturedRaw is set), so `finishReason` stays `tool_use`.
+    if (options.errorStrategy === "return-raw") {
+      return {
+        object: capturedRaw as ZodNamespace.infer<T>,
+        raw: capturedRaw,
+        usage: lastUsage,
+        finishReason: "tool_use",
+      };
+    }
+    if (options.errorStrategy === "return-partial") {
+      return {
+        object: salvagePartial(options.schema, capturedRaw) as ZodNamespace.infer<T>,
+        raw: capturedRaw,
+        usage: lastUsage,
+        finishReason: "tool_use",
+      };
+    }
     throw new GenerateObjectError(
       "parse_failed",
       "Schema parse failed after all retries.",

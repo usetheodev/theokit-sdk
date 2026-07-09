@@ -60,10 +60,12 @@ export interface CustomTool {
    * model). Throws → SDK converts to `tool_result` with `isError: true` and
    * the error `message` as content. #65 — an optional 2nd `ToolContext`
    * argument carries the run's `AbortSignal`; single-argument handlers are
-   * unaffected.
+   * unaffected. M7 — the same `ctx` also carries an optional user `context`
+   * (provided once via `SendOptions.context`), so shared config like a
+   * `projectRoot` is read by every tool instead of baked into each factory.
    */
   handler: (
     input: Record<string, unknown>,
-    ctx?: { signal?: AbortSignal },
+    ctx?: { signal?: AbortSignal; context?: unknown },
   ) => string | Promise<string>;
 }

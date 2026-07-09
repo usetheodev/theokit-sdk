@@ -1,4 +1,3 @@
-import { generateRequestId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { IterationBudget } from "../runtime/budget/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
@@ -448,8 +447,3 @@ async function inspectDoomLoop(
 
 /** Re-export safeListTools for backward compatibility. @internal */
 export { safeListTools } from "./loop-context-init.js";
-
-/** Generate a request id for telemetry. @internal */
-export function buildRequestId(): string {
-  return generateRequestId();
-}

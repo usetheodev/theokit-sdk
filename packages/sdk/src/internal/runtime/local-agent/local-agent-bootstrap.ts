@@ -75,6 +75,9 @@ export function bootstrapSubmanagers(args: {
       args.workspaceCwd,
       args.options.skills?.enabled,
       args.settingSourcesIncludeProject,
+      // M22 — custom skills directory + inline (code-defined) skills.
+      args.options.skills?.skillsDir,
+      args.options.skills?.inline,
     );
     const localSkills = out.skillsManager;
     out.skills = { list: () => localSkills.list() };
