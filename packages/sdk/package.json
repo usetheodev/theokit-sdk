@@ -228,26 +228,6 @@
         "default": "./dist/internal/persistence/index.cjs"
       }
     },
-    "./internal/plugins": {
-      "import": {
-        "types": "./dist/internal/plugins/index.d.ts",
-        "default": "./dist/internal/plugins/index.js"
-      },
-      "require": {
-        "types": "./dist/internal/plugins/index.d.cts",
-        "default": "./dist/internal/plugins/index.cjs"
-      }
-    },
-    "./internal/observability": {
-      "import": {
-        "types": "./dist/internal/observability/index.d.ts",
-        "default": "./dist/internal/observability/index.js"
-      },
-      "require": {
-        "types": "./dist/internal/observability/index.d.cts",
-        "default": "./dist/internal/observability/index.cjs"
-      }
-    },
     "./internal/security": {
       "import": {
         "types": "./dist/internal/security/index.d.ts",
