@@ -277,6 +277,10 @@ function buildLoopInputs(
     // M7 — forward SendOptions.context to the loop so every tool handler receives
     // it on `ctx.context` (shared run config set once, e.g. projectRoot).
     ...(options.sendOptions.context !== undefined ? { context: options.sendOptions.context } : {}),
+    // SE2 — forward the opt-in typed runtime-event sink to the loop.
+    ...(options.sendOptions.onRunEvent !== undefined
+      ? { runEventSink: options.sendOptions.onRunEvent }
+      : {}),
     // #58 / #57 — forward the per-tool timeout + tool-result guard so a consumer
     // can enable them via SendOptions (not only internal AgentLoopInputs).
     ...(options.sendOptions.perToolTimeoutMs !== undefined
