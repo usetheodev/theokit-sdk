@@ -108,27 +108,6 @@ export async function getTokens(serverName: string): Promise<OAuthTokens | undef
 }
 
 /**
- * Delete tokens for `serverName`. Idempotent.
- *
- * @internal
- */
-export async function deleteTokens(serverName: string): Promise<void> {
-  const kt = tryRequireKeytar();
-  if (kt !== null && kt !== undefined) {
-    await kt.deletePassword(KEYTAR_SERVICE, serverName);
-    return;
-  }
-  if (!existsSync(FILE_PATH)) return;
-  try {
-    const all = JSON.parse(readFileSync(FILE_PATH, "utf8")) as Record<string, OAuthTokens>;
-    delete all[serverName];
-    await atomicWriteJson(FILE_PATH, all);
-  } catch {
-    // ignore
-  }
-}
-
-/**
  * Serialize concurrent refresh attempts per server (EC-9). If a refresh is
  * already in flight for the same `serverName`, the second caller awaits
  * the same Promise.
