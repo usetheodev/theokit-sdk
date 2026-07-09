@@ -93,7 +93,7 @@ See [`../ROADMAP.md`](../ROADMAP.md) for objectives, DoD, and dependencies.
 > The comparison confirmed our architecture is the right one — these milestones close the *operational*
 > gap, not the *architectural* one.
 
-### SE1 — [ ] Permission model (evolve HITL → configurable modes + pre-tool gate)
+### SE1 — [x] Permission model (evolve HITL → configurable modes + pre-tool gate)
 
 **Objective:** Evolve the binary HITL approval (`src/permission-plugin.ts`) into a first-class,
 configurable permission model — a resolved-per-run mode plus a `canUseTool`-style pre-tool-call gate —
