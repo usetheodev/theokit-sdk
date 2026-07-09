@@ -1,5 +1,14 @@
 # @theokit/codemod-sdk-2-0
 
+> ## ⚠️ DEPRECATED — DO NOT USE (archived 2026-07-09)
+>
+> This codemod migrates imports for a **`@theokit/sdk` → `@theokit/sdk-core`
+> rename that was ABANDONED.** SDK 2.0 shipped keeping the name `@theokit/sdk`
+> (currently `@theokit/sdk@2.20.0`), and **`@theokit/sdk-core` does not exist on
+> npm** (returns 404). Running this codemod would rewrite your imports to a
+> non-existent package and **break your build**. It has zero real consumers and
+> is kept only as a historical artifact. Do not run it.
+
 Migration codemod for the `@theokit/sdk` → `@theokit/sdk-core`
 rename (SDK 2.0 cohort cutover).
 

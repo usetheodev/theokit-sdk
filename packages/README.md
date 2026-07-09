@@ -31,7 +31,7 @@ This monorepo ships **12 packages** — the Agent-AI **Harness** — organized i
 |---|---|
 | `@theokit/acp` | Agent Client Protocol (ACP) server adapter. |
 | `@theokit/cli` | `theokit` CLI binary (init, dev, inspect, eval, acp). |
-| `@theokit/codemod-sdk-2-0` | jscodeshift codemod for `@theokit/sdk` 1.x → 2.0 import rewriting. |
+| `@theokit/codemod-sdk-2-0` | **DEPRECATED (archived 2026-07-09)** — codemod for an abandoned `@theokit/sdk` → `@theokit/sdk-core` rename; `@theokit/sdk-core` never shipped (npm 404). Do not use. |
 
 ## Extracted to sibling repos (2026-06-18)
 
