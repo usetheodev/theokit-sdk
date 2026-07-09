@@ -20,6 +20,8 @@ export {
   preflightCheck,
   UsageAccumulator,
 } from "./budget.js";
+// M22 — code-defined inline skills (`createSkill`) usable alongside filesystem skills.
+export { type CreateSkillSpec, createSkill, type InlineSkill } from "./create-skill.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
 // Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
@@ -52,7 +54,8 @@ export {
 } from "./errors.js";
 // Infrastructure building blocks (moved from @theokit/theocode — SDK LEGO pieces)
 export { EventBus } from "./event-bus.js";
-// Structured output via synthetic forced tool (ADR D33)
+// Structured output via synthetic forced tool (ADR D33). M21 — `structuringModel` on
+// GenerateObjectOptions (two-model reason→structure flow).
 export {
   GenerateObjectError,
   type GenerateObjectOptions,
@@ -154,16 +157,23 @@ export {
   migrateSqliteToLance,
 } from "./migrate.js";
 export {
+  applyMode,
   type PermissionAction,
   PermissionEngine,
   type PermissionEngineOptions,
+  type PermissionMode,
   type PermissionRule,
 } from "./permission-engine.js";
-// M7-5: PermissionEngine -> plugin veto exemplar.
+// M7-5: PermissionEngine -> plugin veto exemplar. SE1: mode layer + canUseTool gate.
 export {
   createPermissionPlugin,
+  type PermissionGate,
+  type PermissionGateContext,
+  type PermissionGateDecision,
   type PermissionPluginOptions,
 } from "./permission-plugin.js";
+// M23 — schema normalizer (Zod default; JSON Schema / ArkType / Valibot adapters).
+export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.js";
 // Personality presets (Hermes #26, ADRs D160-D169)
 // `PersonalityPreset` is declared in `types/agent.ts` and reaches consumers
 // via the `types/*` star export below. The runtime registry class lives in

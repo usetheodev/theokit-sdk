@@ -6,6 +6,12 @@
  * Consumes the same HTTP contract as server adapters (POST /send, GET /stream).
  *
  * @public
+ * @deprecated since 2.x — consumes a legacy server-adapter HTTP contract
+ * (`POST /agent/send`, `GET /agent/stream`) that the ecosystem no longer
+ * produces. For in-process agent runs use the `Agent` façade (`@theokit/sdk`);
+ * for HTTP, the framework (`theokit`) exposes agents at `POST /api/agents/<name>`
+ * over a `UIMessageStream` with its own typed client. The `@theokit/sdk/client`
+ * sub-path will be removed in the next major.
  */
 
 import type { ClientOptions, SendResponse, StreamEvent } from "./types.js";
