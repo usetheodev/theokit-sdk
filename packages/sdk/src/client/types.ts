@@ -1,6 +1,8 @@
 /**
  * Client SDK types (T20.2, ADR D454).
  * @public
+ * @deprecated since 2.x — types for the deprecated `@theokit/sdk/client`
+ * (`TheoKitClient`) sub-path; removed with it in the next major.
  */
 
 export interface ClientOptions {
