@@ -235,6 +235,13 @@ export interface SDKUserMessage {
 export interface SendOptions {
   model?: ModelSelection;
   /**
+   * SE2 — opt-in typed runtime-EVENT sink. Receives out-of-band `RunEvent`s
+   * (permission_denied, tool_progress, rate_limit, task_*, compact_boundary) for
+   * observability, ADDITIVE to the `SDKMessage` content stream. Best-effort: a
+   * throwing sink never breaks the run. Discriminate on `event.type`.
+   */
+  onRunEvent?: import("./run-events.js").RunEventSink;
+  /**
    * Doom-loop guard config. The loop stops (with `terminal: "no_progress"`, `RunResult.stoppedByDoomLoop`)
    * when the model repeats IDENTICAL tool calls to the hard threshold. On by default with generous
    * thresholds (soft 3 / hard 5). Set `false` to disable, or an object to tune the thresholds.
