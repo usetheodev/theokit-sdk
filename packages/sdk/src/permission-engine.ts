@@ -11,6 +11,60 @@
 export type PermissionAction = "allow" | "deny" | "ask";
 
 /**
+ * SE1 — a per-run permission MODE that adjusts the rule-engine verdict globally.
+ * A PURE post-processor of the verdict (no tool-safety metadata needed, so it fits
+ * a bring-your-own-tools runtime). Grounded in OpenCode (plan agent = deny-all,
+ * `dangerously-skip-permissions`) + Codex (`AskForApproval`: `OnRequest` default,
+ * `Never`, `UnlessTrusted`). See {@link applyMode} for the exact table.
+ *
+ * - `default` — verdict as-is (rules decide; unmatched ⇒ `ask`, fail-closed).
+ * - `plan` — read-only: `allow` rules pass, everything else ⇒ `deny` (mutations blocked).
+ *   NOTE: `plan` gates on the resolved verdict, so an engine configured with
+ *   `{ defaultAction: "allow" }` still yields `allow` for UNMATCHED calls under
+ *   `plan` — pair `plan` with the default fail-closed engine (`defaultAction: "ask"`)
+ *   for full read-only behavior.
+ * - `acceptEdits` — auto-approve the UNMATCHED verdict, but STILL honor an explicit
+ *   `ask` rule (a caller gates a risky tool with an ask rule). Codex `UnlessTrusted`.
+ * - `bypass` — everything ⇒ `allow` EXCEPT an explicit `deny` rule. Never asks.
+ *   OpenCode `dangerously-skip-permissions` / Codex `Never`.
+ */
+export type PermissionMode = "default" | "plan" | "acceptEdits" | "bypass";
+
+/**
+ * SE1 — apply a {@link PermissionMode} to a rule-engine verdict. Pure.
+ *
+ * `explicit` is `true` when the verdict came from a rule that matched by name (and
+ * args), `false` when it is the fail-closed default for an unmatched call. The flag
+ * is load-bearing for `acceptEdits`, which auto-approves the unmatched default but
+ * keeps honoring an explicit `ask` rule (unlike `bypass`, which allows even that).
+ *
+ * INVARIANT (both OpenCode + Codex): an explicit `deny` is immune to EVERY
+ * auto-approve mode — `bypass`/`acceptEdits` never un-deny.
+ */
+export function applyMode(
+  verdict: PermissionAction,
+  mode: PermissionMode,
+  explicit: boolean,
+): PermissionAction {
+  // (a) explicit deny is terminal under every mode — fail-closed.
+  if (verdict === "deny") return "deny";
+  switch (mode) {
+    case "default":
+      return verdict;
+    case "plan":
+      // read-only: only allow rules pass; ask + unmatched ⇒ deny.
+      return verdict === "allow" ? "allow" : "deny";
+    case "acceptEdits":
+      // (b) auto-approve the unmatched default; honor an explicit ask rule.
+      if (verdict === "ask") return explicit ? "ask" : "allow";
+      return verdict; // allow stays allow
+    case "bypass":
+      // everything that survived the deny check ⇒ allow (never asks).
+      return "allow";
+  }
+}
+
+/**
  * #55 — an argument matcher. A rule with `args` gates on the tool's argument
  * VALUES, not just its name: an exact string, a RegExp (tested against the
  * stringified value), or a predicate. Every declared arg must match for the
@@ -68,15 +122,22 @@ export class PermissionEngine {
    * argument values, so the same tool name can resolve to different actions
    * depending on what it is asked to do.
    */
-  evaluate(toolName: string, args?: Record<string, unknown>): PermissionAction {
+  evaluate(
+    toolName: string,
+    args?: Record<string, unknown>,
+    mode: PermissionMode = "default",
+  ): PermissionAction {
     for (const rule of this.rules) {
       const nameMatches =
         typeof rule.tool === "string" ? rule.tool === toolName : rule.tool.test(toolName);
       if (!nameMatches) continue;
       if (rule.args !== undefined && !this.#argsMatch(rule.args, args)) continue;
-      return rule.action;
+      // SE1 — a matched rule is an EXPLICIT verdict; apply the mode with explicit=true.
+      return applyMode(rule.action, mode, true);
     }
-    return this.defaultAction;
+    // SE1 — no rule matched: the default is NOT explicit (explicit=false), so
+    // `acceptEdits` auto-approves it while still honoring explicit `ask` rules above.
+    return applyMode(this.defaultAction, mode, false);
   }
 
   #argsMatch(

@@ -157,14 +157,19 @@ export {
   migrateSqliteToLance,
 } from "./migrate.js";
 export {
+  applyMode,
   type PermissionAction,
   PermissionEngine,
   type PermissionEngineOptions,
+  type PermissionMode,
   type PermissionRule,
 } from "./permission-engine.js";
-// M7-5: PermissionEngine -> plugin veto exemplar.
+// M7-5: PermissionEngine -> plugin veto exemplar. SE1: mode layer + canUseTool gate.
 export {
   createPermissionPlugin,
+  type PermissionGate,
+  type PermissionGateContext,
+  type PermissionGateDecision,
   type PermissionPluginOptions,
 } from "./permission-plugin.js";
 // M23 — schema normalizer (Zod default; JSON Schema / ArkType / Valibot adapters).
