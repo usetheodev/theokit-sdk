@@ -1,5 +1,14 @@
 # @theokit/example-theocode-e2e
 
+## 0.0.32
+
+### Patch Changes
+
+- Updated dependencies [271f6e4]
+- Updated dependencies [b51dc6a]
+- Updated dependencies [30e02d9]
+  - @theokit/sdk@2.23.0
+
 ## 0.0.31
 
 ### Patch Changes
