@@ -417,6 +417,7 @@ async function getOrCreateUncached(agentId: string, options: AgentOptions): Prom
 // `internal/runtime/registry/agent-factory-registry.ts` for rationale.
 setAgentFacade({
   create: (options) => Agent.create(options),
+  delete: (agentId) => Agent.delete(agentId),
   prompt: (message, options) => Agent.prompt(message, options),
   get: (agentId) => Agent.get(agentId),
   resume: (agentId, options) => Agent.resume(agentId, options),

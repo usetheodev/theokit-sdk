@@ -30,6 +30,7 @@ import type { RunResult } from "../../../types/run.js";
  */
 export interface AgentFacadePort {
   create: (options: AgentOptions) => Promise<SDKAgent>;
+  delete: (agentId: string) => Promise<void>;
   prompt: (message: string, options: AgentOptions) => Promise<RunResult>;
   get: (agentId: string) => Promise<SDKAgentInfo>;
   resume: (agentId: string, options?: Partial<AgentOptions>) => Promise<SDKAgent>;

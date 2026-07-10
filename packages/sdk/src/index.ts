@@ -8,6 +8,8 @@ export { Agent, type AgentPromptResult } from "./agent.js";
 // DX helpers — agent construction patterns (ADR D22-D26)
 export { AgentBuilder } from "./agent-builder.js";
 export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
+// SE9 — integrated structured output on `agent.generate(input, { output })`.
+export type { GenerateOptions, GenerateRunResult } from "./agent-generate.js";
 // Task observability registry (Adoption Roadmap gap #2; ADRs D361-D374)
 // Token budget + cost tracker (Adoption Roadmap gap #1 post-Tasks; ADRs D375-D388)
 export {

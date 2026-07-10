@@ -1,4 +1,9 @@
 import {
+  agentGenerate,
+  type GenerateOptions,
+  type GenerateRunResult,
+} from "../../../agent-generate.js";
+import {
   ConfigurationError,
   UnknownAgentError,
   UnsupportedRunOperationError,
@@ -82,6 +87,21 @@ export class CloudAgent implements SDKAgent {
   private isFixtureMode(): boolean {
     const apiKey = resolveApiKey(this.options.apiKey);
     return isFixtureApiKey(apiKey) && getConfiguredBaseUrl() === undefined;
+  }
+
+  // SE9 — integrated structured output; delegates to the shared helper.
+  generate<T extends import("zod").ZodType>(
+    message: string | SDKUserMessage,
+    options: GenerateOptions<T>,
+  ): Promise<GenerateRunResult<import("zod").z.infer<T>>> {
+    return agentGenerate(
+      this,
+      this.model,
+      this.options.apiKey,
+      this.options.local,
+      message,
+      options,
+    );
   }
 
   async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
