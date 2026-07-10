@@ -175,6 +175,20 @@ export interface WorkflowPersistenceOptions {
 export interface WorkflowOptions {
   readonly name: string;
   readonly persistence?: WorkflowPersistenceOptions;
+  /**
+   * SE27 — Zod schema for the WHOLE workflow's input. When set, `run(input)`
+   * validates `input` BEFORE step 1; a mismatch yields `status: "failed"` with a
+   * typed {@link WorkflowInputError} in `error` (fail-fast, no step runs, no
+   * silent coerce). Absent ⇒ no whole-workflow input validation (unchanged).
+   */
+  readonly inputSchema?: ZodType;
+  /**
+   * SE27 — Zod schema for the workflow's final output. When set, the terminal
+   * `completed` output is validated before `WorkflowRun.output` is populated; a
+   * mismatch yields `status: "failed"` with a typed {@link WorkflowOutputError}.
+   * Only validated on the `completed` path (suspended/failed runs skip it).
+   */
+  readonly outputSchema?: ZodType;
   /** Internal — minted at `.commit()`. Not user-facing. */
   readonly workflowId?: string;
 }
@@ -208,6 +222,34 @@ export class WorkflowDuplicateStepIdError extends Error {
   override readonly name = "WorkflowDuplicateStepIdError";
   constructor(public readonly stepId: string) {
     super(`Duplicate step id "${stepId}" in workflow.`);
+  }
+}
+
+/**
+ * SE27 — the whole-workflow `inputSchema` rejected `run(input)` (before step 1).
+ * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
+ */
+export class WorkflowInputError extends Error {
+  override readonly name = "WorkflowInputError";
+  constructor(
+    public readonly workflowName: string,
+    public readonly detail: string,
+  ) {
+    super(`Workflow "${workflowName}" input failed schema validation: ${detail}`);
+  }
+}
+
+/**
+ * SE27 — the whole-workflow `outputSchema` rejected the final output (on `completed`).
+ * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
+ */
+export class WorkflowOutputError extends Error {
+  override readonly name = "WorkflowOutputError";
+  constructor(
+    public readonly workflowName: string,
+    public readonly detail: string,
+  ) {
+    super(`Workflow "${workflowName}" output failed schema validation: ${detail}`);
   }
 }
 
