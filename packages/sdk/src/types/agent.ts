@@ -618,6 +618,15 @@ export interface SDKAgent {
    */
   readonly plugins?: SDKAgentPlugins;
   send(message: string | SDKUserMessage, options?: SendOptions): Promise<Run>;
+  /**
+   * SE9 — integrated structured output. Runs the normal tool loop (the tools run
+   * first) then coerces the final answer into the `output` Zod schema, returning a
+   * validated, inferred-typed object. Sugar over `Agent.generateObject` (ADR D33).
+   */
+  generate<T extends import("zod").ZodType>(
+    message: string | SDKUserMessage,
+    options: import("./run.js").GenerateOptions<T>,
+  ): Promise<import("./run.js").GenerateRunResult<import("zod").z.infer<T>>>;
   /** Fire-and-forget disposal. */
   close(): void;
   /** Re-read filesystem config (context, hooks, project MCP, subagents) without disposing. */

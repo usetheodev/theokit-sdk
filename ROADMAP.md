@@ -290,7 +290,7 @@ routing change. From the DX comparison vs the 4 reference SDKs (2026-07-10).
 
 **Why now:** cheapest high-perception DX win from the reference comparison — near-trivial, additive.
 
-### SE9 — [ ] Integrated structured output on the run (`SendOptions.output`)
+### SE9 — [x] Integrated structured output on the run (`SendOptions.output`)
 
 **Objective:** Return a **validated typed object FROM the agent run** — `agent.send(input, { output: schema })`
 runs the tool loop and then coerces the final answer into the schema, surfaced on the run result —

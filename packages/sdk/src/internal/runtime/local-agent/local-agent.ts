@@ -1,3 +1,8 @@
+import {
+  agentGenerate,
+  type GenerateOptions,
+  type GenerateRunResult,
+} from "../../../agent-generate.js";
 import { ConfigurationError, UnsupportedRunOperationError } from "../../../errors.js";
 import type {
   AgentDefinition,
@@ -218,6 +223,15 @@ export class LocalAgent implements SDKAgent {
   /** Expose the hooks executor so the agent loop can fire PreToolUse/etc. */
   hooks(): HooksExecutor {
     return this.hooksExecutor;
+  }
+
+  // SE9 — integrated structured output; delegates to the shared helper.
+  generate<T extends import("zod").ZodType>(
+    message: string | SDKUserMessage,
+    options: GenerateOptions<T>,
+  ): Promise<GenerateRunResult<import("zod").z.infer<T>>> {
+    const { apiKey, local } = this.options;
+    return agentGenerate(this, this.model, apiKey, local, message, options);
   }
 
   async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
