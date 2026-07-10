@@ -35,7 +35,7 @@ import type { PluginMetadata, PluginsManager } from "../plugins/plugins-manager.
 import { flushRegistrySaves, updateRegisteredAgent } from "../registry/agent-registry.js";
 import { liveAgentRegistry } from "../registry/live-agent-registry.js";
 import { compactSession, flushSessionWrites, hydrateSession } from "../session/agent-session.js";
-import type { SkillMetadata, SkillsManager } from "../skills/skills-manager.js";
+import type { SkillsHandle, SkillsManager } from "../skills/skills-manager.js";
 import { loadSubagents } from "../skills/subagents-loader.js";
 import {
   assembleSystemPromptForSend as assembleSystemPromptForSendHelper,
@@ -79,7 +79,7 @@ export class LocalAgent implements SDKAgent {
   model: ModelSelection | undefined;
   context?: FileContextManager;
   providers?: ProvidersManagerImpl;
-  skills?: { list: () => Promise<SkillMetadata[]> };
+  skills?: SkillsHandle;
   plugins?: { list: () => Promise<PluginMetadata[]> };
   memory?: import("../../../types/memory-adapter.js").AgentMemory;
 
