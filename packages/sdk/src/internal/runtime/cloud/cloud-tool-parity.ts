@@ -31,6 +31,7 @@ import type { McpServerConfig } from "../../../types/mcp.js";
 export function validateCloudToolParity(options: AgentOptions): void {
   if (options.cloud === undefined) return;
   rejectFunctionSystemPrompt(options);
+  rejectFunctionSkills(options);
   rejectStdioMcpLocalPaths(options);
 }
 
@@ -38,6 +39,15 @@ function rejectFunctionSystemPrompt(options: AgentOptions): void {
   if (typeof options.systemPrompt === "function") {
     throw new ConfigurationError(
       "Cloud agents require systemPrompt as a serializable string. SystemPromptResolver functions can't run on PaaS — resolve to a string before Agent.create() or move the dynamic logic into a hook rule.",
+      { code: "cloud_incompatible_function_resolver" },
+    );
+  }
+}
+
+function rejectFunctionSkills(options: AgentOptions): void {
+  if (typeof options.skills === "function") {
+    throw new ConfigurationError(
+      "Cloud agents require skills as a static settings object. SkillsResolver functions can't run on PaaS — resolve to a SkillsSettings object before Agent.create() or move the dynamic logic into a hook rule.",
       { code: "cloud_incompatible_function_resolver" },
     );
   }

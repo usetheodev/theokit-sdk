@@ -65,6 +65,30 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
     });
   });
 
+  describe("rejections — function-based skills resolver (SE22)", () => {
+    it("rejects skills declared as a resolver function", async () => {
+      await expect(
+        Agent.create({
+          apiKey: FIXTURE_KEY,
+          model: MODEL,
+          cloud: { repos: REPOS },
+          skills: () => ({ enabled: ["code-review"] }),
+        }),
+      ).rejects.toMatchObject({ code: "cloud_incompatible_function_resolver" });
+    });
+
+    it("accepts skills declared as a static settings object", async () => {
+      const agent = await Agent.create({
+        apiKey: FIXTURE_KEY,
+        model: MODEL,
+        cloud: { repos: REPOS },
+        skills: { enabled: ["code-review"] },
+      });
+      expect(agent.agentId).toBeDefined();
+      await agent.dispose();
+    });
+  });
+
   describe("rejections — stdio MCP with local-FS path (cloud_incompatible_mcp_stdio_local, EC-3)", () => {
     it("rejects absolute path /usr/local/bin/x", async () => {
       await expect(
