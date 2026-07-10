@@ -66,6 +66,9 @@ export function createLocalRun(options: CreateLocalRunOptions): Run {
       : {}),
   });
 
+  // SE3 — capture the turn's provenance so `buildResult` forwards it onto RunResult.origin.
+  if (options.sendOptions.origin !== undefined) script.origin = options.sendOptions.origin;
+
   const handle = new LocalRun({
     id,
     agentId: options.agentId,
