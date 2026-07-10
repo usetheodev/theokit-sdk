@@ -25,6 +25,7 @@ import {
   shouldUsePortMemoryPath,
 } from "../memory/memory-path-selector.js";
 import type { MemoryFact } from "../memory/memory-store.js";
+import { normalizeModel } from "../model-selection.js";
 import type { PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
 import { flushRegistrySaves, updateRegisteredAgent } from "../registry/agent-registry.js";
 import { liveAgentRegistry } from "../registry/live-agent-registry.js";
@@ -129,7 +130,7 @@ export class LocalAgent implements SDKAgent {
   constructor(options: AgentOptions) {
     this.agentId = options.agentId ?? generateLocalAgentId();
     this._telemetry = createTelemetry(options.telemetry);
-    this.model = options.model;
+    this.model = normalizeModel(options.model);
     this.options = options;
     this.workspaceCwd = resolveCwd(options.local?.cwd);
     this.conversationStorage = options.conversationStorage;

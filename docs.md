@@ -55,7 +55,7 @@ The fastest way in: a local agent against your current working tree, streaming e
 import { Agent } from "@Theo/sdk";
 const agent = await Agent.create({
   apiKey: process.env.Theo_API_KEY!,
-  model: { id: "google/gemini-2.0-flash-001" },
+  model: "google/gemini-2.0-flash-001",
   local: { cwd: process.cwd() },
 });
 const run = await agent.send("Summarize what this repository does");
@@ -63,6 +63,8 @@ for await (const event of run.stream()) {
   console.log(event);
 }
 Each event is a discriminated SDKMessage. Streaming shows how to extract assistant text, handle tool calls, and clean up with await using. For a one-shot prompt (create, run, dispose), see Agent.prompt().
+
+Model selection (SE8). `model` accepts a bare-string id — `model: "openai/gpt-4o-mini"` — as well as the `{ id }` object; both `AgentOptions.model`, `SendOptions.model` (per-send override), and `AgentBuilder.model()` take either. The string is the ergonomic default; use the object form when you need `params` (reasoning/temperature tuning): `model: { id: "…", params: [...] }`. An empty string throws a typed `ConfigurationError`.
 
 Creating agents
 

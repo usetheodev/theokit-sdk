@@ -313,7 +313,12 @@ export interface TelemetrySettings {
  * @public
  */
 export interface AgentOptions {
-  model?: ModelSelection;
+  /**
+   * The model to run. SE8 — accepts a bare-string id shorthand
+   * (`"openai/gpt-4o-mini"`, normalized to `{ id }`) OR a {@link ModelSelection}
+   * object (use the object form to pass `params`).
+   */
+  model?: string | ModelSelection;
   /** Falls back to `THEOKIT_API_KEY`. */
   apiKey?: string;
   name?: string;

@@ -13,6 +13,7 @@ import { isLocalAgentId } from "./internal/ids.js";
 import { CloudAgent } from "./internal/runtime/cloud/cloud-agent.js";
 import { validateCloudToolParity } from "./internal/runtime/cloud/cloud-tool-parity.js";
 import { LocalAgent } from "./internal/runtime/local-agent/local-agent.js";
+import { normalizeModel } from "./internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,
   getRegisteredAgent,
@@ -27,6 +28,9 @@ import type { AgentOptions, CustomTool, SDKAgent, SDKAgentInfo } from "./types/a
 
 /** @internal */
 export async function runCreateUnderSpan(options: AgentOptions, span: OTelSpan): Promise<SDKAgent> {
+  // SE8 — normalize a bare-string model id to `{ id }` at this one create seam,
+  // so validation + every runtime downstream keeps seeing a `ModelSelection`.
+  options = { ...options, model: normalizeModel(options.model) };
   validateAgentOptions(options);
   validateCloudToolParity(options);
   await guardAgainstIdCollision(options);
@@ -125,7 +129,12 @@ async function createLocalAgent(options: AgentOptions): Promise<SDKAgent> {
   const willFlowToProvider = !isFixtureApiKey(apiKey) && !shouldUseRealLocalRuntime(apiKey);
   const shape = validateApiKeyShape(apiKey, {
     strict: willFlowToProvider,
-    ...(willFlowToProvider ? { provider: providerFromModelId(options.model?.id) } : {}),
+    // `options.model` is already normalized by `runCreateUnderSpan`; `normalizeModel`
+    // here is the idempotent narrowing of the widened public type (`{id}` passes
+    // through by reference) — cleaner than an `as` cast.
+    ...(willFlowToProvider
+      ? { provider: providerFromModelId(normalizeModel(options.model)?.id) }
+      : {}),
   });
   if (shape.malformed) {
     throw new AuthenticationError(shape.message, { code: "malformed_api_key" });
@@ -214,12 +223,18 @@ export async function rehydrateExistingAgent(
     ...existing.options,
     ...options,
     ...(mergedLocal !== undefined ? { local: mergedLocal } : {}),
+    // SE8 — normalize a caller-supplied bare-string model override at this resume
+    // boundary (Agent.resume never flows through runCreateUnderSpan). Cloud resume
+    // honors it; local resume forces the persisted model below.
+    model: normalizeModel(options.model ?? existing.options.model),
     mcpServers: undefined,
     agentId,
   };
   if (existing.runtime === "cloud") {
     return new CloudAgent(mergedOptions, agentId);
   }
+  // Local resume uses the PERSISTED model (already a normalized `{ id }` from the
+  // registry) — a model override on local resume is intentionally not applied.
   const agent = new LocalAgent({ ...mergedOptions, model: existing.options.model });
   await agent.initialize();
   return agent;

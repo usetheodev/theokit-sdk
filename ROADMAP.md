@@ -266,7 +266,7 @@ the first multimodal `tool_result` path, provider-agnostically.
 
 **Why now:** the one real tool-ergonomics gap in a plain string-only tool result; user-requested.
 
-### SE8 — [ ] Model string shorthand (`model: "openai/gpt-4o-mini"`)
+### SE8 — [x] Model string shorthand (`model: "openai/gpt-4o-mini"`)
 
 **Objective:** Accept a **bare string** model id (`model: "openai/gpt-4o-mini"`) everywhere a model is
 selected — `AgentOptions.model` and `SendOptions.model` — in addition to the current
