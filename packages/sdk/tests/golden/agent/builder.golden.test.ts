@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent, ConfigurationError } from "../../../src/index.js";
+import { normalizeModel } from "../../../src/internal/runtime/model-selection.js";
 
 /**
  * Golden tests for {@link Agent.builder} — Phase 4 of the agent construction
@@ -27,7 +28,7 @@ describe("Agent.builder()", () => {
       .local({ cwd })
       .name("chained-agent")
       .build();
-    expect(opts.model?.id).toBe("claude-sonnet-4-6");
+    expect(normalizeModel(opts.model)?.id).toBe("claude-sonnet-4-6");
     expect(opts.local?.cwd).toBe(cwd);
     expect(opts.name).toBe("chained-agent");
   });

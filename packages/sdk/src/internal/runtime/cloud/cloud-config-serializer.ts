@@ -1,5 +1,6 @@
 import type { AgentOptions } from "../../../types/agent.js";
 import { enabledPluginNames } from "../../plugins/enabled-names.js";
+import { normalizeModel } from "../model-selection.js";
 import type {
   CloudAgentPayload,
   HookRule,
@@ -39,7 +40,8 @@ export function serializeCloudAgentConfig(options: AgentOptions): CloudAgentPayl
     cloud: serializeCloud(options.cloud),
   };
   if (typeof options.agentId === "string") payload.agentId = options.agentId;
-  if (options.model !== undefined) payload.model = { id: options.model.id };
+  const cfgModel = normalizeModel(options.model);
+  if (cfgModel !== undefined) payload.model = { id: cfgModel.id };
   if (typeof options.systemPrompt === "string") payload.systemPrompt = options.systemPrompt;
   const skills = serializeSkills(options.skills);
   if (skills !== undefined) payload.skills = skills;

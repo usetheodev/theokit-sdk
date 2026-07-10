@@ -17,6 +17,7 @@ import { generateCloudAgentId } from "../../ids.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { PathTraversalError, validateArtifactPath } from "../../security/path-guard.js";
 import { DEFAULT_AGENTIC_MODEL_ID } from "../config/default-model.js";
+import { normalizeModel } from "../model-selection.js";
 import {
   flushRegistrySaves,
   registerAgent,
@@ -50,7 +51,7 @@ export class CloudAgent implements SDKAgent {
 
   constructor(options: AgentOptions, providedAgentId?: string) {
     this.agentId = providedAgentId ?? options.agentId ?? generateCloudAgentId();
-    this.model = options.model;
+    this.model = normalizeModel(options.model);
     this.options = options;
     this.cloudPayload = serializeCloudAgentConfig({ ...options, agentId: this.agentId });
 
@@ -128,7 +129,8 @@ export class CloudAgent implements SDKAgent {
   }
 
   private async sendLocked(message: string | SDKUserMessage, options: SendOptions): Promise<Run> {
-    const overrideModel = options.model;
+    // SE8 — normalize a bare-string send-model override to `{ id }`.
+    const overrideModel = normalizeModel(options.model);
     if (overrideModel !== undefined) {
       this.model = overrideModel;
       updateRegisteredAgent(this.agentId, { model: overrideModel });
