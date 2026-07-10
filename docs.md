@@ -316,6 +316,26 @@ SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a p
 
 The multi-agent primitives stamp it for you: a Squad stamps { kind: "peer", from: "agent-<i-1>" } on every step after the first (the first receives the human input); every a2a A2AMessage carries origin: { kind: "peer", from } as a thin projection of the sender address. Background-delegation and handoff are host-driven — pass the origin yourself on the follow-up send (agent.send(input, { origin: { kind: "task-notification" } })) and read it back on result.origin.
 
+Session management (createSessionManager)
+
+SE4. A host that persists conversations (Agent.create({ conversationStorage })) often needs to build a session list/UI — without reaching into the storage internals. createSessionManager(storage) is that surface over the same ConversationStorageAdapter instance:
+
+  const storage = new FileSystemConversationStorage();
+  const agent = await Agent.create({ conversationStorage: storage });
+  const sessions = createSessionManager(storage);
+
+  const listed = await sessions.listSessions({ limit: 20 });   // SessionCapabilityResult
+  if (listed.supported) {
+    for (const s of listed.value) {
+      // s.id, s.messageCount, s.firstPrompt, s.lastModified, s.title, s.tag, s.summary
+    }
+  }
+  await sessions.renameSession(id, "Billing thread");
+  await sessions.tagSession(id, "important");   // tagSession(id, null) clears
+  const msgs = await sessions.getSessionMessages(id);
+
+listSessions derives LIGHT metadata from the transcript (firstPrompt = the first user message; lastModified = the largest StoredMessage.at; messageCount; summary = the title when set, else the truncated first prompt) and merges any host-set title/tag. It returns a typed capability result — { supported: false, reason } — for adapters that cannot enumerate conversations; renameSession/tagSession likewise degrade when the adapter cannot store session metadata (it never throws on every call). The built-in FileSystemConversationStorage and InMemoryConversationStorage support all four operations; a custom adapter opts in by implementing the optional listConversationIds + getSessionMeta/setSessionMeta methods.
+
 Reliable continuation (local agents)
 
 A single agent.send() runs the tool-calling loop up to a ceiling — SendOptions.maxIterations (a positive integer; invalid values throw ConfigurationError) or the default. When the model still wants to call tools at that ceiling, the run stops with result.stoppedAtIterationLimit === true rather than a finished answer.

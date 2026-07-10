@@ -34,6 +34,33 @@ export interface StoredMessage {
 }
 
 /**
+ * SE4 — light, session-level metadata stored ALONGSIDE the transcript (title +
+ * tag). Distinct from {@link StoredMessage} (which is per-turn content): this is
+ * per-conversation display metadata a host sets to build a session UI.
+ *
+ * @public
+ */
+export interface SessionMeta {
+  /** Human-facing title set via `renameSession`. Absent = untitled. */
+  readonly title?: string;
+  /** Single free-form tag set via `tagSession`. Absent = untagged. */
+  readonly tag?: string;
+}
+
+/**
+ * SE4 — a partial update to {@link SessionMeta}. An omitted field is left
+ * unchanged; `tag: null` explicitly CLEARS the tag (distinct from omitting it).
+ *
+ * @public
+ */
+export interface SessionMetaPatch {
+  /** Set the title; `null` explicitly CLEARS it (distinct from omitting it). */
+  readonly title?: string | null;
+  /** Set the tag; `null` explicitly CLEARS it (distinct from omitting it). */
+  readonly tag?: string | null;
+}
+
+/**
  * Pluggable conversation persistence contract.
  *
  * Implementations MUST be safe under concurrent append from a single process
@@ -109,6 +136,21 @@ export interface ConversationStorageAdapter {
    * trims old turns past a soft cap; other backends typically no-op.
    */
   compact?(conversationId: string, maxTurns: number): Promise<void>;
+
+  /**
+   * SE4 — optional: read the session-level metadata (title/tag) for a
+   * conversation. MUST return `undefined` when none was set (NOT throw).
+   * Adapters that cannot store side metadata MAY omit this — the session
+   * manager then reports rename/tag as unsupported rather than throwing.
+   */
+  getSessionMeta?(conversationId: string): Promise<SessionMeta | undefined>;
+
+  /**
+   * SE4 — optional: apply a {@link SessionMetaPatch} to a conversation's
+   * session metadata (set title, set/clear tag). MUST create the metadata
+   * lazily. Adapters that cannot store side metadata MAY omit this.
+   */
+  setSessionMeta?(conversationId: string, patch: SessionMetaPatch): Promise<void>;
 
   /**
    * Optional: dispose underlying handles (close DB pool, etc.).

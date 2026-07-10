@@ -14,12 +14,17 @@
 
 import type {
   ConversationStorageAdapter,
+  SessionMeta,
+  SessionMetaPatch,
   StoredMessage,
 } from "../../types/conversation-storage.js";
 import { paginate } from "./pagination.js";
+import { applyMetaPatch } from "./session-meta.js";
 
 export class InMemoryConversationStorage implements ConversationStorageAdapter {
   readonly #store = new Map<string, StoredMessage[]>();
+  // SE4 — session-level metadata (title/tag), kept beside the transcript.
+  readonly #meta = new Map<string, SessionMeta>();
 
   async getMessages(
     conversationId: string,
@@ -63,6 +68,8 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
   async deleteConversation(conversationId: string): Promise<void> {
     // Idempotent — delete-of-missing is OK (Map.delete returns false silently).
     this.#store.delete(conversationId);
+    // SE4 — drop session metadata too, else a recreated id inherits ghost title/tag.
+    this.#meta.delete(conversationId);
   }
 
   async deleteScope(prefix: string): Promise<number> {
@@ -71,8 +78,13 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
     for (const id of [...this.#store.keys()]) {
       if (id.startsWith(prefix)) {
         this.#store.delete(id);
+        this.#meta.delete(id); // SE4 — prune the sidecar metadata with the transcript.
         n += 1;
       }
+    }
+    // SE4 — also drop meta for ids that have metadata but no transcript (meta-only sessions).
+    for (const id of [...this.#meta.keys()]) {
+      if (id.startsWith(prefix)) this.#meta.delete(id);
     }
     return n;
   }
@@ -83,8 +95,19 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
     return all;
   }
 
+  async getSessionMeta(conversationId: string): Promise<SessionMeta | undefined> {
+    const meta = this.#meta.get(conversationId);
+    return meta === undefined ? undefined : { ...meta };
+  }
+
+  async setSessionMeta(conversationId: string, patch: SessionMetaPatch): Promise<void> {
+    const current = this.#meta.get(conversationId) ?? {};
+    this.#meta.set(conversationId, applyMetaPatch(current, patch));
+  }
+
   async dispose(): Promise<void> {
     // No external handles. Clear for symmetry with FS-backed adapters.
     this.#store.clear();
+    this.#meta.clear();
   }
 }
