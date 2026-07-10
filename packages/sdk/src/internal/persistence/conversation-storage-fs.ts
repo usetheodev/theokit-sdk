@@ -17,10 +17,13 @@
  * @public
  */
 
-import { readdir, rm } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 
 import type {
   ConversationStorageAdapter,
+  SessionMeta,
+  SessionMetaPatch,
   StoredMessage,
 } from "../../types/conversation-storage.js";
 import {
@@ -31,8 +34,10 @@ import {
   readAllPersistedMessages,
   truncateSessionTo,
 } from "../runtime/session/agent-session-store.js";
-import { safePathJoin, sanitizeIdentifier } from "../security/index.js";
+import { redactSecrets, safePathJoin, sanitizeIdentifier } from "../security/index.js";
+import { withFileLock } from "./file-lock.js";
 import { paginate } from "./pagination.js";
+import { applyMetaPatch, coerceSessionMeta } from "./session-meta.js";
 
 export interface FileSystemConversationStorageOptions {
   /** Root directory under which `.theokit/agents/<id>/` lives. Defaults to `process.cwd()`. */
@@ -113,6 +118,46 @@ export class FileSystemConversationStorage implements ConversationStorageAdapter
 
   async compact(conversationId: string, maxTurns: number): Promise<void> {
     await compactSessionFile(this.#root, conversationId, maxTurns);
+  }
+
+  // SE4 — session metadata persisted as a per-conversation sidecar
+  // `<root>/.theokit/agents/<safeId>/session.json` (same sanitized perimeter as
+  // the transcript). Kept separate from messages.jsonl so a title/tag write does
+  // not rewrite the append-only log.
+  #metaPath(conversationId: string): string {
+    const safe = sanitizeIdentifier(conversationId, { maxLen: 128 });
+    return safePathJoin(this.#root, ".theokit", "agents", safe, "session.json");
+  }
+
+  async getSessionMeta(conversationId: string): Promise<SessionMeta | undefined> {
+    try {
+      const raw = await readFile(this.#metaPath(conversationId), "utf8");
+      // Malformed JSON throws (fail-loud, per error-handling policy); ENOENT → undefined.
+      return coerceSessionMeta(JSON.parse(raw));
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw cause;
+    }
+  }
+
+  async setSessionMeta(conversationId: string, patch: SessionMetaPatch): Promise<void> {
+    const metaPath = this.#metaPath(conversationId);
+    await mkdir(dirname(metaPath), { recursive: true });
+    // Serialize the read-modify-write under the same cross-process lock the
+    // transcript uses — concurrent rename/tag on one session must not clobber
+    // each other (was a last-write-wins TOCTOU).
+    await withFileLock(metaPath, async () => {
+      let current: SessionMeta = {};
+      try {
+        current = coerceSessionMeta(JSON.parse(await readFile(metaPath, "utf8"))) ?? {};
+      } catch (cause) {
+        if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+      }
+      const next = applyMetaPatch(current, patch);
+      // T1.3 (ADR D68): redact secrets before they reach disk — a host may name a
+      // session with a pasted token; same policy as the transcript writer.
+      await writeFile(metaPath, redactSecrets(JSON.stringify(next)), "utf8");
+    });
   }
 
   async dispose(): Promise<void> {
