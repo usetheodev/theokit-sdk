@@ -226,6 +226,15 @@ export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.
 export type { SessionMeta, SessionMetaPatch } from "./types/conversation-storage.js";
 // Type contract
 export type * from "./types/index.js";
+// SE24 — guardrail processor pipeline (inputProcessors / outputProcessors).
+export type {
+  InputProcessorContext,
+  OutputProcessorContext,
+  Processor,
+  ProcessorControls,
+  ProcessorTripwire,
+  ProcessorViolation,
+} from "./types/processors.js";
 // SE3 — multi-agent provenance. Explicit re-export so rollup-dts surfaces it in
 // the bundled .d.ts (the `export type *` star does not reliably propagate — same
 // reason as `CustomTool` above).
@@ -242,6 +251,7 @@ export {
   type RunTaskStartedEvent,
   type RunTaskUpdatedEvent,
   type RunToolProgressEvent,
+  type RunTripwireEvent,
 } from "./types/run-events.js";
 // SE4 — explicit type re-exports so rollup-dts surfaces them in the bundled .d.ts
 // (the `export type *` star does not reliably propagate — same reason as CustomTool).

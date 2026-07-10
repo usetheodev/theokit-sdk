@@ -431,6 +431,16 @@ export interface AgentOptions {
    * resolver drives the per-send `<skills>` block.
    */
   skills?: SkillsSettings | SkillsResolver;
+  /**
+   * SE24 — guardrail processors. `inputProcessors` run in order before the LLM
+   * (normalize / validate / block / rewrite the user message); `outputProcessors`
+   * run on the model's final text before it reaches the caller (redact / block).
+   * A processor that `abort()`s stops the run with a {@link RunResult.tripwire}
+   * (+ a `tripwire` run-event). Empty/absent ⇒ unchanged behavior. See
+   * {@link Processor}.
+   */
+  inputProcessors?: readonly import("./processors.js").Processor[];
+  outputProcessors?: readonly import("./processors.js").Processor[];
   /** Memory configuration. Persists durable facts; auto-recalled on send. */
   memory?: MemorySettings;
   /**
