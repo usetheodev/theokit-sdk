@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WebSearchResult } from "../src/web-search.js";
 import { createWebSearchTool } from "../src/web-search.js";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 const mockResults: WebSearchResult[] = [
   { title: "Result 1", url: "https://example.com/1", snippet: "First result" },

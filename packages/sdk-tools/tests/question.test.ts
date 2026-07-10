@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createQuestionTool } from "../src/question.js";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 describe("createQuestionTool", () => {
   it("returns user answer on success", async () => {

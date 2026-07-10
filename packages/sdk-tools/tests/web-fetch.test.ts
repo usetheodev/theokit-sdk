@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { isBlockedIp, resolveAndScreen, SsrfBlockedError, screenedFetch } from "../src/index.js";
 import { createWebFetchTool } from "../src/web-fetch.js";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 describe("createWebFetchTool — tool shape", () => {
   it("Given the factory, Then it returns a CustomTool with name='web_fetch'", () => {

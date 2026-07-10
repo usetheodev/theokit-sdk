@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createSessionArtifactStore } from "../src/artifact-store.js";
 import { createPlanModeTool } from "../src/plan-mode.js";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 describe("createPlanModeTool", () => {
   it("starts in normal mode", () => {

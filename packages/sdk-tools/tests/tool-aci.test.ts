@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToolList, withDescription } from "../src/internal/tool-aci.js";
 import { createReadFileTool } from "../src/read-file.js";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 function fakeTool(name: string, description: string) {
   return {
