@@ -68,7 +68,11 @@ export async function runAgentStep(
   }
 
   const exec = async (): Promise<string> => {
-    const run = await step.agent.send(prompt);
+    // SE3 — forward the step's provenance onto the agent's turn (metadata-only).
+    const run = await step.agent.send(
+      prompt,
+      step.origin !== undefined ? { origin: step.origin } : undefined,
+    );
     const result = await run.wait();
     if (result.status === "finished") {
       return result.result ?? "";

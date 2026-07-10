@@ -12,6 +12,7 @@
 import type { ZodType } from "zod";
 
 import type { SDKAgent } from "./agent.js";
+import type { MessageOrigin } from "./run.js";
 
 /* ─── Step discriminated union (D232) ─── */
 
@@ -44,6 +45,12 @@ export interface AgentStep {
   readonly agent: SDKAgent;
   readonly promptTemplate: string | ((input: unknown) => string);
   readonly retry?: RetryPolicy;
+  /**
+   * SE3 — provenance stamped onto this step's `agent.send()` (forwarded to
+   * `RunResult.origin`). Squad sets `{ kind: "peer", from: "agent-<i-1>" }` on
+   * every step after the first so a peer-driven turn is attributable.
+   */
+  readonly origin?: MessageOrigin;
 }
 
 /** N concurrent branches, each its own mini-step-list. */

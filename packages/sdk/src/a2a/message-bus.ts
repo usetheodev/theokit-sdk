@@ -34,6 +34,8 @@ export class MessageBus {
       from,
       to,
       timestamp: Date.now(),
+      // SE3 — provenance projection of the sender address (thin view over `from`).
+      origin: { kind: "peer", from },
     };
     // Fire-and-forget: invoke handler but don't await result
     handler(message);
@@ -55,6 +57,8 @@ export class MessageBus {
       from,
       to,
       timestamp: Date.now(),
+      // SE3 — provenance projection of the sender address (thin view over `from`).
+      origin: { kind: "peer", from },
     };
     return Promise.race([
       Promise.resolve(handler(message)),

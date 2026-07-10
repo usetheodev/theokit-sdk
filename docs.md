@@ -300,7 +300,22 @@ interface RunResult {
   // repeating IDENTICAL tool calls (same name + input) to the hard threshold —
   // making no progress. Surfaces as terminal "no_progress" through the driver.
   stoppedByDoomLoop?: boolean;
+  // SE3 — provenance of the turn (WHO triggered it), forwarded from
+  // SendOptions.origin. undefined = a direct human turn.
+  origin?: MessageOrigin;
 }
+type MessageOrigin =
+  | { kind: "human" }
+  | { kind: "peer"; from: string }          // a Squad peer / an a2a sender
+  | { kind: "task-notification" }           // a background follow-up re-entered send
+  | { kind: "coordinator"; from?: string }  // a delegating/handoff coordinator
+  | { kind: "auto-continuation" };          // the loop's continuation driver
+Multi-agent provenance (origin)
+
+SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a peer agent, a background task, a coordinator. MessageOrigin is that provenance, stamped by SendOptions.origin and forwarded onto RunResult.origin (metadata-only — it never changes routing or dispatch; mirrors the Anthropic Agent SDK's origin shape). An absent origin (undefined) means the turn was not stamped (a plain agent.send()); pass { kind: "human" } to positively mark a human turn — the two are distinct (unstamped vs explicitly human).
+
+The multi-agent primitives stamp it for you: a Squad stamps { kind: "peer", from: "agent-<i-1>" } on every step after the first (the first receives the human input); every a2a A2AMessage carries origin: { kind: "peer", from } as a thin projection of the sender address. Background-delegation and handoff are host-driven — pass the origin yourself on the follow-up send (agent.send(input, { origin: { kind: "task-notification" } })) and read it back on result.origin.
+
 Reliable continuation (local agents)
 
 A single agent.send() runs the tool-calling loop up to a ceiling — SendOptions.maxIterations (a positive integer; invalid values throw ConfigurationError) or the default. When the model still wants to call tools at that ceiling, the run stops with result.stoppedAtIterationLimit === true rather than a finished answer.
