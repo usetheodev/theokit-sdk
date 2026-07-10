@@ -133,12 +133,14 @@ describe("BedrockAnthropicClient — body massage", () => {
 });
 
 describe("BedrockAnthropicClient — helpful errors", () => {
+  // 30s ceiling: resolving "no credentials" probes the AWS SDK peer dep, which can
+  // exceed the default 5s under parallel turbo load (flake). Passes in isolation.
   it("EC-6: throws ConfigurationError when no token resolvable", async () => {
     // env not set + peer dep missing → throws helpful error.
     const client = new BedrockAnthropicClient({});
     const iter = client.stream(REQ, new AbortController().signal);
     await expect(iter.next()).rejects.toBeInstanceOf(ConfigurationError);
-  });
+  }, 30_000);
 
   it("EC-9: uses caller-provided apiKey over env", async () => {
     process.env.AWS_BEARER_TOKEN_BEDROCK = "env-token";
