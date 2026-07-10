@@ -547,7 +547,7 @@ applies that whitelist for the duration of the send. From the Mastra Tools compa
 
 **Why now:** completes the runtime tool-control pair with the existing `toolChoice`, reusing a proven whitelist.
 
-### SE19 — [ ] `workflowAsTool` — expose a Workflow as an agent tool
+### SE19 — [x] `workflowAsTool` — expose a Workflow as an agent tool
 
 **Objective:** Let an agent call a `Workflow` as a tool, completing the Mastra "X as tools" trio (tools;
 agents-as-tools via `defineSubAgent`, SE10–15; workflows-as-tools). Mastra converts a workflow to a
@@ -558,12 +558,12 @@ agents-as-tools via `defineSubAgent`, SE10–15; workflows-as-tools). Mastra con
 
 **Definition of done:**
 
-- [ ] `workflowAsTool(workflow, spec)` returns a `CustomTool`: `inputSchema` derived from the workflow's `inputSchema` (required — a workflow with no `inputSchema` is refused with a typed error); the handler runs `workflow.run(parsedInput)` and returns the workflow output.
-- [ ] A workflow run that fails surfaces a TYPED error (not a silent empty tool result).
-- [ ] Output → tool_result: a string output is returned as-is; a structured output is JSON-stringified (a plan may layer SE17 `toModelOutput`-style shaping later).
-- [ ] Exported as a sibling of `defineSubAgent` (a2a barrel OR a tools sub-export — decide in plan).
-- [ ] TDD: an agent-invoked workflow tool runs the workflow with the parsed input and returns its output; a failing workflow surfaces the typed error; a workflow without `inputSchema` is refused.
-- [ ] Docs + Changeset.
+- [x] `workflowAsTool(workflow, spec)` returns a `CustomTool`: `inputSchema` is provided by the caller in `spec` (**design correction** — a `Workflow` carries NO top-level schema; `WorkflowOptions` is `name`/`persistence`/`workflowId` only, schemas are per-step on `FnStep`). The handler validates args against `spec.inputSchema`, runs `workflow.run(parsedInput)`, and returns the workflow output.
+- [x] A workflow run that does not reach `status: "completed"` surfaces a TYPED `WorkflowToolError` (step errors do NOT throw — they surface via `run.status === "failed"`).
+- [x] Output → tool_result: a string output is returned as-is; a structured output is JSON-stringified (SE17 `toModelOutput`-style shaping can layer later).
+- [x] Exported from `@theokit/sdk/workflow` (the workflow sub-export, sibling of `Workflow`/`fn`). Accepts any `{ run }`-shaped workflow (structural — never imports the `Workflow` class).
+- [x] TDD: runs the workflow with the parsed input and returns its output; string output as-is; a failing run raises `WorkflowToolError`; an invalid input raises `ZodError` before running.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (composes the existing `Workflow` + `CustomTool`; additive).
 
