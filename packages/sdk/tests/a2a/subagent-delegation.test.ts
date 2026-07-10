@@ -418,6 +418,127 @@ describe("defineSubAgent", () => {
     await expect(tool.handler({ input: "task" })).rejects.toThrow("child boom");
   });
 
+  // SE15 — iteration count on the delegation-hook context.
+  it("onDelegationStart sees a 1-based iteration incrementing per invocation (SE15)", async () => {
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: {
+        create: vi.fn().mockResolvedValue({
+          send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+          dispose: vi.fn(),
+        }),
+      },
+    }));
+
+    const seen: number[] = [];
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: (c) => {
+        seen.push(c.iteration);
+        return { proceed: true };
+      },
+    });
+    await tool.handler({ input: "a" });
+    await tool.handler({ input: "b" });
+    await tool.handler({ input: "c" });
+
+    expect(seen).toEqual([1, 2, 3]);
+  });
+
+  it("a hook rejecting when iteration > 2 lets the first two run and rejects the third (SE15)", async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+      dispose: vi.fn(),
+    });
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: (c) =>
+        c.iteration > 2
+          ? { proceed: false, rejectionReason: "too many iterations" }
+          : { proceed: true },
+    });
+    await tool.handler({ input: "a" });
+    await tool.handler({ input: "b" });
+    const third = await tool.handler({ input: "c" });
+
+    expect(third).toBe("too many iterations");
+    expect(mockCreate).toHaveBeenCalledTimes(2); // child ran only for iterations 1 and 2
+  });
+
+  it("onDelegationComplete sees the same iteration as onDelegationStart (SE15)", async () => {
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: {
+        create: vi.fn().mockResolvedValue({
+          send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+          dispose: vi.fn(),
+        }),
+      },
+    }));
+
+    let startIter: number | undefined;
+    let completeIter: number | undefined;
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: (c) => {
+        startIter = c.iteration;
+        return { proceed: true };
+      },
+      onDelegationComplete: (c) => {
+        completeIter = c.iteration;
+      },
+    });
+    await tool.handler({ input: "a" });
+    await tool.handler({ input: "b" });
+
+    expect(startIter).toBe(2);
+    expect(completeIter).toBe(2);
+  });
+
+  it("each defineSubAgent instance has an independent iteration counter (SE15)", async () => {
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: {
+        create: vi.fn().mockResolvedValue({
+          send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+          dispose: vi.fn(),
+        }),
+      },
+    }));
+
+    const seenA: number[] = [];
+    const seenB: number[] = [];
+    const make = (sink: number[]) =>
+      defineSubAgent({
+        name: "worker",
+        description: "Works",
+        instructions: "Work.",
+        onDelegationStart: (c) => {
+          sink.push(c.iteration);
+          return { proceed: true };
+        },
+      });
+    const a = make(seenA);
+    const b = make(seenB);
+    await a.handler({ input: "x" });
+    await b.handler({ input: "y" }); // a fresh instance starts at 1, independent of `a`
+
+    expect(seenA).toEqual([1]);
+    expect(seenB).toEqual([1]);
+  });
+
+  // Concurrency-safety of the iteration surfaced to onDelegationComplete is guaranteed
+  // structurally, not by a test: the handler captures `capturedIteration = iteration`
+  // synchronously (before ANY await), so a concurrent invocation bumping the shared
+  // counter cannot change the value this delegation's start/complete/error hooks observe.
+  // (A live concurrency test is omitted — vitest's dynamic-import mock does not apply
+  // reliably to two in-flight `import("../agent.js")` calls; the capture is the guarantee.)
+
   it("onDelegationComplete observes a child error and the error is re-thrown", async () => {
     const onComplete = vi.fn();
     vi.doMock("../../src/agent.js", () => ({
@@ -437,7 +558,8 @@ describe("defineSubAgent", () => {
     });
     await expect(tool.handler({ input: "task" })).rejects.toThrow("boom");
     expect(onComplete).toHaveBeenCalledWith(
-      expect.objectContaining({ name: "worker", error: expect.any(Error) }),
+      // SE15 — the error path also carries the delegation's iteration.
+      expect.objectContaining({ name: "worker", error: expect.any(Error), iteration: 1 }),
     );
   });
 
