@@ -230,14 +230,8 @@ export class LocalAgent implements SDKAgent {
     message: string | SDKUserMessage,
     options: GenerateOptions<T>,
   ): Promise<GenerateRunResult<import("zod").z.infer<T>>> {
-    return agentGenerate(
-      this,
-      this.model,
-      this.options.apiKey,
-      this.options.local,
-      message,
-      options,
-    );
+    const { apiKey, local } = this.options;
+    return agentGenerate(this, this.model, apiKey, local, message, options);
   }
 
   async send(message: string | SDKUserMessage, options: SendOptions = {}): Promise<Run> {
