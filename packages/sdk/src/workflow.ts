@@ -67,6 +67,11 @@ const RetryPolicySchema = z.object({
 const WorkflowOptionsSchema = z.object({
   name: z.string().min(1).max(128),
   persistence: PersistenceSchema,
+  // SE27 — declared so a future `new WorkflowBuilder(parsed)` refactor cannot
+  // silently drop them (create() passes the ORIGINAL options today, but the
+  // schema is also the documentation of the shape).
+  inputSchema: z.custom<ZodType>().optional(),
+  outputSchema: z.custom<ZodType>().optional(),
 });
 
 /* ─── Builder ─── */
@@ -350,8 +355,10 @@ export {
   WorkflowAlreadyRunningError,
   WorkflowCompensateNotImplementedError,
   WorkflowDuplicateStepIdError,
+  WorkflowInputError,
   WorkflowMaxIterationsExceededError,
   WorkflowNotSerializableError,
+  WorkflowOutputError,
   WorkflowParallelError,
   WorkflowResumeStepNotFoundError,
   WorkflowSnapshotNotFoundError,

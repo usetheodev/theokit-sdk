@@ -8,11 +8,14 @@
  * @internal
  */
 
+import type { ZodType } from "zod";
 import {
   type Step,
   type StepContext,
   type StepResult,
+  WorkflowInputError,
   type WorkflowOptions,
+  WorkflowOutputError,
   type WorkflowResumeOptions,
   WorkflowResumeStepNotFoundError,
   type WorkflowRun,
@@ -168,6 +171,25 @@ interface LoopParams {
   initialStepResults?: ReadonlyArray<StepResult>;
 }
 
+/** SE27 — validate a value against a whole-workflow schema. Returns a compact
+ * issues string on failure, `undefined` when the schema is absent or matches. */
+function validateWorkflowSchema(schema: ZodType | undefined, value: unknown): string | undefined {
+  if (schema === undefined) return undefined;
+  let parsed: ReturnType<ZodType["safeParse"]>;
+  try {
+    parsed = schema.safeParse(value);
+  } catch {
+    // A schema with an async refinement throws synchronously from safeParse
+    // ("Encountered Promise during synchronous parse"). Surface it as a
+    // validation issue (→ status:"failed") instead of escaping run() (never-throw).
+    return "schema uses async refinements, which whole-workflow validation does not support (use a synchronous Zod schema)";
+  }
+  if (parsed.success) return undefined;
+  return parsed.error.issues
+    .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
+    .join("; ");
+}
+
 async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
   const { options, steps, ctx, runId, startedAt, signal } = params;
   // M3 #62 — seed with prior step outputs so a resumed workflow is not lossy.
@@ -198,6 +220,18 @@ async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
       });
     }
     acc = outcome.result.output;
+  }
+  // SE27 — validate the whole-workflow output only on the terminal completed path.
+  const outputIssues = validateWorkflowSchema(options.outputSchema, acc);
+  if (outputIssues !== undefined) {
+    return assembleRun<TO>({
+      runId,
+      name: options.name,
+      status: "failed",
+      stepResults,
+      startedAt,
+      error: errToShape(new WorkflowOutputError(options.name, outputIssues)),
+    });
   }
   return assembleRun<TO>({
     runId,
@@ -238,6 +272,18 @@ export async function executeWorkflow<TInput, TOutput>(
 
   const ctx: StepContext = makeStepContext(runId, signal);
   try {
+    // SE27 — validate the whole-workflow input BEFORE any step runs (fail-fast).
+    const inputIssues = validateWorkflowSchema(options.inputSchema, input);
+    if (inputIssues !== undefined) {
+      return assembleRun<TOutput>({
+        runId,
+        name: options.name,
+        status: "failed",
+        stepResults: [],
+        startedAt,
+        error: errToShape(new WorkflowInputError(options.name, inputIssues)),
+      });
+    }
     return await runStepsLoop<TOutput>({
       options,
       steps,

@@ -759,7 +759,7 @@ comparison (2026-07-10).
 
 **Why now:** it closes the guardrails story honestly — the seam (SE24) + deterministic processors (SE25) ship in core; the churning LLM-classifier processors are delegated with a paved path, keeping the single-maintainer core maintainable (consistent with the locked AUTH-DELEGATION posture).
 
-### SE27 — [ ] Workflow-level `inputSchema` / `outputSchema` (validate the whole-workflow I/O)
+### SE27 — [x] Workflow-level `inputSchema` / `outputSchema` (validate the whole-workflow I/O)
 
 **Objective:** Validate a workflow's overall input and final output, not just per-step. Mastra's
 `createWorkflow({ inputSchema, outputSchema })` validates the data the workflow accepts and returns.
