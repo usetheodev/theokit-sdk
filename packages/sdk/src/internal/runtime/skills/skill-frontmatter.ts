@@ -52,6 +52,16 @@ export function parseSkillFrontmatter(raw: string, fallbackName: string): SkillF
   return buildFrontmatter(fields, name);
 }
 
+/**
+ * SE20 — return a SKILL.md's BODY (everything after the frontmatter block), trimmed.
+ * When there is no frontmatter block, the whole file is the body. Reuses the same
+ * frontmatter regex as {@link parseSkillFrontmatter} (DRY).
+ */
+export function stripSkillFrontmatter(raw: string): string {
+  const match = /^---\s*\n[\s\S]*?\n---\s*\n/.exec(raw);
+  return (match === null ? raw : raw.slice(match[0].length)).trim();
+}
+
 function extractAndParseFrontmatter(raw: string, fallbackName: string): StringFields {
   const match = /^---\s*\n([\s\S]*?)\n---\s*\n/.exec(raw);
   if (match === null) {
