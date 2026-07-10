@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.24.0
+
+### Minor Changes
+
+- 7be1f18: **SE16 — `outputSchema` on `defineTool` (validate + infer the tool's return).**
+
+  `defineTool` (from `@theokit/sdk`) gains an optional `outputSchema` (a Zod schema). When set, the handler returns the STRUCTURED output inferred from it (`z.infer<outputSchema>`), the value is validated against the schema, and the tool result becomes its serialization — a string stays as-is, an object is JSON-stringified. A validation failure raises `ZodError` (converted to a `tool_result(isError)`), so a malformed tool output fails loudly instead of silently reaching the model.
+
+  Additive + fully backward-compatible: with no `outputSchema` the handler returns a plain `string` exactly as before (the handler return type is `string` when `outputSchema` is absent, `z.infer<outputSchema>` when present, via a conditional type). Mirrors Mastra `createTool`'s `outputSchema`. Pairs with SE17 (`toModelOutput`). From the Mastra Tools comparison (SDK Evolution roadmap SE16).
+
+- f621734: **SE17 — `toModelOutput` on `defineTool` (model-facing vs app-facing output split).**
+
+  `defineTool` (from `@theokit/sdk`) gains an optional `toModelOutput`. The handler returns the FULL result (validated by SE16's `outputSchema`); `toModelOutput(output)` maps it to the compact / multimodal representation the MODEL sees in the `tool_result` — so rich app-facing detail is not forced into model context. It returns a `string` OR SE7 `ToolResultContentBlock[]` (text + image). Absent ⇒ the tool result is the serialized handler output (SE16 / pre-SE17 behavior, unchanged).
+
+  Mirrors Mastra's `toModelOutput` and the Vercel AI SDK. Additive + backward-compatible. From the Mastra Tools comparison (SDK Evolution roadmap SE17).
+
+- 72435db: **SE18 — `SendOptions.activeTools` (per-send runtime tool subset).**
+
+  `agent.send(input, { activeTools })` restricts, per send, which of the agent's registered tools the model may actually call. A tool whose canonical name is not in the list is vetoed at dispatch (its handler never runs) — reusing the existing `withToolWhitelist` path that `Agent.fork`'s `allowedTools` uses, NOT `PermissionEngine`. Composes with `toolChoice`: `activeTools` narrows the set, `toolChoice` gates calling within it. Absent ⇒ the full toolset is available (unchanged).
+
+  The loop runs inside a `withToolWhitelist(new Set(activeTools))` scope when set. Additive + backward-compatible. Mirrors Mastra `activeTools` + the Vercel AI SDK. From the Mastra Tools comparison (SDK Evolution roadmap SE18).
+
+- f92f720: **SE19 — `workflowAsTool` (expose a Workflow as an agent tool).**
+
+  `workflowAsTool(workflow, { name, description, inputSchema })` (from `@theokit/sdk/workflow`) turns a `Workflow` into an agent `CustomTool`, completing the Mastra "X as tools" trio (tools; agents-as-tools via `defineSubAgent`; workflows-as-tools). The handler validates the model's args against `spec.inputSchema`, runs the workflow, and returns its output (a string as-is, else JSON). A run that does not reach `status: "completed"` raises a typed `WorkflowToolError` (workflow step errors do NOT throw — they surface via `run.status === "failed"`).
+
+  Because a `Workflow` carries no top-level schema (`WorkflowOptions` is `name`/`persistence`/`workflowId`; schemas are per-step), the caller supplies the tool `inputSchema` in the spec (like `defineTool`). Accepts any `{ run }`-shaped workflow (structural), so it never imports the `Workflow` class. New exports: `workflowAsTool`, `WorkflowToolError`, `WorkflowAsToolSpec`. Additive. From the Mastra Tools comparison (SDK Evolution roadmap SE19).
+
 ## 2.23.0
 
 ### Minor Changes
