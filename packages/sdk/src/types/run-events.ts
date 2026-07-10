@@ -23,7 +23,19 @@ export type RunEvent =
   | RunTaskStartedEvent
   | RunTaskUpdatedEvent
   | RunTaskCompletedEvent
-  | RunCompactBoundaryEvent;
+  | RunCompactBoundaryEvent
+  | RunTripwireEvent;
+
+/**
+ * SE24 — a guardrail processor called `abort()`; the run stops with a tripwire.
+ * Delivered via {@link SendOptions.onRunEvent} (mirrors the `RunResult.tripwire`
+ * surfaced on `wait()`).
+ */
+export interface RunTripwireEvent {
+  readonly type: "tripwire";
+  readonly reason: string;
+  readonly processorId: string;
+}
 
 /** A tool call is being dispatched (before its result). */
 export interface RunToolProgressEvent {

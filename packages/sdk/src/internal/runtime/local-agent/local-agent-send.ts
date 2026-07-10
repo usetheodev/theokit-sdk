@@ -2,6 +2,7 @@ import { AgentDisposedError } from "../../../errors.js";
 import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
 import type { ConversationStorageAdapter } from "../../../types/conversation-storage.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
+import { emitRunEvent } from "../../../types/run-events.js";
 import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import type { PluginManager } from "../../plugins/manager.js";
 import type { TelemetryHandle } from "../../telemetry/tracer.js";
@@ -16,6 +17,9 @@ import type { MemoryProvider } from "../memory/memory-provider.js";
 import type { MemoryFact } from "../memory/memory-store.js";
 import { readMemoryFacts } from "../memory/memory-store.js";
 import { normalizeModel } from "../model-selection.js";
+import { runInputProcessors } from "../processors/run-processors.js";
+import { createTripwireRun } from "../processors/tripwire-run.js";
+import { wrapRunWithOutputProcessors } from "../processors/wrap-output-run.js";
 import { appendSessionMessage, getSessionMessages } from "../session/agent-session.js";
 import { safeCall } from "../system-prompt/safe-call.js";
 import { consumePending } from "./local-agent-invalidate.js";
@@ -72,6 +76,42 @@ export interface SendLockedInputs {
 }
 
 /**
+ * SE24 — run the input guardrail processors on the raw user text. Returns a
+ * terminal `tripwireRun` when a processor blocked, else the (possibly rewritten)
+ * `userText` + `effectiveMessage` to feed the rest of the send.
+ */
+async function applyInputProcessors(
+  inputs: SendLockedInputs,
+  message: string | SDKUserMessage,
+  rawUserText: string,
+  options: SendOptions,
+  sendModel: ModelSelection | undefined,
+): Promise<{ tripwireRun: Run } | { userText: string; effectiveMessage: string | SDKUserMessage }> {
+  const processors = inputs.options.inputProcessors;
+  if (processors === undefined || processors.length === 0) {
+    return { userText: rawUserText, effectiveMessage: message };
+  }
+  const res = await runInputProcessors(processors, rawUserText, inputs.agentId);
+  if (res.kind === "tripwire") {
+    emitRunEvent(options.onRunEvent, {
+      type: "tripwire",
+      reason: res.tripwire.reason,
+      processorId: res.tripwire.processorId,
+    });
+    return {
+      tripwireRun: createTripwireRun({
+        agentId: inputs.agentId,
+        tripwire: res.tripwire,
+        model: sendModel,
+      }),
+    };
+  }
+  const effectiveMessage =
+    typeof message === "string" ? res.value : { ...message, text: res.value };
+  return { userText: res.value, effectiveMessage };
+}
+
+/**
  * Core send logic extracted from `LocalAgent.sendLocked` to reduce
  * the LocalAgent class LoC (G8 budget). All dependencies are injected
  * via the `inputs` parameter.
@@ -87,8 +127,16 @@ export async function executeSendLocked(
   // biome-ignore format: keep one-liner to stay under G8 LoC.
   await consumePending(inputs.agentId, inputs.invalidationPending, inputs.clearInvalidation, inputs.reload);
   // SE8 — normalize a bare-string send-model override to `{ id }`.
-  inputs.applyModelOverride(normalizeModel(options.model));
-  const userText = typeof message === "string" ? message : message.text;
+  const sendModel = normalizeModel(options.model);
+  inputs.applyModelOverride(sendModel);
+  const rawUserText = typeof message === "string" ? message : message.text;
+
+  // SE24 — input guardrail processors run FIRST, before any side effect; a
+  // `block` short-circuits to a tripwire run, a `rewrite` flows downstream.
+  const gated = await applyInputProcessors(inputs, message, rawUserText, options, sendModel);
+  if ("tripwireRun" in gated) return gated.tripwireRun;
+  const { userText, effectiveMessage } = gated;
+
   if (inputs.options.onBeforeSend !== undefined) {
     await inputs.options.onBeforeSend({
       conversationId: inputs.agentId,
@@ -101,7 +149,7 @@ export async function executeSendLocked(
     pluginManager: inputs.pluginManagerCode,
     agentId: inputs.agentId,
     options: inputs.options,
-    original: message,
+    original: effectiveMessage,
     userText,
     sendOptions: options,
   });
@@ -143,11 +191,23 @@ export async function executeSendLocked(
     memoryTools,
     effectiveMemoryProvider,
   );
+  // SE24 — output processors wrap INNER (they redact/block the model text) so the
+  // post_assistant_reply memory hook observes the FINAL (processed) reply.
+  const outputProcessors = inputs.options.outputProcessors;
+  const processedRun =
+    outputProcessors !== undefined && outputProcessors.length > 0
+      ? wrapRunWithOutputProcessors({
+          run,
+          processors: outputProcessors,
+          agentId: inputs.agentId,
+          onRunEvent: options.onRunEvent,
+        })
+      : run;
   return wrapRunWithPostReplyHook({
     pluginManager: inputs.pluginManagerCode,
     agentId: inputs.agentId,
     options: inputs.options,
-    run,
+    run: processedRun,
     userText,
   });
 }
