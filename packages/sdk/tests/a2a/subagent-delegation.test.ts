@@ -175,6 +175,24 @@ describe("defineSubAgent", () => {
     expect(mockSend).toHaveBeenCalledWith("task");
   });
 
+  it("omits signal when ctx is present but ctx.signal is undefined (SE10 — undefined-signal edge)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+    });
+    // ctx present, signal absent (e.g. a run started without an AbortSignal) →
+    // the `ctx?.signal !== undefined` guard must fall through to the no-option path.
+    await tool.handler({ input: "task" }, { context: { something: true } });
+
+    expect(mockSend).toHaveBeenCalledWith("task");
+  });
+
   it("respects custom maxDelegationDepth", () => {
     expect(() =>
       defineSubAgent(
