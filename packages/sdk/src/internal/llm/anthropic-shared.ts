@@ -7,6 +7,7 @@
  */
 
 import { parseToolArguments } from "./finish.js";
+import { toBlockToolResultContent } from "./tool-result-content.js";
 import type {
   LlmMessage,
   LlmRequest,
@@ -75,7 +76,9 @@ export function toAnthropicWireMessage(message: LlmMessage): Record<string, unkn
     return {
       type: "tool_result",
       tool_use_id: part.toolUseId,
-      content: part.content,
+      // SE7 — this wire is block-capable: strings pass through, structured
+      // text/image blocks are forwarded natively.
+      content: toBlockToolResultContent(part.content),
       ...(part.isError === true ? { is_error: true } : {}),
     };
   });

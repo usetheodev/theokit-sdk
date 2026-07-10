@@ -12,6 +12,7 @@
 
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { collapseSystemText, makeLlmFinish } from "./finish.js";
+import { toStringToolResultContent } from "./tool-result-content.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -301,7 +302,8 @@ function toOllamaMessages(message: LlmMessage): OllamaChatMessage[] {
       if (part.type === "tool_result") {
         out.push({
           role: "tool",
-          content: part.content,
+          // SE7 — string-only tool role: text blocks flatten; image fails fast.
+          content: toStringToolResultContent(part.content, "ollama"),
           tool_name: part.toolUseId,
         });
       }

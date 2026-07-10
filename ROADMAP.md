@@ -243,6 +243,29 @@ no-op** — measure before building (YAGNI).
 
 **Why now:** the comparison raised it; the honest resolution is "measure, likely minimal" — hence gated.
 
+### SE7 — [x] Structured/multimodal tool results + `ToolError` (content blocks)
+
+**Objective:** Let a tool hand the model structured content (text + image) as its result OR its error,
+not just a string — symmetrically: a `handler` may RETURN content blocks on success, and may THROW a
+typed `ToolError` carrying content blocks on failure (e.g. a screenshot, a rendered chart). Introduces
+the first multimodal `tool_result` path, provider-agnostically.
+
+**Definition of done:**
+
+- [ ] `ImageBlock` + `ToolResultContentBlock = TextBlock | ImageBlock` types; `ToolError` class carrying `string | ToolResultContentBlock[]`.
+- [ ] `CustomTool.handler` return widened to `string | ToolResultContentBlock[]` (symmetric — success may be multimodal); back-compat: string still works unchanged.
+- [ ] Block-capable provider wires carry blocks natively (text + image) on `tool_result.content`; **string-only provider wires fail fast** with a typed `ConfigurationError` on an image block (no silent degradation — per error-handling.md); text-only blocks flatten to a string everywhere. Naming is capability-based, not provider-specific.
+- [ ] TDD: handler-returns-image carries onto a block-capable wire; `ToolError([blocks])` → `tool_result` with `isError` + blocks; string-only wire + image → `ConfigurationError`; text-only blocks flatten to string.
+- [ ] Docs + Changeset.
+
+**Dependencies:** existing tool dispatch (`tool-executors`/`tool-dispatch`), the provider wire mappers.
+
+**Top risks (new):**
+1. Breaking the string-only `tool_result` consumers (guard, wire mappers). Mitigation: `content: string | blocks` with a render helper for text-consumers; persistence/replay is event-based and untouched.
+2. Provider divergence (some providers can't carry images in a tool-role message). Mitigation: typed `ConfigurationError` fail-fast, not silent drop.
+
+**Why now:** the one real tool-ergonomics gap in a plain string-only tool result; user-requested.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
