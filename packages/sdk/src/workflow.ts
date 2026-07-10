@@ -28,6 +28,7 @@ import { z } from "zod";
 import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
 import type { SDKAgent } from "./types/agent.js";
+import type { MessageOrigin } from "./types/run.js";
 import type {
   AgentStep,
   BranchStep,
@@ -318,7 +319,7 @@ export function agentStep(
   id: string,
   agent: SDKAgent,
   promptTemplate: string | ((input: unknown) => string),
-  opts?: { retry?: RetryPolicy },
+  opts?: { retry?: RetryPolicy; origin?: MessageOrigin },
 ): AgentStep {
   validateStepId(id);
   if (opts?.retry !== undefined) RetryPolicySchema.parse(opts.retry);
@@ -328,6 +329,8 @@ export function agentStep(
     agent,
     promptTemplate,
     ...(opts?.retry !== undefined ? { retry: opts.retry } : {}),
+    // SE3 — carry the turn's provenance down to `agent.send()` (metadata-only).
+    ...(opts?.origin !== undefined ? { origin: opts.origin } : {}),
   };
 }
 

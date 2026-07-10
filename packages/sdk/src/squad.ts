@@ -88,7 +88,12 @@ export function createSquad(options: SquadOptions): Squad {
       for (let i = 0; i < agents.length; i++) {
         const agent = agents[i];
         if (agent === undefined) continue;
-        builder = builder.then(agentStep(`agent-${i}`, agent, (prev) => String(prev)));
+        // SE3 — the first agent receives the human input (no peer origin); every
+        // subsequent agent receives its predecessor's output, so its turn carries
+        // `{ kind: "peer", from: "agent-<i-1>" }`. Metadata-only — threading unchanged.
+        const opts =
+          i > 0 ? { origin: { kind: "peer" as const, from: `agent-${i - 1}` } } : undefined;
+        builder = builder.then(agentStep(`agent-${i}`, agent, (prev) => String(prev), opts));
       }
       const run = await builder.commit().run(input);
       return { result: run.output, status: run.status, steps: run.stepResults };

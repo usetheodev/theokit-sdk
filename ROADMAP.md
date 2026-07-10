@@ -138,7 +138,7 @@ progress, rate-limit, permission-denied, and task-lifecycle events as **typed** 
 
 **Why now:** the comparison showed typed run-level messages are a genuine observability advantage; our stream is content-shaped only.
 
-### SE3 — [ ] Multi-agent provenance (`origin`)
+### SE3 — [x] Multi-agent provenance (`origin`)
 
 **Objective:** Stamp `origin` provenance (human / peer / task-notification / coordinator /
 auto-continuation) onto turns emitted in the multi-agent path (`Squad`, `a2a`, `handoff`,
