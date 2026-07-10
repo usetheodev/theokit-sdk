@@ -128,6 +128,19 @@ export interface StepContext {
   };
   /** Pause the workflow; resume via `Workflow.resume({...})`. */
   readonly suspend: (payload?: unknown) => Promise<never>;
+  /**
+   * SE29 — the workflow's shared state (from `WorkflowOptions.initialState`,
+   * mutated by {@link setState}), visible to every subsequent step in the run.
+   * `undefined` when no `initialState`/`setState` has run. Persisted across
+   * suspend/resume.
+   */
+  readonly state: unknown;
+  /**
+   * SE29 — update the shared state for subsequent steps. Validated against
+   * `WorkflowOptions.stateSchema` when set (a mismatch throws
+   * {@link WorkflowStateError}, which fails the step/run — Rule 8).
+   */
+  readonly setState: (next: unknown) => void;
 }
 
 /* ─── Result types ─── */
@@ -154,13 +167,16 @@ export interface WorkflowRun<TOutput = unknown> {
 }
 
 export interface WorkflowSnapshot {
-  readonly _schemaVersion: 1;
+  /** v1 = pre-SE29 (no `state`); v2 = SE29 (carries `state`). Resume reads both. */
+  readonly _schemaVersion: 1 | 2;
   readonly runId: string;
   readonly workflowName: string;
   readonly currentStepId: string;
   readonly suspendedPayload?: unknown;
   readonly stepResults: ReadonlyArray<StepResult>;
   readonly accumulatedInput: unknown;
+  /** SE29 — shared state captured at suspend (v2). Absent on a v1 snapshot. */
+  readonly state?: unknown;
   readonly suspendedAt: number;
 }
 
@@ -222,6 +238,20 @@ export interface WorkflowOptions {
    * Only validated on the `completed` path (suspended/failed runs skip it).
    */
   readonly outputSchema?: ZodType;
+  /**
+   * SE29 — Zod schema for the workflow's shared state (see `StepContext.state` /
+   * `setState`). When set, `initialState` and every `setState(next)` are
+   * validated against it (a mismatch throws {@link WorkflowStateError}). When
+   * `initialState` is absent, `state` starts as `undefined` and validation fires
+   * on the first `setState` call.
+   */
+  readonly stateSchema?: ZodType;
+  /**
+   * SE29 — the initial shared state, seeded onto `StepContext.state` before
+   * step 1. Validated against `stateSchema` when both are set. Persisted across
+   * suspend/resume.
+   */
+  readonly initialState?: unknown;
   /** Internal — minted at `.commit()`. Not user-facing. */
   readonly workflowId?: string;
 }
@@ -283,6 +313,20 @@ export class WorkflowOutputError extends Error {
     public readonly detail: string,
   ) {
     super(`Workflow "${workflowName}" output failed schema validation: ${detail}`);
+  }
+}
+
+/**
+ * SE29 — `WorkflowOptions.stateSchema` rejected an `initialState` or a
+ * `setState(next)` call. `detail` is a pre-formatted issues summary.
+ */
+export class WorkflowStateError extends Error {
+  override readonly name = "WorkflowStateError";
+  constructor(
+    public readonly workflowName: string,
+    public readonly detail: string,
+  ) {
+    super(`Workflow "${workflowName}" state failed schema validation: ${detail}`);
   }
 }
 

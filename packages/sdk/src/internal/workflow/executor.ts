@@ -8,7 +8,6 @@
  * @internal
  */
 
-import type { ZodType } from "zod";
 import {
   type Step,
   type StepContext,
@@ -23,9 +22,16 @@ import {
   type WorkflowRunOptions,
   type WorkflowSnapshot,
   WorkflowSnapshotNotFoundError,
+  WorkflowStateError,
 } from "../../types/workflow.js";
 import { combineSignals, makeStepContext, WorkflowSuspendedSentinel } from "./ctx.js";
 import { errToShape } from "./error-shape.js";
+import {
+  abortRun,
+  assembleRun,
+  makeStateController,
+  validateWorkflowSchema,
+} from "./executor-helpers.js";
 import { mintRunId } from "./run-id.js";
 import { acquireSingleFlight } from "./single-flight.js";
 import { getSnapshotStoreFor } from "./snapshot-store.js";
@@ -54,6 +60,8 @@ async function handleSuspend<T>(
     options: WorkflowOptions;
     startedAt: number;
     stepSpan: ReturnType<typeof startWorkflowStepSpan>;
+    /** SE29 — the StepContext, read for its current shared `state`. */
+    stepCtx: StepContext;
   },
 ): Promise<SuspendOutcome<T>> {
   try {
@@ -64,6 +72,7 @@ async function handleSuspend<T>(
       suspendedPayload: err.payload,
       stepResults: ctx.stepResults,
       accumulatedInput: ctx.acc,
+      state: ctx.stepCtx.state, // SE29 — capture the shared state at suspend
       options: ctx.options,
     });
   } catch (snapErr) {
@@ -125,7 +134,7 @@ async function runOneStep<T>(args: {
     result = await dispatchStep(args.step, args.acc, args.ctx, args.options, args.stepResults);
   } catch (err) {
     if (err instanceof WorkflowSuspendedSentinel) {
-      const outcome = await handleSuspend<T>(err, { ...args, stepSpan });
+      const outcome = await handleSuspend<T>(err, { ...args, stepSpan, stepCtx: args.ctx });
       return { kind: "terminal", run: outcome.run };
     }
     result = {
@@ -143,23 +152,6 @@ async function runOneStep<T>(args: {
   return { kind: "ok", result };
 }
 
-function abortRun<T>(
-  name: string,
-  runId: string,
-  startedAt: number,
-  stepResults: StepResult[],
-  signal: AbortSignal,
-): WorkflowRun<T> {
-  return assembleRun<T>({
-    runId,
-    name,
-    status: "cancelled",
-    stepResults,
-    startedAt,
-    error: { name: "AbortError", message: String(signal.reason ?? "Aborted") },
-  });
-}
-
 interface LoopParams {
   options: WorkflowOptions;
   steps: ReadonlyArray<Step>;
@@ -174,29 +166,49 @@ interface LoopParams {
   onStepEvent?: (event: WorkflowEvent) => void;
 }
 
-/** SE27 — validate a value against a whole-workflow schema. Returns a compact
- * issues string on failure, `undefined` when the schema is absent or matches. */
-function validateWorkflowSchema(schema: ZodType | undefined, value: unknown): string | undefined {
-  if (schema === undefined) return undefined;
-  let parsed: ReturnType<ZodType["safeParse"]>;
-  try {
-    parsed = schema.safeParse(value);
-  } catch {
-    // A schema with an async refinement throws synchronously from safeParse
-    // ("Encountered Promise during synchronous parse"). Surface it as a
-    // validation issue (→ status:"failed") instead of escaping run() (never-throw).
-    return "schema uses async refinements, which whole-workflow validation does not support (use a synchronous Zod schema)";
+/** Emit events + branch on one step's outcome. Returns a terminal run, or the new acc. */
+function handleStepOutcome<TO>(
+  outcome: { kind: "ok"; result: StepResult } | { kind: "terminal"; run: WorkflowRun<TO> },
+  step: Step,
+  loop: { stepResults: StepResult[]; runId: string; name: string; startedAt: number },
+  onStepEvent?: (event: WorkflowEvent) => void,
+): { terminal: WorkflowRun<TO> } | { acc: unknown } {
+  if (outcome.kind === "terminal") {
+    // A snapshot-SAVE failure also returns terminal (status "failed") — only emit
+    // workflow_suspended when the run actually suspended (else the consumer would
+    // resume a run with no snapshot). A failed terminal has no event; read `result`.
+    if (outcome.run.status === "suspended") {
+      onStepEvent?.({ type: "workflow_suspended", stepId: step.id });
+    }
+    return { terminal: outcome.run };
   }
-  if (parsed.success) return undefined;
-  return parsed.error.issues
-    .map((issue) => `${issue.path.join(".") || "(root)"}: ${issue.message}`)
-    .join("; ");
+  loop.stepResults.push(outcome.result);
+  if (outcome.result.status === "failed") {
+    onStepEvent?.({
+      type: "step_failed",
+      stepId: step.id,
+      error: outcome.result.error ?? { name: "WorkflowStepError", message: "step failed" },
+    });
+    return {
+      terminal: assembleRun<TO>({
+        runId: loop.runId,
+        name: loop.name,
+        status: "failed",
+        stepResults: loop.stepResults,
+        startedAt: loop.startedAt,
+        error: outcome.result.error,
+      }),
+    };
+  }
+  onStepEvent?.({ type: "step_completed", stepId: step.id, output: outcome.result.output });
+  return { acc: outcome.result.output };
 }
 
 async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
   const { options, steps, ctx, runId, startedAt, signal, onStepEvent } = params;
   // M3 #62 — seed with prior step outputs so a resumed workflow is not lossy.
   const stepResults: StepResult[] = [...(params.initialStepResults ?? [])];
+  const loop = { stepResults, runId, name: options.name, startedAt };
   let acc: unknown = params.input;
   for (const step of steps) {
     if (signal.aborted) return abortRun<TO>(options.name, runId, startedAt, stepResults, signal);
@@ -211,29 +223,9 @@ async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
       name: options.name,
       startedAt,
     });
-    if (outcome.kind === "terminal") {
-      // terminal = the step suspended (the sentinel path in runOneStep).
-      onStepEvent?.({ type: "workflow_suspended", stepId: step.id });
-      return outcome.run;
-    }
-    stepResults.push(outcome.result);
-    if (outcome.result.status === "failed") {
-      onStepEvent?.({
-        type: "step_failed",
-        stepId: step.id,
-        error: outcome.result.error ?? { name: "WorkflowStepError", message: "step failed" },
-      });
-      return assembleRun<TO>({
-        runId,
-        name: options.name,
-        status: "failed",
-        stepResults,
-        startedAt,
-        error: outcome.result.error,
-      });
-    }
-    onStepEvent?.({ type: "step_completed", stepId: step.id, output: outcome.result.output });
-    acc = outcome.result.output;
+    const handled = handleStepOutcome<TO>(outcome, step, loop, onStepEvent);
+    if ("terminal" in handled) return handled.terminal;
+    acc = handled.acc;
   }
   // SE27 — validate the whole-workflow output only on the terminal completed path.
   const outputIssues = validateWorkflowSchema(options.outputSchema, acc);
@@ -265,6 +257,8 @@ type InternalRunOpts = WorkflowRunOptions & {
   readonly initialStepResults?: ReadonlyArray<StepResult>;
   /** SE28 — internal step-event sink threaded by `Workflow.stream()`. */
   readonly onStepEvent?: (event: WorkflowEvent) => void;
+  /** SE29 — shared state restored from a snapshot on resume. */
+  readonly restoredState?: unknown;
 };
 
 export async function executeWorkflow<TInput, TOutput>(
@@ -287,7 +281,12 @@ export async function executeWorkflow<TInput, TOutput>(
     return abortRun<TOutput>(options.name, runId, startedAt, [], signal);
   }
 
-  const ctx: StepContext = makeStepContext(runId, signal);
+  const internal = runOpts as InternalRunOpts | undefined;
+  // SE29 — seed shared state from the resume snapshot (if any) else initialState.
+  const seededState =
+    internal?.restoredState !== undefined ? internal.restoredState : options.initialState;
+  const stateController = makeStateController(options, seededState);
+  const ctx: StepContext = makeStepContext(runId, signal, stateController);
   try {
     // SE27 — validate the whole-workflow input BEFORE any step runs (fail-fast).
     const inputIssues = validateWorkflowSchema(options.inputSchema, input);
@@ -301,7 +300,21 @@ export async function executeWorkflow<TInput, TOutput>(
         error: errToShape(new WorkflowInputError(options.name, inputIssues)),
       });
     }
-    const internal = runOpts as InternalRunOpts | undefined;
+    // SE29 — validate the seeded state (fail-fast) before any step reads it.
+    const stateIssues =
+      seededState !== undefined
+        ? validateWorkflowSchema(options.stateSchema, seededState)
+        : undefined;
+    if (stateIssues !== undefined) {
+      return assembleRun<TOutput>({
+        runId,
+        name: options.name,
+        status: "failed",
+        stepResults: [],
+        startedAt,
+        error: errToShape(new WorkflowStateError(options.name, stateIssues)),
+      });
+    }
     return await runStepsLoop<TOutput>({
       options,
       steps,
@@ -356,30 +369,6 @@ export async function dispatchStep(
   }
 }
 
-interface AssembleParams<TO> {
-  runId: string;
-  name: string;
-  status: WorkflowRun["status"];
-  stepResults: ReadonlyArray<StepResult>;
-  startedAt: number;
-  output?: TO;
-  error?: { name: string; message: string };
-}
-
-function assembleRun<TO>(params: AssembleParams<TO>): WorkflowRun<TO> {
-  const endedAt = Date.now();
-  return {
-    id: params.runId,
-    name: params.name,
-    status: params.status,
-    startedAt: params.startedAt,
-    endedAt,
-    stepResults: params.stepResults,
-    ...(params.output !== undefined ? { output: params.output } : {}),
-    ...(params.error !== undefined ? { error: params.error } : {}),
-  };
-}
-
 interface SnapshotParams {
   runId: string;
   workflowName: string;
@@ -387,18 +376,21 @@ interface SnapshotParams {
   suspendedPayload?: unknown;
   stepResults: ReadonlyArray<StepResult>;
   accumulatedInput: unknown;
+  /** SE29 — shared state captured at suspend. */
+  state: unknown;
   options: WorkflowOptions;
 }
 
 async function saveSnapshot(p: SnapshotParams): Promise<void> {
   const snapshot: WorkflowSnapshot = {
-    _schemaVersion: 1,
+    _schemaVersion: 2, // SE29 — carries `state`
     runId: p.runId,
     workflowName: p.workflowName,
     currentStepId: p.currentStepId,
     suspendedPayload: p.suspendedPayload,
     stepResults: p.stepResults,
     accumulatedInput: p.accumulatedInput,
+    ...(p.state !== undefined ? { state: p.state } : {}),
     suspendedAt: Date.now(),
   };
   const store = getSnapshotStoreFor(p.options);
@@ -461,5 +453,8 @@ export async function resumeWorkflow<TO>(opts: WorkflowResumeOptions): Promise<W
     runId: opts.runId,
     // M3 #62 — restore prior step outputs so the resumed run is not lossy (internal seam).
     initialStepResults: snapshot.stepResults,
+    // SE29 — restore shared state (v2 snapshot). A v1 snapshot has no `state` →
+    // executeWorkflow falls back to `options.initialState`.
+    ...(snapshot.state !== undefined ? { restoredState: snapshot.state } : {}),
   } as InternalRunOpts);
 }
