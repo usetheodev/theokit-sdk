@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createGitDiffTool } from "../src/git-diff.js";
+import { textHandler } from "./_text-handler.js";
 
 let projectRoot: string;
 
@@ -40,7 +41,7 @@ describe("createGitDiffTool — happy path", () => {
     writeFileSync(join(projectRoot, "file.txt"), "modified\n");
 
     const tool = createGitDiffTool({ projectRoot });
-    const out = await tool.handler({});
+    const out = await textHandler(tool)({});
     const parsed = JSON.parse(out) as { ok: boolean; diff: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.diff).toContain("-original");
@@ -54,7 +55,7 @@ describe("createGitDiffTool — happy path", () => {
     execSync("git commit -m init --quiet", { cwd: projectRoot });
 
     const tool = createGitDiffTool({ projectRoot });
-    const out = await tool.handler({});
+    const out = await textHandler(tool)({});
     const parsed = JSON.parse(out) as { ok: boolean; diff: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.diff).toBe("");
@@ -70,7 +71,7 @@ describe("createGitDiffTool — happy path", () => {
     writeFileSync(join(projectRoot, "b.txt"), "b-new\n");
 
     const tool = createGitDiffTool({ projectRoot });
-    const out = await tool.handler({ path: "a.txt" });
+    const out = await textHandler(tool)({ path: "a.txt" });
     const parsed = JSON.parse(out) as { diff: string };
     expect(parsed.diff).toContain("a-old");
     expect(parsed.diff).not.toContain("b-old");
@@ -87,7 +88,7 @@ describe("createGitDiffTool — staged + cached flag", () => {
     execSync("git add file.txt", { cwd: projectRoot });
 
     const tool = createGitDiffTool({ projectRoot });
-    const out = await tool.handler({ cached: true });
+    const out = await textHandler(tool)({ cached: true });
     const parsed = JSON.parse(out) as { diff: string };
     expect(parsed.diff).toContain("+staged");
   });
@@ -97,7 +98,7 @@ describe("createGitDiffTool — safety boundaries", () => {
   it("Given path traversal in scope, Then error='path_traversal'", async () => {
     initRepo();
     const tool = createGitDiffTool({ projectRoot });
-    const out = await tool.handler({ path: "../etc/passwd" });
+    const out = await textHandler(tool)({ path: "../etc/passwd" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
@@ -106,7 +107,7 @@ describe("createGitDiffTool — safety boundaries", () => {
   it("Given a non-git directory, Then error='not_a_repo'", async () => {
     // No initRepo() — projectRoot has no .git
     const tool = createGitDiffTool({ projectRoot });
-    const out = await tool.handler({});
+    const out = await textHandler(tool)({});
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("not_a_repo");

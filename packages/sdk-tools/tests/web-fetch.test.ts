@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { isBlockedIp, resolveAndScreen, SsrfBlockedError, screenedFetch } from "../src/index.js";
 import { createWebFetchTool } from "../src/web-fetch.js";
+import { textHandler } from "./_text-handler.js";
 
 describe("createWebFetchTool — tool shape", () => {
   it("Given the factory, Then it returns a CustomTool with name='web_fetch'", () => {
@@ -14,7 +15,7 @@ describe("createWebFetchTool — tool shape", () => {
 describe("createWebFetchTool — URL validation", () => {
   it("Given an invalid URL, Then result is { ok: false, error: 'invalid_url' }", async () => {
     const tool = createWebFetchTool();
-    const out = await tool.handler({ url: "not-a-url" });
+    const out = await textHandler(tool)({ url: "not-a-url" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("invalid_url");
@@ -22,7 +23,7 @@ describe("createWebFetchTool — URL validation", () => {
 
   it("Given a file:// URL, Then result is { ok: false, error: 'invalid_url' }", async () => {
     const tool = createWebFetchTool();
-    const out = await tool.handler({ url: "file:///etc/passwd" });
+    const out = await textHandler(tool)({ url: "file:///etc/passwd" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("invalid_url");
@@ -30,7 +31,7 @@ describe("createWebFetchTool — URL validation", () => {
 
   it("Given a ftp:// URL, Then result is { ok: false, error: 'invalid_url' }", async () => {
     const tool = createWebFetchTool();
-    const out = await tool.handler({ url: "ftp://example.com/file" });
+    const out = await textHandler(tool)({ url: "ftp://example.com/file" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("invalid_url");
@@ -40,7 +41,7 @@ describe("createWebFetchTool — URL validation", () => {
 describe("createWebFetchTool — timeout", () => {
   it("Given an unreachable host with short timeout, Then result is timeout or fetch_failed", async () => {
     const tool = createWebFetchTool({ defaultTimeoutMs: 500 });
-    const out = await tool.handler({ url: "http://192.0.2.1:1/" }); // TEST-NET — unreachable
+    const out = await textHandler(tool)({ url: "http://192.0.2.1:1/" }); // TEST-NET — unreachable
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(["timeout", "fetch_failed"]).toContain(parsed.error);
@@ -49,19 +50,19 @@ describe("createWebFetchTool — timeout", () => {
 
 describe("createWebFetchTool — SSRF guard (M3-1)", () => {
   it("test_web_fetch_blocks_loopback_ip", async () => {
-    const out = await createWebFetchTool().handler({ url: "http://127.0.0.1/" });
+    const out = await textHandler(createWebFetchTool())({ url: "http://127.0.0.1/" });
     expect(JSON.parse(out)).toMatchObject({ ok: false, error: "ssrf_blocked" });
   });
 
   it("test_web_fetch_blocks_metadata_ip", async () => {
-    const out = await createWebFetchTool().handler({
+    const out = await textHandler(createWebFetchTool())({
       url: "http://169.254.169.254/latest/meta-data/",
     });
     expect(JSON.parse(out)).toMatchObject({ ok: false, error: "ssrf_blocked" });
   });
 
   it("test_web_fetch_blocks_ipv6_loopback", async () => {
-    const out = await createWebFetchTool().handler({ url: "http://[::1]/" });
+    const out = await textHandler(createWebFetchTool())({ url: "http://[::1]/" });
     expect(JSON.parse(out)).toMatchObject({ ok: false, error: "ssrf_blocked" });
   });
 
@@ -69,7 +70,7 @@ describe("createWebFetchTool — SSRF guard (M3-1)", () => {
     // With the opt-out, the screen is skipped — the request reaches fetch and fails
     // for a non-SSRF reason (connection refused on port 1), NOT "ssrf_blocked".
     const tool = createWebFetchTool({ allowPrivateHosts: true, defaultTimeoutMs: 500 });
-    const parsed = JSON.parse(await tool.handler({ url: "http://127.0.0.1:1/" }));
+    const parsed = JSON.parse(await textHandler(tool)({ url: "http://127.0.0.1:1/" }));
     expect(parsed.ok).toBe(false);
     expect(parsed.error).not.toBe("ssrf_blocked");
   }, 10_000);
@@ -86,7 +87,7 @@ describe("createWebFetchTool — happy path (live)", () => {
   it("Given a valid HTTPS URL, When fetched, Then returns content and status", async () => {
     // Use a well-known tiny endpoint
     const tool = createWebFetchTool({ defaultTimeoutMs: 10_000 });
-    const out = await tool.handler({ url: "https://httpbin.org/robots.txt" });
+    const out = await textHandler(tool)({ url: "https://httpbin.org/robots.txt" });
     const parsed = JSON.parse(out);
     // Network/service may be unavailable — accept ok with any status or fetch_failed
     if (parsed.ok) {
@@ -111,21 +112,21 @@ describe("createWebFetchTool — redirect policy + injection seam (no network)",
 
   it("Given maxRedirects:0 and a 3xx, Then error is 'redirect_blocked'", async () => {
     const tool = createWebFetchTool({ maxRedirects: 0, lookup: pubLookup, fetchImpl: fetch3xx });
-    const out = JSON.parse(await tool.handler({ url: "http://public.test/redir" }));
+    const out = JSON.parse(await textHandler(tool)({ url: "http://public.test/redir" }));
     expect(out.ok).toBe(false);
     expect(out.error).toBe("redirect_blocked");
   });
 
   it("Given a private host, Then error is 'ssrf_blocked' (distinct from redirect)", async () => {
     const tool = createWebFetchTool({ maxRedirects: 0, lookup: privLookup, fetchImpl: fetch200 });
-    const out = JSON.parse(await tool.handler({ url: "http://private.test/" }));
+    const out = JSON.parse(await textHandler(tool)({ url: "http://private.test/" }));
     expect(out.ok).toBe(false);
     expect(out.error).toBe("ssrf_blocked");
   });
 
   it("Given a public host and a 200, Then content is returned (no spurious block)", async () => {
     const tool = createWebFetchTool({ maxRedirects: 0, lookup: pubLookup, fetchImpl: fetch200 });
-    const out = JSON.parse(await tool.handler({ url: "http://public.test/ok" }));
+    const out = JSON.parse(await textHandler(tool)({ url: "http://public.test/ok" }));
     expect(out.ok).toBe(true);
     expect(out.content).toBe("hello");
   });
@@ -139,7 +140,7 @@ describe("createWebFetchTool — redirect policy + injection seam (no network)",
         : new Response("final", { status: 200, headers: { "content-type": "text/plain" } });
     };
     const tool = createWebFetchTool({ lookup: pubLookup, fetchImpl: fetchSeq });
-    const out = JSON.parse(await tool.handler({ url: "http://public.test/start" }));
+    const out = JSON.parse(await textHandler(tool)({ url: "http://public.test/start" }));
     expect(out.ok).toBe(true);
     expect(out.content).toBe("final");
   });

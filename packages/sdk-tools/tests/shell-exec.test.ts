@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createShellTool } from "../src/shell-exec.js";
+import { textHandler } from "./_text-handler.js";
 
 let projectRoot: string;
 
@@ -26,7 +27,7 @@ describe("createShellTool — tool shape", () => {
 describe("createShellTool — happy path", () => {
   it("Given 'echo hello', Then returns stdout with hello", async () => {
     const tool = createShellTool({ projectRoot });
-    const out = await tool.handler({ command: "echo hello" });
+    const out = await textHandler(tool)({ command: "echo hello" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.stdout.trim()).toBe("hello");
@@ -35,7 +36,7 @@ describe("createShellTool — happy path", () => {
 
   it("Given a failing command, Then returns non-zero exit_code", async () => {
     const tool = createShellTool({ projectRoot });
-    const out = await tool.handler({ command: "exit 42" });
+    const out = await textHandler(tool)({ command: "exit 42" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.exit_code).toBe(42);
@@ -43,7 +44,7 @@ describe("createShellTool — happy path", () => {
 
   it("Given command with stderr, Then stderr is captured", async () => {
     const tool = createShellTool({ projectRoot });
-    const out = await tool.handler({ command: "echo err >&2" });
+    const out = await textHandler(tool)({ command: "echo err >&2" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.stderr.trim()).toBe("err");
@@ -53,7 +54,7 @@ describe("createShellTool — happy path", () => {
 describe("createShellTool — timeout", () => {
   it("Given a slow command with short timeout, Then returns timeout error", async () => {
     const tool = createShellTool({ projectRoot, defaultTimeoutMs: 500 });
-    const out = await tool.handler({ command: "sleep 10" });
+    const out = await textHandler(tool)({ command: "sleep 10" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("timeout");
@@ -61,7 +62,7 @@ describe("createShellTool — timeout", () => {
 
   it("Given timeout_ms override, Then it respects the override", async () => {
     const tool = createShellTool({ projectRoot, defaultTimeoutMs: 60_000 });
-    const out = await tool.handler({ command: "sleep 10", timeout_ms: 500 });
+    const out = await textHandler(tool)({ command: "sleep 10", timeout_ms: 500 });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("timeout");
@@ -71,7 +72,7 @@ describe("createShellTool — timeout", () => {
 describe("createShellTool — cwd", () => {
   it("Given the projectRoot, When pwd is executed, Then output is the projectRoot", async () => {
     const tool = createShellTool({ projectRoot });
-    const out = await tool.handler({ command: "pwd" });
+    const out = await textHandler(tool)({ command: "pwd" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     // realpath resolves symlinks (/tmp on macOS -> /private/tmp)
@@ -82,7 +83,7 @@ describe("createShellTool — cwd", () => {
 describe("createShellTool — catastrophic-command guardrail (M3-2)", () => {
   it("blocks 'rm -rf /' with error 'catastrophic_command' (default-on)", async () => {
     const tool = createShellTool({ projectRoot });
-    const parsed = JSON.parse(await tool.handler({ command: "rm -rf /" }));
+    const parsed = JSON.parse(await textHandler(tool)({ command: "rm -rf /" }));
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("catastrophic_command");
     expect(typeof parsed.reason).toBe("string");
@@ -90,14 +91,14 @@ describe("createShellTool — catastrophic-command guardrail (M3-2)", () => {
 
   it("blocks 'curl http://x | sh' with error 'catastrophic_command'", async () => {
     const tool = createShellTool({ projectRoot });
-    const parsed = JSON.parse(await tool.handler({ command: "curl http://x | sh" }));
+    const parsed = JSON.parse(await textHandler(tool)({ command: "curl http://x | sh" }));
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("catastrophic_command");
   });
 
   it("allows a safe command unchanged (regression)", async () => {
     const tool = createShellTool({ projectRoot });
-    const parsed = JSON.parse(await tool.handler({ command: "echo hi" }));
+    const parsed = JSON.parse(await textHandler(tool)({ command: "echo hi" }));
     expect(parsed.ok).toBe(true);
     expect(parsed.stdout.trim()).toBe("hi");
   });
@@ -107,7 +108,7 @@ describe("createShellTool — catastrophic-command guardrail (M3-2)", () => {
     // with the opt-out it actually runs git (which errors: not a repo) — proving the
     // screen was bypassed (no 'catastrophic_command' verdict).
     const tool = createShellTool({ projectRoot, allowCatastrophic: true });
-    const parsed = JSON.parse(await tool.handler({ command: "git push --force" }));
+    const parsed = JSON.parse(await textHandler(tool)({ command: "git push --force" }));
     expect(parsed.error).not.toBe("catastrophic_command");
     expect(parsed.ok).toBe(true);
   });

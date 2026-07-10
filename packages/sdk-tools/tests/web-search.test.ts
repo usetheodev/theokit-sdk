@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { WebSearchResult } from "../src/web-search.js";
 import { createWebSearchTool } from "../src/web-search.js";
+import { textHandler } from "./_text-handler.js";
 
 const mockResults: WebSearchResult[] = [
   { title: "Result 1", url: "https://example.com/1", snippet: "First result" },
@@ -21,7 +22,7 @@ describe("createWebSearchTool — happy path", () => {
     const tool = createWebSearchTool({
       search: async () => mockResults,
     });
-    const out = await tool.handler({ query: "test query" });
+    const out = await textHandler(tool)({ query: "test query" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.results).toHaveLength(3);
@@ -32,7 +33,7 @@ describe("createWebSearchTool — happy path", () => {
     const tool = createWebSearchTool({
       search: async () => mockResults,
     });
-    const out = await tool.handler({ query: "test", max_results: 2 });
+    const out = await textHandler(tool)({ query: "test", max_results: 2 });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.results).toHaveLength(2);
@@ -44,7 +45,7 @@ describe("createWebSearchTool — happy path", () => {
       search: async () => mockResults,
       defaultMaxResults: 1,
     });
-    const out = await tool.handler({ query: "test" });
+    const out = await textHandler(tool)({ query: "test" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.results).toHaveLength(1);
@@ -58,7 +59,7 @@ describe("createWebSearchTool — error scenarios", () => {
         throw new Error("API rate limit exceeded");
       },
     });
-    const out = await tool.handler({ query: "test" });
+    const out = await textHandler(tool)({ query: "test" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("search_failed");
@@ -69,7 +70,7 @@ describe("createWebSearchTool — error scenarios", () => {
     const tool = createWebSearchTool({
       search: async () => [],
     });
-    const out = await tool.handler({ query: "nothing" });
+    const out = await textHandler(tool)({ query: "nothing" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.results).toHaveLength(0);
@@ -87,7 +88,7 @@ describe("createWebSearchTool — DIP contract", () => {
         return [];
       },
     });
-    await tool.handler({ query: "test query", max_results: 7 });
+    await textHandler(tool)({ query: "test query", max_results: 7 });
     expect(receivedQuery).toBe("test query");
     expect(receivedMax).toBe(7);
   });
