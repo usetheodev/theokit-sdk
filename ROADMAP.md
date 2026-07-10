@@ -471,7 +471,7 @@ comparison (2026-07-10).
 
 **Why now:** completes the `onDelegationStart` CONTEXT parity — SE11 gave the decision, SE13 gives the cap, SE15 gives the signal to decide on; the reject-after-N-iterations pattern needs it.
 
-### SE16 — [ ] `outputSchema` on `defineTool` (validate the tool's return)
+### SE16 — [x] `outputSchema` on `defineTool` (validate the tool's return)
 
 **Objective:** Let a tool declare and validate its OUTPUT shape. `defineTool` today validates only
 `inputSchema` (Zod, `define-tool.ts:25`) — the handler's return is passed through unvalidated. Mastra's
