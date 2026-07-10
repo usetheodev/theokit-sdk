@@ -139,6 +139,42 @@ describe("defineSubAgent", () => {
     expect(result).toBe("(no response)");
   });
 
+  it("forwards ctx.signal to the child agent.send (SE10 — cancellation propagation)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+    });
+    const controller = new AbortController();
+    await tool.handler({ input: "task" }, { signal: controller.signal });
+
+    // The parent run's AbortSignal must reach the child so aborting the parent
+    // cancels the in-flight subagent at its next step.
+    expect(mockSend).toHaveBeenCalledWith("task", { signal: controller.signal });
+  });
+
+  it("omits signal when invoked without ctx (SE10 — single-arg back-compat)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+    });
+    await tool.handler({ input: "task" });
+
+    // No ctx ⇒ no signal option: exactly the pre-SE10 call shape.
+    expect(mockSend).toHaveBeenCalledWith("task");
+  });
+
   it("respects custom maxDelegationDepth", () => {
     expect(() =>
       defineSubAgent(
