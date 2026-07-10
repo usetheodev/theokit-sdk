@@ -32,7 +32,19 @@ export function validateCloudToolParity(options: AgentOptions): void {
   if (options.cloud === undefined) return;
   rejectFunctionSystemPrompt(options);
   rejectFunctionSkills(options);
+  rejectProcessors(options);
   rejectStdioMcpLocalPaths(options);
+}
+
+function rejectProcessors(options: AgentOptions): void {
+  const hasProcessors =
+    (options.inputProcessors?.length ?? 0) > 0 || (options.outputProcessors?.length ?? 0) > 0;
+  if (hasProcessors) {
+    throw new ConfigurationError(
+      "Cloud agents can't run guardrail processors — a Processor carries function handlers that don't survive serialization to PaaS. Run processors on a local agent, or move the guardrail into a server-side gateway in front of TheoCloud.",
+      { code: "cloud_incompatible_function_resolver" },
+    );
+  }
 }
 
 function rejectFunctionSystemPrompt(options: AgentOptions): void {

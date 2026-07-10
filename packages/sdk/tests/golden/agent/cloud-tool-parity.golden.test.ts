@@ -89,6 +89,30 @@ describe("validateCloudToolParity (ADR D15/D16)", () => {
     });
   });
 
+  describe("rejections — guardrail processors (SE24)", () => {
+    it("rejects a cloud agent that declares inputProcessors", async () => {
+      await expect(
+        Agent.create({
+          apiKey: FIXTURE_KEY,
+          model: MODEL,
+          cloud: { repos: REPOS },
+          inputProcessors: [{ id: "guard", processInput: (ctx) => ctx.message }],
+        }),
+      ).rejects.toMatchObject({ code: "cloud_incompatible_function_resolver" });
+    });
+
+    it("rejects a cloud agent that declares outputProcessors", async () => {
+      await expect(
+        Agent.create({
+          apiKey: FIXTURE_KEY,
+          model: MODEL,
+          cloud: { repos: REPOS },
+          outputProcessors: [{ id: "redact", processOutput: (ctx) => ctx.text }],
+        }),
+      ).rejects.toMatchObject({ code: "cloud_incompatible_function_resolver" });
+    });
+  });
+
   describe("rejections — stdio MCP with local-FS path (cloud_incompatible_mcp_stdio_local, EC-3)", () => {
     it("rejects absolute path /usr/local/bin/x", async () => {
       await expect(
