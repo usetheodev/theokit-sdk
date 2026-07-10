@@ -445,6 +445,32 @@ results are appended to the delegation payload surfaced to the supervisor; text-
 
 **Why now:** the remaining delegation-result gap vs a peer framework; with SE12 (context IN) it gives full, opt-in control of the subagent context boundary in BOTH directions.
 
+### SE15 — [ ] `iteration` count in delegation-hook context (reject-after-N)
+
+**Objective:** Give `onDelegationStart` / `onDelegationComplete` the current delegation iteration count
+so a hook can decide on it — a peer framework's documented "reject delegation after too many iterations"
+(`if (context.iteration > 8) return { proceed: false, rejectionReason }`). a peer framework's delegation context
+is `{ primitiveId, prompt, iteration }`; TheoKit's `DelegationStartContext` today is `{ input, name }` —
+it can reject (SE11) but has NO iteration count to base the decision on. Add a per-`defineSubAgent`-instance
+invocation counter surfaced as `iteration` on both hook contexts. From the a peer framework supervisor-agents
+comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `DelegationStartContext` + `DelegationCompleteContext` gain `iteration: number` — the 1-based count of times THIS subagent tool has been invoked (a per-`defineSubAgent`-instance closure counter).
+- [ ] The counter increments once per handler invocation BEFORE `onDelegationStart` runs, so the hook sees the current iteration; a rejected (`proceed:false`) delegation still counts as an iteration.
+- [ ] Back-compat: hooks that ignore `iteration` are unaffected; specs without hooks are unchanged.
+- [ ] TDD: three successive delegations see `iteration` 1, 2, 3; a hook rejecting when `iteration > 2` lets the first two run and rejects the third (child never runs on the third); `onDelegationComplete` sees the same iteration as its `onDelegationStart`.
+- [ ] Docs + Changeset.
+
+**Dependencies:** SE11 (the hook contexts `DelegationStartContext` / `DelegationCompleteContext`).
+
+**Top risks (new):**
+1. Counter scope ambiguity (per-tool-instance vs per-run). Mitigation: a per-`defineSubAgent`-instance closure counter — documented; a fresh `defineSubAgent(...)` starts at 1. Matches a peer framework's per-subagent iteration semantics.
+2. Concurrency (parallel delegations of the same tool instance). Mitigation: the increment is synchronous at handler entry; document that the count reflects invocation order, not wall-clock concurrency.
+
+**Why now:** completes the `onDelegationStart` CONTEXT parity — SE11 gave the decision, SE13 gives the cap, SE15 gives the signal to decide on; the reject-after-N-iterations pattern needs it.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
