@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createGlobTool } from "../src/glob-files.js";
+import { textHandler } from "./_text-handler.js";
 
 let projectRoot: string;
 
@@ -32,7 +33,7 @@ describe("createGlobTool — tool shape", () => {
 describe("createGlobTool — happy path", () => {
   it("Given pattern '**/*.ts', Then returns all .ts files", async () => {
     const tool = createGlobTool({ projectRoot });
-    const out = await tool.handler({ pattern: "**/*.ts" });
+    const out = await textHandler(tool)({ pattern: "**/*.ts" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.files).toContain("src/index.ts");
@@ -42,7 +43,7 @@ describe("createGlobTool — happy path", () => {
 
   it("Given pattern '*.md', Then returns only root .md files", async () => {
     const tool = createGlobTool({ projectRoot });
-    const out = await tool.handler({ pattern: "*.md" });
+    const out = await textHandler(tool)({ pattern: "*.md" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.files).toContain("README.md");
@@ -51,7 +52,7 @@ describe("createGlobTool — happy path", () => {
 
   it("Given cwd='src', pattern='*.ts', Then returns files relative to project root", async () => {
     const tool = createGlobTool({ projectRoot });
-    const out = await tool.handler({ pattern: "*.ts", cwd: "src" });
+    const out = await textHandler(tool)({ pattern: "*.ts", cwd: "src" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.files).toContain("src/index.ts");
@@ -63,7 +64,7 @@ describe("createGlobTool — exclusions", () => {
     mkdirSync(join(projectRoot, "node_modules/dep"), { recursive: true });
     writeFileSync(join(projectRoot, "node_modules/dep/index.js"), "module.exports = {}");
     const tool = createGlobTool({ projectRoot });
-    const out = await tool.handler({ pattern: "**/*.js" });
+    const out = await textHandler(tool)({ pattern: "**/*.js" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     const nodeModFiles = parsed.files.filter((f: string) => f.includes("node_modules"));
@@ -74,7 +75,7 @@ describe("createGlobTool — exclusions", () => {
     mkdirSync(join(projectRoot, ".git"));
     writeFileSync(join(projectRoot, ".git/config"), "[core]");
     const tool = createGlobTool({ projectRoot });
-    const out = await tool.handler({ pattern: "**/*" });
+    const out = await textHandler(tool)({ pattern: "**/*" });
     const parsed = JSON.parse(out);
     const gitFiles = parsed.files.filter((f: string) => f.includes(".git"));
     expect(gitFiles).toHaveLength(0);
@@ -84,7 +85,7 @@ describe("createGlobTool — exclusions", () => {
 describe("createGlobTool — safety boundaries", () => {
   it("Given cwd with path traversal, Then result is { ok: false, error: 'path_traversal' }", async () => {
     const tool = createGlobTool({ projectRoot });
-    const out = await tool.handler({ pattern: "*.ts", cwd: "../../.." });
+    const out = await textHandler(tool)({ pattern: "*.ts", cwd: "../../.." });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");

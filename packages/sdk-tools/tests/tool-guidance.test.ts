@@ -11,6 +11,7 @@ import {
   withToolResultGuidance,
 } from "../src/internal/tool-guidance.js";
 import { createReadFileTool } from "../src/read-file.js";
+import { textHandler } from "./_text-handler.js";
 
 const fakeTool = (name: string, output: string): CustomTool => ({
   name,
@@ -24,7 +25,7 @@ describe("withShellExitGuidance — shell_exec ok:true soft failure", () => {
     const t = withShellExitGuidance(
       fakeTool("shell_exec", '{"ok":true,"stderr":"boom","exit_code":2}'),
     );
-    const r = JSON.parse(await t.handler({}));
+    const r = JSON.parse(await textHandler(t)({}));
     expect(r.guidance).toMatch(/exit/i);
     expect(r.guidance).toMatch(/2/);
   });
@@ -39,7 +40,8 @@ describe("withShellExitGuidance — shell_exec ok:true soft failure", () => {
   it("is idempotent when guidance already present", async () => {
     const withG = '{"ok":true,"exit_code":1,"guidance":"keep me"}';
     expect(
-      JSON.parse(await withShellExitGuidance(fakeTool("shell_exec", withG)).handler({})).guidance,
+      JSON.parse(await textHandler(withShellExitGuidance(fakeTool("shell_exec", withG)))({}))
+        .guidance,
     ).toBe("keep me");
   });
   it("never throws on non-JSON output", async () => {
@@ -149,7 +151,7 @@ describe("withToolResultGuidance / withDefaultGuidance", () => {
 
     it("injects guidance on a real failing read_file (not_found)", async () => {
       const tool = withDefaultGuidance(createReadFileTool({ projectRoot }));
-      const parsed = JSON.parse(await tool.handler({ path: "nope.txt" }));
+      const parsed = JSON.parse(await textHandler(tool)({ path: "nope.txt" }));
       expect(parsed.ok).toBe(false);
       expect(parsed.error).toBe("not_found");
       expect(typeof parsed.guidance).toBe("string");
@@ -158,14 +160,14 @@ describe("withToolResultGuidance / withDefaultGuidance", () => {
     it("passes a successful read_file through without guidance", async () => {
       writeFileSync(join(projectRoot, "hi.txt"), "hello");
       const tool = withDefaultGuidance(createReadFileTool({ projectRoot }));
-      const parsed = JSON.parse(await tool.handler({ path: "hi.txt" }));
+      const parsed = JSON.parse(await textHandler(tool)({ path: "hi.txt" }));
       expect(parsed.ok).toBe(true);
       expect(parsed.guidance).toBeUndefined();
     });
 
     it("flows a CUSTOM guidance map end-to-end through the wrapper", async () => {
       const tool = withToolResultGuidance(createReadFileTool({ projectRoot }), MAP);
-      const parsed = JSON.parse(await tool.handler({ path: "nope.txt" }));
+      const parsed = JSON.parse(await textHandler(tool)({ path: "nope.txt" }));
       expect(parsed.guidance).toBe("use list_dir to find the path");
     });
   });
@@ -177,7 +179,7 @@ describe("withToolResultGuidance / withDefaultGuidance", () => {
       inputSchema: { type: "object" } as Record<string, unknown>,
       handler: () => '{"ok":false,"error":"not_found"}',
     };
-    const parsed = JSON.parse(await withDefaultGuidance(syncTool).handler({}));
+    const parsed = JSON.parse(await textHandler(withDefaultGuidance(syncTool))({}));
     expect(typeof parsed.guidance).toBe("string");
   });
 });

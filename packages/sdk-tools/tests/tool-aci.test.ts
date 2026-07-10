@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToolList, withDescription } from "../src/internal/tool-aci.js";
 import { createReadFileTool } from "../src/read-file.js";
+import { textHandler } from "./_text-handler.js";
 
 function fakeTool(name: string, description: string) {
   return {
@@ -36,7 +37,7 @@ describe("withDescription", () => {
       writeFileSync(join(projectRoot, "hi.txt"), "hello");
       const tool = withDescription(createReadFileTool({ projectRoot }), "custom desc");
       expect(tool.description).toBe("custom desc");
-      const parsed = JSON.parse(await tool.handler({ path: "hi.txt" }));
+      const parsed = JSON.parse(await textHandler(tool)({ path: "hi.txt" }));
       expect(parsed.ok).toBe(true);
     } finally {
       rmSync(projectRoot, { recursive: true, force: true });
