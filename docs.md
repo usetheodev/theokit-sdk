@@ -66,6 +66,19 @@ Each event is a discriminated SDKMessage. Streaming shows how to extract assista
 
 Model selection (SE8). `model` accepts a bare-string id — `model: "openai/gpt-4o-mini"` — as well as the `{ id }` object; both `AgentOptions.model`, `SendOptions.model` (per-send override), and `AgentBuilder.model()` take either. The string is the ergonomic default; use the object form when you need `params` (reasoning/temperature tuning): `model: { id: "…", params: [...] }`. An empty string throws a typed `ConfigurationError`.
 
+Integrated structured output — agent.generate (SE9). When you want a validated, typed object back — not just text — call `agent.generate(input, { output: schema })`. It runs the normal tool loop (your tools run first) and then coerces the final answer into the Zod schema, returning `{ object, result, raw, usage }` where `object` is fully typed:
+
+  import { z } from "zod";
+  const Invoice = z.object({ total: z.number(), date: z.string() });
+  const { object, result } = await agent.generate("Extract the invoice fields", {
+    output: Invoice,
+    // ...any SendOptions (tools, toolChoice, maxIterations) drive the tool loop
+  });
+  // object: { total: number; date: string }  ← inferred + Zod-validated
+  // result: the underlying tool-loop RunResult (status / usage / model)
+
+It is sugar over `Agent.generateObject` (the synthetic forced-`output`-tool machinery), not a fork: phase 1 is your own `agent.send()` run, phase 2 structures the final answer. `SendOptions` drive phase 1; `maxRetries` / `errorStrategy` (`"throw"` | `"return-partial"` | `"return-raw"`) tune the structuring phase. A run that errors before an answer surfaces a typed `GenerateObjectError` — never structuring over a failed run. Available on both local and cloud agents. For a standalone structuring call without a tool loop, use `Agent.generateObject({ schema, prompt, model })`.
+
 Creating agents
 
 function Agent.create(options: AgentOptions): Promise<SDKAgent>;

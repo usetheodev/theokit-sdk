@@ -424,3 +424,44 @@ export interface Run {
   /** Subscribe to status changes. Returns an unsubscribe function. */
   onDidChangeStatus(listener: (status: RunStatus) => void): () => void;
 }
+
+/**
+ * SE9 — options for the integrated structured-output method `agent.generate`: the
+ * {@link SendOptions} that drive the tool loop (phase 1) plus the required `output`
+ * Zod schema and structuring knobs (phase 2). Co-located with `SendOptions` /
+ * `RunResult` (which they extend/use) so the public `SDKAgent` interface does not
+ * import the runtime `agent-generate` module (breaks the type cycle).
+ *
+ * @public
+ */
+export interface GenerateOptions<T extends import("zod").ZodType> extends SendOptions {
+  /** Zod schema the final answer is coerced into (the structuring contract). */
+  output: T;
+  /** Retry budget on the structuring phase's parse-failures (reused from generateObject). Default 1. */
+  maxRetries?: number;
+  /**
+   * What the STRUCTURING phase (phase 2) does when the model's output still fails
+   * Zod validation after retries. Default `"throw"`. `"return-partial"` / `"return-raw"`
+   * salvage the object; the salvaged/raw value is in {@link GenerateRunResult.raw}
+   * (the pre-parse structuring input) — NOT the phase-1 text answer, which is in
+   * `result.result`.
+   */
+  errorStrategy?: "throw" | "return-partial" | "return-raw";
+}
+
+/**
+ * SE9 — result of `agent.generate`: the validated typed object plus the underlying
+ * tool-loop {@link RunResult} (status / usage / model) and the raw pre-parse input.
+ *
+ * @public
+ */
+export interface GenerateRunResult<O> {
+  /** The validated object — inferred type from the `output` schema. */
+  object: O;
+  /** The underlying tool-loop run (phase 1). */
+  result: RunResult;
+  /** Raw model input to the synthetic `output` tool, before the Zod parse. */
+  raw: unknown;
+  /** Combined token usage of the structuring phase. */
+  usage: { inputTokens: number; outputTokens: number };
+}
