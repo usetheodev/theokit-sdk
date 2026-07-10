@@ -1,5 +1,38 @@
 # Changelog
 
+## 2.22.0
+
+### Minor Changes
+
+- 12cb30d: **SE10 — subagent delegation forwards the parent's `AbortSignal` (cancellation propagation).**
+
+  `defineSubAgent()` (from `@theokit/sdk/a2a`) now threads the run's cancellation into the child agent. When the agent loop dispatches the subagent tool it already passes the run's `AbortSignal` as the handler's `ctx.signal`; the subagent handler now forwards that signal to the child `agent.send(input, { signal })`. Aborting the parent run cancels the in-flight subagent at its next step instead of letting it run to completion (and burn tokens).
+
+  - Additive + backward-compatible: a handler invoked with no `ctx` (single-arg call sites) behaves exactly as before — no signal, no cancellation.
+  - The child agent is still disposed in `finally`, including on cancel.
+
+  Matches the a peer framework supervisor-agents "abortSignal forwarded to delegated subagents" behavior (SDK Evolution roadmap SE10).
+
+- 8e3249d: **SE11 — delegation lifecycle hooks on `defineSubAgent` (`onDelegationStart` / `onDelegationComplete`).**
+
+  `SubAgentSpec` (from `@theokit/sdk/a2a`) gains two optional hooks that let the caller intercept a delegation as it happens:
+
+  - `onDelegationStart({ input, name })` — return `{ proceed: false, rejectionReason }` to reject the delegation (the child never runs; `rejectionReason` becomes the tool result), or `{ modifiedInput }` to rewrite the prompt sent to the child.
+  - `onDelegationComplete({ input, name, result?, error? })` — runs after the delegation settles; on success an optional `{ feedback }` is appended to the child's result, and on failure `ctx.error` is set (the error is still re-thrown — never swallowed, Unbreakable Rule 8).
+
+  Additive + backward-compatible: specs without hooks behave exactly as before. New exported types: `DelegationStartContext`, `DelegationStartDecision`, `DelegationCompleteContext`, `DelegationCompleteDecision`.
+
+  Matches the a peer framework supervisor `onDelegationStart` / `onDelegationComplete` control points (SDK Evolution roadmap SE11).
+
+- d2d0d16: **SE12 — opt-in parent-context forwarding for subagents (`messageFilter`).**
+
+  `SubAgentSpec` (from `@theokit/sdk/a2a`) gains an optional `messageFilter`. When set, `defineSubAgent` forwards a filtered view of the supervisor's conversation to the child; when absent, the child runs input-only — **memory isolation stays the default**.
+
+  - New `ctx.messages` on the custom-tool handler `ToolContext`: a **read-only, text-only** projection of the current turn's transcript (`ToolContextMessage[]`), threaded by the agent loop the same way `ctx.signal` (#65) and `ctx.context` (M7) are. Non-text parts (tool calls / results) are dropped — a tool never sees raw wire parts or nested tool args.
+  - `messageFilter({ messages, input, name })` returns the subset to forward; `defineSubAgent` prepends it to the delegated input as a role-tagged context preamble. A filter returning `[]` forwards nothing. A filter that drops sensitive turns (e.g. anything `confidential`) provably keeps them out of the child context.
+
+  New exported types: `ToolContextMessage`, `MessageFilterArgs`. Additive + backward-compatible. Rationale + the transcript-exposure trade-off are recorded in ADR 0005. From the a peer framework supervisor-agents comparison (SDK Evolution roadmap SE12).
+
 ## 2.21.0
 
 ### Minor Changes
