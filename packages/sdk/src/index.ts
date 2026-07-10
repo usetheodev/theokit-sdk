@@ -181,6 +181,8 @@ export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
+// SE4 — session-management surface over ConversationStorage.
+export { createSessionManager } from "./session-manager.js";
 // M3 #62 — scoped session state helpers (app:/user:/temp:).
 export { type SessionScope, scopedConversationId, sessionScopePrefix } from "./session-scope.js";
 // Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
@@ -213,6 +215,7 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
 export type { CustomTool, SDKAgent } from "./types/agent.js";
+export type { SessionMeta, SessionMetaPatch } from "./types/conversation-storage.js";
 // Type contract
 export type * from "./types/index.js";
 // SE3 — multi-agent provenance. Explicit re-export so rollup-dts surfaces it in
@@ -232,3 +235,11 @@ export {
   type RunTaskUpdatedEvent,
   type RunToolProgressEvent,
 } from "./types/run-events.js";
+// SE4 — explicit type re-exports so rollup-dts surfaces them in the bundled .d.ts
+// (the `export type *` star does not reliably propagate — same reason as CustomTool).
+export type {
+  SessionCapabilityResult,
+  SessionListOptions,
+  SessionManager,
+  SessionSummary,
+} from "./types/session.js";

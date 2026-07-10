@@ -160,7 +160,7 @@ who triggered them. Metadata-only; no behavior change.
 
 **Why now:** we ship `a2a`/`Squad` but no provenance metadata; Anthropic's `origin` is the clean, proven shape.
 
-### SE4 — [ ] Session management surface
+### SE4 — [x] Session management surface
 
 **Objective:** Expose a session-management API over the `ConversationStorage` interface —
 `listSessions` / `getSessionMessages` / `renameSession` / `tagSession` — matching the Anthropic
