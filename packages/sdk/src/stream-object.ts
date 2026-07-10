@@ -22,7 +22,8 @@ export interface StreamObjectOptions<T extends ZodType> {
   schema: T;
   prompt: string;
   systemPrompt?: string;
-  model: ModelSelection;
+  /** SE8 — accepts a bare-string id shorthand or a {@link ModelSelection}. */
+  model: string | ModelSelection;
   apiKey?: string;
   local: LocalOptions;
   maxRetries?: number;

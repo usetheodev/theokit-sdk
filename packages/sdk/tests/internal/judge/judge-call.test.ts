@@ -9,6 +9,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { composeJudgePrompt, judgeCallImpl } from "../../../src/internal/judge/judge-call.js";
+import { normalizeModel } from "../../../src/internal/runtime/model-selection.js";
 import type { AgentOptions, SDKAgent } from "../../../src/types/agent.js";
 
 function buildFakeJudgeAgent(
@@ -65,7 +66,7 @@ describe("judgeCallImpl (T2.2)", () => {
     expect(result.verdict).toBe("done");
     expect(result.parseFailed).toBe(false);
     expect(createdOptions?.tools).toEqual([]);
-    expect(createdOptions?.model?.id).toBe("openai/gpt-4o-mini");
+    expect(normalizeModel(createdOptions?.model)?.id).toBe("openai/gpt-4o-mini");
   });
 
   it("uses options.judgeModel override", async () => {
@@ -76,7 +77,7 @@ describe("judgeCallImpl (T2.2)", () => {
       { judgeModel: "anthropic/claude-haiku-3-5" },
       {
         create: async (opts) => {
-          createdModel = opts.model?.id;
+          createdModel = normalizeModel(opts.model)?.id;
           return buildFakeJudgeAgent(opts, "CONTINUE: more work");
         },
       },

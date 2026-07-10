@@ -266,6 +266,57 @@ the first multimodal `tool_result` path, provider-agnostically.
 
 **Why now:** the one real tool-ergonomics gap in a plain string-only tool result; user-requested.
 
+### SE8 — [x] Model string shorthand (`model: "openai/gpt-4o-mini"`)
+
+**Objective:** Accept a **bare string** model id (`model: "openai/gpt-4o-mini"`) everywhere a model is
+selected — `AgentOptions.model` and `SendOptions.model` — in addition to the current
+`{ id: string }` object. Every peer (LangChain / Mastra `"provider/model"`, OpenAI Agents, AI SDK)
+takes a bare string; requiring `{ id: … }` is the single most constant first-5-minutes DX friction.
+The id already parses a `provider/model` prefix — this is a boundary-normalization convenience, not a
+routing change. From the DX comparison vs the 4 reference SDKs (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `AgentOptions.model` + `SendOptions.model` accept `string | ModelSelection`; a string is normalized to `{ id: string }` at ONE seam (not scattered).
+- [ ] Back-compat: the `{ id }` (and `{ id, params }`) object form is unchanged.
+- [ ] TDD: a string model resolves identically to `{ id }`; the `provider/` prefix still routes; params-requiring cases still use the object form (documented).
+- [ ] Docs + Changeset; update examples/templates to the shorthand.
+
+**Dependencies:** none (purely additive DX; the model resolver already parses `provider/model`).
+
+**Top risks (new):**
+1. `ModelSelection.params` needs the object form. Mitigation: the string covers the common no-params case; document that tuning params requires `{ id, params }`.
+2. A call site typed only as `ModelSelection` (not the new union) silently rejects a string. Mitigation: audit the model call sites; normalize once at the public boundary.
+
+**Why now:** cheapest high-perception DX win from the reference comparison — near-trivial, additive.
+
+### SE9 — [ ] Integrated structured output on the run (`SendOptions.output`)
+
+**Objective:** Return a **validated typed object FROM the agent run** — `agent.send(input, { output: schema })`
+runs the tool loop and then coerces the final answer into the schema, surfaced on the run result —
+instead of a separate `generateObject` call. Matches LangChain `response_format` (`structured_response`)
+and the AI SDK `Output.object` (`{ output }`). This is the most substantive DX-capability gap found in
+the reference comparison: today you cannot say "run the loop AND give me a typed object" in one call.
+
+**Definition of done:**
+
+- [ ] `SendOptions.output` (a Zod schema) that, when set, makes the run return the validated structured object on the run result (e.g. `RunResult.output`), with the inferred type on `run.wait()`.
+- [ ] Tools still run first; structuring happens on the final turn. **Sugar over the existing `generateObject` synthetic-forced-tool machinery (ADR D33) — reuse, do NOT fork** (Don't-Reinvent).
+- [ ] Failure is typed: a schema-parse failure surfaces a typed error (not a silent empty/undefined).
+- [ ] Precedence with `toolChoice` / `maxIterations` defined + documented.
+- [ ] TDD: a run with tools + an `output` schema returns the typed object; a parse failure surfaces the typed error.
+- [ ] Docs + Changeset.
+
+**Dependencies:** the existing `generateObject` (ADR D33 synthetic forced tool); SE2 (typed events, optional).
+
+**Top risks (new):**
+1. Duplicating the two-model reason→structure flow already in `generateObject`. Mitigation: compose over it, one structuring seam.
+2. Streaming variant (`streamObject`) scope-creep. Mitigation: ship non-streaming `output` first; streamed structured output is a follow-up ADR.
+3. Interaction with `toolChoice: "required"` / iteration ceiling. Mitigation: explicit precedence rules + tests.
+
+**Why now:** the biggest DX-capability gap vs LangChain + AI SDK; both integrate structured output into
+the agent run and it is a common ask.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the

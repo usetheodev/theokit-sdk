@@ -4,6 +4,7 @@ import type { AgentOptions } from "../../../types/agent.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import { readVersionedJson, writeVersionedJson } from "../../persistence/schema-version.js";
 import { asPluginsSettings } from "../../plugins/enabled-names.js";
+import { normalizeModel } from "../model-selection.js";
 import type { AgentRuntime, RegisteredAgent } from "./agent-registry-contract.js";
 
 /**
@@ -65,7 +66,10 @@ export function stripSecretsFromOptions(options: AgentOptions): SerializedAgentO
   // rehydration; custom tools must be re-passed via Agent.resume(id, { tools: [...] }).
   return assignDefined<SerializedAgentOptions>({
     name: options.name,
-    model: options.model !== undefined ? { id: options.model.id } : undefined,
+    model: (() => {
+      const m = normalizeModel(options.model);
+      return m !== undefined ? { id: m.id } : undefined;
+    })(),
     systemPrompt: typeof options.systemPrompt === "string" ? options.systemPrompt : undefined,
     local: serializeLocal(options.local),
     cloud: serializeCloud(options.cloud),

@@ -46,7 +46,8 @@ export class AgentBuilder {
     this.deps = deps;
   }
 
-  model(m: ModelSelection): this {
+  /** SE8 — accepts a bare-string id shorthand (`"openai/gpt-4o-mini"`) or a {@link ModelSelection}. */
+  model(m: string | ModelSelection): this {
     this.opts.model = m;
     return this;
   }
