@@ -274,7 +274,12 @@ export interface SDKUserMessage {
  * @public
  */
 export interface SendOptions {
-  model?: ModelSelection;
+  /**
+   * Per-send model override. SE8 — accepts a bare-string id shorthand
+   * (`"openai/gpt-4o-mini"`, normalized to `{ id }`) OR a {@link ModelSelection}
+   * object (use the object form to pass `params`).
+   */
+  model?: string | ModelSelection;
   /**
    * SE3 — provenance of this turn (who triggered it). Stamped by the multi-agent
    * path (Squad peer, a2a sender, coordinator/handoff, background task-notification)

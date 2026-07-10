@@ -71,7 +71,9 @@ export function makeOutputTool(
  * model + local + tools[output] + systemPrompt + apiKey.
  */
 export function buildTransientAgentOptions(params: {
-  model: ModelSelection;
+  // SE8 — accepts the bare-string shorthand; forwarded to AgentOptions.model
+  // (normalized at Agent.create).
+  model: string | ModelSelection;
   local: LocalOptions;
   outputTool: CustomTool;
   systemPrompt?: string;
