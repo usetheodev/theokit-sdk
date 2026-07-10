@@ -13,6 +13,7 @@ import { join } from "node:path";
 
 import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { textHandler } from "./_text-handler.js";
 
 const FAKE_AGENT = { agentId: "test-agent", model: undefined } as never;
 
@@ -76,7 +77,7 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
     const search = tools.find((t) => t.name === "memory_search");
     if (search === undefined) throw new Error("missing memory_search");
 
-    const raw = await search.handler({ query: "peanuts" });
+    const raw = await textHandler(search)({ query: "peanuts" });
     const parsed = JSON.parse(raw) as SearchResult;
     expect(parsed.ok).toBe(true);
     expect(parsed.count).toBe(1);
@@ -91,7 +92,7 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
     const search = tools.find((t) => t.name === "memory_search");
     if (search === undefined) throw new Error("missing memory_search");
 
-    const raw = await search.handler({ query: "nonexistent-needle" });
+    const raw = await textHandler(search)({ query: "nonexistent-needle" });
     const parsed = JSON.parse(raw) as SearchResult;
     expect(parsed.ok).toBe(true);
     expect(parsed.count).toBe(0);
@@ -105,7 +106,7 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
     const search = tools.find((t) => t.name === "memory_search");
     if (search === undefined) throw new Error("missing memory_search");
 
-    const raw = await search.handler({ query: "" });
+    const raw = await textHandler(search)({ query: "" });
     const parsed = JSON.parse(raw) as SearchResult;
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("empty query");
@@ -119,7 +120,7 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
     const search = tools.find((t) => t.name === "memory_search");
     if (search === undefined) throw new Error("missing memory_search");
 
-    const raw = await search.handler({ query: "anything" });
+    const raw = await textHandler(search)({ query: "anything" });
     expect(typeof raw).toBe("string");
     expect(() => JSON.parse(raw)).not.toThrow();
   });
@@ -144,7 +145,7 @@ describe("memory_search LLM-facing tool (iter 35)", () => {
     const search = tools.find((t) => t.name === "memory_search");
     if (search === undefined) throw new Error("missing");
 
-    const raw = await search.handler({ query: "shared-needle" });
+    const raw = await textHandler(search)({ query: "shared-needle" });
     const parsed = JSON.parse(raw) as SearchResult;
     expect(parsed.count).toBe(5);
     expect(parsed.results?.length).toBe(5);
