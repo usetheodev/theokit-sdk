@@ -215,6 +215,10 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 export type { CustomTool, SDKAgent } from "./types/agent.js";
 // Type contract
 export type * from "./types/index.js";
+// SE3 — multi-agent provenance. Explicit re-export so rollup-dts surfaces it in
+// the bundled .d.ts (the `export type *` star does not reliably propagate — same
+// reason as `CustomTool` above).
+export type { MessageOrigin } from "./types/run.js";
 // SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
 export {
   emitRunEvent,
