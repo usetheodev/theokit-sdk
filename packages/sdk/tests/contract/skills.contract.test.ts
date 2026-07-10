@@ -52,6 +52,25 @@ describe("skills contract", () => {
     );
   });
 
+  it("agent.skills.get(name) returns a filesystem skill's full body (SE20)", async () => {
+    workspace = await createTempWorkspace("project-with-skills");
+    const options: ProposedAgentOptions = {
+      apiKey: "theo_test_contract_key",
+      model: { id: "google/gemini-2.0-flash-001" },
+      local: { cwd: workspace.cwd, settingSources: ["project"] },
+      skills: { enabled: ["code-review"] },
+    };
+    agent = (await Agent.create(options)) as ProposedSDKAgent;
+
+    const detail = await agent.skills.get("code-review");
+    expect(detail?.name).toBe("code-review");
+    // The body `list()` deliberately hides from the block is available via `get`.
+    expect(detail?.instructions).toContain("Check public API compatibility, runtime behavior");
+    expect(detail?.instructions).not.toContain("---"); // frontmatter stripped
+
+    await expect(agent.skills.get("no-such-skill")).resolves.toBeUndefined();
+  });
+
   it("reload picks up new skills and SKIPS malformed skill frontmatter (graceful-degrade, EC-5)", async () => {
     workspace = await createTempWorkspace("project-with-skills");
     const options: ProposedAgentOptions = {
@@ -96,5 +115,8 @@ type ProposedAgentOptions = AgentOptions & {
 type ProposedSDKAgent = SDKAgent & {
   skills: {
     list(): Promise<Array<{ name: string; description: string }>>;
+    get(
+      name: string,
+    ): Promise<{ name: string; description: string; instructions: string } | undefined>;
   };
 };

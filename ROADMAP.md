@@ -573,6 +573,107 @@ agents-as-tools via `defineSubAgent`, SE10–15; workflows-as-tools). a peer fra
 
 **Why now:** completes the a peer framework "X as tools" trio; the `Workflow` primitive already carries the schemas the helper needs, so it is a thin, additive composition.
 
+### SE20 — [x] `agent.skills.get(name)` — read a skill's full body programmatically
+
+**Objective:** Programmatic access to a skill's INSTRUCTIONS from application code. `agent.skills.list()`
+already exists (`SDKAgentSkills.list()`, `types/agent.ts:121`) but returns name + description only
+(`SystemPromptSkillRef`), never the body. a peer framework exposes `agent.getSkill(name)` returning the skill WITH
+its `instructions`. Add `SDKAgentSkills.get(name)` that returns the full skill — name, description, and the
+body (read from the SKILL.md `source` for filesystem skills, or the inline `instructions` for `createSkill`
+skills). From the a peer framework Agent-skills comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `SDKAgentSkills.get(name: string): Promise<{ name; description; instructions } | undefined>` — returns the resolved skill including its body; `undefined` when no enabled skill matches.
+- [ ] Filesystem skills read the body from their `source` SKILL.md; inline (`createSkill`) skills return their `instructions` directly.
+- [ ] `list()` is unchanged (name + description only — the block stays lean; full bodies only via `get`).
+- [ ] A malformed / excluded skill is not returned by `get` (same exclusion as `list`).
+- [ ] TDD: `get` returns the body for an inline skill and for a filesystem skill; `undefined` for an unknown name; excluded skills are absent.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (extends the existing `SDKAgentSkills` handle + `skills-manager`).
+
+**Top risks (new):**
+1. Reading the SKILL.md body lazily per `get` (I/O). Mitigation: read on demand (not eagerly cached) — `get` is an app-side call, not a hot loop.
+2. Body of an inline skill vs a filesystem skill diverge in source. Mitigation: the skills-manager already distinguishes inline (`source: inline://…`) from filesystem — branch on `source`.
+
+**Why now:** the cheapest skills-access parity gap; `list()` already exists, so `get` is a thin sibling reading the body the manager can already reach.
+
+### SE21 — [ ] `references` on `createSkill` (bundle supporting docs on an inline skill)
+
+**Objective:** Let an inline `createSkill` bundle supporting documents, matching a filesystem skill's
+`references/` directory. a peer framework's `createSkill` takes a `references: { 'file.md': '...' }` map. TheoKit's
+`CreateSkillSpec` (`create-skill.ts`) has only name / description / instructions — an inline skill cannot
+carry references. Add an optional `references?: Record<string, string>` to `CreateSkillSpec`, surfaced via
+SE20's `get(name)` (and readable by the consumer). From the a peer framework Agent-skills comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `CreateSkillSpec.references?: Record<string, string>` (filename → content); carried on the `InlineSkill`.
+- [ ] The references are exposed through `agent.skills.get(name)` (SE20) so an app / a consumer tool can read them; absent ⇒ no references (unchanged).
+- [ ] Back-compat: inline skills without `references` behave exactly as today.
+- [ ] TDD: an inline skill with `references` surfaces them via `get`; without ⇒ empty/absent.
+- [ ] Docs + Changeset; **ADR** if surfacing references to the MODEL (not just the app) needs a read tool — the eager `<skills>` block only carries name + description, so a model-facing reference read is a separate mechanism (skill_read tool) intentionally deferred.
+
+**Dependencies:** SE20 (`get` is the read path that surfaces `references`).
+
+**Top risks (new):**
+1. Model-facing consumption of references. Mitigation: SE21 surfaces references to the APP via `get`; a model-facing `skill_read`-style tool is OUT OF SCOPE here (TheoKit uses eager `<skills>` disclosure — see § Explicitly out of scope / the disclosure-mechanism ADR).
+2. Reference size / injection. Mitigation: `references` is app-read only in SE21; no auto-injection into the prompt.
+
+**Why now:** completes inline-skill parity with filesystem skills' `references/`; pairs with SE20 as its read path.
+
+### SE22 — [ ] Dynamic skills resolver (`skills: (ctx) => SkillInput[]`)
+
+**Objective:** Per-request skill resolution. a peer framework accepts `skills: ({ requestContext }) => SkillInput[]`
+so an agent picks its skills from runtime context (e.g. user role). TheoKit's `AgentOptions.skills` is a
+STATIC `SkillsSettings` object. TheoKit ALREADY has a dynamic **systemPrompt** resolver
+(`types/agent.ts:343`); mirror that shape for skills — accept a resolver function evaluated per run. From
+the a peer framework Agent-skills comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `AgentOptions.skills` accepts a resolver `(ctx) => SkillsSettings | Promise<SkillsSettings>` in addition to the static object; evaluated per run before skill discovery/assembly.
+- [ ] Back-compat: a static `SkillsSettings` object behaves exactly as today.
+- [ ] The resolver receives a documented context (mirror the systemPrompt resolver's `ctx`); the SDK imposes no timeout (consumer wraps their own).
+- [ ] TDD: a resolver returning different skills for different contexts is honored per run; a static object is unchanged.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (mirrors the existing systemPrompt-resolver pattern).
+
+**Top risks (new):**
+1. When the resolver runs relative to skill discovery / caching. Mitigation: evaluate per `send` before assembly (like the systemPrompt resolver); document that a cached `getOrCreate` agent re-resolves per run.
+2. Resolver error handling. Mitigation: a throwing resolver fails the run fast (typed error), never silently falls back — Rule 8.
+
+**Why now:** completes the skills-config parity; the dynamic-resolver pattern already exists for `systemPrompt`, so this is a consistent, additive extension.
+
+### SE23 — [ ] `defineSkillReadTool` — opt-in model-facing lazy skill read
+
+**Objective:** Give the MODEL on-demand access to a skill's full body + references via an OPT-IN tool —
+WITHOUT auto-injecting a built-in tool (bring-your-own-tools). a peer framework ships `skill_read`/`skill_search`
+tools that auto-inject; TheoKit uses the eager `<skills>` system-prompt block (name + description) for
+discovery. Add a `defineSkillReadTool(skills)` FACTORY (sibling of `defineSubAgent` / `workflowAsTool`)
+that returns a `CustomTool` the consumer explicitly adds to the agent's `tools`; when the model calls it
+with a skill name, it returns that skill's `instructions` (+ SE21 `references`). Opt-in preserves the
+bring-your-own-tools principle — the SDK does NOT auto-inject skills tools. From the a peer framework Agent-skills
+comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `defineSkillReadTool(skills: InlineSkill[])` returns a `CustomTool` (name `skill_read`) whose input is a skill name; the handler returns the matching skill's `instructions` and (SE21) `references`; an unknown name returns a typed "not found" tool result (a string the model can act on, NOT a throw that kills the run).
+- [ ] The tool is OPT-IN — the consumer adds it to `tools`; the SDK never auto-injects it (bring-your-own-tools preserved).
+- [ ] Back-compat: nothing changes for agents that don't add the tool.
+- [ ] TDD: the tool returns a skill's body + references by name; an unknown name returns the not-found result; the returned value is a valid `CustomTool`.
+- [ ] Docs + Changeset; **ADR** recording the opt-in-factory decision (vs a peer framework's auto-injected tools) + the eager-block + lazy-read hybrid.
+
+**Dependencies:** SE21 (`references` on the inline skill — the tool surfaces them).
+
+**Top risks (new):**
+1. Bring-your-own-tools boundary. Mitigation: a FACTORY the consumer adds (like `defineSubAgent` / `workflowAsTool`), never auto-injected — the ADR records this as the resolution of the disclosure-mechanism question (§ Explicitly out of scope built-in tools stays intact: this ships a factory, not an auto-injected toolset).
+2. Skill body size in the tool result. Mitigation: return the body as-is; the consumer controls which skills they expose by choosing what to pass to the factory.
+
+**Why now:** completes the a peer framework skills-read parity as an OPT-IN factory (consistent with `defineSubAgent` / `workflowAsTool`), resolving the eager-block-vs-lazy-tool question without violating bring-your-own-tools.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the

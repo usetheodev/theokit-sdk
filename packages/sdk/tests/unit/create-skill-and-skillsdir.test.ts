@@ -77,3 +77,43 @@ describe("M22 — SkillsManager inline + skillsDir", () => {
     expect(shared[0]?.description).toBe("the INLINE version");
   });
 });
+
+describe("SE20 — SkillsManager.get(name) (full body)", () => {
+  it("returns an inline skill's carried instructions", async () => {
+    const inline = [
+      createSkill({
+        name: "summarize",
+        description: "Summarize",
+        instructions: "Do a 2-line summary.",
+      }),
+    ];
+    const mgr = new SkillsManager("/nonexistent", undefined, false, undefined, inline);
+    await mgr.initialize();
+
+    const skill = await mgr.get("summarize");
+    expect(skill).toEqual({
+      name: "summarize",
+      description: "Summarize",
+      instructions: "Do a 2-line summary.",
+    });
+  });
+
+  it("reads a filesystem skill's body from its SKILL.md (frontmatter stripped)", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "se20-skills-"));
+    await writeSkill(dir, "research", "Research a topic");
+    const mgr = new SkillsManager("/unused-cwd", undefined, true, dir);
+    await mgr.initialize();
+
+    const skill = await mgr.get("research");
+    expect(skill?.name).toBe("research");
+    expect(skill?.description).toBe("Research a topic");
+    expect(skill?.instructions).toContain("Do the thing."); // the body, not the frontmatter
+    expect(skill?.instructions).not.toContain("---"); // frontmatter stripped
+  });
+
+  it("returns undefined for an unknown skill name", async () => {
+    const mgr = new SkillsManager("/nonexistent", undefined, false, undefined, []);
+    await mgr.initialize();
+    await expect(mgr.get("nope")).resolves.toBeUndefined();
+  });
+});

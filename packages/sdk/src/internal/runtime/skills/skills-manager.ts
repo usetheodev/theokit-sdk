@@ -1,6 +1,8 @@
+import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { discoverSkills, type Skill } from "./discover-skills.js";
+import { stripSkillFrontmatter } from "./skill-frontmatter.js";
 
 /**
  * Skill metadata exposed via `agent.skills.list()`. Full skill prompt bodies
@@ -9,6 +11,14 @@ import { discoverSkills, type Skill } from "./discover-skills.js";
  * @internal
  */
 export type SkillMetadata = Skill;
+
+/** SE20 — the internal `agent.skills` handle shape (list + get), shared by the runtime wiring. @internal */
+export interface SkillsHandle {
+  list: () => Promise<SkillMetadata[]>;
+  get: (
+    name: string,
+  ) => Promise<{ name: string; description: string; instructions: string } | undefined>;
+}
 
 /**
  * File-based skills loader. Discovers `.theokit/skills/<name>/SKILL.md`
@@ -68,5 +78,25 @@ export class SkillsManager {
     // Return every discovered skill — `enabled` is a runtime hint for which
     // skills the parent agent may invoke, not a visibility filter.
     return Promise.resolve(this.skills);
+  }
+
+  /**
+   * SE20 — resolve a skill by name INCLUDING its body. Inline (`createSkill`)
+   * skills carry `instructions` on the object; filesystem skills read the body
+   * from their `source` SKILL.md (frontmatter stripped). `undefined` when no
+   * enabled skill matches (malformed skills were already excluded at discovery).
+   */
+  async get(
+    name: string,
+  ): Promise<{ name: string; description: string; instructions: string } | undefined> {
+    const skill = this.skills.find((s) => s.name === name);
+    if (skill === undefined) return undefined;
+    // Inline skills carry the body; filesystem skills re-read it from `source`.
+    const inlineBody = (skill as { instructions?: string }).instructions;
+    const instructions =
+      typeof inlineBody === "string"
+        ? inlineBody
+        : stripSkillFrontmatter(await readFile(skill.source, "utf8"));
+    return { name: skill.name, description: skill.description, instructions };
   }
 }

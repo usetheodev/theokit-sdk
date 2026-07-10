@@ -15,7 +15,7 @@ import { FileContextManager } from "../context/context-manager.js";
 import { normalizeModel } from "../model-selection.js";
 import { type PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
 import { registerAgent } from "../registry/agent-registry.js";
-import { type SkillMetadata, SkillsManager } from "../skills/skills-manager.js";
+import { type SkillsHandle, SkillsManager } from "../skills/skills-manager.js";
 
 export function registerLocalAgent(args: {
   agentId: string;
@@ -43,7 +43,7 @@ export interface BootstrappedSubmanagers {
   context?: FileContextManager;
   providers?: ProvidersManagerImpl;
   skillsManager?: SkillsManager;
-  skills?: { list: () => Promise<SkillMetadata[]> };
+  skills?: SkillsHandle;
   pluginsManager?: PluginsManager;
   plugins?: { list: () => Promise<PluginMetadata[]> };
 }
@@ -81,7 +81,7 @@ export function bootstrapSubmanagers(args: {
       args.options.skills?.inline,
     );
     const localSkills = out.skillsManager;
-    out.skills = { list: () => localSkills.list() };
+    out.skills = { list: () => localSkills.list(), get: (name) => localSkills.get(name) };
   }
   if (args.options.plugins !== undefined || args.settingSourcesIncludePlugins) {
     out.pluginsManager = new PluginsManager(
