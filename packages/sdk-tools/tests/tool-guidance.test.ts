@@ -11,7 +11,7 @@ import {
   withToolResultGuidance,
 } from "../src/internal/tool-guidance.js";
 import { createReadFileTool } from "../src/read-file.js";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 const fakeTool = (name: string, output: string): CustomTool => ({
   name,

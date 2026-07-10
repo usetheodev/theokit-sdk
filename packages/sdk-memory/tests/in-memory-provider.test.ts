@@ -13,7 +13,7 @@
 import type { MemoryFact, MemoryId, SDKAgent } from "@theokit/sdk";
 import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
 import { describe, expect, it } from "vitest";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 const FAKE_AGENT: SDKAgent = { agentId: "test-agent", model: undefined } as SDKAgent;
 

@@ -16,7 +16,7 @@ import { join } from "node:path";
 
 import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 const FAKE_AGENT = { agentId: "test-agent", model: undefined } as never;
 
