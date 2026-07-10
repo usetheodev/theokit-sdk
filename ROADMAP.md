@@ -647,7 +647,7 @@ the a peer framework Agent-skills comparison (2026-07-10).
 
 **Why now:** completes the skills-config parity; the dynamic-resolver pattern already exists for `systemPrompt`, so this is a consistent, additive extension.
 
-### SE23 — [ ] `defineSkillReadTool` — opt-in model-facing lazy skill read
+### SE23 — [x] `defineSkillReadTool` — opt-in model-facing lazy skill read
 
 **Objective:** Give the MODEL on-demand access to a skill's full body + references via an OPT-IN tool —
 WITHOUT auto-injecting a built-in tool (bring-your-own-tools). a peer framework ships `skill_read`/`skill_search`
