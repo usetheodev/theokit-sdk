@@ -368,4 +368,115 @@ describe("defineSubAgent", () => {
       expect.objectContaining({ name: "worker", error: expect.any(Error) }),
     );
   });
+
+  // SE12 — opt-in parent-context forwarding via messageFilter.
+  it("messageFilter forwards the filtered parent transcript to the child as context", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      messageFilter: ({ messages }) => messages.filter((m) => m.role === "user"),
+    });
+    await tool.handler(
+      { input: "summarize" },
+      {
+        messages: [
+          { role: "user", content: "hello there" },
+          { role: "assistant", content: "assistant reply" },
+        ],
+      },
+    );
+
+    const sent = mockSend.mock.calls[0]?.[0] as string;
+    expect(sent).toContain("hello there"); // forwarded user turn
+    expect(sent).not.toContain("assistant reply"); // filtered out
+    expect(sent).toContain("summarize"); // the task itself
+  });
+
+  it("without messageFilter the child receives input only (isolation default)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+    });
+    // A transcript is available on ctx, but with no messageFilter it is NOT forwarded.
+    await tool.handler(
+      { input: "task" },
+      { messages: [{ role: "user", content: "prior history" }] },
+    );
+
+    expect(mockSend).toHaveBeenCalledWith("task");
+  });
+
+  it("messageFilter can drop a confidential message from the child context", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      messageFilter: ({ messages }) => messages.filter((m) => !m.content.includes("confidential")),
+    });
+    await tool.handler(
+      { input: "task" },
+      {
+        messages: [
+          { role: "user", content: "public info" },
+          { role: "user", content: "confidential secret" },
+        ],
+      },
+    );
+
+    const sent = mockSend.mock.calls[0]?.[0] as string;
+    expect(sent).toContain("public info");
+    expect(sent).not.toContain("confidential secret");
+  });
+
+  it("a throwing messageFilter propagates (fail-fast, never swallowed)", async () => {
+    const mockCreate = vi.fn();
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      messageFilter: () => {
+        throw new Error("filter boom");
+      },
+    });
+    await expect(
+      tool.handler({ input: "task" }, { messages: [{ role: "user", content: "hi" }] }),
+    ).rejects.toThrow("filter boom");
+    expect(mockCreate).not.toHaveBeenCalled(); // filter throws before the child is created
+  });
+
+  it("messageFilter returning an empty subset sends input only (no empty preamble)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      messageFilter: () => [],
+    });
+    await tool.handler({ input: "task" }, { messages: [{ role: "user", content: "history" }] });
+
+    expect(mockSend).toHaveBeenCalledWith("task");
+  });
 });

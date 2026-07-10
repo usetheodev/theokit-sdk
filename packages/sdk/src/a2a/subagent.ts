@@ -14,7 +14,17 @@
 
 import { z } from "zod";
 
-import type { CustomTool } from "../types/agent.js";
+import type { CustomTool, ToolContextMessage } from "../types/agent.js";
+
+/** Arguments passed to {@link SubAgentSpec.messageFilter} (SE12). */
+export interface MessageFilterArgs {
+  /** The supervisor transcript (read-only text projection) available to this delegation. */
+  messages: readonly ToolContextMessage[];
+  /** The prompt about to be delegated (after any `onDelegationStart` rewrite). */
+  input: string;
+  /** The subagent's name. */
+  name: string;
+}
 
 /** Context passed to {@link SubAgentSpec.onDelegationStart} before the child runs. */
 export interface DelegationStartContext {
@@ -73,6 +83,16 @@ export interface SubAgentSpec {
   onDelegationComplete?: (
     ctx: DelegationCompleteContext,
   ) => DelegationCompleteDecision | undefined | Promise<DelegationCompleteDecision | undefined>;
+  /**
+   * SE12 — opt-in parent-context forwarding. When set, the supervisor transcript
+   * (`ctx.messages`, a read-only text projection) is passed to this filter and the
+   * returned subset is forwarded to the child as a role-tagged context preamble
+   * prepended to the delegated input. When ABSENT the child runs input-only —
+   * memory isolation stays the default. A filter returning `[]` forwards nothing.
+   * A throwing filter propagates (fail-fast, never swallowed — same contract as
+   * `onDelegationStart`); the delegation surfaces as a tool error.
+   */
+  messageFilter?: (args: MessageFilterArgs) => readonly ToolContextMessage[];
 }
 
 export class MaxDelegationDepthError extends Error {
@@ -142,6 +162,24 @@ async function notifyDelegationError(
   }
 }
 
+/**
+ * SE12 — apply `messageFilter` (if set) and prepend the filtered supervisor
+ * transcript to the delegated input as a role-tagged context preamble. Absent
+ * filter OR no messages OR an empty filtered subset ⇒ the original input
+ * (isolation-by-default preserved).
+ */
+function applyMessageFilter(
+  spec: SubAgentSpec,
+  input: string,
+  messages: readonly ToolContextMessage[] | undefined,
+): string {
+  if (spec.messageFilter === undefined || messages === undefined) return input;
+  const filtered = spec.messageFilter({ messages, input, name: spec.name });
+  if (filtered.length === 0) return input;
+  const preamble = filtered.map((m) => `${m.role}: ${m.content}`).join("\n");
+  return `Prior conversation:\n${preamble}\n\nTask:\n${input}`;
+}
+
 /** Run the success-path `onDelegationComplete` hook; appends its `feedback` to the result. */
 async function applyDelegationComplete(
   spec: SubAgentSpec,
@@ -171,13 +209,18 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
     inputSchema: inputSchema as unknown as Record<string, unknown>,
     handler: async (
       rawInput: Record<string, unknown>,
-      ctx?: { signal?: AbortSignal; context?: unknown },
+      ctx?: {
+        signal?: AbortSignal;
+        context?: unknown;
+        messages?: readonly ToolContextMessage[];
+      },
     ): Promise<string> => {
       const { input: parsed } = inputSchema.parse(rawInput);
 
       const start = await applyDelegationStart(spec, parsed);
       if ("reject" in start) return start.reject;
-      const input = start.input;
+      // SE12 — opt-in: forward the filtered supervisor transcript as a preamble.
+      const input = applyMessageFilter(spec, start.input, ctx?.messages);
 
       let result: string;
       try {
