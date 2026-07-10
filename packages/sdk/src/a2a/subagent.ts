@@ -15,6 +15,7 @@
 import { z } from "zod";
 
 import type { CustomTool, ToolContextMessage } from "../types/agent.js";
+import type { Run } from "../types/run.js";
 
 /** Arguments passed to {@link SubAgentSpec.messageFilter} (SE12). */
 export interface MessageFilterArgs {
@@ -98,6 +99,14 @@ export interface SubAgentSpec {
    * `onDelegationStart`); the delegation surfaces as a tool error.
    */
   messageFilter?: (args: MessageFilterArgs) => readonly ToolContextMessage[];
+  /**
+   * SE14 — opt-in subagent result-context control. When `true`, the child's
+   * completed tool-call results (name + result) are appended to the delegation
+   * payload returned to the supervisor, inside a `<subagent-tool-results>` block.
+   * When absent/`false` the delegation returns the child's final text only —
+   * text-only stays the default (a peer framework's scoped posture). See ADR 0006.
+   */
+  includeToolResults?: boolean;
 }
 
 export class MaxDelegationDepthError extends Error {
@@ -131,9 +140,28 @@ async function applyDelegationStart(
 }
 
 /**
+ * SE14 — replay the child run's stream (a safe post-`wait()` idiom — the run buffers
+ * events, `stream()` replays them) and collect every completed tool-call result into
+ * a delimited block. Returns `""` when the child ran no completed tool calls. See ADR 0006.
+ */
+async function collectChildToolResults(run: Run): Promise<string> {
+  const lines: string[] = [];
+  for await (const event of run.stream()) {
+    if (event.type === "tool_call" && event.status === "completed") {
+      const rendered =
+        typeof event.result === "string" ? event.result : JSON.stringify(event.result ?? null);
+      lines.push(`${event.name}: ${rendered}`);
+    }
+  }
+  if (lines.length === 0) return "";
+  return `\n\n<subagent-tool-results>\n${lines.join("\n")}\n</subagent-tool-results>`;
+}
+
+/**
  * Create the transient child agent and send the input, composing every forwarded
  * `SendOptions` onto ONE `send` call — SE10 `signal` + SE13 `maxIterations`. Absent
- * every option ⇒ the pre-SE10 single-arg `send(input)` shape. Dispose in `finally`.
+ * every option ⇒ the pre-SE10 single-arg `send(input)` shape. SE14 — when
+ * `includeToolResults` is set, append the child's completed tool results. Dispose in `finally`.
  */
 async function runChildAgent(
   spec: SubAgentSpec,
@@ -158,7 +186,9 @@ async function runChildAgent(
         ? await agent.send(input, sendOptions)
         : await agent.send(input);
     const result = await run.wait();
-    return result.result ?? "(no response)";
+    const text = result.result ?? "(no response)";
+    // SE14 — text-only by default; opt-in appends the child's tool results.
+    return spec.includeToolResults === true ? text + (await collectChildToolResults(run)) : text;
   } finally {
     agent.dispose();
   }

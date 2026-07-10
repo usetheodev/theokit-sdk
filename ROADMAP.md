@@ -419,7 +419,7 @@ iteration count. SE11 shipped `proceed` / `rejectionReason` / `modifiedInput` an
 
 **Why now:** completes the SE11 hook contract at near-zero cost (the child cap already exists); the last missing piece of `onDelegationStart` parity.
 
-### SE14 — [ ] Subagent result-context control (`includeToolResults`)
+### SE14 — [x] Subagent result-context control (`includeToolResults`)
 
 **Objective:** Control what a completed subagent surfaces back to the supervisor. Today `defineSubAgent`
 returns only the child's final text (`RunResult.result`). a peer framework defaults to text-only and exposes
