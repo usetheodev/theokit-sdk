@@ -1,5 +1,120 @@
 # Changelog
 
+## 2.21.0
+
+### Minor Changes
+
+- 707d1e3: **SE1 — Permission model: `PermissionMode` + an enriched `canUseTool` gate.**
+
+  The existing `PermissionEngine` (rules + arg-matching + fail-closed `ask` default, #55) gains a per-run **`PermissionMode`** (`"default" | "plan" | "acceptEdits" | "bypass"`) — a pure post-processor of the rule verdict (no tool metadata needed, fits bring-your-own-tools):
+
+  - `default` — rules decide; unmatched ⇒ `ask` (fail-closed).
+  - `plan` — read-only: `allow` rules pass, everything else ⇒ `deny`.
+  - `acceptEdits` — auto-approve the UNMATCHED verdict but still honor an explicit `ask` rule (Codex `UnlessTrusted`).
+  - `bypass` — everything ⇒ `allow` EXCEPT an explicit `deny` rule (OpenCode `dangerously-skip-permissions` / Codex `Never`).
+
+  **Invariant (both OpenCode + Codex):** an explicit `deny` is immune to every auto-approve mode. `bypass`/`acceptEdits` never un-deny.
+
+  `createPermissionPlugin` gains `mode` + an enriched async **`canUseTool(toolName, input, ctx)`** gate (the Anthropic-parity shape) that resolves the `ask` verdict to allow/deny — fail-closed on absent/throwing gate. The old `onAsk(toolName)` is kept as a `@deprecated` back-compat fallback.
+
+  New exports: `PermissionMode`, `applyMode`, `PermissionGate`, `PermissionGateContext`, `PermissionGateDecision`. Additive + backward-compatible (`evaluate` mode defaults to `default`; `onAsk` still works). `updatedInput` (arg rewrite) is intentionally deferred — the `pre_tool_call` seam is veto-only today.
+
+  Grounded in a deep OpenCode + Codex permission-model comparison (SDK Evolution roadmap SE1).
+
+- f9001bb: **SE2 — typed runtime event stream (opt-in `SendOptions.onRunEvent`).**
+
+  New public `RunEvent` discriminated union + an opt-in `onRunEvent` sink, ADDITIVE to the `SDKMessage` content stream (non-breaking). Runtime-observability signals are delivered out-of-band — the model's content is unaffected. Mirrors the Anthropic `SDKMessage`-union approach.
+
+  - `RunEvent` union (the forward-compatible contract): `tool_progress`, `permission_denied`, `rate_limit`, `task_started`, `task_updated`, `task_completed`, `compact_boundary`. Discriminate on `type`.
+  - `SendOptions.onRunEvent?: (e: RunEvent) => void` — best-effort, fail-safe: a throwing sink never breaks the run (`emitRunEvent` swallows it).
+  - **Emitted end-to-end as of SE2:** `tool_progress` (a tool dispatches) and `permission_denied` (a plugin gate blocks a tool) — both proven via an integration test driving a real run against a stub provider. The remaining variants (`rate_limit`, `task_*`, `compact_boundary`) are part of the contract; their emission is wired incrementally as the sink is threaded into the LLM-client retry / task / session-compaction subsystems (they live below the agent loop). A consumer switching exhaustively on `type` is future-proof.
+
+  New exports: `RunEvent` (+ the 7 member types), `RunEventSink`, `emitRunEvent`. Additive + backward-compatible.
+
+  Grounded in the SDK Evolution roadmap SE2 (Anthropic Agent SDK comparison).
+
+- eec7d55: **SE3 — multi-agent provenance (`origin`).**
+
+  New public `MessageOrigin` discriminated union that stamps WHO triggered a turn in the multi-agent path (Squad / a2a / handoff / background-delegation) and is **forwarded onto the run result** — so consumers can attribute or route turns by their trigger. Metadata-only: zero change to routing or dispatch. Mirrors the Anthropic Agent SDK's `origin` shape.
+
+  - `MessageOrigin` union: `{ kind: "human" }` | `{ kind: "peer"; from }` | `{ kind: "task-notification" }` | `{ kind: "coordinator"; from? }` | `{ kind: "auto-continuation" }`. Absence = a direct human turn.
+  - `SendOptions.origin?: MessageOrigin` — the caller stamps the provenance; `RunResult.origin?: MessageOrigin` — forwarded onto the result (both fixture and real runtimes).
+  - **Squad** stamps `{ kind: "peer", from: "agent-<i-1>" }` on every step after the first (the first receives the human input). `agentStep(id, agent, prompt, { origin })` carries it; `AgentStep.origin` is the plumbing.
+  - **a2a** projects `{ kind: "peer", from }` onto every `A2AMessage.origin` — a thin view over the existing sender address (`from`), not a parallel system.
+  - **background-delegation / handoff** are host-driven (no in-repo re-send seam): the `SendOptions.origin → RunResult.origin` plumbing IS the integration point — a background follow-up carries `{ kind: "task-notification" }`, a coordinator carries `{ kind: "coordinator" }`.
+
+  New exports: `MessageOrigin`, plus `origin` fields on `SendOptions` / `RunResult` / `A2AMessage` / `AgentStep` and the `agentStep(..., { origin })` option. Additive + backward-compatible.
+
+  Grounded in the SDK Evolution roadmap SE3 (Anthropic Agent SDK comparison).
+
+- 8606f5b: **SE4 — session-management surface (`createSessionManager`).**
+
+  A session-management API over the `ConversationStorageAdapter` interface, so hosts (TheoKit) can build session UIs without reaching into storage internals. Light metadata is derived from the transcript; title/tag are persisted; adapters that can't list or write metadata degrade with a typed `{ supported: false }` result instead of throwing on every call.
+
+  - `createSessionManager(storage)` → `{ listSessions, getSessionMessages, renameSession, tagSession }`, bound to the same adapter a host passed to `Agent.create({ conversationStorage })` (composition-LEGO precedent of `createSquad`).
+  - `listSessions(opts?)` returns `SessionSummary`s with LIGHT metadata derived from the transcript — `firstPrompt` (first user message), `lastModified` (max `StoredMessage.at`), `messageCount`, plus a `summary` preview (title when set, else the truncated first prompt). `{ offset, limit }` windows the result.
+  - `renameSession(id, title)` / `tagSession(id, tag | null)` persist session metadata (`tag: null` clears). `getSessionMessages(id, opts?)` passes through to the adapter's mandatory `getMessages`.
+  - **Typed graceful degradation:** `listSessions` is unsupported when the adapter lacks `listConversationIds` (or it returns `undefined`); `renameSession` / `tagSession` are unsupported when the adapter lacks `setSessionMeta`. `SessionCapabilityResult<T> = { supported: true; value } | { supported: false; reason }`.
+  - **Storage:** two new OPTIONAL adapter methods `getSessionMeta?` / `setSessionMeta?` (`SessionMeta { title?, tag? }`, `SessionMetaPatch { title?, tag?: string | null }`). `FileSystemConversationStorage` persists them in a per-conversation sidecar `.theokit/agents/<id>/session.json` (same sanitized path perimeter as the transcript); `InMemoryConversationStorage` in a `Map`.
+
+  New exports: `createSessionManager`, `SessionManager`, `SessionSummary`, `SessionListOptions`, `SessionCapabilityResult`, `SessionMeta`, `SessionMetaPatch`. Additive + backward-compatible.
+
+  Grounded in the SDK Evolution roadmap SE4 (Anthropic Agent SDK comparison).
+
+- ce9b375: **SE7 — structured/multimodal tool results + `ToolError`.**
+
+  A tool can now hand the model structured content (text + image) as its result OR its error, not just a string — symmetrically. A `handler` may RETURN content blocks on success, and may THROW a `ToolError` carrying content blocks on failure (e.g. a screenshot, a rendered chart). Additive + backward-compatible: returning/throwing a string is unchanged.
+
+  - New types `ImageBlock` + `ToolResultContentBlock = TextBlock | ImageBlock`; new `ToolError` class carrying `string | ToolResultContentBlock[]` (throw it from a handler for a clean message or multimodal error content).
+  - `CustomTool.handler` return widened to `string | ToolResultContentBlock[]`.
+  - **Provider-agnostic, capability-based:** block-capable provider wires forward the blocks natively; string-only provider wires flatten text-only blocks to a string and **fail fast** with a typed `ConfigurationError` on an image block (no silent drop — a dropped image would be a lie to the model, per the error-handling policy).
+  - Persistence/replay (event-based) is untouched; the tool-result guard still redacts/delimits the text of a structured result (image blocks pass through).
+
+  New exports: `ToolError`, `ImageBlock`, `ToolResultContentBlock`. Proven end-to-end by an integration test (a handler-returned image, and a `ToolError`'s image, both carried onto the outbound `tool_result`).
+
+  Grounded in the SDK Evolution roadmap SE7.
+
+- 3722208: **SE8 — model bare-string shorthand.**
+
+  Every public model-accepting surface — `AgentOptions.model`, `SendOptions.model`, `AgentBuilder.model()`, and `GenerateObjectOptions.model` / `structuringModel` / `StreamObjectOptions.model` — now accepts a bare-string model id (`model: "openai/gpt-4o-mini"`) in addition to the `{ id }` object, matching every peer SDK's `"provider/model"` shorthand. Additive + fully backward-compatible: the object form (and `{ id, params }` for tuning) is unchanged.
+
+  - A bare string is normalized to `{ id }` at ONE boundary seam (`normalizeModel`), so all downstream code keeps seeing a `ModelSelection`. The id still parses a `provider/` prefix for routing.
+  - Use the object form when you need `params` (reasoning/temperature tuning): `model: { id: "...", params: [...] }`.
+  - An empty / whitespace-only string throws a typed `ConfigurationError` (`code: "invalid_model_selection"`).
+
+  From the DX comparison against OpenAI Agents / LangChain `create_agent` / Vercel AI SDK `ToolLoopAgent` / Mastra (all take a bare string). Grounded in ROADMAP SE8.
+
+- d039cd6: **SE9 — integrated structured output on `agent.generate()`.**
+
+  New typed `agent.generate(input, { output: schema, ...sendOptions })` method: runs the agent's NORMAL tool loop (the user's tools run first) and then coerces the final answer into a Zod schema, returning a validated, **inferred-typed** object — in one call, instead of a separate `generateObject`. This closes the biggest DX-capability gap vs LangChain `response_format` / Vercel AI SDK `Output.object`.
+
+  - `agent.generate<T>(input, { output: T, ...SendOptions }): Promise<GenerateRunResult<z.infer<T>>>` — `{ object, result, raw, usage }`. `object` carries the inferred type; `result` is the underlying tool-loop `RunResult` (status/usage/model).
+  - **Sugar over `Agent.generateObject` (ADR D33), not a fork:** phase 1 is the user's own `agent.send()` run; phase 2 reuses `generateObjectImpl` (the synthetic forced-`output`-tool + Zod validation + retries) over the run's final answer.
+  - **Precedence:** `SendOptions` (tools, `toolChoice`, `maxIterations`, …) drive phase 1; the structuring phase forces its own `output` tool. `maxRetries` / `errorStrategy` (`"throw"` | `"return-partial"` | `"return-raw"`) tune phase 2.
+  - **Typed failure:** a run that errors before an answer surfaces a typed `GenerateObjectError` (no structuring over a failed run); a persistent parse-failure is governed by `errorStrategy`.
+  - Available on both local and cloud agents.
+
+  New exports: `GenerateOptions`, `GenerateRunResult` (+ the `SDKAgent.generate` method). Additive + backward-compatible. From the DX comparison vs OpenAI Agents / LangChain / AI SDK / Mastra. Grounded in ROADMAP SE9.
+
+### Patch Changes
+
+- d07ae2e: Dead-code cleanup (evidence-based review, 2026-07-09).
+
+  - Removed 8 dead files: 6 unused barrels (`internal/{error-mappers,tool-dispatch,tool-registry,workflow}/index.ts`, `server/adapter/index.ts`, `internal/observability/index.ts`) whose members are reached via direct imports, plus `internal/runtime/hooks/hooks-loader.ts` (`loadProjectHooks` had zero callers) and `internal/observability/context.ts` (only reachable via the now-removed barrel). The live `internal/observability/tracer-loader.ts` is untouched (3 direct importers).
+  - Removed two dead public sub-path exports: `@theokit/sdk/internal/plugins` and `@theokit/sdk/internal/observability` (both `@internal`, semver-exempt, zero consumers across the monorepo). The plugin contract (`definePlugin`/`Plugin`) remains exported from the main entry — the sub-path was superseded (see `src/index.ts`); `internal/plugins/index.ts` stays as an internal relative import.
+
+  No behavior change — typecheck + build green; full test suite delta neutral (pre-existing flaky init-claude/oauth failures unchanged). See `DEAD-CODE-REVIEW-2026-07-09.md` for the full 3-layer review and the remaining phased plan.
+
+- e462318: Deprecate the `@theokit/sdk/client` sub-path (`TheoKitClient`).
+
+  `TheoKitClient` consumes a legacy server-adapter HTTP contract (`POST /agent/send`, `GET /agent/stream`) that the ecosystem no longer produces — the framework (`theokit`) exposes agents at `POST /api/agents/<name>` over a `UIMessageStream` with its own typed client, and the SDK's own in-process path is the `Agent` façade. The sub-path has zero consumers across the monorepo (evidence-based dead-code review, 2026-07-09).
+
+  Marked `@deprecated` (class + barrel + types). No behavior change — the sub-path still works this major. It will be **removed in the next major**. Migrate to `Agent` (`@theokit/sdk`) for in-process runs, or the framework's `/api/agents/<name>` typed client for HTTP.
+
+- b4f165c: Remove 3 orphaned internal helpers (dead code, 0 references monorepo-wide): `buildRequestId` (a wrapper around `generateRequestId`, no callers), `isCloudAgentId` (`internal/ids.ts`, no callers), and `deleteTokens` (`internal/mcp/token-storage.ts`, no callers). All `@internal`, not part of the public API. Verified: typecheck + build green, full test suite unchanged (181 pre-existing flaky failures, 3042 pass — identical to baseline).
+
+  The remaining knip-flagged "unused exports" were audited and deliberately NOT deleted: they are mostly redundant `export` modifiers on symbols still used same-file (cosmetic), future-reserved stubs (`serializeHookRules` — "reserved for future"), or intentional test/reset seams (`__*ForTests`, `createTestCtx`, `clearRunRegistry`, `memoryFilePath` — "kept for tests"). Those are maintainer judgment calls, not mechanical dead code. See `DEAD-CODE-REVIEW-2026-07-09.md`.
+
 ## 2.20.0
 
 ### Minor Changes
