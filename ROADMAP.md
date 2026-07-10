@@ -394,6 +394,57 @@ default). From the a peer framework supervisor-agents comparison (2026-07-10).
 
 **Why now:** completes the supervisor-parity set (delegation control + context control); the most architecturally sensitive, so it ships last and stays opt-in.
 
+### SE13 — [ ] `modifiedMaxSteps` on `onDelegationStart` (cap the subagent's iterations)
+
+**Objective:** Complete SE11's delegation hooks by letting `onDelegationStart` cap the child's
+iteration count. SE11 shipped `proceed` / `rejectionReason` / `modifiedInput` and DEFERRED
+`modifiedMaxSteps` pending "child `maxIterations` plumbing" — but the plumbing already exists
+(`SendOptions.maxIterations`, `types/run.ts:395`, default 8). Add `modifiedMaxSteps` to
+`DelegationStartDecision` and forward it as `maxIterations` to the child `agent.send`. Matches a peer framework's
+`onDelegationStart.modifiedMaxSteps`. From the a peer framework supervisor-agents comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `DelegationStartDecision` gains `modifiedMaxSteps?: number`; when set (and `proceed !== false`), `defineSubAgent` forwards it as `maxIterations` to the child `agent.send(input, { maxIterations })`.
+- [ ] Composes with SE10 (signal) + SE12 (messageFilter preamble): all merge onto ONE child `send` call.
+- [ ] Back-compat: absent `modifiedMaxSteps` ⇒ the child uses its default iteration ceiling (unchanged).
+- [ ] TDD: a decision with `modifiedMaxSteps: 3` calls the child `send` with `maxIterations: 3`; absent leaves the child call unchanged; the option coexists with a forwarded `signal`.
+- [ ] Docs + Changeset.
+
+**Dependencies:** SE11 (the `onDelegationStart` hook + `DelegationStartDecision`); SE10 (the child-send option seam).
+
+**Top risks (new):**
+1. Option-merge collision on the child `send` (signal + maxIterations + messageFilter preamble). Mitigation: build one `SendOptions` object; the preamble is on `input`, the rest are distinct keys.
+2. A `modifiedMaxSteps` of 0 / negative. Mitigation: decide in plan — forward as-is (the loop already floors the ceiling) OR validate and reject with a typed error; document the choice.
+
+**Why now:** completes the SE11 hook contract at near-zero cost (the child cap already exists); the last missing piece of `onDelegationStart` parity.
+
+### SE14 — [ ] Subagent result-context control (`includeToolResults`)
+
+**Objective:** Control what a completed subagent surfaces back to the supervisor. Today `defineSubAgent`
+returns only the child's final text (`RunResult.result`). a peer framework defaults to text-only and exposes
+`includeSubAgentToolResultsInModelContext` to also fold the child's nested tool results into the
+supervisor context. Add an opt-in `SubAgentSpec.includeToolResults`: when set, the child's tool-call
+results are appended to the delegation payload surfaced to the supervisor; text-only stays the default
+(a peer framework's "scoped" posture). Pairs with SE12 (context IN) to complete the subagent context boundary
+(context OUT). From the a peer framework supervisor-agents comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `SubAgentSpec.includeToolResults?: boolean` (default `false` = text-only, unchanged). When `true`, the child's tool-call results are appended to the delegation result returned to the supervisor.
+- [ ] The default (`false`) preserves today's text-only behavior EXACTLY (regression-tested).
+- [ ] Nested tool args are not silently re-injected beyond what the option opts into (mirrors a peer framework's scoped default).
+- [ ] TDD: with `includeToolResults: true` the returned payload contains the child's tool result; with `false` (default) it is text-only.
+- [ ] Docs + Changeset; **ADR** if surfacing the child's tool results requires a new `RunResult` field or a `run.stream()` capture.
+
+**Dependencies:** SE10 (child-send seam). **May need a `RunResult` tool-results surface** — `RunResult` currently exposes only `result?: string`, so capturing the child's tool results likely needs a new additive field OR a `run.stream()` event capture (gate behind an ADR).
+
+**Top risks (new):**
+1. `RunResult` does not expose tool calls / results today (only `result?: string`, `types/run.ts`). Mitigation: add a minimal additive `RunResult` tool-results surface OR capture via `run.stream()`; decide in plan/ADR — keep additive + backward-compatible.
+2. Leaking large nested tool payloads into the supervisor context (token blow-up). Mitigation: opt-in only; document the cost; consider a size cap in plan.
+
+**Why now:** the remaining delegation-result gap vs a peer framework; with SE12 (context IN) it gives full, opt-in control of the subagent context boundary in BOTH directions.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
