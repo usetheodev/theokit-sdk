@@ -1,5 +1,5 @@
 import { AgentDisposedError } from "../../../errors.js";
-import type { AgentOptions } from "../../../types/agent.js";
+import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
 import type { ConversationStorageAdapter } from "../../../types/conversation-storage.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
 import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
@@ -15,6 +15,7 @@ import {
 import type { MemoryProvider } from "../memory/memory-provider.js";
 import type { MemoryFact } from "../memory/memory-store.js";
 import { readMemoryFacts } from "../memory/memory-store.js";
+import { normalizeModel } from "../model-selection.js";
 import { appendSessionMessage, getSessionMessages } from "../session/agent-session.js";
 import { safeCall } from "../system-prompt/safe-call.js";
 import { consumePending } from "./local-agent-invalidate.js";
@@ -32,7 +33,9 @@ export interface SendLockedInputs {
   invalidationPending: { reason: string; at: number } | undefined;
   clearInvalidation: () => void;
   reload: () => Promise<void>;
-  applyModelOverride: (model: AgentOptions["model"]) => void;
+  // SE8 — receives an already-NORMALIZED ModelSelection (the string shorthand is
+  // normalized at the send boundary), decoupled from the public AgentOptions type.
+  applyModelOverride: (model: ModelSelection | undefined) => void;
   options: AgentOptions;
   pluginManagerCode: PluginManager;
   memoryGlue: LocalAgentMemory;
@@ -83,7 +86,8 @@ export async function executeSendLocked(
   if (inputs.disposed) throw new AgentDisposedError(inputs.agentId);
   // biome-ignore format: keep one-liner to stay under G8 LoC.
   await consumePending(inputs.agentId, inputs.invalidationPending, inputs.clearInvalidation, inputs.reload);
-  inputs.applyModelOverride(options.model);
+  // SE8 — normalize a bare-string send-model override to `{ id }`.
+  inputs.applyModelOverride(normalizeModel(options.model));
   const userText = typeof message === "string" ? message : message.text;
   if (inputs.options.onBeforeSend !== undefined) {
     await inputs.options.onBeforeSend({

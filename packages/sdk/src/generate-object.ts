@@ -24,15 +24,16 @@ export interface GenerateObjectOptions<T extends ZodType> {
   prompt: string;
   /** Optional system prompt steering the model. */
   systemPrompt?: string;
-  /** Model selection. Required (transient agents need a model). */
-  model: ModelSelection;
+  /** Model selection. Required (transient agents need a model). SE8 — accepts a
+   *  bare-string id shorthand (`"openai/gpt-4o-mini"`) or a {@link ModelSelection}. */
+  model: string | ModelSelection;
   /**
    * M21 — optional separate model for the STRUCTURING step. When set, `model` first produces a
    * free-text reasoned answer to the prompt (phase 1), then `structuringModel` extracts the
    * schema-matched object by calling the `output` tool over that answer (phase 2). Lets a large
    * model reason while a cheap fast model does the extraction. Absent ⇒ today's single-model flow.
    */
-  structuringModel?: ModelSelection;
+  structuringModel?: string | ModelSelection;
   /** API key. Falls back to env (THEOKIT_API_KEY etc). */
   apiKey?: string;
   /** Local runtime config (cwd, sandbox). Required to keep the transient agent local-only. */
