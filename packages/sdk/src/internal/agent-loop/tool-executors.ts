@@ -1,4 +1,4 @@
-import { ToolError } from "../../errors.js";
+import { ToolError } from "../../tool-error.js";
 import type { ToolResultContentBlock } from "../../types/content-blocks.js";
 import type { LlmToolCallPart } from "../llm/types.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/tools/shell-tool.js";
