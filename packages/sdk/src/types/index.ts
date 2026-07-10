@@ -16,6 +16,7 @@ export type * from "./memory-adapter.js";
 export type * from "./messages.js";
 export type * from "./providers.js";
 export type * from "./run.js";
+export type * from "./session.js";
 export type * from "./task.js";
 export type * from "./theokit.js";
 export type * from "./trajectory.js";
