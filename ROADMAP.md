@@ -707,7 +707,7 @@ Guardrails comparison (2026-07-10).
 
 **Why now:** it is the load-bearing seam — SE25 (deterministic processors) and SE26 (delegated classifier processors) both build on it, and without it neither the SDK nor a plugin can guard input/output messages at all. Closes the message-side half of the guardrail story (the tool-side already shipped in SE1).
 
-### SE25 — [ ] Deterministic in-tree processors (UnicodeNormalizer, BatchParts, TokenLimiter)
+### SE25 — [x] Deterministic in-tree processors (UnicodeNormalizer, BatchParts, TokenLimiter)
 
 **Objective:** Ship the cheap, deterministic, no-LLM processors on the SE24 seam. These don't churn (no
 provider/model deltas, no taxonomy tuning) so they are safe to own in-core, unlike the classifier processors
@@ -717,18 +717,18 @@ Guardrails comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `UnicodeNormalizer` input processor: NFC-normalize (stdlib `String.prototype.normalize`), collapse whitespace, strip control chars — options `{ stripControlChars?, collapseWhitespace? }`. Pure/deterministic; no LLM.
-- [ ] `BatchPartsProcessor` output/stream processor: coalesce N stream parts (or up to `maxWaitTime`) before emit — options `{ batchSize?, maxWaitTime?, emitOnNonText? }`. Reduces chunk count on the stream path.
-- [ ] `TokenLimiter` processor: cap output (and/or context) tokens against a limit; reuse any existing token-count primitive in the runtime (compaction/compression path) rather than adding a tokenizer dep (parsimony rung 4). Option `{ limit }`.
-- [ ] All three are OPT-IN (added to `inputProcessors`/`outputProcessors`); nothing auto-injects them; back-compat preserved.
-- [ ] TDD: normalizer folds a known Unicode/whitespace/control-char fixture to the expected string; batcher coalesces a known chunk sequence into the expected batches; token limiter enforces the cap on a fixture over/under the limit.
-- [ ] Docs + Changeset.
+- [x] `UnicodeNormalizer` input processor: NFC-normalize (stdlib `String.prototype.normalize`), collapse whitespace, strip control chars — options `{ stripControlChars?, collapseWhitespace? }`. Pure/deterministic; no LLM.
+- [x] `TokenLimiter` processor: cap input and/or output tokens against a limit; uses a char-based estimate (~chars/4, no tokenizer dep — parsimony rung 4) documented as an estimate; `strategy: "truncate" | "block"`. Fires on whichever array it is placed in. Options `{ limit, strategy? }`.
+- [x] **`BatchPartsProcessor` — DEFERRED (architectural finding, not skipped).** Discovered during implementation: TheoKit's `run.stream()` emits **full `SDKAssistantMessage`s** (`content: Array<TextBlock | ToolUseBlock>`), NOT token-granular deltas. a peer framework's `BatchPartsProcessor` coalesces SSE chunks to cut NETWORK overhead over HTTP; the in-process runtime has no such chunk-stream to coalesce (nothing to batch → a no-op). It becomes meaningful only when an HTTP/SSE streaming transport lands — the SAME future milestone as SE24's deferred streaming-output redaction. Reopening tracked with that streaming milestone.
+- [x] The two shipped processors are OPT-IN (added to `inputProcessors`/`outputProcessors`); nothing auto-injects them; back-compat preserved.
+- [x] TDD: normalizer folds a known Unicode/whitespace/control-char fixture to the expected string; token limiter enforces the cap (truncate + block) on a fixture over/under the limit.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE24 (the `Processor` seam these implement).
 
 **Top risks (new):**
-1. `TokenLimiter` needing a real tokenizer (model-specific). Mitigation: reuse the runtime's existing token-estimation used by compaction; document it as an estimate, not an exact per-model count (KISS) — an exact tokenizer is deferred with demand evidence.
-2. `BatchPartsProcessor` interacting with the abort/tripwire path mid-stream. Mitigation: batching is a pass-through transform; an abort short-circuits it (SE24 ordering contract) — covered by an SE24 ordering test reused here.
+1. `TokenLimiter` needing a real tokenizer (model-specific). Mitigation: char-based estimate (~chars/4), documented as an estimate not an exact per-model count (KISS) — an exact tokenizer is deferred with demand evidence.
+2. `BatchPartsProcessor` fit. Resolved by DEFERRAL above — the in-process stream emits full messages, so batching has no overhead to reduce until an HTTP/SSE transport exists.
 
 **Why now:** these are the guardrails a consumer can adopt with zero external dependency and zero LLM cost — the safe, high-value first fill of the SE24 seam, proving the pipeline before the delegated classifiers land.
 
