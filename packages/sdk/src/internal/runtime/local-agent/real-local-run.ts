@@ -19,6 +19,7 @@ import { getProviderProfile, registerBuiltins } from "../../providers/index.js";
 import { registerPluginProviderProfiles } from "../../providers/register-plugin-providers.js";
 import { createTelemetry } from "../../telemetry/tracer.js";
 import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
+import { withToolWhitelist } from "../concurrency/async-local-storage.js";
 import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
 import type { FixtureScript } from "../fixtures/fixture-types.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
@@ -262,6 +263,9 @@ function buildLoopInputs(
     ...(options.sendOptions.toolChoice !== undefined
       ? { toolChoice: options.sendOptions.toolChoice }
       : {}),
+    ...(options.sendOptions.activeTools !== undefined
+      ? { activeTools: options.sendOptions.activeTools }
+      : {}),
     ...(options.priorMessages !== undefined ? { priorMessages: options.priorMessages } : {}),
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }
@@ -445,7 +449,13 @@ class RealLocalRun extends FixtureRunBase {
 
   private async executeAgentLoop(inputs: AgentLoopInputs): Promise<void> {
     try {
-      const output = await runAgentLoop(inputs);
+      // SE18 — when the send set `activeTools`, run the loop inside a tool-whitelist
+      // scope so a call to a tool outside the set is vetoed at dispatch (same path as
+      // `Agent.fork`'s `allowedTools`). Absent ⇒ the full toolset is available.
+      const output =
+        inputs.activeTools !== undefined
+          ? await withToolWhitelist(new Set(inputs.activeTools), () => runAgentLoop(inputs))
+          : await runAgentLoop(inputs);
       this.applyAgentLoopOutput(output);
       this.transitionTo(output.finalStatus);
     } catch (cause) {

@@ -328,6 +328,23 @@ export interface SendOptions {
    * forces a tool call; `"auto"` (or omitted) is the default. Local runtime; OpenAI-compat providers.
    */
   toolChoice?: "auto" | "none" | "required";
+  /**
+   * SE18 — per-send runtime tool subset (**local runtime only**; cloud agents
+   * ignore it). When set, only tools whose name is in this list may be called for
+   * this send; a call to any other registered tool is vetoed at dispatch (the same
+   * `withToolWhitelist` path `Agent.fork`'s `allowedTools` uses — NOT
+   * `PermissionEngine`). Composes with `toolChoice`: `activeTools` narrows the set,
+   * `toolChoice` gates calling within it. Absent ⇒ the full toolset is available.
+   *
+   * Matching is EXACT against the tool's registered name — the same name the
+   * dispatch sees after tool-name repair (mirrors `Agent.fork`'s `allowedTools`;
+   * it is NOT lowercased for you, so a mixed-case registered tool needs its exact
+   * registered name here). An empty list (`[]`) vetoes EVERY tool (fail-closed —
+   * "restrict to the empty set"); pass `undefined` (or omit) for no restriction.
+   * A subagent invoked within this send inherits the whitelist via async-context
+   * propagation unless it declares its own tool scope.
+   */
+  activeTools?: string[];
   /** Local agents only. Expire a stuck active run before starting this message. */
   local?: { force?: boolean };
   /**
