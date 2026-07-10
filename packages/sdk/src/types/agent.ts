@@ -127,6 +127,8 @@ export interface SDKAgentSkillDetail {
   name: string;
   description: string;
   instructions: string;
+  /** SE21 — supporting documents bundled with the skill (filename → content), when present. */
+  references?: Record<string, string>;
 }
 
 export interface SDKAgentSkills {
@@ -233,6 +235,40 @@ export interface SkillsSettings {
    */
   inline?: import("../create-skill.js").InlineSkill[];
 }
+
+/**
+ * SE22 — context passed to a {@link SkillsResolver}. Mirrors
+ * {@link SystemPromptContext} MINUS `skills`: the resolver runs BEFORE skills
+ * are assembled, so the resolved list does not exist yet.
+ *
+ * @public
+ */
+export interface SkillsResolverContext {
+  agentId: string;
+  /** Workspace cwd. `string | undefined` mirrors {@link SystemPromptContext}; a local agent always passes a concrete path. */
+  cwd: string | undefined;
+  model: ModelSelection | undefined;
+  userMessage: string;
+  /** Recalled durable facts when memory is enabled. */
+  memory: ReadonlyArray<SystemPromptMemoryFact>;
+}
+
+/**
+ * SE22 — a resolver that produces {@link SkillsSettings} per run from runtime
+ * context (e.g. the user's role). Mirrors the {@link SystemPromptResolver}
+ * pattern: evaluated per `send()` BEFORE skill assembly, so a cached
+ * `getOrCreate` agent re-resolves on every run.
+ *
+ * The SDK imposes NO timeout — wrap your own `Promise.race` for slow sources. A
+ * throwing resolver fails the run (no silent fallback — Rule 8). Cloud agents
+ * reject a function resolver (it can't run on PaaS); resolve to a static
+ * {@link SkillsSettings} object before `Agent.create()`.
+ *
+ * @public
+ */
+export type SkillsResolver = (
+  ctx: SkillsResolverContext,
+) => SkillsSettings | Promise<SkillsSettings>;
 
 /**
  * Memory configuration accepted by `Agent.create()` via {@link AgentOptions.memory}.
@@ -387,8 +423,14 @@ export interface AgentOptions {
    * The two forms are mutually exclusive — pass one or the other.
    */
   plugins?: PluginsSettings | readonly Plugin[];
-  /** Skills configuration. See `agent.skills`. */
-  skills?: SkillsSettings;
+  /**
+   * Skills configuration. Either a static {@link SkillsSettings} object or —
+   * SE22 — a {@link SkillsResolver} evaluated per `send()` to pick skills from
+   * runtime context (e.g. user role). A cached agent re-resolves each run. The
+   * agent-scoped `agent.skills` handle reflects the STATIC/base config; the
+   * resolver drives the per-send `<skills>` block.
+   */
+  skills?: SkillsSettings | SkillsResolver;
   /** Memory configuration. Persists durable facts; auto-recalled on send. */
   memory?: MemorySettings;
   /**

@@ -72,16 +72,27 @@ export function bootstrapSubmanagers(args: {
     );
   }
   if (args.options.skills !== undefined || args.settingSourcesIncludeProject) {
+    // SE22 — a SkillsResolver resolves per-send; the create-time (base) manager
+    // that backs `agent.skills` is built from the STATIC config only.
+    const staticSkills =
+      typeof args.options.skills === "function" ? undefined : args.options.skills;
     out.skillsManager = new SkillsManager(
       args.workspaceCwd,
-      args.options.skills?.enabled,
+      staticSkills?.enabled,
       args.settingSourcesIncludeProject,
       // M22 — custom skills directory + inline (code-defined) skills.
-      args.options.skills?.skillsDir,
-      args.options.skills?.inline,
+      staticSkills?.skillsDir,
+      staticSkills?.inline,
     );
     const localSkills = out.skillsManager;
-    out.skills = { list: () => localSkills.list(), get: (name) => localSkills.get(name) };
+    out.skills = {
+      // Project to the public shape (name + description only). Inline skills carry
+      // their body + references on the object; `list()` must never leak them —
+      // the body is reachable exclusively through `get()`.
+      list: async () =>
+        (await localSkills.list()).map((s) => ({ name: s.name, description: s.description })),
+      get: (name) => localSkills.get(name),
+    };
   }
   if (args.options.plugins !== undefined || args.settingSourcesIncludePlugins) {
     out.pluginsManager = new PluginsManager(
