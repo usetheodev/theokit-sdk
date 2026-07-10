@@ -14,9 +14,9 @@ import type { Processor, ProcessorControls } from "./types/processors.js";
 const CHARS_PER_TOKEN = 4;
 
 /**
- * Approximate token count from character length. This is an ESTIMATE (≈ chars/4),
- * NOT an exact per-model tokenizer count — good enough for a coarse cap, and
- * dependency-free.
+ * Approximate token count from string length. This is an ESTIMATE
+ * (≈ UTF-16-code-units / 4, NOT Unicode code points, NOT an exact per-model
+ * tokenizer count) — good enough for a coarse cap, and dependency-free.
  */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / CHARS_PER_TOKEN);
@@ -24,16 +24,18 @@ export function estimateTokens(text: string): number {
 
 /** Options for {@link createUnicodeNormalizer}. @public */
 export interface UnicodeNormalizerOptions {
-  /** Remove C0 control chars + DEL (keeps tab / newline / carriage-return). Default `false`. */
+  /** Remove C0 + C1 control chars + DEL (keeps tab / newline / carriage-return). Default `false`. */
   stripControlChars?: boolean;
-  /** Collapse runs of intra-line whitespace to one space, 3+ blank lines to one, and trim. Default `false`. */
+  /** Collapse runs of intra-line whitespace to one space, 3+ blank lines to one, and trim. Default `false`. Uses legacy `\s`; Unicode-only whitespace (U+00A0 NBSP, U+FEFF BOM, U+2000–U+200A) is NOT collapsed. */
   collapseWhitespace?: boolean;
 }
 
-// C0 control chars (U+0000–U+001F) + DEL (U+007F), EXCLUDING tab (U+0009),
-// line feed (U+000A), and carriage return (U+000D) so line structure survives.
+// C0 controls (U+0000–U+001F) + DEL (U+007F) + C1 controls (U+0080–U+009F),
+// EXCLUDING tab (U+0009), line feed (U+000A), and carriage return (U+000D) so
+// line structure survives. C1 is included (matching Mastra's Cc-category strip)
+// since C1 controls are invisible noise / prompt-injection vectors in LLM input.
 // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional — this processor's whole job is to strip control characters (written with \u escapes, no literal control char in source).
-const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F-\u009F]/g;
 
 /**
  * SE25 — an input processor that normalizes user text: Unicode NFC (so
@@ -86,11 +88,14 @@ export function createTokenLimiter(opts: TokenLimiterOptions): Processor {
   const limit = opts.limit;
   const strategy = opts.strategy ?? "truncate";
   const cap = (text: string, controls: Pick<ProcessorControls, "abort">): string => {
-    if (estimateTokens(text) <= limit) return text;
+    const estimated = estimateTokens(text);
+    if (estimated <= limit) return text;
     if (strategy === "block") {
-      controls.abort(`exceeds token limit ${limit} (~${estimateTokens(text)} estimated)`);
+      controls.abort(`exceeds token limit ${limit} (~${estimated} estimated)`);
     }
-    return text.slice(0, limit * CHARS_PER_TOKEN);
+    // Truncate on CODE POINTS (not UTF-16 code units) so a cut never splits a
+    // surrogate pair into a lone surrogate (invalid UTF-8 → rejected by LLM APIs).
+    return [...text].slice(0, limit * CHARS_PER_TOKEN).join("");
   };
   return {
     id: "token-limiter",
