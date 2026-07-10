@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createWebSearchTool } from "../src/web-search.js";
 import { createBraveWebSearchAdapter } from "../src/web-search-brave.js";
-import { textHandler } from "./_text-handler.js";
+import { textHandler } from "./text-handler.js";
 
 const KEY = "test-brave-key";
 
