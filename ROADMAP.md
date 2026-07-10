@@ -471,6 +471,108 @@ comparison (2026-07-10).
 
 **Why now:** completes the `onDelegationStart` CONTEXT parity — SE11 gave the decision, SE13 gives the cap, SE15 gives the signal to decide on; the reject-after-N-iterations pattern needs it.
 
+### SE16 — [x] `outputSchema` on `defineTool` (validate the tool's return)
+
+**Objective:** Let a tool declare and validate its OUTPUT shape. `defineTool` today validates only
+`inputSchema` (Zod, `define-tool.ts:25`) — the handler's return is passed through unvalidated. Mastra's
+`createTool` takes an `outputSchema`. Add an optional `outputSchema?: ZodType` to `DefineToolSpec`; when set,
+the handler's return is validated against it before becoming the tool result, and the return type is inferred
+from it. From the Mastra Tools comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `DefineToolSpec.outputSchema?: ZodType`; when set, the handler's return is parsed against it and a validation failure surfaces a TYPED error (not a silent malformed tool result).
+- [ ] The handler's return type is inferred from `outputSchema` when present (end-to-end inference).
+- [ ] Back-compat: absent `outputSchema` ⇒ the handler return is passed through exactly as today.
+- [ ] SE7 multimodal (`ToolResultContentBlock[]`) returns: `outputSchema` targets the structured-object return only; a blocks return is not forced through a Zod object (decide the exact rule in plan).
+- [ ] TDD: a return matching the schema passes; a mismatch surfaces the typed error; no schema ⇒ unchanged.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (extends `defineTool`, additive).
+
+**Top risks (new):**
+1. Interaction with SE7 multimodal blocks return (not a plain object). Mitigation: apply `outputSchema` only to non-blocks returns, documented.
+2. Double-validation cost. Mitigation: opt-in only (when `outputSchema` set).
+
+**Why now:** cheapest tool-authoring parity gap; makes tool outputs self-validating (the input side already is).
+
+### SE17 — [ ] `toModelOutput` — model-facing vs app-facing tool output split
+
+**Objective:** Let a tool return RICH structured data for the application while sending the MODEL a smaller
+or multimodal representation. Today the handler's return IS what the model sees (SE7 gives multimodal, but
+not the app-vs-model split). Mastra's `toModelOutput` and the Vercel AI SDK both separate these. Add an
+optional `toModelOutput(output) => string | ToolResultContentBlock[]` to `DefineToolSpec`: the handler's
+full return flows to the application / observability, while `toModelOutput` maps it to the compact
+model-facing `tool_result`. From the Mastra Tools comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `DefineToolSpec.toModelOutput?: (output) => string | ToolResultContentBlock[]`; when set, the model-facing tool_result content is what `toModelOutput` returns, NOT the raw handler output.
+- [ ] The raw handler output stays available to observability (`onToolEnd` event carries it) so the app keeps the full result — confirm the exact surface in plan (reuse `onToolEnd`, avoid a new RunResult field).
+- [ ] Composes with SE16: `outputSchema` validates the raw handler output; `toModelOutput` maps the validated output to the model representation.
+- [ ] Back-compat: absent `toModelOutput` ⇒ the handler return is the model result (unchanged; SE7 blocks path intact).
+- [ ] TDD: a tool with rich output + `toModelOutput` sends the small representation to the model while the full output reaches the observability surface.
+- [ ] Docs + Changeset.
+
+**Dependencies:** SE16 (composes with `outputSchema`; may ship independently but the plan defines ordering).
+
+**Top risks (new):**
+1. Where the raw output is exposed to the app (existing `onToolEnd` event vs a new surface). Mitigation: reuse `onToolEnd`'s output; no new RunResult surface unless a plan proves it necessary.
+2. `toModelOutput` may itself return SE7 blocks. Mitigation: it returns the `string | ToolResultContentBlock[]` union — one code path.
+
+**Why now:** the real tool-output DX gap vs Mastra + AI SDK; keeps model context small without losing the app's full result.
+
+### SE18 — [ ] `activeTools` — per-send runtime tool subset
+
+**Objective:** Let a caller restrict, per `send`, WHICH of the agent's registered tools the model may call.
+Today `SendOptions.toolChoice` (`auto/none/required`, `types/run.ts:330`) gates WHETHER tools are called, not
+which subset; Mastra's `activeTools` (and the AI SDK's) narrow the available tools at runtime. The enforcement
+mechanism already exists — `withToolWhitelist` (`internal/runtime/concurrency/async-local-storage.ts:31`, used
+by `Agent.fork`'s `allowedTools` + subagent tool-scoping). Add `SendOptions.activeTools?: string[]` that
+applies that whitelist for the duration of the send. From the Mastra Tools comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `SendOptions.activeTools?: string[]`; when set, only tools whose canonical (post-repair, lowercase) name is in the list are dispatchable for that send — any other tool call is vetoed via the existing `withToolWhitelist` dispatch path (NOT `PermissionEngine`), same as `fork`'s `allowedTools`.
+- [ ] Composes with `toolChoice`: `activeTools` narrows the set; `toolChoice` gates calling within it.
+- [ ] Back-compat: absent `activeTools` ⇒ the full toolset is available (unchanged).
+- [ ] TDD: with `activeTools: ["a"]`, tool `a` dispatches and tool `b` is vetoed; absent ⇒ both available.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (reuses `withToolWhitelist`; additive on `SendOptions`).
+
+**Top risks (new):**
+1. Whether `activeTools` also hides the tools from the advertised catalog (not just veto dispatch). Mitigation: decide in plan — veto-at-dispatch is the minimum; catalog-filtering (fewer wasted calls, matches Mastra) ships if the loop's tool-advertise seam allows it cleanly.
+2. Name canonicalization must match the whitelist. Mitigation: reuse the same canonicalization `fork`/subagent-scope use.
+
+**Why now:** completes the runtime tool-control pair with the existing `toolChoice`, reusing a proven whitelist.
+
+### SE19 — [ ] `workflowAsTool` — expose a Workflow as an agent tool
+
+**Objective:** Let an agent call a `Workflow` as a tool, completing the Mastra "X as tools" trio (tools;
+agents-as-tools via `defineSubAgent`, SE10–15; workflows-as-tools). Mastra converts a workflow to a
+`workflow-<key>` tool using its `inputSchema`/`outputSchema`. TheoKit's `Workflow` already exposes
+`inputSchema?`/`outputSchema?` (`types/workflow.ts:34-35`) and `run(input) => WorkflowRun<TOutput>`
+(`workflow.ts:251`). Add a `workflowAsTool(workflow, { name, description })` helper that returns a
+`CustomTool` whose handler runs the workflow and returns its output. From the Mastra Tools comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `workflowAsTool(workflow, spec)` returns a `CustomTool`: `inputSchema` derived from the workflow's `inputSchema` (required — a workflow with no `inputSchema` is refused with a typed error); the handler runs `workflow.run(parsedInput)` and returns the workflow output.
+- [ ] A workflow run that fails surfaces a TYPED error (not a silent empty tool result).
+- [ ] Output → tool_result: a string output is returned as-is; a structured output is JSON-stringified (a plan may layer SE17 `toModelOutput`-style shaping later).
+- [ ] Exported as a sibling of `defineSubAgent` (a2a barrel OR a tools sub-export — decide in plan).
+- [ ] TDD: an agent-invoked workflow tool runs the workflow with the parsed input and returns its output; a failing workflow surfaces the typed error; a workflow without `inputSchema` is refused.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (composes the existing `Workflow` + `CustomTool`; additive).
+
+**Top risks (new):**
+1. `WorkflowRun` terminal-output access (which field carries the result). Mitigation: read it from the `WorkflowRun<TOutput>` surface (verify the exact field in plan); step errors propagate via the run, not a throw — surface them as the tool's typed error.
+2. Output shape → tool_result (string vs structured). Mitigation: stringify non-string output (JSON), same convention as `defineSubAgent`'s fallback.
+
+**Why now:** completes the Mastra "X as tools" trio; the `Workflow` primitive already carries the schemas the helper needs, so it is a thin, additive composition.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the

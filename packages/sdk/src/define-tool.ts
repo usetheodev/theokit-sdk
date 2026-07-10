@@ -16,7 +16,15 @@ import type { CustomTool } from "./types/agent.js";
  *
  * @public
  */
-export interface DefineToolSpec<T extends ZodType> {
+/**
+ * SE16 — the handler's return type. With no `outputSchema` the tool returns a
+ * plain `string` (pre-SE16 shape). With an `outputSchema` the handler returns the
+ * STRUCTURED output inferred from it (validated + serialized to the tool result).
+ * The `[O]` tuple wrap prevents distribution so `never` maps cleanly to `string`.
+ */
+type ToolHandlerReturn<O extends ZodType> = [O] extends [never] ? string : ZodNamespace.infer<O>;
+
+export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
   /** Tool name surfaced to the LLM. Same constraints as {@link CustomTool.name}. */
   name: string;
   /** Description surfaced to the LLM. */
@@ -24,7 +32,16 @@ export interface DefineToolSpec<T extends ZodType> {
   /** Zod schema describing the input. Must be `z.object(...)` at the root for the LLM tool contract. */
   inputSchema: T;
   /**
-   * Handler invoked with the parsed input. Type is inferred via `z.infer<T>`.
+   * SE16 — optional Zod schema describing the OUTPUT. When set, the handler
+   * returns the structured value inferred from it; the value is validated against
+   * this schema and serialized to the tool result (a string stays as-is, an object
+   * is JSON-stringified). A validation failure raises `ZodError`, converted to a
+   * `tool_result(isError)`. Absent ⇒ the handler returns a plain string (unchanged).
+   */
+  outputSchema?: O;
+  /**
+   * Handler invoked with the parsed input. Type is inferred via `z.infer<T>`; the
+   * return type is `z.infer<O>` when `outputSchema` is set, else `string`.
    * #65 — an optional 2nd `ToolContext` argument carries the run's `AbortSignal`,
    * so a cooperative handler can stop early when the run is cancelled. Existing
    * single-argument handlers are unaffected.
@@ -32,7 +49,7 @@ export interface DefineToolSpec<T extends ZodType> {
   handler: (
     input: ZodNamespace.infer<T>,
     ctx?: { signal?: AbortSignal; context?: unknown },
-  ) => string | Promise<string>;
+  ) => ToolHandlerReturn<O> | Promise<ToolHandlerReturn<O>>;
   /**
    * Sanitize the raw model-emitted args BEFORE schema validation (`@theokit/sdk/sanitize`).
    * `true` trims whitespace; an object opts into coercion / JSON-repair. Coercion is schema-aware
@@ -58,7 +75,9 @@ export interface DefineToolSpec<T extends ZodType> {
  *
  * @public
  */
-export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool {
+export function defineTool<T extends ZodType, O extends ZodType = never>(
+  spec: DefineToolSpec<T, O>,
+): CustomTool {
   // Zod v4 native JSON Schema converter via internal shim.
   // `unrepresentable: "any"` lets transforms / refinements / branded types
   // round-trip to JSON Schema as `{}` (effectively `any`). The runtime parse
@@ -82,7 +101,13 @@ export function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTo
         : input;
       const parsed = spec.inputSchema.parse(raw) as ZodNamespace.infer<T>;
       // #65 — forward the ToolContext (run signal) to the user's handler.
-      return await spec.handler(parsed, ctx);
+      const out = await spec.handler(parsed, ctx);
+      // SE16 — no outputSchema ⇒ the handler already returned a string (unchanged).
+      if (spec.outputSchema === undefined) return out as string;
+      // Validate the structured return, then serialize it to the tool result:
+      // a string stays as-is, anything else is JSON-stringified.
+      const validated = spec.outputSchema.parse(out);
+      return typeof validated === "string" ? validated : JSON.stringify(validated);
     },
   };
 }
