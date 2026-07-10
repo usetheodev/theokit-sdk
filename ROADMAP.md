@@ -547,6 +547,32 @@ applies that whitelist for the duration of the send. From the Mastra Tools compa
 
 **Why now:** completes the runtime tool-control pair with the existing `toolChoice`, reusing a proven whitelist.
 
+### SE19 — [ ] `workflowAsTool` — expose a Workflow as an agent tool
+
+**Objective:** Let an agent call a `Workflow` as a tool, completing the Mastra "X as tools" trio (tools;
+agents-as-tools via `defineSubAgent`, SE10–15; workflows-as-tools). Mastra converts a workflow to a
+`workflow-<key>` tool using its `inputSchema`/`outputSchema`. TheoKit's `Workflow` already exposes
+`inputSchema?`/`outputSchema?` (`types/workflow.ts:34-35`) and `run(input) => WorkflowRun<TOutput>`
+(`workflow.ts:251`). Add a `workflowAsTool(workflow, { name, description })` helper that returns a
+`CustomTool` whose handler runs the workflow and returns its output. From the Mastra Tools comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `workflowAsTool(workflow, spec)` returns a `CustomTool`: `inputSchema` derived from the workflow's `inputSchema` (required — a workflow with no `inputSchema` is refused with a typed error); the handler runs `workflow.run(parsedInput)` and returns the workflow output.
+- [ ] A workflow run that fails surfaces a TYPED error (not a silent empty tool result).
+- [ ] Output → tool_result: a string output is returned as-is; a structured output is JSON-stringified (a plan may layer SE17 `toModelOutput`-style shaping later).
+- [ ] Exported as a sibling of `defineSubAgent` (a2a barrel OR a tools sub-export — decide in plan).
+- [ ] TDD: an agent-invoked workflow tool runs the workflow with the parsed input and returns its output; a failing workflow surfaces the typed error; a workflow without `inputSchema` is refused.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (composes the existing `Workflow` + `CustomTool`; additive).
+
+**Top risks (new):**
+1. `WorkflowRun` terminal-output access (which field carries the result). Mitigation: read it from the `WorkflowRun<TOutput>` surface (verify the exact field in plan); step errors propagate via the run, not a throw — surface them as the tool's typed error.
+2. Output shape → tool_result (string vs structured). Mitigation: stringify non-string output (JSON), same convention as `defineSubAgent`'s fallback.
+
+**Why now:** completes the Mastra "X as tools" trio; the `Workflow` primitive already carries the schemas the helper needs, so it is a thin, additive composition.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
