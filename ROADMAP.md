@@ -647,6 +647,33 @@ the a peer framework Agent-skills comparison (2026-07-10).
 
 **Why now:** completes the skills-config parity; the dynamic-resolver pattern already exists for `systemPrompt`, so this is a consistent, additive extension.
 
+### SE23 — [ ] `defineSkillReadTool` — opt-in model-facing lazy skill read
+
+**Objective:** Give the MODEL on-demand access to a skill's full body + references via an OPT-IN tool —
+WITHOUT auto-injecting a built-in tool (bring-your-own-tools). a peer framework ships `skill_read`/`skill_search`
+tools that auto-inject; TheoKit uses the eager `<skills>` system-prompt block (name + description) for
+discovery. Add a `defineSkillReadTool(skills)` FACTORY (sibling of `defineSubAgent` / `workflowAsTool`)
+that returns a `CustomTool` the consumer explicitly adds to the agent's `tools`; when the model calls it
+with a skill name, it returns that skill's `instructions` (+ SE21 `references`). Opt-in preserves the
+bring-your-own-tools principle — the SDK does NOT auto-inject skills tools. From the a peer framework Agent-skills
+comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `defineSkillReadTool(skills: InlineSkill[])` returns a `CustomTool` (name `skill_read`) whose input is a skill name; the handler returns the matching skill's `instructions` and (SE21) `references`; an unknown name returns a typed "not found" tool result (a string the model can act on, NOT a throw that kills the run).
+- [ ] The tool is OPT-IN — the consumer adds it to `tools`; the SDK never auto-injects it (bring-your-own-tools preserved).
+- [ ] Back-compat: nothing changes for agents that don't add the tool.
+- [ ] TDD: the tool returns a skill's body + references by name; an unknown name returns the not-found result; the returned value is a valid `CustomTool`.
+- [ ] Docs + Changeset; **ADR** recording the opt-in-factory decision (vs a peer framework's auto-injected tools) + the eager-block + lazy-read hybrid.
+
+**Dependencies:** SE21 (`references` on the inline skill — the tool surfaces them).
+
+**Top risks (new):**
+1. Bring-your-own-tools boundary. Mitigation: a FACTORY the consumer adds (like `defineSubAgent` / `workflowAsTool`), never auto-injected — the ADR records this as the resolution of the disclosure-mechanism question (§ Explicitly out of scope built-in tools stays intact: this ships a factory, not an auto-injected toolset).
+2. Skill body size in the tool result. Mitigation: return the body as-is; the consumer controls which skills they expose by choosing what to pass to the factory.
+
+**Why now:** completes the a peer framework skills-read parity as an OPT-IN factory (consistent with `defineSubAgent` / `workflowAsTool`), resolving the eager-block-vs-lazy-tool question without violating bring-your-own-tools.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
