@@ -14,6 +14,12 @@ import type { Skill } from "./internal/runtime/skills/discover-skills.js";
 export interface InlineSkill extends Skill {
   /** The skill body/instructions (inline skills carry it here instead of a SKILL.md file). */
   instructions: string;
+  /**
+   * SE21 — supporting documents bundled with the skill (filename → content),
+   * mirroring a filesystem skill's `references/` directory. Surfaced to the app
+   * via `agent.skills.get(name)`; not injected into the model prompt.
+   */
+  references?: Record<string, string>;
 }
 
 /** Spec accepted by {@link createSkill}. */
@@ -23,6 +29,8 @@ export interface CreateSkillSpec {
   instructions: string;
   category?: string;
   dependencies?: string[];
+  /** SE21 — supporting documents (filename → content), like a filesystem skill's `references/`. */
+  references?: Record<string, string>;
 }
 
 /**
@@ -39,5 +47,6 @@ export function createSkill(spec: CreateSkillSpec): InlineSkill {
     instructions: spec.instructions,
     ...(spec.category !== undefined ? { category: spec.category } : {}),
     ...(spec.dependencies !== undefined ? { dependencies: spec.dependencies } : {}),
+    ...(spec.references !== undefined ? { references: spec.references } : {}),
   };
 }

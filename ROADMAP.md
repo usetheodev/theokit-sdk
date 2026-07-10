@@ -599,7 +599,7 @@ skills). From the Mastra Agent-skills comparison (2026-07-10).
 
 **Why now:** the cheapest skills-access parity gap; `list()` already exists, so `get` is a thin sibling reading the body the manager can already reach.
 
-### SE21 — [ ] `references` on `createSkill` (bundle supporting docs on an inline skill)
+### SE21 — [x] `references` on `createSkill` (bundle supporting docs on an inline skill)
 
 **Objective:** Let an inline `createSkill` bundle supporting documents, matching a filesystem skill's
 `references/` directory. Mastra's `createSkill` takes a `references: { 'file.md': '...' }` map. TheoKit's
