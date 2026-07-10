@@ -127,6 +127,8 @@ export interface SDKAgentSkillDetail {
   name: string;
   description: string;
   instructions: string;
+  /** SE21 — supporting documents bundled with the skill (filename → content), when present. */
+  references?: Record<string, string>;
 }
 
 export interface SDKAgentSkills {
