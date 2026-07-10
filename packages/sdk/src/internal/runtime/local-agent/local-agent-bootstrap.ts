@@ -81,7 +81,14 @@ export function bootstrapSubmanagers(args: {
       args.options.skills?.inline,
     );
     const localSkills = out.skillsManager;
-    out.skills = { list: () => localSkills.list(), get: (name) => localSkills.get(name) };
+    out.skills = {
+      // Project to the public shape (name + description only). Inline skills carry
+      // their body + references on the object; `list()` must never leak them —
+      // the body is reachable exclusively through `get()`.
+      list: async () =>
+        (await localSkills.list()).map((s) => ({ name: s.name, description: s.description })),
+      get: (name) => localSkills.get(name),
+    };
   }
   if (args.options.plugins !== undefined || args.settingSourcesIncludePlugins) {
     out.pluginsManager = new PluginsManager(
