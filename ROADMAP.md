@@ -732,7 +732,7 @@ Guardrails comparison (2026-07-10).
 
 **Why now:** these are the guardrails a consumer can adopt with zero external dependency and zero LLM cost — the safe, high-value first fill of the SE24 seam, proving the pipeline before the delegated classifiers land.
 
-### SE26 — [ ] Delegate LLM-classifier processors (moderation / PII / injection) — ADR + recommendation + example
+### SE26 — [x] Delegate LLM-classifier processors (moderation / PII / injection) — ADR + recommendation + example
 
 **Objective:** Record the decision to DELEGATE the LLM-classifier guardrail processors — `ModerationProcessor`,
 `PIIDetector`, `PromptInjectionDetector`, `LanguageDetector`, `SystemPromptScrubber` — to specialist libraries
