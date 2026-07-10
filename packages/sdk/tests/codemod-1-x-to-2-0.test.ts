@@ -21,7 +21,14 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+
+// Each test cold-spawns `npx jscodeshift` (the subprocess itself is allowed 30s
+// in `runCodemod`). The default 5s vitest per-test timeout is inconsistent with
+// that budget and flakes under parallel-suite CPU contention (the spawn crosses
+// 5s while the whole suite saturates cores). Align the test timeout to the
+// subprocess allowance so the outcome is deterministic regardless of load.
+vi.setConfig({ testTimeout: 30_000 });
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..", "..");
