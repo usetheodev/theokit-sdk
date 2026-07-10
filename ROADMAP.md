@@ -573,7 +573,7 @@ agents-as-tools via `defineSubAgent`, SE10–15; workflows-as-tools). a peer fra
 
 **Why now:** completes the a peer framework "X as tools" trio; the `Workflow` primitive already carries the schemas the helper needs, so it is a thin, additive composition.
 
-### SE20 — [ ] `agent.skills.get(name)` — read a skill's full body programmatically
+### SE20 — [x] `agent.skills.get(name)` — read a skill's full body programmatically
 
 **Objective:** Programmatic access to a skill's INSTRUCTIONS from application code. `agent.skills.list()`
 already exists (`SDKAgentSkills.list()`, `types/agent.ts:121`) but returns name + description only
