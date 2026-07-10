@@ -12,6 +12,7 @@ import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
 import { asPluginsSettings, enabledPluginNames } from "../../plugins/enabled-names.js";
 import { ProvidersManagerImpl } from "../config/providers-manager.js";
 import { FileContextManager } from "../context/context-manager.js";
+import { normalizeModel } from "../model-selection.js";
 import { type PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
 import { registerAgent } from "../registry/agent-registry.js";
 import { type SkillMetadata, SkillsManager } from "../skills/skills-manager.js";
@@ -65,7 +66,7 @@ export function bootstrapSubmanagers(args: {
     (args.options.providers?.routes?.length ?? 0) + enabledPluginNames(args.options.plugins).length;
   if (providerCount > 0 || args.options.providers !== undefined) {
     out.providers = new ProvidersManagerImpl(
-      args.options.model,
+      normalizeModel(args.options.model),
       args.options.providers,
       args.options.plugins,
     );
