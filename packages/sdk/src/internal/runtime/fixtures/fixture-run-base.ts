@@ -214,4 +214,6 @@ function applyScriptMetrics(base: RunResult, script: FixtureScript): void {
   if (script.cost !== undefined) base.cost = script.cost;
   if (script.stoppedAtIterationLimit === true) base.stoppedAtIterationLimit = true;
   if (script.stoppedByDoomLoop === true) base.stoppedByDoomLoop = true;
+  // SE3 — forward the turn's provenance onto the run result.
+  if (script.origin !== undefined) base.origin = script.origin;
 }

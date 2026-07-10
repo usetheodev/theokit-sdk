@@ -66,14 +66,18 @@ export interface CreateRealLocalRunOptions {
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
   const { userText, id, startTime } = prepareRunContext(options.message);
   const supported = new Set<RunOperation>(["stream", "wait", "cancel", "conversation"]);
-  // The base Run class accepts a FixtureScript for shape; the real LLM
-  // run never consumes it because `buildLoopInputs` drives the real agent
-  // loop instead of replaying events. Empty script keeps the type honest.
-  const unusedFixtureScript: FixtureScript = {
+  // The base Run class accepts a FixtureScript for shape; the real LLM run does
+  // not REPLAY it (`buildLoopInputs` drives the real agent loop instead of
+  // replaying events) — but result-metadata fields set here (SE3 `origin`) ARE
+  // read back by `buildResult → applyScriptMetrics` and surface on RunResult.
+  // So this is the run's result-metadata script, not a throwaway.
+  const runScript: FixtureScript = {
     events: [],
     finalStatus: "running",
     cancellable: false,
     conversation: [],
+    // SE3 — carry the turn's provenance so buildResult forwards it onto RunResult.origin.
+    ...(options.sendOptions.origin !== undefined ? { origin: options.sendOptions.origin } : {}),
   };
 
   const handle = new RealLocalRun(
@@ -81,7 +85,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
       id,
       agentId: options.agentId,
       model: options.model,
-      script: unusedFixtureScript,
+      script: runScript,
       supportedOps: supported,
       startTime,
     },
