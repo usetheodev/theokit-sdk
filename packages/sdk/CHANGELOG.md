@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.23.0
+
+### Minor Changes
+
+- 271f6e4: **SE13 — `modifiedMaxSteps` on `onDelegationStart` (cap the subagent's iterations).**
+
+  `DelegationStartDecision` (from `@theokit/sdk/a2a`) gains `modifiedMaxSteps?: number`. When an `onDelegationStart` hook returns it (and does not reject), `defineSubAgent` forwards it as `SendOptions.maxIterations` to the child `agent.send`, capping how many tool-loop rounds the subagent may run. Composes with SE10 (`signal`) and SE12 (`messageFilter` preamble) onto a single child `send`. Absent ⇒ the child uses its default iteration ceiling (unchanged).
+
+  Completes the SE11 `onDelegationStart` decision contract (the deferred `modifiedMaxSteps` — the `SendOptions.maxIterations` plumbing already existed). Additive + backward-compatible. From the Mastra supervisor-agents comparison (SDK Evolution roadmap SE13).
+
+- b51dc6a: **SE14 — subagent result-context control (`SubAgentSpec.includeToolResults`).**
+
+  `defineSubAgent()` (from `@theokit/sdk/a2a`) gains an opt-in `includeToolResults`. When `true`, the child's completed tool-call results (name + result) are appended to the delegation payload returned to the supervisor, inside a delimited `<subagent-tool-results>` block; when absent/`false` the delegation returns the child's final text only — **text-only stays the default** (Mastra's scoped posture).
+
+  Implemented as a `run.stream()` replay after `run.wait()` (a proven, safe idiom — the run buffers events and `stream()` replays them) collecting `tool_call` events with `status: "completed"`. **No `RunResult` change** — reads the existing public stream surface; tool _args_ are never surfaced (only completed results). Rationale + the `RunResult`-field alternative are recorded in ADR 0006.
+
+  Additive + backward-compatible (default `false` never touches the stream). From the Mastra supervisor-agents comparison (SDK Evolution roadmap SE14).
+
+- 30e02d9: **SE15 — `iteration` count on the delegation-hook context (reject-after-N).**
+
+  `DelegationStartContext` and `DelegationCompleteContext` (from `@theokit/sdk/a2a`) gain `iteration: number` — a 1-based per-`defineSubAgent`-instance invocation counter, incremented before `onDelegationStart` runs (a rejected delegation still counts). This enables the Mastra reject-after-N-iterations pattern: `onDelegationStart: (ctx) => ctx.iteration > 8 ? { proceed: false, rejectionReason } : { proceed: true }`. `onDelegationComplete` sees the same iteration its `onDelegationStart` did.
+
+  Also fixes a delegation-hook DX regression: `onDelegationStart` / `onDelegationComplete` now accept a **side-effect-only (void-returning) callback** (e.g. `(ctx) => { log(ctx) }`) — the common case, mirroring Mastra's `async ctx => { … }` hooks — via a shared `DelegationHookResult<T>` return type. Additive + backward-compatible. From the Mastra supervisor-agents comparison (SDK Evolution roadmap SE15).
+
 ## 2.22.0
 
 ### Minor Changes
