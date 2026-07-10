@@ -31,6 +31,12 @@ export interface MessageFilterArgs {
 export interface DelegationStartContext {
   input: string;
   name: string;
+  /**
+   * SE15 — 1-based count of times THIS subagent tool has been invoked (a
+   * per-`defineSubAgent`-instance counter). Incremented before this hook runs;
+   * a rejected delegation still counts. Enables reject-after-N patterns.
+   */
+  iteration: number;
 }
 
 /**
@@ -55,7 +61,17 @@ export interface DelegationCompleteContext {
   result?: string;
   /** The error the child threw (present on failure); the error is still re-thrown. */
   error?: unknown;
+  /** SE15 — the same 1-based iteration this delegation's `onDelegationStart` saw. */
+  iteration: number;
 }
+
+/**
+ * The return of a delegation hook: a decision, a promise of one, or nothing —
+ * `void` lets a side-effect-only callback (`(ctx) => { log(ctx) }`) type-check,
+ * which is the common case (mirrors Mastra's `async ctx => { ... }` hooks).
+ */
+// biome-ignore lint/suspicious/noConfusingVoidType: `void` is the idiomatic return for an optional-return callback; the rule false-positives on callback return unions.
+type DelegationHookResult<T> = T | void | Promise<T | void>;
 
 /** Decision returned from {@link SubAgentSpec.onDelegationComplete}. */
 export interface DelegationCompleteDecision {
@@ -78,7 +94,7 @@ export interface SubAgentSpec {
    */
   onDelegationStart?: (
     ctx: DelegationStartContext,
-  ) => DelegationStartDecision | undefined | Promise<DelegationStartDecision | undefined>;
+  ) => DelegationHookResult<DelegationStartDecision>;
   /**
    * SE11 — called after the delegation settles. On success `ctx.result` is set
    * and an optional `{ feedback }` is appended to it. On failure `ctx.error` is
@@ -88,7 +104,7 @@ export interface SubAgentSpec {
    */
   onDelegationComplete?: (
     ctx: DelegationCompleteContext,
-  ) => DelegationCompleteDecision | undefined | Promise<DelegationCompleteDecision | undefined>;
+  ) => DelegationHookResult<DelegationCompleteDecision>;
   /**
    * SE12 — opt-in parent-context forwarding. When set, the supervisor transcript
    * (`ctx.messages`, a read-only text projection) is passed to this filter and the
@@ -127,9 +143,10 @@ export class MaxDelegationDepthError extends Error {
 async function applyDelegationStart(
   spec: SubAgentSpec,
   input: string,
+  iteration: number,
 ): Promise<{ reject: string } | { input: string; maxSteps?: number }> {
   if (spec.onDelegationStart === undefined) return { input };
-  const decision = await spec.onDelegationStart({ input, name: spec.name });
+  const decision = await spec.onDelegationStart({ input, name: spec.name, iteration });
   if (decision === undefined) return { input };
   if (decision.proceed === false)
     return { reject: decision.rejectionReason ?? "(delegation rejected)" };
@@ -204,10 +221,11 @@ async function notifyDelegationError(
   spec: SubAgentSpec,
   input: string,
   error: unknown,
+  iteration: number,
 ): Promise<void> {
   if (spec.onDelegationComplete === undefined) return;
   try {
-    await spec.onDelegationComplete({ input, name: spec.name, error });
+    await spec.onDelegationComplete({ input, name: spec.name, error, iteration });
   } catch {
     // Subordinate to `error`; the child's real cause wins.
   }
@@ -236,9 +254,10 @@ async function applyDelegationComplete(
   spec: SubAgentSpec,
   input: string,
   result: string,
+  iteration: number,
 ): Promise<string> {
   if (spec.onDelegationComplete === undefined) return result;
-  const completion = await spec.onDelegationComplete({ input, name: spec.name, result });
+  const completion = await spec.onDelegationComplete({ input, name: spec.name, result, iteration });
   return completion?.feedback !== undefined ? result + completion.feedback : result;
 }
 
@@ -254,6 +273,10 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
     input: z.string().describe("Task for the subagent"),
   });
 
+  // SE15 — per-instance delegation counter, surfaced as `iteration` on the hook
+  // contexts. Incremented once per handler invocation before onDelegationStart.
+  let iteration = 0;
+
   return {
     name: spec.name,
     description: spec.description,
@@ -267,8 +290,13 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
       },
     ): Promise<string> => {
       const { input: parsed } = inputSchema.parse(rawInput);
+      iteration += 1; // SE15 — before onDelegationStart; a rejected delegation still counts.
+      // Pin THIS invocation's iteration before any await so a concurrent invocation
+      // bumping the shared counter cannot change the value onDelegationComplete /
+      // notifyDelegationError observe — they see the same iteration onDelegationStart did.
+      const capturedIteration = iteration;
 
-      const start = await applyDelegationStart(spec, parsed);
+      const start = await applyDelegationStart(spec, parsed, capturedIteration);
       if ("reject" in start) return start.reject;
       // SE12 — opt-in: forward the filtered supervisor transcript as a preamble.
       const input = applyMessageFilter(spec, start.input, ctx?.messages);
@@ -281,10 +309,10 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
         // SE11 — notify the completion hook of the failure (best-effort observer),
         // then re-throw the ORIGINAL error (Rule 8: never swallow the delegation's
         // own failure).
-        await notifyDelegationError(spec, input, error);
+        await notifyDelegationError(spec, input, error, capturedIteration);
         throw error;
       }
-      return applyDelegationComplete(spec, input, result);
+      return applyDelegationComplete(spec, input, result, capturedIteration);
     },
   };
 }
