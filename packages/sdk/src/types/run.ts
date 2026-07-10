@@ -46,6 +46,38 @@ export interface RunGitInfo {
 }
 
 /**
+ * SE3 — provenance of the turn that produced a run: WHO triggered it. Stamped in
+ * the multi-agent path (Squad / a2a / handoff / background-delegation) and
+ * forwarded onto {@link RunResult.origin} — so consumers can attribute/route
+ * turns by their trigger. Metadata-only; discriminate on `kind`. Mirrors the
+ * Anthropic Agent SDK's `origin` shape.
+ *
+ * Encoding note (distinct from absence): an ABSENT origin (`undefined`) means the
+ * provenance was NOT stamped — the default for a plain `agent.send()`. The explicit
+ * `{ kind: "human" }` is a positive marker a HOST stamps to say "this turn is
+ * definitely from a human" (e.g. to distinguish a real user message from an
+ * un-attributed one in an audit UI). The two are not interchangeable: `undefined`
+ * = unknown/unstamped; `{ kind: "human" }` = explicitly human. Consumers writing an
+ * exhaustive `switch (origin?.kind)` therefore handle `undefined` (unstamped) and
+ * `"human"` (explicit) as separate, meaningful cases.
+ *
+ * @public
+ */
+export type MessageOrigin =
+  /** Explicitly a human-triggered turn — a positive marker a host stamps (NOT the
+   *  same as an absent/unstamped origin, which is `undefined`). */
+  | { readonly kind: "human" }
+  /** Another agent (a Squad peer or an a2a sender) triggered this turn. */
+  | { readonly kind: "peer"; readonly from: string }
+  /** A background task's completion re-entered the agent as a follow-up turn. */
+  | { readonly kind: "task-notification" }
+  /** A delegating/handoff coordinator triggered this turn. `from` is the coordinator's
+   *  id when known, omitted for an anonymous coordinator. */
+  | { readonly kind: "coordinator"; readonly from?: string }
+  /** The loop's continuation driver re-sent to continue truncated work. */
+  | { readonly kind: "auto-continuation" };
+
+/**
  * Terminal result of a {@link Run}.
  *
  * @public
@@ -57,6 +89,15 @@ export interface RunResult {
   model?: ModelSelection;
   durationMs?: number;
   git?: RunGitInfo;
+  /**
+   * SE3 — provenance forwarded from {@link SendOptions.origin}: who triggered
+   * this turn (human / peer / task-notification / coordinator / auto-continuation).
+   * `undefined` means the provenance was not stamped (a plain `agent.send()`).
+   * Metadata-only — never affects routing.
+   *
+   * @public
+   */
+  origin?: MessageOrigin;
   /**
    * Structured error detail, populated when `status === "error"`. Surfaces
    * the diagnostic that emit-error-event pushes into the stream so callers
@@ -234,6 +275,14 @@ export interface SDKUserMessage {
  */
 export interface SendOptions {
   model?: ModelSelection;
+  /**
+   * SE3 — provenance of this turn (who triggered it). Stamped by the multi-agent
+   * path (Squad peer, a2a sender, coordinator/handoff, background task-notification)
+   * and forwarded onto {@link RunResult.origin}. Metadata-only — the value never
+   * changes routing or dispatch. Omit to leave the turn un-attributed; a host may
+   * pass `{ kind: "human" }` to positively mark a human turn.
+   */
+  origin?: MessageOrigin;
   /**
    * SE2 — opt-in typed runtime-EVENT sink. Receives out-of-band `RunEvent`s
    * (permission_denied, tool_progress, rate_limit, task_*, compact_boundary) for

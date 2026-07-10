@@ -1,7 +1,7 @@
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../../types/agent.js";
 import type { ConversationTurn } from "../../../types/conversation.js";
 import type { SDKMessage } from "../../../types/messages.js";
-import type { RunStatus, SendOptions } from "../../../types/run.js";
+import type { MessageOrigin, RunStatus, SendOptions } from "../../../types/run.js";
 import type { CostBreakdown, TokenUsage } from "../../../types/usage.js";
 import type { MemoryFact } from "../memory/memory-store.js";
 import type { SessionMessage } from "../session/agent-session.js";
@@ -48,6 +48,11 @@ export interface FixtureScript {
   /** Doom-loop guard: true when the loop stopped on identical-repeat tool calls. Copied from
    *  `AgentLoopOutput.stoppedByDoomLoop` onto `RunResult.stoppedByDoomLoop`. */
   stoppedByDoomLoop?: boolean;
+  /**
+   * SE3 — provenance of the turn (captured from `SendOptions.origin` at run
+   * construction). Copied onto `RunResult.origin` by `applyScriptMetrics`.
+   */
+  origin?: MessageOrigin;
   /** Optional async hook executed before the run terminates. */
   beforeComplete?: () => Promise<void>;
 }
