@@ -182,7 +182,15 @@ session API, so hosts (TheoKit) can build session UIs without reaching into stor
 
 **Why now:** we have storage + resume (#62) but no discovery/management surface; TheoKit would expose it directly.
 
-### SE5 — [ ] File checkpoint/rewind (GATED — ADR first)
+### SE5 — [x] File checkpoint/rewind (GATED — ADR first)
+
+> **RESOLVED 2026-07-09 → framework/tool-layer owned (no SDK code).** See
+> [ADR 0003](docs/adr/0003-file-checkpointing-is-framework-owned.md). The runtime is BYO-tools and
+> tool-agnostic — it ships no file tools and the agent loop performs no file I/O, so it cannot know
+> which files a consumer tool mutated. A runtime checkpoint would need either an unbounded
+> whole-working-tree snapshot or a file-mutation reporting contract coupling every tool to a
+> filesystem protocol — both contradict the design. The layer that owns the file-editing tools
+> (TheoKit's coding-agent / tool layer) owns checkpoint/rewind, keyed to SE4 session message ids.
 
 **Objective:** DECIDE, via ADR, whether file checkpointing + rewind (Anthropic
 `enableFileCheckpointing` + `rewindFiles()`) is a **runtime** concern (SDK) or a **coding-agent**
@@ -191,9 +199,9 @@ the loop does not own file I/O — checkpointing may not fit the runtime cleanly
 
 **Definition of done:**
 
-- [ ] **GATE:** an ADR ruling runtime-vs-framework ownership (no code before it). Evidence: the loop is tool-agnostic; file mutation lives in consumer tools.
-- [ ] If runtime-owned: a minimal `checkpoint` / `rewind(messageId)` primitive keyed on session message ids + TDD.
-- [ ] If framework-owned: ADR + a roadmap note closing it as TheoKit/tool-layer territory (no SDK code).
+- [x] **GATE:** an ADR ruling runtime-vs-framework ownership (no code before it). Evidence: the loop is tool-agnostic; file mutation lives in consumer tools. → **ADR 0003.**
+- [ ] ~~If runtime-owned: a minimal `checkpoint` / `rewind(messageId)` primitive~~ — N/A (ruled framework-owned).
+- [x] If framework-owned: ADR + a roadmap note closing it as TheoKit/tool-layer territory (no SDK code). → **done (this note + ADR 0003).**
 
 **Dependencies:** SE1 (permission context), SE4 (message ids as the rewind anchor).
 
