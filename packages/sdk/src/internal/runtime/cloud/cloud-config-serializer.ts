@@ -106,6 +106,9 @@ function serializeCloud(cloud: NonNullable<AgentOptions["cloud"]>): CloudAgentPa
 }
 
 function serializeSkills(skills: AgentOptions["skills"]): CloudAgentPayload["skills"] | undefined {
+  // SE22 — a SkillsResolver function is rejected for cloud upstream
+  // (validateCloudToolParity); guard here too so the type narrows cleanly.
+  if (typeof skills === "function") return undefined;
   if (skills?.enabled === undefined || skills.enabled.length === 0) return undefined;
   return { enabled: [...skills.enabled] };
 }

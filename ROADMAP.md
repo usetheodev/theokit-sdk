@@ -623,7 +623,7 @@ SE20's `get(name)` (and readable by the consumer). From the a peer framework Age
 
 **Why now:** completes inline-skill parity with filesystem skills' `references/`; pairs with SE20 as its read path.
 
-### SE22 — [ ] Dynamic skills resolver (`skills: (ctx) => SkillInput[]`)
+### SE22 — [x] Dynamic skills resolver (`skills: (ctx) => SkillInput[]`)
 
 **Objective:** Per-request skill resolution. a peer framework accepts `skills: ({ requestContext }) => SkillInput[]`
 so an agent picks its skills from runtime context (e.g. user role). TheoKit's `AgentOptions.skills` is a

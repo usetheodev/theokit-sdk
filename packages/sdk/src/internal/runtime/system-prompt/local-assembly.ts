@@ -1,7 +1,7 @@
 import type { AgentOptions, ModelSelection, SystemPromptContext } from "../../../types/agent.js";
 import type { FileContextManager } from "../context/context-manager.js";
 import type { MemoryFact } from "../memory/memory-store.js";
-import type { SkillsManager } from "../skills/skills-manager.js";
+import { SkillsManager } from "../skills/skills-manager.js";
 import type { SystemPromptPipeline } from "./pipeline.js";
 import type { SystemPromptAssemblyContext } from "./types.js";
 
@@ -19,12 +19,54 @@ export interface LocalAssemblyInputs {
   options: AgentOptions;
   context: FileContextManager | undefined;
   skillsManager: SkillsManager | undefined;
+  /** SE22 — needed to build the per-send transient manager when `options.skills` is a resolver. */
+  settingSourcesIncludeProject: boolean;
   systemPromptPipeline: SystemPromptPipeline;
 }
 
 /**
+ * SE22 — resolve the effective skills for THIS send. A static
+ * `SkillsSettings` object uses the create-time (base) manager unchanged; a
+ * {@link import("../../../types/agent.js").SkillsResolver} function is evaluated
+ * with the per-send context and drives a fresh transient manager. A throwing
+ * resolver propagates (fail-fast, no silent fallback — Rule 8).
+ *
+ * @internal
+ */
+export async function resolveSendSkills(
+  inputs: LocalAssemblyInputs,
+  userText: string,
+  memoryFacts: ReadonlyArray<MemoryFact>,
+): Promise<{ manager: SkillsManager | undefined; autoInject: boolean }> {
+  const skills = inputs.options.skills;
+  if (typeof skills !== "function") {
+    return { manager: inputs.skillsManager, autoInject: skills?.autoInject ?? true };
+  }
+  const settings = await skills({
+    agentId: inputs.agentId,
+    cwd: inputs.workspaceCwd,
+    model: inputs.model,
+    userMessage: userText,
+    memory: memoryFacts.map((fact) => ({ text: fact.text })),
+  });
+  const manager = new SkillsManager(
+    inputs.workspaceCwd,
+    settings.enabled,
+    inputs.settingSourcesIncludeProject,
+    settings.skillsDir,
+    settings.inline,
+  );
+  // `initialize()` skips the filesystem scan when project sources are off (fast
+  // path — inline-only), so a per-send resolver is cheap for inline skills.
+  await manager.initialize();
+  return { manager, autoInject: settings.autoInject ?? true };
+}
+
+/**
  * Build the base {@link SystemPromptContext} surfaced to a resolver function.
- * Resolves skills lazily — never throws when the manager is absent.
+ * Resolves skills lazily — never throws when the manager is absent. The
+ * effective manager defaults to the base one; the assembly path passes the
+ * per-send resolved manager (SE22).
  *
  * @internal
  */
@@ -32,8 +74,9 @@ export async function buildSystemPromptContext(
   inputs: LocalAssemblyInputs,
   userText: string,
   memoryFacts: ReadonlyArray<MemoryFact>,
+  manager: SkillsManager | undefined = inputs.skillsManager,
 ): Promise<SystemPromptContext> {
-  const skills = inputs.skillsManager !== undefined ? await inputs.skillsManager.list() : [];
+  const skills = manager !== undefined ? await manager.list() : [];
   return {
     agentId: inputs.agentId,
     cwd: inputs.workspaceCwd,
@@ -57,10 +100,14 @@ export async function buildAssemblyContext(
   memoryFacts: ReadonlyArray<MemoryFact>,
   activeMemorySummary: string | undefined,
 ): Promise<SystemPromptAssemblyContext> {
-  const baseCtx = await buildSystemPromptContext(inputs, userText, memoryFacts);
+  // SE22 — resolve skills ONCE per send; the resolver (if any) runs here, before
+  // assembly. `buildSystemPromptContext` receives the resolved manager so the
+  // <skills> block reflects the per-send resolution.
+  const resolved = await resolveSendSkills(inputs, userText, memoryFacts);
+  const baseCtx = await buildSystemPromptContext(inputs, userText, memoryFacts, resolved.manager);
   const assemblyCtx: SystemPromptAssemblyContext = {
     ...baseCtx,
-    skillsAutoInject: inputs.options.skills?.autoInject ?? true,
+    skillsAutoInject: resolved.autoInject,
     memoryAutoInject: inputs.options.memory?.autoInject ?? true,
   };
   if (baseSystemPrompt !== undefined) assemblyCtx.baseSystemPrompt = baseSystemPrompt;
