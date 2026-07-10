@@ -22,6 +22,14 @@ export {
   preflightCheck,
   UsageAccumulator,
 } from "./budget.js";
+// SE25 — deterministic in-tree guardrail processors (built on the SE24 seam).
+export {
+  createTokenLimiter,
+  createUnicodeNormalizer,
+  estimateTokens,
+  type TokenLimiterOptions,
+  type UnicodeNormalizerOptions,
+} from "./built-in-processors.js";
 // M22 — code-defined inline skills (`createSkill`) usable alongside filesystem skills.
 export { type CreateSkillSpec, createSkill, type InlineSkill } from "./create-skill.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
@@ -226,6 +234,15 @@ export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.
 export type { SessionMeta, SessionMetaPatch } from "./types/conversation-storage.js";
 // Type contract
 export type * from "./types/index.js";
+// SE24 — guardrail processor pipeline (inputProcessors / outputProcessors).
+export type {
+  InputProcessorContext,
+  OutputProcessorContext,
+  Processor,
+  ProcessorControls,
+  ProcessorTripwire,
+  ProcessorViolation,
+} from "./types/processors.js";
 // SE3 — multi-agent provenance. Explicit re-export so rollup-dts surfaces it in
 // the bundled .d.ts (the `export type *` star does not reliably propagate — same
 // reason as `CustomTool` above).
@@ -242,6 +259,7 @@ export {
   type RunTaskStartedEvent,
   type RunTaskUpdatedEvent,
   type RunToolProgressEvent,
+  type RunTripwireEvent,
 } from "./types/run-events.js";
 // SE4 — explicit type re-exports so rollup-dts surfaces them in the bundled .d.ts
 // (the `export type *` star does not reliably propagate — same reason as CustomTool).

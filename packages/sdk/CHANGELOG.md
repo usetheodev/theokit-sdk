@@ -1,5 +1,34 @@
 # Changelog
 
+## 2.26.0
+
+### Minor Changes
+
+- d31e2ca: **SE24 — guardrail processor pipeline (`inputProcessors` / `outputProcessors`).**
+
+  `AgentOptions.inputProcessors` run in order before the LLM (normalize / validate / block / rewrite the user message); `outputProcessors` run on the model's final text before it reaches the caller (redact / block). A `Processor` is `{ id; processInput?; processOutput?; onViolation? }`; each handler receives `ctx` with `abort(reason)` (block → the run stops with `RunResult.tripwire { reason, processorId }` + a `tripwire` run-event via `SendOptions.onRunEvent`) and `warn(message, detail?)` (non-blocking → fires `onViolation`, continues), and returns the (possibly rewritten) payload.
+
+  The core ships no `strategy` enum — block/rewrite/redact/warn reduce to `abort` / return-string / `warn` (the built-in SE25 processors expose a `strategy` option over these). An input block never reaches the model (a terminal tripwire run); an output block turns a finished run's result into a tripwire on `wait()`. Streaming output redaction is deferred (v1 processes the buffered `wait()` path). Cloud agents reject processors (function handlers don't serialize). Back-compat: no processors ⇒ unchanged. New public types `Processor` / `ProcessorViolation` / `InputProcessorContext` / `OutputProcessorContext` / `ProcessorControls` / `ProcessorTripwire` / `RunTripwireEvent` + `RunResult.tripwire`. ADR 0008. Mirrors a peer framework Guardrails input/output processors. From the a peer framework Guardrails comparison (SDK Evolution roadmap SE24).
+
+- cc8efee: **SE25 — deterministic in-tree guardrail processors (`createUnicodeNormalizer`, `createTokenLimiter`).**
+
+  Two churn-free, no-LLM processors built on the SE24 seam:
+
+  - `createUnicodeNormalizer({ stripControlChars?, collapseWhitespace? })` — an input processor: Unicode NFC normalization (stdlib `String.prototype.normalize`) plus optional C0/DEL control-char stripping (keeps tab/newline/carriage-return) and whitespace collapsing.
+  - `createTokenLimiter({ limit, strategy? })` — caps text to a token budget using a char-based estimate (~chars/4, no tokenizer dep; `estimateTokens` is exported). `strategy: "truncate"` (default, cut to fit) or `"block"` (abort → tripwire). Fires on whichever array it is placed in (input caps the prompt, output caps the response).
+
+  Both are OPT-IN (add to `inputProcessors`/`outputProcessors`); nothing auto-injects them; back-compat preserved.
+
+  **`BatchPartsProcessor` is intentionally DEFERRED**, not shipped: TheoKit's `run.stream()` emits full `SDKAssistantMessage`s, not token-granular deltas, so there is no SSE chunk stream to coalesce in the in-process runtime (a peer framework's BatchParts cuts HTTP network overhead). It becomes meaningful only alongside a future HTTP/SSE streaming transport (the same milestone as SE24's deferred streaming-output redaction). Mirrors a peer framework's deterministic guardrail processors. From the a peer framework Guardrails comparison (SDK Evolution roadmap SE25).
+
+### Patch Changes
+
+- 0685363: **SE26 — delegate LLM-classifier guardrail processors (ADR + recommendation + example).**
+
+  Records the decision (ADR 0009) to DELEGATE the LLM-classifier guardrail processors — moderation, PII, prompt-injection, language, prompt-scrubber — to specialist libraries / consumer code built ON the SE24 seam, rather than shipping concrete classifiers in `@theokit/sdk` core (mirrors the AUTH-DELEGATION lock: constant churn — provider/model deltas, taxonomies, thresholds, jailbreak patterns — vs a stable seam a single-maintainer core can own). No classifier is added to core.
+
+  Ships the paved path: `docs/concepts/guardrails.md` (how to build moderation / PII / injection processors on the seam + recommended external classifiers) and `examples/guardrails/` (a runnable moderation + PII-redaction example over a pluggable classifier). No public API change. From the a peer framework Guardrails comparison (SDK Evolution roadmap SE26).
+
 ## 2.25.0
 
 ### Minor Changes

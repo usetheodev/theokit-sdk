@@ -16,6 +16,12 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    // Default 5s is too tight for e2e / first-import tests under the documented
+    // libuv saturation of the full `pnpm -r run test` (18 packages in parallel —
+    // see the forks-pool note below). Raise to 20s so load variance never flakes;
+    // a genuine hang still fails (real hangs run indefinitely, not ~5-6s).
+    testTimeout: 20_000,
+    hookTimeout: 20_000,
     // Autouse setup: isolates THEOKIT_HOME per-test in a fresh tmpdir
     // (T6.1, ADR D60). Tests never write to the developer's real state.
     // Also runs native-bindings preflight (T1.1, dogfood-regressions-fix v1.1).

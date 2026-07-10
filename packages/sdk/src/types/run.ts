@@ -86,6 +86,18 @@ export interface RunResult {
   id: string;
   status: "finished" | "error" | "cancelled";
   result?: string;
+  /**
+   * SE24 — set when a guardrail processor called `abort()`. The run stops
+   * (`status: "cancelled"`) and `tripwire` carries the blocking reason +
+   * processor id. `undefined` on every non-guardrail outcome. A
+   * `throwOnError: true` agent resolves normally on a tripwire (status is
+   * `"cancelled"`, not `"error"`). On an OUTPUT block the model already ran, so
+   * `usage`/`cost` survive (billing) while `result` is suppressed; an INPUT
+   * block never reaches the model, so `usage` is absent.
+   *
+   * @public
+   */
+  tripwire?: import("./processors.js").ProcessorTripwire;
   model?: ModelSelection;
   durationMs?: number;
   git?: RunGitInfo;

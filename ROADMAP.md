@@ -674,6 +674,91 @@ comparison (2026-07-10).
 
 **Why now:** completes the a peer framework skills-read parity as an OPT-IN factory (consistent with `defineSubAgent` / `workflowAsTool`), resolving the eager-block-vs-lazy-tool question without violating bring-your-own-tools.
 
+### SE24 — [x] Guardrail processor pipeline seam (input/output, strategy, tripwire, onViolation)
+
+**Objective:** Add a message-level guardrail seam. a peer framework ships `inputProcessors` / `outputProcessors` — a
+pipeline that runs before the LLM (input) and before the response reaches the user (output), where each
+processor may normalize / validate / transform / block content via a `strategy` (block/warn/detect/redact/
+rewrite/translate), calling `abort()` to stop the run (surfaced as `result.tripwire` on generate + a
+`tripwire` chunk on stream), and firing an `onViolation` callback. TheoKit today has a **tool-side** guardrail
+only (`pre_tool_call` veto + `PermissionEngine`, SE1); the **message-side** seam is absent — `pre_user_send`
+only injects `<memory-context>` (can't block/rewrite the input) and `post_assistant_reply` is fire-and-forget
+(can't redact the output). Even a plugin cannot build an input/output guardrail today. Add the runtime seam:
+a `Processor` interface + `AgentOptions.inputProcessors` / `outputProcessors`, provider-agnostic and
+in-process, with NO LLM baked in (LLM-classifier processors are the consumer's — SE26). From the a peer framework
+Guardrails comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] A public `Processor` interface: `{ id; processInput?(ctx) => messages | abort; processOutput?(ctx) => output | abort; onViolation? }` (exact shape decided in the plan/ADR — reuse vs extend the existing hook seam is an explicit ADR choice).
+- [ ] `AgentOptions.inputProcessors?` run in order before the LLM call; each may rewrite the user message(s) or `abort(reason)`. `outputProcessors?` run in order on the model response before it reaches the caller; each may rewrite/redact or `abort(reason)`.
+- [ ] `strategy` support: at minimum `block` (abort) + `rewrite`/`redact` (transform-and-continue); `warn`/`detect` are non-blocking (fire `onViolation`, continue). `translate` is a processor concern (SE26 delegated), not a core strategy requirement.
+- [ ] `abort()` semantics: an aborted run yields a typed tripwire — `result.tripwire { reason, processorId }` on the wait/generate path AND a `tripwire` run-event on the stream path (mirror `SendOptions.onRunEvent` / `RunEvent`). Subsequent processors do NOT run after an abort.
+- [ ] `onViolation(ProcessorViolation { processorId, message, detail })` fires on abort AND on `warn`; callback errors are swallowed (never break the pipeline).
+- [ ] Back-compat: no processors ⇒ behavior identical to today. Cloud agents reject function-carrying processors (mirror the systemPrompt/skills resolver cloud rule) OR the ADR records how processors serialize.
+- [ ] TDD: an input `block` processor aborts before the LLM (tripwire, no model call); an input `rewrite` processor mutates the message the model sees; an output `redact` processor transforms the returned text; `onViolation` fires with the right payload; ordering + short-circuit-on-abort are asserted.
+- [ ] Docs + Changeset + **ADR** (seam design: dedicated pipeline vs extending `pre_user_send`/`post_assistant_reply`; tripwire shape; cloud serialization).
+
+**Dependencies:** none (extends the local runtime; reuses the SE2 `RunEvent` stream + the SE1 abort/veto precedent).
+
+**Top risks (new):**
+1. Overlap with the existing plugin hook seam (`pre_user_send` / `post_assistant_reply` / `pre_tool_call`). Mitigation: the ADR decides reuse-vs-new explicitly; if extended, `pre_user_send` gains a block/rewrite result and `post_assistant_reply` gains a redact result — no second parallel system unless justified (KISS / DRY).
+2. Output redaction on the STREAM path (redacting tokens mid-stream is harder than on a buffered result). Mitigation: v1 may scope output processors to the buffered/`wait()` path with streaming redaction deferred to a follow-up (documented), mirroring a peer framework's `processOutputStream` being a separate, heavier hook.
+
+**Why now:** it is the load-bearing seam — SE25 (deterministic processors) and SE26 (delegated classifier processors) both build on it, and without it neither the SDK nor a plugin can guard input/output messages at all. Closes the message-side half of the guardrail story (the tool-side already shipped in SE1).
+
+### SE25 — [x] Deterministic in-tree processors (UnicodeNormalizer, BatchParts, TokenLimiter)
+
+**Objective:** Ship the cheap, deterministic, no-LLM processors on the SE24 seam. These don't churn (no
+provider/model deltas, no taxonomy tuning) so they are safe to own in-core, unlike the classifier processors
+(SE26). a peer framework ships `UnicodeNormalizer` (Unicode/whitespace/control-char cleanup), `BatchPartsProcessor`
+(coalesce stream chunks to cut network overhead), and `TokenLimiterProcessor` (cap tokens). From the a peer framework
+Guardrails comparison (2026-07-10).
+
+**Definition of done:**
+
+- [x] `UnicodeNormalizer` input processor: NFC-normalize (stdlib `String.prototype.normalize`), collapse whitespace, strip control chars — options `{ stripControlChars?, collapseWhitespace? }`. Pure/deterministic; no LLM.
+- [x] `TokenLimiter` processor: cap input and/or output tokens against a limit; uses a char-based estimate (~chars/4, no tokenizer dep — parsimony rung 4) documented as an estimate; `strategy: "truncate" | "block"`. Fires on whichever array it is placed in. Options `{ limit, strategy? }`.
+- [x] **`BatchPartsProcessor` — DEFERRED (architectural finding, not skipped).** Discovered during implementation: TheoKit's `run.stream()` emits **full `SDKAssistantMessage`s** (`content: Array<TextBlock | ToolUseBlock>`), NOT token-granular deltas. a peer framework's `BatchPartsProcessor` coalesces SSE chunks to cut NETWORK overhead over HTTP; the in-process runtime has no such chunk-stream to coalesce (nothing to batch → a no-op). It becomes meaningful only when an HTTP/SSE streaming transport lands — the SAME future milestone as SE24's deferred streaming-output redaction. Reopening tracked with that streaming milestone.
+- [x] The two shipped processors are OPT-IN (added to `inputProcessors`/`outputProcessors`); nothing auto-injects them; back-compat preserved.
+- [x] TDD: normalizer folds a known Unicode/whitespace/control-char fixture to the expected string; token limiter enforces the cap (truncate + block) on a fixture over/under the limit.
+- [x] Docs + Changeset.
+
+**Dependencies:** SE24 (the `Processor` seam these implement).
+
+**Top risks (new):**
+1. `TokenLimiter` needing a real tokenizer (model-specific). Mitigation: char-based estimate (~chars/4), documented as an estimate not an exact per-model count (KISS) — an exact tokenizer is deferred with demand evidence.
+2. `BatchPartsProcessor` fit. Resolved by DEFERRAL above — the in-process stream emits full messages, so batching has no overhead to reduce until an HTTP/SSE transport exists.
+
+**Why now:** these are the guardrails a consumer can adopt with zero external dependency and zero LLM cost — the safe, high-value first fill of the SE24 seam, proving the pipeline before the delegated classifiers land.
+
+### SE26 — [x] Delegate LLM-classifier processors (moderation / PII / injection) — ADR + recommendation + example
+
+**Objective:** Record the decision to DELEGATE the LLM-classifier guardrail processors — `ModerationProcessor`,
+`PIIDetector`, `PromptInjectionDetector`, `LanguageDetector`, `SystemPromptScrubber` — to specialist libraries
+/ consumer code built ON the SE24 seam, rather than shipping concrete classifiers in `@theokit/sdk` core. The
+rationale mirrors AUTH-DELEGATION (this repo's locked precedent): these processors carry constant churn
+(provider/model deltas, category taxonomies, threshold tuning, evolving jailbreak patterns); a single-maintainer
+core cannot keep them current, while the SE24 seam (a stable interface) does not churn. This is a gated-decision
+milestone (ADR + docs + example), NOT runtime code in core — same shape as SE5/SE6. From the a peer framework Guardrails
+comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] An **ADR** recording: (a) the SE24 seam is the extension point; (b) LLM-classifier processors are delegated (not shipped in core); (c) re-evaluation triggers (team ≥ 3 engineers, or ≥ N shipped apps blocked) mirroring AUTH-DELEGATION; (d) if ever adopted, they ship as separate optional `@theokit/guardrail-*` packages, never in core.
+- [ ] A `docs/concepts/guardrails.md` recommendation page: how to build moderation / PII / injection / language / prompt-scrubber processors on the SE24 seam, with recommended external classifiers.
+- [ ] A **worked example** (in `examples/`) of a moderation-style processor built on the SE24 seam calling an external classifier (a stub/fake classifier is acceptable for the example — the point is the seam wiring, not a bundled model).
+- [ ] NO concrete classifier processor added to `@theokit/sdk` core (verifiable: no new `Moderation`/`PII`/`Injection` runtime export).
+- [ ] Changeset (docs/ADR only — no minor API surface unless the example needs a tiny seam helper).
+
+**Dependencies:** SE24 (the seam the delegated processors build on).
+
+**Top risks (new):**
+1. Users reading "delegated" as "unsupported". Mitigation: the docs page ships concrete recommended libs + a working example, exactly like the AUTH-DELEGATION recommendation page — delegation with a paved path, not a shrug.
+2. Pressure to ship one classifier "just for PII". Mitigation: the ADR names the re-evaluation trigger; a one-off classifier in core is the exact churn trap AUTH-DELEGATION was written to avoid.
+
+**Why now:** it closes the guardrails story honestly — the seam (SE24) + deterministic processors (SE25) ship in core; the churning LLM-classifier processors are delegated with a paved path, keeping the single-maintainer core maintainable (consistent with the locked AUTH-DELEGATION posture).
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
