@@ -394,7 +394,7 @@ default). From the Mastra supervisor-agents comparison (2026-07-10).
 
 **Why now:** completes the supervisor-parity set (delegation control + context control); the most architecturally sensitive, so it ships last and stays opt-in.
 
-### SE13 — [ ] `modifiedMaxSteps` on `onDelegationStart` (cap the subagent's iterations)
+### SE13 — [x] `modifiedMaxSteps` on `onDelegationStart` (cap the subagent's iterations)
 
 **Objective:** Complete SE11's delegation hooks by letting `onDelegationStart` cap the child's
 iteration count. SE11 shipped `proceed` / `rejectionReason` / `modifiedInput` and DEFERRED
@@ -419,7 +419,7 @@ iteration count. SE11 shipped `proceed` / `rejectionReason` / `modifiedInput` an
 
 **Why now:** completes the SE11 hook contract at near-zero cost (the child cap already exists); the last missing piece of `onDelegationStart` parity.
 
-### SE14 — [ ] Subagent result-context control (`includeToolResults`)
+### SE14 — [x] Subagent result-context control (`includeToolResults`)
 
 **Objective:** Control what a completed subagent surfaces back to the supervisor. Today `defineSubAgent`
 returns only the child's final text (`RunResult.result`). Mastra defaults to text-only and exposes
