@@ -22,6 +22,14 @@ export {
   preflightCheck,
   UsageAccumulator,
 } from "./budget.js";
+// SE25 — deterministic in-tree guardrail processors (built on the SE24 seam).
+export {
+  createTokenLimiter,
+  createUnicodeNormalizer,
+  estimateTokens,
+  type TokenLimiterOptions,
+  type UnicodeNormalizerOptions,
+} from "./built-in-processors.js";
 // M22 — code-defined inline skills (`createSkill`) usable alongside filesystem skills.
 export { type CreateSkillSpec, createSkill, type InlineSkill } from "./create-skill.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
