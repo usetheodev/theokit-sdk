@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createApplyPatchTool } from "../src/apply-patch.js";
+import { textHandler } from "./_text-handler.js";
 
 let projectRoot: string;
 
@@ -36,7 +37,7 @@ describe("createApplyPatchTool — happy path", () => {
       " line3",
     ].join("\n");
     const tool = createApplyPatchTool({ projectRoot });
-    const out = await tool.handler({ patch });
+    const out = await textHandler(tool)({ patch });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.files_patched).toContain("file.ts");
@@ -49,7 +50,7 @@ describe("createApplyPatchTool — happy path", () => {
     writeFileSync(join(projectRoot, "backup.ts"), "old\n");
     const patch = ["--- a/backup.ts", "+++ b/backup.ts", "@@ -1 +1 @@", "-old", "+new"].join("\n");
     const tool = createApplyPatchTool({ projectRoot });
-    await tool.handler({ patch });
+    await textHandler(tool)({ patch });
     expect(existsSync(join(projectRoot, "backup.ts.bak"))).toBe(true);
     expect(readFileSync(join(projectRoot, "backup.ts.bak"), "utf-8")).toBe("old\n");
   });
@@ -58,7 +59,7 @@ describe("createApplyPatchTool — happy path", () => {
 describe("createApplyPatchTool — error scenarios", () => {
   it("Given empty patch, Then result is { ok: false, error: 'parse_error' }", async () => {
     const tool = createApplyPatchTool({ projectRoot });
-    const out = await tool.handler({ patch: "no hunks here" });
+    const out = await textHandler(tool)({ patch: "no hunks here" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("parse_error");
@@ -73,7 +74,7 @@ describe("createApplyPatchTool — error scenarios", () => {
       "+hacked",
     ].join("\n");
     const tool = createApplyPatchTool({ projectRoot });
-    const out = await tool.handler({ patch });
+    const out = await textHandler(tool)({ patch });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
@@ -84,7 +85,7 @@ describe("createApplyPatchTool — error scenarios", () => {
       "\n",
     );
     const tool = createApplyPatchTool({ projectRoot });
-    const out = await tool.handler({ patch });
+    const out = await textHandler(tool)({ patch });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("forbidden_path");
@@ -101,7 +102,7 @@ describe("createApplyPatchTool — error scenarios", () => {
       "+new",
     ].join("\n");
     const tool = createApplyPatchTool({ projectRoot });
-    const out = await tool.handler({ patch });
+    const out = await textHandler(tool)({ patch });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("patch_failed");

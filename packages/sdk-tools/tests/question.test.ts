@@ -1,12 +1,13 @@
 import { describe, expect, it, vi } from "vitest";
 import { createQuestionTool } from "../src/question.js";
+import { textHandler } from "./_text-handler.js";
 
 describe("createQuestionTool", () => {
   it("returns user answer on success", async () => {
     const askUser = vi.fn().mockResolvedValue("yes, proceed");
     const tool = createQuestionTool({ askUser });
 
-    const result = JSON.parse(await tool.handler({ question: "Continue?" }));
+    const result = JSON.parse(await textHandler(tool)({ question: "Continue?" }));
 
     expect(result.ok).toBe(true);
     expect(result.answer).toBe("yes, proceed");
@@ -19,7 +20,7 @@ describe("createQuestionTool", () => {
       .mockImplementation(() => new Promise((resolve) => setTimeout(resolve, 10_000)));
     const tool = createQuestionTool({ askUser, timeoutMs: 50 });
 
-    const result = JSON.parse(await tool.handler({ question: "Hello?" }));
+    const result = JSON.parse(await textHandler(tool)({ question: "Hello?" }));
 
     expect(result.ok).toBe(false);
     expect(result.error).toBe("timeout");

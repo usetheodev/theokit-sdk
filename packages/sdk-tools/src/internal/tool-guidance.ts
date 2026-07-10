@@ -70,7 +70,12 @@ export function withToolResultGuidance(tool: CustomTool, guidance: ToolGuidanceM
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,
-    handler: async (input) => injectGuidance(await tool.handler(input), guidance),
+    handler: async (input) => {
+      const out = await tool.handler(input);
+      // SE7 — guidance injection is a string-JSON concern; a handler returning
+      // structured content blocks passes through untouched.
+      return typeof out === "string" ? injectGuidance(out, guidance) : out;
+    },
   };
 }
 
@@ -94,6 +99,8 @@ export function withShellExitGuidance(tool: CustomTool): CustomTool {
     inputSchema: tool.inputSchema,
     handler: async (input) => {
       const out = await tool.handler(input);
+      // SE7 — structured content blocks are not JSON guidance-injectable; passthrough.
+      if (typeof out !== "string") return out;
       let parsed: unknown;
       try {
         parsed = JSON.parse(out);
