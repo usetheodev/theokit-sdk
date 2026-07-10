@@ -93,7 +93,12 @@ describe("SkillsManager — broken skills are skipped, not fatal (EC-5)", () => 
       local: { cwd, settingSources: ["project"] },
     });
     const agentWithSkills = agent as unknown as {
-      skills?: { list: () => Promise<Array<{ name: string }>> };
+      skills?: {
+        list: () => Promise<Array<{ name: string }>>;
+        get: (
+          name: string,
+        ) => Promise<{ name: string; description: string; instructions: string } | undefined>;
+      };
     };
     const skills = (await agentWithSkills.skills?.list()) ?? [];
 
@@ -116,7 +121,12 @@ describe("SkillsManager — broken skills are skipped, not fatal (EC-5)", () => 
       local: { cwd, settingSources: ["project"] },
     });
     const agentWithSkills = agent as unknown as {
-      skills?: { list: () => Promise<Array<{ name: string }>> };
+      skills?: {
+        list: () => Promise<Array<{ name: string }>>;
+        get: (
+          name: string,
+        ) => Promise<{ name: string; description: string; instructions: string } | undefined>;
+      };
     };
     const skills = (await agentWithSkills.skills?.list()) ?? [];
 

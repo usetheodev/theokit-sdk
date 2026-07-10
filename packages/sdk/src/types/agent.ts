@@ -117,8 +117,26 @@ export interface SystemPromptSkillRef {
  *
  * @public
  */
+/**
+ * A skill resolved WITH its body, returned by {@link SDKAgentSkills.get}. Unlike
+ * {@link SystemPromptSkillRef} (name + description only), this carries the full
+ * `instructions` — read from the SKILL.md for filesystem skills or the inline
+ * `createSkill` body. @public
+ */
+export interface SDKAgentSkillDetail {
+  name: string;
+  description: string;
+  instructions: string;
+}
+
 export interface SDKAgentSkills {
   list(): Promise<ReadonlyArray<SystemPromptSkillRef>>;
+  /**
+   * SE20 — resolve a skill by name INCLUDING its body (`instructions`). Returns
+   * `undefined` when no enabled skill matches. `list()` stays lean (name +
+   * description); full bodies come only through `get`.
+   */
+  get(name: string): Promise<SDKAgentSkillDetail | undefined>;
 }
 
 /**
