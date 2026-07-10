@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.25.0
+
+### Minor Changes
+
+- 5067b50: **SE20 — `agent.skills.get(name)` (read a skill's full body).**
+
+  `agent.skills.list()` already returned skill metadata (name + description only); SE20 adds `agent.skills.get(name)` returning the skill INCLUDING its `instructions` (body) — read from the inline `createSkill` body, or from the filesystem SKILL.md (frontmatter stripped) for discovered skills. Returns `undefined` when no enabled skill matches (malformed skills stay excluded). New public type `SDKAgentSkillDetail`.
+
+  `list()` stays lean (the `<skills>` block only ever carries name + description); full bodies come only through `get`. Mirrors a peer framework's `agent.getSkill(name)`. Additive + backward-compatible. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE20).
+
+- 09865ee: **SE21 — `references` on `createSkill` (bundle supporting docs on an inline skill).**
+
+  `createSkill({ ..., references })` now accepts an optional `references` map (filename → content), mirroring a filesystem skill's `references/` directory. The docs travel on the inline skill object and surface to the app via `agent.skills.get(name)` (new `references` field on `SDKAgentSkillDetail`); they are NOT injected into the model prompt. Omitted when not provided (backward-compatible). Mirrors a peer framework Agent-skills `references`.
+
+  Also closes a latent boundary leak surfaced by this change: `agent.skills.list()` now projects to the public shape (name + description only), so an inline skill's `instructions` / `references` / `source` never leak through `list()` — the body is reachable exclusively through `get()`, matching the documented `SystemPromptSkillRef` contract. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE21).
+
+- abfcc5d: **SE22 — dynamic skills resolver (`skills: (ctx) => SkillsSettings`).**
+
+  `AgentOptions.skills` now accepts a resolver function in addition to the static `SkillsSettings` object. The resolver receives a per-send context (`agentId`, `cwd`, `model`, `userMessage`, `memory` — mirroring the systemPrompt resolver's context, minus the not-yet-resolved `skills`) and returns the `SkillsSettings` for that run. It is evaluated per `send()` before skill assembly, so a cached `getOrCreate` agent re-resolves each run — pick skills from runtime context (e.g. the user's role).
+
+  A static object behaves exactly as today. The agent-scoped `agent.skills` handle reflects the static/base config; the resolver drives the per-send `<skills>` block. The SDK imposes no timeout (wrap your own `Promise.race`); a throwing resolver fails the run — no silent fallback (Rule 8). Cloud agents reject a function resolver (it can't run on PaaS — resolve to a static object first), mirroring the systemPrompt-resolver cloud rule. New public types `SkillsResolver` + `SkillsResolverContext`. Mirrors a peer framework Agent-skills `skills: ({ requestContext }) => SkillInput[]`. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE22).
+
+- 0b9c0ac: **SE23 — `defineSkillReadTool` (opt-in model-facing lazy skill read).**
+
+  `defineSkillReadTool(skills)` returns a `skill_read` `CustomTool` the consumer explicitly adds to `AgentOptions.tools`. When the model calls it with a skill name, the handler returns that skill's `instructions` (+ SE21 `references`); an unknown-but-well-formed name returns a typed "not found" string listing the available skills — NOT a throw that kills the run (Rule 8). Malformed input (missing `name`) fails at the trust boundary via the input schema.
+
+  The SDK never auto-injects it — bring-your-own-tools stays intact (sibling of `defineSubAgent` / `workflowAsTool`). This is the LAZY read path that complements the eager `<skills>` block (name + description only): the block discloses which skills exist; `skill_read` loads a body on demand. The consumer controls exposure by choosing which skills to pass. See ADR 0007. Mirrors a peer framework's `skill_read` — but opt-in, not auto-injected. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE23).
+
 ## 2.24.0
 
 ### Minor Changes
