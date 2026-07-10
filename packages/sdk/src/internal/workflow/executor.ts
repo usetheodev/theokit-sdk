@@ -13,6 +13,7 @@ import {
   type Step,
   type StepContext,
   type StepResult,
+  type WorkflowEvent,
   WorkflowInputError,
   type WorkflowOptions,
   WorkflowOutputError,
@@ -169,6 +170,8 @@ interface LoopParams {
   signal: AbortSignal;
   /** M3 #62 — prior step outputs restored on resume (else resume is lossy). */
   initialStepResults?: ReadonlyArray<StepResult>;
+  /** SE28 — sink for step-level stream events (top-level steps). */
+  onStepEvent?: (event: WorkflowEvent) => void;
 }
 
 /** SE27 — validate a value against a whole-workflow schema. Returns a compact
@@ -191,12 +194,13 @@ function validateWorkflowSchema(schema: ZodType | undefined, value: unknown): st
 }
 
 async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
-  const { options, steps, ctx, runId, startedAt, signal } = params;
+  const { options, steps, ctx, runId, startedAt, signal, onStepEvent } = params;
   // M3 #62 — seed with prior step outputs so a resumed workflow is not lossy.
   const stepResults: StepResult[] = [...(params.initialStepResults ?? [])];
   let acc: unknown = params.input;
   for (const step of steps) {
     if (signal.aborted) return abortRun<TO>(options.name, runId, startedAt, stepResults, signal);
+    onStepEvent?.({ type: "step_started", stepId: step.id });
     const outcome = await runOneStep<TO>({
       step,
       acc,
@@ -207,9 +211,18 @@ async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
       name: options.name,
       startedAt,
     });
-    if (outcome.kind === "terminal") return outcome.run;
+    if (outcome.kind === "terminal") {
+      // terminal = the step suspended (the sentinel path in runOneStep).
+      onStepEvent?.({ type: "workflow_suspended", stepId: step.id });
+      return outcome.run;
+    }
     stepResults.push(outcome.result);
     if (outcome.result.status === "failed") {
+      onStepEvent?.({
+        type: "step_failed",
+        stepId: step.id,
+        error: outcome.result.error ?? { name: "WorkflowStepError", message: "step failed" },
+      });
       return assembleRun<TO>({
         runId,
         name: options.name,
@@ -219,6 +232,7 @@ async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
         error: outcome.result.error,
       });
     }
+    onStepEvent?.({ type: "step_completed", stepId: step.id, output: outcome.result.output });
     acc = outcome.result.output;
   }
   // SE27 — validate the whole-workflow output only on the terminal completed path.
@@ -233,6 +247,7 @@ async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
       error: errToShape(new WorkflowOutputError(options.name, outputIssues)),
     });
   }
+  onStepEvent?.({ type: "workflow_completed" });
   return assembleRun<TO>({
     runId,
     name: options.name,
@@ -248,6 +263,8 @@ async function runStepsLoop<TO>(params: LoopParams): Promise<WorkflowRun<TO>> {
  * resumeWorkflow sets them via this cast. */
 type InternalRunOpts = WorkflowRunOptions & {
   readonly initialStepResults?: ReadonlyArray<StepResult>;
+  /** SE28 — internal step-event sink threaded by `Workflow.stream()`. */
+  readonly onStepEvent?: (event: WorkflowEvent) => void;
 };
 
 export async function executeWorkflow<TInput, TOutput>(
@@ -284,6 +301,7 @@ export async function executeWorkflow<TInput, TOutput>(
         error: errToShape(new WorkflowInputError(options.name, inputIssues)),
       });
     }
+    const internal = runOpts as InternalRunOpts | undefined;
     return await runStepsLoop<TOutput>({
       options,
       steps,
@@ -292,9 +310,10 @@ export async function executeWorkflow<TInput, TOutput>(
       runId,
       startedAt,
       signal,
-      ...((runOpts as InternalRunOpts | undefined)?.initialStepResults !== undefined
-        ? { initialStepResults: (runOpts as InternalRunOpts).initialStepResults }
+      ...(internal?.initialStepResults !== undefined
+        ? { initialStepResults: internal.initialStepResults }
         : {}),
+      ...(internal?.onStepEvent !== undefined ? { onStepEvent: internal.onStepEvent } : {}),
     });
   } finally {
     runSpan.end();
