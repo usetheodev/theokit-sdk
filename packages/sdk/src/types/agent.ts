@@ -7,7 +7,12 @@ import type { Run, SDKUserMessage, SendOptions } from "./run.js";
 // `./run.ts` and `./messages.ts` can reach them without cycling through
 // `./agent.ts`. Re-exported here for back-compat with consumers that import
 // `ModelSelection` / `ModelParameterValue` / `CustomTool` from `@theokit/sdk`.
-export type { CustomTool, ModelParameterValue, ModelSelection } from "./agent-prims.js";
+export type {
+  CustomTool,
+  ModelParameterValue,
+  ModelSelection,
+  ToolContextMessage,
+} from "./agent-prims.js";
 
 // Code `Plugin` objects (the array form of `AgentOptions.plugins`) are the
 // public discriminated union re-exported from the barrel. Type-only import —
