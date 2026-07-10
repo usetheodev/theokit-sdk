@@ -112,6 +112,13 @@ export interface AgentLoopInputs {
    */
   context?: unknown;
   /**
+   * SE12 — a read-only, text-only projection of the current turn's transcript,
+   * set per-dispatch by the loop and forwarded to every custom tool handler's
+   * `ctx.messages`. Consumed by `defineSubAgent`'s `messageFilter`. Opaque to the
+   * loop; undefined when there is nothing to project.
+   */
+  messages?: readonly import("../../types/agent-prims.js").ToolContextMessage[];
+  /**
    * #58 — per-tool execution timeout in ms. When set, each tool call is bounded
    * by `AbortSignal.timeout(perToolTimeoutMs)` merged with `signal`, so a hung
    * tool rejects (exit 124) instead of wedging the loop. Undefined = no timeout.

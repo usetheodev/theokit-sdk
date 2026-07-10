@@ -4,6 +4,7 @@
  * @public
  */
 
+export type { ToolContextMessage } from "../types/agent-prims.js";
 export { AgentMailbox } from "./agent-mailbox.js";
 export { MessageBus, type RequestOptions } from "./message-bus.js";
 export {
@@ -13,6 +14,7 @@ export {
   type DelegationStartDecision,
   defineSubAgent,
   MaxDelegationDepthError,
+  type MessageFilterArgs,
   type SubAgentSpec,
 } from "./subagent.js";
 export type { A2AMessage, MessageHandler } from "./types.js";

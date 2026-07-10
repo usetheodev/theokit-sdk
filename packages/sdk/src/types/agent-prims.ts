@@ -34,6 +34,24 @@ export interface ModelSelection {
 }
 
 /**
+ * SE12 — a read-only, text-only projection of one turn of the run's conversation,
+ * exposed to a tool handler via `ctx.messages`. Content is flattened to text; tool
+ * calls / results and non-text parts are dropped, and turns that project to empty
+ * text are omitted. Consumed by `defineSubAgent`'s `messageFilter` to forward
+ * (a subset of) the supervisor transcript to a subagent.
+ *
+ * `role` includes `"system"` for type-completeness with the wire message shape,
+ * but the system prompt travels on a separate request field — a `"system"` entry
+ * does NOT appear in the current projection.
+ *
+ * @public
+ */
+export interface ToolContextMessage {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
+/**
  * Local function tool declared per-agent via {@link AgentOptions.tools}. The
  * handler runs in-process; no MCP server is involved. The SDK serializes
  * `name`, `description`, and `inputSchema` into the model's tool catalog.
@@ -64,11 +82,13 @@ export interface CustomTool {
    * carries the run's `AbortSignal`; single-argument handlers are unaffected. M7
    * — the same `ctx` also carries an optional user `context` (provided once via
    * `SendOptions.context`), so shared config like a `projectRoot` is read by
-   * every tool instead of baked into each factory.
+   * every tool instead of baked into each factory. SE12 — `ctx.messages` is a
+   * read-only, text-only projection of the current turn's transcript (see
+   * {@link ToolContextMessage}); `defineSubAgent`'s `messageFilter` consumes it.
    */
   handler: (
     input: Record<string, unknown>,
-    ctx?: { signal?: AbortSignal; context?: unknown },
+    ctx?: { signal?: AbortSignal; context?: unknown; messages?: readonly ToolContextMessage[] },
   ) =>
     | string
     | import("./content-blocks.js").ToolResultContentBlock[]
