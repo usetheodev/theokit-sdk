@@ -47,6 +47,7 @@ export {
   RateLimitError,
   TaskNotFoundError,
   TheokitAgentError,
+  ToolError,
   UnknownAgentError,
   UnsupportedBudgetOperationError,
   UnsupportedRunOperationError,
@@ -215,6 +216,8 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
 export type { CustomTool, SDKAgent } from "./types/agent.js";
+// SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
+export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
 export type { SessionMeta, SessionMetaPatch } from "./types/conversation-storage.js";
 // Type contract
 export type * from "./types/index.js";

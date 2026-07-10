@@ -28,7 +28,12 @@ export interface LlmToolCallPart {
 export interface LlmToolResultPart {
   type: "tool_result";
   toolUseId: string;
-  content: string;
+  /**
+   * SE7 — a string (the common case) OR structured content blocks (text +
+   * image). Block-capable provider wires forward blocks natively; string-only
+   * wires flatten text and fail fast on an image (`toStringToolResultContent`).
+   */
+  content: string | import("../../types/content-blocks.js").ToolResultContentBlock[];
   isError?: boolean;
 }
 
