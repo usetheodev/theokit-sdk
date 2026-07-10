@@ -89,6 +89,51 @@ describe("SE28 — Workflow.stream()", () => {
     expect(completed?.type === "step_completed" && completed.output).toBe("HI");
   });
 
+  it("result resolves without draining the stream (no hang)", async () => {
+    const wf = Workflow.create({ name: "no-drain" })
+      .then(fn("s1", (i: unknown) => i))
+      .commit();
+    const stream = wf.stream({ ok: true });
+    // Never iterate the events — just await result.
+    const result = await stream.result;
+    expect(result.status).toBe("completed");
+    expect(result.output).toEqual({ ok: true });
+  });
+
+  it("breaking out of the for-await early terminates cleanly (return())", async () => {
+    const wf = Workflow.create({ name: "early-break" })
+      .then(fn("s1", (i: unknown) => i))
+      .then(fn("s2", (i: unknown) => i))
+      .commit();
+    const stream = wf.stream({});
+    const seen: string[] = [];
+    for await (const e of stream) {
+      seen.push(e.type);
+      break; // early exit — return() closes the stream
+    }
+    expect(seen).toEqual(["step_started"]);
+    // result still resolves.
+    expect((await stream.result).status).toBe("completed");
+  });
+
+  it("a zero-step workflow emits only workflow_completed", async () => {
+    const wf = Workflow.create({ name: "empty" }).commit();
+    const stream = wf.stream({ x: 1 });
+    const events = await drain(stream);
+    expect(events.map((e) => e.type)).toEqual(["workflow_completed"]);
+    expect((await stream.result).output).toEqual({ x: 1 }); // input passes through
+  });
+
+  it("an SE27 input-schema failure emits NO step events (fails before step 1)", async () => {
+    const wf = Workflow.create({ name: "in-fail", inputSchema: z.object({ n: z.number() }) })
+      .then(fn("s1", (i: unknown) => i))
+      .commit();
+    const stream = wf.stream({ n: "bad" } as unknown as { n: number });
+    const events = await drain(stream);
+    expect(events).toEqual([]); // no events — validation failed before runStepsLoop
+    expect((await stream.result).error?.name).toBe("WorkflowInputError");
+  });
+
   it("back-compat: run() is unchanged (no events, authoritative result)", async () => {
     const wf = Workflow.create({
       name: "compat",

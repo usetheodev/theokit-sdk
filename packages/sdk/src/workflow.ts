@@ -295,6 +295,13 @@ export class Workflow<TInput = unknown, TOutput = unknown> {
    * steps) plus a `result` promise resolving to the same terminal
    * {@link WorkflowRun} `run()` returns. Iterate for progress; await `result` for
    * the outcome. The stream ends when the run terminates.
+   *
+   * `result` is the AUTHORITATIVE terminal status. Not every terminal state has a
+   * closing event: a step failure emits `step_failed`, but an `outputSchema`
+   * rejection (SE27) or an abort ends the stream WITHOUT `workflow_completed` —
+   * always `await result` to read the final `status`. Consuming order is free:
+   * awaiting `result` without draining, or draining without awaiting `result`,
+   * both work (breaking out of `for await` stops the buffering early).
    */
   stream(input: TInput, opts?: WorkflowRunOptions): WorkflowStream<TOutput> {
     const queue = createEventStream();
@@ -389,6 +396,7 @@ export {
   WorkflowParallelError,
   WorkflowResumeStepNotFoundError,
   WorkflowSnapshotNotFoundError,
+  WorkflowStateError,
 } from "./types/workflow.js";
 
 /* ─── SE19 — workflowAsTool (expose a Workflow as an agent tool) ─── */
