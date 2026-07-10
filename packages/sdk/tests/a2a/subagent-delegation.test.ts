@@ -253,6 +253,78 @@ describe("defineSubAgent", () => {
     expect(mockSend).toHaveBeenCalledWith("research\n\nFocus on 2025.");
   });
 
+  it("onDelegationStart modifiedMaxSteps caps the child via maxIterations (SE13)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: true, modifiedMaxSteps: 3 }),
+    });
+    await tool.handler({ input: "task" });
+
+    expect(mockSend).toHaveBeenCalledWith("task", { maxIterations: 3 });
+  });
+
+  it("modifiedMaxSteps composes with the forwarded signal on one child send (SE13 + SE10)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: true, modifiedMaxSteps: 5 }),
+    });
+    const controller = new AbortController();
+    await tool.handler({ input: "task" }, { signal: controller.signal });
+
+    expect(mockSend).toHaveBeenCalledWith("task", {
+      signal: controller.signal,
+      maxIterations: 5,
+    });
+  });
+
+  it("modifiedInput and modifiedMaxSteps combine independently (SE13 + SE11)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: true, modifiedInput: "rewritten", modifiedMaxSteps: 4 }),
+    });
+    await tool.handler({ input: "task" });
+
+    expect(mockSend).toHaveBeenCalledWith("rewritten", { maxIterations: 4 });
+  });
+
+  it("modifiedMaxSteps applies without an explicit proceed (proceed defaults to allow) (SE13)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ modifiedMaxSteps: 2 }), // no explicit proceed ⇒ not rejected
+    });
+    await tool.handler({ input: "task" });
+
+    expect(mockSend).toHaveBeenCalledWith("task", { maxIterations: 2 });
+  });
+
   it("onDelegationComplete feedback is appended to the child result", async () => {
     vi.doMock("../../src/agent.js", () => ({
       Agent: {

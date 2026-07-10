@@ -394,7 +394,7 @@ default). From the Mastra supervisor-agents comparison (2026-07-10).
 
 **Why now:** completes the supervisor-parity set (delegation control + context control); the most architecturally sensitive, so it ships last and stays opt-in.
 
-### SE13 — [ ] `modifiedMaxSteps` on `onDelegationStart` (cap the subagent's iterations)
+### SE13 — [x] `modifiedMaxSteps` on `onDelegationStart` (cap the subagent's iterations)
 
 **Objective:** Complete SE11's delegation hooks by letting `onDelegationStart` cap the child's
 iteration count. SE11 shipped `proceed` / `rejectionReason` / `modifiedInput` and DEFERRED
