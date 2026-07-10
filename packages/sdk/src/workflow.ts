@@ -27,6 +27,7 @@ import type { ZodType } from "zod";
 import { z } from "zod";
 import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
+import { createEventStream } from "./internal/workflow/event-stream.js";
 import { toJsonSchema } from "./internal/zod/to-json-schema.js";
 import type { CustomTool, SDKAgent } from "./types/agent.js";
 import type { MessageOrigin } from "./types/run.js";
@@ -42,10 +43,12 @@ import type {
   Step,
   StepContext,
   SuspendStep,
+  WorkflowEvent,
   WorkflowOptions,
   WorkflowResumeOptions,
   WorkflowRun,
   WorkflowRunOptions,
+  WorkflowStream,
 } from "./types/workflow.js";
 import { WorkflowDuplicateStepIdError } from "./types/workflow.js";
 
@@ -283,6 +286,30 @@ export class Workflow<TInput = unknown, TOutput = unknown> {
       });
     }
     return result;
+  }
+
+  /**
+   * SE28 — run the workflow and STREAM step-level events as they happen. Returns
+   * an async iterator of {@link WorkflowEvent}s (`step_started` / `step_completed`
+   * / `step_failed` / `workflow_suspended` / `workflow_completed`, top-level
+   * steps) plus a `result` promise resolving to the same terminal
+   * {@link WorkflowRun} `run()` returns. Iterate for progress; await `result` for
+   * the outcome. The stream ends when the run terminates.
+   */
+  stream(input: TInput, opts?: WorkflowRunOptions): WorkflowStream<TOutput> {
+    const queue = createEventStream();
+    const result = (async (): Promise<WorkflowRun<TOutput>> => {
+      const { executeWorkflow } = await import("./internal/workflow/executor.js");
+      try {
+        return await executeWorkflow<TInput, TOutput>(this._options, this._steps, input, {
+          ...opts,
+          onStepEvent: (event: WorkflowEvent) => queue.push(event),
+        } as WorkflowRunOptions);
+      } finally {
+        queue.end(); // authoritative terminal is `result`; close the stream
+      }
+    })();
+    return Object.assign(queue, { result });
   }
 
   /**

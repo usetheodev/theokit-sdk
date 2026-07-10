@@ -787,7 +787,7 @@ and the final output against `outputSchema` before returning. From the Mastra Wo
 
 **Why now:** closes the honest SE19 debt (a Workflow carrying no top-level schema) and matches Mastra's whole-workflow validation — the cheapest, highest-clarity workflow gap.
 
-### SE28 — [ ] Workflow `.stream()` — step-event stream during execution
+### SE28 — [x] Workflow `.stream()` — step-event stream during execution
 
 **Objective:** Emit workflow events as steps run, not just the terminal result. Mastra's `run.stream()` +
 `fullStream` let a caller monitor progress / trigger actions as steps complete. TheoKit's `workflow.run(input)`
