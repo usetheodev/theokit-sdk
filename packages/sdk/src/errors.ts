@@ -1,5 +1,6 @@
 import { defaultRetriableForCode } from "./internal/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";
+import type { ToolResultContentBlock } from "./types/content-blocks.js";
 import type { RunOperation } from "./types/run.js";
 
 /**
@@ -695,4 +696,36 @@ export class UnsupportedBudgetOperationError extends TheokitAgentError {
     );
     this.operation = operation;
   }
+}
+
+/**
+ * SE7 — thrown FROM a tool `handler` to report a failure back to the model with
+ * structured content (text and/or an image), instead of just a string. The SDK
+ * turns it into a `tool_result` with `isError: true` carrying the content. A
+ * plain `Error` thrown from a handler still works (its message becomes text) —
+ * `ToolError` is the opt-in for a clean message or a multimodal error (e.g. an
+ * error screenshot).
+ *
+ * @public
+ */
+export class ToolError extends TheokitAgentError {
+  override readonly name: string = "ToolError";
+  /** The error content surfaced to the model: a string, or text/image blocks. */
+  readonly content: string | ToolResultContentBlock[];
+
+  constructor(
+    content: string | ToolResultContentBlock[],
+    options: { code?: string; cause?: unknown; metadata?: ErrorMetadata } = {},
+  ) {
+    super(renderToolErrorMessage(content), { ...options, isRetryable: false });
+    this.content = content;
+  }
+}
+
+/** Render a `ToolError`'s content into a plain-text `Error.message`. */
+function renderToolErrorMessage(content: string | ToolResultContentBlock[]): string {
+  if (typeof content === "string") return content;
+  return content
+    .map((block) => (block.type === "text" ? block.text : `[${block.source.media_type} image]`))
+    .join("\n");
 }

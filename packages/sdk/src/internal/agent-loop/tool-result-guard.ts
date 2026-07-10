@@ -12,6 +12,7 @@
  * @internal
  */
 
+import { renderToolResultContentText } from "../llm/tool-result-content.js";
 import type { LlmContentPart } from "../llm/types.js";
 
 export interface ToolResultGuardOptions {
@@ -52,6 +53,10 @@ export function applyToolResultGuard(
 ): LlmContentPart[] {
   if (opts.delimit !== true && opts.redactPii !== true) return parts as LlmContentPart[];
   return parts.map((p) =>
-    p.type === "tool_result" ? { ...p, content: guardText(p.content, opts) } : p,
+    // SE7 — guard the TEXT of a tool result (string or the text blocks of a
+    // structured content); image blocks pass through untouched.
+    p.type === "tool_result"
+      ? { ...p, content: renderToolResultContentText(p.content, (t) => guardText(t, opts)) }
+      : p,
   );
 }

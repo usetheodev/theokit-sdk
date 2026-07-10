@@ -56,16 +56,21 @@ export interface CustomTool {
   inputSchema: Record<string, unknown>;
   /**
    * Local handler invoked when the model emits `tool_use` for this tool.
-   * Returns a string (becomes the `tool_result.content` surfaced back to the
-   * model). Throws → SDK converts to `tool_result` with `isError: true` and
-   * the error `message` as content. #65 — an optional 2nd `ToolContext`
-   * argument carries the run's `AbortSignal`; single-argument handlers are
-   * unaffected. M7 — the same `ctx` also carries an optional user `context`
-   * (provided once via `SendOptions.context`), so shared config like a
-   * `projectRoot` is read by every tool instead of baked into each factory.
+   * Returns a string OR structured content blocks (SE7 — text + image, e.g. a
+   * screenshot) that become the `tool_result.content` surfaced back to the
+   * model. Throws → SDK converts to `tool_result` with `isError: true` and the
+   * error `message` as content; throw a `ToolError` to carry a clean message or
+   * multimodal error content. #65 — an optional 2nd `ToolContext` argument
+   * carries the run's `AbortSignal`; single-argument handlers are unaffected. M7
+   * — the same `ctx` also carries an optional user `context` (provided once via
+   * `SendOptions.context`), so shared config like a `projectRoot` is read by
+   * every tool instead of baked into each factory.
    */
   handler: (
     input: Record<string, unknown>,
     ctx?: { signal?: AbortSignal; context?: unknown },
-  ) => string | Promise<string>;
+  ) =>
+    | string
+    | import("./content-blocks.js").ToolResultContentBlock[]
+    | Promise<string | import("./content-blocks.js").ToolResultContentBlock[]>;
 }
