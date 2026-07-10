@@ -335,7 +335,9 @@ async function runToolWithLifecycle(
     await safeEmitToolHook(inputs.onToolEnd, {
       toolName: call.name,
       args: call.input,
-      result: result.stdout,
+      // SE7 — a block-returning handler has empty `stdout`; surface its structured
+      // content to the hook instead of an empty string.
+      result: result.content !== undefined ? result.content : result.stdout,
       conversationId: inputs.agentId,
       callId,
       durationMs,
@@ -376,6 +378,9 @@ function finalizeSpanAndPostHook(
         stdout: result.stdout,
         stderr: result.stderr,
         exitCode: result.exitCode ?? 0,
+        // SE7 — structured content (text + image blocks) when the handler
+        // returned/threw blocks; absent for the string path.
+        ...(result.content !== undefined ? { content: result.content } : {}),
       },
       agentId: inputs.agentId,
       runId: inputs.runId,
@@ -388,7 +393,9 @@ function finalizeSpanAndPostHook(
   return {
     type: "tool_result",
     toolUseId: call.id,
-    content: renderToolResult(result),
+    // SE7 — structured content blocks (handler-returned or ToolError-carried)
+    // are authoritative; otherwise the legacy string rendering.
+    content: result.content !== undefined ? result.content : renderToolResult(result),
     ...(result.exitCode !== 0 && result.exitCode !== undefined ? { isError: true } : {}),
   };
 }

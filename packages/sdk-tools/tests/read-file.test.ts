@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createReadFileTool } from "../src/read-file.js";
+import { textHandler } from "./text-handler.js";
 
 /**
  * `createReadFileTool` — generic read-file tool for any coding agent.
@@ -46,7 +47,7 @@ describe("createReadFileTool — happy path", () => {
   it("Given a text file, When read_file is invoked, Then JSON contains the content", async () => {
     writeFileSync(join(projectRoot, "hello.txt"), "hello world");
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: "hello.txt" });
+    const out = await textHandler(tool)({ path: "hello.txt" });
     const parsed = JSON.parse(out) as { ok: boolean; content: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.content).toBe("hello world");
@@ -56,7 +57,7 @@ describe("createReadFileTool — happy path", () => {
     mkdirSync(join(projectRoot, "app"));
     writeFileSync(join(projectRoot, "app", "page.tsx"), "<h1>Hi</h1>");
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: "app/page.tsx" });
+    const out = await textHandler(tool)({ path: "app/page.tsx" });
     const parsed = JSON.parse(out) as { ok: boolean; content: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.content).toBe("<h1>Hi</h1>");
@@ -66,7 +67,7 @@ describe("createReadFileTool — happy path", () => {
 describe("createReadFileTool — safety boundaries", () => {
   it("Given path traversal attempt, Then result is { ok: false, error: 'path_traversal' }", async () => {
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: "../../etc/passwd" });
+    const out = await textHandler(tool)({ path: "../../etc/passwd" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
@@ -75,7 +76,7 @@ describe("createReadFileTool — safety boundaries", () => {
   it("Given a forbidden path (.env), Then result is { ok: false, error: 'forbidden_path' }", async () => {
     writeFileSync(join(projectRoot, ".env"), "SECRET=value");
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: ".env" });
+    const out = await textHandler(tool)({ path: ".env" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("forbidden_path");
@@ -85,7 +86,7 @@ describe("createReadFileTool — safety boundaries", () => {
     mkdirSync(join(projectRoot, ".git"));
     writeFileSync(join(projectRoot, ".git", "config"), "[core]");
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: ".git/config" });
+    const out = await textHandler(tool)({ path: ".git/config" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("forbidden_path");
@@ -94,7 +95,7 @@ describe("createReadFileTool — safety boundaries", () => {
   it("Given .env.example (template), Then it IS readable", async () => {
     writeFileSync(join(projectRoot, ".env.example"), "API_KEY=your-key-here");
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: ".env.example" });
+    const out = await textHandler(tool)({ path: ".env.example" });
     const parsed = JSON.parse(out) as { ok: boolean; content?: string; error?: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.content).toBe("API_KEY=your-key-here");
@@ -110,7 +111,7 @@ describe("createReadFileTool — EC-5 binary detection", () => {
     ]);
     writeFileSync(join(projectRoot, "logo.png"), png);
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: "logo.png" });
+    const out = await textHandler(tool)({ path: "logo.png" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("binary_file");
@@ -119,7 +120,7 @@ describe("createReadFileTool — EC-5 binary detection", () => {
   it("Given a text file with no null bytes, Then it reads (UTF-8 with accents OK)", async () => {
     writeFileSync(join(projectRoot, "info.md"), "Café — accents are fine");
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: "info.md" });
+    const out = await textHandler(tool)({ path: "info.md" });
     const parsed = JSON.parse(out) as { ok: boolean; content: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.content).toBe("Café — accents are fine");
@@ -129,7 +130,7 @@ describe("createReadFileTool — EC-5 binary detection", () => {
 describe("createReadFileTool — error scenarios", () => {
   it("Given a missing file, Then result is { ok: false, error: 'not_found' }", async () => {
     const tool = createReadFileTool({ projectRoot });
-    const out = await tool.handler({ path: "does-not-exist.txt" });
+    const out = await textHandler(tool)({ path: "does-not-exist.txt" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("not_found");

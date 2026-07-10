@@ -32,8 +32,14 @@ export interface CustomToolSpec {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
-  handler: (input: Record<string, unknown>) => string | Promise<string>;
+  // SE7 — a handler may return structured content blocks (text + image), not just a string.
+  handler: (input: Record<string, unknown>) => ToolHandlerResult | Promise<ToolHandlerResult>;
 }
+
+/** SE7 — what a custom tool handler may return: a string or structured content blocks. */
+export type ToolHandlerResult =
+  | string
+  | import("../../types/content-blocks.js").ToolResultContentBlock[];
 
 /**
  * Resolved tool descriptor used by dispatch + executor modules.
@@ -51,8 +57,11 @@ export interface ResolvedTool {
   mcpToolName?: string;
   /** Direct handler for `origin === "memory"` tools — returns JSON-encoded result string. */
   memoryHandler?: (input: Record<string, unknown>) => Promise<string>;
-  /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`. */
-  customHandler?: (input: Record<string, unknown>) => string | Promise<string>;
+  /** Direct handler for `origin === "custom"` tools — user-supplied via `AgentOptions.tools`.
+   *  SE7 — may return a string or structured content blocks. */
+  customHandler?: (
+    input: Record<string, unknown>,
+  ) => ToolHandlerResult | Promise<ToolHandlerResult>;
 }
 
 /**

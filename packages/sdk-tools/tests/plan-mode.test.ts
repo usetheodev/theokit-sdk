@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { createSessionArtifactStore } from "../src/artifact-store.js";
 import { createPlanModeTool } from "../src/plan-mode.js";
+import { textHandler } from "./text-handler.js";
 
 describe("createPlanModeTool", () => {
   it("starts in normal mode", () => {
@@ -75,7 +76,9 @@ describe("createPlanModeTool with artifactStore (M4-4 opt-in persistence)", () =
   it("persists the plan on exit", async () => {
     await withStore(async (_dir, store) => {
       const tool = createPlanModeTool({ artifactStore: store, artifactId: "run-9" });
-      const result = JSON.parse(await tool.handler({ action: "exit", plan: "1. do X\n2. do Y" }));
+      const result = JSON.parse(
+        await textHandler(tool)({ action: "exit", plan: "1. do X\n2. do Y" }),
+      );
       expect(result.persisted).toBe(true);
       expect(tool.currentMode()).toBe("normal");
       expect(await store.read("run-9")).toBe("1. do X\n2. do Y");
@@ -85,7 +88,7 @@ describe("createPlanModeTool with artifactStore (M4-4 opt-in persistence)", () =
   it("(EC-1) exit without a plan does not persist", async () => {
     await withStore(async (_dir, store) => {
       const tool = createPlanModeTool({ artifactStore: store });
-      const result = JSON.parse(await tool.handler({ action: "exit" }));
+      const result = JSON.parse(await textHandler(tool)({ action: "exit" }));
       expect(result.persisted).toBe(false);
       expect(result.mode).toBe("normal");
       expect(await store.list()).toEqual([]);
@@ -95,7 +98,7 @@ describe("createPlanModeTool with artifactStore (M4-4 opt-in persistence)", () =
   it("(EC-2) enter does not persist", async () => {
     await withStore(async (_dir, store) => {
       const tool = createPlanModeTool({ artifactStore: store });
-      await tool.handler({ action: "enter" });
+      await textHandler(tool)({ action: "enter" });
       expect(await store.list()).toEqual([]);
     });
   });
@@ -103,7 +106,7 @@ describe("createPlanModeTool with artifactStore (M4-4 opt-in persistence)", () =
   it("store variant returns invalid_action for an unknown action (no persist)", async () => {
     await withStore(async (_dir, store) => {
       const tool = createPlanModeTool({ artifactStore: store });
-      const result = JSON.parse(await tool.handler({ action: "bogus" }));
+      const result = JSON.parse(await textHandler(tool)({ action: "bogus" }));
       expect(result.ok).toBe(false);
       expect(result.error).toBe("invalid_action");
       expect(await store.list()).toEqual([]);
