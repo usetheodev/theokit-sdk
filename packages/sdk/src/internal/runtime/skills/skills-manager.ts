@@ -12,12 +12,31 @@ import { stripSkillFrontmatter } from "./skill-frontmatter.js";
  */
 export type SkillMetadata = Skill;
 
+/**
+ * A stored skill row. Filesystem skills are a bare {@link Skill}; inline
+ * (`createSkill`) skills additionally carry their `instructions` body + optional
+ * `references` on the object. Typing the store this way lets `get()` read those
+ * fields directly, without a cast. @internal
+ */
+type StoredSkill = Skill & { instructions?: string; references?: Record<string, string> };
+
+/** SE20 — a skill resolved with its body (+ SE21 references). @internal */
+export interface SkillDetail {
+  name: string;
+  description: string;
+  instructions: string;
+  references?: Record<string, string>;
+}
+
 /** SE20 — the internal `agent.skills` handle shape (list + get), shared by the runtime wiring. @internal */
 export interface SkillsHandle {
-  list: () => Promise<SkillMetadata[]>;
-  get: (
-    name: string,
-  ) => Promise<{ name: string; description: string; instructions: string } | undefined>;
+  /**
+   * Lean listing — name + description ONLY. Inline skills carry their body +
+   * references on the underlying object; the public handle projects them away so
+   * `agent.skills.list()` never leaks a body. Full bodies come only via `get`.
+   */
+  list: () => Promise<Array<{ name: string; description: string }>>;
+  get: (name: string) => Promise<SkillDetail | undefined>;
 }
 
 /**
@@ -32,7 +51,7 @@ export interface SkillsHandle {
  * @internal
  */
 export class SkillsManager {
-  private skills: SkillMetadata[] = [];
+  private skills: StoredSkill[] = [];
 
   constructor(
     private readonly cwd: string,
@@ -40,7 +59,7 @@ export class SkillsManager {
     private readonly settingSourcesIncludeProject: boolean,
     // M22 — optional custom skills directory + inline (code-defined) skills.
     private readonly skillsDir?: string,
-    private readonly inline?: SkillMetadata[],
+    private readonly inline?: StoredSkill[],
   ) {
     void _enabled;
   }
@@ -68,7 +87,7 @@ export class SkillsManager {
   }
 
   /** M22 — merge inline skills over discovered ones; inline wins on a name conflict. */
-  private mergeInline(discovered: SkillMetadata[]): SkillMetadata[] {
+  private mergeInline(discovered: StoredSkill[]): StoredSkill[] {
     if (this.inline === undefined || this.inline.length === 0) return discovered;
     const inlineNames = new Set(this.inline.map((s) => s.name));
     return [...discovered.filter((s) => !inlineNames.has(s.name)), ...this.inline];
@@ -86,17 +105,21 @@ export class SkillsManager {
    * from their `source` SKILL.md (frontmatter stripped). `undefined` when no
    * enabled skill matches (malformed skills were already excluded at discovery).
    */
-  async get(
-    name: string,
-  ): Promise<{ name: string; description: string; instructions: string } | undefined> {
+  async get(name: string): Promise<SkillDetail | undefined> {
     const skill = this.skills.find((s) => s.name === name);
     if (skill === undefined) return undefined;
     // Inline skills carry the body; filesystem skills re-read it from `source`.
-    const inlineBody = (skill as { instructions?: string }).instructions;
     const instructions =
-      typeof inlineBody === "string"
-        ? inlineBody
+      typeof skill.instructions === "string"
+        ? skill.instructions
         : stripSkillFrontmatter(await readFile(skill.source, "utf8"));
-    return { name: skill.name, description: skill.description, instructions };
+    // SE21 — inline skills may bundle `references`; filesystem skills carry none here.
+    const references = skill.references;
+    return {
+      name: skill.name,
+      description: skill.description,
+      instructions,
+      ...(references !== undefined ? { references } : {}),
+    };
   }
 }
