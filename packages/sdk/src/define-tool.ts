@@ -9,6 +9,7 @@ import { toJsonSchema } from "./internal/zod/to-json-schema.js";
 import { sanitizeToolInput } from "./sanitize/sanitize-tool-input.js";
 import type { SanitizeOptions } from "./sanitize/types.js";
 import type { CustomTool } from "./types/agent.js";
+import type { ToolResultContentBlock } from "./types/content-blocks.js";
 
 /**
  * Spec accepted by {@link defineTool}. `inputSchema` is a Zod schema; the
@@ -51,6 +52,17 @@ export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
     ctx?: { signal?: AbortSignal; context?: unknown },
   ) => ToolHandlerReturn<O> | Promise<ToolHandlerReturn<O>>;
   /**
+   * SE17 — map the handler's (validated) output to the compact / multimodal
+   * representation the MODEL sees in the tool_result. The handler keeps returning
+   * the FULL result (validated by `outputSchema`); `toModelOutput` shapes only what
+   * reaches the model, so app-facing detail is not forced into model context.
+   * Returns a string OR SE7 `ToolResultContentBlock[]` (text + image). Absent ⇒
+   * the tool_result is the serialized handler output (SE16 / pre-SE17 behavior).
+   * Note: observability (`onToolEnd`) sees the model-facing result this returns,
+   * not the raw handler output — the full result lives in the handler's own scope.
+   */
+  toModelOutput?: (output: ToolHandlerReturn<O>) => string | ToolResultContentBlock[];
+  /**
    * Sanitize the raw model-emitted args BEFORE schema validation (`@theokit/sdk/sanitize`).
    * `true` trims whitespace; an object opts into coercion / JSON-repair. Coercion is schema-aware
    * against this tool's `inputSchema`. Absent ⇒ args reach validation untouched. Sanitize is
@@ -75,6 +87,24 @@ export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
  *
  * @public
  */
+/**
+ * SE16 + SE17 — validate the handler's output against `outputSchema` (if any), then
+ * shape the tool_result: `toModelOutput` maps it to the model-facing string/blocks,
+ * else it is serialized (string as-is, else JSON). The FULL result stays with the handler.
+ */
+function shapeToolResult<T extends ZodType, O extends ZodType>(
+  spec: DefineToolSpec<T, O>,
+  out: ToolHandlerReturn<O>,
+): string | ToolResultContentBlock[] {
+  // `parse(out)` returns `z.infer<O>` ≡ `ToolHandlerReturn<O>` when `O ≠ never`; the
+  // cast closes the conditional-type gap the compiler can't narrow through here.
+  const validated = (
+    spec.outputSchema === undefined ? out : spec.outputSchema.parse(out)
+  ) as ToolHandlerReturn<O>;
+  if (spec.toModelOutput !== undefined) return spec.toModelOutput(validated);
+  return typeof validated === "string" ? validated : JSON.stringify(validated);
+}
+
 export function defineTool<T extends ZodType, O extends ZodType = never>(
   spec: DefineToolSpec<T, O>,
 ): CustomTool {
@@ -92,7 +122,7 @@ export function defineTool<T extends ZodType, O extends ZodType = never>(
     handler: async (
       input: Record<string, unknown>,
       ctx?: { signal?: AbortSignal; context?: unknown },
-    ): Promise<string> => {
+    ): Promise<string | ToolResultContentBlock[]> => {
       const raw = spec.sanitize
         ? sanitizeToolInput(input, {
             ...(spec.sanitize === true ? {} : spec.sanitize),
@@ -102,12 +132,8 @@ export function defineTool<T extends ZodType, O extends ZodType = never>(
       const parsed = spec.inputSchema.parse(raw) as ZodNamespace.infer<T>;
       // #65 — forward the ToolContext (run signal) to the user's handler.
       const out = await spec.handler(parsed, ctx);
-      // SE16 — no outputSchema ⇒ the handler already returned a string (unchanged).
-      if (spec.outputSchema === undefined) return out as string;
-      // Validate the structured return, then serialize it to the tool result:
-      // a string stays as-is, anything else is JSON-stringified.
-      const validated = spec.outputSchema.parse(out);
-      return typeof validated === "string" ? validated : JSON.stringify(validated);
+      // SE16 (validate) + SE17 (toModelOutput / serialize) — see `shapeToolResult`.
+      return shapeToolResult(spec, out);
     },
   };
 }
