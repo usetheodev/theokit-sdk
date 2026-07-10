@@ -1,4 +1,5 @@
 import { ToolError } from "../../tool-error.js";
+import type { ToolContextMessage } from "../../types/agent-prims.js";
 import type { ToolResultContentBlock } from "../../types/content-blocks.js";
 import type { LlmToolCallPart } from "../llm/types.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/tools/shell-tool.js";
@@ -30,7 +31,7 @@ export async function executeTool(
   if (resolved.origin === "shell") return runShellTool(inputs, call);
   if (resolved.origin === "memory") return runMemoryTool(resolved, call, inputs.context);
   if (resolved.origin === "custom")
-    return runCustomTool(resolved, call, inputs.signal, inputs.context);
+    return runCustomTool(resolved, call, inputs.signal, inputs.context, inputs.messages);
   return runMcpTool(inputs, resolved, call);
 }
 
@@ -47,8 +48,9 @@ async function runCustomTool(
   call: LlmToolCallPart,
   signal?: AbortSignal,
   context?: unknown,
+  messages?: readonly ToolContextMessage[],
 ): Promise<ToolResult> {
-  return runHandlerTool("custom", resolved.customHandler, call, signal, context);
+  return runHandlerTool("custom", resolved.customHandler, call, signal, context, messages);
 }
 
 async function runHandlerTool(
@@ -56,21 +58,23 @@ async function runHandlerTool(
   handler:
     | ((
         input: Record<string, unknown>,
-        ctx?: { signal?: AbortSignal; context?: unknown },
+        ctx?: { signal?: AbortSignal; context?: unknown; messages?: readonly ToolContextMessage[] },
       ) => string | ToolResultContentBlock[] | Promise<string | ToolResultContentBlock[]>)
     | undefined,
   call: LlmToolCallPart,
   signal?: AbortSignal,
   context?: unknown,
+  messages?: readonly ToolContextMessage[],
 ): Promise<ToolResult> {
   if (handler === undefined) {
     return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
   }
   try {
     // #65 — the run's abort signal on the ToolContext. M7 — also the run's user
-    // `context` (from SendOptions.context), so tools read shared config (e.g.
-    // projectRoot) set once at the run. Single-arg handlers ignore both.
-    const out = await handler(call.input, { signal, context });
+    // `context` (from SendOptions.context). SE12 — `messages` is the read-only
+    // transcript projection (custom tools only; memory tools pass undefined).
+    // Single-arg handlers ignore all of them.
+    const out = await handler(call.input, { signal, context, messages });
     // SE7 — a handler may return structured content blocks (text + image).
     if (typeof out !== "string") return { stdout: "", stderr: "", exitCode: 0, content: out };
     return { stdout: out, stderr: "", exitCode: 0 };
