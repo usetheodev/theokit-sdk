@@ -1,5 +1,14 @@
 # @theokit/example-deepagents-parity-demo
 
+## 0.0.35
+
+### Patch Changes
+
+- Updated dependencies [d31e2ca]
+- Updated dependencies [cc8efee]
+- Updated dependencies [0685363]
+  - @theokit/sdk@2.26.0
+
 ## 0.0.34
 
 ### Patch Changes
