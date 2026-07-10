@@ -164,6 +164,39 @@ export interface WorkflowSnapshot {
   readonly suspendedAt: number;
 }
 
+/* ─── SE28 — streaming ─── */
+
+/**
+ * SE28 — a step-level workflow event emitted by `Workflow.stream()` as top-level
+ * steps run. Coarse-grained (one event per top-level step; nested
+ * parallel/branch/foreach emit as their single wrapping step), distinct from the
+ * token-delta agent stream. Discriminate on `type`.
+ *
+ * @public
+ */
+export type WorkflowEvent =
+  | { readonly type: "step_started"; readonly stepId: string }
+  | { readonly type: "step_completed"; readonly stepId: string; readonly output: unknown }
+  | {
+      readonly type: "step_failed";
+      readonly stepId: string;
+      readonly error: { readonly name: string; readonly message: string };
+    }
+  | { readonly type: "workflow_suspended"; readonly stepId: string }
+  | { readonly type: "workflow_completed" };
+
+/**
+ * SE28 — the async iterator returned by `Workflow.stream()`. Yields
+ * {@link WorkflowEvent}s in execution order; `result` resolves to the same
+ * terminal {@link WorkflowRun} the `run()` path returns (the authoritative
+ * outcome — the stream ends when the run terminates).
+ *
+ * @public
+ */
+export type WorkflowStream<TOutput = unknown> = AsyncIterableIterator<WorkflowEvent> & {
+  readonly result: Promise<WorkflowRun<TOutput>>;
+};
+
 /* ─── Options ─── */
 
 export interface WorkflowPersistenceOptions {
