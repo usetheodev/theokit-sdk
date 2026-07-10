@@ -5,12 +5,47 @@
  * invoked by the LLM, creates a child agent and sends the input as a
  * message. EC-2: delegation depth tracked to prevent infinite recursion.
  *
+ * SE10 — the handler forwards the parent run's `AbortSignal` to the child.
+ * SE11 — optional `onDelegationStart` / `onDelegationComplete` lifecycle hooks
+ * let the caller reject, rewrite, observe, or annotate a delegation.
+ *
  * @public
  */
 
 import { z } from "zod";
 
 import type { CustomTool } from "../types/agent.js";
+
+/** Context passed to {@link SubAgentSpec.onDelegationStart} before the child runs. */
+export interface DelegationStartContext {
+  input: string;
+  name: string;
+}
+
+/**
+ * Decision returned from {@link SubAgentSpec.onDelegationStart}. Discriminated on
+ * `proceed` so a rejection (`proceed: false` + `rejectionReason`) and an approval
+ * (`modifiedInput`) cannot be mixed into one nonsensical object.
+ */
+export type DelegationStartDecision =
+  | { proceed: false; rejectionReason?: string }
+  | { proceed?: true; modifiedInput?: string };
+
+/** Context passed to {@link SubAgentSpec.onDelegationComplete} after the child settles. */
+export interface DelegationCompleteContext {
+  input: string;
+  name: string;
+  /** The child's text result (present on success). */
+  result?: string;
+  /** The error the child threw (present on failure); the error is still re-thrown. */
+  error?: unknown;
+}
+
+/** Decision returned from {@link SubAgentSpec.onDelegationComplete}. */
+export interface DelegationCompleteDecision {
+  /** Appended to the child's result string. */
+  feedback?: string;
+}
 
 export interface SubAgentSpec {
   name: string;
@@ -19,6 +54,25 @@ export interface SubAgentSpec {
   model?: string;
   tools?: CustomTool[];
   maxDelegationDepth?: number;
+  /**
+   * SE11 — called before the supervisor delegates. Return `{ proceed: false }`
+   * to reject (the child never runs and `rejectionReason` becomes the tool
+   * result), or `{ modifiedInput }` to rewrite the delegated prompt. A throwing
+   * hook surfaces (never silently swallowed).
+   */
+  onDelegationStart?: (
+    ctx: DelegationStartContext,
+  ) => DelegationStartDecision | undefined | Promise<DelegationStartDecision | undefined>;
+  /**
+   * SE11 — called after the delegation settles. On success `ctx.result` is set
+   * and an optional `{ feedback }` is appended to it. On failure `ctx.error` is
+   * set and the original error is ALWAYS re-thrown after this hook runs — a throw
+   * from this hook on the error path is suppressed so it cannot mask the
+   * delegation's real failure (on the success path a throw does propagate).
+   */
+  onDelegationComplete?: (
+    ctx: DelegationCompleteContext,
+  ) => DelegationCompleteDecision | undefined | Promise<DelegationCompleteDecision | undefined>;
 }
 
 export class MaxDelegationDepthError extends Error {
@@ -30,6 +84,73 @@ export class MaxDelegationDepthError extends Error {
     super(`Max delegation depth ${maxDepth} exceeded (current: ${currentDepth})`);
     this.name = "MaxDelegationDepthError";
   }
+}
+
+/** Run the `onDelegationStart` hook; returns either a rejection or the (possibly rewritten) input. */
+async function applyDelegationStart(
+  spec: SubAgentSpec,
+  input: string,
+): Promise<{ reject: string } | { input: string }> {
+  if (spec.onDelegationStart === undefined) return { input };
+  const decision = await spec.onDelegationStart({ input, name: spec.name });
+  if (decision === undefined) return { input };
+  if (decision.proceed === false)
+    return { reject: decision.rejectionReason ?? "(delegation rejected)" };
+  return { input: decision.modifiedInput ?? input };
+}
+
+/** Create the transient child agent, send the input (forwarding SE10's signal), dispose in `finally`. */
+async function runChildAgent(
+  spec: SubAgentSpec,
+  input: string,
+  signal: AbortSignal | undefined,
+): Promise<string> {
+  // Lazy import to avoid circular dependency.
+  const { Agent } = await import("../agent.js");
+  const agent = await Agent.create({
+    ...(spec.model ? { model: { id: spec.model } } : {}),
+    systemPrompt: spec.instructions,
+    tools: spec.tools ?? [],
+  });
+  try {
+    // SE10 — forward the parent run's AbortSignal; absent ⇒ pre-SE10 single-arg shape.
+    const run =
+      signal !== undefined ? await agent.send(input, { signal }) : await agent.send(input);
+    const result = await run.wait();
+    return result.result ?? "(no response)";
+  } finally {
+    agent.dispose();
+  }
+}
+
+/**
+ * Best-effort error-path notification: run `onDelegationComplete` with the child's
+ * error so the caller can observe the failure. The observer's own throw (sync or
+ * async) is suppressed here so it cannot mask the delegation's real error, which the
+ * handler re-throws next.
+ */
+async function notifyDelegationError(
+  spec: SubAgentSpec,
+  input: string,
+  error: unknown,
+): Promise<void> {
+  if (spec.onDelegationComplete === undefined) return;
+  try {
+    await spec.onDelegationComplete({ input, name: spec.name, error });
+  } catch {
+    // Subordinate to `error`; the child's real cause wins.
+  }
+}
+
+/** Run the success-path `onDelegationComplete` hook; appends its `feedback` to the result. */
+async function applyDelegationComplete(
+  spec: SubAgentSpec,
+  input: string,
+  result: string,
+): Promise<string> {
+  if (spec.onDelegationComplete === undefined) return result;
+  const completion = await spec.onDelegationComplete({ input, name: spec.name, result });
+  return completion?.feedback !== undefined ? result + completion.feedback : result;
 }
 
 export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
@@ -52,27 +173,23 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
       rawInput: Record<string, unknown>,
       ctx?: { signal?: AbortSignal; context?: unknown },
     ): Promise<string> => {
-      const { input } = inputSchema.parse(rawInput);
-      // Lazy import to avoid circular dependency
-      const { Agent } = await import("../agent.js");
-      const agent = await Agent.create({
-        ...(spec.model ? { model: { id: spec.model } } : {}),
-        systemPrompt: spec.instructions,
-        tools: spec.tools ?? [],
-      });
+      const { input: parsed } = inputSchema.parse(rawInput);
+
+      const start = await applyDelegationStart(spec, parsed);
+      if ("reject" in start) return start.reject;
+      const input = start.input;
+
+      let result: string;
       try {
-        // SE10 — forward the parent run's AbortSignal so aborting the parent
-        // cancels this in-flight subagent at its next step. Absent ctx/signal
-        // preserves the pre-SE10 single-arg call shape (no cancellation).
-        const run =
-          ctx?.signal !== undefined
-            ? await agent.send(input, { signal: ctx.signal })
-            : await agent.send(input);
-        const result = await run.wait();
-        return result.result ?? "(no response)";
-      } finally {
-        agent.dispose();
+        result = await runChildAgent(spec, input, ctx?.signal);
+      } catch (error) {
+        // SE11 — notify the completion hook of the failure (best-effort observer),
+        // then re-throw the ORIGINAL error (Rule 8: never swallow the delegation's
+        // own failure).
+        await notifyDelegationError(spec, input, error);
+        throw error;
       }
+      return applyDelegationComplete(spec, input, result);
     },
   };
 }

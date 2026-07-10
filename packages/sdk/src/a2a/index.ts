@@ -7,6 +7,10 @@
 export { AgentMailbox } from "./agent-mailbox.js";
 export { MessageBus, type RequestOptions } from "./message-bus.js";
 export {
+  type DelegationCompleteContext,
+  type DelegationCompleteDecision,
+  type DelegationStartContext,
+  type DelegationStartDecision,
   defineSubAgent,
   MaxDelegationDepthError,
   type SubAgentSpec,

@@ -218,4 +218,154 @@ describe("defineSubAgent", () => {
       ),
     ).toThrow(MaxDelegationDepthError);
   });
+
+  // SE11 — delegation lifecycle hooks.
+  it("onDelegationStart proceed:false short-circuits with rejectionReason (child never runs)", async () => {
+    const mockCreate = vi.fn();
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: false, rejectionReason: "too many iterations" }),
+    });
+    const result = await tool.handler({ input: "task" });
+
+    expect(result).toBe("too many iterations");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("onDelegationStart modifiedInput rewrites the prompt sent to the child", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: (c) => ({ proceed: true, modifiedInput: `${c.input}\n\nFocus on 2025.` }),
+    });
+    await tool.handler({ input: "research" });
+
+    expect(mockSend).toHaveBeenCalledWith("research\n\nFocus on 2025.");
+  });
+
+  it("onDelegationComplete feedback is appended to the child result", async () => {
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: {
+        create: vi.fn().mockResolvedValue({
+          send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "findings" }) }),
+          dispose: vi.fn(),
+        }),
+      },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationComplete: (c) => ({ feedback: ` [reviewed:${c.name}]` }),
+    });
+    const result = await tool.handler({ input: "task" });
+
+    expect(result).toBe("findings [reviewed:worker]");
+  });
+
+  it("onDelegationStart proceed:true without modifiedInput passes the original input through", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: true }),
+    });
+    await tool.handler({ input: "original" });
+
+    expect(mockSend).toHaveBeenCalledWith("original");
+  });
+
+  it("awaits an async onDelegationStart hook (modifiedInput via Promise)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: async (c) => ({ proceed: true, modifiedInput: `async:${c.input}` }),
+    });
+    await tool.handler({ input: "task" });
+
+    expect(mockSend).toHaveBeenCalledWith("async:task");
+  });
+
+  it("a throwing onDelegationStart propagates (never swallowed)", async () => {
+    const mockCreate = vi.fn();
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => {
+        throw new Error("gate boom");
+      },
+    });
+    await expect(tool.handler({ input: "task" })).rejects.toThrow("gate boom");
+    expect(mockCreate).not.toHaveBeenCalled();
+  });
+
+  it("a throwing onDelegationComplete on the error path does NOT mask the child error", async () => {
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: {
+        create: vi.fn().mockResolvedValue({
+          send: vi.fn().mockResolvedValue({ wait: () => Promise.reject(new Error("child boom")) }),
+          dispose: vi.fn(),
+        }),
+      },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationComplete: () => {
+        throw new Error("observer boom");
+      },
+    });
+    // The child's real failure wins over the observer hook's throw.
+    await expect(tool.handler({ input: "task" })).rejects.toThrow("child boom");
+  });
+
+  it("onDelegationComplete observes a child error and the error is re-thrown", async () => {
+    const onComplete = vi.fn();
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: {
+        create: vi.fn().mockResolvedValue({
+          send: vi.fn().mockResolvedValue({ wait: () => Promise.reject(new Error("boom")) }),
+          dispose: vi.fn(),
+        }),
+      },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationComplete: onComplete,
+    });
+    await expect(tool.handler({ input: "task" })).rejects.toThrow("boom");
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "worker", error: expect.any(Error) }),
+    );
+  });
 });
