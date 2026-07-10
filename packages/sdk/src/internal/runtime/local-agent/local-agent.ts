@@ -340,7 +340,7 @@ export class LocalAgent implements SDKAgent {
   }
 
   // biome-ignore format: G8 budget — thin accessor for the assembly inputs.
-  private assemblyInputs(): LocalAssemblyInputs { return { agentId: this.agentId, workspaceCwd: this.workspaceCwd, model: this.model, options: this.options, context: this.context, skillsManager: this.skillsManager, systemPromptPipeline: this.systemPromptPipeline }; }
+  private assemblyInputs(): LocalAssemblyInputs { return { agentId: this.agentId, workspaceCwd: this.workspaceCwd, model: this.model, options: this.options, context: this.context, skillsManager: this.skillsManager, settingSourcesIncludeProject: this.settingSourcesIncludeProject, systemPromptPipeline: this.systemPromptPipeline }; }
 
   private async resolveSystemPrompt(
     userText: string,

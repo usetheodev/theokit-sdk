@@ -74,7 +74,8 @@ export function stripSecretsFromOptions(options: AgentOptions): SerializedAgentO
     local: serializeLocal(options.local),
     cloud: serializeCloud(options.cloud),
     memory: serializeMemory(options.memory),
-    skills: serializeEnabledList(options.skills),
+    // SE22 — a SkillsResolver function isn't serializable; persist only the static form.
+    skills: serializeEnabledList(typeof options.skills === "function" ? undefined : options.skills),
     // Code-`Plugin` objects are closures and cannot be persisted (like custom
     // tools); only the named-enable settings form is serialized.
     plugins: serializeEnabledList(asPluginsSettings(options.plugins)),
