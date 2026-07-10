@@ -343,7 +343,7 @@ supervisor-agents comparison (2026-07-10).
 
 **Why now:** cheapest of the three supervisor-parity gaps; foundational for SE11/SE12 (establishes option-passing into the child run).
 
-### SE11 — [ ] Delegation lifecycle hooks (`onDelegationStart` / `onDelegationComplete`)
+### SE11 — [x] Delegation lifecycle hooks (`onDelegationStart` / `onDelegationComplete`)
 
 **Objective:** Let the caller intercept a delegation as it happens. a peer framework's supervisor exposes
 `onDelegationStart` (proceed / reject with reason / rewrite prompt / cap steps) and
