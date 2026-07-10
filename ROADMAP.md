@@ -317,6 +317,83 @@ the reference comparison: today you cannot say "run the loop AND give me a typed
 **Why now:** the biggest DX-capability gap vs LangChain + AI SDK; both integrate structured output into
 the agent run and it is a common ask.
 
+### SE10 — [x] Cancellation + option passthrough in subagent delegation
+
+**Objective:** Forward the parent run's cancellation to an in-flight subagent. `defineSubAgent`'s
+returned tool handler today calls `agent.send(input)` with NO options (`a2a/subagent.ts:60`), so an
+aborted parent run does not cancel the child — it runs to completion, wasting tokens. The `CustomTool`
+handler already receives an optional `ctx.signal` (`types/agent-prims.ts:71`, #65). Thread that
+`AbortSignal` into the child `agent.send(input, { signal })`. Matches Mastra "abortSignal forwarded to
+delegated subagents; abort cancels in-flight subagent runs at their next step". From the Mastra
+supervisor-agents comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `defineSubAgent`'s tool handler reads the optional `ctx.signal` and forwards it to the child `agent.send(input, { signal })`; an already-aborted or mid-run abort cancels the child (child resolves `cancelled`, not `finished`).
+- [ ] Back-compat: a handler invoked with no `ctx` (single-arg call sites) behaves exactly as today (no signal ⇒ no cancellation).
+- [ ] The child agent is still disposed in `finally` on cancel (no leak).
+- [ ] TDD: an aborted parent signal cancels the in-flight subagent (child run status `cancelled`); the un-aborted path still returns the child result.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (the `ctx.signal` seam already exists per #65; purely additive).
+
+**Top risks (new):**
+1. `ctx.signal` may be absent on some dispatch paths. Mitigation: forward only when present; absent ⇒ current behavior.
+2. Cancelling mid-dispose could throw. Mitigation: dispose in `finally`, swallow post-cancel dispose errors.
+
+**Why now:** cheapest of the three supervisor-parity gaps; foundational for SE11/SE12 (establishes option-passing into the child run).
+
+### SE11 — [ ] Delegation lifecycle hooks (`onDelegationStart` / `onDelegationComplete`)
+
+**Objective:** Let the caller intercept a delegation as it happens. Mastra's supervisor exposes
+`onDelegationStart` (proceed / reject with reason / rewrite prompt / cap steps) and
+`onDelegationComplete` (inspect result / error / inject feedback / bail). TheoKit's `defineSubAgent`
+has NO interception point — the handler runs the child unconditionally. Add optional hooks to
+`SubAgentSpec` wired around the child run. From the Mastra supervisor-agents comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `SubAgentSpec.onDelegationStart?(ctx: { input; name }) => { proceed: boolean; rejectionReason?; modifiedInput? } | void` — `proceed: false` short-circuits (returns the `rejectionReason` as the tool result, the child never runs); `modifiedInput` rewrites the prompt sent to the child.
+- [ ] `SubAgentSpec.onDelegationComplete?(ctx: { input; name; result?; error? }) => { feedback? } | void` — runs after the child; optional `feedback` is appended to the returned result string.
+- [ ] Hooks are optional and fail-loud: a throwing hook surfaces a typed error, never a silent swallow (Rule 8).
+- [ ] Back-compat: specs without hooks behave exactly as today.
+- [ ] TDD: reject path returns `rejectionReason` without running the child; `modifiedInput` rewrites; `onDelegationComplete` feedback is appended; a child error is surfaced to `onDelegationComplete`.
+- [ ] Docs + Changeset.
+
+**Dependencies:** SE10 (option-passing seam into the child run).
+
+**Top risks (new):**
+1. Hook error semantics ambiguity (throw vs swallow). Mitigation: a throwing hook ⇒ typed error, documented; no silent swallow.
+2. `modifiedMaxSteps` needs child `maxIterations` plumbing. Mitigation: ship `proceed`/`rejectionReason`/`modifiedInput` first; add `modifiedMaxSteps` only if the child `send` already supports an iteration cap, else defer with a note.
+
+**Why now:** the highest-control supervisor-parity gap; unlocks guardrails (reject after N iterations, rewrite the delegated prompt) that today require wrapping the tool by hand.
+
+### SE12 — [ ] Opt-in parent-context forwarding + `messageFilter` for subagents
+
+**Objective:** Let a subagent optionally see a filtered view of the supervisor's conversation.
+Today `defineSubAgent` sends ONLY a fresh `input` string — full memory isolation, a deliberate
+strength. Mastra forwards the full conversation and exposes `messageFilter` to trim it. Add an OPT-IN
+`messageFilter` to `SubAgentSpec`: when present, the parent's messages (filtered) are forwarded to the
+child as prior context; when absent, the current isolated behavior is preserved (isolation stays the
+default). From the Mastra supervisor-agents comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `SubAgentSpec.messageFilter?({ messages; input; name }) => messages` — when set, the returned (filtered) parent messages are forwarded to the child run as prior context; when absent, the child runs input-only (unchanged; isolation-by-default preserved).
+- [ ] Parent messages are exposed to the delegation handler WITHOUT sending nested tool args back into the supervisor model (mirrors Mastra's "scoped memory saves").
+- [ ] Security: the filter is the ONLY path that widens child context; no accidental full-transcript leak when `messageFilter` is absent.
+- [ ] TDD: with `messageFilter` returning a subset, the child receives exactly that subset; without it, the child receives input only; a filter dropping a "confidential" message keeps it out of the child context.
+- [ ] Docs + Changeset; ADR if runtime message-exposure requires a new seam.
+
+**Dependencies:** SE10 + SE11 (delegation seam + hook infrastructure). May need an ADR if exposing parent messages to the tool handler requires a runtime change.
+
+**Top risks (new):**
+1. Breaking the memory-isolation default. Mitigation: forwarding is OPT-IN (only when `messageFilter` is set); absent ⇒ isolated.
+2. Exposing parent messages to a tool handler may need a runtime seam. Mitigation: if `ctx.context` does not already carry the transcript, gate SE12 behind an ADR + a minimal, additive runtime exposure.
+3. Leaking sensitive context. Mitigation: the filter runs before forwarding; test the "confidential-dropped" case.
+
+**Why now:** completes the supervisor-parity set (delegation control + context control); the most architecturally sensitive, so it ships last and stays opt-in.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the

@@ -48,7 +48,10 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
     name: spec.name,
     description: spec.description,
     inputSchema: inputSchema as unknown as Record<string, unknown>,
-    handler: async (rawInput: Record<string, unknown>): Promise<string> => {
+    handler: async (
+      rawInput: Record<string, unknown>,
+      ctx?: { signal?: AbortSignal; context?: unknown },
+    ): Promise<string> => {
       const { input } = inputSchema.parse(rawInput);
       // Lazy import to avoid circular dependency
       const { Agent } = await import("../agent.js");
@@ -58,7 +61,13 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
         tools: spec.tools ?? [],
       });
       try {
-        const run = await agent.send(input);
+        // SE10 — forward the parent run's AbortSignal so aborting the parent
+        // cancels this in-flight subagent at its next step. Absent ctx/signal
+        // preserves the pre-SE10 single-arg call shape (no cancellation).
+        const run =
+          ctx?.signal !== undefined
+            ? await agent.send(input, { signal: ctx.signal })
+            : await agent.send(input);
         const result = await run.wait();
         return result.result ?? "(no response)";
       } finally {
