@@ -496,7 +496,7 @@ from it. From the a peer framework Tools comparison (2026-07-10).
 
 **Why now:** cheapest tool-authoring parity gap; makes tool outputs self-validating (the input side already is).
 
-### SE17 — [ ] `toModelOutput` — model-facing vs app-facing tool output split
+### SE17 — [x] `toModelOutput` — model-facing vs app-facing tool output split
 
 **Objective:** Let a tool return RICH structured data for the application while sending the MODEL a smaller
 or multimodal representation. Today the handler's return IS what the model sees (SE7 gives multimodal, but
