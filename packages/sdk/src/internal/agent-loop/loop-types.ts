@@ -119,6 +119,12 @@ export interface AgentLoopInputs {
    */
   messages?: readonly import("../../types/agent-prims.js").ToolContextMessage[];
   /**
+   * SE18 — per-send tool whitelist from `SendOptions.activeTools`. When set, the
+   * loop runs inside a `withToolWhitelist` scope so a call to a tool outside this
+   * set is vetoed at dispatch (same path as `Agent.fork`'s `allowedTools`).
+   */
+  activeTools?: readonly string[];
+  /**
    * #58 — per-tool execution timeout in ms. When set, each tool call is bounded
    * by `AbortSignal.timeout(perToolTimeoutMs)` merged with `signal`, so a hung
    * tool rejects (exit 124) instead of wedging the loop. Undefined = no timeout.
