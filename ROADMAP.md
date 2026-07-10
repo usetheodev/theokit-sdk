@@ -522,7 +522,7 @@ model-facing `tool_result`. From the a peer framework Tools comparison (2026-07-
 
 **Why now:** the real tool-output DX gap vs a peer framework + AI SDK; keeps model context small without losing the app's full result.
 
-### SE18 — [ ] `activeTools` — per-send runtime tool subset
+### SE18 — [x] `activeTools` — per-send runtime tool subset
 
 **Objective:** Let a caller restrict, per `send`, WHICH of the agent's registered tools the model may call.
 Today `SendOptions.toolChoice` (`auto/none/required`, `types/run.ts:330`) gates WHETHER tools are called, not
