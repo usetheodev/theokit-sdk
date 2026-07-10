@@ -445,7 +445,7 @@ results are appended to the delegation payload surfaced to the supervisor; text-
 
 **Why now:** the remaining delegation-result gap vs a peer framework; with SE12 (context IN) it gives full, opt-in control of the subagent context boundary in BOTH directions.
 
-### SE15 — [ ] `iteration` count in delegation-hook context (reject-after-N)
+### SE15 — [x] `iteration` count in delegation-hook context (reject-after-N)
 
 **Objective:** Give `onDelegationStart` / `onDelegationComplete` the current delegation iteration count
 so a hook can decide on it — a peer framework's documented "reject delegation after too many iterations"
