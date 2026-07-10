@@ -29,6 +29,8 @@ export { type CreateSkillSpec, createSkill, type InlineSkill } from "./create-sk
 // Cron façade
 export { Cron } from "./cron.js";
 export { type DefineProviderOptions, defineProvider } from "./define-provider.js";
+// SE23 — opt-in `skill_read` tool factory (model-facing lazy skill read).
+export { defineSkillReadTool } from "./define-skill-read-tool.js";
 export { type DefineToolSpec, defineTool } from "./define-tool.js";
 // Errors (runtime classes)
 export {

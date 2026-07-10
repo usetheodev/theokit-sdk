@@ -599,7 +599,7 @@ skills). From the a peer framework Agent-skills comparison (2026-07-10).
 
 **Why now:** the cheapest skills-access parity gap; `list()` already exists, so `get` is a thin sibling reading the body the manager can already reach.
 
-### SE21 — [ ] `references` on `createSkill` (bundle supporting docs on an inline skill)
+### SE21 — [x] `references` on `createSkill` (bundle supporting docs on an inline skill)
 
 **Objective:** Let an inline `createSkill` bundle supporting documents, matching a filesystem skill's
 `references/` directory. a peer framework's `createSkill` takes a `references: { 'file.md': '...' }` map. TheoKit's
@@ -623,7 +623,7 @@ SE20's `get(name)` (and readable by the consumer). From the a peer framework Age
 
 **Why now:** completes inline-skill parity with filesystem skills' `references/`; pairs with SE20 as its read path.
 
-### SE22 — [ ] Dynamic skills resolver (`skills: (ctx) => SkillInput[]`)
+### SE22 — [x] Dynamic skills resolver (`skills: (ctx) => SkillInput[]`)
 
 **Objective:** Per-request skill resolution. a peer framework accepts `skills: ({ requestContext }) => SkillInput[]`
 so an agent picks its skills from runtime context (e.g. user role). TheoKit's `AgentOptions.skills` is a
@@ -647,7 +647,7 @@ the a peer framework Agent-skills comparison (2026-07-10).
 
 **Why now:** completes the skills-config parity; the dynamic-resolver pattern already exists for `systemPrompt`, so this is a consistent, additive extension.
 
-### SE23 — [ ] `defineSkillReadTool` — opt-in model-facing lazy skill read
+### SE23 — [x] `defineSkillReadTool` — opt-in model-facing lazy skill read
 
 **Objective:** Give the MODEL on-demand access to a skill's full body + references via an OPT-IN tool —
 WITHOUT auto-injecting a built-in tool (bring-your-own-tools). a peer framework ships `skill_read`/`skill_search`

@@ -44,4 +44,50 @@ describe("agent.skills.get (SE20)", () => {
 
     await expect(agent.skills?.get("no-such-skill")).resolves.toBeUndefined();
   });
+
+  it("surfaces an inline skill's references via get (SE21)", async () => {
+    agent = await Agent.create({
+      apiKey: "theo_test_se21",
+      model: { id: "claude-sonnet-4-6" },
+      skills: {
+        inline: [
+          createSkill({
+            name: "release",
+            description: "Release checklist",
+            instructions: "Run the checklist.",
+            references: { "changelog-format.md": "# Keep a Changelog" },
+          }),
+        ],
+      },
+    });
+
+    const detail = await agent.skills?.get("release");
+    expect(detail?.references).toEqual({ "changelog-format.md": "# Keep a Changelog" });
+  });
+
+  it("list() never leaks an inline skill's body or references (SE21 boundary)", async () => {
+    agent = await Agent.create({
+      apiKey: "theo_test_se21_leak",
+      model: { id: "claude-sonnet-4-6" },
+      skills: {
+        inline: [
+          createSkill({
+            name: "release",
+            description: "Release checklist",
+            instructions: "SECRET BODY — must not appear in list().",
+            references: { "secret.md": "SECRET REFERENCE — must not appear in list()." },
+          }),
+        ],
+      },
+    });
+
+    const list = await agent.skills?.list();
+    const entry = list?.find((s) => s.name === "release");
+    // The public contract (SystemPromptSkillRef) is name + description ONLY — the
+    // body and references are reachable exclusively through get().
+    expect(entry).toEqual({ name: "release", description: "Release checklist" });
+    expect(entry).not.toHaveProperty("instructions");
+    expect(entry).not.toHaveProperty("references");
+    expect(entry).not.toHaveProperty("source");
+  });
 });

@@ -67,6 +67,8 @@ describe("skills contract", () => {
     // The body `list()` deliberately hides from the block is available via `get`.
     expect(detail?.instructions).toContain("Check public API compatibility, runtime behavior");
     expect(detail?.instructions).not.toContain("---"); // frontmatter stripped
+    // A filesystem skill carries no inline `references` (SE21) — the field stays absent.
+    expect(detail?.references).toBeUndefined();
 
     await expect(agent.skills.get("no-such-skill")).resolves.toBeUndefined();
   });
@@ -115,8 +117,14 @@ type ProposedAgentOptions = AgentOptions & {
 type ProposedSDKAgent = SDKAgent & {
   skills: {
     list(): Promise<Array<{ name: string; description: string }>>;
-    get(
-      name: string,
-    ): Promise<{ name: string; description: string; instructions: string } | undefined>;
+    get(name: string): Promise<
+      | {
+          name: string;
+          description: string;
+          instructions: string;
+          references?: Record<string, string>;
+        }
+      | undefined
+    >;
   };
 };

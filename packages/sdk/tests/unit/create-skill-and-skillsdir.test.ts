@@ -41,6 +41,23 @@ describe("M22 — createSkill", () => {
       /description/,
     );
   });
+
+  it("carries an optional references map on the inline skill (SE21)", () => {
+    const skill = createSkill({
+      name: "release",
+      description: "Release checklist",
+      instructions: "Run the checklist.",
+      references: { "changelog-format.md": "# Changelog Format\nKeep a Changelog." },
+    });
+    expect(skill.references).toEqual({
+      "changelog-format.md": "# Changelog Format\nKeep a Changelog.",
+    });
+  });
+
+  it("omits references when not provided (back-compat)", () => {
+    const skill = createSkill({ name: "x", description: "d", instructions: "i" });
+    expect(skill.references).toBeUndefined();
+  });
 });
 
 describe("M22 — SkillsManager inline + skillsDir", () => {
@@ -115,5 +132,21 @@ describe("SE20 — SkillsManager.get(name) (full body)", () => {
     const mgr = new SkillsManager("/nonexistent", undefined, false, undefined, []);
     await mgr.initialize();
     await expect(mgr.get("nope")).resolves.toBeUndefined();
+  });
+
+  it("surfaces an inline skill's references via get() (SE21)", async () => {
+    const inline = [
+      createSkill({
+        name: "release",
+        description: "Release",
+        instructions: "Run it.",
+        references: { "format.md": "spec" },
+      }),
+    ];
+    const mgr = new SkillsManager("/nonexistent", undefined, false, undefined, inline);
+    await mgr.initialize();
+
+    const skill = await mgr.get("release");
+    expect(skill?.references).toEqual({ "format.md": "spec" });
   });
 });
