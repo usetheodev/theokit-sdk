@@ -814,7 +814,7 @@ Mastra Workflows comparison (2026-07-10).
 
 **Why now:** long/multi-step workflows are opaque today (only the terminal result is observable); step events unlock progress UIs + side-effects, and the executor already has the step boundaries.
 
-### SE29 — [ ] Workflow state (`stateSchema` + `state` / `setState` in the step context)
+### SE29 — [x] Workflow state (`stateSchema` + `state` / `setState` in the step context)
 
 **Objective:** Share values across steps without threading them through every step's input/output. Mastra's
 step `execute` receives `state` + `setState`, typed by a workflow `stateSchema`, for progress tracking /

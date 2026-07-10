@@ -37,6 +37,13 @@ export function createEventStream(): PushableEventStream {
       if (ended) return Promise.resolve({ value: undefined, done: true });
       return new Promise((resolve) => waiters.push(resolve));
     },
+    // `for await` calls return() on break/throw — close early so events stop
+    // buffering in memory for a consumer that stopped iterating.
+    return(): Promise<IteratorResult<WorkflowEvent>> {
+      stream.end();
+      buffer.length = 0;
+      return Promise.resolve({ value: undefined, done: true });
+    },
     [Symbol.asyncIterator](): PushableEventStream {
       return stream;
     },
