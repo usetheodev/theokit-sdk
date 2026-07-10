@@ -253,6 +253,78 @@ describe("defineSubAgent", () => {
     expect(mockSend).toHaveBeenCalledWith("research\n\nFocus on 2025.");
   });
 
+  it("onDelegationStart modifiedMaxSteps caps the child via maxIterations (SE13)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: true, modifiedMaxSteps: 3 }),
+    });
+    await tool.handler({ input: "task" });
+
+    expect(mockSend).toHaveBeenCalledWith("task", { maxIterations: 3 });
+  });
+
+  it("modifiedMaxSteps composes with the forwarded signal on one child send (SE13 + SE10)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: true, modifiedMaxSteps: 5 }),
+    });
+    const controller = new AbortController();
+    await tool.handler({ input: "task" }, { signal: controller.signal });
+
+    expect(mockSend).toHaveBeenCalledWith("task", {
+      signal: controller.signal,
+      maxIterations: 5,
+    });
+  });
+
+  it("modifiedInput and modifiedMaxSteps combine independently (SE13 + SE11)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ proceed: true, modifiedInput: "rewritten", modifiedMaxSteps: 4 }),
+    });
+    await tool.handler({ input: "task" });
+
+    expect(mockSend).toHaveBeenCalledWith("rewritten", { maxIterations: 4 });
+  });
+
+  it("modifiedMaxSteps applies without an explicit proceed (proceed defaults to allow) (SE13)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      onDelegationStart: () => ({ modifiedMaxSteps: 2 }), // no explicit proceed ⇒ not rejected
+    });
+    await tool.handler({ input: "task" });
+
+    expect(mockSend).toHaveBeenCalledWith("task", { maxIterations: 2 });
+  });
+
   it("onDelegationComplete feedback is appended to the child result", async () => {
     vi.doMock("../../src/agent.js", () => ({
       Agent: {
@@ -461,6 +533,131 @@ describe("defineSubAgent", () => {
       tool.handler({ input: "task" }, { messages: [{ role: "user", content: "hi" }] }),
     ).rejects.toThrow("filter boom");
     expect(mockCreate).not.toHaveBeenCalled(); // filter throws before the child is created
+  });
+
+  it("includeToolResults appends the child's completed tool results (SE14)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({
+      wait: () => Promise.resolve({ result: "final answer" }),
+      // SE14 — run.stream() replays buffered events post-wait; two tool_call events
+      // (running then completed) — only the completed one carries a result.
+      stream: async function* () {
+        yield { type: "tool_call", status: "running", name: "search", args: {} };
+        yield { type: "tool_call", status: "completed", name: "search", result: "found it" };
+      },
+    });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      includeToolResults: true,
+    });
+    const result = await tool.handler({ input: "task" });
+
+    expect(result).toContain("final answer"); // the text is still there
+    expect(result).toContain("search"); // the tool name
+    expect(result).toContain("found it"); // the completed tool result
+  });
+
+  it("without includeToolResults the result is text-only, stream not consumed (SE14 default)", async () => {
+    const streamSpy = vi.fn();
+    const mockSend = vi.fn().mockResolvedValue({
+      wait: () => Promise.resolve({ result: "final answer" }),
+      stream: () => {
+        streamSpy();
+        return (async function* () {})();
+      },
+    });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+    });
+    const result = await tool.handler({ input: "task" });
+
+    expect(result).toBe("final answer"); // text-only, no tool-results block
+    expect(streamSpy).not.toHaveBeenCalled(); // default never touches the stream
+  });
+
+  it("includeToolResults JSON-stringifies a non-string tool result (SE14)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({
+      wait: () => Promise.resolve({ result: "final" }),
+      stream: async function* () {
+        yield {
+          type: "tool_call",
+          status: "completed",
+          name: "run_cmd",
+          result: { stdout: "ok", exitCode: 0 },
+        };
+      },
+    });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      includeToolResults: true,
+    });
+    const result = await tool.handler({ input: "task" });
+
+    expect(result).toContain('{"stdout":"ok","exitCode":0}'); // object rendered via JSON.stringify
+    expect(result).toContain("run_cmd");
+  });
+
+  it("includeToolResults: a throwing stream propagates and still disposes the child (SE14)", async () => {
+    const mockDispose = vi.fn();
+    const mockSend = vi.fn().mockResolvedValue({
+      wait: () => Promise.resolve({ result: "final" }),
+      stream: async function* () {
+        // yield one (skipped) event, then throw mid-drain to exercise the error path.
+        yield { type: "tool_call", status: "running", name: "x", args: {} };
+        throw new Error("stream boom");
+      },
+    });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: mockDispose }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      includeToolResults: true,
+    });
+    await expect(tool.handler({ input: "task" })).rejects.toThrow("stream boom");
+    expect(mockDispose).toHaveBeenCalledOnce(); // finally disposes even when the drain throws
+  });
+
+  it("includeToolResults with no completed tool calls stays text-only (SE14)", async () => {
+    const mockSend = vi.fn().mockResolvedValue({
+      wait: () => Promise.resolve({ result: "just text" }),
+      stream: async function* () {
+        // an assistant-only run — no tool_call events
+      },
+    });
+    vi.doMock("../../src/agent.js", () => ({
+      Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
+    }));
+
+    const tool = defineSubAgent({
+      name: "worker",
+      description: "Works",
+      instructions: "Work.",
+      includeToolResults: true,
+    });
+    const result = await tool.handler({ input: "task" });
+
+    expect(result).toBe("just text"); // no tool results ⇒ no appended block
   });
 
   it("messageFilter returning an empty subset sends input only (no empty preamble)", async () => {
