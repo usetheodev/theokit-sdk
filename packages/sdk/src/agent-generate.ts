@@ -58,6 +58,9 @@ export async function agentGenerate<T extends ZodType>(
     {
       prompt: answer,
       schema: output,
+      // `agentModel` arrives already normalized (`this.model` passed through
+      // `normalizeModel` in the LocalAgent/CloudAgent constructor), so the widened
+      // `string | ModelSelection` field only ever receives a `ModelSelection` here.
       model: agentModel ?? { id: DEFAULT_AGENTIC_MODEL_ID },
       // `local` is required to keep the transient structuring agent local-only;
       // default to the process cwd when the agent had no explicit local config.
