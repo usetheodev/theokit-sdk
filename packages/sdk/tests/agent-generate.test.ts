@@ -184,6 +184,27 @@ describe("agent.generate (SE9) — integrated structured output", () => {
     agent.dispose();
   });
 
+  it("surfaces a typed error when the underlying run is cancelled (pre-aborted signal)", async () => {
+    // A pre-aborted signal → no round starts → the phase-1 run resolves `cancelled`,
+    // so there is nothing to structure. Deterministic (no network race): the signal
+    // is already aborted before send, exercising the `cancelled` guard branch.
+    const stub = await startStub([{ kind: "text", text: "unreached" }]);
+    server = stub.server;
+    process.env.ANTHROPIC_API_KEY = "sk-stub";
+    process.env.ANTHROPIC_API_BASE_URL = stub.url;
+
+    const agent = await Agent.create({
+      apiKey: "real-not-fixture",
+      model: { id: "claude-sonnet-4-6" },
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      agent.generate("x", { output: z.object({ a: z.string() }), signal: controller.signal }),
+    ).rejects.toMatchObject({ name: "GenerateObjectError", code: "no_tool_call" });
+    agent.dispose();
+  });
+
   it("honors errorStrategy 'return-raw' when the structured output fails validation", async () => {
     const stub = await startStub([
       { kind: "text", text: "the answer" }, // phase 1: final answer
