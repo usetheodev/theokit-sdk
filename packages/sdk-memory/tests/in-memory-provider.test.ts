@@ -13,6 +13,7 @@
 import type { MemoryFact, MemoryId, SDKAgent } from "@theokit/sdk";
 import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
 import { describe, expect, it } from "vitest";
+import { textHandler } from "./text-handler.js";
 
 const FAKE_AGENT: SDKAgent = { agentId: "test-agent", model: undefined } as SDKAgent;
 
@@ -58,7 +59,7 @@ describe("createInMemoryMarkdownProvider (@theokit/sdk-memory T1.6)", () => {
     const rememberTool = tools[0];
     expect(rememberTool).toBeDefined();
     if (rememberTool === undefined) return;
-    const result = await rememberTool.handler({ content: "User prefers Python" });
+    const result = await textHandler(rememberTool)({ content: "User prefers Python" });
     const parsed = JSON.parse(result) as { ok: boolean; id?: string };
     expect(parsed.ok).toBe(true);
     expect(parsed.id).toMatch(/^in-memory-md:0$/);
@@ -72,7 +73,7 @@ describe("createInMemoryMarkdownProvider (@theokit/sdk-memory T1.6)", () => {
     if (rememberTool === undefined) {
       throw new Error("memory_remember tool not found");
     }
-    const result = await rememberTool.handler({ content: "" });
+    const result = await textHandler(rememberTool)({ content: "" });
     const parsed = JSON.parse(result) as { ok: boolean; error?: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("empty content");
@@ -178,8 +179,8 @@ describe("createInMemoryMarkdownProvider (@theokit/sdk-memory T1.6)", () => {
     const rememberTool = tools.find((t) => t.name === "memory_remember");
     if (rememberTool === undefined) throw new Error("missing memory_remember tool");
 
-    await rememberTool.handler({ content: "Pet is a corgi named Maple." });
-    await rememberTool.handler({ content: "Birthday is in October." });
+    await textHandler(rememberTool)({ content: "Pet is a corgi named Maple." });
+    await textHandler(rememberTool)({ content: "Birthday is in October." });
 
     const pass = await provider.runActivePass(handle, {
       userMessage: "what do you know about me?",

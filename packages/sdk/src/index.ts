@@ -208,6 +208,8 @@ export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn 
 // Consumers: `import { defineSubscription, tracked, subscribe } from "@theokit/sdk/subscription"`.
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
+// SE7 — ToolError (thrown from a tool handler; own module for the G8 LoC budget).
+export { ToolError } from "./tool-error.js";
 // Trajectory export (ADR D139) — opt-in ShareGPT converter
 export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // CustomTool type — explicit re-export so rollup-dts surfaces it in the
@@ -215,6 +217,8 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
 export type { CustomTool, SDKAgent } from "./types/agent.js";
+// SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
+export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
 export type { SessionMeta, SessionMetaPatch } from "./types/conversation-storage.js";
 // Type contract
 export type * from "./types/index.js";

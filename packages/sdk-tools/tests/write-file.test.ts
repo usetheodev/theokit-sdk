@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createWriteFileTool } from "../src/write-file.js";
+import { textHandler } from "./text-handler.js";
 
 let projectRoot: string;
 
@@ -26,7 +27,7 @@ describe("createWriteFileTool — tool shape", () => {
 describe("createWriteFileTool — happy path", () => {
   it("Given content and path, When write_file is invoked, Then file is created", async () => {
     const tool = createWriteFileTool({ projectRoot });
-    const out = await tool.handler({ path: "hello.txt", content: "hello world" });
+    const out = await textHandler(tool)({ path: "hello.txt", content: "hello world" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(true);
     expect(parsed.bytes).toBe(11);
@@ -35,14 +36,14 @@ describe("createWriteFileTool — happy path", () => {
 
   it("Given a nested path, When write_file is invoked, Then parent dirs are created", async () => {
     const tool = createWriteFileTool({ projectRoot });
-    await tool.handler({ path: "deep/nested/file.ts", content: "export {}" });
+    await textHandler(tool)({ path: "deep/nested/file.ts", content: "export {}" });
     expect(existsSync(join(projectRoot, "deep/nested/file.ts"))).toBe(true);
   });
 
   it("Given an existing text file, When write_file is invoked, Then file is overwritten", async () => {
     writeFileSync(join(projectRoot, "existing.txt"), "old content");
     const tool = createWriteFileTool({ projectRoot });
-    await tool.handler({ path: "existing.txt", content: "new content" });
+    await textHandler(tool)({ path: "existing.txt", content: "new content" });
     expect(readFileSync(join(projectRoot, "existing.txt"), "utf-8")).toBe("new content");
   });
 });
@@ -50,7 +51,7 @@ describe("createWriteFileTool — happy path", () => {
 describe("createWriteFileTool — safety boundaries", () => {
   it("Given path traversal attempt, Then result is { ok: false, error: 'path_traversal' }", async () => {
     const tool = createWriteFileTool({ projectRoot });
-    const out = await tool.handler({ path: "../../etc/evil", content: "hacked" });
+    const out = await textHandler(tool)({ path: "../../etc/evil", content: "hacked" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
@@ -58,7 +59,7 @@ describe("createWriteFileTool — safety boundaries", () => {
 
   it("Given a forbidden path (.env), Then result is { ok: false, error: 'forbidden_path' }", async () => {
     const tool = createWriteFileTool({ projectRoot });
-    const out = await tool.handler({ path: ".env", content: "SECRET=x" });
+    const out = await textHandler(tool)({ path: ".env", content: "SECRET=x" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("forbidden_path");
@@ -68,7 +69,7 @@ describe("createWriteFileTool — safety boundaries", () => {
     const binary = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00]);
     writeFileSync(join(projectRoot, "logo.png"), binary);
     const tool = createWriteFileTool({ projectRoot });
-    const out = await tool.handler({ path: "logo.png", content: "not a png" });
+    const out = await textHandler(tool)({ path: "logo.png", content: "not a png" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("binary_file");
@@ -76,7 +77,7 @@ describe("createWriteFileTool — safety boundaries", () => {
 
   it("Given .git/config path, Then result is { ok: false, error: 'forbidden_path' }", async () => {
     const tool = createWriteFileTool({ projectRoot });
-    const out = await tool.handler({ path: ".git/config", content: "evil" });
+    const out = await textHandler(tool)({ path: ".git/config", content: "evil" });
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("forbidden_path");

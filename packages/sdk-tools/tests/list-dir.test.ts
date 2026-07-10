@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createListDirTool } from "../src/list-dir.js";
+import { textHandler } from "./text-handler.js";
 
 let projectRoot: string;
 
@@ -29,7 +30,7 @@ describe("createListDirTool — happy path", () => {
     writeFileSync(join(projectRoot, "app", "page.tsx"), "");
     mkdirSync(join(projectRoot, "app", "ui"));
     const tool = createListDirTool({ projectRoot });
-    const out = await tool.handler({ path: "app" });
+    const out = await textHandler(tool)({ path: "app" });
     const parsed = JSON.parse(out) as {
       ok: boolean;
       entries: Array<{ name: string; type: "file" | "directory" }>;
@@ -47,7 +48,7 @@ describe("createListDirTool — happy path", () => {
   it("Given an empty path, Then root is listed", async () => {
     writeFileSync(join(projectRoot, "a.txt"), "");
     const tool = createListDirTool({ projectRoot });
-    const out = await tool.handler({ path: "." });
+    const out = await textHandler(tool)({ path: "." });
     const parsed = JSON.parse(out) as { ok: boolean; entries: Array<{ name: string }> };
     expect(parsed.ok).toBe(true);
     expect(parsed.entries.map((e) => e.name)).toContain("a.txt");
@@ -60,7 +61,7 @@ describe("createListDirTool — EC-6 entry cap", () => {
       writeFileSync(join(projectRoot, `f${String(i).padStart(4, "0")}.txt`), "");
     }
     const tool = createListDirTool({ projectRoot });
-    const out = await tool.handler({ path: "." });
+    const out = await textHandler(tool)({ path: "." });
     const parsed = JSON.parse(out) as {
       ok: boolean;
       entries: Array<{ name: string }>;
@@ -77,7 +78,7 @@ describe("createListDirTool — EC-6 entry cap", () => {
       writeFileSync(join(projectRoot, `f${i}.txt`), "");
     }
     const tool = createListDirTool({ projectRoot, max: 5 });
-    const out = await tool.handler({ path: "." });
+    const out = await textHandler(tool)({ path: "." });
     const parsed = JSON.parse(out) as {
       ok: boolean;
       entries: unknown[];
@@ -93,7 +94,7 @@ describe("createListDirTool — EC-6 entry cap", () => {
 describe("createListDirTool — safety boundaries", () => {
   it("Given path traversal attempt, Then error='path_traversal'", async () => {
     const tool = createListDirTool({ projectRoot });
-    const out = await tool.handler({ path: "../etc" });
+    const out = await textHandler(tool)({ path: "../etc" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
@@ -102,7 +103,7 @@ describe("createListDirTool — safety boundaries", () => {
   it("Given a forbidden dir (.git), Then error='forbidden_path'", async () => {
     mkdirSync(join(projectRoot, ".git"));
     const tool = createListDirTool({ projectRoot });
-    const out = await tool.handler({ path: ".git" });
+    const out = await textHandler(tool)({ path: ".git" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("forbidden_path");
@@ -110,7 +111,7 @@ describe("createListDirTool — safety boundaries", () => {
 
   it("Given a missing dir, Then error='not_found'", async () => {
     const tool = createListDirTool({ projectRoot });
-    const out = await tool.handler({ path: "missing-dir" });
+    const out = await textHandler(tool)({ path: "missing-dir" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("not_found");

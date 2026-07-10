@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createRunVitestTool, extractTrailingJson } from "../src/run-vitest.js";
+import { textHandler } from "./text-handler.js";
 
 let projectRoot: string;
 
@@ -26,7 +27,7 @@ describe("createRunVitestTool — tool shape", () => {
 describe("createRunVitestTool — safety boundaries", () => {
   it("Given path traversal in scope, Then error='path_traversal'", async () => {
     const tool = createRunVitestTool({ projectRoot });
-    const out = await tool.handler({ path: "../../etc/test.ts" });
+    const out = await textHandler(tool)({ path: "../../etc/test.ts" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
@@ -35,7 +36,7 @@ describe("createRunVitestTool — safety boundaries", () => {
   it("Given a forbidden path scope (.git), Then error='forbidden_path'", async () => {
     mkdirSync(join(projectRoot, ".git"));
     const tool = createRunVitestTool({ projectRoot });
-    const out = await tool.handler({ path: ".git/something.test.ts" });
+    const out = await textHandler(tool)({ path: ".git/something.test.ts" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("forbidden_path");

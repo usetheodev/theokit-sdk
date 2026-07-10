@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWebSearchTool } from "../src/web-search.js";
 import { createGenericHttpSearchAdapter } from "../src/web-search-http.js";
+import { textHandler } from "./text-handler.js";
 
 const KEY = "test-http-key";
 const ENDPOINT = "https://search.example/api";
@@ -119,7 +120,7 @@ describe("createGenericHttpSearchAdapter — graceful failure (never throws into
 describe("createGenericHttpSearchAdapter — composes with createWebSearchTool", () => {
   it("unconfigured adapter → tool returns ok:true with empty results", async () => {
     const tool = createWebSearchTool({ search: createGenericHttpSearchAdapter({}) });
-    const parsed = JSON.parse(await tool.handler({ query: "q" }));
+    const parsed = JSON.parse(await textHandler(tool)({ query: "q" }));
     expect(parsed.ok).toBe(true);
     expect(parsed.results).toEqual([]);
   });
@@ -129,7 +130,7 @@ describe("createGenericHttpSearchAdapter — composes with createWebSearchTool",
     const tool = createWebSearchTool({
       search: createGenericHttpSearchAdapter({ apiKey: KEY, endpoint: ENDPOINT, fetchImpl }),
     });
-    const parsed = JSON.parse(await tool.handler({ query: "q" }));
+    const parsed = JSON.parse(await textHandler(tool)({ query: "q" }));
     expect(parsed.ok).toBe(true);
     expect(parsed.results).toEqual([
       { title: "T1", url: "https://a.example", snippet: "snippet one" },

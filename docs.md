@@ -833,6 +833,25 @@ Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JS
 
 `sanitize` (optional) cleans the raw model-emitted args BEFORE `inputSchema.parse`, using the primitive from `@theokit/sdk/sanitize` (see below). `sanitize: true` trims whitespace from string values (so a leaked `"\npackage.json\n"` path validates as `"package.json"`); `sanitize: { coerce: true }` additionally coerces string values toward this tool's own schema (a `z.number()` field accepts `"5"`). Absent ⇒ args reach validation untouched. Sanitize is hygiene, not a validity bypass — a genuinely invalid arg still becomes `tool_result(isError)`.
 
+Structured/multimodal tool results + ToolError (SE7)
+
+A tool `handler` returns a string in the common case, but may also return structured content blocks — text and/or an image — so it can hand the model a screenshot or a rendered chart as its result, not just prose:
+
+  handler: () => [
+    { type: "text", text: "rendered the chart" },
+    { type: "image", source: { type: "base64", media_type: "image/png", data } },
+  ]
+
+On failure, throw a ToolError to carry a clean message OR the same structured content (e.g. an error screenshot) back to the model — the SDK turns it into a tool_result with isError: true:
+
+  import { ToolError } from "@theokit/sdk";
+  throw new ToolError([
+    { type: "text", text: "failed to load the page" },
+    { type: "image", source: { type: "base64", media_type: "image/png", data } },
+  ]);
+
+A plain Error still works (its message becomes the error text). This is provider-agnostic and capability-based: a provider whose tool-result can carry blocks forwards them natively; a string-only provider flattens text-only blocks to a string and FAILS FAST with a typed ConfigurationError on an image block (a silently-dropped image would be a lie to the model). Types: ImageBlock, ToolResultContentBlock (= TextBlock | ImageBlock).
+
 import { z } from "zod";
 import { defineTool } from "@theokit/sdk";
 

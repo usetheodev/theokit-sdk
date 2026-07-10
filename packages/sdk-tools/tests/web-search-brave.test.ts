@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createWebSearchTool } from "../src/web-search.js";
 import { createBraveWebSearchAdapter } from "../src/web-search-brave.js";
+import { textHandler } from "./text-handler.js";
 
 const KEY = "test-brave-key";
 
@@ -125,7 +126,7 @@ describe("createBraveWebSearchAdapter — error propagation", () => {
     const tool = createWebSearchTool({
       search: createBraveWebSearchAdapter({ apiKey: KEY, fetchImpl }),
     });
-    const parsed = JSON.parse(await tool.handler({ query: "q" }));
+    const parsed = JSON.parse(await textHandler(tool)({ query: "q" }));
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("search_failed");
   });
@@ -135,7 +136,7 @@ describe("createBraveWebSearchAdapter — error propagation", () => {
     const tool = createWebSearchTool({
       search: createBraveWebSearchAdapter({ apiKey: KEY, fetchImpl }),
     });
-    const parsed = JSON.parse(await tool.handler({ query: "q" }));
+    const parsed = JSON.parse(await textHandler(tool)({ query: "q" }));
     expect(parsed.ok).toBe(true);
     expect(parsed.results).toEqual([
       { title: "T1", url: "https://a.example", snippet: "snippet one" },
