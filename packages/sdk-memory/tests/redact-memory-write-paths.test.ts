@@ -16,6 +16,7 @@ import { join } from "node:path";
 
 import { createInMemoryMarkdownProvider } from "@theokit/sdk-memory";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { textHandler } from "./_text-handler.js";
 
 const FAKE_AGENT = { agentId: "test-agent", model: undefined } as never;
 
@@ -37,7 +38,7 @@ describe("sdk-memory write-path redaction (iter 43)", () => {
     if (remember === undefined) throw new Error("missing memory_remember");
 
     const FAKE_KEY = "sk-proj-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
-    await remember.handler({
+    await textHandler(remember)({
       content: `user's API key is ${FAKE_KEY}`,
     });
 
@@ -79,7 +80,7 @@ describe("sdk-memory write-path redaction (iter 43)", () => {
     const remember = tools.find((t) => t.name === "memory_remember");
     if (remember === undefined) throw new Error("missing");
 
-    await remember.handler({ content: "user's birthday is in October" });
+    await textHandler(remember)({ content: "user's birthday is in October" });
 
     const pass = await provider.runActivePass(handle, {
       userMessage: "birthday",
@@ -100,7 +101,7 @@ describe("sdk-memory write-path redaction (iter 43)", () => {
     const KEY_B = "sk-proj-DDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD";
 
     // Path A: LLM tool
-    await remember.handler({ content: `key A is ${KEY_A}` });
+    await textHandler(remember)({ content: `key A is ${KEY_A}` });
     // Path B: direct adapter.write
     await handle.adapter.write(`key B is ${KEY_B}`, { userId: "u1" });
 
