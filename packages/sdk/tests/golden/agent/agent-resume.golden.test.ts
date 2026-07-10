@@ -7,7 +7,12 @@ import { Agent } from "../../../src/index.js";
 import type { SDKAgent } from "../../../src/types/agent.js";
 
 interface AgentWithLoaders extends SDKAgent {
-  skills?: { list: () => Promise<Array<{ name: string; description: string }>> };
+  skills?: {
+    list: () => Promise<Array<{ name: string; description: string }>>;
+    get: (
+      name: string,
+    ) => Promise<{ name: string; description: string; instructions: string } | undefined>;
+  };
 }
 
 /**
