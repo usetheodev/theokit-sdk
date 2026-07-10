@@ -173,9 +173,13 @@ describe("buildEnvContext — git branch + injectable clock (RADAR #92.b)", () =
 });
 
 describe("sdk-tools barrel — repo-map builders", () => {
+  // Dynamically imports the full sdk-tools barrel (pulls in esbuild/tsx-heavy
+  // modules). The default 5s vitest timeout flakes under parallel-suite CPU
+  // contention (the whole file runs ~1.9s isolated). A 30s ceiling makes the
+  // import deterministic regardless of load — see also the codemod suite.
   it("re-exports buildEnvContext and buildRepoMap", async () => {
     const mod = await import("../src/index.js");
     expect(typeof mod.buildEnvContext).toBe("function");
     expect(typeof mod.buildRepoMap).toBe("function");
-  });
+  }, 30_000);
 });

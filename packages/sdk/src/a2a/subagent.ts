@@ -15,6 +15,7 @@
 import { z } from "zod";
 
 import type { CustomTool, ToolContextMessage } from "../types/agent.js";
+import type { Run } from "../types/run.js";
 
 /** Arguments passed to {@link SubAgentSpec.messageFilter} (SE12). */
 export interface MessageFilterArgs {
@@ -39,7 +40,12 @@ export interface DelegationStartContext {
  */
 export type DelegationStartDecision =
   | { proceed: false; rejectionReason?: string }
-  | { proceed?: true; modifiedInput?: string };
+  | {
+      proceed?: true;
+      modifiedInput?: string;
+      /** SE13 — cap the child's iteration count (forwarded as `SendOptions.maxIterations`). */
+      modifiedMaxSteps?: number;
+    };
 
 /** Context passed to {@link SubAgentSpec.onDelegationComplete} after the child settles. */
 export interface DelegationCompleteContext {
@@ -93,6 +99,14 @@ export interface SubAgentSpec {
    * `onDelegationStart`); the delegation surfaces as a tool error.
    */
   messageFilter?: (args: MessageFilterArgs) => readonly ToolContextMessage[];
+  /**
+   * SE14 — opt-in subagent result-context control. When `true`, the child's
+   * completed tool-call results (name + result) are appended to the delegation
+   * payload returned to the supervisor, inside a `<subagent-tool-results>` block.
+   * When absent/`false` the delegation returns the child's final text only —
+   * text-only stays the default (a peer framework's scoped posture). See ADR 0006.
+   */
+  includeToolResults?: boolean;
 }
 
 export class MaxDelegationDepthError extends Error {
@@ -106,24 +120,54 @@ export class MaxDelegationDepthError extends Error {
   }
 }
 
-/** Run the `onDelegationStart` hook; returns either a rejection or the (possibly rewritten) input. */
+/**
+ * Run the `onDelegationStart` hook; returns either a rejection or the (possibly
+ * rewritten) input plus the optional SE13 `maxSteps` cap.
+ */
 async function applyDelegationStart(
   spec: SubAgentSpec,
   input: string,
-): Promise<{ reject: string } | { input: string }> {
+): Promise<{ reject: string } | { input: string; maxSteps?: number }> {
   if (spec.onDelegationStart === undefined) return { input };
   const decision = await spec.onDelegationStart({ input, name: spec.name });
   if (decision === undefined) return { input };
   if (decision.proceed === false)
     return { reject: decision.rejectionReason ?? "(delegation rejected)" };
-  return { input: decision.modifiedInput ?? input };
+  return {
+    input: decision.modifiedInput ?? input,
+    ...(decision.modifiedMaxSteps !== undefined ? { maxSteps: decision.modifiedMaxSteps } : {}),
+  };
 }
 
-/** Create the transient child agent, send the input (forwarding SE10's signal), dispose in `finally`. */
+/**
+ * SE14 — replay the child run's stream (a safe post-`wait()` idiom — the run buffers
+ * events, `stream()` replays them) and collect every completed tool-call result into
+ * a delimited block. Returns `""` when the child ran no completed tool calls. See ADR 0006.
+ */
+async function collectChildToolResults(run: Run): Promise<string> {
+  const lines: string[] = [];
+  for await (const event of run.stream()) {
+    if (event.type === "tool_call" && event.status === "completed") {
+      const rendered =
+        typeof event.result === "string" ? event.result : JSON.stringify(event.result ?? null);
+      lines.push(`${event.name}: ${rendered}`);
+    }
+  }
+  if (lines.length === 0) return "";
+  return `\n\n<subagent-tool-results>\n${lines.join("\n")}\n</subagent-tool-results>`;
+}
+
+/**
+ * Create the transient child agent and send the input, composing every forwarded
+ * `SendOptions` onto ONE `send` call — SE10 `signal` + SE13 `maxIterations`. Absent
+ * every option ⇒ the pre-SE10 single-arg `send(input)` shape. SE14 — when
+ * `includeToolResults` is set, append the child's completed tool results. Dispose in `finally`.
+ */
 async function runChildAgent(
   spec: SubAgentSpec,
   input: string,
   signal: AbortSignal | undefined,
+  maxSteps: number | undefined,
 ): Promise<string> {
   // Lazy import to avoid circular dependency.
   const { Agent } = await import("../agent.js");
@@ -133,11 +177,18 @@ async function runChildAgent(
     tools: spec.tools ?? [],
   });
   try {
-    // SE10 — forward the parent run's AbortSignal; absent ⇒ pre-SE10 single-arg shape.
+    const sendOptions: { signal?: AbortSignal; maxIterations?: number } = {
+      ...(signal !== undefined ? { signal } : {}),
+      ...(maxSteps !== undefined ? { maxIterations: maxSteps } : {}),
+    };
     const run =
-      signal !== undefined ? await agent.send(input, { signal }) : await agent.send(input);
+      Object.keys(sendOptions).length > 0
+        ? await agent.send(input, sendOptions)
+        : await agent.send(input);
     const result = await run.wait();
-    return result.result ?? "(no response)";
+    const text = result.result ?? "(no response)";
+    // SE14 — text-only by default; opt-in appends the child's tool results.
+    return spec.includeToolResults === true ? text + (await collectChildToolResults(run)) : text;
   } finally {
     agent.dispose();
   }
@@ -224,7 +275,8 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
 
       let result: string;
       try {
-        result = await runChildAgent(spec, input, ctx?.signal);
+        // SE13 — apply the optional onDelegationStart maxSteps cap on the child send.
+        result = await runChildAgent(spec, input, ctx?.signal, start.maxSteps);
       } catch (error) {
         // SE11 — notify the completion hook of the failure (best-effort observer),
         // then re-throw the ORIGINAL error (Rule 8: never swallow the delegation's
