@@ -317,7 +317,7 @@ the reference comparison: today you cannot say "run the loop AND give me a typed
 **Why now:** the biggest DX-capability gap vs a framework + AI SDK; both integrate structured output into
 the agent run and it is a common ask.
 
-### SE10 — [ ] Cancellation + option passthrough in subagent delegation
+### SE10 — [x] Cancellation + option passthrough in subagent delegation
 
 **Objective:** Forward the parent run's cancellation to an in-flight subagent. `defineSubAgent`'s
 returned tool handler today calls `agent.send(input)` with NO options (`a2a/subagent.ts:60`), so an
