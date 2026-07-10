@@ -674,7 +674,7 @@ comparison (2026-07-10).
 
 **Why now:** completes the a peer framework skills-read parity as an OPT-IN factory (consistent with `defineSubAgent` / `workflowAsTool`), resolving the eager-block-vs-lazy-tool question without violating bring-your-own-tools.
 
-### SE24 — [ ] Guardrail processor pipeline seam (input/output, strategy, tripwire, onViolation)
+### SE24 — [x] Guardrail processor pipeline seam (input/output, strategy, tripwire, onViolation)
 
 **Objective:** Add a message-level guardrail seam. a peer framework ships `inputProcessors` / `outputProcessors` — a
 pipeline that runs before the LLM (input) and before the response reaches the user (output), where each

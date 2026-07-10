@@ -14,6 +14,7 @@ export type * from "./goal-events.js";
 export type * from "./mcp.js";
 export type * from "./memory-adapter.js";
 export type * from "./messages.js";
+export type * from "./processors.js";
 export type * from "./providers.js";
 export type * from "./run.js";
 export type * from "./session.js";
