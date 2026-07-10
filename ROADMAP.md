@@ -211,7 +211,17 @@ the loop does not own file I/O — checkpointing may not fit the runtime cleanly
 
 **Why now:** flagged borderline in the comparison; the ownership call must precede any implementation.
 
-### SE6 — [ ] Provider prewarm / first-token latency (GATED — measure first)
+### SE6 — [x] Provider prewarm / first-token latency (GATED — measure first)
+
+> **RESOLVED 2026-07-09 → NEGLIGIBLE, no `prewarm()` API (YAGNI).** See
+> [ADR 0004](docs/adr/0004-no-provider-prewarm-in-process-coldstart-negligible.md). Measured with a
+> reproducible harness (`packages/sdk/scripts/measure-cold-start.mts`, fixture runtime / no network,
+> Node 22, 12 runs ×2): the only cost a runtime `prewarm()` could amortize (Agent.create cold Δ +
+> first-run cold Δ) is **4–5 ms**, an order of magnitude below the 50 ms materiality threshold and
+> invisible next to the LLM network round-trip (which prewarm cannot reduce). Module import (~200–370
+> ms) is the largest number but happens at `import` — before any prewarm could run — and is a
+> framework/app boot concern, not a runtime API. In-process minimal cold-start IS the advantage over
+> the subprocess model; nothing worth a public API to hide. Harness retained as a regression tripwire.
 
 **Objective:** The Anthropic `startup()`/`WarmQuery` exists to amortize **subprocess spawn** — which we
 do NOT have (in-process by design). Investigate whether an in-process analog is warranted: prewarm the
@@ -221,9 +231,9 @@ no-op** — measure before building (YAGNI).
 
 **Definition of done:**
 
-- [ ] Measure the cold-start cost of the first run (provider-chain resolution, plugin discovery, connection setup) with numbers.
-- [ ] If material (> a defined threshold): a `prewarm(options)` that resolves the chain + opens the connection without a model call + TDD + latency-delta evidence.
-- [ ] If negligible: document that in-process cold-start is minimal (our advantage vs subprocess) and CLOSE the milestone with the measurement as evidence.
+- [x] Measure the cold-start cost of the first run (provider-chain resolution, plugin discovery, connection setup) with numbers. → **harness + ADR 0004 (4–5 ms prewarmable ceiling).**
+- [ ] ~~If material: a `prewarm(options)` + TDD + latency-delta~~ — N/A (measured negligible).
+- [x] If negligible: document that in-process cold-start is minimal (our advantage vs subprocess) and CLOSE the milestone with the measurement as evidence. → **done (ADR 0004 + retained harness).**
 
 **Dependencies:** SE2 (measure via typed timing events).
 
