@@ -1,3 +1,5 @@
+import { ToolError } from "../../tool-error.js";
+import type { ToolResultContentBlock } from "../../types/content-blocks.js";
 import type { LlmToolCallPart } from "../llm/types.js";
 import { runShell, type ShellExecuteOptions } from "../runtime/tools/shell-tool.js";
 import type { AgentLoopInputs, ResolvedTool } from "./loop-types.js";
@@ -7,6 +9,13 @@ export interface ToolResult {
   stdout: string;
   stderr: string;
   exitCode?: number | null;
+  /**
+   * SE7 — authoritative tool_result content when set: a string OR structured
+   * blocks (text + image). Populated by a handler that returns blocks, or a
+   * `ToolError` (string or blocks); `stdout`/`stderr` remain for hooks/telemetry.
+   * `undefined` → the legacy string path (`renderToolResult` over stdout/stderr).
+   */
+  content?: string | ToolResultContentBlock[];
 }
 
 /** @internal */
@@ -48,7 +57,7 @@ async function runHandlerTool(
     | ((
         input: Record<string, unknown>,
         ctx?: { signal?: AbortSignal; context?: unknown },
-      ) => string | Promise<string>)
+      ) => string | ToolResultContentBlock[] | Promise<string | ToolResultContentBlock[]>)
     | undefined,
   call: LlmToolCallPart,
   signal?: AbortSignal,
@@ -61,9 +70,18 @@ async function runHandlerTool(
     // #65 — the run's abort signal on the ToolContext. M7 — also the run's user
     // `context` (from SendOptions.context), so tools read shared config (e.g.
     // projectRoot) set once at the run. Single-arg handlers ignore both.
-    const stdout = await handler(call.input, { signal, context });
-    return { stdout, stderr: "", exitCode: 0 };
+    const out = await handler(call.input, { signal, context });
+    // SE7 — a handler may return structured content blocks (text + image).
+    if (typeof out !== "string") return { stdout: "", stderr: "", exitCode: 0, content: out };
+    return { stdout: out, stderr: "", exitCode: 0 };
   } catch (cause) {
+    // SE7 — a `ToolError` carries the error content (string or blocks) as the
+    // authoritative tool_result content; `stderr` keeps the text message for the
+    // `onToolError` hook. A string ToolError stays a string on the wire (symmetric
+    // with a string handler return), a block ToolError carries its blocks.
+    if (cause instanceof ToolError) {
+      return { stdout: "", stderr: cause.message, exitCode: 1, content: cause.content };
+    }
     const message = cause instanceof Error ? cause.message : String(cause);
     return { stdout: "", stderr: message, exitCode: 1 };
   }

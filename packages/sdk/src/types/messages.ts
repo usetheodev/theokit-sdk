@@ -1,15 +1,13 @@
 // T4.1 / D438 — import from leaf to break the 3-node agent->run->messages cycle (#7).
 import type { ModelSelection } from "./agent-prims.js";
+// TextBlock / ImageBlock / ToolResultContentBlock live in the import-free leaf
+// `content-blocks.ts` (SE7) so `agent-prims.ts` can reference them for the
+// `CustomTool` handler result WITHOUT re-introducing the agent-prims↔messages
+// cycle. Imported here for local use + re-exported so existing
+// `from "./messages.js"` imports still work.
+import type { TextBlock } from "./content-blocks.js";
 
-/**
- * Plain text content block emitted by the assistant or user.
- *
- * @public
- */
-export interface TextBlock {
-  type: "text";
-  text: string;
-}
+export type { ImageBlock, TextBlock, ToolResultContentBlock } from "./content-blocks.js";
 
 /**
  * Tool invocation block emitted by the assistant.

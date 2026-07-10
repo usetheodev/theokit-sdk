@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { createSearchTextTool } from "../src/search-text.js";
+import { textHandler } from "./text-handler.js";
 
 let projectRoot: string;
 
@@ -29,7 +30,7 @@ describe("createSearchTextTool — happy path", () => {
     writeFileSync(join(projectRoot, "b.ts"), "const x = foo()");
     writeFileSync(join(projectRoot, "c.ts"), "// no match here");
     const tool = createSearchTextTool({ projectRoot });
-    const out = await tool.handler({ query: "foo" });
+    const out = await textHandler(tool)({ query: "foo" });
     const parsed = JSON.parse(out) as {
       ok: boolean;
       matches: Array<{ file: string; line: number; preview: string }>;
@@ -48,7 +49,7 @@ describe("createSearchTextTool — happy path", () => {
   it("Given a query with no matches, Then matches=[] and ok=true", async () => {
     writeFileSync(join(projectRoot, "a.ts"), "hello");
     const tool = createSearchTextTool({ projectRoot });
-    const out = await tool.handler({ query: "nonexistent-xyz" });
+    const out = await textHandler(tool)({ query: "nonexistent-xyz" });
     const parsed = JSON.parse(out) as { ok: boolean; matches: unknown[] };
     expect(parsed.ok).toBe(true);
     expect(parsed.matches).toEqual([]);
@@ -58,7 +59,7 @@ describe("createSearchTextTool — happy path", () => {
     mkdirSync(join(projectRoot, "src"));
     writeFileSync(join(projectRoot, "src", "deep.ts"), "needle here");
     const tool = createSearchTextTool({ projectRoot });
-    const out = await tool.handler({ query: "needle" });
+    const out = await textHandler(tool)({ query: "needle" });
     const parsed = JSON.parse(out) as { ok: boolean; matches: Array<{ file: string }> };
     expect(parsed.ok).toBe(true);
     expect(parsed.matches[0]?.file).toBe(join("src", "deep.ts"));
@@ -72,7 +73,7 @@ describe("createSearchTextTool — search scope", () => {
     writeFileSync(join(projectRoot, "app", "a.ts"), "needle");
     writeFileSync(join(projectRoot, "lib", "b.ts"), "needle");
     const tool = createSearchTextTool({ projectRoot });
-    const out = await tool.handler({ query: "needle", path: "app" });
+    const out = await textHandler(tool)({ query: "needle", path: "app" });
     const parsed = JSON.parse(out) as { matches: Array<{ file: string }> };
     expect(parsed.matches.length).toBe(1);
     expect(parsed.matches[0]?.file.startsWith("app")).toBe(true);
@@ -85,7 +86,7 @@ describe("createSearchTextTool — search scope", () => {
     writeFileSync(join(projectRoot, ".git", "config"), "needle");
     writeFileSync(join(projectRoot, "real.ts"), "needle");
     const tool = createSearchTextTool({ projectRoot });
-    const out = await tool.handler({ query: "needle" });
+    const out = await textHandler(tool)({ query: "needle" });
     const parsed = JSON.parse(out) as { matches: Array<{ file: string }> };
     expect(parsed.matches.length).toBe(1);
     expect(parsed.matches[0]?.file).toBe("real.ts");
@@ -95,7 +96,7 @@ describe("createSearchTextTool — search scope", () => {
 describe("createSearchTextTool — safety boundaries", () => {
   it("Given path traversal in the scope, Then error='path_traversal'", async () => {
     const tool = createSearchTextTool({ projectRoot });
-    const out = await tool.handler({ query: "x", path: "../etc" });
+    const out = await textHandler(tool)({ query: "x", path: "../etc" });
     const parsed = JSON.parse(out) as { ok: boolean; error: string };
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
@@ -108,7 +109,7 @@ describe("createSearchTextTool — output caps", () => {
       writeFileSync(join(projectRoot, `f${i}.ts`), "needle");
     }
     const tool = createSearchTextTool({ projectRoot, maxMatches: 50 });
-    const out = await tool.handler({ query: "needle" });
+    const out = await textHandler(tool)({ query: "needle" });
     const parsed = JSON.parse(out) as { matches: unknown[]; truncated: boolean };
     expect(parsed.matches).toHaveLength(50);
     expect(parsed.truncated).toBe(true);

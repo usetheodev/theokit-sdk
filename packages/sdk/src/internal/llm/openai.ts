@@ -9,6 +9,7 @@ import {
 } from "./finish.js";
 import { extractHermesToolCalls, StreamSuppressionBuffer } from "./hermes-tool-extract.js";
 import { parseSseStream } from "./sse.js";
+import { toStringToolResultContent } from "./tool-result-content.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -540,7 +541,9 @@ function userOrToolMessages(message: LlmMessage): Array<Record<string, unknown>>
       out.push({
         role: "tool",
         tool_call_id: part.toolUseId,
-        content: part.content,
+        // SE7 — this wire's tool role is string-only: text blocks flatten; an
+        // image block fails fast (ConfigurationError).
+        content: toStringToolResultContent(part.content, "openai"),
       });
     }
   }
