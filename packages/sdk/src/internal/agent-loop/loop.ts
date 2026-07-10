@@ -1,4 +1,5 @@
-import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
+import type { ToolContextMessage } from "../../types/agent-prims.js";
+import type { LlmContentPart, LlmMessage, LlmToolCallPart } from "../llm/types.js";
 import { IterationBudget } from "../runtime/budget/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validation/validate-response.js";
@@ -11,6 +12,23 @@ import { buildAssistantEvent, buildAssistantTurn } from "./message-builders.js";
 import { dispatchTools } from "./tool-dispatch.js";
 import { applyToolResultGuard } from "./tool-result-guard.js";
 import { accumulateUsage, computeUsageCost } from "./usage-and-cost.js";
+
+/**
+ * SE12 — flatten the running transcript to the read-only text projection tool
+ * handlers receive on `ctx.messages`. Non-text parts (tool calls / results) are
+ * dropped so a tool never sees raw wire parts or nested tool args.
+ */
+function projectToolContextMessages(messages: readonly LlmMessage[]): ToolContextMessage[] {
+  const projected: ToolContextMessage[] = [];
+  for (const m of messages) {
+    const content = m.content.flatMap((p) => (p.type === "text" ? [p.text] : [])).join("");
+    // Skip turns that project to empty text (a tool-only assistant turn or a
+    // tool-result-only user turn) — the text projection has nothing to forward,
+    // so a messageFilter never sees zero-content noise.
+    if (content !== "") projected.push({ role: m.role, content });
+  }
+  return projected;
+}
 
 /**
  * The real agent loop. Given an LLM client, MCP clients, hooks, and a shell
@@ -387,7 +405,9 @@ export async function continueOrTerminate(
   const outText = await transformLlmOutputText(inputs, llmOutput.text, tCtx);
   ctx.messages.push(buildAssistantTurn(outText, llmOutput.toolCalls));
   const rawResults = await dispatchTools(
-    inputs,
+    // SE12 — forward a read-only text projection of the transcript-so-far to tool
+    // handlers via `ctx.messages` (consumed by defineSubAgent's messageFilter).
+    { ...inputs, messages: projectToolContextMessages(ctx.messages) },
     ctx.tools,
     llmOutput.toolCalls,
     ctx.events,

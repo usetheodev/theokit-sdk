@@ -368,7 +368,7 @@ has NO interception point — the handler runs the child unconditionally. Add op
 
 **Why now:** the highest-control supervisor-parity gap; unlocks guardrails (reject after N iterations, rewrite the delegated prompt) that today require wrapping the tool by hand.
 
-### SE12 — [ ] Opt-in parent-context forwarding + `messageFilter` for subagents
+### SE12 — [x] Opt-in parent-context forwarding + `messageFilter` for subagents
 
 **Objective:** Let a subagent optionally see a filtered view of the supervisor's conversation.
 Today `defineSubAgent` sends ONLY a fresh `input` string — full memory isolation, a deliberate
