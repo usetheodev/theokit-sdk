@@ -341,7 +341,7 @@ export class WorkflowNestedError extends Error {
   constructor(
     public readonly stepId: string,
     public readonly childName: string,
-    public readonly childStatus: string,
+    public readonly childStatus: Exclude<WorkflowRun["status"], "completed">,
     public readonly childError?: { name: string; message: string },
   ) {
     super(
@@ -349,7 +349,14 @@ export class WorkflowNestedError extends Error {
         childStatus === "suspended"
           ? " — nested suspend/resume is not supported in v1 (use a top-level suspend)"
           : ""
-      }${childError ? `: ${childError.message}` : ""}`,
+      }${childError ? `: ${childError.name}: ${childError.message}` : ""}`,
+      // Reconstruct a synthetic Error from the serialized child-error shape so
+      // debuggers surface the nested cause chain — the original Error instance is
+      // lost at the WorkflowRun serialization boundary, so this is the best
+      // achievable without changing the run protocol.
+      childError
+        ? { cause: Object.assign(new Error(childError.message), { name: childError.name }) }
+        : undefined,
     );
   }
 }
