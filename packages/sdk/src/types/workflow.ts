@@ -128,6 +128,19 @@ export interface StepContext {
   };
   /** Pause the workflow; resume via `Workflow.resume({...})`. */
   readonly suspend: (payload?: unknown) => Promise<never>;
+  /**
+   * SE29 — the workflow's shared state (from `WorkflowOptions.initialState`,
+   * mutated by {@link setState}), visible to every subsequent step in the run.
+   * `undefined` when no `initialState`/`setState` has run. Persisted across
+   * suspend/resume.
+   */
+  readonly state: unknown;
+  /**
+   * SE29 — update the shared state for subsequent steps. Validated against
+   * `WorkflowOptions.stateSchema` when set (a mismatch throws
+   * {@link WorkflowStateError}, which fails the step/run — Rule 8).
+   */
+  readonly setState: (next: unknown) => void;
 }
 
 /* ─── Result types ─── */
@@ -154,15 +167,51 @@ export interface WorkflowRun<TOutput = unknown> {
 }
 
 export interface WorkflowSnapshot {
-  readonly _schemaVersion: 1;
+  /** v1 = pre-SE29 (no `state`); v2 = SE29 (carries `state`). Resume reads both. */
+  readonly _schemaVersion: 1 | 2;
   readonly runId: string;
   readonly workflowName: string;
   readonly currentStepId: string;
   readonly suspendedPayload?: unknown;
   readonly stepResults: ReadonlyArray<StepResult>;
   readonly accumulatedInput: unknown;
+  /** SE29 — shared state captured at suspend (v2). Absent on a v1 snapshot. */
+  readonly state?: unknown;
   readonly suspendedAt: number;
 }
+
+/* ─── SE28 — streaming ─── */
+
+/**
+ * SE28 — a step-level workflow event emitted by `Workflow.stream()` as top-level
+ * steps run. Coarse-grained (one event per top-level step; nested
+ * parallel/branch/foreach emit as their single wrapping step), distinct from the
+ * token-delta agent stream. Discriminate on `type`.
+ *
+ * @public
+ */
+export type WorkflowEvent =
+  | { readonly type: "step_started"; readonly stepId: string }
+  | { readonly type: "step_completed"; readonly stepId: string; readonly output: unknown }
+  | {
+      readonly type: "step_failed";
+      readonly stepId: string;
+      readonly error: { readonly name: string; readonly message: string };
+    }
+  | { readonly type: "workflow_suspended"; readonly stepId: string }
+  | { readonly type: "workflow_completed" };
+
+/**
+ * SE28 — the async iterator returned by `Workflow.stream()`. Yields
+ * {@link WorkflowEvent}s in execution order; `result` resolves to the same
+ * terminal {@link WorkflowRun} the `run()` path returns (the authoritative
+ * outcome — the stream ends when the run terminates).
+ *
+ * @public
+ */
+export type WorkflowStream<TOutput = unknown> = AsyncIterableIterator<WorkflowEvent> & {
+  readonly result: Promise<WorkflowRun<TOutput>>;
+};
 
 /* ─── Options ─── */
 
@@ -175,6 +224,34 @@ export interface WorkflowPersistenceOptions {
 export interface WorkflowOptions {
   readonly name: string;
   readonly persistence?: WorkflowPersistenceOptions;
+  /**
+   * SE27 — Zod schema for the WHOLE workflow's input. When set, `run(input)`
+   * validates `input` BEFORE step 1; a mismatch yields `status: "failed"` with a
+   * typed {@link WorkflowInputError} in `error` (fail-fast, no step runs, no
+   * silent coerce). Absent ⇒ no whole-workflow input validation (unchanged).
+   */
+  readonly inputSchema?: ZodType;
+  /**
+   * SE27 — Zod schema for the workflow's final output. When set, the terminal
+   * `completed` output is validated before `WorkflowRun.output` is populated; a
+   * mismatch yields `status: "failed"` with a typed {@link WorkflowOutputError}.
+   * Only validated on the `completed` path (suspended/failed runs skip it).
+   */
+  readonly outputSchema?: ZodType;
+  /**
+   * SE29 — Zod schema for the workflow's shared state (see `StepContext.state` /
+   * `setState`). When set, `initialState` and every `setState(next)` are
+   * validated against it (a mismatch throws {@link WorkflowStateError}). When
+   * `initialState` is absent, `state` starts as `undefined` and validation fires
+   * on the first `setState` call.
+   */
+  readonly stateSchema?: ZodType;
+  /**
+   * SE29 — the initial shared state, seeded onto `StepContext.state` before
+   * step 1. Validated against `stateSchema` when both are set. Persisted across
+   * suspend/resume.
+   */
+  readonly initialState?: unknown;
   /** Internal — minted at `.commit()`. Not user-facing. */
   readonly workflowId?: string;
 }
@@ -208,6 +285,79 @@ export class WorkflowDuplicateStepIdError extends Error {
   override readonly name = "WorkflowDuplicateStepIdError";
   constructor(public readonly stepId: string) {
     super(`Duplicate step id "${stepId}" in workflow.`);
+  }
+}
+
+/**
+ * SE27 — the whole-workflow `inputSchema` rejected `run(input)` (before step 1).
+ * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
+ */
+export class WorkflowInputError extends Error {
+  override readonly name = "WorkflowInputError";
+  constructor(
+    public readonly workflowName: string,
+    public readonly detail: string,
+  ) {
+    super(`Workflow "${workflowName}" input failed schema validation: ${detail}`);
+  }
+}
+
+/**
+ * SE27 — the whole-workflow `outputSchema` rejected the final output (on `completed`).
+ * `detail` is a pre-formatted issues summary (a string, NOT Zod's `ZodIssue[]`).
+ */
+export class WorkflowOutputError extends Error {
+  override readonly name = "WorkflowOutputError";
+  constructor(
+    public readonly workflowName: string,
+    public readonly detail: string,
+  ) {
+    super(`Workflow "${workflowName}" output failed schema validation: ${detail}`);
+  }
+}
+
+/**
+ * SE29 — `WorkflowOptions.stateSchema` rejected an `initialState` or a
+ * `setState(next)` call. `detail` is a pre-formatted issues summary.
+ */
+export class WorkflowStateError extends Error {
+  override readonly name = "WorkflowStateError";
+  constructor(
+    public readonly workflowName: string,
+    public readonly detail: string,
+  ) {
+    super(`Workflow "${workflowName}" state failed schema validation: ${detail}`);
+  }
+}
+
+/**
+ * SE30 — a nested workflow (via `workflowStep`) did not `complete`. A nested
+ * `suspended` is NOT resumable in v1 (resume continues AFTER the step, so the
+ * child would be skipped) — restructure with a top-level suspend. A nested
+ * `failed`/`cancelled` fails the parent step with the child's error attached.
+ */
+export class WorkflowNestedError extends Error {
+  override readonly name = "WorkflowNestedError";
+  constructor(
+    public readonly stepId: string,
+    public readonly childName: string,
+    public readonly childStatus: Exclude<WorkflowRun["status"], "completed">,
+    public readonly childError?: { name: string; message: string },
+  ) {
+    super(
+      `Nested workflow "${childName}" (step "${stepId}") ended with status "${childStatus}"${
+        childStatus === "suspended"
+          ? " — nested suspend/resume is not supported in v1 (use a top-level suspend)"
+          : ""
+      }${childError ? `: ${childError.name}: ${childError.message}` : ""}`,
+      // Reconstruct a synthetic Error from the serialized child-error shape so
+      // debuggers surface the nested cause chain — the original Error instance is
+      // lost at the WorkflowRun serialization boundary, so this is the best
+      // achievable without changing the run protocol.
+      childError
+        ? { cause: Object.assign(new Error(childError.message), { name: childError.name }) }
+        : undefined,
+    );
   }
 }
 

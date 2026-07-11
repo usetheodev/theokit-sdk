@@ -759,6 +759,112 @@ comparison (2026-07-10).
 
 **Why now:** it closes the guardrails story honestly — the seam (SE24) + deterministic processors (SE25) ship in core; the churning LLM-classifier processors are delegated with a paved path, keeping the single-maintainer core maintainable (consistent with the locked AUTH-DELEGATION posture).
 
+### SE27 — [x] Workflow-level `inputSchema` / `outputSchema` (validate the whole-workflow I/O)
+
+**Objective:** Validate a workflow's overall input and final output, not just per-step. a peer framework's
+`createWorkflow({ inputSchema, outputSchema })` validates the data the workflow accepts and returns.
+TheoKit's `Workflow.create(options)` takes only `{ name, persistence, workflowId }` — schemas live
+per-step on `FnStep` (the SE19 finding — a Workflow carries NO top-level schema, which is why
+`workflowAsTool` had to take `inputSchema` from its caller). Add optional `inputSchema?` / `outputSchema?`
+to `WorkflowOptions`: when present, validate `run(input)` against `inputSchema` (fail fast, typed error)
+and the final output against `outputSchema` before returning. From the a peer framework Workflows comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `WorkflowOptions.inputSchema?: ZodType` / `outputSchema?: ZodType` (optional, back-compat: absent ⇒ no whole-workflow validation, exactly as today).
+- [ ] `Workflow.run(input)` validates `input` against `inputSchema` (when set) BEFORE executing step 1 — a mismatch fails fast with a typed `WorkflowInputError` (Rule 8), never a silent coerce.
+- [ ] The final workflow output is validated against `outputSchema` (when set) before `WorkflowRun.output` is populated — a mismatch surfaces as `status: "failed"` with a typed error (not a throw that escapes `run()`).
+- [ ] `workflowAsTool` MAY read `workflow`'s `inputSchema` when the spec omits one (removing the SE19 caller-must-supply requirement when the workflow now declares it) — optional sub-goal, gated on not breaking the SE19 structural `{ run }` contract.
+- [ ] Typed inference: `Workflow.create<I, O>` continues to infer, and `inputSchema`/`outputSchema` (when Zod) refine `TInput`/`TOutput`.
+- [ ] TDD: a valid input passes; an invalid input fails fast with the typed error before any step runs; an output-schema mismatch yields `status: "failed"`; absent schemas ⇒ unchanged.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (extends `WorkflowOptions`; the executor already has the input at entry + the output at exit).
+
+**Top risks (new):**
+1. Interaction with `workflowAsTool` (SE19), which takes `inputSchema` from its spec. Mitigation: the tool keeps accepting a spec `inputSchema`; reading the workflow's is an additive fallback, not a breaking change to the structural `{ run }` type.
+2. Output validation on a `suspended`/`failed` run. Mitigation: only validate output on the terminal `completed` path; suspended/failed runs skip output validation (documented).
+
+**Why now:** closes the honest SE19 debt (a Workflow carrying no top-level schema) and matches a peer framework's whole-workflow validation — the cheapest, highest-clarity workflow gap.
+
+### SE28 — [x] Workflow `.stream()` — step-event stream during execution
+
+**Objective:** Emit workflow events as steps run, not just the terminal result. a peer framework's `run.stream()` +
+`fullStream` let a caller monitor progress / trigger actions as steps complete. TheoKit's `workflow.run(input)`
+is start-only (awaits the whole run). Add `workflow.stream(input)` returning an async iterator of typed
+workflow events (`step_started` / `step_completed` / `step_failed` / `workflow_suspended` / `workflow_completed`),
+terminating with the same `WorkflowRun` the `run()` path returns. This is a STEP-event stream (coarse-grained),
+distinct from the token-delta streaming deferred in SE24 — the executor already knows step boundaries. From the
+a peer framework Workflows comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `Workflow.stream(input, opts?)` returns `AsyncIterable<WorkflowEvent>` where `WorkflowEvent` is a typed union discriminated on `type` (`step_started`/`step_completed`/`step_failed`/`workflow_suspended`/`workflow_completed`), each carrying the relevant `stepId` / `output` / `error`.
+- [ ] The stream terminates when the run does; the terminal `WorkflowRun` is reachable (e.g. `stream.result` OR a final `workflow_completed` event carrying it) — same shape as `run()`.
+- [ ] Back-compat: `run(input)` is unchanged (may be re-expressed as draining `stream()` internally, but its signature + result are identical).
+- [ ] Events fire in execution order; a suspended workflow emits `workflow_suspended` then the stream ends (resumable via `Workflow.resume`).
+- [ ] TDD: a 2-step workflow emits `step_started`/`step_completed` for each in order then `workflow_completed`; a failing step emits `step_failed`; a suspend emits `workflow_suspended`.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (the executor drives steps sequentially; add an event sink).
+
+**Top risks (new):**
+1. Parallel/foreach steps emitting interleaved events. Mitigation: v1 defines ordering as "emission order is execution order"; concurrent branches emit as they resolve (documented; deterministic per-branch, not cross-branch).
+2. Coupling `run()` to the stream drain. Mitigation: keep `run()` as the authoritative terminal path; `stream()` is additive — a bug in streaming must never change `run()`'s result.
+
+**Why now:** long/multi-step workflows are opaque today (only the terminal result is observable); step events unlock progress UIs + side-effects, and the executor already has the step boundaries.
+
+### SE29 — [x] Workflow state (`stateSchema` + `state` / `setState` in the step context)
+
+**Objective:** Share values across steps without threading them through every step's input/output. a peer framework's
+step `execute` receives `state` + `setState`, typed by a workflow `stateSchema`, for progress tracking /
+accumulation / shared config. TheoKit's `StepContext` (runId / signal / log / suspend) has no shared state —
+data flows step→step only via return values. Add an optional workflow `stateSchema` + `state` (read) and
+`setState` (write) on `StepContext`, persisted across suspend/resume alongside the snapshot. From the a peer framework
+Workflows comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] `WorkflowOptions.stateSchema?: ZodType` + `WorkflowOptions.initialState?` (validated against it). `StepContext` gains `state: TState` (read) + `setState(next: TState): void` (write) — absent schema ⇒ no state surface (back-compat).
+- [ ] State mutations are visible to subsequent steps in the same run; `setState` validates against `stateSchema` (typed error on mismatch — Rule 8).
+- [ ] State is captured in the `WorkflowSnapshot` and restored on `Workflow.resume` (bump `_schemaVersion` if the snapshot shape changes; migrate/guard old snapshots).
+- [ ] TDD: step 1 sets state, step 2 reads the updated value; `setState` with an invalid shape fails fast; state survives a suspend→resume round-trip.
+- [ ] Docs + Changeset.
+
+**Dependencies:** none (extends `StepContext` + the executor's per-run context; touches the snapshot shape — coordinate with the persistence version).
+
+**Top risks (new):**
+1. Snapshot schema-version bump breaking existing persisted runs. Mitigation: version-guard `WorkflowSnapshot._schemaVersion`; a v1 snapshot without state resumes with `initialState` (documented migration).
+2. Concurrent `setState` in parallel branches. Mitigation: v1 documents last-write-wins within a run; state is not a concurrency primitive (use step outputs for branch-local data).
+
+**Why now:** cross-step shared state is a core workflow ergonomic (progress counters, accumulators) that today forces threading data through every step's schema — the most-requested a peer framework workflow ergonomic after control flow.
+
+### SE30 — [x] Workflows-as-steps (nested `.then(childWorkflow)`) + `cloneWorkflow`
+
+**Objective:** Compose a workflow inside another, and clone a workflow under a new id. a peer framework lets
+`.then(childWorkflow)` nest a committed workflow as a step, and `cloneWorkflow(wf, { id })` reuse logic under
+a distinct id (separate logs/observability). TheoKit's `.then()` accepts only a `Step` (a Workflow is not a
+Step), and there is no clone. Add: (a) a way to use a committed `Workflow` as a step (wrap it as a
+`WorkflowStep` the executor runs by delegating to `childWorkflow.run(input)`); (b) `cloneWorkflow(wf, { id })`
+returning an independent Workflow with a new id/name. From the a peer framework Workflows comparison (2026-07-10).
+
+**Definition of done:**
+
+- [ ] A committed `Workflow` can be used as a step — either `.then(workflow)` accepts a `Workflow` (wrapping it as a `WorkflowStep`) OR an explicit `workflowStep(child)` factory (decide in the plan/ADR). The nested workflow runs via its own executor; its output becomes the step output; a nested failure/suspend propagates to the parent run status.
+- [ ] `cloneWorkflow(wf, { id })` returns a new independent `Workflow` with the given id/name and the same committed steps — clones run independently and surface as distinct in Task/observability.
+- [ ] Nested suspend/resume: a suspended child surfaces the parent as `suspended` (v1 MAY restrict resume-through-nesting with a documented limitation if the snapshot can't address a nested step — decide in the plan).
+- [ ] Step-id uniqueness across nesting is validated (the existing `validateUniqueIds` walk extends to the nested workflow's steps, or the nested run is treated as one opaque step id — decide in the plan).
+- [ ] TDD: a parent workflow whose middle step is a child workflow runs end-to-end and the child's output flows on; a cloned workflow runs independently under its new id; a nested failure fails the parent.
+- [ ] Docs + Changeset; **ADR** if nested suspend/resume semantics need a snapshot-shape decision.
+
+**Dependencies:** SE28 is NOT required; nesting composes with the existing executor. (If SE28 shipped, nested step events SHOULD surface — coordinate.)
+
+**Top risks (new):**
+1. Nested suspend/resume + snapshot addressing (a snapshot's `currentStepId` inside a nested workflow). Mitigation: v1 MAY treat a nested workflow as opaque for resume (resume re-runs the nested child from its start) OR record a nested path — the ADR decides; document the chosen limitation.
+2. Step-id collisions across parent + child. Mitigation: extend `validateUniqueIds` to walk nested workflows, or namespace nested ids — decide in the plan.
+
+**Why now:** composition + cloning are the workflow reuse primitives (build big flows from small ones); `.then(childWorkflow)` is the most-cited a peer framework workflow-composition feature TheoKit lacks.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the

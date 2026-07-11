@@ -1,5 +1,33 @@
 # Changelog
 
+## 2.27.0
+
+### Minor Changes
+
+- c2bdd87: **SE27 — workflow-level `inputSchema` / `outputSchema` (validate the whole-workflow I/O).**
+
+  `Workflow.create({ ..., inputSchema, outputSchema })` (from `@theokit/sdk/workflow`) now validates the workflow's overall input and final output, closing the SE19 debt (a Workflow carried no top-level schema — only per-step `FnStep` schemas). When `inputSchema` is set, `run(input)` validates `input` BEFORE step 1; a mismatch fails fast with `status: "failed"` and a typed `WorkflowInputError` in `run.error` (no step executes, no silent coerce). When `outputSchema` is set, the terminal `completed` output is validated before `WorkflowRun.output` is populated; a mismatch yields `status: "failed"` with a typed `WorkflowOutputError` (only the `completed` path is checked — suspended/failed runs skip output validation).
+
+  Both surface as `status: "failed"` (never a throw — consistent with the executor's non-throwing step-error contract). Back-compat: absent schemas ⇒ unchanged. New exports `WorkflowInputError` / `WorkflowOutputError`. `workflowAsTool` (SE19) keeps taking its own `inputSchema` to preserve its structural `{ run }` contract. Mirrors a peer framework's `createWorkflow({ inputSchema, outputSchema })`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE27).
+
+- 09b89ea: **SE28 — `Workflow.stream()` (step-event stream during execution).**
+
+  `workflow.stream(input, opts?)` (from `@theokit/sdk/workflow`) runs the workflow and emits step-level events as they happen, instead of only the terminal result. It returns a `WorkflowStream` — an async iterator of `WorkflowEvent`s (`step_started` / `step_completed` (with `output`) / `step_failed` (with `error`) / `workflow_suspended` / `workflow_completed`) plus a `result` promise resolving to the SAME terminal `WorkflowRun` `run()` returns (the authoritative outcome — the stream ends when the run terminates).
+
+  Events fire in execution order for top-level steps (nested `parallel`/`branch`/`foreach` emit as their single wrapping step — coarse-grained by design). This is a STEP-event stream, distinct from the token-delta agent stream deferred in SE24. `run()` is unchanged + authoritative. New public types `WorkflowEvent` + `WorkflowStream`. Mirrors a peer framework's `run.stream()` / `stream.result`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE28).
+
+- f13d499: **SE29 — workflow shared state (`stateSchema` + `state` / `setState`).**
+
+  Workflow steps can now share values without threading them through every step's input/output. `Workflow.create({ stateSchema, initialState })` (from `@theokit/sdk/workflow`) seeds a shared state; every step's `StepContext` gains `state` (read the current value) and `setState(next)` (update it for subsequent steps). `setState` validates against `stateSchema` when set — a mismatch throws a typed `WorkflowStateError` that fails the step/run (Rule 8); an invalid `initialState` fails the run fast before step 1.
+
+  State is captured in the `WorkflowSnapshot` (bumped to `_schemaVersion: 2`) and restored on `Workflow.resume` — it survives a suspend→resume round-trip. A pre-SE29 (`_schemaVersion: 1`) snapshot has no state and resumes with `initialState`. Back-compat: no `stateSchema`/`initialState` ⇒ `state` is `undefined` and `setState` is unvalidated. New export `WorkflowStateError`. Mirrors a peer framework's workflow `state`/`setState`/`stateSchema`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE29).
+
+- 8ce8441: **SE30 — workflows-as-steps (`workflowStep`) + `cloneWorkflow`.**
+
+  `workflowStep(child, { id? })` (from `@theokit/sdk/workflow`) uses a committed `Workflow` as a step inside another workflow: `.then(workflowStep(child))`. The child runs in its OWN executor (own runId, single-flight lock, and step-id space — so nested ids never collide with the parent's); its output becomes the step output. `cloneWorkflow(wf, { id })` returns a new independent `Workflow` with the same committed steps under a new name + a fresh workflowId (clones run independently, distinct observability identity).
+
+  A non-`completed` child fails the parent step with a typed `WorkflowNestedError`. **Nested suspend/resume is NOT supported in v1** (TheoKit's resume continues AFTER the suspended step, so a nested child would be skipped) — a nested `suspended` fails with a clear message pointing at a top-level suspend; re-running the child on resume (which would re-execute its side effects) is deliberately avoided. ADR 0010. New export `WorkflowNestedError`. Mirrors a peer framework's workflows-as-steps + `cloneWorkflow`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE30).
+
 ## 2.26.0
 
 ### Minor Changes
