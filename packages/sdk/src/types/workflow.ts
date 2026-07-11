@@ -330,6 +330,30 @@ export class WorkflowStateError extends Error {
   }
 }
 
+/**
+ * SE30 — a nested workflow (via `workflowStep`) did not `complete`. A nested
+ * `suspended` is NOT resumable in v1 (resume continues AFTER the step, so the
+ * child would be skipped) — restructure with a top-level suspend. A nested
+ * `failed`/`cancelled` fails the parent step with the child's error attached.
+ */
+export class WorkflowNestedError extends Error {
+  override readonly name = "WorkflowNestedError";
+  constructor(
+    public readonly stepId: string,
+    public readonly childName: string,
+    public readonly childStatus: string,
+    public readonly childError?: { name: string; message: string },
+  ) {
+    super(
+      `Nested workflow "${childName}" (step "${stepId}") ended with status "${childStatus}"${
+        childStatus === "suspended"
+          ? " — nested suspend/resume is not supported in v1 (use a top-level suspend)"
+          : ""
+      }${childError ? `: ${childError.message}` : ""}`,
+    );
+  }
+}
+
 export class WorkflowAlreadyRunningError extends Error {
   override readonly name = "WorkflowAlreadyRunningError";
   constructor(
