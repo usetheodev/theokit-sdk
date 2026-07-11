@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
+import { z } from "zod";
 
-import { cloneWorkflow, fn, Workflow, workflowStep } from "../src/workflow.js";
+import {
+  cloneWorkflow,
+  fn,
+  Workflow,
+  WorkflowDuplicateStepIdError,
+  WorkflowNestedError,
+  workflowStep,
+} from "../src/workflow.js";
 
 /**
  * SE30 — workflows-as-steps (`workflowStep`) + `cloneWorkflow`. A committed
@@ -44,6 +52,70 @@ describe("SE30 — workflowStep (nested workflow as a step)", () => {
     expect(run.error?.name).toBe("WorkflowNestedError");
     expect(run.error?.message).toContain("boom-child");
     expect(run.error?.message).toContain("failed");
+    // the child's ORIGINAL error message must survive into the nested error
+    // (a regression that drops `childError` would otherwise pass silently).
+    expect(run.error?.message).toContain("child kaboom");
+  });
+
+  it("aborting the parent mid-child fails with a cancelled childStatus", async () => {
+    const controller = new AbortController();
+    const child = Workflow.create({ name: "abort-child" })
+      .then(
+        fn("trip", async () => {
+          controller.abort(); // abort while the child is executing
+          await new Promise((r) => setTimeout(r, 0)); // yield so the loop observes it
+          return { ok: true };
+        }),
+      )
+      .then(fn("never", () => ({ reached: true })))
+      .commit();
+
+    const parent = Workflow.create({ name: "parent-abort" }).then(workflowStep(child)).commit();
+
+    const run = await parent.run({}, { signal: controller.signal });
+    expect(run.status).toBe("failed");
+    expect(run.error?.name).toBe("WorkflowNestedError");
+    expect(run.error?.message).toContain("cancelled");
+  });
+
+  it("a nested child with an outputSchema rejection surfaces as WorkflowNestedError", async () => {
+    const child = Workflow.create({
+      name: "schema-child",
+      outputSchema: z.object({ n: z.number() }),
+    })
+      // returns a string where the schema demands { n: number } → child fails
+      .then(fn("wrong", () => "not-an-object" as unknown))
+      .commit();
+
+    const parent = Workflow.create({ name: "parent-schema" }).then(workflowStep(child)).commit();
+
+    const run = await parent.run({});
+    expect(run.status).toBe("failed");
+    expect(run.error?.name).toBe("WorkflowNestedError");
+    expect(run.error?.message).toContain("WorkflowOutputError");
+  });
+
+  it("two same-named nested workflows without ids collide at commit (clear error)", () => {
+    const child = Workflow.create({ name: "dup" })
+      .then(fn("s", (i: unknown) => i))
+      .commit();
+
+    expect(() =>
+      Workflow.create({ name: "parent-dup" })
+        .then(workflowStep(child)) // id: "workflow_dup"
+        .then(workflowStep(child)) // id: "workflow_dup" — duplicate
+        .commit(),
+    ).toThrowError(WorkflowDuplicateStepIdError);
+  });
+
+  it("WorkflowNestedError chains the child error as `cause` for debuggers", () => {
+    const err = new WorkflowNestedError("step-x", "child-y", "failed", {
+      name: "BoomError",
+      message: "kaboom",
+    });
+    expect(err.cause).toBeInstanceOf(Error);
+    expect((err.cause as Error).message).toBe("kaboom");
+    expect((err.cause as Error).name).toBe("BoomError");
   });
 
   it("a nested suspend fails the parent (not resumable in v1, documented)", async () => {
@@ -92,5 +164,23 @@ describe("SE30 — cloneWorkflow", () => {
     const [a, b] = await Promise.all([original.run({ n: 1 }), clone.run({ n: 10 })]);
     expect(a.output).toEqual({ n: 2 });
     expect(b.output).toEqual({ n: 11 });
+  });
+
+  it("the clone is a structurally distinct instance (options + steps not aliased)", () => {
+    const original = Workflow.create({ name: "orig3" })
+      .then(fn("s", (i: unknown) => i))
+      .commit();
+    const clone = cloneWorkflow(original, { id: "clone3" });
+
+    // distinct instances with distinct backing arrays/objects — a clone that
+    // aliased __steps or __options would share mutable state with the original.
+    expect(clone).not.toBe(original);
+    expect(clone.__steps).not.toBe(original.__steps);
+    expect(clone.__options).not.toBe(original.__options);
+    // clone carries the SAME committed steps (opaque copy), not the same array.
+    expect(clone.__steps).toEqual(original.__steps);
+    // identity fields diverge so single-flight locks + observability don't collide.
+    expect(clone.__options.name).toBe("clone3");
+    expect(clone.__options.workflowId).not.toBe(original.__options.workflowId);
   });
 });
