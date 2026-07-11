@@ -865,6 +865,65 @@ returning an independent Workflow with a new id/name. From the a peer framework 
 
 **Why now:** composition + cloning are the workflow reuse primitives (build big flows from small ones); `.then(childWorkflow)` is the most-cited a peer framework workflow-composition feature TheoKit lacks.
 
+### SE31 — [x] `Filesystem` provider seam (pluggable file backend, mirrors `SandboxBackend`)
+
+**Objective:** Today the `@theokit/sdk-tools` file factories (`createReadFileTool` / `createWriteFileTool` /
+`createListDirTool` / `createGlobTool` / `createSearchTextTool`) operate directly on the local filesystem (or a
+passed `cwd`). a peer framework Workspaces separate the *filesystem provider* (Local / S3 / GCS, plus a per-request
+resolver) from the tools that use it — the runtime-legitimate half of "Workspaces". Add a `FilesystemBackend`
+protocol that mirrors the existing `SandboxBackend` (ADR D1 — a minimal set of abstract methods with higher-level
+operations derived on the base class), a `LocalFilesystem` implementation, `readOnly` support, and a per-request
+resolver (`(ctx) => FilesystemBackend`) mirroring the dynamic-sandbox resolver pattern. The existing sdk-tools
+file factories accept an OPTIONAL `filesystem` backend (default = local process fs), so multi-tenant / per-request
+roots become possible without each tool reimplementing path logic — and bring-your-own-tools stays intact. From
+the a peer framework Workspaces comparison (2026-07-11). **This does NOT ship a bundled `Workspace` class, does NOT
+auto-inject a toolset, and does NOT add S3/GCS/`mounts` in core** — those remain out of scope (see below); the
+BYO-tools decision stands. This is the backend *seam*, not a new toolset.
+
+**Definition of done:**
+
+- [ ] A `FilesystemBackend` protocol with a minimal core method set (decide the exact 2–4 abstract methods + derived ops in the plan/ADR, mirroring `SandboxBackend`'s shape); `LocalFilesystem` implements it; path traversal is validated at the boundary and rejected with a typed error (reuse the sandbox's escape/scrub discipline — security).
+- [ ] `readOnly` flag (writes on a read-only backend throw a typed error) + a per-request resolver `(ctx) => FilesystemBackend` supported, mirroring the documented dynamic-sandbox resolver.
+- [ ] The `@theokit/sdk-tools` file factories accept an optional `filesystem` backend; **omitted ⇒ identical current behavior** (local process fs) — fully back-compatible, no consumer change required.
+- [ ] S3 / GCS / `CompositeFilesystem` / `mounts` (FUSE) are explicitly OUT of core — documented as separate opt-in packages or deferred (mirrors how sandbox backends beyond Local live outside core).
+- [ ] TDD: read / write / list / stat against `LocalFilesystem`; a resolver returns a distinct per-request root; a `readOnly` backend rejects a write with the typed error; a path-traversal attempt is blocked.
+- [ ] Docs + Changeset; **ADR** for the seam shape AND the "why a filesystem seam when `SandboxBackend` already exists" decision (route file ops through the sandbox vs a dedicated FS backend).
+
+**Dependencies:** none hard — composes with the existing `SandboxBackend` + sdk-tools file factories. (The plan MUST decide whether file operations route through `SandboxBackend.uploadFile`/`execute` instead of a dedicated seam; if routing suffices, this milestone is cut.)
+
+**Top risks (new):**
+1. **YAGNI / scope tension.** The out-of-scope list bans *built-in coding tools*; a FS provider seam is the backend, not the tools — but the line is thin. Mitigation: ship ONLY the seam + `LocalFilesystem` + resolver; NO bundled `Workspace`, NO cloud impls in core; the ADR MUST justify the seam vs routing through `SandboxBackend`, or the milestone is cut. The tools already exist opt-in in sdk-tools — this does not reverse BYO-tools.
+2. **Security — arbitrary roots = traversal / exfiltration risk.** Mitigation: boundary path validation + `readOnly` + reuse the env-scrub discipline; typed `FilesystemSecurityError` (fail-fast, Rule 8).
+
+**Why now:** the SDK already ships a sandbox provider seam for *execution* but file ops in sdk-tools are hard-wired to the local fs; a matching filesystem seam is the missing half for multi-tenant / per-request roots, and is the only runtime-legitimate slice of a peer framework Workspaces (the rest — bundled `Workspace`, `mounts`, LSP, tool-config layer — is app/framework glue, kept out of scope below).
+
+### SE32 — [x] Read-before-write safety (`expectedMtime` / `StaleFileError`)
+
+**Objective:** a peer framework's workspace write tools enforce read-before-write — a write fails if the file changed since
+the agent last read it (`FileReadRequiredError` at the tool layer; `StaleFileError` at the filesystem layer via
+`expectedMtime`), preventing an agent (or a concurrent editor) from silently clobbering changes. TheoKit's
+`createWriteFileTool` / `createEditFileTool` have no such guard — a blind overwrite is silent data loss. Add an
+optional `expectedMtime` on the write path + a typed `StaleFileError`, and an opt-in `requireReadBeforeWrite`
+tracker that records read mtimes and refuses a blind overwrite of an existing (or externally-modified) file. From
+the a peer framework Workspaces comparison (2026-07-11). This is a *correctness/safety primitive*, not a toolset — it
+hardens the write tools that already exist opt-in.
+
+**Definition of done:**
+
+- [ ] The write path (`createWriteFileTool` / `createEditFileTool`, and the SE31 `FilesystemBackend.writeFile` if landed) accepts an optional `expectedMtime`; on mismatch it throws a typed `StaleFileError` (fail-fast, Rule 8) — never a silent clobber.
+- [ ] Opt-in `requireReadBeforeWrite` on the write/edit tools: an existing file must be read (mtime recorded) before a write; a NEW file (does not exist) writes freely; an externally-modified file fails with `FileReadRequiredError` / `StaleFileError`.
+- [ ] **Default OFF** — no behavior change unless enabled (back-compat).
+- [ ] TDD (concurrency-aware): a write with a stale `expectedMtime` → `StaleFileError`; a new file writes without a prior read; read → external-modify → write → fails; the read tracker is per-run and does not leak across runs.
+- [ ] Docs + Changeset (ADR only if the read-tracker state ownership needs a documented seam decision).
+
+**Dependencies:** pairs with SE31 (the `FilesystemBackend` carries `expectedMtime` through `writeFile`); MAY ship tool-layer-only if SE31 is cut.
+
+**Top risks (new):**
+1. **Concurrency / TOCTOU.** The tool-layer check and the fs-layer `expectedMtime` compare are two points; an external write between them can still race. Mitigation: the fs-layer `expectedMtime` compare at ACTUAL write time is the authoritative guard (the tool-layer check is advisory); documented; **a concurrency test is required** (this milestone carries concurrency signals — plan-confidence conditional cap applies).
+2. **Read-tracker state ownership.** Where recorded mtimes live (per-run, not global). Mitigation: scope to the run/tool context, mirroring the SE29 workflow-state ownership discipline; an invariant test locks no-cross-run-leak.
+
+**Why now:** silent clobber = data loss; read-before-write is a *correctness/safety* primitive (the runtime-legitimate half of a peer framework's workspace file-safety) and directly complements SE31.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
@@ -874,6 +933,7 @@ Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, becau
 - **Built-in coding tools** (Read / Write / Edit / Bash / Grep / Glob / …) — *why excluded:* **bring-your-own-tools** is the design. The consumer (TheoKit) provides tools. Shipping a toolset would make `@theokit/sdk` a Claude-Code clone instead of a runtime.
 - **Subprocess / CLI-wrapper model + spawn warm-start** — *why excluded:* we are **in-process by design** (the Model-A TUI/Tauri advantage — `streamAgentTurnInProcess`). The subprocess model is Anthropic's Claude-only product shape, not a runtime primitive. Never adopt.
 - **Settings-resolution engine** (precedence tiers, MDM/plist/HKLM, `resolveSettings`) — *why excluded:* app/framework configuration is a **framework** concern, not the agent runtime's.
+- **Bundled `Workspace` class + `mounts`/FUSE + LSP inspection + workspace tool-config/hooks layer** (the rest of a peer framework Workspaces beyond SE31/SE32) — *why excluded:* a `Workspace` that auto-injects a coordinated toolset with global/agent inheritance, cloud-FS `mounts`, language-server inspection, and a per-tool remap/approval/truncation/hooks layer is **app/framework glue** (belongs in TheoKit or an opt-in package), not the runtime. SE31 (filesystem seam) + SE32 (write-safety) take ONLY the two runtime-legitimate primitives from that surface; the bundle, mounts, and LSP stay out. Reopening requires an ADR with 3+ apps blocked. (Cross-check 2026-07-11 when SE31/SE32 were added — the BYO-tools and no-bundled-Workspace decisions were reaffirmed, not reversed.)
 
 ---
 

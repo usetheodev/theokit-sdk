@@ -48,6 +48,7 @@
     "src/a2a/**/*",
     "src/client/**/*",
     "src/sandbox/**/*",
+    "src/filesystem/**/*",
     "src/server/**/*",
     "src/event-bus.ts",
     "src/job-queue.ts",
