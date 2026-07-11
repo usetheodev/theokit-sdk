@@ -25,6 +25,7 @@ function buildStepContext(
   runId: string,
   stepIndex: number,
   currentRef: { value: unknown },
+  stateRef: { value: unknown },
   suspended: Map<string, SuspendedState>,
   signal: AbortSignal,
 ): StepContext {
@@ -41,6 +42,12 @@ function buildStepContext(
         input: currentRef.value,
       });
       throw new SuspendSignal(name);
+    },
+    get state(): unknown {
+      return stateRef.value;
+    },
+    setState: (next: unknown): void => {
+      stateRef.value = next;
     },
   };
 }
@@ -120,6 +127,9 @@ export class EventedWorkflowExecutor {
     return this._executeSteps(runId, input, 0, signal, opts?.signal);
   }
 
+  // SE29 note: this alternate executor does NOT persist `StepContext.state`
+  // across suspend/resume (a fresh state ref is created per run). Use the main
+  // `Workflow.resume()` for state persistence.
   async resume(runId: string, resumeData: unknown): Promise<EventedWorkflowRunResult> {
     const state = this._suspended.get(runId);
     if (!state) {
@@ -144,6 +154,9 @@ export class EventedWorkflowExecutor {
     abortCheckSignal?: AbortSignal,
   ): Promise<EventedWorkflowRunResult> {
     const currentRef = { value: input };
+    // SE29 — shared state ref (this alternate executor wires no `stateSchema`,
+    // so `setState` is unvalidated here; the main executor validates).
+    const stateRef: { value: unknown } = { value: undefined };
 
     for (let i = startIndex; i < this._steps.length; i++) {
       if (abortCheckSignal?.aborted) {
@@ -153,7 +166,7 @@ export class EventedWorkflowExecutor {
       const step = this._steps[i];
       if (!step || step.kind !== "fn") continue;
 
-      const ctx = buildStepContext(runId, i, currentRef, this._suspended, signal);
+      const ctx = buildStepContext(runId, i, currentRef, stateRef, this._suspended, signal);
 
       try {
         currentRef.value = await step.fn(currentRef.value, ctx);
