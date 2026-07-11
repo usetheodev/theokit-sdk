@@ -268,6 +268,16 @@
         "default": "./dist/sandbox/index.cjs"
       }
     },
+    "./filesystem": {
+      "import": {
+        "types": "./dist/filesystem/index.d.ts",
+        "default": "./dist/filesystem/index.js"
+      },
+      "require": {
+        "types": "./dist/filesystem/index.d.cts",
+        "default": "./dist/filesystem/index.cjs"
+      }
+    },
     "./package.json": "./package.json"
   },
   "files": [

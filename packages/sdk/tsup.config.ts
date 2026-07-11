@@ -38,6 +38,7 @@ export default defineConfig({
     "a2a/index": "src/a2a/index.ts",
     "client/index": "src/client/index.ts",
     "sandbox/index": "src/sandbox/index.ts",
+    "filesystem/index": "src/filesystem/index.ts",
     // internal/persistence is a publicly accessible sub-path used by extracted
     // packages (sdk-memory, sdk-cache) for shared persistence primitives.
     // Documented as "internal API — semver-exempt" in README. The plugin
