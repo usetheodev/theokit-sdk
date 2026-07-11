@@ -18,6 +18,7 @@ import type {
   SessionMetaPatch,
   StoredMessage,
 } from "../../types/conversation-storage.js";
+import type { ObjectiveRecord } from "../../types/objective.js";
 import { paginate } from "./pagination.js";
 import { applyMetaPatch } from "./session-meta.js";
 
@@ -25,6 +26,8 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
   readonly #store = new Map<string, StoredMessage[]>();
   // SE4 — session-level metadata (title/tag), kept beside the transcript.
   readonly #meta = new Map<string, SessionMeta>();
+  // SE33 — durable thread-scoped objective, kept beside the transcript.
+  readonly #objectives = new Map<string, ObjectiveRecord>();
 
   async getMessages(
     conversationId: string,
@@ -70,21 +73,28 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
     this.#store.delete(conversationId);
     // SE4 — drop session metadata too, else a recreated id inherits ghost title/tag.
     this.#meta.delete(conversationId);
+    // SE33 — drop the durable objective with the transcript.
+    this.#objectives.delete(conversationId);
   }
 
   async deleteScope(prefix: string): Promise<number> {
     // M3 #62 — prune a whole session scope (e.g. "temp:") in one call.
+    // MEDIUM-1 fix — count over the UNION of ids across all three sidecar maps so
+    // a scope member is counted once whether it has a transcript, only metadata,
+    // or only a durable objective (previously objective-/meta-only ids were dropped
+    // but not counted). One sweep, one count per unique id.
     let n = 0;
-    for (const id of [...this.#store.keys()]) {
-      if (id.startsWith(prefix)) {
-        this.#store.delete(id);
-        this.#meta.delete(id); // SE4 — prune the sidecar metadata with the transcript.
-        n += 1;
-      }
-    }
-    // SE4 — also drop meta for ids that have metadata but no transcript (meta-only sessions).
-    for (const id of [...this.#meta.keys()]) {
-      if (id.startsWith(prefix)) this.#meta.delete(id);
+    const ids = new Set<string>([
+      ...this.#store.keys(),
+      ...this.#meta.keys(),
+      ...this.#objectives.keys(),
+    ]);
+    for (const id of ids) {
+      if (!id.startsWith(prefix)) continue;
+      this.#store.delete(id);
+      this.#meta.delete(id); // SE4 — prune the sidecar metadata with the transcript.
+      this.#objectives.delete(id); // SE33 — prune the durable objective too.
+      n += 1;
     }
     return n;
   }
@@ -105,9 +115,33 @@ export class InMemoryConversationStorage implements ConversationStorageAdapter {
     this.#meta.set(conversationId, applyMetaPatch(current, patch));
   }
 
+  async getObjectiveRecord(conversationId: string): Promise<ObjectiveRecord | undefined> {
+    const rec = this.#objectives.get(conversationId);
+    return rec === undefined ? undefined : { ...rec };
+  }
+
+  async setObjectiveRecord(conversationId: string, record: ObjectiveRecord | null): Promise<void> {
+    if (record === null) this.#objectives.delete(conversationId);
+    else this.#objectives.set(conversationId, { ...record });
+  }
+
+  // SE33 (HIGH-1 fix) — atomic in the single-threaded runtime: the get→mutate→set
+  // runs synchronously, so there is no interleaving window for a concurrent frame.
+  async updateObjectiveRecord(
+    conversationId: string,
+    mutate: (current: ObjectiveRecord | undefined) => ObjectiveRecord | null | undefined,
+  ): Promise<void> {
+    const current = this.#objectives.get(conversationId);
+    const next = mutate(current === undefined ? undefined : { ...current });
+    if (next === undefined) return; // unchanged
+    if (next === null) this.#objectives.delete(conversationId);
+    else this.#objectives.set(conversationId, { ...next });
+  }
+
   async dispose(): Promise<void> {
     // No external handles. Clear for symmetry with FS-backed adapters.
     this.#store.clear();
     this.#meta.clear();
+    this.#objectives.clear();
   }
 }

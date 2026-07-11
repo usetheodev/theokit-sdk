@@ -1,5 +1,29 @@
 # Changelog
 
+## 2.29.0
+
+### Minor Changes
+
+- 99046ab: **SE33 — durable thread-scoped objective (`setObjective` over the existing `runUntil` + ConversationStorage).**
+
+  The SDK already ships the goal-judge loop (`agent.runUntil(goal, options)`, D115-D121) — but the goal was per-call and transient. SE33 adds the durable layer: a thread-scoped objective persisted through the EXISTING `ConversationStorageAdapter` seam, surviving reloads/restarts, managed via new `Agent` methods.
+
+  - **Persistence** — a namespaced `ObjectiveRecord` (`{ _schemaVersion: 1, objective, options?, status: "active"|"done"|"paused", runsUsed }`) keyed by `threadId`. `ConversationStorageAdapter` gains three OPTIONAL methods (`getObjectiveRecord` / `setObjectiveRecord` / `updateObjectiveRecord` — the last an ATOMIC read-modify-write so concurrent progress write-backs can't drop turns); the built-in `InMemoryConversationStorage` and `FileSystemConversationStorage` (a dedicated `.theokit/agents/<safe>/objective.json`, secret-redacted, file-locked, path-safe for exotic `threadId`s) implement them. Adapters that omit them degrade to a typed no-op — no new store, back-compat preserved.
+  - **Agent methods** — `agent.setObjective(objective, { threadId, ...options })` / `getObjective({ threadId })` / `updateObjectiveOptions({ threadId, ... })` (only provided fields written) / `clearObjective({ threadId })`. All no-op when the run is not memory-backed. A fresh agent sharing the same adapter reads the objective back (the adapter is the durability boundary).
+  - **Standing `goal` config** — `AgentOptions.goal` (`{ judgeModel?, maxRuns?, prompt? }`). Precedence (remembered in the record): per-objective `record.options` → standing `goal` config → built-in default (`maxRuns` 20). The judge is the activation switch: with no judge resolved, the standing objective is inert (no scoring, no budget consumed).
+  - **`runUntil(goal?, options?)`** — `goal` is now OPTIONAL. Existing callers pass `goal` (unchanged transient behavior). Omitting `goal` with `options.threadId` set reads the durable objective, resolves options by precedence, caps per-call `maxTurns` by the remaining durable budget, runs the loop, and writes `runsUsed`/`status` back — `maxTurns` exhaustion leaves the objective `active` so raising `maxRuns` later resumes. Omitting `goal` with no objective (or no `threadId`) yields a single `status_change: paused` and never throws.
+
+  Reuses existing seams only (the shipped `runUntil` loop + `ConversationStorage`) — no new loop, no parallel runtime, no in-agentic-loop step (that is SE34). ADR 0012. From the a peer framework Goals comparison (SDK Evolution roadmap SE33).
+
+- a8bed75: **SE34 — per-send `isTaskComplete` + `<current-objective>` projection (a peer framework Goals parity, non-invasive half).**
+
+  Two opt-in `SendOptions`, both byte-identical to today when unused. The loop-touching in-agentic-loop goal step is DEFERRED with a named re-eval trigger (ADR 0013).
+
+  - **`completionCheck` (`isTaskComplete`)** — `send(msg, { completionCheck: { criteria, judgeModel?, apiKey? } })`. After the send reaches terminal `finished`, the shipped LLM-as-judge scores the final reply against `criteria`; the verdict surfaces on `RunResult.completionCheck` (`{ complete, reason, parseFailed }`) AND a typed `completion_check` run-event. This is the finer-grained, single-`send()` completion gate (contrast `runUntil`, which judges BETWEEN sends). Implemented as an outermost run wrapper — only judges a `finished` run with text, memoized (the judge fires exactly once), fail-safe (a judge parse failure yields `complete: false`, never a silent "done").
+  - **`objectiveThreadId` (`<current-objective>` projection)** — `send(msg, { objectiveThreadId })` reads the SE33 durable objective for that thread and, when it is `active`, prepends a `<current-objective>…</current-objective>` block to the assembled system prompt for that send, so the model always sees what it is working toward. Minimal + fail-soft (a storage read error never breaks the send) — not a general signal-provider framework.
+
+  Both reuse shipped seams (the run-wrapping seam + `judgeCallImpl` for the check; the SE33 objective store + system-prompt assembly for the projection). The agent tool-calling loop is UNTOUCHED. From the a peer framework Goals comparison (SDK Evolution roadmap SE34).
+
 ## 2.28.0
 
 ### Minor Changes
