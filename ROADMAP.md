@@ -897,7 +897,7 @@ BYO-tools decision stands. This is the backend *seam*, not a new toolset.
 
 **Why now:** the SDK already ships a sandbox provider seam for *execution* but file ops in sdk-tools are hard-wired to the local fs; a matching filesystem seam is the missing half for multi-tenant / per-request roots, and is the only runtime-legitimate slice of Mastra Workspaces (the rest — bundled `Workspace`, `mounts`, LSP, tool-config layer — is app/framework glue, kept out of scope below).
 
-### SE32 — [ ] Read-before-write safety (`expectedMtime` / `StaleFileError`)
+### SE32 — [x] Read-before-write safety (`expectedMtime` / `StaleFileError`)
 
 **Objective:** Mastra's workspace write tools enforce read-before-write — a write fails if the file changed since
 the agent last read it (`FileReadRequiredError` at the tool layer; `StaleFileError` at the filesystem layer via
