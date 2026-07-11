@@ -24,7 +24,8 @@ export type RunEvent =
   | RunTaskUpdatedEvent
   | RunTaskCompletedEvent
   | RunCompactBoundaryEvent
-  | RunTripwireEvent;
+  | RunTripwireEvent
+  | RunCompletionCheckEvent;
 
 /**
  * SE24 — a guardrail processor called `abort()`; the run stops with a tripwire.
@@ -87,6 +88,18 @@ export interface RunTaskCompletedEvent {
   readonly type: "task_completed";
   readonly taskId: string;
   readonly status: "completed" | "failed" | "stopped";
+}
+
+/**
+ * SE34 — the per-send completion check (`isTaskComplete`) produced a verdict.
+ * Emitted once, after a finished run's reply is judged against
+ * {@link SendOptions.completionCheck}. Distinct from `task_completed` (which is
+ * background-task/subagent lifecycle). Mirrors {@link RunResult.completionCheck}.
+ */
+export interface RunCompletionCheckEvent {
+  readonly type: "completion_check";
+  readonly complete: boolean;
+  readonly reason: string;
 }
 
 /** The conversation crossed a compaction boundary (history was summarized). */

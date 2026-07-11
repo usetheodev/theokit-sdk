@@ -8,6 +8,10 @@ import type { PluginManager } from "../../plugins/manager.js";
 import type { TelemetryHandle } from "../../telemetry/tracer.js";
 import { anySignal } from "../concurrency/abort-utils.js";
 import {
+  type CompletionCheckDeps,
+  wrapRunWithCompletionCheck,
+} from "../lifecycle/wrap-completion-check-run.js";
+import {
   resolveActiveMemorySummaryForSend,
   resolveMemoryProviderForLoop,
   resolveMemoryToolsForLoop,
@@ -22,6 +26,10 @@ import { createTripwireRun } from "../processors/tripwire-run.js";
 import { wrapRunWithOutputProcessors } from "../processors/wrap-output-run.js";
 import { appendSessionMessage, getSessionMessages } from "../session/agent-session.js";
 import { safeCall } from "../system-prompt/safe-call.js";
+import {
+  formatObjectiveProjection,
+  resolveCurrentObjectiveText,
+} from "./local-agent-goal-extensions.js";
 import { consumePending } from "./local-agent-invalidate.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
@@ -178,6 +186,14 @@ export async function executeSendLocked(
     memoryFacts,
     activeMemorySummary,
   );
+  // SE34 — project the standing durable objective (SE33) as a `<current-objective>`
+  // context signal for THIS send (opt-in via `objectiveThreadId`). Absent ⇒ the
+  // assembled prompt is byte-identical.
+  const projectedSystemPrompt = await projectCurrentObjective(
+    inputs.storageHandle,
+    options.objectiveThreadId,
+    assembledSystemPrompt,
+  );
   const composedOptions: SendOptions = {
     ...options,
     signal: anySignal([options.signal, inputs.lifecycleAbortController.signal]),
@@ -185,7 +201,7 @@ export async function executeSendLocked(
   const run = await inputs.dispatchRun(
     adaptedMessage,
     composedOptions,
-    assembledSystemPrompt,
+    projectedSystemPrompt,
     memoryFacts,
     priorMessages,
     memoryTools,
@@ -203,13 +219,32 @@ export async function executeSendLocked(
           onRunEvent: options.onRunEvent,
         })
       : run;
-  return wrapRunWithPostReplyHook({
+  const hookedRun = wrapRunWithPostReplyHook({
     pluginManager: inputs.pluginManagerCode,
     agentId: inputs.agentId,
     options: inputs.options,
     run: processedRun,
     userText,
   });
+  // SE34 — outermost wrap: judge the FINAL reply against the per-send completion
+  // criterion (opt-in). Absent `completionCheck` ⇒ returns `hookedRun` unchanged.
+  return wrapRunWithCompletionCheck({
+    run: hookedRun,
+    completionCheck: options.completionCheck,
+    onRunEvent: options.onRunEvent,
+    deps: buildCompletionCheckDeps(),
+  });
+}
+
+/** Resolve the LLM-judge dep from the DI registry (mirrors runUntil's judge wiring). */
+function buildCompletionCheckDeps(): CompletionCheckDeps {
+  return {
+    judge: async (ctx, opts) => {
+      const { judgeCallImpl } = await import("../../judge/judge-call.js");
+      const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
+      return judgeCallImpl(ctx, opts, { create: getAgentFacade().create });
+    },
+  };
 }
 
 function readMemoryForSend(
@@ -218,4 +253,25 @@ function readMemoryForSend(
 ): Promise<MemoryFact[]> {
   if (memoryConfig?.enabled !== true) return Promise.resolve([]);
   return safeCall(() => readMemoryFacts(workspaceCwd, memoryConfig), [], "memory read");
+}
+
+/**
+ * SE34 — prepend a `<current-objective>…</current-objective>` block to the
+ * assembled system prompt when `objectiveThreadId` names an ACTIVE durable
+ * objective. Opt-in + fail-soft (a storage read error never breaks the send —
+ * the projection is best-effort context, not correctness).
+ */
+async function projectCurrentObjective(
+  storageHandle: ConversationStorageAdapter | string,
+  objectiveThreadId: string | undefined,
+  assembled: string | undefined,
+): Promise<string | undefined> {
+  if (objectiveThreadId === undefined) return assembled;
+  const objective = await safeCall(
+    () => resolveCurrentObjectiveText(storageHandle, objectiveThreadId),
+    undefined,
+    "objective projection",
+  );
+  if (objective === undefined) return assembled;
+  return formatObjectiveProjection(objective, assembled);
 }
