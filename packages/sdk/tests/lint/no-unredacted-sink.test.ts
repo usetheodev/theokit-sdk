@@ -145,6 +145,14 @@ const WHITELIST = new Set<string>([
   // error handler for derived ops (readFile, writeFile, etc.). The error
   // message originates from the sandbox process itself, not user payload.
   "sandbox/types.ts",
+  // SE31 FilesystemBackend seam: the `writeFile(...)` matches are the backend's
+  // own METHOD name (contract mirroring node:fs + Mastra), not a logging sink.
+  // The actual `fsWriteFile` call is an aliased `node:fs/promises` import that
+  // persists caller-provided content to a caller-specified path — a storage
+  // primitive (same rationale as internal/persistence/atomic-write.ts), not an
+  // output sink that could leak secrets.
+  "filesystem/types.ts",
+  "filesystem/local-filesystem.ts",
 ]);
 
 interface Offender {

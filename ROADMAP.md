@@ -865,7 +865,7 @@ returning an independent Workflow with a new id/name. From the Mastra Workflows 
 
 **Why now:** composition + cloning are the workflow reuse primitives (build big flows from small ones); `.then(childWorkflow)` is the most-cited Mastra workflow-composition feature TheoKit lacks.
 
-### SE31 — [ ] `Filesystem` provider seam (pluggable file backend, mirrors `SandboxBackend`)
+### SE31 — [x] `Filesystem` provider seam (pluggable file backend, mirrors `SandboxBackend`)
 
 **Objective:** Today the `@theokit/sdk-tools` file factories (`createReadFileTool` / `createWriteFileTool` /
 `createListDirTool` / `createGlobTool` / `createSearchTextTool`) operate directly on the local filesystem (or a

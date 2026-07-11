@@ -14,8 +14,16 @@
 import { mkdir, open, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
-
 import { defineTool } from "@theokit/sdk";
+import {
+  type FilesystemBackend,
+  FilesystemError,
+  type FilesystemProvider,
+  FilesystemReadOnlyError,
+  FilesystemSecurityError,
+  resolveFilesystem,
+  StaleFileError,
+} from "@theokit/sdk/filesystem";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -28,13 +36,24 @@ import {
 /** Byte window inspected for null bytes when deciding binary vs text. */
 const BINARY_PROBE_BYTES = 8 * 1024;
 
+/** The run-scoped context a `defineTool` handler receives as its 2nd argument. */
+type WriteToolContext = { signal?: AbortSignal; context?: unknown };
+
 export interface CreateWriteFileToolOptions {
   /** Absolute path to the project root. Every write is gated against this boundary. */
   projectRoot: string;
+  /**
+   * SE31 — optional pluggable filesystem backend (`@theokit/sdk/filesystem`), or
+   * a per-request resolver `(ctx) => FilesystemBackend`. When provided, writes
+   * route through it (its own boundary + `readOnly` + per-request root) instead
+   * of the local project fs. Omitted ⇒ identical current behavior (local
+   * `projectRoot`). The `.env`/`.git` policy still applies (storage-independent).
+   */
+  filesystem?: FilesystemProvider<WriteToolContext>;
 }
 
 export function createWriteFileTool(opts: CreateWriteFileToolOptions): CustomTool {
-  const { projectRoot } = opts;
+  const { projectRoot, filesystem } = opts;
 
   return defineTool({
     name: "write_file",
@@ -43,41 +62,86 @@ export function createWriteFileTool(opts: CreateWriteFileToolOptions): CustomToo
       "OVERWRITES any existing file at the path. Prefer editing an existing file with edit_file " +
       "over rewriting it; use write_file to create a NEW file or fully replace a small one. If the " +
       "file already exists, read_file it first so you do not discard content you have not seen. " +
-      "Refuses paths that escape the project root, sensitive files (.env, .git/, node_modules/, " +
-      ".theo/, lock files), and binary-file overwrites. Returns { ok, path, bytes } or " +
-      "{ ok: false, error }.",
+      "Refuses paths that escape the write root and sensitive files (.env, .git/, node_modules/, " +
+      ".theo/, lock files); the default local root also refuses binary-file overwrites. Returns " +
+      "{ ok, path, bytes } or { ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
       content: z.string().describe("UTF-8 content to write."),
     }),
-    handler: async ({ path, content }) => {
+    handler: async ({ path, content }, ctx) => {
       if (isForbiddenPath(path)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });
       }
-
-      let absolutePath: string;
-      try {
-        absolutePath = safePathJoin(projectRoot, path);
-        assertNoSymlinkEscape(absolutePath, projectRoot);
-      } catch (err) {
-        if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
-          return JSON.stringify({ ok: false, error: "path_traversal", path });
-        }
-        throw err;
+      // SE31 — route through the pluggable backend when one is configured (the
+      // backend owns its own boundary, readOnly, and provider); else local fs.
+      if (filesystem) {
+        const backend = await resolveFilesystem(filesystem, ctx ?? {});
+        return writeViaBackend(backend, path, content);
       }
-
-      // Binary file guard: probe existing file for null bytes before overwriting
-      if (await isBinaryFile(absolutePath)) {
-        return JSON.stringify({ ok: false, error: "binary_file", path });
-      }
-
-      await mkdir(dirname(absolutePath), { recursive: true });
-      await writeFile(absolutePath, content, "utf-8");
-      const bytes = Buffer.byteLength(content, "utf-8");
-
-      return JSON.stringify({ ok: true, path, bytes });
+      return writeViaLocalFs(projectRoot, path, content);
     },
   });
+}
+
+/** Local-`projectRoot` write path: boundary + binary guard + write. */
+async function writeViaLocalFs(
+  projectRoot: string,
+  path: string,
+  content: string,
+): Promise<string> {
+  let absolutePath: string;
+  try {
+    absolutePath = safePathJoin(projectRoot, path);
+    assertNoSymlinkEscape(absolutePath, projectRoot);
+  } catch (err) {
+    if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
+      return JSON.stringify({ ok: false, error: "path_traversal", path });
+    }
+    throw err;
+  }
+
+  // Binary file guard: probe existing file for null bytes before overwriting
+  if (await isBinaryFile(absolutePath)) {
+    return JSON.stringify({ ok: false, error: "binary_file", path });
+  }
+
+  await mkdir(dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, content, "utf-8");
+  const bytes = Buffer.byteLength(content, "utf-8");
+
+  return JSON.stringify({ ok: true, path, bytes });
+}
+
+/**
+ * SE31 — write through a {@link FilesystemBackend}, mapping its typed errors to
+ * the tool's `{ ok: false, error }` JSON shape (never throws on a user mistake).
+ */
+async function writeViaBackend(
+  backend: FilesystemBackend,
+  path: string,
+  content: string,
+): Promise<string> {
+  try {
+    const stat = await backend.writeFile(path, content);
+    return JSON.stringify({ ok: true, path, bytes: stat.size });
+  } catch (err) {
+    if (err instanceof FilesystemSecurityError) {
+      return JSON.stringify({ ok: false, error: "path_traversal", path });
+    }
+    if (err instanceof FilesystemReadOnlyError) {
+      return JSON.stringify({ ok: false, error: "read_only", path });
+    }
+    if (err instanceof StaleFileError) {
+      return JSON.stringify({ ok: false, error: "stale_file", path });
+    }
+    // A typed I/O failure (ENOTDIR — a path component is a file, EACCES, …) is a
+    // recoverable "bad path" the agent should see, not a loop-crashing throw.
+    if (err instanceof FilesystemError) {
+      return JSON.stringify({ ok: false, error: "write_failed", path });
+    }
+    throw err;
+  }
 }
 
 async function isBinaryFile(absolutePath: string): Promise<boolean> {
