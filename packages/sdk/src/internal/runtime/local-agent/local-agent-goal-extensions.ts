@@ -91,6 +91,33 @@ export async function localAgentClearObjective(
 }
 
 /**
+ * SE34 — resolve the ACTIVE durable objective text for a thread, for the
+ * `<current-objective>` context projection. Returns `undefined` when no
+ * objective is set, the run is not memory-backed, or the objective is no longer
+ * active (`done`/`paused` ⇒ nothing to project this turn).
+ */
+export async function resolveCurrentObjectiveText(
+  handle: ConversationStorageAdapter | string,
+  threadId: string,
+): Promise<string | undefined> {
+  const record = await getObjective(resolveAdapter(handle), threadId);
+  return record?.status === "active" ? record.objective : undefined;
+}
+
+/**
+ * SE34 — format the `<current-objective>` context signal, prepended to the
+ * assembled system prompt (or standalone when there is none). Pure — the string
+ * shape is locked here so the projection is testable without a live send.
+ */
+export function formatObjectiveProjection(
+  objective: string,
+  assembled: string | undefined,
+): string {
+  const signal = `<current-objective>\n${objective}\n</current-objective>`;
+  return assembled === undefined || assembled.length === 0 ? signal : `${signal}\n\n${assembled}`;
+}
+
+/**
  * Outcome of resolving a `runUntil()` call with NO explicit goal against the
  * durable thread-scoped objective (ADR D3/D4):
  * - `run`   — an objective is set AND a judge resolves; carries the effective run.

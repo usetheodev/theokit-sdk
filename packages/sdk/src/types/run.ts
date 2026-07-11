@@ -157,6 +157,13 @@ export interface RunResult {
    * @public
    */
   stoppedByDoomLoop?: boolean;
+  /**
+   * SE34 — the per-send completion verdict, populated when
+   * {@link SendOptions.completionCheck} was set AND the run finished. Absent on
+   * non-finished runs and when no completion check was requested. Reuses the
+   * shipped LLM-as-judge (same one `runUntil` drives). @public
+   */
+  completionCheck?: CompletionCheckResult;
 }
 
 /**
@@ -422,6 +429,59 @@ export interface SendOptions {
    * @public
    */
   maxIterations?: number;
+  /**
+   * SE34 — per-send completion check (`isTaskComplete`). After this single
+   * `send()` reaches a terminal `finished` state, the shipped LLM-as-judge
+   * scores the final reply against `criteria` and surfaces the verdict on
+   * {@link RunResult.completionCheck} + a `completion_check` run-event. This is
+   * the finer-grained, single-`send()` gate (contrast `runUntil`, which judges
+   * the FULL response BETWEEN sends). Opt-in — absent ⇒ the send is byte-identical
+   * to today (no extra judge call). Non-finished runs skip the check. The judge
+   * runs when `wait()` is called on the returned `Run`; a stream-only consumer
+   * must call `wait()` to trigger the verdict + the `completion_check` event.
+   *
+   * @public
+   */
+  completionCheck?: CompletionCheck;
+  /**
+   * SE34 — project the standing durable objective (SE33) for this `threadId`
+   * into the model context for this send as `<current-objective>…`, so the
+   * model always sees what it is working toward. Opt-in — absent ⇒ the assembled
+   * system prompt is byte-identical to today. Only an ACTIVE objective is
+   * projected (`done`/`paused` ⇒ nothing injected). Reuses the SE33 objective
+   * store + the system-prompt assembly seam (no general signal framework — YAGNI).
+   *
+   * @public
+   */
+  objectiveThreadId?: string;
+}
+
+/**
+ * SE34 — the per-send completion criterion (see {@link SendOptions.completionCheck}).
+ *
+ * @public
+ */
+export interface CompletionCheck {
+  /** What "complete" means for this send — fed to the judge as the goal. */
+  criteria: string;
+  /** Judge model identifier. Default `"openai/gpt-4o-mini"`. */
+  judgeModel?: string;
+  /** Override env for the judge auxiliary agent. Default `OPENROUTER_API_KEY`. */
+  apiKey?: string;
+}
+
+/**
+ * SE34 — the resolved per-send completion verdict (see {@link RunResult.completionCheck}).
+ *
+ * @public
+ */
+export interface CompletionCheckResult {
+  /** `true` when the judge ruled the send's reply satisfies the criteria. */
+  complete: boolean;
+  /** The judge's stated reason. */
+  reason: string;
+  /** `true` when the judge output could not be parsed — fail-safe `complete: false`. */
+  parseFailed: boolean;
 }
 
 /**

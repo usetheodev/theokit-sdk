@@ -947,7 +947,7 @@ hardens the write tools that already exist opt-in.
 
 **Why now:** the hard part (the judge loop) already ships as `runUntil`; the durable objective is the natural, runtime-legitimate completion — it reuses the ConversationStorage seam and the existing loop, adding no new runtime. It is the majority of the Mastra Goals delta and the lowest-risk slice (no loop surgery).
 
-### SE34 — [ ] `isTaskComplete` per-send + in-agentic-loop goal step (+ `<current-objective>` signal projection)
+### SE34 — [x] `isTaskComplete` per-send + in-agentic-loop goal step (+ `<current-objective>` signal projection)
 
 **Objective:** Mastra evaluates the goal as an **in-agentic-loop step** — inside the tool-calling loop, once per iteration, right after a per-send `isTaskComplete` check — and projects the standing objective into the model context as `<current-objective>` so the model always sees it. TheoKit's `runUntil` is an OUTER loop that judges the FULL response BETWEEN `send()`s (coarser granularity); there is no per-send `isTaskComplete` surface and no state-signal projection. SE34 adds: (a) a per-send `isTaskComplete` completion-check option (the finer-grained, single-`send()` judge gate, reusing the existing `internal/scorers/llm-judge.ts`); (b) OPTIONALLY, evaluating the SE33 durable objective as a step INSIDE the agentic loop (so a mid-run message is judged against the standing objective); (c) a state-signal projection that injects `<current-objective>` into the model's context. From the Mastra Goals comparison (2026-07-11). **This is the MORE INVASIVE slice — it touches the agentic loop** — so it is gated on SE33 + explicit demand.
 
