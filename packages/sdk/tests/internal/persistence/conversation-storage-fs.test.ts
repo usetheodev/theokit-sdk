@@ -78,6 +78,70 @@ describe.each<
     await ctx.adapter.deleteConversation("agent-to-delete"); // second call also ok
     expect(await ctx.adapter.getMessages("agent-to-delete")).toEqual([]);
   });
+
+  // SE33 — durable objective methods across BOTH adapters (InMemory + FS).
+  it("objective set → get round-trips; setObjectiveRecord(null) clears", async () => {
+    await ctx.adapter.setObjectiveRecord?.("agent-obj", {
+      _schemaVersion: 1,
+      objective: "Add a /health endpoint",
+      options: { maxRuns: 30 },
+      status: "active",
+      runsUsed: 0,
+    });
+    const rec = await ctx.adapter.getObjectiveRecord?.("agent-obj");
+    expect(rec).toMatchObject({ objective: "Add a /health endpoint", status: "active" });
+    await ctx.adapter.setObjectiveRecord?.("agent-obj", null);
+    expect(await ctx.adapter.getObjectiveRecord?.("agent-obj")).toBeUndefined();
+  });
+
+  // HIGH-2 — a caller-supplied threadId with exotic chars must NOT throw (never-throw contract).
+  it("objective methods accept an exotic threadId without throwing (path-safe)", async () => {
+    const exotic = "user@example.com/thread#1";
+    await expect(
+      ctx.adapter.setObjectiveRecord?.(exotic, {
+        _schemaVersion: 1,
+        objective: "exotic",
+        status: "active",
+        runsUsed: 0,
+      }),
+    ).resolves.toBeUndefined();
+    expect((await ctx.adapter.getObjectiveRecord?.(exotic))?.objective).toBe("exotic");
+  });
+
+  // HIGH-1 — atomic read-modify-write is exposed and correct on both adapters.
+  it("updateObjectiveRecord applies the mutation atomically (accumulates runsUsed)", async () => {
+    await ctx.adapter.setObjectiveRecord?.("agent-atomic", {
+      _schemaVersion: 1,
+      objective: "loop",
+      status: "active",
+      runsUsed: 0,
+    });
+    await ctx.adapter.updateObjectiveRecord?.("agent-atomic", (cur) =>
+      cur === undefined ? undefined : { ...cur, runsUsed: cur.runsUsed + 5 },
+    );
+    expect((await ctx.adapter.getObjectiveRecord?.("agent-atomic"))?.runsUsed).toBe(5);
+    // returning undefined leaves unchanged; returning null clears.
+    await ctx.adapter.updateObjectiveRecord?.("agent-atomic", () => undefined);
+    expect((await ctx.adapter.getObjectiveRecord?.("agent-atomic"))?.runsUsed).toBe(5);
+    await ctx.adapter.updateObjectiveRecord?.("agent-atomic", () => null);
+    expect(await ctx.adapter.getObjectiveRecord?.("agent-atomic")).toBeUndefined();
+  });
+});
+
+describe("InMemoryConversationStorage — objective-specific", () => {
+  // MEDIUM-1 — deleteScope counts + prunes an objective-only thread (no transcript).
+  // InMemory keys the maps by the RAW id, so logical-prefix scoping works directly.
+  it("deleteScope counts an objective-only thread", async () => {
+    const s = new InMemoryConversationStorage();
+    await s.setObjectiveRecord("temp-obj-only", {
+      _schemaVersion: 1,
+      objective: "x",
+      status: "active",
+      runsUsed: 0,
+    });
+    expect(await s.deleteScope("temp-")).toBe(1);
+    expect(await s.getObjectiveRecord("temp-obj-only")).toBeUndefined();
+  });
 });
 
 describe("FileSystemConversationStorage — FS-specific", () => {
@@ -100,6 +164,21 @@ describe("FileSystemConversationStorage — FS-specific", () => {
     const msgs = await fresh.getMessages("agent-restart");
     expect(msgs).toHaveLength(1);
     expect(msgs[0]?.content).toBe("before-restart");
+  });
+
+  // SE33 (LOW-2) — the durable objective persists to objective.json and a fresh
+  // adapter at the same root reads it back (survives a process restart).
+  it("objective persists to disk and is read back by a fresh adapter", async () => {
+    await adapter.setObjectiveRecord("agent-obj-restart", {
+      _schemaVersion: 1,
+      objective: "keep working",
+      options: { maxRuns: 12 },
+      status: "active",
+      runsUsed: 4,
+    });
+    const fresh = new FileSystemConversationStorage({ root });
+    const rec = await fresh.getObjectiveRecord("agent-obj-restart");
+    expect(rec).toMatchObject({ objective: "keep working", runsUsed: 4, options: { maxRuns: 12 } });
   });
 
   it("deleteConversation removes the directory + JSONL file", async () => {

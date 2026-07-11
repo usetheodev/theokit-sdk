@@ -444,6 +444,14 @@ export interface AgentOptions {
   /** Memory configuration. Persists durable facts; auto-recalled on send. */
   memory?: MemorySettings;
   /**
+   * SE33 — standing goal config for a DURABLE, thread-scoped objective (a peer framework
+   * Goals parity). Read when a durable objective (`setObjective`) is set: the
+   * per-objective values take precedence over this config, which takes
+   * precedence over the built-in defaults. The judge is the activation switch —
+   * with no `judgeModel` resolved, a standing objective is inert. ADR 0012.
+   */
+  goal?: import("./objective.js").AgentGoalConfig;
+  /**
    * Inline custom tools. Local runtime only — cloud agents reject any non-empty
    * `tools` array. Handlers are not persisted; pass them again on resume.
    * See {@link CustomTool}.
@@ -754,9 +762,31 @@ export interface SDKAgent {
    * @public
    */
   runUntil?(
-    goal: string,
+    goal?: string,
     options?: import("./goal-events.js").GoalOptions,
   ): import("./goal-events.js").RunUntilIterator;
+  /**
+   * SE33 — set a DURABLE, thread-scoped objective persisted via the
+   * conversation storage (survives reload). Read by `runUntil()` when no
+   * explicit goal is passed. `threadId` is REQUIRED (the durability key); the
+   * call no-ops when the run is not memory-backed (the storage adapter omits the
+   * optional objective methods). Throws `ConfigurationError` on `maxRuns <= 0`.
+   * ADR 0012.
+   */
+  setObjective?(
+    objective: string,
+    opts: { threadId: string } & import("./objective.js").DurableGoalOptions,
+  ): Promise<void>;
+  /** SE33 — read the durable objective record for a thread (or `undefined`). */
+  getObjective?(opts: {
+    threadId: string;
+  }): Promise<import("./objective.js").ObjectiveRecord | undefined>;
+  /** SE33 — merge options into the active objective (only provided fields change; no-op if unset). */
+  updateObjectiveOptions?(
+    opts: { threadId: string } & import("./objective.js").DurableGoalOptions,
+  ): Promise<void>;
+  /** SE33 — drop the durable objective for a thread. */
+  clearObjective?(opts: { threadId: string }): Promise<void>;
   /**
    * Fork a short-lived sub-agent with parent's credentials + system
    * prompt byte-identical (ADR D112 — cache hit) and a restricted tool
