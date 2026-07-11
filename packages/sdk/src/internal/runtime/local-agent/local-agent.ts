@@ -47,6 +47,12 @@ import { resolveSystemPromptForSend } from "../system-prompt/system-prompt.js";
 import { validateToolCatalog } from "../validation/validate-agent-options.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
+import {
+  localAgentClearObjective,
+  localAgentGetObjective,
+  localAgentSetObjective,
+  localAgentUpdateObjectiveOptions,
+} from "./local-agent-goal-extensions.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
@@ -517,7 +523,15 @@ export class LocalAgent implements SDKAgent {
   }
 
   // biome-ignore format: G8 budget — both methods delegate to `local-agent-runtime-extensions.ts`; signatures kept as 1-line each.
-  runUntil(goal: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
+  runUntil(goal?: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options, { handle: this.storageHandle(), goalConfig: this.options.goal }); }
+  // biome-ignore format: SE33 G8 budget — objective methods delegate to `local-agent-goal-extensions.ts`.
+  setObjective(objective: string, opts: { threadId: string } & import("../../../types/objective.js").DurableGoalOptions): Promise<void> { return localAgentSetObjective(this.storageHandle(), objective, opts); }
+  // biome-ignore format: SE33 G8 budget — see setObjective above.
+  getObjective(opts: { threadId: string }): Promise<import("../../../types/objective.js").ObjectiveRecord | undefined> { return localAgentGetObjective(this.storageHandle(), opts); }
+  // biome-ignore format: SE33 G8 budget — see setObjective above.
+  updateObjectiveOptions(opts: { threadId: string } & import("../../../types/objective.js").DurableGoalOptions): Promise<void> { return localAgentUpdateObjectiveOptions(this.storageHandle(), opts); }
+  // biome-ignore format: SE33 G8 budget — see setObjective above.
+  clearObjective(opts: { threadId: string }): Promise<void> { return localAgentClearObjective(this.storageHandle(), opts); }
   // biome-ignore format: G8 budget — see runUntil comment above.
   fork(options: import("../lifecycle/fork-agent.js").ForkOptions): Promise<import("../lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.

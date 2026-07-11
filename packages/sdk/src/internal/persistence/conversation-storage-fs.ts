@@ -26,6 +26,7 @@ import type {
   SessionMetaPatch,
   StoredMessage,
 } from "../../types/conversation-storage.js";
+import type { ObjectiveRecord } from "../../types/objective.js";
 import {
   appendAnyPersistedMessage,
   appendPersistedMessages,
@@ -35,7 +36,9 @@ import {
   truncateSessionTo,
 } from "../runtime/session/agent-session-store.js";
 import { redactSecrets, safePathJoin, sanitizeIdentifier } from "../security/index.js";
+import { safeFilenameForId } from "../security/path-guard.js";
 import { withFileLock } from "./file-lock.js";
+import { coerceObjectiveRecord } from "./objective-coerce.js";
 import { paginate } from "./pagination.js";
 import { applyMetaPatch, coerceSessionMeta } from "./session-meta.js";
 
@@ -157,6 +160,69 @@ export class FileSystemConversationStorage implements ConversationStorageAdapter
       // T1.3 (ADR D68): redact secrets before they reach disk — a host may name a
       // session with a pasted token; same policy as the transcript writer.
       await writeFile(metaPath, redactSecrets(JSON.stringify(next)), "utf8");
+    });
+  }
+
+  // SE33 — the durable objective is kept in `objective.json` beside the
+  // transcript (separate from messages.jsonl + session.json). Uses the TOTAL
+  // `safeFilenameForId` (not `sanitizeIdentifier`) so a caller-supplied
+  // `threadId` with exotic characters (e.g. "user@example.com") hashes to a
+  // deterministic dir instead of throwing — honoring the objective methods'
+  // never-throw contract (ADR D6). Conforming ids pass through unchanged, so
+  // the objective still sits beside the transcript for the normal case.
+  #objectivePath(conversationId: string): string {
+    const safe = safeFilenameForId(conversationId, { maxLen: 128 });
+    return safePathJoin(this.#root, ".theokit", "agents", safe, "objective.json");
+  }
+
+  async getObjectiveRecord(conversationId: string): Promise<ObjectiveRecord | undefined> {
+    try {
+      const raw = await readFile(this.#objectivePath(conversationId), "utf8");
+      return coerceObjectiveRecord(JSON.parse(raw));
+    } catch (cause) {
+      if ((cause as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+      throw cause;
+    }
+  }
+
+  async setObjectiveRecord(conversationId: string, record: ObjectiveRecord | null): Promise<void> {
+    const path = this.#objectivePath(conversationId);
+    if (record === null) {
+      // Clear — idempotent (delete-of-missing is OK).
+      await rm(path, { force: true });
+      return;
+    }
+    await mkdir(dirname(path), { recursive: true });
+    // Same cross-process lock + secret redaction the session-meta writer uses —
+    // an objective string may embed a pasted token; never let it reach disk raw.
+    await withFileLock(path, async () => {
+      await writeFile(path, redactSecrets(JSON.stringify(record)), "utf8");
+    });
+  }
+
+  // SE33 (HIGH-1 fix) — atomic read-modify-write: the read that feeds `mutate`
+  // happens INSIDE the same file lock as the write, so two concurrent progress
+  // write-backs on one thread cannot both read a stale `runsUsed` and drop turns.
+  async updateObjectiveRecord(
+    conversationId: string,
+    mutate: (current: ObjectiveRecord | undefined) => ObjectiveRecord | null | undefined,
+  ): Promise<void> {
+    const path = this.#objectivePath(conversationId);
+    await mkdir(dirname(path), { recursive: true });
+    await withFileLock(path, async () => {
+      let current: ObjectiveRecord | undefined;
+      try {
+        current = coerceObjectiveRecord(JSON.parse(await readFile(path, "utf8")));
+      } catch (cause) {
+        if ((cause as NodeJS.ErrnoException).code !== "ENOENT") throw cause;
+      }
+      const next = mutate(current);
+      if (next === undefined) return; // unchanged
+      if (next === null) {
+        await rm(path, { force: true });
+        return;
+      }
+      await writeFile(path, redactSecrets(JSON.stringify(next)), "utf8");
     });
   }
 

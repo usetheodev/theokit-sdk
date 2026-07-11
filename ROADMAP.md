@@ -924,7 +924,7 @@ hardens the write tools that already exist opt-in.
 
 **Why now:** silent clobber = data loss; read-before-write is a *correctness/safety* primitive (the runtime-legitimate half of Mastra's workspace file-safety) and directly complements SE31.
 
-### SE33 — [ ] Durable thread-scoped objective (`setObjective` over the existing `runUntil` + ConversationStorage)
+### SE33 — [x] Durable thread-scoped objective (`setObjective` over the existing `runUntil` + ConversationStorage)
 
 **Objective:** the SDK already ships the goal-judge loop — `agent.runUntil(goal, options)` (ADRs D115-D121): an LLM-as-judge drives the agent toward a goal until satisfied or `maxTurns` is hit, with per-iteration feedback + typed `GoalEvent`s. But the goal is **per-call and transient** — passed as a parameter, gone when the call returns. Mastra's **Goals** add a **durable** layer: the objective is persisted in thread state, survives reloads/restarts, and is managed via `Agent` methods. Add the runtime-legitimate half: persist a thread-scoped objective (+ its resolved `GoalOptions`) via the EXISTING `ConversationStorageAdapter` seam, and expose `setObjective` / `getObjective` / `updateObjectiveOptions` / `clearObjective` + an optional standing `goal` config on the agent that `runUntil` (and a default "work the standing objective" entrypoint) reads. From the Mastra Goals comparison (2026-07-11). This EXTENDS an existing SDK primitive (`runUntil`) + an existing seam (ConversationStorage) — it does NOT add a new loop or a parallel runtime.
 
