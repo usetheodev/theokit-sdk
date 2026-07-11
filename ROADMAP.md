@@ -924,6 +924,52 @@ hardens the write tools that already exist opt-in.
 
 **Why now:** silent clobber = data loss; read-before-write is a *correctness/safety* primitive (the runtime-legitimate half of Mastra's workspace file-safety) and directly complements SE31.
 
+### SE33 — [x] Durable thread-scoped objective (`setObjective` over the existing `runUntil` + ConversationStorage)
+
+**Objective:** the SDK already ships the goal-judge loop — `agent.runUntil(goal, options)` (ADRs D115-D121): an LLM-as-judge drives the agent toward a goal until satisfied or `maxTurns` is hit, with per-iteration feedback + typed `GoalEvent`s. But the goal is **per-call and transient** — passed as a parameter, gone when the call returns. Mastra's **Goals** add a **durable** layer: the objective is persisted in thread state, survives reloads/restarts, and is managed via `Agent` methods. Add the runtime-legitimate half: persist a thread-scoped objective (+ its resolved `GoalOptions`) via the EXISTING `ConversationStorageAdapter` seam, and expose `setObjective` / `getObjective` / `updateObjectiveOptions` / `clearObjective` + an optional standing `goal` config on the agent that `runUntil` (and a default "work the standing objective" entrypoint) reads. From the Mastra Goals comparison (2026-07-11). This EXTENDS an existing SDK primitive (`runUntil`) + an existing seam (ConversationStorage) — it does NOT add a new loop or a parallel runtime.
+
+**Definition of done:**
+
+- [ ] A thread-scoped objective record (`{ objective, options, status: 'active'|'done'|'paused', runsUsed }`) is PERSISTED via the existing `ConversationStorageAdapter` (a new key/namespace on the thread — reuse the seam, add no new store). Survives reload (read back after a fresh agent instance).
+- [ ] `agent.setObjective(objective, { threadId, ...options })` / `getObjective({ threadId })` / `updateObjectiveOptions({ threadId, ...})` (only provided fields written; unset fall back to agent `goal` config) / `clearObjective({ threadId })`. All **no-op when the run is not memory-backed** (no storage / no threadId) — mirror Mastra.
+- [ ] Optional standing `goal` config on `AgentOptions` (`{ judge?/judgeModel?, maxRuns?, prompt? }`) — per-objective values (from `setObjective`) take precedence over the standing config, and that precedence is remembered in the record. The judge is the activation switch: no judge resolved ⇒ the standing objective is inert (no scoring, no budget consumed).
+- [ ] `runUntil` (or a thin `runUntil()`-with-no-arg entrypoint) reads the durable objective when no explicit goal is passed, and writes `runsUsed`/`status` back to storage so `maxRuns` exhaustion leaves it `active` (raising `maxRuns` later resumes).
+- [ ] Back-compat: absent a standing `goal` config + no `setObjective` call ⇒ `runUntil(goal, opts)` behaves EXACTLY as today (transient, D115-D121). No behavior change for existing callers.
+- [ ] TDD: set → persist → new agent instance reads it back; update-options precedence; clear; no-op without threadId/storage; `maxRuns` exhaustion leaves `active` + a later raise resumes; a run with no judge is inert.
+- [ ] Docs + Changeset; **ADR** for the objective record shape + the ConversationStorage key/namespace.
+
+**Dependencies:** `runUntil` (D115-D121 — shipped), `ConversationStorageAdapter` (shipped seam), SE29 workflow-state ownership discipline (mirror for the record shape). No new subsystem.
+
+**Top risks (new):**
+1. **Storage-key collision / schema drift on the thread record.** A new objective key alongside conversation messages could clash or bloat the thread. Mitigation: a dedicated namespaced key (not mixed into the message list); ADR pins the shape; a schema-version field (mirror the `WorkflowSnapshot._schemaVersion` discipline).
+2. **Precedence ambiguity** (per-objective options vs standing `goal` config vs built-in defaults). Mitigation: a single documented resolution order (per-objective record → agent `goal` config → built-in default), remembered in the record, with a test locking each layer.
+3. **Scope creep into the in-loop step (SE34 territory).** SE33 is the DURABLE-OBJECTIVE half only — it reuses the EXISTING outer `runUntil` loop, it does NOT move goal evaluation inside the tool-calling loop. Mitigation: SE33 ships persistence + methods + standing config over the existing loop; the in-agentic-loop step is SE34 (separate, demand-gated).
+
+**Why now:** the hard part (the judge loop) already ships as `runUntil`; the durable objective is the natural, runtime-legitimate completion — it reuses the ConversationStorage seam and the existing loop, adding no new runtime. It is the majority of the Mastra Goals delta and the lowest-risk slice (no loop surgery).
+
+### SE34 — [x] `isTaskComplete` per-send + in-agentic-loop goal step (+ `<current-objective>` signal projection)
+
+**Objective:** Mastra evaluates the goal as an **in-agentic-loop step** — inside the tool-calling loop, once per iteration, right after a per-send `isTaskComplete` check — and projects the standing objective into the model context as `<current-objective>` so the model always sees it. TheoKit's `runUntil` is an OUTER loop that judges the FULL response BETWEEN `send()`s (coarser granularity); there is no per-send `isTaskComplete` surface and no state-signal projection. SE34 adds: (a) a per-send `isTaskComplete` completion-check option (the finer-grained, single-`send()` judge gate, reusing the existing `internal/scorers/llm-judge.ts`); (b) OPTIONALLY, evaluating the SE33 durable objective as a step INSIDE the agentic loop (so a mid-run message is judged against the standing objective); (c) a state-signal projection that injects `<current-objective>` into the model's context. From the Mastra Goals comparison (2026-07-11). **This is the MORE INVASIVE slice — it touches the agentic loop** — so it is gated on SE33 + explicit demand.
+
+**Definition of done:**
+
+- [ ] `SendOptions.isTaskComplete` (per-send completion check): after a `send()`, the existing LLM-judge scorer evaluates the response against a criterion; a typed result surfaces (reuse `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts`). Absent ⇒ unchanged.
+- [ ] (Optional, ADR-gated) in-agentic-loop goal step: the SE33 durable objective is scored ONCE PER tool-loop iteration (right after `isTaskComplete`), gating continuation/stop — a NO-OP for background-task / mid-tool-loop / working-memory-only iterations (mirror Mastra's gating). This is the only loop-touching change and MUST be behind an explicit ADR decision (it modifies the shipped agent loop).
+- [ ] State-signal projection: when a standing objective (SE33) is set, `<current-objective>` is auto-injected into the model context each turn (a lightweight system-prompt/context signal — reuse the SE22 dynamic-skills / systemPrompt-resolver seam if it fits; do NOT build a general signal-provider framework — YAGNI).
+- [ ] Typed `goal`/`task_complete` evaluation events on the run-event stream (align with the existing `GoalEvent` union + `run-events.ts`).
+- [ ] Back-compat: all three additions OPT-IN; absent them the loop + `send()` are byte-identical to today.
+- [ ] TDD: `isTaskComplete` gates a single send; the in-loop step (if built) evaluates a mid-run message against the standing objective + is a no-op on non-candidate iterations; `<current-objective>` appears in the assembled context; the loop is unchanged when nothing is configured.
+- [ ] Docs + Changeset; **ADR REQUIRED** for the in-agentic-loop step (it modifies the shipped loop — the highest-scrutiny change).
+
+**Dependencies:** SE33 (the durable objective the in-loop step + projection read), `runUntil` + `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts` (shipped). SE22 systemPrompt-resolver seam (reuse for the projection).
+
+**Top risks (new):**
+1. **Loop surgery risk (highest).** Moving goal evaluation INSIDE the agentic loop changes shipped behavior + performance (an extra judge call per iteration). Mitigation: OPT-IN only + a REQUIRED ADR; the per-send `isTaskComplete` (non-loop-touching) can ship FIRST, and the in-loop step deferred until demand + the ADR justify the loop change. If demand is thin, SE34 ships ONLY `isTaskComplete` + the projection and defers the in-loop step.
+2. **Signal-projection over-engineering.** Mastra has a general "signal providers" framework; TheoKit needs only `<current-objective>`. Mitigation: inject the one signal via the existing systemPrompt/context seam — do NOT build a plugin framework for it (G11/YAGNI).
+3. **Judge cost per iteration.** An in-loop judge call multiplies token spend. Mitigation: the same gating as Mastra (no-op on non-candidate iterations) + the judge-is-the-activation-switch rule (no judge ⇒ no scoring).
+
+**Why now:** SE33 delivers the durable objective; SE34 makes it *feel* like Mastra Goals (mid-run evaluation + the model always seeing the objective). But it is loop-touching — so it is deliberately SECOND, ADR-gated, and may ship only its non-invasive half (`isTaskComplete` + projection) if the in-loop step lacks demand evidence.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
@@ -933,6 +979,7 @@ Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, becau
 - **Built-in coding tools** (Read / Write / Edit / Bash / Grep / Glob / …) — *why excluded:* **bring-your-own-tools** is the design. The consumer (TheoKit) provides tools. Shipping a toolset would make `@theokit/sdk` a Claude-Code clone instead of a runtime.
 - **Subprocess / CLI-wrapper model + spawn warm-start** — *why excluded:* we are **in-process by design** (the Model-A TUI/Tauri advantage — `streamAgentTurnInProcess`). The subprocess model is Anthropic's Claude-only product shape, not a runtime primitive. Never adopt.
 - **Settings-resolution engine** (precedence tiers, MDM/plist/HKLM, `resolveSettings`) — *why excluded:* app/framework configuration is a **framework** concern, not the agent runtime's.
+- **General "signal providers" framework + Mastra-instance Goals orchestration** (the rest of Mastra Goals beyond SE33/SE34) — *why excluded:* a pluggable signal-provider framework (projecting arbitrary state into context), a `Mastra`-instance-level goal registry, and Studio/dashboard goal management are **app/framework glue** or a general extensibility framework, not runtime primitives. SE33 (durable objective over the existing `runUntil` + ConversationStorage) + SE34 (`isTaskComplete` + the single `<current-objective>` projection + an ADR-gated in-loop step) take ONLY the runtime-legitimate slices; the general signal framework and instance-level orchestration stay out. The **in-agentic-loop goal step (SE34) is loop-touching and ADR-gated** — it may ship only its non-invasive half (`isTaskComplete` + projection) if the in-loop step lacks demand. Cross-check 2026-07-11 when SE33/SE34 were added: the judge-loop is already a shipped SDK primitive (`runUntil`); the durable + per-send + projection slices extend it; the general framework does not.
 - **Bundled `Workspace` class + `mounts`/FUSE + LSP inspection + workspace tool-config/hooks layer** (the rest of Mastra Workspaces beyond SE31/SE32) — *why excluded:* a `Workspace` that auto-injects a coordinated toolset with global/agent inheritance, cloud-FS `mounts`, language-server inspection, and a per-tool remap/approval/truncation/hooks layer is **app/framework glue** (belongs in TheoKit or an opt-in package), not the runtime. SE31 (filesystem seam) + SE32 (write-safety) take ONLY the two runtime-legitimate primitives from that surface; the bundle, mounts, and LSP stay out. Reopening requires an ADR with 3+ apps blocked. (Cross-check 2026-07-11 when SE31/SE32 were added — the BYO-tools and no-bundled-Workspace decisions were reaffirmed, not reversed.)
 
 ---

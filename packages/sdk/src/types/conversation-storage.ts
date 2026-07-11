@@ -10,6 +10,8 @@
  * @public
  */
 
+import type { ObjectiveRecord } from "./objective.js";
+
 /**
  * Persisted message envelope used by {@link ConversationStorageAdapter}.
  *
@@ -151,6 +153,34 @@ export interface ConversationStorageAdapter {
    * lazily. Adapters that cannot store side metadata MAY omit this.
    */
   setSessionMeta?(conversationId: string, patch: SessionMetaPatch): Promise<void>;
+
+  /**
+   * SE33 — optional: read the durable {@link ObjectiveRecord} for a conversation
+   * (the thread-scoped goal). Absent ⇒ the agent's objective methods no-op
+   * (typed degradation, same contract as `getSessionMeta`). ADR 0012 D1.
+   */
+  getObjectiveRecord?(conversationId: string): Promise<ObjectiveRecord | undefined>;
+
+  /**
+   * SE33 — optional: write (or, with `record: null`, CLEAR) the durable
+   * objective for a conversation. MUST create the record lazily. Adapters that
+   * cannot store side state MAY omit this. ADR 0012 D1.
+   */
+  setObjectiveRecord?(conversationId: string, record: ObjectiveRecord | null): Promise<void>;
+
+  /**
+   * SE33 — optional: ATOMIC read-modify-write of the durable objective. `mutate`
+   * receives the current record (or `undefined`) and returns the next record, or
+   * `null` to clear, or `undefined` to leave it unchanged. The whole get→mutate→set
+   * MUST run under the adapter's own concurrency guard (the FS adapter holds its
+   * file lock across the read AND the write) so concurrent progress write-backs
+   * on one thread cannot drop turns (TOCTOU). Adapters that omit it fall back to a
+   * non-atomic `getObjectiveRecord` + `setObjectiveRecord` pair. ADR 0012 D1.
+   */
+  updateObjectiveRecord?(
+    conversationId: string,
+    mutate: (current: ObjectiveRecord | undefined) => ObjectiveRecord | null | undefined,
+  ): Promise<void>;
 
   /**
    * Optional: dispose underlying handles (close DB pool, etc.).

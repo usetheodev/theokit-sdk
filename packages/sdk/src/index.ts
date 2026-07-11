@@ -246,11 +246,13 @@ export type {
 // SE3 — multi-agent provenance. Explicit re-export so rollup-dts surfaces it in
 // the bundled .d.ts (the `export type *` star does not reliably propagate — same
 // reason as `CustomTool` above).
-export type { MessageOrigin } from "./types/run.js";
+// SE34 — per-send completion check (`isTaskComplete`) public types.
+export type { CompletionCheck, CompletionCheckResult, MessageOrigin } from "./types/run.js";
 // SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
 export {
   emitRunEvent,
   type RunCompactBoundaryEvent,
+  type RunCompletionCheckEvent,
   type RunEvent,
   type RunEventSink,
   type RunPermissionDeniedEvent,
