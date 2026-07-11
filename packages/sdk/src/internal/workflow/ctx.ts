@@ -16,7 +16,17 @@ export class WorkflowSuspendedSentinel extends Error {
   }
 }
 
-export function makeStepContext(runId: string, signal: AbortSignal): StepContext {
+/** SE29 — the per-run shared-state seam wired into `StepContext.state`/`setState`. */
+export interface StateController {
+  getState: () => unknown;
+  setState: (next: unknown) => void;
+}
+
+export function makeStepContext(
+  runId: string,
+  signal: AbortSignal,
+  state: StateController,
+): StepContext {
   return {
     runId,
     signal,
@@ -28,6 +38,12 @@ export function makeStepContext(runId: string, signal: AbortSignal): StepContext
     suspend: async (payload?: unknown) => {
       throw new WorkflowSuspendedSentinel(payload);
     },
+    // SE29 — read reflects the current shared state; write goes through the
+    // controller (which validates against `stateSchema`).
+    get state(): unknown {
+      return state.getState();
+    },
+    setState: (next: unknown): void => state.setState(next),
   };
 }
 
