@@ -1,6 +1,6 @@
 {
   "name": "@theokit/sdk",
-  "version": "2.27.0",
+  "version": "2.28.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheo/theokit-sdk#readme",
@@ -266,6 +266,16 @@
       "require": {
         "types": "./dist/sandbox/index.d.cts",
         "default": "./dist/sandbox/index.cjs"
+      }
+    },
+    "./filesystem": {
+      "import": {
+        "types": "./dist/filesystem/index.d.ts",
+        "default": "./dist/filesystem/index.js"
+      },
+      "require": {
+        "types": "./dist/filesystem/index.d.cts",
+        "default": "./dist/filesystem/index.cjs"
       }
     },
     "./package.json": "./package.json"
