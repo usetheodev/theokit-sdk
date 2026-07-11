@@ -509,18 +509,10 @@ export class LocalAgent implements SDKAgent {
     });
   }
 
-  listArtifacts(): Promise<SDKArtifact[]> {
-    return Promise.resolve([]);
-  }
-
-  downloadArtifact(_path: string): Promise<Buffer> {
-    return Promise.reject(
-      new UnsupportedRunOperationError(
-        "Artifacts are not supported for local agents",
-        "downloadArtifact",
-      ),
-    );
-  }
+  // biome-ignore format: G8 budget — artifact stubs (local agents have no artifacts); kept 1-line each.
+  listArtifacts(): Promise<SDKArtifact[]> { return Promise.resolve([]); }
+  // biome-ignore format: G8 budget — see listArtifacts.
+  downloadArtifact(_path: string): Promise<Buffer> { return Promise.reject(new UnsupportedRunOperationError("Artifacts are not supported for local agents", "downloadArtifact")); }
 
   // biome-ignore format: G8 budget — both methods delegate to `local-agent-runtime-extensions.ts`; signatures kept as 1-line each.
   runUntil(goal?: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options, { handle: this.storageHandle(), goalConfig: this.options.goal }); }
