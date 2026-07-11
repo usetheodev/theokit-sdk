@@ -12,16 +12,31 @@
  */
 
 import type { AgentOptions, MemorySettings, SDKAgent } from "../../../types/agent.js";
+import type { ConversationStorageAdapter } from "../../../types/conversation-storage.js";
 import type { GoalEvent, GoalOptions, GoalResult } from "../../../types/goal-events.js";
+import type { AgentGoalConfig } from "../../../types/objective.js";
 import type { RunToCompletionOptions, RunToCompletionResult } from "../../../types/run.js";
 import type { JudgeContext, JudgeOptions } from "../../judge/judge-call.js";
 import type { ForkOptions, ForkResult } from "../lifecycle/fork-agent.js";
+import type { RunUntilDeps } from "../lifecycle/run-until.js";
 import {
   appendMemoryFact,
   extractMemoryFact,
   isMemoryWritePrompt,
 } from "../memory/memory-store.js";
 import { safeCall } from "../system-prompt/safe-call.js";
+
+/** Human-readable pause reason for a non-`run` durable resolution (ADR D4). */
+function pausedReason(kind: "none" | "inert" | "exhausted", threadId: string): string {
+  switch (kind) {
+    case "none":
+      return `no durable objective set for thread "${threadId}" — call setObjective() first`;
+    case "inert":
+      return `durable objective for thread "${threadId}" is inert — no judge resolved (set a judge to activate)`;
+    case "exhausted":
+      return `durable objective for thread "${threadId}" exhausted its run budget — raise maxRuns to resume`;
+  }
+}
 
 /**
  * Drive {@link runUntilImpl} with the registered `Agent.create` so
@@ -32,18 +47,52 @@ import { safeCall } from "../system-prompt/safe-call.js";
  */
 export function localAgentRunUntil(
   agent: SDKAgent,
-  goal: string,
+  goal: string | undefined,
   options: GoalOptions | undefined,
+  durable?: {
+    handle: ConversationStorageAdapter | string;
+    goalConfig: AgentGoalConfig | undefined;
+  },
 ): AsyncGenerator<GoalEvent, GoalResult, void> {
   async function* wrap(): AsyncGenerator<GoalEvent, GoalResult, void> {
     const { runUntilImpl } = await import("../lifecycle/run-until.js");
-    const { judgeCallImpl } = await import("../../judge/judge-call.js");
-    const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
-    const create = getAgentFacade().create;
-    const deps = {
-      judge: async (ctx: JudgeContext, opts?: JudgeOptions) => judgeCallImpl(ctx, opts, { create }),
+    const buildDeps = async (): Promise<RunUntilDeps> => {
+      const { judgeCallImpl } = await import("../../judge/judge-call.js");
+      const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
+      const create = getAgentFacade().create;
+      return {
+        judge: (ctx: JudgeContext, opts?: JudgeOptions) => judgeCallImpl(ctx, opts, { create }),
+      };
     };
-    return yield* runUntilImpl(agent, goal, options, deps);
+
+    // Ephemeral path — explicit goal; no durable objective read/write (ADR D4).
+    if (goal !== undefined) {
+      return yield* runUntilImpl(agent, goal, options, await buildDeps());
+    }
+
+    // Durable path — resolve the goal from the thread-scoped objective.
+    const threadId = options?.threadId;
+    if (durable === undefined || threadId === undefined) {
+      const reason =
+        "runUntil() called with no goal and no threadId — nothing to resolve a durable objective from";
+      yield { type: "status_change", status: "paused", reason };
+      return { status: "paused", turnsUsed: 0, finalResponse: undefined };
+    }
+    const { resolveDurableRun, persistDurableProgress } = await import(
+      "./local-agent-goal-extensions.js"
+    );
+    const resolved = await resolveDurableRun(durable.handle, durable.goalConfig, threadId, options);
+    if (resolved.kind !== "run") {
+      yield {
+        type: "status_change",
+        status: "paused",
+        reason: pausedReason(resolved.kind, threadId),
+      };
+      return { status: "paused", turnsUsed: 0, finalResponse: undefined };
+    }
+    const result = yield* runUntilImpl(agent, resolved.goal, resolved.options, await buildDeps());
+    await persistDurableProgress(durable.handle, threadId, result);
+    return result;
   }
   return wrap();
 }
