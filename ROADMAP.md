@@ -839,7 +839,7 @@ Workflows comparison (2026-07-10).
 
 **Why now:** cross-step shared state is a core workflow ergonomic (progress counters, accumulators) that today forces threading data through every step's schema — the most-requested Mastra workflow ergonomic after control flow.
 
-### SE30 — [ ] Workflows-as-steps (nested `.then(childWorkflow)`) + `cloneWorkflow`
+### SE30 — [x] Workflows-as-steps (nested `.then(childWorkflow)`) + `cloneWorkflow`
 
 **Objective:** Compose a workflow inside another, and clone a workflow under a new id. Mastra lets
 `.then(childWorkflow)` nest a committed workflow as a step, and `cloneWorkflow(wf, { id })` reuse logic under

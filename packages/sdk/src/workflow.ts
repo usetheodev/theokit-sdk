@@ -50,7 +50,7 @@ import type {
   WorkflowRunOptions,
   WorkflowStream,
 } from "./types/workflow.js";
-import { WorkflowDuplicateStepIdError } from "./types/workflow.js";
+import { WorkflowDuplicateStepIdError, WorkflowNestedError } from "./types/workflow.js";
 
 /* ─── Zod validation schemas ─── */
 
@@ -374,6 +374,51 @@ export function agentStep(
   };
 }
 
+/**
+ * SE30 — use a committed {@link Workflow} as a step inside another workflow.
+ * Wraps the child as an `FnStep` (opaque — the child runs in its OWN executor
+ * with its own id-space, so nested step-ids never collide with the parent's).
+ * The child's output becomes the step output. A non-`completed` child fails the
+ * parent step with a typed {@link WorkflowNestedError}: nested `suspended` is NOT
+ * resumable in v1 (resume continues AFTER the step — the child would be skipped;
+ * use a top-level suspend). See ADR 0010.
+ *
+ * @public
+ */
+export function workflowStep<TI = unknown, TO = unknown>(
+  child: Workflow<TI, TO>,
+  opts?: { id?: string },
+): FnStep {
+  const id = opts?.id ?? `workflow_${child.__options.name}`;
+  validateStepId(id);
+  return {
+    kind: "fn",
+    id,
+    fn: async (input: unknown, ctx: StepContext): Promise<unknown> => {
+      const run = await child.run(input as TI, { signal: ctx.signal });
+      if (run.status === "completed") return run.output;
+      throw new WorkflowNestedError(id, child.__options.name, run.status, run.error);
+    },
+  };
+}
+
+/**
+ * SE30 — clone a committed workflow under a new id/name. The clone runs
+ * independently (its own single-flight lock + observability identity) with the
+ * same committed steps. Mirrors Mastra's `cloneWorkflow`.
+ *
+ * @public
+ */
+export function cloneWorkflow<TI = unknown, TO = unknown>(
+  wf: Workflow<TI, TO>,
+  opts: { id: string },
+): Workflow<TI, TO> {
+  return new Workflow<TI, TO>(
+    { ...wf.__options, name: opts.id, workflowId: `wf-${mintShortId()}` },
+    [...wf.__steps],
+  );
+}
+
 /* ─── Test seam re-export ─── */
 
 export { __resetSnapshotStoresForTests } from "./internal/workflow/snapshot-store.js";
@@ -391,6 +436,7 @@ export {
   WorkflowDuplicateStepIdError,
   WorkflowInputError,
   WorkflowMaxIterationsExceededError,
+  WorkflowNestedError,
   WorkflowNotSerializableError,
   WorkflowOutputError,
   WorkflowParallelError,
