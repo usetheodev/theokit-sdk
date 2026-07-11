@@ -1,9 +1,11 @@
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalFilesystem } from "@theokit/sdk/filesystem";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { createReadFileTool } from "../src/read-file.js";
+import { ReadTracker } from "../src/read-tracker.js";
 import { createWriteFileTool } from "../src/write-file.js";
 import { textHandler } from "./text-handler.js";
 
@@ -60,5 +62,54 @@ describe("createWriteFileTool — filesystem backend (SE31)", () => {
     const parsed = JSON.parse(out);
     expect(parsed.ok).toBe(false);
     expect(parsed.error).toBe("path_traversal");
+  });
+});
+
+describe("createWriteFileTool — filesystem backend + requireReadBeforeWrite (SE32)", () => {
+  // The read tool reads from the SAME root the backend writes to, so a read
+  // records the backend file's mtime that the backend write then checks.
+  it("a NEW file via the backend writes freely under the guard", async () => {
+    const tracker = new ReadTracker();
+    const write = createWriteFileTool({
+      projectRoot,
+      filesystem: new LocalFilesystem({ basePath: fsRoot }),
+      requireReadBeforeWrite: true,
+      readTracker: tracker,
+    });
+    const out = await textHandler(write)({ path: "fresh.txt", content: "hi" });
+    expect(JSON.parse(out).ok).toBe(true);
+  });
+
+  it("an existing UNREAD file via the backend is refused with 'read_required'", async () => {
+    writeFileSync(join(fsRoot, "exists.txt"), "old");
+    const tracker = new ReadTracker();
+    const write = createWriteFileTool({
+      projectRoot,
+      filesystem: new LocalFilesystem({ basePath: fsRoot }),
+      requireReadBeforeWrite: true,
+      readTracker: tracker,
+    });
+    const out = await textHandler(write)({ path: "exists.txt", content: "new" });
+    expect(JSON.parse(out).error).toBe("read_required");
+  });
+
+  it("read → external modify → backend write is refused with 'stale_file'", async () => {
+    writeFileSync(join(fsRoot, "race.txt"), "v1");
+    const tracker = new ReadTracker();
+    const read = createReadFileTool({ projectRoot: fsRoot, readTracker: tracker });
+    const write = createWriteFileTool({
+      projectRoot,
+      filesystem: new LocalFilesystem({ basePath: fsRoot }),
+      requireReadBeforeWrite: true,
+      readTracker: tracker,
+    });
+
+    await textHandler(read)({ path: "race.txt" }); // records v1 mtime (from fsRoot)
+    writeFileSync(join(fsRoot, "race.txt"), "external");
+    const future = new Date(Date.now() + 10_000);
+    utimesSync(join(fsRoot, "race.txt"), future, future);
+
+    const out = await textHandler(write)({ path: "race.txt", content: "v2" });
+    expect(JSON.parse(out).error).toBe("stale_file");
   });
 });
