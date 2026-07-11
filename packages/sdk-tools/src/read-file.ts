@@ -36,6 +36,7 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
+import type { ReadTracker } from "./read-tracker.js";
 
 /** Max single-file read size, in bytes. 5 MB ceiling — enough for any source file. */
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -46,10 +47,16 @@ const BINARY_PROBE_BYTES = 8 * 1024;
 export interface CreateReadFileToolOptions {
   /** Absolute path to the project root. Every read is gated against this boundary. */
   projectRoot: string;
+  /**
+   * SE32 — optional read-before-write tracker. When provided, a successful read
+   * records the file's mtime so a paired `write_file` (with
+   * `requireReadBeforeWrite`) can refuse a blind or stale overwrite.
+   */
+  readTracker?: ReadTracker;
 }
 
 export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool {
-  const { projectRoot } = opts;
+  const { projectRoot, readTracker } = opts;
 
   return defineTool({
     name: "read_file",
@@ -73,7 +80,9 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
       const opened = await openHandleSafe(boundary.absolutePath, path);
       if ("error" in opened) return opened.error;
       try {
-        return await readContent(opened.handle, path);
+        return await readContent(opened.handle, path, (mtimeMs) =>
+          readTracker?.record(path, mtimeMs),
+        );
       } finally {
         await opened.handle.close();
       }
@@ -113,7 +122,11 @@ async function openHandleSafe(
   }
 }
 
-async function readContent(handle: FileHandle, path: string): Promise<string> {
+async function readContent(
+  handle: FileHandle,
+  path: string,
+  onRead?: (mtimeMs: number) => void,
+): Promise<string> {
   const stat = await handle.stat();
   if (stat.size > MAX_FILE_SIZE) {
     return JSON.stringify({
@@ -128,6 +141,12 @@ async function readContent(handle: FileHandle, path: string): Promise<string> {
     return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
   }
   const content = await handle.readFile({ encoding: "utf-8" });
+  // SE32 — record the mtime read-before-write compares against. This is the
+  // mtime captured at `handle.stat()` above; a concurrent external write between
+  // that stat and this readFile is an accepted TOCTOU (the recorded snapshot may
+  // trail the delivered content by one write — same-user local context). The
+  // write-side guard still catches the common "edited after I read it" case.
+  onRead?.(stat.mtimeMs);
   return JSON.stringify({ ok: true, content, size: stat.size });
 }
 

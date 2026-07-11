@@ -57,6 +57,8 @@ const targets = [
   join(DIST, "a2a"),
   join(DIST, "client"),
   join(DIST, "sandbox"),
+  // SE31: filesystem provider seam sub-path.
+  join(DIST, "filesystem"),
   join(DIST, "server"),
   // EC-1 absorbed: internal sub-paths exposed for extracted packages.
   join(DIST, "internal", "persistence"),
