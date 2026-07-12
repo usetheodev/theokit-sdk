@@ -6,6 +6,7 @@
 // "Agent facade not registered" at runtime.
 import "./agent.js";
 import { ConfigurationError, UnknownAgentError } from "./errors.js";
+import { fireCronJobAsTask } from "./internal/cron/fire-handler.js";
 import { runCronJob } from "./internal/cron/run-job.js";
 import {
   getSchedulerState,
@@ -23,7 +24,6 @@ import {
 } from "./internal/cron/validate.js";
 import { resolveApiKey } from "./internal/env.js";
 import { generateCronId } from "./internal/ids.js";
-import { submit as taskRegistrySubmit } from "./internal/task/registry.js";
 import type { AgentOptions, ListResult } from "./types/agent.js";
 import type {
   CronCreateOptions,
@@ -117,11 +117,15 @@ export class Cron {
   }
 
   /**
-   * Manually trigger a cron job off-schedule. Returns the resulting `Run`.
+   * Manually trigger a cron job off-schedule. Returns the resulting `Run`
+   * (agent target) or `WorkflowRun` (workflow target — SE35).
    *
    * @public
    */
-  static async run(jobId: string, _options: CronRunOptions = {}): Promise<Run> {
+  static async run(
+    jobId: string,
+    _options: CronRunOptions = {},
+  ): Promise<Run | import("./types/workflow.js").WorkflowRun> {
     const job = getJob(jobId);
     if (job === undefined) {
       throw new UnknownAgentError(`Cron job ${jobId} not found`, { code: "unknown_cron_job" });
@@ -135,36 +139,11 @@ export class Cron {
    * @public
    */
   static start(options: CronStartOptions = {}): Promise<void> {
-    // Install the default fire handler so timer ticks actually drive a
-    // real agent run. Users can override via `setCronFireHandler` from
-    // `@theokit/sdk/internal` (test-mode hook).
-    setCronFireHandler(async (job) => {
-      // T3.5 (ADRs D363/D374): every fire registers as a Task so callers
-      // can observe via `theokit tasks list` / `Task.subscribe`. The
-      // task id namespace `cron-{jobId}-{fireEpochMs}` honors D368/EC-5.
-      const fireTs = Date.now();
-      const taskId = `cron-${job.id}-${fireTs}`;
-      try {
-        await taskRegistrySubmit({
-          kind: "cron",
-          id: taskId,
-          allowReservedPrefix: true,
-          meta: { jobId: job.id, jobName: job.name, schedule: job.cron, firedAt: fireTs },
-          work: async (ctx) => {
-            const run = await runCronJob(job);
-            ctx.signal.addEventListener("abort", () => void run.cancel().catch(() => {}), {
-              once: true,
-            });
-            const result = await run.wait();
-            ctx.emit({ status: result.status, runId: run.id });
-            return { status: result.status, runId: run.id };
-          },
-        });
-      } catch {
-        // Task registry must not break cron — fall through to legacy path.
-        await runCronJob(job).then((run) => run.wait());
-      }
-    });
+    // Install the default fire handler so timer ticks actually drive a real
+    // agent/workflow run. Users can override via `setCronFireHandler` from
+    // `@theokit/sdk/internal` (test-mode hook). Handler body lives in
+    // `internal/cron/fire-handler.ts` (testable + G8).
+    setCronFireHandler(fireCronJobAsTask);
     startScheduler(options.cwd);
     return Promise.resolve();
   }
@@ -191,17 +170,7 @@ export class Cron {
 }
 
 async function createCronJob(options: CronCreateOptions): Promise<CronJob> {
-  if (options.agent !== undefined && options.agentId !== undefined) {
-    throw new ConfigurationError(
-      "agent and agentId are mutually exclusive — pass either agent (ephemeral) or agentId (reuse).",
-      { code: "cron_agent_exclusive" },
-    );
-  }
-  if (options.agent === undefined && options.agentId === undefined) {
-    throw new ConfigurationError("Cron job requires either agent or agentId", {
-      code: "cron_missing_agent",
-    });
-  }
+  validateCronTarget(options);
 
   validateCronExpression(options.cron);
   const timezone = options.timezone ?? "UTC";
@@ -216,21 +185,61 @@ async function createCronJob(options: CronCreateOptions): Promise<CronJob> {
     id: generateCronId(),
     cron: options.cron,
     timezone,
-    message: options.message,
     enabled: options.enabled ?? true,
     status: options.enabled === false ? "paused" : "scheduled",
     runtime,
     createdAt: now,
     nextRunAt: estimateNextRunAt(options.cron, timezone),
     ...(options.name !== undefined ? { name: options.name } : {}),
+    ...(options.message !== undefined ? { message: options.message } : {}),
     ...(options.agent !== undefined ? { agent: options.agent } : {}),
     ...(options.agentId !== undefined ? { agentId: options.agentId } : {}),
+    ...(options.workflow !== undefined ? { workflow: options.workflow } : {}),
+    ...(options.inputData !== undefined ? { inputData: options.inputData } : {}),
   };
   upsertJob(job);
   return job;
 }
 
+/**
+ * SE35 (ADR 0014) — exactly ONE target (`agent` | `agentId` | `workflow`).
+ * Agent targets require `message`; a workflow target takes `inputData` and MUST
+ * NOT set `message`.
+ */
+function validateCronTarget(options: CronCreateOptions): void {
+  const targets = [options.agent, options.agentId, options.workflow].filter(
+    (t) => t !== undefined,
+  ).length;
+  if (targets > 1) {
+    throw new ConfigurationError(
+      "agent, agentId, and workflow are mutually exclusive — pass exactly one target.",
+      { code: "cron_ambiguous_target" },
+    );
+  }
+  if (targets === 0) {
+    throw new ConfigurationError(
+      "Cron job requires exactly one target: agent, agentId, or workflow.",
+      { code: "cron_no_target" },
+    );
+  }
+  if (options.workflow !== undefined && options.message !== undefined) {
+    throw new ConfigurationError(
+      "A workflow cron target takes inputData, not a message — remove `message`.",
+      { code: "cron_workflow_message" },
+    );
+  }
+  if (options.workflow === undefined && options.message === undefined) {
+    throw new ConfigurationError("An agent cron target requires a message.", {
+      code: "cron_missing_message",
+    });
+  }
+}
+
 function detectRuntime(options: CronCreateOptions): CronRuntime {
+  // SE35 — a workflow target is a held in-memory instance; it can only run in
+  // the local (in-process) scheduler. A workflow instance cannot cross the
+  // cloud process boundary (ADR 0014).
+  if (options.workflow !== undefined) return "local";
   if (options.agentId !== undefined) {
     return options.agentId.startsWith("bc-") ? "cloud" : "local";
   }
