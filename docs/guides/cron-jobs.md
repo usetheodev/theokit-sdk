@@ -30,14 +30,30 @@ const job = await Cron.create({
 await Cron.start();                  // required for local jobs to actually fire
 ```
 
-### Agent binding: ephemeral vs persistent
+### Target: agent or workflow
 
-Pass exactly one of:
+Pass exactly one target:
 
 - **`agent`** — full `AgentOptions`. A fresh agent is created on every fire. Use when each run is independent.
 - **`agentId`** — string ID of an existing agent. The job reuses that agent's conversation context across fires. Use when you want continuity (e.g., a weekly review that builds on past notes).
+- **`workflow`** — a committed `Workflow` (SE35). Each fire runs `workflow.run(inputData)`. Use for scheduled multi-step pipelines.
 
-Setting both raises a `ConfigurationError`.
+Agent targets require a `message`; a workflow target takes `inputData` and MUST NOT set `message`. Setting more than one target, or pairing `message` with `workflow`, raises a `ConfigurationError`.
+
+```typescript
+import { Cron } from "@theokit/sdk/cron";
+import { Workflow, fn } from "@theokit/sdk/workflow";
+
+const report = Workflow.create({ name: "daily-report" })
+  .then(fn("gather", async (d: { day: string }) => ({ items: await load(d.day) })))
+  .then(fn("summarize", async (d) => summarize(d.items)))
+  .commit();
+
+// Run the workflow every weekday at 9am.
+await Cron.create({ cron: "0 9 * * 1-5", workflow: report, inputData: { day: "today" } });
+```
+
+A workflow cron job is **local runtime only** — it holds the `Workflow` instance in memory, which cannot cross the cloud process boundary (see Known limitations).
 
 ### Supported cron expressions
 
@@ -142,9 +158,11 @@ interface CronJob {
   name?: string;
   cron: string;
   timezone?: string;
-  message: string | SDKUserMessage;
-  agent?: AgentOptions;              // mutually exclusive with agentId
+  message?: string | SDKUserMessage; // agent targets only
+  agent?: AgentOptions;              // exactly one of agent | agentId | workflow
   agentId?: string;
+  workflow?: Workflow;               // SE35 — runs workflow.run(inputData) per fire
+  inputData?: unknown;               // input for a workflow target
   enabled: boolean;
   status: "scheduled" | "running" | "paused" | "errored";
   runtime: "local" | "cloud";
@@ -155,9 +173,11 @@ interface CronJob {
 
 interface CronCreateOptions {
   cron: string;
-  message: string | SDKUserMessage;
+  message?: string | SDKUserMessage; // required with agent/agentId; forbidden with workflow
   agent?: AgentOptions;
   agentId?: string;
+  workflow?: Workflow;               // SE35 — mutually exclusive with agent/agentId
+  inputData?: unknown;
   name?: string;
   timezone?: string;
   enabled?: boolean;                 // defaults to true
@@ -179,6 +199,7 @@ interface CronSchedulerStatus {
 - **Local jobs only fire while the host process is alive.** Run the SDK process as a `systemd` / `launchd` / `pm2` service for 24/7 local scheduling, or use the cloud runtime.
 - **In-flight fires are not resumed** if the host process crashes mid-run. The job will fire again on its next scheduled tick.
 - `Cron.run()` does not update `lastRunAt` — only scheduled fires do.
+- **Workflow cron jobs are local-runtime only** (SE35 / ADR 0014). The job holds the `Workflow` instance in memory; it cannot cross the cloud process boundary, and it is not serialized to disk. When a local disk-persistence adapter is wired, workflow jobs will need an id + resolver (agent jobs will serialize their options) — a follow-up milestone, not built today.
 
 ## Next
 
