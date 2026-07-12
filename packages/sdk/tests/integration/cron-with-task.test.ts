@@ -10,6 +10,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Cron } from "../../src/cron.js";
+import { isAgentRun } from "../../src/internal/cron/run-job.js";
 import { __resetTaskRegistryForTests } from "../../src/internal/task/registry.js";
 import { Task } from "../../src/task.js";
 
@@ -40,7 +41,8 @@ describe("Cron fire → Task (T3.5)", () => {
     expect(job.id).toBeDefined();
     const run = await Cron.run(job.id);
     expect(run.id).toBeDefined();
-    await run.wait();
+    if (isAgentRun(run)) await run.wait(); // agent target → deferred Run
+
     // Manual Cron.run does NOT go through the fire handler — no task expected.
     expect((await Task.list({ kind: "cron" })).length).toBe(0);
     await Cron.delete(job.id);
