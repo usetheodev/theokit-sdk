@@ -19,7 +19,7 @@ if (apiKey === undefined || apiKey.length === 0) {
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-4o-mini" },
+  model: { id: "openai/gpt-oss-120b:free" },
   name: "explainer-bot",
   systemPrompt: "You are a concise assistant. Answer in at most two sentences.",
   // Local runtime, no sandbox — runs inline in this Node process.
