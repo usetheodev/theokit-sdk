@@ -5,11 +5,18 @@
  * `context: {}` turns on the file context manager; `settingSources: ["project"]` opts in to reading
  * project files. The manager discovers AGENTS.md / CLAUDE.md / THEO.md from the working directory.
  */
+import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { Agent } from "@theokit/sdk";
 
-const here = dirname(fileURLToPath(import.meta.url)); // this dir holds AGENTS.md
+const here = dirname(fileURLToPath(import.meta.url));
+
+// Seed a project context file next to this script so the example is self-contained.
+writeFileSync(
+  join(here, "AGENTS.md"),
+  "# Project context\n\nThe `ship` command deploys to production. Always run the test suite before shipping.\n",
+);
 
 const agent = await Agent.create({
   apiKey: "theo_test_context",             // fixture key — no network, no LLM
