@@ -31,7 +31,7 @@ const SUMMARY_PREVIEW_MAX = 80;
  *
  * @public
  */
-export function createSessionManager(storage: ConversationStorageAdapter): SessionManager {
+function createSessionManager(storage: ConversationStorageAdapter): SessionManager {
   return {
     async listSessions(
       opts?: SessionListOptions,
@@ -146,4 +146,12 @@ function previewOf(text: string | undefined): string | undefined {
   return oneLine.length > SUMMARY_PREVIEW_MAX
     ? `${oneLine.slice(0, SUMMARY_PREVIEW_MAX - 1)}…`
     : oneLine;
+}
+
+/** SE36 — `Session.create` replaces `createSessionManager` (ADR 0015). @public */
+export class Session {
+  private constructor() {}
+  static create(storage: ConversationStorageAdapter): SessionManager {
+    return createSessionManager(storage);
+  }
 }

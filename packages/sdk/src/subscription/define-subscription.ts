@@ -88,3 +88,13 @@ export function defineSubscription<TInput, TOutput>(
     handler: opts.handler,
   };
 }
+
+/** SE36 — `Subscription.create` replaces `defineSubscription` (ADR 0015). @public */
+export class Subscription {
+  private constructor() {}
+  static create<TInput, TOutput>(
+    opts: DefineSubscriptionOptions<TInput, TOutput>,
+  ): SubscriptionDescriptor<TInput, TOutput> {
+    return defineSubscription(opts);
+  }
+}

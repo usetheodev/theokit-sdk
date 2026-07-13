@@ -1,0 +1,51 @@
+{
+  "$comment": "Single source of truth for the docs example catalog. examples/<slug>/run.ts is canonical. Consumed by theo-opendocs/scripts/generate-sdk-examples.mjs, which emits the StackBlitz sandbox files (components/sandbox-examples/<slug>.txt) and the runner's executable copies (runner/examples/<slug>.ts). Also drives the examples CI matrix (.github/workflows/examples.yml).",
+  "defaults": {
+    "deps": { "@theokit/sdk": "^2.30.0", "zod": "^4.0.0" },
+    "devDeps": { "tsx": "^4.19.0" }
+  },
+  "examples": [
+    {
+      "slug": "agent-basics",
+      "domain": "agents",
+      "page": "/theokit/agents",
+      "title": "Creating an agent",
+      "description": "The smallest end-to-end @theokit/sdk agent"
+    },
+    {
+      "slug": "agent-streaming",
+      "domain": "agents",
+      "page": "/theokit/agents/streaming",
+      "title": "Streaming a run",
+      "description": "Iterate run.stream() over SDKMessage events"
+    },
+    {
+      "slug": "agent-structured-output",
+      "domain": "agents",
+      "page": "/theokit/agents/structured-output",
+      "title": "Structured output",
+      "description": "Typed object from agent.generate() + Zod"
+    },
+    {
+      "slug": "tool-basics",
+      "domain": "tools",
+      "page": "/theokit/tools",
+      "title": "Give an agent a tool",
+      "description": "defineTool — a typed function the model can call"
+    },
+    {
+      "slug": "providers-models",
+      "domain": "providers-models",
+      "page": "/theokit/providers-models",
+      "title": "Providers and models",
+      "description": "Pick a model by id; inspect capabilities offline"
+    },
+    {
+      "slug": "prompts",
+      "domain": "prompts",
+      "page": "/theokit/prompts",
+      "title": "Prompts and instructions",
+      "description": "Dynamic system prompt resolver + per-send override"
+    }
+  ]
+}

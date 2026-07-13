@@ -16,7 +16,7 @@
 
 import { Agent } from "@theokit/sdk";
 import { LocalSandbox } from "@theokit/sdk/sandbox";
-import { defineSubAgent } from "@theokit/sdk/a2a";
+import { SubAgent } from "@theokit/sdk/a2a";
 import { HitlMiddleware } from "../../packages/sdk/src/internal/runtime/hitl-middleware.js";
 import {
   shouldSummarize,
@@ -189,7 +189,7 @@ console.log("── 4. SubAgent Delegation ──\n");
 
 if (hasLlm) {
   // Create a subagent tool
-  const researcherTool = defineSubAgent({
+  const researcherTool = SubAgent.create({
     name: "researcher",
     description: "A research assistant that answers factual questions concisely",
     instructions: "You are a concise research assistant. Answer in 1-2 sentences max. Be factual.",
@@ -224,7 +224,7 @@ if (hasLlm) {
   console.log("  Parent agent disposed");
 } else {
   // Verify defineSubAgent works structurally
-  const tool = defineSubAgent({
+  const tool = SubAgent.create({
     name: "researcher",
     description: "Research assistant",
     instructions: "Answer questions.",
@@ -236,7 +236,7 @@ if (hasLlm) {
 
   // Depth limit
   try {
-    defineSubAgent({ name: "deep", description: "Too deep", instructions: "Go deeper." }, 3);
+    SubAgent.create({ name: "deep", description: "Too deep", instructions: "Go deeper." }, 3);
     console.log("  ERROR: should have thrown MaxDelegationDepthError");
   } catch (e: unknown) {
     console.log(`  Depth limit (depth=4, max=3): ${(e as Error).name}`);

@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { defineTool } from "../src/define-tool.js";
+import { Tool } from "../src/define-tool.js";
 
 /**
- * SE17 — `defineTool` gains an optional `toModelOutput`. The handler returns the
+ * SE17 — `Tool` gains an optional `toModelOutput`. The handler returns the
  * FULL structured result (validated by SE16's `outputSchema`); `toModelOutput`
  * maps it to the compact / multimodal representation the MODEL sees in the
  * tool_result. Mirrors Mastra `toModelOutput` + the Vercel AI SDK.
  */
-describe("defineTool toModelOutput (SE17)", () => {
+describe("Tool toModelOutput (SE17)", () => {
   it("maps the full output to the compact model-facing tool result", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "weather",
       description: "Get weather",
       inputSchema: z.object({ city: z.string() }),
@@ -26,7 +26,7 @@ describe("defineTool toModelOutput (SE17)", () => {
   });
 
   it("supports a multimodal (blocks) model-facing output", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "weather",
       description: "Get weather",
       inputSchema: z.object({ city: z.string() }),
@@ -43,7 +43,7 @@ describe("defineTool toModelOutput (SE17)", () => {
   });
 
   it("works without outputSchema (shapes the string handler return)", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "echo",
       description: "Echo",
       inputSchema: z.object({ text: z.string() }),
@@ -54,7 +54,7 @@ describe("defineTool toModelOutput (SE17)", () => {
   });
 
   it("a throwing toModelOutput propagates (converted to tool_result(isError) by the dispatch)", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "weather",
       description: "Get weather",
       inputSchema: z.object({ city: z.string() }),
@@ -68,7 +68,7 @@ describe("defineTool toModelOutput (SE17)", () => {
   });
 
   it("without toModelOutput the SE16 serialization is unchanged", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "weather",
       description: "Get weather",
       inputSchema: z.object({ city: z.string() }),

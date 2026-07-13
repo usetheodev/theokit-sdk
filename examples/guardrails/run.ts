@@ -12,7 +12,7 @@
 
 import {
   Agent,
-  createUnicodeNormalizer,
+  UnicodeNormalizer,
   type Processor,
   type ProcessorViolation,
 } from "@theokit/sdk";
@@ -74,7 +74,7 @@ async function main(): Promise<void> {
     apiKey: "theo_test_guardrails", // fixture runtime — swap for a real key to hit a model
     model: { id: "openai/gpt-4o-mini" },
     inputProcessors: [
-      createUnicodeNormalizer({ stripControlChars: true, collapseWhitespace: true }),
+      UnicodeNormalizer.create({ stripControlChars: true, collapseWhitespace: true }),
       moderationProcessor({ threshold: 0.7, categories: ["hate", "violence"] }),
     ],
     outputProcessors: [piiRedactor()],

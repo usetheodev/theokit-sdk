@@ -1,14 +1,14 @@
 /**
- * M7-5 — createPermissionPlugin wires PermissionEngine into the pre_tool_call veto.
+ * M7-5 — PermissionPlugin wires PermissionEngine into the pre_tool_call veto.
  */
 import { describe, expect, it } from "vitest";
 import type { HookHandler, Plugin, PreToolCallDecision } from "../src/internal/plugins/types.js";
 import { PermissionEngine } from "../src/permission-engine.js";
-import { createPermissionPlugin, type PermissionPluginOptions } from "../src/permission-plugin.js";
+import { PermissionPlugin, type PermissionPluginOptions } from "../src/permission-plugin.js";
 
 /** Register the plugin against a minimal ctx and capture its pre_tool_call handler. */
 function captureHandler(engine: PermissionEngine, opts?: PermissionPluginOptions): HookHandler {
-  const plugin = createPermissionPlugin(engine, opts);
+  const plugin = PermissionPlugin.create(engine, opts);
   let handler: HookHandler | undefined;
   const ctx = {
     registerTool() {},
@@ -23,7 +23,7 @@ function captureHandler(engine: PermissionEngine, opts?: PermissionPluginOptions
   return handler;
 }
 
-describe("createPermissionPlugin (M7-5)", () => {
+describe("PermissionPlugin (M7-5)", () => {
   it("blocks a tool the engine denies", async () => {
     const engine = new PermissionEngine([{ tool: "shell", action: "deny" }]);
     const handler = captureHandler(engine);

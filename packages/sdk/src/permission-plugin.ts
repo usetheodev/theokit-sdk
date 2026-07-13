@@ -104,7 +104,7 @@ async function resolveAsk(
  * the configured {@link PermissionMode}, resolving `ask` via the {@link canUseTool}
  * gate. Register it on an agent's plugin manager (same as the ACP permission plugin).
  */
-export function createPermissionPlugin(
+function createPermissionPlugin(
   engine: PermissionEngine,
   opts: PermissionPluginOptions = {},
 ): Plugin {
@@ -128,4 +128,12 @@ export function createPermissionPlugin(
       });
     },
   });
+}
+
+/** SE36 — `PermissionPlugin.create` replaces `createPermissionPlugin` (ADR 0015). @public */
+export class PermissionPlugin {
+  private constructor() {}
+  static create(engine: PermissionEngine, opts: PermissionPluginOptions = {}): Plugin {
+    return createPermissionPlugin(engine, opts);
+  }
 }
