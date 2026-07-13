@@ -1,3 +1,14 @@
-{ "name": "example-workflow-retry", "private": true, "type": "module",
-  "scripts": { "run": "tsx run.ts" },
-  "dependencies": { "@theokit/sdk": "workspace:*" }, "devDependencies": { "tsx": "^4.19.0" } }
+{
+  "name": "example-workflow-retry",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx run.ts"
+  },
+  "dependencies": {
+    "@theokit/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
