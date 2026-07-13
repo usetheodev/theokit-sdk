@@ -103,3 +103,18 @@ export function createTokenLimiter(opts: TokenLimiterOptions): Processor {
     processOutput: (ctx) => cap(ctx.text, ctx),
   };
 }
+
+/** SE36 — `TokenLimiter.create` replaces `createTokenLimiter` (ADR 0015). @public */
+export class TokenLimiter {
+  private constructor() {}
+  static create(opts: TokenLimiterOptions): Processor {
+    return createTokenLimiter(opts);
+  }
+}
+/** SE36 — `UnicodeNormalizer.create` replaces `createUnicodeNormalizer` (ADR 0015). @public */
+export class UnicodeNormalizer {
+  private constructor() {}
+  static create(opts: UnicodeNormalizerOptions = {}): Processor {
+    return createUnicodeNormalizer(opts);
+  }
+}

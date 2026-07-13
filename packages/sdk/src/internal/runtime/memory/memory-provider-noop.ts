@@ -107,3 +107,11 @@ export function createNoopMemoryProvider(): MemoryProvider {
     },
   };
 }
+
+/** SE36 — `NoopMemoryProvider.create` replaces `createNoopMemoryProvider` (ADR 0015). @public */
+export class NoopMemoryProvider {
+  private constructor() {}
+  static create(): MemoryProvider {
+    return createNoopMemoryProvider();
+  }
+}

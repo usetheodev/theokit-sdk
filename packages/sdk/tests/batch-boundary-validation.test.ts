@@ -2,7 +2,7 @@
  * Boundary validation for Agent.batch (cross-val Gap 3, narrowed).
  *
  * batchImpl previously validated `concurrency` only incidentally via
- * createSemaphore (leaky internal message, AND after wrapBatchAsTask — so an
+ * Semaphore (leaky internal message, AND after wrapBatchAsTask — so an
  * invalid concurrency with `task` set registered a dangling Task before
  * throwing). Prompt items were never validated. This adds a pre-flight
  * `validateBatchInput` that fails fast with a typed ConfigurationError BEFORE

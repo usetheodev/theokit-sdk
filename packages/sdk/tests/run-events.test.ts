@@ -2,7 +2,7 @@ import { createServer, type Server } from "node:http";
 
 import { afterEach, describe, expect, it } from "vitest";
 
-import { createPermissionPlugin, PermissionEngine } from "../src/index.js";
+import { PermissionEngine, PermissionPlugin } from "../src/index.js";
 import { emitRunEvent, type RunEvent } from "../src/types/run-events.js";
 
 /**
@@ -149,7 +149,7 @@ async function drainWithEvents(opts: { toolAction: "deny" | "allow" }): Promise<
       ],
       // The engine's rule decides deny/allow directly for "risky"; no ask branch,
       // so no canUseTool is needed for this test (a "deny" rule short-circuits).
-      plugins: [createPermissionPlugin(engine)],
+      plugins: [PermissionPlugin.create(engine)],
     });
     const run = await agent.send("do it", { onRunEvent: (e) => events.push(e) });
     for await (const _ of run.stream()) {
