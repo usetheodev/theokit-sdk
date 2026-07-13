@@ -995,6 +995,45 @@ hardens the write tools that already exist opt-in.
 
 **Why now:** a peer framework Schedules is ~70% already covered by the shipped `Cron` façade; the majority runtime-legitimate delta is scheduling a **workflow** (the SDK already ships Workflows + the Cron scheduler). It reuses two shipped primitives, adds no new scheduler/store/registry, and stays inside the SDK-owns-runtime invariant. The threaded-signal + client-route deltas are transport/framework glue and stay out.
 
+### SE36 — [ ] Uniform `X.create()` public API (v3.0 breaking — reverses Rule 9)
+
+**Objective:** Replace **every** factory function in the public surface — capability factories
+(`defineTool`, `defineProvider`, `definePlugin`, `defineSkillReadTool`, `defineSubscription`,
+`createSquad`, `createSkill`, `createSessionManager`, `createAgentFactory`,
+`createNoopMemoryProvider`) **and** the utility factories (`createSemaphore`,
+`createTokenLimiter`, `createUnicodeNormalizer`, `createPermissionPlugin`, `withRetry`, …) —
+with a single uniform static-namespace form `X.create()` (`Tool.create`, `Provider.create`,
+`Plugin.create`, `Squad.create`, `Skill.create`, `Session.create`, `Subscription.create`,
+`AgentFactory.create`, `Semaphore.create`, `TokenLimiter.create`, `PermissionPlugin.create`, …),
+matching the existing `Agent.create` / `Cron.create` / `Workflow.create`. Owner-mandated
+uniformity (2026-07-13): one mental model across the whole surface. **Hard break at v3.0** — the
+old `define*`/`create*` exports are REMOVED, not aliased. This **reverses Unbreakable Rule 9**
+(factory functions canonical, ADR D431) via a new superseding ADR.
+
+**Definition of done:**
+
+- [ ] ADR written that supersedes D431 and reverses Rule 9; documents the new convention "every public capability & utility factory ships as an `X.create()` static method" + the SOTA-divergence rationale.
+- [ ] Every listed factory converted to a namespace class with a static `create()`; old `define*`/`create*` exports REMOVED from every entrypoint barrel (hard break — no deprecated aliases).
+- [ ] `docs.md` (source of truth) + `README.md` updated to the new surface; zero `defineTool`/`createSquad`/… references remain (grep-clean).
+- [ ] `CLAUDE.md` Inviolable Rule 9 + the Locked-names table rewritten to the new convention (Locked-names change protocol: docs.md + README + CHANGELOG in the same PR).
+- [ ] jscodeshift codemod rewriting `defineX(...)`/`createX(...)` → `X.create(...)` for consumers, with a migration guide; the codemod round-trips the entire in-tree `examples/**` suite.
+- [ ] Every example under `examples/**` + the docs-site examples migrated and **re-verified against a real LLM (OpenRouter)** per `rules/real-llm-validation.md`.
+- [ ] All tests migrated; TDD per converted symbol: a regression test asserting the new `X.create` has behavior parity with the removed factory (RED first).
+- [ ] Major bump `@theokit/sdk@3.0.0` + Changeset; CHANGELOG `[Unreleased] § Removed` lists every removed factory, `§ Changed` documents the rename.
+
+**Dependencies:** SE35 (and transitively all SE1–SE35, all `[x]`) — the redesign renames the
+**entire existing public surface**, so every prior slice that introduced a factory must be
+shipped and frozen before the sweep. No new capability depends on it; it is a cross-cutting rename.
+
+**Top risks (new):**
+1. **Maximum blast radius** — hard-break + full-scope (incl. internal utilities like `Semaphore.create`) breaks every consumer import at once, with no grace window; a codemod bug strands users. Mitigation: exhaustive codemod test corpus; ship 3.0.0 only after the codemod round-trips the whole in-tree example suite.
+2. **Ecosystem-idiom divergence** — reverses a locked rule that matches every peer SDK's `tool()` idiom (a peer framework / OpenAI Agents / a framework); utility factories forced into artificial namespaces (`Retry.create`) lose ergonomic clarity. Mitigation: the ADR records the rationale + divergence explicitly; docs lead with the mental model.
+
+**Why now:** the owner identified the `Agent.create` vs `defineTool` inconsistency as a
+first-class design defect and decided (2026-07-13) on full uniformity before the public API
+ossifies further with more consumers. The honest counter-argument (current split is SOTA-aligned
+and Rule-9-locked) was surfaced and the trade-off accepted.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
