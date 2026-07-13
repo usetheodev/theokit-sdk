@@ -254,6 +254,13 @@
       "page": "/theokit/cost/estimate-cost",
       "title": "Estimate cost",
       "description": "computeCost maps token usage to a USD CostBreakdown (deterministic)"
+    },
+    {
+      "slug": "compaction-basics",
+      "domain": "compaction",
+      "page": "/theokit/compaction/decide-when-to-compact",
+      "title": "Decide when to compact",
+      "description": "estimateTokens + shouldCompact detect context overflow (deterministic)"
     }
   ]
 }
