@@ -25,7 +25,7 @@ if (apiKey === undefined || apiKey.length === 0) {
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   name: "streamer-bot",
   systemPrompt: "You are a concise storyteller.",
   local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },

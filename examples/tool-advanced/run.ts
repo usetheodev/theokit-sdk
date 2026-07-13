@@ -19,7 +19,7 @@ const lookupOrder = Tool.create({
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: "Use lookup_order when asked about an order. Answer in one sentence.",
   tools: [lookupOrder],
 });

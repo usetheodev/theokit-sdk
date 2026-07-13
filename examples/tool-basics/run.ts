@@ -39,7 +39,7 @@ const getWeather = Tool.create({
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   name: "weather-bot",
   systemPrompt: "Use the get_weather tool when the user asks about weather. Answer in one sentence.",
   tools: [getWeather],
