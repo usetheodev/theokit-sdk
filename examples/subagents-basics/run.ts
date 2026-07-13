@@ -15,7 +15,7 @@ const translator = SubAgent.create({
 
 const supervisor = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   systemPrompt: "When the user asks for a translation, delegate it to the translator tool. Answer in one line.",
   tools: [translator],
 });
@@ -25,3 +25,9 @@ console.log("Status:", result.status);
 console.log("Reply: ", result.result);
 
 await supervisor.dispose();
+
+// --- validate output (fail loud) ---
+if (result.status !== "finished" || typeof result.result !== "string" || result.result.length === 0) {
+  console.error("run did not finish:", JSON.stringify(result.error ?? result.status));
+  process.exit(1);
+}
