@@ -22,7 +22,7 @@ if (apiKey === undefined || apiKey.length === 0) {
 // (`ctx.userMessage`, `ctx.model`, recalled `ctx.memory`, …).
 const agent = await Agent.create({
   apiKey,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: (ctx) =>
     `You are a terse assistant. Answer in exactly one sentence. The user asked: "${ctx.userMessage}".`,
 });

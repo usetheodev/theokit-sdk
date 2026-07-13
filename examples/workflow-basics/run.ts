@@ -13,7 +13,7 @@ import { Workflow, agentStep, fn } from "@theokit/sdk/workflow";
 
 const writer = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: "You write exactly one concise, factual sentence. No preamble.",
 });
 

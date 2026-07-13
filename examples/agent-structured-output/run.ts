@@ -28,7 +28,7 @@ const Sentiment = z.object({
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   name: "review-analyzer",
   systemPrompt: "You analyze product reviews and return structured sentiment.",
   local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },

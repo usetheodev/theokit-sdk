@@ -31,7 +31,7 @@ console.log(`Context:  ${caps.maxContextTokens} tokens  ·  tools: ${caps.suppor
 //    (here OpenRouter routes `openai/…`).
 const agent = await Agent.create({
   apiKey,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: "You are concise.",
 });
 const result = await (await agent.send("Name three popular LLM providers, comma-separated.")).wait();

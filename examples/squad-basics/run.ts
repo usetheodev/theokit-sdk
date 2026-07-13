@@ -10,13 +10,13 @@ import { Agent, Squad } from "@theokit/sdk";
 
 const brainstormer = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: "List exactly 3 short product name ideas as a comma-separated line. No preamble.",
 });
 
 const picker = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: "From the given list, pick the single best name and reply with just that name and a 6-word reason.",
 });
 
