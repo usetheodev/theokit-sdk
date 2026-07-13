@@ -261,7 +261,7 @@ async function applyDelegationComplete(
   return completion?.feedback !== undefined ? result + completion.feedback : result;
 }
 
-export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
+function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
   const currentDepth = _parentDepth + 1;
   const maxDepth = spec.maxDelegationDepth ?? 3;
 
