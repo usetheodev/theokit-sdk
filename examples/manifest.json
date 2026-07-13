@@ -310,6 +310,13 @@
       "page": "/theokit/evals/score-a-prediction",
       "title": "Score a prediction",
       "description": "Built-in Scorers grade output vs expected (deterministic, no LLM)"
+    },
+    {
+      "slug": "sandbox-exec",
+      "domain": "sandbox",
+      "page": "/theokit/sandbox/run-a-command",
+      "title": "Run a command",
+      "description": "LocalSandbox.execute runs a shell command and captures stdout/exitCode (deterministic)"
     }
   ]
 }
