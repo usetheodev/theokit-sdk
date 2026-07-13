@@ -995,7 +995,7 @@ hardens the write tools that already exist opt-in.
 
 **Why now:** a peer framework Schedules is ~70% already covered by the shipped `Cron` façade; the majority runtime-legitimate delta is scheduling a **workflow** (the SDK already ships Workflows + the Cron scheduler). It reuses two shipped primitives, adds no new scheduler/store/registry, and stays inside the SDK-owns-runtime invariant. The threaded-signal + client-route deltas are transport/framework glue and stay out.
 
-### SE36 — [ ] Uniform `X.create()` public API (v3.0 breaking — reverses Rule 9)
+### SE36 — [x] Uniform `X.create()` public API (v3.0 breaking — reverses Rule 9)
 
 **Objective:** Replace **every** factory function in the public surface — capability factories
 (`defineTool`, `defineProvider`, `definePlugin`, `defineSkillReadTool`, `defineSubscription`,
