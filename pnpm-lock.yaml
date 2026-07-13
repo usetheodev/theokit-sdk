@@ -63,16 +63,6 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
 
-  examples/_probe-child:
-    dependencies:
-      '@theokit/sdk':
-        specifier: workspace:*
-        version: link:../../packages/sdk
-    devDependencies:
-      tsx:
-        specifier: ^4.19.0
-        version: 4.22.0
-
   examples/abort-mid-stream:
     dependencies:
       '@theokit/sdk':
@@ -283,6 +273,16 @@ importers:
         version: 4.22.0
 
   examples/filesystem-boundary:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/goals-objective:
     dependencies:
       '@theokit/sdk':
         specifier: workspace:*
