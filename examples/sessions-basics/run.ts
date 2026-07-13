@@ -11,7 +11,7 @@ const storage = new FileSystemConversationStorage({ root: "./.sessions" });
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   conversationStorage: storage,
   systemPrompt: "You are concise.",
 });

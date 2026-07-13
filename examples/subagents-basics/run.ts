@@ -11,11 +11,13 @@ const translator = SubAgent.create({
   name: "translator",
   description: "Translate a short English phrase into French.",
   instructions: "You translate English to French. Reply with only the French translation, nothing else.",
+  // The subagent needs its own model — it routes to OpenRouter, which reads OPENROUTER_API_KEY.
+  model: "openai/gpt-4o-mini",
 });
 
 const supervisor = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: "When the user asks for a translation, delegate it to the translator tool. Answer in one line.",
   tools: [translator],
 });

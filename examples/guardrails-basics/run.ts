@@ -10,7 +10,7 @@ import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
+  model: { id: "openai/gpt-4o-mini" },
   inputProcessors: [
     {
       id: "no-secrets",
