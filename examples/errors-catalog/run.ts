@@ -2,6 +2,7 @@
  * Errors — every SDK error extends TheokitAgentError, so you catch once and branch on `code`,
  * `isRetryable`, and `instanceof`. Deterministic: constructs typed errors and inspects them (no LLM).
  */
+import assert from "node:assert/strict";
 import {
   TheokitAgentError,
   AuthenticationError,
@@ -24,3 +25,8 @@ for (const err of errors) {
       `retryable=${err.isRetryable} transient=${isTransientError(err)}`,
   );
 }
+
+// --- validate output (assert) ---
+assert.ok(errors.every((e) => e instanceof TheokitAgentError));
+assert.equal(new RateLimitError("x").isRetryable, true);
+assert.equal(new AuthenticationError("x").isRetryable, false);

@@ -5,6 +5,7 @@
  * tripwire (`status: "cancelled"`, `result.tripwire` carries the reason + processor id) — no
  * provider call is made. `outputProcessors` do the same for the model's reply. Deterministic.
  */
+import assert from "node:assert/strict";
 import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
@@ -26,3 +27,7 @@ console.log("status:", result.status);
 console.log("tripwire:", JSON.stringify(result.tripwire));
 
 await agent.dispose();
+
+// --- validate output (assert) ---
+assert.equal(result.status, "cancelled");
+assert.ok(result.tripwire);
