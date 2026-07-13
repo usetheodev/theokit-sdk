@@ -261,6 +261,13 @@
       "page": "/theokit/compaction/decide-when-to-compact",
       "title": "Decide when to compact",
       "description": "estimateTokens + shouldCompact detect context overflow (deterministic)"
+    },
+    {
+      "slug": "context-inspect",
+      "domain": "context",
+      "page": "/theokit/context/inspect-loaded-context",
+      "title": "Inspect loaded context",
+      "description": "agent.context.snapshot() reports which context files loaded (deterministic)"
     }
   ]
 }
