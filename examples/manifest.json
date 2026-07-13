@@ -331,6 +331,13 @@
       "page": "/theokit/personalities/switch-personality",
       "title": "Switch personality",
       "description": "usePersonality resolves a .theokit/personalities preset (deterministic)"
+    },
+    {
+      "slug": "goals-objective",
+      "domain": "goals",
+      "page": "/theokit/goals/set-a-durable-objective",
+      "title": "Set a durable objective",
+      "description": "setObjective/getObjective persist a thread-scoped goal (deterministic)"
     }
   ]
 }
