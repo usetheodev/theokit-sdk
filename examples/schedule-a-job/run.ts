@@ -2,6 +2,7 @@
  * Schedules — define a recurring agent run with Cron.create. Deterministic: the job is created
  * disabled, so the scheduler never fires it (no LLM). We inspect its shape, then delete it.
  */
+import assert from "node:assert/strict";
 import { Cron } from "@theokit/sdk";
 
 const job = await Cron.create({
@@ -21,3 +22,8 @@ console.log("status:  ", job.status);
 
 await Cron.delete(job.id);
 console.log("deleted: ", true);
+
+// --- validate output (assert) ---
+assert.equal(job.enabled, false);
+assert.equal(job.runtime, "local");
+assert.equal(job.cron, "0 9 * * *");

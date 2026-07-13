@@ -5,6 +5,7 @@
  * `context: {}` turns on the file context manager; `settingSources: ["project"]` opts in to reading
  * project files. The manager discovers AGENTS.md / CLAUDE.md / THEO.md from the working directory.
  */
+import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -37,3 +38,6 @@ const agents = snap?.sources?.find((s) => s.name.startsWith("AGENTS.md"));
 console.log("AGENTS.md status:", agents?.status ?? "not found");
 
 await agent.dispose?.();
+
+// --- validate output (assert) ---
+assert.equal(agents?.status, "included");

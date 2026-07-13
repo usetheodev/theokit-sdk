@@ -3,6 +3,7 @@
  * skill + agent and reading agent.skills is local (no LLM). The skill's name+description reach the
  * model's system prompt; its body is fetched on demand via agent.skills.get().
  */
+import assert from "node:assert/strict";
 import { Agent, Skill } from "@theokit/sdk";
 
 const shipSkill = Skill.create({
@@ -25,3 +26,7 @@ console.log("ship description:", detail?.description);
 console.log("body loaded?    ", typeof detail?.instructions === "string");
 
 await agent.dispose?.();
+
+// --- validate output (assert) ---
+assert.ok(listed?.some((s) => s.name === "ship"));
+assert.equal(typeof detail?.instructions, "string");

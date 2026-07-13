@@ -2,6 +2,7 @@
  * Personalities — switch an agent to a named personality and inspect the resolved preset.
  * Deterministic: usePersonality resolves a `.theokit/personalities/<name>.md` from disk (no LLM).
  */
+import assert from "node:assert/strict";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -38,3 +39,7 @@ console.log("tags:       ", preset?.tags?.join(", "));
 console.log("source:     ", preset?.source);
 
 await agent.dispose?.();
+
+// --- validate output (assert) ---
+assert.equal(preset?.name, "reviewer");
+assert.equal(preset?.source, "project");
