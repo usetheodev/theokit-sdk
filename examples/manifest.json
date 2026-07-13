@@ -289,6 +289,13 @@
       "page": "/theokit/schedules/schedule-a-recurring-run",
       "title": "Schedule a recurring run",
       "description": "Cron.create defines a recurring agent run (deterministic \u2014 created disabled)"
+    },
+    {
+      "slug": "tasks-background",
+      "domain": "tasks",
+      "page": "/theokit/tasks/run-work-in-the-background",
+      "title": "Run work in the background",
+      "description": "Task.submit + subscribe observe a background task to completion (deterministic)"
     }
   ]
 }
