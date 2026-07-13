@@ -81,7 +81,7 @@ It is sugar over `Agent.generateObject` (the synthetic forced-`output`-tool mach
 
 Creating agents
 
-function Agent.create(options: AgentOptions): Promise<SDKAgent>;
+Agent.create(options: AgentOptions): Promise<SDKAgent>;
 Agent.create() validates options and returns a handle immediately. Pass either local or cloud to pick a runtime.
 
 
@@ -331,13 +331,13 @@ SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a p
 
 The multi-agent primitives stamp it for you: a Squad stamps { kind: "peer", from: "agent-<i-1>" } on every step after the first (the first receives the human input); every a2a A2AMessage carries origin: { kind: "peer", from } as a thin projection of the sender address. Background-delegation and handoff are host-driven — pass the origin yourself on the follow-up send (agent.send(input, { origin: { kind: "task-notification" } })) and read it back on result.origin.
 
-Session management (createSessionManager)
+Session management (Session.create)
 
-SE4. A host that persists conversations (Agent.create({ conversationStorage })) often needs to build a session list/UI — without reaching into the storage internals. createSessionManager(storage) is that surface over the same ConversationStorageAdapter instance:
+SE4. A host that persists conversations (Agent.create({ conversationStorage })) often needs to build a session list/UI — without reaching into the storage internals. Session.create(storage) is that surface over the same ConversationStorageAdapter instance:
 
   const storage = new FileSystemConversationStorage();
   const agent = await Agent.create({ conversationStorage: storage });
-  const sessions = createSessionManager(storage);
+  const sessions = Session.create(storage);
 
   const listed = await sessions.listSessions({ limit: 20 });   // SessionCapabilityResult
   if (listed.supported) {
@@ -357,7 +357,7 @@ A single agent.send() runs the tool-calling loop up to a ceiling — SendOptions
 
 Doom-loop guard. Independently, the loop stops early when the model repeats IDENTICAL tool calls (same name + same input) that make no progress — e.g. a tool that keeps failing and is retried unchanged. This is on by default with generous thresholds (soft 3 / hard 5): at the soft threshold a one-time guidance nudge is injected as a user message in the transcript; at the hard threshold the run stops with result.stoppedByDoomLoop === true (surfacing as terminal "no_progress" through runToCompletion — a controlled stop, not a truncation to re-send). Because it is on by default, a run that previously ground to the iteration ceiling on an identical-repeat loop now terminates earlier with stoppedByDoomLoop instead of stoppedAtIterationLimit. Tune or disable per call with SendOptions.doomLoop: false to disable, or { softThreshold, hardThreshold } to tune (each a positive integer; invalid values throw ConfigurationError). It complements stoppedAtIterationLimit (a different failure mode: model stuck repeating vs work truncated at the ceiling).
 
-Per-tool timeout and cancellation (#58). SendOptions.perToolTimeoutMs (a positive integer, undefined = no timeout) bounds each individual tool call: a hung tool yields a typed timeout result (exitCode 124, "tool execution timed out") instead of wedging the run, while other tools continue. Independently, cancelling the run's SendOptions.signal interrupts an in-flight tool and stops the loop between iterations (the current turn's own abort UX is preserved). Tool handlers defined with defineTool receive an optional 2nd ToolContext argument ({ signal }) so a cooperative handler can stop early; single-argument handlers are unaffected. The JobQueue primitive is likewise bounded — new JobQueue({ maxConcurrency }) caps concurrent jobs (omit for unbounded) and cancel(id) now aborts a running job's signal, not just its status.
+Per-tool timeout and cancellation (#58). SendOptions.perToolTimeoutMs (a positive integer, undefined = no timeout) bounds each individual tool call: a hung tool yields a typed timeout result (exitCode 124, "tool execution timed out") instead of wedging the run, while other tools continue. Independently, cancelling the run's SendOptions.signal interrupts an in-flight tool and stops the loop between iterations (the current turn's own abort UX is preserved). Tool handlers defined with Tool.create receive an optional 2nd ToolContext argument ({ signal }) so a cooperative handler can stop early; single-argument handlers are unaffected. The JobQueue primitive is likewise bounded — new JobQueue({ maxConcurrency }) caps concurrent jobs (omit for unbounded) and cancel(id) now aborts a running job's signal, not just its status.
 
 Tool-result content guard (#57). SendOptions.toolResultGuard opts into a built-in defense applied before tool output reaches the LLM: { delimit: true } frames untrusted tool output in explicit <untrusted-tool-output> data boundaries (a forged closing marker inside the content is neutralized) so the model treats it as data, not instructions; { redactPii: true } redacts email/phone PII. Both are off by default (undefined = unchanged behavior). Import the ToolResultGuardOptions type from @theokit/sdk.
 
@@ -810,9 +810,9 @@ const agent = await Agent.getOrCreate(`tg-user-${userId}`, {
 
 Use when: chat bots, long-running agents, any consumer that wants idempotent "give me this agent" semantics without try/catch boilerplate.
 
-createAgentFactory()
+AgentFactory.create()
 
-function createAgentFactory(common: Partial<AgentOptions>): AgentFactory;
+AgentFactory.create(common: Partial<AgentOptions>): AgentFactory;
 interface AgentFactory {
   forSession(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
   getOrCreate(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
@@ -820,7 +820,7 @@ interface AgentFactory {
 
 Captures shared `AgentOptions` once and produces per-session agents with focused overrides (ADR D23). Merge rules: top-level shallow merge with overrides winning; deep merge for `local`, `memory`, `cloud`; total replace for collection-shaped fields (`mcpServers`, `agents`, `tools`, `providers`, `plugins`, `skills`, `context`). The function-level `agentId` always wins.
 
-const factory = createAgentFactory({
+const factory = AgentFactory.create({
   apiKey: process.env.Theo_API_KEY!,
   model: { id: "claude-sonnet-4-6" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
@@ -833,9 +833,9 @@ const agent = await factory.getOrCreate(`tg-user-${userId}`, {
 
 Use when: chat-bot patterns where 90% of the config is identical across users and only a handful of fields change per session.
 
-defineTool()
+Tool.create()
 
-function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool;
+Tool.create<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool;
 interface DefineToolSpec<T extends ZodType> {
   name: string;
   description: string;
@@ -868,9 +868,9 @@ On failure, throw a ToolError to carry a clean message OR the same structured co
 A plain Error still works (its message becomes the error text). This is provider-agnostic and capability-based: a provider whose tool-result can carry blocks forwards them natively; a string-only provider flattens text-only blocks to a string and FAILS FAST with a typed ConfigurationError on an image block (a silently-dropped image would be a lie to the model). Types: ImageBlock, ToolResultContentBlock (= TextBlock | ImageBlock).
 
 import { z } from "zod";
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 
-const rollTool = defineTool({
+const rollTool = Tool.create({
   name: "roll",
   description: "Roll N dice with S sides each.",
   inputSchema: z.object({
@@ -1001,7 +1001,7 @@ Runtime is inferred from how the job is created: pass agent.local or an agentId 
 Cron.create()
 
 
-function Cron.create(options: CronCreateOptions): Promise<CronJob>;
+Cron.create(options: CronCreateOptions): Promise<CronJob>;
 
 const job = await Cron.create({
   cron: "0 9 * * *",                 // every day at 09:00
@@ -1947,7 +1947,7 @@ Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vec
 
 In-house bounded-concurrency primitives (no `p-limit`/`p-map` dependency), public from the `@theokit/sdk/concurrency` sub-path so agent builders bound parallel work without re-implementing a pool:
 
-- `createSemaphore(permits)` — N-permit async-aware counting semaphore. `acquire()` returns a release function (call once, typically in `finally`). Release is idempotent.
+- `Semaphore.create(permits)` — N-permit async-aware counting semaphore. `acquire()` returns a release function (call once, typically in `finally`). Release is idempotent.
 - `mapWithConcurrency(items, concurrency, fn, { signal? })` — map `fn` over `items` with at most `concurrency` invocations in flight, **preserving input order** in the result array. Fail-fast (rejects with the first task error); an aborted `signal` stops new work from starting. Throws `ConfigurationError` (`invalid_concurrency`) when `concurrency` is not a positive integer.
 
 ```ts
@@ -1958,14 +1958,14 @@ const results = await mapWithConcurrency(urls, 4, (url) => fetchJson(url)); // �
 
 #### Retry — `@theokit/sdk/retry`
 
-`withRetry(fn, options?)` — run `fn`, retrying transient failures with exponential backoff + full jitter. The default `isRetryable` predicate is `isTransientError`, so it retries exactly what the SDK classifies as transient (rate-limit, network, credential-pool-exhausted) and rethrows the rest immediately. `sleep` and `rng` are injectable for deterministic tests (no real timers).
+`Retry.create(fn, options?)` — run `fn`, retrying transient failures with exponential backoff + full jitter. The default `isRetryable` predicate is `isTransientError`, so it retries exactly what the SDK classifies as transient (rate-limit, network, credential-pool-exhausted) and rethrows the rest immediately. `sleep` and `rng` are injectable for deterministic tests (no real timers).
 
 Options: `retries` (default 3), `isRetryable`, `initialDelayMs` (100), `maxDelayMs` (30_000), `backoffMultiplier` (2), `rng`, `sleep`, `signal`.
 
 ```ts
-import { withRetry } from "@theokit/sdk/retry";
+import { Retry } from "@theokit/sdk/retry";
 
-const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
+const data = await Retry.create(() => agent.send(message, { throwOnError: true }), { retries: 5 });
 ```
 
 #### Tool input sanitization — `@theokit/sdk/sanitize`
@@ -1994,7 +1994,7 @@ const { value } = sanitizeToolInput({ path: "\nsrc/index.ts\n", n: "5" }, { coer
 // value → { path: "src/index.ts", n: 5 }
 ```
 
-Most consumers use it declaratively via `defineTool({ sanitize })` (above) rather than calling it directly. The SDK's own leaked-dialect recovery reuses this same primitive, so the public surface and the internal path never diverge.
+Most consumers use it declaratively via `Tool.create({ sanitize })` (above) rather than calling it directly. The SDK's own leaked-dialect recovery reuses this same primitive, so the public surface and the internal path never diverge.
 
 #### Message readers — `@theokit/sdk/messages`
 
@@ -2114,7 +2114,7 @@ await writeProjectInstructions(process.cwd(), "# Project rules\n…"); // atomic
 
 ## Built-in tools for coding agents (v1.x+)
 
-Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
+Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `AgentFactory.create({ tools: [...] })`. All five share the same three rules:
 
 1. **Project-scoped.** Every I/O call passes through `safePathJoin` + `assertNoSymlinkEscape`.
 2. **Sensitive files refused.** `.env*` (except `.env.example`), `.git/`, `node_modules/`, `.theo/`, lock files via `isForbiddenPath`.
@@ -2164,7 +2164,7 @@ The wording of a tool's `description` (its Agent-Computer Interface) materially 
 
 ### Command-permission policies
 
-`PermissionEngine` (from `@theokit/sdk`) gates a tool call by name AND, since #55, by its argument values: a `PermissionRule` may declare `args?: Record<string, string | RegExp | (v) => boolean>`, and `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared arg predicate matches — so a single `shell` rule can deny `rm -rf` while allowing `ls`. A missing argument fails its predicate (the rule does not match; never throws). **Behavior change (#55):** the default when no rule matches is now `"ask"` (fail-closed) — a permission engine that cannot positively allow must not silently allow. Restore the previous fail-open behavior with `new PermissionEngine(rules, { defaultAction: "allow" })`. `createPermissionPlugin(engine)` forwards the tool arguments into `evaluate`, so arg-level gating works through the `pre_tool_call` flow automatically.
+`PermissionEngine` (from `@theokit/sdk`) gates a tool call by name AND, since #55, by its argument values: a `PermissionRule` may declare `args?: Record<string, string | RegExp | (v) => boolean>`, and `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared arg predicate matches — so a single `shell` rule can deny `rm -rf` while allowing `ls`. A missing argument fails its predicate (the rule does not match; never throws). **Behavior change (#55):** the default when no rule matches is now `"ask"` (fail-closed) — a permission engine that cannot positively allow must not silently allow. Restore the previous fail-open behavior with `new PermissionEngine(rules, { defaultAction: "allow" })`. `PermissionPlugin.create(engine)` forwards the tool arguments into `evaluate`, so arg-level gating works through the `pre_tool_call` flow automatically.
 
 For agents that gate shell commands at a permission layer, `@theokit/sdk-tools` exports a small composable policy layer that builds on the `shell_exec` catastrophic guardrail:
 
@@ -2232,7 +2232,7 @@ const planNodes = todoItemsToPlanNodes(result.items); // [{ id: "todo-1", label:
 ```
 
 ```typescript
-import { createAgentFactory } from "@theokit/sdk";
+import { AgentFactory } from "@theokit/sdk";
 import {
   createReadFileTool,
   createListDirTool,
@@ -2242,7 +2242,7 @@ import {
 } from "@theokit/sdk/tools";
 
 const projectRoot = process.cwd();
-const factory = createAgentFactory({
+const factory = AgentFactory.create({
   apiKey: process.env.ANTHROPIC_API_KEY!,
   model: { id: "claude-3-5-sonnet-20241022" },
   systemPrompt: "You are a coding agent. Use the tools.",
@@ -2700,27 +2700,27 @@ When OTel is available and agent telemetry is enabled, each handoff emits a
 `handoff.transfer` span with attributes `handoff.from`, `handoff.to`,
 `handoff.reason`, `handoff.depth`, `handoff.tool_name`.
 
-## Squad (sequential agent teams) — `createSquad`
+## Squad (sequential agent teams) — `Squad.create`
 
-`createSquad` is a thin convenience for the common "run a team of agents in
+`Squad.create` is a thin convenience for the common "run a team of agents in
 order" case. It **composes `Workflow` + `agentStep`** under the hood — it adds
 no new orchestration engine. Each agent's output is threaded into the next
 agent's prompt; `run()` returns the final result plus a per-agent trace.
 
 ```typescript
-import { Agent, createSquad } from "@theokit/sdk";
+import { Agent, Squad } from "@theokit/sdk";
 
 const researcher = await Agent.create({ /* ... */ });
 const writer = await Agent.create({ /* ... */ });
 const editor = await Agent.create({ /* ... */ });
 
-const squad = createSquad({ agents: [researcher, writer, editor] }); // process defaults to "sequential"
+const squad = Squad.create({ agents: [researcher, writer, editor] }); // process defaults to "sequential"
 const run = await squad.run("Write a post about TypeScript agents.");
 console.log(run.result);  // final (editor's) output
 console.log(run.steps);   // StepResult[] — one per agent
 ```
 
-- **Sequential is the only `createSquad` process.** For branching/parallel/foreach
+- **Sequential is the only `Squad.create` process.** For branching/parallel/foreach
   teams use `Workflow` + `agentStep` directly (more expressive). For
   manager→worker delegation use **subagents** or **`@theokit/sdk-handoff`** —
   passing `process: "hierarchical"` throws a `ConfigurationError` pointing you
@@ -2732,7 +2732,7 @@ console.log(run.steps);   // StepResult[] — one per agent
 The decorator authoring style (`@Workflow` + `@Step` + `buildWorkflow`, and `@Squad`) was
 extracted to `@theokit/di-agent` in the `theokit-di` repo (plan monorepo-cohesion-split;
 ADR D431 made decorators an optional layer, not a Harness requirement). It compiles a decorated
-class into a `@theokit/sdk` `Workflow` — the SDK ships the `Workflow` + `agentStep` + `createSquad`
+class into a `@theokit/sdk` `Workflow` — the SDK ships the `Workflow` + `agentStep` + `Squad.create`
 primitives below; the decorator sugar is opt-in via that package.
 
 ## Workflows (v1.17+) — `Workflow.create / .run / .resume`
@@ -3008,21 +3008,21 @@ with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic
 | `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
 
 
-## Custom providers (`defineProvider`)
+## Custom providers (`Provider.create`)
 
 Register any OpenAI-/Anthropic-compatible LLM endpoint (Groq, Together, Fireworks,
 DeepInfra, a private gateway) without forking. A provider is **data-only** — a
 `ProviderProfile` object literal; the transport is selected from `apiMode`, so no
 new code is required for an endpoint that speaks an existing dialect.
 
-`defineProvider(profile)` is the canonical factory (mirrors `defineTool` /
-`definePlugin`). It returns a `Plugin` you pass to `Agent.create({ plugins })`.
+`Provider.create(profile)` is the canonical factory (mirrors `Tool.create` /
+`Plugin.create`). It returns a `Plugin` you pass to `Agent.create({ plugins })`.
 Route to the provider with the `provider/model` id prefix or `providers.routes`.
 
 ```ts
-import { Agent, defineProvider } from "@theokit/sdk";
+import { Agent, Provider } from "@theokit/sdk";
 
-const groq = defineProvider({
+const groq = Provider.create({
   name: "groq",
   apiMode: "chat_completions",        // OpenAI-compatible
   authType: "api_key",
@@ -3052,7 +3052,7 @@ const agent = await Agent.create({
 | `extractToolCallsFromContent` | no | Opt-in leaked-dialect safe-parse (default off). When `true`, a `chat_completions` finish with ZERO native `tool_calls` has its assistant content scanned for the Hermes `<function=…></tool_call>` dialect; a recovered call surfaces as a real `tool_call` **only when its name matches a tool declared in the request** (request-scoped — a leaked block for a tool the model was not given stays as visible text and is not promoted). Enable only for routes/models known to leak (e.g. a qwen3-coder profile variant) — a code assistant can legitimately print a literal `<function=` in a fenced block, so the flag is the coarse enable and the request-tool allowlist is the precise false-positive guard. While streaming with the flag on, the suspected dialect is held back at the stream boundary and never emitted as a visible `text_delta` (so the raw `<function=…>` markup does not flash by in the live stream); a never-closing marker fails open to visible text. Native `tool_calls` always win (no double-count). |
 | `displayName`, `description`, `signupUrl`, `modelsUrl`, `hostname`, `extraHeaders`, `bodyOverrides` | no | Metadata / transport tweaks. |
 
-`defineProvider(profile, { version })` overrides the plugin version (default
+`Provider.create(profile, { version })` overrides the plugin version (default
 `"1.0.0"`). Re-registering an existing provider `name` is last-writer-wins and
 emits a one-line stderr WARN. Use `authType: "none"` for local runtimes that
 ignore the `Authorization` header.

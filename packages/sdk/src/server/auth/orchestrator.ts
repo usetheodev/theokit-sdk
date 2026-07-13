@@ -57,9 +57,7 @@ function txCookieSecret<TSession>(opts: DefineAuthOptions<TSession>): string {
   return process.env.THEOKIT_OAUTH_TX_SECRET ?? "DEV_ONLY_INSECURE_OAUTH_TX_SECRET_REPLACE_IN_PROD";
 }
 
-export function defineAuth<TSession>(
-  opts: DefineAuthOptions<TSession>,
-): AuthOrchestrator<TSession> {
+function defineAuth<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrator<TSession> {
   // Validate config at define-time (per blueprint Q5 invariants)
   if (!opts.session) {
     throw new AuthConfigError("missing_session", "defineAuth({ session }) is required");
@@ -243,4 +241,12 @@ export function defineAuth<TSession>(
   }
 
   return { startSignIn, finishSignIn, signIn, signOut, getSession };
+}
+
+/** SE36 — `Auth.create` replaces `defineAuth` (ADR 0015). @public */
+export class Auth {
+  private constructor() {}
+  static create<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrator<TSession> {
+    return defineAuth(opts);
+  }
 }

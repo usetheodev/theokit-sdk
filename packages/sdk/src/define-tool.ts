@@ -105,7 +105,24 @@ function shapeToolResult<T extends ZodType, O extends ZodType>(
   return typeof validated === "string" ? validated : JSON.stringify(validated);
 }
 
-export function defineTool<T extends ZodType, O extends ZodType = never>(
+/**
+ * SE36 — the uniform `X.create()` namespace API. `Tool.create(spec)` is the sole public
+ * constructor for a {@link CustomTool}; it wraps the internal builder so behavior is identical
+ * (ADR 0015). A `private constructor` makes `Tool` a namespace, not an instantiable value —
+ * `new Tool()` is a compile error. Mirrors `Agent.create` / `Cron.create`.
+ *
+ * @public
+ */
+export class Tool {
+  private constructor() {}
+  static create<T extends ZodType, O extends ZodType = never>(
+    spec: DefineToolSpec<T, O>,
+  ): CustomTool {
+    return defineTool(spec);
+  }
+}
+
+function defineTool<T extends ZodType, O extends ZodType = never>(
   spec: DefineToolSpec<T, O>,
 ): CustomTool {
   // Zod v4 native JSON Schema converter via internal shim.

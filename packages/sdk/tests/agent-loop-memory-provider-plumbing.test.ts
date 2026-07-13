@@ -9,7 +9,7 @@
  * `agent-loop-budget-tracker-wiring.test.ts` iter 13.
  */
 
-import { createNoopMemoryProvider, type MemoryProvider } from "@theokit/sdk";
+import { type MemoryProvider, NoopMemoryProvider } from "@theokit/sdk";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 /**
@@ -36,13 +36,13 @@ describe("AgentLoopInputs.memoryProvider plumbing (Phase 1 / T1.4)", () => {
   });
 
   it("test_defined_provider_sets_key_with_same_reference", () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const inputs = threadMemoryProvider(provider, { other: 1 });
     expect(inputs.memoryProvider).toBe(provider);
   });
 
   it("test_threaded_provider_preserves_lifecycle_methods", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const inputs = threadMemoryProvider(provider, {});
     // After threading, the provider's contract MUST still be callable.
     const handle = await inputs.memoryProvider!.init({ cwd: "/tmp" });

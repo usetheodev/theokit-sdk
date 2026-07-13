@@ -27,7 +27,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative as relativePath } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -63,7 +63,7 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
     maxFileSize = DEFAULT_MAX_FILE_SIZE,
   } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "search_text",
     description:
       `Search file CONTENTS for a LITERAL, CASE-SENSITIVE query across the project tree (the query ` +

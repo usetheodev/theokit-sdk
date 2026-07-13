@@ -27,7 +27,7 @@
  * @public
  */
 
-import { definePlugin, type Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
+import { Plugin, type PluginContext, type SDKAgent } from "@theokit/sdk";
 import type { ZodType } from "zod";
 import type { HandoffDescriptor, HandoffOptions } from "./types/handoff.js";
 
@@ -87,7 +87,7 @@ export class Handoff {
     const parent = opts.parentAgentId ?? "anonymous";
     const maxDepth = opts.maxHandoffDepth ?? 5;
     const targets = opts.targets;
-    return definePlugin({
+    return Plugin.create({
       name: `handoff-${parent}`,
       version: "1.0.0",
       kind: "general" as const,

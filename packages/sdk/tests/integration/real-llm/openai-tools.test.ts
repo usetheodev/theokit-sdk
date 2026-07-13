@@ -13,7 +13,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { Agent, defineTool } from "../../../src/index.js";
+import { Agent, Tool } from "../../../src/index.js";
 import { resolveRealLlmEnv } from "./_helpers/real-llm-env.js";
 
 const env = resolveRealLlmEnv("openai");
@@ -21,7 +21,7 @@ const env = resolveRealLlmEnv("openai");
 describe.skipIf(env.shouldSkip)(`real-llm: openai tools (${env.provider})`, () => {
   it("invokes a tool and returns a final answer", async () => {
     let toolCalled = 0;
-    const getSecretWord = defineTool({
+    const getSecretWord = Tool.create({
       name: "get_secret_word",
       description: "Returns a secret word the user is asking for.",
       inputSchema: z.object({}),

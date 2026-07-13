@@ -39,7 +39,7 @@ export interface AgentFactory {
  *
  * @public
  */
-export function createAgentFactory(common: Partial<AgentOptions>): AgentFactory {
+function createAgentFactory(common: Partial<AgentOptions>): AgentFactory {
   return {
     forSession: (agentId, overrides) => Agent.create(mergeAgentOptions(common, overrides, agentId)),
     getOrCreate: (agentId, overrides) =>
@@ -97,4 +97,13 @@ function deepMergeCloud(
 ): AgentOptions["cloud"] | undefined {
   if (base === undefined && top === undefined) return undefined;
   return { ...(base ?? {}), ...(top ?? {}) };
+}
+
+/** SE36 — `AgentFactory.create` replaces `createAgentFactory` (ADR 0015). Merges with the `AgentFactory` interface. @public */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: SE36 namespace class merges with the `AgentFactory` instance interface (ADR 0015) — intentional; `create()` returns the interface type, `new` is blocked by the private ctor.
+export class AgentFactory {
+  private constructor() {}
+  static create(common: Partial<AgentOptions>): AgentFactory {
+    return createAgentFactory(common);
+  }
 }

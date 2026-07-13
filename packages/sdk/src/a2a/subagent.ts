@@ -261,7 +261,7 @@ async function applyDelegationComplete(
   return completion?.feedback !== undefined ? result + completion.feedback : result;
 }
 
-export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
+function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
   const currentDepth = _parentDepth + 1;
   const maxDepth = spec.maxDelegationDepth ?? 3;
 
@@ -315,4 +315,12 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
       return applyDelegationComplete(spec, input, result, capturedIteration);
     },
   };
+}
+
+/** SE36 — `SubAgent.create` replaces `defineSubAgent` (ADR 0015). @public */
+export class SubAgent {
+  private constructor() {}
+  static create(spec: SubAgentSpec, parentDepth = 0): CustomTool {
+    return defineSubAgent(spec, parentDepth);
+  }
 }

@@ -10,8 +10,18 @@
  *   - `mapWithConcurrency(items, concurrency, fn, opts?)` — ordered bounded map.
  */
 
-export {
+import {
   type AsyncSemaphore,
   createSemaphore,
 } from "./internal/runtime/concurrency/async-semaphore.js";
+
+export type { AsyncSemaphore };
+
+/** SE36 — `Semaphore.create` replaces `createSemaphore` (ADR 0015). @public */
+export class Semaphore {
+  private constructor() {}
+  static create(permits: number): AsyncSemaphore {
+    return createSemaphore(permits);
+  }
+}
 export { mapWithConcurrency } from "./internal/runtime/concurrency/map-with-concurrency.js";

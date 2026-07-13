@@ -166,9 +166,9 @@ describe("AGENTS.md template", () => {
     expect(content).toContain("Agent.create");
   });
 
-  it("has defineTool reference", () => {
+  it("has Tool reference", () => {
     const content = readFileSync(agentsPath, "utf8");
-    expect(content).toContain("defineTool");
+    expect(content).toContain("Tool");
   });
 
   it("does not use internal paths in import examples", () => {
