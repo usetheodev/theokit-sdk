@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { createSkill } from "../src/create-skill.js";
+import { Skill } from "../src/create-skill.js";
 import { SkillsManager } from "../src/internal/runtime/skills/skills-manager.js";
 import {
   assembleSystemPromptForSend,
@@ -36,7 +36,7 @@ describe("SE22 — dynamic skills resolver", () => {
   it("honors a per-run resolver: different context → different <skills> block", async () => {
     const resolver: AgentOptions["skills"] = (ctx) => ({
       inline: [
-        createSkill({
+        Skill.create({
           name: ctx.userMessage === "admin" ? "admin-tools" : "user-tools",
           description: `Skills for ${ctx.userMessage}`,
           instructions: "body",
@@ -62,7 +62,7 @@ describe("SE22 — dynamic skills resolver", () => {
 
   it("a static SkillsSettings object is unchanged (back-compat, uses the base manager)", async () => {
     const mgr = new SkillsManager("/nonexistent", undefined, false, undefined, [
-      createSkill({ name: "static-skill", description: "A static skill", instructions: "b" }),
+      Skill.create({ name: "static-skill", description: "A static skill", instructions: "b" }),
     ]);
     await mgr.initialize();
     const inputs = makeInputs({ enabled: ["static-skill"] }, mgr);
@@ -75,7 +75,7 @@ describe("SE22 — dynamic skills resolver", () => {
   it("honors the resolver's autoInject: false (no <skills> block)", async () => {
     const resolver: AgentOptions["skills"] = () => ({
       autoInject: false,
-      inline: [createSkill({ name: "hidden-skill", description: "d", instructions: "b" })],
+      inline: [Skill.create({ name: "hidden-skill", description: "d", instructions: "b" })],
     });
     const prompt = await assembleSystemPromptForSend(
       makeInputs(resolver),
@@ -91,7 +91,7 @@ describe("SE22 — dynamic skills resolver", () => {
     let calls = 0;
     const resolver: AgentOptions["skills"] = () => {
       calls++;
-      return { inline: [createSkill({ name: "counted", description: "d", instructions: "b" })] };
+      return { inline: [Skill.create({ name: "counted", description: "d", instructions: "b" })] };
     };
     const inputs = makeInputs(resolver);
 

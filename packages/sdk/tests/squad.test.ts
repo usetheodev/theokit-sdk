@@ -1,14 +1,14 @@
 /**
- * Tests for createSquad — sequential multi-agent team (cross-val Gap 1, narrowed).
+ * Tests for Squad — sequential multi-agent team (cross-val Gap 1, narrowed).
  *
- * createSquad is a THIN convenience that COMPOSES Workflow + agentStep (no new
+ * Squad is a THIN convenience that COMPOSES Workflow + agentStep (no new
  * orchestration engine). It runs agents in order, threading each agent's
  * output into the next agent's prompt.
  */
 
 import { describe, expect, it } from "vitest";
 import { ConfigurationError } from "../src/errors.js";
-import { createSquad } from "../src/squad.js";
+import { Squad } from "../src/squad.js";
 import type { SDKAgent } from "../src/types/agent.js";
 
 /**
@@ -33,10 +33,10 @@ function fakeAgent(tag: string, seen: string[]): SDKAgent {
   } as unknown as SDKAgent;
 }
 
-describe("createSquad — sequential threading", () => {
+describe("Squad — sequential threading", () => {
   it("test_createSquad_runs_agents_sequentially_threading_output", async () => {
     const seen: string[] = [];
-    const squad = createSquad({
+    const squad = Squad.create({
       agents: [fakeAgent("a", seen), fakeAgent("b", seen), fakeAgent("c", seen)],
     });
     const run = await squad.run("start");
@@ -48,7 +48,7 @@ describe("createSquad — sequential threading", () => {
 
   it("test_createSquad_returns_per_agent_trace", async () => {
     const seen: string[] = [];
-    const squad = createSquad({ agents: [fakeAgent("a", seen), fakeAgent("b", seen)] });
+    const squad = Squad.create({ agents: [fakeAgent("a", seen), fakeAgent("b", seen)] });
     const run = await squad.run("go");
     expect(run.steps).toHaveLength(2);
     expect(run.steps.every((s) => s.status === "completed")).toBe(true);
@@ -56,17 +56,17 @@ describe("createSquad — sequential threading", () => {
 
   it("test_default_process_is_sequential", async () => {
     const seen: string[] = [];
-    const squad = createSquad({ agents: [fakeAgent("a", seen)] }); // no process specified
+    const squad = Squad.create({ agents: [fakeAgent("a", seen)] }); // no process specified
     const run = await squad.run("x");
     expect(run.result).toBe("x>a");
   });
 });
 
-describe("createSquad — validation (fail-fast)", () => {
+describe("Squad — validation (fail-fast)", () => {
   it("test_rejects_empty_agents", () => {
-    expect(() => createSquad({ agents: [] })).toThrowError(ConfigurationError);
+    expect(() => Squad.create({ agents: [] })).toThrowError(ConfigurationError);
     try {
-      createSquad({ agents: [] });
+      Squad.create({ agents: [] });
     } catch (e) {
       expect((e as ConfigurationError).code).toBe("invalid_squad");
     }
@@ -75,10 +75,10 @@ describe("createSquad — validation (fail-fast)", () => {
   it("test_rejects_hierarchical_with_guidance", () => {
     const seen: string[] = [];
     expect(() =>
-      createSquad({ agents: [fakeAgent("a", seen)], process: "hierarchical" }),
+      Squad.create({ agents: [fakeAgent("a", seen)], process: "hierarchical" }),
     ).toThrowError(ConfigurationError);
     try {
-      createSquad({ agents: [fakeAgent("a", seen)], process: "hierarchical" });
+      Squad.create({ agents: [fakeAgent("a", seen)], process: "hierarchical" });
     } catch (e) {
       expect((e as ConfigurationError).code).toBe("squad_process_unsupported");
       // guidance points to the existing delegation primitives
