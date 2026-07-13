@@ -296,6 +296,13 @@
       "page": "/theokit/tasks/run-work-in-the-background",
       "title": "Run work in the background",
       "description": "Task.submit + subscribe observe a background task to completion (deterministic)"
+    },
+    {
+      "slug": "filesystem-boundary",
+      "domain": "filesystem",
+      "page": "/theokit/filesystem/enforce-a-storage-boundary",
+      "title": "Enforce a storage boundary",
+      "description": "LocalFilesystem write/read/list + traversal rejection (deterministic)"
     }
   ]
 }
