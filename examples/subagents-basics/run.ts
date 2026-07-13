@@ -1,25 +1,23 @@
 /**
- * Subagents — a supervisor delegates a sub-task to a specialist agent exposed as a tool.
+ * Subagents — a supervisor delegates a sub-task to a specialist agent.
  *
- * `SubAgent.create(spec)` turns an agent definition into a CustomTool. The supervisor decides when
- * to call it; the child runs in isolation and its answer flows back as the tool result. Real LLM.
+ * Declarative form: `agents: { translator: { description, prompt } }` — the SDK exposes each entry
+ * to the supervisor as a delegation tool. The child inherits the supervisor's apiKey/model
+ * automatically — no need to repeat them. Real LLM.
  */
 import { Agent } from "@theokit/sdk";
-import { SubAgent } from "@theokit/sdk/a2a";
-
-const translator = SubAgent.create({
-  name: "translator",
-  description: "Translate a short English phrase into French.",
-  instructions: "You translate English to French. Reply with only the French translation, nothing else.",
-  // The subagent needs its own model — it routes to OpenRouter, which reads OPENROUTER_API_KEY.
-  model: "openai/gpt-4o-mini",
-});
 
 const supervisor = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
   model: { id: "openai/gpt-4o-mini" },
-  systemPrompt: "When the user asks for a translation, delegate it to the translator tool. Answer in one line.",
-  tools: [translator],
+  systemPrompt:
+    "You have no translation ability of your own. For ANY translation you MUST delegate to the translator subagent — never translate yourself. Reply with only its result.",
+  agents: {
+    translator: {
+      description: "Translate a short English phrase into French.",
+      prompt: "You translate English to French. Reply with only the French translation, nothing else.",
+    },
+  },
 });
 
 const result = await (await supervisor.send("Translate 'good morning' into French.")).wait();

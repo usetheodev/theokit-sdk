@@ -14,8 +14,39 @@
 
 import { z } from "zod";
 
-import type { CustomTool, ToolContextMessage } from "../types/agent.js";
+import type { AgentDefinition, CustomTool, ToolContextMessage } from "../types/agent.js";
+import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
+
+/**
+ * Credentials a parent agent hands down to its subagent tools so the child
+ * inherits the parent's auth (and, absent an explicit `spec.model`, its model).
+ * @internal
+ */
+export interface InheritedCredentials {
+  readonly apiKey?: string;
+  readonly model?: ModelSelection;
+}
+
+/**
+ * Private per-tool setter installed on subagent tools. Kept off the public
+ * `CustomTool` shape (and off every tool handler's `ctx`) so the parent's API
+ * key never reaches third-party tool code — only the SDK's own delegation path.
+ */
+const INHERIT_CREDENTIALS = Symbol("theokit.subagent.inheritCredentials");
+
+type CredentialSink = (creds: InheritedCredentials) => void;
+
+/**
+ * Called by the local runtime for every tool in a run: if the tool is a
+ * subagent, its child agent inherits the parent's `apiKey`/`model`. A no-op for
+ * any other tool (third-party tools never receive the parent's credentials).
+ * @internal
+ */
+export function inheritSubAgentCredentials(tool: CustomTool, creds: InheritedCredentials): void {
+  const sink = (tool as { [INHERIT_CREDENTIALS]?: CredentialSink })[INHERIT_CREDENTIALS];
+  if (typeof sink === "function") sink(creds);
+}
 
 /** Arguments passed to {@link SubAgentSpec.messageFilter} (SE12). */
 export interface MessageFilterArgs {
@@ -185,11 +216,18 @@ async function runChildAgent(
   input: string,
   signal: AbortSignal | undefined,
   maxSteps: number | undefined,
+  inherited: InheritedCredentials | undefined,
 ): Promise<string> {
   // Lazy import to avoid circular dependency.
   const { Agent } = await import("../agent.js");
+  // The child inherits the parent's apiKey (else Agent.create throws
+  // "Missing API key"), and its model unless the spec overrides it.
+  const model: string | ModelSelection | undefined = spec.model
+    ? { id: spec.model }
+    : inherited?.model;
   const agent = await Agent.create({
-    ...(spec.model ? { model: { id: spec.model } } : {}),
+    ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
+    ...(model !== undefined ? { model } : {}),
     systemPrompt: spec.instructions,
     tools: spec.tools ?? [],
   });
@@ -269,18 +307,34 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
     throw new MaxDelegationDepthError(currentDepth, maxDepth);
   }
 
-  const inputSchema = z.object({
+  // Zod for RUNTIME validation of the tool_use input …
+  const inputZod = z.object({
     input: z.string().describe("Task for the subagent"),
   });
+  // … and a real Draft-7 JSON Schema for the LLM. `CustomTool.inputSchema` is sent
+  // to the model verbatim; a raw Zod object would serialize to garbage, so the
+  // model emits malformed input that fails `inputZod.parse` and the delegation
+  // never runs (the previous bug — the schema and the validator are now distinct).
+  const inputSchema: Record<string, unknown> = {
+    type: "object",
+    properties: {
+      input: { type: "string", description: "Task for the subagent" },
+    },
+    required: ["input"],
+    additionalProperties: false,
+  };
 
   // SE15 — per-instance delegation counter, surfaced as `iteration` on the hook
   // contexts. Incremented once per handler invocation before onDelegationStart.
   let iteration = 0;
 
-  return {
+  // Credentials handed down by the parent runtime (see `inheritSubAgentCredentials`).
+  let inherited: InheritedCredentials | undefined;
+
+  const tool: CustomTool = {
     name: spec.name,
     description: spec.description,
-    inputSchema: inputSchema as unknown as Record<string, unknown>,
+    inputSchema,
     handler: async (
       rawInput: Record<string, unknown>,
       ctx?: {
@@ -289,7 +343,7 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
         messages?: readonly ToolContextMessage[];
       },
     ): Promise<string> => {
-      const { input: parsed } = inputSchema.parse(rawInput);
+      const { input: parsed } = inputZod.parse(rawInput);
       iteration += 1; // SE15 — before onDelegationStart; a rejected delegation still counts.
       // Pin THIS invocation's iteration before any await so a concurrent invocation
       // bumping the shared counter cannot change the value onDelegationComplete /
@@ -304,7 +358,7 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
       let result: string;
       try {
         // SE13 — apply the optional onDelegationStart maxSteps cap on the child send.
-        result = await runChildAgent(spec, input, ctx?.signal, start.maxSteps);
+        result = await runChildAgent(spec, input, ctx?.signal, start.maxSteps, inherited);
       } catch (error) {
         // SE11 — notify the completion hook of the failure (best-effort observer),
         // then re-throw the ORIGINAL error (Rule 8: never swallow the delegation's
@@ -315,6 +369,16 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
       return applyDelegationComplete(spec, input, result, capturedIteration);
     },
   };
+
+  // Install the private credential sink (off the public shape + off every ctx).
+  Object.defineProperty(tool, INHERIT_CREDENTIALS, {
+    value: ((creds: InheritedCredentials) => {
+      inherited = creds;
+    }) satisfies CredentialSink,
+    enumerable: false,
+  });
+
+  return tool;
 }
 
 /** SE36 — `SubAgent.create` replaces `defineSubAgent` (ADR 0015). @public */
@@ -323,4 +387,36 @@ export class SubAgent {
   static create(spec: SubAgentSpec, parentDepth = 0): CustomTool {
     return defineSubAgent(spec, parentDepth);
   }
+}
+
+/**
+ * Convert a parent's declarative `agents` map ({@link AgentDefinition} per key)
+ * into delegation tools for the LOCAL runtime — the counterpart of the
+ * cloud/fixture subagent wiring. Each child inherits the parent's `apiKey`/model
+ * via {@link inheritSubAgentCredentials}; `def.model` overrides the model
+ * (`"inherit"` keeps the parent's), and `def.tools` scopes the child to that
+ * subset of the parent's tools (absent → the parent's full toolset, per the
+ * `AgentDefinition.tools` contract).
+ *
+ * Per-subagent `mcpServers` on an `AgentDefinition` is honored by the cloud
+ * runtime only; it is not wired into local delegation here.
+ *
+ * @internal
+ */
+export function subAgentToolsFromDefinitions(
+  agents: Record<string, AgentDefinition>,
+  parentTools: readonly CustomTool[],
+): CustomTool[] {
+  return Object.entries(agents).map(([name, def]) => {
+    const whitelist =
+      Array.isArray(def.tools) && def.tools.length > 0 ? new Set(def.tools) : undefined;
+    const childTools = whitelist ? parentTools.filter((t) => whitelist.has(t.name)) : parentTools;
+    return defineSubAgent({
+      name,
+      description: def.description,
+      instructions: def.prompt,
+      ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model.id } : {}),
+      tools: [...childTools],
+    });
+  });
 }
