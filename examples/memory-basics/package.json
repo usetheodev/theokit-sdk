@@ -1,0 +1,3 @@
+{ "name": "example-memory-basics", "private": true, "type": "module",
+  "scripts": { "run": "tsx --env-file=.env run.ts" },
+  "dependencies": { "@theokit/sdk": "workspace:*" }, "devDependencies": { "tsx": "^4.19.0" } }
