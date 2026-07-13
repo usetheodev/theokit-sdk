@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@3.0.0
+  - @theokit/acp@2.0.0
+
 ## 1.0.0
 
 ### Patch Changes
