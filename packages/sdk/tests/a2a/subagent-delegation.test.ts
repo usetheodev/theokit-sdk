@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { MaxDelegationDepthError, SubAgent } from "../../src/a2a/subagent.js";
+import {
+  inheritSubAgentCredentials,
+  MaxDelegationDepthError,
+  SubAgent,
+  subAgentToolsFromDefinitions,
+} from "../../src/a2a/subagent.js";
 
 describe("SubAgent", () => {
   it("returns a CustomTool with name and description", () => {
@@ -13,6 +18,19 @@ describe("SubAgent", () => {
     expect(tool.description).toBe("Researches a topic");
     expect(tool.inputSchema).toBeDefined();
     expect(typeof tool.handler).toBe("function");
+  });
+
+  it("exposes a JSON-Schema inputSchema to the LLM (not a raw Zod object)", () => {
+    // The LLM receives `tool.inputSchema` verbatim as the tool's parameter schema.
+    // A raw Zod object serializes to garbage, so the model emits malformed tool
+    // input that fails validation — the delegation then never runs. It must be a
+    // real Draft-7 object schema.
+    const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
+    expect(tool.inputSchema).toMatchObject({
+      type: "object",
+      properties: { input: { type: "string" } },
+      required: ["input"],
+    });
   });
 
   it("creates child agent and returns final text", async () => {
@@ -37,6 +55,164 @@ describe("SubAgent", () => {
 
     const result = await tool.handler({ input: "quantum computing" });
     expect(result).toContain("research result");
+  });
+
+  it("inherits the parent's apiKey and model into the child agent", async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+      dispose: vi.fn(),
+    });
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
+    // The parent runtime injects its resolved credentials before the handler runs.
+    inheritSubAgentCredentials(tool, {
+      apiKey: "theo_test_parent",
+      model: { id: "openai/gpt-4o-mini" },
+    });
+
+    await tool.handler({ input: "task" });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ apiKey: "theo_test_parent", model: { id: "openai/gpt-4o-mini" } }),
+    );
+  });
+
+  it("prefers the subagent's explicit model over the inherited one", async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+      dispose: vi.fn(),
+    });
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = SubAgent.create({
+      name: "t",
+      description: "d",
+      instructions: "i",
+      model: "anthropic/claude-3-5-haiku",
+    });
+    inheritSubAgentCredentials(tool, {
+      apiKey: "theo_test_parent",
+      model: { id: "openai/gpt-4o-mini" },
+    });
+
+    await tool.handler({ input: "task" });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        apiKey: "theo_test_parent",
+        model: { id: "anthropic/claude-3-5-haiku" },
+      }),
+    );
+  });
+
+  describe("subAgentToolsFromDefinitions (declarative `agents` → delegation tools)", () => {
+    it("converts each AgentDefinition into a named delegation tool", () => {
+      const tools = subAgentToolsFromDefinitions(
+        {
+          translator: {
+            description: "Translate to French",
+            prompt: "Translate English to French.",
+          },
+          summarizer: { description: "Summarize text", prompt: "Summarize." },
+        },
+        [],
+      );
+      expect(tools).toHaveLength(2);
+      expect(tools.map((t) => t.name).sort()).toEqual(["summarizer", "translator"]);
+      const translator = tools.find((t) => t.name === "translator");
+      expect(translator?.description).toBe("Translate to French");
+      expect(typeof translator?.handler).toBe("function");
+    });
+
+    it("builds the child with the definition's prompt as instructions", async () => {
+      const mockCreate = vi.fn().mockResolvedValue({
+        send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "Bonjour" }) }),
+        dispose: vi.fn(),
+      });
+      vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+      const tool = subAgentToolsFromDefinitions(
+        { translator: { description: "d", prompt: "Translate English to French." } },
+        [],
+      )[0]!;
+      inheritSubAgentCredentials(tool, { apiKey: "theo_test_parent" });
+      await tool.handler({ input: "good morning" });
+
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          apiKey: "theo_test_parent",
+          systemPrompt: "Translate English to French.",
+        }),
+      );
+    });
+
+    it("uses the definition's explicit model, and inherits when it is 'inherit'", async () => {
+      const mockCreate = vi.fn().mockResolvedValue({
+        send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+        dispose: vi.fn(),
+      });
+      vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+      const explicit = subAgentToolsFromDefinitions(
+        { a: { description: "d", prompt: "p", model: { id: "anthropic/claude-3-5-haiku" } } },
+        [],
+      )[0]!;
+      inheritSubAgentCredentials(explicit, {
+        apiKey: "k",
+        model: { id: "openai/gpt-4o-mini" },
+      });
+      await explicit.handler({ input: "x" });
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ model: { id: "anthropic/claude-3-5-haiku" } }),
+      );
+
+      mockCreate.mockClear();
+      const inheriting = subAgentToolsFromDefinitions(
+        { b: { description: "d", prompt: "p", model: "inherit" } },
+        [],
+      )[0]!;
+      inheritSubAgentCredentials(inheriting, { apiKey: "k", model: { id: "openai/gpt-4o-mini" } });
+      await inheriting.handler({ input: "x" });
+      expect(mockCreate).toHaveBeenCalledWith(
+        expect.objectContaining({ model: { id: "openai/gpt-4o-mini" } }),
+      );
+    });
+
+    it("scopes the child to the whitelisted parent tools (def.tools)", async () => {
+      const mockCreate = vi.fn().mockResolvedValue({
+        send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+        dispose: vi.fn(),
+      });
+      vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+      const parentTools = [
+        { name: "read_file", description: "", inputSchema: {}, handler: () => "" },
+        { name: "write_file", description: "", inputSchema: {}, handler: () => "" },
+      ];
+      const reader = subAgentToolsFromDefinitions(
+        { reader: { description: "d", prompt: "p", tools: ["read_file"] } },
+        parentTools,
+      )[0]!;
+      inheritSubAgentCredentials(reader, { apiKey: "k" });
+      await reader.handler({ input: "x" });
+
+      const passedTools = mockCreate.mock.calls[0]![0].tools as Array<{ name: string }>;
+      expect(passedTools.map((t) => t.name)).toEqual(["read_file"]);
+    });
+  });
+
+  it("inheritSubAgentCredentials is a no-op on a non-subagent tool", () => {
+    const plainTool = {
+      name: "plain",
+      description: "d",
+      inputSchema: {},
+      handler: () => "x",
+    };
+    // Must not throw — third-party tools never receive the parent's key.
+    expect(() =>
+      inheritSubAgentCredentials(plainTool, { apiKey: "theo_test_parent" }),
+    ).not.toThrow();
   });
 
   it("disposes child agent after completion", async () => {

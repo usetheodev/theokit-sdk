@@ -31,10 +31,16 @@ console.log(`Context:  ${caps.maxContextTokens} tokens  ·  tools: ${caps.suppor
 //    (here OpenRouter routes `openai/…`).
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "openai/gpt-4o-mini" },
   systemPrompt: "You are concise.",
 });
 const result = await (await agent.send("Name three popular LLM providers, comma-separated.")).wait();
 console.log(`\nReply:    ${result.result}`);
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+if (result.status !== "finished" || typeof result.result !== "string" || result.result.length === 0) {
+  console.error("run did not finish:", JSON.stringify(result.error ?? result.status));
+  process.exit(1);
+}
