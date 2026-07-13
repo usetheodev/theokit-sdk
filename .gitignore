@@ -101,3 +101,4 @@ packages/acp/tests/_smoke-entry.mjs
 .claude/knowledge-base/reference/a peer SDK/
 .claude/knowledge-base/reference/pi/
 .claude/knowledge-base/audits/cross-validation/
+.npmrc

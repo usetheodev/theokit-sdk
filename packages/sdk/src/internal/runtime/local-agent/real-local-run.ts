@@ -1,3 +1,8 @@
+import {
+  type InheritedCredentials,
+  inheritSubAgentCredentials,
+  subAgentToolsFromDefinitions,
+} from "../../../a2a/subagent.js";
 import { ConfigurationError } from "../../../errors.js";
 import type { AgentOptions, CustomTool, ModelSelection } from "../../../types/agent.js";
 import type {
@@ -341,6 +346,35 @@ function buildLoopInputs(
  *  - `sendOptions.tools = []`         → explicitly clear (no custom tools)
  *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
  */
+/**
+ * Declarative subagents (`agents: { name: AgentDefinition }`) become delegation
+ * tools for the local runtime — each child inherits the parent's apiKey/model
+ * (via `bindParentCredentials`) and is scoped to the whitelisted subset of the
+ * parent's tools. Previously wired only for the cloud/fixture runtimes.
+ */
+function declarativeSubagentTools(
+  agentOptions: AgentOptions,
+  parentTools: ReadonlyArray<CustomTool>,
+): CustomTool[] {
+  const { agents } = agentOptions;
+  if (agents === undefined || Object.keys(agents).length === 0) return [];
+  return subAgentToolsFromDefinitions(agents, parentTools);
+}
+
+/**
+ * Hand the parent's credentials down to any subagent tools so a delegated child
+ * inherits the parent's apiKey (else `Agent.create` throws "Missing API key")
+ * and model. A no-op for every non-subagent tool — the key never reaches
+ * third-party tool code (see `inheritSubAgentCredentials`).
+ */
+function bindParentCredentials(tools: ReadonlyArray<CustomTool>, agentOptions: AgentOptions): void {
+  const credentials: InheritedCredentials = {
+    ...(agentOptions.apiKey !== undefined ? { apiKey: agentOptions.apiKey } : {}),
+    ...(typeof agentOptions.model === "object" ? { model: agentOptions.model } : {}),
+  };
+  for (const tool of tools) inheritSubAgentCredentials(tool, credentials);
+}
+
 function buildCustomToolsInput(
   agentOptions: AgentOptions,
   sendOptions: { tools?: CustomTool[] } | undefined,
@@ -350,12 +384,15 @@ function buildCustomToolsInput(
   personalityName: string | undefined,
 ): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
   const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
+  const subagentTools = declarativeSubagentTools(agentOptions, baseTools);
   // T4.1: concat plugin-registered tools onto the effective catalog. Plugin
   // tools are merged unconditionally (no override semantics — name collision
   // would be caught by the registry validator if used).
   const pluginTools = pluginManager?.aggregated.tools ?? [];
-  if (baseTools.length === 0 && pluginTools.length === 0) return {};
-  const merged: CustomToolSpec[] = [...baseTools, ...pluginTools].map((tool) => ({
+  if (baseTools.length === 0 && subagentTools.length === 0 && pluginTools.length === 0) return {};
+  const allTools = [...baseTools, ...subagentTools, ...pluginTools];
+  bindParentCredentials(allTools, agentOptions);
+  const merged: CustomToolSpec[] = allTools.map((tool) => ({
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema,

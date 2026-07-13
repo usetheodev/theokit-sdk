@@ -28,7 +28,7 @@ const Sentiment = z.object({
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "openai/gpt-4o-mini" },
   name: "review-analyzer",
   systemPrompt: "You analyze product reviews and return structured sentiment.",
   local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
@@ -45,3 +45,9 @@ console.log("score:    ", object.score);
 console.log("summary:  ", object.summary);
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+if (!object || typeof object.sentiment !== "string") {
+  console.error("structured output missing sentiment:", JSON.stringify(object));
+  process.exit(1);
+}
