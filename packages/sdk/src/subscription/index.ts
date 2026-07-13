@@ -16,7 +16,7 @@
 
 export {
   type DefineSubscriptionOptions,
-  defineSubscription,
+  Subscription,
 } from "./define-subscription.js";
 export { type SubscribeOptions, subscribe } from "./theokit-subscribe.js";
 export {

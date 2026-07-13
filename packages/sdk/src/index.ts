@@ -7,7 +7,7 @@
 export { Agent, type AgentPromptResult } from "./agent.js";
 // DX helpers — agent construction patterns (ADR D22-D26)
 export { AgentBuilder } from "./agent-builder.js";
-export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
+export { AgentFactory } from "./agent-factory.js";
 // SE9 — integrated structured output on `agent.generate(input, { output })`.
 export type { GenerateOptions, GenerateRunResult } from "./agent-generate.js";
 // Task observability registry (Adoption Roadmap gap #2; ADRs D361-D374)
@@ -24,22 +24,22 @@ export {
 } from "./budget.js";
 // SE25 — deterministic in-tree guardrail processors (built on the SE24 seam).
 export {
-  createTokenLimiter,
-  createUnicodeNormalizer,
   estimateTokens,
+  TokenLimiter,
   type TokenLimiterOptions,
+  UnicodeNormalizer,
   type UnicodeNormalizerOptions,
 } from "./built-in-processors.js";
 // M22 — code-defined inline skills (`createSkill`) usable alongside filesystem skills.
-export { type CreateSkillSpec, createSkill, type InlineSkill } from "./create-skill.js";
+export { type CreateSkillSpec, type InlineSkill, Skill } from "./create-skill.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
 // Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
 export { Cron } from "./cron.js";
-export { type DefineProviderOptions, defineProvider } from "./define-provider.js";
+export { type DefineProviderOptions, Provider } from "./define-provider.js";
 // SE23 — opt-in `skill_read` tool factory (model-facing lazy skill read).
-export { defineSkillReadTool } from "./define-skill-read-tool.js";
-export { type DefineToolSpec, defineTool } from "./define-tool.js";
+export { SkillReadTool } from "./define-skill-read-tool.js";
+export { type DefineToolSpec, Tool } from "./define-tool.js";
 // Errors (runtime classes)
 export {
   AgentDisposedError,
@@ -96,9 +96,8 @@ export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // added to barrel so extracted packages (sdk-cache, sdk-handoff) can type their
 // .asPlugin() factories without reaching into ./internal/plugins sub-path.
 export {
-  definePlugin,
   type HookName,
-  type Plugin,
+  Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
   type PreToolCallContext,
@@ -145,7 +144,7 @@ export type {
 // Reference impl — pure no-op, no recall, no tools. Consumers can use
 // as fallback before @theokit/sdk-memory ships or as a worked example
 // when authoring custom providers.
-export { createNoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
+export { NoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
@@ -178,10 +177,10 @@ export {
 } from "./permission-engine.js";
 // M7-5: PermissionEngine -> plugin veto exemplar. SE1: mode layer + canUseTool gate.
 export {
-  createPermissionPlugin,
   type PermissionGate,
   type PermissionGateContext,
   type PermissionGateDecision,
+  PermissionPlugin,
   type PermissionPluginOptions,
 } from "./permission-plugin.js";
 // M23 — schema normalizer (Zod default; JSON Schema / ArkType / Valibot adapters).
@@ -194,11 +193,11 @@ export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
 // SE4 — session-management surface over ConversationStorage.
-export { createSessionManager } from "./session-manager.js";
+export { Session } from "./session-manager.js";
 // M3 #62 — scoped session state helpers (app:/user:/temp:).
 export { type SessionScope, scopedConversationId, sessionScopePrefix } from "./session-scope.js";
 // Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
-export { createSquad, type Squad, type SquadOptions, type SquadRun } from "./squad.js";
+export { Squad, type SquadOptions, type SquadRun } from "./squad.js";
 // Path safety primitives (ADRs D79-D85) live at `@theokit/sdk/path-safety`,
 // not on the main barrel. That dedicated sub-export keeps the DTS bundle
 // for `index.ts` decoupled from the `internal/runtime` graph (which has

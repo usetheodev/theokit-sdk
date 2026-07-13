@@ -12,7 +12,7 @@
 
 import { randomUUID } from "node:crypto";
 import type * as acp from "@agentclientprotocol/sdk";
-import { ConfigurationError, definePlugin, type SDKAgent } from "@theokit/sdk";
+import { ConfigurationError, Plugin, type SDKAgent } from "@theokit/sdk";
 import { toolKind } from "./translator.js";
 import type { PermissionMode } from "./types.js";
 
@@ -93,7 +93,7 @@ export async function installPermissionPlugin(
   agent: SDKAgent,
   args: PermissionPluginArgs,
 ): Promise<void> {
-  const plugin = definePlugin({
+  const plugin = Plugin.create({
     name: `acp-permission-${args.sessionId}`,
     version: "1.0.0",
     kind: "general",

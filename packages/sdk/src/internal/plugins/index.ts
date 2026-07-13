@@ -19,7 +19,7 @@ export {
   type HookHandler,
   type HookName,
   type MemoryProviderFactory,
-  type Plugin,
+  Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
   type PreToolCallContext,

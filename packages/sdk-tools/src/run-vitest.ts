@@ -26,7 +26,7 @@
 import { spawn } from "node:child_process";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import { isForbiddenPath } from "./internal/path-guard.js";
 import { checkPathScope } from "./path-scope.js";
@@ -55,7 +55,7 @@ export function createRunVitestTool(opts: CreateRunVitestToolOptions): CustomToo
     maxStdoutBytes = DEFAULT_MAX_STDOUT_BYTES,
   } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "run_vitest",
     description:
       "Run the project's vitest suite, optionally scoped to a file or " +

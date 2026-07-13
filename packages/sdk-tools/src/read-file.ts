@@ -27,7 +27,7 @@
 import { type FileHandle, open } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -58,7 +58,7 @@ export interface CreateReadFileToolOptions {
 export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool {
   const { projectRoot, readTracker } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "read_file",
     description:
       "Read a project-relative text file as UTF-8. ALWAYS read a file before you edit it " +

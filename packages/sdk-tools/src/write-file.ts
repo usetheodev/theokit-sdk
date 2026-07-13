@@ -14,7 +14,7 @@
 import { stat as fsStat, mkdir, open, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import {
   FileNotFoundError,
   type FilesystemBackend,
@@ -77,7 +77,7 @@ export function createWriteFileTool(opts: CreateWriteFileToolOptions): CustomToo
   // The tracker is only consulted when read-before-write is enabled.
   const guard = opts.requireReadBeforeWrite ? opts.readTracker : undefined;
 
-  return defineTool({
+  return Tool.create({
     name: "write_file",
     description:
       "Write UTF-8 content to a project-relative file, creating parent directories as needed. " +

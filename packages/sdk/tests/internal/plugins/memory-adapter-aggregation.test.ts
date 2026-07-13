@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from "vitest";
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
-import { definePlugin } from "../../../src/internal/plugins/types.js";
+import { Plugin } from "../../../src/internal/plugins/types.js";
 import { mkMemoryId } from "../../../src/memory-adapter-helpers.js";
 import type { MemoryAdapter, MemoryId } from "../../../src/types/memory-adapter.js";
 
@@ -32,7 +32,7 @@ function makeAdapter(id: string): MemoryAdapter {
 
 describe("Memory plugin aggregation (T1.2)", () => {
   it("aggregates a single memory plugin into memoryProviders array", async () => {
-    const plugin = definePlugin({
+    const plugin = Plugin.create({
       name: "test-mem",
       version: "1.0.0",
       kind: "memory",
@@ -45,7 +45,7 @@ describe("Memory plugin aggregation (T1.2)", () => {
   });
 
   it("memory plugin factory returns typed adapter at call time", async () => {
-    const plugin = definePlugin({
+    const plugin = Plugin.create({
       name: "typed",
       version: "1.0.0",
       kind: "memory",
@@ -63,7 +63,7 @@ describe("Memory plugin aggregation (T1.2)", () => {
   });
 
   it("async factory resolves through aggregated entry", async () => {
-    const plugin = definePlugin({
+    const plugin = Plugin.create({
       name: "async",
       version: "1.0.0",
       kind: "memory",
@@ -78,7 +78,7 @@ describe("Memory plugin aggregation (T1.2)", () => {
   });
 
   it("factory promise rejection surfaces to caller; does not crash boot (EC-F)", async () => {
-    const plugin = definePlugin({
+    const plugin = Plugin.create({
       name: "rejects",
       version: "1.0.0",
       kind: "memory",

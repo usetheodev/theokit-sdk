@@ -12,7 +12,7 @@
 
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 
 import {
@@ -53,7 +53,7 @@ export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool
   const fetchImpl = opts?.fetchImpl;
   const lookup = opts?.lookup;
 
-  return defineTool({
+  return Tool.create({
     name: "web_fetch",
     description:
       "Fetch the contents of a URL via HTTP/HTTPS. Use only for URLs the user provided or that you " +

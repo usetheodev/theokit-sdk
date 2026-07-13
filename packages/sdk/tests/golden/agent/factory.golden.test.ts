@@ -3,16 +3,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { ConfigurationError, createAgentFactory } from "../../../src/index.js";
+import { AgentFactory, ConfigurationError } from "../../../src/index.js";
 
 /**
- * Golden tests for {@link createAgentFactory} — Phase 2 of the agent
+ * Golden tests for {@link AgentFactory} — Phase 2 of the agent
  * construction DX helpers plan (ADR D23). Covers merge strategy (shallow
  * top-level, deep for local/memory/cloud, replace for collections), agentId
  * precedence, validation propagation, and the resume path.
  */
 
-describe("createAgentFactory", () => {
+describe("AgentFactory", () => {
   let cwd: string | undefined;
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-factory-"));
@@ -23,7 +23,7 @@ describe("createAgentFactory", () => {
 
   it("forSession merges common and overrides at top level", async () => {
     if (cwd === undefined) throw new Error("missing workspace");
-    const factory = createAgentFactory({
+    const factory = AgentFactory.create({
       apiKey: "theo_test_factory",
       model: { id: "claude-sonnet-4-6" },
       local: { cwd },
@@ -38,7 +38,7 @@ describe("createAgentFactory", () => {
 
   it("forSession deep-merges local options", async () => {
     if (cwd === undefined) throw new Error("missing workspace");
-    const factory = createAgentFactory({
+    const factory = AgentFactory.create({
       apiKey: "theo_test_factory",
       model: { id: "claude-sonnet-4-6" },
       local: { cwd, sandboxOptions: { enabled: true } },
@@ -66,7 +66,7 @@ describe("createAgentFactory", () => {
       inputSchema: { type: "object" },
       handler: () => "override",
     };
-    const factory = createAgentFactory({
+    const factory = AgentFactory.create({
       apiKey: "theo_test_factory",
       model: { id: "claude-sonnet-4-6" },
       local: { cwd },
@@ -83,7 +83,7 @@ describe("createAgentFactory", () => {
 
   it("getOrCreate path resumes an existing agent", async () => {
     if (cwd === undefined) throw new Error("missing workspace");
-    const factory = createAgentFactory({
+    const factory = AgentFactory.create({
       apiKey: "theo_test_factory",
       model: { id: "claude-sonnet-4-6" },
       local: { cwd },
@@ -98,7 +98,7 @@ describe("createAgentFactory", () => {
 
   it("param agentId wins over both common.agentId and overrides.agentId", async () => {
     if (cwd === undefined) throw new Error("missing workspace");
-    const factory = createAgentFactory({
+    const factory = AgentFactory.create({
       apiKey: "theo_test_factory",
       model: { id: "claude-sonnet-4-6" },
       local: { cwd },
@@ -115,7 +115,7 @@ describe("createAgentFactory", () => {
   it("propagates validation errors from underlying Agent.create", async () => {
     if (cwd === undefined) throw new Error("missing workspace");
     // common lacks model AND overrides doesn't supply one
-    const factory = createAgentFactory({
+    const factory = AgentFactory.create({
       apiKey: "theo_test_factory",
       local: { cwd },
     });
@@ -126,7 +126,7 @@ describe("createAgentFactory", () => {
 
   it("deep-merges memory option without losing namespace/enabled", async () => {
     if (cwd === undefined) throw new Error("missing workspace");
-    const factory = createAgentFactory({
+    const factory = AgentFactory.create({
       apiKey: "theo_test_factory",
       model: { id: "claude-sonnet-4-6" },
       local: { cwd },

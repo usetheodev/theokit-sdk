@@ -1,18 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { defineTool } from "../src/define-tool.js";
+import { Tool } from "../src/define-tool.js";
 
 /**
- * SE16 — `defineTool` gains an optional `outputSchema`. When set, the handler
+ * SE16 — `Tool` gains an optional `outputSchema`. When set, the handler
  * returns the STRUCTURED output (inferred from the schema), it is validated, and
  * the tool_result becomes its serialization (string as-is; object JSON-stringified).
  * When absent, the handler returns a string exactly as before (back-compat).
  * Mirrors a peer framework `createTool`'s `outputSchema`.
  */
-describe("defineTool outputSchema (SE16)", () => {
+describe("Tool outputSchema (SE16)", () => {
   it("validates the structured return and serializes it to the tool result", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "weather",
       description: "Get weather",
       inputSchema: z.object({ city: z.string() }),
@@ -22,13 +22,13 @@ describe("defineTool outputSchema (SE16)", () => {
         return { temp: 20, cond: "sunny" };
       },
     });
-    // defineTool always resolves to a string; CustomTool.handler's wider union needs a narrow.
+    // Tool always resolves to a string; CustomTool.handler's wider union needs a narrow.
     const result = (await tool.handler({ city: "SF" })) as string;
     expect(JSON.parse(result)).toEqual({ temp: 20, cond: "sunny" });
   });
 
   it("surfaces a typed error when the structured return fails outputSchema validation", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "weather",
       description: "Get weather",
       inputSchema: z.object({ city: z.string() }),
@@ -40,7 +40,7 @@ describe("defineTool outputSchema (SE16)", () => {
   });
 
   it("a string outputSchema returns the string as-is (not JSON-quoted)", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "echo",
       description: "Echo",
       inputSchema: z.object({ text: z.string() }),
@@ -51,7 +51,7 @@ describe("defineTool outputSchema (SE16)", () => {
   });
 
   it("JSON.stringifies a non-string primitive output (z.number())", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "temp",
       description: "Number schema",
       inputSchema: z.object({}),
@@ -62,7 +62,7 @@ describe("defineTool outputSchema (SE16)", () => {
   });
 
   it("an async handler with outputSchema is validated and serialized", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "async-weather",
       description: "Async structured output",
       inputSchema: z.object({ city: z.string() }),
@@ -73,7 +73,7 @@ describe("defineTool outputSchema (SE16)", () => {
   });
 
   it("without outputSchema the handler returns a string exactly as before (back-compat)", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "plain",
       description: "Plain",
       inputSchema: z.object({}),

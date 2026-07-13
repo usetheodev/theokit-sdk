@@ -1,7 +1,7 @@
 /**
  * Integration test for Ollama tool calling (T5.1, ADR D182).
  *
- * Validates that defineTool + agent.send with a custom tool round-trips
+ * Validates that Tool + agent.send with a custom tool round-trips
  * correctly against a real Ollama model.
  *
  * REQUIRES:
@@ -17,7 +17,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { Agent, defineTool } from "../../src/index.js";
+import { Agent, Tool } from "../../src/index.js";
 
 const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "http://localhost:11434";
 const TEST_MODEL = process.env.OLLAMA_TEST_TOOL_MODEL ?? "ollama/qwen2.5-coder:7b";
@@ -47,10 +47,10 @@ if (!available) {
 }
 
 describe.skipIf(!available)("ollama tool calling integration (D182)", () => {
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: defineTool + Agent.create + stream drain + EC-F skip-loud is one cohesive integration scenario
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Tool + Agent.create + stream drain + EC-F skip-loud is one cohesive integration scenario
   it("agent.send invokes a registered customTool", async () => {
     let toolInvocations = 0;
-    const getCurrentTime = defineTool({
+    const getCurrentTime = Tool.create({
       name: "get_current_time",
       description:
         "Returns the current time as an ISO-8601 string. Call this when the user asks what time it is.",

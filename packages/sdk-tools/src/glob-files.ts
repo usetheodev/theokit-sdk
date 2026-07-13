@@ -13,7 +13,7 @@ import { readdir } from "node:fs/promises";
 import { join, relative } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -33,7 +33,7 @@ export interface CreateGlobToolOptions {
 export function createGlobTool(opts: CreateGlobToolOptions): CustomTool {
   const { projectRoot } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "glob_files",
     description:
       "Find files by glob pattern across the project — fast at any repo size. Use glob_files when " +

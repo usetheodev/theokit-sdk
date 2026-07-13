@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.0.0
+
+### Major Changes
+
+- SE36 — uniform `X.create()` public API (v3.0 breaking). Every public factory is removed in favor of a static `X.create()` namespace method, matching `Agent.create` / `Cron.create` / `Workflow.create`:
+
+  `defineTool`→`Tool.create`, `defineProvider`→`Provider.create`, `definePlugin`→`Plugin.create`, `defineSkillReadTool`→`SkillReadTool.create`, `defineSubAgent`→`SubAgent.create`, `createSquad`→`Squad.create`, `createSkill`→`Skill.create`, `createSessionManager`→`Session.create`, `createAgentFactory`→`AgentFactory.create`, `createNoopMemoryProvider`→`NoopMemoryProvider.create`, `createPermissionPlugin`→`PermissionPlugin.create`, `createTokenLimiter`→`TokenLimiter.create`, `createUnicodeNormalizer`→`UnicodeNormalizer.create`, `defineSubscription`→`Subscription.create`, `createSemaphore`→`Semaphore.create`, `defineAuth`→`Auth.create`, `withRetry`→`Retry.create`.
+
+  `Agent.create` / `Cron.create` / `Workflow.create` / `Budget.create` are unchanged. Run `npx @theokit/codemod-sdk-3-0 --write` to migrate consumers. Reverses Unbreakable Rule 9 (ADR 0015 supersedes D431).
+
 ## 2.30.0
 
 ### Minor Changes

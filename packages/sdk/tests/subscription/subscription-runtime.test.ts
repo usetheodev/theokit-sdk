@@ -3,7 +3,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineSubscription } from "../../src/subscription/define-subscription.js";
+import { Subscription } from "../../src/subscription/define-subscription.js";
 import {
   SubscriptionRuntime,
   type WireFrame,
@@ -37,7 +37,7 @@ async function readWs(iter: AsyncIterable<WireFrame>): Promise<WireFrame[]> {
 describe("SubscriptionRuntime register/get", () => {
   it("registers + retrieves a descriptor", () => {
     const rt = new SubscriptionRuntime();
-    const desc = defineSubscription({
+    const desc = Subscription.create({
       input: z.object({}),
       output: z.object({}),
       // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
@@ -51,7 +51,7 @@ describe("SubscriptionRuntime register/get", () => {
 
   it("throws on duplicate register", () => {
     const rt = new SubscriptionRuntime();
-    const desc = defineSubscription({
+    const desc = Subscription.create({
       input: z.object({}),
       output: z.object({}),
       // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
@@ -65,7 +65,7 @@ describe("SubscriptionRuntime register/get", () => {
 
   it("unregister removes the entry", () => {
     const rt = new SubscriptionRuntime();
-    const desc = defineSubscription({
+    const desc = Subscription.create({
       input: z.object({}),
       output: z.object({}),
       // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
@@ -84,7 +84,7 @@ describe("SubscriptionRuntime dispatch (SSE)", () => {
     const rt = new SubscriptionRuntime();
     rt.register(
       "counter",
-      defineSubscription({
+      Subscription.create({
         input: z.object({ from: z.number() }),
         output: z.object({ n: z.number() }),
         async *handler(input) {
@@ -116,7 +116,7 @@ describe("SubscriptionRuntime dispatch (SSE)", () => {
     const rt = new SubscriptionRuntime();
     rt.register(
       "tracked-stream",
-      defineSubscription({
+      Subscription.create({
         input: z.object({}),
         output: z.object({ msg: z.string() }),
         async *handler(_input, ctx) {
@@ -158,7 +158,7 @@ describe("SubscriptionRuntime dispatch (SSE)", () => {
     const rt = new SubscriptionRuntime();
     rt.register(
       "typed",
-      defineSubscription({
+      Subscription.create({
         input: z.object({ n: z.number() }),
         output: z.object({}),
         // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
@@ -184,7 +184,7 @@ describe("SubscriptionRuntime dispatch (SSE)", () => {
     let captured: string | undefined = "<not-called>";
     rt.register(
       "echo-cursor",
-      defineSubscription({
+      Subscription.create({
         input: z.object({}),
         output: z.object({ cursor: z.string().optional() }),
         async *handler(_input, ctx) {
@@ -213,7 +213,7 @@ describe("SubscriptionRuntime dispatch (WS)", () => {
     const rt = new SubscriptionRuntime();
     rt.register(
       "ws-stream",
-      defineSubscription({
+      Subscription.create({
         input: z.object({}),
         output: z.object({ n: z.number() }),
         async *handler(_input, ctx) {
@@ -246,7 +246,7 @@ describe("SubscriptionRuntime dispatch (WS)", () => {
     const rt = new SubscriptionRuntime();
     rt.register(
       "throws",
-      defineSubscription({
+      Subscription.create({
         input: z.object({}),
         output: z.object({}),
         // biome-ignore lint/correctness/useYield: intentional empty/throw handler — test asserts runtime behavior, not iteration
@@ -276,7 +276,7 @@ describe("SubscriptionRuntime active connection count", () => {
     const rt = new SubscriptionRuntime();
     rt.register(
       "noop",
-      defineSubscription({
+      Subscription.create({
         input: z.object({}),
         output: z.object({}),
         async *handler() {

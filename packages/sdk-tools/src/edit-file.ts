@@ -13,7 +13,7 @@
 import { copyFile, readFile, writeFile } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -31,7 +31,7 @@ export interface CreateEditFileToolOptions {
 export function createEditFileTool(opts: CreateEditFileToolOptions): CustomTool {
   const { projectRoot } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "edit_file",
     description:
       "Make an exact string replacement in a project-relative file. Replaces the FIRST occurrence " +

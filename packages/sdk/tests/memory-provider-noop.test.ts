@@ -1,5 +1,5 @@
 /**
- * `createNoopMemoryProvider` reference impl tests (SDK 2.0 Phase 1 /
+ * `NoopMemoryProvider` reference impl tests (SDK 2.0 Phase 1 /
  * T1.2 — mirrors `budget-tracker-counter.test.ts` iter 11).
  *
  * Goal: lock the degenerate behavior so consumers can rely on it as a
@@ -8,13 +8,13 @@
  */
 
 import type { MemoryProvider, MemoryProviderHandle, SDKAgent } from "@theokit/sdk";
-import { createNoopMemoryProvider } from "@theokit/sdk";
+import { NoopMemoryProvider } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 
-describe("createNoopMemoryProvider (Phase 1 / T1.2)", () => {
+describe("NoopMemoryProvider (Phase 1 / T1.2)", () => {
   it("test_factory_returns_fresh_instance — independent per call", () => {
-    const a = createNoopMemoryProvider();
-    const b = createNoopMemoryProvider();
+    const a = NoopMemoryProvider.create();
+    const b = NoopMemoryProvider.create();
     expect(a).not.toBe(b);
     // Same shape, different identities.
     expect(typeof a.init).toBe("function");
@@ -22,7 +22,7 @@ describe("createNoopMemoryProvider (Phase 1 / T1.2)", () => {
   });
 
   it("test_init_returns_handle_with_adapter — adapter satisfies MemoryAdapter shape", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const handle = await provider.init({ cwd: "/tmp" });
     expect(handle.adapter).toBeDefined();
     expect(handle.adapter.id).toBe("noop");
@@ -34,7 +34,7 @@ describe("createNoopMemoryProvider (Phase 1 / T1.2)", () => {
   });
 
   it("test_init_idempotent_fresh_handle — subsequent calls return new handles", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const h1 = await provider.init({ cwd: "/tmp" });
     const h2 = await provider.init({ cwd: "/tmp" });
     expect(h1).not.toBe(h2);
@@ -44,7 +44,7 @@ describe("createNoopMemoryProvider (Phase 1 / T1.2)", () => {
   });
 
   it("test_buildTools_returns_empty_array — no LLM-facing memory tools", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const handle = await provider.init({ cwd: "/tmp" });
     const tools = provider.buildTools(handle, {} as SDKAgent);
     expect(tools.length).toBe(0);
@@ -52,7 +52,7 @@ describe("createNoopMemoryProvider (Phase 1 / T1.2)", () => {
   });
 
   it("test_runActivePass_returns_empty_facts — no recall fires", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const handle = await provider.init({ cwd: "/tmp" });
     const result = await provider.runActivePass(handle, {
       userMessage: "what's my preference?",
@@ -65,26 +65,26 @@ describe("createNoopMemoryProvider (Phase 1 / T1.2)", () => {
   });
 
   it("test_dispose_is_noop — returns void synchronously", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const handle = await provider.init({ cwd: "/tmp" });
     expect(provider.dispose(handle)).toBeUndefined();
   });
 
   it("test_adapter_recall_returns_empty — no facts surfaced", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const handle = await provider.init({ cwd: "/tmp" });
     const facts = await handle.adapter.recall("query", { userId: "u1" }, 10);
     expect(facts).toEqual([]);
   });
 
   it("test_adapter_delete_resolves_undefined — no error on unknown id", async () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const handle = await provider.init({ cwd: "/tmp" });
     await expect(handle.adapter.delete("noop:anything" as never)).resolves.toBeUndefined();
   });
 
   it("test_lifecycle_smoke — init → buildTools → runActivePass → dispose chain", async () => {
-    const provider: MemoryProvider = createNoopMemoryProvider();
+    const provider: MemoryProvider = NoopMemoryProvider.create();
     const handle: MemoryProviderHandle = await provider.init({
       cwd: "/tmp",
       embeddingProviderId: "openai",

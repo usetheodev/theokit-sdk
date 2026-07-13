@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MessageBus } from "../src/a2a/message-bus.js";
-import { Agent, createSquad } from "../src/index.js";
+import { Agent, Squad } from "../src/index.js";
 import type { SDKAgent } from "../src/types/agent.js";
 import type { MessageOrigin } from "../src/types/run.js";
 
@@ -78,7 +78,7 @@ describe("MessageOrigin (SE3) — Squad stamps peer provenance", () => {
 
   it("stamps `{ kind: 'peer', from: 'agent-<i-1>' }` on every step after the first", async () => {
     const calls: SendCall[] = [];
-    const squad = createSquad({ agents: [fakeAgent("a", calls), fakeAgent("b", calls)] });
+    const squad = Squad.create({ agents: [fakeAgent("a", calls), fakeAgent("b", calls)] });
     await squad.run("start");
 
     expect(calls).toHaveLength(2);
