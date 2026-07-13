@@ -39,6 +39,13 @@
       "page": "/theokit/providers-models",
       "title": "Providers and models",
       "description": "Pick a model by id; inspect capabilities offline"
+    },
+    {
+      "slug": "prompts",
+      "domain": "prompts",
+      "page": "/theokit/prompts",
+      "title": "Prompts and instructions",
+      "description": "Dynamic system prompt resolver + per-send override"
     }
   ]
 }
