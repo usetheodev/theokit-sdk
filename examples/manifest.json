@@ -317,6 +317,13 @@
       "page": "/theokit/sandbox/run-a-command",
       "title": "Run a command",
       "description": "LocalSandbox.execute runs a shell command and captures stdout/exitCode (deterministic)"
+    },
+    {
+      "slug": "skills-inline",
+      "domain": "skills",
+      "page": "/theokit/skills/give-an-agent-a-skill",
+      "title": "Give an agent a skill",
+      "description": "Skill.create + agent.skills inspector (deterministic, no LLM)"
     }
   ]
 }
