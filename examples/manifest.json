@@ -107,6 +107,139 @@
       "page": "/theokit/permissions/gate-tool-calls",
       "title": "Gate tool calls",
       "description": "First-match permission rules resolved per mode (deterministic)"
+    },
+    {
+      "slug": "abort-mid-stream",
+      "domain": "advanced",
+      "page": "",
+      "title": "Abort Mid Stream",
+      "description": "Production-Readiness #5 \u2014 AbortSignal end-to-end example."
+    },
+    {
+      "slug": "bedrock-bot",
+      "domain": "advanced",
+      "page": "",
+      "title": "Bedrock Bot",
+      "description": "AWS Bedrock demo (Adoption Roadmap #8; ADRs D286-D302)."
+    },
+    {
+      "slug": "cache",
+      "domain": "advanced",
+      "page": "",
+      "title": "Cache",
+      "description": "Semantic Cache demo (Adoption Roadmap #6; ADRs D249-D266)."
+    },
+    {
+      "slug": "concurrency-basics",
+      "domain": "resilience",
+      "page": "",
+      "title": "Bounded concurrency",
+      "description": "Semaphore.create + mapWithConcurrency cap concurrency (deterministic)"
+    },
+    {
+      "slug": "conversation-storage",
+      "domain": "advanced",
+      "page": "",
+      "title": "Conversation Storage",
+      "description": "Production-Readiness #1 \u2014 ConversationStorageAdapter example."
+    },
+    {
+      "slug": "custom-provider",
+      "domain": "advanced",
+      "page": "",
+      "title": "Custom Provider",
+      "description": "Custom LLM provider via `Provider.create`."
+    },
+    {
+      "slug": "deepagents-parity-demo",
+      "domain": "advanced",
+      "page": "",
+      "title": "Deepagents Parity Demo",
+      "description": "DeepAgents Parity Demo \u2014 exercises all 4 new capabilities end-to-end."
+    },
+    {
+      "slug": "eval",
+      "domain": "advanced",
+      "page": "",
+      "title": "Eval",
+      "description": "Example: `Eval.create / .run` against a real LLM."
+    },
+    {
+      "slug": "guardrails",
+      "domain": "advanced",
+      "page": "",
+      "title": "Guardrails",
+      "description": "SE26 \u2014 guardrails worked example. Builds an LLM-classifier-style moderation"
+    },
+    {
+      "slug": "handoffs",
+      "domain": "advanced",
+      "page": "",
+      "title": "Handoffs",
+      "description": "Example: triage agent transfers to billing OR support based on intent."
+    },
+    {
+      "slug": "memory-lance",
+      "domain": "advanced",
+      "page": "",
+      "title": "Memory Lance",
+      "description": "@theokit/sdk \u2014 Lance backend memory example."
+    },
+    {
+      "slug": "retry-primitive",
+      "domain": "resilience",
+      "page": "",
+      "title": "Retry a function",
+      "description": "Retry.create runs a flaky fn with backoff (deterministic)"
+    },
+    {
+      "slug": "tasks",
+      "domain": "advanced",
+      "page": "",
+      "title": "Tasks",
+      "description": "Example: Task observability registry (ADRs D361-D374, Adoption Roadmap gap #2)."
+    },
+    {
+      "slug": "theocode-e2e",
+      "domain": "advanced",
+      "page": "",
+      "title": "Theocode E2E",
+      "description": "TheoCode E2E Live Test \u2014 proves all 5 phases work together with a real LLM."
+    },
+    {
+      "slug": "tool-advanced",
+      "domain": "tools",
+      "page": "",
+      "title": "Advanced tool",
+      "description": "outputSchema validates the return; toModelOutput shapes the model-facing view"
+    },
+    {
+      "slug": "tool-hooks-tracking",
+      "domain": "advanced",
+      "page": "",
+      "title": "Tool Hooks Tracking",
+      "description": "Production-Readiness #4 \u2014 Tool lifecycle hooks example."
+    },
+    {
+      "slug": "vertex-bot",
+      "domain": "advanced",
+      "page": "",
+      "title": "Vertex Bot",
+      "description": "GCP Vertex AI demo (Adoption Roadmap #8; ADRs D286-D302)."
+    },
+    {
+      "slug": "workflow-parallel",
+      "domain": "workflows",
+      "page": "",
+      "title": "Parallel & branch",
+      "description": "Workflow fan-out with .parallel then first-match .branch (deterministic)"
+    },
+    {
+      "slug": "workflows",
+      "domain": "advanced",
+      "page": "",
+      "title": "Workflows",
+      "description": "Workflow demo (Adoption Roadmap #5; ADRs D230-D248)."
     }
   ]
 }
