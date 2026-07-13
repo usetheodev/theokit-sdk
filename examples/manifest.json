@@ -93,6 +93,13 @@
       "page": "/theokit/sessions/manage-sessions",
       "title": "Manage sessions",
       "description": "List, rename, and tag an agent's conversations"
+    },
+    {
+      "slug": "guardrails-basics",
+      "domain": "guardrails",
+      "page": "/theokit/guardrails/block-a-message",
+      "title": "Block a message",
+      "description": "An input processor tripwire blocks a run before the model"
     }
   ]
 }
