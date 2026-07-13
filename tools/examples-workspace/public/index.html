@@ -11,6 +11,7 @@
     --red: #ff6b6b; --yellow: #e5c07b; --mono: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, monospace;
   }
   * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
   body { margin: 0; font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; }
   header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--panel); }
   header h1 { font-size: 15px; margin: 0; font-weight: 600; }
@@ -56,12 +57,19 @@
   .tabs .label { margin-left: auto; align-self: center; font-size: 11px; color: var(--muted); padding-right: 6px; }
   pre { margin: 0; flex: 1; overflow: auto; padding: 14px 16px; font-family: var(--mono); font-size: 12.5px; line-height: 1.55; }
   #code .kw { color: #c678dd; } #code .str { color: #98c379; } #code .com { color: #5c6b7f; font-style: italic; } #code .num { color: #d19a66; }
-  #out { background: #0a0d11; }
+  #out { background: #0a0d11; white-space: pre-wrap; word-break: break-word; }
   #out .stderr { color: var(--red); }
   #out .phase { color: var(--yellow); }
   #out .exit-ok { color: var(--green); font-weight: 600; }
   #out .exit-bad { color: var(--red); font-weight: 600; }
-  .empty { display: flex; align-items: center; justify-content: center; flex: 1; color: var(--muted); }
+  .empty { display: flex; align-items: center; justify-content: center; flex: 1; padding: 24px; }
+  .empty .card { max-width: 460px; padding: 26px 30px; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
+  .empty h3 { margin: 0 0 6px; font-size: 15px; }
+  .empty h3 span { color: var(--accent); }
+  .empty p { margin: 0 0 14px; color: var(--muted); font-size: 13px; }
+  .empty ol { margin: 0; padding-left: 20px; color: var(--text); font-size: 13px; display: grid; gap: 6px; }
+  .empty ol b { color: var(--green); font-weight: 600; }
+  .empty .hint { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; }
 </style>
 </head>
 <body>
@@ -86,7 +94,21 @@
         <button id="stopBtn" hidden>■ Parar</button>
       </div>
     </div>
-    <div class="empty" id="empty">Selecione um example na lista para ver o código e executar.</div>
+    <div class="empty" id="empty">
+      <div class="card">
+        <h3><span>@theokit/sdk</span> · examples workspace</h3>
+        <p>Valide os examples da documentação executando cada um contra um provider real.</p>
+        <ol>
+          <li><b>Selecione</b> um example na lista ao lado (busca no topo filtra).</li>
+          <li><b>Revise</b> o <code>run.ts</code> e o README lado a lado.</li>
+          <li><b>Execute</b> com ▶ e acompanhe a saída em tempo real; ■ interrompe.</li>
+        </ol>
+        <div class="hint">
+          Examples sem deps instalam sozinhos na primeira execução.
+          As chaves vêm do ambiente + <code>.env</code> da raiz + <code>.env</code> do example — os valores nunca aparecem aqui.
+        </div>
+      </div>
+    </div>
     <div class="panes" id="panes" hidden>
       <div class="pane">
         <div class="tabs">
@@ -113,17 +135,18 @@ let runController = null;
 
 const esc = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
 
+// Single-pass tokenizer: escape + wrap in one walk so generated HTML is never re-matched.
 function highlight(source) {
-  const kw = /\b(import|export|from|const|let|var|function|class|new|return|await|async|if|else|for|of|in|try|catch|finally|throw|typeof|undefined|null|true|false|default|extends|static|private)\b/g;
-  return esc(source)
-    .replace(/(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(\d[\d_.]*)\b/g,
-      (m, com, str, num) => {
-        if (com) return `<span class="com">${com}</span>`;
-        if (str) return `<span class="str">${str}</span>`;
-        if (num) return `<span class="num">${num}</span>`;
-        return m;
-      })
-    .replace(kw, '<span class="kw">$1</span>');
+  const pattern = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`)|\b(\d[\d_.]*)\b|\b(import|export|from|const|let|var|function|class|new|return|await|async|if|else|for|of|in|try|catch|finally|throw|typeof|undefined|null|true|false|default|extends|static|private)\b/g;
+  let out = "";
+  let last = 0;
+  for (const m of source.matchAll(pattern)) {
+    out += esc(source.slice(last, m.index));
+    const cls = m[1] ? "com" : m[2] ? "str" : m[3] ? "num" : "kw";
+    out += `<span class="${cls}">${esc(m[0])}</span>`;
+    last = m.index + m[0].length;
+  }
+  return out + esc(source.slice(last));
 }
 
 function renderProviders() {
