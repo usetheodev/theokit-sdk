@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineTool } from "../src/define-tool.js";
+import { Tool } from "../src/define-tool.js";
 
 /**
  * #65 — a tool handler receives an optional ToolContext 2nd argument carrying
  * the run's AbortSignal, so a cooperative handler can observe cancellation.
  */
-describe("defineTool ToolContext signal (#65)", () => {
+describe("Tool ToolContext signal (#65)", () => {
   it("tool_handler_receives_ToolContext_signal", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "probe",
       description: "reports whether it saw an abort signal",
       inputSchema: z.object({}),
@@ -22,7 +22,7 @@ describe("defineTool ToolContext signal (#65)", () => {
   });
 
   it("single-argument handlers still work (backward-compatible)", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "legacy",
       description: "ignores the context arg",
       inputSchema: z.object({ x: z.number() }),

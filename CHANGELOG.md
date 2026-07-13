@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **SE36 (v3.0 breaking, in progress) — uniform `X.create()` public API.** Every public factory becomes a static `X.create()` on a namespace class (private constructor), matching `Agent.create`. Reverses Unbreakable Rule 9 (ADR 0015 supersedes D431). First symbol landed: `Tool.create` (was `defineTool`). Spikes prove TS-inference + tree-shaking + codemod parity (blueprint `se36-uniform-x-create`). Remaining 19 symbols + codemod `@theokit/codemod-sdk-3-0` + docs/README/CLAUDE.md rewrite + examples re-verified against a real LLM land before the `3.0.0` cut. (SE36)
+
+### Removed
+- **SE36 (v3.0 breaking, in progress).** `defineTool` removed from the public barrel — use `Tool.create`. (Further removals land as each symbol is converted.) (SE36)
+
 ### Added
 - Roadmap amended: added **SE36** — Uniform `X.create()` public API (v3.0 breaking; reverses Unbreakable Rule 9 / ADR D431) via `/roadmap-feature api-uniform-x-create`. Owner decision (2026-07-13): every public factory (`defineTool`/`defineProvider`/`definePlugin`/`createSquad`/`createSkill`/… **and** utility factories) collapses to a uniform static-namespace `X.create()` (`Tool.create`, `Provider.create`, …) matching `Agent.create`. **Hard break** (old exports removed, no aliases) + **full scope** (incl. internal utilities). Requires a superseding ADR, a jscodeshift codemod, `docs.md`/`README.md`/`CLAUDE.md` rewrites, and every example re-verified against a real LLM. Not yet implemented — delivered later via `/auto-plan SE36`. (SE36)
 - **`prompts` docs example.** `examples/prompts` — dynamic instructions via a `systemPrompt` resolver (`(ctx) => string`, reading `ctx.userMessage`) plus a per-send `{ systemPrompt }` string override. Executed against OpenRouter (free model); registered in `examples/manifest.json`.

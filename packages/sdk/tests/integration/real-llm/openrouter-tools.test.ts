@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { Agent, defineTool } from "../../../src/index.js";
+import { Agent, Tool } from "../../../src/index.js";
 import { resolveRealLlmEnv } from "./_helpers/real-llm-env.js";
 
 const env = resolveRealLlmEnv("openrouter");
@@ -17,7 +17,7 @@ const env = resolveRealLlmEnv("openrouter");
 describe.skipIf(env.shouldSkip)(`real-llm: openrouter tools (${env.provider})`, () => {
   it("invokes a tool and returns a final answer routed via OpenRouter", async () => {
     let invocations = 0;
-    const echoTool = defineTool({
+    const echoTool = Tool.create({
       name: "echo_back",
       description: "Echo a phrase the caller provides back.",
       inputSchema: z.object({ phrase: z.string() }),
