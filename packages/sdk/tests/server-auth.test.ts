@@ -12,11 +12,11 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { describe, expect, it } from "vitest";
 import type { AuthProvider, SessionManager } from "../src/server/auth/index.js";
 import {
+  Auth,
   AuthCallbackError,
   AuthCancelledError,
   AuthConfigError,
   AuthProviderNotFoundError,
-  defineAuth,
   validateReturnTo,
 } from "../src/server/auth/index.js";
 
@@ -91,16 +91,16 @@ function mockRes(): ServerResponse & { _headers: Record<string, string | string[
   } as unknown as ServerResponse & { _headers: Record<string, string | string[]> };
 }
 
-describe("defineAuth() — config validation", () => {
+describe("Auth.create() — config validation", () => {
   it("throws AuthConfigError when session missing", () => {
-    expect(() => defineAuth({} as never)).toThrow(AuthConfigError);
+    expect(() => Auth.create({} as never)).toThrow(AuthConfigError);
   });
 
   it("throws AuthConfigError on duplicate provider name", () => {
     const session = mockSession<{ userId: string }>();
     const google1 = mockProvider("google", { id: "1" });
     const google2 = mockProvider("google", { id: "2" });
-    expect(() => defineAuth({ session, providers: [google1, google2] })).toThrow(
+    expect(() => Auth.create({ session, providers: [google1, google2] })).toThrow(
       /duplicate_provider_name/,
     );
   });
@@ -108,19 +108,19 @@ describe("defineAuth() — config validation", () => {
   it("throws AuthConfigError on invalid provider name grammar", () => {
     const session = mockSession<{ userId: string }>();
     const bad = mockProvider("Google!", { id: "1" });
-    expect(() => defineAuth({ session, providers: [bad] })).toThrow(/invalid_provider_name/);
+    expect(() => Auth.create({ session, providers: [bad] })).toThrow(/invalid_provider_name/);
   });
 
   it("accepts empty providers (Caminho A escape hatch)", () => {
     const session = mockSession<{ userId: string }>();
-    expect(() => defineAuth({ session })).not.toThrow();
+    expect(() => Auth.create({ session })).not.toThrow();
   });
 });
 
 describe("startSignIn — unknown provider", () => {
   it("throws AuthProviderNotFoundError when provider name unregistered", async () => {
     const session = mockSession<{ userId: string }>();
-    const auth = defineAuth({ session });
+    const auth = Auth.create({ session });
     await expect(auth.startSignIn("unknown", mockReq())).rejects.toThrow(AuthProviderNotFoundError);
   });
 });
@@ -129,7 +129,7 @@ describe("EC-1 (v1.1) — OAuth provider error response", () => {
   it("throws AuthCancelledError on ?error=access_denied", async () => {
     const session = mockSession<{ userId: string }>();
     const google = mockProvider("google", { id: "1" });
-    const auth = defineAuth({ session, providers: [google] });
+    const auth = Auth.create({ session, providers: [google] });
 
     const req = mockReq({
       url: "/api/auth/google/callback?error=access_denied&error_description=User+denied",
@@ -142,7 +142,7 @@ describe("EC-1 (v1.1) — OAuth provider error response", () => {
   it("throws AuthCallbackError on non-access_denied error", async () => {
     const session = mockSession<{ userId: string }>();
     const google = mockProvider("google", { id: "1" });
-    const auth = defineAuth({ session, providers: [google] });
+    const auth = Auth.create({ session, providers: [google] });
 
     const req = mockReq({
       url: "/api/auth/google/callback?error=server_error",
@@ -194,7 +194,7 @@ describe("EC-10 (v1.1) — rotateSession on login (OWASP A07:2021)", () => {
     const session = mockSession<{ userId: string }>();
     const google = mockProvider("google", { sub: "google-user-123" });
 
-    const auth = defineAuth({
+    const auth = Auth.create({
       session,
       providers: [google],
       onSignIn: async ({ profile }) => ({ userId: (profile as { sub: string }).sub }),
@@ -226,7 +226,7 @@ describe("EC-10 (v1.1) — rotateSession on login (OWASP A07:2021)", () => {
 describe("signIn — Caminho A escape hatch", () => {
   it("creates session directly from profile without OAuth flow", async () => {
     const session = mockSession<{ userId: string }>();
-    const auth = defineAuth({
+    const auth = Auth.create({
       session,
       onSignIn: async ({ profile }) => ({ userId: (profile as { sub: string }).sub }),
     });
@@ -244,7 +244,7 @@ describe("finishSignIn — state mismatch + expired tx", () => {
   it("throws AuthCallbackError on missing transaction cookie", async () => {
     const session = mockSession<{ userId: string }>();
     const google = mockProvider("google", { id: "1" });
-    const auth = defineAuth({ session, providers: [google] });
+    const auth = Auth.create({ session, providers: [google] });
 
     const req = mockReq({ url: "/api/auth/google/callback?code=x&state=y" });
     const res = mockRes();

@@ -21,7 +21,7 @@ import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -43,7 +43,7 @@ export interface CreateListDirToolOptions {
 export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
   const { projectRoot, max = DEFAULT_MAX_ENTRIES } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "list_dir",
     description:
       `Return the direct entries of a project-relative directory. ` +

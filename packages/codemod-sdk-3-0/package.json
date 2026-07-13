@@ -1,0 +1,37 @@
+{
+  "name": "@theokit/codemod-sdk-3-0",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Codemod for the @theokit/sdk 2.x -> 3.0 migration (SE36): rewrites every removed public factory (defineTool, createSquad, defineProvider, withRetry, ...) to its uniform X.create() namespace form, in both imports and call sites. Purely syntactic (jscodeshift, --parser=ts).",
+  "license": "MIT",
+  "type": "module",
+  "main": "transform.mjs",
+  "bin": {
+    "theokit-codemod-sdk-3-0": "bin/codemod.mjs"
+  },
+  "files": [
+    "bin",
+    "transform.mjs",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "keywords": [
+    "theokit",
+    "sdk",
+    "codemod",
+    "migration",
+    "x-create",
+    "se36"
+  ],
+  "dependencies": {
+    "jscodeshift": "^17.3.0"
+  },
+  "scripts": {
+    "test": "node tests/codemod.test.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

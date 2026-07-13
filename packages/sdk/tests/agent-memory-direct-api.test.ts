@@ -2,7 +2,7 @@
  * T2.2 — `agent.memory` direct API (ADR D141 / D142).
  *
  * Uses fixture mode so no LLM hits the wire. Builds a fake memory
- * adapter via `definePlugin({ kind: "memory" })` and asserts the
+ * adapter via `Plugin.create({ kind: "memory" })` and asserts the
  * fan-out / merge / dedupe / lazy-init contract.
  */
 
@@ -10,7 +10,7 @@ import { describe, expect, it } from "vitest";
 
 import { Agent } from "../src/agent.js";
 import { ConfigurationError } from "../src/errors.js";
-import { definePlugin } from "../src/internal/plugins/types.js";
+import { Plugin } from "../src/internal/plugins/types.js";
 import { mkMemoryId } from "../src/memory-adapter-helpers.js";
 import type {
   MemoryAdapter,
@@ -60,7 +60,7 @@ function makeFakeAdapter(script: FakeAdapterScript): MemoryAdapter {
 }
 
 function makeMemoryPlugin(adapter: MemoryAdapter, name = "fake-mem") {
-  return definePlugin({
+  return Plugin.create({
     name,
     version: "1.0.0",
     kind: "memory",

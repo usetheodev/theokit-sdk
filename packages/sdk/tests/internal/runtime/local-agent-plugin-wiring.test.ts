@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
-import { definePlugin, type Plugin } from "../../../src/internal/plugins/types.js";
+import { Plugin } from "../../../src/internal/plugins/types.js";
 import {
   extractCodePlugins,
   isCodePlugin,
@@ -88,7 +88,7 @@ describe("Agent.create plugin wiring (T4.1)", () => {
 
   it("general plugin register() is called once", async () => {
     let calls = 0;
-    const plugin = definePlugin({
+    const plugin = Plugin.create({
       name: "test-plugin",
       version: "1.0.0",
       kind: "general",

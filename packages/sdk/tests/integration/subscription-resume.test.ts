@@ -12,7 +12,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineSubscription } from "../../src/subscription/define-subscription.js";
+import { Subscription } from "../../src/subscription/define-subscription.js";
 import type { MountedSubscriptions } from "../../src/subscription/internal/server-integration.js";
 import { SubscriptionRuntime } from "../../src/subscription/internal/subscription-runtime.js";
 import { subscribe } from "../../src/subscription/theokit-subscribe.js";
@@ -28,7 +28,7 @@ beforeAll(async () => {
   // On reconnect with lastEventId, resumes from next id.
   runtime.register(
     "counter",
-    defineSubscription({
+    Subscription.create({
       input: z.object({
         from: z.number().default(0),
         lastEventId: z.string().optional(),

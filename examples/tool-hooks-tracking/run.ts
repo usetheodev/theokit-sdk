@@ -9,7 +9,7 @@
  *   OPENROUTER_API_KEY=sk-or-... pnpm run
  */
 
-import { Agent, defineTool } from "@theokit/sdk";
+import { Agent, Tool } from "@theokit/sdk";
 import { z } from "zod";
 
 const apiKey = process.env.OPENROUTER_API_KEY ?? "theo_test_tool_hooks_example";
@@ -20,7 +20,7 @@ console.log(realLlm ? "Mode: real OpenRouter" : "Mode: fixture (no LLM call)");
 console.log();
 
 // Custom tool that the LLM may invoke.
-const getWeatherTool = defineTool({
+const getWeatherTool = Tool.create({
   name: "get_weather",
   description: "Return mock weather for a city",
   inputSchema: z.object({ city: z.string() }),

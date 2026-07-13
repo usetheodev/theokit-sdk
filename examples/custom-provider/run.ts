@@ -1,9 +1,9 @@
 /**
- * Custom LLM provider via `defineProvider`.
+ * Custom LLM provider via `Provider.create`.
  *
  * Demonstrates:
  * - Declare a `ProviderProfile` for any OpenAI-compatible endpoint (here: Groq).
- * - Build a `kind: "model-provider"` plugin with `defineProvider`.
+ * - Build a `kind: "model-provider"` plugin with `Provider.create`.
  * - Route to it via the `provider/model` id prefix on `Agent.create`.
  *
  * Real-LLM validation (per .claude/rules/real-llm-validation.md):
@@ -12,16 +12,16 @@
  *     GROQ_API_KEY=gsk_... pnpm run
  */
 
-import { Agent, defineProvider } from "@theokit/sdk";
+import { Agent, Provider } from "@theokit/sdk";
 
 const groqKey = process.env.GROQ_API_KEY;
 const realLlm = typeof groqKey === "string" && groqKey.startsWith("gsk_");
 
-console.log("\n== Custom provider via defineProvider ==");
+console.log("\n== Custom provider via Provider.create ==");
 console.log(realLlm ? "Mode: real Groq call" : "Mode: registration/routing only (no key)");
 
 // 1. Declare the provider — data only. OpenAI-compatible → apiMode "chat_completions".
-const groq = defineProvider({
+const groq = Provider.create({
   name: "groq",
   apiMode: "chat_completions",
   authType: realLlm ? "api_key" : "none",
