@@ -324,6 +324,13 @@
       "page": "/theokit/skills/give-an-agent-a-skill",
       "title": "Give an agent a skill",
       "description": "Skill.create + agent.skills inspector (deterministic, no LLM)"
+    },
+    {
+      "slug": "personality-switch",
+      "domain": "personalities",
+      "page": "/theokit/personalities/switch-personality",
+      "title": "Switch personality",
+      "description": "usePersonality resolves a .theokit/personalities preset (deterministic)"
     }
   ]
 }
