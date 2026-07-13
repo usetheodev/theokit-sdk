@@ -303,6 +303,13 @@
       "page": "/theokit/filesystem/enforce-a-storage-boundary",
       "title": "Enforce a storage boundary",
       "description": "LocalFilesystem write/read/list + traversal rejection (deterministic)"
+    },
+    {
+      "slug": "eval-scorers",
+      "domain": "evals",
+      "page": "/theokit/evals/score-a-prediction",
+      "title": "Score a prediction",
+      "description": "Built-in Scorers grade output vs expected (deterministic, no LLM)"
     }
   ]
 }
