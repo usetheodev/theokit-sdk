@@ -27,7 +27,7 @@
     {
       "slug": "agent-structured-output",
       "domain": "agents",
-      "page": "/theokit/agents/structured-output",
+      "page": "/theokit/structured-output/return-structured-output",
       "title": "Structured output",
       "description": "Typed object from agent.generate() + Zod"
     },
