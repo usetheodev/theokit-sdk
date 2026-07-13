@@ -96,9 +96,8 @@ export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // added to barrel so extracted packages (sdk-cache, sdk-handoff) can type their
 // .asPlugin() factories without reaching into ./internal/plugins sub-path.
 export {
-  definePlugin,
   type HookName,
-  type Plugin,
+  Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
   type PreToolCallContext,

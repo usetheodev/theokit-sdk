@@ -12,7 +12,7 @@
 import { spawn } from "node:child_process";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
@@ -38,7 +38,7 @@ export interface CreateShellToolOptions {
 export function createShellTool(opts: CreateShellToolOptions): CustomTool {
   const { projectRoot, defaultTimeoutMs = DEFAULT_TIMEOUT_MS, allowCatastrophic = false } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "shell_exec",
     description:
       "Execute a shell command in the project directory. Use this for terminal operations — running " +

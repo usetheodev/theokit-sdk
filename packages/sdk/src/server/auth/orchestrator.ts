@@ -244,3 +244,11 @@ export function defineAuth<TSession>(
 
   return { startSignIn, finishSignIn, signIn, signOut, getSession };
 }
+
+/** SE36 — `Auth.create` replaces `defineAuth` (ADR 0015). @public */
+export class Auth {
+  private constructor() {}
+  static create<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrator<TSession> {
+    return defineAuth(opts);
+  }
+}

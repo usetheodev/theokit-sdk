@@ -1,7 +1,7 @@
 /**
  * Tools — give an agent a typed tool (features/tools).
  *
- * `defineTool` turns a plain async function into a tool the model can call. The
+ * `Tool.create` turns a plain async function into a tool the model can call. The
  * Zod `inputSchema` is converted to JSON Schema and validated before `execute`
  * runs, so the arguments are typed. The agent decides when to call it based on
  * the description and the user's message.
@@ -12,7 +12,7 @@
  *   pnpm run run
  */
 
-import { Agent, defineTool } from "@theokit/sdk";
+import { Agent, Tool } from "@theokit/sdk";
 import { z } from "zod";
 
 const apiKey = process.env.OPENROUTER_API_KEY;
@@ -20,7 +20,7 @@ if (apiKey === undefined || apiKey.length === 0) {
   throw new Error("Set OPENROUTER_API_KEY (env or .env) — see https://openrouter.ai/keys");
 }
 
-const getWeather = defineTool({
+const getWeather = Tool.create({
   name: "get_weather",
   description: "Look up the current weather in a given city.",
   inputSchema: z.object({

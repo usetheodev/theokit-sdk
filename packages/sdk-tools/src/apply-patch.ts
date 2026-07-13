@@ -14,7 +14,7 @@ import { copyFile, mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -32,7 +32,7 @@ export interface CreateApplyPatchToolOptions {
 export function createApplyPatchTool(opts: CreateApplyPatchToolOptions): CustomTool {
   const { projectRoot } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "apply_patch",
     description:
       "Apply a unified diff patch to project files. Each file in the diff " +

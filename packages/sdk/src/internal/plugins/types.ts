@@ -184,3 +184,6 @@ export type Plugin =
 export function definePlugin<P extends Plugin>(p: P): P {
   return p;
 }
+
+/** SE36 — `Plugin.create` replaces `definePlugin` (ADR 0015). Const-companion (the `Plugin` type alias blocks a class of the same name); `create` is the generic `definePlugin`. @public */
+export const Plugin = { create: definePlugin };

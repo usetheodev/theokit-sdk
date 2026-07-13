@@ -14,10 +14,10 @@ import type {
   PreUserSendContext,
   PreUserSendResult,
 } from "../../../src/internal/plugins/types.js";
-import { definePlugin } from "../../../src/internal/plugins/types.js";
+import { Plugin } from "../../../src/internal/plugins/types.js";
 
 function makeRecallPlugin(name: string, recalledContext: string) {
-  return definePlugin({
+  return Plugin.create({
     name,
     version: "1.0.0",
     kind: "general",
@@ -30,7 +30,7 @@ function makeRecallPlugin(name: string, recalledContext: string) {
 }
 
 function makeSyncPlugin(name: string, onPostReply: (ctx: PostAssistantReplyContext) => void) {
-  return definePlugin({
+  return Plugin.create({
     name,
     version: "1.0.0",
     kind: "general",
@@ -65,7 +65,7 @@ describe("PluginManager memory-hook dispatch (T2.1)", () => {
   it("pre_user_send: returns undefined when all handlers return empty", async () => {
     const mgr = new PluginManager();
     await mgr.initialize([
-      definePlugin({
+      Plugin.create({
         name: "noop",
         version: "1.0.0",
         kind: "general",
@@ -86,7 +86,7 @@ describe("PluginManager memory-hook dispatch (T2.1)", () => {
     const stderr = vi.spyOn(process.stderr, "write");
     const mgr = new PluginManager();
     await mgr.initialize([
-      definePlugin({
+      Plugin.create({
         name: "broken",
         version: "1.0.0",
         kind: "general",
@@ -154,7 +154,7 @@ describe("PluginManager memory-hook dispatch (T2.1)", () => {
     const calls: string[] = [];
     const mgr = new PluginManager();
     await mgr.initialize([
-      definePlugin({
+      Plugin.create({
         name: "broken",
         version: "1.0.0",
         kind: "general",
@@ -197,7 +197,7 @@ describe("PluginManager memory-hook dispatch (T2.1)", () => {
     const mgr = new PluginManager();
     const observed: AbortSignal[] = [];
     await mgr.initialize([
-      definePlugin({
+      Plugin.create({
         name: "abort-aware",
         version: "1.0.0",
         kind: "general",
