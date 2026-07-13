@@ -360,6 +360,16 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/schedule-a-job:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/sessions-basics:
     dependencies:
       '@theokit/sdk':

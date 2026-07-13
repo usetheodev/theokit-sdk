@@ -282,6 +282,13 @@
       "page": "/theokit/cache/cache-similar-prompts",
       "title": "Cache similar prompts",
       "description": "Cache.semantic serves a stored answer for a similar prompt (deterministic, lexical embedder)"
+    },
+    {
+      "slug": "schedule-a-job",
+      "domain": "schedules",
+      "page": "/theokit/schedules/schedule-a-recurring-run",
+      "title": "Schedule a recurring run",
+      "description": "Cron.create defines a recurring agent run (deterministic \u2014 created disabled)"
     }
   ]
 }
