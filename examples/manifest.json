@@ -58,6 +58,13 @@
       "page": "/theokit/workflows/run-a-workflow",
       "title": "Run a workflow",
       "description": "Workflow.create + fn + agentStep, executed end-to-end"
+    },
+    {
+      "slug": "squad-basics",
+      "domain": "squad",
+      "page": "/theokit/squad/run-a-squad",
+      "title": "Run a squad",
+      "description": "A sequential Squad.create team, executed end-to-end"
     }
   ]
 }
