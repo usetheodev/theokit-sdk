@@ -2,11 +2,28 @@
  * Personalities — switch an agent to a named personality and inspect the resolved preset.
  * Deterministic: usePersonality resolves a `.theokit/personalities/<name>.md` from disk (no LLM).
  */
+import { mkdirSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import { Agent } from "@theokit/sdk";
 
-const here = dirname(fileURLToPath(import.meta.url)); // holds .theokit/personalities/reviewer.md
+const here = dirname(fileURLToPath(import.meta.url));
+
+// Seed a personality preset so the example is self-contained.
+const personalityDir = join(here, ".theokit", "personalities");
+mkdirSync(personalityDir, { recursive: true });
+writeFileSync(
+  join(personalityDir, "reviewer.md"),
+  [
+    "---",
+    "name: reviewer",
+    "description: A terse, exacting code reviewer.",
+    "tags: [engineering, review]",
+    "---",
+    "You are a senior code reviewer. Be terse. Flag correctness and security issues first.",
+    "",
+  ].join("\n"),
+);
 
 const agent = await Agent.create({
   apiKey: "theo_test_persona",             // fixture key — no LLM
