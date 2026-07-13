@@ -6,6 +6,7 @@
  * layers on top: `plan` blocks mutations, `bypass` auto-allows — but an explicit `deny` is immune
  * to every mode. Deterministic — no LLM.
  */
+import assert from "node:assert/strict";
 import { PermissionEngine } from "@theokit/sdk";
 
 const engine = new PermissionEngine([
@@ -18,3 +19,8 @@ console.log("read_file          :", engine.evaluate("read_file"));
 console.log("send_email (unmatch):", engine.evaluate("send_email"));
 console.log("write_file in plan :", engine.evaluate("write_file", undefined, "plan"));
 console.log("delete in bypass   :", engine.evaluate("delete_file", undefined, "bypass"));
+
+// --- validate output (assert) ---
+assert.equal(engine.evaluate("delete_file"), "deny");
+assert.equal(engine.evaluate("read_file"), "allow");
+assert.equal(engine.evaluate("send_email"), "ask");
