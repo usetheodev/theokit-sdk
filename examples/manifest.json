@@ -345,6 +345,13 @@
       "page": "/theokit/a2a/message-another-agent",
       "title": "Message another agent",
       "description": "MessageBus + AgentMailbox request/response (deterministic)"
+    },
+    {
+      "slug": "cloud-payload",
+      "domain": "cloud",
+      "page": "/theokit/cloud/inspect-the-cloud-payload",
+      "title": "Inspect the cloud payload",
+      "description": "cloud:{} builds a cloud agent; inspect its redacted cloudPayload (deterministic)"
     }
   ]
 }
