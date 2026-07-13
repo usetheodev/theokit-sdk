@@ -1,3 +1,14 @@
-{ "name": "example-personality-switch", "private": true, "type": "module",
-  "scripts": { "run": "tsx run.ts" },
-  "dependencies": { "@theokit/sdk": "workspace:*" }, "devDependencies": { "tsx": "^4.19.0" } }
+{
+  "name": "example-personality-switch",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx run.ts"
+  },
+  "dependencies": {
+    "@theokit/sdk": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}

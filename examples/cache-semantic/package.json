@@ -1,3 +1,14 @@
-{ "name": "example-cache-semantic", "private": true, "type": "module",
-  "scripts": { "run": "tsx run.ts" },
-  "dependencies": { "@theokit/sdk-cache": "workspace:*" }, "devDependencies": { "tsx": "^4.19.0" } }
+{
+  "name": "example-cache-semantic",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "run": "tsx run.ts"
+  },
+  "dependencies": {
+    "@theokit/sdk-cache": "workspace:*"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  }
+}
