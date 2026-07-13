@@ -338,6 +338,13 @@
       "page": "/theokit/goals/set-a-durable-objective",
       "title": "Set a durable objective",
       "description": "setObjective/getObjective persist a thread-scoped goal (deterministic)"
+    },
+    {
+      "slug": "a2a-mailbox",
+      "domain": "a2a",
+      "page": "/theokit/a2a/message-another-agent",
+      "title": "Message another agent",
+      "description": "MessageBus + AgentMailbox request/response (deterministic)"
     }
   ]
 }
