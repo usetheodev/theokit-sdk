@@ -262,6 +262,16 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/filesystem-boundary:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/guardrails:
     dependencies:
       '@theokit/sdk':
