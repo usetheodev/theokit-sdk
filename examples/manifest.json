@@ -79,6 +79,13 @@
       "page": "/theokit/workflows/advanced",
       "title": "Suspend and resume",
       "description": "Pause for approval, then resume"
+    },
+    {
+      "slug": "memory-basics",
+      "domain": "memory",
+      "page": "/theokit/memory/remember-and-recall",
+      "title": "Remember and recall",
+      "description": "An agent recalls a fact across turns with memory enabled"
     }
   ]
 }
