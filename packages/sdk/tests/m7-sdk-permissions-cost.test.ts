@@ -1,12 +1,12 @@
 /**
  * M7 (SDK slice) — Integration Validation (Phase 4).
  *
- * Composes M7-4 (default-deny engine) + M7-5 (createPermissionPlugin veto)
+ * Composes M7-4 (default-deny engine) + M7-5 (PermissionPlugin veto)
  * + M7-6 (formatCostUsd honest-null) in one flow.
  */
 import { describe, expect, it } from "vitest";
 import { formatCostUsd } from "../../sdk-budget/src/format-cost.js";
-import { createPermissionPlugin, PermissionEngine } from "../src/index.js";
+import { PermissionEngine, PermissionPlugin } from "../src/index.js";
 import type { HookHandler, Plugin, PreToolCallDecision } from "../src/internal/plugins/types.js";
 
 function handlerOf(plugin: Plugin): HookHandler {
@@ -29,7 +29,7 @@ describe("M7 SDK slice — full chain", () => {
     const engine = new PermissionEngine([{ tool: "read_file", action: "allow" }], {
       defaultAction: "deny",
     });
-    const handler = handlerOf(createPermissionPlugin(engine));
+    const handler = handlerOf(PermissionPlugin.create(engine));
 
     // Allowed tool passes.
     expect(await handler({ name: "read_file", args: {} })).toBeUndefined();

@@ -6,7 +6,7 @@ import { WorkflowToolError, workflowAsTool } from "../src/workflow.js";
 /**
  * SE19 — `workflowAsTool(workflow, spec)` exposes a `Workflow` as an agent
  * `CustomTool`, completing the a peer framework "X as tools" trio (tools; agents-as-tools
- * via `defineSubAgent`; workflows-as-tools). The caller supplies the tool
+ * via `SubAgent`; workflows-as-tools). The caller supplies the tool
  * `inputSchema` (a `Workflow` carries no top-level schema); the handler validates
  * the input, runs the workflow, and returns its output. A failed run raises a
  * typed `WorkflowToolError`.

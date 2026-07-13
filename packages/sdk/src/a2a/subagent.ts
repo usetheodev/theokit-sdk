@@ -316,3 +316,11 @@ export function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool
     },
   };
 }
+
+/** SE36 — `SubAgent.create` replaces `defineSubAgent` (ADR 0015). @public */
+export class SubAgent {
+  private constructor() {}
+  static create(spec: SubAgentSpec, parentDepth = 0): CustomTool {
+    return defineSubAgent(spec, parentDepth);
+  }
+}

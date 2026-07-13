@@ -4,7 +4,7 @@
  *
  * Verifies:
  *   - The option exists in `AgentOptions`.
- *   - Accepts a `MemoryProvider` instance (from `createNoopMemoryProvider`
+ *   - Accepts a `MemoryProvider` instance (from `NoopMemoryProvider`
  *     OR any conforming impl).
  *   - Rejects non-provider shapes (TypeScript catches mismatch).
  *
@@ -16,7 +16,7 @@
  * Mirrors `agent-create-budget-tracker-option.test.ts` (Phase 2 / T2.1).
  */
 
-import { type AgentOptions, createNoopMemoryProvider, type MemoryProvider } from "@theokit/sdk";
+import { type AgentOptions, type MemoryProvider, NoopMemoryProvider } from "@theokit/sdk";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 describe("Agent.create memoryProvider option (Phase 1 type wiring)", () => {
@@ -25,7 +25,7 @@ describe("Agent.create memoryProvider option (Phase 1 type wiring)", () => {
   });
 
   it("test_agent_options_accepts_noop_provider", () => {
-    const provider = createNoopMemoryProvider();
+    const provider = NoopMemoryProvider.create();
     const opts: Partial<AgentOptions> = { memoryProvider: provider };
     expect(opts.memoryProvider).toBeDefined();
     expect(typeof opts.memoryProvider?.init).toBe("function");

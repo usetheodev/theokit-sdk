@@ -24,10 +24,10 @@ export {
 } from "./budget.js";
 // SE25 — deterministic in-tree guardrail processors (built on the SE24 seam).
 export {
-  createTokenLimiter,
-  createUnicodeNormalizer,
   estimateTokens,
+  TokenLimiter,
   type TokenLimiterOptions,
+  UnicodeNormalizer,
   type UnicodeNormalizerOptions,
 } from "./built-in-processors.js";
 // M22 — code-defined inline skills (`createSkill`) usable alongside filesystem skills.
@@ -145,7 +145,7 @@ export type {
 // Reference impl — pure no-op, no recall, no tools. Consumers can use
 // as fallback before @theokit/sdk-memory ships or as a worked example
 // when authoring custom providers.
-export { createNoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
+export { NoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
@@ -178,10 +178,10 @@ export {
 } from "./permission-engine.js";
 // M7-5: PermissionEngine -> plugin veto exemplar. SE1: mode layer + canUseTool gate.
 export {
-  createPermissionPlugin,
   type PermissionGate,
   type PermissionGateContext,
   type PermissionGateDecision,
+  PermissionPlugin,
   type PermissionPluginOptions,
 } from "./permission-plugin.js";
 // M23 — schema normalizer (Zod default; JSON Schema / ArkType / Valibot adapters).
