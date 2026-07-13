@@ -25,6 +25,20 @@
       "page": "/theokit/agents/structured-output",
       "title": "Structured output",
       "description": "Typed object from agent.generate() + Zod"
+    },
+    {
+      "slug": "tool-basics",
+      "domain": "tools",
+      "page": "/theokit/tools",
+      "title": "Give an agent a tool",
+      "description": "defineTool — a typed function the model can call"
+    },
+    {
+      "slug": "providers-models",
+      "domain": "providers-models",
+      "page": "/theokit/providers-models",
+      "title": "Providers and models",
+      "description": "Pick a model by id; inspect capabilities offline"
     }
   ]
 }
