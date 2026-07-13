@@ -28,7 +28,7 @@ const Sentiment = z.object({
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-4o-mini" },
+  model: { id: "openai/gpt-oss-120b:free" },
   name: "review-analyzer",
   systemPrompt: "You analyze product reviews and return structured sentiment.",
   local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
