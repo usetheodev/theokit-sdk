@@ -1,5 +1,5 @@
 /**
- * Integration: a `kind: "model-provider"` plugin (built via `defineProvider`)
+ * Integration: a `kind: "model-provider"` plugin (built via `Provider`)
  * must actually route through the real provider registry + router.
  *
  * Before the T1 wiring fix, `PluginManager` aggregated provider profiles but
@@ -9,7 +9,7 @@
  * registerPluginProviderProfiles → registry → router.
  */
 import { beforeEach, describe, expect, it } from "vitest";
-import { defineProvider } from "../../src/index.js";
+import { Provider } from "../../src/index.js";
 import { resolveProviderChain } from "../../src/internal/llm/router.js";
 import { PluginManager } from "../../src/internal/plugins/manager.js";
 import {
@@ -41,7 +41,7 @@ describe("model-provider plugin → router (integration)", () => {
 
   it("registers plugin-contributed profiles so the registry resolves them", async () => {
     const mgr = new PluginManager();
-    await mgr.initialize([defineProvider(customProfile)]);
+    await mgr.initialize([Provider.create(customProfile)]);
 
     // Pre-condition: not yet registered (only aggregated).
     expect(getProviderProfile("custom-llm")).toBeUndefined();
@@ -56,7 +56,7 @@ describe("model-provider plugin → router (integration)", () => {
 
   it("lets the real router build a client chain for the custom provider", async () => {
     const mgr = new PluginManager();
-    await mgr.initialize([defineProvider(customProfile)]);
+    await mgr.initialize([Provider.create(customProfile)]);
     registerPluginProviderProfiles(mgr.aggregated.providerProfiles);
 
     const chain = resolveProviderChain({ primary: "custom-llm" });
@@ -65,7 +65,7 @@ describe("model-provider plugin → router (integration)", () => {
 
   it("does not disturb builtins", async () => {
     const mgr = new PluginManager();
-    await mgr.initialize([defineProvider(customProfile)]);
+    await mgr.initialize([Provider.create(customProfile)]);
     registerPluginProviderProfiles(mgr.aggregated.providerProfiles);
     expect(getProviderProfile("anthropic")).toBeDefined();
   });
@@ -82,7 +82,7 @@ describe("model-provider plugin → router (integration)", () => {
       fallbackModels: ["second-llm/default"],
     };
     const mgr = new PluginManager();
-    await mgr.initialize([defineProvider(customProfile), defineProvider(second)]);
+    await mgr.initialize([Provider.create(customProfile), Provider.create(second)]);
     expect(registerPluginProviderProfiles(mgr.aggregated.providerProfiles)).toBe(2);
     expect(getProviderProfile("custom-llm")).toBeDefined();
     expect(getProviderProfile("second-llm")).toBeDefined();
@@ -91,7 +91,7 @@ describe("model-provider plugin → router (integration)", () => {
   it("resolves a custom provider by its alias", async () => {
     const aliased: ProviderProfile = { ...customProfile, aliases: ["custom-alias"] };
     const mgr = new PluginManager();
-    await mgr.initialize([defineProvider(aliased)]);
+    await mgr.initialize([Provider.create(aliased)]);
     registerPluginProviderProfiles(mgr.aggregated.providerProfiles);
     expect(getProviderProfile("custom-alias")?.name).toBe("custom-llm");
   });

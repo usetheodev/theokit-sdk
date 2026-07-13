@@ -66,7 +66,7 @@ export interface Squad {
  *
  * @public
  */
-export function createSquad(options: SquadOptions): Squad {
+function createSquad(options: SquadOptions): Squad {
   const { agents } = options;
   if (!Array.isArray(agents) || agents.length === 0) {
     throw new ConfigurationError("createSquad requires a non-empty `agents` array", {
@@ -99,4 +99,13 @@ export function createSquad(options: SquadOptions): Squad {
       return { result: run.output, status: run.status, steps: run.stepResults };
     },
   };
+}
+
+/** SE36 — `Squad.create` replaces `createSquad` (ADR 0015). Merges with the `Squad` interface. @public */
+// biome-ignore lint/suspicious/noUnsafeDeclarationMerging: SE36 namespace class merges with the `Squad` instance interface (ADR 0015) — intentional; `create()` returns the interface type, `new` is blocked by the private ctor.
+export class Squad {
+  private constructor() {}
+  static create(options: SquadOptions): Squad {
+    return createSquad(options);
+  }
 }
