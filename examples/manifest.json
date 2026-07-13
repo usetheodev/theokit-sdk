@@ -240,6 +240,13 @@
       "page": "",
       "title": "Workflows",
       "description": "Workflow demo (Adoption Roadmap #5; ADRs D230-D248)."
+    },
+    {
+      "slug": "subagents-basics",
+      "domain": "subagents",
+      "page": "/theokit/subagents/delegate-to-a-subagent",
+      "title": "Delegate to a subagent",
+      "description": "A supervisor delegates a translation to a specialist subagent (real-LLM)"
     }
   ]
 }
