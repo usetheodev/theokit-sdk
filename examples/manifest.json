@@ -275,6 +275,13 @@
       "page": "/theokit/errors/catch-typed-errors",
       "title": "Catch typed errors",
       "description": "Every error extends TheokitAgentError; branch on code/isRetryable (deterministic)"
+    },
+    {
+      "slug": "cache-semantic",
+      "domain": "cache",
+      "page": "/theokit/cache/cache-similar-prompts",
+      "title": "Cache similar prompts",
+      "description": "Cache.semantic serves a stored answer for a similar prompt (deterministic, lexical embedder)"
     }
   ]
 }

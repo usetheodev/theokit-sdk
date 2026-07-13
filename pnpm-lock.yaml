@@ -154,6 +154,16 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/cache-semantic:
+    dependencies:
+      '@theokit/sdk-cache':
+        specifier: workspace:*
+        version: link:../../packages/sdk-cache
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/compaction-basics:
     dependencies:
       '@theokit/sdk':
