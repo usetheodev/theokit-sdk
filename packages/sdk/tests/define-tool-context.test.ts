@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineTool } from "../src/define-tool.js";
+import { Tool } from "../src/define-tool.js";
 
 /**
  * M7 (theokit-ai-first) — a tool handler receives an optional user `context` on
@@ -9,9 +9,9 @@ import { defineTool } from "../src/define-tool.js";
  * instead of being baked into each tool factory. Mirrors ai-sdk `experimental_context`,
  * mastra `RuntimeContext`, openai-agents-js `RunContext`.
  */
-describe("defineTool ToolContext user context (M7)", () => {
+describe("Tool ToolContext user context (M7)", () => {
   it("tool_handler_receives_user_context", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "probe_ctx",
       description: "reports the projectRoot it received from the run context",
       inputSchema: z.object({}),
@@ -25,7 +25,7 @@ describe("defineTool ToolContext user context (M7)", () => {
   });
 
   it("context and signal coexist on the ToolContext (M7 + #65)", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "probe_both",
       description: "sees both signal and context",
       inputSchema: z.object({}),
