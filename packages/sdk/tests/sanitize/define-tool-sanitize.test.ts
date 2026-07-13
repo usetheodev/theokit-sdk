@@ -1,16 +1,16 @@
 /**
- * T2.1 — `defineTool({ sanitize })` opt-in. Sanitize runs on the raw args BEFORE `inputSchema.parse`
+ * T2.1 — `Tool.create({ sanitize })` opt-in. Sanitize runs on the raw args BEFORE `inputSchema.parse`
  * so trimmed/coerced model output satisfies the tool's own Zod schema. Absent `sanitize` ⇒ the
  * handler path is byte-identical to today (the golden guard).
  */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineTool } from "../../src/define-tool.js";
+import { Tool } from "../../src/define-tool.js";
 
-describe("defineTool({ sanitize })", () => {
+describe("Tool.create({ sanitize })", () => {
   it("test_sanitize_absent_is_identical_behavior", async () => {
     let received: unknown;
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "t",
       description: "d",
       inputSchema: z.object({ path: z.string() }),
@@ -27,7 +27,7 @@ describe("defineTool({ sanitize })", () => {
 
   it("test_sanitize_true_trims_then_parses", async () => {
     let received: unknown;
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "t",
       description: "d",
       inputSchema: z.object({ path: z.string() }),
@@ -43,7 +43,7 @@ describe("defineTool({ sanitize })", () => {
 
   it("test_sanitize_coerce_lets_string_number_pass_number_schema", async () => {
     let received: unknown;
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "t",
       description: "d",
       inputSchema: z.object({ n: z.number() }),
@@ -59,7 +59,7 @@ describe("defineTool({ sanitize })", () => {
   });
 
   it("test_sanitize_does_not_bypass_genuine_validation", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "t",
       description: "d",
       inputSchema: z.object({ req: z.string() }),
