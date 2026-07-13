@@ -10,13 +10,13 @@ import { Agent, Squad } from "@theokit/sdk";
 
 const brainstormer = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   systemPrompt: "List exactly 3 short product name ideas as a comma-separated line. No preamble.",
 });
 
 const picker = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   systemPrompt: "From the given list, pick the single best name and reply with just that name and a 6-word reason.",
 });
 
@@ -30,3 +30,10 @@ console.log("Result:", run.result);
 
 await brainstormer.dispose();
 await picker.dispose();
+
+// Validate the output — a squad that did not complete is a failure, not a green run.
+if (run.status !== "completed" || typeof run.result !== "string" || run.result.length === 0) {
+  const failed = run.steps.find((s) => s.status === "failed");
+  console.error(`Squad did not complete: status=${run.status}`, failed?.error ?? "");
+  process.exit(1);
+}

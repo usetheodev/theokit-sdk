@@ -9,7 +9,7 @@ import { Agent } from "@theokit/sdk";
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   local: { cwd: "./.memory" },   // where the memory store lives
   memory: { enabled: true },
   systemPrompt: "You are concise. Recall from memory when asked.",
@@ -25,3 +25,9 @@ console.log("Turn 2:", t2.status);
 console.log("Recalled:", t2.result);
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+if (t2.status !== "finished" || typeof t2.result !== "string" || t2.result.length === 0) {
+  console.error("run did not finish:", JSON.stringify(t2.error ?? t2.status));
+  process.exit(1);
+}

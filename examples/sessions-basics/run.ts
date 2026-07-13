@@ -11,12 +11,12 @@ const storage = new FileSystemConversationStorage({ root: "./.sessions" });
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   conversationStorage: storage,
   systemPrompt: "You are concise.",
 });
 
-await (await agent.send("What is 2+2? Answer with one word.")).wait();
+const first = await (await agent.send("What is 2+2? Answer with one word.")).wait();
 
 const sessions = Session.create(storage);
 
@@ -40,3 +40,9 @@ if (!list.supported) {
 }
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+if (first.status !== "finished") {
+  console.error("send did not finish:", JSON.stringify(first.error ?? first.status));
+  process.exit(1);
+}

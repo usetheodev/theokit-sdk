@@ -19,7 +19,7 @@ const lookupOrder = Tool.create({
 
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   systemPrompt: "Use lookup_order when asked about an order. Answer in one sentence.",
   tools: [lookupOrder],
 });
@@ -29,3 +29,9 @@ console.log("Status:", result.status);
 console.log("Reply: ", result.result);
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+if (result.status !== "finished" || typeof result.result !== "string" || result.result.length === 0) {
+  console.error("run did not finish:", JSON.stringify(result.error ?? result.status));
+  process.exit(1);
+}

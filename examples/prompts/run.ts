@@ -22,7 +22,7 @@ if (apiKey === undefined || apiKey.length === 0) {
 // (`ctx.userMessage`, `ctx.model`, recalled `ctx.memory`, …).
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   systemPrompt: (ctx) =>
     `You are a terse assistant. Answer in exactly one sentence. The user asked: "${ctx.userMessage}".`,
 });
@@ -37,3 +37,11 @@ const override = await (
 console.log("Override: ", override.result);
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+for (const [label, r] of [["dynamic", dynamic], ["override", override]] as const) {
+  if (r.status !== "finished" || typeof r.result !== "string" || r.result.length === 0) {
+    console.error(`${label} run did not finish:`, JSON.stringify(r.error ?? r.status));
+    process.exit(1);
+  }
+}

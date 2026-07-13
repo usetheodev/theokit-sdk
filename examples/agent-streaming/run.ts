@@ -25,7 +25,7 @@ if (apiKey === undefined || apiKey.length === 0) {
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   name: "streamer-bot",
   systemPrompt: "You are a concise storyteller.",
   local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
@@ -55,3 +55,9 @@ const result = await run.wait();
 console.log(`\n\n[done] status=${result.status}`);
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+if (result.status !== "finished" || typeof result.result !== "string" || result.result.length === 0) {
+  console.error("run did not finish:", JSON.stringify(result.error ?? result.status));
+  process.exit(1);
+}
