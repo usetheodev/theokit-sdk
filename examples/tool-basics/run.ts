@@ -39,7 +39,7 @@ const getWeather = Tool.create({
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "openai/gpt-4o-mini" },
   name: "weather-bot",
   systemPrompt: "Use the get_weather tool when the user asks about weather. Answer in one sentence.",
   tools: [getWeather],
@@ -53,3 +53,9 @@ console.log("Status:", result.status);
 console.log("Reply: ", result.result);
 
 await agent.dispose();
+
+// --- validate output (fail loud) ---
+if (result.status !== "finished" || typeof result.result !== "string" || result.result.length === 0) {
+  console.error("run did not finish:", JSON.stringify(result.error ?? result.status));
+  process.exit(1);
+}

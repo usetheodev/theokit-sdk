@@ -19,7 +19,7 @@ if (apiKey === undefined || apiKey.length === 0) {
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "openai/gpt-4o-mini" },
   name: "explainer-bot",
   systemPrompt: "You are a concise assistant. Answer in at most two sentences.",
   // Local runtime, no sandbox — runs inline in this Node process.
@@ -32,8 +32,11 @@ const result = await run.wait();
 console.log("Status:", result.status);
 console.log("Model: ", result.model);
 console.log("Reply: ", result.result);
-if (result.status === "error") {
-  console.error("Error: ", JSON.stringify(result.error, null, 2));
-}
 
 await agent.dispose();
+
+// Validate: a run that did not finish (auth, rate-limit, model error) is a failure, not a green run.
+if (result.status !== "finished" || typeof result.result !== "string" || result.result.length === 0) {
+  console.error("run did not finish:", JSON.stringify(result.error ?? result.status));
+  process.exit(1);
+}

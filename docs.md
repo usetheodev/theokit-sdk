@@ -1282,6 +1282,8 @@ const agent = await Agent.create({
 });
 Subagents committed to the repo at .Theo/agents/*.md (with name, description, and optional model frontmatter) are also picked up. Inline definitions override file-based ones with the same name.
 
+Each subagent is offered to the supervisor as a delegation tool and runs as an isolated child agent. The child inherits the supervisor's apiKey and model automatically — you do not repeat them; a `model` on the definition (or `"inherit"`) overrides the model, and `tools` scopes the child to that subset of the parent's tools (absent → the parent's full toolset). Per-subagent `mcpServers` on a definition are honored by the cloud runtime.
+
 Context, memory, and skills
 Context, memory, and skills are loaded before MCP tools and subagents are offered to a run:
 
