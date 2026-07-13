@@ -352,6 +352,13 @@
       "page": "/theokit/cloud/inspect-the-cloud-payload",
       "title": "Inspect the cloud payload",
       "description": "cloud:{} builds a cloud agent; inspect its redacted cloudPayload (deterministic)"
+    },
+    {
+      "slug": "subscription-tracked",
+      "domain": "subscriptions",
+      "page": "/theokit/subscriptions/track-resumable-events",
+      "title": "Track resumable events",
+      "description": "tracked/isTrackedEnvelope wrap payloads with resume tokens (deterministic)"
     }
   ]
 }
