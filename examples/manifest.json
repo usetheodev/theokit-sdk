@@ -86,6 +86,13 @@
       "page": "/theokit/memory/remember-and-recall",
       "title": "Remember and recall",
       "description": "An agent recalls a fact across turns with memory enabled"
+    },
+    {
+      "slug": "sessions-basics",
+      "domain": "sessions",
+      "page": "/theokit/sessions/manage-sessions",
+      "title": "Manage sessions",
+      "description": "List, rename, and tag an agent's conversations"
     }
   ]
 }
