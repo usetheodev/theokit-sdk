@@ -69,14 +69,14 @@
     {
       "slug": "workflow-retry",
       "domain": "workflows",
-      "page": "/theokit/workflows/retry",
+      "page": "/theokit/workflows/advanced",
       "title": "Retry a failing step",
       "description": "A flaky step recovers via retry with backoff"
     },
     {
       "slug": "workflow-suspend-resume",
       "domain": "workflows",
-      "page": "/theokit/workflows/suspend-resume",
+      "page": "/theokit/workflows/advanced",
       "title": "Suspend and resume",
       "description": "Pause for approval, then resume"
     }
