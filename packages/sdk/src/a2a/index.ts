@@ -12,9 +12,9 @@ export {
   type DelegationCompleteDecision,
   type DelegationStartContext,
   type DelegationStartDecision,
-  defineSubAgent,
   MaxDelegationDepthError,
   type MessageFilterArgs,
+  SubAgent,
   type SubAgentSpec,
 } from "./subagent.js";
 export type { A2AMessage, MessageHandler } from "./types.js";

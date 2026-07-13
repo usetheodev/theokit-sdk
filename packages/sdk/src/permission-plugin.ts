@@ -129,3 +129,11 @@ export function createPermissionPlugin(
     },
   });
 }
+
+/** SE36 — `PermissionPlugin.create` replaces `createPermissionPlugin` (ADR 0015). @public */
+export class PermissionPlugin {
+  private constructor() {}
+  static create(engine: PermissionEngine, opts: PermissionPluginOptions = {}): Plugin {
+    return createPermissionPlugin(engine, opts);
+  }
+}

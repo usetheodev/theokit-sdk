@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { defineSubAgent, MaxDelegationDepthError } from "../../src/a2a/subagent.js";
+import { MaxDelegationDepthError, SubAgent } from "../../src/a2a/subagent.js";
 
-describe("defineSubAgent", () => {
+describe("SubAgent", () => {
   it("returns a CustomTool with name and description", () => {
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "researcher",
       description: "Researches a topic",
       instructions: "You are a researcher.",
@@ -29,7 +29,7 @@ describe("defineSubAgent", () => {
       Agent: { create: mockCreate },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "researcher",
       description: "Researches",
       instructions: "Research this.",
@@ -50,7 +50,7 @@ describe("defineSubAgent", () => {
       },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -70,7 +70,7 @@ describe("defineSubAgent", () => {
       },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -80,7 +80,7 @@ describe("defineSubAgent", () => {
   });
 
   it("uses custom model when specified", () => {
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "coder",
       description: "Codes",
       instructions: "Code.",
@@ -91,13 +91,13 @@ describe("defineSubAgent", () => {
 
   it("throws MaxDelegationDepthError at depth limit (EC-2)", () => {
     expect(() =>
-      defineSubAgent({ name: "deep", description: "Too deep", instructions: "Go deeper." }, 3),
+      SubAgent.create({ name: "deep", description: "Too deep", instructions: "Go deeper." }, 3),
     ).toThrow(MaxDelegationDepthError);
   });
 
   it("allows depth within limit", () => {
     expect(() =>
-      defineSubAgent({ name: "ok", description: "OK depth", instructions: "OK." }, 2),
+      SubAgent.create({ name: "ok", description: "OK depth", instructions: "OK." }, 2),
     ).not.toThrow();
   });
 
@@ -111,7 +111,7 @@ describe("defineSubAgent", () => {
       },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "empty",
       description: "Handles empty",
       instructions: "Handle it.",
@@ -130,7 +130,7 @@ describe("defineSubAgent", () => {
       },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "quiet",
       description: "Silent agent",
       instructions: "Be quiet.",
@@ -145,7 +145,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -164,7 +164,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -181,7 +181,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -195,7 +195,7 @@ describe("defineSubAgent", () => {
 
   it("respects custom maxDelegationDepth", () => {
     expect(() =>
-      defineSubAgent(
+      SubAgent.create(
         {
           name: "custom",
           description: "Custom depth",
@@ -207,7 +207,7 @@ describe("defineSubAgent", () => {
     ).not.toThrow();
 
     expect(() =>
-      defineSubAgent(
+      SubAgent.create(
         {
           name: "custom",
           description: "Custom depth",
@@ -224,7 +224,7 @@ describe("defineSubAgent", () => {
     const mockCreate = vi.fn();
     vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -242,7 +242,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -259,7 +259,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -276,7 +276,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -297,7 +297,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -314,7 +314,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -335,7 +335,7 @@ describe("defineSubAgent", () => {
       },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -352,7 +352,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -369,7 +369,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -384,7 +384,7 @@ describe("defineSubAgent", () => {
     const mockCreate = vi.fn();
     vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -406,7 +406,7 @@ describe("defineSubAgent", () => {
       },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -430,7 +430,7 @@ describe("defineSubAgent", () => {
     }));
 
     const seen: number[] = [];
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -453,7 +453,7 @@ describe("defineSubAgent", () => {
     });
     vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -482,7 +482,7 @@ describe("defineSubAgent", () => {
 
     let startIter: number | undefined;
     let completeIter: number | undefined;
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -501,7 +501,7 @@ describe("defineSubAgent", () => {
     expect(completeIter).toBe(2);
   });
 
-  it("each defineSubAgent instance has an independent iteration counter (SE15)", async () => {
+  it("each SubAgent instance has an independent iteration counter (SE15)", async () => {
     vi.doMock("../../src/agent.js", () => ({
       Agent: {
         create: vi.fn().mockResolvedValue({
@@ -514,7 +514,7 @@ describe("defineSubAgent", () => {
     const seenA: number[] = [];
     const seenB: number[] = [];
     const make = (sink: number[]) =>
-      defineSubAgent({
+      SubAgent.create({
         name: "worker",
         description: "Works",
         instructions: "Work.",
@@ -550,7 +550,7 @@ describe("defineSubAgent", () => {
       },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -570,7 +570,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -598,7 +598,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -618,7 +618,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -643,7 +643,7 @@ describe("defineSubAgent", () => {
     const mockCreate = vi.fn();
     vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -671,7 +671,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -697,7 +697,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -724,7 +724,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -750,7 +750,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: mockDispose }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -771,7 +771,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
@@ -788,7 +788,7 @@ describe("defineSubAgent", () => {
       Agent: { create: vi.fn().mockResolvedValue({ send: mockSend, dispose: vi.fn() }) },
     }));
 
-    const tool = defineSubAgent({
+    const tool = SubAgent.create({
       name: "worker",
       description: "Works",
       instructions: "Work.",
