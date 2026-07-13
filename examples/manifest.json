@@ -247,6 +247,13 @@
       "page": "/theokit/subagents/delegate-to-a-subagent",
       "title": "Delegate to a subagent",
       "description": "A supervisor delegates a translation to a specialist subagent (real-LLM)"
+    },
+    {
+      "slug": "cost-basics",
+      "domain": "cost",
+      "page": "/theokit/cost/estimate-cost",
+      "title": "Estimate cost",
+      "description": "computeCost maps token usage to a USD CostBreakdown (deterministic)"
     }
   ]
 }
