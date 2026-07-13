@@ -25,7 +25,7 @@ if (apiKey === undefined || apiKey.length === 0) {
 
 const agent = await Agent.create({
   apiKey,
-  model: { id: "openai/gpt-4o-mini" },
+  model: { id: "openai/gpt-oss-120b:free" },
   name: "streamer-bot",
   systemPrompt: "You are a concise storyteller.",
   local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
