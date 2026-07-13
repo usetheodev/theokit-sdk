@@ -13,7 +13,7 @@ import { Workflow, agentStep, fn } from "@theokit/sdk/workflow";
 
 const writer = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
-  model: { id: "openai/gpt-oss-120b:free" },
+  model: { id: "meta-llama/llama-3.3-70b-instruct:free" },
   systemPrompt: "You write exactly one concise, factual sentence. No preamble.",
 });
 
@@ -31,3 +31,9 @@ console.log("Status:", run.status);
 console.log("Output:", run.output);
 
 await writer.dispose();
+
+// --- validate output (fail loud) ---
+if (run.status !== "completed" || run.output == null) {
+  console.error("workflow did not complete:", JSON.stringify(run.error ?? run.status));
+  process.exit(1);
+}
