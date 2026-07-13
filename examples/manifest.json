@@ -100,6 +100,13 @@
       "page": "/theokit/guardrails/block-a-message",
       "title": "Block a message",
       "description": "An input processor tripwire blocks a run before the model"
+    },
+    {
+      "slug": "permissions-basics",
+      "domain": "permissions",
+      "page": "/theokit/permissions/gate-tool-calls",
+      "title": "Gate tool calls",
+      "description": "First-match permission rules resolved per mode (deterministic)"
     }
   ]
 }
