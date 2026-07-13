@@ -7,4 +7,19 @@
  * SDK's own error classification.
  */
 
-export { type RetryOptions, withRetry } from "./internal/runtime/retry/with-retry.js";
+import { type RetryOptions, withRetry } from "./internal/runtime/retry/with-retry.js";
+
+export type { RetryOptions };
+
+/**
+ * SE36 — `Retry.create` replaces `withRetry` (ADR 0015 / ADR-P2). NOTE: `withRetry` is an
+ * EXECUTOR, not a constructor — `Retry.create(fn, opts)` RUNS `fn` with retry and resolves to
+ * its result (`Promise<T>`), not a `Retry` instance. The `.create` name is the uniformity
+ * mandate; the executor semantics are the documented, accepted awkwardness. @public
+ */
+export class Retry {
+  private constructor() {}
+  static create<T>(fn: () => Promise<T>, options?: RetryOptions): Promise<T> {
+    return withRetry(fn, options);
+  }
+}

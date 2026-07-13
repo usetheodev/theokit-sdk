@@ -120,7 +120,7 @@ Add a cron job that summarizes incidents every morning at 9 AM
 Set up a Slack gateway for my support agent
 ```
 
-The assistant knows: `Agent.create`, `defineTool`, `Memory`, `@Injectable`, all 15 decorators, 10 gateways, RAG pipeline, workflows, subscriptions, error handling, configuration, and budget tracking.
+The assistant knows: `Agent.create`, `Tool.create`, `Memory`, `@Injectable`, all 15 decorators, 10 gateways, RAG pipeline, workflows, subscriptions, error handling, configuration, and budget tracking.
 
 **4. Customize (optional)**
 
