@@ -63,13 +63,13 @@ Smoke tests in `packages/sdk/tests/` do not hit the network — they only verify
 
 ## Reference projects
 
-`referencia/` contains read-only reference projects (notably the `the local runtime` agent harness and `a peer SDK`). They are NOT part of the workspace:
+Reference projects (notably the `the local runtime` agent harness and `a peer SDK`) are **cloned on demand** under `.claude/knowledge-base/reference/` (gitignored — not vendored in-tree, not part of the workspace):
 
-- Do not `npm install` or `pip install` inside `referencia/`.
+- Do not `npm install` or `pip install` inside a clone.
 - Do not edit them.
 - Do not import from them in production code.
 
-They exist for design inspiration. See [`CLAUDE.md`](../../CLAUDE.md) `Working with referencia/` for the full rules.
+They exist for design inspiration. See [`CLAUDE.md`](../../CLAUDE.md) `Working with reference material` for the full rules.
 
 ## Next
 
