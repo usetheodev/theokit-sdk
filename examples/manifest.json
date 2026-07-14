@@ -359,6 +359,13 @@
       "page": "/theokit/subscriptions/track-resumable-events",
       "title": "Track resumable events",
       "description": "tracked/isTrackedEnvelope wrap payloads with resume tokens (deterministic)"
+    },
+    {
+      "slug": "hooks-lifecycle",
+      "domain": "hooks",
+      "page": "/theokit/hooks/observe-the-tool-lifecycle",
+      "title": "Observe the tool lifecycle",
+      "description": "onToolStart/onToolEnd/onToolError fire around each tool call (real LLM)"
     }
   ]
 }
