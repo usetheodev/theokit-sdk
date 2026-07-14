@@ -24,10 +24,10 @@ updates `CHANGELOG.md`.
 
 **Objective:** Nothing is built atop a leaking, injectable Harness.
 
-- [ ] **#56** cross-tenant active-recall cache leak — wire `tenantCtx` into `cache.get/set` (`src/internal/memory/active-memory.ts:131,247`) + two-user isolation test. *(1 crit)*
-- [ ] **#54** sandbox `sh -c` injection + full `process.env` leak — arg-vector exec + env allowlist (`src/sandbox/local-sandbox.ts:26`, `src/internal/runtime/lifecycle/spawn-collect.ts:33`). *(1 crit, 8 gaps)*
-- [ ] **#59** MCP client timeout (`src/internal/mcp/client.ts:184`). *(1 crit — reconnect deferred to M2)*
-- [ ] **#68** ACP permission veto enforced (`packages/acp/src/permission-plugin.ts:115`). *(standalone live defect)*
+- [x] **#56** cross-tenant active-recall cache leak — `tenantCtx` wired into `cache.get/set` in BOTH sdk + the publishable `@theokit/sdk-memory` copy; caller threads `memoryContext.tenantId` into the key. Two-user isolation tests (primitive + caller). *(1 crit — closed 2026-07-14; adversarial review found + fixed the sdk-memory + caller gaps)*
+- [x] **#54** sandbox `sh -c` injection + full `process.env` leak — env allowlist across all 3 spawn paths; denylist extended to connection-string/value-embedded secrets; dead `validateCommand` guard removed; e2e LocalSandbox env-scrub test. *(1 crit — closed 2026-07-14; arg-vector exec intentionally deferred: `sh -c` is the shell tool's contract, env-scrub is the boundary)*
+- [x] **#59** MCP client timeout (`src/internal/mcp/client.ts`) — every request bounded (stdio + http, header AND body phase) → typed `mcp_timeout`. *(1 crit — closed 2026-07-14; reconnect landed in M2)*
+- [x] **#68** ACP permission veto enforced (`packages/acp/src/permission-plugin.ts`) — veto consumed by the dispatch loop; fail-closed on deny/timeout/cancel/disconnect. *(standalone live defect — closed; adversarial review verdict FULLY_CLOSED)*
 
 **Dependencies:** none. **Milestone id for `/to-plan`:** `M0`.
 
@@ -37,10 +37,10 @@ updates `CHANGELOG.md`.
 
 **Objective:** No surface exists that silently does nothing (`no-stubs-no-mocks-no-wired`).
 
-- [ ] **#58** `AbortSignal`→`dispatchTools` + between-iteration abort + per-tool timeout + JobQueue (`src/internal/agent-loop/tool-dispatch.ts:41`, `loop.ts:73`). *(8 gaps)*
-- [ ] **#55** permission fail-**closed** + match beyond name-only. *(4 gaps)*
-- [ ] **#65** wire-or-remove the 7/10 dead plugin hooks + `ToolContext` 2nd arg (`src/internal/plugins/types.ts:20`). *(2 gaps)*
-- [ ] **#57** prompt-injection/PII scrub on tool results. *(1 gap)*
+- [x] **#58** `AbortSignal`→`dispatchTools` + between-iteration abort + per-tool timeout + JobQueue — signal threaded + dispatcher-enforced; between-iteration break; per-tool timeout; JobQueue concurrency bound. *(closed 2026-07-14; adversarial review found + fixed a JobQueue cancel-deadlock and a cancelled-status mislabel)*
+- [x] **#55** permission fail-**closed** + match beyond name-only — fail-closed default (`ask`); argument-level gating; **subagents inherit the parent's permission gate** (adversarial-review fix — arg-gating no longer stops at the delegation boundary). *(closed 2026-07-14)*
+- [x] **#65** wire-or-remove the 7/10 dead plugin hooks + `ToolContext` 2nd arg — all 10 hooks invoked at real seams; `transform_llm_output` now rewrites the final user-visible text (adversarial-review fix). *(closed 2026-07-14)*
+- [x] **#57** prompt-injection/PII scrub on tool results — opt-in guard on every tool origin; replaces LLM-visible content; fail-closed. *(closed 2026-07-14; adversarial verdict FULLY_CLOSED)*
 
 **Dependencies:** M0. **Milestone id:** `M1`.
 

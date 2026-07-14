@@ -1,5 +1,31 @@
 # Changelog
 
+## 3.2.2
+
+### Patch Changes
+
+- 7f57c5a: Security (#55) — a delegated subagent now inherits the parent's code-registered plugins (e.g. `PermissionPlugin`), so its inner tool calls run under the SAME argument-level permission gate. Previously the child `Agent.create` received only apiKey/model/tools, so a parent that denied `shell` with a matching-arg rule did not stop a subagent it granted `shell` to — arg-level gating silently stopped at the delegation boundary.
+- f81ac79: Fix (#58) — a run cancelled between tool iterations now reports `RunStatus: "cancelled"` instead of `"finished"`, so a caller can distinguish a cancellation from a clean completion. Previously the between-iteration abort break left the default `"finished"` status.
+- 57cfcc8: Fix (#58) — `JobQueue.cancel()` on a running job that ignores its `AbortSignal` (never settles) previously leaked its concurrency slot, deadlocking a `maxConcurrency`-bounded queue. Cancel now frees the slot immediately; `#release` is idempotent so the job's eventual settle is a no-op (no double-free).
+- bd06140: Fix (#65) — the `transform_llm_output` plugin hook now rewrites the FINAL user-visible / streamed assistant text, and fires on text-only terminal turns. Previously it ran only in the tool-call branch and folded only into internal message history, so a plugin could not scrub what the caller actually received. The transform is now applied once, up front, and flows into the emitted step, `finalText`/`result`, and message history alike.
+
+## 3.2.1
+
+### Patch Changes
+
+- a283dd4: Security (#54) — harden child-process env scrubbing.
+
+  - The `inherit-scrubbed` denylist now also drops the highest-signal VALUE-embedded-secret conventions: connection strings that carry `user:password@` (`DATABASE_URL`, `REDIS_URL`, `MONGODB_URI`, `DB_URL`, …), plus `DSN`, `WEBHOOK`, `COOKIE`, and `CONNECTION_STRING`. Generic non-secret URLs (`PUBLIC_BASE_URL`, `API_URL`, `PGHOST`) are deliberately preserved. A denylist still cannot catch every value-embedded secret — policy `core` (allowlist) remains the fail-closed mode for untrusted children.
+  - Removed dead `validateCommand` / `SHELL_METACHARACTERS` from the sandbox base — a never-invoked "guard" that provided a false sense of protection.
+  - Added an end-to-end test proving `LocalSandbox.execute` scrubs secret-like host env vars from the real child process.
+
+- 826bca0: Security (#56) — close two residual cross-tenant active-recall cache leaks found by adversarial review.
+
+  - `@theokit/sdk-memory` (publishable) called `cache.get`/`cache.set` with no tenant context, so two callers with the same query text but different identity shared a cached recall — a cross-tenant leak for every consumer of the package. The cache read/write are now keyed by the `{namespace, userId, scope}` tenant tuple (the primitive already supported it).
+  - In `@theokit/sdk` the production caller hardcoded `namespace: "default"` and dropped `memoryContext.tenantId`, so two tenants sharing a `userId` collided on one cache entry. The caller now threads `memoryContext.tenantId` into the tenant partition (`namespace`). `sessionId` is intentionally not a key dimension — recall is cross-session by design.
+
+- 7bcc872: Security/correctness (#59) — the HTTP MCP body read (`response.json()`) was outside the abort try/catch, so a server that returned headers then stalled the body surfaced a raw `DOMException(TimeoutError)` instead of the typed `NetworkError{code:"mcp_timeout"}`. The request was still bounded (no hang), but the typed-timeout contract now holds across both the header and body phases.
+
 ## 3.2.0
 
 ### Minor Changes

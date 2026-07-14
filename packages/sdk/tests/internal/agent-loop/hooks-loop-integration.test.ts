@@ -155,6 +155,49 @@ describe("wired hooks fire through the real loop (#65 integration)", () => {
     expect(turns).toBe(1);
     expect(output).toBeDefined();
   });
+
+  it("transform_llm_output rewrites the FINAL user-visible text, not just tool-turn history (#65)", async () => {
+    const textOnlyLlm: LlmClient = {
+      name: "mock",
+      async *stream() {
+        yield { type: "text_delta", text: "SECRET DATA" };
+        return {
+          stopReason: "end_turn" as const,
+          text: "SECRET DATA",
+          toolCalls: [],
+          inputTokens: 1,
+          outputTokens: 1,
+        };
+      },
+    };
+    const mgr = new PluginManager();
+    await mgr.initialize([pluginOn("transform_llm_output", () => "REDACTED")]);
+
+    const output = await runAgentLoop(baseInputs(textOnlyLlm, { pluginManager: mgr }));
+
+    // The hook must reach what the caller actually receives, on a text-only turn.
+    expect(output.result).toBe("REDACTED");
+  });
+
+  it("a between-iteration cancel reports finalStatus 'cancelled', not 'finished' (#58)", async () => {
+    const controller = new AbortController();
+    const mgr = new PluginManager();
+    await mgr.initialize([pluginOn("post_tool_call", () => controller.abort())]);
+
+    const output = await runAgentLoop(
+      baseInputs(
+        repeatingToolLlm(() => {}),
+        {
+          pluginManager: mgr,
+          signal: controller.signal,
+          maxIterations: 10,
+        },
+      ),
+    );
+
+    // A cancelled run must be distinguishable from a clean completion.
+    expect(output.finalStatus).toBe("cancelled");
+  });
 });
 
 describe("SendOptions-mapped loop knobs are honored end-to-end (#58/#57)", () => {
