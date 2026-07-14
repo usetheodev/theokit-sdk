@@ -155,6 +155,23 @@ describe("wired hooks fire through the real loop (#65 integration)", () => {
     expect(turns).toBe(1);
     expect(output).toBeDefined();
   });
+
+  it("a between-iteration cancel reports finalStatus 'cancelled', not 'finished' (#58)", async () => {
+    const controller = new AbortController();
+    const mgr = new PluginManager();
+    await mgr.initialize([pluginOn("post_tool_call", () => controller.abort())]);
+
+    const output = await runAgentLoop(
+      baseInputs(repeatingToolLlm(() => {}), {
+        pluginManager: mgr,
+        signal: controller.signal,
+        maxIterations: 10,
+      }),
+    );
+
+    // A cancelled run must be distinguishable from a clean completion.
+    expect(output.finalStatus).toBe("cancelled");
+  });
 });
 
 describe("SendOptions-mapped loop knobs are honored end-to-end (#58/#57)", () => {
