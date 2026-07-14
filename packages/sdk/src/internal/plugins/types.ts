@@ -35,6 +35,13 @@ export interface PreToolCallContext {
   args: Record<string, unknown>;
   agentId: string;
   runId: string;
+  /**
+   * SE1 — the run's resolved `PermissionMode` (from `SendOptions.permissionMode`
+   * ?? `AgentOptions.permissionMode`), threaded so a permission-style plugin can
+   * gate per-run rather than at construction time. Absent ⇒ the plugin's own
+   * default applies. Ignored by non-permission plugins.
+   */
+  permissionMode?: import("../../permission-engine.js").PermissionMode;
 }
 
 export interface PreToolCallDecision {
