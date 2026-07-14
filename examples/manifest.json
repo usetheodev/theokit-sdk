@@ -331,6 +331,48 @@
       "page": "/theokit/personalities/switch-personality",
       "title": "Switch personality",
       "description": "usePersonality resolves a .theokit/personalities preset (deterministic)"
+    },
+    {
+      "slug": "goals-objective",
+      "domain": "goals",
+      "page": "/theokit/goals/set-a-durable-objective",
+      "title": "Set a durable objective",
+      "description": "setObjective/getObjective persist a thread-scoped goal (deterministic)"
+    },
+    {
+      "slug": "a2a-mailbox",
+      "domain": "a2a",
+      "page": "/theokit/a2a/message-another-agent",
+      "title": "Message another agent",
+      "description": "MessageBus + AgentMailbox request/response (deterministic)"
+    },
+    {
+      "slug": "cloud-payload",
+      "domain": "cloud",
+      "page": "/theokit/cloud/inspect-the-cloud-payload",
+      "title": "Inspect the cloud payload",
+      "description": "cloud:{} builds a cloud agent; inspect its redacted cloudPayload (deterministic)"
+    },
+    {
+      "slug": "subscription-tracked",
+      "domain": "subscriptions",
+      "page": "/theokit/subscriptions/track-resumable-events",
+      "title": "Track resumable events",
+      "description": "tracked/isTrackedEnvelope wrap payloads with resume tokens (deterministic)"
+    },
+    {
+      "slug": "hooks-lifecycle",
+      "domain": "hooks",
+      "page": "/theokit/hooks/observe-the-tool-lifecycle",
+      "title": "Observe the tool lifecycle",
+      "description": "onToolStart/onToolEnd/onToolError fire around each tool call (real LLM)"
+    },
+    {
+      "slug": "observability-events",
+      "domain": "observability",
+      "page": "/theokit/observability/subscribe-to-run-events",
+      "title": "Subscribe to run events",
+      "description": "onRunEvent receives typed RunEvents (deterministic tripwire)"
     }
   ]
 }

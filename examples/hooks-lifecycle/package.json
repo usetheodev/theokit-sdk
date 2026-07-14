@@ -1,14 +1,15 @@
 {
-  "name": "@theokit/example-deepagents-parity-demo",
+  "name": "example-hooks-lifecycle",
   "private": true,
-  "version": "0.0.42",
   "type": "module",
   "scripts": {
-    "start": "tsx run.ts"
+    "run": "tsx run.ts"
   },
   "dependencies": {
     "@theokit/sdk": "workspace:*",
-    "reflect-metadata": "^0.2.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
     "tsx": "^4.19.0"
   }
 }

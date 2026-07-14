@@ -63,7 +63,7 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
 
-  examples/_probe-child:
+  examples/a2a-mailbox:
     dependencies:
       '@theokit/sdk':
         specifier: workspace:*
@@ -169,6 +169,16 @@ importers:
       '@theokit/sdk-cache':
         specifier: workspace:*
         version: link:../../packages/sdk-cache
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/cloud-payload:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -292,6 +302,16 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/goals-objective:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/guardrails:
     dependencies:
       '@theokit/sdk':
@@ -324,6 +344,19 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/hooks-lifecycle:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/memory-basics:
     dependencies:
       '@theokit/sdk':
@@ -335,6 +368,16 @@ importers:
         version: 4.22.0
 
   examples/memory-lance:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/observability-events:
     dependencies:
       '@theokit/sdk':
         specifier: workspace:*

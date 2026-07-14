@@ -60,16 +60,24 @@ export class MessageBus {
       // SE3 — provenance projection of the sender address (thin view over `from`).
       origin: { kind: "peer", from },
     };
-    return Promise.race([
-      Promise.resolve(handler(message)),
-      new Promise((_, reject) =>
-        setTimeout(
-          () =>
-            reject(new Error(`A2A request timeout: ${to} did not respond within ${timeoutMs}ms`)),
-          timeoutMs,
-        ),
-      ),
-    ]);
+    // Hold the timer so it can be cleared once the race settles — otherwise a
+    // successful request leaks a live `setTimeout` that keeps the Node event loop
+    // alive (the process hangs after the reply). Cleared in `finally`.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        Promise.resolve(handler(message)),
+        new Promise((_, reject) => {
+          timer = setTimeout(
+            () =>
+              reject(new Error(`A2A request timeout: ${to} did not respond within ${timeoutMs}ms`)),
+            timeoutMs,
+          );
+        }),
+      ]);
+    } finally {
+      if (timer !== undefined) clearTimeout(timer);
+    }
   }
 
   has(agentId: string): boolean {
