@@ -164,7 +164,15 @@ export async function executeSendLocked(
   });
 
   const priorMessages = [...getSessionMessages(inputs.agentId)];
-  appendSessionMessage(inputs.agentId, { role: "user", text: userText }, inputs.storageHandle);
+  appendSessionMessage(
+    inputs.agentId,
+    { role: "user", text: userText },
+    inputs.storageHandle,
+    // SE2 — a persistence-side auto-compaction surfaces a `compact_boundary` RunEvent.
+    options.onRunEvent !== undefined
+      ? () => emitRunEvent(options.onRunEvent, { type: "compact_boundary", trigger: "auto" })
+      : undefined,
+  );
 
   await persistMemoryFactIfWritePrompt(inputs.workspaceCwd, inputs.options.memory, userText);
   const memoryFacts = await readMemoryForSend(inputs.workspaceCwd, inputs.options.memory);

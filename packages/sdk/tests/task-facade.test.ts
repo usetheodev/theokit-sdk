@@ -5,6 +5,41 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { __resetTaskRegistryForTests } from "../src/internal/task/registry.js";
 import { Task } from "../src/task.js";
+import type { RunEvent } from "../src/types/run-events.js";
+
+describe("Task — onRunEvent bridge (SE2 task_*)", () => {
+  beforeEach(() => __resetTaskRegistryForTests());
+  afterEach(() => __resetTaskRegistryForTests());
+
+  it("forwards task lifecycle to onRunEvent as RunEvents", async () => {
+    const events: RunEvent[] = [];
+    await Task.submit("custom", async () => "done", {
+      onRunEvent: (e) => events.push(e),
+    });
+    // let the async work run to completion
+    await new Promise((r) => setTimeout(r, 100));
+
+    const types = events.map((e) => e.type);
+    expect(types).toContain("task_started");
+    const completed = events.find((e) => e.type === "task_completed");
+    expect(completed).toBeDefined();
+    expect((completed as { status?: string })?.status).toBe("completed");
+  });
+
+  it("maps a failed task to task_completed status 'failed'", async () => {
+    const events: RunEvent[] = [];
+    await Task.submit(
+      "custom",
+      async () => {
+        throw new Error("boom");
+      },
+      { onRunEvent: (e) => events.push(e) },
+    );
+    await new Promise((r) => setTimeout(r, 100));
+    const completed = events.find((e) => e.type === "task_completed");
+    expect((completed as { status?: string })?.status).toBe("failed");
+  });
+});
 
 describe("Task — public facade (D361)", () => {
   beforeEach(() => __resetTaskRegistryForTests());
