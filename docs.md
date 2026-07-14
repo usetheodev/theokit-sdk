@@ -582,6 +582,8 @@ onStep	(args: { step }) => void | Promise<void>	Callback after each completed co
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 toolChoice	"auto" \| "none" \| "required"	Per-call tool gate (OpenAI/OpenRouter `tool_choice`). `"none"` forces a text answer even when tools are registered (e.g. an agent loop forcing a closing summary at its step ceiling); `"required"` forces a tool call; omitted ⇒ provider default. Local runtime; OpenAI-compatible providers. Emitted only alongside a non-empty tools array.
 activeTools	string[]	SE18 — restrict, for THIS send only, which of the agent's tools the model may call. A tool call to a name outside the set is vetoed at dispatch (the same fork-whitelist seam as `Agent.fork`'s `allowedTools`, NOT the permission engine) and the handler never runs. `[]` fail-closed (no tool dispatches); absent ⇒ the full toolset. Composes with `toolChoice` (activeTools narrows *which*, toolChoice gates *whether*). Per-send and non-mutating — the agent's persistent tool set is untouched. Local runtime.
+completionCheck	CompletionCheck	SE34 — an opt-in per-send completion predicate (an LLM judge, reusing the goal-judge machinery) evaluated once after the run settles; its verdict surfaces on `RunResult.completionCheck` and as a `completion_check` run-event. Fail-safe (a judge/parse failure ⇒ `complete: false`); absent ⇒ unchanged. Local runtime.
+objectiveThreadId	string	SE34 — the thread whose durable objective (see `setObjective`, SE33) is projected as a `<current-objective>` signal into the assembled system prompt for this send. Only an `active` objective projects; absent ⇒ no projection.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
 
 SystemPromptContext
@@ -596,6 +598,20 @@ interface SystemPromptContext {
 }
 
 The resolver may be sync or async. Errors thrown propagate to the caller of agent.send(). The SDK does NOT impose a timeout — wrap your own Promise.race if you call into slow resources.
+
+Durable thread-scoped objective (SE33)
+
+```typescript
+await agent.setObjective("Ship the release notes", { threadId, maxRuns: 20 });
+const objective = await agent.getObjective(threadId);   // ObjectiveRecord | undefined
+await agent.updateObjectiveOptions(threadId, { maxRuns: 30 });
+await agent.clearObjective(threadId);
+// A standing goal can also live on AgentOptions.goal (precedence: per-call → per-objective → standing → default).
+for await (const _ of agent.runUntil()) { /* no-arg runUntil reads the durable objective */ }
+```
+
+A thread-scoped objective is persisted via the `ConversationStorageAdapter` (an `ObjectiveRecord` in a namespaced sidecar, not mixed into messages), so it survives a fresh agent over the same storage. `agent.runUntil()` with no goal argument reads the durable objective, drives the goal loop, and writes `runsUsed`/`status` back (budget exhaustion leaves the objective `active` for a later resume). `runUntil(goal, opts)` behaves exactly as before (ephemeral, no durable read/write). On an adapter without the objective methods, `setObjective` and friends are a typed no-op (memory-backed storage required). See ADR 0012.
+
 The next three sections are detailed reference for SDKMessage, InteractionUpdate, and ConversationTurn. Skim or skip on a first read; Resuming agents picks up the narrative.
 
 Stream events
@@ -1104,7 +1120,7 @@ const job = await Cron.create({
 });
 
 await Cron.start();                  // required for local jobs to actually fire
-Either agent (ephemeral agent created on each fire) or agentId (bound to an existing agent for context continuity) must be set, never both. Setting both is a ConfigurationError.
+Exactly one target must be set: agent (ephemeral agent created on each fire), agentId (bound to an existing agent for context continuity), or workflow (SE35 — a `Workflow` run on each fire with `inputData`). Setting more than one, or none, is a ConfigurationError. `message` is required for an agent target and forbidden with `workflow`. `Cron.run(jobId)` returns the resulting `Run` for an agent target, or a `WorkflowRun` for a workflow target.
 
 Supported cron expressions:
 
@@ -1145,9 +1161,11 @@ interface CronJob {
   name?: string;
   cron: string;
   timezone?: string;
-  message: string | SDKUserMessage;
+  message?: string | SDKUserMessage; // required for an agent target; forbidden with `workflow`
   agent?: AgentOptions;              // mutually exclusive with agentId
   agentId?: string;
+  workflow?: Workflow;               // SE35 — schedule a workflow instead of an agent send
+  inputData?: unknown;               // SE35 — passed to `workflow.run(inputData)` on fire
   enabled: boolean;
   status: "scheduled" | "running" | "paused" | "errored";
   runtime: "local" | "cloud";
@@ -1160,9 +1178,11 @@ CronCreateOptions
 
 interface CronCreateOptions {
   cron: string;
-  message: string | SDKUserMessage;
+  message?: string | SDKUserMessage; // required for an agent target; forbidden with `workflow`
   agent?: AgentOptions;
   agentId?: string;
+  workflow?: Workflow;               // SE35 — schedule a workflow (mutually exclusive with agent/agentId + message)
+  inputData?: unknown;               // SE35 — passed to `workflow.run(inputData)` on fire
   name?: string;
   timezone?: string;
   enabled?: boolean;                 // defaults to true
@@ -3019,7 +3039,7 @@ When OTel is installed, each `wf.run` emits a `workflow.run` root span and per-s
 
 - **LocalAgent only** — `CloudAgent` workflow steps throw `UnsupportedRunOperationError` (D244).
 - **Saga compensation deferred to v1.2** — `compensate?` field reserved on `FnStep` but throws `WorkflowCompensateNotImplementedError` if set (D238).
-- **No cron-trigger integration** — wire workflows via `Cron.create({ task })` calling `wf.run` directly.
+- **Cron-trigger integration shipped (SE35)** — schedule a workflow directly with `Cron.create({ cron, workflow, inputData })`; the scheduler runs `workflow.run(inputData)` on each fire (see the Cron section).
 
 ### Errors (named)
 
