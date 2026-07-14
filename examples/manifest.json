@@ -377,7 +377,7 @@
     {
       "slug": "rules-path-scoped",
       "domain": "context",
-      "page": "/theokit/rules/scope-rules-by-path",
+      "page": "/theokit/context/scope-rules-by-path",
       "title": "Scope rules by path",
       "description": ".theokit/rules/*.md activates by contextPaths glob match (deterministic)"
     }
