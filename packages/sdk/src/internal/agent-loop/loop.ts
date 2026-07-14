@@ -110,8 +110,12 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       // #58 — after a completed turn, stop before starting a new one if the run
       // was cancelled mid-round. The first turn always runs (its own abort UX,
       // "[aborted]", is produced inside runIteration); this only prevents a NEW
-      // LLM turn after a cancel lands.
-      if (inputs.signal?.aborted === true) break;
+      // LLM turn after a cancel lands. The terminal status is `"cancelled"` so a
+      // caller can distinguish a cancel from a clean finish (RunStatus contract).
+      if (inputs.signal?.aborted === true) {
+        ctx.finalStatus = "cancelled";
+        break;
+      }
     }
     // M1-2 (T2.2): the loop exited because the iteration budget is exhausted
     // (not via a `done`/`error` break) while the last turn still wanted tools —
