@@ -73,6 +73,41 @@ describe("resolveChildEnv env policy (#54)", () => {
     expect(env.PGPASSWD).toBeUndefined();
   });
 
+  it("SEC-M0-02b: drops connection-string / value-embedded-secret conventions (#54-a)", () => {
+    const env = resolveChildEnv({
+      parent: {
+        PATH: "/usr/bin",
+        PUBLIC_BASE_URL: "https://example.com", // non-secret URL — MUST be kept
+        BASE_URL: "https://api.example.com", // non-secret — kept
+        API_URL: "https://api.example.com", // non-secret — kept
+        PGHOST: "db.internal", // non-secret DB host — kept
+        DATABASE_URL: "postgres://u:pw@h/db", // embeds a password — dropped
+        REDIS_URL: "redis://u:pw@h:6379", // dropped
+        MONGODB_URI: "mongodb://u:pw@h/db", // dropped
+        DB_URL: "postgres://u:pw@h/db", // dropped
+        SENTRY_DSN: "https://key@sentry.io/1", // dropped
+        SLACK_WEBHOOK_URL: "https://hooks.slack.com/xxx", // dropped
+        SESSION_COOKIE: "sid=abc", // dropped
+        SQL_CONNECTION_STRING: "Server=h;Password=pw", // dropped
+      },
+    });
+    // Non-secret URLs and DB host are preserved (no false positive).
+    expect(env.PATH).toBe("/usr/bin");
+    expect(env.PUBLIC_BASE_URL).toBe("https://example.com");
+    expect(env.BASE_URL).toBe("https://api.example.com");
+    expect(env.API_URL).toBe("https://api.example.com");
+    expect(env.PGHOST).toBe("db.internal");
+    // Connection strings + value-embedded secrets are dropped.
+    expect(env.DATABASE_URL).toBeUndefined();
+    expect(env.REDIS_URL).toBeUndefined();
+    expect(env.MONGODB_URI).toBeUndefined();
+    expect(env.DB_URL).toBeUndefined();
+    expect(env.SENTRY_DSN).toBeUndefined();
+    expect(env.SLACK_WEBHOOK_URL).toBeUndefined();
+    expect(env.SESSION_COOKIE).toBeUndefined();
+    expect(env.SQL_CONNECTION_STRING).toBeUndefined();
+  });
+
   it("policy 'core' keeps only the safe base allowlist (+ explicit adds)", () => {
     const env = resolveChildEnv({ parent, policy: "core" });
     expect(env.PATH).toBe("/usr/bin");
