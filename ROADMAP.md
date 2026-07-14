@@ -147,10 +147,10 @@ who triggered them. Metadata-only; no behavior change.
 
 **Definition of done:**
 
-- [ ] A `MessageOrigin` discriminated union; stamped on messages emitted via Squad/a2a/handoff/background-delegation.
-- [ ] Forwarded onto the run result (as Anthropic forwards `origin`).
-- [ ] TDD: a peer-sent turn carries `{ kind: 'peer', from }`; a background follow-up carries `{ kind: 'task-notification' }`.
-- [ ] Docs + Changeset.
+- [x] A `MessageOrigin` discriminated union (`types/run.ts`), stamped BY the SDK on the paths it initiates: `peer` (Squad step / a2a envelope), `coordinator` (subagent delegation, `a2a/subagent.ts`), `auto-continuation` (run/stream-to-completion driver rounds > 0). `human` and `task-notification` are documented as host-supplied positive markers; `handoff` ships in the external `@theokit/sdk-handoff` package (out of this tree).
+- [x] Forwarded onto the run result — `RunResult.origin` (round-trips `SendOptions.origin`).
+- [x] TDD: peer turn carries `{ kind: 'peer', from }` (message-origin.test.ts); coordinator stamp asserted on the delegated child's send (subagent-delegation.test.ts, 49/49); auto-continuation stamp asserted on round > 0 (run-to-completion.test.ts). `task-notification` covered as a host-supplied marker.
+- [x] Docs + Changeset (`.changeset/se3-origin-stamping.md`).
 
 **Dependencies:** SE2 (the typed event stream carries it), existing `a2a`/`Squad`.
 
