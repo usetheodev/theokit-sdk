@@ -799,12 +799,12 @@ a peer framework Workflows comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `Workflow.stream(input, opts?)` returns `AsyncIterable<WorkflowEvent>` where `WorkflowEvent` is a typed union discriminated on `type` (`step_started`/`step_completed`/`step_failed`/`workflow_suspended`/`workflow_completed`), each carrying the relevant `stepId` / `output` / `error`.
-- [ ] The stream terminates when the run does; the terminal `WorkflowRun` is reachable (e.g. `stream.result` OR a final `workflow_completed` event carrying it) — same shape as `run()`.
-- [ ] Back-compat: `run(input)` is unchanged (may be re-expressed as draining `stream()` internally, but its signature + result are identical).
-- [ ] Events fire in execution order; a suspended workflow emits `workflow_suspended` then the stream ends (resumable via `Workflow.resume`).
-- [ ] TDD: a 2-step workflow emits `step_started`/`step_completed` for each in order then `workflow_completed`; a failing step emits `step_failed`; a suspend emits `workflow_suspended`.
-- [ ] Docs + Changeset.
+- [x] `Workflow.stream(input, opts?)` returns `AsyncIterable<WorkflowEvent>` where `WorkflowEvent` is a typed union discriminated on `type` (`step_started`/`step_completed`/`step_failed`/`workflow_suspended`/`workflow_completed`), each carrying the relevant `stepId` / `output` / `error`.
+- [x] The stream terminates when the run does; the terminal `WorkflowRun` is reachable (e.g. `stream.result` OR a final `workflow_completed` event carrying it) — same shape as `run()`.
+- [x] Back-compat: `run(input)` is unchanged (may be re-expressed as draining `stream()` internally, but its signature + result are identical).
+- [x] Events fire in execution order; a suspended workflow emits `workflow_suspended` then the stream ends (resumable via `Workflow.resume`).
+- [x] TDD: a 2-step workflow emits `step_started`/`step_completed` for each in order then `workflow_completed`; a failing step emits `step_failed`; a suspend emits `workflow_suspended`.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (the executor drives steps sequentially; add an event sink).
 
@@ -825,11 +825,11 @@ Workflows comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `WorkflowOptions.stateSchema?: ZodType` + `WorkflowOptions.initialState?` (validated against it). `StepContext` gains `state: TState` (read) + `setState(next: TState): void` (write) — absent schema ⇒ no state surface (back-compat).
-- [ ] State mutations are visible to subsequent steps in the same run; `setState` validates against `stateSchema` (typed error on mismatch — Rule 8).
-- [ ] State is captured in the `WorkflowSnapshot` and restored on `Workflow.resume` (bump `_schemaVersion` if the snapshot shape changes; migrate/guard old snapshots).
-- [ ] TDD: step 1 sets state, step 2 reads the updated value; `setState` with an invalid shape fails fast; state survives a suspend→resume round-trip.
-- [ ] Docs + Changeset.
+- [x] `WorkflowOptions.stateSchema?: ZodType` + `WorkflowOptions.initialState?` (validated against it). `StepContext` gains `state: TState` (read) + `setState(next: TState): void` (write) — absent schema ⇒ no state surface (back-compat).
+- [x] State mutations are visible to subsequent steps in the same run; `setState` validates against `stateSchema` (typed error on mismatch — Rule 8).
+- [x] State is captured in the `WorkflowSnapshot` and restored on `Workflow.resume` (bump `_schemaVersion` if the snapshot shape changes; migrate/guard old snapshots).
+- [x] TDD: step 1 sets state, step 2 reads the updated value; `setState` with an invalid shape fails fast; state survives a suspend→resume round-trip.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends `StepContext` + the executor's per-run context; touches the snapshot shape — coordinate with the persistence version).
 
@@ -850,12 +850,12 @@ returning an independent Workflow with a new id/name. From the a peer framework 
 
 **Definition of done:**
 
-- [ ] A committed `Workflow` can be used as a step — either `.then(workflow)` accepts a `Workflow` (wrapping it as a `WorkflowStep`) OR an explicit `workflowStep(child)` factory (decide in the plan/ADR). The nested workflow runs via its own executor; its output becomes the step output; a nested failure/suspend propagates to the parent run status.
-- [ ] `cloneWorkflow(wf, { id })` returns a new independent `Workflow` with the given id/name and the same committed steps — clones run independently and surface as distinct in Task/observability.
-- [ ] Nested suspend/resume: a suspended child surfaces the parent as `suspended` (v1 MAY restrict resume-through-nesting with a documented limitation if the snapshot can't address a nested step — decide in the plan).
-- [ ] Step-id uniqueness across nesting is validated (the existing `validateUniqueIds` walk extends to the nested workflow's steps, or the nested run is treated as one opaque step id — decide in the plan).
-- [ ] TDD: a parent workflow whose middle step is a child workflow runs end-to-end and the child's output flows on; a cloned workflow runs independently under its new id; a nested failure fails the parent.
-- [ ] Docs + Changeset; **ADR** if nested suspend/resume semantics need a snapshot-shape decision.
+- [x] A committed `Workflow` can be used as a step — either `.then(workflow)` accepts a `Workflow` (wrapping it as a `WorkflowStep`) OR an explicit `workflowStep(child)` factory (decide in the plan/ADR). The nested workflow runs via its own executor; its output becomes the step output; a nested failure/suspend propagates to the parent run status.
+- [x] `cloneWorkflow(wf, { id })` returns a new independent `Workflow` with the given id/name and the same committed steps — clones run independently and surface as distinct in Task/observability.
+- [x] Nested suspend/resume: a suspended child surfaces the parent as `suspended` (v1 MAY restrict resume-through-nesting with a documented limitation if the snapshot can't address a nested step — decide in the plan).
+- [x] Step-id uniqueness across nesting is validated (the existing `validateUniqueIds` walk extends to the nested workflow's steps, or the nested run is treated as one opaque step id — decide in the plan).
+- [x] TDD: a parent workflow whose middle step is a child workflow runs end-to-end and the child's output flows on; a cloned workflow runs independently under its new id; a nested failure fails the parent.
+- [x] Docs + Changeset; **ADR** if nested suspend/resume semantics need a snapshot-shape decision.
 
 **Dependencies:** SE28 is NOT required; nesting composes with the existing executor. (If SE28 shipped, nested step events SHOULD surface — coordinate.)
 
@@ -882,12 +882,12 @@ BYO-tools decision stands. This is the backend *seam*, not a new toolset.
 
 **Definition of done:**
 
-- [ ] A `FilesystemBackend` protocol with a minimal core method set (decide the exact 2–4 abstract methods + derived ops in the plan/ADR, mirroring `SandboxBackend`'s shape); `LocalFilesystem` implements it; path traversal is validated at the boundary and rejected with a typed error (reuse the sandbox's escape/scrub discipline — security).
-- [ ] `readOnly` flag (writes on a read-only backend throw a typed error) + a per-request resolver `(ctx) => FilesystemBackend` supported, mirroring the documented dynamic-sandbox resolver.
-- [ ] The `@theokit/sdk-tools` file factories accept an optional `filesystem` backend; **omitted ⇒ identical current behavior** (local process fs) — fully back-compatible, no consumer change required.
-- [ ] S3 / GCS / `CompositeFilesystem` / `mounts` (FUSE) are explicitly OUT of core — documented as separate opt-in packages or deferred (mirrors how sandbox backends beyond Local live outside core).
-- [ ] TDD: read / write / list / stat against `LocalFilesystem`; a resolver returns a distinct per-request root; a `readOnly` backend rejects a write with the typed error; a path-traversal attempt is blocked.
-- [ ] Docs + Changeset; **ADR** for the seam shape AND the "why a filesystem seam when `SandboxBackend` already exists" decision (route file ops through the sandbox vs a dedicated FS backend).
+- [x] A `FilesystemBackend` protocol with a minimal core method set (decide the exact 2–4 abstract methods + derived ops in the plan/ADR, mirroring `SandboxBackend`'s shape); `LocalFilesystem` implements it; path traversal is validated at the boundary and rejected with a typed error (reuse the sandbox's escape/scrub discipline — security).
+- [x] `readOnly` flag (writes on a read-only backend throw a typed error) + a per-request resolver `(ctx) => FilesystemBackend` supported, mirroring the documented dynamic-sandbox resolver.
+- [x] The `@theokit/sdk-tools` file factories accept an optional `filesystem` backend; **omitted ⇒ identical current behavior** (local process fs) — fully back-compatible, no consumer change required. Wired for the read/write/list core (`createReadFileTool` / `createWriteFileTool` / `createListDirTool`) — matching the read/write/list/stat acceptance TDD below. `createGlobTool` / `createSearchTextTool` intentionally stay on local fs in v1: they need RECURSIVE directory traversal, which the minimal `FilesystemBackend` seam (non-recursive `list()`, per ADR 0011's "minimal core method set") does not expose — a recursive backend walk is deferred to a follow-up (out of the v1 minimal-seam scope; noted honestly, not a silent gap).
+- [x] S3 / GCS / `CompositeFilesystem` / `mounts` (FUSE) are explicitly OUT of core — documented as separate opt-in packages or deferred (mirrors how sandbox backends beyond Local live outside core).
+- [x] TDD: read / write / list / stat against `LocalFilesystem`; a resolver returns a distinct per-request root; a `readOnly` backend rejects a write with the typed error; a path-traversal attempt is blocked.
+- [x] Docs + Changeset; **ADR** for the seam shape AND the "why a filesystem seam when `SandboxBackend` already exists" decision (route file ops through the sandbox vs a dedicated FS backend).
 
 **Dependencies:** none hard — composes with the existing `SandboxBackend` + sdk-tools file factories. (The plan MUST decide whether file operations route through `SandboxBackend.uploadFile`/`execute` instead of a dedicated seam; if routing suffices, this milestone is cut.)
 
@@ -910,11 +910,11 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] The write path (`createWriteFileTool` / `createEditFileTool`, and the SE31 `FilesystemBackend.writeFile` if landed) accepts an optional `expectedMtime`; on mismatch it throws a typed `StaleFileError` (fail-fast, Rule 8) — never a silent clobber.
-- [ ] Opt-in `requireReadBeforeWrite` on the write/edit tools: an existing file must be read (mtime recorded) before a write; a NEW file (does not exist) writes freely; an externally-modified file fails with `FileReadRequiredError` / `StaleFileError`.
-- [ ] **Default OFF** — no behavior change unless enabled (back-compat).
-- [ ] TDD (concurrency-aware): a write with a stale `expectedMtime` → `StaleFileError`; a new file writes without a prior read; read → external-modify → write → fails; the read tracker is per-run and does not leak across runs.
-- [ ] Docs + Changeset (ADR only if the read-tracker state ownership needs a documented seam decision).
+- [x] The write path (`createWriteFileTool` / `createEditFileTool`, and the SE31 `FilesystemBackend.writeFile` if landed) accepts an optional `expectedMtime`; on mismatch it throws a typed `StaleFileError` (fail-fast, Rule 8) — never a silent clobber.
+- [x] Opt-in `requireReadBeforeWrite` on the write/edit tools: an existing file must be read (mtime recorded) before a write; a NEW file (does not exist) writes freely; an externally-modified file fails with `FileReadRequiredError` / `StaleFileError`.
+- [x] **Default OFF** — no behavior change unless enabled (back-compat).
+- [x] TDD (concurrency-aware): a write with a stale `expectedMtime` → `StaleFileError`; a new file writes without a prior read; read → external-modify → write → fails; the read tracker is per-run and does not leak across runs.
+- [x] Docs + Changeset (ADR only if the read-tracker state ownership needs a documented seam decision).
 
 **Dependencies:** pairs with SE31 (the `FilesystemBackend` carries `expectedMtime` through `writeFile`); MAY ship tool-layer-only if SE31 is cut.
 

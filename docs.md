@@ -2911,6 +2911,18 @@ fn("validate", (input, ctx) => {...}, {
 agentStep("classify", agent, (input) => `prompt: ${input}`, { retry: {...} });
 ```
 
+### Live step-event stream — `Workflow.stream()` (SE28)
+
+`workflow.stream(input, opts?)` returns an `AsyncIterableIterator<WorkflowEvent> & { result: Promise<WorkflowRun> }` that yields step events LIVE during execution — `workflow_started`, `step_started`, `step_completed`, `step_failed`, `workflow_suspended`, `workflow_completed` (discriminate on `type`; events carry `stepId` / `output` / `error`). Events arrive in execution order as steps run (a progress UI need not wait for the whole run). `stream.result` resolves to the terminal `WorkflowRun` (same shape `run()` returns) and is authoritative — not every terminal state has a closing event. `run(input)` is unchanged (`stream()` is purely additive).
+
+### Workflow-scoped state — `stateSchema` + `ctx.state` / `ctx.setState` (SE29)
+
+`Workflow.create({ name, stateSchema?, initialState? })` gives every step a shared, mutable, workflow-scoped state. A step reads `ctx.state` and mutates via `ctx.setState(next)`; a mutation in one step is visible to later steps. When `stateSchema` (Zod) is set, `setState` validates and throws a typed `WorkflowStateError` on mismatch; `initialState` is validated before step 1. State is captured in the `WorkflowSnapshot` and restored on resume (durable across suspend/resume; snapshot `_schemaVersion` bumped with a back-compat guard for older snapshots). Absent `stateSchema` ⇒ no state surface (back-compat).
+
+### Workflows as steps — `workflowStep` + `cloneWorkflow` (SE30)
+
+`workflowStep(childWorkflow)` wraps a committed `Workflow` as a step usable inside `.then(...)`: the child runs via its own executor, its output becomes the step output, and a non-`completed` child (failure/suspend) surfaces to the parent as a typed `WorkflowNestedError` (nested suspend/resume is not supported in v1 — documented in ADR 0010). Nesting is OPAQUE — the child's step ids live in the child's own space; the parent sees one step. `cloneWorkflow(wf, { id })` returns an independent `Workflow` with a fresh id/name and its own single-flight lock, copying the committed steps (no shared step-array reference — mutating the clone never affects the original).
+
 ### Whole-workflow I/O validation — `inputSchema` / `outputSchema` (SE27)
 
 `Workflow.create({ name, inputSchema?, outputSchema? })` accepts optional Zod schemas that validate the WHOLE workflow's input and output (distinct from per-step `fn()` schemas). The input is validated at run start — BEFORE step 1 — and a mismatch fails fast with a typed `WorkflowInputError` (no step runs, no silent coercion). On a `completed` run, the final output is validated against `outputSchema`; a mismatch yields `status: "failed"` carrying a typed `WorkflowOutputError` (the error never throws out of `run()`; suspended/failed runs skip output validation). Absent ⇒ no validation (back-compat). Both error classes are exported.
