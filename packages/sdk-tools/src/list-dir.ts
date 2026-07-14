@@ -77,13 +77,23 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
         const backend = await resolveFilesystem(filesystem, ctx ?? {});
         return listViaBackend(backend, relative, path, max);
       }
-      const boundary = resolveDirBoundary(relative, projectRoot, path);
-      if ("error" in boundary) return boundary.error;
-      const readResult = await readDirSafe(boundary.absolutePath, path);
-      if ("error" in readResult) return readResult.error;
-      return formatListing(readResult.dirents, max);
+      return listViaLocalFs(projectRoot, relative, path, max);
     },
   });
+}
+
+/** Local-`projectRoot` listing: boundary + readdir + bounded format. */
+async function listViaLocalFs(
+  projectRoot: string,
+  relative: string,
+  originalPath: string,
+  max: number,
+): Promise<string> {
+  const boundary = resolveDirBoundary(relative, projectRoot, originalPath);
+  if ("error" in boundary) return boundary.error;
+  const readResult = await readDirSafe(boundary.absolutePath, originalPath);
+  if ("error" in readResult) return readResult.error;
+  return formatListing(readResult.dirents, max);
 }
 
 /**
