@@ -4,7 +4,12 @@ import {
   subAgentToolsFromDefinitions,
 } from "../../../a2a/subagent.js";
 import { ConfigurationError } from "../../../errors.js";
-import type { AgentOptions, CustomTool, ModelSelection } from "../../../types/agent.js";
+import type {
+  AgentDefinition,
+  AgentOptions,
+  CustomTool,
+  ModelSelection,
+} from "../../../types/agent.js";
 import type {
   Run,
   RunOperation,
@@ -48,6 +53,13 @@ export interface CreateRealLocalRunOptions {
   model: ModelSelection | undefined;
   message: string | SDKUserMessage;
   agentOptions: AgentOptions;
+  /**
+   * File-based + inline subagents merged by `loadSubagents` (`.theokit/agents/*.md`
+   * plus `agentOptions.agents`). When present, these — not just the inline
+   * `agentOptions.agents` — become the delegation toolset, so a subagent defined
+   * only on disk is callable against a real model (not fixture-only).
+   */
+  subagents?: Record<string, AgentDefinition>;
   sendOptions: SendOptions;
   workspaceCwd: string;
   hooks: HooksExecutor;
@@ -277,6 +289,7 @@ function buildLoopInputs(
       options.personalityToolWhitelist,
       options.agentId,
       options.personalityName,
+      options.subagents,
     ),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
@@ -342,16 +355,17 @@ function buildLoopInputs(
  *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
  */
 /**
- * Declarative subagents (`agents: { name: AgentDefinition }`) become delegation
- * tools for the local runtime — each child inherits the parent's apiKey/model
- * (via `bindParentCredentials`) and is scoped to the whitelisted subset of the
- * parent's tools. Previously wired only for the cloud/fixture runtimes.
+ * Declarative subagents become delegation tools for the local runtime — each
+ * child inherits the parent's apiKey/model (via `bindParentCredentials`) and is
+ * scoped to the whitelisted subset of the parent's tools. `agents` is the merged
+ * set from `loadSubagents` (`.theokit/agents/*.md` + inline `agentOptions.agents`),
+ * so a subagent defined only on disk is callable against a real model — not just
+ * in fixture mode.
  */
 function declarativeSubagentTools(
-  agentOptions: AgentOptions,
+  agents: Record<string, AgentDefinition> | undefined,
   parentTools: ReadonlyArray<CustomTool>,
 ): CustomTool[] {
-  const { agents } = agentOptions;
   if (agents === undefined || Object.keys(agents).length === 0) return [];
   return subAgentToolsFromDefinitions(agents, parentTools);
 }
@@ -381,9 +395,14 @@ function buildCustomToolsInput(
   personalityToolWhitelist: ReadonlyArray<string> | undefined,
   agentId: string,
   personalityName: string | undefined,
+  subagents: Record<string, AgentDefinition> | undefined,
 ): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
   const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
-  const subagentTools = declarativeSubagentTools(agentOptions, baseTools);
+  // Prefer the resolved set (file-based + inline) when present; fall back to the
+  // inline `agentOptions.agents` for callers that don't thread resolvedSubagents.
+  const agentsForTools =
+    subagents !== undefined && Object.keys(subagents).length > 0 ? subagents : agentOptions.agents;
+  const subagentTools = declarativeSubagentTools(agentsForTools, baseTools);
   // T4.1: concat plugin-registered tools onto the effective catalog. Plugin
   // tools are merged unconditionally (no override semantics — name collision
   // would be caught by the registry validator if used).

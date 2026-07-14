@@ -46,6 +46,7 @@ export function buildRealRunOptions(args: {
     model: args.inputs.model,
     message: args.message,
     agentOptions: args.inputs.options,
+    subagents: args.inputs.resolvedSubagents,
     sendOptions: args.options,
     workspaceCwd: args.inputs.workspaceCwd,
     hooks: args.inputs.hooksExecutor,
