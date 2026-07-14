@@ -38,7 +38,7 @@ import type { CircuitBreaker } from "../circuit-breaker.js";
 import type { MemorySearchHit } from "../index/index-manager-contract.js";
 import type { MemoryIndex } from "../index/memory-index.js";
 import { persistActiveMemoryTranscript } from "../store/transcript-store.js";
-import type { ActiveMemoryCache } from "./active-memory-cache.js";
+import type { ActiveMemoryCache, TenantContext } from "./active-memory-cache.js";
 // T4.1 / D438 — `ActiveMemoryResult` and its helpers moved to `./active-memory-types.ts`
 // so `./active-memory-cache.ts` can reach them without cycling back here (cycle #10).
 // Re-exported below for back-compat with in-tree consumers.
@@ -154,7 +154,14 @@ export async function runActiveMemory(args: RunActiveMemoryArgs): Promise<Active
         hits: [],
       });
     }
-    const cached = args.cache?.get(args.userText, cfg.queryMode);
+    // #56 (GAP-B) — key the cache read by tenant identity so two callers with
+    // the same query text but different identity never share a cache entry.
+    const tenantCtx: TenantContext = {
+      namespace: args.namespace,
+      userId: args.userId,
+      scope: args.scope,
+    };
+    const cached = args.cache?.get(args.userText, cfg.queryMode, tenantCtx);
     if (cached !== undefined) return endRecallSpan(span, args, cached);
 
     const query = buildQuery(args.userText, args.priorMessages, cfg.queryMode, cfg.recentUserTurns);
@@ -275,7 +282,13 @@ async function finalize(
   queryMode: ActiveMemoryQueryMode,
   result: ActiveMemoryResult,
 ): Promise<ActiveMemoryResult> {
-  args.cache?.set(args.userText, queryMode, result);
+  // #56 (GAP-B) — key the cache write by tenant identity (mirrors the get side).
+  const tenantCtx: TenantContext = {
+    namespace: args.namespace,
+    userId: args.userId,
+    scope: args.scope,
+  };
+  args.cache?.set(args.userText, queryMode, result, tenantCtx);
   if (args.persistTranscripts === true && args.cwd !== undefined) {
     await persistActiveMemoryTranscript(args.cwd, {
       runId: args.runId ?? `run-${Date.now()}`,
