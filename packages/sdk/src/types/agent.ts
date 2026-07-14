@@ -424,6 +424,13 @@ export interface AgentOptions {
    */
   plugins?: PluginsSettings | readonly Plugin[];
   /**
+   * SE1 — the default permission mode for this agent's runs, threaded to a
+   * registered `PermissionPlugin`'s pre-tool gate. A per-send
+   * `SendOptions.permissionMode` overrides it. Absent ⇒ the plugin's own
+   * construction-time mode applies. Local runtime.
+   */
+  permissionMode?: import("../permission-engine.js").PermissionMode;
+  /**
    * Skills configuration. Either a static {@link SkillsSettings} object or —
    * SE22 — a {@link SkillsResolver} evaluated per `send()` to pick skills from
    * runtime context (e.g. user role). A cached agent re-resolves each run. The

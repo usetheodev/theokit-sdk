@@ -16,6 +16,8 @@ import type {
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
 import type { Plugin } from "../../../src/internal/plugins/types.js";
 import { HooksExecutor } from "../../../src/internal/runtime/hooks/hooks-executor.js";
+import { PermissionEngine } from "../../../src/permission-engine.js";
+import { PermissionPlugin } from "../../../src/permission-plugin.js";
 
 /** LLM that emits one tool_use on the first turn, then ends. */
 function toolThenEndLlm(): LlmClient {
@@ -197,6 +199,53 @@ describe("wired hooks fire through the real loop (#65 integration)", () => {
 
     // A cancelled run must be distinguishable from a clean completion.
     expect(output.finalStatus).toBe("cancelled");
+  });
+});
+
+describe("SE1 — per-run permissionMode gates through the real loop", () => {
+  const probeTool = (onRun: () => void) => ({
+    name: "probe",
+    description: "probe",
+    inputSchema: { type: "object" },
+    handler: () => {
+      onRun();
+      return "raw";
+    },
+  });
+
+  const runWithMode = async (
+    mode: "bypass" | "plan",
+  ): Promise<{ toolRan: boolean; denied: boolean }> => {
+    let toolRan = false;
+    let denied = false;
+    // Plugin constructed with `default`; the RUN supplies the mode.
+    const engine = new PermissionEngine([{ tool: "probe", action: "ask" }]);
+    const mgr = new PluginManager();
+    await mgr.initialize([PermissionPlugin.create(engine, { mode: "default" }) as Plugin]);
+
+    await runAgentLoop(
+      baseInputs(toolThenEndLlm(), {
+        pluginManager: mgr,
+        permissionMode: mode,
+        customTools: [probeTool(() => (toolRan = true))],
+        runEventSink: (e) => {
+          if (e.type === "permission_denied") denied = true;
+        },
+      }),
+    );
+    return { toolRan, denied };
+  };
+
+  it("bypass mode auto-allows the ask verdict → the tool runs", async () => {
+    const { toolRan, denied } = await runWithMode("bypass");
+    expect(toolRan).toBe(true);
+    expect(denied).toBe(false);
+  });
+
+  it("plan mode denies the ask verdict → the tool is blocked (permission_denied)", async () => {
+    const { toolRan, denied } = await runWithMode("plan");
+    expect(toolRan).toBe(false);
+    expect(denied).toBe(true);
   });
 });
 

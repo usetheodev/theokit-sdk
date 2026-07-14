@@ -25,10 +25,11 @@ export type PermissionAction = "allow" | "deny" | "ask";
  *   for full read-only behavior.
  * - `acceptEdits` — auto-approve the UNMATCHED verdict, but STILL honor an explicit
  *   `ask` rule (a caller gates a risky tool with an ask rule). Codex `UnlessTrusted`.
- * - `bypass` — everything ⇒ `allow` EXCEPT an explicit `deny` rule. Never asks.
- *   a peer project `dangerously-skip-permissions` / Codex `Never`.
+ * - `bypass` (alias `bypassPermissions`, the Anthropic-exact name) — everything ⇒
+ *   `allow` EXCEPT an explicit `deny` rule. Never asks. a peer project
+ *   `dangerously-skip-permissions` / Codex `Never` / Anthropic `bypassPermissions`.
  */
-export type PermissionMode = "default" | "plan" | "acceptEdits" | "bypass";
+export type PermissionMode = "default" | "plan" | "acceptEdits" | "bypass" | "bypassPermissions";
 
 /**
  * SE1 — apply a {@link PermissionMode} to a rule-engine verdict. Pure.
@@ -59,6 +60,7 @@ export function applyMode(
       if (verdict === "ask") return explicit ? "ask" : "allow";
       return verdict; // allow stays allow
     case "bypass":
+    case "bypassPermissions":
       // everything that survived the deny check ⇒ allow (never asks).
       return "allow";
   }
@@ -100,7 +102,13 @@ export interface PermissionEngineOptions {
 function argMatches(matcher: ArgMatcher, value: unknown): boolean {
   if (typeof matcher === "function") return matcher(value);
   if (value === undefined) return false; // missing arg never matches a declared predicate
-  if (matcher instanceof RegExp) return matcher.test(String(value));
+  if (matcher instanceof RegExp) {
+    // Reset `lastIndex` so a global/sticky-flag regex (`/x/g`) does not carry
+    // state across `.test()` calls — otherwise the same rule would alternate
+    // verdicts on identical repeated calls (non-deterministic authorization).
+    matcher.lastIndex = 0;
+    return matcher.test(String(value));
+  }
   return matcher === value;
 }
 
