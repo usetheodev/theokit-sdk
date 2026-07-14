@@ -91,7 +91,10 @@ export class FileContextManager implements SDKContextManager {
 
   async refresh(opts?: { touchedFiles?: ReadonlyArray<string> }): Promise<void> {
     const touchedFiles = opts?.touchedFiles ?? [];
-    this.lastScope = touchedFiles;
+    // Defensive copy — never alias the caller's array, so a caller reusing +
+    // mutating the same `contextPaths` array between sends cannot corrupt the
+    // `sameScope` short-circuit in `applyScope`.
+    this.lastScope = [...touchedFiles];
     const config = await loadContextConfig(this.cwd);
     const legacy = await loadSources(config, this.cwd);
 
