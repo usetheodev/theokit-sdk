@@ -58,8 +58,10 @@ export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
    * reaches the model, so app-facing detail is not forced into model context.
    * Returns a string OR SE7 `ToolResultContentBlock[]` (text + image). Absent ⇒
    * the tool_result is the serialized handler output (SE16 / pre-SE17 behavior).
-   * Note: observability (`onToolEnd`) sees the model-facing result this returns,
-   * not the raw handler output — the full result lives in the handler's own scope.
+   * The split is REAL: the model's `tool_result` carries this compact value, while
+   * observability (`onToolEnd.result`) receives the FULL raw handler output
+   * (serialized) — so the app keeps the complete result. ONE handler execution
+   * feeds both channels.
    */
   toModelOutput?: (output: ToolHandlerReturn<O>) => string | ToolResultContentBlock[];
   /**
@@ -88,21 +90,73 @@ export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
  * @public
  */
 /**
- * SE16 + SE17 — validate the handler's output against `outputSchema` (if any), then
- * shape the tool_result: `toModelOutput` maps it to the model-facing string/blocks,
- * else it is serialized (string as-is, else JSON). The FULL result stays with the handler.
+ * SE17 — symbol under which a `toModelOutput` tool carries its model/app SPLIT
+ * resolver on the built `CustomTool.handler` function. The runtime tool dispatch
+ * (`tool-executors.ts`) prefers this resolver so it can route the FULL raw output
+ * to observability (`onToolEnd`) while the compact `toModelOutput` result goes to
+ * the model's `tool_result`. Absent ⇒ the plain handler return is used for both
+ * (pre-SE17 behavior). A hidden symbol (not a public `CustomTool` field) mirrors
+ * the `INHERIT_CREDENTIALS` pattern — the split is an internal wire concern.
+ * @internal
  */
-function shapeToolResult<T extends ZodType, O extends ZodType>(
+export const TOOL_SPLIT_RESOLVER: unique symbol = Symbol("theokit.toolSplitResolver");
+
+/** @internal — the two channels a `toModelOutput` tool produces from ONE handler run. */
+export interface ToolOutputSplit {
+  /** What the MODEL sees in the `tool_result` (compact / multimodal). */
+  model: string | ToolResultContentBlock[];
+  /** What the APP / observability keeps (the full raw handler output, serialized). */
+  app: string | ToolResultContentBlock[];
+}
+
+/** @internal — a handler carrying an SE17 split resolver. */
+export type SplitResolver = (
+  input: Record<string, unknown>,
+  ctx?: { signal?: AbortSignal; context?: unknown },
+) => Promise<ToolOutputSplit>;
+
+/**
+ * Run the input pipeline (sanitize → parse → handler → `outputSchema` validate)
+ * and return the FULL VALIDATED structured output — the single source both output
+ * channels derive from. Kept separate so the public handler and the SE17 split
+ * resolver share ONE handler execution.
+ */
+async function runValidated<T extends ZodType, O extends ZodType>(
   spec: DefineToolSpec<T, O>,
-  out: ToolHandlerReturn<O>,
-): string | ToolResultContentBlock[] {
+  input: Record<string, unknown>,
+  ctx?: { signal?: AbortSignal; context?: unknown },
+): Promise<ToolHandlerReturn<O>> {
+  const raw = spec.sanitize
+    ? sanitizeToolInput(input, {
+        ...(spec.sanitize === true ? {} : spec.sanitize),
+        schema: spec.inputSchema,
+      }).value
+    : input;
+  const parsed = spec.inputSchema.parse(raw) as ZodNamespace.infer<T>;
+  // #65 — forward the ToolContext (run signal / user context) to the user's handler.
+  const out = await spec.handler(parsed, ctx);
   // `parse(out)` returns `z.infer<O>` ≡ `ToolHandlerReturn<O>` when `O ≠ never`; the
   // cast closes the conditional-type gap the compiler can't narrow through here.
-  const validated = (
+  return (
     spec.outputSchema === undefined ? out : spec.outputSchema.parse(out)
   ) as ToolHandlerReturn<O>;
-  if (spec.toModelOutput !== undefined) return spec.toModelOutput(validated);
+}
+
+/** Serialize a validated output to a tool_result string (string as-is, else JSON). */
+function serializeOutput(validated: unknown): string {
   return typeof validated === "string" ? validated : JSON.stringify(validated);
+}
+
+/**
+ * SE16 + SE17 — from the validated output, produce the MODEL-facing tool_result:
+ * `toModelOutput` maps it to the compact string/blocks, else it is serialized.
+ */
+function shapeModelOutput<T extends ZodType, O extends ZodType>(
+  spec: DefineToolSpec<T, O>,
+  validated: ToolHandlerReturn<O>,
+): string | ToolResultContentBlock[] {
+  if (spec.toModelOutput !== undefined) return spec.toModelOutput(validated);
+  return serializeOutput(validated);
 }
 
 /**
@@ -132,25 +186,25 @@ function defineTool<T extends ZodType, O extends ZodType = never>(
   const inputSchema = toJsonSchema(spec.inputSchema, {
     unrepresentable: "any",
   });
-  return {
-    name: spec.name,
-    description: spec.description,
-    inputSchema,
-    handler: async (
-      input: Record<string, unknown>,
-      ctx?: { signal?: AbortSignal; context?: unknown },
-    ): Promise<string | ToolResultContentBlock[]> => {
-      const raw = spec.sanitize
-        ? sanitizeToolInput(input, {
-            ...(spec.sanitize === true ? {} : spec.sanitize),
-            schema: spec.inputSchema,
-          }).value
-        : input;
-      const parsed = spec.inputSchema.parse(raw) as ZodNamespace.infer<T>;
-      // #65 — forward the ToolContext (run signal) to the user's handler.
-      const out = await spec.handler(parsed, ctx);
-      // SE16 (validate) + SE17 (toModelOutput / serialize) — see `shapeToolResult`.
-      return shapeToolResult(spec, out);
-    },
+  const handler = async (
+    input: Record<string, unknown>,
+    ctx?: { signal?: AbortSignal; context?: unknown },
+  ): Promise<string | ToolResultContentBlock[]> => {
+    // SE16 (validate) + SE17 (model-facing shaping). A direct caller gets the
+    // MODEL-facing value — unchanged pre/post SE17-split.
+    const validated = await runValidated(spec, input, ctx);
+    return shapeModelOutput(spec, validated);
   };
+  const tool: CustomTool = { name: spec.name, description: spec.description, inputSchema, handler };
+  // SE17 gap closure — when `toModelOutput` is set, attach the split resolver so
+  // the runtime routes the FULL raw output to `onToolEnd` while the model sees the
+  // compact value. ONE handler execution feeds both channels (`runValidated`).
+  if (spec.toModelOutput !== undefined) {
+    const resolver: SplitResolver = async (input, ctx) => {
+      const validated = await runValidated(spec, input, ctx);
+      return { model: shapeModelOutput(spec, validated), app: serializeOutput(validated) };
+    };
+    (handler as unknown as Record<symbol, SplitResolver>)[TOOL_SPLIT_RESOLVER] = resolver;
+  }
+  return tool;
 }
