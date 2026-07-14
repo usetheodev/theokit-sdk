@@ -1,19 +1,26 @@
 /**
- * File-based config — `.theokit/` files augment a code-created agent.
+ * File-based config — everything under `.theokit/` that augments a code-created agent.
  *
- * The agent is still created in code with `Agent.create(...)`; opting in via
+ * The agent is still made with `Agent.create(...)`; opting in via
  * `local.settingSources: ["project"]` makes it discover config from `.theokit/`.
- * This proves TWO conventions end-to-end:
+ * This proves FIVE file-based conventions end-to-end — deterministic where a public
+ * inspector exists, and against a REAL LLM where the file must actually change behavior:
  *
- *  1. A `.theokit/skills/<name>/SKILL.md` is DISCOVERED       — deterministic (agent.skills.list()).
- *  2. A `.theokit/context/<name>.md` is INJECTED into the run — REAL LLM: the model answers a
- *     fact it can only know from the file (its 2026 codename), proving the file reached the prompt.
+ *   skills   .theokit/skills/<name>/SKILL.md   → agent.skills.list()          [deterministic]
+ *   context  .theokit/context/<name>.md        → answer uses a fact from disk  [REAL LLM]
+ *   rules    .theokit/rules/<name>.md           → reply obeys an alwaysApply rule [REAL LLM]
+ *   agents   .theokit/agents/<name>.md          → model delegates to the subagent [REAL LLM]
+ *   hooks    .theokit/hooks.json                → Stop hook writes a marker file [observable]
+ *
+ * (MCP servers are also file-based via `.theokit/mcp.json` — see the `mcp` example, which
+ * needs a live server to be meaningful.)
  *
  * Run:
  *   export OPENROUTER_API_KEY=sk-or-...   # or put it in the repo-root .env
  *   pnpm run run
  */
 
+import { existsSync } from "node:fs";
 import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -25,26 +32,24 @@ if (apiKey === undefined || apiKey.length === 0) {
   throw new Error("Set OPENROUTER_API_KEY (env or .env) — see https://openrouter.ai/keys");
 }
 
-// 1. A tiny project whose `.theokit/` carries a file-based skill + a context fact.
+// 1. A throwaway project whose `.theokit/` carries every file-based convention.
 const cwd = await mkdtemp(join(tmpdir(), "theokit-file-based-"));
 
+// skills — a capability pack (name + description reach the system prompt).
 await mkdir(join(cwd, ".theokit", "skills", "release-checklist"), { recursive: true });
 await writeFile(
   join(cwd, ".theokit", "skills", "release-checklist", "SKILL.md"),
-  [
-    "---",
-    "name: release-checklist",
-    "description: Steps to cut a release — version bump, changelog, tag.",
-    "---",
-    "",
-    "Run the tests, bump the version, move `[Unreleased]` into a dated section,",
-    "then open the develop→main PR.",
-    "",
-  ].join("\n"),
+  "---\nname: release-checklist\ndescription: Steps to cut a release.\n---\n\nRun tests, bump the version, tag.\n",
 );
 
-// A `.theokit/context/<name>.md` names a real project file via `path:`; that file's
-// content is injected (the .md body is just prose explaining the source).
+// agents — a file-based subagent; the model can delegate to it as a `fact-checker` tool.
+await mkdir(join(cwd, ".theokit", "agents"), { recursive: true });
+await writeFile(
+  join(cwd, ".theokit", "agents", "fact-checker.md"),
+  "---\ndescription: Verifies a simple factual claim and answers yes or no.\nmodel: inherit\n---\n\nYou verify one factual claim. Answer with a single word: yes or no.\n",
+);
+
+// context — a real project file, named by a `.theokit/context/<name>.md` source via `path:`.
 await writeFile(
   join(cwd, "PRODUCT.md"),
   "# Product facts\n\nThe internal codename for our 2026 flagship release is **Project Halcyon**.\n",
@@ -52,50 +57,85 @@ await writeFile(
 await mkdir(join(cwd, ".theokit", "context"), { recursive: true });
 await writeFile(
   join(cwd, ".theokit", "context", "product-facts.md"),
-  ["---", "name: product-facts", "path: PRODUCT.md", "---", "", "Internal product facts, injected as agent context.", ""].join("\n"),
+  "---\nname: product-facts\npath: PRODUCT.md\n---\n\nInternal product facts, injected as agent context.\n",
+);
+
+// rules — an alwaysApply rule that forces a distinctive, checkable output shape.
+await mkdir(join(cwd, ".theokit", "rules"), { recursive: true });
+await writeFile(
+  join(cwd, ".theokit", "rules", "tone.md"),
+  "---\nalwaysApply: true\n---\nAlways end every reply with the exact tag [VERIFIED].\n",
+);
+
+// hooks — a Stop hook (Claude Code shape) that writes an observable marker on turn finish.
+// The command reads the JSON payload the SDK sends on stdin (`cat`) into the marker file,
+// proving both that the hook fired AND that it received its payload.
+await writeFile(
+  join(cwd, ".theokit", "hooks.json"),
+  JSON.stringify(
+    { hooks: { Stop: [{ hooks: [{ type: "command", command: "cat > .hook-fired" }] }] } },
+    null,
+    2,
+  ),
 );
 
 // 2. A code-created agent that OPTS IN to reading `.theokit/` from cwd.
+const toolCalls: string[] = [];
 const agent = await Agent.create({
   apiKey,
   model: { id: "openai/gpt-4o-mini" },
-  systemPrompt: "You are a concise assistant. Use the provided project context when answering.",
+  systemPrompt:
+    "You are a concise assistant. Use the provided project context. " +
+    "To verify any factual claim, you MUST call the fact-checker tool rather than answering yourself.",
   local: { cwd, settingSources: ["project"], sandboxOptions: { enabled: false } },
   context: { manager: "file" },
+  onToolStart: (e) => {
+    toolCalls.push(e.toolName);
+  },
 });
 
-// 3. Deterministic — the file-based skill was discovered from disk.
+// 3. Deterministic — the skill was discovered; context + rule are loaded into the working set.
 const skills = (await agent.skills?.list()) ?? [];
-console.log("discovered skills:", skills.map((s) => s.name).join(", ") || "(none)");
-
-// The file-based context source shows up in the redacted snapshot.
 const sources = (await agent.context.snapshot()).sources.map((s) => s.name ?? s.path ?? "");
+console.log("discovered skills:", skills.map((s) => s.name).join(", ") || "(none)");
 console.log("context sources:  ", sources.join(", ") || "(none)");
 
-// 4. REAL LLM — the model answers from the file-based context, a fact it cannot guess.
-const run = await agent.send(
-  "What is the internal codename for our 2026 flagship release? Answer with just the codename.",
-);
-const result = await run.wait();
-console.log("status:", result.status);
-console.log("model: ", result.model);
-console.log("reply: ", result.result);
+// 4a. REAL LLM — delegate to the file-based subagent (observed via onToolStart).
+const r1 = await (
+  await agent.send("Use your fact-checker to verify: is the sky blue? Report what it answered.")
+).wait();
+console.log("delegation reply: ", r1.result);
+console.log("tools called:     ", toolCalls.join(", ") || "(none)");
+
+// 4b. REAL LLM — answer from the file-based context, obeying the alwaysApply rule.
+const r2 = await (
+  await agent.send("What is the internal codename for our 2026 flagship release? Answer with just the codename.")
+).wait();
+console.log("context reply:    ", r2.result);
 
 await agent.dispose();
 
-// 5. Validate — fail loud (non-zero exit) on any miss.
-const failures: string[] = [];
-if (!skills.some((s) => s.name === "release-checklist")) {
-  failures.push("file-based skill `release-checklist` was not discovered");
-}
-if (result.status !== "finished") {
-  failures.push(`run did not finish: ${JSON.stringify(result.error ?? result.status)}`);
-}
-if (typeof result.result !== "string" || !/halcyon/i.test(result.result)) {
-  failures.push(`model did not use file-based context (reply: ${JSON.stringify(result.result)})`);
-}
-if (failures.length > 0) {
-  console.error("VALIDATION FAILED:", failures.join("; "));
+// 5. The Stop hook wrote its marker on turn finish.
+const hookFired = existsSync(join(cwd, ".hook-fired"));
+console.log("hook marker file: ", hookFired ? "written" : "MISSING");
+
+// 6. Validate every convention — fail loud (non-zero exit) on any miss.
+const reply = `${r1.result ?? ""}\n${r2.result ?? ""}`;
+const checks: Array<[string, boolean]> = [
+  ["skills — release-checklist discovered", skills.some((s) => s.name === "release-checklist")],
+  ["context — product-facts loaded", sources.some((n) => n.includes("product-facts"))],
+  ["rules — theokit rules loaded", sources.some((n) => n.includes("rules"))],
+  ["runs — both finished", r1.status === "finished" && r2.status === "finished"],
+  ["agents — delegated to the fact-checker subagent", toolCalls.some((n) => /fact.?checker/i.test(n))],
+  ["context — model answered from the file (Halcyon)", /halcyon/i.test(reply)],
+  ["rules — model obeyed the alwaysApply rule ([VERIFIED])", /\[VERIFIED\]/i.test(reply)],
+  ["hooks — Stop hook wrote its marker", hookFired],
+];
+
+const failed = checks.filter(([, ok]) => !ok).map(([name]) => name);
+for (const [name, ok] of checks) console.log(`${ok ? "PASS" : "FAIL"}  ${name}`);
+if (failed.length > 0) {
+  console.error("\nVALIDATION FAILED:", failed.join("; "));
   process.exit(1);
 }
-console.log("OK — .theokit/ skill discovered + file-based context reached the LLM.");
+console.log("\nOK — skills + context + rules + subagents + hooks all work from .theokit/ files.");
