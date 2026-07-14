@@ -41,6 +41,7 @@ import { type AsyncSemaphore, createSemaphore } from "../runtime/concurrency/asy
 import { RingBuffer } from "./ring-buffer.js";
 import { getTaskStoreFor, InMemoryTaskStore, type TaskStore } from "./store.js";
 import { buildSubscribe } from "./subscribe.js";
+import { taskEventToRunEvent } from "./task-run-event-bridge.js";
 import { startTaskCancelSpan, startTaskSubmitSpan, startTaskTransitionSpan } from "./telemetry.js";
 
 const DEFAULT_CONCURRENCY = 8;
@@ -238,28 +239,6 @@ interface SubmitInternal<T> {
   readonly allowReservedPrefix?: boolean;
   /** SE2 — forward this task's lifecycle to the run-event sink as `task_*` RunEvents. */
   readonly onRunEvent?: import("../../types/run-events.js").RunEventSink;
-}
-
-/** SE2 — map a `TaskEvent` to a `task_*` RunEvent for the opt-in `onRunEvent` bridge. */
-function taskEventToRunEvent(
-  event: TaskEvent,
-  taskId: string,
-  kind: TaskKind,
-): import("../../types/run-events.js").RunEvent | undefined {
-  switch (event.type) {
-    case "started":
-      return { type: "task_started", taskId, description: kind };
-    case "progress":
-      return { type: "task_updated", taskId, status: "progress" };
-    case "finished":
-      return { type: "task_completed", taskId, status: "completed" };
-    case "errored":
-      return { type: "task_completed", taskId, status: "failed" };
-    case "cancelled":
-      return { type: "task_completed", taskId, status: "stopped" };
-    default:
-      return undefined; // `submitted` (queued) has no RunEvent counterpart
-  }
 }
 
 async function buildAndInsertQueued(
