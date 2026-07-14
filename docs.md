@@ -166,6 +166,32 @@ Legacy `.theokit/context.json` shape (deprecated since v1.5 — migrate via `the
 
 The snapshot must never include secrets, absolute temporary paths, or raw tokens. `maxTokens` is a hard budget; implementations may summarize or omit low-priority sources to stay under budget.
 
+Beyond `.theokit/context/*.md`, the file-based context manager auto-discovers instruction files across the 2026 industry-standard set — `AGENTS.md`, `GEMINI.md`, `CLAUDE.md` (git-root walk, `@import` followed for the latter two), `.cursor/rules/*.mdc`, `.theokit/rules/*.md`, and `.theokit/THEO.md` — merged by priority into the context block.
+
+Path-scoped rules — `.theokit/rules/*.md`. Theokit-native rule files, mirroring Claude Code's `.claude/rules/`. Each file carries frontmatter that gates when the rule loads:
+
+```
+---
+description: API endpoint rules
+paths:                     # glob patterns (Claude Code parity); `globs:` is an accepted alias
+  - src/api/**/*.ts
+alwaysApply: false         # true → load on every send regardless of scope
+enabled: true              # false → disable the rule entirely
+---
+Every endpoint must validate its input.
+```
+
+A rule with `alwaysApply: true` loads into the context on every send. A path-scoped rule (`paths:`/`globs:`) loads only when a file in the current send's scope matches one of its glob patterns. The scope is declared per send via `SendOptions.contextPaths` — the repo-relative files the host is working on:
+
+```
+await agent.send("Add an endpoint.", { contextPaths: ["src/api/users.ts"] });
+// → the src/api/** rule activates for this send; alwaysApply rules always load.
+await agent.send("Tweak the button.", { contextPaths: ["src/ui/button.tsx"] });
+// → the src/api/** rule stays dormant (no leak); alwaysApply rules remain.
+```
+
+Omit `contextPaths` and only unconditional rules load (the create-time snapshot is untouched — non-users pay nothing). Glob matching supports `**` (any depth, collapsing so `src/**/*.ts` matches `src/x.ts` and `src/a/b/x.ts`), `*` (single segment), and `?`. The same `contextPaths` signal also activates conditional `.cursor/rules/*.mdc` globs. `paths:` and `globs:` are unioned; both are glob-pattern arrays (not exact paths). Local runtime.
+
 Memory
 Memory stores durable facts across agent instances. It is keyed by namespace, user, and scope so agents can remember stable preferences without leaking facts across users or teams.
 
