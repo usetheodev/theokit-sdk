@@ -329,11 +329,11 @@ supervisor-agents comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `defineSubAgent`'s tool handler reads the optional `ctx.signal` and forwards it to the child `agent.send(input, { signal })`; an already-aborted or mid-run abort cancels the child (child resolves `cancelled`, not `finished`).
-- [ ] Back-compat: a handler invoked with no `ctx` (single-arg call sites) behaves exactly as today (no signal ⇒ no cancellation).
-- [ ] The child agent is still disposed in `finally` on cancel (no leak).
-- [ ] TDD: an aborted parent signal cancels the in-flight subagent (child run status `cancelled`); the un-aborted path still returns the child result.
-- [ ] Docs + Changeset.
+- [x] `defineSubAgent`'s tool handler reads the optional `ctx.signal` and forwards it to the child `agent.send(input, { signal })`; an already-aborted or mid-run abort cancels the child (child resolves `cancelled`, not `finished`).
+- [x] Back-compat: a handler invoked with no `ctx` (single-arg call sites) behaves exactly as today (no signal ⇒ no cancellation).
+- [x] The child agent is still disposed in `finally` on cancel (no leak).
+- [x] TDD: an aborted parent signal cancels the in-flight subagent (child run status `cancelled`); the un-aborted path still returns the child result.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (the `ctx.signal` seam already exists per #65; purely additive).
 
@@ -353,12 +353,12 @@ has NO interception point — the handler runs the child unconditionally. Add op
 
 **Definition of done:**
 
-- [ ] `SubAgentSpec.onDelegationStart?(ctx: { input; name }) => { proceed: boolean; rejectionReason?; modifiedInput? } | void` — `proceed: false` short-circuits (returns the `rejectionReason` as the tool result, the child never runs); `modifiedInput` rewrites the prompt sent to the child.
-- [ ] `SubAgentSpec.onDelegationComplete?(ctx: { input; name; result?; error? }) => { feedback? } | void` — runs after the child; optional `feedback` is appended to the returned result string.
-- [ ] Hooks are optional and fail-loud: a throwing hook surfaces a typed error, never a silent swallow (Rule 8).
-- [ ] Back-compat: specs without hooks behave exactly as today.
-- [ ] TDD: reject path returns `rejectionReason` without running the child; `modifiedInput` rewrites; `onDelegationComplete` feedback is appended; a child error is surfaced to `onDelegationComplete`.
-- [ ] Docs + Changeset.
+- [x] `SubAgentSpec.onDelegationStart?(ctx: { input; name }) => { proceed: boolean; rejectionReason?; modifiedInput? } | void` — `proceed: false` short-circuits (returns the `rejectionReason` as the tool result, the child never runs); `modifiedInput` rewrites the prompt sent to the child.
+- [x] `SubAgentSpec.onDelegationComplete?(ctx: { input; name; result?; error? }) => { feedback? } | void` — runs after the child; optional `feedback` is appended to the returned result string.
+- [x] Hooks are optional and fail-loud: a throwing hook surfaces a typed error, never a silent swallow (Rule 8).
+- [x] Back-compat: specs without hooks behave exactly as today.
+- [x] TDD: reject path returns `rejectionReason` without running the child; `modifiedInput` rewrites; `onDelegationComplete` feedback is appended; a child error is surfaced to `onDelegationComplete`.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE10 (option-passing seam into the child run).
 
@@ -379,11 +379,11 @@ default). From the a peer framework supervisor-agents comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `SubAgentSpec.messageFilter?({ messages; input; name }) => messages` — when set, the returned (filtered) parent messages are forwarded to the child run as prior context; when absent, the child runs input-only (unchanged; isolation-by-default preserved).
-- [ ] Parent messages are exposed to the delegation handler WITHOUT sending nested tool args back into the supervisor model (mirrors a peer framework's "scoped memory saves").
-- [ ] Security: the filter is the ONLY path that widens child context; no accidental full-transcript leak when `messageFilter` is absent.
-- [ ] TDD: with `messageFilter` returning a subset, the child receives exactly that subset; without it, the child receives input only; a filter dropping a "confidential" message keeps it out of the child context.
-- [ ] Docs + Changeset; ADR if runtime message-exposure requires a new seam.
+- [x] `SubAgentSpec.messageFilter?({ messages; input; name }) => messages` — when set, the returned (filtered) parent messages are forwarded to the child run as prior context; when absent, the child runs input-only (unchanged; isolation-by-default preserved).
+- [x] Parent messages are exposed to the delegation handler WITHOUT sending nested tool args back into the supervisor model (mirrors a peer framework's "scoped memory saves").
+- [x] Security: the filter is the ONLY path that widens child context; no accidental full-transcript leak when `messageFilter` is absent.
+- [x] TDD: with `messageFilter` returning a subset, the child receives exactly that subset; without it, the child receives input only; a filter dropping a "confidential" message keeps it out of the child context.
+- [x] Docs + Changeset; ADR if runtime message-exposure requires a new seam.
 
 **Dependencies:** SE10 + SE11 (delegation seam + hook infrastructure). May need an ADR if exposing parent messages to the tool handler requires a runtime change.
 
@@ -405,11 +405,11 @@ iteration count. SE11 shipped `proceed` / `rejectionReason` / `modifiedInput` an
 
 **Definition of done:**
 
-- [ ] `DelegationStartDecision` gains `modifiedMaxSteps?: number`; when set (and `proceed !== false`), `defineSubAgent` forwards it as `maxIterations` to the child `agent.send(input, { maxIterations })`.
-- [ ] Composes with SE10 (signal) + SE12 (messageFilter preamble): all merge onto ONE child `send` call.
-- [ ] Back-compat: absent `modifiedMaxSteps` ⇒ the child uses its default iteration ceiling (unchanged).
-- [ ] TDD: a decision with `modifiedMaxSteps: 3` calls the child `send` with `maxIterations: 3`; absent leaves the child call unchanged; the option coexists with a forwarded `signal`.
-- [ ] Docs + Changeset.
+- [x] `DelegationStartDecision` gains `modifiedMaxSteps?: number`; when set (and `proceed !== false`), `defineSubAgent` forwards it as `maxIterations` to the child `agent.send(input, { maxIterations })`.
+- [x] Composes with SE10 (signal) + SE12 (messageFilter preamble): all merge onto ONE child `send` call.
+- [x] Back-compat: absent `modifiedMaxSteps` ⇒ the child uses its default iteration ceiling (unchanged).
+- [x] TDD: a decision with `modifiedMaxSteps: 3` calls the child `send` with `maxIterations: 3`; absent leaves the child call unchanged; the option coexists with a forwarded `signal`.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE11 (the `onDelegationStart` hook + `DelegationStartDecision`); SE10 (the child-send option seam).
 
@@ -431,11 +431,11 @@ results are appended to the delegation payload surfaced to the supervisor; text-
 
 **Definition of done:**
 
-- [ ] `SubAgentSpec.includeToolResults?: boolean` (default `false` = text-only, unchanged). When `true`, the child's tool-call results are appended to the delegation result returned to the supervisor.
-- [ ] The default (`false`) preserves today's text-only behavior EXACTLY (regression-tested).
-- [ ] Nested tool args are not silently re-injected beyond what the option opts into (mirrors a peer framework's scoped default).
-- [ ] TDD: with `includeToolResults: true` the returned payload contains the child's tool result; with `false` (default) it is text-only.
-- [ ] Docs + Changeset; **ADR** if surfacing the child's tool results requires a new `RunResult` field or a `run.stream()` capture.
+- [x] `SubAgentSpec.includeToolResults?: boolean` (default `false` = text-only, unchanged). When `true`, the child's tool-call results are appended to the delegation result returned to the supervisor.
+- [x] The default (`false`) preserves today's text-only behavior EXACTLY (regression-tested).
+- [x] Nested tool args are not silently re-injected beyond what the option opts into (mirrors a peer framework's scoped default).
+- [x] TDD: with `includeToolResults: true` the returned payload contains the child's tool result; with `false` (default) it is text-only.
+- [x] Docs + Changeset; **ADR** if surfacing the child's tool results requires a new `RunResult` field or a `run.stream()` capture.
 
 **Dependencies:** SE10 (child-send seam). **May need a `RunResult` tool-results surface** — `RunResult` currently exposes only `result?: string`, so capturing the child's tool results likely needs a new additive field OR a `run.stream()` event capture (gate behind an ADR).
 
@@ -457,11 +457,11 @@ comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `DelegationStartContext` + `DelegationCompleteContext` gain `iteration: number` — the 1-based count of times THIS subagent tool has been invoked (a per-`defineSubAgent`-instance closure counter).
-- [ ] The counter increments once per handler invocation BEFORE `onDelegationStart` runs, so the hook sees the current iteration; a rejected (`proceed:false`) delegation still counts as an iteration.
-- [ ] Back-compat: hooks that ignore `iteration` are unaffected; specs without hooks are unchanged.
-- [ ] TDD: three successive delegations see `iteration` 1, 2, 3; a hook rejecting when `iteration > 2` lets the first two run and rejects the third (child never runs on the third); `onDelegationComplete` sees the same iteration as its `onDelegationStart`.
-- [ ] Docs + Changeset.
+- [x] `DelegationStartContext` + `DelegationCompleteContext` gain `iteration: number` — the 1-based count of times THIS subagent tool has been invoked (a per-`defineSubAgent`-instance closure counter).
+- [x] The counter increments once per handler invocation BEFORE `onDelegationStart` runs, so the hook sees the current iteration; a rejected (`proceed:false`) delegation still counts as an iteration.
+- [x] Back-compat: hooks that ignore `iteration` are unaffected; specs without hooks are unchanged.
+- [x] TDD: three successive delegations see `iteration` 1, 2, 3; a hook rejecting when `iteration > 2` lets the first two run and rejects the third (child never runs on the third); `onDelegationComplete` sees the same iteration as its `onDelegationStart`.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE11 (the hook contexts `DelegationStartContext` / `DelegationCompleteContext`).
 
