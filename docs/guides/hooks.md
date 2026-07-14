@@ -41,7 +41,7 @@ A programmatic `onHook` callback would tempt callers to special-case rules per i
 - **`type`** — always `"command"`; **`command`** runs via `sh -c`; **`timeout`** is in seconds (default 30).
 - The command receives the hook payload as **JSON on stdin** (`{ event, tool?, input?, agentId?, runId? }`); a **non-zero exit on `PreToolUse` / `UserPromptSubmit` blocks** the tool/run, or print `{"decision":"deny","reason":"…"}` on stdout.
 
-> A legacy `.theokit/hooks/*.md` markdown form still loads but is deprecated (see ADR 0016) — migrate to `.theokit/hooks.json`.
+> The old `.theokit/hooks/*.md` markdown form is **no longer supported** (ADR 0016) — a stray markdown dir is not loaded and warns to migrate to `.theokit/hooks.json`.
 
 ## Reload without restart
 

@@ -31,7 +31,7 @@ File-based hooks revert to **JSON, in the exact Claude Code shape**. `.theokit/h
 - **Event names** — Claude Code's PascalCase names, mapped to the five events the SDK runtime actually fires: `PreToolUse`→`preToolUse`, `PostToolUse`→`postToolUse`, `UserPromptSubmit`→`preRun`, `Stop`→`stop`. A Claude Code event with no SDK firing point (`SessionStart`, `SubagentStop`, `PreCompact`, `Notification`, `SessionEnd`) is **skipped with a warning** — never silently accepted (it would never run).
 - **`timeout`** is in **seconds** (Claude Code convention), converted to the internal `timeoutMs`.
 - The change is **contained to the loader** (`hooks-source.ts`): the executor, the runtime firing sites, and the internal `HookConfig`/`HookEvent` vocabulary are unchanged.
-- The legacy `.theokit/hooks/*.md` markdown form is kept as a **deprecated fallback** (one-time warn), mirror-reversing D77's deprecation direction. Removal planned alongside the next major.
+- The legacy `.theokit/hooks/*.md` markdown form is **not supported** — a stray markdown dir (no `hooks.json`) is not loaded and emits a one-time migration warn. (Keeping it as a live fallback pulled the markdown-frontmatter Zod schema into the main bundle for a path Claude Code never had; JSON-only is both leaner and truer to "exactly Claude Code".)
 
 D74 is **not** reversed for context / personalities / skills — their markdown bodies are LLM-consumed and the rationale still applies. This ADR narrows D74/D77 to exclude hooks.
 
