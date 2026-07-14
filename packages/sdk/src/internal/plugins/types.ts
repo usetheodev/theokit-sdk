@@ -13,7 +13,10 @@
  * @public
  */
 
-import type { CustomTool } from "../../types/agent.js";
+// Import `CustomTool` from the leaf `agent-prims.ts` where it is DEFINED (not via
+// the `types/agent.ts` re-export) so this module does not close a type-only import
+// cycle `types/agent → plugins/types → types/agent`.
+import type { CustomTool } from "../../types/agent-prims.js";
 import type { MemoryAdapter } from "../../types/memory-adapter.js";
 import type { ProviderProfile } from "../providers/types.js";
 

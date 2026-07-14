@@ -156,6 +156,9 @@ importers:
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@theokit/sdk-cache':
+        specifier: workspace:*
+        version: link:../../packages/sdk-cache
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -283,6 +286,16 @@ importers:
         version: 4.22.0
 
   examples/eval-scorers:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/file-based:
     dependencies:
       '@theokit/sdk':
         specifier: workspace:*
