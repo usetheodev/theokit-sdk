@@ -14,8 +14,10 @@ import { redactSecrets } from "../security/index.js";
 const RAW_MAX_BYTES = 2048;
 
 /**
- * Parse `retry-after` header in numeric-seconds form. HTTP-date form
- * (RFC 7231) returns `undefined` to avoid NaN propagation downstream.
+ * Parse the `Retry-After` header (RFC 7231) into seconds. Both forms are
+ * supported: numeric-seconds (`Retry-After: 30`) and HTTP-date
+ * (`Retry-After: Wed, 21 Oct 2025 07:28:00 GMT` → seconds until that instant,
+ * clamped at 0 for a past date). Garbage / missing header → `undefined`.
  *
  * @internal
  */
@@ -25,6 +27,9 @@ export function parseRetryAfter(headers: Headers | undefined): number | undefine
   if (raw === null) return undefined;
   const n = Number(raw);
   if (Number.isFinite(n) && n >= 0) return Math.ceil(n);
+  // HTTP-date form — seconds until the given instant (0 if already elapsed).
+  const dateMs = Date.parse(raw);
+  if (Number.isFinite(dateMs)) return Math.max(0, Math.ceil((dateMs - Date.now()) / 1000));
   return undefined;
 }
 
