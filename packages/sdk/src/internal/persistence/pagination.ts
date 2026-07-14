@@ -6,17 +6,35 @@
  * @internal
  */
 
+import { ConfigurationError } from "../../errors.js";
+
 /**
  * Apply an optional `{ offset, limit }` window to an ordered list.
- * `undefined` opts returns the list unchanged. Negative/undefined offset ⇒ 0;
- * undefined limit ⇒ to the end. Out-of-range offset yields an empty slice.
+ * `undefined` opts returns the list unchanged; undefined offset ⇒ 0; undefined
+ * limit ⇒ to the end. An out-of-range (but valid) offset yields an empty slice.
+ *
+ * Invalid input FAILS FAST (error-handling.md): `offset`/`limit` must be a
+ * non-negative integer — a `NaN`, negative, fractional, or non-finite value is a
+ * caller mistake and throws `ConfigurationError` rather than being silently
+ * coerced (a `NaN` offset previously returned the whole list).
  */
 export function paginate<T>(
   items: readonly T[],
   opts?: { offset?: number; limit?: number },
 ): readonly T[] {
   if (opts === undefined || (opts.offset === undefined && opts.limit === undefined)) return items;
-  const start = Math.max(0, opts.offset ?? 0);
-  const end = opts.limit === undefined ? items.length : start + Math.max(0, opts.limit);
+  const start = opts.offset === undefined ? 0 : requireNonNegativeInt(opts.offset, "offset");
+  const limit = opts.limit === undefined ? undefined : requireNonNegativeInt(opts.limit, "limit");
+  const end = limit === undefined ? items.length : start + limit;
   return items.slice(start, end);
+}
+
+function requireNonNegativeInt(value: number, field: string): number {
+  if (!Number.isInteger(value) || value < 0) {
+    throw new ConfigurationError(
+      `Invalid pagination ${field}: expected a non-negative integer, got ${value}`,
+      { code: "pagination_invalid" },
+    );
+  }
+  return value;
 }
