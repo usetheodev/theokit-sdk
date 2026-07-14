@@ -1,8 +1,10 @@
 {
   "hooks": {
-    "preRun": [
+    "UserPromptSubmit": [
       {
-        "command": "node ./validate-workspace.js"
+        "hooks": [
+          { "type": "command", "command": "node ./validate-workspace.js" }
+        ]
       }
     ]
   }
