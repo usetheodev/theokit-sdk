@@ -826,7 +826,7 @@
 
   Note: these features were tagged as `v1.8.0` but that version's npm publish failed (CI build cycle, fixed in `turbo.json`); `1.8.0` / `1.8.1` on npm predate them. They are published to npm for the first time in `1.9.0`. The `[1.8.0]` CHANGELOG section is retained as the GitHub-released record and is not rewritten.
 
-## [Unreleased]
+## [Unreleased — pre-changeset legacy, superseded by the 3.x sections above]
 
 ### Fixed
 
@@ -1246,7 +1246,7 @@
 
   Inspired by Stripe test-mode + AWS SDK `AWS_SDK_LOAD_CONFIG=0`. Documented in dogfood-stranger Phase 13 (theokit plan `dogfood-fixes-and-coverage-expansion-plan.md` ADR D14).
 
-## [Unreleased]
+## [Unreleased — pre-changeset legacy, superseded by the 3.x sections above]
 
 ### Added — `THEOKIT_TEST_RESPONSE_OVERRIDE` env var (D14 fault injection)
 
@@ -1387,7 +1387,7 @@ FAIL before the fix).
 
   Closes Gaps 1-6 of `docs/handoffs/from-theokit/2026-05-25-production-readiness.md`.
 
-## [Unreleased]
+## [Unreleased — pre-changeset legacy, superseded by the 3.x sections above]
 
 ### Added (`onBeforeCreate` / `onBeforeSend` quota gates — Production-Readiness #6)
 
@@ -2348,7 +2348,7 @@ All notable changes to `@theokit/sdk` are documented here.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [Unreleased — pre-changeset legacy, superseded by the 3.x sections above]
 
 ### Added (multimodal demo `examples/telegram-pro`)
 
