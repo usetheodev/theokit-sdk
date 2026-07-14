@@ -2192,7 +2192,27 @@ The wording of a tool's `description` (its Agent-Computer Interface) materially 
 
 ### Command-permission policies
 
-`PermissionEngine` (from `@theokit/sdk`) gates a tool call by name AND, since #55, by its argument values: a `PermissionRule` may declare `args?: Record<string, string | RegExp | (v) => boolean>`, and `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared arg predicate matches — so a single `shell` rule can deny `rm -rf` while allowing `ls`. A missing argument fails its predicate (the rule does not match; never throws). **Behavior change (#55):** the default when no rule matches is now `"ask"` (fail-closed) — a permission engine that cannot positively allow must not silently allow. Restore the previous fail-open behavior with `new PermissionEngine(rules, { defaultAction: "allow" })`. `PermissionPlugin.create(engine)` forwards the tool arguments into `evaluate`, so arg-level gating works through the `pre_tool_call` flow automatically. A delegated subagent inherits the parent's plugins (#55), so the same arg-level gate applies to the child's inner tool calls — arg-gating does not stop at the delegation boundary. Caveats: rule evaluation is **first-match** (order deny rules before broader allows — deny does not intrinsically win); `string`/`RegExp` arg matchers key **top-level** args only (use a `(v) => boolean` predicate to reach nested values); a predicate that itself throws is not caught — it fails closed by aborting the turn (the tool never runs) rather than emitting a clean deny.
+`PermissionEngine` (from `@theokit/sdk`) gates a tool call by name AND, since #55, by its argument values: a `PermissionRule` may declare `args?: Record<string, string | RegExp | (v) => boolean>`, and `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared arg predicate matches — so a single `shell` rule can deny `rm -rf` while allowing `ls`. A missing argument fails its predicate (the rule does not match; never throws). **Behavior change (#55):** the default when no rule matches is now `"ask"` (fail-closed) — a permission engine that cannot positively allow must not silently allow. Restore the previous fail-open behavior with `new PermissionEngine(rules, { defaultAction: "allow" })`. `PermissionPlugin.create(engine)` forwards the tool arguments into `evaluate`, so arg-level gating works through the `pre_tool_call` flow automatically. A delegated subagent inherits the parent's plugins (#55), so the same arg-level gate applies to the child's inner tool calls — arg-gating does not stop at the delegation boundary. Caveats: rule evaluation is **first-match** (order deny rules before broader allows — deny does not intrinsically win); `string`/`RegExp` arg matchers key **top-level** args only (use a `(v) => boolean` predicate to reach nested values); a predicate that itself throws is not caught — it fails closed by aborting the turn (the tool never runs) rather than emitting a clean deny. A `RegExp` matcher with a `g`/`y` flag is reset before each test, so authorization is deterministic across repeated calls.
+
+**Permission modes + the `canUseTool` gate (SE1).** On top of the rules, a per-run `PermissionMode` adjusts every verdict, and an `ask` verdict routes to an enriched `canUseTool` gate — matching the Anthropic SDK's operational shape, provider-agnostic.
+
+- **Modes** — `PermissionMode` ∈ `default | plan | acceptEdits | bypass` (`bypassPermissions` is accepted as the Anthropic-exact alias of `bypass`):
+  - `default` — rules decide; an unmatched call is `ask` (fail-closed).
+  - `plan` — read-only: only `allow` rules pass; everything else (including unmatched) is denied.
+  - `acceptEdits` — auto-approve the unmatched default, but still honor an explicit `ask` rule.
+  - `bypass` / `bypassPermissions` — allow everything EXCEPT an explicit `deny` rule; never asks.
+  - An explicit `deny` rule is **immune to every mode** — no auto-approve mode can un-deny it.
+- **Precedence** — the mode is resolved **per run**: `SendOptions.permissionMode` (per-send) wins over `AgentOptions.permissionMode` (creation-time default); absent both, the `PermissionPlugin`'s construction-time `mode` applies; absent that, `default`.
+- **`canUseTool`** — `PermissionPlugin.create(engine, { canUseTool })`. On an `ask` verdict the gate `(toolName, input, { toolName, mode }) => { behavior: "allow" | "deny", message? }` is consulted (may be async — a real gate can prompt a human via the pre-tool seam). **Fail-closed (allow-list):** only an explicit `{ behavior: "allow" }` passes; a `deny`, a throwing gate, an absent gate, or any malformed return blocks. A denied call surfaces a typed `permission_denied` `RunEvent` plus a tool-result the model can self-correct on — never a silent no-run.
+
+```ts
+const agent = await Agent.create({
+  …,
+  plugins: [PermissionPlugin.create(engine, { canUseTool })],
+  permissionMode: "default",          // creation-time default
+});
+await agent.send("…", { permissionMode: "plan" });   // per-send override (read-only run)
+```
 
 For agents that gate shell commands at a permission layer, `@theokit/sdk-tools` exports a small composable policy layer that builds on the `shell_exec` catastrophic guardrail:
 
