@@ -12,6 +12,7 @@ import type {
   SDKUserMessage,
   SendOptions,
 } from "../../../types/run.js";
+import { emitRunEvent } from "../../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../../agent-loop/loop.js";
 import type { CustomToolSpec, MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import { LOCAL_RUNTIME_MOCK_KEY } from "../../auth/api-key-validator.js";
@@ -238,12 +239,21 @@ function buildLoopInputs(
   // Mirrors how `primary` derives from routes[0]; applied to the resolved chain.
   const extractToolCallsFromContent =
     options.agentOptions.providers?.routes?.[0]?.extractToolCallsFromContent;
+  // SE2 — when the caller subscribed via `onRunEvent`, a 429 retry surfaces a
+  // typed `rate_limit` RunEvent (the pool-aware client calls this before backing off).
+  const rateLimitSink = options.sendOptions.onRunEvent;
   const chain = resolveProviderChain({
     primary,
     ...(fallback !== undefined ? { fallback } : {}),
     ...(apiKeys !== undefined ? { apiKeys } : {}),
     ...(credentialPoolStrategy !== undefined ? { credentialPoolStrategy } : {}),
     ...(extractToolCallsFromContent === true ? { extractToolCallsFromContent: true } : {}),
+    ...(rateLimitSink !== undefined
+      ? {
+          onRateLimit: (info: { attempt: number; retryAfterMs?: number }) =>
+            emitRunEvent(rateLimitSink, { type: "rate_limit", ...info }),
+        }
+      : {}),
   });
   const llm =
     chain.length === 1 ? (chain[0] as (typeof chain)[number]) : new FallbackLlmClient(chain);
@@ -274,8 +284,7 @@ function buildLoopInputs(
     // SE1 — resolve the run's permission mode: per-send wins over creation-time.
     ...((options.sendOptions.permissionMode ?? options.agentOptions.permissionMode) !== undefined
       ? {
-          permissionMode:
-            options.sendOptions.permissionMode ?? options.agentOptions.permissionMode,
+          permissionMode: options.sendOptions.permissionMode ?? options.agentOptions.permissionMode,
         }
       : {}),
     ...(options.priorMessages !== undefined ? { priorMessages: options.priorMessages } : {}),

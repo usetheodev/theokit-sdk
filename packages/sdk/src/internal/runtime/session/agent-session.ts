@@ -101,6 +101,11 @@ export function appendSessionMessage(
   agentId: string,
   message: SessionMessage,
   cwdOrStorage?: string | ConversationStorageAdapter,
+  /**
+   * SE2 — invoked after a persistence-side auto-compaction crosses a boundary, so
+   * the caller can surface a `compact_boundary` RunEvent. Best-effort observer.
+   */
+  onCompact?: () => void,
 ): void {
   const existing = sessions.get(agentId) ?? [];
   existing.push(message);
@@ -117,6 +122,7 @@ export function appendSessionMessage(
       appendCounts.set(key, count);
       if (count % COMPACTION_CHECK_INTERVAL === 0 && adapter.compact !== undefined) {
         await adapter.compact(agentId, DEFAULT_MAX_TURNS);
+        onCompact?.(); // SE2 — surface the compaction boundary
       }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);

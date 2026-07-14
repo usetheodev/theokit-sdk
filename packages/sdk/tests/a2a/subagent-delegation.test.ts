@@ -106,6 +106,21 @@ describe("SubAgent", () => {
     );
   });
 
+  it("stamps origin {kind:'coordinator'} on the delegated child's send (SE3)", async () => {
+    const sendSpy = vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) });
+    const mockCreate = vi.fn().mockResolvedValue({ send: sendSpy, dispose: vi.fn() });
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
+    await tool.handler({ input: "task" });
+
+    // The child's turn is initiated by the coordinating parent — provenance stamped.
+    expect(sendSpy).toHaveBeenCalledWith(
+      "task",
+      expect.objectContaining({ origin: { kind: "coordinator" } }),
+    );
+  });
+
   it("inherits the parent's plugins (permission gate) into the child agent (#55)", async () => {
     // Security (#55): arg-level permission rules live in a parent plugin. A
     // delegated child must run under the SAME plugins, or its inner tool calls
@@ -356,7 +371,10 @@ describe("SubAgent", () => {
 
     // The parent run's AbortSignal must reach the child so aborting the parent
     // cancels the in-flight subagent at its next step.
-    expect(mockSend).toHaveBeenCalledWith("task", { signal: controller.signal });
+    expect(mockSend).toHaveBeenCalledWith("task", {
+      signal: controller.signal,
+      origin: { kind: "coordinator" },
+    });
   });
 
   it("omits signal when invoked without ctx (SE10 — single-arg back-compat)", async () => {
@@ -373,7 +391,7 @@ describe("SubAgent", () => {
     await tool.handler({ input: "task" });
 
     // No ctx ⇒ no signal option: exactly the pre-SE10 call shape.
-    expect(mockSend).toHaveBeenCalledWith("task");
+    expect(mockSend).toHaveBeenCalledWith("task", { origin: { kind: "coordinator" } });
   });
 
   it("omits signal when ctx is present but ctx.signal is undefined (SE10 — undefined-signal edge)", async () => {
@@ -391,7 +409,7 @@ describe("SubAgent", () => {
     // the `ctx?.signal !== undefined` guard must fall through to the no-option path.
     await tool.handler({ input: "task" }, { context: { something: true } });
 
-    expect(mockSend).toHaveBeenCalledWith("task");
+    expect(mockSend).toHaveBeenCalledWith("task", { origin: { kind: "coordinator" } });
   });
 
   it("respects custom maxDelegationDepth", () => {
@@ -451,7 +469,9 @@ describe("SubAgent", () => {
     });
     await tool.handler({ input: "research" });
 
-    expect(mockSend).toHaveBeenCalledWith("research\n\nFocus on 2025.");
+    expect(mockSend).toHaveBeenCalledWith("research\n\nFocus on 2025.", {
+      origin: { kind: "coordinator" },
+    });
   });
 
   it("onDelegationStart modifiedMaxSteps caps the child via maxIterations (SE13)", async () => {
@@ -468,7 +488,10 @@ describe("SubAgent", () => {
     });
     await tool.handler({ input: "task" });
 
-    expect(mockSend).toHaveBeenCalledWith("task", { maxIterations: 3 });
+    expect(mockSend).toHaveBeenCalledWith("task", {
+      maxIterations: 3,
+      origin: { kind: "coordinator" },
+    });
   });
 
   it("modifiedMaxSteps composes with the forwarded signal on one child send (SE13 + SE10)", async () => {
@@ -489,6 +512,7 @@ describe("SubAgent", () => {
     expect(mockSend).toHaveBeenCalledWith("task", {
       signal: controller.signal,
       maxIterations: 5,
+      origin: { kind: "coordinator" },
     });
   });
 
@@ -506,7 +530,10 @@ describe("SubAgent", () => {
     });
     await tool.handler({ input: "task" });
 
-    expect(mockSend).toHaveBeenCalledWith("rewritten", { maxIterations: 4 });
+    expect(mockSend).toHaveBeenCalledWith("rewritten", {
+      maxIterations: 4,
+      origin: { kind: "coordinator" },
+    });
   });
 
   it("modifiedMaxSteps applies without an explicit proceed (proceed defaults to allow) (SE13)", async () => {
@@ -523,7 +550,10 @@ describe("SubAgent", () => {
     });
     await tool.handler({ input: "task" });
 
-    expect(mockSend).toHaveBeenCalledWith("task", { maxIterations: 2 });
+    expect(mockSend).toHaveBeenCalledWith("task", {
+      maxIterations: 2,
+      origin: { kind: "coordinator" },
+    });
   });
 
   it("onDelegationComplete feedback is appended to the child result", async () => {
@@ -561,7 +591,7 @@ describe("SubAgent", () => {
     });
     await tool.handler({ input: "original" });
 
-    expect(mockSend).toHaveBeenCalledWith("original");
+    expect(mockSend).toHaveBeenCalledWith("original", { origin: { kind: "coordinator" } });
   });
 
   it("awaits an async onDelegationStart hook (modifiedInput via Promise)", async () => {
@@ -578,7 +608,7 @@ describe("SubAgent", () => {
     });
     await tool.handler({ input: "task" });
 
-    expect(mockSend).toHaveBeenCalledWith("async:task");
+    expect(mockSend).toHaveBeenCalledWith("async:task", { origin: { kind: "coordinator" } });
   });
 
   it("a throwing onDelegationStart propagates (never swallowed)", async () => {
@@ -810,7 +840,7 @@ describe("SubAgent", () => {
       { messages: [{ role: "user", content: "prior history" }] },
     );
 
-    expect(mockSend).toHaveBeenCalledWith("task");
+    expect(mockSend).toHaveBeenCalledWith("task", { origin: { kind: "coordinator" } });
   });
 
   it("messageFilter can drop a confidential message from the child context", async () => {
@@ -997,6 +1027,6 @@ describe("SubAgent", () => {
     });
     await tool.handler({ input: "task" }, { messages: [{ role: "user", content: "history" }] });
 
-    expect(mockSend).toHaveBeenCalledWith("task");
+    expect(mockSend).toHaveBeenCalledWith("task", { origin: { kind: "coordinator" } });
   });
 });
