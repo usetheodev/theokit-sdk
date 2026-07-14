@@ -1407,7 +1407,7 @@ Hooks are file-based only. There is no programmatic hook callback. Hooks are a p
 
 The `stop` hook fires each time a local agent finishes a turn cleanly (it does NOT fire on an errored run or when the iteration ceiling truncates the turn). A `stop` hook that returns `{"decision":"feedback","feedback":"…"}` re-prompts the agent with that text and the loop continues — a bounded reflection ladder (at most 2 re-prompts per run, mirroring the nudge ceiling, so a hook cannot loop forever; once that ceiling is reached the hook still fires on the final finish but its feedback no longer re-prompts). `{"decision":"allow"}` (or no `stop` hook) finishes normally; `deny` at `stop` also finishes (the answer already exists — there is nothing to block) and is authoritative regardless of hook ordering.
 
-Local: Add `.theokit/hooks.json` (Claude-Code-shaped) to the repo passed as local.cwd, or `~/.theokit/hooks.json` for user-level hooks. (A legacy `.theokit/hooks/*.md` form still loads but is deprecated — ADR 0016.)
+Local: Add `.theokit/hooks.json` (Claude-Code-shaped) to the repo passed as local.cwd, or `~/.theokit/hooks.json` for user-level hooks. (The old `.theokit/hooks/*.md` form is no longer supported — ADR 0016.)
 Cloud: Commit `.theokit/hooks/` and its scripts to the repo passed in cloud.repos. SDK-created cloud agents load project hooks automatically. On Enterprise plans, they also run team hooks and enterprise-managed hooks.
 See Hooks for the configuration format and Cloud Agents hooks support for cloud behavior.
 
@@ -1989,7 +1989,7 @@ Known limitations
 Inline mcpServers are not persisted across Agent.resume(). Pass them again on resume if needed.
 Artifact download is not implemented for local agents (agent.listArtifacts() returns an empty list and agent.downloadArtifact() throws).
 local.settingSources (and the file-based MCP / subagent paths it gates) does not apply to cloud agents. Cloud always loads project / team / plugins.
-Hooks are file-based only (`.theokit/hooks.json`, Claude-Code-shaped; a legacy `.theokit/hooks/*.md` form still loads but is deprecated). No programmatic callbacks.
+Hooks are file-based only (`.theokit/hooks.json`, Claude-Code-shaped; the old `.theokit/hooks/*.md` form is no longer supported). No programmatic callbacks.
 Inline memory, context, and skill config should be treated as process-local unless documented otherwise. Durable behavior comes from memory stores and committed file-based context / skills.
 Skill prompt bodies are not stable public output. Use `agent.skills.list()` for metadata and avoid scraping streams for full skill text.
 
@@ -2443,7 +2443,7 @@ Example `.theokit/hooks.json` (identical to a Claude Code hooks block):
 }
 ```
 
-Events map to the SDK's five firing points: `PreToolUse`→preToolUse, `PostToolUse`→postToolUse, `UserPromptSubmit`→preRun, `Stop`→stop (unsupported Claude Code events are skipped with a warning). The command gets the payload as JSON on stdin; a non-zero exit on `PreToolUse` / `UserPromptSubmit` blocks. A legacy `.theokit/hooks/*.md` form still loads but is deprecated.
+Events map to the SDK's five firing points: `PreToolUse`→preToolUse, `PostToolUse`→postToolUse, `UserPromptSubmit`→preRun, `Stop`→stop (unsupported Claude Code events are skipped with a warning). The command gets the payload as JSON on stdin; a non-zero exit on `PreToolUse` / `UserPromptSubmit` blocks. The old `.theokit/hooks/*.md` form is no longer supported (a stray markdown dir warns to migrate).
 
 **Migration.** A standalone CLI converts legacy `.theokit/context.json` /
 legacy `.theokit/plugins/<name>/plugin.json` to the markdown form (hooks migrate the

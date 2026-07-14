@@ -2,10 +2,9 @@
  * Single source of truth for loading the hooks config (ADR 0016 — reverses
  * D74/D77 for hooks: JSON is canonical again, in the Claude Code shape).
  *
- * Detection order:
- *   1. `.theokit/hooks.json` (Claude-Code-shaped JSON) — canonical.
- *   2. `.theokit/hooks/*.md` (legacy markdown) — deprecated fallback, warns.
- *   3. Neither → empty config (no hooks).
+ * `.theokit/hooks.json` (Claude-Code-shaped JSON) is the only supported form.
+ * A stray legacy `.theokit/hooks/*.md` dir (no hooks.json) is NOT loaded — it
+ * warns to migrate and yields no hooks. Absent both → empty config.
  *
  * Consumed by `hooks-executor.ts` (runtime dispatch).
  *
@@ -20,11 +19,7 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { z } from "zod";
-
 import { ConfigurationError } from "../../../errors.js";
-import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
-import { HookFrontmatterSchema } from "./hooks-frontmatter.js";
 
 /** The five lifecycle events the SDK runtime actually fires. */
 export type HookEvent = "preRun" | "postRun" | "preToolUse" | "postToolUse" | "stop";
@@ -76,57 +71,44 @@ export function _resetWarnOnceForTests(): void {
 }
 
 /**
- * Load hooks: `.theokit/hooks.json` (Claude-Code-shaped, canonical) first,
- * then the deprecated `.theokit/hooks/*.md` markdown fallback.
+ * Load hooks from `.theokit/hooks.json` (Claude-Code-shaped — the only supported
+ * form). A stray legacy `.theokit/hooks/*.md` markdown dir (no `hooks.json`) is
+ * NOT loaded — it emits a one-time migration warn and yields no hooks.
  *
  * @internal
  */
 export async function loadHookConfig(cwd: string): Promise<HookConfig> {
   const jsonPath = join(cwd, ".theokit", "hooks.json");
-  const mdDir = join(cwd, ".theokit", "hooks");
 
-  // 1. Canonical — Claude-Code-shaped JSON.
-  if (existsSync(jsonPath)) {
-    if (existsSync(mdDir)) {
+  if (!existsSync(jsonPath)) {
+    if (existsSync(join(cwd, ".theokit", "hooks"))) {
       warnOnce(
-        "hooks-both-present",
-        "[theokit-sdk] both .theokit/hooks.json and .theokit/hooks/ detected — using hooks.json; remove the .theokit/hooks/ markdown dir",
+        "hooks-md-unsupported",
+        "[theokit-sdk] .theokit/hooks/*.md hooks are no longer supported (ADR 0016) — migrate to a Claude-Code-shaped .theokit/hooks.json",
       );
     }
-    let raw: string;
-    try {
-      raw = await readFile(jsonPath, "utf8");
-    } catch (cause) {
-      throw new ConfigurationError(`Failed to read hooks config: ${jsonPath}`, {
-        code: "hooks_read_error",
-        cause,
-      });
-    }
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch (cause) {
-      throw new ConfigurationError(`Invalid JSON in hooks config: ${jsonPath}`, {
-        code: "hooks_json_invalid",
-        cause,
-      });
-    }
-    return parseClaudeCodeConfig(parsed, jsonPath);
+    return {};
   }
 
-  // 2. Deprecated fallback — legacy markdown hooks.
-  const mdEntities = await loadMarkdownEntities({
-    dir: mdDir,
-    schema: HookFrontmatterSchema,
-    pattern: "flat",
-    errorCodePrefix: "hook",
-  });
-  if (mdEntities.length === 0) return {};
-  warnOnce(
-    "hooks-md-deprecated",
-    "[theokit-sdk] .theokit/hooks/*.md hooks are deprecated; migrate to a Claude-Code-shaped .theokit/hooks.json",
-  );
-  return buildConfigFromMarkdown(mdEntities);
+  let raw: string;
+  try {
+    raw = await readFile(jsonPath, "utf8");
+  } catch (cause) {
+    throw new ConfigurationError(`Failed to read hooks config: ${jsonPath}`, {
+      code: "hooks_read_error",
+      cause,
+    });
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (cause) {
+    throw new ConfigurationError(`Invalid JSON in hooks config: ${jsonPath}`, {
+      code: "hooks_json_invalid",
+      cause,
+    });
+  }
+  return parseClaudeCodeConfig(parsed, jsonPath);
 }
 
 /** Narrow an unknown to a record, or throw a typed config error. */
@@ -213,36 +195,4 @@ function parseClaudeCodeCommand(
     hc.timeoutMs = Math.round(cmd.timeout * 1000);
   }
   return hc;
-}
-
-// `z.input` matches what `loadMarkdownEntities` actually returns — Zod's
-// `ZodType<T>` is variant on INPUT, so the generic T resolves to the pre-default
-// shape (`enabled?: boolean | undefined`). `buildConfigFromMarkdown` already
-// handles `?? 0` for priority and `=== false` for enabled, so the loose shape
-// is the right contract here.
-type HookEntities = Awaited<
-  ReturnType<typeof loadMarkdownEntities<z.input<typeof HookFrontmatterSchema>>>
->;
-
-function buildConfigFromMarkdown(entities: HookEntities): HookConfig {
-  const grouped: Partial<Record<HookEvent, HookCommand[]>> = {};
-  // Sort by priority asc so lower priority runs first when grouped.
-  const sorted = [...entities].sort(
-    (a, b) => (a.frontmatter.priority ?? 0) - (b.frontmatter.priority ?? 0),
-  );
-  for (const entity of sorted) {
-    if (entity.frontmatter.enabled === false) continue;
-    const event = entity.frontmatter.event as HookEvent;
-    const list = grouped[event] ?? [];
-    const command: HookCommand = {
-      command: entity.frontmatter.command,
-      matcher: entity.frontmatter.matcher,
-    };
-    if (entity.frontmatter.timeoutMs !== undefined) {
-      command.timeoutMs = entity.frontmatter.timeoutMs;
-    }
-    list.push(command);
-    grouped[event] = list;
-  }
-  return { hooks: grouped };
 }
