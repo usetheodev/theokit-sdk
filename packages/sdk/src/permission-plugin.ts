@@ -90,9 +90,12 @@ async function resolveAsk(
       // Fail-closed: a gate that throws must not silently allow.
       return { block: true, message: `permission gate error (fail-closed): ${name}` };
     }
-    return decision.behavior === "deny"
-      ? { block: true, message: decision.message ?? `denied: ${name}` }
-      : undefined;
+    // Fail-CLOSED (allow-list): only an explicit `allow` passes. Any other value
+    // — `deny`, a malformed/undefined return from a JS consumer, a wrong-cased
+    // behavior — blocks, so the gate can never silently allow on a bad decision.
+    return decision?.behavior === "allow"
+      ? undefined
+      : { block: true, message: decision?.message ?? `denied: ${name}` };
   }
   // Deprecated back-compat: honor onAsk (undefined = allow). Fail-closed (block)
   // only when NEITHER a gate nor onAsk was supplied.
@@ -108,14 +111,21 @@ function createPermissionPlugin(
   engine: PermissionEngine,
   opts: PermissionPluginOptions = {},
 ): Plugin {
-  const mode: PermissionMode = opts.mode ?? "default";
   return definePlugin({
     name: opts.name ?? "permission-engine",
     version: "1.0.0",
     kind: "general",
     register(ctx) {
       ctx.on("pre_tool_call", async (rawCtx) => {
-        const { name, args } = rawCtx as { name: string; args: Record<string, unknown> };
+        const { name, args, permissionMode } = rawCtx as {
+          name: string;
+          args: Record<string, unknown>;
+          permissionMode?: PermissionMode;
+        };
+        // SE1 — precedence: the RUN's mode (threaded from `SendOptions`/`AgentOptions`
+        // via the pre_tool_call context) wins over the plugin's construction-time
+        // default. `default` when neither is set.
+        const mode: PermissionMode = permissionMode ?? opts.mode ?? "default";
         // #55 — args gate rules on the command/args, not just the tool name.
         // SE1 — the mode adjusts the verdict (bypass/plan/acceptEdits); an explicit
         // `deny` rule is immune to every auto-approve mode.

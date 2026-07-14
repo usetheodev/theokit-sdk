@@ -83,6 +83,12 @@ export interface AgentLoopInputs {
   /** T4.2 — PluginManager whose `pre_tool_call` hooks fire BEFORE file-based hooks. */
   pluginManager?: import("../plugins/manager.js").PluginManager;
   /**
+   * SE1 — the run's resolved permission mode (`SendOptions.permissionMode` ??
+   * `AgentOptions.permissionMode`), threaded into the `pre_tool_call` context so a
+   * registered `PermissionPlugin` gates per-run.
+   */
+  permissionMode?: import("../../permission-engine.js").PermissionMode;
+  /**
    * SE2 — opt-in typed runtime-event sink (from `SendOptions.onRunEvent`). The loop
    * emits `RunEvent`s (permission_denied, tool_progress, rate_limit, task_*,
    * compact_boundary) to it out-of-band, best-effort (a throwing sink never breaks

@@ -58,15 +58,15 @@ describe("withFileLock cross-process mutual exclusion (#63)", () => {
     expect(codeA).toBe(0);
     expect(codeB).toBe(0);
 
-    const lines = readFileSync(target, "utf8").trim().split("\n");
-    expect(lines).toHaveLength(4);
+    const [l0, l1, l2, l3] = readFileSync(target, "utf8").trim().split("\n");
+    expect([l0, l1, l2, l3].every((l) => l !== undefined)).toBe(true);
     // If the lock held cross-process, each start is immediately followed by its
     // OWN end — interleave (start-A, start-B, end-A, end-B) means the lock failed.
-    expect(lines[0].startsWith("start-")).toBe(true);
-    expect(lines[1]).toBe(`end-${lines[0].slice("start-".length)}`);
-    expect(lines[2].startsWith("start-")).toBe(true);
-    expect(lines[3]).toBe(`end-${lines[2].slice("start-".length)}`);
+    expect(l0?.startsWith("start-")).toBe(true);
+    expect(l1).toBe(`end-${(l0 ?? "").slice("start-".length)}`);
+    expect(l2?.startsWith("start-")).toBe(true);
+    expect(l3).toBe(`end-${(l2 ?? "").slice("start-".length)}`);
     // Both markers present.
-    expect(new Set([lines[0], lines[2]])).toEqual(new Set(["start-A", "start-B"]));
+    expect(new Set([l0, l2])).toEqual(new Set(["start-A", "start-B"]));
   }, 30_000);
 });
