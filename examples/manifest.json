@@ -18,6 +18,13 @@
       "description": "The smallest end-to-end @theokit/sdk agent"
     },
     {
+      "slug": "file-based",
+      "domain": "agents",
+      "page": "/theokit/file-based",
+      "title": "File-based config",
+      "description": ".theokit/ skill discovered + file-based context reaches a real LLM"
+    },
+    {
       "slug": "agent-streaming",
       "domain": "agents",
       "page": "/theokit/agents/streaming",
