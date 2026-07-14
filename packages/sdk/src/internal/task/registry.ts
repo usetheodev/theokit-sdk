@@ -26,6 +26,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 
 import { InvalidTaskIdError } from "../../errors.js";
+import { emitRunEvent } from "../../types/run-events.js";
 import {
   isValidTaskId,
   type TaskCancelResult,
@@ -37,7 +38,6 @@ import {
   type TaskStoreOptions,
 } from "../../types/task.js";
 import { type AsyncSemaphore, createSemaphore } from "../runtime/concurrency/async-semaphore.js";
-import { emitRunEvent } from "../../types/run-events.js";
 import { RingBuffer } from "./ring-buffer.js";
 import { getTaskStoreFor, InMemoryTaskStore, type TaskStore } from "./store.js";
 import { buildSubscribe } from "./subscribe.js";

@@ -12,6 +12,7 @@ import type {
   SDKUserMessage,
   SendOptions,
 } from "../../../types/run.js";
+import { emitRunEvent } from "../../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../../agent-loop/loop.js";
 import type { CustomToolSpec, MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import { LOCAL_RUNTIME_MOCK_KEY } from "../../auth/api-key-validator.js";
@@ -23,7 +24,6 @@ import { createMcpClient, type McpClient } from "../../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../../providers/index.js";
 import { registerPluginProviderProfiles } from "../../providers/register-plugin-providers.js";
 import { createTelemetry } from "../../telemetry/tracer.js";
-import { emitRunEvent } from "../../../types/run-events.js";
 import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
 import { withToolWhitelist } from "../concurrency/async-local-storage.js";
 import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
@@ -284,8 +284,7 @@ function buildLoopInputs(
     // SE1 — resolve the run's permission mode: per-send wins over creation-time.
     ...((options.sendOptions.permissionMode ?? options.agentOptions.permissionMode) !== undefined
       ? {
-          permissionMode:
-            options.sendOptions.permissionMode ?? options.agentOptions.permissionMode,
+          permissionMode: options.sendOptions.permissionMode ?? options.agentOptions.permissionMode,
         }
       : {}),
     ...(options.priorMessages !== undefined ? { priorMessages: options.priorMessages } : {}),

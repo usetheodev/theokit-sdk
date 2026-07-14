@@ -15,7 +15,12 @@
 import { z } from "zod";
 
 import type { Plugin } from "../internal/plugins/types.js";
-import type { AgentDefinition, AgentOptions, CustomTool, ToolContextMessage } from "../types/agent.js";
+import type {
+  AgentDefinition,
+  AgentOptions,
+  CustomTool,
+  ToolContextMessage,
+} from "../types/agent.js";
 import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
 
