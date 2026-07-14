@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.2.2
+
+### Patch Changes
+
+- 7f57c5a: Security (#55) — a delegated subagent now inherits the parent's code-registered plugins (e.g. `PermissionPlugin`), so its inner tool calls run under the SAME argument-level permission gate. Previously the child `Agent.create` received only apiKey/model/tools, so a parent that denied `shell` with a matching-arg rule did not stop a subagent it granted `shell` to — arg-level gating silently stopped at the delegation boundary.
+- f81ac79: Fix (#58) — a run cancelled between tool iterations now reports `RunStatus: "cancelled"` instead of `"finished"`, so a caller can distinguish a cancellation from a clean completion. Previously the between-iteration abort break left the default `"finished"` status.
+- 57cfcc8: Fix (#58) — `JobQueue.cancel()` on a running job that ignores its `AbortSignal` (never settles) previously leaked its concurrency slot, deadlocking a `maxConcurrency`-bounded queue. Cancel now frees the slot immediately; `#release` is idempotent so the job's eventual settle is a no-op (no double-free).
+- bd06140: Fix (#65) — the `transform_llm_output` plugin hook now rewrites the FINAL user-visible / streamed assistant text, and fires on text-only terminal turns. Previously it ran only in the tool-call branch and folded only into internal message history, so a plugin could not scrub what the caller actually received. The transform is now applied once, up front, and flows into the emitted step, `finalText`/`result`, and message history alike.
+
 ## 3.2.1
 
 ### Patch Changes
