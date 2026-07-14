@@ -1,3 +1,4 @@
+import { type SplitResolver, TOOL_SPLIT_RESOLVER } from "../../define-tool.js";
 import { ToolError } from "../../tool-error.js";
 import type { ToolContextMessage } from "../../types/agent-prims.js";
 import type { ToolResultContentBlock } from "../../types/content-blocks.js";
@@ -17,6 +18,14 @@ export interface ToolResult {
    * `undefined` → the legacy string path (`renderToolResult` over stdout/stderr).
    */
   content?: string | ToolResultContentBlock[];
+  /**
+   * SE17 — the FULL raw handler output (serialized), surfaced to observability
+   * (`onToolEnd.result`) when a `toModelOutput` split is active. Distinct from
+   * `content`/`stdout` (which carry the compact MODEL-facing value). `undefined`
+   * for tools without a `toModelOutput` split — observability then falls back to
+   * `content`/`stdout` (same value the model saw).
+   */
+  appResult?: string | ToolResultContentBlock[];
 }
 
 /** @internal */
@@ -74,6 +83,20 @@ async function runHandlerTool(
     // `context` (from SendOptions.context). SE12 — `messages` is the read-only
     // transcript projection (custom tools only; memory tools pass undefined).
     // Single-arg handlers ignore all of them.
+    // SE17 — a `toModelOutput` tool carries a split resolver on its handler: run it
+    // ONCE and route the compact `model` channel to the tool_result while the full
+    // `app` channel reaches `onToolEnd`. Absent ⇒ the plain single-channel path.
+    const split = (handler as unknown as Record<symbol, SplitResolver | undefined>)[
+      TOOL_SPLIT_RESOLVER
+    ];
+    if (split !== undefined) {
+      const { model, app } = await split(call.input, { signal, context });
+      const base: ToolResult =
+        typeof model === "string"
+          ? { stdout: model, stderr: "", exitCode: 0 }
+          : { stdout: "", stderr: "", exitCode: 0, content: model };
+      return { ...base, appResult: app };
+    }
     const out = await handler(call.input, { signal, context, messages });
     // SE7 — a handler may return structured content blocks (text + image).
     if (typeof out !== "string") return { stdout: "", stderr: "", exitCode: 0, content: out };
