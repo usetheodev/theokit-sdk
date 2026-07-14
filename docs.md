@@ -546,6 +546,32 @@ const run = await agent.send("Refactor the utils module", {
 });
 The callbacks are awaited before the next update is processed, so you can apply backpressure. InteractionUpdate covers text-delta, thinking-delta, thinking-completed, tool-call-started, tool-call-completed, partial-tool-call, token-delta, step-started, step-completed, turn-ended, and a handful of summary and shell-output deltas.
 
+### Runtime events — `SendOptions.onRunEvent` (SE2)
+
+Beyond the `SDKMessage` content stream, an opt-in `onRunEvent` sink delivers out-of-band, discriminated **runtime-observability** `RunEvent`s — the model's content is unaffected. Discriminate on `event.type`. Every variant is emitted end-to-end:
+
+- `tool_progress` — a tool is about to dispatch (after all vetoes pass).
+- `permission_denied` — a tool call was blocked (`source`: fork-whitelist / plugin / file-hook).
+- `rate_limit` — a 429 retry is about to back off (`attempt`, `retryAfterMs?`); from the pool-aware LLM client.
+- `compact_boundary` — the session crossed an auto-compaction boundary (`trigger`, `preTokens?`).
+- `task_started` / `task_updated` / `task_completed` — a background task's lifecycle, bridged opt-in from `Task.submit(kind, work, { onRunEvent })`.
+- `tripwire` / `completion_check` — guardrail abort / completion-loop signals.
+
+```ts
+await agent.send("…", {
+  onRunEvent: (e) => {
+    switch (e.type) {
+      case "rate_limit":  metrics.throttle(e.retryAfterMs); break;
+      case "permission_denied":  audit.log(e.toolName, e.message); break;
+      case "compact_boundary":  ui.note("history compacted"); break;
+      // task_started / task_updated / task_completed / tool_progress / tripwire / completion_check
+    }
+  },
+});
+```
+
+The sink is strictly opt-in (absent ⇒ zero behavior change) and fail-safe (a throwing sink never breaks the run). No `RunEvent` is pushed into `Run.stream()` — existing `SDKMessage` consumers are unaffected. Local runtime.
+
 Per-send options
 Property	Type	Description
 model	ModelSelection	Per-send model override. If omitted, uses agent.model. Sticky: a successful send updates agent.model.
