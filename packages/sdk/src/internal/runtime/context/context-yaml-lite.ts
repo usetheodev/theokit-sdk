@@ -8,6 +8,14 @@
  * for the small, fixed frontmatter field sets these rule files use. Throws on
  * a truly malformed line (no colon).
  *
+ * NOTE — distinct from the sibling `yaml-frontmatter.ts` `parseSimpleYaml` on
+ * purpose: that one parses INLINE arrays only (`key: [a, b]`), whereas rule
+ * files (`.cursor/rules/*.mdc`, `.theokit/rules/*.md`) use MULTI-LINE `- item`
+ * lists (`paths:` / `globs:`), which this parser adds. Unifying onto the inline
+ * parser would drop multi-line list support; unifying the other way would touch
+ * the skills/subagents/persistence loaders that depend on the inline one. The
+ * two intentionally coexist until a shared parser handles both shapes.
+ *
  * @internal
  */
 
