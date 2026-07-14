@@ -41,13 +41,15 @@ describe("parseRules — .theokit/rules/*.md frontmatter", () => {
     expect(parseRules(md)?.frontmatter.enabled).toBe(false);
   });
 
-  it("returns undefined on malformed YAML frontmatter", () => {
-    const md = ["---", "this is : : not : valid", "  - broken", "---", "body"].join("\n");
-    // A line with no colon inside the array collection is a hard parse error.
-    const md2 = ["---", "no-colon-line-here", "---", "body"].join("\n");
-    expect(parseRules(md2)).toBeUndefined();
-    // md kept to document intent; the second is the deterministic failure.
-    void md;
+  it("returns undefined when a frontmatter line has no colon (malformed)", () => {
+    const md = ["---", "no-colon-line-here", "---", "body"].join("\n");
+    expect(parseRules(md)).toBeUndefined();
+  });
+
+  it("returns undefined when frontmatter fails schema validation", () => {
+    // `paths` must be an array of strings; a scalar fails the Zod schema.
+    const md = ["---", "paths: not-an-array", "---", "body"].join("\n");
+    expect(parseRules(md)).toBeUndefined();
   });
 });
 
