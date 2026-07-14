@@ -185,11 +185,14 @@ describe("wired hooks fire through the real loop (#65 integration)", () => {
     await mgr.initialize([pluginOn("post_tool_call", () => controller.abort())]);
 
     const output = await runAgentLoop(
-      baseInputs(repeatingToolLlm(() => {}), {
-        pluginManager: mgr,
-        signal: controller.signal,
-        maxIterations: 10,
-      }),
+      baseInputs(
+        repeatingToolLlm(() => {}),
+        {
+          pluginManager: mgr,
+          signal: controller.signal,
+          maxIterations: 10,
+        },
+      ),
     );
 
     // A cancelled run must be distinguishable from a clean completion.

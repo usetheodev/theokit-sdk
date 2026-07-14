@@ -15,7 +15,7 @@
 import { z } from "zod";
 
 import type { Plugin } from "../internal/plugins/types.js";
-import type { AgentDefinition, CustomTool, ToolContextMessage } from "../types/agent.js";
+import type { AgentDefinition, AgentOptions, CustomTool, ToolContextMessage } from "../types/agent.js";
 import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
 
@@ -219,6 +219,28 @@ async function collectChildToolResults(run: Run): Promise<string> {
  * every option ⇒ the pre-SE10 single-arg `send(input)` shape. SE14 — when
  * `includeToolResults` is set, append the child's completed tool results. Dispose in `finally`.
  */
+/**
+ * Build the child agent's `Agent.create` options: the child inherits the parent's
+ * apiKey (else `Agent.create` throws "Missing API key"), its model (unless the spec
+ * overrides it), and — #55 — the parent's plugins (permission gate/guards) so the
+ * child's inner tool calls run under the same policy.
+ */
+function buildChildCreateOptions(
+  spec: SubAgentSpec,
+  inherited: InheritedCredentials | undefined,
+): AgentOptions {
+  const model: string | ModelSelection | undefined = spec.model
+    ? { id: spec.model }
+    : inherited?.model;
+  return {
+    ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
+    ...(model !== undefined ? { model } : {}),
+    ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
+    systemPrompt: spec.instructions,
+    tools: spec.tools ?? [],
+  };
+}
+
 async function runChildAgent(
   spec: SubAgentSpec,
   input: string,
@@ -228,20 +250,7 @@ async function runChildAgent(
 ): Promise<string> {
   // Lazy import to avoid circular dependency.
   const { Agent } = await import("../agent.js");
-  // The child inherits the parent's apiKey (else Agent.create throws
-  // "Missing API key"), and its model unless the spec overrides it.
-  const model: string | ModelSelection | undefined = spec.model
-    ? { id: spec.model }
-    : inherited?.model;
-  const agent = await Agent.create({
-    ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
-    ...(model !== undefined ? { model } : {}),
-    // #55 — inherit the parent's plugins (permission gate, guards) so the child's
-    // inner tool calls run under the same policy, not unchecked.
-    ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
-    systemPrompt: spec.instructions,
-    tools: spec.tools ?? [],
-  });
+  const agent = await Agent.create(buildChildCreateOptions(spec, inherited));
   try {
     const sendOptions: { signal?: AbortSignal; maxIterations?: number } = {
       ...(signal !== undefined ? { signal } : {}),
