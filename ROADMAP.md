@@ -168,11 +168,11 @@ session API, so hosts (TheoKit) can build session UIs without reaching into stor
 
 **Definition of done:**
 
-- [ ] `listSessions(opts)`, `getSessionMessages(id, opts)`, `renameSession(id, title)`, `tagSession(id, tag|null)` over `ConversationStorage` (works for FS + memory + external adapters).
-- [ ] Light metadata (summary, lastModified, firstPrompt) derived from the stored transcript.
-- [ ] Graceful degradation for write-only/listing-incapable adapters (typed "unsupported" signal, not a throw-on-every-call).
-- [ ] TDD: list/rename/tag round-trip on `FileSystemConversationStorage`.
-- [ ] Docs + Changeset.
+- [x] `listSessions(opts)`, `getSessionMessages(id, opts)`, `renameSession(id, title)`, `tagSession(id, tag|null)` over `ConversationStorage` (works for FS + memory + external adapters).
+- [x] Light metadata (summary, lastModified, firstPrompt) derived from the stored transcript.
+- [x] Graceful degradation for write-only/listing-incapable adapters (typed "unsupported" signal, not a throw-on-every-call).
+- [x] TDD: list/rename/tag round-trip on `FileSystemConversationStorage`.
+- [x] Docs + Changeset.
 
 **Dependencies:** M3 (scoped session state — app:/user:/temp:), the `ConversationStorage` interface.
 
@@ -200,7 +200,7 @@ the loop does not own file I/O — checkpointing may not fit the runtime cleanly
 **Definition of done:**
 
 - [x] **GATE:** an ADR ruling runtime-vs-framework ownership (no code before it). Evidence: the loop is tool-agnostic; file mutation lives in consumer tools. → **ADR 0003.**
-- [ ] ~~If runtime-owned: a minimal `checkpoint` / `rewind(messageId)` primitive~~ — N/A (ruled framework-owned).
+- [x] ~~If runtime-owned: a minimal `checkpoint` / `rewind(messageId)` primitive~~ — N/A (ruled framework-owned).
 - [x] If framework-owned: ADR + a roadmap note closing it as TheoKit/tool-layer territory (no SDK code). → **done (this note + ADR 0003).**
 
 **Dependencies:** SE1 (permission context), SE4 (message ids as the rewind anchor).
@@ -232,7 +232,7 @@ no-op** — measure before building (YAGNI).
 **Definition of done:**
 
 - [x] Measure the cold-start cost of the first run (provider-chain resolution, plugin discovery, connection setup) with numbers. → **harness + ADR 0004 (4–5 ms prewarmable ceiling).**
-- [ ] ~~If material: a `prewarm(options)` + TDD + latency-delta~~ — N/A (measured negligible).
+- [x] ~~If material: a `prewarm(options)` + TDD + latency-delta~~ — N/A (measured negligible).
 - [x] If negligible: document that in-process cold-start is minimal (our advantage vs subprocess) and CLOSE the milestone with the measurement as evidence. → **done (ADR 0004 + retained harness).**
 
 **Dependencies:** SE2 (measure via typed timing events).
@@ -252,11 +252,11 @@ the first multimodal `tool_result` path, provider-agnostically.
 
 **Definition of done:**
 
-- [ ] `ImageBlock` + `ToolResultContentBlock = TextBlock | ImageBlock` types; `ToolError` class carrying `string | ToolResultContentBlock[]`.
-- [ ] `CustomTool.handler` return widened to `string | ToolResultContentBlock[]` (symmetric — success may be multimodal); back-compat: string still works unchanged.
-- [ ] Block-capable provider wires carry blocks natively (text + image) on `tool_result.content`; **string-only provider wires fail fast** with a typed `ConfigurationError` on an image block (no silent degradation — per error-handling.md); text-only blocks flatten to a string everywhere. Naming is capability-based, not provider-specific.
-- [ ] TDD: handler-returns-image carries onto a block-capable wire; `ToolError([blocks])` → `tool_result` with `isError` + blocks; string-only wire + image → `ConfigurationError`; text-only blocks flatten to string.
-- [ ] Docs + Changeset.
+- [x] `ImageBlock` + `ToolResultContentBlock = TextBlock | ImageBlock` types; `ToolError` class carrying `string | ToolResultContentBlock[]`.
+- [x] `CustomTool.handler` return widened to `string | ToolResultContentBlock[]` (symmetric — success may be multimodal); back-compat: string still works unchanged.
+- [x] Block-capable provider wires carry blocks natively (text + image) on `tool_result.content`; **string-only provider wires fail fast** with a typed `ConfigurationError` on an image block (no silent degradation — per error-handling.md); text-only blocks flatten to a string everywhere. Naming is capability-based, not provider-specific.
+- [x] TDD: handler-returns-image carries onto a block-capable wire; `ToolError([blocks])` → `tool_result` with `isError` + blocks; string-only wire + image → `ConfigurationError`; text-only blocks flatten to string.
+- [x] Docs + Changeset.
 
 **Dependencies:** existing tool dispatch (`tool-executors`/`tool-dispatch`), the provider wire mappers.
 
@@ -277,10 +277,10 @@ routing change. From the DX comparison vs the 4 reference SDKs (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `AgentOptions.model` + `SendOptions.model` accept `string | ModelSelection`; a string is normalized to `{ id: string }` at ONE seam (not scattered).
-- [ ] Back-compat: the `{ id }` (and `{ id, params }`) object form is unchanged.
-- [ ] TDD: a string model resolves identically to `{ id }`; the `provider/` prefix still routes; params-requiring cases still use the object form (documented).
-- [ ] Docs + Changeset; update examples/templates to the shorthand.
+- [x] `AgentOptions.model` + `SendOptions.model` accept `string | ModelSelection`; a string is normalized to `{ id: string }` at ONE seam (not scattered).
+- [x] Back-compat: the `{ id }` (and `{ id, params }`) object form is unchanged.
+- [x] TDD: a string model resolves identically to `{ id }`; the `provider/` prefix still routes; params-requiring cases still use the object form (documented).
+- [x] Docs + Changeset; update examples/templates to the shorthand.
 
 **Dependencies:** none (purely additive DX; the model resolver already parses `provider/model`).
 
@@ -300,12 +300,12 @@ the reference comparison: today you cannot say "run the loop AND give me a typed
 
 **Definition of done:**
 
-- [ ] `SendOptions.output` (a Zod schema) that, when set, makes the run return the validated structured object on the run result (e.g. `RunResult.output`), with the inferred type on `run.wait()`.
-- [ ] Tools still run first; structuring happens on the final turn. **Sugar over the existing `generateObject` synthetic-forced-tool machinery (ADR D33) — reuse, do NOT fork** (Don't-Reinvent).
-- [ ] Failure is typed: a schema-parse failure surfaces a typed error (not a silent empty/undefined).
-- [ ] Precedence with `toolChoice` / `maxIterations` defined + documented.
-- [ ] TDD: a run with tools + an `output` schema returns the typed object; a parse failure surfaces the typed error.
-- [ ] Docs + Changeset.
+- [x] Delivered as `agent.generate(input, { output: schema })` → `GenerateRunResult.object` with the fully-inferred `z.infer<T>` type (API shape changed from the original `SendOptions.output`/`RunResult.output` sketch per the SE9 plan 2026-07-10, to preserve type inference — `RunResult.output` would have been `unknown`). A Zod `output` schema runs the tool loop then returns the validated structured object.
+- [x] Tools still run first; structuring happens on the final turn. **Sugar over the existing `generateObject` synthetic-forced-tool machinery (ADR D33) — reuse, do NOT fork** (Don't-Reinvent).
+- [x] Failure is typed: a schema-parse failure surfaces a typed error (not a silent empty/undefined).
+- [x] Precedence with `toolChoice` / `maxIterations` defined + documented.
+- [x] TDD: a run with tools + an `output` schema returns the typed object; a parse failure surfaces the typed error.
+- [x] Docs + Changeset.
 
 **Dependencies:** the existing `generateObject` (ADR D33 synthetic forced tool); SE2 (typed events, optional).
 
