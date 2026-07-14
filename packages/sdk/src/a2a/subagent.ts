@@ -14,6 +14,7 @@
 
 import { z } from "zod";
 
+import type { Plugin } from "../internal/plugins/types.js";
 import type { AgentDefinition, CustomTool, ToolContextMessage } from "../types/agent.js";
 import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
@@ -26,6 +27,13 @@ import type { Run } from "../types/run.js";
 export interface InheritedCredentials {
   readonly apiKey?: string;
   readonly model?: ModelSelection;
+  /**
+   * #55 — the parent's code-registered plugins (e.g. a `PermissionPlugin`) handed
+   * down so the child runs under the SAME policy. Without this, a delegated child's
+   * inner tool calls escape the parent's argument-level permission gate. First-party
+   * delegation path only — never exposed to third-party tool `ctx`.
+   */
+  readonly plugins?: readonly Plugin[];
 }
 
 /**
@@ -228,6 +236,9 @@ async function runChildAgent(
   const agent = await Agent.create({
     ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
     ...(model !== undefined ? { model } : {}),
+    // #55 — inherit the parent's plugins (permission gate, guards) so the child's
+    // inner tool calls run under the same policy, not unchecked.
+    ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
     systemPrompt: spec.instructions,
     tools: spec.tools ?? [],
   });
