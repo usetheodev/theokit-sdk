@@ -155,7 +155,11 @@ describe("loadHookConfig — markdown (deprecated fallback)", () => {
   });
 
   it("JSON wins when both exist; warn to remove the markdown dir", async () => {
-    writeJson({ hooks: { PreToolUse: [{ matcher: "json", hooks: [{ type: "command", command: "echo json" }] }] } });
+    writeJson({
+      hooks: {
+        PreToolUse: [{ matcher: "json", hooks: [{ type: "command", command: "echo json" }] }],
+      },
+    });
     writeMd("md-hook", { event: "preToolUse", matcher: "md", command: "echo md" });
     const config = await loadHookConfig(dir);
     expect(config.hooks?.preToolUse?.[0]?.command).toBe("echo json");

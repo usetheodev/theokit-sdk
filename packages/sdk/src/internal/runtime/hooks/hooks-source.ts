@@ -170,17 +170,22 @@ function parseClaudeCodeConfig(raw: unknown, path: string): HookConfig {
       );
       continue;
     }
-    const list = grouped[event] ?? [];
-    for (const rawGroup of asArray(groups, path, `hooks.${ccEvent}`)) {
-      const group = asRecord(rawGroup, path, `hooks.${ccEvent}[]`);
-      const matcher = group.matcher === undefined ? undefined : String(group.matcher);
-      for (const rawCmd of asArray(group.hooks, path, `hooks.${ccEvent}[].hooks`)) {
-        list.push(parseClaudeCodeCommand(rawCmd, matcher, path, ccEvent));
-      }
-    }
-    grouped[event] = list;
+    grouped[event] = [...(grouped[event] ?? []), ...flattenEventGroups(groups, path, ccEvent)];
   }
   return { hooks: grouped };
+}
+
+/** Flatten one Claude Code event's matcher-groups into internal HookCommands. */
+function flattenEventGroups(groups: unknown, path: string, ccEvent: string): HookCommand[] {
+  const commands: HookCommand[] = [];
+  for (const rawGroup of asArray(groups, path, `hooks.${ccEvent}`)) {
+    const group = asRecord(rawGroup, path, `hooks.${ccEvent}[]`);
+    const matcher = group.matcher === undefined ? undefined : String(group.matcher);
+    for (const rawCmd of asArray(group.hooks, path, `hooks.${ccEvent}[].hooks`)) {
+      commands.push(parseClaudeCodeCommand(rawCmd, matcher, path, ccEvent));
+    }
+  }
+  return commands;
 }
 
 /** One `{ type:"command", command, timeout? }` entry → an internal HookCommand. */
