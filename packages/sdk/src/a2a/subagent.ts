@@ -15,7 +15,12 @@
 import { z } from "zod";
 
 import type { Plugin } from "../internal/plugins/types.js";
-import type { AgentDefinition, AgentOptions, CustomTool, ToolContextMessage } from "../types/agent.js";
+import type {
+  AgentDefinition,
+  AgentOptions,
+  CustomTool,
+  ToolContextMessage,
+} from "../types/agent.js";
 import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
 
@@ -252,14 +257,17 @@ async function runChildAgent(
   const { Agent } = await import("../agent.js");
   const agent = await Agent.create(buildChildCreateOptions(spec, inherited));
   try {
-    const sendOptions: { signal?: AbortSignal; maxIterations?: number } = {
+    const sendOptions: {
+      signal?: AbortSignal;
+      maxIterations?: number;
+      origin?: import("../types/run.js").MessageOrigin;
+    } = {
       ...(signal !== undefined ? { signal } : {}),
       ...(maxSteps !== undefined ? { maxIterations: maxSteps } : {}),
+      // SE3 — a delegated child's turn is initiated by the coordinating parent.
+      origin: { kind: "coordinator" },
     };
-    const run =
-      Object.keys(sendOptions).length > 0
-        ? await agent.send(input, sendOptions)
-        : await agent.send(input);
+    const run = await agent.send(input, sendOptions);
     const result = await run.wait();
     const text = result.result ?? "(no response)";
     // SE14 — text-only by default; opt-in appends the child's tool results.

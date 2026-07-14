@@ -219,3 +219,25 @@ describe("runToCompletionImpl", () => {
     expect(agent.sends).toEqual(["do X"]);
   });
 });
+
+describe("SE3 — auto-continuation provenance", () => {
+  it("stamps origin {kind:'auto-continuation'} on continuation rounds only", async () => {
+    const opts: Array<{ origin?: { kind: string } } | undefined> = [];
+    const script = [
+      rr({ stoppedAtIterationLimit: true, result: "part" }), // round 0 → continue
+      rr({ stoppedAtIterationLimit: false, result: "done" }), // round 1 → done
+    ];
+    let i = 0;
+    const agent = {
+      send: (_m: string, o?: { origin?: { kind: string } }) => {
+        opts.push(o);
+        const result = script[Math.min(i, script.length - 1)] as RunResult;
+        i += 1;
+        return Promise.resolve({ wait: () => Promise.resolve(result) });
+      },
+    };
+    await runToCompletionImpl(agent as never, "go", { maxRounds: 5 });
+    expect(opts[0]?.origin).toBeUndefined(); // first send = caller's turn
+    expect(opts[1]?.origin).toEqual({ kind: "auto-continuation" });
+  });
+});

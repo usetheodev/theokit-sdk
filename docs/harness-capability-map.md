@@ -18,18 +18,18 @@ or any other capability **without reading source**.
 ```typescript
 import {
   Agent,                      // Agent.create({ model, apiKey, tools, ... }) → agent; agent.send(msg) → run
-  createAgentFactory,         // createAgentFactory(defaults) → reusable agent builder
+  AgentFactory,               // AgentFactory.create(defaults) → reusable agent builder (SE36)
   AgentBuilder,               // fluent agent construction
-  defineTool,                 // defineTool({ name, description, inputSchema, handler }) → CustomTool
-  definePlugin,               // definePlugin({ hooks }) → Plugin (pre/post tool-call, etc.)
-  defineProvider,             // defineProvider(...) → custom LLM provider
+  Tool,                       // Tool.create({ name, description, inputSchema, handler }) → CustomTool (SE36)
+  Plugin,                     // Plugin.create({ hooks }) → Plugin (pre/post tool-call, etc.) (SE36)
+  Provider,                   // Provider.create(...) → custom LLM provider (SE36)
   PermissionEngine,           // permission decisions for tool calls (default-allow; pluggable)
-  createPermissionPlugin,     // wrap a permission policy as a Plugin
+  PermissionPlugin,           // PermissionPlugin.create(...) → wrap a permission policy as a Plugin (SE36)
   createCounterBudgetTracker, // createCounterBudgetTracker({ maxIterations }) → BudgetTracker (enforced step cap)
   Budget, UsageAccumulator,   // usage/cost accounting
   buildReplayHistory,         // buildReplayHistory(base, events, { contextWindowTokens }) → StoredMessage[] (stateless loop replay)
   computeCost, normalizeUsage, getPricingEntry, // cost helpers (never 0 when pricing unknown)
-  createSquad, Task,          // multi-agent + task primitives
+  Squad, Task,                // Squad.create(...) multi-agent + task primitives (SE36)
   Theokit, Cron,              // top-level namespaces (Theokit.models.list(), Cron.create(...))
 } from "@theokit/sdk";
 
@@ -56,16 +56,16 @@ if (isTransientError(err)) await retry();
 ## Retry — `@theokit/sdk/retry`
 
 ```typescript
-import { withRetry } from "@theokit/sdk/retry";
-// withRetry(fn, { retries, isRetryable, initialDelayMs, maxDelayMs, backoffMultiplier, sleep, signal })
-const res = await withRetry(() => callApi(), { retries: 3, isRetryable: isTransientError, initialDelayMs: 200 });
+import { Retry } from "@theokit/sdk/retry";
+// Retry.create(fn, { retries, isRetryable, initialDelayMs, maxDelayMs, backoffMultiplier, sleep, signal }) (SE36)
+const res = await Retry.create(() => callApi(), { retries: 3, isRetryable: isTransientError, initialDelayMs: 200 });
 ```
 
 ## Concurrency — `@theokit/sdk/concurrency`
 
 ```typescript
-import { mapWithConcurrency, createSemaphore } from "@theokit/sdk/concurrency";
-// mapWithConcurrency(items, concurrency, fn) → ordered results, bounded pool
+import { mapWithConcurrency, Semaphore } from "@theokit/sdk/concurrency";
+// mapWithConcurrency(items, concurrency, fn) → ordered results, bounded pool; Semaphore.create(n) → gate (SE36)
 const out = await mapWithConcurrency(tasks, 8, async (t) => run(t));
 ```
 
@@ -170,8 +170,8 @@ const ev = Eval.create({ name: "swe", dataset, scorers: [Scorers.verifyGate({ sa
 import { Workflow, WorkflowBuilder, agentStep, fn } from "@theokit/sdk/workflow"; // typed multi-step workflows
 import { InMemoryTaskStore, JsonFileTaskStore, getTaskStoreFor } from "@theokit/sdk/task-store"; // durable task persistence
 import { Cron } from "@theokit/sdk/cron"; // Cron.create(...) scheduled agent runs
-import { defineSubscription, subscribe, tracked } from "@theokit/sdk/subscription"; // streaming subscriptions + resume tokens
-import { AgentMailbox, MessageBus, defineSubAgent } from "@theokit/sdk/a2a"; // agent-to-agent messaging
+import { Subscription, subscribe, tracked } from "@theokit/sdk/subscription"; // Subscription.create(...) streaming + resume tokens (SE36)
+import { AgentMailbox, MessageBus, SubAgent } from "@theokit/sdk/a2a"; // SubAgent.create(...) agent-to-agent messaging (SE36)
 import { TheoKitClient } from "@theokit/sdk/client"; // typed client for the cloud runtime
 ```
 
@@ -180,8 +180,8 @@ import { TheoKitClient } from "@theokit/sdk/client"; // typed client for the clo
 For building the server that backs the cloud runtime (OAuth callbacks + a canonical error envelope across HTTP surfaces).
 
 ```typescript
-import { defineAuth, validateReturnTo } from "@theokit/sdk/server/auth";
-// defineAuth({ providers, ... }) → auth handler; validateReturnTo(url, allowlist) → safe redirect target
+import { Auth, validateReturnTo } from "@theokit/sdk/server/auth";
+// Auth.create({ providers, ... }) → auth handler (SE36); validateReturnTo(url, allowlist) → safe redirect target
 // + typed errors: AuthCallbackError, AuthCancelledError, AuthConfigError, AuthProviderNotFoundError, AuthSecretTooShortError
 
 import { toEnvelope, fromEnvelope } from "@theokit/sdk/server/errors-envelope";
