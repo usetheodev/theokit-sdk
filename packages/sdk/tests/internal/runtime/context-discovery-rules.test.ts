@@ -66,4 +66,22 @@ describe("discovery — .theokit/rules/*.md (T2)", () => {
     const bodies = rulesSources(sources).map((s) => s.content);
     expect(bodies.some((b) => b.includes("Validate every endpoint input."))).toBe(false);
   });
+
+  it("the same in-scope signal also activates .cursor/rules/*.mdc globs (cross-format)", async () => {
+    await mkdir(join(tmp, ".cursor", "rules"), { recursive: true });
+    await writeFile(
+      join(tmp, ".cursor", "rules", "ts.mdc"),
+      "---\nalwaysApply: false\nglobs:\n  - src/**/*.ts\n---\nPrefer const.",
+    );
+
+    const dormant = await runDiscovery({ cwd: tmp, maxBytesPerFile: DEFAULT_MAX_BYTES_PER_FILE });
+    expect(dormant.some((s) => s.content.includes("Prefer const."))).toBe(false);
+
+    const active = await runDiscovery({
+      cwd: tmp,
+      maxBytesPerFile: DEFAULT_MAX_BYTES_PER_FILE,
+      touchedFiles: ["src/api/users.ts"],
+    });
+    expect(active.some((s) => s.content.includes("Prefer const."))).toBe(true);
+  });
 });

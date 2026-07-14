@@ -51,6 +51,13 @@ interface InternalState {
 
 export class FileContextManager implements SDKContextManager {
   private state: InternalState | undefined;
+  /**
+   * The in-scope file set used by the most recent `refresh`. Tracked so
+   * `applyScope` only touches state when the scope actually changes — a
+   * caller that never scopes (the common case) keeps the create-time
+   * snapshot untouched, at zero per-send cost.
+   */
+  private lastScope: ReadonlyArray<string> = [];
 
   constructor(
     private readonly cwd: string,
@@ -68,7 +75,23 @@ export class FileContextManager implements SDKContextManager {
     await this.refresh();
   }
 
-  async refresh(): Promise<void> {
+  /**
+   * Re-run discovery for a specific per-send in-scope file set (T3). Path-scoped
+   * rules (`.theokit/rules/*.md`, `.cursor/rules/*.mdc` globs) activate iff a
+   * pattern matches one of `contextPaths`. Idempotent: unchanged scope is a
+   * no-op, and `undefined` scope while never previously scoped never touches
+   * state (preserves the create-time snapshot for non-users).
+   */
+  async applyScope(contextPaths: ReadonlyArray<string> | undefined): Promise<void> {
+    const scope = contextPaths ?? [];
+    if (scope.length === 0 && this.lastScope.length === 0) return;
+    if (sameScope(scope, this.lastScope)) return;
+    await this.refresh({ touchedFiles: scope });
+  }
+
+  async refresh(opts?: { touchedFiles?: ReadonlyArray<string> }): Promise<void> {
+    const touchedFiles = opts?.touchedFiles ?? [];
+    this.lastScope = touchedFiles;
     const config = await loadContextConfig(this.cwd);
     const legacy = await loadSources(config, this.cwd);
 
@@ -83,6 +106,7 @@ export class FileContextManager implements SDKContextManager {
       cwd: this.cwd,
       maxBytesPerFile,
       skipLegacyTheokitContext: true,
+      touchedFiles,
     });
 
     const legacyAsAggregator: AggregatorSource[] = legacy.map((src) => ({
@@ -299,4 +323,9 @@ function matchesGlob(pattern: string, path: string): boolean {
 
 function tokenizeContent(content: string): string[] {
   return content.split(/\s+/).filter((token) => token.length > 0);
+}
+
+function sameScope(a: ReadonlyArray<string>, b: ReadonlyArray<string>): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((v, i) => v === b[i]);
 }
