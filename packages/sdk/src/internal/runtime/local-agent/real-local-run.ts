@@ -4,7 +4,12 @@ import {
   subAgentToolsFromDefinitions,
 } from "../../../a2a/subagent.js";
 import { ConfigurationError } from "../../../errors.js";
-import type { AgentOptions, CustomTool, ModelSelection } from "../../../types/agent.js";
+import type {
+  AgentDefinition,
+  AgentOptions,
+  CustomTool,
+  ModelSelection,
+} from "../../../types/agent.js";
 import type {
   Run,
   RunOperation,
@@ -31,6 +36,7 @@ import type { FixtureScript } from "../fixtures/fixture-types.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import { registerRun } from "../registry/run-registry.js";
 import type { SessionMessage } from "../session/agent-session.js";
+import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -47,6 +53,13 @@ export interface CreateRealLocalRunOptions {
   model: ModelSelection | undefined;
   message: string | SDKUserMessage;
   agentOptions: AgentOptions;
+  /**
+   * File-based + inline subagents merged by `loadSubagents` (`.theokit/agents/*.md`
+   * plus `agentOptions.agents`). When present, these — not just the inline
+   * `agentOptions.agents` — become the delegation toolset, so a subagent defined
+   * only on disk is callable against a real model (not fixture-only).
+   */
+  subagents?: Record<string, AgentDefinition>;
   sendOptions: SendOptions;
   workspaceCwd: string;
   hooks: HooksExecutor;
@@ -170,28 +183,6 @@ export function resolveRunProvider(options: CreateRealLocalRunOptions): {
 }
 
 /**
- * M4: infer the provider from an explicitly-passed API key prefix. Reuses the
- * KNOWN_PROVIDER_PREFIXES mapping (`api-key-validator.ts`) — longest prefix wins
- * so `sk-or-` (openrouter) / `sk-ant-` (anthropic) are matched before `sk-`
- * (openai). Returns `undefined` for fixture / `local` / empty keys and for
- * providers that are not registered. @internal
- */
-function inferProviderFromApiKey(apiKey: string | undefined): string | undefined {
-  if (apiKey === undefined || apiKey.length === 0) return undefined;
-  const byPrefix: ReadonlyArray<{ provider: string; prefix: string }> = [
-    { provider: "openrouter", prefix: "sk-or-" },
-    { provider: "anthropic", prefix: "sk-ant-" },
-    { provider: "openai", prefix: "sk-" },
-  ];
-  for (const { provider, prefix } of byPrefix) {
-    if (apiKey.startsWith(prefix) && getProviderProfile(provider) !== undefined) {
-      return provider;
-    }
-  }
-  return undefined;
-}
-
-/**
  * M4: thread the single `Agent.create({ apiKey })` credential into the router's
  * per-provider pool for the resolved `primary`, so an explicitly-passed key is
  * used even when the matching env var is unset. An existing `providers.apiKeys`
@@ -298,6 +289,7 @@ function buildLoopInputs(
       options.personalityToolWhitelist,
       options.agentId,
       options.personalityName,
+      options.subagents,
     ),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
@@ -363,16 +355,17 @@ function buildLoopInputs(
  *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
  */
 /**
- * Declarative subagents (`agents: { name: AgentDefinition }`) become delegation
- * tools for the local runtime — each child inherits the parent's apiKey/model
- * (via `bindParentCredentials`) and is scoped to the whitelisted subset of the
- * parent's tools. Previously wired only for the cloud/fixture runtimes.
+ * Declarative subagents become delegation tools for the local runtime — each
+ * child inherits the parent's apiKey/model (via `bindParentCredentials`) and is
+ * scoped to the whitelisted subset of the parent's tools. `agents` is the merged
+ * set from `loadSubagents` (`.theokit/agents/*.md` + inline `agentOptions.agents`),
+ * so a subagent defined only on disk is callable against a real model — not just
+ * in fixture mode.
  */
 function declarativeSubagentTools(
-  agentOptions: AgentOptions,
+  agents: Record<string, AgentDefinition> | undefined,
   parentTools: ReadonlyArray<CustomTool>,
 ): CustomTool[] {
-  const { agents } = agentOptions;
   if (agents === undefined || Object.keys(agents).length === 0) return [];
   return subAgentToolsFromDefinitions(agents, parentTools);
 }
@@ -402,9 +395,14 @@ function buildCustomToolsInput(
   personalityToolWhitelist: ReadonlyArray<string> | undefined,
   agentId: string,
   personalityName: string | undefined,
+  subagents: Record<string, AgentDefinition> | undefined,
 ): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
   const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
-  const subagentTools = declarativeSubagentTools(agentOptions, baseTools);
+  // Prefer the resolved set (file-based + inline) when present; fall back to the
+  // inline `agentOptions.agents` for callers that don't thread resolvedSubagents.
+  const agentsForTools =
+    subagents !== undefined && Object.keys(subagents).length > 0 ? subagents : agentOptions.agents;
+  const subagentTools = declarativeSubagentTools(agentsForTools, baseTools);
   // T4.1: concat plugin-registered tools onto the effective catalog. Plugin
   // tools are merged unconditionally (no override semantics — name collision
   // would be caught by the registry validator if used).
@@ -425,19 +423,6 @@ function buildCustomToolsInput(
   }) as ReadonlyArray<CustomToolSpec>;
   if (customTools.length === 0 && personalityToolWhitelist === undefined) return {};
   return { customTools };
-}
-
-function detectPrimaryProvider(): string {
-  if (process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY.length > 0) {
-    return "anthropic";
-  }
-  if (process.env.OPENAI_API_KEY !== undefined && process.env.OPENAI_API_KEY.length > 0) {
-    return "openai";
-  }
-  if (process.env.OPENROUTER_API_KEY !== undefined && process.env.OPENROUTER_API_KEY.length > 0) {
-    return "openrouter";
-  }
-  return "openai";
 }
 
 function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
