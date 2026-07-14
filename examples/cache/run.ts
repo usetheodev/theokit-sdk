@@ -13,7 +13,8 @@
  *   pnpm run run
  */
 
-import { Agent, Cache } from "@theokit/sdk";
+import { Agent } from "@theokit/sdk";
+import { Cache } from "@theokit/sdk-cache";
 
 const OPENROUTER = process.env.OPENROUTER_API_KEY;
 if (OPENROUTER === undefined || OPENROUTER.length === 0) {
