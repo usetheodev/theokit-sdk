@@ -26,8 +26,14 @@
 
 import { type FileHandle, open } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
-
 import { Tool } from "@theokit/sdk";
+import {
+  FileNotFoundError,
+  type FilesystemBackend,
+  type FilesystemProvider,
+  FilesystemSecurityError,
+  resolveFilesystem,
+} from "@theokit/sdk/filesystem";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -53,10 +59,17 @@ export interface CreateReadFileToolOptions {
    * `requireReadBeforeWrite`) can refuse a blind or stale overwrite.
    */
   readTracker?: ReadTracker;
+  /**
+   * SE31 — optional pluggable filesystem backend (`@theokit/sdk/filesystem`), or
+   * a per-request resolver. When provided, reads route through the backend (its
+   * own boundary + `basePath`) instead of the local `projectRoot`; omitted ⇒
+   * identical current behavior (multi-tenant / per-request roots).
+   */
+  filesystem?: FilesystemProvider;
 }
 
 export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool {
-  const { projectRoot, readTracker } = opts;
+  const { projectRoot, readTracker, filesystem } = opts;
 
   return Tool.create({
     name: "read_file",
@@ -71,9 +84,15 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
     }),
-    handler: async ({ path }) => {
+    handler: async ({ path }, ctx) => {
       if (isForbiddenPath(path)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });
+      }
+      // SE31 — route through the pluggable backend when one is configured (the
+      // backend owns its own boundary); else the local `projectRoot` fs.
+      if (filesystem) {
+        const backend = await resolveFilesystem(filesystem, ctx ?? {});
+        return readViaBackend(backend, path, (mtimeMs) => readTracker?.record(path, mtimeMs));
       }
       const boundary = resolveBoundary(path, projectRoot);
       if ("error" in boundary) return boundary.error;
@@ -88,6 +107,45 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
       }
     },
   });
+}
+
+/**
+ * SE31 — read through a {@link FilesystemBackend}, mapping its typed errors to
+ * the tool's `{ ok: false, error }` JSON (never throws on a user mistake). The
+ * binary/too-large guards mirror the local path; a null byte in the decoded
+ * content flags a binary file.
+ */
+async function readViaBackend(
+  backend: FilesystemBackend,
+  path: string,
+  onRead?: (mtimeMs: number) => void,
+): Promise<string> {
+  try {
+    const stat = await backend.stat(path);
+    if (stat.size > MAX_FILE_SIZE) {
+      return JSON.stringify({
+        ok: false,
+        error: "too_large",
+        path,
+        size: stat.size,
+        limit: MAX_FILE_SIZE,
+      });
+    }
+    const content = await backend.readFile(path);
+    if (content.includes("\u0000")) {
+      return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
+    }
+    onRead?.(stat.mtimeMs);
+    return JSON.stringify({ ok: true, content, size: stat.size });
+  } catch (err) {
+    if (err instanceof FileNotFoundError) {
+      return JSON.stringify({ ok: false, error: "not_found", path });
+    }
+    if (err instanceof FilesystemSecurityError) {
+      return JSON.stringify({ ok: false, error: "path_traversal", path });
+    }
+    throw err;
+  }
 }
 
 function resolveBoundary(
