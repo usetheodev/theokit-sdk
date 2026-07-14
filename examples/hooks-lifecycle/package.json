@@ -1,13 +1,15 @@
 {
-  "name": "@theokit/example-guardrails",
+  "name": "example-hooks-lifecycle",
   "private": true,
-  "version": "0.0.9",
   "type": "module",
   "scripts": {
-    "start": "tsx run.ts"
+    "run": "tsx run.ts"
   },
   "dependencies": {
     "@theokit/sdk": "workspace:*",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
     "tsx": "^4.19.0"
   }
 }

@@ -1,8 +1,23 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { MessageBus } from "../../src/a2a/message-bus.js";
 import type { A2AMessage } from "../../src/a2a/types.js";
 
 describe("MessageBus", () => {
+  it("clears the timeout timer when the handler resolves (no leaked timer keeps the loop alive)", async () => {
+    vi.useFakeTimers();
+    try {
+      const bus = new MessageBus();
+      bus.register("worker", () => "pong");
+      const reply = await bus.request("supervisor", "worker", { type: "ping", payload: null });
+      expect(reply).toBe("pong");
+      // The 30s timeout timer MUST be cleared once the request settles — otherwise it
+      // keeps the Node event loop alive and the process hangs after a successful request.
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("routes message to registered agent", async () => {
     const bus = new MessageBus();
     const received: A2AMessage[] = [];
