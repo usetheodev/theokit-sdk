@@ -368,9 +368,13 @@ function declarativeSubagentTools(
  * third-party tool code (see `inheritSubAgentCredentials`).
  */
 function bindParentCredentials(tools: ReadonlyArray<CustomTool>, agentOptions: AgentOptions): void {
+  // #55 — hand the parent's code-registered plugins (array form carries the
+  // PermissionPlugin) down so the child runs under the same permission gate.
+  const parentPlugins = Array.isArray(agentOptions.plugins) ? agentOptions.plugins : undefined;
   const credentials: InheritedCredentials = {
     ...(agentOptions.apiKey !== undefined ? { apiKey: agentOptions.apiKey } : {}),
     ...(typeof agentOptions.model === "object" ? { model: agentOptions.model } : {}),
+    ...(parentPlugins !== undefined ? { plugins: parentPlugins } : {}),
   };
   for (const tool of tools) inheritSubAgentCredentials(tool, credentials);
 }

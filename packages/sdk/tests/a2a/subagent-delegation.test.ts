@@ -106,6 +106,31 @@ describe("SubAgent", () => {
     );
   });
 
+  it("inherits the parent's plugins (permission gate) into the child agent (#55)", async () => {
+    // Security (#55): arg-level permission rules live in a parent plugin. A
+    // delegated child must run under the SAME plugins, or its inner tool calls
+    // escape the parent's gate. The child Agent.create must receive them.
+    const mockCreate = vi.fn().mockResolvedValue({
+      send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),
+      dispose: vi.fn(),
+    });
+    vi.doMock("../../src/agent.js", () => ({ Agent: { create: mockCreate } }));
+
+    const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
+    const permissionPlugin = { name: "perm", hooks: {} };
+    inheritSubAgentCredentials(tool, {
+      apiKey: "theo_test_parent",
+      // biome-ignore lint/suspicious/noExplicitAny: minimal plugin stand-in for the wiring assertion.
+      plugins: [permissionPlugin as any],
+    });
+
+    await tool.handler({ input: "task" });
+
+    expect(mockCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ plugins: [permissionPlugin] }),
+    );
+  });
+
   describe("subAgentToolsFromDefinitions (declarative `agents` → delegation tools)", () => {
     it("converts each AgentDefinition into a named delegation tool", () => {
       const tools = subAgentToolsFromDefinitions(
