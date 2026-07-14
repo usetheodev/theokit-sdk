@@ -123,14 +123,15 @@ describe("context-discovery (T1.1)", () => {
   });
 
   // ── default specs ──
-  it("DEFAULT_DISCOVERY_SPECS contains 6 entries", () => {
-    expect(DEFAULT_DISCOVERY_SPECS.length).toBe(6);
+  it("DEFAULT_DISCOVERY_SPECS contains 7 entries", () => {
+    expect(DEFAULT_DISCOVERY_SPECS.length).toBe(7);
     const ids = DEFAULT_DISCOVERY_SPECS.map((s) => s.id);
     expect(ids).toEqual([
       "AGENTS.md",
       "GEMINI.md",
       "CLAUDE.md",
       "cursor-rules",
+      "theokit-rules",
       "theokit-context",
       "THEO.md",
     ]);
