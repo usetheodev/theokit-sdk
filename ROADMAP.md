@@ -481,12 +481,12 @@ from it. From the a peer framework Tools comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `DefineToolSpec.outputSchema?: ZodType`; when set, the handler's return is parsed against it and a validation failure surfaces a TYPED error (not a silent malformed tool result).
-- [ ] The handler's return type is inferred from `outputSchema` when present (end-to-end inference).
-- [ ] Back-compat: absent `outputSchema` ⇒ the handler return is passed through exactly as today.
-- [ ] SE7 multimodal (`ToolResultContentBlock[]`) returns: `outputSchema` targets the structured-object return only; a blocks return is not forced through a Zod object (decide the exact rule in plan).
-- [ ] TDD: a return matching the schema passes; a mismatch surfaces the typed error; no schema ⇒ unchanged.
-- [ ] Docs + Changeset.
+- [x] `DefineToolSpec.outputSchema?: ZodType`; when set, the handler's return is parsed against it and a validation failure surfaces a TYPED error (not a silent malformed tool result).
+- [x] The handler's return type is inferred from `outputSchema` when present (end-to-end inference).
+- [x] Back-compat: absent `outputSchema` ⇒ the handler return is passed through exactly as today.
+- [x] SE7 multimodal (`ToolResultContentBlock[]`) returns: `outputSchema` targets the structured-object return only; a blocks return is not forced through a Zod object (decide the exact rule in plan).
+- [x] TDD: a return matching the schema passes; a mismatch surfaces the typed error; no schema ⇒ unchanged.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends `defineTool`, additive).
 
@@ -507,12 +507,12 @@ model-facing `tool_result`. From the a peer framework Tools comparison (2026-07-
 
 **Definition of done:**
 
-- [ ] `DefineToolSpec.toModelOutput?: (output) => string | ToolResultContentBlock[]`; when set, the model-facing tool_result content is what `toModelOutput` returns, NOT the raw handler output.
-- [ ] The raw handler output stays available to observability (`onToolEnd` event carries it) so the app keeps the full result — confirm the exact surface in plan (reuse `onToolEnd`, avoid a new RunResult field).
-- [ ] Composes with SE16: `outputSchema` validates the raw handler output; `toModelOutput` maps the validated output to the model representation.
-- [ ] Back-compat: absent `toModelOutput` ⇒ the handler return is the model result (unchanged; SE7 blocks path intact).
-- [ ] TDD: a tool with rich output + `toModelOutput` sends the small representation to the model while the full output reaches the observability surface.
-- [ ] Docs + Changeset.
+- [x] `DefineToolSpec.toModelOutput?: (output) => string | ToolResultContentBlock[]`; when set, the model-facing tool_result content is what `toModelOutput` returns, NOT the raw handler output.
+- [x] The raw handler output stays available to observability (`onToolEnd` event carries it) so the app keeps the full result — confirm the exact surface in plan (reuse `onToolEnd`, avoid a new RunResult field).
+- [x] Composes with SE16: `outputSchema` validates the raw handler output; `toModelOutput` maps the validated output to the model representation.
+- [x] Back-compat: absent `toModelOutput` ⇒ the handler return is the model result (unchanged; SE7 blocks path intact).
+- [x] TDD: a tool with rich output + `toModelOutput` sends the small representation to the model while the full output reaches the observability surface.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE16 (composes with `outputSchema`; may ship independently but the plan defines ordering).
 
@@ -533,11 +533,11 @@ applies that whitelist for the duration of the send. From the a peer framework T
 
 **Definition of done:**
 
-- [ ] `SendOptions.activeTools?: string[]`; when set, only tools whose canonical (post-repair, lowercase) name is in the list are dispatchable for that send — any other tool call is vetoed via the existing `withToolWhitelist` dispatch path (NOT `PermissionEngine`), same as `fork`'s `allowedTools`.
-- [ ] Composes with `toolChoice`: `activeTools` narrows the set; `toolChoice` gates calling within it.
-- [ ] Back-compat: absent `activeTools` ⇒ the full toolset is available (unchanged).
-- [ ] TDD: with `activeTools: ["a"]`, tool `a` dispatches and tool `b` is vetoed; absent ⇒ both available.
-- [ ] Docs + Changeset.
+- [x] `SendOptions.activeTools?: string[]`; when set, only tools whose canonical (post-repair, lowercase) name is in the list are dispatchable for that send — any other tool call is vetoed via the existing `withToolWhitelist` dispatch path (NOT `PermissionEngine`), same as `fork`'s `allowedTools`.
+- [x] Composes with `toolChoice`: `activeTools` narrows the set; `toolChoice` gates calling within it.
+- [x] Back-compat: absent `activeTools` ⇒ the full toolset is available (unchanged).
+- [x] TDD: with `activeTools: ["a"]`, tool `a` dispatches and tool `b` is vetoed; absent ⇒ both available.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (reuses `withToolWhitelist`; additive on `SendOptions`).
 
@@ -584,12 +584,12 @@ skills). From the a peer framework Agent-skills comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `SDKAgentSkills.get(name: string): Promise<{ name; description; instructions } | undefined>` — returns the resolved skill including its body; `undefined` when no enabled skill matches.
-- [ ] Filesystem skills read the body from their `source` SKILL.md; inline (`createSkill`) skills return their `instructions` directly.
-- [ ] `list()` is unchanged (name + description only — the block stays lean; full bodies only via `get`).
-- [ ] A malformed / excluded skill is not returned by `get` (same exclusion as `list`).
-- [ ] TDD: `get` returns the body for an inline skill and for a filesystem skill; `undefined` for an unknown name; excluded skills are absent.
-- [ ] Docs + Changeset.
+- [x] `SDKAgentSkills.get(name: string): Promise<{ name; description; instructions } | undefined>` — returns the resolved skill including its body; `undefined` when no enabled skill matches.
+- [x] Filesystem skills read the body from their `source` SKILL.md; inline (`createSkill`) skills return their `instructions` directly.
+- [x] `list()` is unchanged (name + description only — the block stays lean; full bodies only via `get`).
+- [x] A malformed / excluded skill is not returned by `get` (same exclusion as `list`).
+- [x] TDD: `get` returns the body for an inline skill and for a filesystem skill; `undefined` for an unknown name; excluded skills are absent.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends the existing `SDKAgentSkills` handle + `skills-manager`).
 
@@ -609,11 +609,11 @@ SE20's `get(name)` (and readable by the consumer). From the a peer framework Age
 
 **Definition of done:**
 
-- [ ] `CreateSkillSpec.references?: Record<string, string>` (filename → content); carried on the `InlineSkill`.
-- [ ] The references are exposed through `agent.skills.get(name)` (SE20) so an app / a consumer tool can read them; absent ⇒ no references (unchanged).
-- [ ] Back-compat: inline skills without `references` behave exactly as today.
-- [ ] TDD: an inline skill with `references` surfaces them via `get`; without ⇒ empty/absent.
-- [ ] Docs + Changeset; **ADR** if surfacing references to the MODEL (not just the app) needs a read tool — the eager `<skills>` block only carries name + description, so a model-facing reference read is a separate mechanism (skill_read tool) intentionally deferred.
+- [x] `CreateSkillSpec.references?: Record<string, string>` (filename → content); carried on the `InlineSkill`.
+- [x] The references are exposed through `agent.skills.get(name)` (SE20) so an app / a consumer tool can read them; absent ⇒ no references (unchanged).
+- [x] Back-compat: inline skills without `references` behave exactly as today.
+- [x] TDD: an inline skill with `references` surfaces them via `get`; without ⇒ empty/absent.
+- [x] Docs + Changeset; **ADR** if surfacing references to the MODEL (not just the app) needs a read tool — the eager `<skills>` block only carries name + description, so a model-facing reference read is a separate mechanism (skill_read tool) intentionally deferred.
 
 **Dependencies:** SE20 (`get` is the read path that surfaces `references`).
 

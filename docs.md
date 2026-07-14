@@ -581,6 +581,7 @@ tools	CustomTool[]	Per-call inline custom tools. Fully replaces `AgentOptions.to
 onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step (text, thinking, or tool batch).
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 toolChoice	"auto" \| "none" \| "required"	Per-call tool gate (OpenAI/OpenRouter `tool_choice`). `"none"` forces a text answer even when tools are registered (e.g. an agent loop forcing a closing summary at its step ceiling); `"required"` forces a tool call; omitted ⇒ provider default. Local runtime; OpenAI-compatible providers. Emitted only alongside a non-empty tools array.
+activeTools	string[]	SE18 — restrict, for THIS send only, which of the agent's tools the model may call. A tool call to a name outside the set is vetoed at dispatch (the same fork-whitelist seam as `Agent.fork`'s `allowedTools`, NOT the permission engine) and the handler never runs. `[]` fail-closed (no tool dispatches); absent ⇒ the full toolset. Composes with `toolChoice` (activeTools narrows *which*, toolChoice gates *whether*). Per-send and non-mutating — the agent's persistent tool set is untouched. Local runtime.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
 
 SystemPromptContext
@@ -887,16 +888,24 @@ Use when: chat-bot patterns where 90% of the config is identical across users an
 
 Tool.create()
 
-Tool.create<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool;
-interface DefineToolSpec<T extends ZodType> {
+Tool.create<T extends ZodType, O extends ZodType = never>(spec: DefineToolSpec<T, O>): CustomTool;
+interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
   name: string;
   description: string;
   inputSchema: T;
-  handler: (input: z.infer<T>) => string | Promise<string>;
+  // With `outputSchema` the handler returns the STRUCTURED value inferred from it; else a string.
+  handler: (input: z.infer<T>, ctx?: { signal?: AbortSignal; context?: unknown }) =>
+    (O extends never ? string : z.infer<O>) | Promise<O extends never ? string : z.infer<O>>;
+  outputSchema?: O;                                              // SE16
+  toModelOutput?: (output: O extends never ? string : z.infer<O>) => string | ToolResultContentBlock[]; // SE17
   sanitize?: boolean | SanitizeOptions;
 }
 
 Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
+
+`outputSchema` (SE16, optional) validates the handler's RETURN value. When set, the handler's return type is inferred from it (`z.infer<O>`); the value is validated against the schema (a string stays as-is, an object is JSON-stringified into the `tool_result`), and a validation failure surfaces as `tool_result(isError)` with the Zod message. Absent ⇒ the handler returns a plain string (unchanged).
+
+`toModelOutput` (SE17, optional) splits what the MODEL sees from what the APPLICATION keeps. The handler keeps returning the FULL result (validated by `outputSchema`); `toModelOutput` maps it to the compact — or multimodal (SE7 `ToolResultContentBlock[]`) — representation placed in the `tool_result` the model reads. The split is REAL end-to-end: the model's `tool_result` carries the compact value, while observability (`onToolEnd.result`) receives the FULL raw handler output (serialized) — so rich app-facing detail is never forced into model context yet is never lost. One handler execution feeds both channels. Absent ⇒ the serialized handler output is what the model sees (SE16 / pre-SE17 behavior).
 
 `sanitize` (optional) cleans the raw model-emitted args BEFORE `inputSchema.parse`, using the primitive from `@theokit/sdk/sanitize` (see below). `sanitize: true` trims whitespace from string values (so a leaked `"\npackage.json\n"` path validates as `"package.json"`); `sanitize: { coerce: true }` additionally coerces string values toward this tool's own schema (a `z.number()` field accepts `"5"`). Absent ⇒ args reach validation untouched. Sanitize is hygiene, not a validity bypass — a genuinely invalid arg still becomes `tool_result(isError)`.
 
@@ -1485,8 +1494,16 @@ SDKSkillsManager
 
 interface SDKSkillsManager {
   list(): Promise<Array<{ name: string; description: string }>>;
+  // SE20 — read one skill's full body programmatically.
+  get(name: string): Promise<SDKAgentSkillDetail | undefined>;
 }
-`list()` returns metadata only. It must not return full `SKILL.md` prompt bodies.
+interface SDKAgentSkillDetail {
+  name: string;
+  description: string;
+  instructions: string;                    // the full SKILL.md body (frontmatter stripped)
+  references?: Record<string, string>;      // SE21 — supporting docs bundled on the skill
+}
+`list()` returns metadata only (name + description) — it must not return full `SKILL.md` prompt bodies. `get(name)` (SE20) returns one skill's FULL body: for a file-based skill it reads the `SKILL.md` at the resolved source and strips the frontmatter; for an inline skill it returns the `instructions` directly. Returns `undefined` when no skill matches (and for a malformed/excluded skill — same exclusion as `list()`). The optional `references` map (SE21) carries any supporting docs bundled on an inline skill via `Skill.create({ references })`.
 ModelSelection
 
 interface ModelSelection {
@@ -2863,6 +2880,25 @@ fn("validate", (input, ctx) => {...}, {
 // agent step — agent.send with rendered prompt + optional retry
 agentStep("classify", agent, (input) => `prompt: ${input}`, { retry: {...} });
 ```
+
+### Workflow as an agent tool — `workflowAsTool` (SE19)
+
+Expose a `Workflow` as a `CustomTool` so an agent can call the whole pipeline like any other tool. Import from `@theokit/sdk/workflow`:
+
+```typescript
+import { workflowAsTool, WorkflowToolError } from "@theokit/sdk/workflow";
+import { z } from "zod";
+
+const refundTool = workflowAsTool(refundWorkflow, {
+  name: "process_refund",
+  description: "Runs the refund pipeline for a claim.",
+  inputSchema: z.object({ claim: z.string() }),
+});
+
+const agent = await Agent.create({ apiKey, model, tools: [refundTool] });
+```
+
+The caller-supplied `inputSchema` becomes the tool's LLM-facing input schema; on call, the handler validates the model's args (a `ZodError` becomes `tool_result(isError)` before the workflow runs), then runs `workflow.run(parsedInput)` and returns the workflow output (a string as-is, a structured output JSON-stringified). A run that does not reach `completed` surfaces a typed `WorkflowToolError` (carrying `workflowStatus` + the run error) — a failed step never silently returns a partial result. The `workflow` argument is structural (`{ run }`-shaped), so any workflow-like object works.
 
 ### Retry policy (D237)
 
