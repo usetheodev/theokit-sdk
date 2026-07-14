@@ -30,6 +30,21 @@ Error
 
 ## Retry pattern
 
+**Prefer the built-in `Retry.create`** (`@theokit/sdk/retry`) — it ships a tested retry+backoff with an injectable clock, an optional `AbortSignal`, and the SDK's canonical transient-error taxonomy, so you don't hand-roll it:
+
+```typescript
+import { Retry } from "@theokit/sdk/retry";
+import { isTransientError } from "@theokit/sdk/errors";
+
+const run = await Retry.create(() => agent.send("…").then((r) => r.wait()), {
+  retries: 3,
+  isRetryable: isTransientError,   // 429 / 5xx / network / ECONNRESET on a TheokitAgentError
+  initialDelayMs: 200,
+});
+```
+
+If you want to see the mechanics (or need a bespoke policy), the equivalent hand-rolled loop is:
+
 ```typescript
 import { TheokitAgentError, type Run } from "@theokit/sdk";
 

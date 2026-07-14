@@ -44,10 +44,10 @@ export interface DefineSubscriptionOptions<TInput, TOutput> {
  *
  * @example
  * ```ts
- * import { defineSubscription } from "@theokit/sdk";
+ * import { Subscription } from "@theokit/sdk/subscription";
  * import { z } from "zod";
  *
- * export default defineSubscription({
+ * export default Subscription.create({
  *   input: z.object({ topic: z.string() }),
  *   output: z.object({ message: z.string(), ts: z.number() }),
  *   async *handler(input, ctx) {

@@ -46,7 +46,7 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | Layer | `@theokit/sdk` | Closed-runtime alternatives |
 | --- | --- | --- |
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
-| Local agent harness | **Apache-2.0** via [`pi/`](./referencia/pi) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
+| Local agent harness | **Apache-2.0** (informed by [`pi`](https://github.com/earendil-works/pi)) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
 | LLM provider | Multi-provider via `pi-ai` (Anthropic, OpenAI, Google, …) | Usually single-vendor |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork `pi/`, keep running with your own provider keys | High — runtime is the vendor's |
@@ -738,6 +738,8 @@ The canonical machine-readable contract is at [`docs.md`](./docs.md).
 
 ## Development
 
+New contributor? Start with [`CONTRIBUTING.md`](./CONTRIBUTING.md) — branch model, commit rules, and the PR checklist.
+
 This monorepo uses **pnpm workspaces**, **Biome 2.4**, **tsup 8**, **Vitest 3**, **TypeScript 5.8+**, and **Changesets**. Node 22.12+ required (use `nvm use` to pick it up from `.nvmrc`).
 
 ```bash
@@ -753,7 +755,7 @@ pnpm check                    # biome lint + format
 pnpm validate                 # everything above plus publint + attw
 ```
 
-Reference projects under `referencia/` (notably `pi/` and `openai-agents-python/`) are study material — read them for design inspiration, but never `npm install`, `pip install`, or edit them.
+Reference projects (notably `pi` and `openai-agents-python`) are study material, **cloned on demand** under `.claude/knowledge-base/reference/` (gitignored) — read them for design inspiration, but never `npm install`, `pip install`, edit, or import them.
 
 ## License
 
