@@ -26,9 +26,12 @@ describe("real hook execution", () => {
     if (cwd === undefined) throw new Error("missing workspace");
     const markerPath = join(cwd, "marker.json");
     const hookCmd = `node -e "let d=''; process.stdin.on('data',c=>d+=c); process.stdin.on('end',()=>{require('fs').writeFileSync('${markerPath.replaceAll("\\", "\\\\")}', d);})"`;
+    // Claude-Code-shaped config: UserPromptSubmit → the SDK's `preRun` firing.
     await writeFile(
       join(cwd, ".theokit", "hooks.json"),
-      JSON.stringify({ hooks: { preRun: [{ command: hookCmd }] } }),
+      JSON.stringify({
+        hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: hookCmd }] }] },
+      }),
     );
 
     const agent = await Agent.create({
@@ -54,7 +57,16 @@ describe("real hook execution", () => {
       join(cwd, ".theokit", "hooks.json"),
       JSON.stringify({
         hooks: {
-          preRun: [{ command: "node -e \"process.stderr.write('nope'); process.exit(7)\"" }],
+          UserPromptSubmit: [
+            {
+              hooks: [
+                {
+                  type: "command",
+                  command: "node -e \"process.stderr.write('nope'); process.exit(7)\"",
+                },
+              ],
+            },
+          ],
         },
       }),
     );

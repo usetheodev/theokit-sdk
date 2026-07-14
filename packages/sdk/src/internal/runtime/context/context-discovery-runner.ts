@@ -113,11 +113,18 @@ async function loadOneSource(
   return loadPlainMarkdownSource(spec, path, id, opts);
 }
 
-async function loadMdcSource(
+/**
+ * Shared read → parse → activation-gate → source pipeline for the frontmatter
+ * discovery parsers (mdc, rules). Binds the parser + the activation predicate so
+ * the mdc and rules loaders differ only in those two, not in the surrounding
+ * read/guard/shape boilerplate (DRY).
+ */
+async function loadParsedSource<F>(
   spec: DiscoverySpec,
   path: string,
   id: string,
-  opts: DiscoveryRunnerOptions,
+  parse: (raw: string) => { frontmatter: F; body: string } | undefined,
+  isActive: (frontmatter: F) => boolean,
 ): Promise<AggregatorSource | undefined> {
   let raw: string;
   try {
@@ -125,40 +132,31 @@ async function loadMdcSource(
   } catch {
     return undefined;
   }
-  const parsed = parseMdc(raw);
-  if (parsed === undefined) return undefined;
-  if (!shouldActivate(parsed.frontmatter, opts.touchedFiles ?? [])) return undefined;
-  return {
-    id,
-    source: path,
-    content: parsed.body,
-    priority: spec.priority,
-    truncated: false,
-  };
+  const parsed = parse(raw);
+  if (parsed === undefined || !isActive(parsed.frontmatter)) return undefined;
+  return { id, source: path, content: parsed.body, priority: spec.priority, truncated: false };
 }
 
-async function loadRulesSource(
+function loadMdcSource(
   spec: DiscoverySpec,
   path: string,
   id: string,
   opts: DiscoveryRunnerOptions,
 ): Promise<AggregatorSource | undefined> {
-  let raw: string;
-  try {
-    raw = await readFile(path, "utf8");
-  } catch {
-    return undefined;
-  }
-  const parsed = parseRules(raw);
-  if (parsed === undefined) return undefined;
-  if (!shouldActivateRule(parsed.frontmatter, opts.touchedFiles ?? [])) return undefined;
-  return {
-    id,
-    source: path,
-    content: parsed.body,
-    priority: spec.priority,
-    truncated: false,
-  };
+  return loadParsedSource(spec, path, id, parseMdc, (fm) =>
+    shouldActivate(fm, opts.touchedFiles ?? []),
+  );
+}
+
+function loadRulesSource(
+  spec: DiscoverySpec,
+  path: string,
+  id: string,
+  opts: DiscoveryRunnerOptions,
+): Promise<AggregatorSource | undefined> {
+  return loadParsedSource(spec, path, id, parseRules, (fm) =>
+    shouldActivateRule(fm, opts.touchedFiles ?? []),
+  );
 }
 
 async function loadPlainMarkdownSource(

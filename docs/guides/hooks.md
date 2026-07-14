@@ -19,7 +19,29 @@ A programmatic `onHook` callback would tempt callers to special-case rules per i
 
 ## Configuration format
 
-The format and supported hook types are documented in the broader Theo hooks reference. The SDK's role is to load `.theokit/hooks.json` according to `local.settingSources` and pass it down to the runtime.
+`.theokit/hooks.json` uses the **same shape as Claude Code's `settings.json` hooks** — a nested object keyed by lifecycle event, each event holding matcher-groups of shell commands:
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "shell",
+        "hooks": [
+          { "type": "command", "command": "node .theokit/policy.js", "timeout": 30 }
+        ]
+      }
+    ]
+  }
+}
+```
+
+- **Events** — `PreToolUse` / `PostToolUse` (filtered by `matcher` on the tool name), `UserPromptSubmit` (before a `send()`), `Stop` (run end). A Claude Code event with no SDK firing point (`SessionStart`, `PreCompact`, …) is skipped with a warning.
+- **`matcher`** — a regex against the tool name (`PreToolUse` / `PostToolUse`); omit to match every tool.
+- **`type`** — always `"command"`; **`command`** runs via `sh -c`; **`timeout`** is in seconds (default 30).
+- The command receives the hook payload as **JSON on stdin** (`{ event, tool?, input?, agentId?, runId? }`); a **non-zero exit on `PreToolUse` / `UserPromptSubmit` blocks** the tool/run, or print `{"decision":"deny","reason":"…"}` on stdout.
+
+> The old `.theokit/hooks/*.md` markdown form is **no longer supported** (ADR 0016) — a stray markdown dir is not loaded and warns to migrate to `.theokit/hooks.json`.
 
 ## Reload without restart
 
