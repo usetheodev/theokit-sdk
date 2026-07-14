@@ -225,6 +225,8 @@ async function vetoFromPluginPreHook(
     args: call.input,
     agentId: inputs.agentId,
     runId: inputs.runId,
+    // SE1 — thread the run's permission mode so a PermissionPlugin gates per-run.
+    ...(inputs.permissionMode !== undefined ? { permissionMode: inputs.permissionMode } : {}),
   });
   if (pluginVeto === undefined) return undefined;
   // SE2 — a plugin veto (e.g. the permission gate) is a runtime-observability
