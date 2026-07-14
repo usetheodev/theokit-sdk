@@ -633,11 +633,11 @@ the a peer framework Agent-skills comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `AgentOptions.skills` accepts a resolver `(ctx) => SkillsSettings | Promise<SkillsSettings>` in addition to the static object; evaluated per run before skill discovery/assembly.
-- [ ] Back-compat: a static `SkillsSettings` object behaves exactly as today.
-- [ ] The resolver receives a documented context (mirror the systemPrompt resolver's `ctx`); the SDK imposes no timeout (consumer wraps their own).
-- [ ] TDD: a resolver returning different skills for different contexts is honored per run; a static object is unchanged.
-- [ ] Docs + Changeset.
+- [x] `AgentOptions.skills` accepts a resolver `(ctx) => SkillsSettings | Promise<SkillsSettings>` in addition to the static object; evaluated per run before skill discovery/assembly.
+- [x] Back-compat: a static `SkillsSettings` object behaves exactly as today.
+- [x] The resolver receives a documented context (mirror the systemPrompt resolver's `ctx`); the SDK imposes no timeout (consumer wraps their own).
+- [x] TDD: a resolver returning different skills for different contexts is honored per run; a static object is unchanged.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (mirrors the existing systemPrompt-resolver pattern).
 
@@ -660,11 +660,11 @@ comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `defineSkillReadTool(skills: InlineSkill[])` returns a `CustomTool` (name `skill_read`) whose input is a skill name; the handler returns the matching skill's `instructions` and (SE21) `references`; an unknown name returns a typed "not found" tool result (a string the model can act on, NOT a throw that kills the run).
-- [ ] The tool is OPT-IN — the consumer adds it to `tools`; the SDK never auto-injects it (bring-your-own-tools preserved).
-- [ ] Back-compat: nothing changes for agents that don't add the tool.
-- [ ] TDD: the tool returns a skill's body + references by name; an unknown name returns the not-found result; the returned value is a valid `CustomTool`.
-- [ ] Docs + Changeset; **ADR** recording the opt-in-factory decision (vs a peer framework's auto-injected tools) + the eager-block + lazy-read hybrid.
+- [x] `defineSkillReadTool(skills: InlineSkill[])` returns a `CustomTool` (name `skill_read`) whose input is a skill name; the handler returns the matching skill's `instructions` and (SE21) `references`; an unknown name returns a typed "not found" tool result (a string the model can act on, NOT a throw that kills the run).
+- [x] The tool is OPT-IN — the consumer adds it to `tools`; the SDK never auto-injects it (bring-your-own-tools preserved).
+- [x] Back-compat: nothing changes for agents that don't add the tool.
+- [x] TDD: the tool returns a skill's body + references by name; an unknown name returns the not-found result; the returned value is a valid `CustomTool`.
+- [x] Docs + Changeset; **ADR** recording the opt-in-factory decision (vs a peer framework's auto-injected tools) + the eager-block + lazy-read hybrid.
 
 **Dependencies:** SE21 (`references` on the inline skill — the tool surfaces them).
 
@@ -690,14 +690,14 @@ Guardrails comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] A public `Processor` interface: `{ id; processInput?(ctx) => messages | abort; processOutput?(ctx) => output | abort; onViolation? }` (exact shape decided in the plan/ADR — reuse vs extend the existing hook seam is an explicit ADR choice).
-- [ ] `AgentOptions.inputProcessors?` run in order before the LLM call; each may rewrite the user message(s) or `abort(reason)`. `outputProcessors?` run in order on the model response before it reaches the caller; each may rewrite/redact or `abort(reason)`.
-- [ ] `strategy` support: at minimum `block` (abort) + `rewrite`/`redact` (transform-and-continue); `warn`/`detect` are non-blocking (fire `onViolation`, continue). `translate` is a processor concern (SE26 delegated), not a core strategy requirement.
-- [ ] `abort()` semantics: an aborted run yields a typed tripwire — `result.tripwire { reason, processorId }` on the wait/generate path AND a `tripwire` run-event on the stream path (mirror `SendOptions.onRunEvent` / `RunEvent`). Subsequent processors do NOT run after an abort.
-- [ ] `onViolation(ProcessorViolation { processorId, message, detail })` fires on abort AND on `warn`; callback errors are swallowed (never break the pipeline).
-- [ ] Back-compat: no processors ⇒ behavior identical to today. Cloud agents reject function-carrying processors (mirror the systemPrompt/skills resolver cloud rule) OR the ADR records how processors serialize.
-- [ ] TDD: an input `block` processor aborts before the LLM (tripwire, no model call); an input `rewrite` processor mutates the message the model sees; an output `redact` processor transforms the returned text; `onViolation` fires with the right payload; ordering + short-circuit-on-abort are asserted.
-- [ ] Docs + Changeset + **ADR** (seam design: dedicated pipeline vs extending `pre_user_send`/`post_assistant_reply`; tripwire shape; cloud serialization).
+- [x] A public `Processor` interface: `{ id; processInput?(ctx) => messages | abort; processOutput?(ctx) => output | abort; onViolation? }` (exact shape decided in the plan/ADR — reuse vs extend the existing hook seam is an explicit ADR choice).
+- [x] `AgentOptions.inputProcessors?` run in order before the LLM call; each may rewrite the user message(s) or `abort(reason)`. `outputProcessors?` run in order on the model response before it reaches the caller; each may rewrite/redact or `abort(reason)`.
+- [x] `strategy` support: at minimum `block` (abort) + `rewrite`/`redact` (transform-and-continue); `warn`/`detect` are non-blocking (fire `onViolation`, continue). `translate` is a processor concern (SE26 delegated), not a core strategy requirement.
+- [x] `abort()` semantics: an aborted run yields a typed tripwire — `result.tripwire { reason, processorId }` on the wait/generate path AND a `tripwire` run-event on the stream path (mirror `SendOptions.onRunEvent` / `RunEvent`). Subsequent processors do NOT run after an abort.
+- [x] `onViolation(ProcessorViolation { processorId, message, detail })` fires on abort AND on `warn`; callback errors are swallowed (never break the pipeline).
+- [x] Back-compat: no processors ⇒ behavior identical to today. Cloud agents reject function-carrying processors (mirror the systemPrompt/skills resolver cloud rule) OR the ADR records how processors serialize.
+- [x] TDD: an input `block` processor aborts before the LLM (tripwire, no model call); an input `rewrite` processor mutates the message the model sees; an output `redact` processor transforms the returned text; `onViolation` fires with the right payload; ordering + short-circuit-on-abort are asserted.
+- [x] Docs + Changeset + **ADR** (seam design: dedicated pipeline vs extending `pre_user_send`/`post_assistant_reply`; tripwire shape; cloud serialization).
 
 **Dependencies:** none (extends the local runtime; reuses the SE2 `RunEvent` stream + the SE1 abort/veto precedent).
 
@@ -745,11 +745,11 @@ comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] An **ADR** recording: (a) the SE24 seam is the extension point; (b) LLM-classifier processors are delegated (not shipped in core); (c) re-evaluation triggers (team ≥ 3 engineers, or ≥ N shipped apps blocked) mirroring AUTH-DELEGATION; (d) if ever adopted, they ship as separate optional `@theokit/guardrail-*` packages, never in core.
-- [ ] A `docs/concepts/guardrails.md` recommendation page: how to build moderation / PII / injection / language / prompt-scrubber processors on the SE24 seam, with recommended external classifiers.
-- [ ] A **worked example** (in `examples/`) of a moderation-style processor built on the SE24 seam calling an external classifier (a stub/fake classifier is acceptable for the example — the point is the seam wiring, not a bundled model).
-- [ ] NO concrete classifier processor added to `@theokit/sdk` core (verifiable: no new `Moderation`/`PII`/`Injection` runtime export).
-- [ ] Changeset (docs/ADR only — no minor API surface unless the example needs a tiny seam helper).
+- [x] An **ADR** recording: (a) the SE24 seam is the extension point; (b) LLM-classifier processors are delegated (not shipped in core); (c) re-evaluation triggers (team ≥ 3 engineers, or ≥ N shipped apps blocked) mirroring AUTH-DELEGATION; (d) if ever adopted, they ship as separate optional `@theokit/guardrail-*` packages, never in core.
+- [x] A `docs/concepts/guardrails.md` recommendation page: how to build moderation / PII / injection / language / prompt-scrubber processors on the SE24 seam, with recommended external classifiers.
+- [x] A **worked example** (in `examples/`) of a moderation-style processor built on the SE24 seam calling an external classifier (a stub/fake classifier is acceptable for the example — the point is the seam wiring, not a bundled model).
+- [x] NO concrete classifier processor added to `@theokit/sdk` core (verifiable: no new `Moderation`/`PII`/`Injection` runtime export).
+- [x] Changeset (docs/ADR only — no minor API surface unless the example needs a tiny seam helper).
 
 **Dependencies:** SE24 (the seam the delegated processors build on).
 
@@ -771,13 +771,13 @@ and the final output against `outputSchema` before returning. From the a peer fr
 
 **Definition of done:**
 
-- [ ] `WorkflowOptions.inputSchema?: ZodType` / `outputSchema?: ZodType` (optional, back-compat: absent ⇒ no whole-workflow validation, exactly as today).
-- [ ] `Workflow.run(input)` validates `input` against `inputSchema` (when set) BEFORE executing step 1 — a mismatch fails fast with a typed `WorkflowInputError` (Rule 8), never a silent coerce.
-- [ ] The final workflow output is validated against `outputSchema` (when set) before `WorkflowRun.output` is populated — a mismatch surfaces as `status: "failed"` with a typed error (not a throw that escapes `run()`).
-- [ ] `workflowAsTool` MAY read `workflow`'s `inputSchema` when the spec omits one (removing the SE19 caller-must-supply requirement when the workflow now declares it) — optional sub-goal, gated on not breaking the SE19 structural `{ run }` contract.
-- [ ] Typed inference: `Workflow.create<I, O>` continues to infer, and `inputSchema`/`outputSchema` (when Zod) refine `TInput`/`TOutput`.
-- [ ] TDD: a valid input passes; an invalid input fails fast with the typed error before any step runs; an output-schema mismatch yields `status: "failed"`; absent schemas ⇒ unchanged.
-- [ ] Docs + Changeset.
+- [x] `WorkflowOptions.inputSchema?: ZodType` / `outputSchema?: ZodType` (optional, back-compat: absent ⇒ no whole-workflow validation, exactly as today).
+- [x] `Workflow.run(input)` validates `input` against `inputSchema` (when set) BEFORE executing step 1 — a mismatch fails fast with a typed `WorkflowInputError` (Rule 8), never a silent coerce.
+- [x] The final workflow output is validated against `outputSchema` (when set) before `WorkflowRun.output` is populated — a mismatch surfaces as `status: "failed"` with a typed error (not a throw that escapes `run()`).
+- [x] `workflowAsTool` MAY read `workflow`'s `inputSchema` when the spec omits one (removing the SE19 caller-must-supply requirement when the workflow now declares it) — optional sub-goal, gated on not breaking the SE19 structural `{ run }` contract.
+- [x] Typed inference: `Workflow.create<I, O>` continues to infer, and `inputSchema`/`outputSchema` (when Zod) refine `TInput`/`TOutput`.
+- [x] TDD: a valid input passes; an invalid input fails fast with the typed error before any step runs; an output-schema mismatch yields `status: "failed"`; absent schemas ⇒ unchanged.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends `WorkflowOptions`; the executor already has the input at entry + the output at exit).
 

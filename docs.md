@@ -947,6 +947,34 @@ const rollTool = Tool.create({
 
 Use when: custom tools whose handlers expect typed input and benefit from automatic runtime validation. Invalid input becomes `tool_result(isError)` with a Zod message instead of silent NaN/undefined.
 
+SkillReadTool.create() — lazy model-facing skill read (SE23)
+
+```typescript
+import { SkillReadTool } from "@theokit/sdk";
+
+const skillRead = SkillReadTool.create(inlineSkills);   // returns a CustomTool named `skill_read`
+const agent = await Agent.create({ apiKey, model, skills: { inline: inlineSkills }, tools: [skillRead] });
+```
+
+An OPT-IN tool the MODEL can call to lazily read one skill's FULL body (and its SE21 `references`) on demand — the hybrid to eager `<skills>`-block injection when you want the model to pull a skill only when needed. `SkillReadTool.create(skills)` returns a `CustomTool` named `skill_read`; on call it returns the matching skill's `instructions` + `references`, or a typed "not found" string listing the available skills (no throw) for an unknown name. The SDK never auto-injects it — a consumer adds it to `tools`. Agents that don't add it are unchanged (ADR 0007).
+
+Guardrail processors — `inputProcessors` / `outputProcessors` (SE24/SE25)
+
+```typescript
+import { Agent, UnicodeNormalizer, TokenLimiter, type Processor } from "@theokit/sdk";
+
+const agent = await Agent.create({
+  apiKey, model,
+  inputProcessors: [
+    UnicodeNormalizer.create({ stripControlChars: true, collapseWhitespace: true }),  // SE25 — deterministic
+    TokenLimiter.create({ limit: 4000, strategy: "block" }),
+  ],
+  outputProcessors: [ TokenLimiter.create({ limit: 2000 }) ],  // default strategy: truncate
+});
+```
+
+`AgentOptions.inputProcessors` run in order BEFORE the LLM call; `outputProcessors` run on the response. Each `Processor` is `{ id; processInput?; processOutput?; onViolation? }`; a processor may rewrite/redact its text (return a string) or `ctx.abort(reason)` / `ctx.warn(reason)`. An `abort()` genuinely stops the run: the input path returns a terminal `status: "cancelled"` WITHOUT dispatching to the model, and a `tripwire` is surfaced on `RunResult.tripwire` and as a `tripwire` run-event on the stream; subsequent processors are short-circuited. `onViolation` fires on both abort and warn (its own errors are swallowed). Absent ⇒ unchanged (back-compat). Cloud rejects function-carrying processors. Built-in deterministic (no-LLM) processors: `UnicodeNormalizer` (NFC + optional control-char strip + whitespace collapse) and `TokenLimiter` (char estimate ~chars/4 via `estimateTokens`, `truncate` default or `block`). LLM-classifier guardrails (moderation / PII / injection) are built ON this seam — see `docs/concepts/guardrails.md` and ADR 0009; they are deliberately NOT shipped in core.
+
 Agent.builder()
 
 function Agent.builder(): AgentBuilder;
@@ -1489,6 +1517,8 @@ interface SkillsOptions {
   paths?: string[];
 }
 `enabled` names skills to load from configured skill sources. `paths` may point at explicit local skill directories. Cloud rejects local-only paths unless the files are committed in the repo.
+
+`AgentOptions.skills` also accepts a **resolver function** (SE22) — `(ctx: SkillsResolverContext) => SkillsSettings | Promise<SkillsSettings>` — evaluated per `send()` before skill assembly, so the active skill set can vary by run/context (e.g. admin vs. user). Mirrors the `systemPrompt` resolver. The context carries `agentId`, `cwd`, `model`, `userMessage`, and `memory`. No SDK timeout is imposed; a throwing resolver fails the run (fail-fast). A static `SkillsSettings` behaves exactly as before (back-compat). Local runtime only — cloud rejects the function form (`cloud_incompatible_function_resolver`).
 
 SDKSkillsManager
 
@@ -2880,6 +2910,10 @@ fn("validate", (input, ctx) => {...}, {
 // agent step — agent.send with rendered prompt + optional retry
 agentStep("classify", agent, (input) => `prompt: ${input}`, { retry: {...} });
 ```
+
+### Whole-workflow I/O validation — `inputSchema` / `outputSchema` (SE27)
+
+`Workflow.create({ name, inputSchema?, outputSchema? })` accepts optional Zod schemas that validate the WHOLE workflow's input and output (distinct from per-step `fn()` schemas). The input is validated at run start — BEFORE step 1 — and a mismatch fails fast with a typed `WorkflowInputError` (no step runs, no silent coercion). On a `completed` run, the final output is validated against `outputSchema`; a mismatch yields `status: "failed"` carrying a typed `WorkflowOutputError` (the error never throws out of `run()`; suspended/failed runs skip output validation). Absent ⇒ no validation (back-compat). Both error classes are exported.
 
 ### Workflow as an agent tool — `workflowAsTool` (SE19)
 
