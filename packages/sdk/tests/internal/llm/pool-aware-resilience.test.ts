@@ -36,7 +36,6 @@ function rate429(): RateLimitError {
   });
 }
 
-
 function okFactory(
   script: (key: string, call: number) => "ok" | RateLimitError,
 ): (apiKey: string) => LlmClient {
@@ -87,6 +86,23 @@ describe("M2 #60 — pool 429 full-jitter backoff", () => {
     await vi.advanceTimersByTimeAsync(300); // now past the 200ms backoff
     const finish = await p;
     expect(finish.text).toContain("k1");
+  });
+
+  it("SE2 — invokes onRateLimit before backing off a 429 retry", async () => {
+    const pool = poolOf(["k1"]);
+    const factory = okFactory((_key, call) => (call === 1 ? rate429() : "ok"));
+    const calls: Array<{ attempt: number; retryAfterMs?: number }> = [];
+    const client = new PoolAwareLlmClient(pool, factory, 30_000, {
+      backoffBaseMs: 400,
+      rng: () => 0.5,
+      onRateLimit: (info) => calls.push(info),
+    });
+    await vi.advanceTimersByTimeAsync(0);
+    const p = drain(client.stream({} as LlmRequest, new AbortController().signal));
+    await vi.advanceTimersByTimeAsync(500); // past the 200ms backoff → retry completes
+    await p;
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.attempt).toBe(1);
   });
 });
 

@@ -23,6 +23,7 @@ import { createMcpClient, type McpClient } from "../../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../../providers/index.js";
 import { registerPluginProviderProfiles } from "../../providers/register-plugin-providers.js";
 import { createTelemetry } from "../../telemetry/tracer.js";
+import { emitRunEvent } from "../../../types/run-events.js";
 import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
 import { withToolWhitelist } from "../concurrency/async-local-storage.js";
 import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
@@ -238,12 +239,21 @@ function buildLoopInputs(
   // Mirrors how `primary` derives from routes[0]; applied to the resolved chain.
   const extractToolCallsFromContent =
     options.agentOptions.providers?.routes?.[0]?.extractToolCallsFromContent;
+  // SE2 — when the caller subscribed via `onRunEvent`, a 429 retry surfaces a
+  // typed `rate_limit` RunEvent (the pool-aware client calls this before backing off).
+  const rateLimitSink = options.sendOptions.onRunEvent;
   const chain = resolveProviderChain({
     primary,
     ...(fallback !== undefined ? { fallback } : {}),
     ...(apiKeys !== undefined ? { apiKeys } : {}),
     ...(credentialPoolStrategy !== undefined ? { credentialPoolStrategy } : {}),
     ...(extractToolCallsFromContent === true ? { extractToolCallsFromContent: true } : {}),
+    ...(rateLimitSink !== undefined
+      ? {
+          onRateLimit: (info: { attempt: number; retryAfterMs?: number }) =>
+            emitRunEvent(rateLimitSink, { type: "rate_limit", ...info }),
+        }
+      : {}),
   });
   const llm =
     chain.length === 1 ? (chain[0] as (typeof chain)[number]) : new FallbackLlmClient(chain);

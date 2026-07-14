@@ -45,6 +45,11 @@ export interface ProviderRouterOptions {
    * to the resolved chain; fail-open, so a non-leaking provider is unaffected.
    */
   extractToolCallsFromContent?: boolean;
+  /**
+   * SE2 — forwarded into the pool-aware client so a 429 retry surfaces a
+   * `rate_limit` RunEvent. Wired from `SendOptions.onRunEvent` at the run boundary.
+   */
+  onRateLimit?: (info: { attempt: number; retryAfterMs?: number }) => void;
 }
 
 export async function resolveProviderChainAsync(
@@ -105,9 +110,16 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     baseProfile.extractToolCallsFromContent !== true
       ? { ...baseProfile, extractToolCallsFromContent: true }
       : baseProfile;
+  const resilience =
+    routerOptions.onRateLimit !== undefined ? { onRateLimit: routerOptions.onRateLimit } : {};
   const ambient = currentCredentialPool(name);
   if (ambient !== undefined) {
-    return new PoolAwareLlmClient(ambient, (apiKey) => selectTransport(profile, apiKey));
+    return new PoolAwareLlmClient(
+      ambient,
+      (apiKey) => selectTransport(profile, apiKey),
+      undefined,
+      resilience,
+    );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
   const noAuthOverride = maybeBuildNoAuthTransport(profile, poolKeys);
@@ -147,7 +159,14 @@ function buildPoolOrSingle(args: {
       newPooledCredential({ provider: name, accessToken, priority, source: "manual" }),
     );
     const pool = new CredentialPool(name, entries, strategy);
-    return new PoolAwareLlmClient(pool, (apiKey) => selectTransport(profile, apiKey));
+    const resilience =
+      routerOptions.onRateLimit !== undefined ? { onRateLimit: routerOptions.onRateLimit } : {};
+    return new PoolAwareLlmClient(
+      pool,
+      (apiKey) => selectTransport(profile, apiKey),
+      undefined,
+      resilience,
+    );
   }
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
   // D182: `authType: "none"` providers fall back to a sentinel placeholder
