@@ -930,13 +930,13 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] A thread-scoped objective record (`{ objective, options, status: 'active'|'done'|'paused', runsUsed }`) is PERSISTED via the existing `ConversationStorageAdapter` (a new key/namespace on the thread — reuse the seam, add no new store). Survives reload (read back after a fresh agent instance).
-- [ ] `agent.setObjective(objective, { threadId, ...options })` / `getObjective({ threadId })` / `updateObjectiveOptions({ threadId, ...})` (only provided fields written; unset fall back to agent `goal` config) / `clearObjective({ threadId })`. All **no-op when the run is not memory-backed** (no storage / no threadId) — mirror a peer framework.
-- [ ] Optional standing `goal` config on `AgentOptions` (`{ judge?/judgeModel?, maxRuns?, prompt? }`) — per-objective values (from `setObjective`) take precedence over the standing config, and that precedence is remembered in the record. The judge is the activation switch: no judge resolved ⇒ the standing objective is inert (no scoring, no budget consumed).
-- [ ] `runUntil` (or a thin `runUntil()`-with-no-arg entrypoint) reads the durable objective when no explicit goal is passed, and writes `runsUsed`/`status` back to storage so `maxRuns` exhaustion leaves it `active` (raising `maxRuns` later resumes).
-- [ ] Back-compat: absent a standing `goal` config + no `setObjective` call ⇒ `runUntil(goal, opts)` behaves EXACTLY as today (transient, D115-D121). No behavior change for existing callers.
-- [ ] TDD: set → persist → new agent instance reads it back; update-options precedence; clear; no-op without threadId/storage; `maxRuns` exhaustion leaves `active` + a later raise resumes; a run with no judge is inert.
-- [ ] Docs + Changeset; **ADR** for the objective record shape + the ConversationStorage key/namespace.
+- [x] A thread-scoped objective record (`{ objective, options, status: 'active'|'done'|'paused', runsUsed }`) is PERSISTED via the existing `ConversationStorageAdapter` (a new key/namespace on the thread — reuse the seam, add no new store). Survives reload (read back after a fresh agent instance).
+- [x] `agent.setObjective(objective, { threadId, ...options })` / `getObjective({ threadId })` / `updateObjectiveOptions({ threadId, ...})` (only provided fields written; unset fall back to agent `goal` config) / `clearObjective({ threadId })`. All **no-op when the run is not memory-backed** (no storage / no threadId) — mirror a peer framework.
+- [x] Optional standing `goal` config on `AgentOptions` (`{ judge?/judgeModel?, maxRuns?, prompt? }`) — per-objective values (from `setObjective`) take precedence over the standing config, and that precedence is remembered in the record. The judge is the activation switch: no judge resolved ⇒ the standing objective is inert (no scoring, no budget consumed).
+- [x] `runUntil` (or a thin `runUntil()`-with-no-arg entrypoint) reads the durable objective when no explicit goal is passed, and writes `runsUsed`/`status` back to storage so `maxRuns` exhaustion leaves it `active` (raising `maxRuns` later resumes).
+- [x] Back-compat: absent a standing `goal` config + no `setObjective` call ⇒ `runUntil(goal, opts)` behaves EXACTLY as today (transient, D115-D121). No behavior change for existing callers.
+- [x] TDD: set → persist → new agent instance reads it back; update-options precedence; clear; no-op without threadId/storage; `maxRuns` exhaustion leaves `active` + a later raise resumes; a run with no judge is inert.
+- [x] Docs + Changeset; **ADR** for the objective record shape + the ConversationStorage key/namespace.
 
 **Dependencies:** `runUntil` (D115-D121 — shipped), `ConversationStorageAdapter` (shipped seam), SE29 workflow-state ownership discipline (mirror for the record shape). No new subsystem.
 
@@ -953,13 +953,13 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] `SendOptions.isTaskComplete` (per-send completion check): after a `send()`, the existing LLM-judge scorer evaluates the response against a criterion; a typed result surfaces (reuse `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts`). Absent ⇒ unchanged.
-- [ ] (Optional, ADR-gated) in-agentic-loop goal step: the SE33 durable objective is scored ONCE PER tool-loop iteration (right after `isTaskComplete`), gating continuation/stop — a NO-OP for background-task / mid-tool-loop / working-memory-only iterations (mirror a peer framework's gating). This is the only loop-touching change and MUST be behind an explicit ADR decision (it modifies the shipped agent loop).
-- [ ] State-signal projection: when a standing objective (SE33) is set, `<current-objective>` is auto-injected into the model context each turn (a lightweight system-prompt/context signal — reuse the SE22 dynamic-skills / systemPrompt-resolver seam if it fits; do NOT build a general signal-provider framework — YAGNI).
-- [ ] Typed `goal`/`task_complete` evaluation events on the run-event stream (align with the existing `GoalEvent` union + `run-events.ts`).
-- [ ] Back-compat: all three additions OPT-IN; absent them the loop + `send()` are byte-identical to today.
-- [ ] TDD: `isTaskComplete` gates a single send; the in-loop step (if built) evaluates a mid-run message against the standing objective + is a no-op on non-candidate iterations; `<current-objective>` appears in the assembled context; the loop is unchanged when nothing is configured.
-- [ ] Docs + Changeset; **ADR REQUIRED** for the in-agentic-loop step (it modifies the shipped loop — the highest-scrutiny change).
+- [x] `SendOptions.isTaskComplete` (per-send completion check): after a `send()`, the existing LLM-judge scorer evaluates the response against a criterion; a typed result surfaces (reuse `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts`). Absent ⇒ unchanged.
+- [x] (Optional, ADR-gated) in-agentic-loop goal step: the SE33 durable objective is scored ONCE PER tool-loop iteration (right after `isTaskComplete`), gating continuation/stop — a NO-OP for background-task / mid-tool-loop / working-memory-only iterations (mirror a peer framework's gating). This is the only loop-touching change and MUST be behind an explicit ADR decision (it modifies the shipped agent loop).
+- [x] State-signal projection: when a standing objective (SE33) is set, `<current-objective>` is auto-injected into the model context each turn (a lightweight system-prompt/context signal — reuse the SE22 dynamic-skills / systemPrompt-resolver seam if it fits; do NOT build a general signal-provider framework — YAGNI).
+- [x] Typed `goal`/`task_complete` evaluation events on the run-event stream (align with the existing `GoalEvent` union + `run-events.ts`).
+- [x] Back-compat: all three additions OPT-IN; absent them the loop + `send()` are byte-identical to today.
+- [x] TDD: `isTaskComplete` gates a single send; the in-loop step (if built) evaluates a mid-run message against the standing objective + is a no-op on non-candidate iterations; `<current-objective>` appears in the assembled context; the loop is unchanged when nothing is configured.
+- [x] Docs + Changeset; **ADR REQUIRED** for the in-agentic-loop step (it modifies the shipped loop — the highest-scrutiny change).
 
 **Dependencies:** SE33 (the durable objective the in-loop step + projection read), `runUntil` + `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts` (shipped). SE22 systemPrompt-resolver seam (reuse for the projection).
 
@@ -978,13 +978,13 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] `CronCreateOptions` / `CronJob` gain `workflow?: Workflow` + `inputData?: unknown`, MUTUALLY EXCLUSIVE with `agent`/`agentId` (exactly one target: `agent` | `agentId` | `workflow`). `message` is REQUIRED for agent targets, FORBIDDEN for a workflow target (a workflow takes `inputData`, not a chat message). A `ConfigurationError` (`cron_ambiguous_target` / `cron_no_target` / `cron_workflow_message`) when zero or >1 target is set, or `message` is paired with `workflow` — validated in `createCronJob`, extending the existing `agent`-XOR-`agentId` guard.
-- [ ] `runCronJob(job)` branches on the target: `workflow` ⇒ `job.workflow.run(job.inputData)` (returns the terminal `WorkflowRun`); `agent`/`agentId` ⇒ unchanged (`agent.send(message)` → `Run`). Return type widens to `Run | WorkflowRun`. `Cron.run(jobId)` (manual off-schedule fire) returns the `WorkflowRun` for a workflow job. `run-job.ts` calls `.run()` on the held instance — it does NOT import `workflow.ts` (the instance carries its own `.run`), preserving the dependency direction.
-- [ ] The scheduler default fire handler (`setCronFireHandler` in `cron.ts`) handles BOTH result shapes: an agent `Run` (has `.wait()`/`.cancel()`) vs a `WorkflowRun` (already terminal — no `.wait()`). The Task-registry wrap records the right terminal status/runId for each. The in-process Croner scheduler, `nextRunAt`/`lastRunAt`, pause/resume, timezone — all REUSED unchanged.
-- [ ] Back-compat: an agent-target job (`agent`/`agentId` + `message`) is byte-identical to today; the new fields are additive + optional. No behavior change for existing callers.
-- [ ] (Deferred, ADR-gated) **fire lifecycle hooks** (`prepare` / `onFinish` / `onError` / `onAbort`) — DEFERRED per ADR 0014 (no concrete consumer; YAGNI). The ADR records the named re-eval trigger (mirrors SE34's in-loop-step deferral). Not built in SE35.
-- [ ] TDD: create a workflow-target job → held with `workflow`/`inputData`; a manual `Cron.run` fires the workflow with `inputData` and returns the terminal `WorkflowRun`; ambiguous/zero target rejected typed; `message`+`workflow` rejected typed; agent-target path unchanged; the scheduler handler records a workflow fire's terminal status without calling `.wait()`.
-- [ ] Docs + Changeset; **ADR 0014** for the workflow-target design (instance-not-id rationale + the hooks deferral).
+- [x] `CronCreateOptions` / `CronJob` gain `workflow?: Workflow` + `inputData?: unknown`, MUTUALLY EXCLUSIVE with `agent`/`agentId` (exactly one target: `agent` | `agentId` | `workflow`). `message` is REQUIRED for agent targets, FORBIDDEN for a workflow target (a workflow takes `inputData`, not a chat message). A `ConfigurationError` (`cron_ambiguous_target` / `cron_no_target` / `cron_workflow_message`) when zero or >1 target is set, or `message` is paired with `workflow` — validated in `createCronJob`, extending the existing `agent`-XOR-`agentId` guard.
+- [x] `runCronJob(job)` branches on the target: `workflow` ⇒ `job.workflow.run(job.inputData)` (returns the terminal `WorkflowRun`); `agent`/`agentId` ⇒ unchanged (`agent.send(message)` → `Run`). Return type widens to `Run | WorkflowRun`. `Cron.run(jobId)` (manual off-schedule fire) returns the `WorkflowRun` for a workflow job. `run-job.ts` calls `.run()` on the held instance — it does NOT import `workflow.ts` (the instance carries its own `.run`), preserving the dependency direction.
+- [x] The scheduler default fire handler (`setCronFireHandler` in `cron.ts`) handles BOTH result shapes: an agent `Run` (has `.wait()`/`.cancel()`) vs a `WorkflowRun` (already terminal — no `.wait()`). The Task-registry wrap records the right terminal status/runId for each. The in-process Croner scheduler, `nextRunAt`/`lastRunAt`, pause/resume, timezone — all REUSED unchanged.
+- [x] Back-compat: an agent-target job (`agent`/`agentId` + `message`) is byte-identical to today; the new fields are additive + optional. No behavior change for existing callers.
+- [x] (Deferred, ADR-gated) **fire lifecycle hooks** (`prepare` / `onFinish` / `onError` / `onAbort`) — DEFERRED per ADR 0014 (no concrete consumer; YAGNI). The ADR records the named re-eval trigger (mirrors SE34's in-loop-step deferral). Not built in SE35.
+- [x] TDD: create a workflow-target job → held with `workflow`/`inputData`; a manual `Cron.run` fires the workflow with `inputData` and returns the terminal `WorkflowRun`; ambiguous/zero target rejected typed; `message`+`workflow` rejected typed; agent-target path unchanged; the scheduler handler records a workflow fire's terminal status without calling `.wait()`.
+- [x] Docs + Changeset; **ADR 0014** for the workflow-target design (instance-not-id rationale + the hooks deferral).
 
 **Dependencies:** `Cron` (shipped — façade + `internal/cron/{scheduler,store,validate,run-job}.ts`), `Workflow` (SE27–30 — shipped `Workflow.create(opts).commit()` → `Workflow` instance + `.run(input)` → `Promise<WorkflowRun>`). No new subsystem, no new registry.
 
@@ -1012,14 +1012,14 @@ old `define*`/`create*` exports are REMOVED, not aliased. This **reverses Unbrea
 
 **Definition of done:**
 
-- [ ] ADR written that supersedes D431 and reverses Rule 9; documents the new convention "every public capability & utility factory ships as an `X.create()` static method" + the SOTA-divergence rationale.
-- [ ] Every listed factory converted to a namespace class with a static `create()`; old `define*`/`create*` exports REMOVED from every entrypoint barrel (hard break — no deprecated aliases).
-- [ ] `docs.md` (source of truth) + `README.md` updated to the new surface; zero `defineTool`/`createSquad`/… references remain (grep-clean).
-- [ ] `CLAUDE.md` Inviolable Rule 9 + the Locked-names table rewritten to the new convention (Locked-names change protocol: docs.md + README + CHANGELOG in the same PR).
-- [ ] jscodeshift codemod rewriting `defineX(...)`/`createX(...)` → `X.create(...)` for consumers, with a migration guide; the codemod round-trips the entire in-tree `examples/**` suite.
-- [ ] Every example under `examples/**` + the docs-site examples migrated and **re-verified against a real LLM (OpenRouter)** per `rules/real-llm-validation.md`.
-- [ ] All tests migrated; TDD per converted symbol: a regression test asserting the new `X.create` has behavior parity with the removed factory (RED first).
-- [ ] Major bump `@theokit/sdk@3.0.0` + Changeset; CHANGELOG `[Unreleased] § Removed` lists every removed factory, `§ Changed` documents the rename.
+- [x] ADR written that supersedes D431 and reverses Rule 9; documents the new convention "every public capability & utility factory ships as an `X.create()` static method" + the SOTA-divergence rationale.
+- [x] Every listed factory converted to a namespace class with a static `create()`; old `define*`/`create*` exports REMOVED from every entrypoint barrel (hard break — no deprecated aliases).
+- [x] `docs.md` (source of truth) + `README.md` updated to the new surface; zero `defineTool`/`createSquad`/… references remain (grep-clean).
+- [x] `CLAUDE.md` Inviolable Rule 9 + the Locked-names table rewritten to the new convention (Locked-names change protocol: docs.md + README + CHANGELOG in the same PR).
+- [x] jscodeshift codemod rewriting `defineX(...)`/`createX(...)` → `X.create(...)` for consumers, with a migration guide; the codemod round-trips the entire in-tree `examples/**` suite.
+- [x] Every example under `examples/**` + the docs-site examples migrated and **re-verified against a real LLM (OpenRouter)** per `rules/real-llm-validation.md`.
+- [x] All tests migrated; TDD per converted symbol: a regression test asserting the new `X.create` has behavior parity with the removed factory (RED first).
+- [x] Major bump `@theokit/sdk@3.0.0` + Changeset; CHANGELOG `[Unreleased] § Removed` lists every removed factory, `§ Changed` documents the rename.
 
 **Dependencies:** SE35 (and transitively all SE1–SE35, all `[x]`) — the redesign renames the
 **entire existing public surface**, so every prior slice that introduced a factory must be
