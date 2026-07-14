@@ -1,27 +1,40 @@
 # Architecture
 
-`theokit-sdk` is a TypeScript monorepo with one publishable package (`@theokit/sdk`) at `packages/sdk/`. Everything else is configuration, documentation, or read-only reference material.
+`theokit-sdk` is a pnpm-workspaces + turbo TypeScript monorepo. The flagship publishable package is `@theokit/sdk` at `packages/sdk/`; alongside it ship the rest of the Harness package set (extensions, memory adapters, CLI, ACP, codemods). See [`packages/README.md`](../../packages/README.md) for the family + status table.
 
 ## Monorepo layout
 
 ```
 theokit-sdk/
-├── packages/
-│   └── sdk/                    # @theokit/sdk — the publishable package
+├── packages/                   # 13 publishable packages (see packages/README.md)
+│   ├── sdk/                    # @theokit/sdk — the flagship package
+│   ├── sdk-tools/              # @theokit/sdk-tools — built-in coding tools (read/write/edit/glob/search)
+│   ├── sdk-budget/             # @theokit/sdk-budget — budget/cost extension
+│   ├── sdk-cache/              # @theokit/sdk-cache — semantic cache extension
+│   ├── sdk-handoff/            # @theokit/sdk-handoff — agent handoff extension
+│   ├── sdk-memory/             # @theokit/sdk-memory — memory extension
+│   ├── memory-honcho/         # memory adapter (Honcho)
+│   ├── memory-mem0/           # memory adapter (Mem0)
+│   ├── memory-supermemory/    # memory adapter (Supermemory)
+│   ├── cli/                    # @theokit/cli
+│   ├── acp/                    # @theokit/acp — Agent Client Protocol server
+│   └── codemod-sdk-2-0/, codemod-sdk-3-0/  # migration codemods
 ├── docs/                       # this folder — human-friendly documentation
 ├── docs.md                     # canonical machine-readable API contract
-├── referencia/                 # read-only reference projects (pi, a peer SDK, ...)
-├── package.json                # workspace root (private)
+├── package.json                # workspace root (private); scripts run through turbo
 ├── pnpm-workspace.yaml         # workspace globs
+├── turbo.json                  # turbo pipeline (build / test / typecheck caching)
 ├── tsconfig.base.json          # shared TS config — extended by each package
-├── biome.json                  # lint + format (excludes referencia/)
+├── biome.json                  # lint + format
 ├── .changeset/                 # Changesets config and in-flight entries
-├── .nvmrc                      # Pinned Node version
+├── .nvmrc                      # Pinned Node version (22.12+)
 ├── README.md                   # public front door
 ├── CLAUDE.md                   # contract for AI agents working here
 ├── CHANGELOG.md                # workspace-level changelog
-└── LICENSE                     # MIT
+└── LICENSE                     # Apache-2.0
 ```
+
+> Reference peers (pi, a peer SDK, …) are **no longer vendored in-tree**. They are cloned on demand under `.claude/knowledge-base/reference/` (gitignored) — read-only study material, never imported.
 
 ## Inside `packages/sdk/`
 
