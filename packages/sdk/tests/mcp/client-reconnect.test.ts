@@ -129,6 +129,82 @@ describe("MCP stdio reconnect-after-drop (#59)", () => {
     await client.close();
   });
 
+  it("recovers after a transient outage exceeds the per-cycle attempt bound (no permanent wedge, #59)", async () => {
+    // Server exits for the first 3 spawns (n<3), then stays alive + replies.
+    // A transient outage longer than the per-cycle bound must NOT permanently
+    // wedge the client — a later request must re-arm and reconnect.
+    const dir = mkdtempSync(join(tmpdir(), "mcp-rearm-"));
+    const counterFile = join(dir, "count");
+    writeFileSync(counterFile, "0");
+    const script = `
+      const fs = require("node:fs");
+      let n = 0;
+      try { n = parseInt(fs.readFileSync(${JSON.stringify(counterFile)}, "utf8"), 10) || 0; } catch {}
+      fs.writeFileSync(${JSON.stringify(counterFile)}, String(n + 1));
+      if (n < 3) { process.exit(0); } // transient outage: first 3 spawns drop
+      let buf = "";
+      process.stdin.on("data", (d) => {
+        buf += d; let i;
+        while ((i = buf.indexOf("\\n")) >= 0) {
+          const line = buf.slice(0, i); buf = buf.slice(i + 1);
+          if (!line.trim()) continue;
+          const msg = JSON.parse(line);
+          process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { tools: [] } }) + "\\n");
+        }
+      });
+    `;
+    const client = createMcpClient("rearm", {
+      type: "stdio",
+      command: "node",
+      args: ["-e", script],
+      requestTimeoutMs: 30_000,
+    });
+    await expect(client.initialize()).rejects.toBeDefined(); // spawn 0 exits → drop
+
+    // Old code wedges permanently after the lifetime attempt cap; the fix re-arms
+    // per request so the healthy spawn (n>=3) is eventually reached.
+    let recovered = false;
+    for (let i = 0; i < 6; i++) {
+      try {
+        const tools = await client.listTools();
+        expect(tools).toEqual([]);
+        recovered = true;
+        break;
+      } catch {
+        // still in the outage window — try again
+      }
+    }
+    expect(recovered).toBe(true);
+    await client.close();
+  });
+
+  it("http client recovers on the next request after a transport failure (#59, stateless)", async () => {
+    // The HTTP transport is stateless — each POST opens a fresh connection — so a
+    // transport failure on one request must NOT wedge the client; the next request
+    // reconnects inherently. (Plan D3 promised this test; it was missing.)
+    let calls = 0;
+    const okResponse = (result: unknown): Response =>
+      ({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ jsonrpc: "2.0", id: calls, result }),
+      }) as unknown as Response;
+    const flaky: typeof fetch = () => {
+      calls += 1;
+      if (calls === 2) return Promise.reject(new Error("ECONNRESET")); // 1st listTools drops
+      return Promise.resolve(okResponse({ tools: [] }));
+    };
+    const client = createMcpClient(
+      "http-recover",
+      { type: "http", url: "https://mcp.example.test", requestTimeoutMs: 5_000 },
+      flaky,
+    );
+    await client.initialize(); // call 1 — ok
+    await expect(client.listTools()).rejects.toThrow(/ECONNRESET/); // call 2 — transport drop
+    expect(await client.listTools()).toEqual([]); // call 3 — recovered (fresh POST)
+    await client.close();
+  });
+
   it("a request before initialize fails fast with mcp_not_init (never-initialized ≠ dropped)", async () => {
     const client = createMcpClient("uninit", {
       type: "stdio",
