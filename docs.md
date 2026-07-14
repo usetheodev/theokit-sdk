@@ -3785,3 +3785,127 @@ If the env var is set but the JSON is malformed (parse error, missing `status`, 
 ### When NOT to use this
 
 This is NOT a replacement for `fixture-mode` (the `theo_test_*` API key path). Fixture mode is a product feature for SDK consumers' tests; `THEOKIT_TEST_RESPONSE_OVERRIDE` is a chaos seam for the SDK + framework's own test pipelines. Per the `real-llm-validation.md` rule, **fixture mode and `THEOKIT_TEST_RESPONSE_OVERRIDE` are both insufficient evidence for "validated against real LLM"** claims.
+
+## Additional public subpaths (reference)
+
+Every entry point in `packages/sdk/package.json` `exports` is public. The sections above cover the main surface; the remaining subpaths are referenced here so the contract is complete.
+
+### `@theokit/sdk/subscription` — typed RPC subscriptions + resume tokens (G8)
+
+Server-side typed streaming with opaque resume tokens (ADRs D423-D430).
+
+```typescript
+import { Subscription, subscribe, tracked, isTrackedEnvelope } from "@theokit/sdk/subscription";
+
+// Server: describe a subscription (input → async stream of outputs).
+const feed = Subscription.create<{ room: string }, { text: string }>({
+  name: "chat",
+  subscribe: async function* (input, ctx) {
+    for await (const msg of roomStream(input.room, ctx.signal)) {
+      yield tracked(msg.id, { text: msg.text });   // `tracked` stamps a resume token
+    }
+  },
+});
+
+// Client: consume it, resuming from the last seen token after a disconnect.
+for await (const event of subscribe(url, { lastEventId })) { render(event); }
+```
+
+- `Subscription.create<TInput, TOutput>(opts)` → a `SubscriptionDescriptor` a server transport (WS / SSE) drives.
+- `subscribe(url, opts?: SubscribeOptions)` → client-side `AsyncGenerator` of events; `opts.lastEventId` resumes.
+- `tracked(id, payload)` wraps a payload with a resume token; `isTrackedEnvelope(x)` narrows it.
+- Errors: `SubscriptionError`, `SubscriptionDisconnectError`, `SubscriptionInputError`. Composes with `Agent.streamObject`.
+
+### `@theokit/sdk/a2a` — agent-to-agent messaging + programmatic subagents
+
+The peer-to-peer messaging primitives (distinct from the declarative `agents:` map documented under Subagents).
+
+```typescript
+import { MessageBus, AgentMailbox, SubAgent } from "@theokit/sdk/a2a";
+
+const bus = new MessageBus();
+const mailbox = new AgentMailbox(bus, "agent-a");
+await mailbox.send("agent-b", { type: "task", payload: { ... } });   // fire-and-forget
+const reply = await mailbox.request("agent-b", { type: "ask", payload }, { timeoutMs: 5000 });
+```
+
+- `MessageBus` — in-process broker: `send(from, to, msg)`, `request(from, to, msg, opts)`, subscribe per address.
+- `AgentMailbox(bus, address)` — an agent's handle: `send(to, msg)`, `request(to, msg, opts)`.
+- `SubAgent.create(spec)` — the programmatic delegation tool (full spec + lifecycle hooks in [Subagents guide](./docs/guides/subagents.md)).
+- Types: `A2AMessage`, `MessageHandler`, `ToolContextMessage`, `RequestOptions`; `MaxDelegationDepthError`.
+
+### `@theokit/sdk/filesystem` — pluggable file backend (SE31)
+
+The storage twin of `@theokit/sdk/sandbox`: a `FilesystemBackend` seam so `@theokit/sdk-tools` file factories can target a per-request / multi-tenant root.
+
+```typescript
+import { LocalFilesystem, FilesystemBackend, resolveFilesystem } from "@theokit/sdk/filesystem";
+
+const fs = new LocalFilesystem({ basePath: tenantRoot, readOnly: false });
+await fs.writeFile("out.txt", "hi");   // boundary-enforced against basePath; escapes → FilesystemSecurityError
+```
+
+- `FilesystemBackend` (abstract) — implement `readFile` / `writeFile` / `stat` / `list`; `exists()` derives on the base. `readOnly` + `basePath`.
+- `LocalFilesystem(config)` — the default `node:fs` implementation.
+- `resolveFilesystem(provider, ctx)` — resolve a `FilesystemProvider` (a backend OR a `(ctx) => backend` resolver) per request.
+- Errors: `FilesystemSecurityError`, `FilesystemReadOnlyError`, `FileNotFoundError`, `StaleFileError` (SE32 — write with `expectedMtime`), `FilesystemError`.
+
+### `@theokit/sdk/client` — HTTP client for the cloud runtime
+
+```typescript
+import { TheoKitClient } from "@theokit/sdk/client";
+const client = new TheoKitClient({ baseUrl, apiKey });
+const res = await client.send("hello");                    // Promise<SendResponse>
+for await (const ev of client.stream("hello")) { … }        // AsyncGenerator<StreamEvent>
+```
+
+Types: `ClientOptions`, `SendResponse`, `StreamEvent`.
+
+### `@theokit/sdk/task-store` — durable task persistence
+
+Backing store for background `Task` observability.
+
+```typescript
+import { getTaskStoreFor, InMemoryTaskStore, JsonFileTaskStore } from "@theokit/sdk/task-store";
+const store = getTaskStoreFor({ kind: "json-file", path: ".theokit/tasks.json" });
+```
+
+- `getTaskStoreFor(options)` → a `TaskStore` (selects the impl by `options.kind`).
+- `InMemoryTaskStore` (ephemeral) / `JsonFileTaskStore` (durable JSON file).
+
+### `@theokit/sdk/server/auth` — OAuth orchestrator (build an agent web server)
+
+```typescript
+import { Auth, validateReturnTo } from "@theokit/sdk/server/auth";
+const auth = Auth.create<Session>({ providers: { github: { … } }, /* … */ });
+// auth handles the OAuth login → callback → session exchange for your server.
+const safe = validateReturnTo(url, allowlist);   // redirect-target safety
+```
+
+- `Auth.create<TSession>(opts)` → an `AuthOrchestrator`.
+- `validateReturnTo(url, allowlist)` → a safe redirect target (open-redirect defense).
+- Errors: `AuthCallbackError`, `AuthCancelledError`, `AuthConfigError`, `AuthProviderNotFoundError`, `AuthSecretTooShortError`.
+
+### `@theokit/sdk/server/errors-envelope` — canonical HTTP error envelope
+
+```typescript
+import { toEnvelope, fromEnvelope } from "@theokit/sdk/server/errors-envelope";
+res.status(status).json(toEnvelope(err));       // any error → { code, message, … } wire shape
+const restored = fromEnvelope(await res.json()); // wire shape → typed TheokitAgentError
+```
+
+Types: `TheokitErrorEnvelope`, `TheokitErrorCode`.
+
+### Token budget + cost (main barrel)
+
+```typescript
+import { Budget, UsageAccumulator, computeCost, normalizeUsage, getPricingEntry } from "@theokit/sdk";
+```
+
+- `Budget` — a spend cap the agent loop enforces; `createCounterBudgetTracker({ maxIterations })` for a step ceiling.
+- `UsageAccumulator` — folds per-run `TokenUsage` into a running total.
+- `computeCost(usage, model)` — cost from usage (never returns 0 when pricing is unknown — it surfaces the gap); `getPricingEntry(model)`, `normalizeUsage(raw)`.
+
+### Additional typed errors (`@theokit/sdk/errors`)
+
+Beyond `RateLimitError` / `NetworkError` / `AuthenticationError` / `ConfigurationError`, the hierarchy also exports: `BudgetExceededError`, `AgentDisposedError`, `CredentialPoolExhaustedError`, `MemoryAdapterError`, `TaskNotFoundError`, `InvalidTaskIdError`, `UnsupportedTaskOperationError`, `UnsupportedBudgetOperationError`. All extend `TheokitAgentError`; catch the base to handle any of them.
