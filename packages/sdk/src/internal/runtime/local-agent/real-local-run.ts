@@ -31,6 +31,7 @@ import type { FixtureScript } from "../fixtures/fixture-types.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import { registerRun } from "../registry/run-registry.js";
 import type { SessionMessage } from "../session/agent-session.js";
+import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -167,28 +168,6 @@ export function resolveRunProvider(options: CreateRealLocalRunOptions): {
       ? parsedModel.name
       : (options.model?.id ?? "claude-sonnet-4-6");
   return { primary, effectiveModelId };
-}
-
-/**
- * M4: infer the provider from an explicitly-passed API key prefix. Reuses the
- * KNOWN_PROVIDER_PREFIXES mapping (`api-key-validator.ts`) — longest prefix wins
- * so `sk-or-` (openrouter) / `sk-ant-` (anthropic) are matched before `sk-`
- * (openai). Returns `undefined` for fixture / `local` / empty keys and for
- * providers that are not registered. @internal
- */
-function inferProviderFromApiKey(apiKey: string | undefined): string | undefined {
-  if (apiKey === undefined || apiKey.length === 0) return undefined;
-  const byPrefix: ReadonlyArray<{ provider: string; prefix: string }> = [
-    { provider: "openrouter", prefix: "sk-or-" },
-    { provider: "anthropic", prefix: "sk-ant-" },
-    { provider: "openai", prefix: "sk-" },
-  ];
-  for (const { provider, prefix } of byPrefix) {
-    if (apiKey.startsWith(prefix) && getProviderProfile(provider) !== undefined) {
-      return provider;
-    }
-  }
-  return undefined;
 }
 
 /**
@@ -425,19 +404,6 @@ function buildCustomToolsInput(
   }) as ReadonlyArray<CustomToolSpec>;
   if (customTools.length === 0 && personalityToolWhitelist === undefined) return {};
   return { customTools };
-}
-
-function detectPrimaryProvider(): string {
-  if (process.env.ANTHROPIC_API_KEY !== undefined && process.env.ANTHROPIC_API_KEY.length > 0) {
-    return "anthropic";
-  }
-  if (process.env.OPENAI_API_KEY !== undefined && process.env.OPENAI_API_KEY.length > 0) {
-    return "openai";
-  }
-  if (process.env.OPENROUTER_API_KEY !== undefined && process.env.OPENROUTER_API_KEY.length > 0) {
-    return "openrouter";
-  }
-  return "openai";
 }
 
 function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
