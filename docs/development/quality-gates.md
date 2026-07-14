@@ -39,7 +39,7 @@ Individual gate scripts:
 | **G4** Tests pass | Vitest | 100% green-eligible |
 | **G5** Dead code | knip | 0 unused exports / files / deps |
 | **G6** No cycles | dependency-cruiser | 0 circular deps |
-| **G7** Layered arch | dependency-cruiser rules | No types→runtime imports; no src→tests imports; no `referencia/` imports |
+| **G7** Layered arch | dependency-cruiser rules | No types→runtime imports; no src→tests imports; no imports from reference clones (`.claude/knowledge-base/reference/`) |
 | **G8** File LoC | custom script | ≤ 400 LoC per `.ts` (excl. tests) |
 | **G9** Function complexity | Biome `noExcessiveCognitiveComplexity` | ≤ 10 cognitive complexity |
 | **G10** Duplication | jscpd | ≤ 5% dup, min 50 tokens |
@@ -61,7 +61,7 @@ Cycles are a SOLID (DIP) red flag — they indicate a missing abstraction. Refac
 ### G7: layered architecture
 - `src/types/**` must NOT import runtime code. Types are pure contracts.
 - `src/**` must NOT import from `tests/**`. Tests depend on source, not vice versa.
-- Nothing in the workspace may import from `referencia/**`. Reference projects are read-only study material.
+- Nothing in the workspace may import from the reference clones under `.claude/knowledge-base/reference/**`. Reference projects are read-only study material.
 
 ### G8: file LoC ≤ 400
 Empirically, files past ~400 LoC tend to violate SRP. The limit forces healthy decomposition. Test files are excluded — golden suites legitimately accumulate scenarios.
