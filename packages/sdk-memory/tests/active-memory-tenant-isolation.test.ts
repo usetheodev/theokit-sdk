@@ -62,8 +62,22 @@ describe("sdk-memory active-memory cross-tenant cache isolation (#56-B)", () => 
     const cache = new ActiveMemoryCache();
     const identity = { userId: "user-A", namespace: "org-A", scope: "session" } as const;
 
-    await runActiveMemory({ userText: "q", priorMessages: [], index, options: opts, cache, ...identity });
-    await runActiveMemory({ userText: "q", priorMessages: [], index, options: opts, cache, ...identity });
+    await runActiveMemory({
+      userText: "q",
+      priorMessages: [],
+      index,
+      options: opts,
+      cache,
+      ...identity,
+    });
+    await runActiveMemory({
+      userText: "q",
+      priorMessages: [],
+      index,
+      options: opts,
+      cache,
+      ...identity,
+    });
 
     expect(counter.n).toBe(1);
   });

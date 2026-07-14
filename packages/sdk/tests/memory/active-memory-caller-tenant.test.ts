@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-
-import type { AgentOptions } from "../../src/types/agent.js";
 import { LocalAgentMemory } from "../../src/internal/runtime/local-agent/local-agent-memory.js";
+import type { AgentOptions } from "../../src/types/agent.js";
 
 /**
  * #56 (GAP-A) — the production caller must thread the tenant partition into the
@@ -27,13 +26,25 @@ describe("active-recall caller threads tenant identity (#56-A)", () => {
   });
 
   it("two tenants sharing a userId get DIFFERENT namespaces (no collision)", () => {
-    const a = new LocalAgentMemory({ memoryContext: { userId: "u", tenantId: "org-A" } } as AgentOptions, "/tmp", "a");
-    const b = new LocalAgentMemory({ memoryContext: { userId: "u", tenantId: "org-B" } } as AgentOptions, "/tmp", "b");
+    const a = new LocalAgentMemory(
+      { memoryContext: { userId: "u", tenantId: "org-A" } } as AgentOptions,
+      "/tmp",
+      "a",
+    );
+    const b = new LocalAgentMemory(
+      { memoryContext: { userId: "u", tenantId: "org-B" } } as AgentOptions,
+      "/tmp",
+      "b",
+    );
     expect(buildArgs(a).namespace).not.toBe(buildArgs(b).namespace);
   });
 
   it("falls back to 'default' namespace when no tenantId is set", () => {
-    const mem = new LocalAgentMemory({ memoryContext: { userId: "u" } } as AgentOptions, "/tmp", "a");
+    const mem = new LocalAgentMemory(
+      { memoryContext: { userId: "u" } } as AgentOptions,
+      "/tmp",
+      "a",
+    );
     expect(buildArgs(mem).namespace).toBe("default");
   });
 });
