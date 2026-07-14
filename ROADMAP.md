@@ -102,11 +102,11 @@ and framework-neutral. This is our single weakest surface vs a mature runtime.
 
 **Definition of done:**
 
-- [ ] A `PermissionMode` (e.g. `default | acceptEdits | bypassPermissions | dontAsk`) resolved per run; documented precedence.
-- [ ] A `canUseTool(toolName, input, ctx) => allow | deny | ask` gate invoked BEFORE tool dispatch, bridged to the existing fail-closed HITL path (#55/#68). `ask` routes to the HITL approver.
-- [ ] Rules (`allow`/`deny`/`ask` by tool name + arg pattern) reusing the "match beyond name-only" work (#55). Deny is fail-closed.
-- [ ] TDD: gate fail-closed on error; mode precedence; `ask`→HITL bridge; a denied call surfaces a typed result.
-- [ ] Public-API change → docs + Changeset.
+- [x] A `PermissionMode` (`default | plan | acceptEdits | bypass`, `bypassPermissions` alias) resolved per run via `SendOptions`/`AgentOptions.permissionMode`; documented precedence (send > create > plugin construction > default). *(adversarial-review fix — was frozen at plugin construction; now threaded through the pre_tool_call context)*
+- [x] A `canUseTool(toolName, input, ctx) => allow | deny` gate invoked BEFORE tool dispatch (every tool origin), bridged to the fail-closed veto path. Fail-closed on any non-`allow` decision *(adversarial-review fix — was fail-open on malformed returns)*.
+- [x] Rules (`allow`/`deny`/`ask` by tool name + arg pattern) reusing the "match beyond name-only" work (#55). Deny is fail-closed; `g`/`y`-flag regex matchers are now deterministic *(adversarial-review fix)*.
+- [x] TDD: gate fail-closed on error; mode precedence; denied call surfaces a typed `permission_denied` result. Unit + real-loop integration (bypass allows, plan denies).
+- [x] Public-API change → docs.md (PermissionMode + canUseTool surface) + Changeset. *(closed 2026-07-14)*
 
 **Dependencies:** M1 (fail-closed permission core), M3.
 
