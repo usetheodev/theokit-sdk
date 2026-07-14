@@ -36,6 +36,7 @@ function rate429(): RateLimitError {
   });
 }
 
+
 function okFactory(
   script: (key: string, call: number) => "ok" | RateLimitError,
 ): (apiKey: string) => LlmClient {

@@ -168,7 +168,6 @@ class StdioMcpClient extends BaseMcpClient {
   // concurrent request so parallel tool dispatch after a drop awaits one handshake
   // instead of racing (or spuriously failing with mcp_not_init).
   private dropped = false;
-  private reconnectAttempts = 0;
   private reconnectPromise: Promise<void> | undefined;
 
   constructor(
@@ -247,17 +246,29 @@ class StdioMcpClient extends BaseMcpClient {
   }
 
   private async reconnect(): Promise<void> {
-    if (this.reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      throw new NetworkError(`MCP ${this.name} reconnect exhausted`, { code: "mcp_disconnected" });
+    // #59 — a single reconnect CYCLE tries up to MAX_RECONNECT_ATTEMPTS times
+    // with backoff, then surfaces a typed disconnect. The attempt budget is
+    // LOCAL to the cycle (not a sticky instance counter), so a later request
+    // after a transient outage longer than the bound re-arms a fresh cycle
+    // instead of permanently wedging the client.
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < MAX_RECONNECT_ATTEMPTS; attempt += 1) {
+      await reconnectDelay(attempt);
+      this.spawnChild();
+      try {
+        // The handshake uses send() directly (child is now live) so it does not
+        // re-enter ensureConnected.
+        await super.initialize();
+        this.dropped = false;
+        return;
+      } catch (err) {
+        lastErr = err; // child dropped again — retry with backoff (bounded)
+      }
     }
-    await reconnectDelay(this.reconnectAttempts);
-    this.reconnectAttempts += 1;
-    this.spawnChild();
-    // The handshake uses send() directly (child is now live) so it does not
-    // re-enter ensureConnected.
-    await super.initialize();
-    this.dropped = false;
-    this.reconnectAttempts = 0;
+    throw new NetworkError(`MCP ${this.name} reconnect exhausted`, {
+      code: "mcp_disconnected",
+      ...(lastErr instanceof Error ? { cause: lastErr } : {}),
+    });
   }
 
   async close(): Promise<void> {
