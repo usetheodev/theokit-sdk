@@ -148,9 +148,13 @@ export class PoolAwareLlmClient implements LlmClient {
         // D126: first 429 retries the same key. Don't mark exhausted yet.
         // M2 #60 — back off with full jitter before re-hitting the SAME key,
         // so a shared-quota thundering herd no longer burns the retry in <1ms
-        // (AWS Brooker 2015). We use full jitter (not the provider's possibly
-        // long Retry-After) here because the retry-after cooldown is honored
-        // on the ROTATE path below; a same-key retry should be brief.
+        // (AWS Brooker 2015). We deliberately do NOT sleep the provider's
+        // `Retry-After` here: for a multi-key pool the right move on a 429 is to
+        // fail this brief retry and ROTATE to a fresh key immediately (waiting
+        // would defeat the pool). `Retry-After` IS honored at the pool-selection
+        // level — the rotate path below sets the key's `resetAtMs` cooldown, so
+        // subsequent selection skips a rate-limited key until its window passes
+        // (a single-key pool then fails fast with CredentialPoolExhaustedError).
         await sleepWithAbort(
           computeBackoffMs({
             attempt: 0,
