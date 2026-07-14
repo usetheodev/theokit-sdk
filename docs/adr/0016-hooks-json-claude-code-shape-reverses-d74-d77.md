@@ -39,7 +39,7 @@ D74 is **not** reversed for context / personalities / skills — their markdown 
 
 - **Parity with Claude Code** — a `.theokit/hooks.json` is copy-paste compatible with a Claude Code `settings.json` hooks block.
 - **Safer machine parsing** — canonical path is manual JSON validation (no YAML, no zod coupling); typed `ConfigurationError` on a bad shape or a non-`command` type.
-- **Back-compat** — existing `.theokit/hooks/*.md` users keep working (deprecated warn); the `telegram-pro` example + all docs migrated to `hooks.json`.
+- **No back-compat for markdown** — a stray `.theokit/hooks/*.md` dir (no `hooks.json`) is no longer loaded; it emits a one-time migration warn and yields no hooks. The `telegram-pro` example + all docs migrated to `hooks.json`.
 - **`theokit-migrate-config`** — the migration direction reverses (md → json); CLI update tracked as a follow-up (the loader accepts both meanwhile).
 
 ## Alternatives rejected
