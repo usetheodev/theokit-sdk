@@ -145,16 +145,15 @@ describe("loadHookConfig — Claude-Code JSON (canonical)", () => {
   });
 });
 
-describe("loadHookConfig — markdown (deprecated fallback)", () => {
-  it("loads a legacy .theokit/hooks/<name>.md with a one-time deprecation warn", async () => {
+describe("loadHookConfig — markdown (unsupported, ADR 0016)", () => {
+  it("does NOT load a legacy .theokit/hooks/<name>.md; warns to migrate", async () => {
     writeMd("shell-policy", { event: "preToolUse", matcher: "^shell$", command: "node policy.js" });
     const config = await loadHookConfig(dir);
-    expect(config.hooks?.preToolUse).toHaveLength(1);
-    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("^shell$");
-    expect(stderrCapture.join("")).toContain("deprecated");
+    expect(config).toEqual({});
+    expect(stderrCapture.join("")).toContain("no longer supported");
   });
 
-  it("JSON wins when both exist; warn to remove the markdown dir", async () => {
+  it("uses hooks.json and ignores a stray markdown dir", async () => {
     writeJson({
       hooks: {
         PreToolUse: [{ matcher: "json", hooks: [{ type: "command", command: "echo json" }] }],
@@ -163,6 +162,7 @@ describe("loadHookConfig — markdown (deprecated fallback)", () => {
     writeMd("md-hook", { event: "preToolUse", matcher: "md", command: "echo md" });
     const config = await loadHookConfig(dir);
     expect(config.hooks?.preToolUse?.[0]?.command).toBe("echo json");
-    expect(stderrCapture.join("")).toContain("remove");
+    // No markdown load happens when hooks.json exists — no warn about it.
+    expect(stderrCapture.join("")).not.toContain("no longer supported");
   });
 });
