@@ -1,5 +1,16 @@
 /**
- * Tests for loadHookConfig (T1.2) — MD-first with JSON fallback.
+ * Tests for loadHookConfig — Claude-Code-shaped `.theokit/hooks.json` is
+ * canonical; the legacy `.theokit/hooks/*.md` markdown format is a deprecated
+ * fallback. (Reverses ADR D74/D77 for hooks — see ADR 0016.)
+ *
+ * Claude Code config shape:
+ *   { "hooks": { "PreToolUse": [ { "matcher": "shell",
+ *       "hooks": [ { "type": "command", "command": "…", "timeout": 30 } ] } ] } }
+ *
+ * The loader maps Claude Code event names to the 5 events the SDK runtime fires
+ * (PreToolUse→preToolUse, PostToolUse→postToolUse, UserPromptSubmit→preRun,
+ * Stop→stop), flattens each group's `hooks[]` (applying the group `matcher`),
+ * and converts `timeout` seconds → internal `timeoutMs`.
  */
 
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -33,105 +44,121 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-function writeMd(slug: string, frontmatter: Record<string, unknown>, body = ""): void {
-  mkdirSync(join(dir, ".theokit", "hooks"), { recursive: true });
-  const lines = ["---"];
-  for (const [k, v] of Object.entries(frontmatter)) lines.push(`${k}: ${String(v)}`);
-  lines.push("---");
-  if (body.length > 0) lines.push("", body);
-  writeFileSync(join(dir, ".theokit", "hooks", `${slug}.md`), lines.join("\n"), "utf8");
-}
-
 function writeJson(content: unknown): void {
   mkdirSync(join(dir, ".theokit"), { recursive: true });
   writeFileSync(join(dir, ".theokit", "hooks.json"), JSON.stringify(content), "utf8");
 }
 
-describe("loadHookConfig — MD-first", () => {
-  it("returns {} when neither MD dir nor JSON exists", async () => {
-    const config = await loadHookConfig(dir);
-    expect(config).toEqual({});
+function writeMd(slug: string, frontmatter: Record<string, unknown>): void {
+  mkdirSync(join(dir, ".theokit", "hooks"), { recursive: true });
+  const lines = ["---"];
+  for (const [k, v] of Object.entries(frontmatter)) lines.push(`${k}: ${String(v)}`);
+  lines.push("---");
+  writeFileSync(join(dir, ".theokit", "hooks", `${slug}.md`), lines.join("\n"), "utf8");
+}
+
+describe("loadHookConfig — Claude-Code JSON (canonical)", () => {
+  it("returns {} when no config exists", async () => {
+    expect(await loadHookConfig(dir)).toEqual({});
   });
 
-  it("loads from .theokit/hooks/<name>.md without warning", async () => {
-    writeMd("shell-policy", {
-      event: "preToolUse",
-      matcher: "^shell$",
-      command: "node policy.js",
+  it("loads the Claude-Code nested shape without warning", async () => {
+    writeJson({
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "shell",
+            hooks: [{ type: "command", command: "node policy.js", timeout: 30 }],
+          },
+        ],
+      },
     });
     const config = await loadHookConfig(dir);
+    // mapped to the internal `preToolUse` event
     expect(config.hooks?.preToolUse).toHaveLength(1);
-    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("^shell$");
+    expect(config.hooks?.preToolUse?.[0]?.command).toBe("node policy.js");
+    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("shell");
+    // timeout seconds → internal ms
+    expect(config.hooks?.preToolUse?.[0]?.timeoutMs).toBe(30_000);
     expect(stderrCapture.join("")).not.toContain("deprecated");
   });
 
-  it("groups multiple hooks by event with priority sort", async () => {
-    writeMd("a", { event: "preToolUse", matcher: "^a$", command: "echo a", priority: 5 });
-    writeMd("b", { event: "preToolUse", matcher: "^b$", command: "echo b", priority: 1 });
-    writeMd("c", { event: "postToolUse", matcher: "^c$", command: "echo c" });
-    const config = await loadHookConfig(dir);
-    expect(config.hooks?.preToolUse).toHaveLength(2);
-    expect(config.hooks?.postToolUse).toHaveLength(1);
-    // priority asc → b (1) before a (5)
-    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("^b$");
-    expect(config.hooks?.preToolUse?.[1]?.matcher).toBe("^a$");
-  });
-
-  it("skips hooks with enabled: false", async () => {
-    writeMd("on", { event: "preToolUse", matcher: "^on$", command: "echo on" });
-    writeMd("off", {
-      event: "preToolUse",
-      matcher: "^off$",
-      command: "echo off",
-      enabled: false,
-    });
-    const config = await loadHookConfig(dir);
-    expect(config.hooks?.preToolUse).toHaveLength(1);
-    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("^on$");
-  });
-});
-
-describe("loadHookConfig — JSON fallback (deprecation)", () => {
-  it("falls back to hooks.json with one-time deprecation warn", async () => {
+  it("maps every Claude-Code event name to the SDK firing event", async () => {
     writeJson({
       hooks: {
-        preToolUse: [{ matcher: "^shell$", command: "node policy.js" }],
+        PreToolUse: [{ hooks: [{ type: "command", command: "echo pre" }] }],
+        PostToolUse: [{ hooks: [{ type: "command", command: "echo post" }] }],
+        UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo prompt" }] }],
+        Stop: [{ hooks: [{ type: "command", command: "echo stop" }] }],
+      },
+    });
+    const config = await loadHookConfig(dir);
+    expect(config.hooks?.preToolUse?.[0]?.command).toBe("echo pre");
+    expect(config.hooks?.postToolUse?.[0]?.command).toBe("echo post");
+    expect(config.hooks?.preRun?.[0]?.command).toBe("echo prompt"); // UserPromptSubmit → preRun
+    expect(config.hooks?.stop?.[0]?.command).toBe("echo stop");
+  });
+
+  it("flattens multiple groups + multiple commands under one event, group matcher applied to each", async () => {
+    writeJson({
+      hooks: {
+        PreToolUse: [
+          {
+            matcher: "shell",
+            hooks: [
+              { type: "command", command: "echo a" },
+              { type: "command", command: "echo b" },
+            ],
+          },
+          { matcher: "write_file", hooks: [{ type: "command", command: "echo c" }] },
+        ],
+      },
+    });
+    const config = await loadHookConfig(dir);
+    expect(config.hooks?.preToolUse).toHaveLength(3);
+    expect(config.hooks?.preToolUse?.map((h) => [h.command, h.matcher])).toEqual([
+      ["echo a", "shell"],
+      ["echo b", "shell"],
+      ["echo c", "write_file"],
+    ]);
+  });
+
+  it("skips a Claude-Code event the SDK runtime does not fire (e.g. PreCompact) with a warn", async () => {
+    writeJson({
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: "echo ok" }] }],
+        PreCompact: [{ hooks: [{ type: "command", command: "echo nope" }] }],
       },
     });
     const config = await loadHookConfig(dir);
     expect(config.hooks?.preToolUse).toHaveLength(1);
-    expect(stderrCapture.join("")).toContain("hooks.json is deprecated");
+    // PreCompact is not one of the SDK's firing events — dropped, warned, never crashes.
+    expect(Object.keys(config.hooks ?? {})).not.toContain("PreCompact");
+    expect(stderrCapture.join("")).toContain("PreCompact");
   });
 
-  it("warnOnce dedupes — 3 calls produce 1 stderr line", async () => {
-    writeJson({ hooks: { preToolUse: [{ matcher: "^x$", command: "echo" }] } });
-    await loadHookConfig(dir);
-    await loadHookConfig(dir);
-    await loadHookConfig(dir);
-    const deprecationCount = stderrCapture.join("").split("hooks.json is deprecated").length - 1;
-    expect(deprecationCount).toBe(1);
+  it("a non-command hook type is rejected with a typed ConfigurationError", async () => {
+    writeJson({
+      hooks: { PreToolUse: [{ hooks: [{ type: "webhook", command: "x" }] }] },
+    });
+    await expect(loadHookConfig(dir)).rejects.toThrow(/hook/i);
   });
 });
 
-describe("loadHookConfig — both MD and JSON", () => {
-  it("MD wins; warn about removing JSON", async () => {
-    writeMd("md-hook", {
-      event: "preToolUse",
-      matcher: "^md$",
-      command: "echo md",
-    });
-    writeJson({ hooks: { preToolUse: [{ matcher: "^json$", command: "echo json" }] } });
+describe("loadHookConfig — markdown (deprecated fallback)", () => {
+  it("loads a legacy .theokit/hooks/<name>.md with a one-time deprecation warn", async () => {
+    writeMd("shell-policy", { event: "preToolUse", matcher: "^shell$", command: "node policy.js" });
     const config = await loadHookConfig(dir);
     expect(config.hooks?.preToolUse).toHaveLength(1);
-    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("^md$");
-    expect(stderrCapture.join("")).toContain("remove hooks.json");
+    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("^shell$");
+    expect(stderrCapture.join("")).toContain("deprecated");
   });
 
-  it("empty MD dir falls back to JSON", async () => {
-    mkdirSync(join(dir, ".theokit", "hooks"), { recursive: true });
-    writeJson({ hooks: { preToolUse: [{ matcher: "^json$", command: "echo json" }] } });
+  it("JSON wins when both exist; warn to remove the markdown dir", async () => {
+    writeJson({ hooks: { PreToolUse: [{ matcher: "json", hooks: [{ type: "command", command: "echo json" }] }] } });
+    writeMd("md-hook", { event: "preToolUse", matcher: "md", command: "echo md" });
     const config = await loadHookConfig(dir);
-    expect(config.hooks?.preToolUse?.[0]?.matcher).toBe("^json$");
-    expect(stderrCapture.join("")).toContain("hooks.json is deprecated");
+    expect(config.hooks?.preToolUse?.[0]?.command).toBe("echo json");
+    expect(stderrCapture.join("")).toContain("remove");
   });
 });
