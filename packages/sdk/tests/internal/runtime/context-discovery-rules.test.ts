@@ -1,0 +1,69 @@
+/**
+ * Discovery-integration tests for the `.theokit/rules/*.md` spec (T2).
+ * Mirrors context-discovery.test.ts fixture conventions.
+ */
+
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { runDiscovery } from "../../../src/internal/runtime/context/context-discovery-runner.js";
+import { DEFAULT_MAX_BYTES_PER_FILE } from "../../../src/internal/runtime/context/context-loaders.js";
+
+const SPEC_ID = "theokit-rules";
+
+describe("discovery — .theokit/rules/*.md (T2)", () => {
+  let tmp: string;
+  beforeEach(async () => {
+    tmp = await mkdtemp(join(tmpdir(), "theokit-rules-disc-"));
+    await mkdir(join(tmp, ".git"), { recursive: true });
+    await mkdir(join(tmp, ".theokit", "rules"), { recursive: true });
+    await writeFile(
+      join(tmp, ".theokit", "rules", "always.md"),
+      "---\nalwaysApply: true\n---\nUse tabs, not spaces.",
+    );
+    await writeFile(
+      join(tmp, ".theokit", "rules", "api.md"),
+      "---\npaths:\n  - src/api/**/*.ts\n---\nValidate every endpoint input.",
+    );
+  });
+
+  const rulesSources = (sources: Array<{ id: string; content: string }>) =>
+    sources.filter((s) => s.id.startsWith(SPEC_ID));
+
+  it("discovers an alwaysApply rule with no in-scope files", async () => {
+    const sources = await runDiscovery({ cwd: tmp, maxBytesPerFile: DEFAULT_MAX_BYTES_PER_FILE });
+    const rules = rulesSources(sources);
+    expect(rules).toHaveLength(1);
+    expect(rules[0]?.content).toContain("Use tabs, not spaces.");
+  });
+
+  it("does NOT activate a path-scoped rule when no in-scope files are declared", async () => {
+    const sources = await runDiscovery({ cwd: tmp, maxBytesPerFile: DEFAULT_MAX_BYTES_PER_FILE });
+    const bodies = rulesSources(sources).map((s) => s.content);
+    expect(bodies.some((b) => b.includes("Validate every endpoint input."))).toBe(false);
+  });
+
+  it("activates the path-scoped rule when a matching in-scope file is declared", async () => {
+    const sources = await runDiscovery({
+      cwd: tmp,
+      maxBytesPerFile: DEFAULT_MAX_BYTES_PER_FILE,
+      touchedFiles: ["src/api/users.ts"],
+    });
+    const bodies = rulesSources(sources).map((s) => s.content);
+    expect(bodies.some((b) => b.includes("Validate every endpoint input."))).toBe(true);
+    // alwaysApply rule still present
+    expect(bodies.some((b) => b.includes("Use tabs, not spaces."))).toBe(true);
+  });
+
+  it("does NOT activate the path-scoped rule for a non-matching in-scope file", async () => {
+    const sources = await runDiscovery({
+      cwd: tmp,
+      maxBytesPerFile: DEFAULT_MAX_BYTES_PER_FILE,
+      touchedFiles: ["src/ui/button.tsx"],
+    });
+    const bodies = rulesSources(sources).map((s) => s.content);
+    expect(bodies.some((b) => b.includes("Validate every endpoint input."))).toBe(false);
+  });
+});

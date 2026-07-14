@@ -27,6 +27,7 @@ import {
 import { resolveImports } from "./context-import-resolver.js";
 import { loadPlainMarkdown } from "./context-loaders.js";
 import { parseMdc, shouldActivate } from "./context-mdc-parser.js";
+import { parseRules, shouldActivateRule } from "./context-rules-frontmatter.js";
 
 export interface DiscoveryRunnerOptions {
   /** Workspace root passed to all discovery scopes. */
@@ -99,6 +100,9 @@ async function loadOneSource(
   if (spec.parser === "mdc") {
     return loadMdcSource(spec, path, id, opts);
   }
+  if (spec.parser === "rules-frontmatter") {
+    return loadRulesSource(spec, path, id, opts);
+  }
   if (spec.parser === "frontmatter-zod") {
     // Legacy `.theokit/context/*.md` — handled by `loadContextConfig` in
     // `context-manager.ts` for backward compat. We skip here unless caller
@@ -124,6 +128,30 @@ async function loadMdcSource(
   const parsed = parseMdc(raw);
   if (parsed === undefined) return undefined;
   if (!shouldActivate(parsed.frontmatter, opts.touchedFiles ?? [])) return undefined;
+  return {
+    id,
+    source: path,
+    content: parsed.body,
+    priority: spec.priority,
+    truncated: false,
+  };
+}
+
+async function loadRulesSource(
+  spec: DiscoverySpec,
+  path: string,
+  id: string,
+  opts: DiscoveryRunnerOptions,
+): Promise<AggregatorSource | undefined> {
+  let raw: string;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch {
+    return undefined;
+  }
+  const parsed = parseRules(raw);
+  if (parsed === undefined) return undefined;
+  if (!shouldActivateRule(parsed.frontmatter, opts.touchedFiles ?? [])) return undefined;
   return {
     id,
     source: path,
