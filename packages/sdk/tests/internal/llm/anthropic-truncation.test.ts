@@ -22,9 +22,15 @@ function sseResponse(frames: string[]): Response {
 }
 
 async function runStream(frames: string[]): Promise<LlmFinish> {
-  const client = new AnthropicClient({ apiKey: "sk-ant-test", fetch: async () => sseResponse(frames) });
+  const client = new AnthropicClient({
+    apiKey: "sk-ant-test",
+    fetch: async () => sseResponse(frames),
+  });
   const gen = client.stream(
-    { model: "claude-3-5-haiku", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
+    {
+      model: "claude-3-5-haiku",
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    },
     new AbortController().signal,
   );
   while (true) {
