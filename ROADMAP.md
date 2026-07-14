@@ -24,10 +24,10 @@ updates `CHANGELOG.md`.
 
 **Objective:** Nothing is built atop a leaking, injectable Harness.
 
-- [ ] **#56** cross-tenant active-recall cache leak — wire `tenantCtx` into `cache.get/set` (`src/internal/memory/active-memory.ts:131,247`) + two-user isolation test. *(1 crit)*
-- [ ] **#54** sandbox `sh -c` injection + full `process.env` leak — arg-vector exec + env allowlist (`src/sandbox/local-sandbox.ts:26`, `src/internal/runtime/lifecycle/spawn-collect.ts:33`). *(1 crit, 8 gaps)*
-- [ ] **#59** MCP client timeout (`src/internal/mcp/client.ts:184`). *(1 crit — reconnect deferred to M2)*
-- [ ] **#68** ACP permission veto enforced (`packages/acp/src/permission-plugin.ts:115`). *(standalone live defect)*
+- [x] **#56** cross-tenant active-recall cache leak — `tenantCtx` wired into `cache.get/set` in BOTH sdk + the publishable `@theokit/sdk-memory` copy; caller threads `memoryContext.tenantId` into the key. Two-user isolation tests (primitive + caller). *(1 crit — closed 2026-07-14; adversarial review found + fixed the sdk-memory + caller gaps)*
+- [x] **#54** sandbox `sh -c` injection + full `process.env` leak — env allowlist across all 3 spawn paths; denylist extended to connection-string/value-embedded secrets; dead `validateCommand` guard removed; e2e LocalSandbox env-scrub test. *(1 crit — closed 2026-07-14; arg-vector exec intentionally deferred: `sh -c` is the shell tool's contract, env-scrub is the boundary)*
+- [x] **#59** MCP client timeout (`src/internal/mcp/client.ts`) — every request bounded (stdio + http, header AND body phase) → typed `mcp_timeout`. *(1 crit — closed 2026-07-14; reconnect landed in M2)*
+- [x] **#68** ACP permission veto enforced (`packages/acp/src/permission-plugin.ts`) — veto consumed by the dispatch loop; fail-closed on deny/timeout/cancel/disconnect. *(standalone live defect — closed; adversarial review verdict FULLY_CLOSED)*
 
 **Dependencies:** none. **Milestone id for `/to-plan`:** `M0`.
 
