@@ -125,10 +125,10 @@ progress, rate-limit, permission-denied, and task-lifecycle events as **typed** 
 
 **Definition of done:**
 
-- [ ] A typed `RunEvent` discriminated union covering ≥ { tool-progress, rate-limit, permission-denied, task-started/updated/completed, compact-boundary }.
-- [ ] Emitted opt-in alongside the existing chunk stream; non-breaking for current consumers.
-- [ ] TDD: each event asserted from a mocked run (no live model).
-- [ ] Docs + Changeset.
+- [x] A typed `RunEvent` discriminated union covering { tool_progress, rate_limit, permission_denied, task_started/updated/completed, compact_boundary } (+ tripwire, completion_check).
+- [x] **Emitted end-to-end** (adversarial-review fix — 5/7 were dead): `rate_limit` (pool-aware client 429 retry), `compact_boundary` (session auto-compaction), `task_*` (opt-in `Task.submit({ onRunEvent })` bridge). Opt-in + non-breaking (no RunEvent enters `Run.stream()`); fail-safe sink.
+- [x] TDD: unit (each emit site) + integration (per-run mode denial emits `permission_denied`; task bridge; onRateLimit; onCompact).
+- [x] Docs + Changeset (`onRunEvent` surface in docs.md). *(closed 2026-07-14)*
 
 **Dependencies:** SE1 (permission-denied event), M3 (observability core — EventBus/spans).
 
