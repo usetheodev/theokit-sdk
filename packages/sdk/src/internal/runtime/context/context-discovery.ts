@@ -24,7 +24,7 @@ import { dirname, isAbsolute, join, resolve } from "node:path";
 export type DiscoveryScope = "cwd-only" | "git-root-walk" | "globbed";
 
 /** Parser to apply once file is read. */
-export type DiscoveryParser = "plain-markdown" | "mdc" | "frontmatter-zod";
+export type DiscoveryParser = "plain-markdown" | "mdc" | "frontmatter-zod" | "rules-frontmatter";
 
 /**
  * Specification for one discoverable context source. The default registry
@@ -84,6 +84,14 @@ export const DEFAULT_DISCOVERY_SPECS: ReadonlyArray<DiscoverySpec> = [
     parser: "mdc",
     followImports: false,
     priority: 40,
+  },
+  {
+    id: "theokit-rules",
+    pattern: ".theokit/rules/*.md",
+    scope: "globbed",
+    parser: "rules-frontmatter",
+    followImports: false,
+    priority: 45,
   },
   {
     id: "theokit-context",
