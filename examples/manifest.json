@@ -366,6 +366,13 @@
       "page": "/theokit/hooks/observe-the-tool-lifecycle",
       "title": "Observe the tool lifecycle",
       "description": "onToolStart/onToolEnd/onToolError fire around each tool call (real LLM)"
+    },
+    {
+      "slug": "observability-events",
+      "domain": "observability",
+      "page": "/theokit/observability/subscribe-to-run-events",
+      "title": "Subscribe to run events",
+      "description": "onRunEvent receives typed RunEvents (deterministic tripwire)"
     }
   ]
 }
