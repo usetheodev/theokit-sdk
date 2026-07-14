@@ -399,15 +399,23 @@ export async function continueOrTerminate(
   llmOutput: LlmTurnOutput,
 ): Promise<"continue" | "done" | "error"> {
   if (llmOutput.errored) return "error";
-  if (llmOutput.text.length > 0) {
-    await emitAssistantTextStep(inputs, ctx, llmOutput.text);
+  const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
+  // #65 — apply `transform_llm_output` ONCE, up front, so the transformed text
+  // reaches the user-visible step + finalText + the message history, on final
+  // text turns as well as tool-call turns (previously it ran only in the
+  // tool_use branch and only into message history, never touching what the
+  // caller actually receives).
+  const text =
+    llmOutput.text.length > 0
+      ? await transformLlmOutputText(inputs, llmOutput.text, tCtx)
+      : llmOutput.text;
+  if (text.length > 0) {
+    await emitAssistantTextStep(inputs, ctx, text);
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     return finishOrReflect(inputs, ctx, llmOutput);
   }
-  const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
-  const outText = await transformLlmOutputText(inputs, llmOutput.text, tCtx);
-  ctx.messages.push(buildAssistantTurn(outText, llmOutput.toolCalls));
+  ctx.messages.push(buildAssistantTurn(text, llmOutput.toolCalls));
   const rawResults = await dispatchTools(
     // SE12 — forward a read-only text projection of the transcript-so-far to tool
     // handlers via `ctx.messages` (consumed by defineSubAgent's messageFilter).
