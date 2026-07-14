@@ -48,10 +48,10 @@ updates `CHANGELOG.md`.
 
 ### M2 — [x] Harness resilience & I/O robustness
 
-- [ ] **#60** 429 backoff (reuse full-jitter helper, `src/internal/llm/pool-aware-client.ts:111`) + circuit breaker. *(3 gaps)*
-- [ ] **#61** streaming idle timeout + truncation flag + `{raw}` passthrough. *(7 gaps)*
-- [ ] **#59** MCP reconnect-after-drop.
-- [ ] **#63** persistence: batch, pagination, atomic turn append. *(4 gaps)*
+- [x] **#60** 429 backoff (full-jitter) + circuit breaker (per-provider, open/half-open) — verified; `Retry-After` also parses the HTTP-date form (adversarial-review fix). *(closed 2026-07-14)*
+- [x] **#61** streaming idle timeout + truncation detection — idle timeout + OpenAI truncation guard verified; Anthropic truncation guard added (adversarial-review fix). *(closed 2026-07-14; a caller-readable max_tokens flag / {raw} payload passthrough are out of the shipped issue scope, documented)*
+- [x] **#59** MCP reconnect-after-drop — bounded, re-armable reconnect (no permanent wedge after a transient outage exceeds the attempt bound; adversarial-review fix) + HTTP recovery test. *(closed 2026-07-14)*
+- [x] **#63** persistence: batch, pagination, atomic turn append — verified; invalid pagination cursors now fail fast, cross-process lock proven with two real processes (adversarial-review fixes). *(closed 2026-07-14)*
 
 **Dependencies:** M0, M1. **Milestone id:** `M2`.
 
