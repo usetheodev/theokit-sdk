@@ -38,6 +38,27 @@ describe("MCP request timeout (#59)", () => {
     await expect(client.initialize()).rejects.toMatchObject({ code: "mcp_timeout" });
   });
 
+  it("http maps an aborted BODY read to a typed timeout (#59 body phase)", async () => {
+    // Server returns headers (200 OK) then stalls the body stream; the same
+    // AbortSignal.timeout fires during `response.json()`. The raw DOMException
+    // must be mapped to the typed `mcp_timeout`, not leak untyped.
+    const headersThenStallBody: typeof fetch = () =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          Promise.reject(
+            new DOMException("The operation was aborted due to timeout", "TimeoutError"),
+          ),
+      } as unknown as Response);
+    const client = createMcpClient(
+      "stall-body-http",
+      { type: "http", url: "https://mcp.example.test", requestTimeoutMs: 100 },
+      headersThenStallBody,
+    );
+    await expect(client.initialize()).rejects.toMatchObject({ code: "mcp_timeout" });
+  });
+
   it("EC-5: close() during a pending stdio request rejects it (no hang, no leak)", async () => {
     const client = createMcpClient("closeable", {
       type: "stdio",

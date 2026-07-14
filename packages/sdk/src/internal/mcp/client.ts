@@ -432,7 +432,16 @@ class HttpMcpClient extends BaseMcpClient {
         code: "mcp_http_error",
       });
     }
-    return (await response.json()) as unknown;
+    try {
+      return (await response.json()) as unknown;
+    } catch (cause) {
+      // #59 — the body read is bounded by the SAME `AbortSignal.timeout`. A
+      // server that returns headers then stalls the body aborts here; map that
+      // to the typed `mcp_timeout` too so the timeout contract holds across both
+      // the header and body phases (error-handling.md — typed, not raw DOMException).
+      if (isAbortLike(cause)) throw mcpTimeoutError(this.name, timeoutMs);
+      throw cause;
+    }
   }
 }
 

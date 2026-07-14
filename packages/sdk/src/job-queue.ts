@@ -98,8 +98,15 @@ export class JobQueue {
     const job = this.jobs.get(id);
     if (!job) return false;
     if (job.status === "pending" || job.status === "running") {
+      const wasRunning = job.status === "running";
       job.status = "cancelled";
       this.controllers.get(id)?.abort();
+      // A running job holds a concurrency slot; its fn may ignore the signal and
+      // never settle, so free the slot NOW rather than waiting for `.finally`
+      // (which would never fire → the bounded queue would deadlock). `#release`
+      // is idempotent, so the job's eventual `.finally` is a no-op. A *pending*
+      // job holds no slot yet — its slot-grant self-releases when it starts.
+      if (wasRunning) this.#release(id);
       return true;
     }
     return false;
@@ -119,8 +126,14 @@ export class JobQueue {
     });
   }
 
-  /** Release a slot + clean up the controller; start the next waiting job. */
+  /**
+   * Release a slot + clean up the controller; start the next waiting job.
+   * Idempotent — keyed on the controller's presence, so a running job that was
+   * cancelled (released early) does not double-decrement when its `.finally`
+   * eventually fires.
+   */
   #release(id: string): void {
+    if (!this.controllers.has(id)) return; // already released
     this.controllers.delete(id);
     this.running -= 1;
     const next = this.waiting.shift();

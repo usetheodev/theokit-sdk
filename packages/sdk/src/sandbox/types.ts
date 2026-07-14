@@ -46,8 +46,6 @@ export class SandboxNotAvailableError extends Error {
   }
 }
 
-const SHELL_METACHARACTERS = /[;&|`$(){}]/;
-
 export abstract class SandboxBackend {
   protected config: SandboxConfig;
 
@@ -99,14 +97,6 @@ export abstract class SandboxBackend {
     const result = await this.execute(`ls -1 ${this.shellEscape(path)}`);
     if (result.exitCode !== 0) return [];
     return result.stdout.trim().split("\n").filter(Boolean);
-  }
-
-  protected validateCommand(command: string): void {
-    if (SHELL_METACHARACTERS.test(command)) {
-      throw new SandboxSecurityError(
-        `Command contains shell metacharacters: ${command.slice(0, 80)}`,
-      );
-    }
   }
 
   protected truncateOutput(output: string): string {
