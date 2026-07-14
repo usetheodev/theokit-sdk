@@ -216,7 +216,7 @@ export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn 
 // DTS bundle (same isolation pattern as `path-safety` per tsup.config.ts
 // header comment — the agent.ts ↔ fork-agent.ts cycle trips rollup-plugin-dts
 // whenever a sub-entry reaches into `internal/runtime`).
-// Consumers: `import { defineSubscription, tracked, subscribe } from "@theokit/sdk/subscription"`.
+// Consumers: `import { Subscription, tracked, subscribe } from "@theokit/sdk/subscription"` (SE36 — Subscription.create).
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 // SE7 — ToolError (thrown from a tool handler; own module for the G8 LoC budget).

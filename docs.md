@@ -546,6 +546,32 @@ const run = await agent.send("Refactor the utils module", {
 });
 The callbacks are awaited before the next update is processed, so you can apply backpressure. InteractionUpdate covers text-delta, thinking-delta, thinking-completed, tool-call-started, tool-call-completed, partial-tool-call, token-delta, step-started, step-completed, turn-ended, and a handful of summary and shell-output deltas.
 
+### Runtime events — `SendOptions.onRunEvent` (SE2)
+
+Beyond the `SDKMessage` content stream, an opt-in `onRunEvent` sink delivers out-of-band, discriminated **runtime-observability** `RunEvent`s — the model's content is unaffected. Discriminate on `event.type`. Every variant is emitted end-to-end:
+
+- `tool_progress` — a tool is about to dispatch (after all vetoes pass).
+- `permission_denied` — a tool call was blocked (`source`: fork-whitelist / plugin / file-hook).
+- `rate_limit` — a 429 retry is about to back off (`attempt`, `retryAfterMs?`); from the pool-aware LLM client.
+- `compact_boundary` — the session crossed an auto-compaction boundary (`trigger`, `preTokens?`).
+- `task_started` / `task_updated` / `task_completed` — a background task's lifecycle, bridged opt-in from `Task.submit(kind, work, { onRunEvent })`.
+- `tripwire` / `completion_check` — guardrail abort / completion-loop signals.
+
+```ts
+await agent.send("…", {
+  onRunEvent: (e) => {
+    switch (e.type) {
+      case "rate_limit":  metrics.throttle(e.retryAfterMs); break;
+      case "permission_denied":  audit.log(e.toolName, e.message); break;
+      case "compact_boundary":  ui.note("history compacted"); break;
+      // task_started / task_updated / task_completed / tool_progress / tripwire / completion_check
+    }
+  },
+});
+```
+
+The sink is strictly opt-in (absent ⇒ zero behavior change) and fail-safe (a throwing sink never breaks the run). No `RunEvent` is pushed into `Run.stream()` — existing `SDKMessage` consumers are unaffected. Local runtime.
+
 Per-send options
 Property	Type	Description
 model	ModelSelection	Per-send model override. If omitted, uses agent.model. Sticky: a successful send updates agent.model.
@@ -555,6 +581,9 @@ tools	CustomTool[]	Per-call inline custom tools. Fully replaces `AgentOptions.to
 onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step (text, thinking, or tool batch).
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 toolChoice	"auto" \| "none" \| "required"	Per-call tool gate (OpenAI/OpenRouter `tool_choice`). `"none"` forces a text answer even when tools are registered (e.g. an agent loop forcing a closing summary at its step ceiling); `"required"` forces a tool call; omitted ⇒ provider default. Local runtime; OpenAI-compatible providers. Emitted only alongside a non-empty tools array.
+activeTools	string[]	SE18 — restrict, for THIS send only, which of the agent's tools the model may call. A tool call to a name outside the set is vetoed at dispatch (the same fork-whitelist seam as `Agent.fork`'s `allowedTools`, NOT the permission engine) and the handler never runs. `[]` fail-closed (no tool dispatches); absent ⇒ the full toolset. Composes with `toolChoice` (activeTools narrows *which*, toolChoice gates *whether*). Per-send and non-mutating — the agent's persistent tool set is untouched. Local runtime.
+completionCheck	CompletionCheck	SE34 — an opt-in per-send completion predicate (an LLM judge, reusing the goal-judge machinery) evaluated once after the run settles; its verdict surfaces on `RunResult.completionCheck` and as a `completion_check` run-event. Fail-safe (a judge/parse failure ⇒ `complete: false`); absent ⇒ unchanged. Local runtime.
+objectiveThreadId	string	SE34 — the thread whose durable objective (see `setObjective`, SE33) is projected as a `<current-objective>` signal into the assembled system prompt for this send. Only an `active` objective projects; absent ⇒ no projection.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
 
 SystemPromptContext
@@ -569,6 +598,20 @@ interface SystemPromptContext {
 }
 
 The resolver may be sync or async. Errors thrown propagate to the caller of agent.send(). The SDK does NOT impose a timeout — wrap your own Promise.race if you call into slow resources.
+
+Durable thread-scoped objective (SE33)
+
+```typescript
+await agent.setObjective("Ship the release notes", { threadId, maxRuns: 20 });
+const objective = await agent.getObjective(threadId);   // ObjectiveRecord | undefined
+await agent.updateObjectiveOptions(threadId, { maxRuns: 30 });
+await agent.clearObjective(threadId);
+// A standing goal can also live on AgentOptions.goal (precedence: per-call → per-objective → standing → default).
+for await (const _ of agent.runUntil()) { /* no-arg runUntil reads the durable objective */ }
+```
+
+A thread-scoped objective is persisted via the `ConversationStorageAdapter` (an `ObjectiveRecord` in a namespaced sidecar, not mixed into messages), so it survives a fresh agent over the same storage. `agent.runUntil()` with no goal argument reads the durable objective, drives the goal loop, and writes `runsUsed`/`status` back (budget exhaustion leaves the objective `active` for a later resume). `runUntil(goal, opts)` behaves exactly as before (ephemeral, no durable read/write). On an adapter without the objective methods, `setObjective` and friends are a typed no-op (memory-backed storage required). See ADR 0012.
+
 The next three sections are detailed reference for SDKMessage, InteractionUpdate, and ConversationTurn. Skim or skip on a first read; Resuming agents picks up the narrative.
 
 Stream events
@@ -861,16 +904,24 @@ Use when: chat-bot patterns where 90% of the config is identical across users an
 
 Tool.create()
 
-Tool.create<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool;
-interface DefineToolSpec<T extends ZodType> {
+Tool.create<T extends ZodType, O extends ZodType = never>(spec: DefineToolSpec<T, O>): CustomTool;
+interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
   name: string;
   description: string;
   inputSchema: T;
-  handler: (input: z.infer<T>) => string | Promise<string>;
+  // With `outputSchema` the handler returns the STRUCTURED value inferred from it; else a string.
+  handler: (input: z.infer<T>, ctx?: { signal?: AbortSignal; context?: unknown }) =>
+    (O extends never ? string : z.infer<O>) | Promise<O extends never ? string : z.infer<O>>;
+  outputSchema?: O;                                              // SE16
+  toModelOutput?: (output: O extends never ? string : z.infer<O>) => string | ToolResultContentBlock[]; // SE17
   sanitize?: boolean | SanitizeOptions;
 }
 
 Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
+
+`outputSchema` (SE16, optional) validates the handler's RETURN value. When set, the handler's return type is inferred from it (`z.infer<O>`); the value is validated against the schema (a string stays as-is, an object is JSON-stringified into the `tool_result`), and a validation failure surfaces as `tool_result(isError)` with the Zod message. Absent ⇒ the handler returns a plain string (unchanged).
+
+`toModelOutput` (SE17, optional) splits what the MODEL sees from what the APPLICATION keeps. The handler keeps returning the FULL result (validated by `outputSchema`); `toModelOutput` maps it to the compact — or multimodal (SE7 `ToolResultContentBlock[]`) — representation placed in the `tool_result` the model reads. The split is REAL end-to-end: the model's `tool_result` carries the compact value, while observability (`onToolEnd.result`) receives the FULL raw handler output (serialized) — so rich app-facing detail is never forced into model context yet is never lost. One handler execution feeds both channels. Absent ⇒ the serialized handler output is what the model sees (SE16 / pre-SE17 behavior).
 
 `sanitize` (optional) cleans the raw model-emitted args BEFORE `inputSchema.parse`, using the primitive from `@theokit/sdk/sanitize` (see below). `sanitize: true` trims whitespace from string values (so a leaked `"\npackage.json\n"` path validates as `"package.json"`); `sanitize: { coerce: true }` additionally coerces string values toward this tool's own schema (a `z.number()` field accepts `"5"`). Absent ⇒ args reach validation untouched. Sanitize is hygiene, not a validity bypass — a genuinely invalid arg still becomes `tool_result(isError)`.
 
@@ -911,6 +962,34 @@ const rollTool = Tool.create({
 });
 
 Use when: custom tools whose handlers expect typed input and benefit from automatic runtime validation. Invalid input becomes `tool_result(isError)` with a Zod message instead of silent NaN/undefined.
+
+SkillReadTool.create() — lazy model-facing skill read (SE23)
+
+```typescript
+import { SkillReadTool } from "@theokit/sdk";
+
+const skillRead = SkillReadTool.create(inlineSkills);   // returns a CustomTool named `skill_read`
+const agent = await Agent.create({ apiKey, model, skills: { inline: inlineSkills }, tools: [skillRead] });
+```
+
+An OPT-IN tool the MODEL can call to lazily read one skill's FULL body (and its SE21 `references`) on demand — the hybrid to eager `<skills>`-block injection when you want the model to pull a skill only when needed. `SkillReadTool.create(skills)` returns a `CustomTool` named `skill_read`; on call it returns the matching skill's `instructions` + `references`, or a typed "not found" string listing the available skills (no throw) for an unknown name. The SDK never auto-injects it — a consumer adds it to `tools`. Agents that don't add it are unchanged (ADR 0007).
+
+Guardrail processors — `inputProcessors` / `outputProcessors` (SE24/SE25)
+
+```typescript
+import { Agent, UnicodeNormalizer, TokenLimiter, type Processor } from "@theokit/sdk";
+
+const agent = await Agent.create({
+  apiKey, model,
+  inputProcessors: [
+    UnicodeNormalizer.create({ stripControlChars: true, collapseWhitespace: true }),  // SE25 — deterministic
+    TokenLimiter.create({ limit: 4000, strategy: "block" }),
+  ],
+  outputProcessors: [ TokenLimiter.create({ limit: 2000 }) ],  // default strategy: truncate
+});
+```
+
+`AgentOptions.inputProcessors` run in order BEFORE the LLM call; `outputProcessors` run on the response. Each `Processor` is `{ id; processInput?; processOutput?; onViolation? }`; a processor may rewrite/redact its text (return a string) or `ctx.abort(reason)` / `ctx.warn(reason)`. An `abort()` genuinely stops the run: the input path returns a terminal `status: "cancelled"` WITHOUT dispatching to the model, and a `tripwire` is surfaced on `RunResult.tripwire` and as a `tripwire` run-event on the stream; subsequent processors are short-circuited. `onViolation` fires on both abort and warn (its own errors are swallowed). Absent ⇒ unchanged (back-compat). Cloud rejects function-carrying processors. Built-in deterministic (no-LLM) processors: `UnicodeNormalizer` (NFC + optional control-char strip + whitespace collapse) and `TokenLimiter` (char estimate ~chars/4 via `estimateTokens`, `truncate` default or `block`). LLM-classifier guardrails (moderation / PII / injection) are built ON this seam — see `docs/concepts/guardrails.md` and ADR 0009; they are deliberately NOT shipped in core.
 
 Agent.builder()
 
@@ -1041,7 +1120,7 @@ const job = await Cron.create({
 });
 
 await Cron.start();                  // required for local jobs to actually fire
-Either agent (ephemeral agent created on each fire) or agentId (bound to an existing agent for context continuity) must be set, never both. Setting both is a ConfigurationError.
+Exactly one target must be set: agent (ephemeral agent created on each fire), agentId (bound to an existing agent for context continuity), or workflow (SE35 — a `Workflow` run on each fire with `inputData`). Setting more than one, or none, is a ConfigurationError. `message` is required for an agent target and forbidden with `workflow`. `Cron.run(jobId)` returns the resulting `Run` for an agent target, or a `WorkflowRun` for a workflow target.
 
 Supported cron expressions:
 
@@ -1082,9 +1161,11 @@ interface CronJob {
   name?: string;
   cron: string;
   timezone?: string;
-  message: string | SDKUserMessage;
+  message?: string | SDKUserMessage; // required for an agent target; forbidden with `workflow`
   agent?: AgentOptions;              // mutually exclusive with agentId
   agentId?: string;
+  workflow?: Workflow;               // SE35 — schedule a workflow instead of an agent send
+  inputData?: unknown;               // SE35 — passed to `workflow.run(inputData)` on fire
   enabled: boolean;
   status: "scheduled" | "running" | "paused" | "errored";
   runtime: "local" | "cloud";
@@ -1097,9 +1178,11 @@ CronCreateOptions
 
 interface CronCreateOptions {
   cron: string;
-  message: string | SDKUserMessage;
+  message?: string | SDKUserMessage; // required for an agent target; forbidden with `workflow`
   agent?: AgentOptions;
   agentId?: string;
+  workflow?: Workflow;               // SE35 — schedule a workflow (mutually exclusive with agent/agentId + message)
+  inputData?: unknown;               // SE35 — passed to `workflow.run(inputData)` on fire
   name?: string;
   timezone?: string;
   enabled?: boolean;                 // defaults to true
@@ -1455,12 +1538,22 @@ interface SkillsOptions {
 }
 `enabled` names skills to load from configured skill sources. `paths` may point at explicit local skill directories. Cloud rejects local-only paths unless the files are committed in the repo.
 
+`AgentOptions.skills` also accepts a **resolver function** (SE22) — `(ctx: SkillsResolverContext) => SkillsSettings | Promise<SkillsSettings>` — evaluated per `send()` before skill assembly, so the active skill set can vary by run/context (e.g. admin vs. user). Mirrors the `systemPrompt` resolver. The context carries `agentId`, `cwd`, `model`, `userMessage`, and `memory`. No SDK timeout is imposed; a throwing resolver fails the run (fail-fast). A static `SkillsSettings` behaves exactly as before (back-compat). Local runtime only — cloud rejects the function form (`cloud_incompatible_function_resolver`).
+
 SDKSkillsManager
 
 interface SDKSkillsManager {
   list(): Promise<Array<{ name: string; description: string }>>;
+  // SE20 — read one skill's full body programmatically.
+  get(name: string): Promise<SDKAgentSkillDetail | undefined>;
 }
-`list()` returns metadata only. It must not return full `SKILL.md` prompt bodies.
+interface SDKAgentSkillDetail {
+  name: string;
+  description: string;
+  instructions: string;                    // the full SKILL.md body (frontmatter stripped)
+  references?: Record<string, string>;      // SE21 — supporting docs bundled on the skill
+}
+`list()` returns metadata only (name + description) — it must not return full `SKILL.md` prompt bodies. `get(name)` (SE20) returns one skill's FULL body: for a file-based skill it reads the `SKILL.md` at the resolved source and strips the frontmatter; for an inline skill it returns the `instructions` directly. Returns `undefined` when no skill matches (and for a malformed/excluded skill — same exclusion as `list()`). The optional `references` map (SE21) carries any supporting docs bundled on an inline skill via `Skill.create({ references })`.
 ModelSelection
 
 interface ModelSelection {
@@ -2838,6 +2931,41 @@ fn("validate", (input, ctx) => {...}, {
 agentStep("classify", agent, (input) => `prompt: ${input}`, { retry: {...} });
 ```
 
+### Live step-event stream — `Workflow.stream()` (SE28)
+
+`workflow.stream(input, opts?)` returns an `AsyncIterableIterator<WorkflowEvent> & { result: Promise<WorkflowRun> }` that yields step events LIVE during execution — `workflow_started`, `step_started`, `step_completed`, `step_failed`, `workflow_suspended`, `workflow_completed` (discriminate on `type`; events carry `stepId` / `output` / `error`). Events arrive in execution order as steps run (a progress UI need not wait for the whole run). `stream.result` resolves to the terminal `WorkflowRun` (same shape `run()` returns) and is authoritative — not every terminal state has a closing event. `run(input)` is unchanged (`stream()` is purely additive).
+
+### Workflow-scoped state — `stateSchema` + `ctx.state` / `ctx.setState` (SE29)
+
+`Workflow.create({ name, stateSchema?, initialState? })` gives every step a shared, mutable, workflow-scoped state. A step reads `ctx.state` and mutates via `ctx.setState(next)`; a mutation in one step is visible to later steps. When `stateSchema` (Zod) is set, `setState` validates and throws a typed `WorkflowStateError` on mismatch; `initialState` is validated before step 1. State is captured in the `WorkflowSnapshot` and restored on resume (durable across suspend/resume; snapshot `_schemaVersion` bumped with a back-compat guard for older snapshots). Absent `stateSchema` ⇒ no state surface (back-compat).
+
+### Workflows as steps — `workflowStep` + `cloneWorkflow` (SE30)
+
+`workflowStep(childWorkflow)` wraps a committed `Workflow` as a step usable inside `.then(...)`: the child runs via its own executor, its output becomes the step output, and a non-`completed` child (failure/suspend) surfaces to the parent as a typed `WorkflowNestedError` (nested suspend/resume is not supported in v1 — documented in ADR 0010). Nesting is OPAQUE — the child's step ids live in the child's own space; the parent sees one step. `cloneWorkflow(wf, { id })` returns an independent `Workflow` with a fresh id/name and its own single-flight lock, copying the committed steps (no shared step-array reference — mutating the clone never affects the original).
+
+### Whole-workflow I/O validation — `inputSchema` / `outputSchema` (SE27)
+
+`Workflow.create({ name, inputSchema?, outputSchema? })` accepts optional Zod schemas that validate the WHOLE workflow's input and output (distinct from per-step `fn()` schemas). The input is validated at run start — BEFORE step 1 — and a mismatch fails fast with a typed `WorkflowInputError` (no step runs, no silent coercion). On a `completed` run, the final output is validated against `outputSchema`; a mismatch yields `status: "failed"` carrying a typed `WorkflowOutputError` (the error never throws out of `run()`; suspended/failed runs skip output validation). Absent ⇒ no validation (back-compat). Both error classes are exported.
+
+### Workflow as an agent tool — `workflowAsTool` (SE19)
+
+Expose a `Workflow` as a `CustomTool` so an agent can call the whole pipeline like any other tool. Import from `@theokit/sdk/workflow`:
+
+```typescript
+import { workflowAsTool, WorkflowToolError } from "@theokit/sdk/workflow";
+import { z } from "zod";
+
+const refundTool = workflowAsTool(refundWorkflow, {
+  name: "process_refund",
+  description: "Runs the refund pipeline for a claim.",
+  inputSchema: z.object({ claim: z.string() }),
+});
+
+const agent = await Agent.create({ apiKey, model, tools: [refundTool] });
+```
+
+The caller-supplied `inputSchema` becomes the tool's LLM-facing input schema; on call, the handler validates the model's args (a `ZodError` becomes `tool_result(isError)` before the workflow runs), then runs `workflow.run(parsedInput)` and returns the workflow output (a string as-is, a structured output JSON-stringified). A run that does not reach `completed` surfaces a typed `WorkflowToolError` (carrying `workflowStatus` + the run error) — a failed step never silently returns a partial result. The `workflow` argument is structural (`{ run }`-shaped), so any workflow-like object works.
+
 ### Retry policy (D237)
 
 ```typescript
@@ -2911,7 +3039,7 @@ When OTel is installed, each `wf.run` emits a `workflow.run` root span and per-s
 
 - **LocalAgent only** — `CloudAgent` workflow steps throw `UnsupportedRunOperationError` (D244).
 - **Saga compensation deferred to v1.2** — `compensate?` field reserved on `FnStep` but throws `WorkflowCompensateNotImplementedError` if set (D238).
-- **No cron-trigger integration** — wire workflows via `Cron.create({ task })` calling `wf.run` directly.
+- **Cron-trigger integration shipped (SE35)** — schedule a workflow directly with `Cron.create({ cron, workflow, inputData })`; the scheduler runs `workflow.run(inputData)` on each fire (see the Cron section).
 
 ### Errors (named)
 

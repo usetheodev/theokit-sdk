@@ -26,6 +26,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 
 import { InvalidTaskIdError } from "../../errors.js";
+import { emitRunEvent } from "../../types/run-events.js";
 import {
   isValidTaskId,
   type TaskCancelResult,
@@ -235,6 +236,30 @@ interface SubmitInternal<T> {
   readonly signal?: AbortSignal;
   /** When true (adapter-internal), the validator allows reserved prefixes. */
   readonly allowReservedPrefix?: boolean;
+  /** SE2 — forward this task's lifecycle to the run-event sink as `task_*` RunEvents. */
+  readonly onRunEvent?: import("../../types/run-events.js").RunEventSink;
+}
+
+/** SE2 — map a `TaskEvent` to a `task_*` RunEvent for the opt-in `onRunEvent` bridge. */
+function taskEventToRunEvent(
+  event: TaskEvent,
+  taskId: string,
+  kind: TaskKind,
+): import("../../types/run-events.js").RunEvent | undefined {
+  switch (event.type) {
+    case "started":
+      return { type: "task_started", taskId, description: kind };
+    case "progress":
+      return { type: "task_updated", taskId, status: "progress" };
+    case "finished":
+      return { type: "task_completed", taskId, status: "completed" };
+    case "errored":
+      return { type: "task_completed", taskId, status: "failed" };
+    case "cancelled":
+      return { type: "task_completed", taskId, status: "stopped" };
+    default:
+      return undefined; // `submitted` (queued) has no RunEvent counterpart
+  }
 }
 
 async function buildAndInsertQueued(
@@ -343,6 +368,17 @@ export async function submit<T>(internal: SubmitInternal<T>): Promise<TaskHandle
   startEvictTimerIfNeeded();
 
   const resolvedId = resolveIdInternal(internal);
+  // SE2 — bridge the task lifecycle to the caller's run-event sink (opt-in).
+  if (internal.onRunEvent !== undefined) {
+    const sink = internal.onRunEvent;
+    const kind = internal.kind;
+    const subs = state.subscribers.get(resolvedId) ?? new Set();
+    subs.add((e: TaskEvent) => {
+      const runEvent = taskEventToRunEvent(e, resolvedId, kind);
+      if (runEvent !== undefined) emitRunEvent(sink, runEvent);
+    });
+    state.subscribers.set(resolvedId, subs);
+  }
   const submitSpan = startTaskSubmitSpan({ taskId: resolvedId, kind: internal.kind });
 
   // D367 single-flight.

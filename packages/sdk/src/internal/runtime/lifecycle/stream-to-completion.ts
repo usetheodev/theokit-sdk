@@ -86,7 +86,12 @@ export async function* streamToCompletionImpl(
 
   for (let round = 0; ; round += 1) {
     const prompt = promptForRound(round, message, cfg.continuationPrompt);
-    const run = await agent.send(prompt, cfg.sendOptions);
+    // SE3 — a continuation round is a driver-initiated turn; stamp its provenance.
+    const roundOptions =
+      round === 0
+        ? cfg.sendOptions
+        : { ...(cfg.sendOptions ?? {}), origin: { kind: "auto-continuation" as const } };
+    const run = await agent.send(prompt, roundOptions);
 
     // (a) STREAMING: delegate the round's events live, before classifying.
     yield* run.stream();

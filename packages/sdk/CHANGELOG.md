@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.4.1
+
+### Patch Changes
+
+- 2dc6a1c: SE17 gap closure — make the `toModelOutput` model-vs-app tool-output split REAL end-to-end. Previously the transform was applied inside the tool handler, so `onToolEnd` observability only ever saw the compact model-facing value — the application lost the full result (DoD 2/5 unmet). Now a `toModelOutput` tool carries a split resolver: the MODEL's `tool_result` receives the compact representation while `onToolEnd.result` receives the FULL raw handler output (serialized), from ONE handler execution. Direct `tool.handler()` calls still return the model-facing value (back-compat). Metadata/observability-only; no routing change.
+- 2891678: SE3 — close the message-origin provenance gaps found by adversarial review. The SDK now actually STAMPS origin on the delegation and continuation paths (previously declared-but-unproduced union members): a delegated subagent's turn carries `{ kind: "coordinator" }`, and the run-to-completion / stream-to-completion driver's continuation rounds carry `{ kind: "auto-continuation" }`. `peer` (Squad / a2a) was already produced; `human` and `task-notification` remain host-supplied positive markers (documented). Metadata-only — never changes routing.
+
+## 3.4.0
+
+### Minor Changes
+
+- 84b4de5: SE2 — the typed `RunEvent` stream (`SendOptions.onRunEvent`) now EMITS every declared variant end-to-end (previously only `tool_progress` + `permission_denied` fired; the rest were dead-in-the-sink). Newly wired: `rate_limit` (pool-aware LLM client, on a 429 retry backoff), `compact_boundary` (session auto-compaction boundary), and `task_started`/`task_updated`/`task_completed` (opt-in bridge — `Task.submit(kind, work, { onRunEvent })` forwards the task lifecycle as RunEvents). The sink stays strictly opt-in and fail-safe; no RunEvent is pushed into `Run.stream()`. Documented in docs.md.
+
 ## 3.3.0
 
 ### Minor Changes

@@ -95,6 +95,7 @@ export class Task {
       ...(options.id !== undefined ? { id: options.id } : {}),
       ...(options.meta !== undefined ? { meta: options.meta } : {}),
       ...(options.signal !== undefined ? { signal: options.signal } : {}),
+      ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
     });
   }
 

@@ -33,22 +33,22 @@ block, return a string to rewrite/redact, `warn()` to detect without blocking.
 ## Shipped in core (deterministic, no LLM — SE25)
 
 ```ts
-import { Agent, createUnicodeNormalizer, createTokenLimiter } from "@theokit/sdk";
+import { Agent, UnicodeNormalizer, TokenLimiter } from "@theokit/sdk";
 
 const agent = await Agent.create({
   model: { id: "openai/gpt-4o-mini" },
   inputProcessors: [
-    createUnicodeNormalizer({ stripControlChars: true, collapseWhitespace: true }),
-    createTokenLimiter({ limit: 4000, strategy: "block" }), // cap the prompt
+    UnicodeNormalizer.create({ stripControlChars: true, collapseWhitespace: true }),
+    TokenLimiter.create({ limit: 4000, strategy: "block" }), // cap the prompt
   ],
   outputProcessors: [
-    createTokenLimiter({ limit: 2000 }), // truncate an over-long response
+    TokenLimiter.create({ limit: 2000 }), // truncate an over-long response
   ],
 });
 ```
 
-- `createUnicodeNormalizer` — NFC-normalize + optional control-char strip + whitespace collapse.
-- `createTokenLimiter` — char-based estimate (`estimateTokens`, ~chars/4, NOT a per-model tokenizer); `truncate` (default) or `block`.
+- `UnicodeNormalizer.create` — NFC-normalize + optional control-char strip + whitespace collapse.
+- `TokenLimiter.create` — char-based estimate (`estimateTokens`, ~chars/4, NOT a per-model tokenizer); `truncate` (default) or `block`.
 
 ## Delegated (LLM-classifier — you build these on the seam)
 

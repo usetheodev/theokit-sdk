@@ -125,10 +125,10 @@ progress, rate-limit, permission-denied, and task-lifecycle events as **typed** 
 
 **Definition of done:**
 
-- [ ] A typed `RunEvent` discriminated union covering ≥ { tool-progress, rate-limit, permission-denied, task-started/updated/completed, compact-boundary }.
-- [ ] Emitted opt-in alongside the existing chunk stream; non-breaking for current consumers.
-- [ ] TDD: each event asserted from a mocked run (no live model).
-- [ ] Docs + Changeset.
+- [x] A typed `RunEvent` discriminated union covering { tool_progress, rate_limit, permission_denied, task_started/updated/completed, compact_boundary } (+ tripwire, completion_check).
+- [x] **Emitted end-to-end** (adversarial-review fix — 5/7 were dead): `rate_limit` (pool-aware client 429 retry), `compact_boundary` (session auto-compaction), `task_*` (opt-in `Task.submit({ onRunEvent })` bridge). Opt-in + non-breaking (no RunEvent enters `Run.stream()`); fail-safe sink.
+- [x] TDD: unit (each emit site) + integration (per-run mode denial emits `permission_denied`; task bridge; onRateLimit; onCompact).
+- [x] Docs + Changeset (`onRunEvent` surface in docs.md). *(closed 2026-07-14)*
 
 **Dependencies:** SE1 (permission-denied event), M3 (observability core — EventBus/spans).
 
@@ -147,10 +147,10 @@ who triggered them. Metadata-only; no behavior change.
 
 **Definition of done:**
 
-- [ ] A `MessageOrigin` discriminated union; stamped on messages emitted via Squad/a2a/handoff/background-delegation.
-- [ ] Forwarded onto the run result (as Anthropic forwards `origin`).
-- [ ] TDD: a peer-sent turn carries `{ kind: 'peer', from }`; a background follow-up carries `{ kind: 'task-notification' }`.
-- [ ] Docs + Changeset.
+- [x] A `MessageOrigin` discriminated union (`types/run.ts`), stamped BY the SDK on the paths it initiates: `peer` (Squad step / a2a envelope), `coordinator` (subagent delegation, `a2a/subagent.ts`), `auto-continuation` (run/stream-to-completion driver rounds > 0). `human` and `task-notification` are documented as host-supplied positive markers; `handoff` ships in the external `@theokit/sdk-handoff` package (out of this tree).
+- [x] Forwarded onto the run result — `RunResult.origin` (round-trips `SendOptions.origin`).
+- [x] TDD: peer turn carries `{ kind: 'peer', from }` (message-origin.test.ts); coordinator stamp asserted on the delegated child's send (subagent-delegation.test.ts, 49/49); auto-continuation stamp asserted on round > 0 (run-to-completion.test.ts). `task-notification` covered as a host-supplied marker.
+- [x] Docs + Changeset (`.changeset/se3-origin-stamping.md`).
 
 **Dependencies:** SE2 (the typed event stream carries it), existing `a2a`/`Squad`.
 
@@ -168,11 +168,11 @@ session API, so hosts (TheoKit) can build session UIs without reaching into stor
 
 **Definition of done:**
 
-- [ ] `listSessions(opts)`, `getSessionMessages(id, opts)`, `renameSession(id, title)`, `tagSession(id, tag|null)` over `ConversationStorage` (works for FS + memory + external adapters).
-- [ ] Light metadata (summary, lastModified, firstPrompt) derived from the stored transcript.
-- [ ] Graceful degradation for write-only/listing-incapable adapters (typed "unsupported" signal, not a throw-on-every-call).
-- [ ] TDD: list/rename/tag round-trip on `FileSystemConversationStorage`.
-- [ ] Docs + Changeset.
+- [x] `listSessions(opts)`, `getSessionMessages(id, opts)`, `renameSession(id, title)`, `tagSession(id, tag|null)` over `ConversationStorage` (works for FS + memory + external adapters).
+- [x] Light metadata (summary, lastModified, firstPrompt) derived from the stored transcript.
+- [x] Graceful degradation for write-only/listing-incapable adapters (typed "unsupported" signal, not a throw-on-every-call).
+- [x] TDD: list/rename/tag round-trip on `FileSystemConversationStorage`.
+- [x] Docs + Changeset.
 
 **Dependencies:** M3 (scoped session state — app:/user:/temp:), the `ConversationStorage` interface.
 
@@ -200,7 +200,7 @@ the loop does not own file I/O — checkpointing may not fit the runtime cleanly
 **Definition of done:**
 
 - [x] **GATE:** an ADR ruling runtime-vs-framework ownership (no code before it). Evidence: the loop is tool-agnostic; file mutation lives in consumer tools. → **ADR 0003.**
-- [ ] ~~If runtime-owned: a minimal `checkpoint` / `rewind(messageId)` primitive~~ — N/A (ruled framework-owned).
+- [x] ~~If runtime-owned: a minimal `checkpoint` / `rewind(messageId)` primitive~~ — N/A (ruled framework-owned).
 - [x] If framework-owned: ADR + a roadmap note closing it as TheoKit/tool-layer territory (no SDK code). → **done (this note + ADR 0003).**
 
 **Dependencies:** SE1 (permission context), SE4 (message ids as the rewind anchor).
@@ -232,7 +232,7 @@ no-op** — measure before building (YAGNI).
 **Definition of done:**
 
 - [x] Measure the cold-start cost of the first run (provider-chain resolution, plugin discovery, connection setup) with numbers. → **harness + ADR 0004 (4–5 ms prewarmable ceiling).**
-- [ ] ~~If material: a `prewarm(options)` + TDD + latency-delta~~ — N/A (measured negligible).
+- [x] ~~If material: a `prewarm(options)` + TDD + latency-delta~~ — N/A (measured negligible).
 - [x] If negligible: document that in-process cold-start is minimal (our advantage vs subprocess) and CLOSE the milestone with the measurement as evidence. → **done (ADR 0004 + retained harness).**
 
 **Dependencies:** SE2 (measure via typed timing events).
@@ -252,11 +252,11 @@ the first multimodal `tool_result` path, provider-agnostically.
 
 **Definition of done:**
 
-- [ ] `ImageBlock` + `ToolResultContentBlock = TextBlock | ImageBlock` types; `ToolError` class carrying `string | ToolResultContentBlock[]`.
-- [ ] `CustomTool.handler` return widened to `string | ToolResultContentBlock[]` (symmetric — success may be multimodal); back-compat: string still works unchanged.
-- [ ] Block-capable provider wires carry blocks natively (text + image) on `tool_result.content`; **string-only provider wires fail fast** with a typed `ConfigurationError` on an image block (no silent degradation — per error-handling.md); text-only blocks flatten to a string everywhere. Naming is capability-based, not provider-specific.
-- [ ] TDD: handler-returns-image carries onto a block-capable wire; `ToolError([blocks])` → `tool_result` with `isError` + blocks; string-only wire + image → `ConfigurationError`; text-only blocks flatten to string.
-- [ ] Docs + Changeset.
+- [x] `ImageBlock` + `ToolResultContentBlock = TextBlock | ImageBlock` types; `ToolError` class carrying `string | ToolResultContentBlock[]`.
+- [x] `CustomTool.handler` return widened to `string | ToolResultContentBlock[]` (symmetric — success may be multimodal); back-compat: string still works unchanged.
+- [x] Block-capable provider wires carry blocks natively (text + image) on `tool_result.content`; **string-only provider wires fail fast** with a typed `ConfigurationError` on an image block (no silent degradation — per error-handling.md); text-only blocks flatten to a string everywhere. Naming is capability-based, not provider-specific.
+- [x] TDD: handler-returns-image carries onto a block-capable wire; `ToolError([blocks])` → `tool_result` with `isError` + blocks; string-only wire + image → `ConfigurationError`; text-only blocks flatten to string.
+- [x] Docs + Changeset.
 
 **Dependencies:** existing tool dispatch (`tool-executors`/`tool-dispatch`), the provider wire mappers.
 
@@ -277,10 +277,10 @@ routing change. From the DX comparison vs the 4 reference SDKs (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `AgentOptions.model` + `SendOptions.model` accept `string | ModelSelection`; a string is normalized to `{ id: string }` at ONE seam (not scattered).
-- [ ] Back-compat: the `{ id }` (and `{ id, params }`) object form is unchanged.
-- [ ] TDD: a string model resolves identically to `{ id }`; the `provider/` prefix still routes; params-requiring cases still use the object form (documented).
-- [ ] Docs + Changeset; update examples/templates to the shorthand.
+- [x] `AgentOptions.model` + `SendOptions.model` accept `string | ModelSelection`; a string is normalized to `{ id: string }` at ONE seam (not scattered).
+- [x] Back-compat: the `{ id }` (and `{ id, params }`) object form is unchanged.
+- [x] TDD: a string model resolves identically to `{ id }`; the `provider/` prefix still routes; params-requiring cases still use the object form (documented).
+- [x] Docs + Changeset; update examples/templates to the shorthand.
 
 **Dependencies:** none (purely additive DX; the model resolver already parses `provider/model`).
 
@@ -300,12 +300,12 @@ the reference comparison: today you cannot say "run the loop AND give me a typed
 
 **Definition of done:**
 
-- [ ] `SendOptions.output` (a Zod schema) that, when set, makes the run return the validated structured object on the run result (e.g. `RunResult.output`), with the inferred type on `run.wait()`.
-- [ ] Tools still run first; structuring happens on the final turn. **Sugar over the existing `generateObject` synthetic-forced-tool machinery (ADR D33) — reuse, do NOT fork** (Don't-Reinvent).
-- [ ] Failure is typed: a schema-parse failure surfaces a typed error (not a silent empty/undefined).
-- [ ] Precedence with `toolChoice` / `maxIterations` defined + documented.
-- [ ] TDD: a run with tools + an `output` schema returns the typed object; a parse failure surfaces the typed error.
-- [ ] Docs + Changeset.
+- [x] Delivered as `agent.generate(input, { output: schema })` → `GenerateRunResult.object` with the fully-inferred `z.infer<T>` type (API shape changed from the original `SendOptions.output`/`RunResult.output` sketch per the SE9 plan 2026-07-10, to preserve type inference — `RunResult.output` would have been `unknown`). A Zod `output` schema runs the tool loop then returns the validated structured object.
+- [x] Tools still run first; structuring happens on the final turn. **Sugar over the existing `generateObject` synthetic-forced-tool machinery (ADR D33) — reuse, do NOT fork** (Don't-Reinvent).
+- [x] Failure is typed: a schema-parse failure surfaces a typed error (not a silent empty/undefined).
+- [x] Precedence with `toolChoice` / `maxIterations` defined + documented.
+- [x] TDD: a run with tools + an `output` schema returns the typed object; a parse failure surfaces the typed error.
+- [x] Docs + Changeset.
 
 **Dependencies:** the existing `generateObject` (ADR D33 synthetic forced tool); SE2 (typed events, optional).
 
@@ -329,11 +329,11 @@ supervisor-agents comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `defineSubAgent`'s tool handler reads the optional `ctx.signal` and forwards it to the child `agent.send(input, { signal })`; an already-aborted or mid-run abort cancels the child (child resolves `cancelled`, not `finished`).
-- [ ] Back-compat: a handler invoked with no `ctx` (single-arg call sites) behaves exactly as today (no signal ⇒ no cancellation).
-- [ ] The child agent is still disposed in `finally` on cancel (no leak).
-- [ ] TDD: an aborted parent signal cancels the in-flight subagent (child run status `cancelled`); the un-aborted path still returns the child result.
-- [ ] Docs + Changeset.
+- [x] `defineSubAgent`'s tool handler reads the optional `ctx.signal` and forwards it to the child `agent.send(input, { signal })`; an already-aborted or mid-run abort cancels the child (child resolves `cancelled`, not `finished`).
+- [x] Back-compat: a handler invoked with no `ctx` (single-arg call sites) behaves exactly as today (no signal ⇒ no cancellation).
+- [x] The child agent is still disposed in `finally` on cancel (no leak).
+- [x] TDD: an aborted parent signal cancels the in-flight subagent (child run status `cancelled`); the un-aborted path still returns the child result.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (the `ctx.signal` seam already exists per #65; purely additive).
 
@@ -353,12 +353,12 @@ has NO interception point — the handler runs the child unconditionally. Add op
 
 **Definition of done:**
 
-- [ ] `SubAgentSpec.onDelegationStart?(ctx: { input; name }) => { proceed: boolean; rejectionReason?; modifiedInput? } | void` — `proceed: false` short-circuits (returns the `rejectionReason` as the tool result, the child never runs); `modifiedInput` rewrites the prompt sent to the child.
-- [ ] `SubAgentSpec.onDelegationComplete?(ctx: { input; name; result?; error? }) => { feedback? } | void` — runs after the child; optional `feedback` is appended to the returned result string.
-- [ ] Hooks are optional and fail-loud: a throwing hook surfaces a typed error, never a silent swallow (Rule 8).
-- [ ] Back-compat: specs without hooks behave exactly as today.
-- [ ] TDD: reject path returns `rejectionReason` without running the child; `modifiedInput` rewrites; `onDelegationComplete` feedback is appended; a child error is surfaced to `onDelegationComplete`.
-- [ ] Docs + Changeset.
+- [x] `SubAgentSpec.onDelegationStart?(ctx: { input; name }) => { proceed: boolean; rejectionReason?; modifiedInput? } | void` — `proceed: false` short-circuits (returns the `rejectionReason` as the tool result, the child never runs); `modifiedInput` rewrites the prompt sent to the child.
+- [x] `SubAgentSpec.onDelegationComplete?(ctx: { input; name; result?; error? }) => { feedback? } | void` — runs after the child; optional `feedback` is appended to the returned result string.
+- [x] Hooks are optional and fail-loud: a throwing hook surfaces a typed error, never a silent swallow (Rule 8).
+- [x] Back-compat: specs without hooks behave exactly as today.
+- [x] TDD: reject path returns `rejectionReason` without running the child; `modifiedInput` rewrites; `onDelegationComplete` feedback is appended; a child error is surfaced to `onDelegationComplete`.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE10 (option-passing seam into the child run).
 
@@ -379,11 +379,11 @@ default). From the Mastra supervisor-agents comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `SubAgentSpec.messageFilter?({ messages; input; name }) => messages` — when set, the returned (filtered) parent messages are forwarded to the child run as prior context; when absent, the child runs input-only (unchanged; isolation-by-default preserved).
-- [ ] Parent messages are exposed to the delegation handler WITHOUT sending nested tool args back into the supervisor model (mirrors Mastra's "scoped memory saves").
-- [ ] Security: the filter is the ONLY path that widens child context; no accidental full-transcript leak when `messageFilter` is absent.
-- [ ] TDD: with `messageFilter` returning a subset, the child receives exactly that subset; without it, the child receives input only; a filter dropping a "confidential" message keeps it out of the child context.
-- [ ] Docs + Changeset; ADR if runtime message-exposure requires a new seam.
+- [x] `SubAgentSpec.messageFilter?({ messages; input; name }) => messages` — when set, the returned (filtered) parent messages are forwarded to the child run as prior context; when absent, the child runs input-only (unchanged; isolation-by-default preserved).
+- [x] Parent messages are exposed to the delegation handler WITHOUT sending nested tool args back into the supervisor model (mirrors Mastra's "scoped memory saves").
+- [x] Security: the filter is the ONLY path that widens child context; no accidental full-transcript leak when `messageFilter` is absent.
+- [x] TDD: with `messageFilter` returning a subset, the child receives exactly that subset; without it, the child receives input only; a filter dropping a "confidential" message keeps it out of the child context.
+- [x] Docs + Changeset; ADR if runtime message-exposure requires a new seam.
 
 **Dependencies:** SE10 + SE11 (delegation seam + hook infrastructure). May need an ADR if exposing parent messages to the tool handler requires a runtime change.
 
@@ -405,11 +405,11 @@ iteration count. SE11 shipped `proceed` / `rejectionReason` / `modifiedInput` an
 
 **Definition of done:**
 
-- [ ] `DelegationStartDecision` gains `modifiedMaxSteps?: number`; when set (and `proceed !== false`), `defineSubAgent` forwards it as `maxIterations` to the child `agent.send(input, { maxIterations })`.
-- [ ] Composes with SE10 (signal) + SE12 (messageFilter preamble): all merge onto ONE child `send` call.
-- [ ] Back-compat: absent `modifiedMaxSteps` ⇒ the child uses its default iteration ceiling (unchanged).
-- [ ] TDD: a decision with `modifiedMaxSteps: 3` calls the child `send` with `maxIterations: 3`; absent leaves the child call unchanged; the option coexists with a forwarded `signal`.
-- [ ] Docs + Changeset.
+- [x] `DelegationStartDecision` gains `modifiedMaxSteps?: number`; when set (and `proceed !== false`), `defineSubAgent` forwards it as `maxIterations` to the child `agent.send(input, { maxIterations })`.
+- [x] Composes with SE10 (signal) + SE12 (messageFilter preamble): all merge onto ONE child `send` call.
+- [x] Back-compat: absent `modifiedMaxSteps` ⇒ the child uses its default iteration ceiling (unchanged).
+- [x] TDD: a decision with `modifiedMaxSteps: 3` calls the child `send` with `maxIterations: 3`; absent leaves the child call unchanged; the option coexists with a forwarded `signal`.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE11 (the `onDelegationStart` hook + `DelegationStartDecision`); SE10 (the child-send option seam).
 
@@ -431,11 +431,11 @@ results are appended to the delegation payload surfaced to the supervisor; text-
 
 **Definition of done:**
 
-- [ ] `SubAgentSpec.includeToolResults?: boolean` (default `false` = text-only, unchanged). When `true`, the child's tool-call results are appended to the delegation result returned to the supervisor.
-- [ ] The default (`false`) preserves today's text-only behavior EXACTLY (regression-tested).
-- [ ] Nested tool args are not silently re-injected beyond what the option opts into (mirrors Mastra's scoped default).
-- [ ] TDD: with `includeToolResults: true` the returned payload contains the child's tool result; with `false` (default) it is text-only.
-- [ ] Docs + Changeset; **ADR** if surfacing the child's tool results requires a new `RunResult` field or a `run.stream()` capture.
+- [x] `SubAgentSpec.includeToolResults?: boolean` (default `false` = text-only, unchanged). When `true`, the child's tool-call results are appended to the delegation result returned to the supervisor.
+- [x] The default (`false`) preserves today's text-only behavior EXACTLY (regression-tested).
+- [x] Nested tool args are not silently re-injected beyond what the option opts into (mirrors Mastra's scoped default).
+- [x] TDD: with `includeToolResults: true` the returned payload contains the child's tool result; with `false` (default) it is text-only.
+- [x] Docs + Changeset; **ADR** if surfacing the child's tool results requires a new `RunResult` field or a `run.stream()` capture.
 
 **Dependencies:** SE10 (child-send seam). **May need a `RunResult` tool-results surface** — `RunResult` currently exposes only `result?: string`, so capturing the child's tool results likely needs a new additive field OR a `run.stream()` event capture (gate behind an ADR).
 
@@ -457,11 +457,11 @@ comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `DelegationStartContext` + `DelegationCompleteContext` gain `iteration: number` — the 1-based count of times THIS subagent tool has been invoked (a per-`defineSubAgent`-instance closure counter).
-- [ ] The counter increments once per handler invocation BEFORE `onDelegationStart` runs, so the hook sees the current iteration; a rejected (`proceed:false`) delegation still counts as an iteration.
-- [ ] Back-compat: hooks that ignore `iteration` are unaffected; specs without hooks are unchanged.
-- [ ] TDD: three successive delegations see `iteration` 1, 2, 3; a hook rejecting when `iteration > 2` lets the first two run and rejects the third (child never runs on the third); `onDelegationComplete` sees the same iteration as its `onDelegationStart`.
-- [ ] Docs + Changeset.
+- [x] `DelegationStartContext` + `DelegationCompleteContext` gain `iteration: number` — the 1-based count of times THIS subagent tool has been invoked (a per-`defineSubAgent`-instance closure counter).
+- [x] The counter increments once per handler invocation BEFORE `onDelegationStart` runs, so the hook sees the current iteration; a rejected (`proceed:false`) delegation still counts as an iteration.
+- [x] Back-compat: hooks that ignore `iteration` are unaffected; specs without hooks are unchanged.
+- [x] TDD: three successive delegations see `iteration` 1, 2, 3; a hook rejecting when `iteration > 2` lets the first two run and rejects the third (child never runs on the third); `onDelegationComplete` sees the same iteration as its `onDelegationStart`.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE11 (the hook contexts `DelegationStartContext` / `DelegationCompleteContext`).
 
@@ -481,12 +481,12 @@ from it. From the Mastra Tools comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `DefineToolSpec.outputSchema?: ZodType`; when set, the handler's return is parsed against it and a validation failure surfaces a TYPED error (not a silent malformed tool result).
-- [ ] The handler's return type is inferred from `outputSchema` when present (end-to-end inference).
-- [ ] Back-compat: absent `outputSchema` ⇒ the handler return is passed through exactly as today.
-- [ ] SE7 multimodal (`ToolResultContentBlock[]`) returns: `outputSchema` targets the structured-object return only; a blocks return is not forced through a Zod object (decide the exact rule in plan).
-- [ ] TDD: a return matching the schema passes; a mismatch surfaces the typed error; no schema ⇒ unchanged.
-- [ ] Docs + Changeset.
+- [x] `DefineToolSpec.outputSchema?: ZodType`; when set, the handler's return is parsed against it and a validation failure surfaces a TYPED error (not a silent malformed tool result).
+- [x] The handler's return type is inferred from `outputSchema` when present (end-to-end inference).
+- [x] Back-compat: absent `outputSchema` ⇒ the handler return is passed through exactly as today.
+- [x] SE7 multimodal (`ToolResultContentBlock[]`) returns: `outputSchema` targets the structured-object return only; a blocks return is not forced through a Zod object (decide the exact rule in plan).
+- [x] TDD: a return matching the schema passes; a mismatch surfaces the typed error; no schema ⇒ unchanged.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends `defineTool`, additive).
 
@@ -507,12 +507,12 @@ model-facing `tool_result`. From the Mastra Tools comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `DefineToolSpec.toModelOutput?: (output) => string | ToolResultContentBlock[]`; when set, the model-facing tool_result content is what `toModelOutput` returns, NOT the raw handler output.
-- [ ] The raw handler output stays available to observability (`onToolEnd` event carries it) so the app keeps the full result — confirm the exact surface in plan (reuse `onToolEnd`, avoid a new RunResult field).
-- [ ] Composes with SE16: `outputSchema` validates the raw handler output; `toModelOutput` maps the validated output to the model representation.
-- [ ] Back-compat: absent `toModelOutput` ⇒ the handler return is the model result (unchanged; SE7 blocks path intact).
-- [ ] TDD: a tool with rich output + `toModelOutput` sends the small representation to the model while the full output reaches the observability surface.
-- [ ] Docs + Changeset.
+- [x] `DefineToolSpec.toModelOutput?: (output) => string | ToolResultContentBlock[]`; when set, the model-facing tool_result content is what `toModelOutput` returns, NOT the raw handler output.
+- [x] The raw handler output stays available to observability (`onToolEnd` event carries it) so the app keeps the full result — confirm the exact surface in plan (reuse `onToolEnd`, avoid a new RunResult field).
+- [x] Composes with SE16: `outputSchema` validates the raw handler output; `toModelOutput` maps the validated output to the model representation.
+- [x] Back-compat: absent `toModelOutput` ⇒ the handler return is the model result (unchanged; SE7 blocks path intact).
+- [x] TDD: a tool with rich output + `toModelOutput` sends the small representation to the model while the full output reaches the observability surface.
+- [x] Docs + Changeset.
 
 **Dependencies:** SE16 (composes with `outputSchema`; may ship independently but the plan defines ordering).
 
@@ -533,11 +533,11 @@ applies that whitelist for the duration of the send. From the Mastra Tools compa
 
 **Definition of done:**
 
-- [ ] `SendOptions.activeTools?: string[]`; when set, only tools whose canonical (post-repair, lowercase) name is in the list are dispatchable for that send — any other tool call is vetoed via the existing `withToolWhitelist` dispatch path (NOT `PermissionEngine`), same as `fork`'s `allowedTools`.
-- [ ] Composes with `toolChoice`: `activeTools` narrows the set; `toolChoice` gates calling within it.
-- [ ] Back-compat: absent `activeTools` ⇒ the full toolset is available (unchanged).
-- [ ] TDD: with `activeTools: ["a"]`, tool `a` dispatches and tool `b` is vetoed; absent ⇒ both available.
-- [ ] Docs + Changeset.
+- [x] `SendOptions.activeTools?: string[]`; when set, only tools whose canonical (post-repair, lowercase) name is in the list are dispatchable for that send — any other tool call is vetoed via the existing `withToolWhitelist` dispatch path (NOT `PermissionEngine`), same as `fork`'s `allowedTools`.
+- [x] Composes with `toolChoice`: `activeTools` narrows the set; `toolChoice` gates calling within it.
+- [x] Back-compat: absent `activeTools` ⇒ the full toolset is available (unchanged).
+- [x] TDD: with `activeTools: ["a"]`, tool `a` dispatches and tool `b` is vetoed; absent ⇒ both available.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (reuses `withToolWhitelist`; additive on `SendOptions`).
 
@@ -584,12 +584,12 @@ skills). From the Mastra Agent-skills comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `SDKAgentSkills.get(name: string): Promise<{ name; description; instructions } | undefined>` — returns the resolved skill including its body; `undefined` when no enabled skill matches.
-- [ ] Filesystem skills read the body from their `source` SKILL.md; inline (`createSkill`) skills return their `instructions` directly.
-- [ ] `list()` is unchanged (name + description only — the block stays lean; full bodies only via `get`).
-- [ ] A malformed / excluded skill is not returned by `get` (same exclusion as `list`).
-- [ ] TDD: `get` returns the body for an inline skill and for a filesystem skill; `undefined` for an unknown name; excluded skills are absent.
-- [ ] Docs + Changeset.
+- [x] `SDKAgentSkills.get(name: string): Promise<{ name; description; instructions } | undefined>` — returns the resolved skill including its body; `undefined` when no enabled skill matches.
+- [x] Filesystem skills read the body from their `source` SKILL.md; inline (`createSkill`) skills return their `instructions` directly.
+- [x] `list()` is unchanged (name + description only — the block stays lean; full bodies only via `get`).
+- [x] A malformed / excluded skill is not returned by `get` (same exclusion as `list`).
+- [x] TDD: `get` returns the body for an inline skill and for a filesystem skill; `undefined` for an unknown name; excluded skills are absent.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends the existing `SDKAgentSkills` handle + `skills-manager`).
 
@@ -609,11 +609,11 @@ SE20's `get(name)` (and readable by the consumer). From the Mastra Agent-skills 
 
 **Definition of done:**
 
-- [ ] `CreateSkillSpec.references?: Record<string, string>` (filename → content); carried on the `InlineSkill`.
-- [ ] The references are exposed through `agent.skills.get(name)` (SE20) so an app / a consumer tool can read them; absent ⇒ no references (unchanged).
-- [ ] Back-compat: inline skills without `references` behave exactly as today.
-- [ ] TDD: an inline skill with `references` surfaces them via `get`; without ⇒ empty/absent.
-- [ ] Docs + Changeset; **ADR** if surfacing references to the MODEL (not just the app) needs a read tool — the eager `<skills>` block only carries name + description, so a model-facing reference read is a separate mechanism (skill_read tool) intentionally deferred.
+- [x] `CreateSkillSpec.references?: Record<string, string>` (filename → content); carried on the `InlineSkill`.
+- [x] The references are exposed through `agent.skills.get(name)` (SE20) so an app / a consumer tool can read them; absent ⇒ no references (unchanged).
+- [x] Back-compat: inline skills without `references` behave exactly as today.
+- [x] TDD: an inline skill with `references` surfaces them via `get`; without ⇒ empty/absent.
+- [x] Docs + Changeset; **ADR** if surfacing references to the MODEL (not just the app) needs a read tool — the eager `<skills>` block only carries name + description, so a model-facing reference read is a separate mechanism (skill_read tool) intentionally deferred.
 
 **Dependencies:** SE20 (`get` is the read path that surfaces `references`).
 
@@ -633,11 +633,11 @@ the Mastra Agent-skills comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `AgentOptions.skills` accepts a resolver `(ctx) => SkillsSettings | Promise<SkillsSettings>` in addition to the static object; evaluated per run before skill discovery/assembly.
-- [ ] Back-compat: a static `SkillsSettings` object behaves exactly as today.
-- [ ] The resolver receives a documented context (mirror the systemPrompt resolver's `ctx`); the SDK imposes no timeout (consumer wraps their own).
-- [ ] TDD: a resolver returning different skills for different contexts is honored per run; a static object is unchanged.
-- [ ] Docs + Changeset.
+- [x] `AgentOptions.skills` accepts a resolver `(ctx) => SkillsSettings | Promise<SkillsSettings>` in addition to the static object; evaluated per run before skill discovery/assembly.
+- [x] Back-compat: a static `SkillsSettings` object behaves exactly as today.
+- [x] The resolver receives a documented context (mirror the systemPrompt resolver's `ctx`); the SDK imposes no timeout (consumer wraps their own).
+- [x] TDD: a resolver returning different skills for different contexts is honored per run; a static object is unchanged.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (mirrors the existing systemPrompt-resolver pattern).
 
@@ -660,11 +660,11 @@ comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `defineSkillReadTool(skills: InlineSkill[])` returns a `CustomTool` (name `skill_read`) whose input is a skill name; the handler returns the matching skill's `instructions` and (SE21) `references`; an unknown name returns a typed "not found" tool result (a string the model can act on, NOT a throw that kills the run).
-- [ ] The tool is OPT-IN — the consumer adds it to `tools`; the SDK never auto-injects it (bring-your-own-tools preserved).
-- [ ] Back-compat: nothing changes for agents that don't add the tool.
-- [ ] TDD: the tool returns a skill's body + references by name; an unknown name returns the not-found result; the returned value is a valid `CustomTool`.
-- [ ] Docs + Changeset; **ADR** recording the opt-in-factory decision (vs Mastra's auto-injected tools) + the eager-block + lazy-read hybrid.
+- [x] `defineSkillReadTool(skills: InlineSkill[])` returns a `CustomTool` (name `skill_read`) whose input is a skill name; the handler returns the matching skill's `instructions` and (SE21) `references`; an unknown name returns a typed "not found" tool result (a string the model can act on, NOT a throw that kills the run).
+- [x] The tool is OPT-IN — the consumer adds it to `tools`; the SDK never auto-injects it (bring-your-own-tools preserved).
+- [x] Back-compat: nothing changes for agents that don't add the tool.
+- [x] TDD: the tool returns a skill's body + references by name; an unknown name returns the not-found result; the returned value is a valid `CustomTool`.
+- [x] Docs + Changeset; **ADR** recording the opt-in-factory decision (vs Mastra's auto-injected tools) + the eager-block + lazy-read hybrid.
 
 **Dependencies:** SE21 (`references` on the inline skill — the tool surfaces them).
 
@@ -690,14 +690,14 @@ Guardrails comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] A public `Processor` interface: `{ id; processInput?(ctx) => messages | abort; processOutput?(ctx) => output | abort; onViolation? }` (exact shape decided in the plan/ADR — reuse vs extend the existing hook seam is an explicit ADR choice).
-- [ ] `AgentOptions.inputProcessors?` run in order before the LLM call; each may rewrite the user message(s) or `abort(reason)`. `outputProcessors?` run in order on the model response before it reaches the caller; each may rewrite/redact or `abort(reason)`.
-- [ ] `strategy` support: at minimum `block` (abort) + `rewrite`/`redact` (transform-and-continue); `warn`/`detect` are non-blocking (fire `onViolation`, continue). `translate` is a processor concern (SE26 delegated), not a core strategy requirement.
-- [ ] `abort()` semantics: an aborted run yields a typed tripwire — `result.tripwire { reason, processorId }` on the wait/generate path AND a `tripwire` run-event on the stream path (mirror `SendOptions.onRunEvent` / `RunEvent`). Subsequent processors do NOT run after an abort.
-- [ ] `onViolation(ProcessorViolation { processorId, message, detail })` fires on abort AND on `warn`; callback errors are swallowed (never break the pipeline).
-- [ ] Back-compat: no processors ⇒ behavior identical to today. Cloud agents reject function-carrying processors (mirror the systemPrompt/skills resolver cloud rule) OR the ADR records how processors serialize.
-- [ ] TDD: an input `block` processor aborts before the LLM (tripwire, no model call); an input `rewrite` processor mutates the message the model sees; an output `redact` processor transforms the returned text; `onViolation` fires with the right payload; ordering + short-circuit-on-abort are asserted.
-- [ ] Docs + Changeset + **ADR** (seam design: dedicated pipeline vs extending `pre_user_send`/`post_assistant_reply`; tripwire shape; cloud serialization).
+- [x] A public `Processor` interface: `{ id; processInput?(ctx) => messages | abort; processOutput?(ctx) => output | abort; onViolation? }` (exact shape decided in the plan/ADR — reuse vs extend the existing hook seam is an explicit ADR choice).
+- [x] `AgentOptions.inputProcessors?` run in order before the LLM call; each may rewrite the user message(s) or `abort(reason)`. `outputProcessors?` run in order on the model response before it reaches the caller; each may rewrite/redact or `abort(reason)`.
+- [x] `strategy` support: at minimum `block` (abort) + `rewrite`/`redact` (transform-and-continue); `warn`/`detect` are non-blocking (fire `onViolation`, continue). `translate` is a processor concern (SE26 delegated), not a core strategy requirement.
+- [x] `abort()` semantics: an aborted run yields a typed tripwire — `result.tripwire { reason, processorId }` on the wait/generate path AND a `tripwire` run-event on the stream path (mirror `SendOptions.onRunEvent` / `RunEvent`). Subsequent processors do NOT run after an abort.
+- [x] `onViolation(ProcessorViolation { processorId, message, detail })` fires on abort AND on `warn`; callback errors are swallowed (never break the pipeline).
+- [x] Back-compat: no processors ⇒ behavior identical to today. Cloud agents reject function-carrying processors (mirror the systemPrompt/skills resolver cloud rule) OR the ADR records how processors serialize.
+- [x] TDD: an input `block` processor aborts before the LLM (tripwire, no model call); an input `rewrite` processor mutates the message the model sees; an output `redact` processor transforms the returned text; `onViolation` fires with the right payload; ordering + short-circuit-on-abort are asserted.
+- [x] Docs + Changeset + **ADR** (seam design: dedicated pipeline vs extending `pre_user_send`/`post_assistant_reply`; tripwire shape; cloud serialization).
 
 **Dependencies:** none (extends the local runtime; reuses the SE2 `RunEvent` stream + the SE1 abort/veto precedent).
 
@@ -745,11 +745,11 @@ comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] An **ADR** recording: (a) the SE24 seam is the extension point; (b) LLM-classifier processors are delegated (not shipped in core); (c) re-evaluation triggers (team ≥ 3 engineers, or ≥ N shipped apps blocked) mirroring AUTH-DELEGATION; (d) if ever adopted, they ship as separate optional `@theokit/guardrail-*` packages, never in core.
-- [ ] A `docs/concepts/guardrails.md` recommendation page: how to build moderation / PII / injection / language / prompt-scrubber processors on the SE24 seam, with recommended external classifiers.
-- [ ] A **worked example** (in `examples/`) of a moderation-style processor built on the SE24 seam calling an external classifier (a stub/fake classifier is acceptable for the example — the point is the seam wiring, not a bundled model).
-- [ ] NO concrete classifier processor added to `@theokit/sdk` core (verifiable: no new `Moderation`/`PII`/`Injection` runtime export).
-- [ ] Changeset (docs/ADR only — no minor API surface unless the example needs a tiny seam helper).
+- [x] An **ADR** recording: (a) the SE24 seam is the extension point; (b) LLM-classifier processors are delegated (not shipped in core); (c) re-evaluation triggers (team ≥ 3 engineers, or ≥ N shipped apps blocked) mirroring AUTH-DELEGATION; (d) if ever adopted, they ship as separate optional `@theokit/guardrail-*` packages, never in core.
+- [x] A `docs/concepts/guardrails.md` recommendation page: how to build moderation / PII / injection / language / prompt-scrubber processors on the SE24 seam, with recommended external classifiers.
+- [x] A **worked example** (in `examples/`) of a moderation-style processor built on the SE24 seam calling an external classifier (a stub/fake classifier is acceptable for the example — the point is the seam wiring, not a bundled model).
+- [x] NO concrete classifier processor added to `@theokit/sdk` core (verifiable: no new `Moderation`/`PII`/`Injection` runtime export).
+- [x] Changeset (docs/ADR only — no minor API surface unless the example needs a tiny seam helper).
 
 **Dependencies:** SE24 (the seam the delegated processors build on).
 
@@ -771,13 +771,13 @@ and the final output against `outputSchema` before returning. From the Mastra Wo
 
 **Definition of done:**
 
-- [ ] `WorkflowOptions.inputSchema?: ZodType` / `outputSchema?: ZodType` (optional, back-compat: absent ⇒ no whole-workflow validation, exactly as today).
-- [ ] `Workflow.run(input)` validates `input` against `inputSchema` (when set) BEFORE executing step 1 — a mismatch fails fast with a typed `WorkflowInputError` (Rule 8), never a silent coerce.
-- [ ] The final workflow output is validated against `outputSchema` (when set) before `WorkflowRun.output` is populated — a mismatch surfaces as `status: "failed"` with a typed error (not a throw that escapes `run()`).
-- [ ] `workflowAsTool` MAY read `workflow`'s `inputSchema` when the spec omits one (removing the SE19 caller-must-supply requirement when the workflow now declares it) — optional sub-goal, gated on not breaking the SE19 structural `{ run }` contract.
-- [ ] Typed inference: `Workflow.create<I, O>` continues to infer, and `inputSchema`/`outputSchema` (when Zod) refine `TInput`/`TOutput`.
-- [ ] TDD: a valid input passes; an invalid input fails fast with the typed error before any step runs; an output-schema mismatch yields `status: "failed"`; absent schemas ⇒ unchanged.
-- [ ] Docs + Changeset.
+- [x] `WorkflowOptions.inputSchema?: ZodType` / `outputSchema?: ZodType` (optional, back-compat: absent ⇒ no whole-workflow validation, exactly as today).
+- [x] `Workflow.run(input)` validates `input` against `inputSchema` (when set) BEFORE executing step 1 — a mismatch fails fast with a typed `WorkflowInputError` (Rule 8), never a silent coerce.
+- [x] The final workflow output is validated against `outputSchema` (when set) before `WorkflowRun.output` is populated — a mismatch surfaces as `status: "failed"` with a typed error (not a throw that escapes `run()`).
+- [x] `workflowAsTool` MAY read `workflow`'s `inputSchema` when the spec omits one (removing the SE19 caller-must-supply requirement when the workflow now declares it) — optional sub-goal, gated on not breaking the SE19 structural `{ run }` contract.
+- [x] Typed inference: `Workflow.create<I, O>` continues to infer, and `inputSchema`/`outputSchema` (when Zod) refine `TInput`/`TOutput`.
+- [x] TDD: a valid input passes; an invalid input fails fast with the typed error before any step runs; an output-schema mismatch yields `status: "failed"`; absent schemas ⇒ unchanged.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends `WorkflowOptions`; the executor already has the input at entry + the output at exit).
 
@@ -799,12 +799,12 @@ Mastra Workflows comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `Workflow.stream(input, opts?)` returns `AsyncIterable<WorkflowEvent>` where `WorkflowEvent` is a typed union discriminated on `type` (`step_started`/`step_completed`/`step_failed`/`workflow_suspended`/`workflow_completed`), each carrying the relevant `stepId` / `output` / `error`.
-- [ ] The stream terminates when the run does; the terminal `WorkflowRun` is reachable (e.g. `stream.result` OR a final `workflow_completed` event carrying it) — same shape as `run()`.
-- [ ] Back-compat: `run(input)` is unchanged (may be re-expressed as draining `stream()` internally, but its signature + result are identical).
-- [ ] Events fire in execution order; a suspended workflow emits `workflow_suspended` then the stream ends (resumable via `Workflow.resume`).
-- [ ] TDD: a 2-step workflow emits `step_started`/`step_completed` for each in order then `workflow_completed`; a failing step emits `step_failed`; a suspend emits `workflow_suspended`.
-- [ ] Docs + Changeset.
+- [x] `Workflow.stream(input, opts?)` returns `AsyncIterable<WorkflowEvent>` where `WorkflowEvent` is a typed union discriminated on `type` (`step_started`/`step_completed`/`step_failed`/`workflow_suspended`/`workflow_completed`), each carrying the relevant `stepId` / `output` / `error`.
+- [x] The stream terminates when the run does; the terminal `WorkflowRun` is reachable (e.g. `stream.result` OR a final `workflow_completed` event carrying it) — same shape as `run()`.
+- [x] Back-compat: `run(input)` is unchanged (may be re-expressed as draining `stream()` internally, but its signature + result are identical).
+- [x] Events fire in execution order; a suspended workflow emits `workflow_suspended` then the stream ends (resumable via `Workflow.resume`).
+- [x] TDD: a 2-step workflow emits `step_started`/`step_completed` for each in order then `workflow_completed`; a failing step emits `step_failed`; a suspend emits `workflow_suspended`.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (the executor drives steps sequentially; add an event sink).
 
@@ -825,11 +825,11 @@ Workflows comparison (2026-07-10).
 
 **Definition of done:**
 
-- [ ] `WorkflowOptions.stateSchema?: ZodType` + `WorkflowOptions.initialState?` (validated against it). `StepContext` gains `state: TState` (read) + `setState(next: TState): void` (write) — absent schema ⇒ no state surface (back-compat).
-- [ ] State mutations are visible to subsequent steps in the same run; `setState` validates against `stateSchema` (typed error on mismatch — Rule 8).
-- [ ] State is captured in the `WorkflowSnapshot` and restored on `Workflow.resume` (bump `_schemaVersion` if the snapshot shape changes; migrate/guard old snapshots).
-- [ ] TDD: step 1 sets state, step 2 reads the updated value; `setState` with an invalid shape fails fast; state survives a suspend→resume round-trip.
-- [ ] Docs + Changeset.
+- [x] `WorkflowOptions.stateSchema?: ZodType` + `WorkflowOptions.initialState?` (validated against it). `StepContext` gains `state: TState` (read) + `setState(next: TState): void` (write) — absent schema ⇒ no state surface (back-compat).
+- [x] State mutations are visible to subsequent steps in the same run; `setState` validates against `stateSchema` (typed error on mismatch — Rule 8).
+- [x] State is captured in the `WorkflowSnapshot` and restored on `Workflow.resume` (bump `_schemaVersion` if the snapshot shape changes; migrate/guard old snapshots).
+- [x] TDD: step 1 sets state, step 2 reads the updated value; `setState` with an invalid shape fails fast; state survives a suspend→resume round-trip.
+- [x] Docs + Changeset.
 
 **Dependencies:** none (extends `StepContext` + the executor's per-run context; touches the snapshot shape — coordinate with the persistence version).
 
@@ -850,12 +850,12 @@ returning an independent Workflow with a new id/name. From the Mastra Workflows 
 
 **Definition of done:**
 
-- [ ] A committed `Workflow` can be used as a step — either `.then(workflow)` accepts a `Workflow` (wrapping it as a `WorkflowStep`) OR an explicit `workflowStep(child)` factory (decide in the plan/ADR). The nested workflow runs via its own executor; its output becomes the step output; a nested failure/suspend propagates to the parent run status.
-- [ ] `cloneWorkflow(wf, { id })` returns a new independent `Workflow` with the given id/name and the same committed steps — clones run independently and surface as distinct in Task/observability.
-- [ ] Nested suspend/resume: a suspended child surfaces the parent as `suspended` (v1 MAY restrict resume-through-nesting with a documented limitation if the snapshot can't address a nested step — decide in the plan).
-- [ ] Step-id uniqueness across nesting is validated (the existing `validateUniqueIds` walk extends to the nested workflow's steps, or the nested run is treated as one opaque step id — decide in the plan).
-- [ ] TDD: a parent workflow whose middle step is a child workflow runs end-to-end and the child's output flows on; a cloned workflow runs independently under its new id; a nested failure fails the parent.
-- [ ] Docs + Changeset; **ADR** if nested suspend/resume semantics need a snapshot-shape decision.
+- [x] A committed `Workflow` can be used as a step — either `.then(workflow)` accepts a `Workflow` (wrapping it as a `WorkflowStep`) OR an explicit `workflowStep(child)` factory (decide in the plan/ADR). The nested workflow runs via its own executor; its output becomes the step output; a nested failure/suspend propagates to the parent run status.
+- [x] `cloneWorkflow(wf, { id })` returns a new independent `Workflow` with the given id/name and the same committed steps — clones run independently and surface as distinct in Task/observability.
+- [x] Nested suspend/resume: a suspended child surfaces the parent as `suspended` (v1 MAY restrict resume-through-nesting with a documented limitation if the snapshot can't address a nested step — decide in the plan).
+- [x] Step-id uniqueness across nesting is validated (the existing `validateUniqueIds` walk extends to the nested workflow's steps, or the nested run is treated as one opaque step id — decide in the plan).
+- [x] TDD: a parent workflow whose middle step is a child workflow runs end-to-end and the child's output flows on; a cloned workflow runs independently under its new id; a nested failure fails the parent.
+- [x] Docs + Changeset; **ADR** if nested suspend/resume semantics need a snapshot-shape decision.
 
 **Dependencies:** SE28 is NOT required; nesting composes with the existing executor. (If SE28 shipped, nested step events SHOULD surface — coordinate.)
 
@@ -882,12 +882,12 @@ BYO-tools decision stands. This is the backend *seam*, not a new toolset.
 
 **Definition of done:**
 
-- [ ] A `FilesystemBackend` protocol with a minimal core method set (decide the exact 2–4 abstract methods + derived ops in the plan/ADR, mirroring `SandboxBackend`'s shape); `LocalFilesystem` implements it; path traversal is validated at the boundary and rejected with a typed error (reuse the sandbox's escape/scrub discipline — security).
-- [ ] `readOnly` flag (writes on a read-only backend throw a typed error) + a per-request resolver `(ctx) => FilesystemBackend` supported, mirroring the documented dynamic-sandbox resolver.
-- [ ] The `@theokit/sdk-tools` file factories accept an optional `filesystem` backend; **omitted ⇒ identical current behavior** (local process fs) — fully back-compatible, no consumer change required.
-- [ ] S3 / GCS / `CompositeFilesystem` / `mounts` (FUSE) are explicitly OUT of core — documented as separate opt-in packages or deferred (mirrors how sandbox backends beyond Local live outside core).
-- [ ] TDD: read / write / list / stat against `LocalFilesystem`; a resolver returns a distinct per-request root; a `readOnly` backend rejects a write with the typed error; a path-traversal attempt is blocked.
-- [ ] Docs + Changeset; **ADR** for the seam shape AND the "why a filesystem seam when `SandboxBackend` already exists" decision (route file ops through the sandbox vs a dedicated FS backend).
+- [x] A `FilesystemBackend` protocol with a minimal core method set (decide the exact 2–4 abstract methods + derived ops in the plan/ADR, mirroring `SandboxBackend`'s shape); `LocalFilesystem` implements it; path traversal is validated at the boundary and rejected with a typed error (reuse the sandbox's escape/scrub discipline — security).
+- [x] `readOnly` flag (writes on a read-only backend throw a typed error) + a per-request resolver `(ctx) => FilesystemBackend` supported, mirroring the documented dynamic-sandbox resolver.
+- [x] The `@theokit/sdk-tools` file factories accept an optional `filesystem` backend; **omitted ⇒ identical current behavior** (local process fs) — fully back-compatible, no consumer change required. Wired for the read/write/list core (`createReadFileTool` / `createWriteFileTool` / `createListDirTool`) — matching the read/write/list/stat acceptance TDD below. `createGlobTool` / `createSearchTextTool` intentionally stay on local fs in v1: they need RECURSIVE directory traversal, which the minimal `FilesystemBackend` seam (non-recursive `list()`, per ADR 0011's "minimal core method set") does not expose — a recursive backend walk is deferred to a follow-up (out of the v1 minimal-seam scope; noted honestly, not a silent gap).
+- [x] S3 / GCS / `CompositeFilesystem` / `mounts` (FUSE) are explicitly OUT of core — documented as separate opt-in packages or deferred (mirrors how sandbox backends beyond Local live outside core).
+- [x] TDD: read / write / list / stat against `LocalFilesystem`; a resolver returns a distinct per-request root; a `readOnly` backend rejects a write with the typed error; a path-traversal attempt is blocked.
+- [x] Docs + Changeset; **ADR** for the seam shape AND the "why a filesystem seam when `SandboxBackend` already exists" decision (route file ops through the sandbox vs a dedicated FS backend).
 
 **Dependencies:** none hard — composes with the existing `SandboxBackend` + sdk-tools file factories. (The plan MUST decide whether file operations route through `SandboxBackend.uploadFile`/`execute` instead of a dedicated seam; if routing suffices, this milestone is cut.)
 
@@ -910,11 +910,11 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] The write path (`createWriteFileTool` / `createEditFileTool`, and the SE31 `FilesystemBackend.writeFile` if landed) accepts an optional `expectedMtime`; on mismatch it throws a typed `StaleFileError` (fail-fast, Rule 8) — never a silent clobber.
-- [ ] Opt-in `requireReadBeforeWrite` on the write/edit tools: an existing file must be read (mtime recorded) before a write; a NEW file (does not exist) writes freely; an externally-modified file fails with `FileReadRequiredError` / `StaleFileError`.
-- [ ] **Default OFF** — no behavior change unless enabled (back-compat).
-- [ ] TDD (concurrency-aware): a write with a stale `expectedMtime` → `StaleFileError`; a new file writes without a prior read; read → external-modify → write → fails; the read tracker is per-run and does not leak across runs.
-- [ ] Docs + Changeset (ADR only if the read-tracker state ownership needs a documented seam decision).
+- [x] The write path (`createWriteFileTool` / `createEditFileTool`, and the SE31 `FilesystemBackend.writeFile` if landed) accepts an optional `expectedMtime`; on mismatch it throws a typed `StaleFileError` (fail-fast, Rule 8) — never a silent clobber.
+- [x] Opt-in `requireReadBeforeWrite` on the write/edit tools: an existing file must be read (mtime recorded) before a write; a NEW file (does not exist) writes freely; an externally-modified file fails with `FileReadRequiredError` / `StaleFileError`.
+- [x] **Default OFF** — no behavior change unless enabled (back-compat).
+- [x] TDD (concurrency-aware): a write with a stale `expectedMtime` → `StaleFileError`; a new file writes without a prior read; read → external-modify → write → fails; the read tracker is per-run and does not leak across runs.
+- [x] Docs + Changeset (ADR only if the read-tracker state ownership needs a documented seam decision).
 
 **Dependencies:** pairs with SE31 (the `FilesystemBackend` carries `expectedMtime` through `writeFile`); MAY ship tool-layer-only if SE31 is cut.
 
@@ -930,13 +930,13 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] A thread-scoped objective record (`{ objective, options, status: 'active'|'done'|'paused', runsUsed }`) is PERSISTED via the existing `ConversationStorageAdapter` (a new key/namespace on the thread — reuse the seam, add no new store). Survives reload (read back after a fresh agent instance).
-- [ ] `agent.setObjective(objective, { threadId, ...options })` / `getObjective({ threadId })` / `updateObjectiveOptions({ threadId, ...})` (only provided fields written; unset fall back to agent `goal` config) / `clearObjective({ threadId })`. All **no-op when the run is not memory-backed** (no storage / no threadId) — mirror Mastra.
-- [ ] Optional standing `goal` config on `AgentOptions` (`{ judge?/judgeModel?, maxRuns?, prompt? }`) — per-objective values (from `setObjective`) take precedence over the standing config, and that precedence is remembered in the record. The judge is the activation switch: no judge resolved ⇒ the standing objective is inert (no scoring, no budget consumed).
-- [ ] `runUntil` (or a thin `runUntil()`-with-no-arg entrypoint) reads the durable objective when no explicit goal is passed, and writes `runsUsed`/`status` back to storage so `maxRuns` exhaustion leaves it `active` (raising `maxRuns` later resumes).
-- [ ] Back-compat: absent a standing `goal` config + no `setObjective` call ⇒ `runUntil(goal, opts)` behaves EXACTLY as today (transient, D115-D121). No behavior change for existing callers.
-- [ ] TDD: set → persist → new agent instance reads it back; update-options precedence; clear; no-op without threadId/storage; `maxRuns` exhaustion leaves `active` + a later raise resumes; a run with no judge is inert.
-- [ ] Docs + Changeset; **ADR** for the objective record shape + the ConversationStorage key/namespace.
+- [x] A thread-scoped objective record (`{ objective, options, status: 'active'|'done'|'paused', runsUsed }`) is PERSISTED via the existing `ConversationStorageAdapter` (a new key/namespace on the thread — reuse the seam, add no new store). Survives reload (read back after a fresh agent instance).
+- [x] `agent.setObjective(objective, { threadId, ...options })` / `getObjective({ threadId })` / `updateObjectiveOptions({ threadId, ...})` (only provided fields written; unset fall back to agent `goal` config) / `clearObjective({ threadId })`. All **no-op when the run is not memory-backed** (no storage / no threadId) — mirror Mastra.
+- [x] Optional standing `goal` config on `AgentOptions` (`{ judge?/judgeModel?, maxRuns?, prompt? }`) — per-objective values (from `setObjective`) take precedence over the standing config, and that precedence is remembered in the record. The judge is the activation switch: no judge resolved ⇒ the standing objective is inert (no scoring, no budget consumed).
+- [x] `runUntil` (or a thin `runUntil()`-with-no-arg entrypoint) reads the durable objective when no explicit goal is passed, and writes `runsUsed`/`status` back to storage so `maxRuns` exhaustion leaves it `active` (raising `maxRuns` later resumes).
+- [x] Back-compat: absent a standing `goal` config + no `setObjective` call ⇒ `runUntil(goal, opts)` behaves EXACTLY as today (transient, D115-D121). No behavior change for existing callers.
+- [x] TDD: set → persist → new agent instance reads it back; update-options precedence; clear; no-op without threadId/storage; `maxRuns` exhaustion leaves `active` + a later raise resumes; a run with no judge is inert.
+- [x] Docs + Changeset; **ADR** for the objective record shape + the ConversationStorage key/namespace.
 
 **Dependencies:** `runUntil` (D115-D121 — shipped), `ConversationStorageAdapter` (shipped seam), SE29 workflow-state ownership discipline (mirror for the record shape). No new subsystem.
 
@@ -953,13 +953,13 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] `SendOptions.isTaskComplete` (per-send completion check): after a `send()`, the existing LLM-judge scorer evaluates the response against a criterion; a typed result surfaces (reuse `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts`). Absent ⇒ unchanged.
-- [ ] (Optional, ADR-gated) in-agentic-loop goal step: the SE33 durable objective is scored ONCE PER tool-loop iteration (right after `isTaskComplete`), gating continuation/stop — a NO-OP for background-task / mid-tool-loop / working-memory-only iterations (mirror Mastra's gating). This is the only loop-touching change and MUST be behind an explicit ADR decision (it modifies the shipped agent loop).
-- [ ] State-signal projection: when a standing objective (SE33) is set, `<current-objective>` is auto-injected into the model context each turn (a lightweight system-prompt/context signal — reuse the SE22 dynamic-skills / systemPrompt-resolver seam if it fits; do NOT build a general signal-provider framework — YAGNI).
-- [ ] Typed `goal`/`task_complete` evaluation events on the run-event stream (align with the existing `GoalEvent` union + `run-events.ts`).
-- [ ] Back-compat: all three additions OPT-IN; absent them the loop + `send()` are byte-identical to today.
-- [ ] TDD: `isTaskComplete` gates a single send; the in-loop step (if built) evaluates a mid-run message against the standing objective + is a no-op on non-candidate iterations; `<current-objective>` appears in the assembled context; the loop is unchanged when nothing is configured.
-- [ ] Docs + Changeset; **ADR REQUIRED** for the in-agentic-loop step (it modifies the shipped loop — the highest-scrutiny change).
+- [x] `SendOptions.isTaskComplete` (per-send completion check): after a `send()`, the existing LLM-judge scorer evaluates the response against a criterion; a typed result surfaces (reuse `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts`). Absent ⇒ unchanged.
+- [x] (Optional, ADR-gated) in-agentic-loop goal step: the SE33 durable objective is scored ONCE PER tool-loop iteration (right after `isTaskComplete`), gating continuation/stop — a NO-OP for background-task / mid-tool-loop / working-memory-only iterations (mirror Mastra's gating). This is the only loop-touching change and MUST be behind an explicit ADR decision (it modifies the shipped agent loop).
+- [x] State-signal projection: when a standing objective (SE33) is set, `<current-objective>` is auto-injected into the model context each turn (a lightweight system-prompt/context signal — reuse the SE22 dynamic-skills / systemPrompt-resolver seam if it fits; do NOT build a general signal-provider framework — YAGNI).
+- [x] Typed `goal`/`task_complete` evaluation events on the run-event stream (align with the existing `GoalEvent` union + `run-events.ts`).
+- [x] Back-compat: all three additions OPT-IN; absent them the loop + `send()` are byte-identical to today.
+- [x] TDD: `isTaskComplete` gates a single send; the in-loop step (if built) evaluates a mid-run message against the standing objective + is a no-op on non-candidate iterations; `<current-objective>` appears in the assembled context; the loop is unchanged when nothing is configured.
+- [x] Docs + Changeset; **ADR REQUIRED** for the in-agentic-loop step (it modifies the shipped loop — the highest-scrutiny change).
 
 **Dependencies:** SE33 (the durable objective the in-loop step + projection read), `runUntil` + `internal/scorers/llm-judge.ts` + `internal/judge/judge-call.ts` (shipped). SE22 systemPrompt-resolver seam (reuse for the projection).
 
@@ -978,13 +978,13 @@ hardens the write tools that already exist opt-in.
 
 **Definition of done:**
 
-- [ ] `CronCreateOptions` / `CronJob` gain `workflow?: Workflow` + `inputData?: unknown`, MUTUALLY EXCLUSIVE with `agent`/`agentId` (exactly one target: `agent` | `agentId` | `workflow`). `message` is REQUIRED for agent targets, FORBIDDEN for a workflow target (a workflow takes `inputData`, not a chat message). A `ConfigurationError` (`cron_ambiguous_target` / `cron_no_target` / `cron_workflow_message`) when zero or >1 target is set, or `message` is paired with `workflow` — validated in `createCronJob`, extending the existing `agent`-XOR-`agentId` guard.
-- [ ] `runCronJob(job)` branches on the target: `workflow` ⇒ `job.workflow.run(job.inputData)` (returns the terminal `WorkflowRun`); `agent`/`agentId` ⇒ unchanged (`agent.send(message)` → `Run`). Return type widens to `Run | WorkflowRun`. `Cron.run(jobId)` (manual off-schedule fire) returns the `WorkflowRun` for a workflow job. `run-job.ts` calls `.run()` on the held instance — it does NOT import `workflow.ts` (the instance carries its own `.run`), preserving the dependency direction.
-- [ ] The scheduler default fire handler (`setCronFireHandler` in `cron.ts`) handles BOTH result shapes: an agent `Run` (has `.wait()`/`.cancel()`) vs a `WorkflowRun` (already terminal — no `.wait()`). The Task-registry wrap records the right terminal status/runId for each. The in-process Croner scheduler, `nextRunAt`/`lastRunAt`, pause/resume, timezone — all REUSED unchanged.
-- [ ] Back-compat: an agent-target job (`agent`/`agentId` + `message`) is byte-identical to today; the new fields are additive + optional. No behavior change for existing callers.
-- [ ] (Deferred, ADR-gated) **fire lifecycle hooks** (`prepare` / `onFinish` / `onError` / `onAbort`) — DEFERRED per ADR 0014 (no concrete consumer; YAGNI). The ADR records the named re-eval trigger (mirrors SE34's in-loop-step deferral). Not built in SE35.
-- [ ] TDD: create a workflow-target job → held with `workflow`/`inputData`; a manual `Cron.run` fires the workflow with `inputData` and returns the terminal `WorkflowRun`; ambiguous/zero target rejected typed; `message`+`workflow` rejected typed; agent-target path unchanged; the scheduler handler records a workflow fire's terminal status without calling `.wait()`.
-- [ ] Docs + Changeset; **ADR 0014** for the workflow-target design (instance-not-id rationale + the hooks deferral).
+- [x] `CronCreateOptions` / `CronJob` gain `workflow?: Workflow` + `inputData?: unknown`, MUTUALLY EXCLUSIVE with `agent`/`agentId` (exactly one target: `agent` | `agentId` | `workflow`). `message` is REQUIRED for agent targets, FORBIDDEN for a workflow target (a workflow takes `inputData`, not a chat message). A `ConfigurationError` (`cron_ambiguous_target` / `cron_no_target` / `cron_workflow_message`) when zero or >1 target is set, or `message` is paired with `workflow` — validated in `createCronJob`, extending the existing `agent`-XOR-`agentId` guard.
+- [x] `runCronJob(job)` branches on the target: `workflow` ⇒ `job.workflow.run(job.inputData)` (returns the terminal `WorkflowRun`); `agent`/`agentId` ⇒ unchanged (`agent.send(message)` → `Run`). Return type widens to `Run | WorkflowRun`. `Cron.run(jobId)` (manual off-schedule fire) returns the `WorkflowRun` for a workflow job. `run-job.ts` calls `.run()` on the held instance — it does NOT import `workflow.ts` (the instance carries its own `.run`), preserving the dependency direction.
+- [x] The scheduler default fire handler (`setCronFireHandler` in `cron.ts`) handles BOTH result shapes: an agent `Run` (has `.wait()`/`.cancel()`) vs a `WorkflowRun` (already terminal — no `.wait()`). The Task-registry wrap records the right terminal status/runId for each. The in-process Croner scheduler, `nextRunAt`/`lastRunAt`, pause/resume, timezone — all REUSED unchanged.
+- [x] Back-compat: an agent-target job (`agent`/`agentId` + `message`) is byte-identical to today; the new fields are additive + optional. No behavior change for existing callers.
+- [x] (Deferred, ADR-gated) **fire lifecycle hooks** (`prepare` / `onFinish` / `onError` / `onAbort`) — DEFERRED per ADR 0014 (no concrete consumer; YAGNI). The ADR records the named re-eval trigger (mirrors SE34's in-loop-step deferral). Not built in SE35.
+- [x] TDD: create a workflow-target job → held with `workflow`/`inputData`; a manual `Cron.run` fires the workflow with `inputData` and returns the terminal `WorkflowRun`; ambiguous/zero target rejected typed; `message`+`workflow` rejected typed; agent-target path unchanged; the scheduler handler records a workflow fire's terminal status without calling `.wait()`.
+- [x] Docs + Changeset; **ADR 0014** for the workflow-target design (instance-not-id rationale + the hooks deferral).
 
 **Dependencies:** `Cron` (shipped — façade + `internal/cron/{scheduler,store,validate,run-job}.ts`), `Workflow` (SE27–30 — shipped `Workflow.create(opts).commit()` → `Workflow` instance + `.run(input)` → `Promise<WorkflowRun>`). No new subsystem, no new registry.
 
@@ -1012,14 +1012,14 @@ old `define*`/`create*` exports are REMOVED, not aliased. This **reverses Unbrea
 
 **Definition of done:**
 
-- [ ] ADR written that supersedes D431 and reverses Rule 9; documents the new convention "every public capability & utility factory ships as an `X.create()` static method" + the SOTA-divergence rationale.
-- [ ] Every listed factory converted to a namespace class with a static `create()`; old `define*`/`create*` exports REMOVED from every entrypoint barrel (hard break — no deprecated aliases).
-- [ ] `docs.md` (source of truth) + `README.md` updated to the new surface; zero `defineTool`/`createSquad`/… references remain (grep-clean).
-- [ ] `CLAUDE.md` Inviolable Rule 9 + the Locked-names table rewritten to the new convention (Locked-names change protocol: docs.md + README + CHANGELOG in the same PR).
-- [ ] jscodeshift codemod rewriting `defineX(...)`/`createX(...)` → `X.create(...)` for consumers, with a migration guide; the codemod round-trips the entire in-tree `examples/**` suite.
-- [ ] Every example under `examples/**` + the docs-site examples migrated and **re-verified against a real LLM (OpenRouter)** per `rules/real-llm-validation.md`.
-- [ ] All tests migrated; TDD per converted symbol: a regression test asserting the new `X.create` has behavior parity with the removed factory (RED first).
-- [ ] Major bump `@theokit/sdk@3.0.0` + Changeset; CHANGELOG `[Unreleased] § Removed` lists every removed factory, `§ Changed` documents the rename.
+- [x] ADR written that supersedes D431 and reverses Rule 9; documents the new convention "every public capability & utility factory ships as an `X.create()` static method" + the SOTA-divergence rationale.
+- [x] Every listed factory converted to a namespace class with a static `create()`; old `define*`/`create*` exports REMOVED from every entrypoint barrel (hard break — no deprecated aliases).
+- [x] `docs.md` (source of truth) + `README.md` updated to the new surface; zero `defineTool`/`createSquad`/… references remain (grep-clean).
+- [x] `CLAUDE.md` Inviolable Rule 9 + the Locked-names table rewritten to the new convention (Locked-names change protocol: docs.md + README + CHANGELOG in the same PR).
+- [x] jscodeshift codemod rewriting `defineX(...)`/`createX(...)` → `X.create(...)` for consumers, with a migration guide; the codemod round-trips the entire in-tree `examples/**` suite.
+- [x] Every example under `examples/**` + the docs-site examples migrated and **re-verified against a real LLM (OpenRouter)** per `rules/real-llm-validation.md`.
+- [x] All tests migrated; TDD per converted symbol: a regression test asserting the new `X.create` has behavior parity with the removed factory (RED first).
+- [x] Major bump `@theokit/sdk@3.0.0` + Changeset; CHANGELOG `[Unreleased] § Removed` lists every removed factory, `§ Changed` documents the rename.
 
 **Dependencies:** SE35 (and transitively all SE1–SE35, all `[x]`) — the redesign renames the
 **entire existing public surface**, so every prior slice that introduced a factory must be
