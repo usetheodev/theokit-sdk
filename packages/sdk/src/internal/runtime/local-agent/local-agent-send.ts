@@ -69,6 +69,7 @@ export interface SendLockedInputs {
     baseSystemPrompt: string | undefined,
     memoryFacts: ReadonlyArray<MemoryFact>,
     activeMemorySummary: string | undefined,
+    contextPaths: readonly string[] | undefined,
   ) => Promise<string | undefined>;
   // jscpd:ignore-start — type contract mirrors LocalAgent.dispatchRun signature (not knowledge duplication)
   dispatchRun: (
@@ -185,6 +186,7 @@ export async function executeSendLocked(
     baseSystemPrompt,
     memoryFacts,
     activeMemorySummary,
+    options.contextPaths,
   );
   // SE34 — project the standing durable objective (SE33) as a `<current-objective>`
   // context signal for THIS send (opt-in via `objectiveThreadId`). Absent ⇒ the

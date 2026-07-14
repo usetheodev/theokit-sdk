@@ -336,8 +336,8 @@ export class LocalAgent implements SDKAgent {
         runPreHook: (ut) => this.runPreHook(ut),
         // biome-ignore format: G8 budget — callbacks wire to private methods.
         resolveSystemPromptForSend: (ut, o, mf) => this.resolveSystemPrompt(ut, o, mf),
-        assembleSystemPromptForSend: (ut, bp, mf, ams) =>
-          assembleSystemPromptForSendHelper(this.assemblyInputs(), ut, bp, mf, ams),
+        assembleSystemPromptForSend: (ut, bp, mf, ams, cp) =>
+          assembleSystemPromptForSendHelper(this.assemblyInputs(), ut, bp, mf, ams, cp),
         dispatchRun: (msg, o, sp, mf, pm, mt, mp) => this.dispatchRun(msg, o, sp, mf, pm, mt, mp),
       },
       message,

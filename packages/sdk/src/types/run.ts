@@ -338,6 +338,15 @@ export interface SendOptions {
    * - `[t1, t2]` → use exactly these tools for this run
    */
   tools?: CustomTool[];
+  /**
+   * The set of repo-relative file paths in scope for THIS send (local runtime).
+   * Declares "which files am I working on" so path-scoped rule files
+   * (`.theokit/rules/*.md` with `paths:`/`globs:`, and `.cursor/rules/*.mdc`
+   * globs) activate when a pattern matches one of these paths. `alwaysApply`
+   * rules load regardless. Omit ⇒ only unconditional rules load (the create-time
+   * snapshot is untouched). Matching is glob-based (`**`, `*`, `?`).
+   */
+  contextPaths?: readonly string[];
   onStep?: (args: { step: ConversationStep }) => void | Promise<void>;
   onDelta?: (args: { update: InteractionUpdate }) => void | Promise<void>;
   /**
