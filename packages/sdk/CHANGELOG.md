@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.2.3
+
+### Patch Changes
+
+- 1770aec: Fix (#59) — a stdio MCP client no longer permanently wedges after a transient outage exceeds the reconnect attempt bound. The bound is now LOCAL to each reconnect cycle (a bounded retry loop with backoff), so a later request re-arms a fresh cycle and reconnects once the server recovers — while a genuinely-broken server still surfaces a typed `mcp_disconnected` "reconnect exhausted". Adds the previously-missing HTTP-transport recovery test (stateless reconnect on the next request after a transport failure).
+- cda0542: Fix (#60) — `Retry-After` now also parses the RFC-7231 HTTP-date form (`Retry-After: Wed, 21 Oct 2025 07:28:00 GMT`), converting it to seconds-until-then (clamped at 0 for a past date). Previously only the numeric-seconds form was honored; a date-form header was silently dropped. Clarified that the same-key 429 retry deliberately does not block on `Retry-After` (a multi-key pool rotates to a fresh key immediately; the cooldown is honored at pool-selection level).
+- 510041b: Fix (#61) — the Anthropic streaming client now detects a truncated stream. A stream that closes cleanly-but-early (server FIN / proxy hiccup before the terminal `message_delta` carrying `stop_reason`) previously committed silently as a clean `end_turn`; it now throws a typed `NetworkError{code:"stream_truncated"}`, matching the OpenAI client's guard.
+- f7d39c8: Fix (#63) — pagination now fails fast on invalid cursors. `paginate({ offset, limit })` rejected a `NaN` offset by silently returning the WHOLE list (and negative by returning empty); it now throws `ConfigurationError{code:"pagination_invalid"}` for any non-negative-integer offset/limit. Also adds real cross-process evidence for the conversation-storage file lock: two separate OS processes taking `withFileLock` on the same file are proven to serialize (previously only in-process concurrency was tested).
+
 ## 3.2.2
 
 ### Patch Changes

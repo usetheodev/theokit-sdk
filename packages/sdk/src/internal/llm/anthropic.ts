@@ -1,3 +1,4 @@
+import { NetworkError } from "../../errors.js";
 import { mapAnthropicError } from "../error-mappers/anthropic.js";
 import { buildAnthropicCommonBody, mapAnthropicStopReason } from "./anthropic-shared.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
@@ -128,6 +129,15 @@ export class AnthropicClient implements LlmClient {
       const events = accumulator.consume(parsed);
       for (const event of events) yield event;
     }
+    // M2 #61 — a stream that ended without a terminal `message_delta`
+    // (stop_reason) was truncated (dropped connection / proxy hiccup); throw a
+    // typed error rather than commit the partial turn as a clean `end_turn`
+    // (parity with the OpenAI client's truncation guard).
+    if (!accumulator.finishReasonSeen) {
+      throw new NetworkError("Anthropic SSE stream truncated (no stop_reason)", {
+        code: "stream_truncated",
+      });
+    }
     return accumulator.finish();
   }
 }
@@ -135,6 +145,12 @@ export class AnthropicClient implements LlmClient {
 class AnthropicStreamAccumulator {
   private text = "";
   private stopReason: LlmStopReason = "end_turn";
+  /**
+   * M2 #61 — whether a `message_delta` carrying a real `stop_reason` was seen.
+   * A stream that closes before it is a truncation (server FIN / proxy hiccup),
+   * not a clean `end_turn` — the caller throws `stream_truncated` on `false`.
+   */
+  private sawStopReason = false;
   private inputTokens?: number;
   private outputTokens?: number;
   private cacheReadTokens?: number;
@@ -185,6 +201,9 @@ class AnthropicStreamAccumulator {
    * spinning the SSE parser.
    */
   handleMessageDelta(md: AnthropicMessageDelta): void {
+    if (md.delta.stop_reason !== undefined && md.delta.stop_reason !== null) {
+      this.sawStopReason = true;
+    }
     this.stopReason = mapAnthropicStopReason(md.delta.stop_reason);
     if (md.usage?.input_tokens !== undefined) this.inputTokens = md.usage.input_tokens;
     if (md.usage?.output_tokens !== undefined) this.outputTokens = md.usage.output_tokens;
@@ -200,6 +219,11 @@ class AnthropicStreamAccumulator {
     if (md.usage?.cache_read_input_tokens !== undefined && md.usage.cache_read_input_tokens > 0) {
       this.cacheReadTokens = md.usage.cache_read_input_tokens;
     }
+  }
+
+  /** M2 #61 — whether the terminal `message_delta` (stop_reason) was seen. */
+  get finishReasonSeen(): boolean {
+    return this.sawStopReason;
   }
 
   finish(): LlmFinish {
