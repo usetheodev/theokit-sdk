@@ -1,5 +1,22 @@
 # Changelog
 
+## 3.2.1
+
+### Patch Changes
+
+- a283dd4: Security (#54) — harden child-process env scrubbing.
+
+  - The `inherit-scrubbed` denylist now also drops the highest-signal VALUE-embedded-secret conventions: connection strings that carry `user:password@` (`DATABASE_URL`, `REDIS_URL`, `MONGODB_URI`, `DB_URL`, …), plus `DSN`, `WEBHOOK`, `COOKIE`, and `CONNECTION_STRING`. Generic non-secret URLs (`PUBLIC_BASE_URL`, `API_URL`, `PGHOST`) are deliberately preserved. A denylist still cannot catch every value-embedded secret — policy `core` (allowlist) remains the fail-closed mode for untrusted children.
+  - Removed dead `validateCommand` / `SHELL_METACHARACTERS` from the sandbox base — a never-invoked "guard" that provided a false sense of protection.
+  - Added an end-to-end test proving `LocalSandbox.execute` scrubs secret-like host env vars from the real child process.
+
+- 826bca0: Security (#56) — close two residual cross-tenant active-recall cache leaks found by adversarial review.
+
+  - `@theokit/sdk-memory` (publishable) called `cache.get`/`cache.set` with no tenant context, so two callers with the same query text but different identity shared a cached recall — a cross-tenant leak for every consumer of the package. The cache read/write are now keyed by the `{namespace, userId, scope}` tenant tuple (the primitive already supported it).
+  - In `@theokit/sdk` the production caller hardcoded `namespace: "default"` and dropped `memoryContext.tenantId`, so two tenants sharing a `userId` collided on one cache entry. The caller now threads `memoryContext.tenantId` into the tenant partition (`namespace`). `sessionId` is intentionally not a key dimension — recall is cross-session by design.
+
+- 7bcc872: Security/correctness (#59) — the HTTP MCP body read (`response.json()`) was outside the abort try/catch, so a server that returned headers then stalled the body surfaced a raw `DOMException(TimeoutError)` instead of the typed `NetworkError{code:"mcp_timeout"}`. The request was still bounded (no hang), but the typed-timeout contract now holds across both the header and body phases.
+
 ## 3.2.0
 
 ### Minor Changes
