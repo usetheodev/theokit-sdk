@@ -63,6 +63,16 @@ export interface RunGitInfo {
  *
  * @public
  */
+/**
+ * SE3 — provenance of a turn (metadata-only; never changes routing/dispatch).
+ * Producers: `peer` (Squad step / a2a envelope), `coordinator` (subagent
+ * delegation), `auto-continuation` (the run-to-completion / stream-to-completion
+ * driver's continuation rounds) are stamped BY the SDK. `human` and
+ * `task-notification` are positive markers a HOST stamps (e.g. re-sending an
+ * agent after a background task completed). Absent origin ⇒ `undefined`.
+ *
+ * @public
+ */
 export type MessageOrigin =
   /** Explicitly a human-triggered turn — a positive marker a host stamps (NOT the
    *  same as an absent/unstamped origin, which is `undefined`). */
