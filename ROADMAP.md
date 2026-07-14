@@ -37,10 +37,10 @@ updates `CHANGELOG.md`.
 
 **Objective:** No surface exists that silently does nothing (`no-stubs-no-mocks-no-wired`).
 
-- [ ] **#58** `AbortSignal`→`dispatchTools` + between-iteration abort + per-tool timeout + JobQueue (`src/internal/agent-loop/tool-dispatch.ts:41`, `loop.ts:73`). *(8 gaps)*
-- [ ] **#55** permission fail-**closed** + match beyond name-only. *(4 gaps)*
-- [ ] **#65** wire-or-remove the 7/10 dead plugin hooks + `ToolContext` 2nd arg (`src/internal/plugins/types.ts:20`). *(2 gaps)*
-- [ ] **#57** prompt-injection/PII scrub on tool results. *(1 gap)*
+- [x] **#58** `AbortSignal`→`dispatchTools` + between-iteration abort + per-tool timeout + JobQueue — signal threaded + dispatcher-enforced; between-iteration break; per-tool timeout; JobQueue concurrency bound. *(closed 2026-07-14; adversarial review found + fixed a JobQueue cancel-deadlock and a cancelled-status mislabel)*
+- [x] **#55** permission fail-**closed** + match beyond name-only — fail-closed default (`ask`); argument-level gating; **subagents inherit the parent's permission gate** (adversarial-review fix — arg-gating no longer stops at the delegation boundary). *(closed 2026-07-14)*
+- [x] **#65** wire-or-remove the 7/10 dead plugin hooks + `ToolContext` 2nd arg — all 10 hooks invoked at real seams; `transform_llm_output` now rewrites the final user-visible text (adversarial-review fix). *(closed 2026-07-14)*
+- [x] **#57** prompt-injection/PII scrub on tool results — opt-in guard on every tool origin; replaces LLM-visible content; fail-closed. *(closed 2026-07-14; adversarial verdict FULLY_CLOSED)*
 
 **Dependencies:** M0. **Milestone id:** `M1`.
 
