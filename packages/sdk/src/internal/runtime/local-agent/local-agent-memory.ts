@@ -112,10 +112,19 @@ export class LocalAgentMemory {
       typeof this.options.memoryContext?.userId === "string"
         ? this.options.memoryContext.userId
         : undefined;
+    // #56 (GAP-A) — the cache is keyed by {namespace,userId,scope}. `namespace`
+    // is the documented tenant/org partition (`e.g. default, <orgId>`), so the
+    // caller MUST thread `memoryContext.tenantId` into it — otherwise two tenants
+    // sharing a userId collide on one active-recall cache entry (cross-tenant leak).
+    // sessionId is intentionally NOT a key dimension: recall is cross-session by design.
+    const tenantId =
+      typeof this.options.memoryContext?.tenantId === "string"
+        ? this.options.memoryContext.tenantId
+        : undefined;
     return {
       ...(telemetry !== undefined ? { telemetry } : {}),
       ...(userId !== undefined ? { userId } : {}),
-      namespace: "default",
+      namespace: tenantId ?? "default",
       scope: "session",
     };
   }
