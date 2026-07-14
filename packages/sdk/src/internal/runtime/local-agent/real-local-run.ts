@@ -271,6 +271,13 @@ function buildLoopInputs(
     ...(options.sendOptions.activeTools !== undefined
       ? { activeTools: options.sendOptions.activeTools }
       : {}),
+    // SE1 — resolve the run's permission mode: per-send wins over creation-time.
+    ...((options.sendOptions.permissionMode ?? options.agentOptions.permissionMode) !== undefined
+      ? {
+          permissionMode:
+            options.sendOptions.permissionMode ?? options.agentOptions.permissionMode,
+        }
+      : {}),
     ...(options.priorMessages !== undefined ? { priorMessages: options.priorMessages } : {}),
     ...(options.memoryTools !== undefined && options.memoryTools.length > 0
       ? { memoryTools: options.memoryTools }

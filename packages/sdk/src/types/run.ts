@@ -347,6 +347,16 @@ export interface SendOptions {
    * snapshot is untouched). Matching is glob-based (`**`, `*`, `?`).
    */
   contextPaths?: readonly string[];
+  /**
+   * SE1 — the permission mode for THIS run, threaded to a registered
+   * `PermissionPlugin`'s pre-tool gate. Precedence: this per-send value wins over
+   * `AgentOptions.permissionMode` (creation-time default). Modes: `default` (rules
+   * decide; unmatched ⇒ fail-closed ask), `plan` (read-only — allow rules pass,
+   * everything else denied), `acceptEdits` (auto-approve unmatched, honor explicit
+   * ask rules), `bypass` / `bypassPermissions` (allow all except an explicit deny).
+   * Absent ⇒ the plugin's own construction-time mode applies. Local runtime.
+   */
+  permissionMode?: import("../permission-engine.js").PermissionMode;
   onStep?: (args: { step: ConversationStep }) => void | Promise<void>;
   onDelta?: (args: { update: InteractionUpdate }) => void | Promise<void>;
   /**
