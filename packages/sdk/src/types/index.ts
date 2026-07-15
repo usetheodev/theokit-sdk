@@ -16,6 +16,8 @@ export type * from "./messages.js";
 export type * from "./processors.js";
 export type * from "./providers.js";
 export type * from "./run.js";
+// SE41 — pluggable SessionStore seam + the native SessionRecord it operates on.
+export type * from "./session-store.js";
 export type * from "./task.js";
 export type * from "./theokit.js";
 export type * from "./trajectory.js";
