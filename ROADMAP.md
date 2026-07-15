@@ -1034,7 +1034,7 @@ first-class design defect and decided (2026-07-13) on full uniformity before the
 ossifies further with more consumers. The honest counter-argument (current split is SOTA-aligned
 and Rule-9-locked) was surfaced and the trade-off accepted.
 
-### SE37 — [ ] Reasoning ergonomics (reasoning tools + `reasoning: true`)
+### SE37 — [x] Reasoning ergonomics (reasoning tools + `reasoning: true`)
 
 **Objective:** Close the two reasoning "sugar" gaps found in the Agno cross-check (2026-07-14).
 Native reasoning models are already first-class (`model.params: [{ id: "thinking", value: "high" }]`
