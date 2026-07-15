@@ -1,21 +1,18 @@
 # `@theokit/sdk` Recipes
 
-Drop-in templates for production scenarios. Each recipe is **copy-paste ready** — install the listed peer deps and paste the file into your project. SDK keeps these out of core deps to stay light (~50KB bundle); the templates are the canonical way to extend the SDK against your infra.
+## Conversation storage (v4.0)
 
-## Conversation storage adapters
+The pluggable conversation-storage adapters (`ConversationStorageAdapter`,
+`FileSystemConversationStorage`, `InMemoryConversationStorage`, and the Postgres / Redis recipes that
+extended them) were **removed in v4.0**. There is no swappable storage backend anymore.
 
-The SDK ships `FileSystemConversationStorage` (default, `.theokit/agents/<id>/messages.jsonl`) and `InMemoryConversationStorage` (tests + ephemeral). Serverless and multi-host deploys need a shared backend:
+A local agent's conversation now **is** a native Claude Code `.jsonl` transcript on disk at
+`<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl` — write, read/resume, and append-only compaction
+are built in. Configure the root with `local.baseDir` (default `~/.theokit`; set `~/.claude` for
+Claude Code CLI `--continue` interop). See:
 
-- **[conversation-storage-postgres.md](./conversation-storage-postgres.md)** — `pg` (Node) or `@neondatabase/serverless` (CF Workers / a peer vendor Edge). Best for relational consistency + structured queries on history.
-- **[conversation-storage-redis.md](./conversation-storage-redis.md)** — `ioredis` (Node) or `@upstash/redis` (HTTP). Best for hot conversation read paths + cross-region replicas.
+- `docs.md` § Session persistence — the on-disk format and the resume contract.
+- `examples/sessions-basics` — create → send → resume (`--continue`) with recall across a restart.
 
-## When to use which
-
-| Scenario | Adapter | Why |
-|---|---|---|
-| Self-hosted Node single VPS / Docker volume | `FileSystemConversationStorage` (default) | Zero infra. JSONL is crash-safe at line granularity. |
-| Vitest / dev CLI | `InMemoryConversationStorage` | No FS noise. Cleared between tests. |
-| a peer vendor Functions / Cloudflare Workers / AWS Lambda | Postgres OR Redis recipe | Filesystem ephemeral. Must use shared backend. |
-| K8s multi-pod / TheoCloud canary | Postgres OR Redis recipe | Same user lands on different pods across requests. |
-| Read-heavy chat with low write rate | Postgres recipe | jsonb consistency + indexable queries. |
-| Burst write loads + ephemeral history | Redis recipe | Fast RPUSH/LRANGE; TTL eviction native. |
+Multi-host / serverless deploys that previously needed a shared DB backend should mount a shared
+`baseDir` (network volume) or replicate the transcript directory; the format is plain JSONL.
