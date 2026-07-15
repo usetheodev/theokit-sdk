@@ -38,9 +38,19 @@ export async function executeTool(
     return { stdout: "", stderr: `Unknown tool ${call.name}`, exitCode: 127 };
   }
   if (resolved.origin === "shell") return runShellTool(inputs, call);
-  if (resolved.origin === "memory") return runMemoryTool(resolved, call, inputs.context);
+  // #119 — `inputs.agentId` is the run's session identity (the `Agent.getOrCreate(sessionId)`
+  // key). Threaded to the handler as `ctx.threadId` so a stateful tool can scope state per session.
+  if (resolved.origin === "memory")
+    return runMemoryTool(resolved, call, inputs.context, inputs.agentId);
   if (resolved.origin === "custom")
-    return runCustomTool(resolved, call, inputs.signal, inputs.context, inputs.messages);
+    return runCustomTool(
+      resolved,
+      call,
+      inputs.signal,
+      inputs.context,
+      inputs.messages,
+      inputs.agentId,
+    );
   return runMcpTool(inputs, resolved, call);
 }
 
@@ -48,8 +58,17 @@ async function runMemoryTool(
   resolved: ResolvedTool,
   call: LlmToolCallPart,
   context?: unknown,
+  threadId?: string,
 ): Promise<ToolResult> {
-  return runHandlerTool("memory", resolved.memoryHandler, call, undefined, context);
+  return runHandlerTool(
+    "memory",
+    resolved.memoryHandler,
+    call,
+    undefined,
+    context,
+    undefined,
+    threadId,
+  );
 }
 
 async function runCustomTool(
@@ -58,8 +77,17 @@ async function runCustomTool(
   signal?: AbortSignal,
   context?: unknown,
   messages?: readonly ToolContextMessage[],
+  threadId?: string,
 ): Promise<ToolResult> {
-  return runHandlerTool("custom", resolved.customHandler, call, signal, context, messages);
+  return runHandlerTool(
+    "custom",
+    resolved.customHandler,
+    call,
+    signal,
+    context,
+    messages,
+    threadId,
+  );
 }
 
 async function runHandlerTool(
@@ -67,13 +95,19 @@ async function runHandlerTool(
   handler:
     | ((
         input: Record<string, unknown>,
-        ctx?: { signal?: AbortSignal; context?: unknown; messages?: readonly ToolContextMessage[] },
+        ctx?: {
+          signal?: AbortSignal;
+          context?: unknown;
+          messages?: readonly ToolContextMessage[];
+          threadId?: string;
+        },
       ) => string | ToolResultContentBlock[] | Promise<string | ToolResultContentBlock[]>)
     | undefined,
   call: LlmToolCallPart,
   signal?: AbortSignal,
   context?: unknown,
   messages?: readonly ToolContextMessage[],
+  threadId?: string,
 ): Promise<ToolResult> {
   if (handler === undefined) {
     return { stdout: "", stderr: `${kind} tool ${call.name} has no handler`, exitCode: 127 };
@@ -90,14 +124,14 @@ async function runHandlerTool(
       TOOL_SPLIT_RESOLVER
     ];
     if (split !== undefined) {
-      const { model, app } = await split(call.input, { signal, context });
+      const { model, app } = await split(call.input, { signal, context, threadId });
       const base: ToolResult =
         typeof model === "string"
           ? { stdout: model, stderr: "", exitCode: 0 }
           : { stdout: "", stderr: "", exitCode: 0, content: model };
       return { ...base, appResult: app };
     }
-    const out = await handler(call.input, { signal, context, messages });
+    const out = await handler(call.input, { signal, context, messages, threadId });
     // SE7 — a handler may return structured content blocks (text + image).
     if (typeof out !== "string") return { stdout: "", stderr: "", exitCode: 0, content: out };
     return { stdout: out, stderr: "", exitCode: 0 };

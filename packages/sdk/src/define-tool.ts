@@ -49,7 +49,7 @@ export interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
    */
   handler: (
     input: ZodNamespace.infer<T>,
-    ctx?: { signal?: AbortSignal; context?: unknown },
+    ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
   ) => ToolHandlerReturn<O> | Promise<ToolHandlerReturn<O>>;
   /**
    * SE17 — map the handler's (validated) output to the compact / multimodal
@@ -112,7 +112,7 @@ export interface ToolOutputSplit {
 /** @internal — a handler carrying an SE17 split resolver. */
 export type SplitResolver = (
   input: Record<string, unknown>,
-  ctx?: { signal?: AbortSignal; context?: unknown },
+  ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
 ) => Promise<ToolOutputSplit>;
 
 /**
@@ -124,7 +124,7 @@ export type SplitResolver = (
 async function runValidated<T extends ZodType, O extends ZodType>(
   spec: DefineToolSpec<T, O>,
   input: Record<string, unknown>,
-  ctx?: { signal?: AbortSignal; context?: unknown },
+  ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
 ): Promise<ToolHandlerReturn<O>> {
   const raw = spec.sanitize
     ? sanitizeToolInput(input, {
@@ -188,7 +188,7 @@ function defineTool<T extends ZodType, O extends ZodType = never>(
   });
   const handler = async (
     input: Record<string, unknown>,
-    ctx?: { signal?: AbortSignal; context?: unknown },
+    ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
   ): Promise<string | ToolResultContentBlock[]> => {
     // SE16 (validate) + SE17 (model-facing shaping). A direct caller gets the
     // MODEL-facing value — unchanged pre/post SE17-split.
