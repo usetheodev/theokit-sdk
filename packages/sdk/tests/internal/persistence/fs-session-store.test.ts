@@ -87,4 +87,47 @@ describe("FsSessionStore (SE41 T2 — default reference impl of SessionStore)", 
     expect((await store.readRecords("agent-a")).map((r) => r.uuid)).toEqual(["a1"]);
     expect((await store.readRecords("agent-b")).map((r) => r.uuid)).toEqual(["b1"]);
   });
+
+  //// Concurrency tests ////////////////////////////////////////////////////////
+  // The FS default MUST serialize concurrent appends for one agentId under its
+  // file lock so neither a torn line nor a lost append can occur.
+  it("two concurrent appendRecords for one agentId both survive (lock serializes; no lost append)", async () => {
+    const store = new FsSessionStore({ baseDir, cwd });
+    const seed = rec({ uuid: "seed" });
+    await store.appendRecords("agent-race", [seed]);
+
+    // Fire N appends concurrently. Each reads-inside-lock + writes prior+delta,
+    // so the lock serializes them and every record survives (none clobbered).
+    const N = 12;
+    await Promise.all(
+      Array.from({ length: N }, (_v, i) =>
+        store.appendRecords("agent-race", [rec({ uuid: `r${i}`, parentUuid: "seed" })]),
+      ),
+    );
+
+    const read = await store.readRecords("agent-race");
+    // seed + N appends, all present, no torn line (readTranscript would drop a torn line).
+    expect(read.length).toBe(N + 1);
+    const uuids = new Set(read.map((r) => r.uuid));
+    for (let i = 0; i < N; i += 1) expect(uuids.has(`r${i}`)).toBe(true);
+    expect(uuids.has("seed")).toBe(true);
+  });
+
+  //// Failure scenarios ////////////////////////////////////////////////////////
+  // A store that cannot READ on resume MUST throw (fail-fast), NOT masquerade the
+  // failure as "no history" (a silent [] would drop the conversation).
+  it("a store whose readRecords throws surfaces the error (fail-fast, not a silent empty)", async () => {
+    const boom = new Error("db unreachable");
+    const brokenStore = {
+      readRecords: async (): Promise<SessionRecord[]> => {
+        throw boom;
+      },
+      appendRecords: async (): Promise<void> => {},
+    };
+    // reconstruct-through-read must reject with the store's typed error.
+    const { readSessionMessages } = await import(
+      "../../../src/internal/runtime/session/agent-session-store.js"
+    );
+    await expect(readSessionMessages(brokenStore, "agent-x")).rejects.toThrow("db unreachable");
+  });
 });
