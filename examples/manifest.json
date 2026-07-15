@@ -109,6 +109,13 @@
       "description": "Native Claude-shaped transcript persists to baseDir; resume recalls across restart"
     },
     {
+      "slug": "session-store-external",
+      "domain": "sessions",
+      "page": "/theokit/sessions/external-session-store",
+      "title": "Resume from an external store",
+      "description": "Inject local.sessionStore (Postgres/Redis shape) as the primary store + resume source for serverless / multi-host"
+    },
+    {
       "slug": "guardrails-basics",
       "domain": "guardrails",
       "page": "/theokit/guardrails/block-a-message",
