@@ -57,11 +57,9 @@ describe("T1.2 — RegisteredAgent contract shape (snapshot)", () => {
       model: { id: "anthropic/claude-3-5-haiku-latest" },
       repos: ["https://github.com/example/repo"],
       status: "running",
-      requiresCustomStorage: true,
     };
     expect(cloudSample.repos?.[0]).toContain("github.com");
     expect(cloudSample.status).toBe("running");
-    expect(cloudSample.requiresCustomStorage).toBe(true);
   });
 
   it("RegisteredAgent.status is the closed union 'running' | 'finished' | 'error'", () => {
