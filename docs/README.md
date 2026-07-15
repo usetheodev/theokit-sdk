@@ -42,9 +42,7 @@ Official documentation for `@theokit/sdk` — the TypeScript SDK for the Theo ag
 
 ## Recipes
 
-- [Recipes overview](./recipes/README.md) — copy-paste production patterns
-- [Postgres conversation storage](./recipes/conversation-storage-postgres.md)
-- [Redis conversation storage](./recipes/conversation-storage-redis.md)
+- [Recipes overview](./recipes/README.md) — conversation storage in v4.0 (native session transcript)
 
 ## Migration
 

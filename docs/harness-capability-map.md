@@ -27,7 +27,6 @@ import {
   PermissionPlugin,           // PermissionPlugin.create(...) → wrap a permission policy as a Plugin (SE36)
   createCounterBudgetTracker, // createCounterBudgetTracker({ maxIterations }) → BudgetTracker (enforced step cap)
   Budget, UsageAccumulator,   // usage/cost accounting
-  buildReplayHistory,         // buildReplayHistory(base, events, { contextWindowTokens }) → StoredMessage[] (stateless loop replay)
   computeCost, normalizeUsage, getPricingEntry, // cost helpers (never 0 when pricing unknown)
   Squad, Task,                // Squad.create(...) multi-agent + task primitives (SE36)
   Theokit, Cron,              // top-level namespaces (Theokit.models.list(), Cron.create(...))
@@ -245,7 +244,7 @@ These GAP_AUDIT primitives target packages that live in **sibling repos**, not i
 A few GAP_AUDIT items are runtime behaviors the harness performs internally — there is no single exported symbol to import. The relevant public pieces are linked:
 
 - **Enforced iteration cap.** The cap is enforced by `createCounterBudgetTracker({ maxIterations })` (above) + `RunResult.stoppedAtIterationLimit`; there is no separate `nextIteration` export to call.
-- **Continuation over the internal step cap.** A stateless continuation loop is the consumer's outer loop; the harness provides `buildReplayHistory` (above) to rebuild the transcript per round. (A first-party `agent.runToCompletion` continuation driver is not shipped as a public method.)
+- **Continuation over the internal step cap.** Local agents ship the public `agent.runToCompletion()` driver: when a `send` stops at the loop's iteration cap (`RunResult.stoppedAtIterationLimit`) it re-sends a short continuation prompt until a genuine terminal — the agent's native session transcript preserves the conversation across rounds (no manual history rebuild). (The v3 `buildReplayHistory` primitive was removed in v4.0.)
 - **Bounded reflection ladder.** This is a consumer-side policy; the harness exposes the stream/hook surface but not a packaged reflection ladder.
 
 ---

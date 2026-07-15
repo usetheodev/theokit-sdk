@@ -18,13 +18,7 @@
     "tools/validate-tasks-real-llm.mjs",
     "tools/validate-budget-real-llm.mjs"
   ],
-  "ignoreDependencies": [
-    "@arethetypeswrong/cli",
-    "publint",
-    "jscodeshift",
-    "@types/jscodeshift",
-    "madge"
-  ],
+  "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "jscodeshift", "madge"],
   "ignoreBinaries": ["turbo"],
   "tags": ["-knipignore"],
   "workspaces": {
@@ -35,8 +29,7 @@
         "src/internal/**",
         "src/**/internal/**",
         "tests/fixtures/codemod-1x/**",
-        "src/stream-object.ts",
-        "src/server/adapter/index.ts"
+        "src/stream-object.ts"
       ],
       "ignoreDependencies": ["@theokit/sdk-handoff", "jsonrepair"]
     },

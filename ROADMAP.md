@@ -1204,7 +1204,7 @@ semantics.
    Mitigation: for SE39 read-only, emit thinking faithfully (preserve/omit the signature per the
    round-trip test) and defer the resume-critical handling to SE40.
 
-### SE40 — [ ] Native Claude-shaped session format + `--continue` (v4.0 breaking — supersedes SE39 exporter)
+### SE40 — [x] Native Claude-shaped session format + `--continue` (v4.0 breaking — supersedes SE39 exporter)
 
 **Objective:** Make the theokit **native** session persistence BE the Claude Code on-disk shape (not a
 bolt-on exporter). The FS `ConversationStorage` writes records `{ uuid, parentUuid, message: { content:
