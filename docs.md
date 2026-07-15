@@ -596,7 +596,7 @@ model	ModelSelection	Per-send model override. If omitted, uses agent.model. Stic
 systemPrompt	string	Per-call system prompt override. Wins over AgentOptions.systemPrompt. String only — for dynamic resolvers, configure on AgentOptions. An empty string is honoured (it explicitly clears the system context).
 mcpServers	Record<string, McpServerConfig>	Inline MCP server definitions. Fully replaces creation-time servers for this run.
 tools	CustomTool[]	Per-call inline custom tools. Fully replaces `AgentOptions.tools` for this run (not merged). `undefined` → fall back to agent tools; `[]` → explicit clear (no custom tools for this run); `[t1, t2]` → use exactly these. Local runtime only — cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")`.
-onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step (text, thinking, or tool batch).
+onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step: `assistantMessage` (text), `thinkingMessage`, `toolCall`, and its paired `toolResult` (same `callId`). Symmetric with `run.conversation()` — a live-stream consumer sees both the call and its result.
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 toolChoice	"auto" \| "none" \| "required"	Per-call tool gate (OpenAI/OpenRouter `tool_choice`). `"none"` forces a text answer even when tools are registered (e.g. an agent loop forcing a closing summary at its step ceiling); `"required"` forces a tool call; omitted ⇒ provider default. Local runtime; OpenAI-compatible providers. Emitted only alongside a non-empty tools array.
 activeTools	string[]	SE18 — restrict, for THIS send only, which of the agent's tools the model may call. A tool call to a name outside the set is vetoed at dispatch (the same fork-whitelist seam as `Agent.fork`'s `allowedTools`, NOT the permission engine) and the handler never runs. `[]` fail-closed (no tool dispatches); absent ⇒ the full toolset. Composes with `toolChoice` (activeTools narrows *which*, toolChoice gates *whether*). Per-send and non-mutating — the agent's persistent tool set is untouched. Local runtime.
@@ -2579,6 +2579,31 @@ await replaceFileAtomic("config.json", JSON.stringify(cfg)); // no torn write on
 
 `loadJsonl` is the same symbol exported from `@theokit/sdk/eval` (dataset
 loading); the `persistence` sub-path co-locates it with the write/resume helpers.
+
+### Claude Code transcript interop (SE39) — `ClaudeCodeTranscriptWriter`
+
+Best-effort, **read-only** interop: emit a session as a Claude-Code-compatible `.jsonl` so the Claude
+Code ecosystem's read-side tools (`claude-code-log`, `ccusage`, transcript viewers) can parse it. Opt-in
+and additive — it does NOT change `ConversationStorage`. It taps `onStep` (which carries the paired
+`toolCall`/`toolResult`), so tool calls survive as structured `tool_use`/`tool_result` blocks with
+matched ids — unlike the minimal `messages.jsonl` store, which flattens turns to `{role, content}`.
+
+```typescript
+import { ClaudeCodeTranscriptWriter } from "@theokit/sdk/persistence";
+
+const writer = ClaudeCodeTranscriptWriter.create({ cwd: process.cwd(), model: "openai/gpt-4o-mini" });
+const run = await agent.send("do the thing", { onStep: writer.onStep });
+for await (const _ of run.stream()) { /* drain */ }
+await run.wait();
+const path = await writer.write("do the thing"); // ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl
+```
+
+`create({ cwd?, sessionId?, model?, version?, dir? })`. `records(userMessage)` returns the mapped
+`ClaudeCodeRecord[]` (pure, no I/O); `write(userMessage)` persists atomically and returns the path;
+secrets are redacted. **Caveat:** the Claude Code `.jsonl` format is internal to Claude Code and changes
+between versions (Anthropic recommends `/export`) — this writer targets a known-good shape validated
+against the real `claude-code-log` parser. Functional `--continue` (real CLI resume, extended-thinking
+signatures, sidecar dirs) is out of scope here (a later milestone).
 
 ## Eval suite (v1.15+) — `Eval.create / .run`
 

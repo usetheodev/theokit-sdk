@@ -21,6 +21,16 @@ export {
   atomicWriteText,
   replaceFileAtomic,
 } from "./internal/persistence/atomic-write.js";
+// SE39 — Claude Code transcript writer (best-effort, read-only ecosystem interop).
+export type {
+  ClaudeCodeRecord,
+  ClaudeCodeTranscriptOptions,
+} from "./internal/persistence/claude-code-transcript.js";
+export {
+  ClaudeCodeTranscriptWriter,
+  claudeCodeRecords,
+  encodeProjectDir,
+} from "./internal/persistence/claude-code-transcript.js";
 // Cross-process advisory file lock.
 export type { FileLockOptions } from "./internal/persistence/file-lock.js";
 export { withFileLock } from "./internal/persistence/file-lock.js";
