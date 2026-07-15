@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -13,7 +13,7 @@ import {
   flushSessionWrites,
   getSessionMessages,
 } from "../../../src/internal/runtime/session/agent-session.js";
-import { sessionFilePath } from "../../../src/internal/runtime/session/agent-session-store.js";
+import { readSessionMessages } from "../../../src/internal/runtime/session/agent-session-store.js";
 
 /**
  * ADR D19 + EC-8 — per-agent send mutex (`agent-send:${agentId}`). Concurrent
@@ -43,7 +43,7 @@ describe("Per-agent send mutex (T2.1 / ADR D19)", () => {
       agentId: "agent-concurrent-test",
       apiKey: "theo_test_concurrent_serialize",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd, baseDir: cwd },
     });
 
     // Fire two sends concurrently. With the mutex, send-B's user-turn lands
@@ -69,13 +69,13 @@ describe("Per-agent send mutex (T2.1 / ADR D19)", () => {
       agentId: "agent-parallel-a",
       apiKey: "theo_test_parallel_a",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd, baseDir: cwd },
     });
     const agentB = await Agent.create({
       agentId: "agent-parallel-b",
       apiKey: "theo_test_parallel_b",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd, baseDir: cwd },
     });
 
     const start = Date.now();
@@ -89,8 +89,8 @@ describe("Per-agent send mutex (T2.1 / ADR D19)", () => {
     await agentA.dispose();
     await agentB.dispose();
 
-    const fileA = await readFile(sessionFilePath(cwd, agentA.agentId), "utf8");
-    const fileB = await readFile(sessionFilePath(cwd, agentB.agentId), "utf8");
+    const fileA = JSON.stringify(await readSessionMessages(cwd, cwd, agentA.agentId));
+    const fileB = JSON.stringify(await readSessionMessages(cwd, cwd, agentB.agentId));
     expect(fileA).toContain("hi from A");
     expect(fileA).not.toContain("hi from B");
     expect(fileB).toContain("hi from B");
@@ -109,13 +109,13 @@ describe("Per-agent send mutex (T2.1 / ADR D19)", () => {
       agentId: "agent-parent-deadlock",
       apiKey: "theo_test_parent",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd, baseDir: cwd },
     });
     const subagent = await Agent.create({
       agentId: "agent-subagent-deadlock",
       apiKey: "theo_test_subagent",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd, baseDir: cwd },
     });
 
     const runs = await Promise.all([parent.send("parent turn"), subagent.send("sub turn")]);
@@ -132,7 +132,7 @@ describe("Per-agent send mutex (T2.1 / ADR D19)", () => {
       agentId: "agent-sequential-history",
       apiKey: "theo_test_sequential",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd, baseDir: cwd },
     });
 
     for (let i = 0; i < 5; i += 1) {
@@ -154,7 +154,7 @@ describe("Per-agent send mutex (T2.1 / ADR D19)", () => {
       agentId: "agent-dispose-pending",
       apiKey: "theo_test_dispose_pending",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd, baseDir: cwd },
     });
 
     const sendP = agent.send("about to dispose");

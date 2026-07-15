@@ -375,25 +375,25 @@ SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a p
 
 The multi-agent primitives stamp it for you: a Squad stamps { kind: "peer", from: "agent-<i-1>" } on every step after the first (the first receives the human input); every a2a A2AMessage carries origin: { kind: "peer", from } as a thin projection of the sender address. Background-delegation and handoff are host-driven — pass the origin yourself on the follow-up send (agent.send(input, { origin: { kind: "task-notification" } })) and read it back on result.origin.
 
-Session management (Session.create)
+Session persistence (native Claude-shaped transcript)
 
-SE4. A host that persists conversations (Agent.create({ conversationStorage })) often needs to build a session list/UI — without reaching into the storage internals. Session.create(storage) is that surface over the same ConversationStorageAdapter instance:
+SE40 (v4.0). A local agent's conversation IS a native Claude Code `.jsonl` transcript on disk — a `uuid`/`parentUuid` DAG of records with structured `text` / `thinking` / `tool_use` / `tool_result` blocks. There is no pluggable storage adapter and no session-metadata surface; the transcript is the single source of truth. The path is `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`.
 
-  const storage = new FileSystemConversationStorage();
-  const agent = await Agent.create({ conversationStorage: storage });
-  const sessions = Session.create(storage);
+  const agent = await Agent.create({
+    local: { cwd, baseDir: "~/.theokit" },   // baseDir default is ~/.theokit
+  });
+  await (await agent.send("first message")).wait();
+  await agent.dispose();
 
-  const listed = await sessions.listSessions({ limit: 20 });   // SessionCapabilityResult
-  if (listed.supported) {
-    for (const s of listed.value) {
-      // s.id, s.messageCount, s.firstPrompt, s.lastModified, s.title, s.tag, s.summary
-    }
-  }
-  await sessions.renameSession(id, "Billing thread");
-  await sessions.tagSession(id, "important");   // tagSession(id, null) clears
-  const msgs = await sessions.getSessionMessages(id);
+  // A fresh process resumes by reconstructing the transcript DAG.
+  const resumed = await Agent.resume(agent.agentId, { local: { cwd, baseDir: "~/.theokit" } });
 
-listSessions derives LIGHT metadata from the transcript (firstPrompt = the first user message; lastModified = the largest StoredMessage.at; messageCount; summary = the title when set, else the truncated first prompt) and merges any host-set title/tag. It returns a typed capability result — { supported: false, reason } — for adapters that cannot enumerate conversations; renameSession/tagSession likewise degrade when the adapter cannot store session metadata (it never throws on every call). The built-in FileSystemConversationStorage and InMemoryConversationStorage support all four operations; a custom adapter opts in by implementing the optional listConversationIds + getSessionMeta/setSessionMeta methods.
+- WRITE: after each send the whole turn (user text + assistant text/thinking + paired tool_use/tool_result blocks, from `run.conversation()`) is written as native records, append-only. Secrets are redacted before disk.
+- READ / resume: hydration walks the transcript DAG (leaf → root via parentUuid) and reconstructs the conversation; tool turns fold into assistant-role context so a resumed agent keeps its tool history.
+- COMPACTION is append-only: a `compact_boundary` system record (a new root) is appended; the transcript is NEVER shrunk. A resume after a boundary replays only the post-boundary continuation.
+- `local.baseDir` controls the root: default `~/.theokit` isolates our sessions; set `~/.claude` to write sessions the Claude Code CLI can `--continue`. Extended-thinking signatures are written but dropped on read (functional `--continue` for thinking is out of scope — issue #122).
+
+Removed in v4.0: the `Session` namespace (`renameSession` / `tagSession` / `listSessions`), `SessionMeta` / `SessionMetaPatch`, the `ConversationStorageAdapter` contract (and `FileSystemConversationStorage` / `InMemoryConversationStorage`), and `AgentOptions.conversationStorage`. Persistence is now exclusively the native transcript above.
 
 Reliable continuation (local agents)
 
@@ -454,33 +454,9 @@ if (gen !== undefined) {
 }
 ```
 
-Both drivers are STATEFUL (the agent's session preserves history). For the STATELESS + streaming combination — a serverless handler that reconstructs working memory then streams a multi-round continuation — reconstruct history with `buildReplayHistory` (below) into a fresh agent, then drive `streamToCompletion`.
+Both drivers are STATEFUL (the agent's session preserves history via the native transcript).
 
-Replay history (stateless continuation)
-
-`runToCompletion` covers the STATEFUL path (a live agent whose session preserves history). For the STATELESS path — a server or serverless handler that re-runs an agent on a fresh request and must reconstruct working memory from persisted stream events — use the pure `buildReplayHistory`.
-
-It serializes the events of a round (`SDKMessage[]`) into a bounded `StoredMessage[]` you can replay as prior history into a fresh agent. It carries tool-result content (the continued model's working memory), drops the oldest turns (pair-safe: a tool_call and its tool_result are never split) until the total fits a context-window-derived char budget, and truncates an oversized single turn rather than dropping it. Pure and synchronous — no LLM, no I/O.
-
-
-function buildReplayHistory(
-  base: readonly StoredMessage[],
-  events: readonly SDKMessage[],
-  options: ReplayHistoryOptions,
-): StoredMessage[];
-
-interface ReplayHistoryOptions {
-  contextWindowTokens: number;   // the continued model's window; drives the budget
-  reserveTokens?: number;        // held back for system + continuation prompt + reply (default 8000)
-  perItemCap?: number;           // max chars for one oversized turn before truncation (default floor(budget/2))
-}
-
-const replay = buildReplayHistory(priorMessages, roundEvents, { contextWindowTokens: 200_000 });
-// feed `replay` as the prior history when re-sending on the next stateless request
-
-**Important — tool roles need consumer mapping.** Tool turns are emitted with the `StoredMessage` roles `tool_call` and `tool_result` (the result turn carries the tool output — the continued model's working memory). If your replay path feeds a wire-mapper that only understands `user` / `assistant`, you MUST map those two roles yourself; otherwise the tool-result content this function exists to preserve is dropped. The `tool_call` / `tool_result` pair is kept together (or evicted together) by `call_id`, never orphaned, even when calls are interleaved or non-adjacent.
-
-Notes: the budget is a char approximation (~4 chars/token), a SAFETY bound, not an exact token fit. A non-finite `contextWindowTokens` collapses to budget 0 — the history is trimmed toward effectively-empty working memory (event turns truncated, base trimmed to its newest), never an unbounded history. A single oversized `base` message is NOT truncated (caller-owned durable content is assumed pre-bounded) — only event-derived turns are per-item truncated.
+Removed in v4.0: `buildReplayHistory` / `ReplayHistoryOptions` (the stateless continuation-history rebuild primitive) — it consumed the removed `StoredMessage[]` shape. Stateless continuation now relies on the native transcript on disk, which a fresh agent reconstructs on resume.
 
 Streaming
 
@@ -601,7 +577,6 @@ onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionU
 toolChoice	"auto" \| "none" \| "required"	Per-call tool gate (OpenAI/OpenRouter `tool_choice`). `"none"` forces a text answer even when tools are registered (e.g. an agent loop forcing a closing summary at its step ceiling); `"required"` forces a tool call; omitted ⇒ provider default. Local runtime; OpenAI-compatible providers. Emitted only alongside a non-empty tools array.
 activeTools	string[]	SE18 — restrict, for THIS send only, which of the agent's tools the model may call. A tool call to a name outside the set is vetoed at dispatch (the same fork-whitelist seam as `Agent.fork`'s `allowedTools`, NOT the permission engine) and the handler never runs. `[]` fail-closed (no tool dispatches); absent ⇒ the full toolset. Composes with `toolChoice` (activeTools narrows *which*, toolChoice gates *whether*). Per-send and non-mutating — the agent's persistent tool set is untouched. Local runtime.
 completionCheck	CompletionCheck	SE34 — an opt-in per-send completion predicate (an LLM judge, reusing the goal-judge machinery) evaluated once after the run settles; its verdict surfaces on `RunResult.completionCheck` and as a `completion_check` run-event. Fail-safe (a judge/parse failure ⇒ `complete: false`); absent ⇒ unchanged. Local runtime.
-objectiveThreadId	string	SE34 — the thread whose durable objective (see `setObjective`, SE33) is projected as a `<current-objective>` signal into the assembled system prompt for this send. Only an `active` objective projects; absent ⇒ no projection.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
 
 SystemPromptContext
@@ -617,18 +592,15 @@ interface SystemPromptContext {
 
 The resolver may be sync or async. Errors thrown propagate to the caller of agent.send(). The SDK does NOT impose a timeout — wrap your own Promise.race if you call into slow resources.
 
-Durable thread-scoped objective (SE33)
+Goal-driven runUntil (ephemeral)
 
 ```typescript
-await agent.setObjective("Ship the release notes", { threadId, maxRuns: 20 });
-const objective = await agent.getObjective(threadId);   // ObjectiveRecord | undefined
-await agent.updateObjectiveOptions(threadId, { maxRuns: 30 });
-await agent.clearObjective(threadId);
-// A standing goal can also live on AgentOptions.goal (precedence: per-call → per-objective → standing → default).
-for await (const _ of agent.runUntil()) { /* no-arg runUntil reads the durable objective */ }
+for await (const event of agent.runUntil("Ship the release notes", { maxTurns: 20 })) {
+  // event.type: "status_change" | ... — the judge-gated goal loop
+}
 ```
 
-A thread-scoped objective is persisted via the `ConversationStorageAdapter` (an `ObjectiveRecord` in a namespaced sidecar, not mixed into messages), so it survives a fresh agent over the same storage. `agent.runUntil()` with no goal argument reads the durable objective, drives the goal loop, and writes `runsUsed`/`status` back (budget exhaustion leaves the objective `active` for a later resume). `runUntil(goal, opts)` behaves exactly as before (ephemeral, no durable read/write). On an adapter without the objective methods, `setObjective` and friends are a typed no-op (memory-backed storage required). See ADR 0012.
+`agent.runUntil(goal, options)` drives the EPHEMERAL, per-call judge loop: it iterates `agent.send` → judge → continuation until the judge returns done, the judge fails too many times, max turns are exhausted, or the caller aborts. Removed in v4.0 (SE33/SE34): the DURABLE, thread-scoped objective — `agent.setObjective` / `getObjective` / `updateObjectiveOptions` / `clearObjective`, the `ObjectiveRecord` / `DurableGoalOptions` / `AgentGoalConfig` types, `AgentOptions.goal`, and the `<current-objective>` projection. A no-goal `runUntil()` now pauses (there is no durable objective to resolve).
 
 The next three sections are detailed reference for SDKMessage, InteractionUpdate, and ConversationTurn. Skim or skip on a first read; Resuming agents picks up the narrative.
 
@@ -1465,7 +1437,7 @@ model	ModelSelection	Required for local; cloud falls back to the server-resolved
 apiKey	string	Theo_API_KEY env	User API key or service account key. Team Admin keys are not yet supported.
 name	string	Auto-generated	Human-readable agent name surfaced as title in Agent.list() / Agent.get().
 systemPrompt	string \| (ctx: SystemPromptContext) => string \| Promise<string>	(none)	System prompt for the agent. Either a plain string or an async resolver that receives a SystemPromptContext. Priority order: SendOptions.systemPrompt (per-call override) > AgentOptions.systemPrompt (resolved if function) > undefined. An empty string in either slot is honoured (explicitly clears the system context). Subagents do NOT inherit this — they use AgentDefinition.prompt. The SDK does not impose a timeout on resolvers — wrap your own Promise.race if you call into slow resources.
-local	{ cwd?: string | string[]; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
+local	{ cwd?: string | string[]; baseDir?: string; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. baseDir is the native session-transcript root (default ~/.theokit; a leading ~ is expanded; set ~/.claude for Claude Code CLI --continue interop). settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
 cloud	CloudOptions		Cloud agent config.
 mcpServers	Record<string, McpServerConfig>		Inline MCP server definitions.
 agents	Record<string, AgentDefinition>		Subagent definitions.
@@ -2580,30 +2552,26 @@ await replaceFileAtomic("config.json", JSON.stringify(cfg)); // no torn write on
 `loadJsonl` is the same symbol exported from `@theokit/sdk/eval` (dataset
 loading); the `persistence` sub-path co-locates it with the write/resume helpers.
 
-### Claude Code transcript interop (SE39) — `ClaudeCodeTranscriptWriter`
+### Native session transcript (SE40) — Claude-shaped `.jsonl`
 
-Best-effort, **read-only** interop: emit a session as a Claude-Code-compatible `.jsonl` so the Claude
-Code ecosystem's read-side tools (`claude-code-log`, `ccusage`, transcript viewers) can parse it. Opt-in
-and additive — it does NOT change `ConversationStorage`. It taps `onStep` (which carries the paired
-`toolCall`/`toolResult`), so tool calls survive as structured `tool_use`/`tool_result` blocks with
-matched ids — unlike the minimal `messages.jsonl` store, which flattens turns to `{role, content}`.
+The SE39 read-only `ClaudeCodeTranscriptWriter` has been **removed** (v4.0). It is superseded by the
+SE40 native session format: the session store IS a Claude-shaped `.jsonl` (a `uuid`/`parentUuid` DAG of
+records carrying structured `text`/`tool_use`/`tool_result` blocks), so the ecosystem's read-side tools
+parse our sessions AND — pointed at `~/.claude` — the Claude Code CLI can `--continue` them.
+
+The path-encoders are exported from `@theokit/sdk/persistence`:
 
 ```typescript
-import { ClaudeCodeTranscriptWriter } from "@theokit/sdk/persistence";
+import { encodeProjectDir, transcriptPath } from "@theokit/sdk/persistence";
 
-const writer = ClaudeCodeTranscriptWriter.create({ cwd: process.cwd(), model: "openai/gpt-4o-mini" });
-const run = await agent.send("do the thing", { onStep: writer.onStep });
-for await (const _ of run.stream()) { /* drain */ }
-await run.wait();
-const path = await writer.write("do the thing"); // ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl
+// <baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl
+const path = transcriptPath("~/.theokit", process.cwd(), sessionId);
 ```
 
-`create({ cwd?, sessionId?, model?, version?, dir? })`. `records(userMessage)` returns the mapped
-`ClaudeCodeRecord[]` (pure, no I/O); `write(userMessage)` persists atomically and returns the path;
-secrets are redacted. **Caveat:** the Claude Code `.jsonl` format is internal to Claude Code and changes
-between versions (Anthropic recommends `/export`) — this writer targets a known-good shape validated
-against the real `claude-code-log` parser. Functional `--continue` (real CLI resume, extended-thinking
-signatures, sidecar dirs) is out of scope here (a later milestone).
+`baseDir` defaults to `~/.theokit` (isolated) and is settable to `~/.claude` for Claude Code CLI
+interop. The full write/read/`--continue`/append-only-compaction surface is documented as it lands
+through SE40; extended-thinking `--continue` (thinking-block signature round-trip) is out of scope
+(SE42 / issue #122) — thinking blocks are written but dropped on read.
 
 ## Eval suite (v1.15+) — `Eval.create / .run`
 
@@ -3437,48 +3405,26 @@ When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis
 
 Both profiles work with all SDK features: handoffs (D214-D229), workflows (D230-D248), semantic cache (D249-D266), eval suite (D202-D213), batch (D134-D140). Pick the model id at agent construction; the rest of the SDK is provider-agnostic.
 
-## Conversation storage (v1.21+) — `ConversationStorageAdapter`
+## Conversation storage (v4.0) — native Claude-shaped transcript
 
-Pluggable conversation persistence. Default behavior is unchanged (`<cwd>/.theokit/agents/<id>/messages.jsonl`). For serverless deploys (a peer vendor, Cloudflare Workers, Lambda) and multi-host setups (K8s replicas, TheoCloud canary), pass a custom adapter.
+Conversation persistence is the native Claude Code `.jsonl` transcript. There is no pluggable `ConversationStorageAdapter` — the transcript on disk IS the store. The path is `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`; `baseDir` comes from `local.baseDir` (default `~/.theokit`; set `~/.claude` for Claude Code CLI `--continue` interop).
 
-### Interface
+Records are a `uuid`/`parentUuid` DAG. Each line is one record with `type` (`user` / `assistant` / `system`), the envelope (`sessionId`, `timestamp`, `cwd`, `version`), and a `message.content` array of structured blocks (`text`, `thinking`, `tool_use{id,name,input}`, `tool_result{tool_use_id,content,is_error}`). A `system` record with `subtype: "compact_boundary"` is a new root (`parentUuid: null`) carrying `compactMetadata`.
 
-```ts
-interface ConversationStorageAdapter {
-  // M2 #63 — optional { offset, limit } paginates the result (omit for full history).
-  getMessages(
-    conversationId: string,
-    opts?: { offset?: number; limit?: number },
-  ): Promise<readonly StoredMessage[]>;
-  appendMessage(conversationId: string, message: StoredMessage): Promise<void>;
-  // M2 #63 — optional batch append: a whole turn in one atomic write. The FS
-  // adapter uses a single lock-guarded appendFile (one open per turn, not N);
-  // adapters that omit it fall back to looping appendMessage.
-  appendMessages?(conversationId: string, messages: readonly StoredMessage[]): Promise<void>;
-  // M3 #67 — revert a transcript back to its first keepCount messages ("undo last turn(s)").
-  truncateConversation?(conversationId: string, keepCount: number): Promise<number>;
-  deleteConversation(conversationId: string): Promise<void>;
-  // M3 #62 — delete every conversation whose id starts with prefix (scope pruning).
-  deleteScope?(prefix: string): Promise<number>;
-  listConversationIds?(opts?: { limit?: number }): Promise<readonly string[] | undefined>;
-  compact?(conversationId: string, maxTurns: number): Promise<void>;
-  dispose?(): Promise<void>;
-}
+### Write / read / compaction
 
-interface StoredMessage {
-  role: "user" | "assistant" | "system" | "tool_call" | "tool_result";
-  content: string;
-  at?: number; // epoch ms
-}
-```
+- WRITE: after each send, the whole turn (user text + assistant text/thinking + paired tool_use/tool_result blocks, taken from `run.conversation()`) is appended as native records under a cross-process file lock. Secrets are redacted before disk.
+- READ / resume: hydration parses the lines, builds the uuid index, finds the most-recent leaf (a uuid never used as a parentUuid), and walks `parentUuid` to a root (a `compact_boundary` root terminates the walk). It reconstructs the conversation; tool turns fold into assistant-role context so a resumed agent keeps its tool history.
+- COMPACTION is append-only: a `compact_boundary` record is appended; the transcript is NEVER shrunk. A resume after a boundary replays only the post-boundary continuation.
+- A torn last line (crash mid-write) is skipped on read — the rest of the DAG still reconstructs.
 
-### Scoped session state (M3 #62)
+### Scoped session ids (M3 #62)
 
-A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated in the same store: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe). Prune a whole scope with `adapter.deleteScope(sessionScopePrefix("temp"))` on logout / session end — pruning is explicit (auto-prune of `temp:` on dispose is deferred). Additive — an un-scoped id behaves exactly as before.
+A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe), and `sessionScopePrefix(scope)` returns the matching `"<scope>__"` prefix. These are pure id helpers; scope pruning against a storage backend is no longer part of the SDK.
 
-### Resume is non-lossy (M3 #62)
+### Removed in v4.0
 
-Session hydration used to drop `tool_call`/`tool_result` turns from the rebuilt context; they are now folded into the resumed context (as assistant-role context) so a resumed agent keeps its tool history. Exact tool_use/tool_result LLM-block reconstruction for mid-call resume needs persisted tool-use ids — a schema change deferred. Workflow resume restores the snapshot's accumulated step outputs (a post-suspend step sees prior results), instead of continuing with only the resume payload. Resume of router/cycle workflows and suspend nested inside parallel/branch/foreach is not yet supported (deferred).
+The pluggable-storage contract is gone: `ConversationStorageAdapter`, `StoredMessage`, `FileSystemConversationStorage`, `InMemoryConversationStorage`, `AgentOptions.conversationStorage`, the `Session` namespace + `SessionMeta`/`SessionMetaPatch`, durable objectives (`setObjective` and friends, `ObjectiveRecord`, `AgentOptions.goal`), and `buildReplayHistory`/`ReplayHistoryOptions`. Custom Postgres/Redis/Durable-Object backends are out until an adapter contract over the native format ships.
 
 ### Observability (M3 #64)
 
@@ -3491,67 +3437,25 @@ Artifacts are a **cloud-only, pre-release** surface. A `CloudAgent` returns fixt
 ### Default behavior (no configuration)
 
 ```ts
-// Existing apps unchanged — FS adapter at cwd
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
   model: { id: "openai/gpt-4o-mini" },
-  local: { cwd: process.cwd() },
+  local: { cwd: process.cwd() },              // baseDir defaults to ~/.theokit
 });
-// writes to <cwd>/.theokit/agents/<id>/messages.jsonl
+// writes the native transcript to ~/.theokit/projects/<encoded-cwd>/<agentId>.jsonl
 ```
 
-### Built-in adapters
+### Claude Code CLI interop
 
 ```ts
-import {
-  Agent,
-  FileSystemConversationStorage,
-  InMemoryConversationStorage,
-} from "@theokit/sdk";
-
-// Tests / ephemeral dev
-const ephemeral = new InMemoryConversationStorage();
-
-// Explicit FS (same as default but with custom root)
-const fs = new FileSystemConversationStorage({ root: "/var/lib/myapp" });
-
 const agent = await Agent.create({
-  apiKey,
-  model,
-  conversationStorage: ephemeral, // or fs
+  apiKey, model,
+  local: { cwd: process.cwd(), baseDir: "~/.claude" },
 });
+// writes to ~/.claude/projects/<encoded-cwd>/<agentId>.jsonl — a session the
+// Claude Code CLI can `--continue` (extended-thinking signatures are written but
+// dropped on read; functional --continue for thinking is tracked as issue #122).
 ```
-
-### Postgres / Redis / Durable Objects
-
-See `docs/recipes/conversation-storage-postgres.md` and `docs/recipes/conversation-storage-redis.md` for copy-paste templates. Both ship Node + Edge variants.
-
-### Strict resume integrity (D325)
-
-When `Agent.create({ conversationStorage })` is used, the registry marks the agent with `requiresCustomStorage: true`. **`Agent.resume` REJECTS** with `ConfigurationError(code: "conversation_storage_required")` if the marker is set and the caller does not pass `conversationStorage` again.
-
-```ts
-// First call (creates + marks):
-await Agent.create({
-  agentId: "user-42",
-  conversationStorage: pgAdapter,
-  apiKey,
-  model,
-});
-
-// Process restart later:
-// ❌ throws — silently falling back to FS would lose Postgres history
-await Agent.resume("user-42");
-
-// ✓ correct — pass adapter again
-await Agent.resume("user-42", { conversationStorage: pgAdapter });
-```
-
-This is intentional. Silent FS fallback would corrupt the conversation (read empty `messages.jsonl`, continue as if fresh). Wire the adapter at the route-handler level so every request reaches `getOrCreate` with the storage in place.
-
-### What does NOT serialize across resume
-
-`conversationStorage` is a runtime closure — not stored in `registry.json`. Same pattern as `AgentOptions.tools` handlers. The marker is the only thing that survives.
 
 ## Agent registry lifecycle (v1.21+) — `Agent.registry`
 

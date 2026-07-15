@@ -1,6 +1,5 @@
 import { AgentDisposedError } from "../../../errors.js";
 import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
-import type { ConversationStorageAdapter } from "../../../types/conversation-storage.js";
 import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
 import { emitRunEvent } from "../../../types/run-events.js";
 import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
@@ -26,10 +25,6 @@ import { createTripwireRun } from "../processors/tripwire-run.js";
 import { wrapRunWithOutputProcessors } from "../processors/wrap-output-run.js";
 import { appendSessionMessage, getSessionMessages } from "../session/agent-session.js";
 import { safeCall } from "../system-prompt/safe-call.js";
-import {
-  formatObjectiveProjection,
-  resolveCurrentObjectiveText,
-} from "./local-agent-goal-extensions.js";
 import { consumePending } from "./local-agent-invalidate.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
@@ -55,7 +50,6 @@ export interface SendLockedInputs {
     typeof import("./local-agent-memory-provider.js").createLocalAgentMemoryProvider
   >;
   workspaceCwd: string;
-  storageHandle: ConversationStorageAdapter | string;
   telemetry: TelemetryHandle;
   lifecycleAbortController: AbortController;
   runPreHook: (userText: string) => Promise<void>;
@@ -164,15 +158,7 @@ export async function executeSendLocked(
   });
 
   const priorMessages = [...getSessionMessages(inputs.agentId)];
-  appendSessionMessage(
-    inputs.agentId,
-    { role: "user", text: userText },
-    inputs.storageHandle,
-    // SE2 — a persistence-side auto-compaction surfaces a `compact_boundary` RunEvent.
-    options.onRunEvent !== undefined
-      ? () => emitRunEvent(options.onRunEvent, { type: "compact_boundary", trigger: "auto" })
-      : undefined,
-  );
+  appendSessionMessage(inputs.agentId, { role: "user", text: userText });
 
   await persistMemoryFactIfWritePrompt(inputs.workspaceCwd, inputs.options.memory, userText);
   const memoryFacts = await readMemoryForSend(inputs.workspaceCwd, inputs.options.memory);
@@ -196,14 +182,6 @@ export async function executeSendLocked(
     activeMemorySummary,
     options.contextPaths,
   );
-  // SE34 — project the standing durable objective (SE33) as a `<current-objective>`
-  // context signal for THIS send (opt-in via `objectiveThreadId`). Absent ⇒ the
-  // assembled prompt is byte-identical.
-  const projectedSystemPrompt = await projectCurrentObjective(
-    inputs.storageHandle,
-    options.objectiveThreadId,
-    assembledSystemPrompt,
-  );
   const composedOptions: SendOptions = {
     ...options,
     signal: anySignal([options.signal, inputs.lifecycleAbortController.signal]),
@@ -211,7 +189,7 @@ export async function executeSendLocked(
   const run = await inputs.dispatchRun(
     adaptedMessage,
     composedOptions,
-    projectedSystemPrompt,
+    assembledSystemPrompt,
     memoryFacts,
     priorMessages,
     memoryTools,
@@ -263,25 +241,4 @@ function readMemoryForSend(
 ): Promise<MemoryFact[]> {
   if (memoryConfig?.enabled !== true) return Promise.resolve([]);
   return safeCall(() => readMemoryFacts(workspaceCwd, memoryConfig), [], "memory read");
-}
-
-/**
- * SE34 — prepend a `<current-objective>…</current-objective>` block to the
- * assembled system prompt when `objectiveThreadId` names an ACTIVE durable
- * objective. Opt-in + fail-soft (a storage read error never breaks the send —
- * the projection is best-effort context, not correctness).
- */
-async function projectCurrentObjective(
-  storageHandle: ConversationStorageAdapter | string,
-  objectiveThreadId: string | undefined,
-  assembled: string | undefined,
-): Promise<string | undefined> {
-  if (objectiveThreadId === undefined) return assembled;
-  const objective = await safeCall(
-    () => resolveCurrentObjectiveText(storageHandle, objectiveThreadId),
-    undefined,
-    "objective projection",
-  );
-  if (objective === undefined) return assembled;
-  return formatObjectiveProjection(objective, assembled);
 }

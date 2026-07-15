@@ -1,141 +1,56 @@
-import type {
-  ConversationStorageAdapter,
-  StoredMessage,
-} from "../../../types/conversation-storage.js";
-import { FileSystemConversationStorage } from "../../persistence/conversation-storage-fs.js";
-import { compactSessionFile, readSessionFile } from "./agent-session-store.js";
+import {
+  appendCompactBoundaryRecord,
+  type PersistTurnInput,
+  persistTurn,
+  readSessionMessages,
+  type TranscriptLocation,
+} from "./agent-session-store.js";
 
 /**
  * Per-agent conversation history kept across runs (and across `Agent.resume()`
- * within the same process). Lets the fixture responder recall prior facts
- * when the user asks a follow-up question.
+ * within the same process). Lets the fixture responder recall prior facts when
+ * the user asks a follow-up question.
  *
- * Disk persistence (ADR D18 + D303): every append also lands in the configured
- * {@link ConversationStorageAdapter}. The default (no adapter, only cwd
- * supplied) writes to `<cwd>/.theokit/agents/<agentId>/messages.jsonl` via
- * {@link FileSystemConversationStorage}. Reads stay sync via the in-memory
- * cache; hydration from the adapter happens explicitly via
- * `hydrateSession(agentId, cwdOrStorage)` before the first read of a resumed
- * agent.
+ * SE40 — disk persistence IS the native Claude-shaped `.jsonl` transcript. The
+ * in-memory cache holds the narrowed `SessionMessage[]` (user/assistant text) so
+ * a send can read `priorMessages` synchronously; the whole rich turn (user +
+ * assistant + tool blocks) lands on disk once per send via {@link persistTurnToTranscript}
+ * (fed by `run.conversation()`). Hydration on resume reconstructs the session by
+ * walking the transcript DAG (`readSessionMessages`).
  *
  * @internal
  */
 
-// T1.1 / ADR D432 — `SessionMessage` now lives in `./session-types.ts`
-// (leaf types file) so the persistence layer can import the type without
-// back-edging through this runtime module. Re-exported for back-compat
-// with downstream importers that historically pulled it from here.
+// `SessionMessage` lives in `./session-types.ts` (leaf types file). Re-exported
+// for back-compat with downstream importers that pulled it from here.
 export type { SessionMessage } from "./session-types.js";
 
 import type { SessionMessage } from "./session-types.js";
 
-const DEFAULT_MAX_TURNS = 200;
+/** After this many persisted turns, an append-only compact_boundary is written. */
 const COMPACTION_CHECK_INTERVAL = 50;
 
 const sessions = new Map<string, SessionMessage[]>();
 const hydratedKeys = new Set<string>();
-const pendingAppends = new Map<string, Promise<void>>();
-const appendCounts = new Map<string, number>();
+const pendingWrites = new Map<string, Promise<void>>();
+const recordCounts = new Map<string, number>();
 
-// Module-level cache so per-cwd FileSystemConversationStorage instances are
-// reused across `appendSessionMessage` / `hydrateSession` calls instead of
-// allocated per-message. Cleared by `clearAllSessions` for tests.
-const fsAdapterByCwd = new Map<string, FileSystemConversationStorage>();
-
-/**
- * Resolve the storage adapter for backward-compat overload.
- *
- * The public `LocalAgent` constructor today passes a `cwd: string` to all
- * session helpers. The Production-Readiness plan introduces
- * `AgentOptions.conversationStorage` which arrives as a `ConversationStorageAdapter`.
- * This helper accepts either and lazily wraps `cwd` into a cached
- * {@link FileSystemConversationStorage}.
- *
- * @internal
- */
-function resolveStorage(cwdOrStorage: string | ConversationStorageAdapter): {
-  adapter: ConversationStorageAdapter;
-  key: string;
-} {
-  if (typeof cwdOrStorage !== "string") {
-    // Custom adapter — keyed by object identity (`String(adapter)` collides
-    // for plain objects, so we use a WeakMap-style identity counter).
-    return { adapter: cwdOrStorage, key: storageKey(cwdOrStorage) };
-  }
-  const existing = fsAdapterByCwd.get(cwdOrStorage);
-  if (existing !== undefined) {
-    return { adapter: existing, key: `cwd:${cwdOrStorage}` };
-  }
-  const fresh = new FileSystemConversationStorage({ root: cwdOrStorage });
-  fsAdapterByCwd.set(cwdOrStorage, fresh);
-  return { adapter: fresh, key: `cwd:${cwdOrStorage}` };
-}
-
-const adapterIdentity = new WeakMap<object, number>();
-let adapterIdentityCounter = 0;
-function storageKey(adapter: ConversationStorageAdapter): string {
-  let id = adapterIdentity.get(adapter as object);
-  if (id === undefined) {
-    id = ++adapterIdentityCounter;
-    adapterIdentity.set(adapter as object, id);
-  }
-  return `adapter:${id}`;
-}
-
-function sessionKey(agentId: string, storageId: string): string {
-  return `${storageId}::${agentId}`;
+/** The per-(cwd, agentId) transcript key for cache/hydration bookkeeping. */
+function transcriptKey(baseDir: string, cwd: string, agentId: string): string {
+  return `${baseDir}::${cwd}::${agentId}`;
 }
 
 /**
- * Append a session message to the in-memory cache. When `cwdOrStorage` is
- * supplied, the same message is queued to the persistent storage adapter
- * (default FS at `<cwd>/.theokit/agents/<id>/messages.jsonl`).
- *
- * Writes are fire-and-forget but chained per-(agent,storage) so on-disk
- * (or on-store) order matches in-memory order. Compaction runs every
- * `COMPACTION_CHECK_INTERVAL` appends when the adapter implements `compact()`.
+ * Append a session message to the in-memory cache only. Disk persistence for the
+ * whole turn happens once per send via {@link persistTurnToTranscript}; the cache
+ * feeds `priorMessages` / `onBeforeSend.previousMessageCount` synchronously.
  *
  * @internal
  */
-export function appendSessionMessage(
-  agentId: string,
-  message: SessionMessage,
-  cwdOrStorage?: string | ConversationStorageAdapter,
-  /**
-   * SE2 — invoked after a persistence-side auto-compaction crosses a boundary, so
-   * the caller can surface a `compact_boundary` RunEvent. Best-effort observer.
-   */
-  onCompact?: () => void,
-): void {
+export function appendSessionMessage(agentId: string, message: SessionMessage): void {
   const existing = sessions.get(agentId) ?? [];
   existing.push(message);
   sessions.set(agentId, existing);
-  if (cwdOrStorage === undefined) return;
-
-  const { adapter, key: storageId } = resolveStorage(cwdOrStorage);
-  const key = sessionKey(agentId, storageId);
-  const stored: StoredMessage = { role: message.role, content: message.text, at: Date.now() };
-  const chained = (pendingAppends.get(key) ?? Promise.resolve()).then(async () => {
-    try {
-      await adapter.appendMessage(agentId, stored);
-      const count = (appendCounts.get(key) ?? 0) + 1;
-      appendCounts.set(key, count);
-      if (count % COMPACTION_CHECK_INTERVAL === 0 && adapter.compact !== undefined) {
-        await adapter.compact(agentId, DEFAULT_MAX_TURNS);
-        onCompact?.(); // SE2 — surface the compaction boundary
-      }
-    } catch (cause) {
-      const msg = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(`[theokit-sdk] session append failed (${agentId}): ${msg}\n`);
-    }
-  });
-  pendingAppends.set(
-    key,
-    chained.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
 }
 
 export function getSessionMessages(agentId: string): SessionMessage[] {
@@ -143,28 +58,64 @@ export function getSessionMessages(agentId: string): SessionMessage[] {
 }
 
 /**
- * Load the persisted record into the in-memory cache. Idempotent per
- * (agentId, storage) pair. Call once per agent lifecycle (e.g., from
- * `LocalAgent.initialize`) before the first read.
+ * Persist a full conversation turn (user + assistant + tool blocks) to the native
+ * transcript. Chained per-(agent, transcript) so on-disk order matches send order,
+ * and fire-and-forget so `send()` is not blocked by disk I/O. Every
+ * `COMPACTION_CHECK_INTERVAL` turns an append-only `compact_boundary` is written
+ * (turn-count-driven, not size-driven), surfaced via the optional `onCompact` observer.
  *
- * Hydration uses the adapter's full storage surface but the in-memory
- * `SessionMessage` cache narrows to user/assistant roles (other roles
- * round-trip via the public `ConversationStorageAdapter` directly).
- *
- * Accepts `cwd: string` (default FS) OR a `ConversationStorageAdapter`.
+ * @internal
+ */
+export function persistTurnToTranscript(
+  loc: TranscriptLocation,
+  sessionId: string,
+  turn: PersistTurnInput,
+  onCompact?: () => void,
+): void {
+  const key = transcriptKey(loc.baseDir, loc.cwd, loc.agentId);
+  const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
+    try {
+      await persistTurn(loc, sessionId, turn);
+      const count = (recordCounts.get(key) ?? 0) + 1;
+      recordCounts.set(key, count);
+      if (count % COMPACTION_CHECK_INTERVAL === 0) {
+        await appendCompactBoundaryRecord(loc, sessionId, {
+          preTokens: 0,
+          trigger: "auto",
+        });
+        onCompact?.();
+      }
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : String(cause);
+      process.stderr.write(
+        `[theokit-sdk] session transcript write failed (${loc.agentId}): ${msg}\n`,
+      );
+    }
+  });
+  pendingWrites.set(
+    key,
+    chained.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+}
+
+/**
+ * Load the persisted transcript into the in-memory cache. Idempotent per
+ * (baseDir, cwd, agentId). Call once per agent lifecycle before the first read.
  *
  * @internal
  */
 export async function hydrateSession(
   agentId: string,
-  cwdOrStorage: string | ConversationStorageAdapter,
+  loc: { baseDir: string; cwd: string },
 ): Promise<void> {
-  const { adapter, key: storageId } = resolveStorage(cwdOrStorage);
-  const key = sessionKey(agentId, storageId);
+  const key = transcriptKey(loc.baseDir, loc.cwd, agentId);
   if (hydratedKeys.has(key)) return;
   hydratedKeys.add(key);
 
-  const persisted = await readPersistedForCache(adapter, agentId);
+  const persisted = await readSessionMessages(loc.baseDir, loc.cwd, agentId);
   if (persisted.length === 0) return;
   if (!sessions.has(agentId) || sessions.get(agentId)?.length === 0) {
     sessions.set(agentId, persisted);
@@ -172,89 +123,17 @@ export async function hydrateSession(
 }
 
 /**
- * Read messages from the storage adapter and narrow to the in-memory
- * `SessionMessage` shape (user/assistant only). Extracted helper to keep
- * `hydrateSession` under the cyclomatic-complexity cap.
- *
- * @internal
- */
-async function readPersistedForCache(
-  adapter: ConversationStorageAdapter,
-  agentId: string,
-): Promise<SessionMessage[]> {
-  // FS adapter uses the legacy narrowed reader for zero-cost behavior.
-  if (adapter instanceof FileSystemConversationStorage) {
-    return readSessionFile(adapter.root, agentId);
-  }
-  const records = await adapter.getMessages(agentId);
-  const out: SessionMessage[] = [];
-  for (const r of records) {
-    const folded = foldStoredToSession(r);
-    if (folded !== undefined) out.push(folded);
-  }
-  return out;
-}
-
-/**
- * M3 #62 — map a stored record to a hydrated `SessionMessage`. Non-FS adapters
- * must keep tool history on resume (parity with `readSessionFile`'s fold), else
- * custom/in-memory-backed resume is lossy. Extracted for the complexity budget.
- */
-function foldStoredToSession(r: StoredMessage): SessionMessage | undefined {
-  if (r.role === "user" || r.role === "assistant") return { role: r.role, text: r.content };
-  if (r.role === "tool_call" || r.role === "tool_result") {
-    const label = r.role === "tool_call" ? "tool call" : "tool result";
-    return { role: "assistant", text: `[${label}] ${r.content}` };
-  }
-  return undefined;
-}
-
-/**
- * Wait for all pending disk appends to settle. Used by tests and by the
- * agent dispose path so on-disk state matches in-memory before the caller
- * proceeds.
+ * Wait for all pending transcript writes to settle. Used by tests and by the
+ * agent dispose path so on-disk state matches in-memory before the caller proceeds.
  *
  * @internal
  */
 export async function flushSessionWrites(): Promise<void> {
-  while (pendingAppends.size > 0) {
-    const all = Array.from(pendingAppends.values());
-    pendingAppends.clear();
+  while (pendingWrites.size > 0) {
+    const all = Array.from(pendingWrites.values());
+    pendingWrites.clear();
     await Promise.all(all);
   }
-}
-
-/**
- * Force-trigger compaction for one agent regardless of the append-count
- * threshold. Used by tests and by `LocalAgent.dispose` so a long-lived
- * conversation does not leave 10k stale lines on disk after the process
- * shuts down.
- *
- * Accepts `cwd: string` (default FS) OR a `ConversationStorageAdapter`.
- *
- * @internal
- */
-export async function compactSession(
-  agentId: string,
-  cwdOrStorage: string | ConversationStorageAdapter,
-): Promise<void> {
-  const { adapter, key: storageId } = resolveStorage(cwdOrStorage);
-  const key = sessionKey(agentId, storageId);
-  const chained = (pendingAppends.get(key) ?? Promise.resolve()).then(async () => {
-    if (adapter instanceof FileSystemConversationStorage) {
-      await compactSessionFile(adapter.root, agentId, DEFAULT_MAX_TURNS);
-    } else if (adapter.compact !== undefined) {
-      await adapter.compact(agentId, DEFAULT_MAX_TURNS);
-    }
-  });
-  pendingAppends.set(
-    key,
-    chained.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  await chained;
 }
 
 export function clearSession(agentId: string): void {
@@ -265,6 +144,5 @@ export function clearSession(agentId: string): void {
 export function clearAllSessions(): void {
   sessions.clear();
   hydratedKeys.clear();
-  appendCounts.clear();
-  fsAdapterByCwd.clear();
+  recordCounts.clear();
 }

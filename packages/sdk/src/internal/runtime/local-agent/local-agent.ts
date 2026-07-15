@@ -15,6 +15,7 @@ import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
 import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import { generateLocalAgentId } from "../../ids.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
+import { defaultBaseDir, expandTilde } from "../../persistence/session-transcript.js";
 import type { PersonalityRegistry } from "../../personality/registry.js";
 import { PersonalityStore } from "../../personality/store.js";
 import type { PersonalityPreset } from "../../personality/types.js";
@@ -34,7 +35,7 @@ import { normalizeModel } from "../model-selection.js";
 import type { PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
 import { flushRegistrySaves, updateRegisteredAgent } from "../registry/agent-registry.js";
 import { liveAgentRegistry } from "../registry/live-agent-registry.js";
-import { compactSession, flushSessionWrites, hydrateSession } from "../session/agent-session.js";
+import { flushSessionWrites, hydrateSession } from "../session/agent-session.js";
 import type { SkillsHandle, SkillsManager } from "../skills/skills-manager.js";
 import { loadSubagents } from "../skills/subagents-loader.js";
 import {
@@ -47,12 +48,6 @@ import { resolveSystemPromptForSend } from "../system-prompt/system-prompt.js";
 import { validateToolCatalog } from "../validation/validate-agent-options.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
-import {
-  localAgentClearObjective,
-  localAgentGetObjective,
-  localAgentSetObjective,
-  localAgentUpdateObjectiveOptions,
-} from "./local-agent-goal-extensions.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
@@ -92,16 +87,10 @@ export class LocalAgent implements SDKAgent {
   private readonly options: AgentOptions;
   private readonly workspaceCwd: string;
   /**
-   * Production-Readiness #1 (ADR D304): conversation storage routing.
-   * - `undefined` → fall back to default `FileSystemConversationStorage` at
-   *   `workspaceCwd` (zero-config behavior; existing apps unaffected).
-   * - non-undefined → caller provided a custom adapter. The registry marker
-   *   `requiresCustomStorage` is set so `Agent.resume` refuses to silently
-   *   fall back to FS on the next process (EC-3, ADR D325).
+   * SE40 — base dir for the native Claude-shaped session transcript. Default
+   * `~/.theokit`; set `local.baseDir: "~/.claude"` for Claude Code CLI interop.
    */
-  private readonly conversationStorage:
-    | import("../../../types/conversation-storage.js").ConversationStorageAdapter
-    | undefined;
+  private readonly transcriptBaseDir: string;
   /**
    * D319: lifecycle AbortController fired on `dispose()`. Composed with the
    * caller's `SendOptions.signal` via `anySignal` so the LLM `fetch()`
@@ -144,7 +133,7 @@ export class LocalAgent implements SDKAgent {
     this.model = normalizeModel(options.model);
     this.options = options;
     this.workspaceCwd = resolveCwd(options.local?.cwd);
-    this.conversationStorage = options.conversationStorage;
+    this.transcriptBaseDir = resolveBaseDir(options.local?.baseDir);
     this.settingSourcesIncludeProject = includesSetting(options, "project");
     this.settingSourcesIncludePlugins = includesSetting(options, "plugins");
 
@@ -192,12 +181,6 @@ export class LocalAgent implements SDKAgent {
     });
   }
 
-  /** Resolve the storage handle for session helpers (custom adapter or cwd). */
-  // biome-ignore format: keep on one line for G8 LoC budget.
-  private storageHandle(): import("../../../types/conversation-storage.js").ConversationStorageAdapter | string {
-    return this.conversationStorage ?? this.workspaceCwd;
-  }
-
   async initialize(): Promise<void> {
     await this.hooksExecutor.initialize(this.settingSourcesIncludeProject);
     if (this.context !== undefined) await this.context.initialize();
@@ -213,10 +196,9 @@ export class LocalAgent implements SDKAgent {
       this.settingSourcesIncludeProject,
       this.options.agents,
     );
-    // ADR D18 + D304: hydrate persisted session history so a resumed agent
-    // sees the conversation that occurred in the previous process. Storage
-    // routes via the custom adapter when set, else default FS at cwd.
-    await hydrateSession(this.agentId, this.storageHandle());
+    // SE40 — hydrate persisted session history from the native transcript so a
+    // resumed agent sees the conversation from the previous process.
+    await hydrateSession(this.agentId, { baseDir: this.transcriptBaseDir, cwd: this.workspaceCwd });
     // ADR D163 — hydrate previously-active personality slug (no-op if none).
     await this.personalityStore.hydrate(this.agentId);
   }
@@ -304,7 +286,9 @@ export class LocalAgent implements SDKAgent {
         userText,
         agentId: this.agentId,
         workspaceCwd: this.workspaceCwd,
-        storageHandle: this.storageHandle(),
+        baseDir: this.transcriptBaseDir,
+        model: this.model?.id ?? "unknown",
+        ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
         hooksExecutor: this.hooksExecutor,
         memoryGlue: this.memoryGlue,
         ...(postRunProvider !== undefined ? { memoryProvider: postRunProvider } : {}),
@@ -330,7 +314,6 @@ export class LocalAgent implements SDKAgent {
         memoryGlue: this.memoryGlue,
         defaultMemoryProviderForLoop: this.defaultMemoryProviderForLoop,
         workspaceCwd: this.workspaceCwd,
-        storageHandle: this.storageHandle(),
         telemetry: this._telemetry,
         lifecycleAbortController: this.lifecycleAbortController,
         runPreHook: (ut) => this.runPreHook(ut),
@@ -463,7 +446,6 @@ export class LocalAgent implements SDKAgent {
     // Now flush any remaining disk writes so the on-disk state matches the
     // in-memory state before the caller proceeds (ADR D17 + D18).
     await flushSessionWrites();
-    await compactSession(this.agentId, this.storageHandle());
     await flushRegistrySaves(this.workspaceCwd);
   }
 
@@ -496,7 +478,6 @@ export class LocalAgent implements SDKAgent {
     return localAgentUsePersonality({
       agentId: this.agentId,
       workspaceCwd: this.workspaceCwd,
-      storageHandle: this.storageHandle(),
       disposed: this.disposed,
       personalityStore: this.personalityStore,
       personalityRegistry: this.personalityRegistry,
@@ -514,16 +495,8 @@ export class LocalAgent implements SDKAgent {
   // biome-ignore format: G8 budget — see listArtifacts.
   downloadArtifact(_path: string): Promise<Buffer> { return Promise.reject(new UnsupportedRunOperationError("Artifacts are not supported for local agents", "downloadArtifact")); }
 
-  // biome-ignore format: G8 budget — both methods delegate to `local-agent-runtime-extensions.ts`; signatures kept as 1-line each.
-  runUntil(goal?: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options, { handle: this.storageHandle(), goalConfig: this.options.goal }); }
-  // biome-ignore format: SE33 G8 budget — objective methods delegate to `local-agent-goal-extensions.ts`.
-  setObjective(objective: string, opts: { threadId: string } & import("../../../types/objective.js").DurableGoalOptions): Promise<void> { return localAgentSetObjective(this.storageHandle(), objective, opts); }
-  // biome-ignore format: SE33 G8 budget — see setObjective above.
-  getObjective(opts: { threadId: string }): Promise<import("../../../types/objective.js").ObjectiveRecord | undefined> { return localAgentGetObjective(this.storageHandle(), opts); }
-  // biome-ignore format: SE33 G8 budget — see setObjective above.
-  updateObjectiveOptions(opts: { threadId: string } & import("../../../types/objective.js").DurableGoalOptions): Promise<void> { return localAgentUpdateObjectiveOptions(this.storageHandle(), opts); }
-  // biome-ignore format: SE33 G8 budget — see setObjective above.
-  clearObjective(opts: { threadId: string }): Promise<void> { return localAgentClearObjective(this.storageHandle(), opts); }
+  // biome-ignore format: G8 budget — delegates to `local-agent-runtime-extensions.ts`; kept 1-line.
+  runUntil(goal?: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
   fork(options: import("../lifecycle/fork-agent.js").ForkOptions): Promise<import("../lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
@@ -534,6 +507,11 @@ export class LocalAgent implements SDKAgent {
 
 function resolveCwd(cwd: string | string[] | undefined): string {
   return (Array.isArray(cwd) ? cwd[0] : cwd) ?? process.cwd();
+}
+
+/** SE40 — the transcript base dir (`local.baseDir` or `~/.theokit` default), with `~` expanded. */
+function resolveBaseDir(baseDir: string | undefined): string {
+  return baseDir === undefined ? defaultBaseDir() : expandTilde(baseDir);
 }
 
 function includesSetting(options: AgentOptions, source: string): boolean {

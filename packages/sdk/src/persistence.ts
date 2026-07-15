@@ -21,16 +21,6 @@ export {
   atomicWriteText,
   replaceFileAtomic,
 } from "./internal/persistence/atomic-write.js";
-// SE39 — Claude Code transcript writer (best-effort, read-only ecosystem interop).
-export type {
-  ClaudeCodeRecord,
-  ClaudeCodeTranscriptOptions,
-} from "./internal/persistence/claude-code-transcript.js";
-export {
-  ClaudeCodeTranscriptWriter,
-  claudeCodeRecords,
-  encodeProjectDir,
-} from "./internal/persistence/claude-code-transcript.js";
 // Cross-process advisory file lock.
 export type { FileLockOptions } from "./internal/persistence/file-lock.js";
 export { withFileLock } from "./internal/persistence/file-lock.js";
@@ -41,6 +31,15 @@ export {
   loadJsonl,
   readJsonlIds,
 } from "./internal/persistence/jsonl.js";
+// SE40 — native session transcript (Claude-shaped `.jsonl`, theokit-native). The
+// on-disk session format IS this shape. `encodeProjectDir` + `transcriptPath` are
+// the path helpers a consumer reuses to locate a session file under
+// `<baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl`. Supersedes the SE39
+// read-only `ClaudeCodeTranscriptWriter` (removed in v4.0).
+export {
+  encodeProjectDir,
+  transcriptPath,
+} from "./internal/persistence/session-transcript.js";
 
 // Resilient SQLite bootstrap (corruption recovery) + WAL/FK setup.
 export type {

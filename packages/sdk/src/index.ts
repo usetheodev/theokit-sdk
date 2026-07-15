@@ -80,9 +80,6 @@ export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-g
 // Transitional: `Agent.create({ handoffs: [...] })` still works while
 // @theokit/sdk-handoff is installed (lazy-imported via optional peer model).
 // The preferred 2.x pattern is `plugins: [Handoff.asPlugin({ targets: [...] })]`.
-export { FileSystemConversationStorage } from "./internal/persistence/conversation-storage-fs.js";
-// Conversation storage adapters (Production-Readiness #1; ADRs D303-D306)
-export { InMemoryConversationStorage } from "./internal/persistence/conversation-storage-memory.js";
 // Process-level keyed mutex (SDK 2.0 Phase 2 physical-survey unblock —
 // ADR-008). Public utility consumed by extracted packages
 // (@theokit/sdk-budget, @theokit/sdk-memory) to share the SAME mutex
@@ -123,11 +120,6 @@ export {
   type CounterBudgetTrackerOptions,
   createCounterBudgetTracker,
 } from "./internal/runtime/budget/budget-tracker-counter.js";
-// M1-3 — stateless continuation-history rebuild (pure primitive)
-export {
-  buildReplayHistory,
-  type ReplayHistoryOptions,
-} from "./internal/runtime/context/replay-history.js";
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
@@ -192,8 +184,6 @@ export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
-// SE4 — session-management surface over ConversationStorage.
-export { Session } from "./session-manager.js";
 // M3 #62 — scoped session state helpers (app:/user:/temp:).
 export { type SessionScope, scopedConversationId, sessionScopePrefix } from "./session-scope.js";
 // Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
@@ -230,7 +220,6 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 export type { CustomTool, SDKAgent } from "./types/agent.js";
 // SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
 export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
-export type { SessionMeta, SessionMetaPatch } from "./types/conversation-storage.js";
 // Type contract
 export type * from "./types/index.js";
 // SE24 — guardrail processor pipeline (inputProcessors / outputProcessors).
@@ -262,11 +251,3 @@ export {
   type RunToolProgressEvent,
   type RunTripwireEvent,
 } from "./types/run-events.js";
-// SE4 — explicit type re-exports so rollup-dts surfaces them in the bundled .d.ts
-// (the `export type *` star does not reliably propagate — same reason as CustomTool).
-export type {
-  SessionCapabilityResult,
-  SessionListOptions,
-  SessionManager,
-  SessionSummary,
-} from "./types/session.js";
