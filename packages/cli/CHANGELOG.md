@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.1
+
+### Patch Changes
+
+- SE38 (#116) — `theokit init` scaffold templates (`minimal`, `ollama-local`,
+  `telegram-bot`) now pin `zod@^4.0.0` instead of `^3.25.0`. The SDK imports the top-level
+  `toJSONSchema` export (zod v4 only; under 3.25 it lives at `zod/v4`) and its peer already
+  required `zod@^4`, so the old pin resolved to v3 and crashed a scaffolded project with
+  `does not provide an export named 'toJSONSchema'` on the first `Tool.create`. A regression
+  test derives the required major from the SDK's own `peerDependencies.zod` so a template can
+  never drift below the peer again.
+- Updated dependencies
+  - @theokit/sdk@3.7.0
+
 ## 2.0.0
 
 ### Patch Changes
