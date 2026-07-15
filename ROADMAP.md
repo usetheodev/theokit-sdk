@@ -1092,7 +1092,7 @@ CoT via a system prompt), so this slice is about making them first-class + docum
 capability. Scoped as ONE cohesive milestone (owner decision, 2026-07-14); the 2-model
 reasoning-model+response-model split for general chat stays out (see below).
 
-### SE38 — [ ] Open-issue cleanup (6 genuinely-open tracker issues)
+### SE38 — [x] Open-issue cleanup (6 genuinely-open tracker issues)
 
 **Objective:** Fix + close the 6 tracker issues that remained genuinely open after the 2026-07-15
 triage (the other 16 — `#47`, `#54`–`#68` — were already done-in-code per M0–M3 `[x]` and were closed
