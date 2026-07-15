@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-
+import { buildCustomToolsInput } from "../src/internal/runtime/local-agent/real-local-run-tools.js";
 import {
   _resetReasoningWarnForTests,
   createThinkTool,
@@ -10,6 +10,7 @@ import {
 import { SystemPromptPipeline } from "../src/internal/runtime/system-prompt/pipeline.js";
 import { ReasoningPromptProvider } from "../src/internal/runtime/system-prompt/sources/reasoning-provider.js";
 import type { SystemPromptAssemblyContext } from "../src/internal/runtime/system-prompt/types.js";
+import type { AgentOptions } from "../src/types/agent.js";
 
 const baseCtx = { memory: [] } as unknown as SystemPromptAssemblyContext;
 
@@ -83,5 +84,43 @@ describe("SE37 — reasoning preamble provider", () => {
     const pipeline = SystemPromptPipeline.default();
     const off = await pipeline.assemble({ ...baseCtx, baseSystemPrompt: "You are a bot." });
     expect(off).toBe("You are a bot.");
+  });
+});
+
+describe("SE37 — tool-attach guard uses the EFFECTIVE (per-send override) model", () => {
+  const opts = { reasoning: true, model: { id: "openai/gpt-4o-mini" } } as AgentOptions;
+  const toolNames = (r: { customTools?: ReadonlyArray<{ name: string }> }) =>
+    (r.customTools ?? []).map((t) => t.name);
+
+  it("does NOT attach `think` when the effective model reasons natively (matches preamble path)", () => {
+    // create-time model is non-native, but the per-send override IS native → both paths must suppress.
+    const nativeOverride = { id: "x", params: [{ id: "thinking", value: "high" }] };
+    const r = buildCustomToolsInput(
+      opts,
+      undefined,
+      undefined,
+      undefined,
+      "a",
+      undefined,
+      undefined,
+      nativeOverride,
+    );
+    expect(toolNames(r)).not.toContain("think");
+  });
+
+  it("attaches `think` when the effective model is non-native", () => {
+    const r = buildCustomToolsInput(
+      opts,
+      undefined,
+      undefined,
+      undefined,
+      "a",
+      undefined,
+      undefined,
+      {
+        id: "openai/gpt-4o-mini",
+      },
+    );
+    expect(toolNames(r)).toContain("think");
   });
 });
