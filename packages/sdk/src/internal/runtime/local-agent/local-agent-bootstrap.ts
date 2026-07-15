@@ -35,7 +35,6 @@ export function registerLocalAgent(args: {
     options: args.options,
     cwd: args.workspaceCwd,
     status: "finished",
-    ...(args.options.conversationStorage !== undefined ? { requiresCustomStorage: true } : {}),
   });
 }
 

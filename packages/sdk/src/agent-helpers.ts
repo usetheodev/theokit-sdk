@@ -209,12 +209,6 @@ export async function rehydrateExistingAgent(
   options: Partial<AgentOptions>,
 ): Promise<SDKAgent> {
   await validateRehydratedAgent(agentId, existing);
-  if (existing.requiresCustomStorage === true && options.conversationStorage === undefined) {
-    throw new ConfigurationError(
-      `Agent "${agentId}" was created with a custom conversationStorage adapter; pass conversationStorage again on resume to avoid losing history.`,
-      { code: "conversation_storage_required" },
-    );
-  }
   const mergedLocal =
     options.local !== undefined && existing.options.local !== undefined
       ? { ...existing.options.local, ...options.local }

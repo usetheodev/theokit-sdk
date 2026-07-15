@@ -1,58 +1,61 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
-  appendSessionMessage,
   clearAllSessions,
   flushSessionWrites,
+  persistTurnToTranscript,
 } from "../../../src/internal/runtime/session/agent-session.js";
-import type { ConversationStorageAdapter } from "../../../src/types/conversation-storage.js";
+import type { TranscriptLocation } from "../../../src/internal/runtime/session/agent-session-store.js";
 
 /**
- * SE2 — a persistence-side auto-compaction (every COMPACTION_CHECK_INTERVAL=50
- * appends when the adapter implements `compact()`) must invoke the optional
+ * SE40 / SE2 — an append-only compaction (every COMPACTION_CHECK_INTERVAL=50
+ * persisted turns) appends a `compact_boundary` record and invokes the optional
  * `onCompact` callback so the runtime can surface a `compact_boundary` RunEvent.
- * Previously the event was DEAD (declared in the union, never emitted).
  */
-describe("agent-session onCompact callback (SE2 compact_boundary)", () => {
-  beforeEach(() => clearAllSessions());
+describe("persistTurnToTranscript onCompact callback (SE2 compact_boundary)", () => {
+  let baseDir: string;
+  const cwd = "/tmp/compact-proj";
+  function loc(agentId: string): TranscriptLocation {
+    return { baseDir, cwd, agentId, model: "test" };
+  }
 
-  it("fires onCompact once when 50 appends cross the compaction boundary", async () => {
-    let compacted = 0;
+  beforeEach(() => {
+    clearAllSessions();
+    baseDir = mkdtempSync(join(tmpdir(), "theokit-compact-"));
+  });
+  afterEach(() => {
+    rmSync(baseDir, { recursive: true, force: true });
+  });
+
+  it("fires onCompact once when 50 persisted turns cross the compaction boundary", async () => {
     let onCompactCalls = 0;
-    const adapter = {
-      root: "/mem-compact",
-      appendMessage: async () => {},
-      appendMessages: async () => {},
-      getMessages: async () => [],
-      compact: async () => {
-        compacted += 1;
-      },
-    } as unknown as ConversationStorageAdapter;
-
     for (let i = 0; i < 50; i++) {
-      appendSessionMessage("agent-compact", { role: "user", text: `m${i}` }, adapter, () => {
-        onCompactCalls += 1;
-      });
+      persistTurnToTranscript(
+        loc("agent-compact"),
+        "agent-compact",
+        { userText: `m${i}`, conversation: [] },
+        () => {
+          onCompactCalls += 1;
+        },
+      );
     }
     await flushSessionWrites();
-
-    expect(compacted).toBe(1);
     expect(onCompactCalls).toBe(1);
   });
 
   it("does not fire onCompact before the boundary", async () => {
     let onCompactCalls = 0;
-    const adapter = {
-      root: "/mem-compact-2",
-      appendMessage: async () => {},
-      appendMessages: async () => {},
-      getMessages: async () => [],
-      compact: async () => {},
-    } as unknown as ConversationStorageAdapter;
-
     for (let i = 0; i < 10; i++) {
-      appendSessionMessage("agent-compact-2", { role: "user", text: `m${i}` }, adapter, () => {
-        onCompactCalls += 1;
-      });
+      persistTurnToTranscript(
+        loc("agent-compact-2"),
+        "agent-compact-2",
+        { userText: `m${i}`, conversation: [] },
+        () => {
+          onCompactCalls += 1;
+        },
+      );
     }
     await flushSessionWrites();
     expect(onCompactCalls).toBe(0);

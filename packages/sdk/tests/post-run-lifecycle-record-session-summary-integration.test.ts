@@ -62,6 +62,9 @@ function buildStubRun(result: RunResult): Run {
     async wait(): Promise<RunResult> {
       return result;
     },
+    async conversation() {
+      return [];
+    },
     cancel(): void {
       return;
     },
@@ -108,7 +111,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
       userText: "user question",
       agentId: "test-agent",
       workspaceCwd: cwd,
-      storageHandle: cwd,
+      baseDir: cwd,
+      model: "stub-model",
       hooksExecutor: hooks,
       memoryGlue,
       memoryProvider: provider,
@@ -150,7 +154,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         userText: "u",
         agentId: "test-agent",
         workspaceCwd: cwd,
-        storageHandle: cwd,
+        baseDir: cwd,
+        model: "stub-model",
         hooksExecutor: hooks,
         memoryGlue,
         memoryProvider: provider,
@@ -173,7 +178,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         userText: "u",
         agentId: "test-agent",
         workspaceCwd: cwd,
-        storageHandle: cwd,
+        baseDir: cwd,
+        model: "stub-model",
         hooksExecutor: hooks,
         memoryGlue,
       }),
@@ -198,7 +204,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         userText: "u",
         agentId: "test-agent",
         workspaceCwd: cwd,
-        storageHandle: cwd,
+        baseDir: cwd,
+        model: "stub-model",
         hooksExecutor: hooks,
         memoryGlue,
         memoryProvider: provider,
@@ -224,7 +231,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
       userText: "u",
       agentId: "test-agent",
       workspaceCwd: cwd,
-      storageHandle: cwd,
+      baseDir: cwd,
+      model: "stub-model",
       hooksExecutor: hooks,
       memoryGlue,
       memoryProvider: provider,

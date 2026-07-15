@@ -1150,7 +1150,7 @@ these 6 as real work. Grouped as ONE cohesive "cleanup" milestone (owner decisio
 independent fixes with one release cut — rather than six micro-milestones. Delivered later via
 `/auto-plan SE38`.
 
-### SE39 — [ ] Claude Code transcript interop (read-only writer; `--continue` gated to SE40)
+### SE39 — [x] Claude Code transcript interop (read-only writer; `--continue` gated to SE40)
 
 **Objective:** Emit `@theokit/sdk` sessions as a Claude-Code-compatible `.jsonl` transcript so the
 Claude Code ecosystem's read-side tooling (`claude-code-log`, `ccusage`, `claude-devtools`, viewers)
@@ -1203,6 +1203,80 @@ semantics.
    them incorrectly breaks resume with `400 "thinking blocks cannot be modified"` (upstream #63147).
    Mitigation: for SE39 read-only, emit thinking faithfully (preserve/omit the signature per the
    round-trip test) and defer the resume-critical handling to SE40.
+
+### SE40 — [ ] Native Claude-shaped session format + `--continue` (v4.0 breaking — supersedes SE39 exporter)
+
+**Objective:** Make the theokit **native** session persistence BE the Claude Code on-disk shape (not a
+bolt-on exporter). The FS `ConversationStorage` writes records `{ uuid, parentUuid, message: { content:
+[text | thinking | tool_use | tool_result] } }` at the layout `<baseDir>/projects/<cwd nonalnum→'-'>/
+<sessionId>.jsonl` — **exactly** like Claude Code — with `baseDir` **configurable** (default
+`~/.theokit`, settable to `~/.claude`). Point it at `~/.claude` and the Claude Code CLI resumes our
+sessions (`--continue`) AND theokit reads the CLI's own sessions. This is a **VIRADA TOTAL** (owner
+decision, 2026-07-15): the minimal `{ role, content, at }` `messages.jsonl` store is REMOVED and the
+SE39 `ClaudeCodeTranscriptWriter` is REMOVED (breaking, next major). No `ClaudeCode*` naming survives in
+the SDK — it is the **theokit session format, claudecode-friendly first**; other ecosystems
+(a peer project, codex) enter later via read-adapters ON TOP of the native format.
+
+**Why now:** the owner reviewed SE39 (shipped in `@theokit/sdk@3.8.0`) and rejected the bolt-on
+"ClaudeCode" exporter as the wrong shape — the requirement is a native format switch, not a side channel.
+Native + configurable-dir is what actually enables `--continue` (just swap the dir) and reading real
+Claude Code sessions.
+
+**Dependencies:** SE39 `[x]` (reuse its mapper, the `onStep` `toolResult` fix, secret redaction, and the
+real-`claude-code-log`-parser round-trip gate).
+
+**Definition of done:**
+
+- [ ] The FS `ConversationStorage` native format IS the Claude-shaped record + layout
+      (`<baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl`); `baseDir` configurable (default
+      `~/.theokit`, settable `~/.claude`). The minimal `{role,content,at}` store is removed.
+- [ ] `ClaudeCodeTranscriptWriter` (3.8.0) removed from the public barrel; no `ClaudeCode*` symbol in the
+      SDK. Codemod or a documented migration for consumers.
+- [ ] **WRITE:** the agent loop persists RICH records directly — structured `tool_use`/`tool_result`
+      (paired ids), `thinking` (text; the cryptographic `signature` is deferred — see #122),
+      assistant/user turns with `message.{id,model}`, `uuid`/`parentUuid` DAG.
+- [ ] **READ / `--continue`:** load a Claude-shaped `.jsonl` (ours OR the real Claude Code CLI's from
+      `~/.claude`), walk the `parentUuid` DAG from the leaf (leaf = uuid never used as a parentUuid;
+      cycle-break; dedup earliest-session-wins), rebuild the message history, and resume. A real
+      end-to-end test: write → read-back → continue produces a coherent turn (text + tool sessions); AND
+      a test that reads a genuine Claude-Code-CLI-written `.jsonl` and resumes it.
+- [ ] **Compaction ⇄ append-only DAG:** replace the current file-REWRITE compaction with append-only
+      Claude semantics — emit a `system` `compact_boundary` record (new root, `parentUuid:null`,
+      `compactMetadata{preTokens,trigger}`) + a `user` continuation whose text starts with the exact
+      `"This session is being continued…"` prefix, WITHOUT dropping prior records. Test: compact → resume
+      → continuity holds AND the boundary parses through `claude-code-log`.
+- [ ] Round-trip through the REAL `claude-code-log` Pydantic parser (reuse SE39 gate) + real-LLM
+      write→read→continue validated on OpenRouter. `docs.md` documents the native format + `baseDir`
+      config + the `~/.claude` interop mode. `dedup` + fork/child-session (`parentUuid` across files)
+      covered by the reader tests.
+
+**Explicitly deferred (own follow-up milestones — per the SE40 discover, 2026-07-15):**
+
+- **SE41 — subagent transcripts** (`agent-<shortId>.jsonl` sibling files): achievable now (each subagent
+  run has a unique `run.id`), but a distinct slice — kept out of SE40 core.
+- **SE42 — extended-thinking `--continue`** (thinking `signature` capture): **provider-blocked** — the
+  SDK does not capture the thinking signature today (issue **#122**). Needs provider-layer work; text +
+  tool sessions resume without it.
+- **SE43 — migration importer** for old `.theokit/agents/<id>/messages.jsonl` sessions → the new format.
+- read-adapters for a peer project / codex (translate native ⇄ their formats); sidecar dirs `file-history/` +
+  `todos/` (file-undo / plan surfaces, NOT conversation `--continue`); the 30-day `cleanupPeriodDays`
+  policy.
+
+**Top risks (new):**
+
+1. **Format instability becomes a NATIVE dependency.** Anthropic states the `.jsonl` entry format is
+   internal + changes between versions. As our native format it couples us to that; a Claude schema
+   change could break `--continue` and our READ of real `~/.claude` sessions. Mitigation: pin a
+   known-good `version`; the round-trip test against the real parser guards WRITE; version-detect on
+   READ; the DEFAULT `baseDir` is `~/.theokit` (isolated) so a Claude drift only affects the opt-in
+   `~/.claude` interop mode, never our own sessions.
+2. **Compaction vs an append-only DAG is subtle.** Summarizing history in an append-only transcript must
+   not orphan the `parentUuid` chain and must be resume-correct. Mitigation: model compaction as a
+   `compact_boundary` record + a synthetic summary node in the DAG, replayed on resume (mirror Claude
+   Code's own mechanism), with dedicated compaction+resume tests.
+3. **Breaking on-disk migration.** The virada changes BOTH the on-disk location and the record shape.
+   Existing `.theokit/agents/<id>/messages.jsonl` sessions must migrate. Mitigation: v4.0 major + a
+   documented (optionally one-shot importer) old→new migration.
 
 ### Explicitly out of scope
 

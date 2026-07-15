@@ -21,9 +21,10 @@ import { afterEach, beforeEach, describe, it } from "vitest";
 
 import { mapAnthropicError } from "../../../src/internal/error-mappers/anthropic.js";
 import {
-  appendToSessionFile,
-  sessionFilePath,
-} from "../../../src/internal/runtime/session/agent-session-store.js";
+  SessionTranscript,
+  transcriptPath,
+  writeTranscript,
+} from "../../../src/internal/persistence/session-transcript.js";
 import { redactSecrets } from "../../../src/internal/security/redact.js";
 import { _redactAttrsForTests } from "../../../src/internal/telemetry/tracer.js";
 
@@ -69,24 +70,27 @@ describe("sinks adversarial (T1.5.1)", () => {
   });
 });
 
-describe("transcript JSONL appender (T1.5.1)", () => {
-  let cwd: string;
+describe("native transcript writer (T1.5.1 / SE40)", () => {
+  let baseDir: string;
   beforeEach(() => {
-    cwd = mkdtempSync(join(tmpdir(), "theokit-sink-adv-"));
+    baseDir = mkdtempSync(join(tmpdir(), "theokit-sink-adv-"));
   });
   afterEach(() => {
-    rmSync(cwd, { recursive: true, force: true });
+    rmSync(baseDir, { recursive: true, force: true });
   });
 
-  it("appendToSessionFile never leaks secrets across 50 cases", async () => {
-    // fc.assert in async — use the runner.
+  it("native transcript records never leak secrets across 50 cases", async () => {
     await fc.assert(
       fc.asyncProperty(secretArb, async (secret) => {
-        await appendToSessionFile(cwd, "agent-prop", {
-          role: "user",
-          text: `leak attempt: ${secret}`,
+        const transcript = new SessionTranscript({
+          cwd: "/tmp/proj",
+          sessionId: "agent-prop",
+          model: "test",
         });
-        const raw = readFileSync(sessionFilePath(cwd, "agent-prop"), "utf8");
+        transcript.appendUserTurn(`leak attempt: ${secret}`);
+        const path = transcriptPath(baseDir, "/tmp/proj", "agent-prop");
+        await writeTranscript(path, transcript.records());
+        const raw = readFileSync(path, "utf8");
         return !raw.includes(secret);
       }),
       { numRuns: 50 },

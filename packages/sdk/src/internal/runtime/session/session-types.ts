@@ -30,6 +30,12 @@
  * **Contract scope:** types only. No runtime code, no imports from cycle
  * members. Pure leaf.
  *
+ * **Historical note (SE40 / v4.0):** `conversation-storage-fs.ts` and the
+ * `ConversationStorage` port named above were removed when the native session
+ * transcript replaced the pluggable-adapter model. The cycle-break rationale
+ * still holds — `SessionMessage` remains a leaf type shared by the runtime
+ * (`agent-session.ts`) and the native store (`agent-session-store.ts`).
+ *
  * @internal — NOT part of the `@theokit/sdk` public API.
  */
 

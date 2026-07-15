@@ -36,6 +36,12 @@ export interface LocalOptions {
   cwd?: string | string[];
   settingSources?: SettingSource[];
   sandboxOptions?: { enabled: boolean };
+  /**
+   * SE40 — base directory for the native Claude-shaped session transcript
+   * (`<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`). Default `~/.theokit`.
+   * Set to `~/.claude` to write sessions the Claude Code CLI can `--continue`.
+   */
+  baseDir?: string;
 }
 
 /**
@@ -451,14 +457,6 @@ export interface AgentOptions {
   /** Memory configuration. Persists durable facts; auto-recalled on send. */
   memory?: MemorySettings;
   /**
-   * SE33 — standing goal config for a DURABLE, thread-scoped objective (a peer framework
-   * Goals parity). Read when a durable objective (`setObjective`) is set: the
-   * per-objective values take precedence over this config, which takes
-   * precedence over the built-in defaults. The judge is the activation switch —
-   * with no `judgeModel` resolved, a standing objective is inert. ADR 0012.
-   */
-  goal?: import("./objective.js").AgentGoalConfig;
-  /**
    * Inline custom tools. Local runtime only — cloud agents reject any non-empty
    * `tools` array. Handlers are not persisted; pass them again on resume.
    * See {@link CustomTool}.
@@ -608,25 +606,6 @@ export interface AgentOptions {
     durationMs: number;
     attempt: number;
   }) => void | Promise<void>;
-  /**
-   * Pluggable conversation persistence (Production-Readiness #1; ADRs D303-D306).
-   *
-   * Default: undefined → `FileSystemConversationStorage` writing to
-   * `<cwd>/.theokit/agents/<id>/messages.jsonl` (byte-identical to pre-D303
-   * behavior). Pass `InMemoryConversationStorage` for tests, or a custom
-   * adapter (Postgres/Redis/Durable Objects) for serverless and multi-host
-   * deploys.
-   *
-   * NOTE: not persisted in the registry snapshot — closures don't serialize.
-   * On `Agent.resume`, pass the adapter again. If the agent was originally
-   * created with a custom `conversationStorage`, resume without it throws
-   * `ConfigurationError(code: "conversation_storage_required")` (D325) to
-   * avoid silent FS fallback that would lose history.
-   *
-   * @public
-   */
-  conversationStorage?: import("./conversation-storage.js").ConversationStorageAdapter;
-
   /**
    * Pluggable budget/usage tracker (SDK 2.0 Phase 2 / T2.1 — ADR D1 interface
    * inversion). When provided, the agent loop calls `tracker.track(...)`
@@ -783,28 +762,6 @@ export interface SDKAgent {
     options?: import("./goal-events.js").GoalOptions,
   ): import("./goal-events.js").RunUntilIterator;
   /**
-   * SE33 — set a DURABLE, thread-scoped objective persisted via the
-   * conversation storage (survives reload). Read by `runUntil()` when no
-   * explicit goal is passed. `threadId` is REQUIRED (the durability key); the
-   * call no-ops when the run is not memory-backed (the storage adapter omits the
-   * optional objective methods). Throws `ConfigurationError` on `maxRuns <= 0`.
-   * ADR 0012.
-   */
-  setObjective?(
-    objective: string,
-    opts: { threadId: string } & import("./objective.js").DurableGoalOptions,
-  ): Promise<void>;
-  /** SE33 — read the durable objective record for a thread (or `undefined`). */
-  getObjective?(opts: {
-    threadId: string;
-  }): Promise<import("./objective.js").ObjectiveRecord | undefined>;
-  /** SE33 — merge options into the active objective (only provided fields change; no-op if unset). */
-  updateObjectiveOptions?(
-    opts: { threadId: string } & import("./objective.js").DurableGoalOptions,
-  ): Promise<void>;
-  /** SE33 — drop the durable objective for a thread. */
-  clearObjective?(opts: { threadId: string }): Promise<void>;
-  /**
    * Fork a short-lived sub-agent with parent's credentials + system
    * prompt byte-identical (ADR D112 — cache hit) and a restricted tool
    * whitelist (ADR D111 — AsyncLocalStorage isolation).
@@ -840,8 +797,7 @@ export interface SDKAgent {
    * The {@link import("./run.js").StreamToCompletionResult} is the generator's RETURN
    * value — read it via a manual `gen.next()` loop (`while (!res.done) res = await
    * gen.next()` → `res.value`); a plain `for await...of` consumes the yielded
-   * messages but discards the return value. For the STATELESS path, reconstruct
-   * history with `buildReplayHistory` into a fresh session first.
+   * messages but discards the return value.
    *
    * Local agents only. Cloud agents throw
    * {@link import("../errors.js").UnsupportedRunOperationError}.
