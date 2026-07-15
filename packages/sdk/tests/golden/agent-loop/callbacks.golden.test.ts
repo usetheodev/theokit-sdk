@@ -197,10 +197,12 @@ describe("real-runtime callbacks (SendOptions.onStep / onDelta)", () => {
     // consumer (e.g. the Claude Code transcript writer) needs the result, not just the call.
     expect(types).toContain("toolResult");
     expect(types).toContain("assistantMessage");
-    // the toolResult carries the same callId as its toolCall (zero dangling downstream).
+    // the toolResult carries the same callId as its toolCall — paired in BOTH directions
+    // (zero dangling toolCall AND zero orphan toolResult downstream).
     const callIds = steps.filter((s) => s.type === "toolCall").map((s) => s.message.callId);
     const resultIds = steps.filter((s) => s.type === "toolResult").map((s) => s.message.callId);
     for (const id of callIds) expect(resultIds).toContain(id);
+    for (const id of resultIds) expect(callIds).toContain(id);
   });
 
   it("does not crash the run when onDelta throws", async () => {
