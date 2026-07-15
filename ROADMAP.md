@@ -1034,6 +1034,64 @@ first-class design defect and decided (2026-07-13) on full uniformity before the
 ossifies further with more consumers. The honest counter-argument (current split is SOTA-aligned
 and Rule-9-locked) was surfaced and the trade-off accepted.
 
+### SE37 — [ ] Reasoning ergonomics (reasoning tools + `reasoning: true`)
+
+**Objective:** Close the two reasoning "sugar" gaps found in the a peer cross-check (2026-07-14).
+Native reasoning models are already first-class (`model.params: [{ id: "thinking", value: "high" }]`
++ streamed `thinking` deltas + `usage.reasoningTokens` + `SDKThinkingMessage`), so this slice ships
+only what is missing:
+
+1. **Reasoning tools** — a `think()` / `analyze()` scratchpad tool (via `Tool.create`, exported from
+   `@theokit/sdk-tools`) that gives any model an explicit place to structure its reasoning before
+   answering. The handler echoes the thought back (a no-side-effect thinking step) and the calls are
+   observable through the normal tool lifecycle. Mirrors Anthropic's "think" tool + a peer's
+   `ReasoningTools`. (This is distinct from — and complementary to — the existing `strip-think`,
+   which removes inline `<think>` blocks from provider output.)
+2. **Lightweight `reasoning: true` wrapper** — an opt-in agent flag that, using the **same** model
+   (a peer-style), injects a structured chain-of-thought system prompt and auto-attaches the reasoning
+   tool, turning a non-reasoning model into a reason→act→observe loop without a separate runtime. It
+   reuses the existing ReAct tool-calling loop; no new engine. Best paired with non-reasoning models
+   (with a native reasoning model, use `model.params` directly — documented).
+
+**Definition of done:**
+
+- [ ] TDD-first: `ReasoningTools.create()` (or the locked `X.create` equivalent) shipped from
+      `@theokit/sdk-tools`, returning `think` (+ `analyze`) tools; unit tests assert the tool shape,
+      handler echo, and observability via `onToolStart`/`onToolEnd`.
+- [ ] `AgentOptions.reasoning?: boolean` (default off; byte-identical when unset) — when `true`,
+      the agent gets the CoT system-prompt preamble + the reasoning tool auto-attached; a regression
+      test proves the tool is offered and the preamble is present, and that `reasoning` absent leaves
+      the assembled prompt + toolset unchanged.
+- [ ] Interaction with native thinking is documented + guarded: `reasoning: true` on a model already
+      configured with `params:[{id:"thinking"}]` does NOT double-wrap (documented precedence; a test
+      asserts no duplicate reasoning injection).
+- [ ] `docs.md` (source of truth) + a docs-site page under `/theokit/reasoning` covering all three
+      approaches (native models / reasoning tools / `reasoning: true`), with the a peer-parity mapping.
+- [ ] A runnable `examples/reasoning` (reasoning tool + `reasoning: true`) executed **REAL against a
+      real LLM (OpenRouter)** per `rules/real-llm-validation.md` — the reply shows the think tool
+      being called and a correct answer to a reasoning trap (e.g. "9.11 vs 9.9").
+- [ ] `CHANGELOG.md` `[Unreleased] § Added`; minor `@theokit/sdk` + `@theokit/sdk-tools` bump via Changeset.
+
+**Dependencies:** SE36 (uniform `X.create()`) — the reasoning tool ships on the `X.create` surface;
+all SE1–SE36 are `[x]`. Builds on the existing `Tool.create`, the ReAct tool loop, and the native
+thinking stream (approach 1, already shipped). No other hard blocker.
+
+**Top risks (new):**
+1. **Double-reasoning waste** — `reasoning: true` layered on a model that already reasons natively
+   burns tokens for no gain (and can degrade output). Mitigation: documented precedence + a guard/warn
+   when both are set; default off; docs steer native-reasoning models to `model.params`.
+2. **Non-determinism of prompt-only CoT** — the wrapper's quality is model-dependent and hard to
+   assert beyond structure. Mitigation: tests assert the *mechanism* (tool offered, preamble present,
+   tool called) deterministically; the real-LLM example proves end-to-end value on a known reasoning
+   trap, not a brittle exact-text match.
+
+**Why now:** the a peer documentation cross-check (2026-07-14) confirmed the SDK already has the
+load-bearing approach (native reasoning models with a streamed trace) but lacks the two ergonomic
+sugars every other agent framework ships. Both are BYO-able today (a `think` tool via `Tool.create`;
+CoT via a system prompt), so this slice is about making them first-class + documented, not net-new
+capability. Scoped as ONE cohesive milestone (owner decision, 2026-07-14); the 2-model
+reasoning-model+response-model split for general chat stays out (see below).
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
