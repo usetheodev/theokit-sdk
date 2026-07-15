@@ -6,14 +6,11 @@
  *
  * - `app:`  — durable state shared across users (app-level memory).
  * - `user:` — durable state for one user.
- * - `temp:` — ephemeral state; prune it with `adapter.deleteScope("temp")` on
- *   logout / session end so it never accumulates.
+ * - `temp:` — ephemeral state a consumer prunes on logout / session end.
  *
- * The scope is a prefix on the conversation id (`"<scope>__<id>"`), so it works
- * with any {@link ConversationStorageAdapter} — no new storage surface required.
- * The `__` separator is path-safe (unlike `:`, which the FS adapter's identifier
- * guard rejects). `deleteScope(prefix)` (optional on the adapter) removes every
- * conversation with that prefix in one call.
+ * The scope is a prefix on the conversation id (`"<scope>__<id>"`). The `__`
+ * separator is path-safe (unlike `:`, which the identifier guard rejects), so a
+ * host can partition sessions by scope over the native transcript store.
  *
  * @public
  */
