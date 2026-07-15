@@ -58,6 +58,38 @@ describe("scaffold (T2.1)", () => {
     expect(sdkDep).toMatch(/^\^\d+\.\d+\.\d+/);
   });
 
+  // #116 — every scaffolded template that ships `zod` MUST pin a range whose lower
+  // bound satisfies the SDK's `zod` peer major. The SDK imports the top-level
+  // `toJSONSchema` (zod v4 only); a `^3.25` pin resolves to v3 and crashes the
+  // scaffold on the first `Tool.create`. Derive the required major from the SDK's
+  // own peerDependencies so the templates can never drift below it again.
+  it("#116: templates carrying zod pin a range satisfying the SDK zod peer major", async () => {
+    const sdkPkg = JSON.parse(
+      readFileSync(join(__dirname, "..", "..", "..", "sdk", "package.json"), "utf8"),
+    ) as { peerDependencies: Record<string, string> };
+    const peerZod = sdkPkg.peerDependencies.zod;
+    if (!peerZod) throw new Error("SDK must declare a zod peer dependency");
+    // Lowest major the peer accepts, e.g. "^4.0.0 || ^4" -> 4.
+    const peerMajor = Number(peerZod.match(/\d+/)?.[0]);
+    expect(Number.isInteger(peerMajor)).toBe(true);
+
+    for (const template of ["minimal", "ollama-local", "telegram-bot"] as const) {
+      const proj = `zod-${template}`;
+      await scaffold({ projectName: proj, template, cwd: workDir });
+      const pkg = JSON.parse(readFileSync(join(workDir, proj, "package.json"), "utf8")) as {
+        dependencies?: Record<string, string>;
+      };
+      const zodDep = pkg.dependencies?.zod;
+      if (!zodDep) continue; // a template may legitimately not depend on zod
+      // Extract the lower-bound major from a caret/tilde/plain range.
+      const templateMajor = Number(zodDep.match(/\d+/)?.[0]);
+      expect(
+        templateMajor,
+        `${template} pins zod "${zodDep}" — below the SDK peer major ${peerMajor} (#116)`,
+      ).toBeGreaterThanOrEqual(peerMajor);
+    }
+  });
+
   it("EC-A: rejects npm-invalid names (uppercase, spaces, special chars)", async () => {
     const bads = ["My App", "UpperCase", "scoped/name", " leading-space", "name?", "@scope-only"];
     for (const bad of bads) {
