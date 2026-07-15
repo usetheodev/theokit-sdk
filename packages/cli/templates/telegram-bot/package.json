@@ -12,7 +12,7 @@
     "@theokit/gateway": "^{{sdkVersion}}",
     "@theokit/gateway-telegram": "^{{sdkVersion}}",
     "grammy": "^1.30.0",
-    "zod": "^3.25.0"
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "tsx": "^4.19.0",
