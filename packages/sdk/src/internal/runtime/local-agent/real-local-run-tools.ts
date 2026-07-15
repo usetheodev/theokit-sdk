@@ -16,7 +16,12 @@ import {
   inheritSubAgentCredentials,
   subAgentToolsFromDefinitions,
 } from "../../../a2a/subagent.js";
-import type { AgentDefinition, AgentOptions, CustomTool } from "../../../types/agent.js";
+import type {
+  AgentDefinition,
+  AgentOptions,
+  CustomTool,
+  ModelSelection,
+} from "../../../types/agent.js";
 import type { CustomToolSpec } from "../../agent-loop/loop-types.js";
 import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
 import { createThinkTool, reasoningActive } from "../reasoning/native-reasoning.js";
@@ -63,6 +68,7 @@ export function buildCustomToolsInput(
   agentId: string,
   personalityName: string | undefined,
   subagents: Record<string, AgentDefinition> | undefined,
+  effectiveModel: ModelSelection | undefined,
 ): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
   const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
   // Prefer the resolved set (file-based + inline) when present; fall back to the
@@ -75,8 +81,10 @@ export function buildCustomToolsInput(
   // would be caught by the registry validator if used).
   const pluginTools = pluginManager?.aggregated.tools ?? [];
   // SE37 — `reasoning: true` auto-attaches the internal `think` tool, unless a
-  // native reasoning model is configured (guard + one-time warn).
-  const reasoningTools = reasoningActive(agentOptions.reasoning, agentOptions.model)
+  // native reasoning model is configured (guard + one-time warn). Guards on the
+  // EFFECTIVE model (per-send override applied), matching the preamble path in
+  // local-assembly so both agree on native-vs-not (no split double-reasoning).
+  const reasoningTools = reasoningActive(agentOptions.reasoning, effectiveModel)
     ? [createThinkTool()]
     : [];
   if (

@@ -280,6 +280,7 @@ function buildLoopInputs(
       options.agentId,
       options.personalityName,
       options.subagents,
+      options.model,
     ),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
