@@ -1418,7 +1418,7 @@ Context is task working-set. It is selected per agent from inline config or `.th
 Memory is durable recall. It persists facts by `{ namespace, userId, scope }`, rejects stores outside the workspace, and must redact credential material.
 Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL.md`, listed with `agent.skills.list()`, and only expose public metadata in streams and snapshots.
 
-`agent.reload()` refreshes file-based context and skills without disposing the agent or losing conversation state. An invalid **context** config (`.theokit/context.json` — bad JSON or wrong shape) raises `ConfigurationError`. A **skill** with malformed frontmatter is handled differently: it is skipped with a stderr warning and excluded from `agent.skills.list()`, and reload resolves normally (graceful-degrade — a single broken skill never blocks the agent).
+`agent.reload()` refreshes file-based context and skills without disposing the agent or losing conversation state. An invalid **context** config (malformed content or wrong shape) raises `ConfigurationError`. A **skill** with malformed frontmatter is handled differently: it is skipped with a stderr warning and excluded from `agent.skills.list()`, and reload resolves normally (graceful-degrade — a single broken skill never blocks the agent).
 
 Hooks
 Hooks are file-based only. There is no programmatic hook callback. Hooks are a project policy boundary, not a per-run knob.
