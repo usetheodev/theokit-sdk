@@ -1,6 +1,7 @@
 import type { AgentOptions, ModelSelection, SystemPromptContext } from "../../../types/agent.js";
 import type { FileContextManager } from "../context/context-manager.js";
 import type { MemoryFact } from "../memory/memory-store.js";
+import { reasoningActive } from "../reasoning/native-reasoning.js";
 import { SkillsManager } from "../skills/skills-manager.js";
 import type { SystemPromptPipeline } from "./pipeline.js";
 import type { SystemPromptAssemblyContext } from "./types.js";
@@ -114,6 +115,11 @@ export async function buildAssemblyContext(
   if (baseSystemPrompt !== undefined) assemblyCtx.baseSystemPrompt = baseSystemPrompt;
   if (activeMemorySummary !== undefined && activeMemorySummary.length > 0) {
     assemblyCtx.activeMemorySummary = activeMemorySummary;
+  }
+  // SE37 — inject the reasoning preamble when `reasoning: true` and the model is
+  // not already reasoning natively (guard + one-time warn inside reasoningActive).
+  if (reasoningActive(inputs.options.reasoning, inputs.model)) {
+    assemblyCtx.reasoning = true;
   }
   if (inputs.context !== undefined) {
     // T3 — apply the per-send in-scope file set so path-scoped rules

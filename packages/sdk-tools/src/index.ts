@@ -80,6 +80,8 @@ export { type CreateReadFileToolOptions, createReadFileTool } from "./read-file.
 // tools); `evaluateReadBeforeWrite`/`WriteDecision` stay internal (imported
 // directly by write-file.ts + unit-tested via read-tracker.ts) — not re-exported.
 export { ReadTracker } from "./read-tracker.js";
+// SE37 — reasoning scratchpad tools (re-exported from core; `reasoning: true` auto-attaches them).
+export { ReasoningTools } from "./reasoning-tools.js";
 export {
   type CreateRunVitestToolOptions,
   createRunVitestTool,
