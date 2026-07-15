@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased]
+
+### Removed
+
+- **BREAKING (v4.0): `ClaudeCodeTranscriptWriter` (`@theokit/sdk/persistence`)** and its exported
+  types (`ClaudeCodeRecord`, `ClaudeCodeTranscriptOptions`) + `claudeCodeRecords`. The SE39 read-only
+  transcript writer is superseded by the SE40 native session format (the session store IS a
+  Claude-shaped `.jsonl` with write + read/`--continue` + append-only compaction). `encodeProjectDir`
+  and `transcriptPath` remain exported from `@theokit/sdk/persistence`, now sourced from the native
+  `session-transcript` module. (SE40)
+
 ## 3.8.0
 
 ### Minor Changes

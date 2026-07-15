@@ -2580,30 +2580,26 @@ await replaceFileAtomic("config.json", JSON.stringify(cfg)); // no torn write on
 `loadJsonl` is the same symbol exported from `@theokit/sdk/eval` (dataset
 loading); the `persistence` sub-path co-locates it with the write/resume helpers.
 
-### Claude Code transcript interop (SE39) — `ClaudeCodeTranscriptWriter`
+### Native session transcript (SE40) — Claude-shaped `.jsonl`
 
-Best-effort, **read-only** interop: emit a session as a Claude-Code-compatible `.jsonl` so the Claude
-Code ecosystem's read-side tools (`claude-code-log`, `ccusage`, transcript viewers) can parse it. Opt-in
-and additive — it does NOT change `ConversationStorage`. It taps `onStep` (which carries the paired
-`toolCall`/`toolResult`), so tool calls survive as structured `tool_use`/`tool_result` blocks with
-matched ids — unlike the minimal `messages.jsonl` store, which flattens turns to `{role, content}`.
+The SE39 read-only `ClaudeCodeTranscriptWriter` has been **removed** (v4.0). It is superseded by the
+SE40 native session format: the session store IS a Claude-shaped `.jsonl` (a `uuid`/`parentUuid` DAG of
+records carrying structured `text`/`tool_use`/`tool_result` blocks), so the ecosystem's read-side tools
+parse our sessions AND — pointed at `~/.claude` — the Claude Code CLI can `--continue` them.
+
+The path-encoders are exported from `@theokit/sdk/persistence`:
 
 ```typescript
-import { ClaudeCodeTranscriptWriter } from "@theokit/sdk/persistence";
+import { encodeProjectDir, transcriptPath } from "@theokit/sdk/persistence";
 
-const writer = ClaudeCodeTranscriptWriter.create({ cwd: process.cwd(), model: "openai/gpt-4o-mini" });
-const run = await agent.send("do the thing", { onStep: writer.onStep });
-for await (const _ of run.stream()) { /* drain */ }
-await run.wait();
-const path = await writer.write("do the thing"); // ~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl
+// <baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl
+const path = transcriptPath("~/.theokit", process.cwd(), sessionId);
 ```
 
-`create({ cwd?, sessionId?, model?, version?, dir? })`. `records(userMessage)` returns the mapped
-`ClaudeCodeRecord[]` (pure, no I/O); `write(userMessage)` persists atomically and returns the path;
-secrets are redacted. **Caveat:** the Claude Code `.jsonl` format is internal to Claude Code and changes
-between versions (Anthropic recommends `/export`) — this writer targets a known-good shape validated
-against the real `claude-code-log` parser. Functional `--continue` (real CLI resume, extended-thinking
-signatures, sidecar dirs) is out of scope here (a later milestone).
+`baseDir` defaults to `~/.theokit` (isolated) and is settable to `~/.claude` for Claude Code CLI
+interop. The full write/read/`--continue`/append-only-compaction surface is documented as it lands
+through SE40; extended-thinking `--continue` (thinking-block signature round-trip) is out of scope
+(SE42 / issue #122) — thinking blocks are written but dropped on read.
 
 ## Eval suite (v1.15+) — `Eval.create / .run`
 
