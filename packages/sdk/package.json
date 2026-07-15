@@ -302,6 +302,8 @@
     "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json",
     "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
+    "test:contract": "vitest run --no-file-parallelism tests/theokit-consumer-contract.test.ts",
+    "prepublishOnly": "pnpm build && pnpm test:contract",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "docs:json": "typedoc --options typedoc.json",
