@@ -2,13 +2,37 @@
 
 ## [Unreleased]
 
+### Added
+
+- **SE40 — native Claude-shaped session format (v4.0).** The local session store IS the native
+  Claude Code `.jsonl` transcript: a `uuid`/`parentUuid` DAG of records with structured
+  `text` / `thinking` / `tool_use` / `tool_result` blocks. Sessions WRITE natively (from
+  `run.conversation()`), READ/resume by reconstructing the DAG, and compact append-only
+  (`compact_boundary` records — the transcript never shrinks). New `local.baseDir` option
+  (default `~/.theokit`; set `~/.claude` so the Claude Code CLI can `--continue` the session).
+  Extended-thinking signatures are written but dropped on read (functional `--continue` for
+  thinking is tracked separately, issue #122). (SE40)
+
 ### Removed
 
+- **BREAKING (v4.0): `ConversationStorageAdapter` + the whole pluggable-storage contract.**
+  Removed the public `StoredMessage`, `ConversationStorageAdapter`, `FileSystemConversationStorage`,
+  and `InMemoryConversationStorage` exports, plus `AgentOptions.conversationStorage`. Conversation
+  persistence is now exclusively the native Claude-shaped transcript (see Added above) — there is no
+  longer a swappable storage backend. (SE40)
+- **BREAKING (v4.0): session metadata (SE4).** Removed the `Session` namespace (`renameSession` /
+  `tagSession` / capability listing) and the `SessionMeta` / `SessionMetaPatch` types. (SE40)
+- **BREAKING (v4.0): durable objectives (SE33).** Removed `agent.setObjective` / `getObjective` /
+  `updateObjectiveOptions` / `clearObjective`, the `ObjectiveRecord` / `DurableGoalOptions` /
+  `AgentGoalConfig` types, `AgentOptions.goal`, and the SE34 `<current-objective>` projection.
+  `agent.runUntil(goal, options)` is now exclusively the EPHEMERAL, explicit-goal judge loop — a
+  call with no goal pauses (the durable, thread-scoped objective path is gone). (SE40)
+- **BREAKING (v4.0): `buildReplayHistory` / `ReplayHistoryOptions` (M1-3).** The stateless
+  continuation-history rebuild primitive is removed (it consumed `StoredMessage[]`). (SE40)
 - **BREAKING (v4.0): `ClaudeCodeTranscriptWriter` (`@theokit/sdk/persistence`)** and its exported
   types (`ClaudeCodeRecord`, `ClaudeCodeTranscriptOptions`) + `claudeCodeRecords`. The SE39 read-only
-  transcript writer is superseded by the SE40 native session format (the session store IS a
-  Claude-shaped `.jsonl` with write + read/`--continue` + append-only compaction). `encodeProjectDir`
-  and `transcriptPath` remain exported from `@theokit/sdk/persistence`, now sourced from the native
+  transcript writer is superseded by the SE40 native session format. `encodeProjectDir` and
+  `transcriptPath` remain exported from `@theokit/sdk/persistence`, now sourced from the native
   `session-transcript` module. (SE40)
 
 ## 3.8.0
