@@ -1150,7 +1150,7 @@ these 6 as real work. Grouped as ONE cohesive "cleanup" milestone (owner decisio
 independent fixes with one release cut — rather than six micro-milestones. Delivered later via
 `/auto-plan SE38`.
 
-### SE39 — [ ] Claude Code transcript interop (read-only writer; `--continue` gated to SE40)
+### SE39 — [x] Claude Code transcript interop (read-only writer; `--continue` gated to SE40)
 
 **Objective:** Emit `@theokit/sdk` sessions as a Claude-Code-compatible `.jsonl` transcript so the
 Claude Code ecosystem's read-side tooling (`claude-code-log`, `ccusage`, `claude-devtools`, viewers)
