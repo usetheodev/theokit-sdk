@@ -62,6 +62,30 @@ export function encodeProjectDir(cwd: string): string {
 
 const red = (s: string): string => redactSecrets(s);
 
+/**
+ * Deep-redact a structured value (tool `input`/`args`) by round-tripping through the string
+ * redactor: secrets are masked in every string value while the object shape is preserved (masked
+ * tokens are alphanumeric + dots, so the JSON stays valid). Security is never sacrificed — tool
+ * arguments frequently carry credentials, so they MUST be redacted like every other content field.
+ */
+function redactValue(value: unknown): unknown {
+  try {
+    return JSON.parse(redactSecrets(JSON.stringify(value ?? null)));
+  } catch {
+    // Non-serializable input (circular, BigInt, …): fall back to a redacted string form.
+    return redactSecrets(String(value));
+  }
+}
+
+/**
+ * Make a caller-supplied `sessionId` safe as a filename path component — no `.`/`/`/`\` so it can
+ * never traverse out of the target dir (`../../etc/x` → `------etc-x`). Applied once and reused for
+ * both the path and the stamped `sessionId` field.
+ */
+function safeSessionId(id: string): string {
+  return id.replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
 type Block = Record<string, unknown>;
 
 /**
@@ -141,7 +165,7 @@ export function claudeCodeRecords(
         type: "tool_use",
         id: s.message.callId,
         name: s.message.name,
-        input: s.message.args,
+        input: redactValue(s.message.args),
       });
     }
   }
@@ -166,7 +190,8 @@ export class ClaudeCodeTranscriptWriter {
 
   private constructor(opts: ClaudeCodeTranscriptOptions) {
     this.#cwd = opts.cwd ?? process.cwd();
-    this.#sessionId = opts.sessionId ?? `theokit-${Date.now().toString(36)}`;
+    // Sanitize: a caller-supplied sessionId becomes a filename component — never let it traverse.
+    this.#sessionId = safeSessionId(opts.sessionId ?? `theokit-${Date.now().toString(36)}`);
     this.#model = opts.model ?? "unknown";
     this.#version = opts.version ?? "1.0.0-theokit";
     this.#dir = opts.dir ?? join(homedir(), ".claude", "projects", encodeProjectDir(this.#cwd));

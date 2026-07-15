@@ -8,6 +8,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  ClaudeCodeTranscriptWriter,
   claudeCodeRecords,
   encodeProjectDir,
 } from "../../../src/internal/persistence/claude-code-transcript.js";
@@ -144,7 +145,61 @@ describe("SE39 — claudeCodeRecords (Claude Code transcript mapper)", () => {
     expect(text).not.toContain("sk-abcdefghijklmnopqrstuvwx1234567890");
   });
 
+  it("redacts secrets in tool_use input args AND tool_result content (review finding)", () => {
+    const secretArg = "sk-argsecretabcdefghijklmnop1234567890";
+    const secretResult = "sk-resultsecretabcdefghijklmnop1234567890";
+    const steps: ConversationStep[] = [
+      { type: "toolCall", message: { callId: "t1", name: "api", args: { apiKey: secretArg } } },
+      {
+        type: "toolResult",
+        message: { callId: "t1", name: "api", result: secretResult, isError: false },
+      },
+    ];
+    const recs = claudeCodeRecords(steps, BASE);
+    const serialized = JSON.stringify(recs);
+    expect(serialized).not.toContain(secretArg);
+    expect(serialized).not.toContain(secretResult);
+    // the tool_use input keeps its object shape (not a flattened string)
+    const toolUse = recs.flatMap(blocks).find((b) => b.type === "tool_use")!;
+    expect(toolUse.input).toMatchObject({ apiKey: expect.any(String) });
+  });
+
+  it("maps is_error:true on a failed tool (negative case)", () => {
+    const steps: ConversationStep[] = [
+      { type: "toolCall", message: { callId: "t1", name: "bad", args: {} } },
+      {
+        type: "toolResult",
+        message: { callId: "t1", name: "bad", result: "FileNotFound", isError: true },
+      },
+    ];
+    const recs = claudeCodeRecords(steps, BASE);
+    const tr = recs.flatMap(blocks).find((b) => b.type === "tool_result")!;
+    expect(tr.is_error).toBe(true);
+    expect(tr.content).toBe("FileNotFound");
+  });
+
+  it("does not crash on an orphan toolResult (no preceding toolCall)", () => {
+    const steps: ConversationStep[] = [
+      {
+        type: "toolResult",
+        message: { callId: "orphan", name: "x", result: "ok", isError: false },
+      },
+    ];
+    const recs = claudeCodeRecords(steps, BASE);
+    const tr = recs.flatMap(blocks).find((b) => b.type === "tool_result")!;
+    expect(tr.tool_use_id).toBe("orphan");
+  });
+
   it("empty session yields just the user record (edge case)", () => {
     expect(claudeCodeRecords([], BASE)).toHaveLength(1);
+  });
+
+  it("sanitizes a path-traversing sessionId so the file cannot escape the dir (security)", () => {
+    const writer = ClaudeCodeTranscriptWriter.create({
+      dir: "/tmp/se39-guard",
+      sessionId: "../../etc/evil",
+    });
+    expect(writer.path).not.toContain("..");
+    expect(writer.path).toBe("/tmp/se39-guard/------etc-evil.jsonl");
   });
 });
