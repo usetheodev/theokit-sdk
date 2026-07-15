@@ -92,6 +92,22 @@ describe("redactSecrets — PARAM_PATTERN", () => {
     expect(out).not.toContain("abc123def456");
   });
 
+  // issue #117 (review Finding) — regression lock for the EXACT leak case: a real secret whose
+  // value contains `...` used to be skipped by the "already-masked" guard and returned verbatim.
+  it("issue #117: masks a real secret whose value contains '...' (not skipped)", () => {
+    const secret = "L_-cxw-.2UI_..._";
+    const out = redactSecrets(`access_token=${secret}`);
+    expect(out).not.toContain(secret);
+    expect(out).toMatch(/access_token=\*\*\*/);
+  });
+
+  // The complementary invariant: an ALREADY-masked value (exact maskToken shape) is not re-masked.
+  it("issue #117: leaves an already-masked value (6chars...4chars) untouched", () => {
+    const masked = maskToken("abcdef0123456789wxyz"); // -> "abcdef...wxyz"
+    const out = redactSecrets(`access_token=${masked}`);
+    expect(out).toContain(masked);
+  });
+
   it("with codeFile: true SKIPS PARAM_PATTERN", () => {
     // codeFile mode preserves env-example placeholders like "sk-test"
     // (under the 10-char body floor for the builtin sk- pattern) AND

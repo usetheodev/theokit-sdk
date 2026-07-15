@@ -146,6 +146,11 @@ export function maskToken(token: string): string {
   return `${token.slice(0, 6)}...${token.slice(-4)}`;
 }
 
+// issue #117 — the EXACT shape of a `maskToken` output (`slice(0,6)+"..."+slice(-4)`
+// = 6 chars, literal `...`, 4 chars). Used to detect a value PARAM_PATTERN would
+// otherwise re-mask, WITHOUT skipping a raw secret that merely contains `...`.
+const MASK_SHAPE = /^.{6}\.\.\..{4}$/s;
+
 /**
  * Redact known credential patterns from `text`. Default behavior masks
  * builtins + extras + parametric `key=value` sinks.
@@ -199,7 +204,13 @@ export function redactSecrets(text: unknown, opts?: { codeFile?: boolean }): str
     // (`...`) — BUILTIN ran first and produced a prefix-preserved mask;
     // re-masking would lose the prefix and degrade debuggability.
     s = s.replace(PARAM_PATTERN, (whole, prefix: string, value: string) => {
-      if (value.includes("...")) return whole;
+      // issue #117 — skip ONLY when the value is already a mask that a BUILTIN
+      // pattern produced (maskToken's exact `6chars...4chars` shape), so we don't
+      // re-mask and lose the prefix. The old `value.includes("...")` was too broad:
+      // a REAL secret that happens to contain `...` (e.g. `L_-cxw-.2UI_..._`) was
+      // skipped and LEAKED. The mask shape is exact (maskToken: slice(0,6)+"..."+
+      // slice(-4)), so a raw secret with `...` elsewhere is now masked.
+      if (MASK_SHAPE.test(value)) return whole;
       return `${prefix}***`;
     });
   }
