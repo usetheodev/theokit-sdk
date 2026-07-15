@@ -1150,6 +1150,60 @@ these 6 as real work. Grouped as ONE cohesive "cleanup" milestone (owner decisio
 independent fixes with one release cut — rather than six micro-milestones. Delivered later via
 `/auto-plan SE38`.
 
+### SE39 — [ ] Claude Code transcript interop (read-only writer; `--continue` gated to SE40)
+
+**Objective:** Emit `@theokit/sdk` sessions as a Claude-Code-compatible `.jsonl` transcript so the
+Claude Code ecosystem's read-side tooling (`claude-code-log`, `ccusage`, `claude-devtools`, viewers)
+can parse them, and lay the groundwork for functional `--continue` (deferred to SE40). This is
+**interop, not cloning** — a bridge/export adapter (open-stack narrative), NOT a bundled toolset or the
+subprocess model (both remain out of scope below). Additive: it does NOT change the minimal
+`ConversationStorage` (which stays portable); it ships as an opt-in `ClaudeCodeTranscriptWriter`.
+
+**Why now:** the owner wants Claude Code ecosystem interoperability (2026-07-15). The gap was diagnosed
+with evidence — our on-disk store flattens each turn to `{ role, content, at }` (`StoredMessage.content:
+string`), which destroys the `tool_use_id ↔ tool_result_id` pairing AND the `uuid`/`parentUuid` DAG the
+Claude Code format requires, so an SDK session is neither parseable by the ecosystem nor resumable.
+Measured against a real transcript: records form a TREE (55 branch points, 3 roots), file order ≠
+chronological (551/5737 out of order), and 1418 `tool_use`/`tool_result` blocks pair by id.
+
+**Dependencies:** SE38 `[x]` (most recent). Builds on the existing `ConversationStorage` seam.
+
+**Definition of done:**
+
+- [ ] Additive `ClaudeCodeTranscriptWriter` (opt-in; off by default) — the minimal `ConversationStorage`
+      is UNCHANGED (portability preserved). No breaking change to any existing consumer.
+- [ ] Emits the per-record envelope: `type`, `uuid`, `parentUuid`, `sessionId`, `timestamp` (ISO), `cwd`,
+      `gitBranch`, `version`, `isSidechain`, `message`.
+- [ ] `message.content` carries STRUCTURED blocks — `text` / `thinking` / `tool_use { id, name, input }` /
+      `tool_result { tool_use_id, content }` — NOT a flattened string. `tool_use_id ↔ tool_result_id`
+      pairing preserved with zero dangling (the resume-blocker gap).
+- [ ] Correct path convention: `~/.claude/projects/<cwd-with-nonalnum→'-'>/<sessionId>.jsonl` (opt-in).
+- [ ] Secrets never leaked — `redactSecrets` over content before write.
+- [ ] Round-trip test (TDD): an SDK-generated `.jsonl` is parsed successfully by a real ecosystem parser
+      (`claude-code-log`, cloned in `knowledge-base/references/`) AND validates against a real captured
+      transcript schema. A tool-calling session round-trips with NO dangling `tool_use`.
+- [ ] `docs.md` documents it as best-effort interop, EXPLICITLY labeled: targets an officially-unstable
+      format (Anthropic: "internal, changes between versions — use `/export`"); read-only in SE39;
+      `--continue` is SE40.
+
+**Explicitly deferred to SE40 (ADR-gated):** functional `--continue` acceptance (a real Claude Code CLI
+resumes an SDK-generated session); extended-thinking `signature` handling (resume failure mode, upstream
+issue #63147); `leafUuid`/`summary` resume-pointer entries; sidecar dirs (`file-history/`, `todos/`,
+`session-env/`); `agent-<shortId>.jsonl` subagent transcript files; the 30-day auto-purge / dedup-on-branch
+semantics.
+
+**Top risks (new):**
+
+1. **Format instability (headline risk).** Anthropic officially states the `.jsonl` entry format is
+   internal to Claude Code and changes between versions; parsers break on any release. Mitigation: keep the
+   writer opt-in + additive (a schema break never touches the core store); pin + emit a known-good
+   `version`; validate against ≥1 real captured transcript in CI; label the surface best-effort, not a
+   stable contract. This is WHY SE39 is read-only and `--continue` is gated to SE40 behind an ADR + spike.
+2. **Extended-thinking block signature.** `thinking` blocks carry a cryptographic `signature`; emitting
+   them incorrectly breaks resume with `400 "thinking blocks cannot be modified"` (upstream #63147).
+   Mitigation: for SE39 read-only, emit thinking faithfully (preserve/omit the signature per the
+   round-trip test) and defer the resume-critical handling to SE40.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
@@ -1173,3 +1227,17 @@ Study-only peers + full cross-validation reports:
 **SDK Evolution (SE1+) reference:** deep comparison against the **Anthropic Agent SDK**
 (`@anthropic-ai/claude-agent-sdk`, TypeScript reference) — the source of the SE1–SE6 operational-maturity
 gaps and the § Explicitly out of scope rejections (2026-07-09).
+
+**SE39 peers (Claude Code transcript interop, added 2026-07-15 via `/roadmap-feature`, shallow clones in
+`knowledge-base/references/`, gitignored study material):**
+
+| Peer | License | Supports | Why |
+|---|---|---|---|
+| `daaain/claude-code-log` | MIT | SE39 | Canonical read-side `.jsonl` parser (Python → HTML/MD); the SE39 round-trip test parses through it. |
+| `simonw/claude-code-transcripts` | Apache-2.0 | SE39 | Second-source on the `~/.claude/projects/<encoded-cwd>/<sessionId>.jsonl` layout + record types. |
+| `amac0/ClaudeCodeJSONLParser` | MIT | SE39 | Cross-check on the `uuid`/`parentUuid` DAG traversal + tool-call/result linking. |
+
+External deep-research sources (SE39): Piebald *"Messages as Commits: Claude Code's Git-Like DAG"*
+(DAG + leaf reconstruction); Anthropic *Manage sessions* docs (`--continue`/`--resume`; format-unstable
+caveat → `/export`); upstream `anthropics/claude-code#63147` (extended-thinking resume signature failure).
+Findings distilled in `knowledge-base/discoveries/blueprints/claude-code-transcript-interop-blueprint.md`.
