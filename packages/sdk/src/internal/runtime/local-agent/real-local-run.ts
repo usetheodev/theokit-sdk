@@ -1,15 +1,5 @@
-import {
-  type InheritedCredentials,
-  inheritSubAgentCredentials,
-  subAgentToolsFromDefinitions,
-} from "../../../a2a/subagent.js";
 import { ConfigurationError } from "../../../errors.js";
-import type {
-  AgentDefinition,
-  AgentOptions,
-  CustomTool,
-  ModelSelection,
-} from "../../../types/agent.js";
+import type { AgentDefinition, AgentOptions, ModelSelection } from "../../../types/agent.js";
 import type {
   Run,
   RunOperation,
@@ -19,7 +9,7 @@ import type {
 } from "../../../types/run.js";
 import { emitRunEvent } from "../../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../../agent-loop/loop.js";
-import type { CustomToolSpec, MemoryToolSpec } from "../../agent-loop/loop-types.js";
+import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import { LOCAL_RUNTIME_MOCK_KEY } from "../../auth/api-key-validator.js";
 import { isFixtureApiKey } from "../../fixture-mode.js";
 import { FallbackLlmClient } from "../../llm/fallback-client.js";
@@ -29,7 +19,6 @@ import { createMcpClient, type McpClient } from "../../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../../providers/index.js";
 import { registerPluginProviderProfiles } from "../../providers/register-plugin-providers.js";
 import { createTelemetry } from "../../telemetry/tracer.js";
-import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
 import { withToolWhitelist } from "../concurrency/async-local-storage.js";
 import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
 import type { FixtureScript } from "../fixtures/fixture-types.js";
@@ -37,6 +26,7 @@ import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import { registerRun } from "../registry/run-registry.js";
 import type { SessionMessage } from "../session/agent-session.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
+import { buildCustomToolsInput } from "./real-local-run-tools.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -290,6 +280,7 @@ function buildLoopInputs(
       options.agentId,
       options.personalityName,
       options.subagents,
+      options.model,
     ),
     ...(options.pluginManager !== undefined ? { pluginManager: options.pluginManager } : {}),
     // D318 — forward SendOptions.signal to the agent loop so streamLlmTurn
@@ -354,76 +345,6 @@ function buildLoopInputs(
  *  - `sendOptions.tools = []`         → explicitly clear (no custom tools)
  *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
  */
-/**
- * Declarative subagents become delegation tools for the local runtime — each
- * child inherits the parent's apiKey/model (via `bindParentCredentials`) and is
- * scoped to the whitelisted subset of the parent's tools. `agents` is the merged
- * set from `loadSubagents` (`.theokit/agents/*.md` + inline `agentOptions.agents`),
- * so a subagent defined only on disk is callable against a real model — not just
- * in fixture mode.
- */
-function declarativeSubagentTools(
-  agents: Record<string, AgentDefinition> | undefined,
-  parentTools: ReadonlyArray<CustomTool>,
-): CustomTool[] {
-  if (agents === undefined || Object.keys(agents).length === 0) return [];
-  return subAgentToolsFromDefinitions(agents, parentTools);
-}
-
-/**
- * Hand the parent's credentials down to any subagent tools so a delegated child
- * inherits the parent's apiKey (else `Agent.create` throws "Missing API key")
- * and model. A no-op for every non-subagent tool — the key never reaches
- * third-party tool code (see `inheritSubAgentCredentials`).
- */
-function bindParentCredentials(tools: ReadonlyArray<CustomTool>, agentOptions: AgentOptions): void {
-  // #55 — hand the parent's code-registered plugins (array form carries the
-  // PermissionPlugin) down so the child runs under the same permission gate.
-  const parentPlugins = Array.isArray(agentOptions.plugins) ? agentOptions.plugins : undefined;
-  const credentials: InheritedCredentials = {
-    ...(agentOptions.apiKey !== undefined ? { apiKey: agentOptions.apiKey } : {}),
-    ...(typeof agentOptions.model === "object" ? { model: agentOptions.model } : {}),
-    ...(parentPlugins !== undefined ? { plugins: parentPlugins } : {}),
-  };
-  for (const tool of tools) inheritSubAgentCredentials(tool, credentials);
-}
-
-function buildCustomToolsInput(
-  agentOptions: AgentOptions,
-  sendOptions: { tools?: CustomTool[] } | undefined,
-  pluginManager: import("../../plugins/manager.js").PluginManager | undefined,
-  personalityToolWhitelist: ReadonlyArray<string> | undefined,
-  agentId: string,
-  personalityName: string | undefined,
-  subagents: Record<string, AgentDefinition> | undefined,
-): { customTools: ReadonlyArray<CustomToolSpec> } | Record<string, never> {
-  const baseTools = sendOptions?.tools ?? agentOptions.tools ?? [];
-  // Prefer the resolved set (file-based + inline) when present; fall back to the
-  // inline `agentOptions.agents` for callers that don't thread resolvedSubagents.
-  const agentsForTools =
-    subagents !== undefined && Object.keys(subagents).length > 0 ? subagents : agentOptions.agents;
-  const subagentTools = declarativeSubagentTools(agentsForTools, baseTools);
-  // T4.1: concat plugin-registered tools onto the effective catalog. Plugin
-  // tools are merged unconditionally (no override semantics — name collision
-  // would be caught by the registry validator if used).
-  const pluginTools = pluginManager?.aggregated.tools ?? [];
-  if (baseTools.length === 0 && subagentTools.length === 0 && pluginTools.length === 0) return {};
-  const allTools = [...baseTools, ...subagentTools, ...pluginTools];
-  bindParentCredentials(allTools, agentOptions);
-  const merged: CustomToolSpec[] = allTools.map((tool) => ({
-    name: tool.name,
-    description: tool.description,
-    inputSchema: tool.inputSchema,
-    handler: tool.handler,
-  }));
-  // Phase 4.1 / ADR D167 — advisory narrowing by active personality.
-  const customTools = applyPersonalityFilter(merged, personalityToolWhitelist, {
-    agentId,
-    personalityName,
-  }) as ReadonlyArray<CustomToolSpec>;
-  if (customTools.length === 0 && personalityToolWhitelist === undefined) return {};
-  return { customTools };
-}
 
 function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
   const map = new Map<string, McpClient>();

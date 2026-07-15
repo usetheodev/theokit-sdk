@@ -24,6 +24,12 @@ export interface SystemPromptAssemblyContext extends SystemPromptContext {
   baseSystemPrompt?: string;
   /** Active Memory recall summary (Phase 7 of memory-system-openclaw-parity). */
   activeMemorySummary?: string;
+  /**
+   * SE37 — `reasoning: true` is active for this send (already guarded against a
+   * native reasoning model in `local-assembly`). When true, the reasoning CoT
+   * preamble is contributed first.
+   */
+  reasoning?: boolean;
 }
 
 /**
