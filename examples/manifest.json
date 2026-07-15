@@ -25,6 +25,13 @@
       "description": ".theokit/ skill discovered + file-based context reaches a real LLM"
     },
     {
+      "slug": "reasoning",
+      "domain": "agents",
+      "page": "/theokit/reasoning",
+      "title": "Reasoning (reasoning: true)",
+      "description": "CoT preamble + think tool auto-attached; real-LLM 9.11/9.9 trap"
+    },
+    {
       "slug": "agent-streaming",
       "domain": "agents",
       "page": "/theokit/agents/streaming",
@@ -43,7 +50,7 @@
       "domain": "tools",
       "page": "/theokit/tools",
       "title": "Give an agent a tool",
-      "description": "defineTool — a typed function the model can call"
+      "description": "defineTool \u2014 a typed function the model can call"
     },
     {
       "slug": "providers-models",
@@ -120,7 +127,7 @@
       "domain": "advanced",
       "page": "",
       "title": "Abort Mid Stream",
-      "description": "Production-Readiness #5 — AbortSignal end-to-end example."
+      "description": "Production-Readiness #5 \u2014 AbortSignal end-to-end example."
     },
     {
       "slug": "bedrock-bot",
@@ -148,7 +155,7 @@
       "domain": "advanced",
       "page": "",
       "title": "Conversation Storage",
-      "description": "Production-Readiness #1 — ConversationStorageAdapter example."
+      "description": "Production-Readiness #1 \u2014 ConversationStorageAdapter example."
     },
     {
       "slug": "custom-provider",
@@ -162,7 +169,7 @@
       "domain": "advanced",
       "page": "",
       "title": "Deepagents Parity Demo",
-      "description": "DeepAgents Parity Demo — exercises all 4 new capabilities end-to-end."
+      "description": "DeepAgents Parity Demo \u2014 exercises all 4 new capabilities end-to-end."
     },
     {
       "slug": "eval",
@@ -176,7 +183,7 @@
       "domain": "advanced",
       "page": "",
       "title": "Guardrails",
-      "description": "SE26 — guardrails worked example. Builds an LLM-classifier-style moderation"
+      "description": "SE26 \u2014 guardrails worked example. Builds an LLM-classifier-style moderation"
     },
     {
       "slug": "handoffs",
@@ -190,7 +197,7 @@
       "domain": "advanced",
       "page": "",
       "title": "Memory Lance",
-      "description": "@theokit/sdk — Lance backend memory example."
+      "description": "@theokit/sdk \u2014 Lance backend memory example."
     },
     {
       "slug": "retry-primitive",
@@ -211,7 +218,7 @@
       "domain": "advanced",
       "page": "",
       "title": "Theocode E2E",
-      "description": "TheoCode E2E Live Test — proves all 5 phases work together with a real LLM."
+      "description": "TheoCode E2E Live Test \u2014 proves all 5 phases work together with a real LLM."
     },
     {
       "slug": "tool-advanced",
@@ -225,7 +232,7 @@
       "domain": "advanced",
       "page": "",
       "title": "Tool Hooks Tracking",
-      "description": "Production-Readiness #4 — Tool lifecycle hooks example."
+      "description": "Production-Readiness #4 \u2014 Tool lifecycle hooks example."
     },
     {
       "slug": "vertex-bot",
@@ -295,7 +302,7 @@
       "domain": "schedules",
       "page": "/theokit/schedules/schedule-a-recurring-run",
       "title": "Schedule a recurring run",
-      "description": "Cron.create defines a recurring agent run (deterministic — created disabled)"
+      "description": "Cron.create defines a recurring agent run (deterministic \u2014 created disabled)"
     },
     {
       "slug": "tasks-background",
