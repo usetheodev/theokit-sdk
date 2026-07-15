@@ -47,12 +47,24 @@ describe.skipIf(env.shouldSkip)(`real-llm: openrouter reasoning (${env.provider}
     try {
       let thinkingDeltas = 0;
       let reasoningText = "";
+      // issue #48: the completion half of the channel — a UI closes its reasoning block on this.
+      let thinkingCompleted = 0;
+      let lastCompletedDurationMs: number | undefined;
+      let lastThinkingDeltaSeq = -1;
+      let completedSeq = -1;
+      let seq = 0;
       const run = await agent.send("What is 17 * 23? Reason step by step, then answer.", {
         onDelta: ({ update }) => {
           if (update.type === "thinking-delta") {
             thinkingDeltas += 1;
             reasoningText += update.text;
+            lastThinkingDeltaSeq = seq;
+          } else if (update.type === "thinking-completed") {
+            thinkingCompleted += 1;
+            lastCompletedDurationMs = update.thinkingDurationMs;
+            completedSeq = seq;
           }
+          seq += 1;
         },
       });
       const { thinkingMessages, answerText } = await drainRun(run);
@@ -62,6 +74,14 @@ describe.skipIf(env.shouldSkip)(`real-llm: openrouter reasoning (${env.provider}
       expect(thinkingDeltas).toBeGreaterThan(0);
       expect(thinkingMessages).toBeGreaterThan(0);
       expect(reasoningText.length).toBeGreaterThan(0);
+      // issue #48: one `thinking-completed` per reasoning block (a real run may reason across more
+      // than one LLM turn, so >= 1), matching the count of replayed `thinking` messages one-for-one.
+      // The last one arrives after the last thinking-delta with a non-negative measured duration.
+      expect(thinkingCompleted).toBeGreaterThanOrEqual(1);
+      expect(thinkingCompleted).toBe(thinkingMessages);
+      expect(completedSeq).toBeGreaterThan(lastThinkingDeltaSeq);
+      expect(typeof lastCompletedDurationMs).toBe("number");
+      expect(lastCompletedDurationMs).toBeGreaterThanOrEqual(0);
       // The visible answer is non-empty and does NOT simply equal the chain-of-thought.
       expect(answerText.length).toBeGreaterThan(0);
       expect(answerText).not.toBe(reasoningText);
