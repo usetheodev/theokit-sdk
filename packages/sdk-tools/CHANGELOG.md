@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.11.0
+
+### Minor Changes
+
+- SE38 (#119) — `createTodolistTool()` is now session-aware: it scopes its items by the
+  run's `ctx.threadId`, so one tool object served to many sessions from a single process
+  (the multi-tenant server shape) no longer leaks one session's list into another. When no
+  `threadId` is present (single-session CLI usage) every call shares one default session, so
+  existing behavior is unchanged. `handler` accepts an optional 2nd `ctx` argument and
+  `getItems(threadId?)` is session-scoped — both additive/back-compatible.
+
 ## 0.10.0
 
 ### Minor Changes
