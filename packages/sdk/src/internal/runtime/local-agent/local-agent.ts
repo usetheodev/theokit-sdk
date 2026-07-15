@@ -15,7 +15,7 @@ import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
 import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
 import { generateLocalAgentId } from "../../ids.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
-import { defaultBaseDir } from "../../persistence/session-transcript.js";
+import { defaultBaseDir, expandTilde } from "../../persistence/session-transcript.js";
 import type { PersonalityRegistry } from "../../personality/registry.js";
 import { PersonalityStore } from "../../personality/store.js";
 import type { PersonalityPreset } from "../../personality/types.js";
@@ -509,9 +509,9 @@ function resolveCwd(cwd: string | string[] | undefined): string {
   return (Array.isArray(cwd) ? cwd[0] : cwd) ?? process.cwd();
 }
 
-/** SE40 — the transcript base dir (`local.baseDir` or `~/.theokit` default). */
+/** SE40 — the transcript base dir (`local.baseDir` or `~/.theokit` default), with `~` expanded. */
 function resolveBaseDir(baseDir: string | undefined): string {
-  return baseDir ?? defaultBaseDir();
+  return baseDir === undefined ? defaultBaseDir() : expandTilde(baseDir);
 }
 
 function includesSetting(options: AgentOptions, source: string): boolean {

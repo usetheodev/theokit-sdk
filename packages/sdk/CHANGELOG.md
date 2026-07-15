@@ -13,6 +13,14 @@
   Extended-thinking signatures are written but dropped on read (functional `--continue` for
   thinking is tracked separately, issue #122). (SE40)
 
+### Fixed
+
+- **SE40: `local.baseDir: "~/.claude"` now resolves to the home directory.** A leading `~` in
+  `local.baseDir` is expanded (`node:path` does not expand it), so the documented Claude Code CLI
+  interop path writes to `<home>/.claude/projects/...` instead of a literal `./~/.claude` under the
+  working directory. Without this, the `--continue` interop the option exists for silently did not
+  work. (SE40)
+
 ### Removed
 
 - **BREAKING (v4.0): `ConversationStorageAdapter` + the whole pluggable-storage contract.**
