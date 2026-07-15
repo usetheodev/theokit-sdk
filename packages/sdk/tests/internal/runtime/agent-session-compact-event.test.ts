@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { FsSessionStore } from "../../../src/internal/persistence/fs-session-store.js";
 import {
   clearAllSessions,
   flushSessionWrites,
@@ -18,8 +19,9 @@ describe("persistTurnToTranscript onCompact callback (SE2 compact_boundary)", ()
   let baseDir: string;
   const cwd = "/tmp/compact-proj";
   function loc(agentId: string): TranscriptLocation {
-    return { baseDir, cwd, agentId, model: "test" };
+    return { cwd, agentId, model: "test" };
   }
+  const store = () => new FsSessionStore({ baseDir, cwd });
 
   beforeEach(() => {
     clearAllSessions();
@@ -33,6 +35,7 @@ describe("persistTurnToTranscript onCompact callback (SE2 compact_boundary)", ()
     let onCompactCalls = 0;
     for (let i = 0; i < 50; i++) {
       persistTurnToTranscript(
+        store(),
         loc("agent-compact"),
         "agent-compact",
         { userText: `m${i}`, conversation: [] },
@@ -49,6 +52,7 @@ describe("persistTurnToTranscript onCompact callback (SE2 compact_boundary)", ()
     let onCompactCalls = 0;
     for (let i = 0; i < 10; i++) {
       persistTurnToTranscript(
+        store(),
         loc("agent-compact-2"),
         "agent-compact-2",
         { userText: `m${i}`, conversation: [] },
