@@ -54,6 +54,21 @@ for await (const event of run.stream()) {
 }
 ```
 
+## Native Claude Code sessions
+
+A local agent's conversation is a native Claude Code `.jsonl` transcript on disk — there is no proprietary session store. Point `baseDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote:
+
+```typescript
+const agent = await Agent.create({
+  apiKey: process.env.THEOKIT_API_KEY!,
+  model: { id: "openai/gpt-4o-mini" },
+  local: { cwd: process.cwd(), baseDir: "~/.claude" },
+});
+// After runs finish, `claude --continue` picks up the same session on disk.
+```
+
+Extended-thinking `--continue` is out of scope for now (thinking signatures are written but dropped on read — issue #122). See [`docs.md`](../../docs.md) § Session persistence.
+
 ## Schedule with cron
 
 ```typescript
@@ -77,7 +92,7 @@ Two runtimes: **local** (in-process scheduler — fires while the host process i
 
 ## Status
 
-This package is a scaffold. The contract is defined in [`docs.md`](../../docs.md). Implementation lands incrementally — see [`CHANGELOG.md`](./CHANGELOG.md).
+The full contract is defined in [`docs.md`](../../docs.md); see [`CHANGELOG.md`](./CHANGELOG.md) for the release history.
 
 ## License
 
