@@ -1278,7 +1278,7 @@ real-`claude-code-log`-parser round-trip gate).
    Existing `.theokit/agents/<id>/messages.jsonl` sessions must migrate. Mitigation: v4.0 major + a
    documented (optionally one-shot importer) old→new migration.
 
-### SE41 — [ ] Pluggable `SessionStore` seam over the native transcript (external-store resume for serverless / multi-host)
+### SE41 — [x] Pluggable `SessionStore` seam over the native transcript (external-store resume for serverless / multi-host)
 
 > Added 2026-07-15 by `/roadmap-feature` (slug: `pluggable-session-store`). See CHANGELOG `[Unreleased] § Added`.
 
