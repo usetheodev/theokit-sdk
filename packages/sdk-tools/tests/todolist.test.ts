@@ -149,4 +149,39 @@ describe("createTodolistTool", () => {
     expect(tool1.getItems()).toHaveLength(1);
     expect(tool2.getItems()).toHaveLength(1);
   });
+
+  // #119 — a SINGLE tool object reused across sessions (the multi-tenant server shape:
+  // one definition built at module load, served to many `Agent.getOrCreate(sessionId)`)
+  // must NOT leak one session's list into another. State is keyed by `ctx.threadId`.
+  it("#119: isolates state per ctx.threadId — no cross-session leak", () => {
+    const shared = createTodolistTool();
+    shared.handler({ action: "add", title: "A-private" }, { threadId: "sess-A" });
+
+    // Session B lists first — it must see an EMPTY list, not A's private item.
+    const bList = JSON.parse(shared.handler({ action: "list" }, { threadId: "sess-B" }));
+    expect(bList.items).toHaveLength(0);
+
+    // Session A still has exactly its own item.
+    const aList = JSON.parse(shared.handler({ action: "list" }, { threadId: "sess-A" }));
+    expect(aList.items).toHaveLength(1);
+    expect(aList.items[0].title).toBe("A-private");
+
+    // getItems() is likewise session-scoped.
+    expect(shared.getItems("sess-A")).toHaveLength(1);
+    expect(shared.getItems("sess-B")).toHaveLength(0);
+
+    // IDs are independent per session (each session counts from todo-1).
+    const bAdd = JSON.parse(
+      shared.handler({ action: "add", title: "B-first" }, { threadId: "sess-B" }),
+    );
+    expect(bAdd.id).toBe("todo-1");
+  });
+
+  it("#119: absent threadId shares one default session (CLI back-compat)", () => {
+    const tool = createTodolistTool();
+    tool.handler({ action: "add", title: "cli-task" }); // no ctx — single-session CLI usage
+    const list = JSON.parse(tool.handler({ action: "list" }));
+    expect(list.items).toHaveLength(1);
+    expect(tool.getItems()).toHaveLength(1);
+  });
 });

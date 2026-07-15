@@ -85,10 +85,18 @@ export interface CustomTool {
    * every tool instead of baked into each factory. SE12 — `ctx.messages` is a
    * read-only, text-only projection of the current turn's transcript (see
    * {@link ToolContextMessage}); `defineSubAgent`'s `messageFilter` consumes it.
+   * #119 — `ctx.threadId` is the run's session identity (the key passed to
+   * `Agent.getOrCreate(sessionId, …)`, or the agent's own id), so a stateful tool
+   * shared across sessions can scope its state per session instead of leaking it.
    */
   handler: (
     input: Record<string, unknown>,
-    ctx?: { signal?: AbortSignal; context?: unknown; messages?: readonly ToolContextMessage[] },
+    ctx?: {
+      signal?: AbortSignal;
+      context?: unknown;
+      messages?: readonly ToolContextMessage[];
+      threadId?: string;
+    },
   ) =>
     | string
     | import("./content-blocks.js").ToolResultContentBlock[]

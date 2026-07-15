@@ -10,6 +10,11 @@
  *   - remove(id)         → remove an item
  *   - list()             → show all items with status
  *   - clear_completed()  → remove all done items
+ *
+ * #119 — state is keyed by `ctx.threadId` (the run's session identity, injected by the
+ * SDK from `Agent.getOrCreate(sessionId, …)`). One tool object served to many sessions
+ * from a single process keeps each session's list isolated. When no `threadId` is present
+ * (single-session CLI usage) every call shares one default session — behavior unchanged.
  */
 
 export interface TodoItem {
@@ -24,9 +29,13 @@ export interface TodolistTool {
   name: string;
   description: string;
   inputSchema: unknown;
-  handler: (input: TodoInput) => string;
-  /** Expose items for testing. */
-  getItems: () => TodoItem[];
+  /**
+   * #119 — the optional 2nd `ctx` carries the run's `threadId`; state is scoped to it.
+   * Single-argument callers (CLI / tests) share one default session.
+   */
+  handler: (input: TodoInput, ctx?: { threadId?: string }) => string;
+  /** Expose a session's items for testing (defaults to the no-threadId session). */
+  getItems: (threadId?: string) => TodoItem[];
 }
 
 type TodoInput =
@@ -50,7 +59,8 @@ function requireId(input: TodoInput): string | null {
   return input.id;
 }
 
-export function createTodolistTool(): TodolistTool {
+/** The stateful machinery for ONE session — its own `items` array and id counter. */
+function makeSessionOps(): { handle: (input: TodoInput) => string; getItems: () => TodoItem[] } {
   const items: TodoItem[] = [];
   let nextId = 1;
 
@@ -64,8 +74,7 @@ export function createTodolistTool(): TodolistTool {
 
   // M4-5: every list-bearing success result carries BOTH the human `items_summary`
   // (for the LLM) AND the structured `items` snapshot (for programmatic consumers
-  // that render a plan/UI). Previously only `items_summary` was emitted, so a
-  // consumer parsing the result could never recover structured items.
+  // that render a plan/UI).
   function listResult(extra: Record<string, unknown>): string {
     return ok({ ...extra, items: [...items], items_summary: formatList() });
   }
@@ -133,6 +142,29 @@ export function createTodolistTool(): TodolistTool {
   };
 
   return {
+    handle: (input: TodoInput): string => {
+      const action = actions[input.action];
+      if (!action) return fail({ error: "invalid_action" });
+      return action(input);
+    },
+    getItems: () => [...items],
+  };
+}
+
+export function createTodolistTool(): TodolistTool {
+  // #119 — one session-ops bundle per threadId; lazily created on first touch.
+  const sessions = new Map<string, ReturnType<typeof makeSessionOps>>();
+  function ops(threadId?: string): ReturnType<typeof makeSessionOps> {
+    const key = threadId ?? "__default__";
+    let session = sessions.get(key);
+    if (session === undefined) {
+      session = makeSessionOps();
+      sessions.set(key, session);
+    }
+    return session;
+  }
+
+  return {
     name: "todolist",
     description:
       "Create and maintain a structured task list for the current session — tracks progress and " +
@@ -161,11 +193,8 @@ export function createTodolistTool(): TodolistTool {
       },
       required: ["action"],
     },
-    handler: (input: TodoInput): string => {
-      const action = actions[input.action];
-      if (!action) return fail({ error: "invalid_action" });
-      return action(input);
-    },
-    getItems: () => [...items],
+    handler: (input: TodoInput, ctx?: { threadId?: string }): string =>
+      ops(ctx?.threadId).handle(input),
+    getItems: (threadId?: string): TodoItem[] => ops(threadId).getItems(),
   };
 }
