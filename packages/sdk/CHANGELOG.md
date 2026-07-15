@@ -1,5 +1,26 @@
 # Changelog
 
+## 3.7.0
+
+### Minor Changes
+
+- SE38 open-issue cleanup (SDK):
+
+  - **#48** — the reasoning channel now emits its documented completion signal: one
+    `thinking-completed` `InteractionUpdate` per reasoning block (with a measured
+    `thinkingDurationMs`) via `onDelta`, guaranteed even if the LLM stream throws
+    mid-reasoning; the replayed `thinking` `SDKMessage` carries the same
+    `thinking_duration_ms`. Validated end-to-end against deepseek-r1 on OpenRouter.
+  - **#119** — the `CustomTool` handler `ctx` now carries `threadId` (the run's session
+    identity, threaded from the `Agent.getOrCreate(sessionId)` key), so a stateful tool
+    shared across sessions can scope its state per session instead of leaking it. Additive
+    and optional — single-argument handlers are byte-identical.
+  - **#117** — `redactSecrets` no longer skips a secret value that contains `...` (it now
+    skips only the exact `maskToken` output shape), closing a redaction gap. Its property
+    test is made deterministic (pinned seed + `stringMatching` generators).
+  - **#74** — `docs.md` reload contract corrected: a malformed skill is graceful-skipped
+    (stderr warning + excluded from `agent.skills.list()`), not a `ConfigurationError`.
+
 ## 3.6.0
 
 ### Minor Changes
