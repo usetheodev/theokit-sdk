@@ -295,6 +295,18 @@ export function defaultBaseDir(): string {
   return join(homedir(), ".theokit");
 }
 
+/**
+ * Expand a leading `~` / `~/` to the user's home dir. `node:path` does NOT expand `~`, so a
+ * `baseDir: "~/.claude"` (the documented Claude Code CLI interop path) would otherwise resolve to a
+ * literal `./~/.claude` under cwd and the CLI would never find the session. Absolute or relative
+ * paths without a leading tilde pass through untouched.
+ */
+export function expandTilde(p: string): string {
+  if (p === "~") return homedir();
+  if (p.startsWith("~/")) return join(homedir(), p.slice(2));
+  return p;
+}
+
 /** The `.jsonl` path for a session: `<baseDir>/projects/<encoded-cwd>/<safe-sessionId>.jsonl`. */
 export function transcriptPath(baseDir: string, cwd: string, sessionId: string): string {
   return join(baseDir, "projects", encodeProjectDir(cwd), `${safeSessionId(sessionId)}.jsonl`);

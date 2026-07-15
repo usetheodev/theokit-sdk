@@ -60,9 +60,9 @@ export function getSessionMessages(agentId: string): SessionMessage[] {
 /**
  * Persist a full conversation turn (user + assistant + tool blocks) to the native
  * transcript. Chained per-(agent, transcript) so on-disk order matches send order,
- * and fire-and-forget so `send()` is not blocked by disk I/O. After every
- * `COMPACTION_CHECK` turns an append-only `compact_boundary` is written when the
- * transcript grew past the soft cap, surfaced via the optional `onCompact` observer.
+ * and fire-and-forget so `send()` is not blocked by disk I/O. Every
+ * `COMPACTION_CHECK_INTERVAL` turns an append-only `compact_boundary` is written
+ * (turn-count-driven, not size-driven), surfaced via the optional `onCompact` observer.
  *
  * @internal
  */
@@ -134,28 +134,6 @@ export async function flushSessionWrites(): Promise<void> {
     pendingWrites.clear();
     await Promise.all(all);
   }
-}
-
-/**
- * Force-append a `compact_boundary` for one agent regardless of the turn-count
- * threshold. Used by `LocalAgent.dispose` so a long-lived conversation records a
- * boundary before shutdown. Append-only — never rewrites the transcript.
- *
- * @internal
- */
-export async function compactSession(loc: TranscriptLocation, sessionId: string): Promise<void> {
-  const key = transcriptKey(loc.baseDir, loc.cwd, loc.agentId);
-  const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
-    await appendCompactBoundaryRecord(loc, sessionId, { preTokens: 0, trigger: "manual" });
-  });
-  pendingWrites.set(
-    key,
-    chained.then(
-      () => undefined,
-      () => undefined,
-    ),
-  );
-  await chained;
 }
 
 export function clearSession(agentId: string): void {
