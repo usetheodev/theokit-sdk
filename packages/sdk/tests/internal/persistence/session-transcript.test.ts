@@ -4,13 +4,20 @@
  * detection, parentUuid walk, dedup earliest-session, tool_use/tool_result re-pairing, compact_boundary
  * as a walk-terminating root). Mirrors the claude-code-log dag.py contract (see the SE40 blueprint).
  */
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   encodeProjectDir,
+  readTranscript,
   reconstructMessages,
   type SessionRecord,
   SessionTranscript,
+  transcriptPath,
+  writeTranscript,
 } from "../../../src/internal/persistence/session-transcript.js";
 
 const BASE = { cwd: "/home/u/proj", sessionId: "s1", model: "openai/gpt-4o-mini" };
@@ -141,5 +148,63 @@ describe("SE40 — reconstructMessages (DAG reader → LlmMessage[])", () => {
     const msgs = reconstructMessages([later, shared]);
     const text = (msgs.at(-1)!.content[0] as { text: string }).text;
     expect(text).toBe("EARLY");
+  });
+});
+
+describe("SE40 — transcript file I/O (Claude layout)", () => {
+  let dir: string;
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "se40-io-"));
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("transcriptPath uses <baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl (traversal-safe)", () => {
+    const p = transcriptPath("/base", "/home/u/proj", "../evil");
+    // sessionId sanitized: `.`,`.`,`/` → `-` each ⇒ `---evil`; no `..`/`/` survives (traversal-safe)
+    expect(p).toBe("/base/projects/-home-u-proj/---evil.jsonl");
+    expect(p).not.toContain("..");
+  });
+
+  it("write → read → reconstruct round-trips a tool-calling session from disk", async () => {
+    const t = new SessionTranscript({ cwd: "/home/u/proj", sessionId: "s1", model: "m" });
+    t.appendUserTurn("compute 17*23");
+    t.appendAssistantTurn({
+      text: "ok",
+      toolCalls: [{ id: "tu_A", name: "calc", input: { a: 17 } }],
+    });
+    t.appendToolResults([{ toolUseId: "tu_A", content: "391", isError: false }]);
+    t.appendAssistantTurn({ text: "391" });
+
+    const path = transcriptPath(dir, "/home/u/proj", "s1");
+    await writeTranscript(path, t.records());
+    const back = await readTranscript(path);
+    expect(back).toHaveLength(t.records().length);
+
+    const msgs = reconstructMessages(back);
+    expect(msgs.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
+    const toolResult = msgs[2]!.content.find((p) => p.type === "tool_result") as {
+      toolUseId: string;
+    };
+    expect(toolResult.toolUseId).toBe("tu_A");
+  });
+
+  it("readTranscript returns [] for a missing file and skips a torn last line", async () => {
+    expect(await readTranscript(join(dir, "nope.jsonl"))).toEqual([]);
+    const path = join(dir, "torn.jsonl");
+    const good = JSON.stringify({
+      type: "user",
+      uuid: "u1",
+      parentUuid: null,
+      sessionId: "s",
+      timestamp: "t",
+      message: { role: "user", content: [] },
+    });
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(path, `${good}\n{"type":"user","uuid":"broke`); // torn last line
+    const recs = await readTranscript(path);
+    expect(recs).toHaveLength(1);
+    expect(recs[0]!.uuid).toBe("u1");
   });
 });
