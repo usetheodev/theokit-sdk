@@ -1,7 +1,7 @@
 {
   "name": "@theokit/example-deepagents-parity-demo",
   "private": true,
-  "version": "0.0.52",
+  "version": "0.0.53",
   "type": "module",
   "scripts": {
     "start": "tsx run.ts"

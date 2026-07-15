@@ -210,11 +210,15 @@ async function emitAssistantTextStep(
   );
 }
 
-function pushToolConversationSteps(
-  ctx: LoopContext,
+/**
+ * Build the ordered `toolCall` (+ paired `toolResult`) steps for a tool-using turn. Shared by the
+ * live `onStep` emission and the `Run.conversation()` accumulation so the two surfaces never drift
+ * (#SE39 — onStep previously emitted `toolCall` but dropped `toolResult`; both now use this).
+ */
+function buildToolSteps(
   calls: LlmToolCallPart[],
   results: LlmContentPart[],
-): void {
+): import("../../types/conversation.js").ConversationStep[] {
   const steps: import("../../types/conversation.js").ConversationStep[] = [];
   for (let i = 0; i < calls.length; i++) {
     const call = calls[i];
@@ -237,6 +241,15 @@ function pushToolConversationSteps(
       });
     }
   }
+  return steps;
+}
+
+function pushToolConversationSteps(
+  ctx: LoopContext,
+  calls: LlmToolCallPart[],
+  results: LlmContentPart[],
+): void {
+  const steps = buildToolSteps(calls, results);
   if (steps.length > 0) {
     ctx.conversation.push({ type: "agentConversationTurn", turn: { steps } });
   }
@@ -429,18 +442,10 @@ export async function continueOrTerminate(
   ctx.messages.push({ role: "user", content: toolResults });
   if (inputs.onStep !== undefined) {
     const cb = inputs.onStep;
-    for (const call of llmOutput.toolCalls) {
-      await safeCall(
-        () =>
-          cb({
-            step: {
-              type: "toolCall",
-              message: { callId: call.id, name: call.name, args: call.input },
-            },
-          }),
-        undefined,
-        "SendOptions.onStep",
-      );
+    // SE39 — emit toolCall AND the paired toolResult (was toolCall-only: an asymmetry vs the
+    // ConversationStep union + Run.conversation()). Shared builder keeps the two surfaces in lock-step.
+    for (const step of buildToolSteps(llmOutput.toolCalls, toolResults)) {
+      await safeCall(() => cb({ step }), undefined, "SendOptions.onStep");
     }
   }
   pushToolConversationSteps(ctx, llmOutput.toolCalls, toolResults);
