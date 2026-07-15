@@ -48,6 +48,7 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
 | Local agent harness | **Apache-2.0** (informed by [`pi`](https://github.com/earendil-works/pi)) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
 | LLM provider | Multi-provider via `pi-ai` (Anthropic, OpenAI, Google, …) | Usually single-vendor |
+| Session format | **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork `pi/`, keep running with your own provider keys | High — runtime is the vendor's |
 
@@ -406,6 +407,8 @@ await run.wait();
 ```
 
 `agent.model` is `undefined` on resume unless you pass `model` again. Inline `mcpServers` are not persisted across resume — they often carry secrets and live in memory only. Pass them again on resume, or commit them to `.theokit/mcp.json`.
+
+The conversation is persisted as a native Claude Code `.jsonl` transcript at `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `baseDir` defaults to `~/.theokit`; set `local.baseDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see [`docs.md`](./docs.md) § Session persistence and issue #122).
 
 ## Inspecting agents and runs
 
