@@ -12,19 +12,13 @@
  * @internal
  */
 
-import { mkdir } from "node:fs/promises";
-import { dirname } from "node:path";
-
 import type { ConversationStep, ConversationTurn } from "../../../types/conversation.js";
-import { withFileLock } from "../../persistence/file-lock.js";
+import type { SessionStore } from "../../../types/session-store.js";
 import {
   type AssistantTurn,
-  readTranscript,
   reconstructMessages,
   type SessionRecord,
   SessionTranscript,
-  transcriptPath,
-  writeTranscript,
 } from "../../persistence/session-transcript.js";
 import type { SessionMessage } from "./session-types.js";
 
@@ -100,25 +94,28 @@ function appendConversation(
   }
 }
 
-/** Options identifying the on-disk transcript for one agent. */
+/**
+ * The per-agent transcript metadata used to seed a {@link SessionTranscript}. The
+ * actual record I/O goes through the injected {@link SessionStore} (SE41), so this
+ * no longer carries a `baseDir` — the store is already bound to its location.
+ */
 export interface TranscriptLocation {
-  baseDir: string;
   cwd: string;
   agentId: string;
   model: string;
 }
 
 /**
- * Read the persisted transcript and reconstruct the resumable session history,
- * narrowed to the in-memory {@link SessionMessage} shape (user/assistant text).
- * Tool turns fold into assistant-role context so resume keeps tool history.
+ * Read the session's records via the {@link SessionStore} and reconstruct the
+ * resumable history, narrowed to the in-memory {@link SessionMessage} shape
+ * (user/assistant text). Tool turns fold into assistant-role context so resume
+ * keeps tool history. Works identically for the FS default and an external store.
  */
 export async function readSessionMessages(
-  baseDir: string,
-  cwd: string,
+  store: SessionStore,
   agentId: string,
 ): Promise<SessionMessage[]> {
-  const records = await readTranscript(transcriptPath(baseDir, cwd, agentId));
+  const records = await store.readRecords(agentId);
   return reconstructMessages(records).map(narrowToSessionMessage);
 }
 
@@ -148,43 +145,48 @@ function narrowToSessionMessage(m: {
   return { role, text };
 }
 
+/** The records appended by the last turn (the delta beyond the seeded prior). */
+function deltaRecords(
+  transcript: SessionTranscript,
+  priorLength: number,
+): readonly SessionRecord[] {
+  return transcript.records().slice(priorLength);
+}
+
 /**
- * Persist one conversation turn (user + assistant/tool records) to the native
- * transcript, append-only. Seeds the parent chain from the on-disk records under
- * a cross-process file lock so concurrent processes never tear the DAG.
+ * Persist one conversation turn (user + assistant/tool records) to the session
+ * store, append-only. Reads the prior records to seed the parent chain, folds the
+ * new turn, and appends ONLY the delta via {@link SessionStore.appendRecords}
+ * (the store owns the append atomicity — the FS default serializes under a file
+ * lock). Within one process, turns for an agent are already chained upstream, so
+ * the read→append is ordered; cross-host ordering is the external store's contract.
  */
 export async function persistTurn(
+  store: SessionStore,
   loc: TranscriptLocation,
   sessionId: string,
   turn: PersistTurnInput,
 ): Promise<void> {
-  const path = transcriptPath(loc.baseDir, loc.cwd, loc.agentId);
-  // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the parent dir.
-  await mkdir(dirname(path), { recursive: true });
-  await withFileLock(path, async () => {
-    const prior = await readTranscript(path);
-    const transcript = seedTranscript(prior, { cwd: loc.cwd, sessionId, model: loc.model });
-    transcript.appendUserTurn(turn.userText);
-    appendConversation(transcript, turn.conversation);
-    await writeTranscript(path, transcript.records());
-  });
+  const prior = await store.readRecords(loc.agentId);
+  const transcript = seedTranscript(prior, { cwd: loc.cwd, sessionId, model: loc.model });
+  transcript.appendUserTurn(turn.userText);
+  appendConversation(transcript, turn.conversation);
+  await store.appendRecords(loc.agentId, deltaRecords(transcript, prior.length));
 }
 
 /**
  * Append-only compaction: add a `compact_boundary` system record (a new root) so
- * resume replays only the post-boundary continuation. NEVER shrinks the line set.
+ * resume replays only the post-boundary continuation. Appends only the boundary
+ * record via the store — NEVER rewrites or shrinks the prior records.
  */
 export async function appendCompactBoundaryRecord(
+  store: SessionStore,
   loc: TranscriptLocation,
   sessionId: string,
   meta: { preTokens: number; trigger: string },
 ): Promise<void> {
-  const path = transcriptPath(loc.baseDir, loc.cwd, loc.agentId);
-  await mkdir(dirname(path), { recursive: true });
-  await withFileLock(path, async () => {
-    const prior = await readTranscript(path);
-    const transcript = seedTranscript(prior, { cwd: loc.cwd, sessionId, model: loc.model });
-    transcript.appendCompactBoundary(meta);
-    await writeTranscript(path, transcript.records());
-  });
+  const prior = await store.readRecords(loc.agentId);
+  const transcript = seedTranscript(prior, { cwd: loc.cwd, sessionId, model: loc.model });
+  transcript.appendCompactBoundary(meta);
+  await store.appendRecords(loc.agentId, deltaRecords(transcript, prior.length));
 }

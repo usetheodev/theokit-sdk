@@ -42,6 +42,16 @@ export interface LocalOptions {
    * Set to `~/.claude` to write sessions the Claude Code CLI can `--continue`.
    */
   baseDir?: string;
+  /**
+   * SE41 — inject an external {@link import("./session-store.js").SessionStore}
+   * (Postgres / Redis / KV / durable object) as the PRIMARY session store and
+   * resume source. Omit for the default FS transcript store (`baseDir` above) —
+   * byte-identical to SE40. Use this for serverless (ephemeral FS) or multi-host /
+   * multi-pod deployments where a resumed agent must read its history from a shared
+   * store instead of local disk. The records stay the native Claude-shaped shape,
+   * so `--continue` interop is preserved (a store may also mirror to `~/.claude`).
+   */
+  sessionStore?: import("./session-store.js").SessionStore;
 }
 
 /**
