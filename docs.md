@@ -1437,7 +1437,7 @@ model	ModelSelection	Required for local; cloud falls back to the server-resolved
 apiKey	string	Theo_API_KEY env	User API key or service account key. Team Admin keys are not yet supported.
 name	string	Auto-generated	Human-readable agent name surfaced as title in Agent.list() / Agent.get().
 systemPrompt	string \| (ctx: SystemPromptContext) => string \| Promise<string>	(none)	System prompt for the agent. Either a plain string or an async resolver that receives a SystemPromptContext. Priority order: SendOptions.systemPrompt (per-call override) > AgentOptions.systemPrompt (resolved if function) > undefined. An empty string in either slot is honoured (explicitly clears the system context). Subagents do NOT inherit this — they use AgentDefinition.prompt. The SDK does not impose a timeout on resolvers — wrap your own Promise.race if you call into slow resources.
-local	{ cwd?: string | string[]; baseDir?: string; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. baseDir is the native session-transcript root (default ~/.theokit; a leading ~ is expanded; set ~/.claude for Claude Code CLI --continue interop). settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
+local	{ cwd?: string | string[]; baseDir?: string; sessionStore?: SessionStore; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. baseDir is the native session-transcript root (default ~/.theokit; a leading ~ is expanded; set ~/.claude for Claude Code CLI --continue interop). sessionStore (SE41) injects an external session store (readRecords/appendRecords over the native SessionRecord shape) as the primary store + resume source for serverless / multi-host; omit for the FS default. settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
 cloud	CloudOptions		Cloud agent config.
 mcpServers	Record<string, McpServerConfig>		Inline MCP server definitions.
 agents	Record<string, AgentDefinition>		Subagent definitions.
@@ -3418,13 +3418,37 @@ Records are a `uuid`/`parentUuid` DAG. Each line is one record with `type` (`use
 - COMPACTION is append-only: a `compact_boundary` record is appended; the transcript is NEVER shrunk. A resume after a boundary replays only the post-boundary continuation.
 - A torn last line (crash mid-write) is skipped on read — the rest of the DAG still reconstructs.
 
+### Pluggable `SessionStore` (SE41) — external store for serverless / multi-host
+
+The record I/O above goes through a minimal, injectable `SessionStore` — exactly two methods over the SAME native `SessionRecord` shape:
+
+```typescript
+interface SessionStore {
+  readRecords(agentId: string): Promise<SessionRecord[]>;              // all records, append order; missing → []
+  appendRecords(agentId: string, records: readonly SessionRecord[]): Promise<void>; // append-only delta
+}
+```
+
+Omit it and the SDK uses the default `FsSessionStore` (the native `.jsonl` transcript above) — byte-identical to not setting it. Inject `local.sessionStore` to make an external backend (Postgres, Redis, a KV, a durable object) the PRIMARY store and resume source:
+
+```typescript
+const agent = await Agent.create({
+  apiKey, model: { id: "openai/gpt-4o-mini" },
+  local: { cwd, sessionStore: myPostgresStore },   // readRecords / appendRecords over your DB
+});
+// A later invocation (fresh process, no local FS) resumes from the same store:
+const resumed = await Agent.resume(agentId, { apiKey, model, local: { cwd, sessionStore: myPostgresStore } });
+```
+
+Use this when the local FS is ephemeral (serverless / edge) or not shared (multi-pod), where a resumed agent must read its history from a shared store instead of disk. The records stay the native Claude-shaped shape, so `--continue` interop is preserved — a store may also mirror to `~/.claude`. Contract: `appendRecords` is append-only and order-preserving; a store that cannot READ on resume MUST throw (a silent `[]` would masquerade as "no history" and drop the conversation). The FS default serializes concurrent appends per agent under a file lock; an external store owns (and documents) its own cross-host consistency. This is NOT the removed `ConversationStorageAdapter` — it is a 2-method record seam, not the old ~10-method surface.
+
 ### Scoped session ids (M3 #62)
 
 A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe), and `sessionScopePrefix(scope)` returns the matching `"<scope>__"` prefix. These are pure id helpers; scope pruning against a storage backend is no longer part of the SDK.
 
 ### Removed in v4.0
 
-The pluggable-storage contract is gone: `ConversationStorageAdapter`, `StoredMessage`, `FileSystemConversationStorage`, `InMemoryConversationStorage`, `AgentOptions.conversationStorage`, the `Session` namespace + `SessionMeta`/`SessionMetaPatch`, durable objectives (`setObjective` and friends, `ObjectiveRecord`, `AgentOptions.goal`), and `buildReplayHistory`/`ReplayHistoryOptions`. Custom Postgres/Redis/Durable-Object backends are out until an adapter contract over the native format ships.
+The pluggable-storage contract is gone: `ConversationStorageAdapter`, `StoredMessage`, `FileSystemConversationStorage`, `InMemoryConversationStorage`, `AgentOptions.conversationStorage`, the `Session` namespace + `SessionMeta`/`SessionMetaPatch`, durable objectives (`setObjective` and friends, `ObjectiveRecord`, `AgentOptions.goal`), and `buildReplayHistory`/`ReplayHistoryOptions`. Custom Postgres / Redis / durable-object backends return via the minimal `SessionStore` seam (SE41, above) — a 2-method record port over the native format, not the removed ~10-method adapter.
 
 ### Observability (M3 #64)
 

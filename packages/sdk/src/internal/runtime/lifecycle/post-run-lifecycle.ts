@@ -1,6 +1,7 @@
 import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
 import { emitRunEvent } from "../../../types/run-events.js";
+import type { SessionStore } from "../../../types/session-store.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import type { LocalAgentMemory } from "../local-agent/local-agent-memory.js";
@@ -16,8 +17,8 @@ import {
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
  * caller (LocalAgent.send) doesn't carry a long positional argument list.
  *
- * SE40 — `baseDir` + `model` locate the native Claude-shaped transcript
- * (`<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`).
+ * SE41 — the `sessionStore` persists the native records (FS default or an injected
+ * external store); `model` is stamped into the assistant records.
  *
  * @internal
  */
@@ -26,8 +27,8 @@ export interface PostRunLifecycleInputs {
   userText: string;
   agentId: string;
   workspaceCwd: string;
-  /** SE40 — transcript base dir (`~/.theokit` default, `~/.claude` for CLI interop). */
-  baseDir: string;
+  /** SE41 — the session record store (FS default, or an injected external store). */
+  sessionStore: SessionStore;
   /** SE40 — model id stamped into the assistant records. */
   model: string;
   /** SE2 — surface a `compact_boundary` RunEvent when a persistence-side compaction fires. */
@@ -72,7 +73,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     userText,
     agentId,
     workspaceCwd,
-    baseDir,
+    sessionStore,
     model,
     onRunEvent,
     hooksExecutor,
@@ -96,9 +97,11 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
 
   // SE40 — persist the WHOLE turn (user + assistant + tool blocks) to the native
   // Claude-shaped transcript, once per send, from the rich `run.conversation()` view.
+  // SE41 — through the session store (FS default or injected external store).
   const conversation = await safeConversation(run);
   persistTurnToTranscript(
-    { baseDir, cwd: workspaceCwd, agentId, model },
+    sessionStore,
+    { cwd: workspaceCwd, agentId, model },
     agentId,
     { userText, conversation },
     onRunEvent !== undefined

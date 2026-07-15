@@ -1,3 +1,4 @@
+import type { SessionStore } from "../../../types/session-store.js";
 import {
   appendCompactBoundaryRecord,
   type PersistTurnInput,
@@ -36,8 +37,8 @@ const pendingWrites = new Map<string, Promise<void>>();
 const recordCounts = new Map<string, number>();
 
 /** The per-(cwd, agentId) transcript key for cache/hydration bookkeeping. */
-function transcriptKey(baseDir: string, cwd: string, agentId: string): string {
-  return `${baseDir}::${cwd}::${agentId}`;
+function transcriptKey(cwd: string, agentId: string): string {
+  return `${cwd}::${agentId}`;
 }
 
 /**
@@ -67,19 +68,20 @@ export function getSessionMessages(agentId: string): SessionMessage[] {
  * @internal
  */
 export function persistTurnToTranscript(
+  store: SessionStore,
   loc: TranscriptLocation,
   sessionId: string,
   turn: PersistTurnInput,
   onCompact?: () => void,
 ): void {
-  const key = transcriptKey(loc.baseDir, loc.cwd, loc.agentId);
+  const key = transcriptKey(loc.cwd, loc.agentId);
   const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
     try {
-      await persistTurn(loc, sessionId, turn);
+      await persistTurn(store, loc, sessionId, turn);
       const count = (recordCounts.get(key) ?? 0) + 1;
       recordCounts.set(key, count);
       if (count % COMPACTION_CHECK_INTERVAL === 0) {
-        await appendCompactBoundaryRecord(loc, sessionId, {
+        await appendCompactBoundaryRecord(store, loc, sessionId, {
           preTokens: 0,
           trigger: "auto",
         });
@@ -109,13 +111,13 @@ export function persistTurnToTranscript(
  */
 export async function hydrateSession(
   agentId: string,
-  loc: { baseDir: string; cwd: string },
+  loc: { store: SessionStore; cwd: string },
 ): Promise<void> {
-  const key = transcriptKey(loc.baseDir, loc.cwd, agentId);
+  const key = transcriptKey(loc.cwd, agentId);
   if (hydratedKeys.has(key)) return;
   hydratedKeys.add(key);
 
-  const persisted = await readSessionMessages(loc.baseDir, loc.cwd, agentId);
+  const persisted = await readSessionMessages(loc.store, agentId);
   if (persisted.length === 0) return;
   if (!sessions.has(agentId) || sessions.get(agentId)?.length === 0) {
     sessions.set(agentId, persisted);

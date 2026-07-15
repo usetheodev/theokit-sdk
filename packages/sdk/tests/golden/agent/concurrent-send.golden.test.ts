@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import { FsSessionStore } from "../../../src/internal/persistence/fs-session-store.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
@@ -89,8 +90,9 @@ describe("Per-agent send mutex (T2.1 / ADR D19)", () => {
     await agentA.dispose();
     await agentB.dispose();
 
-    const fileA = JSON.stringify(await readSessionMessages(cwd, cwd, agentA.agentId));
-    const fileB = JSON.stringify(await readSessionMessages(cwd, cwd, agentB.agentId));
+    const storeA = new FsSessionStore({ baseDir: cwd, cwd });
+    const fileA = JSON.stringify(await readSessionMessages(storeA, agentA.agentId));
+    const fileB = JSON.stringify(await readSessionMessages(storeA, agentB.agentId));
     expect(fileA).toContain("hi from A");
     expect(fileA).not.toContain("hi from B");
     expect(fileB).toContain("hi from B");

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import { FsSessionStore } from "../../../src/internal/persistence/fs-session-store.js";
 import {
   readTranscript,
   type SessionRecord,
@@ -39,8 +40,9 @@ describe("Agent session persistence (SE40 native transcript)", () => {
   const cwd = "/tmp/theokit-proj";
 
   function loc(agentId: string): TranscriptLocation {
-    return { baseDir, cwd, agentId, model: "test-model" };
+    return { cwd, agentId, model: "test-model" };
   }
+  const store = () => new FsSessionStore({ baseDir, cwd });
 
   beforeEach(async () => {
     baseDir = await mkdtemp(join(tmpdir(), "theokit-session-"));
@@ -58,7 +60,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
 
   it("append-then-read-after-restart — persistTurn writes native records; readSessionMessages reconstructs the turn", async () => {
     const agentId = "agent-test-append-read";
-    await persistTurn(loc(agentId), agentId, {
+    await persistTurn(store(), loc(agentId), agentId, {
       userText: "hello world",
       conversation: [
         {
@@ -68,7 +70,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
       ],
     });
 
-    const fromDisk = await readSessionMessages(baseDir, cwd, agentId);
+    const fromDisk = await readSessionMessages(store(), agentId);
     expect(fromDisk).toEqual([
       { role: "user", text: "hello world" },
       { role: "assistant", text: "hi back" },
@@ -77,7 +79,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
 
   it("native-record-shape — the on-disk `.jsonl` carries uuid/parentUuid DAG + message.content blocks", async () => {
     const agentId = "agent-shape";
-    await persistTurn(loc(agentId), agentId, {
+    await persistTurn(store(), loc(agentId), agentId, {
       userText: "question",
       conversation: [
         {
@@ -99,7 +101,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
 
   it("tool-turn — tool_use + paired tool_result blocks survive the round trip (fold on read)", async () => {
     const agentId = "agent-tool";
-    await persistTurn(loc(agentId), agentId, {
+    await persistTurn(store(), loc(agentId), agentId, {
       userText: "run a tool",
       conversation: [
         {
@@ -137,7 +139,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
     );
     expect(toolResultRec).toBeDefined();
     // Reconstructed session folds tool turns into assistant-role context.
-    const reconstructed = await readSessionMessages(baseDir, cwd, agentId);
+    const reconstructed = await readSessionMessages(store(), agentId);
     expect(reconstructed.some((m) => m.text.includes("[tool call] read"))).toBe(true);
     expect(reconstructed.some((m) => m.text.includes("[tool result]"))).toBe(true);
   });
@@ -145,13 +147,16 @@ describe("Agent session persistence (SE40 native transcript)", () => {
   it("append-only compaction — appendCompactBoundaryRecord adds a compact_boundary root, never shrinking the file", async () => {
     const agentId = "agent-compaction";
     for (let i = 0; i < 5; i += 1) {
-      await persistTurn(loc(agentId), agentId, {
+      await persistTurn(store(), loc(agentId), agentId, {
         userText: `turn ${i}`,
         conversation: [],
       });
     }
     const before = await readTranscript(transcriptPath(baseDir, cwd, agentId));
-    await appendCompactBoundaryRecord(loc(agentId), agentId, { preTokens: 1234, trigger: "auto" });
+    await appendCompactBoundaryRecord(store(), loc(agentId), agentId, {
+      preTokens: 1234,
+      trigger: "auto",
+    });
     const after = await readTranscript(transcriptPath(baseDir, cwd, agentId));
     // Never shrinks: all prior records remain + one new boundary.
     expect(after.length).toBe(before.length + 1);
@@ -164,12 +169,15 @@ describe("Agent session persistence (SE40 native transcript)", () => {
 
   it("resume-after-compaction — reconstruction replays only the post-boundary continuation", async () => {
     const agentId = "agent-resume-after-compact";
-    await persistTurn(loc(agentId), agentId, {
+    await persistTurn(store(), loc(agentId), agentId, {
       userText: "before boundary",
       conversation: [],
     });
-    await appendCompactBoundaryRecord(loc(agentId), agentId, { preTokens: 0, trigger: "auto" });
-    await persistTurn(loc(agentId), agentId, {
+    await appendCompactBoundaryRecord(store(), loc(agentId), agentId, {
+      preTokens: 0,
+      trigger: "auto",
+    });
+    await persistTurn(store(), loc(agentId), agentId, {
       userText: "after boundary",
       conversation: [
         {
@@ -178,7 +186,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
         },
       ],
     });
-    const reconstructed = await readSessionMessages(baseDir, cwd, agentId);
+    const reconstructed = await readSessionMessages(store(), agentId);
     // The compact_boundary is a new root — the walk terminates there, so only the
     // post-boundary continuation is replayed.
     expect(reconstructed.map((m) => m.text)).toContain("after boundary");
@@ -187,7 +195,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
 
   it("malformed-last-line-skipped — a torn final line (crash mid-write) is skipped; the DAG still reconstructs", async () => {
     const agentId = "agent-malformed";
-    await persistTurn(loc(agentId), agentId, {
+    await persistTurn(store(), loc(agentId), agentId, {
       userText: "complete",
       conversation: [
         {
@@ -201,15 +209,21 @@ describe("Agent session persistence (SE40 native transcript)", () => {
     await import("node:fs/promises").then((fs) =>
       fs.writeFile(path, `${raw}{"type":"user","uuid":"torn`, "utf8"),
     );
-    const reconstructed = await readSessionMessages(baseDir, cwd, agentId);
+    const reconstructed = await readSessionMessages(store(), agentId);
     expect(reconstructed.some((m) => m.text === "complete")).toBe(true);
   });
 
   it("per-agent-isolation — two agentIds → two files; neither sees the other", async () => {
-    await persistTurn(loc("agent-iso-a"), "agent-iso-a", { userText: "only A", conversation: [] });
-    await persistTurn(loc("agent-iso-b"), "agent-iso-b", { userText: "only B", conversation: [] });
-    const a = await readSessionMessages(baseDir, cwd, "agent-iso-a");
-    const b = await readSessionMessages(baseDir, cwd, "agent-iso-b");
+    await persistTurn(store(), loc("agent-iso-a"), "agent-iso-a", {
+      userText: "only A",
+      conversation: [],
+    });
+    await persistTurn(store(), loc("agent-iso-b"), "agent-iso-b", {
+      userText: "only B",
+      conversation: [],
+    });
+    const a = await readSessionMessages(store(), "agent-iso-a");
+    const b = await readSessionMessages(store(), "agent-iso-b");
     expect(a.map((m) => m.text)).toEqual(["only A"]);
     expect(b.map((m) => m.text)).toEqual(["only B"]);
   });
@@ -217,8 +231,8 @@ describe("Agent session persistence (SE40 native transcript)", () => {
   it("persists-text-with-newlines — embedded \\n, \\t, and quotes round-trip; one JSONL line per record", async () => {
     const agentId = "agent-newlines";
     const tricky = 'line1\nline2\twith\ttabs\nand "quoted" stuff';
-    await persistTurn(loc(agentId), agentId, { userText: tricky, conversation: [] });
-    const reconstructed = await readSessionMessages(baseDir, cwd, agentId);
+    await persistTurn(store(), loc(agentId), agentId, { userText: tricky, conversation: [] });
+    const reconstructed = await readSessionMessages(store(), agentId);
     expect(reconstructed[0]?.text).toBe(tricky);
     const raw = await readFile(transcriptPath(baseDir, cwd, agentId), "utf8");
     expect(raw.split("\n").filter((l) => l.length > 0).length).toBe(1);
@@ -226,7 +240,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
 
   it("hydrateSession — populates the in-memory cache for getSessionMessages", async () => {
     const agentId = "agent-hydrate";
-    await persistTurn(loc(agentId), agentId, {
+    await persistTurn(store(), loc(agentId), agentId, {
       userText: "seeded user",
       conversation: [
         {
@@ -236,7 +250,7 @@ describe("Agent session persistence (SE40 native transcript)", () => {
       ],
     });
     expect(getSessionMessages(agentId)).toEqual([]);
-    await hydrateSession(agentId, { baseDir, cwd });
+    await hydrateSession(agentId, { store: store(), cwd });
     expect(getSessionMessages(agentId).map((m) => m.text)).toEqual([
       "seeded user",
       "seeded assistant",

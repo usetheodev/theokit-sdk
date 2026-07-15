@@ -1,5 +1,19 @@
 # @theokit/example-guardrails
 
+## 0.0.24
+
+### Patch Changes
+
+- Updated dependencies [c4d410c]
+  - @theokit/sdk@4.1.0
+
+## 0.0.23
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@4.0.2
+
 ## 0.0.22
 
 ### Patch Changes

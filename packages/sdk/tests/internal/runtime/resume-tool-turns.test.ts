@@ -8,6 +8,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { FsSessionStore } from "../../../src/internal/persistence/fs-session-store.js";
 import {
   persistTurn,
   readSessionMessages,
@@ -15,14 +16,15 @@ import {
 } from "../../../src/internal/runtime/session/agent-session-store.js";
 
 const cwd = "/tmp/resume-proj";
-function loc(baseDir: string, agentId: string): TranscriptLocation {
-  return { baseDir, cwd, agentId, model: "test" };
+function loc(agentId: string): TranscriptLocation {
+  return { cwd, agentId, model: "test" };
 }
 
 describe("SE40 — non-lossy session hydration", () => {
   it("includes tool_call/tool_result turns in the hydrated context (folded to assistant)", async () => {
     const baseDir = mkdtempSync(join(tmpdir(), "resume-tool-"));
-    await persistTurn(loc(baseDir, "a1"), "a1", {
+    const store = new FsSessionStore({ baseDir, cwd });
+    await persistTurn(store, loc("a1"), "a1", {
       userText: "run ls",
       conversation: [
         {
@@ -40,7 +42,7 @@ describe("SE40 — non-lossy session hydration", () => {
         },
       ],
     });
-    const hydrated = await readSessionMessages(baseDir, cwd, "a1");
+    const hydrated = await readSessionMessages(store, "a1");
     const joined = hydrated.map((m) => m.text).join(" | ");
     expect(joined).toContain("shell");
     expect(joined).toContain("file.txt");
@@ -48,7 +50,8 @@ describe("SE40 — non-lossy session hydration", () => {
 
   it("plain user/assistant turns hydrate unchanged", async () => {
     const baseDir = mkdtempSync(join(tmpdir(), "resume-legacy-"));
-    await persistTurn(loc(baseDir, "a2"), "a2", {
+    const store = new FsSessionStore({ baseDir, cwd });
+    await persistTurn(store, loc("a2"), "a2", {
       userText: "hi",
       conversation: [
         {
@@ -57,7 +60,7 @@ describe("SE40 — non-lossy session hydration", () => {
         },
       ],
     });
-    const hydrated = await readSessionMessages(baseDir, cwd, "a2");
+    const hydrated = await readSessionMessages(store, "a2");
     expect(hydrated.map((m) => `${m.role}:${m.text}`)).toEqual(["user:hi", "assistant:yo"]);
   });
 });
