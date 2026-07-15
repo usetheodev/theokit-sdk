@@ -84,13 +84,6 @@ export interface GoalOptions {
   /** Optional subgoals fed to the judge prompt. */
   subgoals?: string[];
   /**
-   * SE33 (ADR 0012) — resolve the goal from the durable thread-scoped
-   * objective when `runUntil()` is called with NO explicit goal. Also the
-   * key the loop writes `runsUsed` / `status` progress back to. Ignored when
-   * an explicit goal is passed (that path stays ephemeral).
-   */
-  threadId?: string;
-  /**
    * Cancel mid-loop via `AbortController.signal`. The generator yields
    * a `status_change: paused` event and returns at the next turn
    * boundary (ADR D117).

@@ -104,9 +104,9 @@
     {
       "slug": "sessions-basics",
       "domain": "sessions",
-      "page": "/theokit/sessions/manage-sessions",
-      "title": "Manage sessions",
-      "description": "List, rename, and tag an agent's conversations"
+      "page": "/theokit/sessions/resume-a-session",
+      "title": "Resume a session (--continue)",
+      "description": "Native Claude-shaped transcript persists to baseDir; resume recalls across restart"
     },
     {
       "slug": "guardrails-basics",
@@ -149,13 +149,6 @@
       "page": "",
       "title": "Bounded concurrency",
       "description": "Semaphore.create + mapWithConcurrency cap concurrency (deterministic)"
-    },
-    {
-      "slug": "conversation-storage",
-      "domain": "advanced",
-      "page": "",
-      "title": "Conversation Storage",
-      "description": "Production-Readiness #1 \u2014 ConversationStorageAdapter example."
     },
     {
       "slug": "custom-provider",
@@ -349,9 +342,9 @@
     {
       "slug": "goals-objective",
       "domain": "goals",
-      "page": "/theokit/goals/set-a-durable-objective",
-      "title": "Set a durable objective",
-      "description": "setObjective/getObjective persist a thread-scoped goal (deterministic)"
+      "page": "/theokit/goals/run-until-a-goal-is-met",
+      "title": "Run until a goal is met",
+      "description": "The ephemeral runUntil judge loop drives send() until a goal is judged done"
     },
     {
       "slug": "a2a-mailbox",
