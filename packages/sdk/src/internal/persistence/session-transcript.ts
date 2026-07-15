@@ -87,6 +87,22 @@ export class SessionTranscript {
     this.#opts = opts;
   }
 
+  /**
+   * Seed a transcript from records already on disk so a subsequent append parents
+   * on the existing DAG leaf (the last record in file order). Prior records are
+   * re-emitted verbatim by {@link records}, so the whole file rewrites atomically
+   * as one append-only line set — never shrinking (SE40 compaction is append-only).
+   */
+  static fromRecords(
+    prior: readonly SessionRecord[],
+    opts: SessionTranscriptOptions,
+  ): SessionTranscript {
+    const t = new SessionTranscript(opts);
+    t.#records = [...prior];
+    t.#last = prior.length > 0 ? (prior[prior.length - 1]?.uuid ?? null) : null;
+    return t;
+  }
+
   #push(
     rec: Omit<SessionRecord, "uuid" | "parentUuid" | "sessionId" | "timestamp">,
   ): SessionRecord {

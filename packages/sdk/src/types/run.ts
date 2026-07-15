@@ -472,17 +472,6 @@ export interface SendOptions {
    * @public
    */
   completionCheck?: CompletionCheck;
-  /**
-   * SE34 — project the standing durable objective (SE33) for this `threadId`
-   * into the model context for this send as `<current-objective>…`, so the
-   * model always sees what it is working toward. Opt-in — absent ⇒ the assembled
-   * system prompt is byte-identical to today. Only an ACTIVE objective is
-   * projected (`done`/`paused` ⇒ nothing injected). Reuses the SE33 objective
-   * store + the system-prompt assembly seam (no general signal framework — YAGNI).
-   *
-   * @public
-   */
-  objectiveThreadId?: string;
 }
 
 /**
