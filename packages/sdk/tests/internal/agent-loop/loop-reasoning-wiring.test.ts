@@ -125,4 +125,39 @@ describe("issue #47 — streamLlmTurn reasoning wiring", () => {
     expect(ctx.events.some((e) => e.type === "thinking")).toBe(false);
     expect(output.text).toBe("plain answer");
   });
+
+  // issue #48 — the completion half of the reasoning channel (follow-up to #47).
+  it("test_emits_thinking_completed_once_after_last_thinking_delta", async () => {
+    const updates: Array<{ type: string; text?: string; thinkingDurationMs?: number }> = [];
+    const llm = fakeLlm(REASON_THEN_ANSWER);
+    await streamLlmTurn(makeInputs(llm, [{ id: "thinking", value: "high" }], updates), makeCtx());
+    const completed = updates.filter((u) => u.type === "thinking-completed");
+    // exactly one completion signal per reasoning block.
+    expect(completed).toHaveLength(1);
+    // arrives AFTER the last thinking-delta (a UI can close the reasoning block on it).
+    const lastDelta = updates.map((u) => u.type).lastIndexOf("thinking-delta");
+    const completedIdx = updates.map((u) => u.type).indexOf("thinking-completed");
+    expect(completedIdx).toBeGreaterThan(lastDelta);
+    // carries a non-negative measured duration.
+    expect(typeof completed[0]?.thinkingDurationMs).toBe("number");
+    expect(completed[0]?.thinkingDurationMs).toBeGreaterThanOrEqual(0);
+  });
+
+  it("test_thinking_sdkmessage_carries_duration", async () => {
+    const ctx = makeCtx();
+    const llm = fakeLlm(REASON_THEN_ANSWER);
+    await streamLlmTurn(makeInputs(llm, [{ id: "thinking", value: "high" }], []), ctx);
+    const thinking = ctx.events.find((e) => e.type === "thinking") as
+      | { thinking_duration_ms?: number }
+      | undefined;
+    expect(typeof thinking?.thinking_duration_ms).toBe("number");
+    expect(thinking?.thinking_duration_ms).toBeGreaterThanOrEqual(0);
+  });
+
+  it("test_no_thinking_completed_when_no_reasoning", async () => {
+    const updates: Array<{ type: string }> = [];
+    const llm = fakeLlm([{ type: "text_delta", text: "plain answer" }]);
+    await streamLlmTurn(makeInputs(llm, [{ id: "thinking", value: "high" }], updates), makeCtx());
+    expect(updates.some((u) => u.type === "thinking-completed")).toBe(false);
+  });
 });
