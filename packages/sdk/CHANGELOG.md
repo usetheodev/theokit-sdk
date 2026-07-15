@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.0.2
+
+### Patch Changes
+
+- docs(readme): highlight the native Claude Code session interop in the package README — a local agent's conversation is a native Claude Code `.jsonl` transcript, so pointing `baseDir` at `~/.claude` lets the Claude Code CLI `--continue` a session the agent wrote. Also correct the stale "this package is a scaffold" Status line (the SDK shipped v4). Docs-only; no runtime change.
+
 ## 4.0.1
 
 ### Patch Changes

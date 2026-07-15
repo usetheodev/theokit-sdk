@@ -1278,6 +1278,40 @@ real-`claude-code-log`-parser round-trip gate).
    Existing `.theokit/agents/<id>/messages.jsonl` sessions must migrate. Mitigation: v4.0 major + a
    documented (optionally one-shot importer) old→new migration.
 
+### SE41 — [ ] Pluggable `SessionStore` seam over the native transcript (external-store resume for serverless / multi-host)
+
+> Added 2026-07-15 by `/roadmap-feature` (slug: `pluggable-session-store`). See CHANGELOG `[Unreleased] § Added`.
+
+**Objective:** Ship a **minimal, 2-method `SessionStore` seam** over the native Claude Code `SessionRecord`
+shape so an external store (Postgres / Redis / KV / durable object) can be the **primary store AND resume
+source** — restoring the serverless (ephemeral FS) and multi-host / multi-pod use case that SE40 removed
+with `ConversationStorageAdapter`, WITHOUT reverting the old ~10-method adapter or changing the on-disk
+format.
+
+**Definition of done:**
+
+- [ ] A minimal public `SessionStore` interface — exactly two methods over the **native `SessionRecord`** shape: `readRecords(agentId): Promise<SessionRecord[]>` and `appendRecords(agentId, records): Promise<void>`. NO getMessages / compact / getSessionMeta / objective methods (those belonged to the removed SE4/SE33 surface).
+- [ ] Injected via `local.sessionStore`, DEFAULTING to the current FS transcript store as the reference implementation of the same interface — **omitting it ⇒ byte-identical current behavior** (back-compat, zero consumer change).
+- [ ] Resume from the external store works across a **simulated cold start** (fresh process, no local FS): `Agent.resume(agentId, { local: { sessionStore } })` hydrates via `reconstructMessages(await store.readRecords(agentId))`; append-only compaction (`compact_boundary`) works over the seam.
+- [ ] Native format + `--continue` interop **preserved** — records stay the exact Claude-shaped shape; a store that also mirrors to `~/.claude` still `--continue`s in the Claude Code CLI. TDD (unit + cold-start resume integration) + a serverless-shaped example (in-memory store standing in for Postgres/Redis) — a real reference impl ships (`no-stubs-no-mocks-no-wired`).
+- [ ] Public-API change → `docs.md` (the `SessionStore` seam + `local.sessionStore`) + `packages/sdk/CHANGELOG.md` Changeset + an **ADR** recording "why a 2-method record seam over the native format, not the removed `ConversationStorageAdapter`".
+
+**Dependencies:** SE40 ([x]) — the native `SessionRecord` format + `readTranscript`/`writeTranscript`/`reconstructMessages` are the substrate the seam wraps; the FS store becomes the default impl.
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **Scope creep back to the barroque adapter** — pressure to re-add message-model / metadata / objective methods. Mitigation: the seam is JUST record read/append over the native shape; the ADR locks the surface to two methods.
+2. **Consistency/atomicity across concurrent hosts** — two pods appending to one `agentId` on a shared external store can race or read stale. Mitigation: append-only semantics + a documented ordering/locking contract; the FS default reuses the existing file lock; external impls own (and document) their own consistency guarantees.
+
+**Why now (from grill Q1):**
+
+SE40 (v4.0) made the native transcript the single source of truth and deliberately removed the pluggable
+`ConversationStorageAdapter`, which dropped the use case where an external DB *is* the store and the
+resume source. Surfaced by the owner while validating the v4.0 docs: serverless (ephemeral FS) and
+multi-host / multi-pod deployments need external-store resume, and the only current workaround — a
+shared/replicated `baseDir` (network volume) — is not viable on serverless/edge. This is a conscious
+evolution of the SE40 removal: the minimal seam over the native format, not a revert of the old adapter.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the

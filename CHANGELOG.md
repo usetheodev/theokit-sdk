@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Added
+- Roadmap amended: added **SE41 — Pluggable `SessionStore` seam over the native transcript** (external-store resume for serverless / multi-host; the minimal 2-method seam that restores the primary-store use case SE40 removed with `ConversationStorageAdapter`, without reverting the old adapter). (`/roadmap-feature pluggable-session-store`)
+
 ### Changed
 - **SE36 (v3.0 breaking) — uniform `X.create()` public API.** Every public factory is now a static `X.create()` on a namespace class (private constructor), matching `Agent.create` / `Cron.create` / `Workflow.create`. Reverses Unbreakable Rule 9 (ADR 0015 supersedes D431); `CLAUDE.md` Rule 9 rewritten. Ships the migration codemod `@theokit/codemod-sdk-3-0` (jscodeshift; rewrites imports + call sites + `Plugin` type/value dedup across declarations). `docs.md` (source of truth), `README.md`, and all in-repo examples/consumers (`@theokit/sdk-tools`, `-cache`, `-handoff`, `memory-*`, `acp`) migrated. Validated end-to-end against a real LLM (OpenRouter) + tree-shake/inference benchmarks (`benchmarks/se36/`). Accepted trade-off: diverges from the SOTA `tool()` idiom (a peer framework / OpenAI Agents / a framework). (SE36)
 
