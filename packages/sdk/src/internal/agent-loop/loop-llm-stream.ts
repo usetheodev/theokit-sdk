@@ -226,27 +226,35 @@ async function runCollectorLoop(
   const reasoning: ReasoningAccumulator = { text: "", startedAt: undefined };
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
-  while (true) {
-    const next = await generator.next();
-    if (next.done === true) {
-      finishValue = next;
-      break;
+  // issue #48 (review Finding 1): finalize in a `finally` so a mid-stream THROW from the LLM
+  // generator (e.g. a dropped connection after some reasoning deltas) still emits the one
+  // `thinking-completed` — otherwise a consumer that opened a reasoning block on the first
+  // `thinking-delta` would wait for a close signal that never comes. The in-band `error` event
+  // path (break below) already reaches finalize; this covers the hard-throw path too.
+  try {
+    while (true) {
+      const next = await generator.next();
+      if (next.done === true) {
+        finishValue = next;
+        break;
+      }
+      if (next.value.type === "text_delta") {
+        accumulatedText += next.value.text;
+        await emitTextDeltaCallback(inputs, next.value.text);
+      }
+      if (next.value.type === "reasoning_delta") {
+        await accumulateReasoning(inputs, reasoning, next.value.text);
+      }
+      if (next.value.type === "error") {
+        registerLoopError(ctx, next.value);
+        ctx.finalText = "";
+        errored = true;
+        break;
+      }
     }
-    if (next.value.type === "text_delta") {
-      accumulatedText += next.value.text;
-      await emitTextDeltaCallback(inputs, next.value.text);
-    }
-    if (next.value.type === "reasoning_delta") {
-      await accumulateReasoning(inputs, reasoning, next.value.text);
-    }
-    if (next.value.type === "error") {
-      registerLoopError(ctx, next.value);
-      ctx.finalText = "";
-      errored = true;
-      break;
-    }
+  } finally {
+    await finalizeReasoning(inputs, ctx, reasoning);
   }
-  await finalizeReasoning(inputs, ctx, reasoning);
   return { accumulatedText, errored, finishValue };
 }
 

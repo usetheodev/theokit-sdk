@@ -160,4 +160,28 @@ describe("issue #47 — streamLlmTurn reasoning wiring", () => {
     await streamLlmTurn(makeInputs(llm, [{ id: "thinking", value: "high" }], updates), makeCtx());
     expect(updates.some((u) => u.type === "thinking-completed")).toBe(false);
   });
+
+  // issue #48 (review Finding 1) — a mid-stream THROW after some reasoning deltas must STILL
+  // emit the one `thinking-completed` (finalize runs in a `finally`), so a consumer that opened
+  // a reasoning block on the first delta always gets a close signal.
+  it("test_emits_thinking_completed_even_when_stream_throws_mid_reasoning", async () => {
+    const updates: Array<{ type: string; text?: string; thinkingDurationMs?: number }> = [];
+    const throwingLlm: LlmClient = {
+      name: "openrouter",
+      async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
+        yield { type: "reasoning_delta", text: "half a thought" };
+        throw new Error("connection reset mid-stream");
+      },
+    };
+    // streamLlmTurn absorbs the stream error into an `errored` result (does not reject),
+    // but the reasoning channel is still closed on the way out.
+    const output = await streamLlmTurn(
+      makeInputs(throwingLlm, [{ id: "thinking", value: "high" }], updates),
+      makeCtx(),
+    );
+    expect(output.errored).toBe(true);
+    const completed = updates.filter((u) => u.type === "thinking-completed");
+    expect(completed).toHaveLength(1);
+    expect(completed[0]?.thinkingDurationMs).toBeGreaterThanOrEqual(0);
+  });
 });
