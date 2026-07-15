@@ -55,6 +55,13 @@ export interface SessionStore {
    * MUST preserve order and MUST NOT drop or rewrite prior records — the native
    * format is an append-only `parentUuid` DAG (compaction is a new-root
    * `compact_boundary` record, still an append).
+   *
+   * Note on the write path: per-turn persistence is fire-and-forget so `send()`
+   * is never blocked by store I/O — an `appendRecords` rejection is logged to
+   * stderr, NOT thrown to the caller (best-effort write). An external store that
+   * must guarantee durability should make `appendRecords` resilient (retry /
+   * durable write) internally. This differs from {@link SessionStore.readRecords},
+   * which MUST throw on failure (a resume cannot proceed on a silent partial history).
    */
   appendRecords(agentId: string, records: readonly SessionRecord[]): Promise<void>;
 }
