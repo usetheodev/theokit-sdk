@@ -1092,6 +1092,64 @@ CoT via a system prompt), so this slice is about making them first-class + docum
 capability. Scoped as ONE cohesive milestone (owner decision, 2026-07-14); the 2-model
 reasoning-model+response-model split for general chat stays out (see below).
 
+### SE38 — [ ] Open-issue cleanup (6 genuinely-open tracker issues)
+
+**Objective:** Fix + close the 6 tracker issues that remained genuinely open after the 2026-07-15
+triage (the other 16 — `#47`, `#54`–`#68` — were already done-in-code per M0–M3 `[x]` and were closed
+with evidence, not re-scoped). Each fix is TDD-first with real evidence; each issue is closed with the
+fix reference. The six:
+
+- **#117** — `redact.property.test.ts` is flaky (no fixed seed → non-deterministic; violates
+  `rules/testing.md`). Pin the seed for reproducibility AND investigate the counterexample (possible
+  real redaction gap; reproduce with `seed: 1364363304`).
+- **#74** — `skills.contract` test "reload rejects malformed skill frontmatter" **resolves instead of
+  rejecting**. Fix the assertion (and the underlying reload path if it silently accepts a malformed
+  skill) so a malformed `SKILL.md` fails loud on `reload()`.
+- **#116** — `theokit init` templates pin `zod@^3.25` but the SDK needs zod v4 (`Tool.create` uses
+  `z.toJSONSchema`), so a scaffolded project crashes on first `Tool.create`. Bump the template pin to
+  `zod@^4` (peer-compatible) and verify against an ACTUALLY-scaffolded project, not just the file.
+- **#119** — `sdk-tools` `CustomTool` handler `ctx` lacks `threadId`/`sessionId`, so stateful tools
+  (e.g. a todolist) leak state across sessions. Thread the session/thread identity into the
+  `ToolContext` (optional, back-compat) so a tool can scope its state per session.
+- **#70** — `@theokit/agents` `AgentRunner.stream` does not expose `PartialToolCallUpdate`, so
+  consumers cannot stream progressive tool-input args. Surface the partial-tool-call update on that
+  stream (mirrors the core `partial-tool-call` InteractionUpdate).
+- **#48** — reasoning follow-up: confirm `thinking-completed` + `thinking_duration_ms` are actually
+  EMITTED end-to-end (the types exist at `types/updates.ts:42`); if already emitted, close with an
+  emission test; if not, wire it. (Follow-up to the now-closed #47.)
+
+**Definition of done:**
+
+- [ ] Each issue has a **failing regression test first**, then the fix (TDD — Unbreakable Rule 5).
+- [ ] #117 test is deterministic (seed pinned) AND the counterexample is triaged (fixed or the property
+      tightened with a rationale).
+- [ ] #116 verified against a real `theokit init`-scaffolded project that boots + runs a `Tool.create`
+      agent (real-LLM if it reaches a send, else a build/typecheck proof).
+- [ ] #119 `threadId`/`sessionId` reach the tool handler `ctx` (optional fields, back-compat); a test
+      proves two sessions do NOT share a stateful tool's state.
+- [ ] #70 partial-tool-call update surfaced on `AgentRunner.stream`; a streaming test asserts progressive
+      args are delivered.
+- [ ] #48 `thinking-completed` + `thinking_duration_ms` emission proven by a test (real or fixture as
+      appropriate); issue closed with evidence.
+- [ ] Every fixed issue **closed on GitHub** with the commit/PR reference; `CHANGELOG.md` `§ Fixed`;
+      Changesets (patch/minor as fitting) for the touched packages (`@theokit/sdk`, `@theokit/sdk-tools`,
+      `@theokit/agents`, `@theokit/cli`).
+
+**Dependencies:** SE37 (all SE1–SE37 `[x]`). The six issues are mutually independent — order is free.
+
+**Top risks (new):**
+1. **Public-surface back-compat (#119, #70)** — threading `threadId`/`sessionId` into `ToolContext` and
+   adding a stream update touch published contracts; both MUST be additive/optional so existing
+   consumers are byte-identical. Mitigation: optional fields + a no-op-when-absent test.
+2. **#116 spans the CLI template source, not just the SDK** — a fix to the template pin only counts when
+   an actually-scaffolded project boots; a file-only edit can pass review yet still ship a broken
+   scaffold. Mitigation: the DoD requires a real scaffold-and-run proof, not a template diff.
+
+**Why now:** the 2026-07-15 tracker triage (post-SE37) closed 16 done-in-code issues and left exactly
+these 6 as real work. Grouped as ONE cohesive "cleanup" milestone (owner decision, 2026-07-15) — small,
+independent fixes with one release cut — rather than six micro-milestones. Delivered later via
+`/auto-plan SE38`.
+
 ### Explicitly out of scope
 
 Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, because they contradict the
