@@ -134,6 +134,24 @@ const agent = await Agent.create({
   local: { cwd: process.cwd() },
 });
 
+## Reasoning (SE37)
+
+Three ways to make an agent reason before answering:
+
+1. **Native reasoning models** — set `model.params: [{ id: "thinking", value: "high" }]` (above). The model reasons internally; the trace streams as `thinking` deltas (`onDelta`) / `SDKThinkingMessage` (`run.stream()`) and counts under `usage.reasoningTokens`. Use this when the model supports it.
+2. **Reasoning tools** — `ReasoningTools.create()` returns a `think` and an `analyze` scratchpad tool (no side effects — they echo the model's structured reasoning back as an observation). Import from `@theokit/sdk-tools` and add to any model: `tools: [...ReasoningTools.create()]`.
+3. **`reasoning: true`** — a lightweight flag that turns a NON-reasoning model into a reason→act→observe loop using the SAME model: it prepends a chain-of-thought preamble to the system prompt AND auto-attaches the `think` reasoning tool. Default off; byte-identical when unset.
+
+```typescript
+const reasoningAgent = await Agent.create({
+  apiKey,
+  model: { id: "openai/gpt-4o-mini" },   // a non-reasoning model
+  reasoning: true,                        // CoT preamble + think/analyze auto-attached
+});
+```
+
+`reasoning: true` is **inert (with a one-time warn)** when a native reasoning model is configured (`model.params` carries a `thinking`/`reasoning`/`reasoning_effort` id) — native reasoning wins, so the two never stack (no double-reasoning). For a native reasoning model, use `model.params` directly instead of `reasoning: true`.
+
 Context manager
 The context manager selects project context before a run starts. It is for working-set material: README files, architecture notes, generated summaries, and other documents that help the agent understand the current task. It is not durable user memory.
 
