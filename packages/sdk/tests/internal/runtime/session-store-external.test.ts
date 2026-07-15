@@ -6,7 +6,10 @@
  * carries the history). The resumed agent hydrates its prior turns from the store
  * with NO local FS write — the serverless / multi-host use case SE40 dropped.
  */
-import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
 import type { SessionRecord } from "../../../src/internal/persistence/session-transcript.js";
@@ -42,11 +45,17 @@ function coldRestart(): void {
 }
 
 describe("SE41 — external SessionStore resume across a cold start", () => {
-  afterEach(coldRestart);
+  let cwd: string;
+  beforeEach(() => {
+    cwd = mkdtempSync(join(tmpdir(), "se41-external-"));
+  });
+  afterEach(() => {
+    coldRestart();
+    rmSync(cwd, { recursive: true, force: true });
+  });
 
   it("a resumed agent hydrates prior turns from the external store (no local FS)", async () => {
     const store = new MapSessionStore();
-    const cwd = "/tmp/se41-external-proj";
     const agentId = "agent-se41-external";
 
     // Process 1 — plant a turn through the external store, then dispose.
@@ -91,7 +100,6 @@ describe("SE41 — external SessionStore resume across a cold start", () => {
 
   it("compact_boundary records flow through the external store's appendRecords", async () => {
     const store = new MapSessionStore();
-    const cwd = "/tmp/se41-compact-proj";
     const agentId = "agent-se41-compact";
     const agent = await Agent.create({
       agentId,
