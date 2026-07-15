@@ -1233,27 +1233,34 @@ real-`claude-code-log`-parser round-trip gate).
 - [ ] `ClaudeCodeTranscriptWriter` (3.8.0) removed from the public barrel; no `ClaudeCode*` symbol in the
       SDK. Codemod or a documented migration for consumers.
 - [ ] **WRITE:** the agent loop persists RICH records directly — structured `tool_use`/`tool_result`
-      (paired ids), `thinking` (with its cryptographic `signature` preserved), assistant/user turns,
-      `uuid`/`parentUuid` DAG.
+      (paired ids), `thinking` (text; the cryptographic `signature` is deferred — see #122),
+      assistant/user turns with `message.{id,model}`, `uuid`/`parentUuid` DAG.
 - [ ] **READ / `--continue`:** load a Claude-shaped `.jsonl` (ours OR the real Claude Code CLI's from
-      `~/.claude`), walk the `parentUuid` DAG from the leaf, rebuild the message history, and resume. A
-      real end-to-end test: write → read-back → continue produces a coherent turn; AND a test that reads
-      a genuine Claude-Code-CLI-written `.jsonl` and resumes it.
-- [ ] **Compaction ⇄ append-only DAG:** when the session compacts (summarization), emit a
-      Claude-compatible `compact_boundary` marker + summary INTO the transcript without corrupting the
-      DAG; resume replays from the boundary. Test: compact → resume → continuity holds AND the boundary
-      record parses through `claude-code-log`.
-- [ ] **Edge cases handled + tested:** subagent sessions as `agent-<shortId>.jsonl` sibling files;
-      fork/child-session on resume (`parentUuid` across files); dedup (same `uuid` in multiple files);
-      extended-thinking resume (signature preserved → no `400 "thinking blocks cannot be modified"`,
-      upstream #63147); migration from the old `.theokit/agents/<id>/messages.jsonl` sessions.
+      `~/.claude`), walk the `parentUuid` DAG from the leaf (leaf = uuid never used as a parentUuid;
+      cycle-break; dedup earliest-session-wins), rebuild the message history, and resume. A real
+      end-to-end test: write → read-back → continue produces a coherent turn (text + tool sessions); AND
+      a test that reads a genuine Claude-Code-CLI-written `.jsonl` and resumes it.
+- [ ] **Compaction ⇄ append-only DAG:** replace the current file-REWRITE compaction with append-only
+      Claude semantics — emit a `system` `compact_boundary` record (new root, `parentUuid:null`,
+      `compactMetadata{preTokens,trigger}`) + a `user` continuation whose text starts with the exact
+      `"This session is being continued…"` prefix, WITHOUT dropping prior records. Test: compact → resume
+      → continuity holds AND the boundary parses through `claude-code-log`.
 - [ ] Round-trip through the REAL `claude-code-log` Pydantic parser (reuse SE39 gate) + real-LLM
       write→read→continue validated on OpenRouter. `docs.md` documents the native format + `baseDir`
-      config + the `~/.claude` interop mode.
+      config + the `~/.claude` interop mode. `dedup` + fork/child-session (`parentUuid` across files)
+      covered by the reader tests.
 
-**Explicitly deferred (later milestones):** read-adapters for a peer project / codex (translate native ⇄ their
-formats); sidecar dirs `file-history/` + `todos/` (needed for file-undo / plan surfaces, NOT for
-conversation `--continue`); the 30-day auto-purge / `cleanupPeriodDays` policy.
+**Explicitly deferred (own follow-up milestones — per the SE40 discover, 2026-07-15):**
+
+- **SE41 — subagent transcripts** (`agent-<shortId>.jsonl` sibling files): achievable now (each subagent
+  run has a unique `run.id`), but a distinct slice — kept out of SE40 core.
+- **SE42 — extended-thinking `--continue`** (thinking `signature` capture): **provider-blocked** — the
+  SDK does not capture the thinking signature today (issue **#122**). Needs provider-layer work; text +
+  tool sessions resume without it.
+- **SE43 — migration importer** for old `.theokit/agents/<id>/messages.jsonl` sessions → the new format.
+- read-adapters for a peer project / codex (translate native ⇄ their formats); sidecar dirs `file-history/` +
+  `todos/` (file-undo / plan surfaces, NOT conversation `--continue`); the 30-day `cleanupPeriodDays`
+  policy.
 
 **Top risks (new):**
 
