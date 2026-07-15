@@ -5,13 +5,14 @@
  * as a walk-terminating root). Mirrors the claude-code-log dag.py contract (see the SE40 blueprint).
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import {
   encodeProjectDir,
+  expandTilde,
   readTranscript,
   reconstructMessages,
   type SessionRecord,
@@ -158,6 +159,16 @@ describe("SE40 — transcript file I/O (Claude layout)", () => {
   });
   afterEach(() => {
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("expandTilde resolves a leading ~/ to an absolute home path (Claude CLI interop baseDir)", () => {
+    // the load-bearing interop case: `baseDir: "~/.claude"` MUST become <home>/.claude, not ./~/.claude
+    expect(expandTilde("~/.claude")).toBe(join(homedir(), ".claude"));
+    expect(expandTilde("~")).toBe(homedir());
+    // no leading tilde → untouched (absolute stays absolute; a bare "~name" is NOT expanded)
+    expect(expandTilde("/abs/base")).toBe("/abs/base");
+    expect(expandTilde("./rel")).toBe("./rel");
+    expect(expandTilde("~theo/x")).toBe("~theo/x");
   });
 
   it("transcriptPath uses <baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl (traversal-safe)", () => {
