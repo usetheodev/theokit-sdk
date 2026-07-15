@@ -232,7 +232,7 @@ Use `scope: "agent"` for one agent's durable state, `"user"` for a user's stable
 Skills
 Skills are named capability packs. The SDK exposes their names and descriptions to the agent so it knows when to use them, but full skill prompt bodies are not included in public streams, snapshots, or `agent.skills.list()` output.
 
-Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded when `local.settingSources` includes `"project"`. Cloud agents load skills committed in the repo. `agent.reload()` re-reads skill files and fails with `ConfigurationError` if a skill is malformed instead of silently ignoring it.
+Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded when `local.settingSources` includes `"project"`. Cloud agents load skills committed in the repo. `agent.reload()` re-reads skill files; a skill whose frontmatter is malformed (missing the required `name`/`description`, or invalid YAML) is **skipped with a stderr warning and excluded from `agent.skills.list()`** — reload does **not** throw for a bad skill (graceful-degrade: one broken skill file never blocks the agent). The valid skills stay loaded.
 
 
 const agent = await Agent.create({
@@ -1418,7 +1418,7 @@ Context is task working-set. It is selected per agent from inline config or `.th
 Memory is durable recall. It persists facts by `{ namespace, userId, scope }`, rejects stores outside the workspace, and must redact credential material.
 Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL.md`, listed with `agent.skills.list()`, and only expose public metadata in streams and snapshots.
 
-`agent.reload()` refreshes file-based context and skills without disposing the agent or losing conversation state. Invalid context files or malformed skill frontmatter raise `ConfigurationError`.
+`agent.reload()` refreshes file-based context and skills without disposing the agent or losing conversation state. An invalid **context** config (`.theokit/context.json` — bad JSON or wrong shape) raises `ConfigurationError`. A **skill** with malformed frontmatter is handled differently: it is skipped with a stderr warning and excluded from `agent.skills.list()`, and reload resolves normally (graceful-degrade — a single broken skill never blocks the agent).
 
 Hooks
 Hooks are file-based only. There is no programmatic hook callback. Hooks are a project policy boundary, not a per-run knob.
