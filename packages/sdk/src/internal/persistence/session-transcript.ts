@@ -14,9 +14,13 @@
  * referencia: knowledge-base/references/claude-code-log/claude_code_log/dag.py + models.py
  */
 import { randomUUID } from "node:crypto";
+import { mkdir, readFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { dirname, join } from "node:path";
 
 import type { LlmContentPart, LlmMessage, LlmToolResultPart } from "../llm/types.js";
 import { redactSecrets } from "../security/redact.js";
+import { replaceFileAtomic } from "./atomic-write.js";
 
 /** One transcript record (one JSONL line). `message` absent on `system` (compact_boundary) records. */
 export interface SessionRecord {
@@ -266,4 +270,54 @@ export function reconstructMessages(records: readonly SessionRecord[]): LlmMessa
     if (m !== undefined) msgs.push(m);
   }
   return msgs;
+}
+
+// ─── File I/O (the on-disk Claude layout) ─────────────────────────────────────────────────────────
+
+/** Default transcript base dir. `~/.theokit` isolates our sessions; set to `~/.claude` for CLI interop. */
+export function defaultBaseDir(): string {
+  return join(homedir(), ".theokit");
+}
+
+/** The `.jsonl` path for a session: `<baseDir>/projects/<encoded-cwd>/<safe-sessionId>.jsonl`. */
+export function transcriptPath(baseDir: string, cwd: string, sessionId: string): string {
+  return join(baseDir, "projects", encodeProjectDir(cwd), `${safeSessionId(sessionId)}.jsonl`);
+}
+
+/** Write records as one JSONL line each (atomic; parent dir created). Returns the path. */
+export async function writeTranscript(
+  path: string,
+  records: readonly SessionRecord[],
+): Promise<string> {
+  await mkdir(dirname(path), { recursive: true });
+  const body = records.map((r) => JSON.stringify(r)).join("\n");
+  await replaceFileAtomic(path, records.length > 0 ? `${body}\n` : "");
+  return path;
+}
+
+/** Parse one JSONL line to a record; `undefined` for blank/torn/invalid lines (skipped on read). */
+function parseRecordLine(line: string): SessionRecord | undefined {
+  const trimmed = line.trim();
+  if (trimmed.length === 0) return undefined;
+  try {
+    const rec = JSON.parse(trimmed) as SessionRecord;
+    return typeof rec.uuid === "string" && typeof rec.type === "string" ? rec : undefined;
+  } catch {
+    return undefined; // a torn last line (crash mid-write) — the rest of the DAG still reconstructs
+  }
+}
+
+/** Parse a transcript `.jsonl` into records; a missing file yields `[]`; malformed lines are skipped. */
+export async function readTranscript(path: string): Promise<SessionRecord[]> {
+  let raw: string;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch (cause) {
+    if ((cause as NodeJS.ErrnoException).code === "ENOENT") return [];
+    throw cause;
+  }
+  return raw
+    .split("\n")
+    .map(parseRecordLine)
+    .filter((r): r is SessionRecord => r !== undefined);
 }
