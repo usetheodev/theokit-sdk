@@ -40,5 +40,9 @@ dangling = use_ids - result_refs
 if dangling:
     print(f"DANGLING tool_use with no result: {sorted(dangling)}")
     sys.exit(1)
+orphan = result_refs - use_ids
+if orphan:
+    print(f"ORPHAN tool_result with no matching tool_use: {sorted(orphan)}")
+    sys.exit(1)
 print(f"OK {n} records, {len(use_ids)} tool pairs")
 sys.exit(0)
