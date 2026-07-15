@@ -466,12 +466,12 @@ export interface AgentOptions {
   tools?: CustomTool[];
   /**
    * SE37 — opt-in reasoning. When `true`, the agent gets a chain-of-thought
-   * preamble prepended to its system prompt AND the `think`/`analyze` reasoning
-   * tools auto-attached, turning a non-reasoning model into a reason -> act ->
+   * preamble prepended to its system prompt AND the `think` reasoning tool
+   * auto-attached, turning a non-reasoning model into a reason -> act ->
    * observe loop (same model; reuses the existing tool loop). Default `false` —
    * byte-identical behaviour when unset. Inert (with a one-time warn) when a
    * native reasoning model is configured (`model.params: [{ id: "thinking" }]`),
-   * so native and prompt-based reasoning never stack. See {@link ReasoningTools}.
+   * so native and prompt-based reasoning never stack. See `ReasoningTools` in `@theokit/sdk-tools`.
    */
   reasoning?: boolean;
   /**
