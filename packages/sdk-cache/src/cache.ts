@@ -33,7 +33,7 @@ import {
   type PreUserSendContext,
   type PreUserSendResult,
 } from "@theokit/sdk";
-import { PersistenceSchema } from "@theokit/sdk/internal/persistence";
+import { PersistenceSchema } from "@theokit/sdk/persistence";
 import { z } from "zod";
 import { type LookupableStore, performLookup } from "./internal/lookup.js";
 import { InMemoryCacheStore } from "./internal/store.js";

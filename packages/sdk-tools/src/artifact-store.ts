@@ -1,7 +1,6 @@
 import { mkdir, readdir, readFile, stat } from "node:fs/promises";
-
-import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
 import { safeFilenameForId, safePathJoin } from "@theokit/sdk/path-safety";
+import { replaceFileAtomic } from "@theokit/sdk/persistence";
 
 /**
  * Options for {@link createSessionArtifactStore}.

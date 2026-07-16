@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { atomicWriteJson } from "@theokit/sdk/internal/persistence";
+import { atomicWriteJson } from "@theokit/sdk/persistence";
 
 import { memoryDir } from "./markdown-store.js";
 
@@ -17,7 +17,7 @@ import { memoryDir } from "./markdown-store.js";
  * copy for v1.x active-memory back-compat; sdk-memory ships the
  * canonical copy that the future `active-memory.ts` move will compose
  * with as a sibling. Dependency chain (both resolved):
- * - `@theokit/sdk/internal/persistence` for `atomicWriteJson`
+ * - `@theokit/sdk/persistence` for `atomicWriteJson`
  * - sibling `./markdown-store.js` for `memoryDir` (moved iter 56)
  *
  * @internal
