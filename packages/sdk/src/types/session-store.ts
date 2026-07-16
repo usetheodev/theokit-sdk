@@ -22,13 +22,13 @@
  * @public
  */
 
-// `SessionRecord` is the native on-disk record shape. It lives in the internal
-// persistence module (the DAG core); the public seam re-exports it so consumers
-// implementing a `SessionStore` type against the same records the SDK writes.
-// Type-only import — erased at compile, so no runtime import cycle.
-import type { SessionRecord } from "../internal/persistence/session-transcript.js";
+// `SessionRecord` is the native on-disk record shape. It lives in the domain
+// `types/` layer (SE46 DIP direction); the public seam re-exports it so
+// consumers implement a `SessionStore` type against the same records the SDK
+// writes. Type-only import — erased at compile, so no runtime import cycle.
+import type { SessionRecord } from "./session-record.js";
 
-export type { SessionRecord } from "../internal/persistence/session-transcript.js";
+export type { SessionRecord } from "./session-record.js";
 
 /**
  * The pluggable session-store seam. Exactly two methods over the native
