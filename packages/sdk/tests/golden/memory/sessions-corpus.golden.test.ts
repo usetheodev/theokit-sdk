@@ -19,7 +19,7 @@ import {
 import {
   clearAllSessions,
   flushSessionWrites,
-} from "../../../src/internal/runtime/session/agent-session.js";
+} from "../../../src/internal/session/agent-session.js";
 
 /**
  * ADR D20 + EC-3 + EC-9 — corpus="sessions" recall. After every finished run,

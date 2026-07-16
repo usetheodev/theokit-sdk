@@ -5,7 +5,7 @@ import { buildFixtureScript } from "../runtime/fixtures/fixture-responder.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
 import type { MemoryFact } from "../runtime/memory/memory-store.js";
 import { registerRun } from "../runtime/registry/run-registry.js";
-import type { SessionMessage } from "../runtime/session/agent-session.js";
+import type { SessionMessage } from "../session/agent-session.js";
 
 /**
  * Options accepted by `createLocalRun()`.

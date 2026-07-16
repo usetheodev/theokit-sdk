@@ -12,14 +12,14 @@
  * @internal
  */
 
-import type { ConversationStep, ConversationTurn } from "../../../types/conversation.js";
-import type { SessionStore } from "../../../types/session-store.js";
+import type { ConversationStep, ConversationTurn } from "../../types/conversation.js";
+import type { SessionStore } from "../../types/session-store.js";
 import {
   type AssistantTurn,
   reconstructMessages,
   type SessionRecord,
   SessionTranscript,
-} from "../../persistence/session-transcript.js";
+} from "../persistence/session-transcript.js";
 import type { SessionMessage } from "./session-types.js";
 
 /**

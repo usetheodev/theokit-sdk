@@ -1,4 +1,4 @@
-import type { SessionStore } from "../../../types/session-store.js";
+import type { SessionStore } from "../../types/session-store.js";
 import {
   appendCompactBoundaryRecord,
   type PersistTurnInput,

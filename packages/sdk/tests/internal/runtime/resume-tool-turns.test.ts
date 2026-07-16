@@ -13,7 +13,7 @@ import {
   persistTurn,
   readSessionMessages,
   type TranscriptLocation,
-} from "../../../src/internal/runtime/session/agent-session-store.js";
+} from "../../../src/internal/session/agent-session-store.js";
 
 const cwd = "/tmp/resume-proj";
 function loc(agentId: string): TranscriptLocation {

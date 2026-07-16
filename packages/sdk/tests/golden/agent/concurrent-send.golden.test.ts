@@ -13,8 +13,8 @@ import {
   clearAllSessions,
   flushSessionWrites,
   getSessionMessages,
-} from "../../../src/internal/runtime/session/agent-session.js";
-import { readSessionMessages } from "../../../src/internal/runtime/session/agent-session-store.js";
+} from "../../../src/internal/session/agent-session.js";
+import { readSessionMessages } from "../../../src/internal/session/agent-session-store.js";
 
 /**
  * ADR D19 + EC-8 — per-agent send mutex (`agent-send:${agentId}`). Concurrent

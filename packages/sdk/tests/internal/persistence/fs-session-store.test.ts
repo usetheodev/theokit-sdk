@@ -126,7 +126,7 @@ describe("FsSessionStore (SE41 T2 — default reference impl of SessionStore)", 
     };
     // reconstruct-through-read must reject with the store's typed error.
     const { readSessionMessages } = await import(
-      "../../../src/internal/runtime/session/agent-session-store.js"
+      "../../../src/internal/session/agent-session-store.js"
     );
     await expect(readSessionMessages(brokenStore, "agent-x")).rejects.toThrow("db unreachable");
   });
