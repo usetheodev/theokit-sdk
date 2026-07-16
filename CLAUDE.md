@@ -6,9 +6,9 @@ Contract between Claude and the **`@theokit/sdk`** project (the **Harness** pill
 
 ## What this project is
 
-`@theokit/sdk` is the **TypeScript SDK for the Theo agent harness**. It implements the public contract defined in [`./docs.md`](./docs.md) — `Agent.create()`, `Agent.send()`, `Run.stream()`, MCP servers, hooks, subagents — as a standalone TypeScript package.
+`@theokit/sdk` is the **TypeScript SDK for the Theo agent harness**. It exposes `Agent.create()`, `Agent.send()`, `Run.stream()`, MCP servers, hooks, and subagents as a standalone TypeScript package. The exported TypeScript types are the canonical public contract.
 
-The SDK is implemented from scratch against the public contract in `docs.md`, with no runtime dependency on any third-party framework.
+The SDK is implemented from scratch, with no runtime dependency on any third-party framework.
 
 Layout:
 
@@ -16,8 +16,7 @@ Layout:
 theokit-sdk/
 ├── README.md           # Public-facing front door
 ├── CLAUDE.md           # This file
-├── docs.md             # Canonical public API contract (source of truth)
-├── docs/               # Human-friendly documentation (3 files; the code is the docs)
+├── docs/               # Human-friendly documentation (the code is the docs)
 ├── CHANGELOG.md        # Workspace-level changelog (per-package changelogs in each package)
 ├── package.json        # Workspace root (private, pnpm)
 ├── pnpm-workspace.yaml # Workspace member globs
@@ -32,7 +31,7 @@ theokit-sdk/
 │       │   ├── agent.ts         # Agent façade (static class)
 │       │   ├── theokit.ts       # Theokit namespace (static class)
 │       │   ├── errors.ts        # Error class hierarchy
-│       │   ├── types/           # Public type contract from docs.md
+│       │   ├── types/           # Public type contract (canonical source of truth)
 │       │   └── internal/        # Implementation details
 │       └── tests/
 └── .theokit/          # example/local agent config (mcp, hooks, memory)
@@ -42,15 +41,15 @@ The pillar split (UI · Harness · Skills · Runtime) is locked. Do not propose 
 
 ## Source of truth for the public API
 
-[`./docs.md`](./docs.md) is the canonical contract for the public API.
+The **exported TypeScript types** (`packages/sdk/src/types/` → the public barrel `packages/sdk/src/index.ts`) are the canonical contract for the public API. The code is the documentation.
 
-- Any change that affects the public surface (`Agent`, `Run`, `SDKMessage`, `InteractionUpdate`, error types, env vars, config dirs) MUST be reflected in `docs.md` in the same PR.
-- The `README.md` is the front door. It summarizes `docs.md` and points to it for deep reference. It does **not** invent API.
-- If the implementation drifts from `docs.md`, fix the implementation. If the spec is wrong, propose the change in a separate PR with rationale.
+- Any change that affects the public surface (`Agent`, `Run`, `SDKMessage`, `InteractionUpdate`, error types, env vars, config dirs) is defined by the exported types. `docs/harness-capability-map.md` maps every public primitive to its import path and MUST be updated in the same PR when the surface changes.
+- The `README.md` is the front door. It summarizes the public surface and points to the exported types + `docs/` for deep reference. It does **not** invent API.
+- If the README or `docs/` drift from the exported types, fix the docs — the types win.
 
 ## Locked names
 
-Resolved 2026-05-14. Changing any requires updating `docs.md`, `README.md`, and a `CHANGELOG.md` entry in the same PR.
+Resolved 2026-05-14. Changing any requires updating the exported types, `README.md`, and a `CHANGELOG.md` entry in the same PR.
 
 | Item | Value | Notes |
 | --- | --- | --- |
@@ -58,11 +57,11 @@ Resolved 2026-05-14. Changing any requires updating `docs.md`, `README.md`, and 
 | Env var (API key) | `THEOKIT_API_KEY` | All SDK env vars namespace under `THEOKIT_` to leave `THEO_` available for future Theo PaaS tooling. |
 | API namespace object | `Theokit` | E.g. `Theokit.me()`, `Theokit.models.list()`, `Theokit.repositories.list()`. |
 | Error base class | `TheokitAgentError` | All errors extend this. |
-| Local agent ID prefix | `agent-` | Per `docs.md`. |
+| Local agent ID prefix | `agent-` | Drives runtime auto-detection. |
 | Cloud agent ID prefix | `bc-` | Used to auto-detect runtime in `Agent.resume()` / `Agent.get()`. |
 | Project config dir | `.theokit/` | `.theokit/mcp.json`, `.theokit/hooks.json`, `.theokit/agents/*.md`, `.theokit/cron/jobs.json`. |
 | User config dir | `~/.theokit/` | `~/.theokit/mcp.json`, `~/.theokit/hooks.json`. |
-| Pagination cursor field | `nextCursor` | Renamed from the `nextTheo` placeholder in the original `docs.md`. |
+| Pagination cursor field | `nextCursor` | Cursor-based pagination field on list results (`Agent.list`, `Agent.listRuns`). |
 | Top-level API namespaces | `Agent`, `Cron`, `Theokit` | Static classes with private constructors. |
 
 > **Naming note.** The agent itself is "the Theo agent" in prose (matches the locked Theo narrative). The **SDK surface** uses the `Theokit` prefix for consistency with the env var and project name. Two different things — don't collapse them.
@@ -128,7 +127,7 @@ Some dependencies ship native binaries (currently: `better-sqlite3`). Each is co
 
 **Does NOT apply to (stays technical-direct):**
 
-- `docs.md` — the canonical public API contract. Precise, technical, no marketing varnish.
+- The exported types + `docs/` reference (`harness-capability-map.md`, `error-codes.md`) — the canonical public API contract. Precise, technical, no marketing varnish.
 - `README.md` DEEP DIVE layer — everything from `## How it works` downward, including Installation, Authentication, Core concepts, API surfaces (`Agent.create`, `agent.send`, `SDKMessage`), MCP, Cron, Errors, Cloud reference, Configuration reference, Development. Full technical vocabulary is in play.
 - This `CLAUDE.md`, `CHANGELOG.md`, internal design notes, and per-package docs.
 
@@ -188,7 +187,7 @@ pnpm validate                 # everything above plus publint + attw
 
 ## Checklist before changing public API
 
-- [ ] Updated `docs.md` to reflect the new shape (it is the source of truth).
+- [ ] Updated the exported types to reflect the new shape (they are the source of truth) + `docs/harness-capability-map.md` if the surface changed.
 - [ ] Updated `README.md` if the change is user-visible.
 - [ ] Added or updated tests covering the new contract (TDD: regression test first when fixing a bug).
 - [ ] `CHANGELOG.md` entry under `[Unreleased]` in `packages/sdk/CHANGELOG.md` (or root `CHANGELOG.md` for workspace changes).

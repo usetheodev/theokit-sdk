@@ -9,8 +9,7 @@
  * surface a known-spurious "ForkOptions not exported" error from
  * `types/agent.ts` (dynamic-import-type quirk in rollup-plugin-dts).
  *
- * See `docs.md → Security — path traversal + TOCTOU` for the full
- * primitive reference. Public from v1.x.
+ * Path-traversal + TOCTOU-safe primitives. Public from v1.x.
  */
 
 export {

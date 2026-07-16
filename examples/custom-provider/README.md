@@ -18,5 +18,5 @@ What it shows:
 - Pass it to `Agent.create({ plugins: [...] })` and route via the `provider/model`
   id prefix (`groq/llama-3.1-8b-instant`).
 
-See the "Custom providers (`Provider.create`)" section in `docs.md` for the full
-`ProviderProfile` field reference and the supported `apiMode` values.
+See the exported `Provider.create` / `ProviderProfile` types for the full
+field reference and the supported `apiMode` values.

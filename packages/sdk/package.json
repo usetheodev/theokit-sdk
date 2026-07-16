@@ -306,8 +306,7 @@
     "prepublishOnly": "pnpm build && pnpm test:contract",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
-    "docs:json": "typedoc --options typedoc.json",
-    "docs:drift": "tsx scripts/check-docs-drift.ts"
+    "docs:json": "typedoc --options typedoc.json"
   },
   "peerDependencies": {
     "@lancedb/lancedb": "^0.30.0",
