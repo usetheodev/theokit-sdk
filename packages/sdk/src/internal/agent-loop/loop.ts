@@ -1,6 +1,6 @@
 import type { ToolContextMessage } from "../../types/agent-prims.js";
+import { IterationBudget } from "../budget/tracker/budget.js";
 import type { LlmContentPart, LlmMessage, LlmToolCallPart } from "../llm/types.js";
-import { IterationBudget } from "../runtime/budget/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validation/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";
@@ -110,8 +110,12 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
       // #58 — after a completed turn, stop before starting a new one if the run
       // was cancelled mid-round. The first turn always runs (its own abort UX,
       // "[aborted]", is produced inside runIteration); this only prevents a NEW
-      // LLM turn after a cancel lands.
-      if (inputs.signal?.aborted === true) break;
+      // LLM turn after a cancel lands. The terminal status is `"cancelled"` so a
+      // caller can distinguish a cancel from a clean finish (RunStatus contract).
+      if (inputs.signal?.aborted === true) {
+        ctx.finalStatus = "cancelled";
+        break;
+      }
     }
     // M1-2 (T2.2): the loop exited because the iteration budget is exhausted
     // (not via a `done`/`error` break) while the last turn still wanted tools —
@@ -206,11 +210,15 @@ async function emitAssistantTextStep(
   );
 }
 
-function pushToolConversationSteps(
-  ctx: LoopContext,
+/**
+ * Build the ordered `toolCall` (+ paired `toolResult`) steps for a tool-using turn. Shared by the
+ * live `onStep` emission and the `Run.conversation()` accumulation so the two surfaces never drift
+ * (#SE39 — onStep previously emitted `toolCall` but dropped `toolResult`; both now use this).
+ */
+function buildToolSteps(
   calls: LlmToolCallPart[],
   results: LlmContentPart[],
-): void {
+): import("../../types/conversation.js").ConversationStep[] {
   const steps: import("../../types/conversation.js").ConversationStep[] = [];
   for (let i = 0; i < calls.length; i++) {
     const call = calls[i];
@@ -233,6 +241,15 @@ function pushToolConversationSteps(
       });
     }
   }
+  return steps;
+}
+
+function pushToolConversationSteps(
+  ctx: LoopContext,
+  calls: LlmToolCallPart[],
+  results: LlmContentPart[],
+): void {
+  const steps = buildToolSteps(calls, results);
   if (steps.length > 0) {
     ctx.conversation.push({ type: "agentConversationTurn", turn: { steps } });
   }
@@ -395,15 +412,23 @@ export async function continueOrTerminate(
   llmOutput: LlmTurnOutput,
 ): Promise<"continue" | "done" | "error"> {
   if (llmOutput.errored) return "error";
-  if (llmOutput.text.length > 0) {
-    await emitAssistantTextStep(inputs, ctx, llmOutput.text);
+  const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
+  // #65 — apply `transform_llm_output` ONCE, up front, so the transformed text
+  // reaches the user-visible step + finalText + the message history, on final
+  // text turns as well as tool-call turns (previously it ran only in the
+  // tool_use branch and only into message history, never touching what the
+  // caller actually receives).
+  const text =
+    llmOutput.text.length > 0
+      ? await transformLlmOutputText(inputs, llmOutput.text, tCtx)
+      : llmOutput.text;
+  if (text.length > 0) {
+    await emitAssistantTextStep(inputs, ctx, text);
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     return finishOrReflect(inputs, ctx, llmOutput);
   }
-  const tCtx = { agentId: inputs.agentId, runId: inputs.runId };
-  const outText = await transformLlmOutputText(inputs, llmOutput.text, tCtx);
-  ctx.messages.push(buildAssistantTurn(outText, llmOutput.toolCalls));
+  ctx.messages.push(buildAssistantTurn(text, llmOutput.toolCalls));
   const rawResults = await dispatchTools(
     // SE12 — forward a read-only text projection of the transcript-so-far to tool
     // handlers via `ctx.messages` (consumed by defineSubAgent's messageFilter).
@@ -417,18 +442,10 @@ export async function continueOrTerminate(
   ctx.messages.push({ role: "user", content: toolResults });
   if (inputs.onStep !== undefined) {
     const cb = inputs.onStep;
-    for (const call of llmOutput.toolCalls) {
-      await safeCall(
-        () =>
-          cb({
-            step: {
-              type: "toolCall",
-              message: { callId: call.id, name: call.name, args: call.input },
-            },
-          }),
-        undefined,
-        "SendOptions.onStep",
-      );
+    // SE39 — emit toolCall AND the paired toolResult (was toolCall-only: an asymmetry vs the
+    // ConversationStep union + Run.conversation()). Shared builder keeps the two surfaces in lock-step.
+    for (const step of buildToolSteps(llmOutput.toolCalls, toolResults)) {
+      await safeCall(() => cb({ step }), undefined, "SendOptions.onStep");
     }
   }
   pushToolConversationSteps(ctx, llmOutput.toolCalls, toolResults);

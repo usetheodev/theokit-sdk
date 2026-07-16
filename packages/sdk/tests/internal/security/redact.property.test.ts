@@ -12,6 +12,14 @@ import { describe, it } from "vitest";
 
 import { redactSecrets } from "../../../src/internal/security/redact.js";
 
+// issue #117 — pin the fast-check seed so this gate suite is DETERMINISTIC
+// (rules/testing.md § tests MUST be deterministic). The value generators below
+// use `fc.stringMatching` (direct generation) rather than `fc.string().filter()`
+// — a restrictive filter over arbitrary unicode occasionally exhausts fast-check's
+// pre-condition budget and reports a spurious "property failed" unrelated to
+// redaction. `stringMatching` produces only in-class strings, so no filter skips.
+fc.configureGlobal({ seed: 20260715 });
+
 const generators: Array<{ label: string; gen: fc.Arbitrary<string> }> = [
   { label: "sk-ant-", gen: fc.stringMatching(/^sk-ant-[A-Za-z0-9_-]{20,40}$/) },
   { label: "sk-proj-", gen: fc.stringMatching(/^sk-proj-[A-Za-z0-9_-]{20,40}$/) },
@@ -49,7 +57,7 @@ describe("redactSecrets — adversarial property tests (T1.5.1)", () => {
     fc.assert(
       fc.property(
         fc.constantFrom("access_token=", "api_key=", "password:", "x-api-key:"),
-        fc.string({ minLength: 8, maxLength: 80 }).filter((s) => /^[A-Za-z0-9_\-.]+$/.test(s)),
+        fc.stringMatching(/^[A-Za-z0-9_.-]{8,80}$/),
         (prefix, value) => {
           const haystack = `${prefix} ${value}`;
           return !redactSecrets(haystack).includes(value);
@@ -61,14 +69,11 @@ describe("redactSecrets — adversarial property tests (T1.5.1)", () => {
 
   it("BEARER pattern masks Authorization: Bearer <token>", () => {
     fc.assert(
-      fc.property(
-        fc.string({ minLength: 8, maxLength: 80 }).filter((s) => /^[A-Za-z0-9_\-.+/=]+$/.test(s)),
-        (token) => {
-          const haystack = `Authorization: Bearer ${token}`;
-          const out = redactSecrets(haystack);
-          return !out.includes(token);
-        },
-      ),
+      fc.property(fc.stringMatching(/^[A-Za-z0-9_.\-+/=]{8,80}$/), (token) => {
+        const haystack = `Authorization: Bearer ${token}`;
+        const out = redactSecrets(haystack);
+        return !out.includes(token);
+      }),
       { numRuns: 200 },
     );
   });

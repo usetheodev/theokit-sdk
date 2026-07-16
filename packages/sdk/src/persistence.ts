@@ -21,9 +21,14 @@ export {
   atomicWriteText,
   replaceFileAtomic,
 } from "./internal/persistence/atomic-write.js";
+// SE43 DoD#2 — shared kernel primitives consumed by published satellites
+// (sdk-cache / sdk-memory / sdk-tools), promoted from the `internal`-named export
+// to this sanctioned public barrel (final_report.md § MEDIUM — internal/persistence).
+export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // Cross-process advisory file lock.
 export type { FileLockOptions } from "./internal/persistence/file-lock.js";
 export { withFileLock } from "./internal/persistence/file-lock.js";
+export { sanitizeFts5Query } from "./internal/persistence/fts5-sanitize.js";
 // JSONL persist / resume (durable, crash-safe batch runners).
 export {
   appendJsonl,
@@ -31,6 +36,16 @@ export {
   loadJsonl,
   readJsonlIds,
 } from "./internal/persistence/jsonl.js";
+export { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
+// SE40 — native session transcript (Claude-shaped `.jsonl`, theokit-native). The
+// on-disk session format IS this shape. `encodeProjectDir` + `transcriptPath` are
+// the path helpers a consumer reuses to locate a session file under
+// `<baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl`. Supersedes the SE39
+// read-only `ClaudeCodeTranscriptWriter` (removed in v4.0).
+export {
+  encodeProjectDir,
+  transcriptPath,
+} from "./internal/persistence/session-transcript.js";
 
 // Resilient SQLite bootstrap (corruption recovery) + WAL/FK setup.
 export type {

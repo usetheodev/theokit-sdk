@@ -1,18 +1,18 @@
 /**
- * T4.1 — end-to-end wiring proof: a real `defineTool({ sanitize })` custom tool fed loose,
+ * T4.1 — end-to-end wiring proof: a real `Tool.create({ sanitize })` custom tool fed loose,
  * model-shaped args (leading newlines + string-encoded number) delivers clean, typed input to the
- * handler. Exercises the public primitive (`@theokit/sdk/sanitize`) + the `defineTool` opt-in +
+ * handler. Exercises the public primitive (`@theokit/sdk/sanitize`) + the `Tool` opt-in +
  * schema-aware coercion together, the way an SDK consumer would use it.
  */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineTool } from "../../src/define-tool.js";
+import { Tool } from "../../src/define-tool.js";
 import { sanitizeToolInput } from "../../src/sanitize/index.js";
 
 describe("sanitize — end-to-end", () => {
   it("test_end_to_end_defineTool_sanitize", async () => {
     let received: unknown;
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "read_lines",
       description: "read N lines from a file",
       inputSchema: z.object({ path: z.string(), n: z.number() }),

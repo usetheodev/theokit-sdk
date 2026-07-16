@@ -7,12 +7,12 @@
  * the Anthropic `SDKMessage`-union approach (rate-limit, permission-denied, task
  * lifecycle, compaction boundary).
  *
- * The union is the forward-compatible CONTRACT (discriminate exhaustively). As of
- * SE2 the runtime EMITS `tool_progress` and `permission_denied` end-to-end (from
- * the agent-loop tool-dispatch seam). `rate_limit`, `task_*`, and `compact_boundary`
- * are part of the contract; their emission is wired incrementally as the sink is
- * threaded into the LLM-client retry / task / session-compaction subsystems (they
- * live below the loop). A consumer switching on `type` is future-proof either way.
+ * The union is the forward-compatible CONTRACT (discriminate exhaustively). The
+ * runtime EMITS every variant end-to-end: `tool_progress` + `permission_denied`
+ * (agent-loop tool-dispatch seam), `rate_limit` (pool-aware LLM client 429 retry),
+ * `compact_boundary` (session auto-compaction), and `task_*` (opt-in bridge from a
+ * `Task.submit({ onRunEvent })` task's lifecycle). A consumer switching on `type`
+ * sees the real signal.
  *
  * @public
  */
@@ -24,7 +24,8 @@ export type RunEvent =
   | RunTaskUpdatedEvent
   | RunTaskCompletedEvent
   | RunCompactBoundaryEvent
-  | RunTripwireEvent;
+  | RunTripwireEvent
+  | RunCompletionCheckEvent;
 
 /**
  * SE24 — a guardrail processor called `abort()`; the run stops with a tripwire.
@@ -87,6 +88,18 @@ export interface RunTaskCompletedEvent {
   readonly type: "task_completed";
   readonly taskId: string;
   readonly status: "completed" | "failed" | "stopped";
+}
+
+/**
+ * SE34 — the per-send completion check (`isTaskComplete`) produced a verdict.
+ * Emitted once, after a finished run's reply is judged against
+ * {@link SendOptions.completionCheck}. Distinct from `task_completed` (which is
+ * background-task/subagent lifecycle). Mirrors {@link RunResult.completionCheck}.
+ */
+export interface RunCompletionCheckEvent {
+  readonly type: "completion_check";
+  readonly complete: boolean;
+  readonly reason: string;
 }
 
 /** The conversation crossed a compaction boundary (history was summarized). */

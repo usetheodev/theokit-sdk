@@ -38,6 +38,12 @@ export interface PoolResilienceOptions {
   breaker?: CircuitBreaker;
   backoffBaseMs?: number;
   rng?: () => number;
+  /**
+   * SE2 — invoked right before a 429 same-key retry backs off, so the runtime can
+   * surface a `rate_limit` RunEvent. `attempt` is 1-based; `retryAfterMs` is the
+   * backoff about to be waited. Best-effort observer — must not throw.
+   */
+  onRateLimit?: (info: { attempt: number; retryAfterMs?: number }) => void;
 }
 
 /** Decision returned by `classifyAndDecide`. */
@@ -77,7 +83,10 @@ export class PoolAwareLlmClient implements LlmClient {
     this.breaker = resilience.breaker ?? new CircuitBreaker();
     this.backoffBaseMs = resilience.backoffBaseMs;
     this.rng = resilience.rng;
+    this.onRateLimit = resilience.onRateLimit;
   }
+
+  private readonly onRateLimit?: (info: { attempt: number; retryAfterMs?: number }) => void;
 
   /** M2 #60 — provider-level circuit breaker (consecutive-failure). */
   private readonly breaker: CircuitBreaker;
@@ -148,17 +157,21 @@ export class PoolAwareLlmClient implements LlmClient {
         // D126: first 429 retries the same key. Don't mark exhausted yet.
         // M2 #60 — back off with full jitter before re-hitting the SAME key,
         // so a shared-quota thundering herd no longer burns the retry in <1ms
-        // (AWS Brooker 2015). We use full jitter (not the provider's possibly
-        // long Retry-After) here because the retry-after cooldown is honored
-        // on the ROTATE path below; a same-key retry should be brief.
-        await sleepWithAbort(
-          computeBackoffMs({
-            attempt: 0,
-            ...(this.backoffBaseMs !== undefined ? { baseMs: this.backoffBaseMs } : {}),
-            ...(this.rng !== undefined ? { rng: this.rng } : {}),
-          }),
-          signal,
-        );
+        // (AWS Brooker 2015). We deliberately do NOT sleep the provider's
+        // `Retry-After` here: for a multi-key pool the right move on a 429 is to
+        // fail this brief retry and ROTATE to a fresh key immediately (waiting
+        // would defeat the pool). `Retry-After` IS honored at the pool-selection
+        // level — the rotate path below sets the key's `resetAtMs` cooldown, so
+        // subsequent selection skips a rate-limited key until its window passes
+        // (a single-key pool then fails fast with CredentialPoolExhaustedError).
+        const backoffMs = computeBackoffMs({
+          attempt: 0,
+          ...(this.backoffBaseMs !== undefined ? { baseMs: this.backoffBaseMs } : {}),
+          ...(this.rng !== undefined ? { rng: this.rng } : {}),
+        });
+        // SE2 — surface a `rate_limit` RunEvent for the retry that is about to back off.
+        this.onRateLimit?.({ attempt: 1, retryAfterMs: backoffMs });
+        await sleepWithAbort(backoffMs, signal);
         hasRetried429 = true;
         continue;
       }

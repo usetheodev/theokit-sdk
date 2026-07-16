@@ -1,5 +1,53 @@
 # Changelog
 
+## 0.11.1
+
+### Patch Changes
+
+- 453ad2d: SE43 — system-design audit fixes (public-surface changes).
+
+  - **`@theokit/sdk` (minor):** the shared persistence kernel is now reachable from the sanctioned public `@theokit/sdk/persistence` barrel — `withCwdMutex`, `sanitizeFts5Query`, and `PersistenceSchema` are added (joining `replaceFileAtomic` / `openSqliteResilient` / `atomicWriteText` / `atomicWriteJson`). The `@theokit/sdk/internal/persistence` export is now **deprecated**: it re-exports its full surface unchanged for one release (back-compat) and is scheduled for removal in a future major. No breaking change; existing imports keep working.
+  - **Satellites (patch):** `sdk-tools` / `sdk-memory` / `sdk-cache` / `sdk-handoff` / `sdk-budget` tightened their `@theokit/sdk` peer-range floor from `>=1.7.0` to `>=4.0.0`, matching the v4-only surfaces they import (prevents a non-workspace install resolving an incompatible old sdk).
+
+## 0.11.0
+
+### Minor Changes
+
+- SE38 (#119) — `createTodolistTool()` is now session-aware: it scopes its items by the
+  run's `ctx.threadId`, so one tool object served to many sessions from a single process
+  (the multi-tenant server shape) no longer leaks one session's list into another. When no
+  `threadId` is present (single-session CLI usage) every call shares one default session, so
+  existing behavior is unchanged. `handler` accepts an optional 2nd `ctx` argument and
+  `getItems(threadId?)` is session-scoped — both additive/back-compatible.
+
+## 0.10.0
+
+### Minor Changes
+
+- 2606c98: SE37 — Reasoning ergonomics. Ships `ReasoningTools.create()` (`think`/`analyze` scratchpad tools, from `@theokit/sdk` core, re-exported by `@theokit/sdk-tools`) and a lightweight `AgentOptions.reasoning?: boolean` flag. When `reasoning: true`, the agent gets a chain-of-thought preamble prepended to its system prompt AND the reasoning tools auto-attached, turning a non-reasoning model into a reason→act→observe loop using the SAME model (reuses the existing tool loop; no new runtime). Inert (with a one-time warn) when a native reasoning model is configured (`model.params: [{ id: "thinking" }]`) — native reasoning wins, no double-reasoning. Default off; byte-identical behaviour when unset. Validated REAL on OpenRouter: `reasoning: true` drove the `think` tool and answered the "9.11 vs 9.9" trap correctly (9.9).
+
+## 0.9.1
+
+### Patch Changes
+
+- 9dc221b: SE31 gap closure — wire the read-side file factories to the optional `filesystem` backend. `createReadFileTool` and `createListDirTool` now accept the same optional `filesystem` provider as `createWriteFileTool`, so a per-request / multi-tenant root isolates READS and LISTINGS too (previously only writes routed through the backend). Omitted ⇒ identical current behavior (local process fs). `createGlobTool` / `createSearchTextTool` remain on local fs in v1 — they need recursive traversal the minimal non-recursive `FilesystemBackend` seam does not expose (deferred follow-up).
+
+## 0.9.0
+
+### Minor Changes
+
+- 3af329f: **SE31 — `Filesystem` provider seam (`@theokit/sdk/filesystem`).**
+
+  A pluggable filesystem _storage_ provider, the storage-side twin of `@theokit/sdk/sandbox`. `FilesystemBackend` is an abstract class with four methods (`readFile` / `writeFile` / `stat` / `list`), an `exists()` derived on the base, a boundary `basePath`, a `readOnly` flag, structured `stat().mtimeMs` (the read-before-write oracle for SE32), and typed errors (`FileNotFoundError` / `FilesystemSecurityError` / `FilesystemReadOnlyError` / `StaleFileError`). `LocalFilesystem` is the local-process implementation, boundary-enforced by reusing the core path-guard (traversal + symlink escape → `FilesystemSecurityError`). `FilesystemProvider` + `resolveFilesystem` support a per-request resolver `(ctx) => FilesystemBackend` for multi-tenant roots.
+
+  Unlike `SandboxBackend` (whose file ops shell out via `execute`, require command execution, and give no structured `stat`), a `FilesystemBackend` serves a filesystem-only workspace with no sandbox — see ADR 0011 for why file ops are NOT routed through `SandboxBackend`. `@theokit/sdk-tools`' `createWriteFileTool` now accepts an optional `filesystem` backend (writes route through it; omitted ⇒ identical local-`projectRoot` behavior). This is the backend seam, NOT a bundled `Workspace` and NOT a new toolset — bring-your-own-tools stands; `mounts`/FUSE, S3/GCS, and LSP remain out of core. (SDK Evolution roadmap SE31.)
+
+- 84df83a: **SE32 — read-before-write safety (`requireReadBeforeWrite` + `ReadTracker`).**
+
+  An opt-in guard on `createWriteFileTool` that refuses to blindly overwrite a file the agent has not seen. A per-run `ReadTracker` (exported from `@theokit/sdk-tools`) records each file's mtime when `createReadFileTool` reads it; when `createWriteFileTool` is created with `{ requireReadBeforeWrite: true, readTracker }`, a write is refused with `read_required` if the existing file was never read, or `stale_file` if it changed on disk since it was read. A NEW file writes freely (nothing to clobber). Default OFF — omitting the flag preserves current behavior exactly.
+
+  Works on both the local `projectRoot` path and the SE31 `filesystem` backend path (the backend also gets `expectedMtime` forwarded so it re-checks at write time — TOCTOU defense). The tracker is deliberately per-instance, not a global singleton, so state never leaks across runs. `edit_file` already has implicit read-before-write safety via `old_string` content matching, so the guard targets the blind-overwrite path (`write_file`). Refusals surface as `FileReadRequiredError` / `StaleFileError`. (SDK Evolution roadmap SE32.)
+
 ## 0.8.0
 
 ### Minor Changes

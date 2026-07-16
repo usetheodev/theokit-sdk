@@ -27,14 +27,13 @@
  */
 
 import {
-  definePlugin,
-  type Plugin,
+  Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
   type PreUserSendContext,
   type PreUserSendResult,
 } from "@theokit/sdk";
-import { PersistenceSchema } from "@theokit/sdk/internal/persistence";
+import { PersistenceSchema } from "@theokit/sdk/persistence";
 import { z } from "zod";
 import { type LookupableStore, performLookup } from "./internal/lookup.js";
 import { InMemoryCacheStore } from "./internal/store.js";
@@ -107,7 +106,7 @@ export class Cache {
   asPlugin(): Plugin {
     if (this._plugin !== undefined) return this._plugin;
     const cache = this;
-    this._plugin = definePlugin({
+    this._plugin = Plugin.create({
       name: `cache-semantic-${this.namespace}`,
       version: "1.0.0",
       kind: "general" as const,

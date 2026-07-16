@@ -43,7 +43,7 @@ const SINK_PATTERNS: Sink[] = [
  * - `internal/telemetry/tracer.ts` — wraps `setAttribute(s)` via
  *   `redactAttrValue`/`redactAttrs` helpers in the wrapSpan closure;
  *   pattern matcher sees raw `setAttribute(` calls inside the wrapper.
- * - `internal/runtime/session/agent-session-store.ts` — appendFile already
+ * - `internal/session/agent-session-store.ts` — appendFile already
  *   wraps payload with `redactSecrets(JSON.stringify(record))`.
  * - `internal/memory/migrate-sqlite-to-lance.ts` — logger wrap is at
  *   module top.
@@ -99,7 +99,7 @@ const WHITELIST = new Set<string>([
   "internal/security/redact.ts",
   "internal/error-mappers/shared.ts",
   "internal/telemetry/tracer.ts",
-  "internal/runtime/session/agent-session-store.ts",
+  "internal/session/agent-session-store.ts",
   "internal/memory/migrate-sqlite-to-lance.ts",
   "internal/persistence/atomic-write.ts",
   "internal/persistence/jsonl.ts",
@@ -125,7 +125,7 @@ const WHITELIST = new Set<string>([
   // returns OTel-wrapped spans; redaction is handled at the agent-loop tracer
   // wrapper level (ADRs D206/D220/D241/D262 — shared loader extracted from
   // those four telemetry modules to remove duplicate clones).
-  "internal/observability/tracer-loader.ts",
+  "internal/telemetry/tracer-loader.ts",
   // `span.setAttributes(...)` on OTel tracer-wrapped spans in the active
   // memory module — same rationale as agent-loop/loop.ts (redacted via
   // `wrapSpan` in telemetry/tracer.ts).
@@ -145,6 +145,14 @@ const WHITELIST = new Set<string>([
   // error handler for derived ops (readFile, writeFile, etc.). The error
   // message originates from the sandbox process itself, not user payload.
   "sandbox/types.ts",
+  // SE31 FilesystemBackend seam: the `writeFile(...)` matches are the backend's
+  // own METHOD name (contract mirroring node:fs + a peer framework), not a logging sink.
+  // The actual `fsWriteFile` call is an aliased `node:fs/promises` import that
+  // persists caller-provided content to a caller-specified path — a storage
+  // primitive (same rationale as internal/persistence/atomic-write.ts), not an
+  // output sink that could leak secrets.
+  "filesystem/types.ts",
+  "filesystem/local-filesystem.ts",
 ]);
 
 interface Offender {

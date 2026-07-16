@@ -46,10 +46,11 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | Layer | `@theokit/sdk` | Closed-runtime alternatives |
 | --- | --- | --- |
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
-| Local agent harness | **Apache-2.0** via [`pi/`](./referencia/runtime) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
+| Local agent harness | **Apache-2.0** (informed by [`the local runtime`](the open local runtime)) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
 | LLM provider | Multi-provider via `the-provider-layer` (Anthropic, OpenAI, Google, …) | Usually single-vendor |
+| Session format | **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
-| Walk-away cost | Zero — fork `pi/`, keep running with your own provider keys | High — runtime is the vendor's |
+| Walk-away cost | Zero — fork the local runtime, keep running with your own provider keys | High — runtime is the vendor's |
 
 Most agent SDKs ship open; most agent runtimes don't. This one does — end to end.
 
@@ -120,7 +121,7 @@ Add a cron job that summarizes incidents every morning at 9 AM
 Set up a Slack gateway for my support agent
 ```
 
-The assistant knows: `Agent.create`, `defineTool`, `Memory`, `@Injectable`, all 15 decorators, 10 gateways, RAG pipeline, workflows, subscriptions, error handling, configuration, and budget tracking.
+The assistant knows: `Agent.create`, `Tool.create`, `Memory`, `@Injectable`, all 15 decorators, 10 gateways, RAG pipeline, workflows, subscriptions, error handling, configuration, and budget tracking.
 
 **4. Customize (optional)**
 
@@ -406,6 +407,8 @@ await run.wait();
 ```
 
 `agent.model` is `undefined` on resume unless you pass `model` again. Inline `mcpServers` are not persisted across resume — they often carry secrets and live in memory only. Pass them again on resume, or commit them to `.theokit/mcp.json`.
+
+The conversation is persisted as a native Claude Code `.jsonl` transcript at `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `baseDir` defaults to `~/.theokit`; set `local.baseDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see [`docs.md`](./docs.md) § Session persistence and issue #122).
 
 ## Inspecting agents and runs
 
@@ -723,20 +726,22 @@ Cross-pillar wiring status: Skills↔Harness and UI↔Harness are validated agai
 current Harness (plugins build + test green vs SDK 2.18.0; the `useAgentStream` mapper
 renders a real `Run.stream()`); Runtime↔Harness is contract-only until PaaS ships.
 
-The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). Study peers (a fork of [`the-open-runtime`](the open local runtime), the OpenAI Agents Python SDK, and others) are cloned on demand under `.claude/knowledge-base/reference/` (read-only, gitignored) — they informed the design but are never a runtime dependency.
+The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). Study peers (a fork of [`the-open-runtime`](the open local runtime), the a peer SDK, and others) are cloned on demand under `.claude/knowledge-base/reference/` (read-only, gitignored) — they informed the design but are never a runtime dependency.
 
 ## Documentation
 
-The human-friendly docs live in [`docs/`](./docs/). Start with:
+The code is the documentation: the API is self-describing and `docs.md` is the canonical contract. Start with:
 
-- [Getting started](./docs/getting-started/quickstart.md) — quickstart, installation, authentication
-- [Concepts](./docs/concepts/agent-and-run.md) — Agent, Run, runtimes, stream events
-- [Guides](./docs/guides/cron-jobs.md) — cron jobs, MCP, subagents, hooks, error handling
-- [Development guide](./docs/development/setup.md) — for contributors to the SDK itself
+- [`docs.md`](./docs.md) — the canonical, machine-readable API contract (source of truth for every public subpath)
+- [`examples/`](./examples/) — runnable end-to-end examples for every surface
+- [Capability map](./docs/harness-capability-map.md) — every public primitive + its import path
+- [Error codes](./docs/error-codes.md) — the `AgentRunError.code` reference table
 
 The canonical machine-readable contract is at [`docs.md`](./docs.md).
 
 ## Development
+
+New contributor? Start with [`CONTRIBUTING.md`](./CONTRIBUTING.md) — branch model, commit rules, and the PR checklist.
 
 This monorepo uses **pnpm workspaces**, **Biome 2.4**, **tsup 8**, **Vitest 3**, **TypeScript 5.8+**, and **Changesets**. Node 22.12+ required (use `nvm use` to pick it up from `.nvmrc`).
 
@@ -753,7 +758,7 @@ pnpm check                    # biome lint + format
 pnpm validate                 # everything above plus publint + attw
 ```
 
-Reference projects under `referencia/` (notably `pi/` and `a peer SDK/`) are study material — read them for design inspiration, but never `npm install`, `pip install`, or edit them.
+Reference projects (notably `the local runtime` and `a peer SDK`) are study material, **cloned on demand** under `.claude/knowledge-base/reference/` (gitignored) — read them for design inspiration, but never `npm install`, `pip install`, edit, or import them.
 
 ## License
 

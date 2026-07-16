@@ -1,14 +1,14 @@
 /**
- * Tests for plugin types + definePlugin (T1.1, ADR D98).
+ * Tests for plugin types + Plugin (T1.1, ADR D98).
  */
 
 import { describe, expect, it } from "vitest";
 
-import { definePlugin, type Plugin } from "../../../src/internal/plugins/types.js";
+import { Plugin } from "../../../src/internal/plugins/types.js";
 
-describe("definePlugin (T1.1)", () => {
+describe("Plugin (T1.1)", () => {
   it("round-trips general kind", () => {
-    const p = definePlugin({
+    const p = Plugin.create({
       name: "p",
       version: "1.0.0",
       kind: "general",
@@ -19,7 +19,7 @@ describe("definePlugin (T1.1)", () => {
   });
 
   it("typed model-provider shape", () => {
-    const p = definePlugin({
+    const p = Plugin.create({
       name: "anthropic-plugin",
       version: "1.0.0",
       kind: "model-provider",
@@ -39,7 +39,7 @@ describe("definePlugin (T1.1)", () => {
   });
 
   it("typed memory shape", () => {
-    const p = definePlugin({
+    const p = Plugin.create({
       name: "lance",
       version: "1.0.0",
       kind: "memory",
@@ -63,14 +63,14 @@ describe("definePlugin (T1.1)", () => {
     expect(p.kind).toBe("memory");
   });
 
-  it("definePlugin is identity (no runtime transform)", () => {
+  it("Plugin is identity (no runtime transform)", () => {
     const input: Plugin = {
       name: "p",
       version: "1.0.0",
       kind: "general",
       register: () => {},
     };
-    const out = definePlugin(input);
+    const out = Plugin.create(input);
     expect(out).toBe(input);
   });
 });

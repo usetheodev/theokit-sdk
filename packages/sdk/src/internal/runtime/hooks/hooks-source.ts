@@ -1,13 +1,16 @@
 /**
- * Single source of truth for loading the hooks config (T1.2, ADR D77).
+ * Single source of truth for loading the hooks config (ADR 0016 — reverses
+ * D74/D77 for hooks: JSON is canonical again, in the Claude Code shape).
  *
- * Detection order:
- *   1. `.theokit/hooks/*.md` (markdown, frontmatter-validated) — canonical.
- *   2. `.theokit/hooks.json` — legacy. Emits one-time deprecation warn.
- *   3. Neither → empty config (no hooks).
+ * `.theokit/hooks.json` (Claude-Code-shaped JSON) is the only supported form.
+ * A stray legacy `.theokit/hooks/*.md` dir (no hooks.json) is NOT loaded — it
+ * warns to migrate and yields no hooks. Absent both → empty config.
  *
- * Consumed by `hooks-loader.ts` (boot-time validation) and
- * `hooks-executor.ts` (runtime dispatch).
+ * Consumed by `hooks-executor.ts` (runtime dispatch).
+ *
+ * Config shape (identical to Claude Code's `settings.json` hooks):
+ *   { "hooks": { "PreToolUse": [ { "matcher": "shell",
+ *       "hooks": [ { "type": "command", "command": "…", "timeout": 30 } ] } ] } }
  *
  * @internal
  */
@@ -16,13 +19,23 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import type { z } from "zod";
-
 import { ConfigurationError } from "../../../errors.js";
-import { loadMarkdownEntities } from "../../persistence/markdown-config-loader.js";
-import { HookFrontmatterSchema } from "./hooks-frontmatter.js";
 
+/** The five lifecycle events the SDK runtime actually fires. */
 export type HookEvent = "preRun" | "postRun" | "preToolUse" | "postToolUse" | "stop";
+
+/**
+ * Claude Code event name → the SDK firing event. Only events the runtime
+ * genuinely emits are mapped; a Claude Code event with no SDK firing point
+ * (SessionStart / SubagentStop / PreCompact / Notification / SessionEnd) is
+ * skipped with a warn rather than silently accepted (it would never run).
+ */
+const CLAUDE_CODE_EVENT_MAP: Readonly<Record<string, HookEvent>> = {
+  PreToolUse: "preToolUse",
+  PostToolUse: "postToolUse",
+  UserPromptSubmit: "preRun",
+  Stop: "stop",
+};
 
 export interface HookCommand {
   command: string;
@@ -58,39 +71,24 @@ export function _resetWarnOnceForTests(): void {
 }
 
 /**
- * Load hooks from `.theokit/hooks/*.md` (preferred) or `.theokit/hooks.json`
- * (legacy fallback).
+ * Load hooks from `.theokit/hooks.json` (Claude-Code-shaped — the only supported
+ * form). A stray legacy `.theokit/hooks/*.md` markdown dir (no `hooks.json`) is
+ * NOT loaded — it emits a one-time migration warn and yields no hooks.
  *
  * @internal
  */
 export async function loadHookConfig(cwd: string): Promise<HookConfig> {
-  const mdDir = join(cwd, ".theokit", "hooks");
   const jsonPath = join(cwd, ".theokit", "hooks.json");
 
-  const mdEntities = await loadMarkdownEntities({
-    dir: mdDir,
-    schema: HookFrontmatterSchema,
-    pattern: "flat",
-    errorCodePrefix: "hook",
-  });
-
-  if (mdEntities.length > 0) {
-    if (existsSync(jsonPath)) {
+  if (!existsSync(jsonPath)) {
+    if (existsSync(join(cwd, ".theokit", "hooks"))) {
       warnOnce(
-        "hooks-both-present",
-        "[theokit-sdk] both .theokit/hooks/ and .theokit/hooks.json detected — using markdown; remove hooks.json",
+        "hooks-md-unsupported",
+        "[theokit-sdk] .theokit/hooks/*.md hooks are no longer supported (ADR 0016) — migrate to a Claude-Code-shaped .theokit/hooks.json",
       );
     }
-    return buildConfigFromMarkdown(mdEntities);
+    return {};
   }
-
-  // Fallback: JSON
-  if (!existsSync(jsonPath)) return {};
-
-  warnOnce(
-    "hooks-json-deprecated",
-    "[theokit-sdk] .theokit/hooks.json is deprecated; migrate to .theokit/hooks/<name>.md via theokit-migrate-config",
-  );
 
   let raw: string;
   try {
@@ -101,44 +99,100 @@ export async function loadHookConfig(cwd: string): Promise<HookConfig> {
       cause,
     });
   }
+  let parsed: unknown;
   try {
-    return JSON.parse(raw) as HookConfig;
+    parsed = JSON.parse(raw);
   } catch (cause) {
     throw new ConfigurationError(`Invalid JSON in hooks config: ${jsonPath}`, {
       code: "hooks_json_invalid",
       cause,
     });
   }
+  return parseClaudeCodeConfig(parsed, jsonPath);
 }
 
-// `z.input` matches what `loadMarkdownEntities` actually returns — Zod's
-// `ZodType<T>` is variant on INPUT, so the generic T resolves to the pre-default
-// shape (`enabled?: boolean | undefined`). `buildConfigFromMarkdown` already
-// handles `?? 0` for priority and `=== false` for enabled, so the loose shape
-// is the right contract here.
-type HookEntities = Awaited<
-  ReturnType<typeof loadMarkdownEntities<z.input<typeof HookFrontmatterSchema>>>
->;
+/** Narrow an unknown to a record, or throw a typed config error. */
+function asRecord(value: unknown, path: string, where: string): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new ConfigurationError(`hooks: expected an object at ${where} in ${path}`, {
+      code: "hooks_json_invalid",
+    });
+  }
+  return value as Record<string, unknown>;
+}
 
-function buildConfigFromMarkdown(entities: HookEntities): HookConfig {
+/** Narrow an unknown to an array, or throw a typed config error. */
+function asArray(value: unknown, path: string, where: string): unknown[] {
+  if (!Array.isArray(value)) {
+    throw new ConfigurationError(`hooks: expected an array at ${where} in ${path}`, {
+      code: "hooks_json_invalid",
+    });
+  }
+  return value;
+}
+
+/**
+ * Parse Claude Code's nested hooks config into the SDK's flat internal shape:
+ * `{ hooks: { PreToolUse: [{ matcher?, hooks: [{ type:"command", command, timeout? }] }] } }`
+ * → `{ hooks: { preToolUse: [{ command, matcher?, timeoutMs? }] } }`. Each group's
+ * `matcher` applies to every command it wraps; `timeout` (seconds) → `timeoutMs`.
+ */
+function parseClaudeCodeConfig(raw: unknown, path: string): HookConfig {
+  const root = asRecord(raw, path, "the root");
+  if (root.hooks === undefined) return {};
+  const hooksRec = asRecord(root.hooks, path, `"hooks"`);
   const grouped: Partial<Record<HookEvent, HookCommand[]>> = {};
-  // Sort by priority asc so lower priority runs first when grouped.
-  const sorted = [...entities].sort(
-    (a, b) => (a.frontmatter.priority ?? 0) - (b.frontmatter.priority ?? 0),
-  );
-  for (const entity of sorted) {
-    if (entity.frontmatter.enabled === false) continue;
-    const event = entity.frontmatter.event as HookEvent;
-    const list = grouped[event] ?? [];
-    const command: HookCommand = {
-      command: entity.frontmatter.command,
-      matcher: entity.frontmatter.matcher,
-    };
-    if (entity.frontmatter.timeoutMs !== undefined) {
-      command.timeoutMs = entity.frontmatter.timeoutMs;
+
+  for (const [ccEvent, groups] of Object.entries(hooksRec)) {
+    const event = CLAUDE_CODE_EVENT_MAP[ccEvent];
+    if (event === undefined) {
+      warnOnce(
+        `hooks-event-${ccEvent}`,
+        `[theokit-sdk] hooks: event "${ccEvent}" is not fired by the SDK runtime (supported: ${Object.keys(CLAUDE_CODE_EVENT_MAP).join(", ")}) — skipping`,
+      );
+      continue;
     }
-    list.push(command);
-    grouped[event] = list;
+    grouped[event] = [...(grouped[event] ?? []), ...flattenEventGroups(groups, path, ccEvent)];
   }
   return { hooks: grouped };
+}
+
+/** Flatten one Claude Code event's matcher-groups into internal HookCommands. */
+function flattenEventGroups(groups: unknown, path: string, ccEvent: string): HookCommand[] {
+  const commands: HookCommand[] = [];
+  for (const rawGroup of asArray(groups, path, `hooks.${ccEvent}`)) {
+    const group = asRecord(rawGroup, path, `hooks.${ccEvent}[]`);
+    const matcher = group.matcher === undefined ? undefined : String(group.matcher);
+    for (const rawCmd of asArray(group.hooks, path, `hooks.${ccEvent}[].hooks`)) {
+      commands.push(parseClaudeCodeCommand(rawCmd, matcher, path, ccEvent));
+    }
+  }
+  return commands;
+}
+
+/** One `{ type:"command", command, timeout? }` entry → an internal HookCommand. */
+function parseClaudeCodeCommand(
+  raw: unknown,
+  matcher: string | undefined,
+  path: string,
+  ccEvent: string,
+): HookCommand {
+  const cmd = asRecord(raw, path, `hooks.${ccEvent}[].hooks[]`);
+  if (cmd.type !== "command") {
+    throw new ConfigurationError(
+      `hooks: only { "type": "command" } is supported (got ${JSON.stringify(cmd.type)}) in ${path}`,
+      { code: "hooks_unsupported_type" },
+    );
+  }
+  if (typeof cmd.command !== "string" || cmd.command.length === 0) {
+    throw new ConfigurationError(`hooks: "command" must be a non-empty string in ${path}`, {
+      code: "hooks_invalid_command",
+    });
+  }
+  const hc: HookCommand = { command: cmd.command };
+  if (matcher !== undefined) hc.matcher = matcher;
+  if (typeof cmd.timeout === "number" && cmd.timeout > 0) {
+    hc.timeoutMs = Math.round(cmd.timeout * 1000);
+  }
+  return hc;
 }

@@ -26,6 +26,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 
 import { InvalidTaskIdError } from "../../errors.js";
+import { emitRunEvent } from "../../types/run-events.js";
 import {
   isValidTaskId,
   type TaskCancelResult,
@@ -40,6 +41,7 @@ import { type AsyncSemaphore, createSemaphore } from "../runtime/concurrency/asy
 import { RingBuffer } from "./ring-buffer.js";
 import { getTaskStoreFor, InMemoryTaskStore, type TaskStore } from "./store.js";
 import { buildSubscribe } from "./subscribe.js";
+import { taskEventToRunEvent } from "./task-run-event-bridge.js";
 import { startTaskCancelSpan, startTaskSubmitSpan, startTaskTransitionSpan } from "./telemetry.js";
 
 const DEFAULT_CONCURRENCY = 8;
@@ -96,12 +98,6 @@ export function __resetTaskRegistryForTests(): void {
 
 export function __getSubscribersCountForTests(taskId: string): number {
   return state.subscribers.get(taskId)?.size ?? 0;
-}
-
-export function __getCancelRequestedForTests(_taskId: string): boolean | undefined {
-  // Best-effort: only meaningful for backends that persist the flag.
-  // For in-memory check via store read.
-  return undefined;
 }
 
 export function configure(opts: TaskRegistryOptions): void {
@@ -179,17 +175,6 @@ function buildSubmittedEvent(handle: TaskHandle): TaskEvent {
   };
 }
 
-function _resolveId(rawId: string | undefined, kind: TaskKind): string {
-  if (rawId === undefined) return randomUUID();
-  const allowReserved = kind !== "custom" && kind !== "run";
-  // For "run" we want to allow user-supplied IDs only — adapter wrapping
-  // happens via batch/workflow/cron, which pass their own prefixed IDs.
-  if (!isValidTaskId(rawId, allowReserved)) {
-    throw new InvalidTaskIdError(`invalid task id: ${rawId}`, rawId);
-  }
-  return rawId;
-}
-
 async function shortCircuitAborted(handle: TaskHandle, signal: AbortSignal): Promise<TaskHandle> {
   // EC-4: pre-aborted signal — skip queue/semaphore.
   const cancelled: TaskHandle = {
@@ -235,6 +220,8 @@ interface SubmitInternal<T> {
   readonly signal?: AbortSignal;
   /** When true (adapter-internal), the validator allows reserved prefixes. */
   readonly allowReservedPrefix?: boolean;
+  /** SE2 — forward this task's lifecycle to the run-event sink as `task_*` RunEvents. */
+  readonly onRunEvent?: import("../../types/run-events.js").RunEventSink;
 }
 
 async function buildAndInsertQueued(
@@ -343,6 +330,17 @@ export async function submit<T>(internal: SubmitInternal<T>): Promise<TaskHandle
   startEvictTimerIfNeeded();
 
   const resolvedId = resolveIdInternal(internal);
+  // SE2 — bridge the task lifecycle to the caller's run-event sink (opt-in).
+  if (internal.onRunEvent !== undefined) {
+    const sink = internal.onRunEvent;
+    const kind = internal.kind;
+    const subs = state.subscribers.get(resolvedId) ?? new Set();
+    subs.add((e: TaskEvent) => {
+      const runEvent = taskEventToRunEvent(e, resolvedId, kind);
+      if (runEvent !== undefined) emitRunEvent(sink, runEvent);
+    });
+    state.subscribers.set(resolvedId, subs);
+  }
   const submitSpan = startTaskSubmitSpan({ taskId: resolvedId, kind: internal.kind });
 
   // D367 single-flight.
@@ -460,8 +458,3 @@ export const subscribe = buildSubscribe({
     if (set !== undefined && set.size === 0) state.subscribers.delete(id);
   },
 });
-
-/** Manual trigger for tests. */
-export async function evictNow(now: number = Date.now()): Promise<number> {
-  return state.store.evictTerminalOlderThan(now - state.retentionMs);
-}

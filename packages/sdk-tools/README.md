@@ -75,7 +75,7 @@ After (2.x):
 import { createReadFileTool } from "@theokit/sdk-tools";
 ```
 
-See `docs/migration/1-x-to-2-0.md` in the monorepo root.
+See the monorepo `CHANGELOG.md` for the 1.x → 2.0 package-split migration notes.
 
 ## License
 

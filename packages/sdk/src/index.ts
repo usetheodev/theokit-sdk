@@ -7,7 +7,7 @@
 export { Agent, type AgentPromptResult } from "./agent.js";
 // DX helpers — agent construction patterns (ADR D22-D26)
 export { AgentBuilder } from "./agent-builder.js";
-export { type AgentFactory, createAgentFactory } from "./agent-factory.js";
+export { AgentFactory } from "./agent-factory.js";
 // SE9 — integrated structured output on `agent.generate(input, { output })`.
 export type { GenerateOptions, GenerateRunResult } from "./agent-generate.js";
 // Task observability registry (Adoption Roadmap gap #2; ADRs D361-D374)
@@ -24,22 +24,22 @@ export {
 } from "./budget.js";
 // SE25 — deterministic in-tree guardrail processors (built on the SE24 seam).
 export {
-  createTokenLimiter,
-  createUnicodeNormalizer,
   estimateTokens,
+  TokenLimiter,
   type TokenLimiterOptions,
+  UnicodeNormalizer,
   type UnicodeNormalizerOptions,
 } from "./built-in-processors.js";
 // M22 — code-defined inline skills (`createSkill`) usable alongside filesystem skills.
-export { type CreateSkillSpec, createSkill, type InlineSkill } from "./create-skill.js";
+export { type CreateSkillSpec, type InlineSkill, Skill } from "./create-skill.js";
 // Semantic cache — EXTRACTED to `@theokit/sdk-cache` (SDK 2.0 split, Phase 3 / T3.1).
 // Consumers: `import { Cache, CacheEmbedderError, CacheInvalidTtlError } from "@theokit/sdk-cache"`.
 // Cron façade
 export { Cron } from "./cron.js";
-export { type DefineProviderOptions, defineProvider } from "./define-provider.js";
+export { type DefineProviderOptions, Provider } from "./define-provider.js";
 // SE23 — opt-in `skill_read` tool factory (model-facing lazy skill read).
-export { defineSkillReadTool } from "./define-skill-read-tool.js";
-export { type DefineToolSpec, defineTool } from "./define-tool.js";
+export { SkillReadTool } from "./define-skill-read-tool.js";
+export { type DefineToolSpec, Tool } from "./define-tool.js";
 // Errors (runtime classes)
 export {
   AgentDisposedError,
@@ -75,14 +75,28 @@ export {
 } from "./generate-object.js";
 // #57 — tool-result content guard options (SendOptions.toolResultGuard).
 export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-guard.js";
+// BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
+// Kernel-facing contract for budget/usage tracking. Default impl lives in
+// internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
+// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
+// (wiring lands in subsequent iteration).
+export type {
+  BudgetCheck,
+  BudgetTotal,
+  BudgetTracker,
+  BudgetUsageEvent,
+} from "./internal/budget/tracker/budget-tracker.js";
+// Reference impl — pure counter, no USD pricing. Consumers can use as a
+// fallback before @theokit/sdk-budget ships or as a worked example.
+export {
+  type CounterBudgetTrackerOptions,
+  createCounterBudgetTracker,
+} from "./internal/budget/tracker/budget-tracker-counter.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
 // Transitional: `Agent.create({ handoffs: [...] })` still works while
 // @theokit/sdk-handoff is installed (lazy-imported via optional peer model).
 // The preferred 2.x pattern is `plugins: [Handoff.asPlugin({ targets: [...] })]`.
-export { FileSystemConversationStorage } from "./internal/persistence/conversation-storage-fs.js";
-// Conversation storage adapters (Production-Readiness #1; ADRs D303-D306)
-export { InMemoryConversationStorage } from "./internal/persistence/conversation-storage-memory.js";
 // Process-level keyed mutex (SDK 2.0 Phase 2 physical-survey unblock —
 // ADR-008). Public utility consumed by extracted packages
 // (@theokit/sdk-budget, @theokit/sdk-memory) to share the SAME mutex
@@ -96,9 +110,8 @@ export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
 // added to barrel so extracted packages (sdk-cache, sdk-handoff) can type their
 // .asPlugin() factories without reaching into ./internal/plugins sub-path.
 export {
-  definePlugin,
   type HookName,
-  type Plugin,
+  Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
   type PreToolCallContext,
@@ -107,28 +120,6 @@ export {
   type PreUserSendResult,
 } from "./internal/plugins/types.js";
 export type { ProviderProfile } from "./internal/providers/types.js";
-// BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
-// Kernel-facing contract for budget/usage tracking. Default impl lives in
-// internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
-// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
-// (wiring lands in subsequent iteration).
-export type {
-  BudgetCheck,
-  BudgetTotal,
-  BudgetTracker,
-  BudgetUsageEvent,
-} from "./internal/runtime/budget/budget-tracker.js";
-// Reference impl — pure counter, no USD pricing. Consumers can use as a
-// fallback before @theokit/sdk-budget ships or as a worked example.
-export {
-  type CounterBudgetTrackerOptions,
-  createCounterBudgetTracker,
-} from "./internal/runtime/budget/budget-tracker-counter.js";
-// M1-3 — stateless continuation-history rebuild (pure primitive)
-export {
-  buildReplayHistory,
-  type ReplayHistoryOptions,
-} from "./internal/runtime/context/replay-history.js";
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
@@ -145,7 +136,7 @@ export type {
 // Reference impl — pure no-op, no recall, no tools. Consumers can use
 // as fallback before @theokit/sdk-memory ships or as a worked example
 // when authoring custom providers.
-export { createNoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
+export { NoopMemoryProvider } from "./internal/runtime/memory/memory-provider-noop.js";
 // Live-agent registry (Production-Readiness #2; ADRs D307-D310) — type exports only,
 // the runtime singleton is reached via `Agent.registry`.
 export type {
@@ -178,10 +169,10 @@ export {
 } from "./permission-engine.js";
 // M7-5: PermissionEngine -> plugin veto exemplar. SE1: mode layer + canUseTool gate.
 export {
-  createPermissionPlugin,
   type PermissionGate,
   type PermissionGateContext,
   type PermissionGateDecision,
+  PermissionPlugin,
   type PermissionPluginOptions,
 } from "./permission-plugin.js";
 // M23 — schema normalizer (Zod default; JSON Schema / ArkType / Valibot adapters).
@@ -193,12 +184,10 @@ export { type NormalizedJsonSchema, normalizeSchema } from "./schema-normalizer.
 // `Agent.usePersonality(...)` method, not direct construction.
 // Security namespace (secret redaction; ADR D68)
 export { Security } from "./security.js";
-// SE4 — session-management surface over ConversationStorage.
-export { createSessionManager } from "./session-manager.js";
 // M3 #62 — scoped session state helpers (app:/user:/temp:).
 export { type SessionScope, scopedConversationId, sessionScopePrefix } from "./session-scope.js";
 // Squad — sequential multi-agent team (composes Workflow+agentStep; cross-val Gap 1)
-export { createSquad, type Squad, type SquadOptions, type SquadRun } from "./squad.js";
+export { Squad, type SquadOptions, type SquadRun } from "./squad.js";
 // Path safety primitives (ADRs D79-D85) live at `@theokit/sdk/path-safety`,
 // not on the main barrel. That dedicated sub-export keeps the DTS bundle
 // for `index.ts` decoupled from the `internal/runtime` graph (which has
@@ -217,7 +206,7 @@ export { Task, type TaskConfigureOptions, type TaskWorkContext, type TaskWorkFn 
 // DTS bundle (same isolation pattern as `path-safety` per tsup.config.ts
 // header comment — the agent.ts ↔ fork-agent.ts cycle trips rollup-plugin-dts
 // whenever a sub-entry reaches into `internal/runtime`).
-// Consumers: `import { defineSubscription, tracked, subscribe } from "@theokit/sdk/subscription"`.
+// Consumers: `import { Subscription, tracked, subscribe } from "@theokit/sdk/subscription"` (SE36 — Subscription.create).
 // Theokit namespace
 export { Theokit, type TheokitRequestOptions } from "./theokit.js";
 // SE7 — ToolError (thrown from a tool handler; own module for the G8 LoC budget).
@@ -231,7 +220,6 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 export type { CustomTool, SDKAgent } from "./types/agent.js";
 // SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
 export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
-export type { SessionMeta, SessionMetaPatch } from "./types/conversation-storage.js";
 // Type contract
 export type * from "./types/index.js";
 // SE24 — guardrail processor pipeline (inputProcessors / outputProcessors).
@@ -246,11 +234,13 @@ export type {
 // SE3 — multi-agent provenance. Explicit re-export so rollup-dts surfaces it in
 // the bundled .d.ts (the `export type *` star does not reliably propagate — same
 // reason as `CustomTool` above).
-export type { MessageOrigin } from "./types/run.js";
+// SE34 — per-send completion check (`isTaskComplete`) public types.
+export type { CompletionCheck, CompletionCheckResult, MessageOrigin } from "./types/run.js";
 // SE2 — typed runtime event stream (opt-in via SendOptions.onRunEvent).
 export {
   emitRunEvent,
   type RunCompactBoundaryEvent,
+  type RunCompletionCheckEvent,
   type RunEvent,
   type RunEventSink,
   type RunPermissionDeniedEvent,
@@ -261,11 +251,3 @@ export {
   type RunToolProgressEvent,
   type RunTripwireEvent,
 } from "./types/run-events.js";
-// SE4 — explicit type re-exports so rollup-dts surfaces them in the bundled .d.ts
-// (the `export type *` star does not reliably propagate — same reason as CustomTool).
-export type {
-  SessionCapabilityResult,
-  SessionListOptions,
-  SessionManager,
-  SessionSummary,
-} from "./types/session.js";

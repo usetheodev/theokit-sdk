@@ -34,7 +34,6 @@ const ALL_ADAPTERS: TelemetryAdapter[] = [
   braintrustAdapter,
 ];
 
-let attempted = false;
 const registered = new Set<string>();
 
 /**
@@ -63,7 +62,6 @@ export function tryAutoRegisterAdapters(settings: TelemetrySettings | undefined)
       );
     }
   }
-  attempted = true;
 }
 
 /**
@@ -73,7 +71,6 @@ export function tryAutoRegisterAdapters(settings: TelemetrySettings | undefined)
  */
 export function _resetAdapterRegistry(): void {
   registered.clear();
-  attempted = false;
 }
 
 /**
@@ -83,15 +80,6 @@ export function _resetAdapterRegistry(): void {
  */
 export function _isRegistered(moduleName: string): boolean {
   return registered.has(moduleName);
-}
-
-/**
- * Test helper: check if auto-detect has been attempted at least once.
- *
- * @internal
- */
-export function _wasAttempted(): boolean {
-  return attempted;
 }
 
 /**

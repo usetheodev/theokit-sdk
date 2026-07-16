@@ -26,8 +26,14 @@
 
 import { type FileHandle, open } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
-
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
+import {
+  FileNotFoundError,
+  type FilesystemBackend,
+  type FilesystemProvider,
+  FilesystemSecurityError,
+  resolveFilesystem,
+} from "@theokit/sdk/filesystem";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -36,6 +42,7 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
+import type { ReadTracker } from "./read-tracker.js";
 
 /** Max single-file read size, in bytes. 5 MB ceiling — enough for any source file. */
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
@@ -46,12 +53,25 @@ const BINARY_PROBE_BYTES = 8 * 1024;
 export interface CreateReadFileToolOptions {
   /** Absolute path to the project root. Every read is gated against this boundary. */
   projectRoot: string;
+  /**
+   * SE32 — optional read-before-write tracker. When provided, a successful read
+   * records the file's mtime so a paired `write_file` (with
+   * `requireReadBeforeWrite`) can refuse a blind or stale overwrite.
+   */
+  readTracker?: ReadTracker;
+  /**
+   * SE31 — optional pluggable filesystem backend (`@theokit/sdk/filesystem`), or
+   * a per-request resolver. When provided, reads route through the backend (its
+   * own boundary + `basePath`) instead of the local `projectRoot`; omitted ⇒
+   * identical current behavior (multi-tenant / per-request roots).
+   */
+  filesystem?: FilesystemProvider;
 }
 
 export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool {
-  const { projectRoot } = opts;
+  const { projectRoot, readTracker, filesystem } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "read_file",
     description:
       "Read a project-relative text file as UTF-8. ALWAYS read a file before you edit it " +
@@ -64,21 +84,68 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
     }),
-    handler: async ({ path }) => {
+    handler: async ({ path }, ctx) => {
       if (isForbiddenPath(path)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });
+      }
+      // SE31 — route through the pluggable backend when one is configured (the
+      // backend owns its own boundary); else the local `projectRoot` fs.
+      if (filesystem) {
+        const backend = await resolveFilesystem(filesystem, ctx ?? {});
+        return readViaBackend(backend, path, (mtimeMs) => readTracker?.record(path, mtimeMs));
       }
       const boundary = resolveBoundary(path, projectRoot);
       if ("error" in boundary) return boundary.error;
       const opened = await openHandleSafe(boundary.absolutePath, path);
       if ("error" in opened) return opened.error;
       try {
-        return await readContent(opened.handle, path);
+        return await readContent(opened.handle, path, (mtimeMs) =>
+          readTracker?.record(path, mtimeMs),
+        );
       } finally {
         await opened.handle.close();
       }
     },
   });
+}
+
+/**
+ * SE31 — read through a {@link FilesystemBackend}, mapping its typed errors to
+ * the tool's `{ ok: false, error }` JSON (never throws on a user mistake). The
+ * binary/too-large guards mirror the local path; a null byte in the decoded
+ * content flags a binary file.
+ */
+async function readViaBackend(
+  backend: FilesystemBackend,
+  path: string,
+  onRead?: (mtimeMs: number) => void,
+): Promise<string> {
+  try {
+    const stat = await backend.stat(path);
+    if (stat.size > MAX_FILE_SIZE) {
+      return JSON.stringify({
+        ok: false,
+        error: "too_large",
+        path,
+        size: stat.size,
+        limit: MAX_FILE_SIZE,
+      });
+    }
+    const content = await backend.readFile(path);
+    if (content.includes("\u0000")) {
+      return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
+    }
+    onRead?.(stat.mtimeMs);
+    return JSON.stringify({ ok: true, content, size: stat.size });
+  } catch (err) {
+    if (err instanceof FileNotFoundError) {
+      return JSON.stringify({ ok: false, error: "not_found", path });
+    }
+    if (err instanceof FilesystemSecurityError) {
+      return JSON.stringify({ ok: false, error: "path_traversal", path });
+    }
+    throw err;
+  }
 }
 
 function resolveBoundary(
@@ -113,7 +180,11 @@ async function openHandleSafe(
   }
 }
 
-async function readContent(handle: FileHandle, path: string): Promise<string> {
+async function readContent(
+  handle: FileHandle,
+  path: string,
+  onRead?: (mtimeMs: number) => void,
+): Promise<string> {
   const stat = await handle.stat();
   if (stat.size > MAX_FILE_SIZE) {
     return JSON.stringify({
@@ -128,6 +199,12 @@ async function readContent(handle: FileHandle, path: string): Promise<string> {
     return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
   }
   const content = await handle.readFile({ encoding: "utf-8" });
+  // SE32 — record the mtime read-before-write compares against. This is the
+  // mtime captured at `handle.stat()` above; a concurrent external write between
+  // that stat and this readFile is an accepted TOCTOU (the recorded snapshot may
+  // trail the delivered content by one write — same-user local context). The
+  // write-side guard still catches the common "edited after I read it" case.
+  onRead?.(stat.mtimeMs);
   return JSON.stringify({ ok: true, content, size: stat.size });
 }
 

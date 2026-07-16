@@ -7,7 +7,6 @@ import {
 } from "./internal/catalog/fixtures.js";
 import { listLocalModelsViaOpenAiCompat } from "./internal/catalog/local-models.js";
 import { resolveApiKey } from "./internal/env.js";
-import { isFixtureApiKey, shouldUseFixtureMode } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { MEMORY_EMBEDDING_ADAPTERS } from "./internal/memory/adapters/catalog.js";
 import {
@@ -15,6 +14,7 @@ import {
   type ProviderCapabilities,
 } from "./internal/providers/catalog-loader.js";
 import { getProviderProfile, listProviders, registerBuiltins } from "./internal/providers/index.js";
+import { isFixtureApiKey, shouldUseFixtureMode } from "./internal/runtime/fixtures/fixture-mode.js";
 import type { SDKProvider } from "./types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
 

@@ -5,7 +5,7 @@ import type { RunStatus, SendOptions } from "../../types/run.js";
 import type { LlmClient } from "../llm/types.js";
 import type { McpClient } from "../mcp/client.js";
 import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
-import type { SessionMessage } from "../runtime/session/agent-session.js";
+import type { SessionMessage } from "../session/index.js";
 
 /**
  * Minimal memory-tool spec accepted by the agent loop. Concrete shape lives
@@ -83,6 +83,12 @@ export interface AgentLoopInputs {
   /** T4.2 — PluginManager whose `pre_tool_call` hooks fire BEFORE file-based hooks. */
   pluginManager?: import("../plugins/manager.js").PluginManager;
   /**
+   * SE1 — the run's resolved permission mode (`SendOptions.permissionMode` ??
+   * `AgentOptions.permissionMode`), threaded into the `pre_tool_call` context so a
+   * registered `PermissionPlugin` gates per-run.
+   */
+  permissionMode?: import("../../permission-engine.js").PermissionMode;
+  /**
    * SE2 — opt-in typed runtime-event sink (from `SendOptions.onRunEvent`). The loop
    * emits `RunEvent`s (permission_denied, tool_progress, rate_limit, task_*,
    * compact_boundary) to it out-of-band, best-effort (a throwing sink never breaks
@@ -151,7 +157,7 @@ export interface AgentLoopInputs {
    * constructs one from `maxIterations`. Tests can inject a pre-configured
    * instance to verify grace-call / compression-cap semantics.
    */
-  budget?: import("../runtime/budget/budget.js").IterationBudget;
+  budget?: import("../budget/tracker/budget.js").IterationBudget;
   /** Fires after each completed conversation step (text turn or tool batch). */
   onStep?: SendOptions["onStep"];
   /** Fires per raw incremental update (text-delta, …) — finer than onStep. */
@@ -191,7 +197,7 @@ export interface AgentLoopInputs {
    * thread the value down to the loop without further type changes when
    * the runtime hooks land.
    */
-  budgetTracker?: import("../runtime/budget/budget-tracker.js").BudgetTracker;
+  budgetTracker?: import("../budget/tracker/budget-tracker.js").BudgetTracker;
   /**
    * Pluggable memory provider (SDK 2.0 Phase 1 / T1.4 — Hexagonal
    * Architecture interface inversion). When provided, the loop will

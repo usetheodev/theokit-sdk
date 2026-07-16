@@ -42,11 +42,19 @@ export interface DefineProviderOptions {
  *
  * @public
  */
-export function defineProvider(profile: ProviderProfile, opts?: DefineProviderOptions): Plugin {
+function defineProvider(profile: ProviderProfile, opts?: DefineProviderOptions): Plugin {
   return {
     name: profile.name,
     version: opts?.version ?? "1.0.0",
     kind: "model-provider",
     profile,
   };
+}
+
+/** SE36 — uniform namespace API. `Provider.create` replaces `defineProvider` (ADR 0015). @public */
+export class Provider {
+  private constructor() {}
+  static create(profile: ProviderProfile, opts?: DefineProviderOptions): Plugin {
+    return defineProvider(profile, opts);
+  }
 }

@@ -19,7 +19,7 @@ import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import { checkPathScope } from "./path-scope.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
@@ -40,7 +40,7 @@ export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
     maxStdoutBytes = DEFAULT_MAX_STDOUT_BYTES,
   } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "git_diff",
     description:
       "Return the unified diff of the project's working tree (or staged " +

@@ -7,7 +7,6 @@
  * @internal
  */
 
-import { randomUUID } from "node:crypto";
 import {
   isTrackedEnvelope,
   tracked as makeTracked,
@@ -203,25 +202,4 @@ async function* encodeWsIterable(
   } finally {
     release();
   }
-}
-
-/**
- * Create a SubscriptionCtx for ad-hoc invocation (tests / direct dispatch).
- *
- * @internal
- */
-export function createTestCtx(opts: {
-  signal?: AbortSignal;
-  lastEventId?: string;
-  connectionId?: string;
-  disconnect?: (code?: number, reason?: string) => void;
-}): SubscriptionCtx {
-  const ac = new AbortController();
-  return {
-    ...(opts.lastEventId !== undefined ? { lastEventId: opts.lastEventId } : {}),
-    signal: opts.signal ?? ac.signal,
-    connectionId: opts.connectionId ?? randomUUID(),
-    disconnect: opts.disconnect ?? (() => ac.abort()),
-    tracked: <T>(id: string, payload: T) => makeTracked(id, payload),
-  };
 }

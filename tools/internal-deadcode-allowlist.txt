@@ -1,0 +1,6 @@
+# Internal dead-code gate allowlist (tools/check-internal-deadcode.mjs — closes #131).
+# One bare exported-symbol name per line. `#` comments allowed.
+# Use ONLY for symbols intentionally exported from **/internal/** with no current
+# reference (reserved future migrations, reflectively-loaded plugin seams, etc.).
+# A growing allowlist is a smell — prefer removing dead code. Each entry SHOULD
+# carry a one-line justification.

@@ -221,38 +221,79 @@ async function runCollectorLoop(
   finishValue: CollectedEvents["finishValue"];
 }> {
   let accumulatedText = "";
-  let reasoningText = "";
+  // issue #47/#48: reasoning streams on its own channel — `text` is accumulated for the
+  // `thinking` SDKMessage replay; `startedAt` (set on the first delta) measures the duration.
+  const reasoning: ReasoningAccumulator = { text: "", startedAt: undefined };
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
-  while (true) {
-    const next = await generator.next();
-    if (next.done === true) {
-      finishValue = next;
-      break;
+  // issue #48 (review Finding 1): finalize in a `finally` so a mid-stream THROW from the LLM
+  // generator (e.g. a dropped connection after some reasoning deltas) still emits the one
+  // `thinking-completed` — otherwise a consumer that opened a reasoning block on the first
+  // `thinking-delta` would wait for a close signal that never comes. The in-band `error` event
+  // path (break below) already reaches finalize; this covers the hard-throw path too.
+  try {
+    while (true) {
+      const next = await generator.next();
+      if (next.done === true) {
+        finishValue = next;
+        break;
+      }
+      if (next.value.type === "text_delta") {
+        accumulatedText += next.value.text;
+        await emitTextDeltaCallback(inputs, next.value.text);
+      }
+      if (next.value.type === "reasoning_delta") {
+        await accumulateReasoning(inputs, reasoning, next.value.text);
+      }
+      if (next.value.type === "error") {
+        registerLoopError(ctx, next.value);
+        ctx.finalText = "";
+        errored = true;
+        break;
+      }
     }
-    if (next.value.type === "text_delta") {
-      accumulatedText += next.value.text;
-      await emitTextDeltaCallback(inputs, next.value.text);
-    }
-    // issue #47: reasoning streams on a separate channel — surfaced live via onDelta as a
-    // `thinking-delta` and accumulated so run.stream() can replay a `thinking` SDKMessage.
-    if (next.value.type === "reasoning_delta") {
-      reasoningText += next.value.text;
-      await emitReasoningDeltaCallback(inputs, next.value.text);
-    }
-    if (next.value.type === "error") {
-      registerLoopError(ctx, next.value);
-      ctx.finalText = "";
-      errored = true;
-      break;
-    }
-  }
-  // issue #47: emit the accumulated reasoning as a `thinking` SDKMessage (run.stream replay) BEFORE
-  // the assistant turn, preserving reason-then-answer order. onDelta already delivered it live.
-  if (reasoningText.length > 0) {
-    ctx.events.push(buildThinkingEvent(inputs, reasoningText));
+  } finally {
+    await finalizeReasoning(inputs, ctx, reasoning);
   }
   return { accumulatedText, errored, finishValue };
+}
+
+/** issue #47/#48: reasoning accumulated across a single LLM turn. */
+interface ReasoningAccumulator {
+  text: string;
+  startedAt: number | undefined;
+}
+
+/**
+ * issue #47/#48: accumulate one reasoning delta — stamp the block start on the first delta
+ * (for the duration measurement) and surface it live as a `thinking-delta`.
+ */
+async function accumulateReasoning(
+  inputs: AgentLoopInputs,
+  reasoning: ReasoningAccumulator,
+  text: string,
+): Promise<void> {
+  if (reasoning.startedAt === undefined) reasoning.startedAt = Date.now();
+  reasoning.text += text;
+  await emitReasoningDeltaCallback(inputs, text);
+}
+
+/**
+ * issue #47/#48: finalize the reasoning block for this turn. Emit the accumulated reasoning as a
+ * `thinking` SDKMessage (run.stream replay) BEFORE the assistant turn — preserving reason-then-answer
+ * order — carrying the measured duration, then close the live channel with a single
+ * `thinking-completed` so a UI can end its reasoning block. No-op when the model produced no reasoning.
+ */
+async function finalizeReasoning(
+  inputs: AgentLoopInputs,
+  ctx: LoopContext,
+  reasoning: ReasoningAccumulator,
+): Promise<void> {
+  if (reasoning.text.length === 0) return;
+  const thinkingDurationMs =
+    reasoning.startedAt === undefined ? 0 : Date.now() - reasoning.startedAt;
+  ctx.events.push(buildThinkingEvent(inputs, reasoning.text, thinkingDurationMs));
+  await emitThinkingCompletedCallback(inputs, thinkingDurationMs);
 }
 
 async function emitTextDeltaCallback(inputs: AgentLoopInputs, text: string): Promise<void> {
@@ -271,6 +312,23 @@ async function emitReasoningDeltaCallback(inputs: AgentLoopInputs, text: string)
   const cb = inputs.onDelta;
   await safeCall(
     () => cb({ update: { type: "thinking-delta", text } }),
+    undefined,
+    "SendOptions.onDelta",
+  );
+}
+
+/**
+ * issue #48: close the reasoning channel with a single `thinking-completed` InteractionUpdate,
+ * carrying the measured duration so a consumer can end its reasoning UI block.
+ */
+async function emitThinkingCompletedCallback(
+  inputs: AgentLoopInputs,
+  thinkingDurationMs: number,
+): Promise<void> {
+  if (inputs.onDelta === undefined) return;
+  const cb = inputs.onDelta;
+  await safeCall(
+    () => cb({ update: { type: "thinking-completed", thinkingDurationMs } }),
     undefined,
     "SendOptions.onDelta",
   );

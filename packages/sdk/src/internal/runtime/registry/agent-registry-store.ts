@@ -44,13 +44,6 @@ interface SerializedAgent {
   cwd?: string;
   repos?: string[];
   status?: RegisteredAgent["status"];
-  /**
-   * D325 / EC-3: serialized marker recording that the agent was created with
-   * a custom `AgentOptions.conversationStorage`. Resume rejects when this is
-   * `true` and the caller did not pass `conversationStorage` again — prevents
-   * silent FS fallback that loses Postgres/Redis history.
-   */
-  requiresCustomStorage?: boolean;
 }
 
 /**
@@ -305,7 +298,6 @@ function toSerialized(agent: RegisteredAgent): SerializedAgent {
   if (agent.cwd !== undefined) out.cwd = agent.cwd;
   if (agent.repos !== undefined) out.repos = [...agent.repos];
   if (agent.status !== undefined) out.status = agent.status;
-  if (agent.requiresCustomStorage === true) out.requiresCustomStorage = true;
   return out;
 }
 
@@ -330,6 +322,5 @@ export function fromSerialized(entry: SerializedAgent): RegisteredAgent {
     cwd: entry.cwd,
     repos: entry.repos,
     status: entry.status,
-    ...(entry.requiresCustomStorage === true ? { requiresCustomStorage: true } : {}),
   };
 }

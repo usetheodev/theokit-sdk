@@ -29,7 +29,7 @@ describe("recordSessionSummary secret redaction (iter 42)", () => {
 
   it("test_openai_api_key_redacted_in_user_text", async () => {
     const provider = createInMemoryMarkdownProvider();
-    const _handle = await provider.init({ cwd });
+    await provider.init({ cwd });
     if (provider.recordSessionSummary === undefined) throw new Error("missing");
 
     // Realistic-shape but bogus key matching OpenAI's `sk-` pattern.
@@ -54,7 +54,7 @@ describe("recordSessionSummary secret redaction (iter 42)", () => {
 
   it("test_redaction_applies_to_both_user_and_assistant_sections", async () => {
     const provider = createInMemoryMarkdownProvider();
-    const _handle = await provider.init({ cwd });
+    await provider.init({ cwd });
     if (provider.recordSessionSummary === undefined) throw new Error("missing");
 
     const FAKE_USER_KEY = "sk-proj-USERAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
@@ -77,7 +77,7 @@ describe("recordSessionSummary secret redaction (iter 42)", () => {
 
   it("test_non_secret_text_passes_through_unchanged", async () => {
     const provider = createInMemoryMarkdownProvider();
-    const _handle = await provider.init({ cwd });
+    await provider.init({ cwd });
     if (provider.recordSessionSummary === undefined) throw new Error("missing");
 
     await provider.recordSessionSummary({
