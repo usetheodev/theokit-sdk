@@ -4,14 +4,14 @@ import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./er
 import { validateApiKeyShape } from "./internal/auth/api-key-validator.js";
 import { CloudAgent, validateCloudToolParity } from "./internal/cloud-agent/index.js";
 import { resolveApiKey } from "./internal/env.js";
+import { httpRequest } from "./internal/http.js";
+import { isLocalAgentId } from "./internal/ids.js";
+import { LocalAgent } from "./internal/local-agent/index.js";
 import {
   getConfiguredBaseUrl,
   isFixtureApiKey,
   shouldUseRealLocalRuntime,
-} from "./internal/fixture-mode.js";
-import { httpRequest } from "./internal/http.js";
-import { isLocalAgentId } from "./internal/ids.js";
-import { LocalAgent } from "./internal/local-agent/index.js";
+} from "./internal/runtime/fixtures/fixture-mode.js";
 import { normalizeModel } from "./internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,

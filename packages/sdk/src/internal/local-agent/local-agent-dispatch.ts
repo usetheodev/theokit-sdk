@@ -11,9 +11,9 @@ import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { resolveApiKey } from "../env.js";
-import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import type { PluginManager } from "../plugins/manager.js";
+import { shouldUseRealLocalRuntime } from "../runtime/fixtures/fixture-mode.js";
 import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
 import type { MemoryFact } from "../runtime/memory/memory-store.js";
 import { getSessionMessages } from "../session/index.js";

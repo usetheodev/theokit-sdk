@@ -1,4 +1,4 @@
-import { defaultRetriableForCode } from "./internal/default-retriable.js";
+import { defaultRetriableForCode } from "./internal/runtime/retry/default-retriable.js";
 import { redactSecrets } from "./internal/security/redact.js";
 import type { RunOperation } from "./types/run.js";
 
