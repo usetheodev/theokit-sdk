@@ -58,10 +58,6 @@ function getTracer(name: string, version = "1.0.0"): TracerLike | undefined {
   }
 }
 
-function resetTracerCacheForTests(): void {
-  tracerCache.clear();
-}
-
 const TRACER_NAME = "@theokit/sdk/cache";
 
 export function startCacheLookupSpan(info: { namespace: string; embedderId: string }): SpanLike {
@@ -84,9 +80,4 @@ export function startCacheStoreSpan(info: { namespace: string; embedderId: strin
       "cache.embedder_id": info.embedderId,
     },
   });
-}
-
-/** Test seam — reset tracer cache so a fresh require attempt happens. */
-function __resetCacheTelemetryForTests(): void {
-  resetTracerCacheForTests();
 }
