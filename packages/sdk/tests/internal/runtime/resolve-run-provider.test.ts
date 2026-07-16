@@ -10,6 +10,12 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Provider } from "../../../src/index.js";
+import type { CreateRealLocalRunOptions } from "../../../src/internal/local-agent/real-local-run.js";
+import {
+  _resetPluginProviderAnnounce,
+  mergeExplicitApiKey,
+  resolveRunProvider,
+} from "../../../src/internal/local-agent/real-local-run.js";
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
 import {
   _resetBuiltinsRegistered,
@@ -20,12 +26,6 @@ import {
   getProviderProfile,
 } from "../../../src/internal/providers/registry.js";
 import type { ProviderProfile } from "../../../src/internal/providers/types.js";
-import type { CreateRealLocalRunOptions } from "../../../src/internal/runtime/local-agent/real-local-run.js";
-import {
-  _resetPluginProviderAnnounce,
-  mergeExplicitApiKey,
-  resolveRunProvider,
-} from "../../../src/internal/runtime/local-agent/real-local-run.js";
 
 const customProfile: ProviderProfile = {
   name: "custom-llm",

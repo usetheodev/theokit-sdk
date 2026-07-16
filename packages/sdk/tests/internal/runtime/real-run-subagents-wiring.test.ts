@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildRealRunOptions } from "../../../src/internal/runtime/local-agent/local-agent-dispatch.js";
+import { buildRealRunOptions } from "../../../src/internal/local-agent/local-agent-dispatch.js";
 
 /**
  * Regression: file-based subagents (`.theokit/agents/*.md`) are loaded into

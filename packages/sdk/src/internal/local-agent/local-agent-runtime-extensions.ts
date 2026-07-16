@@ -11,18 +11,18 @@
  * @internal
  */
 
-import type { AgentOptions, MemorySettings, SDKAgent } from "../../../types/agent.js";
-import type { GoalEvent, GoalOptions, GoalResult } from "../../../types/goal-events.js";
-import type { RunToCompletionOptions, RunToCompletionResult } from "../../../types/run.js";
-import type { JudgeContext, JudgeOptions } from "../../judge/judge-call.js";
-import type { ForkOptions, ForkResult } from "../lifecycle/fork-agent.js";
-import type { RunUntilDeps } from "../lifecycle/run-until.js";
+import type { AgentOptions, MemorySettings, SDKAgent } from "../../types/agent.js";
+import type { GoalEvent, GoalOptions, GoalResult } from "../../types/goal-events.js";
+import type { RunToCompletionOptions, RunToCompletionResult } from "../../types/run.js";
+import type { JudgeContext, JudgeOptions } from "../judge/judge-call.js";
+import type { ForkOptions, ForkResult } from "../runtime/lifecycle/fork-agent.js";
+import type { RunUntilDeps } from "../runtime/lifecycle/run-until.js";
 import {
   appendMemoryFact,
   extractMemoryFact,
   isMemoryWritePrompt,
-} from "../memory/memory-store.js";
-import { safeCall } from "../system-prompt/safe-call.js";
+} from "../runtime/memory/memory-store.js";
+import { safeCall } from "../runtime/system-prompt/safe-call.js";
 
 /**
  * Drive {@link runUntilImpl} with the registered `Agent.create` so
@@ -40,10 +40,10 @@ export function localAgentRunUntil(
   options: GoalOptions | undefined,
 ): AsyncGenerator<GoalEvent, GoalResult, void> {
   async function* wrap(): AsyncGenerator<GoalEvent, GoalResult, void> {
-    const { runUntilImpl } = await import("../lifecycle/run-until.js");
+    const { runUntilImpl } = await import("../runtime/lifecycle/run-until.js");
     const buildDeps = async (): Promise<RunUntilDeps> => {
-      const { judgeCallImpl } = await import("../../judge/judge-call.js");
-      const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
+      const { judgeCallImpl } = await import("../judge/judge-call.js");
+      const { getAgentFacade } = await import("../runtime/registry/agent-factory-registry.js");
       const create = getAgentFacade().create;
       return {
         judge: (ctx: JudgeContext, opts?: JudgeOptions) => judgeCallImpl(ctx, opts, { create }),
@@ -76,7 +76,7 @@ export function localAgentRunToCompletion(
   options: RunToCompletionOptions | undefined,
 ): Promise<RunToCompletionResult> {
   async function run(): Promise<RunToCompletionResult> {
-    const { runToCompletionImpl } = await import("../lifecycle/run-to-completion.js");
+    const { runToCompletionImpl } = await import("../runtime/lifecycle/run-to-completion.js");
     return runToCompletionImpl({ send: (m, o) => agent.send(m, o) }, message, options);
   }
   return run();
@@ -93,10 +93,10 @@ export async function* localAgentStreamToCompletion(
   message: string,
   options: RunToCompletionOptions | undefined,
 ): AsyncGenerator<
-  import("../../../types/messages.js").SDKMessage,
-  import("../../../types/run.js").StreamToCompletionResult
+  import("../../types/messages.js").SDKMessage,
+  import("../../types/run.js").StreamToCompletionResult
 > {
-  const { streamToCompletionImpl } = await import("../lifecycle/stream-to-completion.js");
+  const { streamToCompletionImpl } = await import("../runtime/lifecycle/stream-to-completion.js");
   return yield* streamToCompletionImpl({ send: (m, o) => agent.send(m, o) }, message, options);
 }
 
@@ -110,9 +110,9 @@ export async function localAgentFork(
   parent: { agentId: string; options: AgentOptions; personalitySlugSnapshot: string | undefined },
   options: ForkOptions,
 ): Promise<ForkResult> {
-  const { forkAgentImpl } = await import("../lifecycle/fork-agent.js");
-  const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
-  const { withPersonalityContext } = await import("../../personality/context.js");
+  const { forkAgentImpl } = await import("../runtime/lifecycle/fork-agent.js");
+  const { getAgentFacade } = await import("../runtime/registry/agent-factory-registry.js");
+  const { withPersonalityContext } = await import("../personality/context.js");
   const create = getAgentFacade().create;
   // ADR D168 + EC-A — capture the slug ONCE at fork-construction time.
   // Subsequent parent `usePersonality` calls do NOT mutate this snapshot.

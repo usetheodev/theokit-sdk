@@ -8,14 +8,14 @@
  * @internal
  */
 
-import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
-import { asPluginsSettings, enabledPluginNames } from "../../plugins/enabled-names.js";
-import { ProvidersManagerImpl } from "../config/providers-manager.js";
-import { FileContextManager } from "../context/context-manager.js";
-import { normalizeModel } from "../model-selection.js";
-import { type PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
-import { registerAgent } from "../registry/agent-registry.js";
-import { type SkillsHandle, SkillsManager } from "../skills/skills-manager.js";
+import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import { asPluginsSettings, enabledPluginNames } from "../plugins/enabled-names.js";
+import { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
+import { FileContextManager } from "../runtime/context/context-manager.js";
+import { normalizeModel } from "../runtime/model-selection.js";
+import { type PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
+import { registerAgent } from "../runtime/registry/agent-registry.js";
+import { type SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
 
 export function registerLocalAgent(args: {
   agentId: string;

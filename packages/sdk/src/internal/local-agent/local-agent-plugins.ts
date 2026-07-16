@@ -10,7 +10,7 @@
  * @internal
  */
 
-import type { Plugin } from "../../plugins/types.js";
+import type { Plugin } from "../plugins/types.js";
 
 export function isCodePlugin(p: unknown): p is Plugin {
   if (p === null || typeof p !== "object" || !("kind" in p)) return false;
