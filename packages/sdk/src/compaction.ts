@@ -18,7 +18,7 @@
  * returns the ORIGINAL transcript + a structured warn (compaction is an
  * optimization, never a cause of data loss); without it, the error propagates.
  *
- * Public from the `@theokit/sdk/compaction` sub-path. See `docs.md → Compaction`.
+ * Public from the `@theokit/sdk/compaction` sub-path.
  */
 
 import { TheokitAgentError } from "./errors.js";

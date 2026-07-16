@@ -14,7 +14,7 @@
  * The `StreamToCompletionResult` is the generator's RETURN value, read via a
  * manual `gen.next()` loop (`while (!res.done) res = await gen.next()` → `res.value`).
  * A plain `for await...of` consumes the yielded messages but discards the return
- * value (EC-1) — see docs.md.
+ * value (EC-1).
  *
  * @internal
  */

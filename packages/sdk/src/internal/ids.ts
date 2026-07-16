@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 
 /**
  * Stable prefixes that drive runtime auto-detection in `Agent.resume()`,
- * `Agent.get()`, etc. See `.claude/quality-gates.md` and docs.md.
+ * `Agent.get()`, etc.
  *
  * @internal
  */

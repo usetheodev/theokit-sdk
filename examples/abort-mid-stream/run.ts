@@ -112,4 +112,4 @@ await agent3.dispose();
 console.log(`[3] ✓ Second dispose returned without error`);
 
 console.log();
-console.log(`Done. See docs.md "Cancellation" section for the full contract.`);
+console.log(`Done. See the SDK types for the full cancellation contract.`);

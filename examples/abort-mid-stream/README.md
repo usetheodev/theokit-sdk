@@ -20,4 +20,4 @@ OPENROUTER_API_KEY=sk-or-... pnpm run
 
 ## Edge runtimes
 
-The SDK ships `anySignal` ponyfill (D324) so `AbortSignal.any` semantics work on a peer vendor Edge subsets that lack the native method. See `docs.md` "Cancellation" section.
+The SDK ships `anySignal` ponyfill (D324) so `AbortSignal.any` semantics work on some Edge runtime subsets that lack the native method. See the exported cancellation types for the full contract.

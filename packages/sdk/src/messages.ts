@@ -5,7 +5,7 @@
  * onto the SDK's own types so consumers stop re-implementing a wire-event mapper.
  * Every reader is pure: no I/O, no mutation of its input, deterministic.
  *
- * Public from the `@theokit/sdk/messages` sub-path. See `docs.md → Message readers`.
+ * Public from the `@theokit/sdk/messages` sub-path.
  */
 
 import type { SDKMessage, ToolUseBlock } from "./types/messages.js";

@@ -7,7 +7,7 @@ or any other capability **without reading source**.
 
 - Every `import` line below resolves against the published packages — verified by the committed resolve-check `scripts/check-capability-map.mjs` (run it after `pnpm --filter @theokit/sdk build`; intended to be wired into CI).
 - Public `@theokit/sdk/*` and `@theokit/sdk-tools` sub-paths are **semver-protected**. The `@theokit/sdk/internal/*` sub-paths are **semver-exempt** (may break) — prefer the public homes listed here.
-- The canonical, exhaustive API contract is [`docs.md`](../docs.md); this map is the discovery front-door, organized by capability.
+- The exported TypeScript types are the canonical, exhaustive API contract; this map is the discovery front-door, organized by capability.
 
 > Scope: this map covers the **Harness** packages in this repo — `@theokit/sdk` and `@theokit/sdk-tools`. Capabilities that live in sibling repos (UI, the `theokit` HTTP framework, ORM, memory adapters) are listed under [Out-of-repo capabilities](#out-of-repo-capabilities) with a pointer.
 
@@ -251,6 +251,6 @@ A few GAP_AUDIT items are runtime behaviors the harness performs internally — 
 
 ## See also
 
-- [`docs.md`](../docs.md) — the canonical, exhaustive public API contract.
+- The exported TypeScript types — the canonical, exhaustive public API contract.
 - [`packages/sdk/README.md`](../packages/sdk/README.md) — `@theokit/sdk` front door.
 - [`packages/sdk-tools/README.md`](../packages/sdk-tools/README.md) — `@theokit/sdk-tools` front door.
