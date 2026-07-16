@@ -31,7 +31,7 @@
         "tests/fixtures/codemod-1x/**",
         "src/stream-object.ts"
       ],
-      "ignoreDependencies": ["@theokit/sdk-handoff", "jsonrepair"]
+      "ignoreDependencies": ["jsonrepair"]
     },
     "packages/cli": {
       "entry": ["tests/**/*.test.ts"],
