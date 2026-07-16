@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.5
+
+### Patch Changes
+
+- chore: correct the GitHub repository URL in package metadata (`homepage` / `bugs` / `repository`) from the non-existent `usetheo/theokit-sdk` slug to the canonical `usetheodev/theokit-sdk`, so the npm "Repository" link resolves. No code or public API change.
+
 ## 4.2.4
 
 ### Patch Changes
