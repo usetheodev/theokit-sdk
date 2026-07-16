@@ -6,28 +6,33 @@
 
 <p align="center">
   <p align="center"><code>@theokit/sdk</code> · the <strong>Harness</strong> pillar of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
-  <h1 align="center">Code your agent. Keep your runtime.</h1>
+  <h1 align="center">The open-source agent runtime for TypeScript.</h1>
   <p align="center">
-    <strong>A TypeScript SDK with an Apache-2.0 local runtime, multi-provider keys, and an opt-in cloud.</strong>
+    <strong><code>@theokit/sdk</code> is the modern TypeScript SDK for AI-powered apps and agents — on an open, Apache-2.0 runtime you own end to end.</strong>
   </p>
   <p align="center">
-    Ship agents into your CI, your cron, your backend — and walk away whenever you want. The build-your-own-agent verb of <strong>Chat. Build. Deploy.</strong>
+    <sub>43 built-in LLM providers&nbsp;·&nbsp;27 modular entry points&nbsp;·&nbsp;native Claude Code <code>.jsonl</code>&nbsp;·&nbsp;zero walk-away cost</sub>
   </p>
   <p align="center">
+    <a href="https://www.npmjs.com/package/@theokit/sdk"><img alt="npm version" src="https://img.shields.io/npm/v/@theokit/sdk?style=flat-square&color=CB3837&logo=npm&logoColor=white"></a>
+    <a href="https://www.npmjs.com/package/@theokit/sdk"><img alt="npm downloads" src="https://img.shields.io/npm/dm/@theokit/sdk?style=flat-square&color=CB3837"></a>
+    <a href="https://github.com/usetheodev/theokit-sdk"><img alt="GitHub stars" src="https://img.shields.io/github/stars/usetheodev/theokit-sdk?style=flat-square&logo=github"></a>
     <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache--2.0-blue?style=flat-square"></a>
-    <img alt="TypeScript" src="https://img.shields.io/badge/typescript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white">
-    <img alt="Node" src="https://img.shields.io/badge/node-22.12%2B-339933?style=flat-square&logo=node.js&logoColor=white">
-    <img alt="Status" src="https://img.shields.io/badge/status-production-success?style=flat-square">
+    <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-5.8%2B-3178C6?style=flat-square&logo=typescript&logoColor=white">
+    <a href="https://discord.usetheo.dev/"><img alt="Discord" src="https://img.shields.io/badge/Discord-join-5865F2?style=flat-square&logo=discord&logoColor=white"></a>
   </p>
 </p>
 
 ---
 
-There is a version of your agent that does not sit in a chat window.
+## Why @theokit/sdk
 
-You don't open a panel. You don't type a prompt. You commit code, and the agent runs — the same way every other piece of your stack runs. It writes a PR description after every merge. It summarizes yesterday's incidents at 9 AM. It refactors a module overnight. It answers questions in Slack about the codebase it knows by heart.
+- **Apache-2.0 local runtime** — run agents end-to-end, no vendor in the loop.
+- **43 built-in LLM providers** — Anthropic, OpenAI, Google, and 40 more, on your own keys.
+- **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and `--continue` a session your agent wrote, right in the Claude Code CLI.
+- **Opt-in cloud, walk-away cost zero** — fork the local runtime and keep running.
 
-That agent is built with `@theokit/sdk` — and when you decide to leave, the runtime leaves with you. It is the **Harness** pillar of the [Theo](https://usetheo.dev) ecosystem.
+Most agent SDKs ship open; most agent *runtimes* don't. This one does — end to end.
 
 ## Overview
 
@@ -39,7 +44,7 @@ That agent is built with `@theokit/sdk` — and when you decide to leave, the ru
 
 Runtime is picked by which key you pass to `Agent.create()` (`local` or `cloud`). Same `THEOKIT_API_KEY` for either.
 
-## Why @theokit/sdk
+## The open stack, layer by layer
 
 The SDK shape — `Agent` / `Run` / streaming events — is converging across the ecosystem by design. The difference is what runs *underneath*:
 
@@ -52,11 +57,11 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork the local runtime, keep running with your own provider keys | High — runtime is the vendor's |
 
-Most agent SDKs ship open; most agent runtimes don't. This one does — end to end.
-
-The "open stack underneath" line is load-bearing: you can run an agent fully locally against your own provider keys and never call our backend. The managed cloud runtime (Theo PaaS) is a deploy convenience, not a dependency.
+The "open stack underneath" line is load-bearing: you can run an agent fully locally against your own provider keys and never call our backend. The managed cloud runtime (Theo PaaS) is a deploy convenience, not a dependency — and it's currently pre-release (see [Status](#status)).
 
 ## What you'd ship
+
+There is a version of your agent that does not sit in a chat window. You don't open a panel or type a prompt — you commit code, and it runs, the same way every other piece of your stack runs:
 
 - **PR description writer.** Triggered on push, scans the diff, drafts the description with code refs.
 - **Nightly code reviewer.** Runs at 2 AM, opens issues for code smells it found.
