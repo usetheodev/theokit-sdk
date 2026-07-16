@@ -13,8 +13,8 @@
  */
 
 import { z } from "zod";
-
 import type { Plugin } from "../internal/plugins/types.js";
+import { getAgentFacade } from "../internal/runtime/registry/agent-factory-registry.js";
 import type {
   AgentDefinition,
   AgentOptions,
@@ -253,9 +253,12 @@ async function runChildAgent(
   maxSteps: number | undefined,
   inherited: InheritedCredentials | undefined,
 ): Promise<string> {
-  // Lazy import to avoid circular dependency.
-  const { Agent } = await import("../agent.js");
-  const agent = await Agent.create(buildChildCreateOptions(spec, inherited));
+  // SE45 cycle 3 — use the registered Agent facade via the DIP seam
+  // (agent-factory-registry) instead of a dynamic `import("../agent.js")`.
+  // This removes the last madge cycle (a2a/subagent -> agent -> ... -> real-local-run-tools
+  // -> a2a/subagent): the facade registers itself at module-init via setAgentFacade,
+  // so subagent depends only on the registry port, never on the facade module.
+  const agent = await getAgentFacade().create(buildChildCreateOptions(spec, inherited));
   try {
     const sendOptions: {
       signal?: AbortSignal;
