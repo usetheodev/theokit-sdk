@@ -20,8 +20,14 @@
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
-
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
+import {
+  FileNotFoundError,
+  type FilesystemBackend,
+  type FilesystemProvider,
+  FilesystemSecurityError,
+  resolveFilesystem,
+} from "@theokit/sdk/filesystem";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -38,12 +44,19 @@ export interface CreateListDirToolOptions {
   projectRoot: string;
   /** Maximum number of entries returned per call. Default 500. */
   max?: number;
+  /**
+   * SE31 — optional pluggable filesystem backend (`@theokit/sdk/filesystem`), or
+   * a per-request resolver. When provided, listings route through the backend
+   * (its own boundary + `basePath`) instead of the local `projectRoot`; omitted
+   * ⇒ identical current behavior (multi-tenant / per-request roots).
+   */
+  filesystem?: FilesystemProvider;
 }
 
 export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
-  const { projectRoot, max = DEFAULT_MAX_ENTRIES } = opts;
+  const { projectRoot, max = DEFAULT_MAX_ENTRIES, filesystem } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "list_dir",
     description:
       `Return the direct entries of a project-relative directory. ` +
@@ -53,18 +66,76 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative directory path. Use '.' for root."),
     }),
-    handler: async ({ path }) => {
+    handler: async ({ path }, ctx) => {
       const relative = path === "" || path === "." ? "." : path;
       if (relative !== "." && isForbiddenPath(relative)) {
         return JSON.stringify({ ok: false, error: "forbidden_path", path });
       }
-      const boundary = resolveDirBoundary(relative, projectRoot, path);
-      if ("error" in boundary) return boundary.error;
-      const readResult = await readDirSafe(boundary.absolutePath, path);
-      if ("error" in readResult) return readResult.error;
-      return formatListing(readResult.dirents, max);
+      // SE31 — route through the pluggable backend when one is configured; else
+      // the local `projectRoot` fs.
+      if (filesystem) {
+        const backend = await resolveFilesystem(filesystem, ctx ?? {});
+        return listViaBackend(backend, relative, path, max);
+      }
+      return listViaLocalFs(projectRoot, relative, path, max);
     },
   });
+}
+
+/** Local-`projectRoot` listing: boundary + readdir + bounded format. */
+async function listViaLocalFs(
+  projectRoot: string,
+  relative: string,
+  originalPath: string,
+  max: number,
+): Promise<string> {
+  const boundary = resolveDirBoundary(relative, projectRoot, originalPath);
+  if ("error" in boundary) return boundary.error;
+  const readResult = await readDirSafe(boundary.absolutePath, originalPath);
+  if ("error" in readResult) return readResult.error;
+  return formatListing(readResult.dirents, max);
+}
+
+/**
+ * SE31 — list through a {@link FilesystemBackend}. The minimal backend `list()`
+ * returns names only, so each entry's type is resolved via `stat()` (bounded by
+ * `max`, so an entry with a transient stat failure defaults to `file`). Typed
+ * backend errors map to the tool's `{ ok: false, error }` JSON.
+ */
+async function listViaBackend(
+  backend: FilesystemBackend,
+  relative: string,
+  originalPath: string,
+  max: number,
+): Promise<string> {
+  let names: string[];
+  try {
+    names = await backend.list(relative);
+  } catch (err) {
+    if (err instanceof FileNotFoundError) {
+      return JSON.stringify({ ok: false, error: "not_found", path: originalPath });
+    }
+    if (err instanceof FilesystemSecurityError) {
+      return JSON.stringify({ ok: false, error: "path_traversal", path: originalPath });
+    }
+    throw err;
+  }
+  const totalCount = names.length;
+  const windowed = names.slice(0, max);
+  const entries = await Promise.all(
+    windowed.map(async (name) => {
+      const child = relative === "." ? name : `${relative}/${name}`;
+      let type: "file" | "directory" = "file";
+      try {
+        type = (await backend.stat(child)).isDirectory ? "directory" : "file";
+      } catch {
+        // A transient stat failure (e.g. a symlink the backend rejects) defaults
+        // to `file` — the listing still returns the entry name, never crashes.
+      }
+      return { name, type };
+    }),
+  );
+  return JSON.stringify({ ok: true, entries, truncated: totalCount > max, totalCount });
 }
 
 function resolveDirBoundary(

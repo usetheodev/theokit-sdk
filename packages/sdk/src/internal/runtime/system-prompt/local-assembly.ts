@@ -1,6 +1,7 @@
 import type { AgentOptions, ModelSelection, SystemPromptContext } from "../../../types/agent.js";
 import type { FileContextManager } from "../context/context-manager.js";
 import type { MemoryFact } from "../memory/memory-store.js";
+import { reasoningActive } from "../reasoning/native-reasoning.js";
 import { SkillsManager } from "../skills/skills-manager.js";
 import type { SystemPromptPipeline } from "./pipeline.js";
 import type { SystemPromptAssemblyContext } from "./types.js";
@@ -99,6 +100,7 @@ export async function buildAssemblyContext(
   baseSystemPrompt: string | undefined,
   memoryFacts: ReadonlyArray<MemoryFact>,
   activeMemorySummary: string | undefined,
+  contextPaths?: readonly string[],
 ): Promise<SystemPromptAssemblyContext> {
   // SE22 — resolve skills ONCE per send; the resolver (if any) runs here, before
   // assembly. `buildSystemPromptContext` receives the resolved manager so the
@@ -114,7 +116,16 @@ export async function buildAssemblyContext(
   if (activeMemorySummary !== undefined && activeMemorySummary.length > 0) {
     assemblyCtx.activeMemorySummary = activeMemorySummary;
   }
+  // SE37 — inject the reasoning preamble when `reasoning: true` and the model is
+  // not already reasoning natively (guard + one-time warn inside reasoningActive).
+  if (reasoningActive(inputs.options.reasoning, inputs.model)) {
+    assemblyCtx.reasoning = true;
+  }
   if (inputs.context !== undefined) {
+    // T3 — apply the per-send in-scope file set so path-scoped rules
+    // (`.theokit/rules/*.md`, `.cursor/rules/*.mdc` globs) activate for THIS
+    // send. No-op when the scope is unchanged / never set (non-users pay nothing).
+    await inputs.context.applyScope(contextPaths);
     const internal = inputs.context.internalAssemblySnapshot();
     assemblyCtx.contextSnapshot = { sources: internal.sources };
     if (internal.maxTokens !== undefined) assemblyCtx.contextMaxTokens = internal.maxTokens;
@@ -135,6 +146,7 @@ export async function assembleSystemPromptForSend(
   baseSystemPrompt: string | undefined,
   memoryFacts: ReadonlyArray<MemoryFact>,
   activeMemorySummary: string | undefined,
+  contextPaths?: readonly string[],
 ): Promise<string | undefined> {
   const ctx = await buildAssemblyContext(
     inputs,
@@ -142,6 +154,7 @@ export async function assembleSystemPromptForSend(
     baseSystemPrompt,
     memoryFacts,
     activeMemorySummary,
+    contextPaths,
   );
   return inputs.systemPromptPipeline.assemble(ctx);
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@4.0.0
+
+## 2.0.0
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@3.0.0
+
 ## 1.0.1
 
 ### Patch Changes

@@ -1,15 +1,15 @@
 /**
- * G8 T2.1 — defineSubscription DSL.
+ * G8 T2.1 — Subscription DSL.
  */
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
-import { defineSubscription } from "../../src/subscription/define-subscription.js";
+import { Subscription } from "../../src/subscription/define-subscription.js";
 
-describe("defineSubscription", () => {
+describe("Subscription", () => {
   it("returns a descriptor with input/output/handler", () => {
     const input = z.object({ topic: z.string() });
     const output = z.object({ msg: z.string() });
-    const desc = defineSubscription({
+    const desc = Subscription.create({
       input,
       output,
       // biome-ignore lint/correctness/useYield: intentional empty handler — test asserts registration only
@@ -23,7 +23,7 @@ describe("defineSubscription", () => {
   });
 
   it("preserves explicit name", () => {
-    const desc = defineSubscription({
+    const desc = Subscription.create({
       name: "chat-room",
       input: z.object({}),
       output: z.object({}),
@@ -37,7 +37,7 @@ describe("defineSubscription", () => {
 
   it("throws when input is missing", () => {
     expect(() =>
-      defineSubscription({
+      Subscription.create({
         // @ts-expect-error testing runtime guard
         input: undefined,
         output: z.object({}),
@@ -51,7 +51,7 @@ describe("defineSubscription", () => {
 
   it("throws when output is missing", () => {
     expect(() =>
-      defineSubscription({
+      Subscription.create({
         input: z.object({}),
         // @ts-expect-error testing runtime guard
         output: undefined,
@@ -65,7 +65,7 @@ describe("defineSubscription", () => {
 
   it("throws when handler is missing", () => {
     expect(() =>
-      defineSubscription({
+      Subscription.create({
         input: z.object({}),
         output: z.object({}),
         // @ts-expect-error testing runtime guard

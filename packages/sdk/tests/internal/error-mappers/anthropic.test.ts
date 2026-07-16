@@ -137,14 +137,17 @@ describe("mapAnthropicError", () => {
   });
 
   // EC-5: HTTP-date format retry-after must not propagate NaN
-  it("EC-5: retry-after in HTTP-date format → metadata SEM retryAfter (no NaN propagation)", () => {
+  it("EC-5: retry-after in HTTP-date format → metadata carries parsed seconds (#60)", () => {
+    const future = new Date(Date.now() + 30_000).toUTCString();
     const err = mapAnthropicError({
       status: 429,
       body: {},
-      headers: headers({ "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" }),
+      headers: headers({ "retry-after": future }),
       endpoint: "/v1/messages",
     });
-    expect(err.metadata?.retryAfter).toBeUndefined();
+    // #60 — the RFC-7231 HTTP-date form is now parsed to seconds-until-then.
+    expect(err.metadata?.retryAfter).toBeGreaterThanOrEqual(28);
+    expect(err.metadata?.retryAfter).toBeLessThanOrEqual(31);
   });
 
   it("unknown status (e.g., 418) → UnknownAgentError", () => {

@@ -1,19 +1,24 @@
-import type { ConversationStorageAdapter } from "../../../types/conversation-storage.js";
 import type { Run } from "../../../types/run.js";
+import type { RunEventSink } from "../../../types/run-events.js";
+import { emitRunEvent } from "../../../types/run-events.js";
+import type { SessionStore } from "../../../types/session-store.js";
+import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
+import {
+  appendSessionMessage,
+  flushSessionWrites,
+  persistTurnToTranscript,
+} from "../../session/index.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
-import type { LocalAgentMemory } from "../local-agent/local-agent-memory.js";
 import { shouldUsePortMemoryPath } from "../memory/memory-path-selector.js";
 import type { MemoryProvider } from "../memory/memory-provider.js";
-import { appendSessionMessage, flushSessionWrites } from "../session/agent-session.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
  * caller (LocalAgent.send) doesn't carry a long positional argument list.
  *
- * `storageHandle` is the unified routing key (D304): either a
- * {@link ConversationStorageAdapter} or the raw `workspaceCwd` string when
- * no custom adapter is configured.
+ * SE41 — the `sessionStore` persists the native records (FS default or an injected
+ * external store); `model` is stamped into the assistant records.
  *
  * @internal
  */
@@ -22,7 +27,12 @@ export interface PostRunLifecycleInputs {
   userText: string;
   agentId: string;
   workspaceCwd: string;
-  storageHandle: ConversationStorageAdapter | string;
+  /** SE41 — the session record store (FS default, or an injected external store). */
+  sessionStore: SessionStore;
+  /** SE40 — model id stamped into the assistant records. */
+  model: string;
+  /** SE2 — surface a `compact_boundary` RunEvent when a persistence-side compaction fires. */
+  onRunEvent?: RunEventSink;
   hooksExecutor: HooksExecutor;
   memoryGlue: LocalAgentMemory;
   /**
@@ -63,7 +73,9 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     userText,
     agentId,
     workspaceCwd,
-    storageHandle,
+    sessionStore,
+    model,
+    onRunEvent,
     hooksExecutor,
     memoryGlue,
     memoryProvider,
@@ -79,8 +91,23 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   }
 
   if (result.result !== undefined) {
-    appendSessionMessage(agentId, { role: "assistant", text: result.result }, storageHandle);
+    // In-memory cache: seed `priorMessages` for the NEXT send.
+    appendSessionMessage(agentId, { role: "assistant", text: result.result });
   }
+
+  // SE40 — persist the WHOLE turn (user + assistant + tool blocks) to the native
+  // Claude-shaped transcript, once per send, from the rich `run.conversation()` view.
+  // SE41 — through the session store (FS default or injected external store).
+  const conversation = await safeConversation(run);
+  persistTurnToTranscript(
+    sessionStore,
+    { cwd: workspaceCwd, agentId, model },
+    agentId,
+    { userText, conversation },
+    onRunEvent !== undefined
+      ? () => emitRunEvent(onRunEvent, { type: "compact_boundary", trigger: "auto" })
+      : undefined,
+  );
 
   // ADR D20 + EC-9: only finished runs feed the corpus="sessions" index.
   if (result.status === "finished" && result.result !== undefined) {
@@ -135,4 +162,17 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     runId: result.id,
   });
   await flushSessionWrites();
+}
+
+/**
+ * Read the rich per-turn conversation view for transcript persistence. Best-effort:
+ * a run without `conversation()` (or one that throws) yields `[]` so persistence
+ * degrades to the user turn only rather than crashing the post-run lifecycle.
+ */
+async function safeConversation(run: Run): Promise<Awaited<ReturnType<Run["conversation"]>>> {
+  try {
+    return await run.conversation();
+  } catch {
+    return [];
+  }
 }

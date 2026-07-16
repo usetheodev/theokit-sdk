@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { z } from "zod";
 import { Agent } from "../../src/agent.js";
-import { defineSubscription } from "../../src/subscription/define-subscription.js";
+import { Subscription } from "../../src/subscription/define-subscription.js";
 import { SubscriptionRuntime } from "../../src/subscription/internal/subscription-runtime.js";
 import { subscribe } from "../../src/subscription/theokit-subscribe.js";
 
@@ -28,7 +28,7 @@ beforeAll(async () => {
   runtime = new SubscriptionRuntime();
   runtime.register(
     "haiku-stream",
-    defineSubscription({
+    Subscription.create({
       input: z.object({ topic: z.string() }),
       output: z.object({ kind: z.enum(["partial", "complete"]), text: z.string() }),
       // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: integration test handler streams partial/complete envelopes with abort + flush semantics

@@ -51,13 +51,4 @@ export interface RegisteredAgent {
   repos?: string[];
   /** Optional explicit status reported via SDKAgentInfo.status. */
   status?: "running" | "finished" | "error";
-  /**
-   * EC-3 (ADR D325): marker set at create-time when
-   * `AgentOptions.conversationStorage` was non-undefined. `Agent.resume`
-   * checks this flag — if `true` AND the caller did not pass
-   * `conversationStorage` again, throws `ConfigurationError(code:
-   * "conversation_storage_required")` instead of silently falling back to
-   * the FS adapter (which would lose Postgres/Redis history).
-   */
-  requiresCustomStorage?: boolean;
 }

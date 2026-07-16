@@ -8,7 +8,7 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { Agent, defineTool } from "../../../src/index.js";
+import { Agent, Tool } from "../../../src/index.js";
 import { resolveRealLlmEnv } from "./_helpers/real-llm-env.js";
 
 const env = resolveRealLlmEnv("anthropic");
@@ -16,7 +16,7 @@ const env = resolveRealLlmEnv("anthropic");
 describe.skipIf(env.shouldSkip)(`real-llm: anthropic tools (${env.provider})`, () => {
   it("invokes a tool and loops back to a final answer", async () => {
     let invocations = 0;
-    const lookupCustomer = defineTool({
+    const lookupCustomer = Tool.create({
       name: "lookup_customer",
       description: "Look up a customer record by id.",
       inputSchema: z.object({ id: z.string() }),

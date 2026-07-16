@@ -44,10 +44,10 @@ export interface DefineSubscriptionOptions<TInput, TOutput> {
  *
  * @example
  * ```ts
- * import { defineSubscription } from "@theokit/sdk";
+ * import { Subscription } from "@theokit/sdk/subscription";
  * import { z } from "zod";
  *
- * export default defineSubscription({
+ * export default Subscription.create({
  *   input: z.object({ topic: z.string() }),
  *   output: z.object({ message: z.string(), ts: z.number() }),
  *   async *handler(input, ctx) {
@@ -87,4 +87,14 @@ export function defineSubscription<TInput, TOutput>(
     output: opts.output,
     handler: opts.handler,
   };
+}
+
+/** SE36 — `Subscription.create` replaces `defineSubscription` (ADR 0015). @public */
+export class Subscription {
+  private constructor() {}
+  static create<TInput, TOutput>(
+    opts: DefineSubscriptionOptions<TInput, TOutput>,
+  ): SubscriptionDescriptor<TInput, TOutput> {
+    return defineSubscription(opts);
+  }
 }

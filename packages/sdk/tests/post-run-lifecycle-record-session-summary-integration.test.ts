@@ -19,9 +19,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocalAgentMemory } from "../src/internal/local-agent/local-agent-memory.js";
+import { FsSessionStore } from "../src/internal/persistence/fs-session-store.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import { runPostRunLifecycle } from "../src/internal/runtime/lifecycle/post-run-lifecycle.js";
-import { LocalAgentMemory } from "../src/internal/runtime/local-agent/local-agent-memory.js";
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,
@@ -61,6 +62,9 @@ function buildStubRun(result: RunResult): Run {
     },
     async wait(): Promise<RunResult> {
       return result;
+    },
+    async conversation() {
+      return [];
     },
     cancel(): void {
       return;
@@ -108,7 +112,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
       userText: "user question",
       agentId: "test-agent",
       workspaceCwd: cwd,
-      storageHandle: cwd,
+      sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
+      model: "stub-model",
       hooksExecutor: hooks,
       memoryGlue,
       memoryProvider: provider,
@@ -150,7 +155,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         userText: "u",
         agentId: "test-agent",
         workspaceCwd: cwd,
-        storageHandle: cwd,
+        sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
+        model: "stub-model",
         hooksExecutor: hooks,
         memoryGlue,
         memoryProvider: provider,
@@ -173,7 +179,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         userText: "u",
         agentId: "test-agent",
         workspaceCwd: cwd,
-        storageHandle: cwd,
+        sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
+        model: "stub-model",
         hooksExecutor: hooks,
         memoryGlue,
       }),
@@ -198,7 +205,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
         userText: "u",
         agentId: "test-agent",
         workspaceCwd: cwd,
-        storageHandle: cwd,
+        sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
+        model: "stub-model",
         hooksExecutor: hooks,
         memoryGlue,
         memoryProvider: provider,
@@ -224,7 +232,8 @@ describe("runPostRunLifecycle → recordSessionSummary (iter 31)", () => {
       userText: "u",
       agentId: "test-agent",
       workspaceCwd: cwd,
-      storageHandle: cwd,
+      sessionStore: new FsSessionStore({ baseDir: cwd, cwd }),
+      model: "stub-model",
       hooksExecutor: hooks,
       memoryGlue,
       memoryProvider: provider,

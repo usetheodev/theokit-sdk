@@ -9,7 +9,13 @@
  * caller).
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { defineProvider } from "../../../src/index.js";
+import { Provider } from "../../../src/index.js";
+import type { CreateRealLocalRunOptions } from "../../../src/internal/local-agent/real-local-run.js";
+import {
+  _resetPluginProviderAnnounce,
+  mergeExplicitApiKey,
+  resolveRunProvider,
+} from "../../../src/internal/local-agent/real-local-run.js";
 import { PluginManager } from "../../../src/internal/plugins/manager.js";
 import {
   _resetBuiltinsRegistered,
@@ -20,12 +26,6 @@ import {
   getProviderProfile,
 } from "../../../src/internal/providers/registry.js";
 import type { ProviderProfile } from "../../../src/internal/providers/types.js";
-import type { CreateRealLocalRunOptions } from "../../../src/internal/runtime/local-agent/real-local-run.js";
-import {
-  _resetPluginProviderAnnounce,
-  mergeExplicitApiKey,
-  resolveRunProvider,
-} from "../../../src/internal/runtime/local-agent/real-local-run.js";
 
 const customProfile: ProviderProfile = {
   name: "custom-llm",
@@ -60,7 +60,7 @@ describe("resolveRunProvider — model-provider plugin wiring (caller)", () => {
 
   it("registers a plugin provider so the prefix selects it as primary", async () => {
     const mgr = new PluginManager();
-    await mgr.initialize([defineProvider(customProfile)]);
+    await mgr.initialize([Provider.create(customProfile)]);
 
     const { primary, effectiveModelId } = resolveRunProvider(
       optionsWith(mgr, "custom-llm/default"),
@@ -76,7 +76,7 @@ describe("resolveRunProvider — model-provider plugin wiring (caller)", () => {
   it("emits a one-shot observability line when plugin providers are registered", async () => {
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     const mgr = new PluginManager();
-    await mgr.initialize([defineProvider(customProfile)]);
+    await mgr.initialize([Provider.create(customProfile)]);
 
     resolveRunProvider(optionsWith(mgr, "custom-llm/default"));
     resolveRunProvider(optionsWith(mgr, "custom-llm/default")); // second run

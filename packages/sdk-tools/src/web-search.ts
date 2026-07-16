@@ -11,7 +11,7 @@
 
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 
 export interface WebSearchResult {
@@ -32,7 +32,7 @@ export interface CreateWebSearchToolOptions {
 export function createWebSearchTool(opts: CreateWebSearchToolOptions): CustomTool {
   const { search, defaultMaxResults = 5 } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "web_search",
     description:
       "Search the web for a query — use when you need current information beyond the repo or your " +

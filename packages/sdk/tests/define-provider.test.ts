@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { defineProvider } from "../src/index.js";
+import { Provider } from "../src/index.js";
+import { isCodePlugin } from "../src/internal/plugins/plugin-guards.js";
 import type { ProviderProfile } from "../src/internal/providers/types.js";
-import { isCodePlugin } from "../src/internal/runtime/local-agent/local-agent-plugins.js";
 
 const profile: ProviderProfile = {
   name: "groq",
@@ -13,9 +13,9 @@ const profile: ProviderProfile = {
   aliases: ["groq-cloud"],
 };
 
-describe("defineProvider", () => {
+describe("Provider", () => {
   it("returns a model-provider Plugin derived from the profile", () => {
-    const plugin = defineProvider(profile);
+    const plugin = Provider.create(profile);
     expect(plugin.kind).toBe("model-provider");
     expect(plugin.name).toBe("groq");
     // profile is preserved by reference (no copy/mutation)
@@ -23,11 +23,11 @@ describe("defineProvider", () => {
   });
 
   it("defaults version to 1.0.0 and honours an override", () => {
-    expect(defineProvider(profile).version).toBe("1.0.0");
-    expect(defineProvider(profile, { version: "2.3.4" }).version).toBe("2.3.4");
+    expect(Provider.create(profile).version).toBe("1.0.0");
+    expect(Provider.create(profile, { version: "2.3.4" }).version).toBe("2.3.4");
   });
 
   it("produces a plugin that passes the runtime isCodePlugin type-guard", () => {
-    expect(isCodePlugin(defineProvider(profile))).toBe(true);
+    expect(isCodePlugin(Provider.create(profile))).toBe(true);
   });
 });

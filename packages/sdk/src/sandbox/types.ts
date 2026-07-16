@@ -8,6 +8,7 @@
  * @public
  */
 
+import type { EnvPolicy } from "../types/env-policy.js";
 import { shellEscapePosix } from "./shell-escape.js";
 
 export interface ExecuteResult {
@@ -27,7 +28,7 @@ export interface SandboxConfig {
    * `*TOKEN*`, `*PASSWORD*`, `*_AUTH*`). Pass `"all"` to restore full inheritance
    * or `"core"` for a minimal safe allowlist.
    */
-  env?: import("../internal/runtime/lifecycle/env-policy.js").EnvPolicy;
+  env?: EnvPolicy;
 }
 
 export class SandboxSecurityError extends Error {
@@ -45,8 +46,6 @@ export class SandboxNotAvailableError extends Error {
     this.name = "SandboxNotAvailableError";
   }
 }
-
-const SHELL_METACHARACTERS = /[;&|`$(){}]/;
 
 export abstract class SandboxBackend {
   protected config: SandboxConfig;
@@ -99,14 +98,6 @@ export abstract class SandboxBackend {
     const result = await this.execute(`ls -1 ${this.shellEscape(path)}`);
     if (result.exitCode !== 0) return [];
     return result.stdout.trim().split("\n").filter(Boolean);
-  }
-
-  protected validateCommand(command: string): void {
-    if (SHELL_METACHARACTERS.test(command)) {
-      throw new SandboxSecurityError(
-        `Command contains shell metacharacters: ${command.slice(0, 80)}`,
-      );
-    }
   }
 
   protected truncateOutput(output: string): string {

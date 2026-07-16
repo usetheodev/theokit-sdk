@@ -44,14 +44,26 @@ export function buildAssistantEvent(inputs: AgentLoopInputs, text: string): SDKA
   };
 }
 
-/** issue #47: the reasoning the model produced this turn, as a `thinking` SDKMessage. */
-export function buildThinkingEvent(inputs: AgentLoopInputs, text: string): SDKThinkingMessage {
-  return {
+/**
+ * issue #47: the reasoning the model produced this turn, as a `thinking` SDKMessage.
+ * issue #48: when the reasoning duration was measured, carry it as `thinking_duration_ms`
+ * so a `Run.stream()` replay can render how long the model reasoned.
+ */
+export function buildThinkingEvent(
+  inputs: AgentLoopInputs,
+  text: string,
+  thinkingDurationMs?: number,
+): SDKThinkingMessage {
+  const event: SDKThinkingMessage = {
     type: "thinking",
     agent_id: inputs.agentId,
     run_id: inputs.runId,
     text,
   };
+  if (thinkingDurationMs !== undefined && thinkingDurationMs >= 0) {
+    event.thinking_duration_ms = thinkingDurationMs;
+  }
+  return event;
 }
 
 export function buildAssistantTurn(text: string, toolCalls: LlmToolCallPart[]): LlmMessage {

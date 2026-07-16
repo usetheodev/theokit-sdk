@@ -155,4 +155,3 @@ The redacted body is safe to log — `redactSecrets` strips known secret pattern
 
 - `internal/error-mappers/` — per-provider mapping implementations
 - ADRs D311-D314, D65-D68 (the broader error system)
-- `docs/recipes/error-handling.md` (TODO) — common error-handling patterns

@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/internal/persistence";
+import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/persistence";
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 import { memoryDir, readFactsFromMarkdown } from "../store/markdown-store.js";
 import { appendDiaryEntry } from "./dreaming-diary.js";

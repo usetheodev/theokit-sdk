@@ -1,5 +1,193 @@
 # @theokit/example-theocode-e2e
 
+## 0.0.60
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@4.2.2
+
+## 0.0.59
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@4.2.1
+
+## 0.0.58
+
+### Patch Changes
+
+- Updated dependencies [453ad2d]
+  - @theokit/sdk@4.2.0
+
+## 0.0.57
+
+### Patch Changes
+
+- Updated dependencies [c4d410c]
+  - @theokit/sdk@4.1.0
+
+## 0.0.56
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@4.0.2
+
+## 0.0.55
+
+### Patch Changes
+
+- Updated dependencies [2e8295e]
+  - @theokit/sdk@4.0.1
+
+## 0.0.54
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@4.0.0
+
+## 0.0.53
+
+### Patch Changes
+
+- Updated dependencies [4a5ec72]
+  - @theokit/sdk@3.8.0
+
+## 0.0.52
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@3.7.0
+
+## 0.0.51
+
+### Patch Changes
+
+- Updated dependencies [2606c98]
+  - @theokit/sdk@3.6.0
+
+## 0.0.50
+
+### Patch Changes
+
+- Updated dependencies [cc095cd]
+  - @theokit/sdk@3.5.0
+
+## 0.0.49
+
+### Patch Changes
+
+- Updated dependencies [2dc6a1c]
+- Updated dependencies [2891678]
+  - @theokit/sdk@3.4.1
+
+## 0.0.48
+
+### Patch Changes
+
+- Updated dependencies [84b4de5]
+  - @theokit/sdk@3.4.0
+
+## 0.0.47
+
+### Patch Changes
+
+- Updated dependencies [e81e994]
+  - @theokit/sdk@3.3.0
+
+## 0.0.46
+
+### Patch Changes
+
+- Updated dependencies [1770aec]
+- Updated dependencies [cda0542]
+- Updated dependencies [510041b]
+- Updated dependencies [f7d39c8]
+  - @theokit/sdk@3.2.3
+
+## 0.0.45
+
+### Patch Changes
+
+- Updated dependencies [7f57c5a]
+- Updated dependencies [f81ac79]
+- Updated dependencies [57cfcc8]
+- Updated dependencies [bd06140]
+  - @theokit/sdk@3.2.2
+
+## 0.0.44
+
+### Patch Changes
+
+- Updated dependencies [a283dd4]
+- Updated dependencies [826bca0]
+- Updated dependencies [7bcc872]
+  - @theokit/sdk@3.2.1
+
+## 0.0.43
+
+### Patch Changes
+
+- Updated dependencies [bf66122]
+  - @theokit/sdk@3.2.0
+
+## 0.0.42
+
+### Patch Changes
+
+- Updated dependencies [5f0507c]
+  - @theokit/sdk@3.1.1
+
+## 0.0.41
+
+### Patch Changes
+
+- Updated dependencies [c71e539]
+  - @theokit/sdk@3.1.0
+
+## 0.0.40
+
+### Patch Changes
+
+- Updated dependencies
+  - @theokit/sdk@3.0.0
+
+## 0.0.39
+
+### Patch Changes
+
+- Updated dependencies [ea3cd14]
+  - @theokit/sdk@2.30.0
+
+## 0.0.38
+
+### Patch Changes
+
+- Updated dependencies [99046ab]
+- Updated dependencies [a8bed75]
+  - @theokit/sdk@2.29.0
+
+## 0.0.37
+
+### Patch Changes
+
+- Updated dependencies [3af329f]
+  - @theokit/sdk@2.28.0
+
+## 0.0.36
+
+### Patch Changes
+
+- Updated dependencies [c2bdd87]
+- Updated dependencies [09b89ea]
+- Updated dependencies [f13d499]
+- Updated dependencies [8ce8441]
+  - @theokit/sdk@2.27.0
+
 ## 0.0.35
 
 ### Patch Changes

@@ -151,7 +151,7 @@ export class SubscriptionDisconnectError extends SubscriptionError {
 }
 
 /**
- * Descriptor returned by {@link defineSubscription}. Carries the typed
+ * Descriptor returned by {@link Subscription.create}. Carries the typed
  * input/output Zod schemas + handler factory.
  *
  * @public

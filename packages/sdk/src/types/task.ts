@@ -107,6 +107,15 @@ export interface TaskSubmitOptions {
    * a semaphore slot (EC-4).
    */
   readonly signal?: AbortSignal;
+  /**
+   * SE2 — an opt-in {@link import("./run-events.js").RunEventSink}. The task's
+   * lifecycle is forwarded to it as typed `task_started` / `task_updated` /
+   * `task_completed` RunEvents, so a caller that spawned the task can observe it
+   * through the same `onRunEvent` channel as the rest of the run. Best-effort (a
+   * throwing sink never breaks the task). The dedicated `Task.subscribe(id)`
+   * channel is unaffected.
+   */
+  readonly onRunEvent?: import("./run-events.js").RunEventSink;
 }
 
 /** Options shape for `TaskStore` factory (D364). */

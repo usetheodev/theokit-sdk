@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
+import { replaceFileAtomic } from "@theokit/sdk/persistence";
 
 import { memoryDir } from "../store/markdown-store.js";
 
@@ -22,7 +22,7 @@ import { memoryDir } from "../store/markdown-store.js";
  * that the future `dreaming-run.ts` move will compose with as a
  * sibling (run.ts imports `appendDiaryEntry` after each dreaming
  * sweep). Dependency chain (both resolved):
- * - `@theokit/sdk/internal/persistence` for `replaceFileAtomic`
+ * - `@theokit/sdk/persistence` for `replaceFileAtomic`
  * - sibling `./markdown-store.js` for `memoryDir` (moved iter 56)
  *
  * Flat-naming convention (not `dreaming/diary.ts`): sdk-memory's

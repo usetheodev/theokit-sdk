@@ -12,7 +12,7 @@
 import { spawn } from "node:child_process";
 import type { CustomTool } from "@theokit/sdk";
 
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 import { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
@@ -38,7 +38,7 @@ export interface CreateShellToolOptions {
 export function createShellTool(opts: CreateShellToolOptions): CustomTool {
   const { projectRoot, defaultTimeoutMs = DEFAULT_TIMEOUT_MS, allowCatastrophic = false } = opts;
 
-  return defineTool({
+  return Tool.create({
     name: "shell_exec",
     description:
       "Execute a shell command in the project directory. Use this for terminal operations — running " +
@@ -91,7 +91,6 @@ function runShell(cwd: string, command: string, timeoutMs: number): Promise<stri
     const stderrChunks: Buffer[] = [];
     let stdoutBytes = 0;
     let stderrBytes = 0;
-    let _truncated = false;
 
     const gate = armTimeoutKill<ShellResult>(
       child,
@@ -103,14 +102,12 @@ function runShell(cwd: string, command: string, timeoutMs: number): Promise<stri
     child.stdout.on("data", (chunk: Buffer) => {
       if (gate.settled()) return;
       if (stdoutBytes >= MAX_OUTPUT_BYTES) {
-        _truncated = true;
         return;
       }
       const remaining = MAX_OUTPUT_BYTES - stdoutBytes;
       if (chunk.length > remaining) {
         stdoutChunks.push(chunk.subarray(0, remaining));
         stdoutBytes = MAX_OUTPUT_BYTES;
-        _truncated = true;
       } else {
         stdoutChunks.push(chunk);
         stdoutBytes += chunk.length;

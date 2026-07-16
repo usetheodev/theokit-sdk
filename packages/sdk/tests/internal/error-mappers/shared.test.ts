@@ -10,8 +10,35 @@ import { describe, expect, it } from "vitest";
 import {
   buildErrorMetadata,
   parseRequestId,
+  parseRetryAfter,
   truncateRaw,
 } from "../../../src/internal/error-mappers/shared.js";
+
+describe("parseRetryAfter — numeric-seconds AND HTTP-date (#60)", () => {
+  const h = (v: string): Headers => new Headers({ "retry-after": v });
+
+  it("parses the numeric-seconds form", () => {
+    expect(parseRetryAfter(h("30"))).toBe(30);
+    expect(parseRetryAfter(h("0"))).toBe(0);
+  });
+
+  it("parses the RFC-7231 HTTP-date form into seconds-until-then", () => {
+    const future = new Date(Date.now() + 45_000).toUTCString();
+    const secs = parseRetryAfter(h(future));
+    expect(secs).toBeGreaterThanOrEqual(43);
+    expect(secs).toBeLessThanOrEqual(46);
+  });
+
+  it("returns 0 for a past HTTP-date (window already elapsed)", () => {
+    const past = new Date(Date.now() - 60_000).toUTCString();
+    expect(parseRetryAfter(h(past))).toBe(0);
+  });
+
+  it("returns undefined for garbage or a missing header", () => {
+    expect(parseRetryAfter(h("not-a-date-or-number"))).toBeUndefined();
+    expect(parseRetryAfter(undefined)).toBeUndefined();
+  });
+});
 
 describe("truncateRaw — secret redaction (T1.1)", () => {
   it("masks long sk-* tokens in string bodies", () => {

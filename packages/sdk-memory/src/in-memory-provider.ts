@@ -15,7 +15,7 @@
  *     can call to persist a fact mid-conversation.
  *   - `recordSessionSummary()` writes a markdown summary to
  *     `${cwd}/.theokit/memory/sessions/${runId}.md` (real disk write
- *     via `@theokit/sdk/internal/persistence` per ADR-008).
+ *     via `@theokit/sdk/persistence` per ADR-008).
  *   - `dispose()` clears the handle's per-agent map (releases memory).
  *
  * @public
@@ -40,7 +40,7 @@ import type {
   SDKAgent,
 } from "@theokit/sdk";
 import { Security } from "@theokit/sdk";
-import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
+import { replaceFileAtomic } from "@theokit/sdk/persistence";
 
 /** Adapter id prefix — namespaces minted MemoryIds so cross-adapter delete is safe (EC-B). */
 const ADAPTER_ID = "in-memory-md";
@@ -382,7 +382,7 @@ export function createInMemoryMarkdownProvider(): MemoryProvider {
       return;
     },
     async recordSessionSummary(args: RecordSessionSummaryArgs): Promise<void> {
-      // Real filesystem write via `@theokit/sdk/internal/persistence`'s
+      // Real filesystem write via `@theokit/sdk/persistence`'s
       // `replaceFileAtomic`. ADR-008 sub-path resolution guarantees the
       // same process-level write lock as sdk-core's legacy
       // `writeSessionSummary`. Future LanceDB-backed impl additionally

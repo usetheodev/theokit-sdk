@@ -1,17 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { defineTool } from "../../../src/index.js";
+import { Tool } from "../../../src/index.js";
 
 /**
- * Golden tests for {@link defineTool} — Phase 3 of the agent construction DX
+ * Golden tests for {@link Tool} — Phase 3 of the agent construction DX
  * helpers plan (ADR D24). Covers JSON Schema conversion, runtime parse,
  * type inference (compile-time), error propagation, and transform handling.
  */
 
-describe("defineTool", () => {
+describe("Tool", () => {
   it("returns a valid CustomTool with object inputSchema", () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "echo",
       description: "Echo the input.",
       inputSchema: z.object({ text: z.string() }),
@@ -25,7 +25,7 @@ describe("defineTool", () => {
 
   it("parses input at runtime via the Zod schema before invoking the handler", async () => {
     let receivedRaw: unknown;
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "with_parse",
       description: "Parse-then-call.",
       inputSchema: z.object({ n: z.number().int() }),
@@ -44,7 +44,7 @@ describe("defineTool", () => {
   });
 
   it("propagates handler throws unchanged", async () => {
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "thrower",
       description: "Always throws.",
       inputSchema: z.object({}),
@@ -57,7 +57,7 @@ describe("defineTool", () => {
 
   it("infers the handler input type from the schema (compile-time check)", () => {
     // TS-level test: handler arg is { count: number }, not Record<string, unknown>.
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "typed_input",
       description: "Handler arg type is inferred.",
       inputSchema: z.object({ count: z.number() }),
@@ -75,7 +75,7 @@ describe("defineTool", () => {
     const cwd = await mkdtemp(join(tmpdir(), "theokit-definetool-bad-"));
     // Using z.string() at the root produces inputSchema with type: "string",
     // which our validateCustomTools rejects with tool_invalid_schema_type.
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "bad_schema_root",
       description: "Non-object root schema.",
       inputSchema: z.string() as never,
@@ -93,7 +93,7 @@ describe("defineTool", () => {
 
   it("handler receives Zod transform output type (EC-3)", async () => {
     let received: number | undefined;
-    const tool = defineTool({
+    const tool = Tool.create({
       name: "transform_output",
       description: "Transform string to number before handler runs.",
       inputSchema: z.object({

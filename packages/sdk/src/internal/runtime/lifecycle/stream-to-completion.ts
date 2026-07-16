@@ -7,9 +7,9 @@
  * policy (D1): the only difference from `runToCompletion` is surfacing events over
  * `Run.stream()` instead of returning only the final `Run.wait()` result.
  *
- * Stateful, like `runToCompletion` (the agent's session preserves history; the
- * continuation prompt is short). The STATELESS path stays `buildReplayHistory`
- * (D2) — a consumer reconstructs history into a fresh session, then drives this.
+ * Stateful, like `runToCompletion` (the agent's session preserves history via the
+ * native transcript; the continuation prompt is short). A stateless consumer
+ * reconstructs history from the on-disk native transcript into a fresh agent.
  *
  * The `StreamToCompletionResult` is the generator's RETURN value, read via a
  * manual `gen.next()` loop (`while (!res.done) res = await gen.next()` → `res.value`).
@@ -86,7 +86,12 @@ export async function* streamToCompletionImpl(
 
   for (let round = 0; ; round += 1) {
     const prompt = promptForRound(round, message, cfg.continuationPrompt);
-    const run = await agent.send(prompt, cfg.sendOptions);
+    // SE3 — a continuation round is a driver-initiated turn; stamp its provenance.
+    const roundOptions =
+      round === 0
+        ? cfg.sendOptions
+        : { ...(cfg.sendOptions ?? {}), origin: { kind: "auto-continuation" as const } };
+    const run = await agent.send(prompt, roundOptions);
 
     // (a) STREAMING: delegate the round's events live, before classifying.
     yield* run.stream();

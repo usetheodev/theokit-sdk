@@ -4,6 +4,7 @@ import { ActiveMemoryPromptProvider } from "./sources/active-memory-provider.js"
 import { BasePromptProvider } from "./sources/base-provider.js";
 import { ContextPromptProvider } from "./sources/context-provider.js";
 import { MemoryPromptProvider } from "./sources/memory-provider.js";
+import { ReasoningPromptProvider } from "./sources/reasoning-provider.js";
 import { SkillsPromptProvider } from "./sources/skills-provider.js";
 import type { SystemPromptAssemblyContext, SystemPromptProvider } from "./types.js";
 
@@ -62,6 +63,7 @@ export class SystemPromptPipeline {
    */
   static default(): SystemPromptPipeline {
     return new SystemPromptPipeline([
+      new ReasoningPromptProvider(),
       new ActiveMemoryPromptProvider(),
       new ContextPromptProvider(),
       new SkillsPromptProvider(),

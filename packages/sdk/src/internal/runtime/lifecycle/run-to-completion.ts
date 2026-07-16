@@ -177,7 +177,11 @@ async function stepRound(
   maxRounds: number,
   state: RoundState,
 ): Promise<RoundOutcome> {
-  const run = await agent.send(prompt, sendOptions);
+  // SE3 — a continuation round (round > 0) is a driver-initiated turn; stamp its
+  // provenance so a consumer can tell it apart from the caller's first send.
+  const roundOptions: SendOptions | undefined =
+    round === 0 ? sendOptions : { ...(sendOptions ?? {}), origin: { kind: "auto-continuation" } };
+  const run = await agent.send(prompt, roundOptions);
   const result = await run.wait();
   const usage = addUsage(state.usage, result.usage);
   const decision = classifyRound(result, round, maxRounds, state.emptyStreak);

@@ -27,6 +27,7 @@ import type { ZodType } from "zod";
 import { z } from "zod";
 import { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
 import { sanitizeIdentifier } from "./internal/security/path-guard.js";
+import { createEventStream } from "./internal/workflow/event-stream.js";
 import { toJsonSchema } from "./internal/zod/to-json-schema.js";
 import type { CustomTool, SDKAgent } from "./types/agent.js";
 import type { MessageOrigin } from "./types/run.js";
@@ -42,12 +43,14 @@ import type {
   Step,
   StepContext,
   SuspendStep,
+  WorkflowEvent,
   WorkflowOptions,
   WorkflowResumeOptions,
   WorkflowRun,
   WorkflowRunOptions,
+  WorkflowStream,
 } from "./types/workflow.js";
-import { WorkflowDuplicateStepIdError } from "./types/workflow.js";
+import { WorkflowDuplicateStepIdError, WorkflowNestedError } from "./types/workflow.js";
 
 /* ─── Zod validation schemas ─── */
 
@@ -67,6 +70,11 @@ const RetryPolicySchema = z.object({
 const WorkflowOptionsSchema = z.object({
   name: z.string().min(1).max(128),
   persistence: PersistenceSchema,
+  // SE27 — declared so a future `new WorkflowBuilder(parsed)` refactor cannot
+  // silently drop them (create() passes the ORIGINAL options today, but the
+  // schema is also the documentation of the shape).
+  inputSchema: z.custom<ZodType>().optional(),
+  outputSchema: z.custom<ZodType>().optional(),
 });
 
 /* ─── Builder ─── */
@@ -281,6 +289,37 @@ export class Workflow<TInput = unknown, TOutput = unknown> {
   }
 
   /**
+   * SE28 — run the workflow and STREAM step-level events as they happen. Returns
+   * an async iterator of {@link WorkflowEvent}s (`step_started` / `step_completed`
+   * / `step_failed` / `workflow_suspended` / `workflow_completed`, top-level
+   * steps) plus a `result` promise resolving to the same terminal
+   * {@link WorkflowRun} `run()` returns. Iterate for progress; await `result` for
+   * the outcome. The stream ends when the run terminates.
+   *
+   * `result` is the AUTHORITATIVE terminal status. Not every terminal state has a
+   * closing event: a step failure emits `step_failed`, but an `outputSchema`
+   * rejection (SE27) or an abort ends the stream WITHOUT `workflow_completed` —
+   * always `await result` to read the final `status`. Consuming order is free:
+   * awaiting `result` without draining, or draining without awaiting `result`,
+   * both work (breaking out of `for await` stops the buffering early).
+   */
+  stream(input: TInput, opts?: WorkflowRunOptions): WorkflowStream<TOutput> {
+    const queue = createEventStream();
+    const result = (async (): Promise<WorkflowRun<TOutput>> => {
+      const { executeWorkflow } = await import("./internal/workflow/executor.js");
+      try {
+        return await executeWorkflow<TInput, TOutput>(this._options, this._steps, input, {
+          ...opts,
+          onStepEvent: (event: WorkflowEvent) => queue.push(event),
+        } as WorkflowRunOptions);
+      } finally {
+        queue.end(); // authoritative terminal is `result`; close the stream
+      }
+    })();
+    return Object.assign(queue, { result });
+  }
+
+  /**
    * Resume a suspended workflow from its snapshot. Throws
    * `WorkflowSnapshotNotFoundError` if `runId` is unknown.
    */
@@ -335,6 +374,51 @@ export function agentStep(
   };
 }
 
+/**
+ * SE30 — use a committed {@link Workflow} as a step inside another workflow.
+ * Wraps the child as an `FnStep` (opaque — the child runs in its OWN executor
+ * with its own id-space, so nested step-ids never collide with the parent's).
+ * The child's output becomes the step output. A non-`completed` child fails the
+ * parent step with a typed {@link WorkflowNestedError}: nested `suspended` is NOT
+ * resumable in v1 (resume continues AFTER the step — the child would be skipped;
+ * use a top-level suspend). See ADR 0010.
+ *
+ * @public
+ */
+export function workflowStep<TI = unknown, TO = unknown>(
+  child: Workflow<TI, TO>,
+  opts?: { id?: string },
+): FnStep {
+  const id = opts?.id ?? `workflow_${child.__options.name}`;
+  validateStepId(id);
+  return {
+    kind: "fn",
+    id,
+    fn: async (input: unknown, ctx: StepContext): Promise<unknown> => {
+      const run = await child.run(input as TI, { signal: ctx.signal });
+      if (run.status === "completed") return run.output;
+      throw new WorkflowNestedError(id, child.__options.name, run.status, run.error);
+    },
+  };
+}
+
+/**
+ * SE30 — clone a committed workflow under a new id/name. The clone runs
+ * independently (its own single-flight lock + observability identity) with the
+ * same committed steps. Mirrors a peer framework's `cloneWorkflow`.
+ *
+ * @public
+ */
+export function cloneWorkflow<TI = unknown, TO = unknown>(
+  wf: Workflow<TI, TO>,
+  opts: { id: string },
+): Workflow<TI, TO> {
+  return new Workflow<TI, TO>(
+    { ...wf.__options, name: opts.id, workflowId: `wf-${mintShortId()}` },
+    [...wf.__steps],
+  );
+}
+
 /* ─── Test seam re-export ─── */
 
 export { __resetSnapshotStoresForTests } from "./internal/workflow/snapshot-store.js";
@@ -350,11 +434,15 @@ export {
   WorkflowAlreadyRunningError,
   WorkflowCompensateNotImplementedError,
   WorkflowDuplicateStepIdError,
+  WorkflowInputError,
   WorkflowMaxIterationsExceededError,
+  WorkflowNestedError,
   WorkflowNotSerializableError,
+  WorkflowOutputError,
   WorkflowParallelError,
   WorkflowResumeStepNotFoundError,
   WorkflowSnapshotNotFoundError,
+  WorkflowStateError,
 } from "./types/workflow.js";
 
 /* ─── SE19 — workflowAsTool (expose a Workflow as an agent tool) ─── */

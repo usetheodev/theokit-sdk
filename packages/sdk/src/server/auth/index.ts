@@ -20,7 +20,7 @@ export {
 // too short (e.g., a 16-byte legacy value carried over from pre-T5.1).
 export { AuthSecretTooShortError } from "./oauth-transaction-store.js";
 
-export { defineAuth } from "./orchestrator.js";
+export { Auth } from "./orchestrator.js";
 export type {
   AuthOrchestrator,
   AuthProvider,

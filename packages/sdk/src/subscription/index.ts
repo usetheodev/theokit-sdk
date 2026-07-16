@@ -4,7 +4,7 @@
  * Per ADRs D422-D429 (Form 4 Hybrid + DSL + transport + resume).
  *
  * Exports:
- * - `defineSubscription` — server-side typed RPC subscription factory
+ * - `Subscription.create` — server-side typed RPC subscription factory (SE36)
  * - `tracked`, `isTrackedEnvelope` — resume token envelope helpers
  * - `subscribe` — client-side AsyncGenerator (also reachable via `Theokit.subscribe`)
  * - Types: `SubscriptionCtx`, `SubscriptionDescriptor`, `SubscriptionTransport`,
@@ -16,7 +16,7 @@
 
 export {
   type DefineSubscriptionOptions,
-  defineSubscription,
+  Subscription,
 } from "./define-subscription.js";
 export { type SubscribeOptions, subscribe } from "./theokit-subscribe.js";
 export {

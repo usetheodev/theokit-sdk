@@ -3,12 +3,7 @@ import {
   appendFact as appendFactMd,
   readFacts as readFactsMd,
 } from "../../memory/storage/markdown-store.js";
-import {
-  legacyMemoryJsonPath,
-  type MemoryConfig,
-  type MemoryFact,
-  redactSecrets,
-} from "../../memory/types.js";
+import { type MemoryConfig, type MemoryFact, redactSecrets } from "../../memory/types.js";
 
 /**
  * Workspace-level memory store. Storage migrated from JSON-array to
@@ -51,11 +46,6 @@ export function extractMemoryFact(message: string): string {
   const match = REMEMBER_PATTERN.exec(message);
   if (match === null || match[1] === undefined) return "";
   return match[1].trim().replace(/\.$/, "");
-}
-
-/** @internal — kept for migration helpers + tests. */
-export function memoryFilePath(cwd: string, config: MemoryConfig): string {
-  return legacyMemoryJsonPath(cwd, config);
 }
 
 export async function readMemoryFacts(cwd: string, config: MemoryConfig): Promise<MemoryFact[]> {

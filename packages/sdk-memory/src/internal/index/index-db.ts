@@ -1,6 +1,6 @@
 import { join } from "node:path";
 
-import { openSqliteResilient } from "@theokit/sdk/internal/persistence";
+import { openSqliteResilient } from "@theokit/sdk/persistence";
 
 import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
 
@@ -19,7 +19,7 @@ import { PRAGMA_STATEMENTS, SCHEMA_STATEMENTS } from "./index-schema.js";
  * future `sqlite-vec-loader`, `vec-index`, `index-manager` moves
  * will compose with. Dependency chain (all resolved):
  * - `@theokit/sdk/errors` for `ConfigurationError` (public)
- * - `@theokit/sdk/internal/persistence` for `applyWalWithFallback`
+ * - `@theokit/sdk/persistence` for `applyWalWithFallback`
  *   (ADR D63 — NFS/SMB/FUSE-safe WAL adoption)
  * - sibling `./index-schema.js` for SCHEMA + PRAGMA statements (moved iter 49)
  *

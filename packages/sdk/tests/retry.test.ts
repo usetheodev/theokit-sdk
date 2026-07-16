@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { AuthenticationError, RateLimitError } from "../src/errors.js";
-import { withRetry } from "../src/retry.js";
+import { Retry } from "../src/retry.js";
 
 /**
- * M0-3 (plan m0-foundation-expose-primitives, T4.1) — generic `withRetry`.
+ * M0-3 (plan m0-foundation-expose-primitives, T4.1) — generic `Retry`.
  *
  * Contract (sealed by these tests):
  *   - retries transient failures with exponential backoff (deterministic via
@@ -13,18 +13,18 @@ import { withRetry } from "../src/retry.js";
  *   - rethrows non-retryable errors immediately (no sleep)
  *   - propagates an aborted sleep without re-invoking `fn`
  */
-describe("withRetry", () => {
+describe("Retry", () => {
   it("test_withRetry_succeeds_first_attempt_no_sleep", async () => {
     const sleep = vi.fn(async () => {});
     const fn = vi.fn(async () => "ok");
-    expect(await withRetry(fn, { sleep })).toBe("ok");
+    expect(await Retry.create(fn, { sleep })).toBe("ok");
     expect(fn).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
   });
 
   it("test_withRetry_retries_until_success", async () => {
     let calls = 0;
-    const value = await withRetry(
+    const value = await Retry.create(
       async () => {
         calls += 1;
         if (calls < 3) throw new RateLimitError("rate limited");
@@ -38,7 +38,7 @@ describe("withRetry", () => {
   it("test_withRetry_uses_injected_sleep_with_backoff", async () => {
     const sleeps: number[] = [];
     let calls = 0;
-    await withRetry(
+    await Retry.create(
       async () => {
         calls += 1;
         if (calls < 3) throw new RateLimitError("rate limited");
@@ -62,7 +62,7 @@ describe("withRetry", () => {
     const fn = vi.fn(async () => {
       throw new AuthenticationError("bad key");
     });
-    await expect(withRetry(fn, { sleep })).rejects.toBeInstanceOf(AuthenticationError);
+    await expect(Retry.create(fn, { sleep })).rejects.toBeInstanceOf(AuthenticationError);
     expect(fn).toHaveBeenCalledTimes(1);
     expect(sleep).not.toHaveBeenCalled();
   });
@@ -71,7 +71,7 @@ describe("withRetry", () => {
     // RateLimitError is transient -> retried; AuthenticationError is not.
     let rlCalls = 0;
     await expect(
-      withRetry(
+      Retry.create(
         async () => {
           rlCalls += 1;
           throw new RateLimitError("rl");
@@ -83,7 +83,7 @@ describe("withRetry", () => {
 
     let authCalls = 0;
     await expect(
-      withRetry(
+      Retry.create(
         async () => {
           authCalls += 1;
           throw new AuthenticationError("auth");
@@ -99,7 +99,7 @@ describe("withRetry", () => {
       throw new RateLimitError("rl");
     });
     await expect(
-      withRetry(fn, {
+      Retry.create(fn, {
         retries: 5,
         sleep: async () => {
           throw new Error("aborted");
@@ -110,10 +110,10 @@ describe("withRetry", () => {
   });
 
   it("test_withRetry_throws_on_invalid_retries", async () => {
-    await expect(withRetry(async () => "x", { retries: -1 })).rejects.toThrow();
-    await expect(withRetry(async () => "x", { retries: 1.5 })).rejects.toThrow();
+    await expect(Retry.create(async () => "x", { retries: -1 })).rejects.toThrow();
+    await expect(Retry.create(async () => "x", { retries: 1.5 })).rejects.toThrow();
     await expect(
-      withRetry(async () => "x", { retries: Number.POSITIVE_INFINITY }),
+      Retry.create(async () => "x", { retries: Number.POSITIVE_INFINITY }),
     ).rejects.toThrow();
   });
 });

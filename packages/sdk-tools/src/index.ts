@@ -75,6 +75,13 @@ export {
 } from "./plan-mode.js";
 export { createQuestionTool, type QuestionTool, type QuestionToolOptions } from "./question.js";
 export { type CreateReadFileToolOptions, createReadFileTool } from "./read-file.js";
+// SE32 — read-before-write safety tracker (shared by read_file + write_file).
+// Only `ReadTracker` is the consumer-facing API (instantiate + pass to both
+// tools); `evaluateReadBeforeWrite`/`WriteDecision` stay internal (imported
+// directly by write-file.ts + unit-tested via read-tracker.ts) — not re-exported.
+export { ReadTracker } from "./read-tracker.js";
+// SE37 — the public reasoning scratchpad toolkit (think + analyze).
+export { ReasoningTools } from "./reasoning-tools.js";
 export {
   type CreateRunVitestToolOptions,
   createRunVitestTool,

@@ -1,38 +1,51 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
+import { FsSessionStore } from "../../../src/internal/persistence/fs-session-store.js";
+import {
+  readTranscript,
+  type SessionRecord,
+  transcriptPath,
+} from "../../../src/internal/persistence/session-transcript.js";
 import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../../../src/internal/runtime/registry/agent-registry.js";
 import {
-  appendSessionMessage,
   clearAllSessions,
-  compactSession,
   flushSessionWrites,
   getSessionMessages,
   hydrateSession,
-} from "../../../src/internal/runtime/session/agent-session.js";
+} from "../../../src/internal/session/agent-session.js";
 import {
-  appendToSessionFile,
-  readSessionFile,
-  sessionFilePath,
-} from "../../../src/internal/runtime/session/agent-session-store.js";
+  appendCompactBoundaryRecord,
+  persistTurn,
+  readSessionMessages,
+  type TranscriptLocation,
+} from "../../../src/internal/session/agent-session-store.js";
 
 /**
- * ADR D18 + EC-2/EC-6/EC-7 — session messages persist to
- * `<cwd>/.theokit/agents/<agentId>/messages.jsonl` and survive restart.
+ * SE40 (v4.0) — session persistence IS the native Claude-shaped `.jsonl` transcript
+ * at `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`. These golden tests assert
+ * the native record/DAG shape, append-only compaction (`compact_boundary`), and
+ * resume-after-restart reconstruction.
  *
  * Tests use isolated tmpdirs so disk writes never collide across cases.
  */
-describe("Agent session persistence (T1.1 / ADR D18)", () => {
-  let cwd: string;
+describe("Agent session persistence (SE40 native transcript)", () => {
+  let baseDir: string;
+  const cwd = "/tmp/theokit-proj";
+
+  function loc(agentId: string): TranscriptLocation {
+    return { cwd, agentId, model: "test-model" };
+  }
+  const store = () => new FsSessionStore({ baseDir, cwd });
 
   beforeEach(async () => {
-    cwd = await mkdtemp(join(tmpdir(), "theokit-session-"));
+    baseDir = await mkdtemp(join(tmpdir(), "theokit-session-"));
     clearAllSessions();
     clearAgentRegistry();
   });
@@ -42,189 +55,232 @@ describe("Agent session persistence (T1.1 / ADR D18)", () => {
     clearAllSessions();
     clearAgentRegistry();
     invalidateRegistryHydration();
-    await rm(cwd, { recursive: true, force: true });
+    await rm(baseDir, { recursive: true, force: true });
   });
 
-  it("append-then-read-after-restart — appendSessionMessage; readSessionFile returns the appended turn", async () => {
+  it("append-then-read-after-restart — persistTurn writes native records; readSessionMessages reconstructs the turn", async () => {
     const agentId = "agent-test-append-read";
-    appendSessionMessage(agentId, { role: "user", text: "hello world" }, cwd);
-    appendSessionMessage(agentId, { role: "assistant", text: "hi back" }, cwd);
-    await flushSessionWrites();
+    await persistTurn(store(), loc(agentId), agentId, {
+      userText: "hello world",
+      conversation: [
+        {
+          type: "agentConversationTurn",
+          turn: { steps: [{ type: "assistantMessage", message: { text: "hi back" } }] },
+        },
+      ],
+    });
 
-    // Simulate restart: drop in-memory, then read disk.
-    clearAllSessions();
-    const fromDisk = await readSessionFile(cwd, agentId);
+    const fromDisk = await readSessionMessages(store(), agentId);
     expect(fromDisk).toEqual([
       { role: "user", text: "hello world" },
       { role: "assistant", text: "hi back" },
     ]);
   });
 
-  it("compaction-trims-to-cap — 500 records on disk → compactSession keeps last 200", async () => {
-    const agentId = "agent-compaction-test";
-    for (let i = 0; i < 500; i += 1) {
-      await appendToSessionFile(cwd, agentId, {
-        role: i % 2 === 0 ? "user" : "assistant",
-        text: `turn ${i}`,
-      });
-    }
-    await compactSession(agentId, cwd);
-    const survived = await readSessionFile(cwd, agentId);
-    expect(survived.length).toBe(200);
-    expect(survived[0]?.text).toBe("turn 300");
-    expect(survived[199]?.text).toBe("turn 499");
+  it("native-record-shape — the on-disk `.jsonl` carries uuid/parentUuid DAG + message.content blocks", async () => {
+    const agentId = "agent-shape";
+    await persistTurn(store(), loc(agentId), agentId, {
+      userText: "question",
+      conversation: [
+        {
+          type: "agentConversationTurn",
+          turn: { steps: [{ type: "assistantMessage", message: { text: "answer" } }] },
+        },
+      ],
+    });
+    const records = await readTranscript(transcriptPath(baseDir, cwd, agentId));
+    expect(records.length).toBe(2);
+    expect(records[0]?.type).toBe("user");
+    expect(records[0]?.parentUuid).toBeNull();
+    expect(records[1]?.type).toBe("assistant");
+    // parent chain: assistant parents on user.
+    expect(records[1]?.parentUuid).toBe(records[0]?.uuid);
+    const userContent = records[0]?.message?.content as Array<{ type: string; text: string }>;
+    expect(userContent[0]).toEqual({ type: "text", text: "question" });
   });
 
-  it("malformed-line-skipped (EC-7) — half-line + 3 valid → reader returns 3 + stderr warning", async () => {
-    const agentId = "agent-malformed-test";
-    const path = sessionFilePath(cwd, agentId);
-    await mkdir(join(cwd, ".theokit", "agents", agentId), { recursive: true });
-    const valid = [
-      JSON.stringify({ role: "user", text: "first", at: 1 }),
-      JSON.stringify({ role: "assistant", text: "second", at: 2 }),
-      JSON.stringify({ role: "user", text: "third", at: 3 }),
-    ];
-    // Append a half-line (no closing brace, no newline at end) — simulates crash mid-write.
-    await writeFile(path, `${valid.join("\n")}\n{"role":"user","text":"trunc`, "utf8");
+  it("tool-turn — tool_use + paired tool_result blocks survive the round trip (fold on read)", async () => {
+    const agentId = "agent-tool";
+    await persistTurn(store(), loc(agentId), agentId, {
+      userText: "run a tool",
+      conversation: [
+        {
+          type: "agentConversationTurn",
+          turn: {
+            steps: [
+              {
+                type: "toolCall",
+                message: { callId: "call-1", name: "read", args: { path: "x" } },
+              },
+              {
+                type: "toolResult",
+                message: { callId: "call-1", name: "read", result: "file body", isError: false },
+              },
+              { type: "assistantMessage", message: { text: "done" } },
+            ],
+          },
+        },
+      ],
+    });
+    const records = await readTranscript(transcriptPath(baseDir, cwd, agentId));
+    // user + assistant(tool_use) + user(tool_result) — assistant appended before tool results.
+    const assistant = records.find((r) => r.type === "assistant");
+    const blocks = assistant?.message?.content as Array<{
+      type: string;
+      id?: string;
+      tool_use_id?: string;
+    }>;
+    expect(blocks.some((b) => b.type === "tool_use" && b.id === "call-1")).toBe(true);
+    const toolResultRec = records.find(
+      (r) =>
+        r.type === "user" &&
+        Array.isArray(r.message?.content) &&
+        (r.message?.content as Array<{ type: string }>).some((b) => b.type === "tool_result"),
+    );
+    expect(toolResultRec).toBeDefined();
+    // Reconstructed session folds tool turns into assistant-role context.
+    const reconstructed = await readSessionMessages(store(), agentId);
+    expect(reconstructed.some((m) => m.text.includes("[tool call] read"))).toBe(true);
+    expect(reconstructed.some((m) => m.text.includes("[tool result]"))).toBe(true);
+  });
 
-    const stderrChunks: string[] = [];
-    const origWrite = process.stderr.write.bind(process.stderr);
-    (process.stderr as unknown as { write: typeof origWrite }).write = ((chunk: unknown) => {
-      stderrChunks.push(String(chunk));
-      return true;
-    }) as typeof origWrite;
-    try {
-      const messages = await readSessionFile(cwd, agentId);
-      expect(messages.length).toBe(3);
-      expect(messages.map((m) => m.text)).toEqual(["first", "second", "third"]);
-    } finally {
-      (process.stderr as unknown as { write: typeof origWrite }).write = origWrite;
+  it("append-only compaction — appendCompactBoundaryRecord adds a compact_boundary root, never shrinking the file", async () => {
+    const agentId = "agent-compaction";
+    for (let i = 0; i < 5; i += 1) {
+      await persistTurn(store(), loc(agentId), agentId, {
+        userText: `turn ${i}`,
+        conversation: [],
+      });
     }
-    expect(stderrChunks.some((c) => c.includes("malformed line"))).toBe(true);
+    const before = await readTranscript(transcriptPath(baseDir, cwd, agentId));
+    await appendCompactBoundaryRecord(store(), loc(agentId), agentId, {
+      preTokens: 1234,
+      trigger: "auto",
+    });
+    const after = await readTranscript(transcriptPath(baseDir, cwd, agentId));
+    // Never shrinks: all prior records remain + one new boundary.
+    expect(after.length).toBe(before.length + 1);
+    const boundary = after[after.length - 1] as SessionRecord;
+    expect(boundary.type).toBe("system");
+    expect(boundary.subtype).toBe("compact_boundary");
+    expect(boundary.parentUuid).toBeNull();
+    expect(boundary.compactMetadata).toEqual({ preTokens: 1234, trigger: "auto" });
+  });
+
+  it("resume-after-compaction — reconstruction replays only the post-boundary continuation", async () => {
+    const agentId = "agent-resume-after-compact";
+    await persistTurn(store(), loc(agentId), agentId, {
+      userText: "before boundary",
+      conversation: [],
+    });
+    await appendCompactBoundaryRecord(store(), loc(agentId), agentId, {
+      preTokens: 0,
+      trigger: "auto",
+    });
+    await persistTurn(store(), loc(agentId), agentId, {
+      userText: "after boundary",
+      conversation: [
+        {
+          type: "agentConversationTurn",
+          turn: { steps: [{ type: "assistantMessage", message: { text: "post" } }] },
+        },
+      ],
+    });
+    const reconstructed = await readSessionMessages(store(), agentId);
+    // The compact_boundary is a new root — the walk terminates there, so only the
+    // post-boundary continuation is replayed.
+    expect(reconstructed.map((m) => m.text)).toContain("after boundary");
+    expect(reconstructed.map((m) => m.text)).not.toContain("before boundary");
+  });
+
+  it("malformed-last-line-skipped — a torn final line (crash mid-write) is skipped; the DAG still reconstructs", async () => {
+    const agentId = "agent-malformed";
+    await persistTurn(store(), loc(agentId), agentId, {
+      userText: "complete",
+      conversation: [
+        {
+          type: "agentConversationTurn",
+          turn: { steps: [{ type: "assistantMessage", message: { text: "ok" } }] },
+        },
+      ],
+    });
+    const path = transcriptPath(baseDir, cwd, agentId);
+    const raw = await readFile(path, "utf8");
+    await import("node:fs/promises").then((fs) =>
+      fs.writeFile(path, `${raw}{"type":"user","uuid":"torn`, "utf8"),
+    );
+    const reconstructed = await readSessionMessages(store(), agentId);
+    expect(reconstructed.some((m) => m.text === "complete")).toBe(true);
   });
 
   it("per-agent-isolation — two agentIds → two files; neither sees the other", async () => {
-    appendSessionMessage("agent-iso-a", { role: "user", text: "only A" }, cwd);
-    appendSessionMessage("agent-iso-b", { role: "user", text: "only B" }, cwd);
-    await flushSessionWrites();
-
-    const a = await readSessionFile(cwd, "agent-iso-a");
-    const b = await readSessionFile(cwd, "agent-iso-b");
+    await persistTurn(store(), loc("agent-iso-a"), "agent-iso-a", {
+      userText: "only A",
+      conversation: [],
+    });
+    await persistTurn(store(), loc("agent-iso-b"), "agent-iso-b", {
+      userText: "only B",
+      conversation: [],
+    });
+    const a = await readSessionMessages(store(), "agent-iso-a");
+    const b = await readSessionMessages(store(), "agent-iso-b");
     expect(a.map((m) => m.text)).toEqual(["only A"]);
     expect(b.map((m) => m.text)).toEqual(["only B"]);
   });
 
-  it("persists-text-with-newlines (EC-6) — embedded \\n, \\t, and quotes round-trip", async () => {
-    const agentId = "agent-newlines-test";
+  it("persists-text-with-newlines — embedded \\n, \\t, and quotes round-trip; one JSONL line per record", async () => {
+    const agentId = "agent-newlines";
     const tricky = 'line1\nline2\twith\ttabs\nand "quoted" stuff';
-    appendSessionMessage(agentId, { role: "user", text: tricky }, cwd);
-    await flushSessionWrites();
-
-    const fromDisk = await readSessionFile(cwd, agentId);
-    expect(fromDisk[0]?.text).toBe(tricky);
-
-    // And the file is valid JSONL — exactly one line per record.
-    const raw = await readFile(sessionFilePath(cwd, agentId), "utf8");
+    await persistTurn(store(), loc(agentId), agentId, { userText: tricky, conversation: [] });
+    const reconstructed = await readSessionMessages(store(), agentId);
+    expect(reconstructed[0]?.text).toBe(tricky);
+    const raw = await readFile(transcriptPath(baseDir, cwd, agentId), "utf8");
     expect(raw.split("\n").filter((l) => l.length > 0).length).toBe(1);
   });
 
-  it("jsonl-format-valid — every line is parseable JSON", async () => {
-    const agentId = "agent-jsonl-validity";
-    appendSessionMessage(agentId, { role: "user", text: "hello" }, cwd);
-    appendSessionMessage(agentId, { role: "assistant", text: "world" }, cwd);
-    await flushSessionWrites();
-
-    const raw = await readFile(sessionFilePath(cwd, agentId), "utf8");
-    const lines = raw.split("\n").filter((l) => l.length > 0);
-    expect(lines.length).toBe(2);
-    for (const line of lines) {
-      const parsed = JSON.parse(line) as { role: string; text: string; at: number };
-      expect(parsed.role === "user" || parsed.role === "assistant").toBe(true);
-      expect(typeof parsed.text).toBe("string");
-      expect(typeof parsed.at).toBe("number");
-    }
-  });
-
-  it("hydrateSession — readSessionFile populates the in-memory cache for getSessionMessages", async () => {
-    const agentId = "agent-hydrate-test";
-    await mkdir(join(cwd, ".theokit", "agents", agentId), { recursive: true });
-    const path = sessionFilePath(cwd, agentId);
-    const lines = [
-      JSON.stringify({ role: "user", text: "seeded user", at: 1 }),
-      JSON.stringify({ role: "assistant", text: "seeded assistant", at: 2 }),
-    ];
-    await writeFile(path, `${lines.join("\n")}\n`, "utf8");
-
+  it("hydrateSession — populates the in-memory cache for getSessionMessages", async () => {
+    const agentId = "agent-hydrate";
+    await persistTurn(store(), loc(agentId), agentId, {
+      userText: "seeded user",
+      conversation: [
+        {
+          type: "agentConversationTurn",
+          turn: { steps: [{ type: "assistantMessage", message: { text: "seeded assistant" } }] },
+        },
+      ],
+    });
     expect(getSessionMessages(agentId)).toEqual([]);
-    await hydrateSession(agentId, cwd);
+    await hydrateSession(agentId, { store: store(), cwd });
     expect(getSessionMessages(agentId).map((m) => m.text)).toEqual([
       "seeded user",
       "seeded assistant",
     ]);
   });
 
-  it("session-survives-after-create-and-resume — Agent.create → send 1 → resume → getSessionMessages sees user turn", async () => {
+  it("session-survives-after-create-and-resume — Agent.create → send → resume → getSessionMessages sees the user turn", async () => {
     const agentId = "agent-survives-restart";
+    // Use the per-test tmpdir (baseDir) as the cwd too, so the persisted
+    // registry.json is isolated per test run — no cross-run id collision.
+    const testCwd = baseDir;
     const original = await Agent.create({
       agentId,
       apiKey: "theo_test_session_survives",
       model: { id: "google/gemini-2.0-flash-001" },
-      local: { cwd },
+      local: { cwd: testCwd, baseDir },
     });
     const run = await original.send("first message that must survive restart");
     await run.wait();
     await original.dispose();
 
-    // Simulate restart: clear in-memory caches.
     clearAllSessions();
     clearAgentRegistry();
     invalidateRegistryHydration();
 
-    const resumed = await Agent.resume(agentId, { local: { cwd } });
+    const resumed = await Agent.resume(agentId, { local: { cwd: testCwd, baseDir } });
     const messages = getSessionMessages(resumed.agentId);
     expect(messages.length).toBeGreaterThan(0);
     expect(messages[0]?.role).toBe("user");
     expect(messages[0]?.text).toContain("first message that must survive restart");
     await resumed.dispose();
-  });
-
-  it("compaction-during-append-no-loss (EC-2) — appends across the compaction threshold are all preserved", async () => {
-    const agentId = "agent-ec2-compaction";
-    // Seed 401 records so the next append crosses the 2x threshold for maxTurns=200.
-    for (let i = 0; i < 401; i += 1) {
-      await appendToSessionFile(cwd, agentId, { role: "user", text: `seed-${i}` });
-    }
-    // Now interleave new appends and a compaction. The mutex on the
-    // `agent-send:<agentId>` key must serialize them.
-    const pending: Promise<void>[] = [];
-    pending.push(compactSession(agentId, cwd));
-    for (let i = 0; i < 50; i += 1) {
-      appendSessionMessage(agentId, { role: "user", text: `concurrent-${i}` }, cwd);
-    }
-    pending.push(flushSessionWrites());
-    await Promise.all(pending);
-    // Force a second compaction to settle the trim.
-    await compactSession(agentId, cwd);
-
-    const final = await readSessionFile(cwd, agentId);
-    // All 50 concurrent-* texts must be present — they were never lost to
-    // a compaction read+rename window.
-    const concurrentTexts = final.filter((m) => m.text.startsWith("concurrent-"));
-    expect(concurrentTexts.length).toBe(50);
-  });
-
-  it("skips-partial-last-line (EC-7) — 3 complete + half a 4th → reader returns 3, never throws", async () => {
-    const agentId = "agent-partial-last";
-    await mkdir(join(cwd, ".theokit", "agents", agentId), { recursive: true });
-    const path = sessionFilePath(cwd, agentId);
-    const complete = [
-      JSON.stringify({ role: "user", text: "complete-1", at: 1 }),
-      JSON.stringify({ role: "assistant", text: "complete-2", at: 2 }),
-      JSON.stringify({ role: "user", text: "complete-3", at: 3 }),
-    ].join("\n");
-    // Half of a 4th record (no closing brace, no newline).
-    await writeFile(path, `${complete}\n{"role":"assistant","text":"half-`, "utf8");
-
-    await expect(readSessionFile(cwd, agentId)).resolves.toHaveLength(3);
   });
 });

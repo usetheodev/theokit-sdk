@@ -22,7 +22,7 @@
  *      (Agent.create is NOT invoked — we test pure composition).
  */
 
-import { definePlugin } from "@theokit/sdk";
+import { Plugin } from "@theokit/sdk";
 import { Cache } from "@theokit/sdk-cache";
 import { Handoff } from "@theokit/sdk-handoff";
 import { describe, expect, it } from "vitest";
@@ -44,7 +44,7 @@ describe("SDK 2.0 cross-package composition (Phases 3+4+5)", () => {
     expect(typeof Handoff.asPlugin).toBe("function");
     expect(typeof createReadFileTool).toBe("function");
     expect(typeof createListDirTool).toBe("function");
-    expect(typeof definePlugin).toBe("function");
+    expect(typeof Plugin.create).toBe("function");
   });
 
   it("test_composition_cache_as_plugin_shape — Cache.asPlugin() returns a valid Plugin", () => {

@@ -225,6 +225,8 @@ async function vetoFromPluginPreHook(
     args: call.input,
     agentId: inputs.agentId,
     runId: inputs.runId,
+    // SE1 — thread the run's permission mode so a PermissionPlugin gates per-run.
+    ...(inputs.permissionMode !== undefined ? { permissionMode: inputs.permissionMode } : {}),
   });
   if (pluginVeto === undefined) return undefined;
   // SE2 — a plugin veto (e.g. the permission gate) is a runtime-observability
@@ -335,9 +337,16 @@ async function runToolWithLifecycle(
     await safeEmitToolHook(inputs.onToolEnd, {
       toolName: call.name,
       args: call.input,
-      // SE7 — a block-returning handler has empty `stdout`; surface its structured
-      // content to the hook instead of an empty string.
-      result: result.content !== undefined ? result.content : result.stdout,
+      // SE17 — when a `toModelOutput` split is active, observability gets the FULL
+      // raw output (`appResult`), NOT the compact model-facing value. SE7 — a
+      // block-returning handler has empty `stdout`; surface its structured content
+      // to the hook instead of an empty string.
+      result:
+        result.appResult !== undefined
+          ? result.appResult
+          : result.content !== undefined
+            ? result.content
+            : result.stdout,
       conversationId: inputs.agentId,
       callId,
       durationMs,

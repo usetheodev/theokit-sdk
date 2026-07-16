@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { createSemaphore, mapWithConcurrency } from "../src/concurrency.js";
+import { mapWithConcurrency, Semaphore } from "../src/concurrency.js";
 
 /**
  * M0-2 (plan m0-foundation-expose-primitives, T3.1) — `@theokit/sdk/concurrency`.
  *
  * Contract (sealed by these tests):
- *   - `createSemaphore` re-exported from the public subpath
+ *   - `Semaphore` re-exported from the public subpath
  *   - `mapWithConcurrency` preserves input order in the result array
  *   - respects the concurrency ceiling (peak in-flight <= N)
  *   - empty array -> empty result; invalid concurrency throws
@@ -17,7 +17,7 @@ const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
 describe("mapWithConcurrency", () => {
   it("test_createSemaphore_reexported_from_concurrency_subpath", () => {
-    expect(typeof createSemaphore).toBe("function");
+    expect(typeof Semaphore).toBe("function");
     expect(typeof mapWithConcurrency).toBe("function");
   });
 

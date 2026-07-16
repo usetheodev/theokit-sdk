@@ -1,7 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic } from "@theokit/sdk/internal/persistence";
+import { replaceFileAtomic } from "@theokit/sdk/persistence";
 import { redactSecrets } from "../memory-types.js";
 import { memoryDir } from "./markdown-store.js";
 
@@ -22,7 +22,7 @@ import { memoryDir } from "./markdown-store.js";
  * the canonical copy that the future `session-loader.ts` move will
  * compose with as a sibling (loader reads back the markdown files
  * this writer emits). Dependency chain (all resolved):
- * - `@theokit/sdk/internal/persistence` for `replaceFileAtomic`
+ * - `@theokit/sdk/persistence` for `replaceFileAtomic`
  * - sibling `./markdown-store.js` for `memoryDir` (moved iter 56)
  * - sibling `./memory-types.js` for `redactSecrets` (moved iter 52)
  *

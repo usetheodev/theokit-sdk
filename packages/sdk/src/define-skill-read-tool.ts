@@ -60,7 +60,7 @@ function renderSkill(skill: InlineSkill): string {
  *
  * @public
  */
-export function defineSkillReadTool(skills: ReadonlyArray<InlineSkill>): CustomTool {
+function defineSkillReadTool(skills: ReadonlyArray<InlineSkill>): CustomTool {
   // Fail fast on duplicate names (Rule 8): a shadowed skill would be silently
   // unreachable and the "not found" list would show the name twice. Names are
   // addressed by exact, case-sensitive match — the same identity the <skills>
@@ -88,4 +88,12 @@ export function defineSkillReadTool(skills: ReadonlyArray<InlineSkill>): CustomT
       return renderSkill(skill);
     },
   };
+}
+
+/** SE36 — `SkillReadTool.create` replaces `defineSkillReadTool` (ADR 0015). @public */
+export class SkillReadTool {
+  private constructor() {}
+  static create(skills: ReadonlyArray<InlineSkill>): CustomTool {
+    return defineSkillReadTool(skills);
+  }
 }

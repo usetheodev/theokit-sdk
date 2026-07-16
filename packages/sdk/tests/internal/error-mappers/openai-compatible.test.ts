@@ -143,15 +143,18 @@ describe("mapOpenAICompatibleError", () => {
   });
 
   // EC-5: HTTP-date format retry-after must not propagate NaN
-  it("EC-5: retry-after in HTTP-date format → metadata SEM retryAfter", () => {
+  it("EC-5: retry-after in HTTP-date format → metadata carries parsed seconds (#60)", () => {
+    const future = new Date(Date.now() + 30_000).toUTCString();
     const err = mapOpenAICompatibleError({
       providerId: "openai",
       status: 429,
       body: {},
-      headers: headers({ "retry-after": "Wed, 21 Oct 2026 07:28:00 GMT" }),
+      headers: headers({ "retry-after": future }),
       endpoint: "/v1/chat/completions",
     });
-    expect(err.metadata?.retryAfter).toBeUndefined();
+    // #60 — the RFC-7231 HTTP-date form is now parsed to seconds-until-then.
+    expect(err.metadata?.retryAfter).toBeGreaterThanOrEqual(28);
+    expect(err.metadata?.retryAfter).toBeLessThanOrEqual(31);
   });
 
   it("unknown status (418) → UnknownAgentError", () => {

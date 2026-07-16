@@ -63,6 +63,16 @@ importers:
         specifier: ^4.1.8
         version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
 
+  examples/a2a-mailbox:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/abort-mid-stream:
     dependencies:
       '@theokit/sdk':
@@ -84,6 +94,39 @@ importers:
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/agent-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/agent-streaming:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/agent-structured-output:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -113,6 +156,9 @@ importers:
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@theokit/sdk-cache':
+        specifier: workspace:*
+        version: link:../../packages/sdk-cache
       zod:
         specifier: ^4.0.0
         version: 4.4.3
@@ -121,14 +167,61 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
-  examples/conversation-storage:
+  examples/cache-semantic:
+    dependencies:
+      '@theokit/sdk-cache':
+        specifier: workspace:*
+        version: link:../../packages/sdk-cache
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/cloud-payload:
     dependencies:
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
-      zod:
-        specifier: ^4.0.0
-        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/compaction-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/concurrency-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/context-inspect:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/cost-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -156,6 +249,16 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/errors-catalog:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/eval:
     dependencies:
       '@theokit/sdk':
@@ -169,11 +272,61 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/eval-scorers:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/file-based:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/filesystem-boundary:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/goals-objective:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/guardrails:
     dependencies:
       '@theokit/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/guardrails-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
       tsx:
         specifier: ^4.19.0
         version: 4.22.0
@@ -191,6 +344,29 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/hooks-lifecycle:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/memory-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/memory-lance:
     dependencies:
       '@theokit/sdk':
@@ -201,7 +377,183 @@ importers:
         specifier: ^4.19.0
         version: 4.22.0
 
+  examples/observability-events:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/permissions-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/personality-switch:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/prompts:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/providers-models:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/reasoning:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/retry-primitive:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/rules-path-scoped:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/sandbox-exec:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/schedule-a-job:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/session-store-external:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/sessions-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/skills-inline:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/squad-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/subagents-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/subscription-tracked:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/tasks:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/tasks-background:
     dependencies:
       '@theokit/sdk':
         specifier: workspace:*
@@ -227,6 +579,32 @@ importers:
         specifier: ^7.6.13
         version: 7.6.13
 
+  examples/tool-advanced:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/tool-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      zod:
+        specifier: ^4.0.0
+        version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
   examples/tool-hooks-tracking:
     dependencies:
       '@theokit/sdk':
@@ -251,6 +629,46 @@ importers:
       zod:
         specifier: ^4.0.0
         version: 4.4.3
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/workflow-basics:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/workflow-parallel:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/workflow-retry:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.22.0
+
+  examples/workflow-suspend-resume:
+    dependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
     devDependencies:
       tsx:
         specifier: ^4.19.0
@@ -326,6 +744,12 @@ importers:
 
   packages/codemod-sdk-2-0: {}
 
+  packages/codemod-sdk-3-0:
+    dependencies:
+      jscodeshift:
+        specifier: ^17.3.0
+        version: 17.3.0
+
   packages/memory-honcho:
     devDependencies:
       '@honcho-ai/sdk':
@@ -398,12 +822,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.30.1
         version: 1.30.1(@opentelemetry/api@1.9.1)
-      '@theokit/sdk-handoff':
-        specifier: workspace:*
-        version: link:../sdk-handoff
-      '@theokit/sdk-memory':
-        specifier: workspace:*
-        version: link:../sdk-memory
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -507,6 +925,27 @@ importers:
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@25.9.1)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
+
+  packages/sdk-peer-integration-tests:
+    devDependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@theokit/sdk-memory':
+        specifier: workspace:*
+        version: link:../sdk-memory
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      better-sqlite3:
+        specifier: ^12.10.0
+        version: 12.10.0
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
@@ -5305,9 +5744,6 @@ packages:
     peerDependencies:
       zod: ^4.0.0
 
-  zod@4.0.0:
-    resolution: {integrity: sha512-9diLdTPc/L7w/5jI4C3gHYNiGHDV9IZYxo1e5LSD8cabi65WVTWWb+g2BGPEpUUCOxR4D+6O5B0AzyMdUAXwrw==}
-
   zod@4.4.3:
     resolution: {integrity: sha512-ytENFjIJFl2UwYglde2jchW2Hwm4GJFLDiSXWdTrJQBIN9Fcyp7n4DhxJEiWNAJMV1/BqWfW/kkg71UDcHJyTQ==}
 
@@ -6357,7 +6793,7 @@ snapshots:
 
   '@honcho-ai/sdk@2.1.1':
     dependencies:
-      zod: 4.0.0
+      zod: 4.4.3
 
   '@hono/node-server@1.19.14(hono@4.12.23)':
     dependencies:
@@ -7269,7 +7705,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@22.19.19)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@22.19.19)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
+      vitest: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@25.9.1)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
 
   '@vitest/expect@4.1.8':
     dependencies:
@@ -10406,7 +10842,5 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@4.4.3):
     dependencies:
       zod: 4.4.3
-
-  zod@4.0.0: {}
 
   zod@4.4.3: {}

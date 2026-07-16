@@ -81,7 +81,7 @@ It is sugar over `Agent.generateObject` (the synthetic forced-`output`-tool mach
 
 Creating agents
 
-function Agent.create(options: AgentOptions): Promise<SDKAgent>;
+Agent.create(options: AgentOptions): Promise<SDKAgent>;
 Agent.create() validates options and returns a handle immediately. Pass either local or cloud to pick a runtime.
 
 
@@ -134,6 +134,24 @@ const agent = await Agent.create({
   local: { cwd: process.cwd() },
 });
 
+## Reasoning (SE37)
+
+Three ways to make an agent reason before answering:
+
+1. **Native reasoning models** — set `model.params: [{ id: "thinking", value: "high" }]` (above). The model reasons internally; the trace streams as `thinking` deltas (`onDelta`) / `SDKThinkingMessage` (`run.stream()`) and counts under `usage.reasoningTokens`. Use this when the model supports it.
+2. **Reasoning tools** — `ReasoningTools.create()` returns a `think` and an `analyze` scratchpad tool (no side effects — they echo the model's structured reasoning back as an observation). Import from `@theokit/sdk-tools` and add to any model: `tools: [...ReasoningTools.create()]`.
+3. **`reasoning: true`** — a lightweight flag that turns a NON-reasoning model into a reason→act→observe loop using the SAME model: it prepends a chain-of-thought preamble to the system prompt AND auto-attaches the `think` reasoning tool. Default off; byte-identical when unset.
+
+```typescript
+const reasoningAgent = await Agent.create({
+  apiKey,
+  model: { id: "openai/gpt-4o-mini" },   // a non-reasoning model
+  reasoning: true,                        // CoT preamble + think/analyze auto-attached
+});
+```
+
+`reasoning: true` is **inert (with a one-time warn)** when a native reasoning model is configured (`model.params` carries a `thinking`/`reasoning`/`reasoning_effort` id) — native reasoning wins, so the two never stack (no double-reasoning). For a native reasoning model, use `model.params` directly instead of `reasoning: true`.
+
 Context manager
 The context manager selects project context before a run starts. It is for working-set material: README files, architecture notes, generated summaries, and other documents that help the agent understand the current task. It is not durable user memory.
 
@@ -166,6 +184,32 @@ Legacy `.theokit/context.json` shape (deprecated since v1.5 — migrate via `the
 
 The snapshot must never include secrets, absolute temporary paths, or raw tokens. `maxTokens` is a hard budget; implementations may summarize or omit low-priority sources to stay under budget.
 
+Beyond `.theokit/context/*.md`, the file-based context manager auto-discovers instruction files across the 2026 industry-standard set — `AGENTS.md`, `GEMINI.md`, `CLAUDE.md` (git-root walk, `@import` followed for the latter two), `.cursor/rules/*.mdc`, `.theokit/rules/*.md`, and `.theokit/THEO.md` — merged by priority into the context block.
+
+Path-scoped rules — `.theokit/rules/*.md`. Theokit-native rule files, mirroring Claude Code's `.claude/rules/`. Each file carries frontmatter that gates when the rule loads:
+
+```
+---
+description: API endpoint rules
+paths:                     # glob patterns (Claude Code parity); `globs:` is an accepted alias
+  - src/api/**/*.ts
+alwaysApply: false         # true → load on every send regardless of scope
+enabled: true              # false → disable the rule entirely
+---
+Every endpoint must validate its input.
+```
+
+A rule with `alwaysApply: true` loads into the context on every send. A path-scoped rule (`paths:`/`globs:`) loads only when a file in the current send's scope matches one of its glob patterns. The scope is declared per send via `SendOptions.contextPaths` — the repo-relative files the host is working on:
+
+```
+await agent.send("Add an endpoint.", { contextPaths: ["src/api/users.ts"] });
+// → the src/api/** rule activates for this send; alwaysApply rules always load.
+await agent.send("Tweak the button.", { contextPaths: ["src/ui/button.tsx"] });
+// → the src/api/** rule stays dormant (no leak); alwaysApply rules remain.
+```
+
+Omit `contextPaths` and only unconditional rules load (the create-time snapshot is untouched — non-users pay nothing). Glob matching supports `**` (any depth, collapsing so `src/**/*.ts` matches `src/x.ts` and `src/a/b/x.ts`), `*` (single segment), and `?`. The same `contextPaths` signal also activates conditional `.cursor/rules/*.mdc` globs. `paths:` and `globs:` are unioned; both are glob-pattern arrays (not exact paths). Local runtime.
+
 Memory
 Memory stores durable facts across agent instances. It is keyed by namespace, user, and scope so agents can remember stable preferences without leaking facts across users or teams.
 
@@ -188,7 +232,7 @@ Use `scope: "agent"` for one agent's durable state, `"user"` for a user's stable
 Skills
 Skills are named capability packs. The SDK exposes their names and descriptions to the agent so it knows when to use them, but full skill prompt bodies are not included in public streams, snapshots, or `agent.skills.list()` output.
 
-Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded when `local.settingSources` includes `"project"`. Cloud agents load skills committed in the repo. `agent.reload()` re-reads skill files and fails with `ConfigurationError` if a skill is malformed instead of silently ignoring it.
+Local file-based skills live at `.theokit/skills/<name>/SKILL.md` and are loaded when `local.settingSources` includes `"project"`. Cloud agents load skills committed in the repo. `agent.reload()` re-reads skill files; a skill whose frontmatter is malformed (missing the required `name`/`description`, or invalid YAML) is **skipped with a stderr warning and excluded from `agent.skills.list()`** — reload does **not** throw for a bad skill (graceful-degrade: one broken skill file never blocks the agent). The valid skills stay loaded.
 
 
 const agent = await Agent.create({
@@ -327,29 +371,29 @@ type MessageOrigin =
   | { kind: "auto-continuation" };          // the loop's continuation driver
 Multi-agent provenance (origin)
 
-SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a peer agent, a background task, a coordinator. MessageOrigin is that provenance, stamped by SendOptions.origin and forwarded onto RunResult.origin (metadata-only — it never changes routing or dispatch; mirrors the Anthropic Agent SDK's origin shape). An absent origin (undefined) means the turn was not stamped (a plain agent.send()); pass { kind: "human" } to positively mark a human turn — the two are distinct (unstamped vs explicitly human).
+SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a peer agent, a background task, a coordinator. MessageOrigin is that provenance, stamped by SendOptions.origin and forwarded onto RunResult.origin (metadata-only — it never changes routing or dispatch; mirrors the a peer agent SDK's origin shape). An absent origin (undefined) means the turn was not stamped (a plain agent.send()); pass { kind: "human" } to positively mark a human turn — the two are distinct (unstamped vs explicitly human).
 
 The multi-agent primitives stamp it for you: a Squad stamps { kind: "peer", from: "agent-<i-1>" } on every step after the first (the first receives the human input); every a2a A2AMessage carries origin: { kind: "peer", from } as a thin projection of the sender address. Background-delegation and handoff are host-driven — pass the origin yourself on the follow-up send (agent.send(input, { origin: { kind: "task-notification" } })) and read it back on result.origin.
 
-Session management (createSessionManager)
+Session persistence (native Claude-shaped transcript)
 
-SE4. A host that persists conversations (Agent.create({ conversationStorage })) often needs to build a session list/UI — without reaching into the storage internals. createSessionManager(storage) is that surface over the same ConversationStorageAdapter instance:
+SE40 (v4.0). A local agent's conversation IS a native Claude Code `.jsonl` transcript on disk — a `uuid`/`parentUuid` DAG of records with structured `text` / `thinking` / `tool_use` / `tool_result` blocks. There is no pluggable storage adapter and no session-metadata surface; the transcript is the single source of truth. The path is `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`.
 
-  const storage = new FileSystemConversationStorage();
-  const agent = await Agent.create({ conversationStorage: storage });
-  const sessions = createSessionManager(storage);
+  const agent = await Agent.create({
+    local: { cwd, baseDir: "~/.theokit" },   // baseDir default is ~/.theokit
+  });
+  await (await agent.send("first message")).wait();
+  await agent.dispose();
 
-  const listed = await sessions.listSessions({ limit: 20 });   // SessionCapabilityResult
-  if (listed.supported) {
-    for (const s of listed.value) {
-      // s.id, s.messageCount, s.firstPrompt, s.lastModified, s.title, s.tag, s.summary
-    }
-  }
-  await sessions.renameSession(id, "Billing thread");
-  await sessions.tagSession(id, "important");   // tagSession(id, null) clears
-  const msgs = await sessions.getSessionMessages(id);
+  // A fresh process resumes by reconstructing the transcript DAG.
+  const resumed = await Agent.resume(agent.agentId, { local: { cwd, baseDir: "~/.theokit" } });
 
-listSessions derives LIGHT metadata from the transcript (firstPrompt = the first user message; lastModified = the largest StoredMessage.at; messageCount; summary = the title when set, else the truncated first prompt) and merges any host-set title/tag. It returns a typed capability result — { supported: false, reason } — for adapters that cannot enumerate conversations; renameSession/tagSession likewise degrade when the adapter cannot store session metadata (it never throws on every call). The built-in FileSystemConversationStorage and InMemoryConversationStorage support all four operations; a custom adapter opts in by implementing the optional listConversationIds + getSessionMeta/setSessionMeta methods.
+- WRITE: after each send the whole turn (user text + assistant text/thinking + paired tool_use/tool_result blocks, from `run.conversation()`) is written as native records, append-only. Secrets are redacted before disk.
+- READ / resume: hydration walks the transcript DAG (leaf → root via parentUuid) and reconstructs the conversation; tool turns fold into assistant-role context so a resumed agent keeps its tool history.
+- COMPACTION is append-only: a `compact_boundary` system record (a new root) is appended; the transcript is NEVER shrunk. A resume after a boundary replays only the post-boundary continuation.
+- `local.baseDir` controls the root: default `~/.theokit` isolates our sessions; set `~/.claude` to write sessions the Claude Code CLI can `--continue`. Extended-thinking signatures are written but dropped on read (functional `--continue` for thinking is out of scope — issue #122).
+
+Removed in v4.0: the `Session` namespace (`renameSession` / `tagSession` / `listSessions`), `SessionMeta` / `SessionMetaPatch`, the `ConversationStorageAdapter` contract (and `FileSystemConversationStorage` / `InMemoryConversationStorage`), and `AgentOptions.conversationStorage`. Persistence is now exclusively the native transcript above.
 
 Reliable continuation (local agents)
 
@@ -357,7 +401,7 @@ A single agent.send() runs the tool-calling loop up to a ceiling — SendOptions
 
 Doom-loop guard. Independently, the loop stops early when the model repeats IDENTICAL tool calls (same name + same input) that make no progress — e.g. a tool that keeps failing and is retried unchanged. This is on by default with generous thresholds (soft 3 / hard 5): at the soft threshold a one-time guidance nudge is injected as a user message in the transcript; at the hard threshold the run stops with result.stoppedByDoomLoop === true (surfacing as terminal "no_progress" through runToCompletion — a controlled stop, not a truncation to re-send). Because it is on by default, a run that previously ground to the iteration ceiling on an identical-repeat loop now terminates earlier with stoppedByDoomLoop instead of stoppedAtIterationLimit. Tune or disable per call with SendOptions.doomLoop: false to disable, or { softThreshold, hardThreshold } to tune (each a positive integer; invalid values throw ConfigurationError). It complements stoppedAtIterationLimit (a different failure mode: model stuck repeating vs work truncated at the ceiling).
 
-Per-tool timeout and cancellation (#58). SendOptions.perToolTimeoutMs (a positive integer, undefined = no timeout) bounds each individual tool call: a hung tool yields a typed timeout result (exitCode 124, "tool execution timed out") instead of wedging the run, while other tools continue. Independently, cancelling the run's SendOptions.signal interrupts an in-flight tool and stops the loop between iterations (the current turn's own abort UX is preserved). Tool handlers defined with defineTool receive an optional 2nd ToolContext argument ({ signal }) so a cooperative handler can stop early; single-argument handlers are unaffected. The JobQueue primitive is likewise bounded — new JobQueue({ maxConcurrency }) caps concurrent jobs (omit for unbounded) and cancel(id) now aborts a running job's signal, not just its status.
+Per-tool timeout and cancellation (#58). SendOptions.perToolTimeoutMs (a positive integer, undefined = no timeout) bounds each individual tool call: a hung tool yields a typed timeout result (exitCode 124, "tool execution timed out") instead of wedging the run, while other tools continue. Independently, cancelling the run's SendOptions.signal interrupts an in-flight tool and stops the loop between iterations (the current turn's own abort UX is preserved). Tool handlers defined with Tool.create receive an optional 2nd ToolContext argument ({ signal, context, threadId }) so a cooperative handler can stop early (signal), read the run's shared `SendOptions.context`, and scope per-session state by `threadId` (the run's session identity — the key passed to `Agent.getOrCreate(sessionId, …)`, or the agent's own id); single-argument handlers are unaffected. `ctx.threadId` (#119) lets a stateful tool shared across sessions in one process (e.g. the built-in `todolist`) isolate each session's state instead of leaking it. The JobQueue primitive is likewise bounded — new JobQueue({ maxConcurrency }) caps concurrent jobs (omit for unbounded) and cancel(id) now aborts a running job's signal, not just its status.
 
 Tool-result content guard (#57). SendOptions.toolResultGuard opts into a built-in defense applied before tool output reaches the LLM: { delimit: true } frames untrusted tool output in explicit <untrusted-tool-output> data boundaries (a forged closing marker inside the content is neutralized) so the model treats it as data, not instructions; { redactPii: true } redacts email/phone PII. Both are off by default (undefined = unchanged behavior). Import the ToolResultGuardOptions type from @theokit/sdk.
 
@@ -410,33 +454,9 @@ if (gen !== undefined) {
 }
 ```
 
-Both drivers are STATEFUL (the agent's session preserves history). For the STATELESS + streaming combination — a serverless handler that reconstructs working memory then streams a multi-round continuation — reconstruct history with `buildReplayHistory` (below) into a fresh agent, then drive `streamToCompletion`.
+Both drivers are STATEFUL (the agent's session preserves history via the native transcript).
 
-Replay history (stateless continuation)
-
-`runToCompletion` covers the STATEFUL path (a live agent whose session preserves history). For the STATELESS path — a server or serverless handler that re-runs an agent on a fresh request and must reconstruct working memory from persisted stream events — use the pure `buildReplayHistory`.
-
-It serializes the events of a round (`SDKMessage[]`) into a bounded `StoredMessage[]` you can replay as prior history into a fresh agent. It carries tool-result content (the continued model's working memory), drops the oldest turns (pair-safe: a tool_call and its tool_result are never split) until the total fits a context-window-derived char budget, and truncates an oversized single turn rather than dropping it. Pure and synchronous — no LLM, no I/O.
-
-
-function buildReplayHistory(
-  base: readonly StoredMessage[],
-  events: readonly SDKMessage[],
-  options: ReplayHistoryOptions,
-): StoredMessage[];
-
-interface ReplayHistoryOptions {
-  contextWindowTokens: number;   // the continued model's window; drives the budget
-  reserveTokens?: number;        // held back for system + continuation prompt + reply (default 8000)
-  perItemCap?: number;           // max chars for one oversized turn before truncation (default floor(budget/2))
-}
-
-const replay = buildReplayHistory(priorMessages, roundEvents, { contextWindowTokens: 200_000 });
-// feed `replay` as the prior history when re-sending on the next stateless request
-
-**Important — tool roles need consumer mapping.** Tool turns are emitted with the `StoredMessage` roles `tool_call` and `tool_result` (the result turn carries the tool output — the continued model's working memory). If your replay path feeds a wire-mapper that only understands `user` / `assistant`, you MUST map those two roles yourself; otherwise the tool-result content this function exists to preserve is dropped. The `tool_call` / `tool_result` pair is kept together (or evicted together) by `call_id`, never orphaned, even when calls are interleaved or non-adjacent.
-
-Notes: the budget is a char approximation (~4 chars/token), a SAFETY bound, not an exact token fit. A non-finite `contextWindowTokens` collapses to budget 0 — the history is trimmed toward effectively-empty working memory (event turns truncated, base trimmed to its newest), never an unbounded history. A single oversized `base` message is NOT truncated (caller-owned durable content is assumed pre-bounded) — only event-derived turns are per-item truncated.
+Removed in v4.0: `buildReplayHistory` / `ReplayHistoryOptions` (the stateless continuation-history rebuild primitive) — it consumed the removed `StoredMessage[]` shape. Stateless continuation now relies on the native transcript on disk, which a fresh agent reconstructs on resume.
 
 Streaming
 
@@ -520,15 +540,43 @@ const run = await agent.send("Refactor the utils module", {
 });
 The callbacks are awaited before the next update is processed, so you can apply backpressure. InteractionUpdate covers text-delta, thinking-delta, thinking-completed, tool-call-started, tool-call-completed, partial-tool-call, token-delta, step-started, step-completed, turn-ended, and a handful of summary and shell-output deltas.
 
+### Runtime events — `SendOptions.onRunEvent` (SE2)
+
+Beyond the `SDKMessage` content stream, an opt-in `onRunEvent` sink delivers out-of-band, discriminated **runtime-observability** `RunEvent`s — the model's content is unaffected. Discriminate on `event.type`. Every variant is emitted end-to-end:
+
+- `tool_progress` — a tool is about to dispatch (after all vetoes pass).
+- `permission_denied` — a tool call was blocked (`source`: fork-whitelist / plugin / file-hook).
+- `rate_limit` — a 429 retry is about to back off (`attempt`, `retryAfterMs?`); from the pool-aware LLM client.
+- `compact_boundary` — the session crossed an auto-compaction boundary (`trigger`, `preTokens?`).
+- `task_started` / `task_updated` / `task_completed` — a background task's lifecycle, bridged opt-in from `Task.submit(kind, work, { onRunEvent })`.
+- `tripwire` / `completion_check` — guardrail abort / completion-loop signals.
+
+```ts
+await agent.send("…", {
+  onRunEvent: (e) => {
+    switch (e.type) {
+      case "rate_limit":  metrics.throttle(e.retryAfterMs); break;
+      case "permission_denied":  audit.log(e.toolName, e.message); break;
+      case "compact_boundary":  ui.note("history compacted"); break;
+      // task_started / task_updated / task_completed / tool_progress / tripwire / completion_check
+    }
+  },
+});
+```
+
+The sink is strictly opt-in (absent ⇒ zero behavior change) and fail-safe (a throwing sink never breaks the run). No `RunEvent` is pushed into `Run.stream()` — existing `SDKMessage` consumers are unaffected. Local runtime.
+
 Per-send options
 Property	Type	Description
 model	ModelSelection	Per-send model override. If omitted, uses agent.model. Sticky: a successful send updates agent.model.
 systemPrompt	string	Per-call system prompt override. Wins over AgentOptions.systemPrompt. String only — for dynamic resolvers, configure on AgentOptions. An empty string is honoured (it explicitly clears the system context).
 mcpServers	Record<string, McpServerConfig>	Inline MCP server definitions. Fully replaces creation-time servers for this run.
 tools	CustomTool[]	Per-call inline custom tools. Fully replaces `AgentOptions.tools` for this run (not merged). `undefined` → fall back to agent tools; `[]` → explicit clear (no custom tools for this run); `[t1, t2]` → use exactly these. Local runtime only — cloud agents throw `ConfigurationError(code: "cloud_custom_tools_rejected")`.
-onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step (text, thinking, or tool batch).
+onStep	(args: { step }) => void | Promise<void>	Callback after each completed conversation step: `assistantMessage` (text), `thinkingMessage`, `toolCall`, and its paired `toolResult` (same `callId`). Symmetric with `run.conversation()` — a live-stream consumer sees both the call and its result.
 onDelta	(args: { update }) => void | Promise<void>	Callback per raw InteractionUpdate.
 toolChoice	"auto" \| "none" \| "required"	Per-call tool gate (OpenAI/OpenRouter `tool_choice`). `"none"` forces a text answer even when tools are registered (e.g. an agent loop forcing a closing summary at its step ceiling); `"required"` forces a tool call; omitted ⇒ provider default. Local runtime; OpenAI-compatible providers. Emitted only alongside a non-empty tools array.
+activeTools	string[]	SE18 — restrict, for THIS send only, which of the agent's tools the model may call. A tool call to a name outside the set is vetoed at dispatch (the same fork-whitelist seam as `Agent.fork`'s `allowedTools`, NOT the permission engine) and the handler never runs. `[]` fail-closed (no tool dispatches); absent ⇒ the full toolset. Composes with `toolChoice` (activeTools narrows *which*, toolChoice gates *whether*). Per-send and non-mutating — the agent's persistent tool set is untouched. Local runtime.
+completionCheck	CompletionCheck	SE34 — an opt-in per-send completion predicate (an LLM judge, reusing the goal-judge machinery) evaluated once after the run settles; its verdict surfaces on `RunResult.completionCheck` and as a `completion_check` run-event. Fail-safe (a judge/parse failure ⇒ `complete: false`); absent ⇒ unchanged. Local runtime.
 local.force	boolean	Local agents only. Defaults to false. Expire a stuck active run before starting this message. Cloud returns 409 agent_busy server-side, so no equivalent is needed.
 
 SystemPromptContext
@@ -543,6 +591,17 @@ interface SystemPromptContext {
 }
 
 The resolver may be sync or async. Errors thrown propagate to the caller of agent.send(). The SDK does NOT impose a timeout — wrap your own Promise.race if you call into slow resources.
+
+Goal-driven runUntil (ephemeral)
+
+```typescript
+for await (const event of agent.runUntil("Ship the release notes", { maxTurns: 20 })) {
+  // event.type: "status_change" | ... — the judge-gated goal loop
+}
+```
+
+`agent.runUntil(goal, options)` drives the EPHEMERAL, per-call judge loop: it iterates `agent.send` → judge → continuation until the judge returns done, the judge fails too many times, max turns are exhausted, or the caller aborts. Removed in v4.0 (SE33/SE34): the DURABLE, thread-scoped objective — `agent.setObjective` / `getObjective` / `updateObjectiveOptions` / `clearObjective`, the `ObjectiveRecord` / `DurableGoalOptions` / `AgentGoalConfig` types, `AgentOptions.goal`, and the `<current-objective>` projection. A no-goal `runUntil()` now pauses (there is no durable objective to resolve).
+
 The next three sections are detailed reference for SDKMessage, InteractionUpdate, and ConversationTurn. Skim or skip on a first read; Resuming agents picks up the narrative.
 
 Stream events
@@ -810,9 +869,9 @@ const agent = await Agent.getOrCreate(`tg-user-${userId}`, {
 
 Use when: chat bots, long-running agents, any consumer that wants idempotent "give me this agent" semantics without try/catch boilerplate.
 
-createAgentFactory()
+AgentFactory.create()
 
-function createAgentFactory(common: Partial<AgentOptions>): AgentFactory;
+AgentFactory.create(common: Partial<AgentOptions>): AgentFactory;
 interface AgentFactory {
   forSession(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
   getOrCreate(agentId: string, overrides?: Partial<AgentOptions>): Promise<SDKAgent>;
@@ -820,7 +879,7 @@ interface AgentFactory {
 
 Captures shared `AgentOptions` once and produces per-session agents with focused overrides (ADR D23). Merge rules: top-level shallow merge with overrides winning; deep merge for `local`, `memory`, `cloud`; total replace for collection-shaped fields (`mcpServers`, `agents`, `tools`, `providers`, `plugins`, `skills`, `context`). The function-level `agentId` always wins.
 
-const factory = createAgentFactory({
+const factory = AgentFactory.create({
   apiKey: process.env.Theo_API_KEY!,
   model: { id: "claude-sonnet-4-6" },
   local: { cwd: process.cwd(), settingSources: ["project"] },
@@ -833,18 +892,26 @@ const agent = await factory.getOrCreate(`tg-user-${userId}`, {
 
 Use when: chat-bot patterns where 90% of the config is identical across users and only a handful of fields change per session.
 
-defineTool()
+Tool.create()
 
-function defineTool<T extends ZodType>(spec: DefineToolSpec<T>): CustomTool;
-interface DefineToolSpec<T extends ZodType> {
+Tool.create<T extends ZodType, O extends ZodType = never>(spec: DefineToolSpec<T, O>): CustomTool;
+interface DefineToolSpec<T extends ZodType, O extends ZodType = never> {
   name: string;
   description: string;
   inputSchema: T;
-  handler: (input: z.infer<T>) => string | Promise<string>;
+  // With `outputSchema` the handler returns the STRUCTURED value inferred from it; else a string.
+  handler: (input: z.infer<T>, ctx?: { signal?: AbortSignal; context?: unknown }) =>
+    (O extends never ? string : z.infer<O>) | Promise<O extends never ? string : z.infer<O>>;
+  outputSchema?: O;                                              // SE16
+  toModelOutput?: (output: O extends never ? string : z.infer<O>) => string | ToolResultContentBlock[]; // SE17
   sanitize?: boolean | SanitizeOptions;
 }
 
 Type-safe builder for custom inline tools (ADR D24). Converts a Zod schema to JSON Schema for the LLM-facing `inputSchema` field, wraps the handler with a runtime `schema.parse` step, and preserves type inference. Requires `zod` as a peer dependency.
+
+`outputSchema` (SE16, optional) validates the handler's RETURN value. When set, the handler's return type is inferred from it (`z.infer<O>`); the value is validated against the schema (a string stays as-is, an object is JSON-stringified into the `tool_result`), and a validation failure surfaces as `tool_result(isError)` with the Zod message. Absent ⇒ the handler returns a plain string (unchanged).
+
+`toModelOutput` (SE17, optional) splits what the MODEL sees from what the APPLICATION keeps. The handler keeps returning the FULL result (validated by `outputSchema`); `toModelOutput` maps it to the compact — or multimodal (SE7 `ToolResultContentBlock[]`) — representation placed in the `tool_result` the model reads. The split is REAL end-to-end: the model's `tool_result` carries the compact value, while observability (`onToolEnd.result`) receives the FULL raw handler output (serialized) — so rich app-facing detail is never forced into model context yet is never lost. One handler execution feeds both channels. Absent ⇒ the serialized handler output is what the model sees (SE16 / pre-SE17 behavior).
 
 `sanitize` (optional) cleans the raw model-emitted args BEFORE `inputSchema.parse`, using the primitive from `@theokit/sdk/sanitize` (see below). `sanitize: true` trims whitespace from string values (so a leaked `"\npackage.json\n"` path validates as `"package.json"`); `sanitize: { coerce: true }` additionally coerces string values toward this tool's own schema (a `z.number()` field accepts `"5"`). Absent ⇒ args reach validation untouched. Sanitize is hygiene, not a validity bypass — a genuinely invalid arg still becomes `tool_result(isError)`.
 
@@ -868,9 +935,9 @@ On failure, throw a ToolError to carry a clean message OR the same structured co
 A plain Error still works (its message becomes the error text). This is provider-agnostic and capability-based: a provider whose tool-result can carry blocks forwards them natively; a string-only provider flattens text-only blocks to a string and FAILS FAST with a typed ConfigurationError on an image block (a silently-dropped image would be a lie to the model). Types: ImageBlock, ToolResultContentBlock (= TextBlock | ImageBlock).
 
 import { z } from "zod";
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 
-const rollTool = defineTool({
+const rollTool = Tool.create({
   name: "roll",
   description: "Roll N dice with S sides each.",
   inputSchema: z.object({
@@ -885,6 +952,34 @@ const rollTool = defineTool({
 });
 
 Use when: custom tools whose handlers expect typed input and benefit from automatic runtime validation. Invalid input becomes `tool_result(isError)` with a Zod message instead of silent NaN/undefined.
+
+SkillReadTool.create() — lazy model-facing skill read (SE23)
+
+```typescript
+import { SkillReadTool } from "@theokit/sdk";
+
+const skillRead = SkillReadTool.create(inlineSkills);   // returns a CustomTool named `skill_read`
+const agent = await Agent.create({ apiKey, model, skills: { inline: inlineSkills }, tools: [skillRead] });
+```
+
+An OPT-IN tool the MODEL can call to lazily read one skill's FULL body (and its SE21 `references`) on demand — the hybrid to eager `<skills>`-block injection when you want the model to pull a skill only when needed. `SkillReadTool.create(skills)` returns a `CustomTool` named `skill_read`; on call it returns the matching skill's `instructions` + `references`, or a typed "not found" string listing the available skills (no throw) for an unknown name. The SDK never auto-injects it — a consumer adds it to `tools`. Agents that don't add it are unchanged (ADR 0007).
+
+Guardrail processors — `inputProcessors` / `outputProcessors` (SE24/SE25)
+
+```typescript
+import { Agent, UnicodeNormalizer, TokenLimiter, type Processor } from "@theokit/sdk";
+
+const agent = await Agent.create({
+  apiKey, model,
+  inputProcessors: [
+    UnicodeNormalizer.create({ stripControlChars: true, collapseWhitespace: true }),  // SE25 — deterministic
+    TokenLimiter.create({ limit: 4000, strategy: "block" }),
+  ],
+  outputProcessors: [ TokenLimiter.create({ limit: 2000 }) ],  // default strategy: truncate
+});
+```
+
+`AgentOptions.inputProcessors` run in order BEFORE the LLM call; `outputProcessors` run on the response. Each `Processor` is `{ id; processInput?; processOutput?; onViolation? }`; a processor may rewrite/redact its text (return a string) or `ctx.abort(reason)` / `ctx.warn(reason)`. An `abort()` genuinely stops the run: the input path returns a terminal `status: "cancelled"` WITHOUT dispatching to the model, and a `tripwire` is surfaced on `RunResult.tripwire` and as a `tripwire` run-event on the stream; subsequent processors are short-circuited. `onViolation` fires on both abort and warn (its own errors are swallowed). Absent ⇒ unchanged (back-compat). Cloud rejects function-carrying processors. Built-in deterministic (no-LLM) processors: `UnicodeNormalizer` (NFC + optional control-char strip + whitespace collapse) and `TokenLimiter` (char estimate ~chars/4 via `estimateTokens`, `truncate` default or `block`). LLM-classifier guardrails (moderation / PII / injection) are built ON this seam — see ADR 0009 (`docs/adr/` in git history); they are deliberately NOT shipped in core.
 
 Agent.builder()
 
@@ -1001,7 +1096,7 @@ Runtime is inferred from how the job is created: pass agent.local or an agentId 
 Cron.create()
 
 
-function Cron.create(options: CronCreateOptions): Promise<CronJob>;
+Cron.create(options: CronCreateOptions): Promise<CronJob>;
 
 const job = await Cron.create({
   cron: "0 9 * * *",                 // every day at 09:00
@@ -1015,7 +1110,7 @@ const job = await Cron.create({
 });
 
 await Cron.start();                  // required for local jobs to actually fire
-Either agent (ephemeral agent created on each fire) or agentId (bound to an existing agent for context continuity) must be set, never both. Setting both is a ConfigurationError.
+Exactly one target must be set: agent (ephemeral agent created on each fire), agentId (bound to an existing agent for context continuity), or workflow (SE35 — a `Workflow` run on each fire with `inputData`). Setting more than one, or none, is a ConfigurationError. `message` is required for an agent target and forbidden with `workflow`. `Cron.run(jobId)` returns the resulting `Run` for an agent target, or a `WorkflowRun` for a workflow target.
 
 Supported cron expressions:
 
@@ -1056,9 +1151,11 @@ interface CronJob {
   name?: string;
   cron: string;
   timezone?: string;
-  message: string | SDKUserMessage;
+  message?: string | SDKUserMessage; // required for an agent target; forbidden with `workflow`
   agent?: AgentOptions;              // mutually exclusive with agentId
   agentId?: string;
+  workflow?: Workflow;               // SE35 — schedule a workflow instead of an agent send
+  inputData?: unknown;               // SE35 — passed to `workflow.run(inputData)` on fire
   enabled: boolean;
   status: "scheduled" | "running" | "paused" | "errored";
   runtime: "local" | "cloud";
@@ -1071,9 +1168,11 @@ CronCreateOptions
 
 interface CronCreateOptions {
   cron: string;
-  message: string | SDKUserMessage;
+  message?: string | SDKUserMessage; // required for an agent target; forbidden with `workflow`
   agent?: AgentOptions;
   agentId?: string;
+  workflow?: Workflow;               // SE35 — schedule a workflow (mutually exclusive with agent/agentId + message)
+  inputData?: unknown;               // SE35 — passed to `workflow.run(inputData)` on fire
   name?: string;
   timezone?: string;
   enabled?: boolean;                 // defaults to true
@@ -1282,6 +1381,8 @@ const agent = await Agent.create({
 });
 Subagents committed to the repo at .Theo/agents/*.md (with name, description, and optional model frontmatter) are also picked up. Inline definitions override file-based ones with the same name.
 
+Each subagent is offered to the supervisor as a delegation tool and runs as an isolated child agent. The child inherits the supervisor's apiKey and model automatically — you do not repeat them; a `model` on the definition (or `"inherit"`) overrides the model, and `tools` scopes the child to that subset of the parent's tools (absent → the parent's full toolset). Per-subagent `mcpServers` on a definition are honored by the cloud runtime.
+
 Context, memory, and skills
 Context, memory, and skills are loaded before MCP tools and subagents are offered to a run:
 
@@ -1289,14 +1390,14 @@ Context is task working-set. It is selected per agent from inline config or `.th
 Memory is durable recall. It persists facts by `{ namespace, userId, scope }`, rejects stores outside the workspace, and must redact credential material.
 Skills are named capability packs. They are loaded from `.theokit/skills/*/SKILL.md`, listed with `agent.skills.list()`, and only expose public metadata in streams and snapshots.
 
-`agent.reload()` refreshes file-based context and skills without disposing the agent or losing conversation state. Invalid context files or malformed skill frontmatter raise `ConfigurationError`.
+`agent.reload()` refreshes file-based context and skills without disposing the agent or losing conversation state. An invalid **context** config (malformed content or wrong shape) raises `ConfigurationError`. A **skill** with malformed frontmatter is handled differently: it is skipped with a stderr warning and excluded from `agent.skills.list()`, and reload resolves normally (graceful-degrade — a single broken skill never blocks the agent).
 
 Hooks
 Hooks are file-based only. There is no programmatic hook callback. Hooks are a project policy boundary, not a per-run knob.
 
 The `stop` hook fires each time a local agent finishes a turn cleanly (it does NOT fire on an errored run or when the iteration ceiling truncates the turn). A `stop` hook that returns `{"decision":"feedback","feedback":"…"}` re-prompts the agent with that text and the loop continues — a bounded reflection ladder (at most 2 re-prompts per run, mirroring the nudge ceiling, so a hook cannot loop forever; once that ceiling is reached the hook still fires on the final finish but its feedback no longer re-prompts). `{"decision":"allow"}` (or no `stop` hook) finishes normally; `deny` at `stop` also finishes (the answer already exists — there is nothing to block) and is authoritative regardless of hook ordering.
 
-Local: Add `.theokit/hooks/<name>.md` to the repo passed as local.cwd (one file per hook; legacy `.theokit/hooks.json` deprecated since v1.5), or add `~/.theokit/hooks/` for user-level hooks.
+Local: Add `.theokit/hooks.json` (Claude-Code-shaped) to the repo passed as local.cwd, or `~/.theokit/hooks.json` for user-level hooks. (The old `.theokit/hooks/*.md` form is no longer supported — ADR 0016.)
 Cloud: Commit `.theokit/hooks/` and its scripts to the repo passed in cloud.repos. SDK-created cloud agents load project hooks automatically. On Enterprise plans, they also run team hooks and enterprise-managed hooks.
 See Hooks for the configuration format and Cloud Agents hooks support for cloud behavior.
 
@@ -1336,7 +1437,7 @@ model	ModelSelection	Required for local; cloud falls back to the server-resolved
 apiKey	string	Theo_API_KEY env	User API key or service account key. Team Admin keys are not yet supported.
 name	string	Auto-generated	Human-readable agent name surfaced as title in Agent.list() / Agent.get().
 systemPrompt	string \| (ctx: SystemPromptContext) => string \| Promise<string>	(none)	System prompt for the agent. Either a plain string or an async resolver that receives a SystemPromptContext. Priority order: SendOptions.systemPrompt (per-call override) > AgentOptions.systemPrompt (resolved if function) > undefined. An empty string in either slot is honoured (explicitly clears the system context). Subagents do NOT inherit this — they use AgentDefinition.prompt. The SDK does not impose a timeout on resolvers — wrap your own Promise.race if you call into slow resources.
-local	{ cwd?: string | string[]; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
+local	{ cwd?: string | string[]; baseDir?: string; sessionStore?: SessionStore; settingSources?: SettingSource[]; sandboxOptions?: { enabled: boolean } }		Local agent config. baseDir is the native session-transcript root (default ~/.theokit; a leading ~ is expanded; set ~/.claude for Claude Code CLI --continue interop). sessionStore (SE41) injects an external session store (readRecords/appendRecords over the native SessionRecord shape) as the primary store + resume source for serverless / multi-host; omit for the FS default. settingSources picks ambient settings layers: "project", "user", "team", "mdm", "plugins", or "all".
 cloud	CloudOptions		Cloud agent config.
 mcpServers	Record<string, McpServerConfig>		Inline MCP server definitions.
 agents	Record<string, AgentDefinition>		Subagent definitions.
@@ -1427,12 +1528,22 @@ interface SkillsOptions {
 }
 `enabled` names skills to load from configured skill sources. `paths` may point at explicit local skill directories. Cloud rejects local-only paths unless the files are committed in the repo.
 
+`AgentOptions.skills` also accepts a **resolver function** (SE22) — `(ctx: SkillsResolverContext) => SkillsSettings | Promise<SkillsSettings>` — evaluated per `send()` before skill assembly, so the active skill set can vary by run/context (e.g. admin vs. user). Mirrors the `systemPrompt` resolver. The context carries `agentId`, `cwd`, `model`, `userMessage`, and `memory`. No SDK timeout is imposed; a throwing resolver fails the run (fail-fast). A static `SkillsSettings` behaves exactly as before (back-compat). Local runtime only — cloud rejects the function form (`cloud_incompatible_function_resolver`).
+
 SDKSkillsManager
 
 interface SDKSkillsManager {
   list(): Promise<Array<{ name: string; description: string }>>;
+  // SE20 — read one skill's full body programmatically.
+  get(name: string): Promise<SDKAgentSkillDetail | undefined>;
 }
-`list()` returns metadata only. It must not return full `SKILL.md` prompt bodies.
+interface SDKAgentSkillDetail {
+  name: string;
+  description: string;
+  instructions: string;                    // the full SKILL.md body (frontmatter stripped)
+  references?: Record<string, string>;      // SE21 — supporting docs bundled on the skill
+}
+`list()` returns metadata only (name + description) — it must not return full `SKILL.md` prompt bodies. `get(name)` (SE20) returns one skill's FULL body: for a file-based skill it reads the `SKILL.md` at the resolved source and strips the frontmatter; for an inline skill it returns the `instructions` directly. Returns `undefined` when no skill matches (and for a malformed/excluded skill — same exclusion as `list()`). The optional `references` map (SE21) carries any supporting docs bundled on an inline skill via `Skill.create({ references })`.
 ModelSelection
 
 interface ModelSelection {
@@ -1868,7 +1979,7 @@ Known limitations
 Inline mcpServers are not persisted across Agent.resume(). Pass them again on resume if needed.
 Artifact download is not implemented for local agents (agent.listArtifacts() returns an empty list and agent.downloadArtifact() throws).
 local.settingSources (and the file-based MCP / subagent paths it gates) does not apply to cloud agents. Cloud always loads project / team / plugins.
-Hooks are file-based only (`.theokit/hooks/<name>.md`; legacy `.theokit/hooks.json` deprecated). No programmatic callbacks.
+Hooks are file-based only (`.theokit/hooks.json`, Claude-Code-shaped; the old `.theokit/hooks/*.md` form is no longer supported). No programmatic callbacks.
 Inline memory, context, and skill config should be treated as process-local unless documented otherwise. Durable behavior comes from memory stores and committed file-based context / skills.
 Skill prompt bodies are not stable public output. Use `agent.skills.list()` for metadata and avoid scraping streams for full skill text.
 
@@ -1947,7 +2058,7 @@ Adversarial coverage: ~1200 random inputs via `fast-check` cover 5 traversal vec
 
 In-house bounded-concurrency primitives (no `p-limit`/`p-map` dependency), public from the `@theokit/sdk/concurrency` sub-path so agent builders bound parallel work without re-implementing a pool:
 
-- `createSemaphore(permits)` — N-permit async-aware counting semaphore. `acquire()` returns a release function (call once, typically in `finally`). Release is idempotent.
+- `Semaphore.create(permits)` — N-permit async-aware counting semaphore. `acquire()` returns a release function (call once, typically in `finally`). Release is idempotent.
 - `mapWithConcurrency(items, concurrency, fn, { signal? })` — map `fn` over `items` with at most `concurrency` invocations in flight, **preserving input order** in the result array. Fail-fast (rejects with the first task error); an aborted `signal` stops new work from starting. Throws `ConfigurationError` (`invalid_concurrency`) when `concurrency` is not a positive integer.
 
 ```ts
@@ -1958,14 +2069,14 @@ const results = await mapWithConcurrency(urls, 4, (url) => fetchJson(url)); // �
 
 #### Retry — `@theokit/sdk/retry`
 
-`withRetry(fn, options?)` — run `fn`, retrying transient failures with exponential backoff + full jitter. The default `isRetryable` predicate is `isTransientError`, so it retries exactly what the SDK classifies as transient (rate-limit, network, credential-pool-exhausted) and rethrows the rest immediately. `sleep` and `rng` are injectable for deterministic tests (no real timers).
+`Retry.create(fn, options?)` — run `fn`, retrying transient failures with exponential backoff + full jitter. The default `isRetryable` predicate is `isTransientError`, so it retries exactly what the SDK classifies as transient (rate-limit, network, credential-pool-exhausted) and rethrows the rest immediately. `sleep` and `rng` are injectable for deterministic tests (no real timers).
 
 Options: `retries` (default 3), `isRetryable`, `initialDelayMs` (100), `maxDelayMs` (30_000), `backoffMultiplier` (2), `rng`, `sleep`, `signal`.
 
 ```ts
-import { withRetry } from "@theokit/sdk/retry";
+import { Retry } from "@theokit/sdk/retry";
 
-const data = await withRetry(() => agent.send(message, { throwOnError: true }), { retries: 5 });
+const data = await Retry.create(() => agent.send(message, { throwOnError: true }), { retries: 5 });
 ```
 
 #### Tool input sanitization — `@theokit/sdk/sanitize`
@@ -1994,7 +2105,7 @@ const { value } = sanitizeToolInput({ path: "\nsrc/index.ts\n", n: "5" }, { coer
 // value → { path: "src/index.ts", n: 5 }
 ```
 
-Most consumers use it declaratively via `defineTool({ sanitize })` (above) rather than calling it directly. The SDK's own leaked-dialect recovery reuses this same primitive, so the public surface and the internal path never diverge.
+Most consumers use it declaratively via `Tool.create({ sanitize })` (above) rather than calling it directly. The SDK's own leaked-dialect recovery reuses this same primitive, so the public surface and the internal path never diverge.
 
 #### Message readers — `@theokit/sdk/messages`
 
@@ -2114,7 +2225,7 @@ await writeProjectInstructions(process.cwd(), "# Project rules\n…"); // atomic
 
 ## Built-in tools for coding agents (v1.x+)
 
-Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `createAgentFactory({ tools: [...] })`. All five share the same three rules:
+Drop-in toolkit available at `@theokit/sdk/tools`. Each factory takes `{ projectRoot }` and returns a `CustomTool` ready to plug into `Agent.create` or `AgentFactory.create({ tools: [...] })`. All five share the same three rules:
 
 1. **Project-scoped.** Every I/O call passes through `safePathJoin` + `assertNoSymlinkEscape`.
 2. **Sensitive files refused.** `.env*` (except `.env.example`), `.git/`, `node_modules/`, `.theo/`, lock files via `isForbiddenPath`.
@@ -2164,7 +2275,27 @@ The wording of a tool's `description` (its Agent-Computer Interface) materially 
 
 ### Command-permission policies
 
-`PermissionEngine` (from `@theokit/sdk`) gates a tool call by name AND, since #55, by its argument values: a `PermissionRule` may declare `args?: Record<string, string | RegExp | (v) => boolean>`, and `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared arg predicate matches — so a single `shell` rule can deny `rm -rf` while allowing `ls`. A missing argument fails its predicate (the rule does not match; never throws). **Behavior change (#55):** the default when no rule matches is now `"ask"` (fail-closed) — a permission engine that cannot positively allow must not silently allow. Restore the previous fail-open behavior with `new PermissionEngine(rules, { defaultAction: "allow" })`. `createPermissionPlugin(engine)` forwards the tool arguments into `evaluate`, so arg-level gating works through the `pre_tool_call` flow automatically.
+`PermissionEngine` (from `@theokit/sdk`) gates a tool call by name AND, since #55, by its argument values: a `PermissionRule` may declare `args?: Record<string, string | RegExp | (v) => boolean>`, and `evaluate(toolName, args?)` matches a rule only when the tool name matches AND every declared arg predicate matches — so a single `shell` rule can deny `rm -rf` while allowing `ls`. A missing argument fails its predicate (the rule does not match; never throws). **Behavior change (#55):** the default when no rule matches is now `"ask"` (fail-closed) — a permission engine that cannot positively allow must not silently allow. Restore the previous fail-open behavior with `new PermissionEngine(rules, { defaultAction: "allow" })`. `PermissionPlugin.create(engine)` forwards the tool arguments into `evaluate`, so arg-level gating works through the `pre_tool_call` flow automatically. A delegated subagent inherits the parent's plugins (#55), so the same arg-level gate applies to the child's inner tool calls — arg-gating does not stop at the delegation boundary. Caveats: rule evaluation is **first-match** (order deny rules before broader allows — deny does not intrinsically win); `string`/`RegExp` arg matchers key **top-level** args only (use a `(v) => boolean` predicate to reach nested values); a predicate that itself throws is not caught — it fails closed by aborting the turn (the tool never runs) rather than emitting a clean deny. A `RegExp` matcher with a `g`/`y` flag is reset before each test, so authorization is deterministic across repeated calls.
+
+**Permission modes + the `canUseTool` gate (SE1).** On top of the rules, a per-run `PermissionMode` adjusts every verdict, and an `ask` verdict routes to an enriched `canUseTool` gate — matching the Anthropic SDK's operational shape, provider-agnostic.
+
+- **Modes** — `PermissionMode` ∈ `default | plan | acceptEdits | bypass` (`bypassPermissions` is accepted as the Anthropic-exact alias of `bypass`):
+  - `default` — rules decide; an unmatched call is `ask` (fail-closed).
+  - `plan` — read-only: only `allow` rules pass; everything else (including unmatched) is denied.
+  - `acceptEdits` — auto-approve the unmatched default, but still honor an explicit `ask` rule.
+  - `bypass` / `bypassPermissions` — allow everything EXCEPT an explicit `deny` rule; never asks.
+  - An explicit `deny` rule is **immune to every mode** — no auto-approve mode can un-deny it.
+- **Precedence** — the mode is resolved **per run**: `SendOptions.permissionMode` (per-send) wins over `AgentOptions.permissionMode` (creation-time default); absent both, the `PermissionPlugin`'s construction-time `mode` applies; absent that, `default`.
+- **`canUseTool`** — `PermissionPlugin.create(engine, { canUseTool })`. On an `ask` verdict the gate `(toolName, input, { toolName, mode }) => { behavior: "allow" | "deny", message? }` is consulted (may be async — a real gate can prompt a human via the pre-tool seam). **Fail-closed (allow-list):** only an explicit `{ behavior: "allow" }` passes; a `deny`, a throwing gate, an absent gate, or any malformed return blocks. A denied call surfaces a typed `permission_denied` `RunEvent` plus a tool-result the model can self-correct on — never a silent no-run.
+
+```ts
+const agent = await Agent.create({
+  …,
+  plugins: [PermissionPlugin.create(engine, { canUseTool })],
+  permissionMode: "default",          // creation-time default
+});
+await agent.send("…", { permissionMode: "plan" });   // per-send override (read-only run)
+```
 
 For agents that gate shell commands at a permission layer, `@theokit/sdk-tools` exports a small composable policy layer that builds on the `shell_exec` catastrophic guardrail:
 
@@ -2232,7 +2363,7 @@ const planNodes = todoItemsToPlanNodes(result.items); // [{ id: "todo-1", label:
 ```
 
 ```typescript
-import { createAgentFactory } from "@theokit/sdk";
+import { AgentFactory } from "@theokit/sdk";
 import {
   createReadFileTool,
   createListDirTool,
@@ -2242,7 +2373,7 @@ import {
 } from "@theokit/sdk/tools";
 
 const projectRoot = process.cwd();
-const factory = createAgentFactory({
+const factory = AgentFactory.create({
   apiKey: process.env.ANTHROPIC_API_KEY!,
   model: { id: "claude-3-5-sonnet-20241022" },
   systemPrompt: "You are a coding agent. Use the tools.",
@@ -2278,37 +2409,35 @@ const factory = createAgentFactory({
 
 ## Configuration files (v1.5+)
 
-User-edited config files in `.theokit/` use **markdown + YAML frontmatter** — same shape as `skills/<name>/SKILL.md`, Claude Code commands, and Cursor rules. One file per entity gives per-entity git diff, prose body for rationale ("why this hook exists"), and type-safe frontmatter via Zod.
+Most user-edited config in `.theokit/` uses **markdown + YAML frontmatter** — same shape as `skills/<name>/SKILL.md`. **Hooks are the exception: they use JSON, in the exact Claude Code `settings.json` shape** (ADR 0016 — a hook's markdown body is inert, and Claude Code configures hooks in JSON).
 
 ```
 .theokit/
-├── hooks/                         # one .md per hook (ADR D74)
-│   └── shell-policy.md
+├── hooks.json                     # Claude-Code-shaped hooks (ADR 0016)
 ├── context/                       # one .md per context source
 │   └── bot-readme.md
 ├── plugins/<name>/                # PLUGIN.md per plugin (nested)
 │   └── PLUGIN.md
-└── skills/<name>/SKILL.md         # unchanged; already markdown
+└── skills/<name>/SKILL.md         # markdown
 ```
 
-Example hook:
+Example `.theokit/hooks.json` (identical to a Claude Code hooks block):
 
-```markdown
----
-event: preToolUse
-matcher: ^shell$
-command: node .theokit/policy.js
----
-
-# Shell tool policy gate
-
-Vets shell tool invocations before spawn. Reason: multi-user chat can't
-trust arbitrary shell calls.
+```json
+{
+  "hooks": {
+    "PreToolUse": [
+      { "matcher": "shell",
+        "hooks": [ { "type": "command", "command": "node .theokit/policy.js", "timeout": 30 } ] } ]
+  }
+}
 ```
 
-**Migration.** A standalone CLI converts legacy `.theokit/hooks.json` /
-legacy `.theokit/context.json` / legacy `.theokit/plugins/<name>/plugin.json`
-to the markdown form:
+Events map to the SDK's five firing points: `PreToolUse`→preToolUse, `PostToolUse`→postToolUse, `UserPromptSubmit`→preRun, `Stop`→stop (unsupported Claude Code events are skipped with a warning). The command gets the payload as JSON on stdin; a non-zero exit on `PreToolUse` / `UserPromptSubmit` blocks. The old `.theokit/hooks/*.md` form is no longer supported (a stray markdown dir warns to migrate).
+
+**Migration.** A standalone CLI converts legacy `.theokit/context.json` /
+legacy `.theokit/plugins/<name>/plugin.json` to the markdown form (hooks migrate the
+other way, back to `.theokit/hooks.json`):
 
 ```bash
 npx theokit-migrate-config --apply
@@ -2396,6 +2525,13 @@ Stable, semver-protected persistence primitives for harness consumers (eval
 runners, config/plan stores). Promoted from the semver-exempt
 `internal/persistence` so you adopt them without coupling to `internal/`.
 
+> **Deprecation (SE43, DoD#2).** The `@theokit/sdk/internal/persistence` export is
+> **deprecated** — import the shared kernel (`replaceFileAtomic`, `withCwdMutex`,
+> `openSqliteResilient`, `sanitizeFts5Query`, `PersistenceSchema`, `atomicWriteText`,
+> `atomicWriteJson`) from `@theokit/sdk/persistence` instead. The old path keeps
+> re-exporting its full surface for one release (back-compat) and is scheduled for
+> removal in a future major.
+
 ```typescript
 import {
   appendJsonl,      // append one record as a \n-terminated JSON line (mkdirs parent)
@@ -2408,6 +2544,9 @@ import {
   openSqliteResilient, // open SQLite with corruption recovery
   applyWalWithFallback, // WAL + foreign-keys pragma with a journal fallback
   isCorruptionError,
+  withCwdMutex,      // (SE43) serialize a critical section by cwd across the process
+  sanitizeFts5Query, // (SE43) escape a user string for a SQLite FTS5 MATCH query
+  PersistenceSchema, // (SE43) shared schema-version constant for the persistence layer
 } from "@theokit/sdk/persistence";
 
 // Durable, crash-safe, resumable batch run:
@@ -2422,6 +2561,27 @@ await replaceFileAtomic("config.json", JSON.stringify(cfg)); // no torn write on
 
 `loadJsonl` is the same symbol exported from `@theokit/sdk/eval` (dataset
 loading); the `persistence` sub-path co-locates it with the write/resume helpers.
+
+### Native session transcript (SE40) — Claude-shaped `.jsonl`
+
+The SE39 read-only `ClaudeCodeTranscriptWriter` has been **removed** (v4.0). It is superseded by the
+SE40 native session format: the session store IS a Claude-shaped `.jsonl` (a `uuid`/`parentUuid` DAG of
+records carrying structured `text`/`tool_use`/`tool_result` blocks), so the ecosystem's read-side tools
+parse our sessions AND — pointed at `~/.claude` — the Claude Code CLI can `--continue` them.
+
+The path-encoders are exported from `@theokit/sdk/persistence`:
+
+```typescript
+import { encodeProjectDir, transcriptPath } from "@theokit/sdk/persistence";
+
+// <baseDir>/projects/<encoded-cwd>/<sessionId>.jsonl
+const path = transcriptPath("~/.theokit", process.cwd(), sessionId);
+```
+
+`baseDir` defaults to `~/.theokit` (isolated) and is settable to `~/.claude` for Claude Code CLI
+interop. The full write/read/`--continue`/append-only-compaction surface is documented as it lands
+through SE40; extended-thinking `--continue` (thinking-block signature round-trip) is out of scope
+(SE42 / issue #122) — thinking blocks are written but dropped on read.
 
 ## Eval suite (v1.15+) — `Eval.create / .run`
 
@@ -2700,27 +2860,27 @@ When OTel is available and agent telemetry is enabled, each handoff emits a
 `handoff.transfer` span with attributes `handoff.from`, `handoff.to`,
 `handoff.reason`, `handoff.depth`, `handoff.tool_name`.
 
-## Squad (sequential agent teams) — `createSquad`
+## Squad (sequential agent teams) — `Squad.create`
 
-`createSquad` is a thin convenience for the common "run a team of agents in
+`Squad.create` is a thin convenience for the common "run a team of agents in
 order" case. It **composes `Workflow` + `agentStep`** under the hood — it adds
 no new orchestration engine. Each agent's output is threaded into the next
 agent's prompt; `run()` returns the final result plus a per-agent trace.
 
 ```typescript
-import { Agent, createSquad } from "@theokit/sdk";
+import { Agent, Squad } from "@theokit/sdk";
 
 const researcher = await Agent.create({ /* ... */ });
 const writer = await Agent.create({ /* ... */ });
 const editor = await Agent.create({ /* ... */ });
 
-const squad = createSquad({ agents: [researcher, writer, editor] }); // process defaults to "sequential"
+const squad = Squad.create({ agents: [researcher, writer, editor] }); // process defaults to "sequential"
 const run = await squad.run("Write a post about TypeScript agents.");
 console.log(run.result);  // final (editor's) output
 console.log(run.steps);   // StepResult[] — one per agent
 ```
 
-- **Sequential is the only `createSquad` process.** For branching/parallel/foreach
+- **Sequential is the only `Squad.create` process.** For branching/parallel/foreach
   teams use `Workflow` + `agentStep` directly (more expressive). For
   manager→worker delegation use **subagents** or **`@theokit/sdk-handoff`** —
   passing `process: "hierarchical"` throws a `ConfigurationError` pointing you
@@ -2732,7 +2892,7 @@ console.log(run.steps);   // StepResult[] — one per agent
 The decorator authoring style (`@Workflow` + `@Step` + `buildWorkflow`, and `@Squad`) was
 extracted to `@theokit/di-agent` in the `theokit-di` repo (plan monorepo-cohesion-split;
 ADR D431 made decorators an optional layer, not a Harness requirement). It compiles a decorated
-class into a `@theokit/sdk` `Workflow` — the SDK ships the `Workflow` + `agentStep` + `createSquad`
+class into a `@theokit/sdk` `Workflow` — the SDK ships the `Workflow` + `agentStep` + `Squad.create`
 primitives below; the decorator sugar is opt-in via that package.
 
 ## Workflows (v1.17+) — `Workflow.create / .run / .resume`
@@ -2789,6 +2949,41 @@ fn("validate", (input, ctx) => {...}, {
 // agent step — agent.send with rendered prompt + optional retry
 agentStep("classify", agent, (input) => `prompt: ${input}`, { retry: {...} });
 ```
+
+### Live step-event stream — `Workflow.stream()` (SE28)
+
+`workflow.stream(input, opts?)` returns an `AsyncIterableIterator<WorkflowEvent> & { result: Promise<WorkflowRun> }` that yields step events LIVE during execution — `workflow_started`, `step_started`, `step_completed`, `step_failed`, `workflow_suspended`, `workflow_completed` (discriminate on `type`; events carry `stepId` / `output` / `error`). Events arrive in execution order as steps run (a progress UI need not wait for the whole run). `stream.result` resolves to the terminal `WorkflowRun` (same shape `run()` returns) and is authoritative — not every terminal state has a closing event. `run(input)` is unchanged (`stream()` is purely additive).
+
+### Workflow-scoped state — `stateSchema` + `ctx.state` / `ctx.setState` (SE29)
+
+`Workflow.create({ name, stateSchema?, initialState? })` gives every step a shared, mutable, workflow-scoped state. A step reads `ctx.state` and mutates via `ctx.setState(next)`; a mutation in one step is visible to later steps. When `stateSchema` (Zod) is set, `setState` validates and throws a typed `WorkflowStateError` on mismatch; `initialState` is validated before step 1. State is captured in the `WorkflowSnapshot` and restored on resume (durable across suspend/resume; snapshot `_schemaVersion` bumped with a back-compat guard for older snapshots). Absent `stateSchema` ⇒ no state surface (back-compat).
+
+### Workflows as steps — `workflowStep` + `cloneWorkflow` (SE30)
+
+`workflowStep(childWorkflow)` wraps a committed `Workflow` as a step usable inside `.then(...)`: the child runs via its own executor, its output becomes the step output, and a non-`completed` child (failure/suspend) surfaces to the parent as a typed `WorkflowNestedError` (nested suspend/resume is not supported in v1 — documented in ADR 0010). Nesting is OPAQUE — the child's step ids live in the child's own space; the parent sees one step. `cloneWorkflow(wf, { id })` returns an independent `Workflow` with a fresh id/name and its own single-flight lock, copying the committed steps (no shared step-array reference — mutating the clone never affects the original).
+
+### Whole-workflow I/O validation — `inputSchema` / `outputSchema` (SE27)
+
+`Workflow.create({ name, inputSchema?, outputSchema? })` accepts optional Zod schemas that validate the WHOLE workflow's input and output (distinct from per-step `fn()` schemas). The input is validated at run start — BEFORE step 1 — and a mismatch fails fast with a typed `WorkflowInputError` (no step runs, no silent coercion). On a `completed` run, the final output is validated against `outputSchema`; a mismatch yields `status: "failed"` carrying a typed `WorkflowOutputError` (the error never throws out of `run()`; suspended/failed runs skip output validation). Absent ⇒ no validation (back-compat). Both error classes are exported.
+
+### Workflow as an agent tool — `workflowAsTool` (SE19)
+
+Expose a `Workflow` as a `CustomTool` so an agent can call the whole pipeline like any other tool. Import from `@theokit/sdk/workflow`:
+
+```typescript
+import { workflowAsTool, WorkflowToolError } from "@theokit/sdk/workflow";
+import { z } from "zod";
+
+const refundTool = workflowAsTool(refundWorkflow, {
+  name: "process_refund",
+  description: "Runs the refund pipeline for a claim.",
+  inputSchema: z.object({ claim: z.string() }),
+});
+
+const agent = await Agent.create({ apiKey, model, tools: [refundTool] });
+```
+
+The caller-supplied `inputSchema` becomes the tool's LLM-facing input schema; on call, the handler validates the model's args (a `ZodError` becomes `tool_result(isError)` before the workflow runs), then runs `workflow.run(parsedInput)` and returns the workflow output (a string as-is, a structured output JSON-stringified). A run that does not reach `completed` surfaces a typed `WorkflowToolError` (carrying `workflowStatus` + the run error) — a failed step never silently returns a partial result. The `workflow` argument is structural (`{ run }`-shaped), so any workflow-like object works.
 
 ### Retry policy (D237)
 
@@ -2863,7 +3058,7 @@ When OTel is installed, each `wf.run` emits a `workflow.run` root span and per-s
 
 - **LocalAgent only** — `CloudAgent` workflow steps throw `UnsupportedRunOperationError` (D244).
 - **Saga compensation deferred to v1.2** — `compensate?` field reserved on `FnStep` but throws `WorkflowCompensateNotImplementedError` if set (D238).
-- **No cron-trigger integration** — wire workflows via `Cron.create({ task })` calling `wf.run` directly.
+- **Cron-trigger integration shipped (SE35)** — schedule a workflow directly with `Cron.create({ cron, workflow, inputData })`; the scheduler runs `workflow.run(inputData)` on each fire (see the Cron section).
 
 ### Errors (named)
 
@@ -3008,21 +3203,21 @@ with attributes `cache.namespace`, `cache.embedder_id`, `cache.hit` (kv|semantic
 | `CacheInvalidTtlError` | Bad TTL format passed to `parseTtlMs` (e.g. `"1y"`, `-30`, `Infinity`) |
 
 
-## Custom providers (`defineProvider`)
+## Custom providers (`Provider.create`)
 
 Register any OpenAI-/Anthropic-compatible LLM endpoint (Groq, Together, Fireworks,
 DeepInfra, a private gateway) without forking. A provider is **data-only** — a
 `ProviderProfile` object literal; the transport is selected from `apiMode`, so no
 new code is required for an endpoint that speaks an existing dialect.
 
-`defineProvider(profile)` is the canonical factory (mirrors `defineTool` /
-`definePlugin`). It returns a `Plugin` you pass to `Agent.create({ plugins })`.
+`Provider.create(profile)` is the canonical factory (mirrors `Tool.create` /
+`Plugin.create`). It returns a `Plugin` you pass to `Agent.create({ plugins })`.
 Route to the provider with the `provider/model` id prefix or `providers.routes`.
 
 ```ts
-import { Agent, defineProvider } from "@theokit/sdk";
+import { Agent, Provider } from "@theokit/sdk";
 
-const groq = defineProvider({
+const groq = Provider.create({
   name: "groq",
   apiMode: "chat_completions",        // OpenAI-compatible
   authType: "api_key",
@@ -3052,7 +3247,7 @@ const agent = await Agent.create({
 | `extractToolCallsFromContent` | no | Opt-in leaked-dialect safe-parse (default off). When `true`, a `chat_completions` finish with ZERO native `tool_calls` has its assistant content scanned for the Hermes `<function=…></tool_call>` dialect; a recovered call surfaces as a real `tool_call` **only when its name matches a tool declared in the request** (request-scoped — a leaked block for a tool the model was not given stays as visible text and is not promoted). Enable only for routes/models known to leak (e.g. a qwen3-coder profile variant) — a code assistant can legitimately print a literal `<function=` in a fenced block, so the flag is the coarse enable and the request-tool allowlist is the precise false-positive guard. While streaming with the flag on, the suspected dialect is held back at the stream boundary and never emitted as a visible `text_delta` (so the raw `<function=…>` markup does not flash by in the live stream); a never-closing marker fails open to visible text. Native `tool_calls` always win (no double-count). |
 | `displayName`, `description`, `signupUrl`, `modelsUrl`, `hostname`, `extraHeaders`, `bodyOverrides` | no | Metadata / transport tweaks. |
 
-`defineProvider(profile, { version })` overrides the plugin version (default
+`Provider.create(profile, { version })` overrides the plugin version (default
 `"1.0.0"`). Re-registering an existing provider `name` is last-writer-wins and
 emits a one-line stderr WARN. Use `authType: "none"` for local runtimes that
 ignore the `Authorization` header.
@@ -3194,7 +3389,7 @@ const agent = await Agent.create({
 
 ### `global` location (D293)
 
-When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis.com/...` (no `global-` host prefix). Known fix for the `streamRawPredict` 404 bug at `global-aiplatform.googleapis.com` (a peer#10287).
+When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis.com/...` (no `global-` host prefix). Known fix for the `streamRawPredict` 404 bug at `global-aiplatform.googleapis.com` (a peer).
 
 ### Error mapping (D300)
 
@@ -3220,48 +3415,50 @@ When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis
 
 Both profiles work with all SDK features: handoffs (D214-D229), workflows (D230-D248), semantic cache (D249-D266), eval suite (D202-D213), batch (D134-D140). Pick the model id at agent construction; the rest of the SDK is provider-agnostic.
 
-## Conversation storage (v1.21+) — `ConversationStorageAdapter`
+## Conversation storage (v4.0) — native Claude-shaped transcript
 
-Pluggable conversation persistence. Default behavior is unchanged (`<cwd>/.theokit/agents/<id>/messages.jsonl`). For serverless deploys (a peer vendor, Cloudflare Workers, Lambda) and multi-host setups (K8s replicas, TheoCloud canary), pass a custom adapter.
+Conversation persistence is the native Claude Code `.jsonl` transcript. There is no pluggable `ConversationStorageAdapter` — the transcript on disk IS the store. The path is `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl`; `baseDir` comes from `local.baseDir` (default `~/.theokit`; set `~/.claude` for Claude Code CLI `--continue` interop).
 
-### Interface
+Records are a `uuid`/`parentUuid` DAG. Each line is one record with `type` (`user` / `assistant` / `system`), the envelope (`sessionId`, `timestamp`, `cwd`, `version`), and a `message.content` array of structured blocks (`text`, `thinking`, `tool_use{id,name,input}`, `tool_result{tool_use_id,content,is_error}`). A `system` record with `subtype: "compact_boundary"` is a new root (`parentUuid: null`) carrying `compactMetadata`.
 
-```ts
-interface ConversationStorageAdapter {
-  // M2 #63 — optional { offset, limit } paginates the result (omit for full history).
-  getMessages(
-    conversationId: string,
-    opts?: { offset?: number; limit?: number },
-  ): Promise<readonly StoredMessage[]>;
-  appendMessage(conversationId: string, message: StoredMessage): Promise<void>;
-  // M2 #63 — optional batch append: a whole turn in one atomic write. The FS
-  // adapter uses a single lock-guarded appendFile (one open per turn, not N);
-  // adapters that omit it fall back to looping appendMessage.
-  appendMessages?(conversationId: string, messages: readonly StoredMessage[]): Promise<void>;
-  // M3 #67 — revert a transcript back to its first keepCount messages ("undo last turn(s)").
-  truncateConversation?(conversationId: string, keepCount: number): Promise<number>;
-  deleteConversation(conversationId: string): Promise<void>;
-  // M3 #62 — delete every conversation whose id starts with prefix (scope pruning).
-  deleteScope?(prefix: string): Promise<number>;
-  listConversationIds?(opts?: { limit?: number }): Promise<readonly string[] | undefined>;
-  compact?(conversationId: string, maxTurns: number): Promise<void>;
-  dispose?(): Promise<void>;
-}
+### Write / read / compaction
 
-interface StoredMessage {
-  role: "user" | "assistant" | "system" | "tool_call" | "tool_result";
-  content: string;
-  at?: number; // epoch ms
+- WRITE: after each send, the whole turn (user text + assistant text/thinking + paired tool_use/tool_result blocks, taken from `run.conversation()`) is appended as native records under a cross-process file lock. Secrets are redacted before disk.
+- READ / resume: hydration parses the lines, builds the uuid index, finds the most-recent leaf (a uuid never used as a parentUuid), and walks `parentUuid` to a root (a `compact_boundary` root terminates the walk). It reconstructs the conversation; tool turns fold into assistant-role context so a resumed agent keeps its tool history.
+- COMPACTION is append-only: a `compact_boundary` record is appended; the transcript is NEVER shrunk. A resume after a boundary replays only the post-boundary continuation.
+- A torn last line (crash mid-write) is skipped on read — the rest of the DAG still reconstructs.
+
+### Pluggable `SessionStore` (SE41) — external store for serverless / multi-host
+
+The record I/O above goes through a minimal, injectable `SessionStore` — exactly two methods over the SAME native `SessionRecord` shape:
+
+```typescript
+interface SessionStore {
+  readRecords(agentId: string): Promise<SessionRecord[]>;              // all records, append order; missing → []
+  appendRecords(agentId: string, records: readonly SessionRecord[]): Promise<void>; // append-only delta
 }
 ```
 
-### Scoped session state (M3 #62)
+Omit it and the SDK uses the default `FsSessionStore` (the native `.jsonl` transcript above) — byte-identical to not setting it. Inject `local.sessionStore` to make an external backend (Postgres, Redis, a KV, a durable object) the PRIMARY store and resume source:
 
-A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated in the same store: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe). Prune a whole scope with `adapter.deleteScope(sessionScopePrefix("temp"))` on logout / session end — pruning is explicit (auto-prune of `temp:` on dispose is deferred). Additive — an un-scoped id behaves exactly as before.
+```typescript
+const agent = await Agent.create({
+  apiKey, model: { id: "openai/gpt-4o-mini" },
+  local: { cwd, sessionStore: myPostgresStore },   // readRecords / appendRecords over your DB
+});
+// A later invocation (fresh process, no local FS) resumes from the same store:
+const resumed = await Agent.resume(agentId, { apiKey, model, local: { cwd, sessionStore: myPostgresStore } });
+```
 
-### Resume is non-lossy (M3 #62)
+Use this when the local FS is ephemeral (serverless / edge) or not shared (multi-pod), where a resumed agent must read its history from a shared store instead of disk. The records stay the native Claude-shaped shape, so `--continue` interop is preserved — a store may also mirror to `~/.claude`. Contract: `appendRecords` is append-only and order-preserving; a store that cannot READ on resume MUST throw (a silent `[]` would masquerade as "no history" and drop the conversation). The FS default serializes concurrent appends per agent under a file lock; an external store owns (and documents) its own cross-host consistency. This is NOT the removed `ConversationStorageAdapter` — it is a 2-method record seam, not the old ~10-method surface.
 
-Session hydration used to drop `tool_call`/`tool_result` turns from the rebuilt context; they are now folded into the resumed context (as assistant-role context) so a resumed agent keeps its tool history. Exact tool_use/tool_result LLM-block reconstruction for mid-call resume needs persisted tool-use ids — a schema change deferred. Workflow resume restores the snapshot's accumulated step outputs (a post-suspend step sees prior results), instead of continuing with only the resume payload. Resume of router/cycle workflows and suspend nested inside parallel/branch/foreach is not yet supported (deferred).
+### Scoped session ids (M3 #62)
+
+A conversation id can be namespaced by scope so app-durable, user-durable, and ephemeral session data stay separated: `scopedConversationId(scope, id)` returns `"<scope>__<id>"` for `scope ∈ "app" | "user" | "temp"` (the `__` separator is path-safe), and `sessionScopePrefix(scope)` returns the matching `"<scope>__"` prefix. These are pure id helpers; scope pruning against a storage backend is no longer part of the SDK.
+
+### Removed in v4.0
+
+The pluggable-storage contract is gone: `ConversationStorageAdapter`, `StoredMessage`, `FileSystemConversationStorage`, `InMemoryConversationStorage`, `AgentOptions.conversationStorage`, the `Session` namespace + `SessionMeta`/`SessionMetaPatch`, durable objectives (`setObjective` and friends, `ObjectiveRecord`, `AgentOptions.goal`), and `buildReplayHistory`/`ReplayHistoryOptions`. Custom Postgres / Redis / durable-object backends return via the minimal `SessionStore` seam (SE41, above) — a 2-method record port over the native format, not the removed ~10-method adapter.
 
 ### Observability (M3 #64)
 
@@ -3274,67 +3471,25 @@ Artifacts are a **cloud-only, pre-release** surface. A `CloudAgent` returns fixt
 ### Default behavior (no configuration)
 
 ```ts
-// Existing apps unchanged — FS adapter at cwd
 const agent = await Agent.create({
   apiKey: process.env.OPENROUTER_API_KEY,
   model: { id: "openai/gpt-4o-mini" },
-  local: { cwd: process.cwd() },
+  local: { cwd: process.cwd() },              // baseDir defaults to ~/.theokit
 });
-// writes to <cwd>/.theokit/agents/<id>/messages.jsonl
+// writes the native transcript to ~/.theokit/projects/<encoded-cwd>/<agentId>.jsonl
 ```
 
-### Built-in adapters
+### Claude Code CLI interop
 
 ```ts
-import {
-  Agent,
-  FileSystemConversationStorage,
-  InMemoryConversationStorage,
-} from "@theokit/sdk";
-
-// Tests / ephemeral dev
-const ephemeral = new InMemoryConversationStorage();
-
-// Explicit FS (same as default but with custom root)
-const fs = new FileSystemConversationStorage({ root: "/var/lib/myapp" });
-
 const agent = await Agent.create({
-  apiKey,
-  model,
-  conversationStorage: ephemeral, // or fs
+  apiKey, model,
+  local: { cwd: process.cwd(), baseDir: "~/.claude" },
 });
+// writes to ~/.claude/projects/<encoded-cwd>/<agentId>.jsonl — a session the
+// Claude Code CLI can `--continue` (extended-thinking signatures are written but
+// dropped on read; functional --continue for thinking is tracked as issue #122).
 ```
-
-### Postgres / Redis / Durable Objects
-
-See `docs/recipes/conversation-storage-postgres.md` and `docs/recipes/conversation-storage-redis.md` for copy-paste templates. Both ship Node + Edge variants.
-
-### Strict resume integrity (D325)
-
-When `Agent.create({ conversationStorage })` is used, the registry marks the agent with `requiresCustomStorage: true`. **`Agent.resume` REJECTS** with `ConfigurationError(code: "conversation_storage_required")` if the marker is set and the caller does not pass `conversationStorage` again.
-
-```ts
-// First call (creates + marks):
-await Agent.create({
-  agentId: "user-42",
-  conversationStorage: pgAdapter,
-  apiKey,
-  model,
-});
-
-// Process restart later:
-// ❌ throws — silently falling back to FS would lose Postgres history
-await Agent.resume("user-42");
-
-// ✓ correct — pass adapter again
-await Agent.resume("user-42", { conversationStorage: pgAdapter });
-```
-
-This is intentional. Silent FS fallback would corrupt the conversation (read empty `messages.jsonl`, continue as if fresh). Wire the adapter at the route-handler level so every request reaches `getOrCreate` with the storage in place.
-
-### What does NOT serialize across resume
-
-`conversationStorage` is a runtime closure — not stored in `registry.json`. Same pattern as `AgentOptions.tools` handlers. The marker is the only thing that survives.
 
 ## Agent registry lifecycle (v1.21+) — `Agent.registry`
 
@@ -3609,3 +3764,127 @@ If the env var is set but the JSON is malformed (parse error, missing `status`, 
 ### When NOT to use this
 
 This is NOT a replacement for `fixture-mode` (the `theo_test_*` API key path). Fixture mode is a product feature for SDK consumers' tests; `THEOKIT_TEST_RESPONSE_OVERRIDE` is a chaos seam for the SDK + framework's own test pipelines. Per the `real-llm-validation.md` rule, **fixture mode and `THEOKIT_TEST_RESPONSE_OVERRIDE` are both insufficient evidence for "validated against real LLM"** claims.
+
+## Additional public subpaths (reference)
+
+Every entry point in `packages/sdk/package.json` `exports` is public. The sections above cover the main surface; the remaining subpaths are referenced here so the contract is complete.
+
+### `@theokit/sdk/subscription` — typed RPC subscriptions + resume tokens (G8)
+
+Server-side typed streaming with opaque resume tokens (ADRs D423-D430).
+
+```typescript
+import { Subscription, subscribe, tracked, isTrackedEnvelope } from "@theokit/sdk/subscription";
+
+// Server: describe a subscription (input → async stream of outputs).
+const feed = Subscription.create<{ room: string }, { text: string }>({
+  name: "chat",
+  subscribe: async function* (input, ctx) {
+    for await (const msg of roomStream(input.room, ctx.signal)) {
+      yield tracked(msg.id, { text: msg.text });   // `tracked` stamps a resume token
+    }
+  },
+});
+
+// Client: consume it, resuming from the last seen token after a disconnect.
+for await (const event of subscribe(url, { lastEventId })) { render(event); }
+```
+
+- `Subscription.create<TInput, TOutput>(opts)` → a `SubscriptionDescriptor` a server transport (WS / SSE) drives.
+- `subscribe(url, opts?: SubscribeOptions)` → client-side `AsyncGenerator` of events; `opts.lastEventId` resumes.
+- `tracked(id, payload)` wraps a payload with a resume token; `isTrackedEnvelope(x)` narrows it.
+- Errors: `SubscriptionError`, `SubscriptionDisconnectError`, `SubscriptionInputError`. Composes with `Agent.streamObject`.
+
+### `@theokit/sdk/a2a` — agent-to-agent messaging + programmatic subagents
+
+The peer-to-peer messaging primitives (distinct from the declarative `agents:` map documented under Subagents).
+
+```typescript
+import { MessageBus, AgentMailbox, SubAgent } from "@theokit/sdk/a2a";
+
+const bus = new MessageBus();
+const mailbox = new AgentMailbox(bus, "agent-a");
+await mailbox.send("agent-b", { type: "task", payload: { ... } });   // fire-and-forget
+const reply = await mailbox.request("agent-b", { type: "ask", payload }, { timeoutMs: 5000 });
+```
+
+- `MessageBus` — in-process broker: `send(from, to, msg)`, `request(from, to, msg, opts)`, subscribe per address.
+- `AgentMailbox(bus, address)` — an agent's handle: `send(to, msg)`, `request(to, msg, opts)`.
+- `SubAgent.create(spec)` — the programmatic delegation tool (full spec + lifecycle hooks below and in the runnable `examples/` set).
+- Types: `A2AMessage`, `MessageHandler`, `ToolContextMessage`, `RequestOptions`; `MaxDelegationDepthError`.
+
+### `@theokit/sdk/filesystem` — pluggable file backend (SE31)
+
+The storage twin of `@theokit/sdk/sandbox`: a `FilesystemBackend` seam so `@theokit/sdk-tools` file factories can target a per-request / multi-tenant root.
+
+```typescript
+import { LocalFilesystem, FilesystemBackend, resolveFilesystem } from "@theokit/sdk/filesystem";
+
+const fs = new LocalFilesystem({ basePath: tenantRoot, readOnly: false });
+await fs.writeFile("out.txt", "hi");   // boundary-enforced against basePath; escapes → FilesystemSecurityError
+```
+
+- `FilesystemBackend` (abstract) — implement `readFile` / `writeFile` / `stat` / `list`; `exists()` derives on the base. `readOnly` + `basePath`.
+- `LocalFilesystem(config)` — the default `node:fs` implementation.
+- `resolveFilesystem(provider, ctx)` — resolve a `FilesystemProvider` (a backend OR a `(ctx) => backend` resolver) per request.
+- Errors: `FilesystemSecurityError`, `FilesystemReadOnlyError`, `FileNotFoundError`, `StaleFileError` (SE32 — write with `expectedMtime`), `FilesystemError`.
+
+### `@theokit/sdk/client` — HTTP client for the cloud runtime
+
+```typescript
+import { TheoKitClient } from "@theokit/sdk/client";
+const client = new TheoKitClient({ baseUrl, apiKey });
+const res = await client.send("hello");                    // Promise<SendResponse>
+for await (const ev of client.stream("hello")) { … }        // AsyncGenerator<StreamEvent>
+```
+
+Types: `ClientOptions`, `SendResponse`, `StreamEvent`.
+
+### `@theokit/sdk/task-store` — durable task persistence
+
+Backing store for background `Task` observability.
+
+```typescript
+import { getTaskStoreFor, InMemoryTaskStore, JsonFileTaskStore } from "@theokit/sdk/task-store";
+const store = getTaskStoreFor({ kind: "json-file", path: ".theokit/tasks.json" });
+```
+
+- `getTaskStoreFor(options)` → a `TaskStore` (selects the impl by `options.kind`).
+- `InMemoryTaskStore` (ephemeral) / `JsonFileTaskStore` (durable JSON file).
+
+### `@theokit/sdk/server/auth` — OAuth orchestrator (build an agent web server)
+
+```typescript
+import { Auth, validateReturnTo } from "@theokit/sdk/server/auth";
+const auth = Auth.create<Session>({ providers: { github: { … } }, /* … */ });
+// auth handles the OAuth login → callback → session exchange for your server.
+const safe = validateReturnTo(url, allowlist);   // redirect-target safety
+```
+
+- `Auth.create<TSession>(opts)` → an `AuthOrchestrator`.
+- `validateReturnTo(url, allowlist)` → a safe redirect target (open-redirect defense).
+- Errors: `AuthCallbackError`, `AuthCancelledError`, `AuthConfigError`, `AuthProviderNotFoundError`, `AuthSecretTooShortError`.
+
+### `@theokit/sdk/server/errors-envelope` — canonical HTTP error envelope
+
+```typescript
+import { toEnvelope, fromEnvelope } from "@theokit/sdk/server/errors-envelope";
+res.status(status).json(toEnvelope(err));       // any error → { code, message, … } wire shape
+const restored = fromEnvelope(await res.json()); // wire shape → typed TheokitAgentError
+```
+
+Types: `TheokitErrorEnvelope`, `TheokitErrorCode`.
+
+### Token budget + cost (main barrel)
+
+```typescript
+import { Budget, UsageAccumulator, computeCost, normalizeUsage, getPricingEntry } from "@theokit/sdk";
+```
+
+- `Budget` — a spend cap the agent loop enforces; `createCounterBudgetTracker({ maxIterations })` for a step ceiling.
+- `UsageAccumulator` — folds per-run `TokenUsage` into a running total.
+- `computeCost(usage, model)` — cost from usage (never returns 0 when pricing is unknown — it surfaces the gap); `getPricingEntry(model)`, `normalizeUsage(raw)`.
+
+### Additional typed errors (`@theokit/sdk/errors`)
+
+Beyond `RateLimitError` / `NetworkError` / `AuthenticationError` / `ConfigurationError`, the hierarchy also exports: `BudgetExceededError`, `AgentDisposedError`, `CredentialPoolExhaustedError`, `MemoryAdapterError`, `TaskNotFoundError`, `InvalidTaskIdError`, `UnsupportedTaskOperationError`, `UnsupportedBudgetOperationError`. All extend `TheokitAgentError`; catch the base to handle any of them.

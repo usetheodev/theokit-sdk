@@ -2,25 +2,52 @@ import { ConfigurationError, UnknownAgentError } from "../../errors.js";
 import type { AgentOptions } from "../../types/agent.js";
 import type { CronJob } from "../../types/cron.js";
 import type { Run, SDKUserMessage } from "../../types/run.js";
+import type { WorkflowRun } from "../../types/workflow.js";
 import { getAgentFacade } from "../runtime/registry/agent-factory-registry.js";
 
 /**
- * Execute a cron job by creating the configured agent (or reusing the
- * referenced `agentId`) and dispatching `job.message` through `agent.send()`.
+ * Execute a cron job. Dispatches to one of three targets:
+ *   - `workflow` (SE35) → `workflow.run(inputData)` on the held instance (the
+ *     instance carries its own `.run`, so this module never imports `workflow.ts`),
+ *     returning the already-terminal {@link WorkflowRun}.
+ *   - `agent` → an ephemeral agent per fire; `agent.send(message)` → {@link Run}.
+ *   - `agentId` → reuse an existing agent; `agent.send(message)` → {@link Run}.
  *
- * Used by both:
- *   - The public `Cron.run(jobId)` for manual off-schedule fires.
- *   - The internal scheduler's default fire handler, so timer ticks also
- *     drive a real agent run instead of being silent.
+ * Used by both `Cron.run(jobId)` (manual off-schedule fire) and the scheduler's
+ * default fire handler. ADR 0014.
  *
  * @internal
  */
-export async function runCronJob(job: CronJob): Promise<Run> {
-  if (job.agent !== undefined) return runWithEphemeralAgent(job.agent as AgentOptions, job.message);
-  if (job.agentId !== undefined) return runWithExistingAgent(job.agentId, job.message);
-  throw new ConfigurationError(`Cron job ${job.id} has neither agent nor agentId — cannot run.`, {
-    code: "cron_no_target",
-  });
+export async function runCronJob(job: CronJob): Promise<Run | WorkflowRun> {
+  // `Workflow.run()` resolves only on a TERMINAL run (completed/failed/suspended/
+  // cancelled — the executor never returns `status: "running"`), so the fire
+  // handler treats the returned WorkflowRun as terminal (no `.wait()`).
+  if (job.workflow !== undefined) return job.workflow.run(job.inputData);
+  if (job.agent !== undefined) return runWithEphemeralAgent(job.agent, requireMessage(job));
+  if (job.agentId !== undefined) return runWithExistingAgent(job.agentId, requireMessage(job));
+  throw new ConfigurationError(
+    `Cron job ${job.id} has no target (agent, agentId, or workflow) — cannot run.`,
+    { code: "cron_no_target" },
+  );
+}
+
+/**
+ * Discriminate the {@link runCronJob} union: an agent `Run` is deferred (carries
+ * `.wait()`/`.cancel()`); a {@link WorkflowRun} is already terminal (no `.wait()`).
+ * @internal
+ */
+export function isAgentRun(outcome: Run | WorkflowRun): outcome is Run {
+  return typeof (outcome as Run).wait === "function";
+}
+
+/** Agent targets require a message; fail-loud if one somehow reached a fire without it. */
+function requireMessage(job: CronJob): string | SDKUserMessage {
+  if (job.message === undefined) {
+    throw new ConfigurationError(`Cron job ${job.id} is an agent target but has no message.`, {
+      code: "cron_missing_message",
+    });
+  }
+  return job.message;
 }
 
 async function runWithExistingAgent(

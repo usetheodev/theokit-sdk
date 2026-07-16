@@ -8,10 +8,10 @@
  * not bodies — inline and file skills are symmetric there). Inline skills override file skills on a
  * name conflict (mirrors the subagents-loader precedent).
  */
-import type { Skill } from "./internal/runtime/skills/discover-skills.js";
+import type { Skill as SkillShape } from "./internal/runtime/skills/discover-skills.js";
 
 /** A code-defined skill (from {@link createSkill}) — a {@link Skill} plus its inline body. */
-export interface InlineSkill extends Skill {
+export interface InlineSkill extends SkillShape {
   /** The skill body/instructions (inline skills carry it here instead of a SKILL.md file). */
   instructions: string;
   /**
@@ -37,7 +37,7 @@ export interface CreateSkillSpec {
  * Build an {@link InlineSkill} from a code spec. Fails fast on an empty `name`/`description`
  * (error-handling.md). The synthetic `source` (`inline://<name>`) marks it as file-less.
  */
-export function createSkill(spec: CreateSkillSpec): InlineSkill {
+function createSkill(spec: CreateSkillSpec): InlineSkill {
   if (!spec.name) throw new Error("createSkill: `name` is required.");
   if (!spec.description) throw new Error("createSkill: `description` is required.");
   return {
@@ -49,4 +49,12 @@ export function createSkill(spec: CreateSkillSpec): InlineSkill {
     ...(spec.dependencies !== undefined ? { dependencies: spec.dependencies } : {}),
     ...(spec.references !== undefined ? { references: spec.references } : {}),
   };
+}
+
+/** SE36 — `Skill.create` replaces `createSkill` (ADR 0015). @public */
+export class Skill {
+  private constructor() {}
+  static create(spec: CreateSkillSpec): InlineSkill {
+    return createSkill(spec);
+  }
 }
