@@ -1,5 +1,5 @@
 // Type contract for @theokit/sdk.
-// Single source of truth: docs.md at the repository root.
+// These exported types are the canonical public contract.
 
 export type * from "./agent.js";
 export type * from "./batch.js";

@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <p align="center"><code>@theokit/sdk</code> · the <strong>Build</strong> (SDK) auxiliary of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
+  <p align="center"><code>@theokit/sdk</code> · the <strong>Harness</strong> pillar of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
   <h1 align="center">Code your agent. Keep your runtime.</h1>
   <p align="center">
     <strong>A TypeScript SDK with an Apache-2.0 local runtime, multi-provider keys, and an opt-in cloud.</strong>
@@ -27,7 +27,7 @@ There is a version of your agent that does not sit in a chat window.
 
 You don't open a panel. You don't type a prompt. You commit code, and the agent runs — the same way every other piece of your stack runs. It writes a PR description after every merge. It summarizes yesterday's incidents at 9 AM. It refactors a module overnight. It answers questions in Slack about the codebase it knows by heart.
 
-That agent is built with `@theokit/sdk` — and when you decide to leave, the runtime leaves with you. A community auxiliary of the [Theo](https://usetheo.dev) ecosystem, inspired by the Claude SDK, Cursor SDK, and the open runtime.
+That agent is built with `@theokit/sdk` — and when you decide to leave, the runtime leaves with you. It is the **Harness** pillar of the [Theo](https://usetheo.dev) ecosystem.
 
 ## Overview
 
@@ -46,8 +46,8 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | Layer | `@theokit/sdk` | Closed-runtime alternatives |
 | --- | --- | --- |
 | SDK source | Apache-2.0, this repo | Often OSS — table stakes |
-| Local agent harness | **Apache-2.0** (informed by [`the local runtime`](the open local runtime)) — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
-| LLM provider | Multi-provider via `the-provider-layer` (Anthropic, OpenAI, Google, …) | Usually single-vendor |
+| Local agent harness | **Apache-2.0** — runs end-to-end without a vendor | Proprietary or source-available; tied to one vendor |
+| LLM provider | Multi-provider — Anthropic, OpenAI, Google, and more, through your own keys | Usually single-vendor |
 | Session format | **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
 | Walk-away cost | Zero — fork the local runtime, keep running with your own provider keys | High — runtime is the vendor's |
@@ -77,70 +77,25 @@ Below this line, full technical vocabulary is in play. Installation, authenticat
 npm install @theokit/sdk
 ```
 
-## AI coding assistant setup
+## AI coding assistant setup (optional)
 
-Get a TheoKit-specialized AI coding assistant in your project. Works with Claude Code, Cursor, Copilot, Windsurf, Codex, and any tool that reads `AGENTS.md`.
-
-**1. Scaffold the configuration**
+Scaffold a TheoKit-aware config so your AI coding tool writes correct SDK code out of the box. Works with Claude Code, Cursor, Copilot, Windsurf, Codex, and any tool that reads `AGENTS.md`.
 
 ```bash
-npx theokit-init-claude
+npx theokit-init-claude          # add --force to overwrite an existing setup
 ```
 
-This creates three things in your project root:
-
-| Created | What it does |
-| --- | --- |
-| `AGENTS.md` | Cross-agent instruction file — read by Claude Code, Cursor, Copilot, Windsurf, Codex, Gemini CLI, Aider, Zed. Contains the SDK API reference, import map, common patterns, and anti-patterns. |
-| `CLAUDE.md` | Claude Code-specific extensions — imports `AGENTS.md` and adds the skill directory + settings reference. |
-| `.claude/` | 15 domain-specific skills + convention rules + safe-default permissions. |
-
-**2. Open your AI coding tool**
-
-```bash
-claude          # Claude Code
-cursor .        # Cursor
-code .          # VS Code with Copilot
-```
-
-The tool automatically loads TheoKit knowledge. No internet needed — everything is bundled.
-
-**3. Start building**
-
-Ask your AI assistant anything about TheoKit:
+This writes `AGENTS.md` (a cross-agent instruction file with the SDK API reference, import map, and common patterns), `CLAUDE.md` (Claude Code extensions), and `.claude/` (domain skills + convention rules). Everything is bundled — no internet needed. Then open your tool and describe what you want:
 
 ```
 Create an agent that monitors GitHub PRs and posts review comments
-```
-
-```
 Add a cron job that summarizes incidents every morning at 9 AM
 ```
 
-```
-Set up a Slack gateway for my support agent
-```
+The scaffolded skills auto-load when you edit files matching each TheoKit domain.
 
-The assistant knows: `Agent.create`, `Tool.create`, `Memory`, `@Injectable`, all 15 decorators, 10 gateways, RAG pipeline, workflows, subscriptions, error handling, configuration, and budget tracking.
-
-**4. Customize (optional)**
-
-Edit `CLAUDE.md` to add your project-specific instructions:
-
-```markdown
-## My Project
-
-Build: `npm run build`
-Test: `npm test`
-
-## Architecture
-- `src/agents/` — agent definitions
-- `src/tools/` — tool implementations
-```
-
-**What's inside `.claude/skills/`**
-
-15 passive skills auto-load when you edit files matching each domain:
+<details>
+<summary>Bundled skill list</summary>
 
 | Skill | Activates on |
 | --- | --- |
@@ -160,11 +115,7 @@ Test: `npm test`
 | `theokit-streaming` | Files with `stream` or `SDKMessage` |
 | `theokit-budget` | Files with `budget`, `cost`, or `token` |
 
-Already have a `.claude/` directory? Use `--force` to overwrite:
-
-```bash
-npx theokit-init-claude --force
-```
+</details>
 
 ## Authentication
 
@@ -391,7 +342,7 @@ Result data (final text, model, duration, git metadata) lives on the `Run` objec
 
 > **Tool call schema is not stable.** The `args` and `result` payloads on `tool_call` events reflect each tool's internal shape and can change as tools evolve. Tool names can also be renamed or replaced. Treat `args` and `result` as `unknown` and parse defensively. The event envelope (`type`, `call_id`, `name`, `status`) is stable.
 
-For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), see [`docs.md`](./docs.md).
+For the full type reference (`SDKMessage`, `InteractionUpdate`, `ConversationTurn`), read the exported types — they are the canonical contract — or the [capability map](./docs/harness-capability-map.md).
 
 ## Resuming agents
 
@@ -408,14 +359,14 @@ await run.wait();
 
 `agent.model` is `undefined` on resume unless you pass `model` again. Inline `mcpServers` are not persisted across resume — they often carry secrets and live in memory only. Pass them again on resume, or commit them to `.theokit/mcp.json`.
 
-The conversation is persisted as a native Claude Code `.jsonl` transcript at `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `baseDir` defaults to `~/.theokit`; set `local.baseDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see [`docs.md`](./docs.md) § Session persistence and issue #122).
+The conversation is persisted as a native Claude Code `.jsonl` transcript at `<baseDir>/projects/<encoded-cwd>/<agentId>.jsonl` — resume reconstructs it from disk. `baseDir` defaults to `~/.theokit`; set `local.baseDir: "~/.claude"` and the Claude Code CLI can `--continue` the exact session your agent wrote (the SDK emits the format Claude Code reads). Extended-thinking `--continue` is out of scope for now — thinking signatures are written but dropped on read (see issue #122).
 
 ## Inspecting agents and runs
 
-List, fetch, and reload past agents. List endpoints return `{ items, nextTheokit? }` for cursor-based pagination.
+List, fetch, and reload past agents. List endpoints return `{ items, nextCursor? }` for cursor-based pagination.
 
 ```typescript
-const { items, nextTheokit } = await Agent.list({
+const { items, nextCursor } = await Agent.list({
   runtime: "local",
   cwd: process.cwd(),
 });
@@ -488,7 +439,7 @@ Subagents committed to the repo at `.theokit/agents/*.md` (with `name`, `descrip
 
 ## Memory, context, and skills
 
-Durable memory, project context, and named capability packs (Skills) are part of the public contract — defined in [`docs.md`](./docs.md) and exposed through `AgentOptions.memory`, `AgentOptions.context`, and `AgentOptions.skills`.
+Durable memory, project context, and named capability packs (Skills) are part of the public contract — exposed through `AgentOptions.memory`, `AgentOptions.context`, and `AgentOptions.skills`.
 
 ```typescript
 const agent = await Agent.create({
@@ -657,7 +608,7 @@ await Agent.unarchive(agentId);   // restore an archived agent
 await Agent.delete(agentId);      // permanent
 ```
 
-Full cloud reference, including `CloudOptions`, `SDKAgentInfo`, and `Theokit.repositories.list()`: see [`docs.md`](./docs.md).
+Full cloud reference, including `CloudOptions`, `SDKAgentInfo`, and `Theokit.repositories.list()`: read the exported types.
 
 ## Configuration reference
 
@@ -680,7 +631,7 @@ interface AgentOptions {
 }
 ```
 
-For the full reference (`CloudOptions`, `ModelSelection`, `McpServerConfig`, `AgentDefinition`, `SDKImage`, `SettingSource`, `ListResult`), see [`docs.md`](./docs.md).
+For the full reference (`CloudOptions`, `ModelSelection`, `McpServerConfig`, `AgentDefinition`, `SDKImage`, `SettingSource`, `ListResult`), read the exported types.
 
 ## Known limitations
 
@@ -697,8 +648,8 @@ For the full reference (`CloudOptions`, `ModelSelection`, `McpServerConfig`, `Ag
 Honest claims only. Production-ready is not the same as "every feature shipped".
 
 - **Local runtime** — production. The tested path.
-- **Cloud runtime** — pre-release with Theo PaaS. Public contract locked in `docs.md`; APIs may evolve until PaaS reaches general availability.
-- **Memory & Skills** — public contract locked in `docs.md`. Runtime implementation arrives with the contract; today the surface area is the type contract plus file conventions.
+- **Cloud runtime** — pre-release with Theo PaaS. Public contract locked in the exported types; APIs may evolve until PaaS reaches general availability.
+- **Memory & Skills** — public contract locked in the exported types. Runtime implementation arrives with the contract; today the surface area is the type contract plus file conventions.
 - **Cron (local)** — fires only while the host process is alive. Run as a `systemd` / `launchd` / `pm2` service, or use the cloud runtime, for 24/7 scheduling.
 
 ## Where this fits
@@ -723,21 +674,18 @@ is the project's load-bearing promise; the dogfood anchor `open-stack-agent` exe
 it on real infrastructure (Harness + Skills tool-use + UI render, real LLM).
 
 Cross-pillar wiring status: Skills↔Harness and UI↔Harness are validated against the
-current Harness (plugins build + test green vs SDK 2.18.0; the `useAgentStream` mapper
-renders a real `Run.stream()`); Runtime↔Harness is contract-only until PaaS ships.
+current Harness (plugins build + test green; the `useAgentStream` mapper renders a real
+`Run.stream()`); Runtime↔Harness is contract-only until PaaS ships.
 
-The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). Study peers (a fork of [`the-open-runtime`](the open local runtime), the a peer SDK, and others) are cloned on demand under `.claude/knowledge-base/reference/` (read-only, gitignored) — they informed the design but are never a runtime dependency.
+The SDK is a standalone TypeScript implementation with no runtime dependency on any third-party agent framework.
 
 ## Documentation
 
-The code is the documentation: the API is self-describing and `docs.md` is the canonical contract. Start with:
+The code is the documentation: the exported TypeScript types are the canonical contract, and your editor's autocomplete is the fastest reference. Start with:
 
-- [`docs.md`](./docs.md) — the canonical, machine-readable API contract (source of truth for every public subpath)
 - [`examples/`](./examples/) — runnable end-to-end examples for every surface
 - [Capability map](./docs/harness-capability-map.md) — every public primitive + its import path
 - [Error codes](./docs/error-codes.md) — the `AgentRunError.code` reference table
-
-The canonical machine-readable contract is at [`docs.md`](./docs.md).
 
 ## Development
 
@@ -757,8 +705,6 @@ pnpm build                    # tsup → dist/{index,errors}.{js,cjs,d.ts}
 pnpm check                    # biome lint + format
 pnpm validate                 # everything above plus publint + attw
 ```
-
-Reference projects (notably `the local runtime` and `a peer SDK`) are study material, **cloned on demand** under `.claude/knowledge-base/reference/` (gitignored) — read them for design inspiration, but never `npm install`, `pip install`, edit, or import them.
 
 ## License
 

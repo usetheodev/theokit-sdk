@@ -9,7 +9,7 @@ We ship **36 examples** covering every feature in the public API surface (`@theo
 
 > **Cleanup pass (2026-05-22):** removed 18 examples that were either cloud
 > pre-release (won't run until TheoCloud GA), single-API smoke (covered
-> by `docs.md`), or duplicates (covered by `quickstart` + `mcp-stdio`).
+> by the exported types), or duplicates (covered by `quickstart` + `mcp-stdio`).
 > A consolidated official demo `theo-studio` is in progress and will
 > replace the dispersed memory-* and plugin-walkthrough examples next.
 

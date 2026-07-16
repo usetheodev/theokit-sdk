@@ -6,7 +6,7 @@
  *
  * Wraps `OpenAIClient` with the Vertex baseUrl + lazy OAuth token from
  * `google-auth-library` (D288). Limitation: Vertex silently drops
- * unsupported OpenAI params (D264-style trade-off, documented in docs.md).
+ * unsupported OpenAI params (D264-style trade-off).
  *
  * @internal
  */
