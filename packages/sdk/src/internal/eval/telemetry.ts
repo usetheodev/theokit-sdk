@@ -6,11 +6,7 @@
  * @internal
  */
 
-import {
-  getTracer,
-  resetTracerCacheForTests,
-  type SpanLike,
-} from "../observability/tracer-loader.js";
+import { getTracer, resetTracerCacheForTests, type SpanLike } from "../telemetry/tracer-loader.js";
 
 const TRACER_NAME = "theokit-sdk-eval";
 
