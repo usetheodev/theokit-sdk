@@ -16,7 +16,7 @@
 
 import { mkdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { atomicWriteText } from "@theokit/sdk/internal/persistence";
+import { atomicWriteText } from "@theokit/sdk/persistence";
 import type { CacheEntry, CacheStats } from "../types/cache.js";
 import { type CacheStore, InMemoryCacheStore } from "./store.js";
 
