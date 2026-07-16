@@ -29,8 +29,9 @@
  * @public — surface-level interface; impls are internal-but-replaceable.
  */
 
-import type { CustomTool, SDKAgent } from "../../../types/agent.js";
+import type { CustomTool } from "../../../types/agent-prims.js";
 import type { MemoryAdapter, MemoryFact } from "../../../types/memory-adapter.js";
+import type { SDKAgent } from "../../../types/sdk-agent.js";
 
 /** Result of `MemoryProvider.runActivePass(...)` — what the kernel injects into the LLM call. */
 export interface ActiveMemoryPassResult {
