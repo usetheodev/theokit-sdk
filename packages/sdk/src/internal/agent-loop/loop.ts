@@ -1,6 +1,6 @@
 import type { ToolContextMessage } from "../../types/agent-prims.js";
+import { IterationBudget } from "../budget/tracker/budget.js";
 import type { LlmContentPart, LlmMessage, LlmToolCallPart } from "../llm/types.js";
-import { IterationBudget } from "../runtime/budget/budget.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validation/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";

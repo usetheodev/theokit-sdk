@@ -157,7 +157,7 @@ export interface AgentLoopInputs {
    * constructs one from `maxIterations`. Tests can inject a pre-configured
    * instance to verify grace-call / compression-cap semantics.
    */
-  budget?: import("../runtime/budget/budget.js").IterationBudget;
+  budget?: import("../budget/tracker/budget.js").IterationBudget;
   /** Fires after each completed conversation step (text turn or tool batch). */
   onStep?: SendOptions["onStep"];
   /** Fires per raw incremental update (text-delta, …) — finer than onStep. */
@@ -197,7 +197,7 @@ export interface AgentLoopInputs {
    * thread the value down to the loop without further type changes when
    * the runtime hooks land.
    */
-  budgetTracker?: import("../runtime/budget/budget-tracker.js").BudgetTracker;
+  budgetTracker?: import("../budget/tracker/budget-tracker.js").BudgetTracker;
   /**
    * Pluggable memory provider (SDK 2.0 Phase 1 / T1.4 — Hexagonal
    * Architecture interface inversion). When provided, the loop will
