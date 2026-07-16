@@ -99,7 +99,7 @@ git push --follow-tags
 | `minor` | New feature, additive API change, new public symbol |
 | `major` | Breaking change to the public API as defined in `docs.md` |
 
-Until v1.0.0, breaking changes can ship in `minor` releases per semver, but we still call them out clearly in the changeset and `CHANGELOG.md`.
+`@theokit/sdk` is past 1.0 (currently on the 4.x line), so breaking changes to the public API defined in `docs.md` require a `major` bump — always called out clearly in the changeset and `CHANGELOG.md`. The satellites (`@theokit/sdk-*`) version independently and some are still pre-1.0.
 
 ## Pre-releases
 

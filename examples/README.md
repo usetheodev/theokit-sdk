@@ -35,7 +35,7 @@ We ship **36 examples** covering every feature in the public API surface (`@theo
 | Skills + hooks + sandbox | [skills](./skills), [hooks-policy](./hooks-policy), [shell-tool](./shell-tool) | "Ambient safety" bundle |
 | Subagents | [subagents](./subagents) | Local Toolset pattern (D102) |
 | Cron | [cron-schedule](./cron-schedule) | croner + JSON persistence (ADR D7/D8) |
-| DX helpers (factory + getOrCreate + defineTool + builder) | [cli-bot](./cli-bot), [telegram-pro](./telegram-pro) | 4 v1.1 helpers |
+| DX helpers (factory + getOrCreate + Tool.create + builder) | [cli-bot](./cli-bot), [telegram-pro](./telegram-pro) | 4 v1.1 helpers |
 
 **Bold rows** are the examples added by the `examples-100-coverage` plan (ADR D47-D51) — fechando o gap de coverage de v1.2.
 
@@ -81,8 +81,8 @@ the same agent with or without them. Pick where you learn each:
 | `Agent.create({...})` — options-bag (canonical) | [`quickstart`](./quickstart) |
 | `Agent.builder()` — fluent chain (ADR D25) | [`quickstart`](./quickstart) with `BUILDER=1 pnpm dev` |
 | `Agent.getOrCreate(id, options)` — resume-or-create (ADR D22) | [`telegram-pro`](./telegram-pro), [`telegram-bot`](./telegram-bot) |
-| `createAgentFactory(common)` — factory closure (ADR D23) | [`telegram-pro`](./telegram-pro) |
-| `defineTool(spec)` — Zod-driven type-safe tool builder (ADR D24) | [`telegram-pro`](./telegram-pro) |
+| `AgentFactory.create(common)` — factory closure (ADR D23) | [`telegram-pro`](./telegram-pro) |
+| `Tool.create(spec)` — Zod-driven type-safe tool builder (ADR D24) | [`telegram-pro`](./telegram-pro) |
 
 The 33 single-feature examples (memory, mcp, cron, etc.) intentionally
 keep the plain `Agent.create({...})` form — they exist to teach ONE
