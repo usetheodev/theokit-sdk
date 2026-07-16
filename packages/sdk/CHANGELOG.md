@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.6
+
+### Patch Changes
+
+- docs: use the transparent `logo-128.png` in the README hero instead of the opaque `logo.png` (which shows a solid background on GitHub/npm dark themes). No code or public API change.
+
 ## 4.2.5
 
 ### Patch Changes
