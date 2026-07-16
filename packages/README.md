@@ -1,6 +1,8 @@
 # `theokit-sdk` packages
 
-This monorepo ships **12 packages** — the Agent-AI **Harness** — organized in **3 families**. The family lets you find a package by what it does, not by alphabetical position.
+This monorepo ships **14 packages** — the Agent-AI **Harness** — organized in **3 families**. The family lets you find a package by what it does, not by alphabetical position.
+
+> Versions below are indicative of the current published line; the authoritative value is each package's `package.json` / npm. `@theokit/sdk` is the only 4.x line — the satellites version independently.
 
 > **Monorepo cohesion split (2026-06-18, plan `monorepo-cohesion-split`).** The non-Harness clusters were extracted to sibling repos so the SDK is a coherent harness ("LEGO pieces to build any agent"). See the "Extracted to sibling repos" section below.
 
@@ -10,12 +12,12 @@ This monorepo ships **12 packages** — the Agent-AI **Harness** — organized i
 
 | Package | Status | Purpose |
 |---|---|---|
-| `@theokit/sdk` | **1.9.0** | Agent kernel: `Agent`, `AgentBuilder`, `AgentFactory`, `defineTool`, runtime loop, plugin foundation, persistence primitives, MCP, hooks, providers, subscription/a2a/sandbox/client/server sub-paths. |
-| `@theokit/sdk-cache` | **0.1.0** | Semantic LLM response cache. Integrates via Plugin protocol. |
-| `@theokit/sdk-tools` | **0.1.0** | Built-in tools (read-file, list-dir, search-text, git-diff, subprocess, run-vitest). |
-| `@theokit/sdk-memory` | **0.1.0** | `MemoryProvider` port consumer — markdown store with disk-backed session-summary write/recall + `memory_remember` / `memory_search` tools + agent-scope privacy filter. |
-| `@theokit/sdk-budget` | **0.1.0** | `BudgetTracker` port consumer + USD pricing tracker. |
-| `@theokit/sdk-handoff` | **0.1.0** | Inter-agent dispatch via plugin protocol. `Handoff.asPlugin()` + lazy-loaded `internal/tool-injector`. |
+| `@theokit/sdk` | **4.2.1** | Agent kernel: `Agent.create`, `AgentBuilder`, `AgentFactory.create`, `Tool.create`, runtime loop, plugin foundation, persistence primitives, MCP, hooks, providers, subscription/a2a/sandbox/client/server sub-paths. (SE36 v3.0 collapsed the `define*`/`create*` factories to the uniform `X.create` surface.) |
+| `@theokit/sdk-cache` | **0.3.1** | Semantic LLM response cache. Integrates via Plugin protocol. |
+| `@theokit/sdk-tools` | **0.11.1** | Built-in tools (read-file, list-dir, search-text, git-diff, subprocess, run-vitest). |
+| `@theokit/sdk-memory` | **0.2.2** | `MemoryProvider` port consumer — markdown store with disk-backed session-summary write/recall + `memory_remember` / `memory_search` tools + agent-scope privacy filter. |
+| `@theokit/sdk-budget` | **0.3.1** | `BudgetTracker` port consumer + USD pricing tracker. |
+| `@theokit/sdk-handoff` | **0.1.1** | Inter-agent dispatch via plugin protocol. `Handoff.asPlugin()` + lazy-loaded `internal/tool-injector`. |
 
 ### Memory adapters — external memory backends
 
