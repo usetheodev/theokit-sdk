@@ -18,25 +18,15 @@ import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
+import type { SessionRecord } from "../../types/session-record.js";
 import type { LlmContentPart, LlmMessage, LlmToolResultPart } from "../llm/types.js";
 import { redactSecrets } from "../security/redact.js";
 import { replaceFileAtomic } from "./atomic-write.js";
 
-/** One transcript record (one JSONL line). `message` absent on `system` (compact_boundary) records. */
-export interface SessionRecord {
-  type: "user" | "assistant" | "system";
-  uuid: string;
-  parentUuid: string | null;
-  sessionId: string;
-  timestamp: string;
-  isSidechain?: boolean;
-  userType?: string;
-  cwd?: string;
-  version?: string;
-  subtype?: string;
-  compactMetadata?: { preTokens: number; trigger: string };
-  message?: Record<string, unknown>;
-}
+// The `SessionRecord` contract now lives in the domain `types/` layer (SE46 DIP
+// direction). Re-exported here so existing importers of this DAG-core module
+// keep resolving the same name.
+export type { SessionRecord } from "../../types/session-record.js";
 
 export interface SessionTranscriptOptions {
   cwd: string;

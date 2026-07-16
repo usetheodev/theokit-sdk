@@ -75,6 +75,23 @@ export {
 } from "./generate-object.js";
 // #57 — tool-result content guard options (SendOptions.toolResultGuard).
 export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-guard.js";
+// BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
+// Kernel-facing contract for budget/usage tracking. Default impl lives in
+// internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
+// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
+// (wiring lands in subsequent iteration).
+export type {
+  BudgetCheck,
+  BudgetTotal,
+  BudgetTracker,
+  BudgetUsageEvent,
+} from "./internal/budget/tracker/budget-tracker.js";
+// Reference impl — pure counter, no USD pricing. Consumers can use as a
+// fallback before @theokit/sdk-budget ships or as a worked example.
+export {
+  type CounterBudgetTrackerOptions,
+  createCounterBudgetTracker,
+} from "./internal/budget/tracker/budget-tracker-counter.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
 // Transitional: `Agent.create({ handoffs: [...] })` still works while
@@ -103,23 +120,6 @@ export {
   type PreUserSendResult,
 } from "./internal/plugins/types.js";
 export type { ProviderProfile } from "./internal/providers/types.js";
-// BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
-// Kernel-facing contract for budget/usage tracking. Default impl lives in
-// internal/budget/ today; will move to @theokit/sdk-budget in Phase 2.
-// Consumers can supply a custom impl via `Agent.create({ budgetTracker })`
-// (wiring lands in subsequent iteration).
-export type {
-  BudgetCheck,
-  BudgetTotal,
-  BudgetTracker,
-  BudgetUsageEvent,
-} from "./internal/runtime/budget/budget-tracker.js";
-// Reference impl — pure counter, no USD pricing. Consumers can use as a
-// fallback before @theokit/sdk-budget ships or as a worked example.
-export {
-  type CounterBudgetTrackerOptions,
-  createCounterBudgetTracker,
-} from "./internal/runtime/budget/budget-tracker-counter.js";
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in

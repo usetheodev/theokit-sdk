@@ -8,6 +8,7 @@
  * @public
  */
 
+import type { EnvPolicy } from "../types/env-policy.js";
 import { shellEscapePosix } from "./shell-escape.js";
 
 export interface ExecuteResult {
@@ -27,7 +28,7 @@ export interface SandboxConfig {
    * `*TOKEN*`, `*PASSWORD*`, `*_AUTH*`). Pass `"all"` to restore full inheritance
    * or `"core"` for a minimal safe allowlist.
    */
-  env?: import("../internal/runtime/lifecycle/env-policy.js").EnvPolicy;
+  env?: EnvPolicy;
 }
 
 export class SandboxSecurityError extends Error {

@@ -8,14 +8,10 @@
  * so the implementation can move to a separate package without circular
  * imports.
  *
- * Until Phase 2 completes, the legacy `UsageAccumulator` + `IterationBudget`
- * remain wired in `internal/agent-loop/loop.ts` as the default impl. Future
- * iterations:
- *   - Refactor `Agent.create` to accept `budgetTracker?: BudgetTracker`.
- *   - When provided, agent-loop uses it; when absent, falls back to the
- *     internal default for back-compat.
- *   - Move the default impl to `@theokit/sdk-budget` (extracted package).
- *   - Phase 6 cohort: drop the internal default, require explicit tracker.
+ * DIP-correct home (SE46): the contract types live in the domain `types/`
+ * layer; the application-layer implementation
+ * (`internal/budget/tracker/budget-tracker.ts`) re-exports them for
+ * back-compat while owning the concrete trackers.
  *
  * @public — surface-level interface; impl is internal-but-replaceable.
  */

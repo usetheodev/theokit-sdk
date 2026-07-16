@@ -12,15 +12,15 @@
  * @internal
  */
 
+import type { ToolResultGuardOptions } from "../../types/run.js";
 import { renderToolResultContentText } from "../llm/tool-result-content.js";
 import type { LlmContentPart } from "../llm/types.js";
 
-export interface ToolResultGuardOptions {
-  /** Wrap tool-result content in explicit data boundaries (spotlighting). */
-  delimit?: boolean;
-  /** Redact common PII patterns (email, phone) in tool-result content. */
-  redactPii?: boolean;
-}
+// SE45 / D435 — the ToolResultGuardOptions CONTRACT type now lives in `types/run.ts`
+// (domain layer); this impl module re-exports it so existing internal + public
+// importers (loop-types, index.ts) resolve the same type. Breaks madge cycle 1
+// (types/run.ts no longer imports internal/).
+export type { ToolResultGuardOptions } from "../../types/run.js";
 
 const OPEN = "<untrusted-tool-output>";
 const CLOSE = "</untrusted-tool-output>";

@@ -16,7 +16,7 @@ import {
   noopSpan,
   resetTracerCacheForTests,
   type SpanLike,
-} from "../observability/tracer-loader.js";
+} from "../telemetry/tracer-loader.js";
 
 const TRACER_NAME = "@theokit/sdk/workflow";
 
