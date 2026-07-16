@@ -26,7 +26,7 @@ import { PersonalityRegistry } from "../personality/registry.js";
 import type { PersonalityStore } from "../personality/store.js";
 import { performPersonalitySwitch } from "../personality/switch.js";
 import type { PersonalityPreset } from "../personality/types.js";
-import { appendSessionMessage, clearSession } from "../runtime/session/agent-session.js";
+import { appendSessionMessage, clearSession } from "../session/agent-session.js";
 
 /**
  * Read the active personality preset (if any) for this agent — pure read.

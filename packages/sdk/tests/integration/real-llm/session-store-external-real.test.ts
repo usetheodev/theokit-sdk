@@ -17,7 +17,7 @@ import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../../../src/internal/runtime/registry/agent-registry.js";
-import { clearAllSessions } from "../../../src/internal/runtime/session/agent-session.js";
+import { clearAllSessions } from "../../../src/internal/session/agent-session.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
 import { resolveRealLlmEnv } from "./_helpers/real-llm-env.js";
 

@@ -20,7 +20,7 @@ import {
 import {
   clearAllSessions,
   getSessionMessages,
-} from "../../../src/internal/runtime/session/agent-session.js";
+} from "../../../src/internal/session/agent-session.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
 
 /** A real external-store impl (Map) — the Postgres/Redis shape, append-only. */

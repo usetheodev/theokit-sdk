@@ -19,13 +19,13 @@ import {
   flushSessionWrites,
   getSessionMessages,
   hydrateSession,
-} from "../../../src/internal/runtime/session/agent-session.js";
+} from "../../../src/internal/session/agent-session.js";
 import {
   appendCompactBoundaryRecord,
   persistTurn,
   readSessionMessages,
   type TranscriptLocation,
-} from "../../../src/internal/runtime/session/agent-session-store.js";
+} from "../../../src/internal/session/agent-session-store.js";
 
 /**
  * SE40 (v4.0) — session persistence IS the native Claude-shaped `.jsonl` transcript

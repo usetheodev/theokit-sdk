@@ -26,7 +26,7 @@ import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../../src/internal/runtime/registry/agent-registry.js";
-import { clearAllSessions } from "../../src/internal/runtime/session/agent-session.js";
+import { clearAllSessions } from "../../src/internal/session/agent-session.js";
 
 const REAL_KEY_SHAPE = "sk-or-v1-error-packaging-e2e-1234567890abcdef";
 const MODEL = { id: "openai/gpt-4o-mini" };

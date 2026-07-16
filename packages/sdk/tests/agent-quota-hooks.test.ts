@@ -13,7 +13,7 @@ import {
   clearAgentRegistry,
   invalidateRegistryHydration,
 } from "../src/internal/runtime/registry/agent-registry.js";
-import { clearAllSessions } from "../src/internal/runtime/session/agent-session.js";
+import { clearAllSessions } from "../src/internal/session/agent-session.js";
 
 const FIXTURE_KEY = "theo_test_quota_hooks";
 const MODEL = { id: "openai/gpt-4o-mini" };

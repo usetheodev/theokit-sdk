@@ -7,8 +7,8 @@ import {
   clearAllSessions,
   flushSessionWrites,
   persistTurnToTranscript,
-} from "../../../src/internal/runtime/session/agent-session.js";
-import type { TranscriptLocation } from "../../../src/internal/runtime/session/agent-session-store.js";
+} from "../../../src/internal/session/agent-session.js";
+import type { TranscriptLocation } from "../../../src/internal/session/agent-session-store.js";
 
 /**
  * SE40 / SE2 — an append-only compaction (every COMPACTION_CHECK_INTERVAL=50
