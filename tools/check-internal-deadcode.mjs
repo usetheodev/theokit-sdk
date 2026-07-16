@@ -36,12 +36,15 @@ const IDENT = /[A-Za-z_$][\w$]*/g;
 // Matches an exported symbol DEFINITION (not a re-export `export { X } from`).
 const EXPORT_DEF =
   /^export\s+(?:async\s+)?(?:(?:declare|abstract)\s+)?(?:function|class|const|let|interface|type|enum)\s+([A-Za-z_$][\w$]*)/;
-// Matches a NON-exported top-level function/const DEFINITION. A private symbol
-// can only be used within its own file, so a single occurrence (the declaration
-// itself) means it is unreachable — the class knip does not detect and the one
-// that hid 8 dead test-seams the 2026-07-16 audit found.
+// Matches a NON-exported top-level function/const/type/interface/enum
+// DEFINITION. A private symbol can only be used within its own file, so a single
+// occurrence (the declaration itself) means it is unreachable — the class knip
+// does not detect (it reasons about exports/files/deps) and the one that hid 8
+// dead test-seams the 2026-07-16 audit found. Types/interfaces/enums are here
+// too: tsc `noUnusedLocals` covers dead value locals but NOT dead top-level
+// private types, so this pass is their only gate.
 const PRIVATE_DEF =
-  /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)|^const\s+([A-Za-z_$][\w$]*)\s*[=:]/;
+  /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)|^const\s+([A-Za-z_$][\w$]*)\s*[=:]|^(?:declare\s+)?(?:interface|type|enum)\s+([A-Za-z_$][\w$]*)/;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -114,7 +117,7 @@ for (const f of files) {
     if (lines[i].startsWith("export")) continue;
     const m = PRIVATE_DEF.exec(lines[i]);
     if (!m) continue;
-    const name = m[1] ?? m[2];
+    const name = m[1] ?? m[2] ?? m[3];
     if (!name || allowlist.has(name)) continue;
     // A separate `export { name }` statement would make the word occur >1× in
     // the file; occ<=1 therefore means declared, never used, never exported.

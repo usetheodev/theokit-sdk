@@ -68,10 +68,8 @@ describe("MessageBus", () => {
 
   it("fire-and-forget does not wait for handler", async () => {
     const bus = new MessageBus();
-    let _called = false;
     bus.register("lazy", async () => {
       await new Promise((r) => setTimeout(r, 100));
-      _called = true;
     });
     await bus.send("a", "lazy", { type: "ping", payload: null });
     // send is fire-and-forget — handler may not have finished
