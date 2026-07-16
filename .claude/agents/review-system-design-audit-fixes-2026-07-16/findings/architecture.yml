@@ -1,0 +1,177 @@
+agent: review-system-design-audit-fixes-architecture
+review_target: 3ea9e53b..HEAD for plan system-design-audit-fixes (SE43)
+plan: .claude/knowledge-base/plans/system-design-audit-fixes-plan.md
+verified_gates:
+  madge_cycles: "3/3 (threshold ≤3); identical count AND shape to baseline 3ea9e53b — no new/hidden cycle introduced by SE43"
+  dependency_cruiser: "0 violations (466 modules, 949 deps)"
+  knip_dead_code: "clean (no unused exports/files flagged)"
+  public_index_ts: "0 diff — public API surface byte-stable"
+findings:
+  - id: F-arch-1
+    severity: MEDIUM
+    file: packages/sdk/src/internal/local-agent/local-agent-runtime-extensions.ts
+    line: 18
+    plan_ref: D434 / T4.3 (DoD#1 blast-radius reduction)
+    summary: >
+      The runtime split is a relocation, not a decoupling — `internal/local-agent`
+      and `internal/runtime` remain bidirectionally coupled. `internal/runtime/lifecycle/fork-agent.ts:21`
+      imports VALUE `isCodePlugin` from `internal/local-agent/local-agent-plugins.js`
+      while `internal/local-agent/local-agent-runtime-extensions.ts:18,113` and
+      `local-agent.ts:513` import `ForkOptions/ForkResult/forkAgentImpl` back from
+      `internal/runtime/lifecycle/fork-agent.js`. The audit's HIGH (blast radius) is
+      not structurally reduced — the same edges now cross a directory boundary instead
+      of living inside one package.
+    evidence: |
+      ```
+      runtime/lifecycle/fork-agent.ts:21:   import { isCodePlugin } from "../../local-agent/local-agent-plugins.js";
+      local-agent/local-agent-runtime-extensions.ts:18: import type { ForkOptions, ForkResult } from "../runtime/lifecycle/fork-agent.js";
+      local-agent/local-agent-runtime-extensions.ts:113:  const { forkAgentImpl } = await import("../runtime/lifecycle/fork-agent.js");
+      local-agent/local-agent.ts:513:  fork(options: import("../runtime/lifecycle/fork-agent.js").ForkOptions)...
+      ```
+    recommended_action: >
+      Non-blocking for SE43 (goal was byte-stable relocation, achieved). But file a
+      follow-up (SE44+): the `fork-agent ↔ local-agent` value edge is the true
+      coupling to break — invert it via a port (e.g. move `isCodePlugin` to a
+      neutral `internal/plugins/*` leaf both sides depend on downward), so
+      `runtime/lifecycle` stops depending UP into `local-agent`. Record the residual
+      coupling honestly in the CHANGELOG/ADR rather than implying the blast radius
+      shrank when only the file location changed.
+  - id: F-arch-2
+    severity: LOW
+    file: packages/sdk/src/internal/session/index.ts
+    line: 6
+    plan_ref: T4.1 (DoD#1 — promote session with its own barrel)
+    summary: >
+      The new `internal/session/index.ts` barrel has ZERO importers. Every session
+      consumer (intra-runtime `fixture-types.ts`, `post-run-lifecycle.ts`, and
+      local-agent files) imports the deep file `../session/agent-session.js`
+      directly, bypassing the barrel. A barrel nobody imports is a YAGNI/cohesion
+      smell — it adds a maintenance surface (3 `export *` wildcards) with no
+      consumer and provides none of the encapsulation the plan cited as the barrel's
+      purpose ("consumers import through this barrel").
+    evidence: |
+      ```
+      # grep for importers of internal/session/index.js → 0 hits
+      # all consumers use deep path instead:
+      internal/agent-loop/loop-types.ts:8:      import type { SessionMessage } from "../session/agent-session.js";
+      internal/local-agent/local-agent-send.ts:26: import { appendSessionMessage, getSessionMessages } from "../session/agent-session.js";
+      internal/runtime/lifecycle/post-run-lifecycle.ts:11: } from "../../session/agent-session.js";
+      ```
+    recommended_action: >
+      Either (a) route the existing session consumers through the barrel to make it
+      load-bearing (consistent with the cloud-agent/local-agent barrels which ARE
+      adopted), or (b) drop the barrel since session has 0 external importers and the
+      deep-path convention already works. Do not keep a decorative barrel — pick one
+      convention. knip currently passes only because `export *` re-exports symbols
+      reachable via the deep path.
+  - id: F-arch-3
+    severity: LOW
+    file: packages/sdk/src/internal/local-agent/index.ts
+    line: 1
+    plan_ref: T4.2/T4.3 (barrels for cloud-agent + local-agent)
+    summary: >
+      The adopted barrels (`local-agent/index.ts`, `cloud-agent/index.ts`) sit INSIDE
+      the pre-existing runtime cycle. madge cycle #3 now traverses
+      `agent-helpers.ts > internal/local-agent/index.ts > local-agent.ts > ... >
+      real-local-run-tools.ts > a2a/subagent.ts > agent.ts > agent-helpers.ts`. A
+      barrel participating in a dependency cycle is a mild smell (it re-exports the
+      module that transitively closes the loop). This is NOT a regression — the
+      identical cycle existed at baseline through `internal/runtime/local-agent/local-agent.ts`;
+      SE43 merely inserted the barrel as a pass-through node.
+    evidence: |
+      ```
+      # baseline 3ea9e53b cycle #3:
+      #   a2a/subagent.ts > agent.ts > agent-helpers.ts > internal/runtime/local-agent/local-agent.ts > ... > real-local-run-tools.ts
+      # HEAD cycle #3 (same loop, barrel inserted):
+      #   a2a/subagent.ts > agent.ts > agent-helpers.ts > internal/local-agent/index.ts > internal/local-agent/local-agent.ts > ... > real-local-run-tools.ts
+      # closing edge unchanged:
+      internal/local-agent/real-local-run-tools.ts:18: } from "../../a2a/subagent.js";
+      ```
+    recommended_action: >
+      Acceptable for SE43 (count stable 3/3, threshold met, no hidden cycle). If the
+      cycle is ever tackled, the closing edge is `real-local-run-tools.ts → a2a/subagent.ts`
+      (unrelated to the SE43 moves). Note in the review record that the barrel is now
+      part of the cycle so a future madge threshold tightening does not surprise anyone.
+  - id: F-arch-4
+    severity: INFO
+    file: packages/sdk/src/internal/persistence/index.ts
+    line: 5
+    plan_ref: T3.2 / EC-1 (DoD#2 — deprecated alias preserves full surface)
+    summary: >
+      DoD#2 executed correctly against the DIP/encapsulation contract. The public
+      `./persistence` barrel (`persistence.ts`) re-exports the 3 missing primitives
+      (`withCwdMutex`, `sanitizeFts5Query`, `PersistenceSchema`) DIRECTLY from the
+      `internal/persistence/*` impl files (correct inward direction: public surface →
+      internal impl). The deprecated `internal/persistence/index.ts` alias keeps its
+      export list BYTE-IDENTICAL to baseline (verified via git show 3ea9e53b) — it did
+      NOT collapse to `export * from "../../persistence.js"`, which would have both
+      dropped internal-only symbols (appendJsonl/createExclusive/casUpdate/getTheokitHome/…)
+      AND created a barrel↔barrel cycle. EC-1 satisfied; no wrong-direction import; no cycle.
+    evidence: |
+      ```
+      persistence.ts:  export { withCwdMutex } from "./internal/persistence/cwd-mutex.js";
+                       export { sanitizeFts5Query } from "./internal/persistence/fts5-sanitize.js";
+                       export { PersistenceSchema } from "./internal/persistence/persistence-schema.js";
+      internal/persistence/index.ts: export list == baseline (only @deprecated JSDoc added)
+      ```
+    recommended_action: >
+      No action. This is the correct SOLID/DIP-preserving implementation of the
+      deprecation. The 13 satellite src sites now import from @theokit/sdk/persistence
+      (verified in diff); 0 satellite src files import the internal alias.
+  - id: F-arch-5
+    severity: INFO
+    file: packages/sdk/package.json
+    line: 369
+    plan_ref: T2.1 (DoD#3 — break sdk↔satellite dev-cycle)
+    summary: >
+      DoD#3 is architecturally sound. The 2 satellite devDeps (@theokit/sdk-handoff,
+      @theokit/sdk-memory) were removed from sdk and the 4 peer integration tests
+      relocated to the new PRIVATE `@theokit/sdk-peer-integration-tests` package.
+      Production peer loading remains dynamic-by-string (sdk-memory-peer-loader.ts),
+      so the runtime graph never had a static edge — removing the devDeps only breaks
+      the turbo build-ordering (dev-only) cycle, not any DIP boundary. knip.json
+      correctly dropped @theokit/sdk-handoff from ignoreDependencies. Direction of
+      dependency is preserved: satellites → sdk hub only.
+    evidence: |
+      ```
+      packages/sdk/package.json: -2 devDependency lines (sdk-handoff, sdk-memory)
+      packages/sdk-peer-integration-tests/package.json (NEW, "private": true)
+      knip.json: ignoreDependencies ["@theokit/sdk-handoff","jsonrepair"] → ["jsonrepair"]
+      ```
+    recommended_action: >
+      No action. Correct decoupling. (Tests-reviewer should confirm the relocated
+      suite actually executes ≥4 tests per EC-2 — that is a coverage concern outside
+      the architecture dimension.)
+  - id: F-arch-6
+    severity: INFO
+    file: packages/sdk/src/internal/cloud-agent/real-cloud-run.ts
+    line: 8
+    plan_ref: D434 / T4.2 (DoD#1 — cloud-agent promotion)
+    summary: >
+      cloud-agent (like local-agent) still imports from internal/runtime/* (fixtures,
+      config/default-model, model-selection, registry, system-prompt) — the same
+      relocation-not-decoupling pattern as F-arch-1, but LOWER risk: the direction is
+      one-way (cloud-agent → runtime; runtime does NOT import back from cloud-agent,
+      confirmed by grep = 0 hits). So cloud-agent has a clean downward dependency and
+      is NOT part of any cycle. This is the correct outcome the local-agent move did
+      not fully achieve.
+    evidence: |
+      ```
+      cloud-agent/real-cloud-run.ts:8: import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
+      cloud-agent/cloud-agent.ts:23:   import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/config/default-model.js";
+      # reverse check: grep "cloud-agent" in runtime/ → 0 hits (no back-edge)
+      ```
+    recommended_action: >
+      No action. cloud-agent is the model outcome; F-arch-1 recommends bringing
+      local-agent's fork-agent edge to the same one-way state.
+summary_verdict: >
+  SE43 achieves its stated architectural goal — the relocations are byte-stable
+  (public index.ts unchanged), depcruise-clean, and did NOT hide or introduce a
+  cycle (madge 3/3, identical to baseline in both count and shape). DIP direction is
+  preserved everywhere (satellites → hub; public → internal; no inner→outer edge).
+  The persistence deprecation (F-arch-4) and dev-cycle break (F-arch-5) are correctly
+  implemented. Residual concerns are hygiene, not blockers: (1) MEDIUM F-arch-1 — the
+  local-agent split relocates rather than removes the runtime↔local-agent bidirectional
+  coupling, so the audit's blast-radius HIGH is mitigated cosmetically, not
+  structurally (file a SE44+ follow-up + honest CHANGELOG note); (2) LOW F-arch-2 — an
+  orphan session barrel nobody imports. No BLOCKER, no HIGH.

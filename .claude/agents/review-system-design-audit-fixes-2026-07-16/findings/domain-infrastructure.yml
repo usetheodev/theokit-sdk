@@ -1,0 +1,136 @@
+agent: review-system-design-audit-fixes-domain-infrastructure
+review_target: 3ea9e53b..HEAD for plan system-design-audit-fixes
+domain: infrastructure (monorepo topology / packaging)
+domain_specific_patterns_checked:
+  - "DoD#3 — @theokit/sdk core has zero @theokit/* devDependencies"
+  - "DoD#3 — sdk-peer-integration-tests is private:true (never publishes)"
+  - "DoD#3 — turbo run build emits 0 Circular"
+  - "DoD#2 — deprecated @theokit/sdk/internal/persistence export retained (back-compat)"
+  - "DoD#2 — publint + attw clean on new ./persistence surface"
+  - "DoD#4 — 5 satellite peer floors bumped to >=4.0.0; workspace:* devDeps intact"
+  - "DoD#1 — no exports/tsup/files glob references OLD internal/runtime/{cloud,session,local-agent}"
+findings:
+  - id: F-dom-1
+    severity: INFO
+    file: packages/sdk/package.json
+    line: 366
+    plan_ref: DoD#3 — break sdk<->sdk-memory turbo cycle
+    domain_anchor: final_report.md § monorepo topology; no-stubs-no-mocks rule (topology)
+    summary: >-
+      VERIFIED CLEAN. sdk core devDependencies now contain ZERO @theokit/* entries.
+      Diff removes exactly `@theokit/sdk-handoff` and `@theokit/sdk-memory`
+      (workspace:*); no other @theokit devDep remains. The peer routing tests were
+      relocated to the new @theokit/sdk-peer-integration-tests package.
+    evidence: |
+      git diff 3ea9e53b..HEAD -- packages/sdk/package.json:
+        -    "@theokit/sdk-handoff": "workspace:*",
+        -    "@theokit/sdk-memory": "workspace:*",
+      grep of final devDependencies shows no `@theokit/` scope.
+    recommended_action: None. DoD#3 (zero @theokit devDeps) satisfied.
+  - id: F-dom-2
+    severity: INFO
+    file: packages/sdk-peer-integration-tests/package.json
+    line: 4
+    plan_ref: DoD#3 — peer tests must live outside sdk core and never publish
+    domain_anchor: publishing hazard — private-package invariant
+    summary: >-
+      VERIFIED CLEAN. New package is `"private": true`, version 0.0.0, has NO
+      `files` array and NO `publishConfig` — so `pnpm pack`/npm publish cannot emit
+      it. It devDepends on @theokit/sdk + @theokit/sdk-memory via workspace:* (the
+      intended consumer of the cycle-breaking split), which is safe because the
+      package is unpublishable.
+    evidence: |
+      package.json: private: true | files: undefined | publishConfig: undefined | version: 0.0.0
+      devDependencies: @theokit/sdk workspace:*, @theokit/sdk-memory workspace:*
+    recommended_action: None. Private invariant holds; no publish leak.
+  - id: F-dom-3
+    severity: INFO
+    file: turbo.json (build graph)
+    line: 0
+    plan_ref: DoD#3 — turbo run build emits 0 Circular
+    domain_anchor: turbo build-ordering cycle (final_report.md)
+    summary: >-
+      VERIFIED CLEAN. `pnpm turbo run build` completes 11/11 tasks successful with
+      NO "Circular"/"cycle"/graph-invalid warning on stderr. The sdk<->sdk-memory
+      build-order cycle reported by the audit is resolved.
+    evidence: |
+      pnpm turbo run build -> "Tasks: 11 successful, 11 total"
+      grep -iE "circular|cycle|invalid graph" over full output -> no matches
+      (only benign .npmrc NPM_TOKEN env warnings).
+    recommended_action: None. DoD#3 (0 Circular) satisfied.
+  - id: F-dom-4
+    severity: INFO
+    file: packages/sdk/package.json
+    line: 148
+    plan_ref: DoD#2 — deprecate ./internal/persistence, promote ./persistence
+    domain_anchor: final_report.md § MEDIUM — internal/persistence; EC-1 back-compat
+    summary: >-
+      VERIFIED CLEAN. Both surfaces are declared in the exports map: the new stable
+      `./persistence` (line ~148) AND the deprecated `./internal/persistence` (line
+      ~235, retained for one-release back-compat). The deprecated barrel re-exports
+      a SUPERSET of the public one (adds createExclusive, paths.*, schema-version.*,
+      casUpdate, containsCjk) so no external consumer of the old path loses a symbol.
+    evidence: |
+      exports["./persistence"] -> ./dist/persistence.{js,cjs,d.ts,d.cts}
+      exports["./internal/persistence"] -> ./dist/internal/persistence/index.*
+      internal/persistence/index.ts carries @deprecated SE43 DoD#2 JSDoc and
+      re-exports the full current surface unchanged.
+    recommended_action: None. Back-compat alias correct; superset re-export is safe.
+  - id: F-dom-5
+    severity: INFO
+    file: packages/sdk/package.json
+    line: 148
+    plan_ref: DoD#2 — publint/attw clean on ./persistence
+    domain_anchor: publishing correctness (dual ESM+CJS)
+    summary: >-
+      VERIFIED CLEAN. publint reports "All good!" on the packed tarball. Canonical
+      attw (`attw --pack . --ignore-rules no-resolution`, the project's own
+      validate:attw invocation) reports "No problems found" and explicitly lists
+      "@theokit/sdk/persistence" and "@theokit/sdk/internal/persistence" among the
+      resolved entrypoints. Raw attw without the project ignore-rule shows only
+      node10 NoResolution failures, which are pre-existing/expected for a
+      type:module subpath-exports package and are suppressed by the project's
+      standard --ignore-rules no-resolution flag (not a regression of this PR).
+    evidence: |
+      pnpm --filter @theokit/sdk exec publint -> "All good!"
+      pnpm run validate:attw -> "No problems found 🌟" (lists ./persistence + ./internal/persistence)
+    recommended_action: None. Both new/deprecated persistence surfaces are publish-clean.
+  - id: F-dom-6
+    severity: INFO
+    file: packages/sdk-memory/package.json
+    line: 0
+    plan_ref: DoD#4 — tighten satellite @theokit/sdk peer floor to >=4.0.0
+    domain_anchor: semver peer-floor correctness (sdk is 4.1.0)
+    summary: >-
+      VERIFIED CLEAN. All 5 satellites (sdk-budget, sdk-cache, sdk-handoff,
+      sdk-memory, sdk-tools) bumped peerDependencies["@theokit/sdk"] from >=1.7.0 to
+      >=4.0.0. Floor is correct: sdk is 4.1.0, so >=4.0.0 admits the current major
+      and excludes the pre-break 1.x/2.x/3.x lineage as intended. Each satellite's
+      devDependencies["@theokit/sdk"] stayed "workspace:*" (workspace linkage intact
+      for local build/test).
+    evidence: |
+      git diff shows 5x "-    @theokit/sdk: >=1.7.0" / "+    @theokit/sdk: >=4.0.0".
+      Per-satellite: peer ">=4.0.0", dev "workspace:*" for all five.
+      sdk version = 4.1.0 (>=4.0.0 correct).
+    recommended_action: None. DoD#4 satisfied.
+  - id: F-dom-7
+    severity: INFO
+    file: packages/sdk/tsup.config.ts
+    line: 39
+    plan_ref: DoD#1 — promote runtime/{cloud,session,local-agent} out of internal/runtime
+    domain_anchor: publishing hazard — stale entry/glob would break published package
+    summary: >-
+      VERIFIED CLEAN. No packaging surface references the OLD paths. tsup `entry`,
+      package.json `exports`, and `files` glob contain no
+      internal/runtime/{cloud,session,local-agent} reference. The three dirs are
+      gone from src/internal/runtime/ and exist at the promoted locations
+      internal/cloud-agent, internal/local-agent, internal/session. Zero remaining
+      source imports to the old paths across packages/*/src. These modules are NOT
+      exposed as public sub-paths (reached only via the `.` barrel), so the move is
+      internal and does not alter the published exports map.
+    evidence: |
+      grep internal/runtime/{cloud,session,local-agent} over package.json + tsup.config.ts -> no matches
+      ls internal/runtime/ -> cloud/session/local-agent absent
+      ls -d internal/{cloud-agent,local-agent,session} -> all present
+      grep over packages/*/src for old runtime import paths -> no matches
+    recommended_action: None. DoD#1 move is packaging-safe; no published-path breakage.

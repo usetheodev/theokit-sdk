@@ -1,0 +1,143 @@
+agent: review-system-design-audit-fixes-wiring
+review_target: 3ea9e53b..HEAD for plan system-design-audit-fixes
+plan: .claude/knowledge-base/plans/system-design-audit-fixes-plan.md
+triad_revalidation:
+  note: >
+    This branch is a refactor (module moves + export promotion + dep hygiene), not
+    a new-feature branch, so the classic caller/integration-test/runtime-metric triad
+    is reframed as: are the NEW barrels consumed, are moved modules still reachable
+    from production callers, is the promoted public export imported by migrated
+    satellites, and is the new test-only package wired into the workspace and running.
+  new_barrels: 3
+  barrels_consumed: 2 / 3   # cloud-agent + local-agent consumed; session orphan
+  moved_modules_reachable: 3 / 3   # cloud, local-agent, session all reachable via deep paths / barrels
+  persistence_public_export_consumed: 13 / 13   # all migrated satellites import @theokit/sdk/persistence
+  peer_integration_pkg_wired_and_runs: true      # runs, 13 tests pass — but see F-wire-2 (test count regression)
+
+findings:
+  - id: F-wire-1
+    severity: MEDIUM
+    file: packages/sdk/src/internal/session/index.ts
+    line: 1
+    plan_ref: T4.1 — Promote session to internal/session with its own barrel (DoD#1)
+    summary: >
+      The new session barrel (internal/session/index.ts) is ORPHAN — it has zero
+      importers anywhere in the source tree. Every session consumer imports the
+      moved files via deep relative paths (e.g. "../session/agent-session.js",
+      "../../session/agent-session.js"), never through the barrel. The barrel is
+      not re-exported from the public index.ts either.
+    evidence: |
+      grep -rn "session/index" packages/sdk/src --include="*.ts"  => 0 hits
+      grep -rn "internal/session\"" packages/sdk/src --include="*.ts" => 0 hits
+      All 9 session consumers use deep paths, e.g.:
+        internal/agent-loop/loop-types.ts:8  import ... from "../session/agent-session.js"
+        internal/runtime/lifecycle/post-run-lifecycle.ts:11 ... "../../session/agent-session.js"
+        internal/local-agent/local-agent.ts:48 ... "../session/agent-session.js"
+      Contrast: cloud-agent/index.ts AND local-agent/index.ts are both imported by
+      agent-helpers.ts (lines 5 and 14) — those two barrels are genuinely consumed.
+      knip did NOT catch this: root knip.json ignores "src/internal/**" for
+      packages/sdk, so the orphan internal barrel is invisible to the dead-code gate.
+    recommended_action: >
+      Either (a) route the intra-runtime session importers through the barrel
+      (import from "../session/index.js") so the barrel earns its keep and matches
+      the T4.1 "route intra-runtime importers through the new barrel" REFACTOR step,
+      OR (b) delete internal/session/index.ts since the plan's DoD#1 goal (shrink
+      internal/runtime blast radius) is met by the file move alone and the barrel
+      adds nothing if nobody imports it. Do not leave it as an orphan — it is dead
+      code that only escaped knip because internal/** is ignored. Note cloud-agent
+      and local-agent barrels are correctly wired via agent-helpers; only session
+      diverged (its REFACTOR step to route consumers through the barrel was not done).
+
+  - id: F-wire-2
+    severity: HIGH
+    file: packages/sdk/tests/internal/memory/sdk-memory-peer-loader.test.ts
+    line: 0
+    plan_ref: T2.1 — Relocate the 4 peer integration tests (DoD#3, EC-2 gate "≥ 4 passing")
+    summary: >
+      The plan specifies relocating FOUR peer integration tests (peer-parity,
+      memory-class-peer-routing, migrate-peer-routing, sdk-memory-peer-loader) into
+      the new sdk-peer-integration-tests package before removing sdk's satellite
+      devDeps. Only THREE were relocated (git status R); the fourth,
+      sdk-memory-peer-loader.test.ts, was DELETED (git status D) rather than moved.
+      This drops the loader's happy-path regression coverage — the exact BYO-memory
+      peer-loading net EC-2 was written to protect.
+    evidence: |
+      git diff 3ea9e53b..HEAD --name-status:
+        R094 .../memory-class-peer-routing.test.ts -> sdk-peer-integration-tests/...
+        R093 .../migrate-peer-routing.test.ts      -> sdk-peer-integration-tests/...
+        R083 .../peer-parity.test.ts               -> sdk-peer-integration-tests/...
+        D    packages/sdk/tests/internal/memory/sdk-memory-peer-loader.test.ts   <-- DELETED, not moved
+      Deleted test covered 5 loader behaviors now unexercised:
+        test_loads_workspace_sdk_memory_when_present   (happy path — loads real peer)
+        test_memoizes_repeated_calls_for_same_attempt
+        test_loaded_module_satisfies_required_surfaces
+        test_resetForTests_clears_memo_so_re_probe_is_possible
+        test_loader_return_type_is_SdkMemoryModule_or_null
+      The remaining packages/sdk/tests/peer-fallback-branch.test.ts only exercises
+      the FORCED-ABSENT / fallback (negative) branch of the loader — not the
+      positive "loads workspace peer when present" path. Production loader source
+      still exists (src/internal/memory/sdk-memory-peer-loader.ts) and is reachable
+      at runtime, so this is a real (not dead-code) coverage loss.
+      The EC-2 numeric gate ("≥ 4 passing tests") is technically met (13 tests pass
+      across the 3 relocated files), so the shape check did not flag the missing
+      file — but the semantic intent (all 4 suites relocated) was violated.
+    recommended_action: >
+      Restore sdk-memory-peer-loader.test.ts into
+      packages/sdk-peer-integration-tests/tests/ (it needs the real @theokit/sdk-memory
+      devDep, which the new package already declares). If the deletion was intentional
+      because the coverage is redundant, document why in the T2.1 commit / CHANGELOG
+      and confirm peer-fallback-branch.test.ts (or another test) covers the loader's
+      positive load path — currently it does not. Also update the plan's "4 tests"
+      language / Acceptance Criteria to reflect 3 if the deletion stands.
+
+  - id: F-wire-3
+    severity: LOW
+    file: packages/sdk-peer-integration-tests/package.json
+    line: 12
+    plan_ref: T2.1 Files-to-edit — "devDeps: sdk + sdk-handoff + sdk-memory"
+    summary: >
+      The plan's T2.1 called for the new package to devDepend on sdk + sdk-handoff +
+      sdk-memory. The shipped package.json devDepends only on @theokit/sdk and
+      @theokit/sdk-memory — sdk-handoff is absent. This is consistent with commit
+      930b8b21 "drop unused @theokit/sdk-handoff devDep" (handoff was never actually
+      exercised by the relocated tests), so it is a benign deviation, not a wiring
+      break — but it diverges from the written plan and should be reconciled.
+    evidence: |
+      packages/sdk-peer-integration-tests/package.json devDependencies:
+        @theokit/sdk (workspace:*), @theokit/sdk-memory (workspace:*),
+        typescript, vitest, better-sqlite3, @types/better-sqlite3
+        -> no @theokit/sdk-handoff
+      Commit 930b8b21: "chore(sdk): drop unused @theokit/sdk-handoff devDep
+      (T2.1 step 1, SE43 DoD#3)" — confirms handoff was found unused.
+      turbo Circular warning is gone (sdk no longer devDepends on either satellite).
+    recommended_action: >
+      No functional action required. Optionally note in the plan / implementation
+      log that @theokit/sdk-handoff was dropped as genuinely-unused rather than
+      relocated, so the "sdk + sdk-handoff + sdk-memory" line in T2.1 does not read
+      as an unimplemented requirement in cross-validation.
+
+  - id: F-wire-4
+    severity: INFO
+    file: packages/sdk/src/agent-helpers.ts
+    line: 5
+    plan_ref: T4.2 / T4.3 — cloud-agent + local-agent barrels consumed
+    summary: >
+      POSITIVE finding. The cloud-agent and local-agent barrels are correctly wired:
+      both are imported by agent-helpers.ts, which is imported by the public Agent
+      façade (agent.ts). Full reachability Agent -> agent-helpers -> barrel -> moved
+      module holds. The persistence promotion is also fully wired (13/13 satellites
+      migrated off @theokit/sdk/internal/persistence onto @theokit/sdk/persistence;
+      all 6 primitives exported from the public barrel). Stale internal/runtime/
+      {cloud,local-agent,session} dirs are all removed. sdk devDeps on sdk-handoff
+      and sdk-memory are gone; peer-integration-tests package runs green.
+    evidence: |
+      agent-helpers.ts:5  import { CloudAgent, validateCloudToolParity } from "./internal/cloud-agent/index.js";
+      agent-helpers.ts:14 import { LocalAgent } from "./internal/local-agent/index.js";
+      agent.ts:9          import { ... } from "./agent-helpers.js";
+      grep @theokit/sdk/internal/persistence in satellite src => 0
+      grep @theokit/sdk/persistence in satellite src => 13 files
+      persistence.ts exports: replaceFileAtomic, withCwdMutex, sanitizeFts5Query,
+        PersistenceSchema, openSqliteResilient, atomicWriteText (all 6)
+      ls internal/runtime/{cloud,local-agent,session} => all "No such file"
+      pnpm --filter @theokit/sdk-peer-integration-tests test => 3 files, 13 tests passed
+    recommended_action: No action — recorded as evidence that the core moves are sound.

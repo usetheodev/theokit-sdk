@@ -1,0 +1,129 @@
+agent: review-system-design-audit-fixes-cross-validation
+review_target: 3ea9e53b..HEAD (HEAD=032c1592) for plan system-design-audit-fixes
+plan: .claude/knowledge-base/plans/system-design-audit-fixes-plan.md
+plan_tasks_summary:
+  total_tasks: 8          # T1.1, T2.1, T3.1, T3.2, T4.1, T4.2, T4.3, T4.4
+  fully_implemented: 8
+  partial: 0
+  missing: 0
+  diverged: 1             # T2.1 relocated 3 test files not 4 (4th deleted, not moved) — behavior-preserving, documented in commit + CHANGELOG
+acceptance_criteria_summary:
+  total: 34               # AC checkboxes across the 8 tasks + Phase 5
+  satisfied: 33
+  unverified: 1           # changeset AC (Global DoD) — NOT satisfied, see F-xval-1
+  false_claims: 0
+adr_compliance:
+  total_adrs: 2           # D433 (persistence public kernel), D434 (runtime split incremental)
+  respected: 2
+  diverged_without_new_adr: 0
+plan_drift:
+  plan_edited_after_implement: false
+  details: >
+    Plan committed ead76cec at 2026-07-15 20:52:50; first impl commit 2ab65853 at
+    2026-07-15 20:55:05. `git log 2ab65853..HEAD -- <plan>` returns EMPTY — the plan
+    was frozen since /implement start. Ground truth un-revised.
+
+verified_claims:
+  ec1_alias_full_surface_preserved: true   # internal/persistence/index.ts byte-identical before/after fea513b6 EXCEPT an added @deprecated JSDoc banner. All 20+ symbols (appendJsonl, createExclusive, casUpdate, getTheokitHome, containsCjk, withFileLock, migrateSchema, etc.) still exported. NOT shrunk to the public subset. EC-1 MUST-FIX honored.
+  ec2_tests_run_before_devdep_removal: true # New pkg @theokit/sdk-peer-integration-tests runs 3 files / 13 tests GREEN (re-run live: "Test Files 3 passed / Tests 13 passed"). ≥4 assertion satisfied (13 ≥ 4). sdk-memory devDep removal is in the SAME commit (7e4b4129) that creates the pkg + moves the tests, but the pkg has a real `test: vitest run` script and the suite executes — no false-green. sdk-handoff devDep removed separately in 930b8b21 (never imported by tests, only a path-read).
+  runtime_no_public_api_change: true       # exports map in packages/sdk/package.json byte-IDENTICAL baseline↔HEAD (diff empty). src/index.ts unchanged in range. agent-helpers.ts routes through new internal/{cloud-agent,local-agent}/index.js barrels. Only public surface delta is the 3 sanctioned ./persistence adds (explicitly allowed by DoD).
+  runtime_loc_shrank_4327: true            # internal/runtime .ts files 111 (at 3ea9e53b) → 85 (HEAD) = 26 files dropped, matching plan's "drops by 26 files". Commit 6641d674 body records 13,275→8,948 LoC (−4,327). residual runtime/{session,cloud,local-agent} dirs GONE; sibling internal/{session,cloud-agent,local-agent} EXIST.
+  issue_128_handled_honestly: true         # Parity relocation surfaced a PRE-EXISTING sdk-core↔sdk-memory embedding-catalog drift (core 10 providers vs peer 6). Documented in CHANGELOG.md line 17 AND in peer-parity.test.ts comments (#128). Parity assertion CORRECTED to the true invariant (both reject unknown provider with same typed-error prefix; Supported: list legitimately differs — core is a superset), not hidden or asserted-away. Honest disclosure, not concealment.
+  gates_green_live: true                   # Re-ran: peer-range-floors + persistence-public-surface + persistence-deprecated-alias = 27 tests GREEN; quality:cycles madge 3/3 PASS (≤3 threshold, zero headroom per project MEMORY); turbo run build = 0 Circular; ROADMAP grep "SE43 — migration importer" = 0 (T4.4 fix).
+
+findings:
+  - id: F-xval-1
+    severity: MEDIUM
+    file: .changeset/
+    line: N/A
+    plan_ref: >
+      Global DoD "Changeset added for the sdk public-surface change (T3.1/T3.2)"
+      + T3.2 DoD "a changeset for the sdk public-surface change"
+    summary: >
+      DoD item NOT satisfied — no changeset file was added for the sdk public-surface
+      change (the 3 new ./persistence exports + deprecation of ./internal/persistence).
+    evidence: |
+      Repo uses changesets (.changeset/config.json present).
+      `.changeset/` contains only config.json + README.md — no versioned changeset .md.
+      `git log 3ea9e53b..HEAD -- .changeset/` returns EMPTY.
+      The persistence commit fea513b6 touched docs.md + D433 + CHANGELOG but added NO changeset.
+      The plan's Global DoD line 598 and T3.2 DoD line 371 both explicitly require it.
+    recommended_action: >
+      Add a changeset (minor bump for @theokit/sdk — new public ./persistence exports are
+      additive) before release, OR record an ADR/PR note explaining the changeset was
+      intentionally deferred to the release cut. Do not silently drop this DoD item.
+
+  - id: F-xval-2
+    severity: LOW
+    file: packages/sdk-peer-integration-tests/tests/
+    line: N/A
+    plan_ref: >
+      T2.1 Objective ("Move ... 4 peer integration tests") + Files-to-edit
+      "tests/*.test.ts (MOVED, 4 files + fixtures)"
+    summary: >
+      Plan named 4 test files to relocate (peer-parity, memory-class-peer-routing,
+      migrate-peer-routing, sdk-memory-peer-loader) but only 3 were relocated; the 4th
+      (sdk-memory-peer-loader) was DELETED from sdk core, not moved.
+    evidence: |
+      New pkg has 3 files (13 tests). Commit 7e4b4129 deleted
+      packages/sdk/tests/internal/memory/sdk-memory-peer-loader.test.ts (-100 lines)
+      and trimmed peer-fallback-branch.test.ts (-7). Commit body + CHANGELOG state one
+      white-box loader assertion (`test_resetForTests_clears_forced_absent_flag`) needing
+      the real peer was DROPPED, its behavioral coverage ("peer loads when present") now
+      living in the integration pkg — justified as impl-detail per testing.md § 4.
+      The T2.1 Acceptance Criterion is "≥ 4 passing" (13 ≥ 4 — SATISFIED); the file-count
+      is the divergence, and it is DISCLOSED honestly in the commit + CHANGELOG.
+    recommended_action: >
+      No fix required — divergence is documented and the ≥4 AC holds. Noted for the record
+      only: the plan file list said 4 files; implementation moved 3 + dropped 1 white-box
+      test by design (testing behavior not impl detail). Accept as a documented, honest
+      deviation (does not need its own ADR — testing.md § 4 covers it).
+
+  - id: F-xval-3
+    severity: INFO
+    file: packages/sdk/src/internal/persistence/index.ts
+    line: N/A
+    plan_ref: T3.2 / EC-1 (deprecated alias must preserve FULL surface)
+    summary: EC-1 MUST-FIX fully implemented — alias byte-identical + only @deprecated banner added.
+    evidence: |
+      git diff of before/after shows the ONLY change is a JSDoc @deprecated banner;
+      every export line (atomicWriteJson, appendJsonl, createExclusive, casUpdate,
+      getTheokitHome, containsCjk, withFileLock, migrateSchema, ...) is unchanged.
+      Guard test persistence-deprecated-alias GREEN.
+    recommended_action: None — fully implemented.
+
+  - id: F-xval-4
+    severity: INFO
+    file: packages/sdk/package.json exports + src/index.ts
+    line: N/A
+    plan_ref: DoD#1 "NO public-API change" + Global DoD "public API byte-stable"
+    summary: Runtime split (T4.1-T4.3) introduced ZERO public-API change, as claimed.
+    evidence: |
+      exports map diff baseline↔HEAD EMPTY (EXPORTS MAP IDENTICAL). src/index.ts
+      unchanged in range. Public consumers see the same surface; only intra-internal
+      import paths shifted. agent-helpers.ts wires the new barrels.
+    recommended_action: None — claim verified.
+
+  - id: F-xval-5
+    severity: INFO
+    file: ROADMAP.md
+    line: N/A
+    plan_ref: T4.4 (SE43 numbering collision)
+    summary: ROADMAP SE43 collision resolved — deferred note renumbered to SE44.
+    evidence: |
+      grep -c "SE43 — migration importer" ROADMAP.md = 0 (T4.4 AC satisfied). Commit
+      a466df98 body notes "deferred migration-importer note renumbered SE43 -> SE44".
+    recommended_action: None — fully implemented.
+
+overall_assessment: >
+  All 8 plan tasks are implemented and traceable to commits (T1.1→2ab65853,
+  T2.1→930b8b21+7e4b4129, T3.1+T3.2→fea513b6, T4.2+T4.4→a466df98, T4.3→a2e97546,
+  T4.1→6641d674, plus knip follow-up bb34787a + audit 032c1592). Both ADRs respected.
+  The three highest-risk edge cases (EC-1 full-surface alias, EC-2 tests-run-before-
+  devDep-removal, no-public-API-change) are VERIFIED TRUE with live evidence. The
+  measurable DoD#1 LoC shrink (−26 files / −4,327 LoC) is confirmed. Issue #128 was
+  disclosed honestly, not hidden. Plan was frozen since /implement start (no drift).
+  ONE actionable gap: the required changeset for the public-surface change is missing
+  (F-xval-1, MEDIUM). One documented, acceptable file-count divergence (F-xval-2, LOW).
+  Recommendation: NEEDS_FIXES only on F-xval-1 (add changeset or explicitly defer with
+  a note); otherwise the implementation faithfully matches the contract.
