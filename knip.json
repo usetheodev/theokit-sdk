@@ -4,7 +4,6 @@
     "scripts/**",
     "examples/**",
     ".claude/**",
-    "knowledge-base/**",
     "tools/check-node.mjs",
     "tools/preflight-native-bindings.d.mts",
     "tools/benchmark-memory-backends.mjs",

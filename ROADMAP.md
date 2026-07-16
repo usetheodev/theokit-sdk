@@ -1180,7 +1180,7 @@ chronological (551/5737 out of order), and 1418 `tool_use`/`tool_result` blocks 
 - [ ] Correct path convention: `~/.claude/projects/<cwd-with-nonalnum→'-'>/<sessionId>.jsonl` (opt-in).
 - [ ] Secrets never leaked — `redactSecrets` over content before write.
 - [ ] Round-trip test (TDD): an SDK-generated `.jsonl` is parsed successfully by a real ecosystem parser
-      (`claude-code-log`, cloned in `knowledge-base/references/`) AND validates against a real captured
+      (`claude-code-log`, cloned in `.claude/knowledge-base/reference/`) AND validates against a real captured
       transcript schema. A tool-calling session round-trips with NO dangling `tool_use`.
 - [ ] `docs.md` documents it as best-effort interop, EXPLICITLY labeled: targets an officially-unstable
       format (Anthropic: "internal, changes between versions — use `/export`"); read-only in SE39;
@@ -1366,7 +1366,7 @@ Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, becau
 - [x] **Facade → local-agent routed through the `agent-factory-registry` port.** `a2a/subagent` creates children via `getAgentFacade().create(...)` (registered at `agent.ts` module-init via `setAgentFacade`); the registry is the ONLY edge. Removes **madge cycle 3** (`a2a/subagent → agent.ts → … → real-local-run-tools`). Commit `54788106`.
 - [x] **#129 closed:** `isCodePlugin`/`extractCodePlugins` moved to the neutral leaf `internal/plugins/plugin-guards.ts` (depends only on `internal/plugins/types`); `runtime/lifecycle/fork-agent → local-agent` value edge removed. Commit `df1cc4ee`.
 - [x] **`madge` reports 0 cycles** (down from 3); the `quality:cycles` gate threshold is tightened 3 → 0 (`tools/check-cycles.mjs` `MAX_CYCLES ?? 0`) so a new cycle fails the gate.
-- [x] **Behavior-preserving:** `pnpm -w run validate` exit 0, `dependency-cruiser` 0 violations (472 modules), full sdk suite green (3501 passed), **no public-API change** (`dist/index.d.ts` 312 exported identifiers byte-stable; `index.ts` named exports 147=147), CHANGELOG updated. Independently review-verified READY_TO_MERGE (3 agents, 0 BLOCKER/HIGH — `knowledge-base/reviews/se45-se46-zero-cycles-cohesion-review-2026-07-16.md`).
+- [x] **Behavior-preserving:** `pnpm -w run validate` exit 0, `dependency-cruiser` 0 violations (472 modules), full sdk suite green (3501 passed), **no public-API change** (`dist/index.d.ts` 312 exported identifiers byte-stable; `index.ts` named exports 147=147), CHANGELOG updated. Independently review-verified READY_TO_MERGE (3 agents, 0 BLOCKER/HIGH — `.claude/knowledge-base/reviews/se45-se46-zero-cycles-cohesion-review-2026-07-16.md`).
 
 **Dependencies:** SE43 ([x]). **REVISED 2026-07-16 during implementation** — cycle 1 shipped (`ToolResultGuardOptions`→`types/`, madge 3→2), but a deep-dive found the milestone dependency was **inverted for cycle 2**: breaking `types/agent.ts ↔ memory-provider` requires extracting `SDKAgent` out of the 975-line `agent.ts` god-file (`SDKAgent` references the whole agent type ecosystem) — which IS the SE46 decomposition. So **SE45-cycle-2 depends on SE46**, and cycle 3 pulls the `defineSubAgent` core cluster. Correct order: **do SE46 (decompose `agent.ts`, extract `SDKAgent`/`MemoryProvider` to leaves) FIRST**, then SE45's cycle 2 falls out. Cycle 3 needs a dedicated design (registry factory with a non-facade registration trigger, or an `a2a/subagent` tool-helper leaf). Only cycle 1 was a "simple type move".
 
@@ -1415,7 +1415,7 @@ Study-only peers + full cross-validation reports:
 gaps and the § Explicitly out of scope rejections (2026-07-09).
 
 **SE39 peers (Claude Code transcript interop, added 2026-07-15 via `/roadmap-feature`, shallow clones in
-`knowledge-base/references/`, gitignored study material):**
+`.claude/knowledge-base/reference/`, gitignored study material):**
 
 | Peer | License | Supports | Why |
 |---|---|---|---|
@@ -1426,4 +1426,4 @@ gaps and the § Explicitly out of scope rejections (2026-07-09).
 External deep-research sources (SE39): Piebald *"Messages as Commits: Claude Code's Git-Like DAG"*
 (DAG + leaf reconstruction); Anthropic *Manage sessions* docs (`--continue`/`--resume`; format-unstable
 caveat → `/export`); upstream `anthropics/claude-code#63147` (extended-thinking resume signature failure).
-Findings distilled in `knowledge-base/discoveries/blueprints/claude-code-transcript-interop-blueprint.md`.
+Findings distilled in `.claude/knowledge-base/discoveries/blueprints/claude-code-transcript-interop-blueprint.md`.

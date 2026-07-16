@@ -103,8 +103,10 @@ packages/acp/tests/_smoke-entry.mjs
 .claude/knowledge-base/audits/cross-validation/
 .npmrc
 
-# Reference peers — read-only study clones (like .claude/knowledge-base/reference/); catalog lives in ROADMAP.md
-knowledge-base/references/*/
+# Reference peers — read-only study clones (transcript-interop set, merged from the former root knowledge-base/references/); catalog lives in ROADMAP.md
+.claude/knowledge-base/reference/claude-code-jsonl-parser/
+.claude/knowledge-base/reference/claude-code-log/
+.claude/knowledge-base/reference/claude-code-transcripts/
 system-design-output/
 cross-validation-output/
 
