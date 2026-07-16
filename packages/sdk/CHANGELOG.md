@@ -204,7 +204,7 @@
 
   A `Cron` job may now target a committed `Workflow` (SE27–30) instead of an agent — the runtime-legitimate slice of a peer framework's Schedules. `Cron.create({ cron, workflow, inputData })` runs `workflow.run(inputData)` on each fire, reusing the shipped in-process scheduler + Task-registry observability. Mutually exclusive with agent targets: exactly one of `agent` | `agentId` | `workflow`; `message` is required for agent targets and forbidden with a workflow (typed `ConfigurationError`s: `cron_ambiguous_target` / `cron_no_target` / `cron_workflow_message` / `cron_missing_message`). `Cron.run(jobId)` returns `Run | WorkflowRun`; the fire handler records the correct terminal status for either shape.
 
-  Per ADR 0014, the job holds the `Workflow` **instance** (not a `workflowId` + resolver registry) — the cron store is in-memory, so there is no serialization problem to solve and a registry would be YAGNI; workflow cron jobs are local-runtime only (an instance can't cross the cloud boundary). Fire lifecycle hooks (`prepare`/`onFinish`/`onError`/`onAbort`) are deferred with a named re-eval trigger. Back-compat: agent-target jobs are byte-identical. From the a peer framework Schedules comparison (SDK Evolution roadmap SE35).
+  Per ADR 0014, the job holds the `Workflow` **instance** (not a `workflowId` + resolver registry) — the cron store is in-memory, so there is no serialization problem to solve and a registry would be YAGNI; workflow cron jobs are local-runtime only (an instance can't cross the cloud boundary). Fire lifecycle hooks (`prepare`/`onFinish`/`onError`/`onAbort`) are deferred with a named re-eval trigger. Back-compat: agent-target jobs are byte-identical. From the peer framework Schedules comparison (SDK Evolution roadmap SE35).
 
 ## 2.29.0
 
@@ -219,7 +219,7 @@
   - **Standing `goal` config** — `AgentOptions.goal` (`{ judgeModel?, maxRuns?, prompt? }`). Precedence (remembered in the record): per-objective `record.options` → standing `goal` config → built-in default (`maxRuns` 20). The judge is the activation switch: with no judge resolved, the standing objective is inert (no scoring, no budget consumed).
   - **`runUntil(goal?, options?)`** — `goal` is now OPTIONAL. Existing callers pass `goal` (unchanged transient behavior). Omitting `goal` with `options.threadId` set reads the durable objective, resolves options by precedence, caps per-call `maxTurns` by the remaining durable budget, runs the loop, and writes `runsUsed`/`status` back — `maxTurns` exhaustion leaves the objective `active` so raising `maxRuns` later resumes. Omitting `goal` with no objective (or no `threadId`) yields a single `status_change: paused` and never throws.
 
-  Reuses existing seams only (the shipped `runUntil` loop + `ConversationStorage`) — no new loop, no parallel runtime, no in-agentic-loop step (that is SE34). ADR 0012. From the a peer framework Goals comparison (SDK Evolution roadmap SE33).
+  Reuses existing seams only (the shipped `runUntil` loop + `ConversationStorage`) — no new loop, no parallel runtime, no in-agentic-loop step (that is SE34). ADR 0012. From the peer framework Goals comparison (SDK Evolution roadmap SE33).
 
 - a8bed75: **SE34 — per-send `isTaskComplete` + `<current-objective>` projection (a peer framework Goals parity, non-invasive half).**
 
@@ -228,7 +228,7 @@
   - **`completionCheck` (`isTaskComplete`)** — `send(msg, { completionCheck: { criteria, judgeModel?, apiKey? } })`. After the send reaches terminal `finished`, the shipped LLM-as-judge scores the final reply against `criteria`; the verdict surfaces on `RunResult.completionCheck` (`{ complete, reason, parseFailed }`) AND a typed `completion_check` run-event. This is the finer-grained, single-`send()` completion gate (contrast `runUntil`, which judges BETWEEN sends). Implemented as an outermost run wrapper — only judges a `finished` run with text, memoized (the judge fires exactly once), fail-safe (a judge parse failure yields `complete: false`, never a silent "done").
   - **`objectiveThreadId` (`<current-objective>` projection)** — `send(msg, { objectiveThreadId })` reads the SE33 durable objective for that thread and, when it is `active`, prepends a `<current-objective>…</current-objective>` block to the assembled system prompt for that send, so the model always sees what it is working toward. Minimal + fail-soft (a storage read error never breaks the send) — not a general signal-provider framework.
 
-  Both reuse shipped seams (the run-wrapping seam + `judgeCallImpl` for the check; the SE33 objective store + system-prompt assembly for the projection). The agent tool-calling loop is UNTOUCHED. From the a peer framework Goals comparison (SDK Evolution roadmap SE34).
+  Both reuse shipped seams (the run-wrapping seam + `judgeCallImpl` for the check; the SE33 objective store + system-prompt assembly for the projection). The agent tool-calling loop is UNTOUCHED. From the peer framework Goals comparison (SDK Evolution roadmap SE34).
 
 ## 2.28.0
 
@@ -238,7 +238,7 @@
 
   A pluggable filesystem _storage_ provider, the storage-side twin of `@theokit/sdk/sandbox`. `FilesystemBackend` is an abstract class with four methods (`readFile` / `writeFile` / `stat` / `list`), an `exists()` derived on the base, a boundary `basePath`, a `readOnly` flag, structured `stat().mtimeMs` (the read-before-write oracle for SE32), and typed errors (`FileNotFoundError` / `FilesystemSecurityError` / `FilesystemReadOnlyError` / `StaleFileError`). `LocalFilesystem` is the local-process implementation, boundary-enforced by reusing the core path-guard (traversal + symlink escape → `FilesystemSecurityError`). `FilesystemProvider` + `resolveFilesystem` support a per-request resolver `(ctx) => FilesystemBackend` for multi-tenant roots.
 
-  Unlike `SandboxBackend` (whose file ops shell out via `execute`, require command execution, and give no structured `stat`), a `FilesystemBackend` serves a filesystem-only workspace with no sandbox — see ADR 0011 for why file ops are NOT routed through `SandboxBackend`. `@theokit/sdk-tools`' `createWriteFileTool` now accepts an optional `filesystem` backend (writes route through it; omitted ⇒ identical local-`projectRoot` behavior). This is the backend seam, NOT a bundled `Workspace` and NOT a new toolset — bring-your-own-tools stands; `mounts`/FUSE, S3/GCS, and LSP remain out of core. From the a peer framework Workspaces comparison (SDK Evolution roadmap SE31).
+  Unlike `SandboxBackend` (whose file ops shell out via `execute`, require command execution, and give no structured `stat`), a `FilesystemBackend` serves a filesystem-only workspace with no sandbox — see ADR 0011 for why file ops are NOT routed through `SandboxBackend`. `@theokit/sdk-tools`' `createWriteFileTool` now accepts an optional `filesystem` backend (writes route through it; omitted ⇒ identical local-`projectRoot` behavior). This is the backend seam, NOT a bundled `Workspace` and NOT a new toolset — bring-your-own-tools stands; `mounts`/FUSE, S3/GCS, and LSP remain out of core. From the peer framework Workspaces comparison (SDK Evolution roadmap SE31).
 
 ## 2.27.0
 
@@ -248,25 +248,25 @@
 
   `Workflow.create({ ..., inputSchema, outputSchema })` (from `@theokit/sdk/workflow`) now validates the workflow's overall input and final output, closing the SE19 debt (a Workflow carried no top-level schema — only per-step `FnStep` schemas). When `inputSchema` is set, `run(input)` validates `input` BEFORE step 1; a mismatch fails fast with `status: "failed"` and a typed `WorkflowInputError` in `run.error` (no step executes, no silent coerce). When `outputSchema` is set, the terminal `completed` output is validated before `WorkflowRun.output` is populated; a mismatch yields `status: "failed"` with a typed `WorkflowOutputError` (only the `completed` path is checked — suspended/failed runs skip output validation).
 
-  Both surface as `status: "failed"` (never a throw — consistent with the executor's non-throwing step-error contract). Back-compat: absent schemas ⇒ unchanged. New exports `WorkflowInputError` / `WorkflowOutputError`. `workflowAsTool` (SE19) keeps taking its own `inputSchema` to preserve its structural `{ run }` contract. Mirrors a peer framework's `createWorkflow({ inputSchema, outputSchema })`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE27).
+  Both surface as `status: "failed"` (never a throw — consistent with the executor's non-throwing step-error contract). Back-compat: absent schemas ⇒ unchanged. New exports `WorkflowInputError` / `WorkflowOutputError`. `workflowAsTool` (SE19) keeps taking its own `inputSchema` to preserve its structural `{ run }` contract. Mirrors a peer framework's `createWorkflow({ inputSchema, outputSchema })`. From the peer framework Workflows comparison (SDK Evolution roadmap SE27).
 
 - 09b89ea: **SE28 — `Workflow.stream()` (step-event stream during execution).**
 
   `workflow.stream(input, opts?)` (from `@theokit/sdk/workflow`) runs the workflow and emits step-level events as they happen, instead of only the terminal result. It returns a `WorkflowStream` — an async iterator of `WorkflowEvent`s (`step_started` / `step_completed` (with `output`) / `step_failed` (with `error`) / `workflow_suspended` / `workflow_completed`) plus a `result` promise resolving to the SAME terminal `WorkflowRun` `run()` returns (the authoritative outcome — the stream ends when the run terminates).
 
-  Events fire in execution order for top-level steps (nested `parallel`/`branch`/`foreach` emit as their single wrapping step — coarse-grained by design). This is a STEP-event stream, distinct from the token-delta agent stream deferred in SE24. `run()` is unchanged + authoritative. New public types `WorkflowEvent` + `WorkflowStream`. Mirrors a peer framework's `run.stream()` / `stream.result`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE28).
+  Events fire in execution order for top-level steps (nested `parallel`/`branch`/`foreach` emit as their single wrapping step — coarse-grained by design). This is a STEP-event stream, distinct from the token-delta agent stream deferred in SE24. `run()` is unchanged + authoritative. New public types `WorkflowEvent` + `WorkflowStream`. Mirrors a peer framework's `run.stream()` / `stream.result`. From the peer framework Workflows comparison (SDK Evolution roadmap SE28).
 
 - f13d499: **SE29 — workflow shared state (`stateSchema` + `state` / `setState`).**
 
   Workflow steps can now share values without threading them through every step's input/output. `Workflow.create({ stateSchema, initialState })` (from `@theokit/sdk/workflow`) seeds a shared state; every step's `StepContext` gains `state` (read the current value) and `setState(next)` (update it for subsequent steps). `setState` validates against `stateSchema` when set — a mismatch throws a typed `WorkflowStateError` that fails the step/run (Rule 8); an invalid `initialState` fails the run fast before step 1.
 
-  State is captured in the `WorkflowSnapshot` (bumped to `_schemaVersion: 2`) and restored on `Workflow.resume` — it survives a suspend→resume round-trip. A pre-SE29 (`_schemaVersion: 1`) snapshot has no state and resumes with `initialState`. Back-compat: no `stateSchema`/`initialState` ⇒ `state` is `undefined` and `setState` is unvalidated. New export `WorkflowStateError`. Mirrors a peer framework's workflow `state`/`setState`/`stateSchema`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE29).
+  State is captured in the `WorkflowSnapshot` (bumped to `_schemaVersion: 2`) and restored on `Workflow.resume` — it survives a suspend→resume round-trip. A pre-SE29 (`_schemaVersion: 1`) snapshot has no state and resumes with `initialState`. Back-compat: no `stateSchema`/`initialState` ⇒ `state` is `undefined` and `setState` is unvalidated. New export `WorkflowStateError`. Mirrors a peer framework's workflow `state`/`setState`/`stateSchema`. From the peer framework Workflows comparison (SDK Evolution roadmap SE29).
 
 - 8ce8441: **SE30 — workflows-as-steps (`workflowStep`) + `cloneWorkflow`.**
 
   `workflowStep(child, { id? })` (from `@theokit/sdk/workflow`) uses a committed `Workflow` as a step inside another workflow: `.then(workflowStep(child))`. The child runs in its OWN executor (own runId, single-flight lock, and step-id space — so nested ids never collide with the parent's); its output becomes the step output. `cloneWorkflow(wf, { id })` returns a new independent `Workflow` with the same committed steps under a new name + a fresh workflowId (clones run independently, distinct observability identity).
 
-  A non-`completed` child fails the parent step with a typed `WorkflowNestedError`. **Nested suspend/resume is NOT supported in v1** (TheoKit's resume continues AFTER the suspended step, so a nested child would be skipped) — a nested `suspended` fails with a clear message pointing at a top-level suspend; re-running the child on resume (which would re-execute its side effects) is deliberately avoided. ADR 0010. New export `WorkflowNestedError`. Mirrors a peer framework's workflows-as-steps + `cloneWorkflow`. From the a peer framework Workflows comparison (SDK Evolution roadmap SE30).
+  A non-`completed` child fails the parent step with a typed `WorkflowNestedError`. **Nested suspend/resume is NOT supported in v1** (TheoKit's resume continues AFTER the suspended step, so a nested child would be skipped) — a nested `suspended` fails with a clear message pointing at a top-level suspend; re-running the child on resume (which would re-execute its side effects) is deliberately avoided. ADR 0010. New export `WorkflowNestedError`. Mirrors a peer framework's workflows-as-steps + `cloneWorkflow`. From the peer framework Workflows comparison (SDK Evolution roadmap SE30).
 
 ## 2.26.0
 
@@ -276,7 +276,7 @@
 
   `AgentOptions.inputProcessors` run in order before the LLM (normalize / validate / block / rewrite the user message); `outputProcessors` run on the model's final text before it reaches the caller (redact / block). A `Processor` is `{ id; processInput?; processOutput?; onViolation? }`; each handler receives `ctx` with `abort(reason)` (block → the run stops with `RunResult.tripwire { reason, processorId }` + a `tripwire` run-event via `SendOptions.onRunEvent`) and `warn(message, detail?)` (non-blocking → fires `onViolation`, continues), and returns the (possibly rewritten) payload.
 
-  The core ships no `strategy` enum — block/rewrite/redact/warn reduce to `abort` / return-string / `warn` (the built-in SE25 processors expose a `strategy` option over these). An input block never reaches the model (a terminal tripwire run); an output block turns a finished run's result into a tripwire on `wait()`. Streaming output redaction is deferred (v1 processes the buffered `wait()` path). Cloud agents reject processors (function handlers don't serialize). Back-compat: no processors ⇒ unchanged. New public types `Processor` / `ProcessorViolation` / `InputProcessorContext` / `OutputProcessorContext` / `ProcessorControls` / `ProcessorTripwire` / `RunTripwireEvent` + `RunResult.tripwire`. ADR 0008. Mirrors a peer framework Guardrails input/output processors. From the a peer framework Guardrails comparison (SDK Evolution roadmap SE24).
+  The core ships no `strategy` enum — block/rewrite/redact/warn reduce to `abort` / return-string / `warn` (the built-in SE25 processors expose a `strategy` option over these). An input block never reaches the model (a terminal tripwire run); an output block turns a finished run's result into a tripwire on `wait()`. Streaming output redaction is deferred (v1 processes the buffered `wait()` path). Cloud agents reject processors (function handlers don't serialize). Back-compat: no processors ⇒ unchanged. New public types `Processor` / `ProcessorViolation` / `InputProcessorContext` / `OutputProcessorContext` / `ProcessorControls` / `ProcessorTripwire` / `RunTripwireEvent` + `RunResult.tripwire`. ADR 0008. Mirrors a peer framework Guardrails input/output processors. From the peer framework Guardrails comparison (SDK Evolution roadmap SE24).
 
 - cc8efee: **SE25 — deterministic in-tree guardrail processors (`createUnicodeNormalizer`, `createTokenLimiter`).**
 
@@ -287,7 +287,7 @@
 
   Both are OPT-IN (add to `inputProcessors`/`outputProcessors`); nothing auto-injects them; back-compat preserved.
 
-  **`BatchPartsProcessor` is intentionally DEFERRED**, not shipped: TheoKit's `run.stream()` emits full `SDKAssistantMessage`s, not token-granular deltas, so there is no SSE chunk stream to coalesce in the in-process runtime (a peer framework's BatchParts cuts HTTP network overhead). It becomes meaningful only alongside a future HTTP/SSE streaming transport (the same milestone as SE24's deferred streaming-output redaction). Mirrors a peer framework's deterministic guardrail processors. From the a peer framework Guardrails comparison (SDK Evolution roadmap SE25).
+  **`BatchPartsProcessor` is intentionally DEFERRED**, not shipped: TheoKit's `run.stream()` emits full `SDKAssistantMessage`s, not token-granular deltas, so there is no SSE chunk stream to coalesce in the in-process runtime (a peer framework's BatchParts cuts HTTP network overhead). It becomes meaningful only alongside a future HTTP/SSE streaming transport (the same milestone as SE24's deferred streaming-output redaction). Mirrors a peer framework's deterministic guardrail processors. From the peer framework Guardrails comparison (SDK Evolution roadmap SE25).
 
 ### Patch Changes
 
@@ -295,7 +295,7 @@
 
   Records the decision (ADR 0009) to DELEGATE the LLM-classifier guardrail processors — moderation, PII, prompt-injection, language, prompt-scrubber — to specialist libraries / consumer code built ON the SE24 seam, rather than shipping concrete classifiers in `@theokit/sdk` core (mirrors the AUTH-DELEGATION lock: constant churn — provider/model deltas, taxonomies, thresholds, jailbreak patterns — vs a stable seam a single-maintainer core can own). No classifier is added to core.
 
-  Ships the paved path: `docs/concepts/guardrails.md` (how to build moderation / PII / injection processors on the seam + recommended external classifiers) and `examples/guardrails/` (a runnable moderation + PII-redaction example over a pluggable classifier). No public API change. From the a peer framework Guardrails comparison (SDK Evolution roadmap SE26).
+  Ships the paved path: `docs/concepts/guardrails.md` (how to build moderation / PII / injection processors on the seam + recommended external classifiers) and `examples/guardrails/` (a runnable moderation + PII-redaction example over a pluggable classifier). No public API change. From the peer framework Guardrails comparison (SDK Evolution roadmap SE26).
 
 ## 2.25.0
 
@@ -305,25 +305,25 @@
 
   `agent.skills.list()` already returned skill metadata (name + description only); SE20 adds `agent.skills.get(name)` returning the skill INCLUDING its `instructions` (body) — read from the inline `createSkill` body, or from the filesystem SKILL.md (frontmatter stripped) for discovered skills. Returns `undefined` when no enabled skill matches (malformed skills stay excluded). New public type `SDKAgentSkillDetail`.
 
-  `list()` stays lean (the `<skills>` block only ever carries name + description); full bodies come only through `get`. Mirrors a peer framework's `agent.getSkill(name)`. Additive + backward-compatible. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE20).
+  `list()` stays lean (the `<skills>` block only ever carries name + description); full bodies come only through `get`. Mirrors a peer framework's `agent.getSkill(name)`. Additive + backward-compatible. From the peer framework Agent-skills comparison (SDK Evolution roadmap SE20).
 
 - 09865ee: **SE21 — `references` on `createSkill` (bundle supporting docs on an inline skill).**
 
   `createSkill({ ..., references })` now accepts an optional `references` map (filename → content), mirroring a filesystem skill's `references/` directory. The docs travel on the inline skill object and surface to the app via `agent.skills.get(name)` (new `references` field on `SDKAgentSkillDetail`); they are NOT injected into the model prompt. Omitted when not provided (backward-compatible). Mirrors a peer framework Agent-skills `references`.
 
-  Also closes a latent boundary leak surfaced by this change: `agent.skills.list()` now projects to the public shape (name + description only), so an inline skill's `instructions` / `references` / `source` never leak through `list()` — the body is reachable exclusively through `get()`, matching the documented `SystemPromptSkillRef` contract. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE21).
+  Also closes a latent boundary leak surfaced by this change: `agent.skills.list()` now projects to the public shape (name + description only), so an inline skill's `instructions` / `references` / `source` never leak through `list()` — the body is reachable exclusively through `get()`, matching the documented `SystemPromptSkillRef` contract. From the peer framework Agent-skills comparison (SDK Evolution roadmap SE21).
 
 - abfcc5d: **SE22 — dynamic skills resolver (`skills: (ctx) => SkillsSettings`).**
 
   `AgentOptions.skills` now accepts a resolver function in addition to the static `SkillsSettings` object. The resolver receives a per-send context (`agentId`, `cwd`, `model`, `userMessage`, `memory` — mirroring the systemPrompt resolver's context, minus the not-yet-resolved `skills`) and returns the `SkillsSettings` for that run. It is evaluated per `send()` before skill assembly, so a cached `getOrCreate` agent re-resolves each run — pick skills from runtime context (e.g. the user's role).
 
-  A static object behaves exactly as today. The agent-scoped `agent.skills` handle reflects the static/base config; the resolver drives the per-send `<skills>` block. The SDK imposes no timeout (wrap your own `Promise.race`); a throwing resolver fails the run — no silent fallback (Rule 8). Cloud agents reject a function resolver (it can't run on PaaS — resolve to a static object first), mirroring the systemPrompt-resolver cloud rule. New public types `SkillsResolver` + `SkillsResolverContext`. Mirrors a peer framework Agent-skills `skills: ({ requestContext }) => SkillInput[]`. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE22).
+  A static object behaves exactly as today. The agent-scoped `agent.skills` handle reflects the static/base config; the resolver drives the per-send `<skills>` block. The SDK imposes no timeout (wrap your own `Promise.race`); a throwing resolver fails the run — no silent fallback (Rule 8). Cloud agents reject a function resolver (it can't run on PaaS — resolve to a static object first), mirroring the systemPrompt-resolver cloud rule. New public types `SkillsResolver` + `SkillsResolverContext`. Mirrors a peer framework Agent-skills `skills: ({ requestContext }) => SkillInput[]`. From the peer framework Agent-skills comparison (SDK Evolution roadmap SE22).
 
 - 0b9c0ac: **SE23 — `defineSkillReadTool` (opt-in model-facing lazy skill read).**
 
   `defineSkillReadTool(skills)` returns a `skill_read` `CustomTool` the consumer explicitly adds to `AgentOptions.tools`. When the model calls it with a skill name, the handler returns that skill's `instructions` (+ SE21 `references`); an unknown-but-well-formed name returns a typed "not found" string listing the available skills — NOT a throw that kills the run (Rule 8). Malformed input (missing `name`) fails at the trust boundary via the input schema.
 
-  The SDK never auto-injects it — bring-your-own-tools stays intact (sibling of `defineSubAgent` / `workflowAsTool`). This is the LAZY read path that complements the eager `<skills>` block (name + description only): the block discloses which skills exist; `skill_read` loads a body on demand. The consumer controls exposure by choosing which skills to pass. See ADR 0007. Mirrors a peer framework's `skill_read` — but opt-in, not auto-injected. From the a peer framework Agent-skills comparison (SDK Evolution roadmap SE23).
+  The SDK never auto-injects it — bring-your-own-tools stays intact (sibling of `defineSubAgent` / `workflowAsTool`). This is the LAZY read path that complements the eager `<skills>` block (name + description only): the block discloses which skills exist; `skill_read` loads a body on demand. The consumer controls exposure by choosing which skills to pass. See ADR 0007. Mirrors a peer framework's `skill_read` — but opt-in, not auto-injected. From the peer framework Agent-skills comparison (SDK Evolution roadmap SE23).
 
 ## 2.24.0
 
@@ -333,25 +333,25 @@
 
   `defineTool` (from `@theokit/sdk`) gains an optional `outputSchema` (a Zod schema). When set, the handler returns the STRUCTURED output inferred from it (`z.infer<outputSchema>`), the value is validated against the schema, and the tool result becomes its serialization — a string stays as-is, an object is JSON-stringified. A validation failure raises `ZodError` (converted to a `tool_result(isError)`), so a malformed tool output fails loudly instead of silently reaching the model.
 
-  Additive + fully backward-compatible: with no `outputSchema` the handler returns a plain `string` exactly as before (the handler return type is `string` when `outputSchema` is absent, `z.infer<outputSchema>` when present, via a conditional type). Mirrors a peer framework `createTool`'s `outputSchema`. Pairs with SE17 (`toModelOutput`). From the a peer framework Tools comparison (SDK Evolution roadmap SE16).
+  Additive + fully backward-compatible: with no `outputSchema` the handler returns a plain `string` exactly as before (the handler return type is `string` when `outputSchema` is absent, `z.infer<outputSchema>` when present, via a conditional type). Mirrors a peer framework `createTool`'s `outputSchema`. Pairs with SE17 (`toModelOutput`). From the peer framework Tools comparison (SDK Evolution roadmap SE16).
 
 - f621734: **SE17 — `toModelOutput` on `defineTool` (model-facing vs app-facing output split).**
 
   `defineTool` (from `@theokit/sdk`) gains an optional `toModelOutput`. The handler returns the FULL result (validated by SE16's `outputSchema`); `toModelOutput(output)` maps it to the compact / multimodal representation the MODEL sees in the `tool_result` — so rich app-facing detail is not forced into model context. It returns a `string` OR SE7 `ToolResultContentBlock[]` (text + image). Absent ⇒ the tool result is the serialized handler output (SE16 / pre-SE17 behavior, unchanged).
 
-  Mirrors a peer framework's `toModelOutput` and the a peer framework. Additive + backward-compatible. From the a peer framework Tools comparison (SDK Evolution roadmap SE17).
+  Mirrors a peer framework's `toModelOutput` and the a framework. Additive + backward-compatible. From the peer framework Tools comparison (SDK Evolution roadmap SE17).
 
 - 72435db: **SE18 — `SendOptions.activeTools` (per-send runtime tool subset).**
 
   `agent.send(input, { activeTools })` restricts, per send, which of the agent's registered tools the model may actually call. A tool whose canonical name is not in the list is vetoed at dispatch (its handler never runs) — reusing the existing `withToolWhitelist` path that `Agent.fork`'s `allowedTools` uses, NOT `PermissionEngine`. Composes with `toolChoice`: `activeTools` narrows the set, `toolChoice` gates calling within it. Absent ⇒ the full toolset is available (unchanged).
 
-  The loop runs inside a `withToolWhitelist(new Set(activeTools))` scope when set. Additive + backward-compatible. Mirrors a peer framework `activeTools` + the a peer framework. From the a peer framework Tools comparison (SDK Evolution roadmap SE18).
+  The loop runs inside a `withToolWhitelist(new Set(activeTools))` scope when set. Additive + backward-compatible. Mirrors a peer framework `activeTools` + the a framework. From the peer framework Tools comparison (SDK Evolution roadmap SE18).
 
 - f92f720: **SE19 — `workflowAsTool` (expose a Workflow as an agent tool).**
 
-  `workflowAsTool(workflow, { name, description, inputSchema })` (from `@theokit/sdk/workflow`) turns a `Workflow` into an agent `CustomTool`, completing the a peer framework "X as tools" trio (tools; agents-as-tools via `defineSubAgent`; workflows-as-tools). The handler validates the model's args against `spec.inputSchema`, runs the workflow, and returns its output (a string as-is, else JSON). A run that does not reach `status: "completed"` raises a typed `WorkflowToolError` (workflow step errors do NOT throw — they surface via `run.status === "failed"`).
+  `workflowAsTool(workflow, { name, description, inputSchema })` (from `@theokit/sdk/workflow`) turns a `Workflow` into an agent `CustomTool`, completing the peer framework "X as tools" trio (tools; agents-as-tools via `defineSubAgent`; workflows-as-tools). The handler validates the model's args against `spec.inputSchema`, runs the workflow, and returns its output (a string as-is, else JSON). A run that does not reach `status: "completed"` raises a typed `WorkflowToolError` (workflow step errors do NOT throw — they surface via `run.status === "failed"`).
 
-  Because a `Workflow` carries no top-level schema (`WorkflowOptions` is `name`/`persistence`/`workflowId`; schemas are per-step), the caller supplies the tool `inputSchema` in the spec (like `defineTool`). Accepts any `{ run }`-shaped workflow (structural), so it never imports the `Workflow` class. New exports: `workflowAsTool`, `WorkflowToolError`, `WorkflowAsToolSpec`. Additive. From the a peer framework Tools comparison (SDK Evolution roadmap SE19).
+  Because a `Workflow` carries no top-level schema (`WorkflowOptions` is `name`/`persistence`/`workflowId`; schemas are per-step), the caller supplies the tool `inputSchema` in the spec (like `defineTool`). Accepts any `{ run }`-shaped workflow (structural), so it never imports the `Workflow` class. New exports: `workflowAsTool`, `WorkflowToolError`, `WorkflowAsToolSpec`. Additive. From the peer framework Tools comparison (SDK Evolution roadmap SE19).
 
 ## 2.23.0
 
@@ -361,7 +361,7 @@
 
   `DelegationStartDecision` (from `@theokit/sdk/a2a`) gains `modifiedMaxSteps?: number`. When an `onDelegationStart` hook returns it (and does not reject), `defineSubAgent` forwards it as `SendOptions.maxIterations` to the child `agent.send`, capping how many tool-loop rounds the subagent may run. Composes with SE10 (`signal`) and SE12 (`messageFilter` preamble) onto a single child `send`. Absent ⇒ the child uses its default iteration ceiling (unchanged).
 
-  Completes the SE11 `onDelegationStart` decision contract (the deferred `modifiedMaxSteps` — the `SendOptions.maxIterations` plumbing already existed). Additive + backward-compatible. From the a peer framework supervisor-agents comparison (SDK Evolution roadmap SE13).
+  Completes the SE11 `onDelegationStart` decision contract (the deferred `modifiedMaxSteps` — the `SendOptions.maxIterations` plumbing already existed). Additive + backward-compatible. From the peer framework supervisor-agents comparison (SDK Evolution roadmap SE13).
 
 - b51dc6a: **SE14 — subagent result-context control (`SubAgentSpec.includeToolResults`).**
 
@@ -369,13 +369,13 @@
 
   Implemented as a `run.stream()` replay after `run.wait()` (a proven, safe idiom — the run buffers events and `stream()` replays them) collecting `tool_call` events with `status: "completed"`. **No `RunResult` change** — reads the existing public stream surface; tool _args_ are never surfaced (only completed results). Rationale + the `RunResult`-field alternative are recorded in ADR 0006.
 
-  Additive + backward-compatible (default `false` never touches the stream). From the a peer framework supervisor-agents comparison (SDK Evolution roadmap SE14).
+  Additive + backward-compatible (default `false` never touches the stream). From the peer framework supervisor-agents comparison (SDK Evolution roadmap SE14).
 
 - 30e02d9: **SE15 — `iteration` count on the delegation-hook context (reject-after-N).**
 
-  `DelegationStartContext` and `DelegationCompleteContext` (from `@theokit/sdk/a2a`) gain `iteration: number` — a 1-based per-`defineSubAgent`-instance invocation counter, incremented before `onDelegationStart` runs (a rejected delegation still counts). This enables the a peer framework reject-after-N-iterations pattern: `onDelegationStart: (ctx) => ctx.iteration > 8 ? { proceed: false, rejectionReason } : { proceed: true }`. `onDelegationComplete` sees the same iteration its `onDelegationStart` did.
+  `DelegationStartContext` and `DelegationCompleteContext` (from `@theokit/sdk/a2a`) gain `iteration: number` — a 1-based per-`defineSubAgent`-instance invocation counter, incremented before `onDelegationStart` runs (a rejected delegation still counts). This enables the peer framework reject-after-N-iterations pattern: `onDelegationStart: (ctx) => ctx.iteration > 8 ? { proceed: false, rejectionReason } : { proceed: true }`. `onDelegationComplete` sees the same iteration its `onDelegationStart` did.
 
-  Also fixes a delegation-hook DX regression: `onDelegationStart` / `onDelegationComplete` now accept a **side-effect-only (void-returning) callback** (e.g. `(ctx) => { log(ctx) }`) — the common case, mirroring a peer framework's `async ctx => { … }` hooks — via a shared `DelegationHookResult<T>` return type. Additive + backward-compatible. From the a peer framework supervisor-agents comparison (SDK Evolution roadmap SE15).
+  Also fixes a delegation-hook DX regression: `onDelegationStart` / `onDelegationComplete` now accept a **side-effect-only (void-returning) callback** (e.g. `(ctx) => { log(ctx) }`) — the common case, mirroring a peer framework's `async ctx => { … }` hooks — via a shared `DelegationHookResult<T>` return type. Additive + backward-compatible. From the peer framework supervisor-agents comparison (SDK Evolution roadmap SE15).
 
 ## 2.22.0
 
@@ -388,7 +388,7 @@
   - Additive + backward-compatible: a handler invoked with no `ctx` (single-arg call sites) behaves exactly as before — no signal, no cancellation.
   - The child agent is still disposed in `finally`, including on cancel.
 
-  Matches the a peer framework supervisor-agents "abortSignal forwarded to delegated subagents" behavior (SDK Evolution roadmap SE10).
+  Matches the peer framework supervisor-agents "abortSignal forwarded to delegated subagents" behavior (SDK Evolution roadmap SE10).
 
 - 8e3249d: **SE11 — delegation lifecycle hooks on `defineSubAgent` (`onDelegationStart` / `onDelegationComplete`).**
 
@@ -399,7 +399,7 @@
 
   Additive + backward-compatible: specs without hooks behave exactly as before. New exported types: `DelegationStartContext`, `DelegationStartDecision`, `DelegationCompleteContext`, `DelegationCompleteDecision`.
 
-  Matches the a peer framework supervisor `onDelegationStart` / `onDelegationComplete` control points (SDK Evolution roadmap SE11).
+  Matches the peer framework supervisor `onDelegationStart` / `onDelegationComplete` control points (SDK Evolution roadmap SE11).
 
 - d2d0d16: **SE12 — opt-in parent-context forwarding for subagents (`messageFilter`).**
 
@@ -408,7 +408,7 @@
   - New `ctx.messages` on the custom-tool handler `ToolContext`: a **read-only, text-only** projection of the current turn's transcript (`ToolContextMessage[]`), threaded by the agent loop the same way `ctx.signal` (#65) and `ctx.context` (M7) are. Non-text parts (tool calls / results) are dropped — a tool never sees raw wire parts or nested tool args.
   - `messageFilter({ messages, input, name })` returns the subset to forward; `defineSubAgent` prepends it to the delegated input as a role-tagged context preamble. A filter returning `[]` forwards nothing. A filter that drops sensitive turns (e.g. anything `confidential`) provably keeps them out of the child context.
 
-  New exported types: `ToolContextMessage`, `MessageFilterArgs`. Additive + backward-compatible. Rationale + the transcript-exposure trade-off are recorded in ADR 0005. From the a peer framework supervisor-agents comparison (SDK Evolution roadmap SE12).
+  New exported types: `ToolContextMessage`, `MessageFilterArgs`. Additive + backward-compatible. Rationale + the transcript-exposure trade-off are recorded in ADR 0005. From the peer framework supervisor-agents comparison (SDK Evolution roadmap SE12).
 
 ## 2.21.0
 
@@ -441,11 +441,11 @@
 
   New exports: `RunEvent` (+ the 7 member types), `RunEventSink`, `emitRunEvent`. Additive + backward-compatible.
 
-  Grounded in the SDK Evolution roadmap SE2 (Anthropic Agent SDK comparison).
+  Grounded in the SDK Evolution roadmap SE2 (a peer agent SDK comparison).
 
 - eec7d55: **SE3 — multi-agent provenance (`origin`).**
 
-  New public `MessageOrigin` discriminated union that stamps WHO triggered a turn in the multi-agent path (Squad / a2a / handoff / background-delegation) and is **forwarded onto the run result** — so consumers can attribute or route turns by their trigger. Metadata-only: zero change to routing or dispatch. Mirrors the Anthropic Agent SDK's `origin` shape.
+  New public `MessageOrigin` discriminated union that stamps WHO triggered a turn in the multi-agent path (Squad / a2a / handoff / background-delegation) and is **forwarded onto the run result** — so consumers can attribute or route turns by their trigger. Metadata-only: zero change to routing or dispatch. Mirrors the a peer agent SDK's `origin` shape.
 
   - `MessageOrigin` union: `{ kind: "human" }` | `{ kind: "peer"; from }` | `{ kind: "task-notification" }` | `{ kind: "coordinator"; from? }` | `{ kind: "auto-continuation" }`. Absence = a direct human turn.
   - `SendOptions.origin?: MessageOrigin` — the caller stamps the provenance; `RunResult.origin?: MessageOrigin` — forwarded onto the result (both fixture and real runtimes).
@@ -455,7 +455,7 @@
 
   New exports: `MessageOrigin`, plus `origin` fields on `SendOptions` / `RunResult` / `A2AMessage` / `AgentStep` and the `agentStep(..., { origin })` option. Additive + backward-compatible.
 
-  Grounded in the SDK Evolution roadmap SE3 (Anthropic Agent SDK comparison).
+  Grounded in the SDK Evolution roadmap SE3 (a peer agent SDK comparison).
 
 - 8606f5b: **SE4 — session-management surface (`createSessionManager`).**
 
@@ -469,7 +469,7 @@
 
   New exports: `createSessionManager`, `SessionManager`, `SessionSummary`, `SessionListOptions`, `SessionCapabilityResult`, `SessionMeta`, `SessionMetaPatch`. Additive + backward-compatible.
 
-  Grounded in the SDK Evolution roadmap SE4 (Anthropic Agent SDK comparison).
+  Grounded in the SDK Evolution roadmap SE4 (a peer agent SDK comparison).
 
 - ce9b375: **SE7 — structured/multimodal tool results + `ToolError`.**
 
@@ -492,11 +492,11 @@
   - Use the object form when you need `params` (reasoning/temperature tuning): `model: { id: "...", params: [...] }`.
   - An empty / whitespace-only string throws a typed `ConfigurationError` (`code: "invalid_model_selection"`).
 
-  From the DX comparison against OpenAI Agents / a framework `create_agent` / a peer framework `ToolLoopAgent` / a peer framework (all take a bare string). Grounded in ROADMAP SE8.
+  From the DX comparison against a peer SDK / a framework `create_agent` / a framework `ToolLoopAgent` / a peer framework (all take a bare string). Grounded in ROADMAP SE8.
 
 - d039cd6: **SE9 — integrated structured output on `agent.generate()`.**
 
-  New typed `agent.generate(input, { output: schema, ...sendOptions })` method: runs the agent's NORMAL tool loop (the user's tools run first) and then coerces the final answer into a Zod schema, returning a validated, **inferred-typed** object — in one call, instead of a separate `generateObject`. This closes the biggest DX-capability gap vs a framework `response_format` / a peer framework `Output.object`.
+  New typed `agent.generate(input, { output: schema, ...sendOptions })` method: runs the agent's NORMAL tool loop (the user's tools run first) and then coerces the final answer into a Zod schema, returning a validated, **inferred-typed** object — in one call, instead of a separate `generateObject`. This closes the biggest DX-capability gap vs a framework `response_format` / a framework `Output.object`.
 
   - `agent.generate<T>(input, { output: T, ...SendOptions }): Promise<GenerateRunResult<z.infer<T>>>` — `{ object, result, raw, usage }`. `object` carries the inferred type; `result` is the underlying tool-loop `RunResult` (status/usage/model).
   - **Sugar over `Agent.generateObject` (ADR D33), not a fork:** phase 1 is the user's own `agent.send()` run; phase 2 reuses `generateObjectImpl` (the synthetic forced-`output`-tool + Zod validation + retries) over the run's final answer.
@@ -504,7 +504,7 @@
   - **Typed failure:** a run that errors before an answer surfaces a typed `GenerateObjectError` (no structuring over a failed run); a persistent parse-failure is governed by `errorStrategy`.
   - Available on both local and cloud agents.
 
-  New exports: `GenerateOptions`, `GenerateRunResult` (+ the `SDKAgent.generate` method). Additive + backward-compatible. From the DX comparison vs OpenAI Agents / a framework / AI SDK / a peer framework. Grounded in ROADMAP SE9.
+  New exports: `GenerateOptions`, `GenerateRunResult` (+ the `SDKAgent.generate` method). Additive + backward-compatible. From the DX comparison vs a peer SDK / a framework / a framework / a peer framework. Grounded in ROADMAP SE9.
 
 ### Patch Changes
 
@@ -651,7 +651,7 @@
 
 ### Minor Changes
 
-- 6ee4217: Add a public, isolated tool-input **sanitization** primitive on the new `@theokit/sdk/sanitize` subpath, plus a declarative `defineTool({ sanitize })` opt-in. Custom tools can now clean the raw arguments a model emits before they reach the tool schema: `sanitizeToolInput(input, options?)` trims whitespace by default and — opt-in — coerces string values toward their expected type (`"5"`→`5`, `"true"`→`true`, JSON-encoded strings→arrays/objects) and repairs malformed JSON (via `jsonrepair`). Coercion is guarded against silent corruption: numeric coercion round-trips and stays finite, so ID-like strings (`"12345678901234567890"`, `"007"`) and `NaN`/`Infinity` are left as strings; JSON repair only runs on JSON-looking values; a non-object input is returned untouched (the primitive is total — it never throws). When a Zod object schema is passed, coercion is schema-aware (a `z.string()` field keeps `"5"` a string). `defineTool({ sanitize: true })` trims the raw args before validation; `defineTool({ sanitize: { coerce: true } })` additionally coerces toward the tool's own schema — absent, `defineTool` behaviour is unchanged. Internally, the leaked-dialect recovery (`hermes-tool-extract`) now reuses the same primitive, so the public surface and the internal path never diverge. Grounded in a SOTA study of peer-project / agentfw / a peer project / a peer / a-framework.
+- 6ee4217: Add a public, isolated tool-input **sanitization** primitive on the new `@theokit/sdk/sanitize` subpath, plus a declarative `defineTool({ sanitize })` opt-in. Custom tools can now clean the raw arguments a model emits before they reach the tool schema: `sanitizeToolInput(input, options?)` trims whitespace by default and — opt-in — coerces string values toward their expected type (`"5"`→`5`, `"true"`→`true`, JSON-encoded strings→arrays/objects) and repairs malformed JSON (via `jsonrepair`). Coercion is guarded against silent corruption: numeric coercion round-trips and stays finite, so ID-like strings (`"12345678901234567890"`, `"007"`) and `NaN`/`Infinity` are left as strings; JSON repair only runs on JSON-looking values; a non-object input is returned untouched (the primitive is total — it never throws). When a Zod object schema is passed, coercion is schema-aware (a `z.string()` field keeps `"5"` a string). `defineTool({ sanitize: true })` trims the raw args before validation; `defineTool({ sanitize: { coerce: true } })` additionally coerces toward the tool's own schema — absent, `defineTool` behaviour is unchanged. Internally, the leaked-dialect recovery (`hermes-tool-extract`) now reuses the same primitive, so the public surface and the internal path never diverge. Grounded in a SOTA study of peer-project / a-peer / a peer project / a peer / a-framework.
 
 ## 2.13.1
 
@@ -1124,7 +1124,7 @@
   - `SubscriptionCtx`, `SubscriptionDescriptor<TInput, TOutput>`, `TrackedEnvelope<T>` (types)
 - **3 typed error classes:** `SubscriptionError`, `SubscriptionInputError` (carries Zod `issues`), `SubscriptionDisconnectError` (carries `closeCode`/`closeReason`). All extend `TheokitAgentError`.
 - **`ws@>=8.0.0` + `@types/ws@>=8.0.0` optional peer deps** — Node WS adapter loads `ws` via dynamic `import()` with actionable error when missing (D426). SSE-only consumers pay zero cost.
-- **W3C-spec SSE encoder + parser** — independent of D38 a peer vendor AI Data Stream v1 wire format (which stays locked for `streamAssistant` LLM streaming). Both coexist (D429).
+- **W3C-spec SSE encoder + parser** — independent of D38 a framework Data Stream v1 wire format (which stays locked for `streamAssistant` LLM streaming). Both coexist (D429).
 - **Server integration primitives** — `scanSubscriptions({appDir, outFile})` emits `.theo/subscriptions.json` mirroring G6 routes scanner; `mountSubscriptions({manifest, appDir})` returns `{handleSseRequest, handleWsUpgrade}` ready to wire into `http.Server`. theokit-side Vite plugin + dev-server wiring is a cross-repo follow-up (D430).
 
 ### ADRs absorbed
@@ -1135,7 +1135,7 @@
 - **D426** — `ws` Node canonical (optional peer); CF Workers / Bun / Deno deferred to v1.8.x as separate packages
 - **D427** — `defineSubscription` AsyncGenerator + Zod input/output
 - **D428** — `subscribe` lives at `@theokit/sdk/subscription` sub-path only (NOT promoted to `Theokit.subscribe` due to pre-existing `agent.ts ↔ fork-agent.ts` rollup-dts cycle; same isolation pattern as `path-safety`)
-- **D429** — W3C SSE wire format (independent of D38 a peer vendor AI Data Stream)
+- **D429** — W3C SSE wire format (independent of D38 a framework Data Stream)
 - **D430** — Server auto-route via `theokit.subscriptions` scanner (cross-repo follow-up for theokit-side wiring)
 
 ### Security threats addressed
@@ -1160,7 +1160,7 @@
 
 ### Notes
 
-- v1.7.0 is **additive** — no breaking changes. Existing `streamAssistant` (a peer vendor AI Data Stream, D38) untouched.
+- v1.7.0 is **additive** — no breaking changes. Existing `streamAssistant` (a framework Data Stream, D38) untouched.
 - Tests: **45 GREEN + 1 honest-SKIP** under `tests/subscription/` + `tests/integration/subscription-resume.test.ts` (real `ws.WebSocketServer` + `http.Server` real SSE roundtrip + lastEventId resume) + `tests/integration/subscription-real-llm.test.ts` (env-gated `OPENROUTER_API_KEY` — verified GREEN against real OpenRouter `openai/gpt-4o-mini` per `real-llm-validation.md`).
 - Build: `dist/subscription/index.{js,cjs,d.ts,d.cts}` emitted; JS+CJS via tsup, DTS via tsc + `tsconfig.tools-dts.json` (mirrors `tools/` + `path-safety` pattern to avoid pre-existing `types/agent.ts ↔ fork-agent.ts` rollup-dts cycle).
 
@@ -1424,7 +1424,7 @@ FAIL before the fix).
 - OpenAI / OpenRouter SSE accumulator parses 5 token buckets:
   `prompt_tokens_details.cached_tokens` → `cacheReadTokens`,
   `completion_tokens_details.reasoning_tokens` → `reasoningTokens`, plus the
-  a peer#10266 top-level `cache_read_input_tokens` /
+  a peer top-level `cache_read_input_tokens` /
   `cache_creation_input_tokens` fallback for Anthropic-on-OpenRouter.
 - `stream_options: { include_usage: true }` is now sent on every
   Chat Completions request so the final usage chunk arrives reliably.
@@ -1511,7 +1511,7 @@ Closes Gap 6 of the TheoKit cross-repo handoff. Lets multi-tenant SaaS deploys e
 
 Closes Gap 4 of the TheoKit cross-repo handoff. Cost tracking, audit log, per-tool retry/alerting without writing a plugin.
 
-- **`AgentOptions.onToolStart`**, **`onToolEnd`**, **`onToolError`** callbacks accepted in `AgentOptions` (top-level — no plugin needed; D315). Match a peer framework `onChunk`/`onFinish` ergonomics.
+- **`AgentOptions.onToolStart`**, **`onToolEnd`**, **`onToolError`** callbacks accepted in `AgentOptions` (top-level — no plugin needed; D315). Match a framework `onChunk`/`onFinish` ergonomics.
 - **`callId` propagated** through the start/end (or start/error) pair from the existing `generateCallId()` in dispatch (D316). Consumers correlate without managing their own counter.
 - **`durationMs`** measured between start hook fire and end/error hook fire — handler latency.
 - **Hook errors swallowed** via single `safeEmitToolHook` chokepoint (D317). Listener throws logged to stderr but never crash the run.
@@ -2343,7 +2343,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 - D63 — WAL primary, DELETE journal fallback on NFS/SMB; warn once per label
 - D64 — FTS5 sanitizer 6-step + CJK auto-detection (trigram routing deferred to v1.4)
 
-### Added (v1.2 features — paridade técnica com a peer vendor AI / a peer framework)
+### Added (v1.2 features — paridade técnica com a framework / a peer framework)
 
 - **`Agent.streamObject<T>({ schema, prompt, ... })`** — typed structured output WITH partial-object streaming via synthetic forced tool (ADR D39). Returns `AsyncIterator<StreamObjectEvent<T>>` emitting zero or more `{ type: "partial", partial: DeepPartial<T>, attempt }` events plus exactly one `{ type: "complete", object: z.infer<T>, ... }` at the end. Reuses 80% of `generateObject` infrastructure. EC-4 (cancellation cleanup), EC-5 (refine/transform fallback), EC-6 (parallel tool-use dedup) covered by tests.
 - **`@theokit/react` v1.2.0 — family of 3 hooks** (ADR D40): `useTheoChat` (multi-turn, existing) + `useTheoCompletion` (single-shot text gen, equivalent to a peer vendor `useCompletion`) + `useTheoAssistant<T>` (object-shaped streaming, wraps `Agent.streamObject`). Each hook has a matching server-side handler: `streamTheoChat`, `streamCompletion`, `streamAssistant`. Shared SSE parser in `internal/sse-parser.ts` handles all wire codes including new `o:`/`O:` for object streaming (ADR D45).
@@ -2371,7 +2371,7 @@ tool-call-failure-recovery.md` (Hermes v0.2 #444, v0.3 #1300,
 
 - **`Agent.generateObject<T>({ schema, prompt })`** — typed structured output via synthetic forced tool (ADR D33). Returns `{ object: z.infer<T>, raw, usage, finishReason }`. Retry-on-parse-fail with `maxRetries` (default 1). Transient agent disposed AND hard-deleted from registry across retries (EC-3 no leak). Same provider routing/fallback as `agent.send`.
 - **`AgentOptions.telemetry`** — opt-in OpenTelemetry spans for `agent.send`, `llm.call`, `tool.call` (ADR D34). Privacy-by-default: NO content logged unless `includeContent: true`. `@opentelemetry/api` is OPTIONAL peer dep loaded via `createRequire`. All OTel calls wrapped in `safe()` so exporter errors NEVER propagate to `agent.send` (EC-1).
-- **`@theokit/react` v1.0.0** — new workspace package (ADR D32). `useTheoChat` React hook (HTTP fetch + SSE parser, AbortController on unmount, EC-6 5xx handling, EC-8 graceful close). `streamTheoChat` Next.js-compatible SSE handler (EC-2 pre-stream typed errors return HTTP 400/401). Wire format = a peer vendor AI Data Stream v1 (drop-in `useChat` migration; no `ai` package runtime dep). React peer dep `^18 || ^19`.
+- **`@theokit/react` v1.0.0** — new workspace package (ADR D32). `useTheoChat` React hook (HTTP fetch + SSE parser, AbortController on unmount, EC-6 5xx handling, EC-8 graceful close). `streamTheoChat` Next.js-compatible SSE handler (EC-2 pre-stream typed errors return HTTP 400/401). Wire format = a framework Data Stream v1 (drop-in `useChat` migration; no `ai` package runtime dep). React peer dep `^18 || ^19`.
 
 ### Validations (v1.1 pillar audits)
 

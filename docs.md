@@ -371,7 +371,7 @@ type MessageOrigin =
   | { kind: "auto-continuation" };          // the loop's continuation driver
 Multi-agent provenance (origin)
 
-SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a peer agent, a background task, a coordinator. MessageOrigin is that provenance, stamped by SendOptions.origin and forwarded onto RunResult.origin (metadata-only — it never changes routing or dispatch; mirrors the Anthropic Agent SDK's origin shape). An absent origin (undefined) means the turn was not stamped (a plain agent.send()); pass { kind: "human" } to positively mark a human turn — the two are distinct (unstamped vs explicitly human).
+SE3. In a multi-agent app you want to know WHO triggered a turn — a human, a peer agent, a background task, a coordinator. MessageOrigin is that provenance, stamped by SendOptions.origin and forwarded onto RunResult.origin (metadata-only — it never changes routing or dispatch; mirrors the a peer agent SDK's origin shape). An absent origin (undefined) means the turn was not stamped (a plain agent.send()); pass { kind: "human" } to positively mark a human turn — the two are distinct (unstamped vs explicitly human).
 
 The multi-agent primitives stamp it for you: a Squad stamps { kind: "peer", from: "agent-<i-1>" } on every step after the first (the first receives the human input); every a2a A2AMessage carries origin: { kind: "peer", from } as a thin projection of the sender address. Background-delegation and handoff are host-driven — pass the origin yourself on the follow-up send (agent.send(input, { origin: { kind: "task-notification" } })) and read it back on result.origin.
 
@@ -3389,7 +3389,7 @@ const agent = await Agent.create({
 
 ### `global` location (D293)
 
-When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis.com/...` (no `global-` host prefix). Known fix for the `streamRawPredict` 404 bug at `global-aiplatform.googleapis.com` (a peer#10287).
+When `GOOGLE_CLOUD_LOCATION=global`, the SDK uses `https://aiplatform.googleapis.com/...` (no `global-` host prefix). Known fix for the `streamRawPredict` 404 bug at `global-aiplatform.googleapis.com` (a peer).
 
 ### Error mapping (D300)
 
