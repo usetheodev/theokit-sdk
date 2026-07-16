@@ -1,3 +1,4 @@
+import type { BudgetTracker } from "./budget-tracker.js";
 import type { ContextSettings } from "./context.js";
 import type { McpServerConfig } from "./mcp.js";
 import type { PluginsSettings, ProviderRoutingSettings } from "./providers.js";
@@ -588,7 +589,7 @@ export interface AgentOptions {
    *
    * @public
    */
-  budgetTracker?: import("../internal/budget/tracker/budget-tracker.js").BudgetTracker;
+  budgetTracker?: BudgetTracker;
 
   /**
    * Pluggable memory subsystem (SDK 2.0 Phase 1 / T1.3 — Hexagonal
