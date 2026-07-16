@@ -6,9 +6,9 @@
 
 <p align="center">
   <p align="center"><code>@theokit/sdk</code> · the <strong>Harness</strong> pillar of the <a href="https://usetheo.dev">Theo ecosystem</a></p>
-  <h1 align="center">Code your agent. Keep your runtime.</h1>
+  <h1 align="center">The open-source agent runtime for TypeScript.</h1>
   <p align="center">
-    <strong>The open-stack TypeScript agent SDK — Apache-2.0 local runtime, 43 providers, opt-in cloud.</strong>
+    <strong><code>@theokit/sdk</code> is the modern TypeScript SDK for AI-powered apps and agents — on an open, Apache-2.0 runtime you own end to end.</strong>
   </p>
   <p align="center">
     <sub>43 built-in LLM providers&nbsp;·&nbsp;27 modular entry points&nbsp;·&nbsp;native Claude Code <code>.jsonl</code>&nbsp;·&nbsp;zero walk-away cost</sub>
