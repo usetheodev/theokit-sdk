@@ -1354,6 +1354,53 @@ Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, becau
 - **Bundled `Workspace` class + `mounts`/FUSE + LSP inspection + workspace tool-config/hooks layer** (the rest of a peer framework Workspaces beyond SE31/SE32) — *why excluded:* a `Workspace` that auto-injects a coordinated toolset with global/agent inheritance, cloud-FS `mounts`, language-server inspection, and a per-tool remap/approval/truncation/hooks layer is **app/framework glue** (belongs in TheoKit or an opt-in package), not the runtime. SE31 (filesystem seam) + SE32 (write-safety) take ONLY the two runtime-legitimate primitives from that surface; the bundle, mounts, and LSP stay out. Reopening requires an ADR with 3+ apps blocked. (Cross-check 2026-07-11 when SE31/SE32 were added — the BYO-tools and no-bundled-Workspace decisions were reaffirmed, not reversed.)
 - **Threaded-signal schedule delivery + `/api/schedules` client routes** (the rest of a peer framework Schedules beyond SE35) — *why excluded:* a peer framework's threaded schedules inject a **signal** into a live thread with active-or-idle delivery behavior (`ifActive`/`ifIdle` discard/wake, XML `tagName`/`attributes` wrapping), which depends on a peer framework's **Signals** / long-running-agents concept — that is **durable transport into a live session**, the theokit framework's job (M37 durable/reconnectable streams + M38 HITL continuation), NOT the SDK runtime. The `/api/schedules` HTTP routes + `@a peer framework/client-js` management surface are a **server/client** layer, also framework, not runtime. SE35 takes ONLY the runtime-legitimate slice — scheduling a **workflow** on the existing `Cron` primitive (+ optional fire hooks); the signal-delivery-behavior layer and the client-route surface stay out. The SDK's `agentId` cron mode already gives context continuity (reuse the agent across fires) without a live-thread signal layer. (Cross-check 2026-07-11 when SE35 was added — the in-process, no-live-thread-signal decision was reaffirmed; live-session delivery lives in the framework, per M37/M38.)
 
+### SE45 — [ ] Zero import cycles (madge 3 → 0)
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `zero-import-cycles`). Source: the 2026-07-16 `/loop-codebase-architect` audit of `packages/sdk/src` (score 78/100, verdict Refactor Lightly). Report in `architect-output/report.md`. Lifts **Coupling 14→20** and **Pattern-fit 13→15**.
+
+**Objective:** Eliminate all remaining `madge` import cycles (3 → **0**) by fixing the one genuine structural debt the architecture audit found — the domain-contract layer `types/` depending on the application layer `internal/` — plus routing the facade↔local-agent edge through the existing registry port. Behavior-preserving; no public-API change.
+
+**Definition of done:**
+
+- [ ] **`types/` owns its contract types (DIP inversion fixed).** `Plugin` + the `MemoryProvider` port + the run/tool-result contract types live in `types/` (a domain leaf); NO file under `types/*.ts` imports `internal/*`. Removes **madge cycles 1 + 2** (`types/agent.ts → internal/runtime/memory/memory-provider`; `types/run.ts → internal/agent-loop/tool-result-guard`). Verified: `grep -rE "from ['\"].*internal/" packages/sdk/src/types/` returns 0.
+- [ ] **Facade → local-agent routed through the `agent-factory-registry` port.** `agent.ts` / `agent-helpers.ts` no longer transitively import `internal/local-agent`; the `setAgentFacade` registry is the ONLY edge. Removes **madge cycle 3** (`a2a/subagent → agent.ts → … → real-local-run-tools`).
+- [ ] **#129 closed:** `isCodePlugin` / the fork contract moved to a neutral leaf both sides import one-way; `internal/local-agent ↔ internal/runtime/lifecycle/fork-agent` no longer mutually reference.
+- [ ] **`madge` reports 0 cycles** (down from 3); the `quality:cycles` gate threshold is tightened 3 → 0 so a new cycle fails the gate.
+- [ ] **Behavior-preserving:** `pnpm -w run validate` exit 0, `dependency-cruiser` 0 violations, full sdk suite green, **no public-API change** (public barrels byte-stable), CHANGELOG updated.
+
+**Dependencies:** SE43 ([x]) — the audit ran on the post-SE43 codebase (`@theokit/sdk@4.2.0`).
+
+**Top risks (new):**
+
+1. **Tightening the `quality:cycles` gate 3→0 could surface a latent cycle** the current ≤3 threshold masked. Mitigation: reach 0 cycles FIRST (verify with `madge`), then tighten the gate in the same commit.
+2. **Routing the facade edge touches the agent bootstrap path.** Mitigation: do it behind the enforced madge/depcruise gates, one edge per commit, full suite green each step (the SE43 incremental discipline).
+
+**Why now:** the `/loop-codebase-architect` audit (2026-07-16) scored the codebase 78/100 with this `types/→internal/` DIP inversion as the single highest-value fix — it is the root of 2 of the 3 madge cycles and is behavior-preservingly removable. Cheapest path to a perfect coupling + pattern-fit score.
+
+### SE46 — [ ] `internal/` structural cohesion (folder / cohesion / scalability / onboarding / testability → max)
+
+> Added 2026-07-16 by `/roadmap-feature` (slug: `internal-structural-cohesion`). Source: the 2026-07-16 `/loop-codebase-architect` audit (`architect-output/report.md`). Lifts **Folder-clarity 15→20**, **Cohesion 15→20**, **Scalability 8→10**, **Onboarding 4→5**, **Testability 9→10** — the remaining points to a perfect 100/100.
+
+**Objective:** Remove the structural-hygiene debt the audit found in `internal/`: the generic 19-submodule `internal/runtime` aggregation, the 7 homeless `internal/*.ts` root files, and the duplicate-concept modules. Behavior-preserving; no public-API change.
+
+**Definition of done:**
+
+- [ ] **`internal/runtime` no longer a generic 19-submodule catch-all.** Either cohesive sub-modules (`registry`, `memory`, `skills`) are promoted to `internal/*` siblings (continuing the SE43 decomposition) OR `internal/runtime` is renamed to reflect its true orchestration role. No single module aggregates heterogeneous concerns under a generic name.
+- [ ] **The 7 loose `internal/*.ts` root files grouped into cohesive home modules** (e.g. `internal/net` for http/ids, `internal/env` for env/fixture-mode) — 0 homeless files at `internal/` root.
+- [ ] **Duplicate concepts consolidated to one canonical home each:** `internal/budget` + `internal/runtime/budget`; `internal/observability` + `internal/telemetry`; `internal/tool-dispatch` (dir) + `internal/agent-loop/tool-dispatch.ts`.
+- [ ] **Testability preserved/improved:** the moves keep the DIP-registry / fixture-mode / port seams intact; full sdk suite green.
+- [ ] **Verified by re-audit:** re-running `/loop-codebase-architect packages/sdk/src` scores folder-clarity, cohesion, scalability, onboarding, and testability at their max (20/20/10/5/10), for an overall **100/100** together with SE45.
+- [ ] **Behavior-preserving:** `pnpm -w run validate` exit 0, `dependency-cruiser` 0 violations, `madge` 0 cycles (SE45), **no public-API change**, CHANGELOG updated.
+
+**Dependencies:** SE45 ([ ]) — reach 0 import cycles first, so the `internal/runtime` decomposition does not fight cycle regressions (SE43 proved moves are safe only behind a green cycle gate).
+
+**Top risks (new):**
+
+1. **Decomposing `internal/runtime` touches many relative import paths** (the SE43 lesson — the `../X` depth shifts are error-prone). Mitigation: one module per commit, scripted depth-shift + immediate `tsc` verify, full suite green each step.
+2. **Merging duplicate modules can break knip / dead-code detection or leave orphan barrels** (the SE43 review caught an orphan session barrel). Mitigation: run `quality:dead` + route consumers through the surviving module in the same commit.
+
+**Why now:** with SE45 taking coupling + pattern-fit to max, these five dimensions are the only remaining gap to a perfect architecture score. All are behavior-preserving structural hygiene on a codebase the audit already rated STRONG.
+
 ---
 
 ## References
