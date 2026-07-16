@@ -1053,7 +1053,7 @@ only what is missing:
 - [ ] Interaction with native thinking is documented + guarded: `reasoning: true` on a model already
       configured with `params:[{id:"thinking"}]` does NOT double-wrap (documented precedence; a test
       asserts no duplicate reasoning injection).
-- [ ] `docs.md` (source of truth) + a docs-site page under `/theokit/reasoning` covering all three
+- [ ] exported types + `docs/harness-capability-map.md` + a docs-site page under `/theokit/reasoning` covering all three
       approaches (native models / reasoning tools / `reasoning: true`).
 - [ ] A runnable `examples/reasoning` (reasoning tool + `reasoning: true`) executed **REAL against a
       real LLM (OpenRouter)** per `rules/real-llm-validation.md` — the reply shows the think tool

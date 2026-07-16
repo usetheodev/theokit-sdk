@@ -83,7 +83,7 @@ export type McpHttpServerConfig = {
 };
 
 /**
- * Union of MCP server configs. See `docs.md` for the full reference.
+ * Union of MCP server configs.
  *
  * @public
  */

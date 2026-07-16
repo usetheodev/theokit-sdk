@@ -205,4 +205,4 @@ an assertion there.
 
 ## Earlier versions
 
-Migration guides for pre-2.0 versions live in git history under `docs/migration/` (the docs set was trimmed — the code + `docs.md` are the living contract).
+Migration guides for pre-2.0 versions live in git history under `docs/migration/` (the docs set was trimmed — the code + the exported types are the living contract).

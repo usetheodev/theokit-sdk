@@ -1,6 +1,6 @@
 // Public API surface for @theokit/sdk.
 //
-// Single source of truth for the contract: docs.md at the repository root.
+// Single source of truth for the contract: the exported types below.
 // Locked names: see CLAUDE.md.
 
 // Agent façade

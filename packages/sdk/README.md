@@ -24,11 +24,11 @@
 
 > **Public beta.** APIs may change before general availability.
 
-For the full reference, see the [root README](../../README.md) and [`docs.md`](../../docs.md).
+For the full reference, see the [root README](../../README.md) and the [**Harness Capability Map**](../../docs/harness-capability-map.md). The exported TypeScript types are the canonical contract.
 
 ## Capability map
 
-New here? The [**Theo Harness Capability Map**](../../docs/harness-capability-map.md) is the discovery front-door — every harness primitive with its import path, signature, and a one-line example (find `compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ... without reading source). The exhaustive contract is [`docs.md`](../../docs.md).
+New here? The [**Theo Harness Capability Map**](../../docs/harness-capability-map.md) is the discovery front-door — every harness primitive with its import path, signature, and a one-line example (find `compactTranscript`, `buildRepoMap`, `isTransientError`, `@theokit/sdk/persistence`, ... without reading source). The exported TypeScript types are the canonical contract.
 
 ## Install
 
@@ -67,7 +67,7 @@ const agent = await Agent.create({
 // After runs finish, `claude --continue` picks up the same session on disk.
 ```
 
-Extended-thinking `--continue` is out of scope for now (thinking signatures are written but dropped on read — issue #122). See [`docs.md`](../../docs.md) § Session persistence.
+Extended-thinking `--continue` is out of scope for now (thinking signatures are written but dropped on read — issue #122). See the exported session-persistence types for the full contract.
 
 ## Schedule with cron
 
@@ -88,11 +88,11 @@ await Cron.create({
 await Cron.start();   // required for local jobs to fire
 ```
 
-Two runtimes: **local** (in-process scheduler — fires while the host process is alive) and **cloud** (Theo PaaS schedules server-side). See [`docs.md`](../../docs.md) for the full Cron contract.
+Two runtimes: **local** (in-process scheduler — fires while the host process is alive) and **cloud** (Theo PaaS schedules server-side). See the exported `Cron` types for the full contract.
 
 ## Status
 
-The full contract is defined in [`docs.md`](../../docs.md); see [`CHANGELOG.md`](./CHANGELOG.md) for the release history.
+The full contract is defined by the exported TypeScript types; see [`CHANGELOG.md`](./CHANGELOG.md) for the release history.
 
 ## License
 

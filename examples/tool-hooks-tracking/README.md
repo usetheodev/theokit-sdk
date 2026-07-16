@@ -34,4 +34,4 @@ onToolError: ({ toolName, callId, durationMs, error }) => {
 },
 ```
 
-See `docs.md` "Tool lifecycle hooks" section for the full contract.
+See the exported tool-lifecycle-hook types for the full contract.
