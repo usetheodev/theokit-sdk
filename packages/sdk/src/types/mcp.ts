@@ -1,3 +1,5 @@
+import type { EnvPolicy } from "./env-policy.js";
+
 /**
  * MCP server configuration accepted by `Agent.create()` and `agent.send()`.
  *
@@ -23,7 +25,7 @@ export type McpStdioServerConfig = {
    * exfiltrate host secrets via the environment. `env` above is merged AFTER the
    * policy and always wins. Pass `"all"` to restore full inheritance.
    */
-  envPolicy?: import("../internal/runtime/lifecycle/env-policy.js").EnvPolicy;
+  envPolicy?: EnvPolicy;
 };
 
 /**
