@@ -23,7 +23,7 @@ import { runInputProcessors } from "../runtime/processors/run-processors.js";
 import { createTripwireRun } from "../runtime/processors/tripwire-run.js";
 import { wrapRunWithOutputProcessors } from "../runtime/processors/wrap-output-run.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
-import { appendSessionMessage, getSessionMessages } from "../session/agent-session.js";
+import { appendSessionMessage, getSessionMessages } from "../session/index.js";
 import type { TelemetryHandle } from "../telemetry/tracer.js";
 import { consumePending } from "./local-agent-invalidate.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
