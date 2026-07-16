@@ -6,7 +6,7 @@
 import fc from "fast-check";
 import { describe, it } from "vitest";
 
-import { IterationBudget } from "../../../src/internal/runtime/budget/budget.js";
+import { IterationBudget } from "../../../src/internal/budget/tracker/budget.js";
 
 describe("IterationBudget — property invariants (T5.2)", () => {
   it("compression cap is never exceeded", () => {
