@@ -2,33 +2,33 @@ import {
   agentGenerate,
   type GenerateOptions,
   type GenerateRunResult,
-} from "../../../agent-generate.js";
+} from "../../agent-generate.js";
 import {
   ConfigurationError,
   UnknownAgentError,
   UnsupportedRunOperationError,
-} from "../../../errors.js";
+} from "../../errors.js";
 import type {
   AgentOptions,
   ModelSelection,
   SDKAgent,
   SDKArtifact,
   SystemPromptContext,
-} from "../../../types/agent.js";
-import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
-import { resolveApiKey } from "../../env.js";
-import { getConfiguredBaseUrl, isFixtureApiKey } from "../../fixture-mode.js";
-import { generateCloudAgentId } from "../../ids.js";
-import { withCwdMutex } from "../../persistence/cwd-mutex.js";
-import { PathTraversalError, validateArtifactPath } from "../../security/path-guard.js";
-import { DEFAULT_AGENTIC_MODEL_ID } from "../config/default-model.js";
-import { normalizeModel } from "../model-selection.js";
+} from "../../types/agent.js";
+import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import { resolveApiKey } from "../env.js";
+import { getConfiguredBaseUrl, isFixtureApiKey } from "../fixture-mode.js";
+import { generateCloudAgentId } from "../ids.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/config/default-model.js";
+import { normalizeModel } from "../runtime/model-selection.js";
 import {
   flushRegistrySaves,
   registerAgent,
   updateRegisteredAgent,
-} from "../registry/agent-registry.js";
-import { resolveSystemPromptForSend } from "../system-prompt/system-prompt.js";
+} from "../runtime/registry/agent-registry.js";
+import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
+import { PathTraversalError, validateArtifactPath } from "../security/path-guard.js";
 import { serializeCloudAgentConfig } from "./cloud-config-serializer.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";
 import { createCloudRun } from "./cloud-run.js";
@@ -117,7 +117,7 @@ export class CloudAgent implements SDKAgent {
     }
     // D370: Task wrapping is local-only in v1 (cloud runtime pre-release).
     if (options.task !== undefined) {
-      const { UnsupportedTaskOperationError } = await import("../../../errors.js");
+      const { UnsupportedTaskOperationError } = await import("../../errors.js");
       throw new UnsupportedTaskOperationError("send", { cause: undefined });
     }
     // ADR D19: same per-agent send mutex as LocalAgent. Holds until the run

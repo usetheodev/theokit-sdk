@@ -1,18 +1,12 @@
-import { NetworkError } from "../../../errors.js";
-import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
-import type { SDKAssistantMessage, SDKMessage, SDKStatusMessage } from "../../../types/messages.js";
-import type {
-  Run,
-  RunOperation,
-  RunStatus,
-  SDKUserMessage,
-  SendOptions,
-} from "../../../types/run.js";
-import { resolveApiKey } from "../../env.js";
-import { getConfiguredBaseUrl } from "../../fixture-mode.js";
-import { parseSseStream } from "../../llm/sse.js";
-import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
-import type { FixtureScript } from "../fixtures/fixture-types.js";
+import { NetworkError } from "../../errors.js";
+import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { SDKAssistantMessage, SDKMessage, SDKStatusMessage } from "../../types/messages.js";
+import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
+import { resolveApiKey } from "../env.js";
+import { getConfiguredBaseUrl } from "../fixture-mode.js";
+import { parseSseStream } from "../llm/sse.js";
+import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
+import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
 import type { CloudAgentPayload } from "./cloud-payload-types.js";
 
 /**

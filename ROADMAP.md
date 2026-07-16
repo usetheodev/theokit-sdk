@@ -1257,7 +1257,7 @@ real-`claude-code-log`-parser round-trip gate).
 - **SE42 — extended-thinking `--continue`** (thinking `signature` capture): **provider-blocked** — the
   SDK does not capture the thinking signature today (issue **#122**). Needs provider-layer work; text +
   tool sessions resume without it.
-- **SE43 — migration importer** for old `.theokit/agents/<id>/messages.jsonl` sessions → the new format.
+- **SE44 — migration importer** for old `.theokit/agents/<id>/messages.jsonl` sessions → the new format. (Renumbered from SE43 on 2026-07-15: SE43 was taken by the formal System-design audit fixes milestone; this deferred idea moves to the next free id.)
 - read-adapters for a peer project / codex (translate native ⇄ their formats); sidecar dirs `file-history/` +
   `todos/` (file-undo / plan surfaces, NOT conversation `--continue`); the 30-day `cleanupPeriodDays`
   policy.
