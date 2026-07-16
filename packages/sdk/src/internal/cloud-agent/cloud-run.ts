@@ -1,4 +1,4 @@
-import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
+import type { AgentOptions, ModelSelection } from "../../types/agent.js";
 import type {
   Run,
   RunGitInfo,
@@ -6,13 +6,13 @@ import type {
   RunResult,
   SDKUserMessage,
   SendOptions,
-} from "../../../types/run.js";
-import { buildFixtureScript } from "../fixtures/fixture-responder.js";
+} from "../../types/run.js";
+import { buildFixtureScript } from "../runtime/fixtures/fixture-responder.js";
 import {
   FixtureRunBase,
   type FixtureRunBaseOptions,
   prepareRunContext,
-} from "../fixtures/fixture-run-base.js";
+} from "../runtime/fixtures/fixture-run-base.js";
 
 /**
  * Options accepted by `createCloudRun()`.
