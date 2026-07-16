@@ -105,3 +105,5 @@ packages/acp/tests/_smoke-entry.mjs
 
 # Reference peers — read-only study clones (like .claude/knowledge-base/reference/); catalog lives in ROADMAP.md
 knowledge-base/references/*/
+system-design-output/
+cross-validation-output/

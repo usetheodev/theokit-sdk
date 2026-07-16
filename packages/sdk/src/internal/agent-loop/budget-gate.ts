@@ -1,4 +1,4 @@
-import type { BudgetCheck, BudgetTracker } from "../runtime/budget/budget-tracker.js";
+import type { BudgetCheck, BudgetTracker } from "../budget/tracker/budget-tracker.js";
 
 /**
  * Pre-flight budget gate evaluated before each agent-loop iteration.

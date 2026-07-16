@@ -18,7 +18,7 @@ import { describe, expect, it, vi } from "vitest";
 // Type imported from src (not the dist barrel) so typecheck sees the new
 // optional `nextIteration` member before a rebuild — repo convention
 // (cf. agent-loop-budget-gate.test.ts).
-import type { BudgetTracker } from "../src/internal/runtime/budget/budget-tracker.js";
+import type { BudgetTracker } from "../src/internal/budget/tracker/budget-tracker.js";
 import type { RunResult, SendOptions } from "../src/types/run.js";
 
 /** Mirror of the per-turn advance the loop performs after `budget.consume()`. */

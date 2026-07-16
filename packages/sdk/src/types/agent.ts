@@ -588,7 +588,7 @@ export interface AgentOptions {
    *
    * @public
    */
-  budgetTracker?: import("../internal/runtime/budget/budget-tracker.js").BudgetTracker;
+  budgetTracker?: import("../internal/budget/tracker/budget-tracker.js").BudgetTracker;
 
   /**
    * Pluggable memory subsystem (SDK 2.0 Phase 1 / T1.3 — Hexagonal
