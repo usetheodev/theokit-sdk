@@ -16,7 +16,7 @@ import type { PersonalityPreset } from "../personality/types.js";
 import type { PluginManager } from "../plugins/manager.js";
 import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
 import type { MemoryFact } from "../runtime/memory/memory-store.js";
-import { getSessionMessages } from "../session/agent-session.js";
+import { getSessionMessages } from "../session/index.js";
 import { createLocalRun } from "./local-run.js";
 import { createRealLocalRun } from "./real-local-run.js";
 
