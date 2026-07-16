@@ -1312,7 +1312,7 @@ multi-host / multi-pod deployments need external-store resume, and the only curr
 shared/replicated `baseDir` (network volume) — is not viable on serverless/edge. This is a conscious
 evolution of the SE40 removal: the minimal seam over the native format, not a revert of the old adapter.
 
-### SE43 — [ ] System-design audit fixes (runtime blast-radius + monorepo hygiene)
+### SE43 — [x] System-design audit fixes (runtime blast-radius + monorepo hygiene)
 
 > Added 2026-07-15 by `/roadmap-feature` (slug: `system-design-audit-fixes`). See CHANGELOG `[Unreleased] § Added`. (SE42 is reserved for extended-thinking `--continue` / thinking-signature, #122.)
 
