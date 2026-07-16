@@ -1,6 +1,6 @@
-import { ConfigurationError } from "../../../errors.js";
-import type { AgentOptions } from "../../../types/agent.js";
-import type { McpServerConfig } from "../../../types/mcp.js";
+import { ConfigurationError } from "../../errors.js";
+import type { AgentOptions } from "../../types/agent.js";
+import type { McpServerConfig } from "../../types/mcp.js";
 
 /**
  * Cloud tool parity validator (ADR D15 + D16).

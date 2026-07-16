@@ -1,6 +1,6 @@
-import type { AgentOptions } from "../../../types/agent.js";
-import { enabledPluginNames } from "../../plugins/enabled-names.js";
-import { normalizeModel } from "../model-selection.js";
+import type { AgentOptions } from "../../types/agent.js";
+import { enabledPluginNames } from "../plugins/enabled-names.js";
+import { normalizeModel } from "../runtime/model-selection.js";
 import type {
   CloudAgentPayload,
   HookRule,
