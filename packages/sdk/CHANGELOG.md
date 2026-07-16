@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.2.2
+
+### Patch Changes
+
+- Internal cleanup + dead-code hardening (no public-API change; exported names byte-stable).
+
+  - Removed 21 dead internal symbols the `quality:dead` gate could not see (knip ignores `src/internal/**`), plus dead test-seam helpers, with cascade cleanups.
+  - Added a `quality:dead-internal` gate (`tools/check-internal-deadcode.mjs`) that fails the build on any orphaned `**/internal/**` export OR unused private top-level declaration — closing the internal dead-code blind-spot.
+  - Tightened `tsconfig.base.json` (`noUnusedLocals` + `noUnusedParameters` + `allowUnreachableCode: false`) and removed the write-only `_truncated` flag in `@theokit/sdk-tools` shell-exec (capping behavior unchanged).
+  - Repo/docs hygiene: trimmed `docs/` to 3 files (the code is the documentation), consolidated the knowledge base, and cleaned repository history.
+
 ## 4.2.1
 
 ### Patch Changes
