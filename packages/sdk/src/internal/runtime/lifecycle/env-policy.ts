@@ -20,7 +20,12 @@
  * @internal
  */
 
-export type EnvPolicy = "inherit-scrubbed" | "core" | "all";
+import type { EnvPolicy } from "../../../types/env-policy.js";
+
+// The `EnvPolicy` contract now lives in the domain `types/` layer (SE46 DIP
+// direction). Re-exported here so existing importers of this module keep
+// resolving the same name.
+export type { EnvPolicy } from "../../../types/env-policy.js";
 
 export interface ResolveChildEnvOptions {
   /** Source env to derive from. Defaults to `process.env`. */
