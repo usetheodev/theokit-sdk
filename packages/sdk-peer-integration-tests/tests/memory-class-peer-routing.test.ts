@@ -18,9 +18,8 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { Memory } from "@theokit/sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
-import { Memory } from "../src/memory.js";
 
 async function hasNativeStack(): Promise<boolean> {
   try {
@@ -39,11 +38,9 @@ describe("sdk-core Memory class peer routing (iter 77, Phase 4 #2)", () => {
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "sdk-memory-routing-"));
-    resetSdkMemoryPeerCacheForTests();
   });
   afterEach(async () => {
     await rm(cwd, { recursive: true, force: true });
-    resetSdkMemoryPeerCacheForTests();
   });
 
   describe("openIndex peer routing", () => {
