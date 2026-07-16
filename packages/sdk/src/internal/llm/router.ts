@@ -1,10 +1,5 @@
 import { ConfigurationError } from "../../errors.js";
-import {
-  discoverProviderPlugins,
-  getProviderProfile,
-  type ProviderProfile,
-  registerBuiltins,
-} from "../providers/index.js";
+import { getProviderProfile, type ProviderProfile, registerBuiltins } from "../providers/index.js";
 import { AnthropicClient } from "./anthropic.js";
 import { BedrockAnthropicClient } from "./bedrock-anthropic.js";
 import { CredentialPool, newPooledCredential } from "./credential-pool.js";
@@ -52,18 +47,10 @@ export interface ProviderRouterOptions {
   onRateLimit?: (info: { attempt: number; retryAfterMs?: number }) => void;
 }
 
-export async function resolveProviderChainAsync(
-  options: ProviderRouterOptions,
-): Promise<LlmClient[]> {
-  registerBuiltins();
-  await discoverProviderPlugins();
-  return buildChain(options);
-}
-
 /**
- * Sync variant. Kept for backward compat with existing callers that
- * already invoked discovery upfront (e.g., via Agent.create initialization).
- * Builtins are still eagerly registered.
+ * Resolves the provider chain synchronously. Builtins are eagerly registered.
+ * Provider plugin discovery is expected to have run upfront (e.g., via
+ * Agent.create initialization) before this is called.
  */
 export function resolveProviderChain(options: ProviderRouterOptions): LlmClient[] {
   registerBuiltins();

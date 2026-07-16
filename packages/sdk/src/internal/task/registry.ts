@@ -100,12 +100,6 @@ export function __getSubscribersCountForTests(taskId: string): number {
   return state.subscribers.get(taskId)?.size ?? 0;
 }
 
-export function __getCancelRequestedForTests(_taskId: string): boolean | undefined {
-  // Best-effort: only meaningful for backends that persist the flag.
-  // For in-memory check via store read.
-  return undefined;
-}
-
 export function configure(opts: TaskRegistryOptions): void {
   if (state.firstSubmitSeen) {
     process.stderr.write(
@@ -475,8 +469,3 @@ export const subscribe = buildSubscribe({
     if (set !== undefined && set.size === 0) state.subscribers.delete(id);
   },
 });
-
-/** Manual trigger for tests. */
-export async function evictNow(now: number = Date.now()): Promise<number> {
-  return state.store.evictTerminalOlderThan(now - state.retentionMs);
-}

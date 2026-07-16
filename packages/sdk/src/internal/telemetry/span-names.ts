@@ -44,5 +44,3 @@ export const HISTOGRAM_NAMES = {
   /** M3 #66 — count of finishes where the provider omitted usage (silent undercount). */
   LLM_USAGE_MISSING: "theokit_llm_usage_missing",
 } as const;
-
-export type HistogramName = (typeof HISTOGRAM_NAMES)[keyof typeof HISTOGRAM_NAMES];

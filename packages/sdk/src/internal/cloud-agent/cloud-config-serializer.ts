@@ -3,7 +3,6 @@ import { enabledPluginNames } from "../plugins/enabled-names.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import type {
   CloudAgentPayload,
-  HookRule,
   McpHttpRedacted,
   McpStdioRedacted,
   MemoryPayload,
@@ -208,18 +207,4 @@ function serializeMemory(memory: AgentOptions["memory"]): MemoryPayload | undefi
     result.index = index;
   }
   return result;
-}
-
-/**
- * Hook rules pass-through. Universal `programmatic_hooks_rejected` validation
- * happens upstream in `validateAgentOptions`; if hooks reach the serializer
- * they're guaranteed declarative-only.
- *
- * @internal
- */
-export function serializeHookRules(_hooks: unknown): ReadonlyArray<HookRule> | undefined {
-  // Reserved for future file-based hook serialization. Today programmatic
-  // hooks are rejected upstream; file-based hooks are read by PaaS from the
-  // cloned repo (.theokit/hooks.json).
-  return undefined;
 }

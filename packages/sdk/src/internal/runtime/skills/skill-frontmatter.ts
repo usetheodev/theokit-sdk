@@ -35,8 +35,6 @@ export interface SkillFrontmatter {
   dependencies?: string[];
 }
 
-export type SkillFrontmatterErrorCode = "missing_frontmatter" | "schema_invalid";
-
 /**
  * Parse a SKILL.md file body into validated frontmatter.
  *

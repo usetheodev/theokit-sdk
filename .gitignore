@@ -107,3 +107,6 @@ packages/acp/tests/_smoke-entry.mjs
 knowledge-base/references/*/
 system-design-output/
 cross-validation-output/
+
+# loop-deadcode-audit plugin output (transient, regenerable)
+deadcode-output/
