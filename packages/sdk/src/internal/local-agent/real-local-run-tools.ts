@@ -15,16 +15,16 @@ import {
   type InheritedCredentials,
   inheritSubAgentCredentials,
   subAgentToolsFromDefinitions,
-} from "../../../a2a/subagent.js";
+} from "../../a2a/subagent.js";
 import type {
   AgentDefinition,
   AgentOptions,
   CustomTool,
   ModelSelection,
-} from "../../../types/agent.js";
-import type { CustomToolSpec } from "../../agent-loop/loop-types.js";
-import { applyPersonalityFilter } from "../../tool-registry/personality-filter.js";
-import { createThinkTool, reasoningActive } from "../reasoning/native-reasoning.js";
+} from "../../types/agent.js";
+import type { CustomToolSpec } from "../agent-loop/loop-types.js";
+import { createThinkTool, reasoningActive } from "../runtime/reasoning/native-reasoning.js";
+import { applyPersonalityFilter } from "../tool-registry/personality-filter.js";
 
 /**
  * Declarative subagents become delegation tools for the local runtime — each
@@ -63,7 +63,7 @@ function bindParentCredentials(tools: ReadonlyArray<CustomTool>, agentOptions: A
 export function buildCustomToolsInput(
   agentOptions: AgentOptions,
   sendOptions: { tools?: CustomTool[] } | undefined,
-  pluginManager: import("../../plugins/manager.js").PluginManager | undefined,
+  pluginManager: import("../plugins/manager.js").PluginManager | undefined,
   personalityToolWhitelist: ReadonlyArray<string> | undefined,
   agentId: string,
   personalityName: string | undefined,

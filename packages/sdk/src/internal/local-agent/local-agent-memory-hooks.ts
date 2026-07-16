@@ -11,9 +11,9 @@
  * @internal
  */
 
-import type { AgentOptions } from "../../../types/agent.js";
-import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
-import type { PluginManager } from "../../plugins/manager.js";
+import type { AgentOptions } from "../../types/agent.js";
+import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import type { PluginManager } from "../plugins/manager.js";
 
 const DEFAULT_MAX_RECALL_BYTES = 16_000;
 

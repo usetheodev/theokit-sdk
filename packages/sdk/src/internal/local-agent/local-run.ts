@@ -1,17 +1,11 @@
-import type { AgentDefinition, AgentOptions, ModelSelection } from "../../../types/agent.js";
-import type {
-  Run,
-  RunOperation,
-  RunStatus,
-  SDKUserMessage,
-  SendOptions,
-} from "../../../types/run.js";
-import { DEFAULT_AGENTIC_MODEL_ID } from "../config/default-model.js";
-import { buildFixtureScript } from "../fixtures/fixture-responder.js";
-import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
-import type { MemoryFact } from "../memory/memory-store.js";
-import { registerRun } from "../registry/run-registry.js";
-import type { SessionMessage } from "../session/agent-session.js";
+import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
+import { DEFAULT_AGENTIC_MODEL_ID } from "../runtime/config/default-model.js";
+import { buildFixtureScript } from "../runtime/fixtures/fixture-responder.js";
+import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
+import type { MemoryFact } from "../runtime/memory/memory-store.js";
+import { registerRun } from "../runtime/registry/run-registry.js";
+import type { SessionMessage } from "../runtime/session/agent-session.js";
 
 /**
  * Options accepted by `createLocalRun()`.

@@ -2,52 +2,52 @@ import {
   agentGenerate,
   type GenerateOptions,
   type GenerateRunResult,
-} from "../../../agent-generate.js";
-import { ConfigurationError, UnsupportedRunOperationError } from "../../../errors.js";
+} from "../../agent-generate.js";
+import { ConfigurationError, UnsupportedRunOperationError } from "../../errors.js";
 import type {
   AgentDefinition,
   AgentOptions,
   ModelSelection,
   SDKAgent,
   SDKArtifact,
-} from "../../../types/agent.js";
-import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
-import type { SessionStore } from "../../../types/session-store.js";
-import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
-import { generateLocalAgentId } from "../../ids.js";
-import { withCwdMutex } from "../../persistence/cwd-mutex.js";
-import { FsSessionStore } from "../../persistence/fs-session-store.js";
-import { defaultBaseDir, expandTilde } from "../../persistence/session-transcript.js";
-import type { PersonalityRegistry } from "../../personality/registry.js";
-import { PersonalityStore } from "../../personality/store.js";
-import type { PersonalityPreset } from "../../personality/types.js";
-import { PluginManager } from "../../plugins/manager.js";
-import { SPAN_NAMES } from "../../telemetry/span-names.js";
-import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../../telemetry/tracer.js";
-import type { ProvidersManagerImpl } from "../config/providers-manager.js";
-import type { FileContextManager } from "../context/context-manager.js";
-import { HooksExecutor } from "../hooks/hooks-executor.js";
-import { runPostRunLifecycle } from "../lifecycle/post-run-lifecycle.js";
+} from "../../types/agent.js";
+import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import type { SessionStore } from "../../types/session-store.js";
+import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { generateLocalAgentId } from "../ids.js";
+import { withCwdMutex } from "../persistence/cwd-mutex.js";
+import { FsSessionStore } from "../persistence/fs-session-store.js";
+import { defaultBaseDir, expandTilde } from "../persistence/session-transcript.js";
+import type { PersonalityRegistry } from "../personality/registry.js";
+import { PersonalityStore } from "../personality/store.js";
+import type { PersonalityPreset } from "../personality/types.js";
+import { PluginManager } from "../plugins/manager.js";
+import type { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
+import type { FileContextManager } from "../runtime/context/context-manager.js";
+import { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
+import { runPostRunLifecycle } from "../runtime/lifecycle/post-run-lifecycle.js";
 import {
   resolveMemoryProviderForLoop,
   shouldUsePortMemoryPath,
-} from "../memory/memory-path-selector.js";
-import type { MemoryFact } from "../memory/memory-store.js";
-import { normalizeModel } from "../model-selection.js";
-import type { PluginMetadata, PluginsManager } from "../plugins/plugins-manager.js";
-import { flushRegistrySaves, updateRegisteredAgent } from "../registry/agent-registry.js";
-import { liveAgentRegistry } from "../registry/live-agent-registry.js";
-import { flushSessionWrites, hydrateSession } from "../session/agent-session.js";
-import type { SkillsHandle, SkillsManager } from "../skills/skills-manager.js";
-import { loadSubagents } from "../skills/subagents-loader.js";
+} from "../runtime/memory/memory-path-selector.js";
+import type { MemoryFact } from "../runtime/memory/memory-store.js";
+import { normalizeModel } from "../runtime/model-selection.js";
+import type { PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
+import { flushRegistrySaves, updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
+import { liveAgentRegistry } from "../runtime/registry/live-agent-registry.js";
+import { flushSessionWrites, hydrateSession } from "../runtime/session/agent-session.js";
+import type { SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
+import { loadSubagents } from "../runtime/skills/subagents-loader.js";
 import {
   assembleSystemPromptForSend as assembleSystemPromptForSendHelper,
   buildSystemPromptContext as buildSystemPromptContextHelper,
   type LocalAssemblyInputs,
-} from "../system-prompt/local-assembly.js";
-import { SystemPromptPipeline } from "../system-prompt/pipeline.js";
-import { resolveSystemPromptForSend } from "../system-prompt/system-prompt.js";
-import { validateToolCatalog } from "../validation/validate-agent-options.js";
+} from "../runtime/system-prompt/local-assembly.js";
+import { SystemPromptPipeline } from "../runtime/system-prompt/pipeline.js";
+import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
+import { validateToolCatalog } from "../runtime/validation/validate-agent-options.js";
+import { SPAN_NAMES } from "../telemetry/span-names.js";
+import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
@@ -84,7 +84,7 @@ export class LocalAgent implements SDKAgent {
   providers?: ProvidersManagerImpl;
   skills?: SkillsHandle;
   plugins?: { list: () => Promise<PluginMetadata[]> };
-  memory?: import("../../../types/memory-adapter.js").AgentMemory;
+  memory?: import("../../types/memory-adapter.js").AgentMemory;
 
   private readonly options: AgentOptions;
   private readonly workspaceCwd: string;
@@ -393,7 +393,7 @@ export class LocalAgent implements SDKAgent {
     memoryFacts: ReadonlyArray<MemoryFact>,
     priorMessages: ReadonlyArray<{ role: "user" | "assistant"; text: string }>,
     memoryTools: ReadonlyArray<MemoryToolSpec> | undefined,
-    memoryProviderOverride?: import("../memory/memory-provider.js").MemoryProvider,
+    memoryProviderOverride?: import("../runtime/memory/memory-provider.js").MemoryProvider,
   ): Promise<Run> {
     // SDK 2.0 Phase 1 physical Stage 2b — iter 23 KERNEL FLIP:
     // When `memoryProviderOverride` is supplied (env-flag path), inject
@@ -508,13 +508,13 @@ export class LocalAgent implements SDKAgent {
   downloadArtifact(_path: string): Promise<Buffer> { return Promise.reject(new UnsupportedRunOperationError("Artifacts are not supported for local agents", "downloadArtifact")); }
 
   // biome-ignore format: G8 budget — delegates to `local-agent-runtime-extensions.ts`; kept 1-line.
-  runUntil(goal?: string, options?: import("../../../types/goal-events.js").GoalOptions): import("../../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
+  runUntil(goal?: string, options?: import("../../types/goal-events.js").GoalOptions): import("../../types/goal-events.js").RunUntilIterator { return localAgentRunUntil(this, goal, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
-  fork(options: import("../lifecycle/fork-agent.js").ForkOptions): Promise<import("../lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
+  fork(options: import("../runtime/lifecycle/fork-agent.js").ForkOptions): Promise<import("../runtime/lifecycle/fork-agent.js").ForkResult> { return localAgentFork({ agentId: this.agentId, options: this.options, personalitySlugSnapshot: this.personalityStore.active(this.agentId) }, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
-  runToCompletion(message: string, options?: import("../../../types/run.js").RunToCompletionOptions): Promise<import("../../../types/run.js").RunToCompletionResult> { return localAgentRunToCompletion(this, message, options); }
+  runToCompletion(message: string, options?: import("../../types/run.js").RunToCompletionOptions): Promise<import("../../types/run.js").RunToCompletionResult> { return localAgentRunToCompletion(this, message, options); }
   // biome-ignore format: G8 budget — see runUntil comment above.
-  streamToCompletion(message: string, options?: import("../../../types/run.js").RunToCompletionOptions): AsyncGenerator<import("../../../types/messages.js").SDKMessage, import("../../../types/run.js").StreamToCompletionResult> { return localAgentStreamToCompletion(this, message, options); }
+  streamToCompletion(message: string, options?: import("../../types/run.js").RunToCompletionOptions): AsyncGenerator<import("../../types/messages.js").SDKMessage, import("../../types/run.js").StreamToCompletionResult> { return localAgentStreamToCompletion(this, message, options); }
 }
 
 function resolveCwd(cwd: string | string[] | undefined): string {

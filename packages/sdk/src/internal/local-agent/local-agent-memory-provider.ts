@@ -26,9 +26,8 @@
  * in Stage 3.
  */
 
-import type { AgentOptions, CustomTool, SDKAgent } from "../../../types/agent.js";
-import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
-import type { TelemetryHandle } from "../../telemetry/tracer.js";
+import type { AgentOptions, CustomTool, SDKAgent } from "../../types/agent.js";
+import { writeSessionSummary } from "../memory/storage/session-summary-writer.js";
 import type {
   ActiveMemoryPassArgs,
   ActiveMemoryPassResult,
@@ -36,7 +35,8 @@ import type {
   MemoryProviderHandle,
   MemoryProviderInitOptions,
   RecordSessionSummaryArgs,
-} from "../memory/memory-provider.js";
+} from "../runtime/memory/memory-provider.js";
+import type { TelemetryHandle } from "../telemetry/tracer.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 
 const INTERNAL_LAM_KEY = Symbol("sdk-core.local-agent-memory-provider.glue");

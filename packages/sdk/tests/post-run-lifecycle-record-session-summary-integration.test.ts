@@ -19,10 +19,10 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocalAgentMemory } from "../src/internal/local-agent/local-agent-memory.js";
 import { FsSessionStore } from "../src/internal/persistence/fs-session-store.js";
 import { HooksExecutor } from "../src/internal/runtime/hooks/hooks-executor.js";
 import { runPostRunLifecycle } from "../src/internal/runtime/lifecycle/post-run-lifecycle.js";
-import { LocalAgentMemory } from "../src/internal/runtime/local-agent/local-agent-memory.js";
 import type {
   MemoryProvider,
   RecordSessionSummaryArgs,

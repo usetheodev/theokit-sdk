@@ -11,7 +11,7 @@ import {
 } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
-import { LocalAgent } from "./internal/runtime/local-agent/local-agent.js";
+import { LocalAgent } from "./internal/local-agent/index.js";
 import { normalizeModel } from "./internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,
