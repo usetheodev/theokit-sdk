@@ -4,6 +4,10 @@
  * @internal
  */
 
+// SE45/SE46 — `MemoryProviderFactory` (@internal) is sourced from the contract
+// module directly; the `./types.js` shim omits it (a stripped-internal re-export
+// trips rollup-plugin-dts). See ./types.ts.
+export type { MemoryProviderFactory } from "../../types/plugin.js";
 export { createPluginContext, type PluginRegistrations } from "./context.js";
 export { runFireAndForgetHooks, runTransformHooks } from "./lifecycle.js";
 export {
@@ -18,7 +22,6 @@ export {
   definePlugin,
   type HookHandler,
   type HookName,
-  type MemoryProviderFactory,
   Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
