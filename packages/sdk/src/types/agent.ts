@@ -16,11 +16,11 @@ export type {
   ToolContextMessage,
 } from "./agent-prims.js";
 
-// Code `Plugin` objects (the array form of `AgentOptions.plugins`) are the
-// public discriminated union re-exported from the barrel. Type-only import —
-// erased at compile, so the types↔internal reference introduces no runtime cycle.
-import type { Plugin } from "../internal/plugins/types.js";
 import type { CustomTool, ModelSelection } from "./agent-prims.js";
+// Code `Plugin` objects (the array form of `AgentOptions.plugins`) are the
+// public discriminated union. SE45/SE46 — sourced from the sibling `./plugin.ts`
+// contract module so no `types/*.ts` file reaches into `internal/`.
+import type { Plugin } from "./plugin.js";
 // SE46 — the SDKAgent surface cluster lives in ./sdk-agent.ts (extracted from this
 // god-file to break the memory-provider madge cycle). agent.ts imports the ones it
 // uses internally, and re-exports the whole cluster so every existing importer of
