@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://usetheo.dev">
-    <img src="https://usetheo.dev/logo.png" alt="Theo" height="80" />
+    <img src="https://usetheo.dev/logo-128.png" alt="Theo" height="80" />
   </a>
 </p>
 
