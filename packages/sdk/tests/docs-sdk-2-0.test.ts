@@ -3,7 +3,7 @@
  *
  * Verifies the docs artifacts ship with the expected structure:
  *   - packages/README.md lists every workspace package by name.
- *   - docs/migration/1-x-to-2-0.md has the codemod snippet + before/after pairs.
+ *   - satellite READMEs (sdk-cache, sdk-tools) self-describe their package.
  *   - Both sdk-cache and sdk-tools READMEs reference their package name.
  */
 
@@ -17,7 +17,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, "..", "..", "..");
 const packagesDir = join(repoRoot, "packages");
 const packagesReadme = join(packagesDir, "README.md");
-const migrationGuide = join(repoRoot, "docs", "migration", "1-x-to-2-0.md");
 
 describe("SDK 2.0 docs (Phase 9 / T9.1)", () => {
   it("test_packages_readme_exists", () => {
@@ -66,35 +65,10 @@ describe("SDK 2.0 docs (Phase 9 / T9.1)", () => {
     expect(content).toMatch(/^\|\s*10\s*\|/m);
   });
 
-  it("test_migration_guide_exists", () => {
-    expect(existsSync(migrationGuide)).toBe(true);
-    const content = readFileSync(migrationGuide, "utf-8");
-    expect(content.length).toBeGreaterThan(2000);
-  });
-
-  it("test_migration_guide_has_codemod_snippet", () => {
-    const content = readFileSync(migrationGuide, "utf-8");
-    expect(content).toMatch(/jscodeshift -t.*1-x-to-2-0\.cjs/);
-  });
-
-  it("test_migration_guide_has_before_after_blocks — at least 4 diff blocks", () => {
-    const content = readFileSync(migrationGuide, "utf-8");
-    // Count fenced diff/typescript blocks
-    const diffBlocks = content.match(/```diff[\s\S]*?```/g) ?? [];
-    expect(diffBlocks.length).toBeGreaterThanOrEqual(4);
-  });
-
-  it("test_migration_guide_documents_budget_silent_break", () => {
-    const content = readFileSync(migrationGuide, "utf-8");
-    expect(content).toMatch(/budgetTracker/i);
-    expect(content).toMatch(/silent.*break|silent.*change/i);
-  });
-
-  it("test_migration_guide_documents_handoff_removal", () => {
-    const content = readFileSync(migrationGuide, "utf-8");
-    expect(content).toMatch(/Handoff\.asPlugin/);
-    expect(content).toMatch(/handoffs.*removed/i);
-  });
+  // NOTE: the docs/migration/1-x-to-2-0.md validation tests were removed when the
+  // docs/ set was trimmed to 3 files (code is the documentation; the 1.x→2.0
+  // migration lives in git history + CHANGELOG). The codemod itself
+  // (@theokit/codemod-sdk-2-0) is still tested by its own package suite.
 
   it("test_sdk_cache_readme_self_describes", () => {
     const readme = join(packagesDir, "sdk-cache", "README.md");

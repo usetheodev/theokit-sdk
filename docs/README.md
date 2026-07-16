@@ -1,64 +1,14 @@
 # `@theokit/sdk` documentation
 
-Official documentation for `@theokit/sdk` — the TypeScript SDK for the Theo agent harness.
+The canonical, machine-readable API contract is **[`../docs.md`](../docs.md)** — the source of truth for every public symbol and subpath. Beyond it, **the code is the documentation**: the public API is self-describing (typed, JSDoc'd), and the runnable [`examples/`](../examples/) show every surface end-to-end.
 
-> **Public beta.** APIs may change before general availability. The canonical machine-readable contract lives at [`../docs.md`](../docs.md); this folder is the human-friendly version.
+This folder is intentionally minimal — three files, no prose doc-site to drift out of sync with the code:
 
----
+- **[`../docs.md`](../docs.md)** — full source-of-truth API spec for every public subpath.
+- **[Capability map](./harness-capability-map.md)** — every public primitive + its import path, at a glance.
+- **[Error codes](./error-codes.md)** — the canonical `AgentRunError.code` reference table.
 
-## Getting started
-
-- [Installation](./getting-started/installation.md) — install the package, satisfy peer dependencies, verify the setup
-- [Quickstart](./getting-started/quickstart.md) — your first local agent, streaming events
-- [Authentication](./getting-started/authentication.md) — `THEOKIT_API_KEY`, user keys vs service accounts
-
-## Core concepts
-
-- [Agent and Run](./concepts/agent-and-run.md) — the two primitives the SDK is built on
-- [Runtimes](./concepts/runtimes.md) — local vs cloud, how to pick, runtime detection rules
-- [Stream events](./concepts/stream-events.md) — `SDKMessage`, `InteractionUpdate`, `ConversationTurn`
-
-## Guides
-
-- [Workflows](./guides/workflows.md) — typed resumable pipelines (`.then`, `.stream()`, state, suspend/resume, compose)
-- [Subscriptions](./guides/subscriptions.md) — server-pushed typed streams with resume tokens
-- [Cron jobs](./guides/cron-jobs.md) — schedule agent runs (or a workflow) with cron expressions
-- [MCP servers](./guides/mcp-servers.md) — inline and file-based MCP configuration
-- [Subagents](./guides/subagents.md) — named subagents + programmatic delegation (hooks, messageFilter)
-- [Context manager](./guides/context-manager.md) — file-based project context and public snapshots
-- [Memory](./guides/memory.md) — durable facts isolated by namespace, user, and scope
-- [Skills](./guides/skills.md) — file-based capability packs loaded from `.theokit/skills`
-- [Hooks](./guides/hooks.md) — file-based project policy boundaries
-- [Error handling](./guides/error-handling.md) — `TheokitAgentError` hierarchy, retry strategy
-- [Resource management](./guides/resource-management.md) — `await using`, `dispose()`, lifecycle
-
-## Reference
-
-- [Canonical contract (`docs.md`)](../docs.md) — full source-of-truth API spec for every public subpath
-- [API overview](./reference/README.md) — pointer to per-namespace details
-- [Capability map](./harness-capability-map.md) — every public primitive + its import path, at a glance
-- [Error codes](./error-codes.md) — the canonical `AgentRunError.code` reference
-- [Stream events](./reference/stream-events.md) — the stream-event / `RunEvent` union
-
-## Recipes
-
-- [Recipes overview](./recipes/README.md) — conversation storage in v4.0 (native session transcript)
-
-## Migration
-
-- [1.x → 2.0](./migration/1-x-to-2-0.md) — the package-split migration
-- [1.6 → 1.7 subscriptions](./migration/1.6-to-1.7-subscriptions.md) — the streaming-subscriptions migration
-
-## For contributors (development guide)
-
-Start with the root [`CONTRIBUTING.md`](../CONTRIBUTING.md) (branch model, PR checklist, commit rules), then:
-
-- [Setup](./development/setup.md) — clone, nvm, pnpm, first build
-- [Architecture](./development/architecture.md) — monorepo layout, layering, build pipeline
-- [Conventions](./development/conventions.md) — naming, tone, TDD, error class style
-- [Testing](./development/testing.md) — Vitest patterns, smoke vs full coverage
-- [Quality gates](./development/quality-gates.md) — G1–G11 hard gates + git hooks
-- [Releasing](./development/releasing.md) — Changesets workflow, publish flow
+For contributors, see [`../CONTRIBUTING.md`](../CONTRIBUTING.md) (branch model, PR checklist) and [`../CLAUDE.md`](../CLAUDE.md) (conventions, locked names/toolchain, quality gates).
 
 ---
 
@@ -75,4 +25,4 @@ Start with the root [`CONTRIBUTING.md`](../CONTRIBUTING.md) (branch model, PR ch
 
 ## License
 
-MIT — see [`LICENSE`](../LICENSE).
+Apache-2.0 — see [`../LICENSE`](../LICENSE).

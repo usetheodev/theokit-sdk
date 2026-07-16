@@ -48,7 +48,7 @@ You don't need to install `@theokit/sdk-memory` to use `Memory`. You
 DO need to install it if you want the standalone memory APIs
 (e.g. `createInMemoryMarkdownProvider`).
 
-See `docs/adr/0002-sdk-memory-optional-peer-routing.md` for the full
+See ADR 0002 (`docs/adr/` in git history) for the full
 architectural rationale.
 
 #### Subsystems already extracted in prior versions
@@ -199,10 +199,10 @@ an assertion there.
 
 ### Need help
 
-- Public ADR: `docs/adr/0002-sdk-memory-optional-peer-routing.md`
-- Operator runbook (for monorepo maintainers): `docs/runbook/sdk-2-0-release.md`
+- Public ADR: `docs/adr/0002-sdk-memory-optional-peer-routing.md` (in git history)
+- Operator runbook (for monorepo maintainers): see git history under `docs/runbook/`
 - Issue tracker: GitHub issues on the SDK repo.
 
 ## Earlier versions
 
-Migration guides for pre-2.0 versions live in `docs/migration/`.
+Migration guides for pre-2.0 versions live in git history under `docs/migration/` (the docs set was trimmed — the code + `docs.md` are the living contract).

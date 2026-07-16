@@ -154,7 +154,7 @@ const operatorSteps = [
   {
     label: "Cohort npm publish",
     preview: "(none)",
-    apply: "see docs/runbook/sdk-2-0-release.md",
+    apply: "see the 2.0 release notes in git history",
   },
   {
     label: "Dogfood QA (TheoKit consumer)",

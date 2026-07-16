@@ -1,6 +1,6 @@
 # Contributing to `@theokit/sdk`
 
-Thanks for helping build the Theo **Harness**. This file is a router — it points at the detailed guides so nothing goes stale in two places. Read the linked docs before your first PR.
+Thanks for helping build the Theo **Harness**. The essentials are inline below; the canonical API contract is [`docs.md`](./docs.md) and the project conventions/toolchain/quality-gates live in [`CLAUDE.md`](./CLAUDE.md). The code is the documentation.
 
 ## Quick start
 
@@ -11,7 +11,7 @@ pnpm install
 pnpm validate                             # build + typecheck + test + lint + quality gates
 ```
 
-Full walkthrough: [`docs/development/setup.md`](./docs/development/setup.md).
+See [`CLAUDE.md` § First-time setup](./CLAUDE.md) for Node/pnpm details.
 
 ## Branch model (important)
 
@@ -28,18 +28,18 @@ Full walkthrough: [`docs/development/setup.md`](./docs/development/setup.md).
 ## Before you open a PR
 
 - [ ] `pnpm validate` is green locally (or the specific package's `build` + `typecheck` + `test`).
-- [ ] **TDD** — the failing test came first; a bug fix ships with its regression test. See [`docs/development/testing.md`](./docs/development/testing.md).
-- [ ] **Public API changed?** Update [`docs.md`](./docs.md) (the canonical contract) **in the same PR** — this is quality gate G11. See [`docs/development/conventions.md`](./docs/development/conventions.md).
-- [ ] `CHANGELOG.md` `[Unreleased]` entry added, and a **changeset** (`pnpm changeset`) if the change is user-visible. See [`docs/development/releasing.md`](./docs/development/releasing.md).
+- [ ] **TDD** — the failing test came first; a bug fix ships with its regression test. See [`.claude/rules/testing.md`](./.claude/rules/testing.md).
+- [ ] **Public API changed?** Update [`docs.md`](./docs.md) (the canonical contract) **in the same PR** — this is quality gate G11. See [`CLAUDE.md`](./CLAUDE.md) (locked names + conventions).
+- [ ] `CHANGELOG.md` `[Unreleased]` entry added, and a **changeset** (`pnpm changeset`) if the change is user-visible. Releases cut via Changesets (`develop → main` PR + semver tag).
 - [ ] Lint + format clean (`pnpm check` — Biome).
 
 ## Quality gates
 
-The push is gated by G1–G11 hard gates (lint, typecheck, tests, coverage, dead-code, dependency cycles, layered-architecture, bundle size, docs-drift). One tool per gate; **fix the code, not the threshold.** Details: [`docs/development/quality-gates.md`](./docs/development/quality-gates.md).
+The push is gated by G1–G11 hard gates (lint, typecheck, tests, coverage, dead-code, dependency cycles, layered-architecture, bundle size, docs-drift). One tool per gate; **fix the code, not the threshold.** Details: [`.claude/quality-gates.md`](./.claude/quality-gates.md).
 
 ## Where things live
 
-`theokit-sdk` is a pnpm-workspaces + turbo monorepo of 13 publishable packages (flagship `@theokit/sdk` at `packages/sdk/`). Layout, layering, and the contract-vs-implementation split: [`docs/development/architecture.md`](./docs/development/architecture.md) and [`packages/README.md`](./packages/README.md).
+`theokit-sdk` is a pnpm-workspaces + turbo monorepo of 13 publishable packages (flagship `@theokit/sdk` at `packages/sdk/`). Layout + the contract-vs-implementation split: [`packages/README.md`](./packages/README.md) and [`CLAUDE.md`](./CLAUDE.md).
 
 ## Getting help
 
