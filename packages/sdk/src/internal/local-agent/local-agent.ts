@@ -35,7 +35,6 @@ import { normalizeModel } from "../runtime/model-selection.js";
 import type { PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
 import { flushRegistrySaves, updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
 import { liveAgentRegistry } from "../runtime/registry/live-agent-registry.js";
-import { flushSessionWrites, hydrateSession } from "../runtime/session/agent-session.js";
 import type { SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
 import {
@@ -46,6 +45,7 @@ import {
 import { SystemPromptPipeline } from "../runtime/system-prompt/pipeline.js";
 import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
 import { validateToolCatalog } from "../runtime/validation/validate-agent-options.js";
+import { flushSessionWrites, hydrateSession } from "../session/agent-session.js";
 import { SPAN_NAMES } from "../telemetry/span-names.js";
 import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
