@@ -91,7 +91,6 @@ function runShell(cwd: string, command: string, timeoutMs: number): Promise<stri
     const stderrChunks: Buffer[] = [];
     let stdoutBytes = 0;
     let stderrBytes = 0;
-    let _truncated = false;
 
     const gate = armTimeoutKill<ShellResult>(
       child,
@@ -103,14 +102,12 @@ function runShell(cwd: string, command: string, timeoutMs: number): Promise<stri
     child.stdout.on("data", (chunk: Buffer) => {
       if (gate.settled()) return;
       if (stdoutBytes >= MAX_OUTPUT_BYTES) {
-        _truncated = true;
         return;
       }
       const remaining = MAX_OUTPUT_BYTES - stdoutBytes;
       if (chunk.length > remaining) {
         stdoutChunks.push(chunk.subarray(0, remaining));
         stdoutBytes = MAX_OUTPUT_BYTES;
-        _truncated = true;
       } else {
         stdoutChunks.push(chunk);
         stdoutBytes += chunk.length;
