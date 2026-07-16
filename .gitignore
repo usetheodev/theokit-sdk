@@ -112,3 +112,7 @@ cross-validation-output/
 
 # loop-deadcode-audit plugin output (transient, regenerable)
 deadcode-output/
+
+# Next.js build output (was accidentally committed once; keep it out)
+.next/
+**/.next/
