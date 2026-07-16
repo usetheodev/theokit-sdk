@@ -6,7 +6,7 @@
  * @internal
  */
 
-import { getProviderProfile } from "../../providers/index.js";
+import { getProviderProfile } from "../providers/index.js";
 
 /**
  * Infer the provider from an API-key prefix (`sk-or-` → openrouter, `sk-ant-` →

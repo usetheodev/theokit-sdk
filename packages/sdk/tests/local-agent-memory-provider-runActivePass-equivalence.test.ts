@@ -18,8 +18,8 @@
  */
 
 import { describe, expect, it } from "vitest";
-import { LocalAgentMemory } from "../src/internal/runtime/local-agent/local-agent-memory.js";
-import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent/local-agent-memory-provider.js";
+import { LocalAgentMemory } from "../src/internal/local-agent/local-agent-memory.js";
+import { createLocalAgentMemoryProvider } from "../src/internal/local-agent/local-agent-memory-provider.js";
 import type { AgentOptions } from "../src/types/agent.js";
 
 const AGENT_OPTIONS: AgentOptions = {

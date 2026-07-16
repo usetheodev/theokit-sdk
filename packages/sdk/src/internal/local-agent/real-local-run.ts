@@ -1,30 +1,24 @@
-import { ConfigurationError } from "../../../errors.js";
-import type { AgentDefinition, AgentOptions, ModelSelection } from "../../../types/agent.js";
-import type {
-  Run,
-  RunOperation,
-  RunStatus,
-  SDKUserMessage,
-  SendOptions,
-} from "../../../types/run.js";
-import { emitRunEvent } from "../../../types/run-events.js";
-import { type AgentLoopInputs, runAgentLoop } from "../../agent-loop/loop.js";
-import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
-import { LOCAL_RUNTIME_MOCK_KEY } from "../../auth/api-key-validator.js";
-import { isFixtureApiKey } from "../../fixture-mode.js";
-import { FallbackLlmClient } from "../../llm/fallback-client.js";
-import { parseModelId } from "../../llm/model-identifier.js";
-import { resolveProviderChain } from "../../llm/router.js";
-import { createMcpClient, type McpClient } from "../../mcp/client.js";
-import { getProviderProfile, registerBuiltins } from "../../providers/index.js";
-import { registerPluginProviderProfiles } from "../../providers/register-plugin-providers.js";
-import { createTelemetry } from "../../telemetry/tracer.js";
-import { withToolWhitelist } from "../concurrency/async-local-storage.js";
-import { FixtureRunBase, prepareRunContext } from "../fixtures/fixture-run-base.js";
-import type { FixtureScript } from "../fixtures/fixture-types.js";
-import type { HooksExecutor } from "../hooks/hooks-executor.js";
-import { registerRun } from "../registry/run-registry.js";
-import type { SessionMessage } from "../session/agent-session.js";
+import { ConfigurationError } from "../../errors.js";
+import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
+import { emitRunEvent } from "../../types/run-events.js";
+import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
+import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { LOCAL_RUNTIME_MOCK_KEY } from "../auth/api-key-validator.js";
+import { isFixtureApiKey } from "../fixture-mode.js";
+import { FallbackLlmClient } from "../llm/fallback-client.js";
+import { parseModelId } from "../llm/model-identifier.js";
+import { resolveProviderChain } from "../llm/router.js";
+import { createMcpClient, type McpClient } from "../mcp/client.js";
+import { getProviderProfile, registerBuiltins } from "../providers/index.js";
+import { registerPluginProviderProfiles } from "../providers/register-plugin-providers.js";
+import { withToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
+import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
+import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
+import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
+import { registerRun } from "../runtime/registry/run-registry.js";
+import type { SessionMessage } from "../runtime/session/agent-session.js";
+import { createTelemetry } from "../telemetry/tracer.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
 import { buildCustomToolsInput } from "./real-local-run-tools.js";
 
@@ -54,7 +48,7 @@ export interface CreateRealLocalRunOptions {
   workspaceCwd: string;
   hooks: HooksExecutor;
   /** T4.1 — PluginManager threaded from LocalAgent for plugin tools + pre_tool_call hooks. */
-  pluginManager?: import("../../plugins/manager.js").PluginManager;
+  pluginManager?: import("../plugins/manager.js").PluginManager;
   /** Pre-resolved system prompt threaded by `LocalAgent.send`. */
   systemPrompt?: string;
   onStep?: SendOptions["onStep"];

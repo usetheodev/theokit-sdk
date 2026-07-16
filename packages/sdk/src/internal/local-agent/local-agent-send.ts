@@ -1,30 +1,30 @@
-import { AgentDisposedError } from "../../../errors.js";
-import type { AgentOptions, ModelSelection } from "../../../types/agent.js";
-import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
-import { emitRunEvent } from "../../../types/run-events.js";
-import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
-import type { PluginManager } from "../../plugins/manager.js";
-import type { TelemetryHandle } from "../../telemetry/tracer.js";
-import { anySignal } from "../concurrency/abort-utils.js";
+import { AgentDisposedError } from "../../errors.js";
+import type { AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import { emitRunEvent } from "../../types/run-events.js";
+import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import type { PluginManager } from "../plugins/manager.js";
+import { anySignal } from "../runtime/concurrency/abort-utils.js";
 import {
   type CompletionCheckDeps,
   wrapRunWithCompletionCheck,
-} from "../lifecycle/wrap-completion-check-run.js";
+} from "../runtime/lifecycle/wrap-completion-check-run.js";
 import {
   resolveActiveMemorySummaryForSend,
   resolveMemoryProviderForLoop,
   resolveMemoryToolsForLoop,
   shouldUsePortMemoryPath,
-} from "../memory/memory-path-selector.js";
-import type { MemoryProvider } from "../memory/memory-provider.js";
-import type { MemoryFact } from "../memory/memory-store.js";
-import { readMemoryFacts } from "../memory/memory-store.js";
-import { normalizeModel } from "../model-selection.js";
-import { runInputProcessors } from "../processors/run-processors.js";
-import { createTripwireRun } from "../processors/tripwire-run.js";
-import { wrapRunWithOutputProcessors } from "../processors/wrap-output-run.js";
-import { appendSessionMessage, getSessionMessages } from "../session/agent-session.js";
-import { safeCall } from "../system-prompt/safe-call.js";
+} from "../runtime/memory/memory-path-selector.js";
+import type { MemoryProvider } from "../runtime/memory/memory-provider.js";
+import type { MemoryFact } from "../runtime/memory/memory-store.js";
+import { readMemoryFacts } from "../runtime/memory/memory-store.js";
+import { normalizeModel } from "../runtime/model-selection.js";
+import { runInputProcessors } from "../runtime/processors/run-processors.js";
+import { createTripwireRun } from "../runtime/processors/tripwire-run.js";
+import { wrapRunWithOutputProcessors } from "../runtime/processors/wrap-output-run.js";
+import { appendSessionMessage, getSessionMessages } from "../runtime/session/agent-session.js";
+import { safeCall } from "../runtime/system-prompt/safe-call.js";
+import type { TelemetryHandle } from "../telemetry/tracer.js";
 import { consumePending } from "./local-agent-invalidate.js";
 import type { LocalAgentMemory } from "./local-agent-memory.js";
 import { applyPreUserSendHook, wrapRunWithPostReplyHook } from "./local-agent-memory-hooks.js";
@@ -228,8 +228,8 @@ export async function executeSendLocked(
 function buildCompletionCheckDeps(): CompletionCheckDeps {
   return {
     judge: async (ctx, opts) => {
-      const { judgeCallImpl } = await import("../../judge/judge-call.js");
-      const { getAgentFacade } = await import("../registry/agent-factory-registry.js");
+      const { judgeCallImpl } = await import("../judge/judge-call.js");
+      const { getAgentFacade } = await import("../runtime/registry/agent-factory-registry.js");
       return judgeCallImpl(ctx, opts, { create: getAgentFacade().create });
     },
   };

@@ -6,8 +6,8 @@
  * @internal
  */
 
-import type { Run } from "../../../types/run.js";
-import { submit as taskRegistrySubmit } from "../../task/registry.js";
+import type { Run } from "../../types/run.js";
+import { submit as taskRegistrySubmit } from "../task/registry.js";
 
 export function registerRunAsTask(
   run: Run,

@@ -10,7 +10,7 @@
  * @internal
  */
 
-import { ConfigurationError } from "../../../errors.js";
+import { ConfigurationError } from "../../errors.js";
 import type {
   AgentMemory,
   MemoryAdapter,
@@ -18,8 +18,8 @@ import type {
   MemoryFact,
   MemoryId,
   MemoryTurnMessage,
-} from "../../../types/memory-adapter.js";
-import type { PluginManager } from "../../plugins/manager.js";
+} from "../../types/memory-adapter.js";
+import type { PluginManager } from "../plugins/manager.js";
 
 interface ResolvedAdapters {
   adapters: ReadonlyArray<MemoryAdapter>;

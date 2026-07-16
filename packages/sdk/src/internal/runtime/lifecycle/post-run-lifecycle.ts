@@ -2,9 +2,9 @@ import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
 import { emitRunEvent } from "../../../types/run-events.js";
 import type { SessionStore } from "../../../types/session-store.js";
+import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
-import type { LocalAgentMemory } from "../local-agent/local-agent-memory.js";
 import { shouldUsePortMemoryPath } from "../memory/memory-path-selector.js";
 import type { MemoryProvider } from "../memory/memory-provider.js";
 import {

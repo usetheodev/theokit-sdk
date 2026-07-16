@@ -7,16 +7,16 @@
 
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { AgentDefinition, AgentOptions, ModelSelection } from "../../../types/agent.js";
-import type { Run, SDKUserMessage, SendOptions } from "../../../types/run.js";
-import type { MemoryToolSpec } from "../../agent-loop/loop-types.js";
-import { resolveApiKey } from "../../env.js";
-import { shouldUseRealLocalRuntime } from "../../fixture-mode.js";
-import type { PersonalityPreset } from "../../personality/types.js";
-import type { PluginManager } from "../../plugins/manager.js";
-import type { HooksExecutor } from "../hooks/hooks-executor.js";
-import type { MemoryFact } from "../memory/memory-store.js";
-import { getSessionMessages } from "../session/agent-session.js";
+import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
+import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { resolveApiKey } from "../env.js";
+import { shouldUseRealLocalRuntime } from "../fixture-mode.js";
+import type { PersonalityPreset } from "../personality/types.js";
+import type { PluginManager } from "../plugins/manager.js";
+import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
+import type { MemoryFact } from "../runtime/memory/memory-store.js";
+import { getSessionMessages } from "../runtime/session/agent-session.js";
 import { createLocalRun } from "./local-run.js";
 import { createRealLocalRun } from "./real-local-run.js";
 
