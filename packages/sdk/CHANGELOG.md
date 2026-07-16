@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.3
+
+### Patch Changes
+
+- docs: professionalized the README for OSS publication and made the exported TypeScript types the canonical public contract. Removed the drifted `docs.md` API-contract file (it still documented the old `nextTheo` pagination field while the code returns `nextCursor`); `docs/harness-capability-map.md` + `docs/error-codes.md` are the human-friendly references. Fixed broken links, placeholder prose, a wrong API name in an example, a stale version claim, and capability claims that belong to other packages. No code or public API change.
+
 ## 4.2.2
 
 ### Patch Changes
