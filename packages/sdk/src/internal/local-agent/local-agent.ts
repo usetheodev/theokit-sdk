@@ -22,6 +22,7 @@ import type { PersonalityRegistry } from "../personality/registry.js";
 import { PersonalityStore } from "../personality/store.js";
 import type { PersonalityPreset } from "../personality/types.js";
 import { PluginManager } from "../plugins/manager.js";
+import { extractCodePlugins } from "../plugins/plugin-guards.js";
 import type { ProvidersManagerImpl } from "../runtime/config/providers-manager.js";
 import type { FileContextManager } from "../runtime/context/context-manager.js";
 import { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
@@ -60,7 +61,6 @@ import {
   localAgentUsePersonality,
   resolveActivePersonalityPreset,
 } from "./local-agent-personality-extensions.js";
-import { extractCodePlugins } from "./local-agent-plugins.js";
 import {
   localAgentFork,
   localAgentRunToCompletion,
