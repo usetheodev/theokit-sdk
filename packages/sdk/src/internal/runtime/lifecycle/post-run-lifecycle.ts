@@ -8,7 +8,7 @@ import {
   appendSessionMessage,
   flushSessionWrites,
   persistTurnToTranscript,
-} from "../../session/agent-session.js";
+} from "../../session/index.js";
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import { shouldUsePortMemoryPath } from "../memory/memory-path-selector.js";
 import type { MemoryProvider } from "../memory/memory-provider.js";

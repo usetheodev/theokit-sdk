@@ -17,7 +17,7 @@ import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-r
 import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
 import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
 import { registerRun } from "../runtime/registry/run-registry.js";
-import type { SessionMessage } from "../session/agent-session.js";
+import type { SessionMessage } from "../session/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
 import { buildCustomToolsInput } from "./real-local-run-tools.js";
