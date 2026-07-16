@@ -2525,6 +2525,13 @@ Stable, semver-protected persistence primitives for harness consumers (eval
 runners, config/plan stores). Promoted from the semver-exempt
 `internal/persistence` so you adopt them without coupling to `internal/`.
 
+> **Deprecation (SE43, DoD#2).** The `@theokit/sdk/internal/persistence` export is
+> **deprecated** — import the shared kernel (`replaceFileAtomic`, `withCwdMutex`,
+> `openSqliteResilient`, `sanitizeFts5Query`, `PersistenceSchema`, `atomicWriteText`,
+> `atomicWriteJson`) from `@theokit/sdk/persistence` instead. The old path keeps
+> re-exporting its full surface for one release (back-compat) and is scheduled for
+> removal in a future major.
+
 ```typescript
 import {
   appendJsonl,      // append one record as a \n-terminated JSON line (mkdirs parent)
@@ -2537,6 +2544,9 @@ import {
   openSqliteResilient, // open SQLite with corruption recovery
   applyWalWithFallback, // WAL + foreign-keys pragma with a journal fallback
   isCorruptionError,
+  withCwdMutex,      // (SE43) serialize a critical section by cwd across the process
+  sanitizeFts5Query, // (SE43) escape a user string for a SQLite FTS5 MATCH query
+  PersistenceSchema, // (SE43) shared schema-version constant for the persistence layer
 } from "@theokit/sdk/persistence";
 
 // Durable, crash-safe, resumable batch run:

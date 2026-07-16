@@ -2,6 +2,11 @@
  * Barrel for persistence primitives shared across subsystems
  * (memory, runtime, cron, mcp).
  *
+ * @deprecated SE43 DoD#2 — the `@theokit/sdk/internal/persistence` public export
+ * is deprecated. Import the shared kernel primitives from the sanctioned public
+ * barrel `@theokit/sdk/persistence` instead. This alias re-exports the FULL current
+ * surface UNCHANGED for one release (external back-compat, EC-1); it is scheduled
+ * for removal in a future major. See `final_report.md § MEDIUM — internal/persistence`.
  * @internal
  */
 
