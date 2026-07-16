@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
-import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/internal/persistence";
+import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/persistence";
 
 import { type MemoryConfig, type MemoryFact, redactSecrets } from "../memory-types.js";
 
@@ -28,7 +28,7 @@ import { type MemoryConfig, type MemoryFact, redactSecrets } from "../memory-typ
  *
  * **Cross-package import contract:** sdk-core copy reaches into
  * sibling `../../persistence/{atomic-write,cwd-mutex}.js` (internal).
- * sdk-memory copy uses the public `@theokit/sdk/internal/persistence`
+ * sdk-memory copy uses the public `@theokit/sdk/persistence`
  * sub-path (also used by sdk-memory's in-memory-provider since iter
  * 33). MemoryConfig / MemoryFact / redactSecrets come from sibling
  * `./memory-types.js` (moved iter 52).

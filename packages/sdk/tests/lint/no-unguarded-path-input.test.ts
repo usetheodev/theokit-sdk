@@ -29,7 +29,7 @@ const SRC_ROOT = join(__dirname, "..", "..", "src");
 const ALLOWLIST = new Set<string>([
   // Uses safePathJoin
   "internal/runtime/plugins/plugins-manager.ts",
-  "internal/runtime/session/agent-session-store.ts",
+  "internal/session/agent-session-store.ts",
   "internal/runtime/skills/skills-manager.ts",
   "internal/memory/types.ts",
   "internal/mcp/client.ts",
@@ -53,7 +53,7 @@ const ALLOWLIST = new Set<string>([
   "internal/persistence/paths.ts",
   "internal/persistence/markdown-config-loader.ts",
   "internal/runtime/registry/agent-registry-store.ts",
-  "internal/runtime/local-agent/local-agent.ts",
+  "internal/local-agent/local-agent.ts",
 ]);
 
 /**

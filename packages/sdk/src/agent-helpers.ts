@@ -2,6 +2,7 @@ import { stat } from "node:fs/promises";
 
 import { AuthenticationError, ConfigurationError, UnknownAgentError } from "./errors.js";
 import { validateApiKeyShape } from "./internal/auth/api-key-validator.js";
+import { CloudAgent, validateCloudToolParity } from "./internal/cloud-agent/index.js";
 import { resolveApiKey } from "./internal/env.js";
 import {
   getConfiguredBaseUrl,
@@ -10,9 +11,7 @@ import {
 } from "./internal/fixture-mode.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
-import { CloudAgent } from "./internal/runtime/cloud/cloud-agent.js";
-import { validateCloudToolParity } from "./internal/runtime/cloud/cloud-tool-parity.js";
-import { LocalAgent } from "./internal/runtime/local-agent/local-agent.js";
+import { LocalAgent } from "./internal/local-agent/index.js";
 import { normalizeModel } from "./internal/runtime/model-selection.js";
 import {
   flushRegistrySaves,

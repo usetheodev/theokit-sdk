@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { buildCustomToolsInput } from "../src/internal/runtime/local-agent/real-local-run-tools.js";
+import { buildCustomToolsInput } from "../src/internal/local-agent/real-local-run-tools.js";
 import {
   _resetReasoningWarnForTests,
   createThinkTool,

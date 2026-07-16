@@ -155,7 +155,7 @@ export * from "./internal/embedding/voyage-embedding.js";
 // `openMemoryDb(opts)` + `defaultIndexPath(cwd)` +
 // `MemoryDb` / `OpenDbOptions` interfaces. Dependencies all resolved:
 // `@theokit/sdk/errors` (ConfigurationError public),
-// `@theokit/sdk/internal/persistence` (applyWalWithFallback),
+// `@theokit/sdk/persistence` (applyWalWithFallback),
 // sibling `./index-schema.js` (PRAGMA + SCHEMA from iter 49).
 // Unblocks future moves: `sqlite-vec-loader`, `vec-index`,
 // `index-manager`, `migrate-sqlite-to-lance`.
@@ -317,7 +317,7 @@ export * from "./internal/store/chunk-markdown.js";
 // (`readFacts`, `appendFact`, `readFactsFromMarkdown`,
 // `appendFactToMarkdown`), and notes lister (`listNotes`). All writes
 // go through `replaceFileAtomic` + per-cwd mutex (EC-4) via the
-// public `@theokit/sdk/internal/persistence` sub-path.
+// public `@theokit/sdk/persistence` sub-path.
 // Configuration-aware accessors honor MemoryConfig.enabled gate.
 // Future `tools.ts`, `dreaming-diary`, `dreaming-run`,
 // `session-loader`, `session-summary-writer`, `transcript-store`,

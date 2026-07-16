@@ -19,7 +19,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { createLocalAgentMemoryProvider } from "../src/internal/runtime/local-agent/local-agent-memory-provider.js";
+import { createLocalAgentMemoryProvider } from "../src/internal/local-agent/local-agent-memory-provider.js";
 import {
   PORT_MEMORY_PATH_ENV_VAR,
   resolveActiveMemorySummaryForSend,

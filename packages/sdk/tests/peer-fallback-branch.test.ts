@@ -47,13 +47,6 @@ describe("sdk-core legacy fallback branch (iter 80, Phase 4 #5)", () => {
       const mod = await tryLoadSdkMemoryPeer();
       expect(mod).toBeNull();
     });
-
-    it("test_resetForTests_clears_forced_absent_flag", async () => {
-      // After reset, peer becomes loadable again.
-      resetSdkMemoryPeerCacheForTests();
-      const mod = await tryLoadSdkMemoryPeer();
-      expect(mod).not.toBeNull();
-    });
   });
 
   describe("Memory.openIndex falls back to legacy internal path", () => {

@@ -1257,7 +1257,7 @@ real-`claude-code-log`-parser round-trip gate).
 - **SE42 — extended-thinking `--continue`** (thinking `signature` capture): **provider-blocked** — the
   SDK does not capture the thinking signature today (issue **#122**). Needs provider-layer work; text +
   tool sessions resume without it.
-- **SE43 — migration importer** for old `.theokit/agents/<id>/messages.jsonl` sessions → the new format.
+- **SE44 — migration importer** for old `.theokit/agents/<id>/messages.jsonl` sessions → the new format. (Renumbered from SE43 on 2026-07-15: SE43 was taken by the formal System-design audit fixes milestone; this deferred idea moves to the next free id.)
 - read-adapters for a peer project / codex (translate native ⇄ their formats); sidecar dirs `file-history/` +
   `todos/` (file-undo / plan surfaces, NOT conversation `--continue`); the 30-day `cleanupPeriodDays`
   policy.
@@ -1278,7 +1278,7 @@ real-`claude-code-log`-parser round-trip gate).
    Existing `.theokit/agents/<id>/messages.jsonl` sessions must migrate. Mitigation: v4.0 major + a
    documented (optionally one-shot importer) old→new migration.
 
-### SE41 — [ ] Pluggable `SessionStore` seam over the native transcript (external-store resume for serverless / multi-host)
+### SE41 — [x] Pluggable `SessionStore` seam over the native transcript (external-store resume for serverless / multi-host)
 
 > Added 2026-07-15 by `/roadmap-feature` (slug: `pluggable-session-store`). See CHANGELOG `[Unreleased] § Added`.
 
@@ -1311,6 +1311,35 @@ resume source. Surfaced by the owner while validating the v4.0 docs: serverless 
 multi-host / multi-pod deployments need external-store resume, and the only current workaround — a
 shared/replicated `baseDir` (network volume) — is not viable on serverless/edge. This is a conscious
 evolution of the SE40 removal: the minimal seam over the native format, not a revert of the old adapter.
+
+### SE43 — [ ] System-design audit fixes (runtime blast-radius + monorepo hygiene)
+
+> Added 2026-07-15 by `/roadmap-feature` (slug: `system-design-audit-fixes`). See CHANGELOG `[Unreleased] § Added`. (SE42 is reserved for extended-thinking `--continue` / thinking-signature, #122.)
+
+**Objective:** Remediate the actionable findings from the two `/loop-system-design` audits run 2026-07-15
+(`packages/sdk/src` internals: STRONG 4.55/5, 1 HIGH; `packages/` monorepo: STRONG 4.3/5, 3 MEDIUM). All
+findings are **maintainability / hygiene** — nothing is broken today. Reports in `system-design-output/`.
+
+**Definition of done:**
+
+- [ ] **[HIGH] `internal/runtime` blast-radius reduced** — decompose the 13,275-LOC / 111-file package: promote `local-agent`, `cloud-agent`, `session` to sibling `internal/*` packages (or clearly separated sub-modules with their own barrels) so the runtime package shrinks to orchestration. Verified: `dependency-cruiser` clean, `madge` cycles ≤ 3, per-file ≤ 400 LOC, full suite green, **no public-API change**.
+- [ ] **[MEDIUM] `./internal/persistence` no longer a public export named `internal`** — expose the shared persistence primitives (`replaceFileAtomic` / `withCwdMutex` / `openSqliteResilient` / `sanitizeFts5Query` / `PersistenceSchema` / `atomicWriteText`) under a sanctioned public name (fold into `./persistence`, or a new `@theokit/persistence-kit`); the old export removed at a major OR kept as a deprecated alias for one release. `sdk-cache` + `sdk-memory` import the new path. No silent consumer break.
+- [ ] **[MEDIUM] Dev-only package cycle removed** — `@theokit/sdk` no longer lists `sdk-handoff`/`sdk-memory` as `devDependencies`; the sdk↔satellite integration tests move to a neutral test-only package or the examples workspace. Verified: `turbo` no longer warns `Circular: sdk-handoff, sdk, sdk-memory`; runtime graph stays a clean DAG.
+- [ ] **[MEDIUM] Satellite sdk version ranges tightened** — the 5 satellites on `@theokit/sdk: >=1.7.0` (sdk-tools/-memory/-cache/-handoff/-budget) bumped to `>=4.0.0` (or `^4`), matching the v4-only surfaces they import.
+- [ ] docs.md/CHANGELOG updated for any public-surface change; ADR for a persistence-kit extraction if taken; full quality gate green; the two audit reports cited as the source of truth.
+
+**Dependencies:** SE41 ([x]) — the audits ran on the post-SE41 codebase (`@theokit/sdk@4.1.0`).
+
+**Top risks (new — pre-existing risks documented elsewhere in roadmap):**
+
+1. **The `internal/runtime` split is the risky item** — moving local-agent/cloud-agent/session risks import-cycle regressions (the very thing the audit praised). Mitigation: split incrementally (one sub-package per commit) behind the enforced madge/depcruise gates, each with the full suite green; keep public barrels byte-stable.
+2. **The `./internal/persistence` rename is a BREAKING export change** (2 published siblings + possibly external users depend on it). Mitigation: ship a deprecated alias for one release, or gate removal behind a v5 major with a codemod — per changeset discipline, never a silent break.
+
+**Why now (from grill Q1):**
+
+The two audits just ran and captured every finding with file:line evidence in `system-design-output/`.
+Fixing them while the context is fresh prevents the debt rotting into a future large refactor. All items
+are hygiene (1 HIGH blast-radius + 3 MEDIUM monorepo), not correctness — the codebase is STRONG (4.3-4.55/5).
 
 ### Explicitly out of scope
 

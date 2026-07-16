@@ -1,8 +1,8 @@
 import { mkdir, readFile } from "node:fs/promises";
 
 import { ConfigurationError } from "@theokit/sdk/errors";
-import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/internal/persistence";
 import { safePathJoin, sanitizeIdentifier } from "@theokit/sdk/path-safety";
+import { replaceFileAtomic, withCwdMutex } from "@theokit/sdk/persistence";
 
 import { type MemoryFact, redactSecrets } from "./memory-types.js";
 

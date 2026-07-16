@@ -5,7 +5,7 @@ import type { RunStatus, SendOptions } from "../../types/run.js";
 import type { LlmClient } from "../llm/types.js";
 import type { McpClient } from "../mcp/client.js";
 import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
-import type { SessionMessage } from "../runtime/session/agent-session.js";
+import type { SessionMessage } from "../session/index.js";
 
 /**
  * Minimal memory-tool spec accepted by the agent loop. Concrete shape lives

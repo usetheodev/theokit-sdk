@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { join, relative } from "node:path";
 
-import { sanitizeFts5Query } from "@theokit/sdk/internal/persistence";
+import { sanitizeFts5Query } from "@theokit/sdk/persistence";
 import type { EmbeddingRuntime } from "../embedding/embedding-adapter.js";
 import { chunkMarkdown } from "../store/chunk-markdown.js";
 import { memoryDir, memoryMdPath, notesDir } from "../store/markdown-store.js";
@@ -479,7 +479,7 @@ function truncateSnippet(text: string): string {
   return text.length <= max ? text : `${text.slice(0, max)}…`;
 }
 
-// Replaced by `sanitizeFts5Query` from `@theokit/sdk/internal/persistence`
+// Replaced by `sanitizeFts5Query` from `@theokit/sdk/persistence`
 // (T5.2, ADR D64). The new sanitizer is the 6-step port of Hermes'
 // `_sanitize_fts5_query` and handles hyphens/dots/underscores correctly
 // without quoting every token.

@@ -3,8 +3,8 @@ import type { ConversationTurn } from "../../../types/conversation.js";
 import type { SDKMessage } from "../../../types/messages.js";
 import type { MessageOrigin, RunStatus, SendOptions } from "../../../types/run.js";
 import type { CostBreakdown, TokenUsage } from "../../../types/usage.js";
+import type { SessionMessage } from "../../session/index.js";
 import type { MemoryFact } from "../memory/memory-store.js";
-import type { SessionMessage } from "../session/agent-session.js";
 
 /**
  * Pre-computed fixture script for a single Run. The local/cloud Run impls
