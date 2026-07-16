@@ -822,9 +822,6 @@ importers:
       '@opentelemetry/sdk-trace-base':
         specifier: ^1.30.1
         version: 1.30.1(@opentelemetry/api@1.9.1)
-      '@theokit/sdk-memory':
-        specifier: workspace:*
-        version: link:../sdk-memory
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -928,6 +925,27 @@ importers:
       tsup:
         specifier: ^8.3.5
         version: 8.5.1(@swc/core@1.15.40(@swc/helpers@0.5.23))(jiti@2.7.0)(postcss@8.5.15)(tsx@4.22.0)(typescript@5.9.3)(yaml@2.9.0)
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.8
+        version: 4.1.8(@opentelemetry/api@1.9.1)(@types/node@25.9.1)(@vitest/coverage-v8@4.1.8)(vite@7.3.3(@types/node@25.9.1)(jiti@2.7.0)(tsx@4.22.0)(yaml@2.9.0))
+
+  packages/sdk-peer-integration-tests:
+    devDependencies:
+      '@theokit/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@theokit/sdk-memory':
+        specifier: workspace:*
+        version: link:../sdk-memory
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      better-sqlite3:
+        specifier: ^12.10.0
+        version: 12.10.0
       typescript:
         specifier: ^5.7.2
         version: 5.9.3
