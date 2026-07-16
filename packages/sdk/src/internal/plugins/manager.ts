@@ -7,13 +7,16 @@
  */
 
 import { ConfigurationError } from "../../errors.js";
+// SE45/SE46 — `MemoryProviderFactory` (@internal) is imported from the contract
+// module directly; the `./types.js` shim deliberately does not re-export it (a
+// stripped-internal re-export trips rollup-plugin-dts). See ./types.ts.
+import type { MemoryProviderFactory } from "../../types/plugin.js";
 import type { ProviderProfile } from "../providers/types.js";
 import { createPluginContext, type PluginRegistrations } from "./context.js";
 import type {
   HookHandler,
   HookName,
   LlmCallContext,
-  MemoryProviderFactory,
   Plugin,
   PostAssistantReplyContext,
   PostToolCallContext,
