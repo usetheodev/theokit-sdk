@@ -1368,7 +1368,7 @@ Gaps present in the Anthropic Agent SDK that we deliberately DO NOT adopt, becau
 - [ ] **`madge` reports 0 cycles** (down from 3); the `quality:cycles` gate threshold is tightened 3 → 0 so a new cycle fails the gate.
 - [ ] **Behavior-preserving:** `pnpm -w run validate` exit 0, `dependency-cruiser` 0 violations, full sdk suite green, **no public-API change** (public barrels byte-stable), CHANGELOG updated.
 
-**Dependencies:** SE43 ([x]) — the audit ran on the post-SE43 codebase (`@theokit/sdk@4.2.0`).
+**Dependencies:** SE43 ([x]). **REVISED 2026-07-16 during implementation** — cycle 1 shipped (`ToolResultGuardOptions`→`types/`, madge 3→2), but a deep-dive found the milestone dependency was **inverted for cycle 2**: breaking `types/agent.ts ↔ memory-provider` requires extracting `SDKAgent` out of the 975-line `agent.ts` god-file (`SDKAgent` references the whole agent type ecosystem) — which IS the SE46 decomposition. So **SE45-cycle-2 depends on SE46**, and cycle 3 pulls the `defineSubAgent` core cluster. Correct order: **do SE46 (decompose `agent.ts`, extract `SDKAgent`/`MemoryProvider` to leaves) FIRST**, then SE45's cycle 2 falls out. Cycle 3 needs a dedicated design (registry factory with a non-facade registration trigger, or an `a2a/subagent` tool-helper leaf). Only cycle 1 was a "simple type move".
 
 **Top risks (new):**
 
