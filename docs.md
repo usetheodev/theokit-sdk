@@ -979,7 +979,7 @@ const agent = await Agent.create({
 });
 ```
 
-`AgentOptions.inputProcessors` run in order BEFORE the LLM call; `outputProcessors` run on the response. Each `Processor` is `{ id; processInput?; processOutput?; onViolation? }`; a processor may rewrite/redact its text (return a string) or `ctx.abort(reason)` / `ctx.warn(reason)`. An `abort()` genuinely stops the run: the input path returns a terminal `status: "cancelled"` WITHOUT dispatching to the model, and a `tripwire` is surfaced on `RunResult.tripwire` and as a `tripwire` run-event on the stream; subsequent processors are short-circuited. `onViolation` fires on both abort and warn (its own errors are swallowed). Absent ⇒ unchanged (back-compat). Cloud rejects function-carrying processors. Built-in deterministic (no-LLM) processors: `UnicodeNormalizer` (NFC + optional control-char strip + whitespace collapse) and `TokenLimiter` (char estimate ~chars/4 via `estimateTokens`, `truncate` default or `block`). LLM-classifier guardrails (moderation / PII / injection) are built ON this seam — see `docs/concepts/guardrails.md` and ADR 0009; they are deliberately NOT shipped in core.
+`AgentOptions.inputProcessors` run in order BEFORE the LLM call; `outputProcessors` run on the response. Each `Processor` is `{ id; processInput?; processOutput?; onViolation? }`; a processor may rewrite/redact its text (return a string) or `ctx.abort(reason)` / `ctx.warn(reason)`. An `abort()` genuinely stops the run: the input path returns a terminal `status: "cancelled"` WITHOUT dispatching to the model, and a `tripwire` is surfaced on `RunResult.tripwire` and as a `tripwire` run-event on the stream; subsequent processors are short-circuited. `onViolation` fires on both abort and warn (its own errors are swallowed). Absent ⇒ unchanged (back-compat). Cloud rejects function-carrying processors. Built-in deterministic (no-LLM) processors: `UnicodeNormalizer` (NFC + optional control-char strip + whitespace collapse) and `TokenLimiter` (char estimate ~chars/4 via `estimateTokens`, `truncate` default or `block`). LLM-classifier guardrails (moderation / PII / injection) are built ON this seam — see ADR 0009 (`docs/adr/` in git history); they are deliberately NOT shipped in core.
 
 Agent.builder()
 
@@ -3810,7 +3810,7 @@ const reply = await mailbox.request("agent-b", { type: "ask", payload }, { timeo
 
 - `MessageBus` — in-process broker: `send(from, to, msg)`, `request(from, to, msg, opts)`, subscribe per address.
 - `AgentMailbox(bus, address)` — an agent's handle: `send(to, msg)`, `request(to, msg, opts)`.
-- `SubAgent.create(spec)` — the programmatic delegation tool (full spec + lifecycle hooks in [Subagents guide](./docs/guides/subagents.md)).
+- `SubAgent.create(spec)` — the programmatic delegation tool (full spec + lifecycle hooks below and in the runnable `examples/` set).
 - Types: `A2AMessage`, `MessageHandler`, `ToolContextMessage`, `RequestOptions`; `MaxDelegationDepthError`.
 
 ### `@theokit/sdk/filesystem` — pluggable file backend (SE31)

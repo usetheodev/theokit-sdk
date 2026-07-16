@@ -730,12 +730,12 @@ The SDK is a standalone TypeScript implementation of the contract in [`docs.md`]
 
 ## Documentation
 
-The human-friendly docs live in [`docs/`](./docs/). Start with:
+The code is the documentation: the API is self-describing and `docs.md` is the canonical contract. Start with:
 
-- [Getting started](./docs/getting-started/quickstart.md) — quickstart, installation, authentication
-- [Concepts](./docs/concepts/agent-and-run.md) — Agent, Run, runtimes, stream events
-- [Guides](./docs/guides/cron-jobs.md) — cron jobs, MCP, subagents, hooks, error handling
-- [Development guide](./docs/development/setup.md) — for contributors to the SDK itself
+- [`docs.md`](./docs.md) — the canonical, machine-readable API contract (source of truth for every public subpath)
+- [`examples/`](./examples/) — runnable end-to-end examples for every surface
+- [Capability map](./docs/harness-capability-map.md) — every public primitive + its import path
+- [Error codes](./docs/error-codes.md) — the `AgentRunError.code` reference table
 
 The canonical machine-readable contract is at [`docs.md`](./docs.md).
 
