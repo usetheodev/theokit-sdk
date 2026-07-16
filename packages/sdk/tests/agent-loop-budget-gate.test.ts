@@ -2,7 +2,7 @@
  * Unit tests for the budget pre-flight gate (architecture-review L1 fix).
  *
  * The agent loop calls `tracker.check()` before each iteration. The
- * BudgetTracker contract (internal/runtime/budget-tracker.ts) says `check()`
+ * BudgetTracker contract (types/budget-tracker.ts) says `check()`
  * RETURNS a decision; throwing is a contract violation. A budget guard is a
  * SAFETY/cost control, so when the tracker misbehaves the loop MUST fail
  * CLOSED (stop), not fail OPEN (proceed past budget). Regression guard.
