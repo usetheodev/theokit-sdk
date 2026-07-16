@@ -1,6 +1,7 @@
 import type { BudgetTracker } from "./budget-tracker.js";
 import type { ContextSettings } from "./context.js";
 import type { McpServerConfig } from "./mcp.js";
+import type { MemoryProvider } from "./memory-provider.js";
 import type { PluginsSettings, ProviderRoutingSettings } from "./providers.js";
 import type { SendOptions } from "./run.js";
 
@@ -614,7 +615,7 @@ export interface AgentOptions {
    *
    * @public
    */
-  memoryProvider?: import("../internal/runtime/memory/memory-provider.js").MemoryProvider;
+  memoryProvider?: MemoryProvider;
 }
 
 /**
