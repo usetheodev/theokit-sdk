@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.4
+
+### Patch Changes
+
+- docs: README marketing pass for the OSS launch. Punchier scannable hero with a real-numbers metric line (43 built-in LLM providers, 27 modular entry points, native Claude Code `.jsonl`, zero walk-away cost), a value-first "Why" bullet cluster above the fold, and a social-proof badge row (npm version, monthly downloads, GitHub stars, Discord). The narrative moved down to intro the concrete "What you'd ship" use cases. Cloud stays explicitly labeled pre-release. No code or public API change.
+
 ## 4.2.3
 
 ### Patch Changes
