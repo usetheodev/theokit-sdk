@@ -5,10 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import { Agent } from "../../../src/index.js";
-import {
-  extractCodePlugins,
-  isCodePlugin,
-} from "../../../src/internal/local-agent/local-agent-plugins.js";
+import { extractCodePlugins, isCodePlugin } from "../../../src/internal/plugins/plugin-guards.js";
 import { Plugin } from "../../../src/internal/plugins/types.js";
 
 const FIXTURE_KEY = "theo_test_fixture_plugin_wiring";

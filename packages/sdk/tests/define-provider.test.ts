@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Provider } from "../src/index.js";
-import { isCodePlugin } from "../src/internal/local-agent/local-agent-plugins.js";
+import { isCodePlugin } from "../src/internal/plugins/plugin-guards.js";
 import type { ProviderProfile } from "../src/internal/providers/types.js";
 
 const profile: ProviderProfile = {
