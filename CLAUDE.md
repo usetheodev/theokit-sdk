@@ -287,7 +287,7 @@ Instalado em `.claude/` via `bash scripts/install.sh` do template [`plan`](file:
 - **Release**: `/release` (develop→main PR + semver tag)
 - **Honesty gate**: `/dogfood`
 - **Orchestrator**: `/auto-plan {topic-slug}`
-- **SDK-specific**: `/to-reference {topic}` (deep-dive nos clones sob `.claude/knowledge-base/reference/` → guia de implementação em `knowledge-base/reference/{topic}.md`)
+- **SDK-specific**: `/to-reference {topic}` (deep-dive nos clones sob `.claude/knowledge-base/reference/` → guia de implementação em `.claude/knowledge-base/reference/{topic}.md`)
 
 **Hooks ativos** (`.claude/settings.json`): SessionStart, UserPromptSubmit, PreToolUse(Bash + Edit|Write), PostToolUse(linter + public-copy-lint), Stop (TDD + CHANGELOG gate), PreCompact (plan snapshot).
 
