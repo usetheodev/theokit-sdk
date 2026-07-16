@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.2.1
+
+### Patch Changes
+
+- SE45 + SE46 — internal structural refactor (zero public-API change).
+
+  - **SE45 — zero import cycles.** Eliminated all 3 madge import cycles in `packages/sdk/src` (3 → 0) and tightened the `quality:cycles` gate to threshold 0. Restored DIP direction by relocating the `ToolResultGuardOptions` and `SDKAgent`-cluster contract types out of `internal/` into `types/` (re-exported for back-compat), and routed `a2a/subagent` child creation through the existing `getAgentFacade()` registry seam instead of a dynamic `import("../agent.js")`. Closed #129 (pure plugin type-guards moved to `internal/plugins/plugin-guards.ts`).
+  - **SE46 — internal/ structural cohesion.** One-home-per-concept co-locations (budget tracker → `internal/budget/tracker/`; OpenTelemetry `tracer-loader` → `internal/telemetry/`), two loose files relocated to their natural homes, DIP direction restored for 4 more contract types (`EnvPolicy`, `BudgetTracker`, `SessionRecord`, `MemoryProvider` → `types/`), and removal of the dead `internal/cache-discipline-guard.ts` (#131, tested-but-unwired). An independent architecture re-audit scored `packages/sdk/src` at 96/100 ("Keep"), up from a 78/100 baseline.
+
+  Behavior-preserving: `@theokit/sdk` public barrel exported names are byte-stable (147 = 147), all relocated runtime files are byte-identical or clean 1:1 type moves, and the full workspace `validate` (typecheck + 3501 sdk tests + madge 0 + depcruise + publint + bundle-budget) stays green.
+
 ## 4.2.0
 
 ### Minor Changes
