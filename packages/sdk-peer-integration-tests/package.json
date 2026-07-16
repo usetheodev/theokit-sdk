@@ -1,0 +1,19 @@
+{
+  "name": "@theokit/sdk-peer-integration-tests",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Integration tests for @theokit/sdk <-> @theokit/sdk-memory peer routing. Lives outside @theokit/sdk so the sdk core does not devDepend on its own satellite (breaks the turbo build-ordering cycle; SE43 DoD#3).",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@theokit/sdk": "workspace:*",
+    "@theokit/sdk-memory": "workspace:*",
+    "typescript": "^5.7.2",
+    "vitest": "^4.1.8",
+    "better-sqlite3": "^12.10.0",
+    "@types/better-sqlite3": "^7.6.13"
+  }
+}

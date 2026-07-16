@@ -19,20 +19,17 @@
 import { mkdir, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { migrateSqliteToLance } from "@theokit/sdk";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { resetSdkMemoryPeerCacheForTests } from "../src/internal/memory/sdk-memory-peer-loader.js";
-import { migrateSqliteToLance } from "../src/migrate.js";
 
 describe("sdk-core migrateSqliteToLance peer routing (iter 78, Phase 4 #3)", () => {
   let cwd: string;
 
   beforeEach(async () => {
     cwd = await mkdtemp(join(tmpdir(), "sdk-migrate-routing-"));
-    resetSdkMemoryPeerCacheForTests();
   });
   afterEach(async () => {
     await rm(cwd, { recursive: true, force: true });
-    resetSdkMemoryPeerCacheForTests();
   });
 
   it("test_no_legacy_json_returns_no_op_shape", async () => {

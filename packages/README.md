@@ -33,6 +33,7 @@ This monorepo ships **12 packages** — the Agent-AI **Harness** — organized i
 | `@theokit/cli` | `theokit` CLI binary (init, dev, inspect, eval, acp). |
 | `@theokit/codemod-sdk-2-0` | **DEPRECATED (archived 2026-07-09)** — codemod for an abandoned `@theokit/sdk` → `@theokit/sdk-core` rename; `@theokit/sdk-core` never shipped (npm 404). Do not use. |
 | `@theokit/codemod-sdk-3-0` | Consumer migration codemod for the SDK 2.x → 3.0 SE36 rename (`defineTool`/`createSquad`/… → `X.create`). jscodeshift-based. |
+| `@theokit/sdk-peer-integration-tests` | **Private, test-only (not published).** Integration tests for `@theokit/sdk` ↔ `@theokit/sdk-memory` peer routing. Lives outside `@theokit/sdk` so the core does not devDepend on its own satellite (breaks the turbo build-ordering cycle; SE43 DoD#3). |
 
 ## Extracted to sibling repos (2026-06-18)
 
