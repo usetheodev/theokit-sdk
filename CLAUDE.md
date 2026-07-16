@@ -10,7 +10,7 @@ This file complements `/home/user/Projetos/usetheo/CLAUDE.md` and `/home/user/.c
 
 `@theokit/sdk` is the **TypeScript SDK for the Theo agent harness**. It implements the public contract defined in [`./docs.md`](./docs.md) — `Agent.create()`, `Agent.send()`, `Run.stream()`, MCP servers, hooks, subagents — as a standalone TypeScript package.
 
-The SDK is implemented from scratch, informed by reference projects (notably `the local runtime` and the `a peer SDK` SDK). Those peers are no longer vendored in-tree — they are cloned on demand under `.claude/knowledge-base/reference/` (gitignored; each dev may hold a different clone set). The reference material is read-only; we study it, we do not depend on it.
+The SDK is implemented from scratch, implemented from scratch against the public contract in `docs.md`, with no runtime dependency on any third-party framework.
 
 Layout:
 
@@ -37,7 +37,7 @@ theokit-sdk/
 │       │   ├── types/           # Public type contract from docs.md
 │       │   └── internal/        # Implementation details
 │       └── tests/
-└── .claude/            # Plan-cycle ecosystem; knowledge-base/reference/ holds SOTA study peers (cloned on demand, gitignored — NOT workspace members)
+└── .theokit/          # example/local agent config
 ```
 
 The pillar split (UI · Harness · Skills · Runtime) is locked in the root `CLAUDE.md`. Do not propose copy that drifts from "this is the Harness".
@@ -77,16 +77,16 @@ Resolved 2026-05-14 with research backing in [the SOTA validation report](#sota-
 | --- | --- | --- | --- |
 | Package manager | pnpm | `9.15.0` (via corepack) | Matches sibling `theokit` project; pnpm workspaces are the 2026 standard for TS monorepos. |
 | Node runtime | Node | `>=22.12.0` (`.nvmrc` pins minimum) | Node 20 reached EOL April 2026. Use `nvm use` to switch. |
-| Build | tsup | `^8.5.0` | a peer vendor AI ships on tsup. tsdown is the migration path once mature. |
+| Build | tsup | `^8.5.0` | a framework ships on tsup. tsdown is the migration path once mature. |
 | TypeScript | tsc | `^5.8.0` strict | TS 7 (tsgo) is beta as of April 2026 — do NOT use for emit. |
 | Package format | Dual ESM + CJS | — | Stripe / Anthropic SDK / OpenAI SDK still ship dual in 2026. |
-| Test | Vitest | `^3.0.0` | Confirmed across MCP SDK, a peer vendor AI, OpenAI Agents. |
+| Test | Vitest | `^3.0.0` | Confirmed across MCP SDK, a framework, a peer SDK. |
 | Lint + format | Biome | `^2.4.0` | Single tool; greenfield choice. ESLint still incumbent in older SDKs. |
 | Versioning | Changesets | `^2.31.0` | Standard for pnpm monorepos publishing to npm. |
 | Validation | publint + `@arethetypeswrong/cli` | Standard 2026 stack | No credible alternative. |
-| Runtime validation | Zod | peer dep `^3.25 \|\| ^4` | Matches Anthropic / OpenAI / a peer vendor pattern. Optional peer. |
+| Runtime validation | Zod | peer dep `^3.25 \|\| ^4` | Matches Anthropic / OpenAI / peer pattern. Optional peer. |
 | HTTP | Native `fetch` | — | Anthropic and OpenAI SDKs migrated off `node-fetch`. Expose injectable `fetch` option. |
-| Streaming | `AsyncGenerator` of discriminated `SDKMessage` | — | Matches `@anthropic-ai/claude-agent-sdk`. |
+| Streaming | `AsyncGenerator` of discriminated `SDKMessage` | — | Matches `a peer agent SDK`. |
 | Resource disposal | `dispose()` method + `[Symbol.asyncDispose]` (implementation-side) | — | Skeleton interface uses `dispose()` until lib bump to `ESNext.Disposable`. |
 
 ## Native bindings discipline
@@ -139,7 +139,7 @@ ADR D01 (this repo): `node-22-mandatory`. Plan: [`../.claude/knowledge-base/plan
 **Cross-project narrative anchors that must hold (regardless of voice):**
 
 - "Harness pillar of Theo" — the SDK is the harness, not the framework (TheoKit) and not the runtime (Theo PaaS).
-- "Open stack underneath" — the load-bearing differentiator. Apache-2.0 SDK, Apache-2.0 local runtime via `pi/`, multi-provider keys, opt-in cloud, walk-away cost zero.
+- "Open stack underneath" — the load-bearing differentiator. Apache-2.0 SDK, Apache-2.0 local runtime, multi-provider keys, opt-in cloud, walk-away cost zero.
 - "Pre-release honesty" — cloud runtime depends on Theo PaaS, currently pre-release. Cloud-only features must be labeled.
 - "No invented integration" — never claim wiring with other Theo pillars that does not yet exist (Cross-Project Rule 2).
 
@@ -175,7 +175,7 @@ Reference projects studied (clone on demand; not all present in every checkout):
 
 - **`the local runtime`** — fork of [`the-open-runtime`](the open local runtime). Primary inspiration for `the-agent-core` (Agent runtime), `the-provider-layer` (multi-provider LLM API), and `the-coding-agent` (CLI patterns).
 - **`cookbook`** — the open runtime's example recipes. Useful for understanding intended API ergonomics.
-- **`a peer SDK`** — OpenAI Agents Python SDK. Useful for `Agent` / `Run` / streaming API design.
+- **`a peer SDK`** — a peer SDK. Useful for `Agent` / `Run` / streaming API design.
 - Others cloned as tasks require (e.g. `peer-project`, `a peer framework`, `a peer project`, `peer-agent`, `codex`).
 
 Rules when consulting reference material:
@@ -251,7 +251,7 @@ Total ADRs registradas: 430 (`./.claude/knowledge-base/adrs/D1` até `D430`).
 6. **Changelog discipline.** Every code change updates `CHANGELOG.md` (workspace-level at root; per-package at `packages/<name>/CHANGELOG.md`).
 7. **Don't reinvent.** Prefer mature libraries — the toolchain table above already does this.
 8. **No emojis** in code, READMEs, or CLAUDE.md files unless explicitly requested.
-9. **Uniform `X.create()` is the canonical API.** Every public capability ships as a static `X.create()` method on a namespace class with a `private constructor` — `Tool.create`, `Provider.create`, `Plugin.create`, `Squad.create`, `Session.create`, `Subscription.create`, `Semaphore.create`, `Auth.create`, `Retry.create`, … — matching the top-level `Agent.create` / `Cron.create` / `Workflow.create`. **Reversed 2026-07-13 via ADR 0015 (SE36), which supersedes ADR D431** ("factory functions are the canonical API"): the previous `define*` / `create*` factory-function surface was collapsed to the uniform `X.create()` form at `@theokit/sdk@3.0.0` (hard break; codemod `@theokit/codemod-sdk-3-0`). Rationale: one mental model across the whole surface (owner decision). This deliberately diverges from the SOTA `tool()` idiom (a peer framework / OpenAI Agents / a framework) — an accepted trade-off recorded in ADR 0015. Decorators remain an OPTIONAL convenience layer via the externally-published `@theokit/di` (in the `theokit-di` repo), NOT required of Harness features.
+9. **Uniform `X.create()` is the canonical API.** Every public capability ships as a static `X.create()` method on a namespace class with a `private constructor` — `Tool.create`, `Provider.create`, `Plugin.create`, `Squad.create`, `Session.create`, `Subscription.create`, `Semaphore.create`, `Auth.create`, `Retry.create`, … — matching the top-level `Agent.create` / `Cron.create` / `Workflow.create`. **Reversed 2026-07-13 via ADR 0015 (SE36), which supersedes ADR D431** ("factory functions are the canonical API"): the previous `define*` / `create*` factory-function surface was collapsed to the uniform `X.create()` form at `@theokit/sdk@3.0.0` (hard break; codemod `@theokit/codemod-sdk-3-0`). Rationale: one mental model across the whole surface (owner decision). This deliberately diverges from the SOTA `tool()` idiom (a framework / a peer SDK / a framework) — an accepted trade-off recorded in ADR 0015. Decorators remain an OPTIONAL convenience layer via the externally-published `@theokit/di` (in the `theokit-di` repo), NOT required of Harness features.
 
 Full text: `/home/user/.claude/CLAUDE.md`. Cross-project rules: `/home/user/Projetos/usetheo/CLAUDE.md`.
 

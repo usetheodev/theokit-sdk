@@ -12,7 +12,7 @@ pnpm release              # build and publish to npm
 
 ## What gets versioned
 
-Only packages under `packages/*` are versioned and published. The vendored `runtime/packages/*` (`@earendil-works/*`) are ignored — they carry upstream lineage and are not part of our publish surface.
+Only packages under `packages/*` are versioned and published. The vendored `runtime/packages/*` (`vendored upstream`) are ignored — they carry upstream lineage and are not part of our publish surface.
 
 ## Changeset format
 

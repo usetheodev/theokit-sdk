@@ -50,7 +50,7 @@ The SDK shape — `Agent` / `Run` / streaming events — is converging across th
 | LLM provider | Multi-provider via `the-provider-layer` (Anthropic, OpenAI, Google, …) | Usually single-vendor |
 | Session format | **Native Claude Code `.jsonl`** — point `baseDir` at `~/.claude` and the Claude Code CLI can `--continue` a session your agent wrote | Proprietary session store you can't open anywhere else |
 | Cloud runtime | Opt-in Theo PaaS or self-host the pool | Vendor cloud only |
-| Walk-away cost | Zero — fork `pi/`, keep running with your own provider keys | High — runtime is the vendor's |
+| Walk-away cost | Zero — fork the local runtime, keep running with your own provider keys | High — runtime is the vendor's |
 
 Most agent SDKs ship open; most agent runtimes don't. This one does — end to end.
 
@@ -726,7 +726,7 @@ Cross-pillar wiring status: Skills↔Harness and UI↔Harness are validated agai
 current Harness (plugins build + test green vs SDK 2.18.0; the `useAgentStream` mapper
 renders a real `Run.stream()`); Runtime↔Harness is contract-only until PaaS ships.
 
-The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). Study peers (a fork of [`the-open-runtime`](the open local runtime), the OpenAI Agents Python SDK, and others) are cloned on demand under `.claude/knowledge-base/reference/` (read-only, gitignored) — they informed the design but are never a runtime dependency.
+The SDK is a standalone TypeScript implementation of the contract in [`docs.md`](./docs.md). Study peers (a fork of [`the-open-runtime`](the open local runtime), the a peer SDK, and others) are cloned on demand under `.claude/knowledge-base/reference/` (read-only, gitignored) — they informed the design but are never a runtime dependency.
 
 ## Documentation
 
