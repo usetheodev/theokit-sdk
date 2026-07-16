@@ -11,12 +11,7 @@
  * @internal
  */
 
-import {
-  getTracer,
-  noopSpan,
-  resetTracerCacheForTests,
-  type SpanLike,
-} from "../telemetry/tracer-loader.js";
+import { getTracer, noopSpan, type SpanLike } from "../telemetry/tracer-loader.js";
 
 const TRACER_NAME = "@theokit/sdk/workflow";
 
@@ -45,9 +40,4 @@ export function startWorkflowStepSpan(info: {
       "step.attempt": info.attempt,
     },
   });
-}
-
-/** Test seam — reset tracer cache so a fresh require attempt happens. */
-export function __resetTelemetryCacheForTests(): void {
-  resetTracerCacheForTests();
 }

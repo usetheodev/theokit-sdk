@@ -4,7 +4,7 @@ import { createInterface } from "node:readline/promises";
 
 import { ConfigurationError } from "../../errors.js";
 import type { McpOAuthConfig } from "../../types/mcp.js";
-import { getTokens, lockedRefresh, type OAuthTokens, setTokens } from "./token-storage.js";
+import { type OAuthTokens, setTokens } from "./token-storage.js";
 
 /**
  * OAuth 2.1 PKCE flow runner for MCP HTTP servers. See ADR D41.
@@ -25,39 +25,6 @@ function base64url(n: number): string {
  */
 function challengeFor(verifier: string): string {
   return createHash("sha256").update(verifier).digest("base64url");
-}
-
-/**
- * Acquire an access token for `serverName`, running the OAuth PKCE flow if
- * no valid cached token exists. EC-2: validates state on callback.
- *
- * @internal
- */
-export async function acquireAccessToken(
-  serverName: string,
-  clientId: string,
-  scopes: string[] | undefined,
-  oauth: McpOAuthConfig,
-): Promise<string> {
-  const cached = await getTokens(serverName);
-  const now = Date.now();
-  if (cached !== undefined && cached.expiresAt > now + 60_000) {
-    return cached.accessToken;
-  }
-  // Expired (or about to). Try refresh if we have a refresh_token; else flow.
-  if (cached?.refreshToken !== undefined) {
-    try {
-      const refreshed = await lockedRefresh(serverName, () =>
-        refreshAccessToken(serverName, clientId, cached.refreshToken!, oauth),
-      );
-      return refreshed.accessToken;
-    } catch {
-      // Refresh failed — re-run the full flow.
-    }
-  }
-  const tokens = await runPkceFlow(serverName, clientId, scopes, oauth);
-  await setTokens(serverName, tokens);
-  return tokens.accessToken;
 }
 
 /**
