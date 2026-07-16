@@ -5,15 +5,19 @@
 // (see knip.json — internal has no external npm entry point, so knip's
 // entry-reachability model would flag the entire layer). That leaves the
 // largest part of the codebase — the internal implementation layer — with
-// ZERO dead-code coverage. This gate fills exactly that gap: it flags a
-// symbol EXPORTED from any `**/internal/**` module that has NO reference
-// anywhere in the repo — not in another file, and not even within its own
-// defining file (beyond the definition itself). That is unambiguously dead.
+// ZERO dead-code coverage. This gate fills exactly that gap in two passes:
+//   Pass 1 — a symbol EXPORTED from any `**/internal/**` module with NO
+//            reference anywhere in the repo (not another file, not its own).
+//   Pass 2 — a NON-exported top-level `function`/`const` (repo-wide) whose
+//            name occurs only once: declared, never used, never exported —
+//            the class that hid 8 dead test-seams (knip never sees private
+//            symbols; it reasons about exports/files/deps).
 //
 // High-signal by design: it does NOT flag "over-exported" symbols (used
 // only inside their own file — those are live, just needlessly `export`ed).
 // Only truly-dead symbols (0 references, period) fail the build, matching
-// the class of orphan the 2026-07-16 dead-code audit found (13 symbols).
+// the two classes the 2026-07-16 dead-code audit found (13 exported + 8
+// private, all removed).
 //
 // Escape hatch: `tools/internal-deadcode-allowlist.txt` — one bare symbol
 // name per line (`#` comments allowed) for intentional exceptions (reserved
@@ -32,6 +36,12 @@ const IDENT = /[A-Za-z_$][\w$]*/g;
 // Matches an exported symbol DEFINITION (not a re-export `export { X } from`).
 const EXPORT_DEF =
   /^export\s+(?:async\s+)?(?:(?:declare|abstract)\s+)?(?:function|class|const|let|interface|type|enum)\s+([A-Za-z_$][\w$]*)/;
+// Matches a NON-exported top-level function/const DEFINITION. A private symbol
+// can only be used within its own file, so a single occurrence (the declaration
+// itself) means it is unreachable — the class knip does not detect and the one
+// that hid 8 dead test-seams the 2026-07-16 audit found.
+const PRIVATE_DEF =
+  /^(?:async\s+)?function\s+([A-Za-z_$][\w$]*)|^const\s+([A-Za-z_$][\w$]*)\s*[=:]/;
 
 function walk(dir, out = []) {
   for (const name of readdirSync(dir)) {
@@ -87,18 +97,42 @@ for (const f of files) {
     if (external) continue;
     // no external refs — is it used within its own file (beyond the definition)?
     const occ = (contents.get(f).match(new RegExp(`\\b${name}\\b`, "g")) ?? []).length;
-    if (occ <= 1) orphans.push({ name, file: rel, line: i + 1 });
+    if (occ <= 1)
+      orphans.push({ name, file: rel, line: i + 1, why: "exported, 0 references repo-wide" });
+  }
+}
+
+// Pass 2 — non-exported (private) top-level dead symbols, repo-wide. A bare
+// `function`/`const` whose name occurs only once (its own declaration) is
+// unreachable: it is not exported (nothing outside the file can use it) and it
+// is not called inside the file either. This class is invisible to knip.
+for (const f of files) {
+  const rel = f.slice(PACKAGES.length + 1);
+  const txt = contents.get(f);
+  const lines = txt.split("\n");
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith("export")) continue;
+    const m = PRIVATE_DEF.exec(lines[i]);
+    if (!m) continue;
+    const name = m[1] ?? m[2];
+    if (!name || allowlist.has(name)) continue;
+    // A separate `export { name }` statement would make the word occur >1× in
+    // the file; occ<=1 therefore means declared, never used, never exported.
+    const occ = (txt.match(new RegExp(`\\b${name}\\b`, "g")) ?? []).length;
+    if (occ <= 1)
+      orphans.push({ name, file: rel, line: i + 1, why: "private, never used in-file" });
   }
 }
 
 console.log(`internal-deadcode: scanned ${files.length} TS files across packages/*/`);
 if (orphans.length === 0) {
-  console.log("✓ Internal dead-code gate passed — no orphaned internal exports.");
+  console.log(
+    "✓ Internal dead-code gate passed — no orphaned internal exports, no dead private symbols.",
+  );
   process.exit(0);
 }
-console.error(`✗ Internal dead-code gate FAILED: ${orphans.length} orphaned internal export(s):`);
-for (const o of orphans)
-  console.error(`  ${o.file}:${o.line}  ${o.name}  (0 references repo-wide)`);
+console.error(`✗ Internal dead-code gate FAILED: ${orphans.length} dead symbol(s):`);
+for (const o of orphans) console.error(`  ${o.file}:${o.line}  ${o.name}  (${o.why})`);
 console.error(
   "\nRemove them, or (if intentionally reserved) add the bare name to tools/internal-deadcode-allowlist.txt with a justification comment.",
 );

@@ -175,17 +175,6 @@ function buildSubmittedEvent(handle: TaskHandle): TaskEvent {
   };
 }
 
-function _resolveId(rawId: string | undefined, kind: TaskKind): string {
-  if (rawId === undefined) return randomUUID();
-  const allowReserved = kind !== "custom" && kind !== "run";
-  // For "run" we want to allow user-supplied IDs only — adapter wrapping
-  // happens via batch/workflow/cron, which pass their own prefixed IDs.
-  if (!isValidTaskId(rawId, allowReserved)) {
-    throw new InvalidTaskIdError(`invalid task id: ${rawId}`, rawId);
-  }
-  return rawId;
-}
-
 async function shortCircuitAborted(handle: TaskHandle, signal: AbortSignal): Promise<TaskHandle> {
   // EC-4: pre-aborted signal — skip queue/semaphore.
   const cancelled: TaskHandle = {
