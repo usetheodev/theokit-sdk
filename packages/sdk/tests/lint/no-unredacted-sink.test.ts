@@ -125,7 +125,7 @@ const WHITELIST = new Set<string>([
   // returns OTel-wrapped spans; redaction is handled at the agent-loop tracer
   // wrapper level (ADRs D206/D220/D241/D262 — shared loader extracted from
   // those four telemetry modules to remove duplicate clones).
-  "internal/observability/tracer-loader.ts",
+  "internal/telemetry/tracer-loader.ts",
   // `span.setAttributes(...)` on OTel tracer-wrapped spans in the active
   // memory module — same rationale as agent-loop/loop.ts (redacted via
   // `wrapSpan` in telemetry/tracer.ts).

@@ -12,7 +12,7 @@
  * @internal
  */
 
-import { getTracer, noopSpan, type SpanLike } from "../observability/tracer-loader.js";
+import { getTracer, noopSpan, type SpanLike } from "../telemetry/tracer-loader.js";
 
 const TRACER_NAME = "@theokit/sdk/task";
 
