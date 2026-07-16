@@ -7,6 +7,20 @@ import type { InteractionUpdate } from "./updates.js";
 import type { CostBreakdown, TokenUsage } from "./usage.js";
 
 /**
+ * Options for the tool-result guard (spotlighting + PII redaction on tool
+ * output). Contract type owned by `types/` (SE45 / D435) — the implementation
+ * lives in `internal/agent-loop/tool-result-guard.ts`, which re-exports this.
+ *
+ * @public
+ */
+export interface ToolResultGuardOptions {
+  /** Wrap tool-result content in explicit data boundaries (spotlighting). */
+  delimit?: boolean;
+  /** Redact common PII patterns (email, phone) in tool-result content. */
+  redactPii?: boolean;
+}
+
+/**
  * Lifecycle status of a {@link Run}.
  *
  * @public
@@ -428,7 +442,7 @@ export interface SendOptions {
    *
    * @public
    */
-  toolResultGuard?: import("../internal/agent-loop/tool-result-guard.js").ToolResultGuardOptions;
+  toolResultGuard?: ToolResultGuardOptions;
   /**
    * Opt-in task wrapping (ADRs D363, D374). When truthy, the entire
    * run is registered as a `Task` in the SDK's observable registry —
