@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.8
+
+### Patch Changes
+
+- feat(init-claude): the scaffolded `.claude/` template now covers **every public `@theokit/sdk` subpath**. Added 16 per-module skills — models, subagents (`/a2a` + tool-scope), retry, task-store, sandbox, compaction, messages, auth (`/server/auth` + errors-envelope), sanitize, skills, path-safety, concurrency, persistence, client, filesystem, project — each authored against the shipped type declarations (verified signatures: `Retry.create` executor, `Semaphore.create`, `SubAgent.create`, `Auth.create`, `sanitizeToolInput`, …). The `claude-template-no-drift` gate covers the expanded set.
+
 ## 4.2.7
 
 ### Patch Changes
