@@ -16,7 +16,6 @@ These skills inject TheoKit knowledge automatically when you edit files matching
 | `theokit-di` | `*container*`, `*inject*`, `*provider*`, `*module*` |
 | `theokit-di-agent` | `*decorator*`, `*Decorator*`, `di-agent*` |
 | `theokit-gateways` | `*gateway*`, `*telegram*`, `*slack*`, `*discord*` |
-| `theokit-rag` | `*retriev*`, `*rerank*`, `*splitter*`, `*rag*` |
 | `theokit-workflows` | `*workflow*`, `*Workflow*`, `*step*` |
 | `theokit-eval` | `*eval*`, `*Eval*`, `*scorer*` |
 | `theokit-cron` | `*cron*`, `*Cron*`, `*job*`, `*schedule*` |

@@ -5,7 +5,7 @@ paths:
   - "**/*sse*"
   - "**/*websocket*"
   - "**/*ws.*"
-description: TheoKit SDK Subscriptions API — defineSubscription, SSE/WebSocket transport, subscribe, tracked, resume tokens
+description: TheoKit SDK Subscriptions API — Subscription.create, SSE/WebSocket transport, subscribe, tracked, resume tokens
 ---
 
 # TheoKit Subscriptions
@@ -13,13 +13,13 @@ description: TheoKit SDK Subscriptions API — defineSubscription, SSE/WebSocket
 Typed WebSocket + W3C SSE subscriptions with opaque resume tokens. Available
 via the `@theokit/sdk/subscription` sub-path import (not on the main barrel).
 
-## Server side — `defineSubscription`
+## Server side — `Subscription.create`
 
 ```typescript
-import { defineSubscription } from "@theokit/sdk/subscription";
+import { Subscription } from "@theokit/sdk/subscription";
 import { z } from "zod";
 
-export default defineSubscription({
+export default Subscription.create({
   input: z.object({
     room: z.string(),
     lastEventId: z.string().optional(),
@@ -91,11 +91,11 @@ for await (const msg of subscribe<
 
 ## Composing with LLM streaming
 
-`Agent.streamObject` and `defineSubscription` are independent surfaces. Call
+`Agent.streamObject` and `Subscription.create` are independent surfaces. Call
 `Agent.streamObject` inside a subscription handler:
 
 ```typescript
-export default defineSubscription({
+export default Subscription.create({
   input: z.object({ topic: z.string() }),
   output: z.object({ kind: z.enum(["partial", "complete"]), text: z.string() }),
   async *handler(input, ctx) {
