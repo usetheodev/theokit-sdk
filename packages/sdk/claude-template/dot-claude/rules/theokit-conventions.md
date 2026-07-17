@@ -6,10 +6,9 @@
 - Use `Agent.prompt()` for one-shot operations (auto-disposes)
 
 ## Imports
-- Use `@theokit/sdk` for core (Agent, defineTool, Memory)
+- Use `@theokit/sdk` for core (Agent, Tool, Cron, Memory)
 - Use `@theokit/sdk/errors` for error types
 - Use `@theokit/sdk/subscription` for SSE/WebSocket
-- Use `@theokit/sdk/rag` for retrievers, rerankers, splitters
 - Use `@theokit/sdk/cron` for scheduled jobs
 - Use `@theokit/sdk/eval` for evaluation
 - Use `@theokit/sdk/workflow` for workflows
@@ -18,7 +17,7 @@
 
 ## Tools
 - Tool `inputSchema` MUST use Zod schemas — NEVER `any` or untyped objects
-- Tool `execute` MUST return a serializable value
+- Tool `handler` MUST return a string (or a value matching `outputSchema` when set)
 
 ## DI
 - Use `@Injectable()` + `@Inject()` from `@theokit/di`

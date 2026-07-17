@@ -1,6 +1,6 @@
 ---
 user-invocable: false
-description: Custom tools, defineTool with Zod schemas, and built-in coding tools for @theokit/sdk.
+description: Custom tools, Tool.create with Zod schemas, and built-in coding tools for @theokit/sdk.
 paths:
   - "**/*tool*"
   - "**/*Tool*"
@@ -10,13 +10,13 @@ paths:
 
 Quick reference for custom inline tools and built-in coding tools.
 
-## defineTool (type-safe builder)
+## Tool.create (type-safe builder)
 
 ```typescript
 import { z } from "zod";
-import { defineTool } from "@theokit/sdk";
+import { Tool } from "@theokit/sdk";
 
-const rollTool = defineTool({
+const rollTool = Tool.create({
   name: "roll",
   description: "Roll N dice with S sides each.",
   inputSchema: z.object({
@@ -84,22 +84,22 @@ await agent.send("Use only the calculator.", {
 // tools: []        -> no custom tools for this run
 ```
 
-## Built-in coding tools (`@theokit/sdk/tools`)
+## Built-in coding tools (`@theokit/sdk-tools`)
 
-Drop-in toolkit for coding agents. All tools are project-scoped and refuse sensitive files.
+Drop-in toolkit for coding agents, shipped as the separate `@theokit/sdk-tools` package (not a `@theokit/sdk/tools` subpath). All tools are project-scoped and refuse sensitive files.
 
 ```typescript
-import { createAgentFactory } from "@theokit/sdk";
+import { AgentFactory } from "@theokit/sdk";
 import {
   createReadFileTool,
   createListDirTool,
   createSearchTextTool,
   createGitDiffTool,
   createRunVitestTool,
-} from "@theokit/sdk/tools";
+} from "@theokit/sdk-tools";
 
 const projectRoot = process.cwd();
-const factory = createAgentFactory({
+const factory = AgentFactory.create({
   apiKey: process.env.ANTHROPIC_API_KEY!,
   model: { id: "claude-sonnet-4-6" },
   tools: [

@@ -129,12 +129,12 @@ const { items, nextCursor } = await Agent.list({ runtime: "local", cwd: process.
 const { items: runs } = await Agent.listRuns(agentId);
 ```
 
-## createAgentFactory
+## AgentFactory.create
 
 ```typescript
-import { createAgentFactory } from "@theokit/sdk";
+import { AgentFactory } from "@theokit/sdk";
 
-const factory = createAgentFactory({
+const factory = AgentFactory.create({
   apiKey: process.env.THEOKIT_API_KEY!,
   model: { id: "claude-sonnet-4-6" },
   local: { cwd: process.cwd() },
