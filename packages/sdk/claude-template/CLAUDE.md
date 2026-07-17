@@ -24,6 +24,22 @@ These skills inject TheoKit knowledge automatically when you edit files matching
 | `theokit-config` | `.theokit/**`, `config.*`, `theo.config.*` |
 | `theokit-streaming` | `*stream*`, `*Stream*`, `*SDKMessage*` |
 | `theokit-budget` | `*budget*`, `*Budget*`, `*cost*`, `*token*` |
+| `theokit-models` | `*model*`, `*Model*` |
+| `theokit-subagents` | `*subagent*`, `*a2a*`, `*delegat*` |
+| `theokit-retry` | `*retry*`, `*Retry*` |
+| `theokit-task-store` | `*task-store*`, `*taskstore*`, `*TaskStore*` |
+| `theokit-sandbox` | `*sandbox*`, `*Sandbox*` |
+| `theokit-compaction` | `*compact*`, `*Compact*` |
+| `theokit-messages` | `*message*`, `*Message*` |
+| `theokit-auth` | `*auth*`, `*Auth*`, `*envelope*` |
+| `theokit-sanitize` | `*sanitize*`, `*Sanitize*` |
+| `theokit-skills` | `*skill*`, `*Skill*` |
+| `theokit-path-safety` | `*path-safety*`, `*pathsafety*` |
+| `theokit-concurrency` | `*concurren*`, `*semaphore*`, `*Semaphore*` |
+| `theokit-persistence` | `*persist*`, `*Persist*` |
+| `theokit-client` | `*client*`, `*Client*` |
+| `theokit-filesystem` | `*filesystem*`, `*Filesystem*` |
+| `theokit-project` | `*project*`, `*Project*` |
 
 ### Settings
 
