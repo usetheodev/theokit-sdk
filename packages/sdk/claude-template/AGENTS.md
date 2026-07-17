@@ -1,6 +1,6 @@
 # @theokit/sdk — TypeScript SDK for AI Agents
 
-Build AI agents that run locally or in the cloud. Same code, same API, pick your runtime.
+Build AI agents that run locally or in the cloud. Same code, same API, pick your runtime. The exported types are the canonical contract.
 
 ## Setup
 
@@ -13,23 +13,22 @@ Set your API key:
 export THEOKIT_API_KEY="your-key"
 ```
 
-## Import Map
+Node 22.12+ required.
+
+## Import Map (verified subpaths)
 
 ```typescript
-import { Agent } from "@theokit/sdk";                         // Core: Agent, Run, SDKMessage
-import { defineTool } from "@theokit/sdk";                     // Tool definitions
-import { TheokitAgentError } from "@theokit/sdk/errors";       // Error hierarchy
-import { Cron } from "@theokit/sdk/cron";                      // Scheduled jobs
-import { Eval } from "@theokit/sdk/eval";                      // Evaluation suite
-import { Workflow } from "@theokit/sdk/workflow";               // Multi-step workflows
-import { defineSubscription } from "@theokit/sdk/subscription"; // SSE/WebSocket subscriptions
-import { VectorRetriever } from "@theokit/sdk/rag";            // RAG: retrievers, rerankers, splitters
-import { defineSubAgent } from "@theokit/sdk/a2a";             // Agent-to-agent delegation
-import { SandboxBackend } from "@theokit/sdk/sandbox";         // Sandbox backends
-import { defineAuth } from "@theokit/sdk/server/auth";         // Authentication
-import { TaskStore } from "@theokit/sdk/task-store";           // Task persistence
-import { createClient } from "@theokit/sdk/client";            // HTTP client
+import { Agent, Cron, Tool } from "@theokit/sdk";              // core: Agent, Run, Cron, Tool, SDKMessage
+import { TheokitAgentError } from "@theokit/sdk/errors";       // error hierarchy
+import { Workflow } from "@theokit/sdk/workflow";              // multi-step workflows
+import { Eval } from "@theokit/sdk/eval";                      // evaluation suite
+import { Subscription } from "@theokit/sdk/subscription";      // SSE / WebSocket subscriptions
+import { SubAgent } from "@theokit/sdk/a2a";                   // agent-to-agent delegation
+import { Auth } from "@theokit/sdk/server/auth";              // authentication
+import { TaskStore } from "@theokit/sdk/task-store";           // task persistence
 ```
+
+Other public subpaths: `/messages`, `/models`, `/skills`, `/project`, `/subagents`, `/sandbox`, `/client`, `/persistence`, `/retry`, `/concurrency`, `/sanitize`. There is **no** `@theokit/sdk/rag` subpath. Never import from `@theokit/sdk/internal/*` or `@theokit/sdk/dist/*`.
 
 ## Quick Start
 
@@ -42,90 +41,109 @@ const agent = await Agent.create({
 
 const run = await agent.send("Summarize this repository");
 for await (const event of run.stream()) {
-  if (event.type === "assistant") console.log(event.content);
+  if (event.type === "assistant") {
+    for (const block of event.message.content) {
+      if (block.type === "text") process.stdout.write(block.text);
+    }
+  }
 }
 
-agent.dispose(); // Always clean up
+await agent[Symbol.asyncDispose](); // or: await using agent = await Agent.create(...)
 ```
 
 ## Core Patterns
 
 ### Agent lifecycle
-- `Agent.create(options)` — create an agent (local or cloud)
-- `agent.send(prompt)` — send a message, get a Run
-- `run.stream()` — AsyncGenerator of SDKMessage events
-- `agent.dispose()` — clean up resources (or use `await using`)
-- `Agent.prompt(options, prompt)` — one-shot: create, send, dispose
+- `Agent.create(options)` — create an agent (local or cloud); returns immediately, `agent.agentId` is `agent-<uuid>` (local) or `bc-<uuid>` (cloud).
+- `agent.send(prompt)` — send a message, get a `Run` (context is retained across sends).
+- `run.stream()` — `AsyncGenerator` of `SDKMessage` events.
+- `run.wait()` — resolve to `{ status, result, model, durationMs, git? }` after the run ends.
+- `Agent.prompt(prompt, options)` — one-shot (create + send + dispose). **Prompt is the first argument.**
+- `Agent.resume(agentId, { apiKey })` — reattach; runtime auto-detected from the ID prefix.
+- Dispose with `await using`, `await agent[Symbol.asyncDispose]()`, or `agent.close()` (fire-and-forget).
 
-### Tool definition
+### Tool definition — `Tool.create` with a Zod schema
 ```typescript
-const searchTool = defineTool({
+import { z } from "zod";
+import { Tool } from "@theokit/sdk";
+
+const searchTool = Tool.create({
   name: "search",
   description: "Search the web",
   inputSchema: z.object({ query: z.string() }),
-  execute: async ({ query }) => ({ results: await search(query) }),
+  handler: async ({ query }) => JSON.stringify({ results: await search(query) }),
 });
 ```
 
-### Streaming events (SDKMessage)
-- `{ type: "assistant", content }` — text from the model
-- `{ type: "tool_use", name, input }` — tool call
-- `{ type: "tool_result", name, output }` — tool response
-- `{ type: "status", status }` — run status change
-- `{ type: "error", error }` — error event
-- `{ type: "usage", tokens }` — token usage update
+The tool spec field is `handler` (returns a string, or a typed value when you set `outputSchema`). Built-in coding tools (`createReadFileTool`, …) live in the separate `@theokit/sdk-tools` package, not a `@theokit/sdk/tools` subpath.
+
+`Tool.create` is the canonical factory (uniform `X.create()` API since v3.0). Every public factory follows it: `Provider.create`, `Plugin.create`, `Subscription.create`, `Auth.create`, `SubAgent.create`, `Squad.create`, `Retry.create`. There is **no** `defineTool` / `define*` export — those were removed at v3.0.
+
+### Streaming events (`SDKMessage`)
+Discriminate on `type`. All events carry `agent_id` and `run_id`.
+- `{ type: "system" }` — init metadata, once at start (`model?`, `tools?`)
+- `{ type: "user", message: { content } }` — echo of the prompt
+- `{ type: "assistant", message: { content } }` — model output; `content` is a `(TextBlock | ToolUseBlock)[]`
+- `{ type: "thinking", text }` — reasoning content
+- `{ type: "tool_call", call_id, name, status, args?, result? }` — tool lifecycle
+- `{ type: "status", status }` — cloud run lifecycle
+- `{ type: "task" }` / `{ type: "request", request_id }` — task milestones / awaiting input
+
+There is no `tool_use` / `tool_result` / `usage` / `error` event. Read assistant text from `event.message.content` (a block array), not `event.content`. Treat `tool_call` `args`/`result` as `unknown`.
 
 ### Error handling
 ```typescript
+import { TheokitAgentError } from "@theokit/sdk/errors";
+
 try {
   await agent.send("...");
 } catch (e) {
-  if (e instanceof TheokitAgentError) {
-    console.error(e.code, e.message); // typed error with code
-  }
+  if (e instanceof TheokitAgentError) console.error(e.code, e.isRetryable, e.message);
 }
 ```
+Subclasses: `AuthenticationError`, `RateLimitError`, `ConfigurationError`, `IntegrationNotConnectedError`, `NetworkError`, `UnknownAgentError`, `UnsupportedRunOperationError`.
 
-### DI decorators (`@theokit/di` + `@theokit/di-agent`)
+### Optional: DI decorators (`@theokit/di` + `@theokit/di-agent`)
+Decorators are an **optional** convenience layer in separate packages — the factory API above is canonical and never requires them.
 ```typescript
-import { Injectable, Container } from "@theokit/di";
-import { Tool, Workflow, Cron, InjectAgent } from "@theokit/di-agent";
+import { Injectable } from "@theokit/di";
+import { Tool as ToolDecorator, Cron as CronDecorator } from "@theokit/di-agent";
 
 @Injectable()
 class MyService {
-  @Tool({ name: "search", description: "Search" })
-  searchTool!: ToolOptions;
+  @ToolDecorator({ name: "search", description: "Search" })
+  searchTool!: unknown;
 
-  @Cron({ schedule: "*/5 * * * *" })
+  @CronDecorator({ schedule: "*/5 * * * *" })
   cleanup() { /* runs every 5 min */ }
 }
 ```
 
-### Gateways
+### Optional: Gateways
 ```typescript
 import { defineGateway } from "@theokit/gateway-telegram"; // or -slack, -discord, etc.
 const gateway = defineGateway({ token: process.env.BOT_TOKEN });
 ```
 
-Available: telegram, slack, discord, whatsapp, teams, email, sms, mattermost, line, matrix.
-
 ## Anti-patterns
 
-- NEVER import from `@theokit/sdk/internal/...` — internal paths are not public API
-- NEVER import from `@theokit/sdk/dist/...` — use the exports map above
-- NEVER forget `agent.dispose()` — causes resource leaks
-- NEVER use `new Agent()` — always use `Agent.create()`
-- NEVER use `any` for tool input schemas — use Zod schemas
+- NEVER `new Agent()` — always `await Agent.create()`.
+- NEVER author `defineTool` / `defineSubscription` / `defineAuth` / `defineSubAgent` — use `Tool.create` / `Subscription.create` / `Auth.create` / `SubAgent.create`.
+- NEVER switch on `tool_use` / `tool_result` / `usage` / `error` stream events — they don't exist; use `tool_call` / `assistant` / `thinking` / `status`.
+- NEVER read assistant text as `event.content` — it's `event.message.content`.
+- NEVER import from `@theokit/sdk/internal/*`, `@theokit/sdk/dist/*`, or `@theokit/sdk/rag` (no such subpath).
+- NEVER forget disposal (`await using` / `Symbol.asyncDispose` / `close()`) — it leaks the runtime.
+- NEVER use `any` for tool input schemas — use Zod schemas.
 
 ## Packages
 
 | Package | Purpose |
 |---------|---------|
-| `@theokit/sdk` | Core SDK (Agent, Run, Tools, Memory, Streaming) |
-| `@theokit/di` | Dependency injection container |
-| `@theokit/di-agent` | 15 agentic decorators for DI |
-| `@theokit/gateway-*` | Platform gateways (Telegram, Slack, etc.) |
-| `@theokit/react` | React hooks for agent UIs |
+| `@theokit/sdk` | Core SDK (Agent, Run, Tool, Cron, streaming, memory, workflows, eval, subscriptions) |
+| `@theokit/di` | Dependency injection container (optional) |
+| `@theokit/di-agent` | Agentic decorators for DI (optional) |
+| `@theokit/gateway-*` | Platform gateways — telegram, slack, discord, etc. (optional) |
+| `@theokit/react` | React hooks for agent UIs (optional) |
 
 ## Configuration
 

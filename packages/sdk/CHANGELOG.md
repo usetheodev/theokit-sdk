@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.7
+
+### Patch Changes
+
+- fix(init-claude): the scaffolded `.claude/` template (`npx theokit-init-claude`) now teaches the current `X.create()` API instead of the pre-3.0 surface removed by SE36 (#139). `AGENTS.md` + the affected skills/rules were corrected: `defineTool`→`Tool.create`, `defineSubscription`→`Subscription.create`, `createAgentFactory`→`AgentFactory.create`; the tool spec field is `handler` (not `execute`); streaming events are `system`/`user`/`assistant`/`thinking`/`tool_call`/`status`/`task`/`request` (there is no `tool_use`/`tool_result`/`usage`/`error`); assistant text is `event.message.content`; `Agent.prompt(prompt, options)` (prompt first); built-in coding tools import from `@theokit/sdk-tools` (not a `@theokit/sdk/tools` subpath). The phantom `theokit-rag` skill and the non-existent `@theokit/sdk/rag` import were removed. A `tests/lint/claude-template-no-drift.test.ts` gate now fails CI if the scaffold teaches a removed factory, phantom subpath, or non-existent stream event.
+
 ## 4.2.6
 
 ### Patch Changes
