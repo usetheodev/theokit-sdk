@@ -77,6 +77,36 @@ describe("SubAgent", () => {
     );
   });
 
+  it("installs the credential sink under a GLOBAL Symbol.for key (cross-bundle safe) — regression #143", () => {
+    // With `tsup splitting: false`, `.` and `./a2a` inline SEPARATE copies of this module. A unique
+    // `Symbol()` sink key would differ per copy: the local runtime (bundled in `.`) calls
+    // `inheritSubAgentCredentials` with the `.`-copy key, but a `SubAgent` from `@theokit/sdk/a2a`
+    // installed its sink under the `/a2a`-copy key → the lookup missed and the child inherited no
+    // apiKey (`provider_unresolved` → "(no response)"). The key MUST be the shared `Symbol.for` so
+    // `tool[Symbol.for("theokit.subagent.inheritCredentials")]` resolves across copies.
+    const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
+    const sink = (tool as unknown as Record<PropertyKey, unknown>)[
+      Symbol.for("theokit.subagent.inheritCredentials")
+    ];
+    expect(typeof sink).toBe("function");
+  });
+
+  it("surfaces a child run error instead of swallowing it to '(no response)' — regression #143", async () => {
+    const mockCreate = vi.fn().mockResolvedValue({
+      send: vi.fn().mockResolvedValue({
+        wait: () =>
+          Promise.resolve({ status: "error", error: { message: "provider_unresolved" } }),
+      }),
+      dispose: vi.fn(),
+    });
+    setAgentFacade({ create: mockCreate } as unknown as AgentFacadePort);
+
+    const tool = SubAgent.create({ name: "t", description: "d", instructions: "i" });
+    // A child that ends in error must throw (Rule 8), not return the "(no response)" fallback that
+    // hid the real failure and made the parent loop on it.
+    await expect(tool.handler({ input: "task" })).rejects.toThrow(/provider_unresolved/);
+  });
+
   it("prefers the subagent's explicit model over the inherited one", async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       send: vi.fn().mockResolvedValue({ wait: () => Promise.resolve({ result: "ok" }) }),

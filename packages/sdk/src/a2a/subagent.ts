@@ -46,7 +46,13 @@ export interface InheritedCredentials {
  * `CustomTool` shape (and off every tool handler's `ctx`) so the parent's API
  * key never reaches third-party tool code — only the SDK's own delegation path.
  */
-const INHERIT_CREDENTIALS = Symbol("theokit.subagent.inheritCredentials");
+// `Symbol.for` (global registry), NOT `Symbol()`: with `tsup splitting: false` each public entry
+// (`.`, `./a2a`) inlines its own copy of this module. A unique `Symbol()` would give each copy a
+// DIFFERENT sink key — the local runtime (bundled in `.`) calls `inheritSubAgentCredentials` with the
+// `.`-copy key, but a `SubAgent` created via `@theokit/sdk/a2a` installed its sink under the `/a2a`-copy
+// key, so the lookup missed and the child inherited NO `apiKey` (→ `provider_unresolved`, "(no response)").
+// `Symbol.for` makes both copies agree on ONE key. (Same duplicated-singleton class as the facade fix, #142.)
+const INHERIT_CREDENTIALS = Symbol.for("theokit.subagent.inheritCredentials");
 
 type CredentialSink = (creds: InheritedCredentials) => void;
 
@@ -272,6 +278,15 @@ async function runChildAgent(
     };
     const run = await agent.send(input, sendOptions);
     const result = await run.wait();
+    // Fail-fast, don't swallow (Rule 8): a child that ended in error must surface — otherwise a real
+    // failure (e.g. `provider_unresolved`) is hidden behind "(no response)" and the parent loops on it.
+    if (result.status === "error") {
+      const cause = (result as { error?: { message?: string } }).error;
+      throw new Error(
+        `subagent "${spec.name}" run failed: ${cause?.message ?? "unknown error"}`,
+        cause !== undefined ? { cause } : undefined,
+      );
+    }
     const text = result.result ?? "(no response)";
     // SE14 — text-only by default; opt-in appends the child's tool results.
     return spec.includeToolResults === true ? text + (await collectChildToolResults(run)) : text;
