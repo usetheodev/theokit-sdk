@@ -1,0 +1,5 @@
+---
+"@theokit/sdk": patch
+---
+
+fix(a2a): subagent child now inherits the parent's `apiKey` + child errors surface instead of `"(no response)"` (#143). Two bugs kept a `SubAgent` child from ever returning content when driven through a host that reaches the `/a2a` build copy (e.g. the `@theokit/agents` in-process adapter): (1) the credential-inheritance sink key was a unique `Symbol()`, so with `tsup splitting: false` the local runtime (bundled in `.`) and a `SubAgent` created via `@theokit/sdk/a2a` used DIFFERENT sink symbols — the child inherited no `apiKey` and failed with `provider_unresolved`; now a shared `Symbol.for` key (same fix class as #142). (2) `runChildAgent` read only `result.result`, so an errored child was silently swallowed to `"(no response)"` and the parent looped on it — it now throws the child's error (Rule 8, fail-fast). Adds regression tests (global sink key; error surfaced). Validated end-to-end: a delegated child (reasoning and tool-using) now returns its answer.
