@@ -1,5 +1,6 @@
 import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { emitRunEvent } from "../../types/run-events.js";
+import type { InteractionUpdate } from "../../types/updates.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
@@ -312,6 +313,17 @@ async function runToolWithLifecycle(
     conversationId: inputs.agentId,
     callId,
   });
+  // #47-followup — surface the tool call LIVE via onDelta, at its true chronological position
+  // (BETWEEN LLM rounds, before the post-tool answer streams). Tool dispatch already runs here, so
+  // emitting the lifecycle from onDelta lets a consumer render tool→result ahead of the round-2 text
+  // without the bridge having to HOLD the answer. The run.stream() replay of the same call/result is
+  // deduped by callId downstream, so this never double-renders.
+  await emitToolLifecycleDelta(inputs, {
+    type: "tool-call-started",
+    callId,
+    toolCall: { callId, name: call.name, args: call.input },
+    modelCallId: callId,
+  });
   // #58 — bound the tool by the run's cancellation signal + optional per-tool
   // timeout so a hung tool cannot wedge the loop and cancel interrupts it.
   const result = await raceToolExecution(executeTool(inputs, resolved, call), {
@@ -319,6 +331,20 @@ async function runToolWithLifecycle(
     timeoutMs: inputs.perToolTimeoutMs,
   });
   const durationMs = Date.now() - startAt;
+  // #47-followup — the matching live `tool-call-completed`, carrying the rendered result so the
+  // consumer shows the output at the correct position (before the answer). Same value the returned
+  // `tool_result` content part uses, so the onDelta render matches the run.stream() render it dedups.
+  await emitToolLifecycleDelta(inputs, {
+    type: "tool-call-completed",
+    callId,
+    toolCall: {
+      callId,
+      name: call.name,
+      args: call.input,
+      result: result.content !== undefined ? result.content : renderToolResult(result),
+    },
+    modelCallId: callId,
+  });
   // M3 #64 — emit the tool-call duration as a metric (was hook-only).
   inputs.telemetry?.recordHistogram(HISTOGRAM_NAMES.TOOL_CALL_DURATION_MS, durationMs, {
     "tool.name": call.name,
@@ -407,6 +433,28 @@ function finalizeSpanAndPostHook(
     content: result.content !== undefined ? result.content : renderToolResult(result),
     ...(result.exitCode !== 0 && result.exitCode !== undefined ? { isError: true } : {}),
   };
+}
+
+/**
+ * #47-followup — emit a tool-lifecycle `InteractionUpdate` (`tool-call-started` / `tool-call-completed`)
+ * through `onDelta`, so the tool renders at its true stream position (between LLM rounds, before the
+ * post-tool answer). Awaited + error-swallowed (mirrors the loop's `safeCall` around onDelta): a
+ * throwing listener must never crash the agent loop. No-op when `onDelta` is unset.
+ *
+ * @internal
+ */
+async function emitToolLifecycleDelta(
+  inputs: AgentLoopInputs,
+  update: InteractionUpdate,
+): Promise<void> {
+  if (inputs.onDelta === undefined) return;
+  try {
+    await inputs.onDelta({ update });
+  } catch (err) {
+    process.stderr.write(
+      `[theokit-sdk] onDelta tool-lifecycle emit error (swallowed): ${err instanceof Error ? err.message : String(err)}\n`,
+    );
+  }
 }
 
 /**
