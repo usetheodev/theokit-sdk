@@ -29,6 +29,15 @@ import {
 /** Directories excluded from traversal by default. */
 const DEFAULT_EXCLUDES = new Set(["node_modules", ".git", "dist", ".theo"]);
 
+/**
+ * Depth cap for the BACKEND walk only. The local `readdir(withFileTypes)` walk skips symlinks (a
+ * symlink entry is neither `isDirectory()` nor `isFile()`), so it can never loop. The backend walk
+ * decides type via `stat`, which follows symlinks, so an in-boundary symlink cycle (e.g. `a → .`)
+ * would recurse until the path exceeds PATH_MAX. This bound stops that pathological case; real project
+ * trees never approach it.
+ */
+const MAX_BACKEND_WALK_DEPTH = 64;
+
 export interface CreateGlobToolOptions {
   /** Absolute path to the project root. */
   projectRoot: string;
@@ -64,7 +73,7 @@ export function createGlobTool(opts: CreateGlobToolOptions): CustomTool {
         const backend = await resolveFilesystem(filesystem, ctx ?? {});
         const searchRel = cwd ?? "";
         const found: string[] = [];
-        await walkDirBackend(backend, searchRel, searchRel, regex, found);
+        await walkDirBackend(backend, searchRel, searchRel, regex, found, 0);
         return JSON.stringify({ ok: true, files: found.sort(), count: found.length });
       }
 
@@ -127,7 +136,9 @@ async function walkDirBackend(
   dir: string,
   pattern: RegExp,
   results: string[],
+  depth: number,
 ): Promise<void> {
+  if (depth > MAX_BACKEND_WALK_DEPTH) return; // symlink-cycle guard (see MAX_BACKEND_WALK_DEPTH)
   let names: string[];
   try {
     names = await backend.list(dir);
@@ -135,7 +146,7 @@ async function walkDirBackend(
     return; // directory doesn't exist or unreadable
   }
   for (const name of names) {
-    await walkBackendEntry(backend, base, dir, name, pattern, results);
+    await walkBackendEntry(backend, base, dir, name, pattern, results, depth);
   }
 }
 
@@ -147,6 +158,7 @@ async function walkBackendEntry(
   name: string,
   pattern: RegExp,
   results: string[],
+  depth: number,
 ): Promise<void> {
   if (DEFAULT_EXCLUDES.has(name)) return;
   const fullRel = dir === "" ? name : `${dir}/${name}`;
@@ -158,7 +170,7 @@ async function walkBackendEntry(
     return;
   }
   if (st.isDirectory) {
-    await walkDirBackend(backend, base, fullRel, pattern, results);
+    await walkDirBackend(backend, base, fullRel, pattern, results, depth + 1);
   } else if (st.isFile && pattern.test(relPath)) {
     results.push(fullRel);
   }

@@ -1,4 +1,4 @@
-import { type FileStat, FilesystemBackend } from "@theokit/sdk/filesystem";
+import { FileNotFoundError, type FileStat, FilesystemBackend } from "@theokit/sdk/filesystem";
 import { describe, expect, it } from "vitest";
 
 import { createEditFileTool } from "../src/edit-file.js";
@@ -12,7 +12,7 @@ class MemFs extends FilesystemBackend {
   }
   async readFile(path: string): Promise<string> {
     const c = this.files.get(path);
-    if (c === undefined) throw new Error("ENOENT");
+    if (c === undefined) throw new FileNotFoundError(path);
     return c;
   }
   async writeFile(path: string, content: string): Promise<FileStat> {
