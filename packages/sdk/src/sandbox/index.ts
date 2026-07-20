@@ -6,8 +6,10 @@ export {
 } from "./provision.js";
 export {
   type ExecuteResult,
+  resolveSandbox,
   SandboxBackend,
   type SandboxConfig,
   SandboxNotAvailableError,
+  type SandboxProvider,
   SandboxSecurityError,
 } from "./types.js";
