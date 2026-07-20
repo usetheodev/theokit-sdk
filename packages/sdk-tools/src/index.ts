@@ -42,6 +42,11 @@ export {
   isCommandAllowed,
 } from "./internal/command-policy.js";
 export {
+  ContextMatchError,
+  type ContextMatchReason,
+  replaceUnique,
+} from "./internal/context-match.js";
+export {
   isBlockedIp,
   RedirectBlockedError,
   type ResolveAndScreenOptions,
