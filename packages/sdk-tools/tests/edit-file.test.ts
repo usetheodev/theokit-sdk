@@ -119,3 +119,22 @@ describe("createEditFileTool — error scenarios", () => {
     expect(parsed.error).toBe("forbidden_path");
   });
 });
+
+describe("createEditFileTool — Strategy 3 context-tolerant ladder (M13)", () => {
+  it("Given ASCII old_string vs typographic source (curly quotes/en-dash), Then the unicode rung matches where exact + whitespace-collapse both fail", async () => {
+    // Source uses a curly apostrophe + en-dash; the model authored old_string in ASCII.
+    // Strategy 1 (exact) fails; Strategy 2 (whitespace-collapse) fails (it does not touch quotes/dashes);
+    // Strategy 3's unicode-normalize rung matches.
+    writeFileSync(join(projectRoot, "u.ts"), "const label = ‘hi’ – done;\n");
+    const tool = createEditFileTool({ projectRoot });
+    const out = await textHandler(tool)({
+      path: "u.ts",
+      old_string: "const label = 'hi' - done;",
+      new_string: "const label = 'bye';",
+    });
+    const parsed = JSON.parse(out);
+    expect(parsed.ok).toBe(true);
+    expect(parsed.replacements).toBe(1);
+    expect(readFileSync(join(projectRoot, "u.ts"), "utf-8")).toContain("const label = 'bye';");
+  });
+});

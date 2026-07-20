@@ -15,6 +15,7 @@ import type { CustomTool } from "@theokit/sdk";
 
 import { Tool } from "@theokit/sdk";
 import { z } from "zod";
+import { ContextMatchError, replaceUnique } from "./internal/context-match.js";
 import {
   assertNoSymlinkEscape,
   ForbiddenPathError,
@@ -89,26 +90,40 @@ export function createEditFileTool(opts: CreateEditFileToolOptions): CustomTool 
         return JSON.stringify({ ok: true, replacements: 1 });
       }
 
-      // Strategy 2: whitespace-normalized match
+      // Strategy 2: whitespace-normalized match (collapses internal whitespace runs)
       const normalizedContent = normalizeWhitespace(content);
       const normalizedOld = normalizeWhitespace(old_string);
       const normalizedIdx = normalizedContent.indexOf(normalizedOld);
 
-      if (normalizedIdx === -1) {
-        return JSON.stringify({ ok: false, error: "no_match", path });
+      if (normalizedIdx !== -1) {
+        // Find original span boundaries via character mapping
+        const span = findOriginalSpan(
+          content,
+          normalizedContent,
+          normalizedIdx,
+          normalizedOld.length,
+        );
+        await copyFile(absolutePath, `${absolutePath}.bak`);
+        const result = content.slice(0, span.start) + new_string + content.slice(span.end);
+        await writeFile(absolutePath, result, "utf-8");
+        return JSON.stringify({ ok: true, replacements: 1 });
       }
 
-      // Find original span boundaries via character mapping
-      const span = findOriginalSpan(
-        content,
-        normalizedContent,
-        normalizedIdx,
-        normalizedOld.length,
-      );
-      await copyFile(absolutePath, `${absolutePath}.bak`);
-      const result = content.slice(0, span.start) + new_string + content.slice(span.end);
-      await writeFile(absolutePath, result, "utf-8");
-      return JSON.stringify({ ok: true, replacements: 1 });
+      // Strategy 3: context-tolerant line-match down a strictness ladder (rstrip → trim → unicode)
+      // with an ambiguity guard — catches indentation/typographic drift the whitespace-collapse misses
+      // and refuses (no_match) an ambiguous target instead of editing the wrong location. Additive:
+      // only reached after strategies 1+2 fail, so it never changes an existing match's behavior.
+      try {
+        const result = replaceUnique(content, old_string, new_string);
+        await copyFile(absolutePath, `${absolutePath}.bak`);
+        await writeFile(absolutePath, result, "utf-8");
+        return JSON.stringify({ ok: true, replacements: 1 });
+      } catch (err) {
+        if (err instanceof ContextMatchError) {
+          return JSON.stringify({ ok: false, error: "no_match", path });
+        }
+        throw err;
+      }
     },
   });
 }
