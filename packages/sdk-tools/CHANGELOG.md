@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.18.0
+
+### Minor Changes
+
+- `createReadFileTool` gains three ADDITIVE, opt-in Codex-grade capabilities (all default OFF, so existing
+  consumers are byte-identical): `lineNumbers` (render a `cat -n` `<n>\t<line>` view so the model can cite/
+  edit by line), `offset`/`limit` input params (page through a large file), and `allowAbsolute` (honor an
+  absolute path outside `projectRoot` — the Codex read-only "reads-anywhere" sandbox). Security: with
+  `allowAbsolute`, the secret guard now blocks `.env`/`.git`/`node_modules`/`.theo` at ANY path depth (not
+  just the project-relative first segment), closing an absolute-path exfiltration hole. Opt-in only.
+
 ## 0.17.0
 
 ### Minor Changes
