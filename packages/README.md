@@ -18,6 +18,7 @@ This monorepo ships **14 packages** — the Agent-AI **Harness** — organized i
 | `@theokit/sdk-memory` | **0.2.2** | `MemoryProvider` port consumer — markdown store with disk-backed session-summary write/recall + `memory_remember` / `memory_search` tools + agent-scope privacy filter. |
 | `@theokit/sdk-budget` | **0.3.1** | `BudgetTracker` port consumer + USD pricing tracker. |
 | `@theokit/sdk-handoff` | **0.1.1** | Inter-agent dispatch via plugin protocol. `Handoff.asPlugin()` + lazy-loaded `internal/tool-injector`. |
+| `@theokit/sdk-pty` | **0.1.0** | `PtyInteractiveBackend` — `node-pty`-backed `InteractiveProvider` for the interactive-shell tools. Opt-in; isolates the native module so core/`sdk-tools` stay surface-agnostic (terminal / desktop / cluster). |
 
 ### Memory adapters — external memory backends
 
