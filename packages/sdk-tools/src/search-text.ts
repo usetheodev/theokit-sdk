@@ -26,8 +26,12 @@ import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative as relativePath } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
-
 import { Tool } from "@theokit/sdk";
+import {
+  type FilesystemBackend,
+  type FilesystemProvider,
+  resolveFilesystem,
+} from "@theokit/sdk/filesystem";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -48,6 +52,9 @@ export interface CreateSearchTextToolOptions {
   maxMatches?: number;
   /** Skip files larger than this (bytes). Default 1 MB. */
   maxFileSize?: number;
+  /** Optional injected filesystem (`@theokit/sdk/filesystem`) — when provided, the recursive walk reads
+   *  through the backend (surface-agnostic); omitted ⇒ the local `readdir`/`readFile` walk (unchanged). */
+  filesystem?: FilesystemProvider;
 }
 
 interface Match {
@@ -61,6 +68,7 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
     projectRoot,
     maxMatches = DEFAULT_MAX_MATCHES,
     maxFileSize = DEFAULT_MAX_FILE_SIZE,
+    filesystem,
   } = opts;
 
   return Tool.create({
@@ -80,9 +88,7 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
         .optional()
         .describe("Optional project-relative directory to scope the search."),
     }),
-    handler: async ({ query, path }) => {
-      const scope = resolveSearchScope(path, projectRoot);
-      if ("error" in scope) return scope.error;
+    handler: async ({ query, path }, ctx) => {
       const state: SearchState = {
         matches: [],
         totalMatches: 0,
@@ -92,6 +98,24 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
         maxFileSize,
         projectRoot,
       };
+
+      // Injected filesystem (surface-agnostic) ⇒ walk via the backend in project-relative path space;
+      // absent ⇒ the local `readdir`/`readFile` walk (byte-identical to before).
+      if (filesystem !== undefined) {
+        const scopeRel = resolveScopeRel(path, projectRoot);
+        if ("error" in scopeRel) return scopeRel.error;
+        const backend = await resolveFilesystem(filesystem, ctx ?? {});
+        await walkBackend(backend, scopeRel.rel, state);
+        return JSON.stringify({
+          ok: true,
+          matches: state.matches,
+          truncated: state.truncated,
+          totalMatches: state.totalMatches,
+        });
+      }
+
+      const scope = resolveSearchScope(path, projectRoot);
+      if ("error" in scope) return scope.error;
       await walk(scope.scopeAbs, state);
       return JSON.stringify({
         ok: true,
@@ -194,6 +218,90 @@ async function scanFile(absPath: string, relPath: string, state: SearchState): P
   if (buffer === null || buffer.length > state.maxFileSize) return;
   if (isBinaryBuffer(buffer)) return;
   const lines = buffer.toString("utf-8").split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (!line.includes(state.query)) continue;
+    if (!recordMatch(state, relPath, i + 1, line)) return;
+  }
+}
+
+// --- Surface-agnostic backend walk (mirrors the local walk in PROJECT-RELATIVE path space) ---
+
+/** Resolve the scope to a project-relative dir (`""` = root) with the same security guard as the local
+ *  path — a traversal/forbidden scope is rejected identically. */
+function resolveScopeRel(
+  path: string | undefined,
+  projectRoot: string,
+): { rel: string } | { error: string } {
+  const scopeRel = path === undefined || path === "" || path === "." ? "" : path;
+  if (scopeRel === "") return { rel: "" };
+  try {
+    assertNoSymlinkEscape(safePathJoin(projectRoot, scopeRel), projectRoot);
+    return { rel: scopeRel };
+  } catch (err) {
+    if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
+      return { error: JSON.stringify({ ok: false, error: "path_traversal", path }) };
+    }
+    throw err;
+  }
+}
+
+async function walkBackend(
+  backend: FilesystemBackend,
+  dirRel: string,
+  state: SearchState,
+): Promise<void> {
+  if (state.truncated) return;
+  let names: string[];
+  try {
+    names = await backend.list(dirRel);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (state.truncated) return;
+    await handleBackendEntry(backend, dirRel, name, state);
+  }
+}
+
+/** Handle one backend directory entry: skip forbidden, stat, recurse on dirs, scan files. */
+async function handleBackendEntry(
+  backend: FilesystemBackend,
+  dirRel: string,
+  name: string,
+  state: SearchState,
+): Promise<void> {
+  const entryRel = dirRel === "" ? name : `${dirRel}/${name}`;
+  if (isForbiddenPath(entryRel)) return;
+  let st: { isDirectory: boolean; isFile: boolean; size: number };
+  try {
+    st = await backend.stat(entryRel);
+  } catch {
+    return;
+  }
+  if (st.isDirectory) {
+    await walkBackend(backend, entryRel, state);
+  } else if (st.isFile) {
+    await scanFileBackend(backend, entryRel, st.size, state);
+  }
+}
+
+async function scanFileBackend(
+  backend: FilesystemBackend,
+  relPath: string,
+  size: number,
+  state: SearchState,
+): Promise<void> {
+  if (size > state.maxFileSize) return;
+  let content: string;
+  try {
+    content = await backend.readFile(relPath);
+  } catch {
+    return;
+  }
+  // Null-byte ⇒ binary; skip (parity with the local isBinaryBuffer probe, string-side).
+  if (content.slice(0, BINARY_PROBE_BYTES).includes("\u0000")) return;
+  const lines = content.split("\n");
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]!;
     if (!line.includes(state.query)) continue;
