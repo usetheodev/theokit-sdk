@@ -57,7 +57,7 @@ export {
   type RepoMapOptions,
 } from "./internal/repo-map.js";
 export { CatastrophicCommandError, catastrophicShellReason } from "./internal/shell-guard.js";
-export { renderToolList, withDescription } from "./internal/tool-aci.js";
+export { renderToolList, withDescription, withName } from "./internal/tool-aci.js";
 export {
   DEFAULT_TOOL_GUIDANCE,
   injectGuidance,
