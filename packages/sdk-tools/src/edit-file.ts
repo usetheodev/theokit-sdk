@@ -14,7 +14,11 @@ import { copyFile, readFile, writeFile } from "node:fs/promises";
 import type { CustomTool } from "@theokit/sdk";
 
 import { Tool } from "@theokit/sdk";
-import { type FilesystemProvider, resolveFilesystem } from "@theokit/sdk/filesystem";
+import {
+  FileNotFoundError,
+  type FilesystemProvider,
+  resolveFilesystem,
+} from "@theokit/sdk/filesystem";
 import { z } from "zod";
 import { ContextMatchError, replaceUnique } from "./internal/context-match.js";
 import {
@@ -77,8 +81,13 @@ async function editViaBackend(
   let content: string;
   try {
     content = await backend.readFile(path);
-  } catch {
-    return JSON.stringify({ ok: false, error: "not_found", path });
+  } catch (err) {
+    // Mirror the local path: only a missing file maps to `not_found`; every other read failure
+    // (a directory, a permission error, a security rejection) propagates — fail-loud, never swallowed.
+    if (err instanceof FileNotFoundError) {
+      return JSON.stringify({ ok: false, error: "not_found", path });
+    }
+    throw err;
   }
   const outcome = computeEdit(content, old_string, new_string);
   if (!outcome.ok) return JSON.stringify({ ok: false, error: "no_match", path });

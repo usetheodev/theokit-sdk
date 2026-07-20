@@ -45,6 +45,13 @@ const DEFAULT_MAX_MATCHES = 100;
 const DEFAULT_MAX_FILE_SIZE = 1024 * 1024; // 1 MB
 const BINARY_PROBE_BYTES = 8 * 1024;
 const PREVIEW_MAX = 200;
+/**
+ * Depth cap for the BACKEND walk only. The local `readdir(withFileTypes)` walk skips symlinks and can
+ * never loop; the backend walk decides type via `stat` (which follows symlinks), so an in-boundary
+ * symlink cycle would recurse until PATH_MAX. This bound stops that pathological case; real trees never
+ * approach it.
+ */
+const MAX_BACKEND_WALK_DEPTH = 64;
 
 export interface CreateSearchTextToolOptions {
   projectRoot: string;
@@ -105,7 +112,7 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
         const scopeRel = resolveScopeRel(path, projectRoot);
         if ("error" in scopeRel) return scopeRel.error;
         const backend = await resolveFilesystem(filesystem, ctx ?? {});
-        await walkBackend(backend, scopeRel.rel, state);
+        await walkBackend(backend, scopeRel.rel, state, 0);
         return JSON.stringify({
           ok: true,
           matches: state.matches,
@@ -250,8 +257,10 @@ async function walkBackend(
   backend: FilesystemBackend,
   dirRel: string,
   state: SearchState,
+  depth: number,
 ): Promise<void> {
   if (state.truncated) return;
+  if (depth > MAX_BACKEND_WALK_DEPTH) return; // symlink-cycle guard (see MAX_BACKEND_WALK_DEPTH)
   let names: string[];
   try {
     names = await backend.list(dirRel);
@@ -260,7 +269,7 @@ async function walkBackend(
   }
   for (const name of names) {
     if (state.truncated) return;
-    await handleBackendEntry(backend, dirRel, name, state);
+    await handleBackendEntry(backend, dirRel, name, state, depth);
   }
 }
 
@@ -270,6 +279,7 @@ async function handleBackendEntry(
   dirRel: string,
   name: string,
   state: SearchState,
+  depth: number,
 ): Promise<void> {
   const entryRel = dirRel === "" ? name : `${dirRel}/${name}`;
   if (isForbiddenPath(entryRel)) return;
@@ -280,7 +290,7 @@ async function handleBackendEntry(
     return;
   }
   if (st.isDirectory) {
-    await walkBackend(backend, entryRel, state);
+    await walkBackend(backend, entryRel, state, depth + 1);
   } else if (st.isFile) {
     await scanFileBackend(backend, entryRel, st.size, state);
   }
