@@ -18,8 +18,8 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
-
 import { Tool } from "@theokit/sdk";
+import { resolveSandbox, type SandboxProvider } from "@theokit/sdk/sandbox";
 import { z } from "zod";
 import { checkPathScope } from "./path-scope.js";
 import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
@@ -31,6 +31,39 @@ export interface CreateGitDiffToolOptions {
   projectRoot: string;
   timeoutMs?: number;
   maxStdoutBytes?: number;
+  /** Optional injected execution backend (`@theokit/sdk/sandbox`) — when provided, `git diff` runs via
+   *  `SandboxBackend.execute` (surface-agnostic); omitted ⇒ the local `git` child process (unchanged). */
+  sandbox?: SandboxProvider;
+}
+
+/** POSIX single-quote a `git diff` argument for the backend command string (safe against metacharacters). */
+function shq(arg: string): string {
+  return `'${arg.replace(/'/g, `'\\''`)}'`;
+}
+
+/** Run `git diff` through an injected SandboxBackend, mapping its result to git_diff's JSON shape. The
+ *  scope check (pure security) still applies; the local `.git` existsSync check does not (the repo is in
+ *  the backend — a non-repo surfaces as git's own "not a git repository"). */
+async function diffViaSandbox(
+  sandbox: SandboxProvider,
+  ctx: unknown,
+  cached: boolean | undefined,
+  path: string | undefined,
+  projectRoot: string,
+  timeoutMs: number,
+): Promise<string> {
+  const scopeCheck = checkPathScope(path, projectRoot);
+  if (scopeCheck !== null) return scopeCheck;
+  const command = ["git", ...buildDiffArgs(cached, path)].map(shq).join(" ");
+  const backend = await resolveSandbox(sandbox, ctx ?? {});
+  const r = await backend.execute(command, { timeoutMs });
+  if (r.timedOut) return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
+  if (r.exitCode !== 0) {
+    return /not a git repository/i.test(r.stderr)
+      ? JSON.stringify({ ok: false, error: "not_a_repo" })
+      : JSON.stringify({ ok: false, error: "git_failed", stderr: r.stderr });
+  }
+  return JSON.stringify({ ok: true, diff: r.stdout, truncated: false });
 }
 
 export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
@@ -38,6 +71,7 @@ export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
     projectRoot,
     timeoutMs = DEFAULT_TIMEOUT_MS,
     maxStdoutBytes = DEFAULT_MAX_STDOUT_BYTES,
+    sandbox,
   } = opts;
 
   return Tool.create({
@@ -54,7 +88,13 @@ export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
         .optional()
         .describe("If true, show staged changes (git diff --cached). Default false."),
     }),
-    handler: async ({ path, cached }) => {
+    handler: async ({ path, cached }, ctx) => {
+      // Injected backend (surface-agnostic) ⇒ run in the sandbox; absent ⇒ the local `git` (unchanged).
+      if (sandbox !== undefined) {
+        return diffViaSandbox(sandbox, ctx, cached, path, projectRoot, timeoutMs);
+      }
+
+      // Local path — UNCHANGED (byte-identical to before).
       if (!existsSync(join(projectRoot, ".git"))) {
         return JSON.stringify({ ok: false, error: "not_a_repo" });
       }
