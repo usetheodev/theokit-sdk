@@ -30,6 +30,10 @@ export {
   type SessionArtifactStore,
   type SessionArtifactStoreOptions,
 } from "./artifact-store.js";
+export {
+  type CreateCurrentTimeToolOptions,
+  createCurrentTimeTool,
+} from "./current-time.js";
 export { type CreateEditFileToolOptions, createEditFileTool } from "./edit-file.js";
 // Output formatting utilities (moved from @theokit/theocode — SDK LEGO pieces)
 export { formatCode, formatDiff, formatError, formatFileList } from "./formatter.js";
