@@ -36,6 +36,11 @@ export { formatCode, formatDiff, formatError, formatFileList } from "./formatter
 export { type CreateGitDiffToolOptions, createGitDiffTool } from "./git-diff.js";
 export { type CreateGlobToolOptions, createGlobTool } from "./glob-files.js";
 export {
+  type CreateInteractiveShellToolOptions,
+  createInteractiveShellTool,
+  createWriteStdinTool,
+} from "./interactive-shell.js";
+export {
   type CommandPolicy,
   commandDenialReason,
   denyCatastrophicCommands,
