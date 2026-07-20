@@ -150,6 +150,37 @@ describe("real-runtime callbacks (SendOptions.onStep / onDelta)", () => {
     ]);
   });
 
+  it("fires onDelta tool-call-started + tool-call-completed LIVE, before the final answer text (#47-followup order)", async () => {
+    if (cwd === undefined) throw new Error("missing workspace");
+    // Round 1 = tool-only (no text, like gpt-5.4's content:null + tool_calls); round 2 = "all done".
+    await mountStub({ toolCall: { name: "shell", input: { command: "echo ok" } } });
+    const deltas: InteractionUpdate[] = [];
+    const agent = await Agent.create({
+      apiKey: "user-real-callbacks-lifecycle",
+      model: { id: "claude-sonnet-4-6" },
+      local: { cwd },
+    });
+    const run = await agent.send("run it", {
+      onDelta: ({ update }) => {
+        deltas.push(update);
+      },
+    });
+    await run.wait();
+    const started = deltas.findIndex((u) => u.type === "tool-call-started");
+    const completed = deltas.findIndex((u) => u.type === "tool-call-completed");
+    const firstText = deltas.findIndex((u) => u.type === "text-delta");
+    // The tool lifecycle surfaces LIVE via onDelta (the change that lets the bridge drop its answer-hold).
+    expect(started).toBeGreaterThanOrEqual(0);
+    expect(completed).toBeGreaterThan(started);
+    // ...and BEFORE the post-tool answer text — the order the merge bridge now relies on instead of holding text.
+    expect(firstText).toBeGreaterThan(completed);
+    const s = deltas[started];
+    const c = deltas[completed];
+    expect(
+      s?.type === "tool-call-started" && c?.type === "tool-call-completed" && s.callId === c.callId,
+    ).toBe(true);
+  });
+
   it("fires onStep exactly once for a single-turn assistant message", async () => {
     if (cwd === undefined) throw new Error("missing workspace");
     await mountStub({ textFrames: ["the answer is 42"] });
