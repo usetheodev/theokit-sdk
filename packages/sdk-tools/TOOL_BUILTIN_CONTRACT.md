@@ -33,6 +33,16 @@ Native modules (e.g. `node-pty`) live ONLY in the concrete backend package, neve
 core — so the SAME tool runs on a local PTY, a cluster container (Docker/E2B), or a Tauri desktop by
 injecting a different backend. Absent/failed backend → `{ ok: false, error: '<capability>_unavailable' }`.
 
+**Injection status of the built-ins** (the injected option is always OPTIONAL — omitted ⇒ the local
+path is byte-identical to before; conformance tests prove it):
+
+| Tool | Option | Injected capability |
+|---|---|---|
+| `read_file` / `list_dir` / `write_file` | `filesystem?` | `FilesystemProvider` |
+| `search_text` / `glob_files` / `edit_file` | `filesystem?` | `FilesystemProvider` |
+| `shell_exec` / `git_diff` | `sandbox?` | `SandboxProvider` |
+| `interactive_shell` / `write_stdin` | `interactive?` | `InteractiveProvider` |
+
 ## 4. Description (the DX contract)
 
 The description is the ONLY thing the model reads. It MUST: be non-trivial (≥ ~60 chars); state what the
