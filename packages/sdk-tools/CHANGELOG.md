@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.19.0
+
+### Minor Changes
+
+- `createSearchTextTool` gains two ADDITIVE, opt-in options (both default OFF ⇒ existing literal, project-
+  scoped behavior unchanged): `regex` — match `query` as a JavaScript RegExp (grep semantics; an invalid
+  pattern returns `{ ok: false, error: 'invalid_regex' }` before walking), and `allowAbsolute` — honor an
+  absolute `path` scope outside `projectRoot` (Codex read-only "reads-anywhere"; forbidden dirs still
+  skipped). Together they let one built-in cover both literal content search and grep-style regex search.
+
 ## 0.18.0
 
 ### Minor Changes
