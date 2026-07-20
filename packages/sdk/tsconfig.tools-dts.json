@@ -49,6 +49,7 @@
     "src/client/**/*",
     "src/sandbox/**/*",
     "src/filesystem/**/*",
+    "src/interactive/**/*",
     "src/server/**/*",
     "src/event-bus.ts",
     "src/job-queue.ts",
