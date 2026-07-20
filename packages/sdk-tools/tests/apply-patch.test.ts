@@ -112,3 +112,64 @@ describe("apply_patch V4A — security + errors", () => {
     expect(r.error).toBe("parse_error");
   });
 });
+
+describe("apply_patch V4A — M18 review fixes (security + robustness)", () => {
+  it("blocks a NESTED forbidden secret (sub/.env), not just a top-level one", async () => {
+    const root = project();
+    const r = await run(root, wrap("*** Add File: sub/.env\n+SECRET=1"));
+    expect(r).toEqual({ ok: false, error: "forbidden_path", path: "sub/.env" });
+  });
+
+  it("blocks a nested .git path (e.g. a git hook) at any depth", async () => {
+    const root = project();
+    const r = await run(root, wrap("*** Add File: sub/.git/hooks/pre-commit\n+rm -rf /"));
+    expect(r).toEqual({ ok: false, error: "forbidden_path", path: "sub/.git/hooks/pre-commit" });
+  });
+
+  it("blocks an ABSOLUTE path to a secret inside the project (no bypass)", async () => {
+    const root = project();
+    const r = await run(root, wrap(`*** Add File: ${join(root, ".env")}\n+SECRET=1`));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("forbidden_path");
+    expect(existsSync(join(root, ".env"))).toBe(false);
+  });
+
+  it("rejects two Update hunks on the SAME file (no silent lost-update)", async () => {
+    const root = project({ "a.ts": "x\ny\n" });
+    const r = await run(
+      root,
+      wrap("*** Update File: a.ts\n@@\n-x\n+X\n*** Update File: a.ts\n@@\n-y\n+Y"),
+    );
+    expect(r).toEqual({ ok: false, error: "duplicate_target", path: "a.ts" });
+    expect(readFileSync(join(root, "a.ts"), "utf-8")).toBe("x\ny\n"); // untouched
+  });
+
+  it("rejects Add over an existing file (no silent clobber)", async () => {
+    const root = project({ "there.ts": "keep\n" });
+    const r = await run(root, wrap("*** Add File: there.ts\n+clobbered"));
+    expect(r).toEqual({ ok: false, error: "file_exists", path: "there.ts" });
+    expect(readFileSync(join(root, "there.ts"), "utf-8")).toBe("keep\n");
+  });
+
+  it("returns not_found when deleting a nonexistent file", async () => {
+    const root = project();
+    const r = await run(root, wrap("*** Delete File: ghost.ts"));
+    expect(r).toEqual({ ok: false, error: "not_found", path: "ghost.ts" });
+  });
+
+  it("maps an fs error (updating a directory) to a typed io_error, not a crash", async () => {
+    const root = project();
+    mkdtempSync(join(root, "adir-")); // a directory named adir-XXXX
+    // Update a directory path → EISDIR on read → must be a typed error, never an escaping throw.
+    const r = await run(root, wrap("*** Update File: .\n@@\n-x\n+y"));
+    expect(r.ok).toBe(false);
+    expect(typeof r.error).toBe("string"); // io_error or not_found — never an unhandled throw
+  });
+
+  it("applies a *** End of File edit of the LAST line (eof anchoring, phantom-newline safe)", async () => {
+    const root = project({ "tail.ts": "a\nb\nlast\n" });
+    const r = await run(root, wrap("*** Update File: tail.ts\n@@\n-last\n+LAST\n*** End of File"));
+    expect(r.ok).toBe(true);
+    expect(readFileSync(join(root, "tail.ts"), "utf-8")).toBe("a\nb\nLAST\n");
+  });
+});

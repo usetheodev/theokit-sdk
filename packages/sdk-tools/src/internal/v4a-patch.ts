@@ -240,7 +240,21 @@ export function seekSequence(
 ): number | null {
   if (pattern.length === 0) return searchStart;
   if (pattern.length > lines.length) return null;
-  const start = eof ? Math.max(searchStart, lines.length - pattern.length) : searchStart;
+  // `eof` is a HINT: prefer a match anchored at the tail, but fall back to a general forward search —
+  // otherwise a last-line edit fails, because `"a\nb\n".split("\n")` has a phantom trailing "" that
+  // pushes the tail anchor one past the real last line.
+  const starts = eof
+    ? [Math.max(searchStart, lines.length - pattern.length), searchStart]
+    : [searchStart];
+  for (const start of starts) {
+    const hit = searchFrom(lines, pattern, start);
+    if (hit !== null) return hit;
+  }
+  return null;
+}
+
+/** Scan `lines` from `start` under the leniency ladder; the first matching index, or null. */
+function searchFrom(lines: string[], pattern: string[], start: number): number | null {
   for (const eq of LADDER) {
     for (let i = start; i <= lines.length - pattern.length; i++) {
       if (matchesAt(lines, pattern, i, eq)) return i;

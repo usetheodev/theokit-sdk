@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.20.1
+
+### Patch Changes
+
+- apply_patch (V4A) M18 review fixes — a security-critical writing tool hardened after adversarial review:
+  - **Security:** the forbidden-secret guard now blocks `.env`/`.git`/`node_modules`/`.theo` at ANY path
+    depth (not just the first segment) and defeats absolute-path spelling (`<root>/.env`) — closing a hole
+    where a nested `sub/.git/hooks/…` or an absolute secret path could be written.
+  - **Contract:** every fs error (`EISDIR`/`ENOTDIR`/`EACCES`/…) maps to a typed `{ ok: false, error: 'io_error' }`
+    instead of throwing out of the handler (the "always JSON" contract now holds).
+  - **Atomicity:** a file touched by two hunks is rejected (`duplicate_target`) — no silent lost-update.
+  - **Safety:** Add over an existing file is rejected (`file_exists`); Delete of a missing file is `not_found`.
+  - **Matching:** `*** End of File` edits of the last line now apply (eof anchoring made a hint with a
+    general-search fallback, fixing the phantom-trailing-newline case).
+
 ## 0.20.0
 
 ### Minor Changes
