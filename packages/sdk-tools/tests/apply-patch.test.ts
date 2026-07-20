@@ -1,110 +1,114 @@
+/**
+ * `apply_patch` (V4A / Codex `*** Begin Patch`) — tool-level tests against a real temp project.
+ * Covers Add/Update/Delete/Move, the strict-atomicity guarantee (a mismatch ⇒ zero writes), path
+ * security, and the typed error branches.
+ */
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { createApplyPatchTool } from "../src/apply-patch.js";
 import { textHandler } from "./text-handler.js";
 
-let projectRoot: string;
-
-beforeEach(() => {
-  projectRoot = mkdtempSync(join(tmpdir(), "sdk-patch-"));
-});
-
+const roots: string[] = [];
+function project(files: Record<string, string> = {}): string {
+  const root = mkdtempSync(join(tmpdir(), "apply-v4a-"));
+  roots.push(root);
+  for (const [p, c] of Object.entries(files)) writeFileSync(join(root, p), c);
+  return root;
+}
 afterEach(() => {
-  rmSync(projectRoot, { recursive: true, force: true });
+  for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
 });
+const wrap = (body: string) => `*** Begin Patch\n${body}\n*** End Patch`;
+const run = (root: string, patch: string) =>
+  textHandler(createApplyPatchTool({ projectRoot: root }))({ patch }).then((s) => JSON.parse(s));
 
-describe("createApplyPatchTool — tool shape", () => {
-  it("Given the factory, Then it returns a CustomTool with name='apply_patch'", () => {
-    const tool = createApplyPatchTool({ projectRoot });
+describe("apply_patch V4A — tool shape", () => {
+  it("returns a CustomTool named apply_patch", () => {
+    const tool = createApplyPatchTool({ projectRoot: "/nope" });
     expect(tool.name).toBe("apply_patch");
-    expect(typeof tool.handler).toBe("function");
+    expect(tool.description).toContain("Begin Patch");
   });
 });
 
-describe("createApplyPatchTool — happy path", () => {
-  it("Given a valid unified diff, When applied, Then file is modified correctly", async () => {
-    writeFileSync(join(projectRoot, "file.ts"), "line1\nline2\nline3\n");
-    const patch = [
-      "--- a/file.ts",
-      "+++ b/file.ts",
-      "@@ -1,3 +1,3 @@",
-      " line1",
-      "-line2",
-      "+line2_modified",
-      " line3",
-    ].join("\n");
-    const tool = createApplyPatchTool({ projectRoot });
-    const out = await textHandler(tool)({ patch });
-    const parsed = JSON.parse(out);
-    expect(parsed.ok).toBe(true);
-    expect(parsed.files_patched).toContain("file.ts");
-    const content = readFileSync(join(projectRoot, "file.ts"), "utf-8");
-    expect(content).toContain("line2_modified");
-    expect(content).not.toContain("\nline2\n");
-  });
-
-  it("Given a valid patch, When applied, Then .bak backup is created", async () => {
-    writeFileSync(join(projectRoot, "backup.ts"), "old\n");
-    const patch = ["--- a/backup.ts", "+++ b/backup.ts", "@@ -1 +1 @@", "-old", "+new"].join("\n");
-    const tool = createApplyPatchTool({ projectRoot });
-    await textHandler(tool)({ patch });
-    expect(existsSync(join(projectRoot, "backup.ts.bak"))).toBe(true);
-    expect(readFileSync(join(projectRoot, "backup.ts.bak"), "utf-8")).toBe("old\n");
-  });
-});
-
-describe("createApplyPatchTool — error scenarios", () => {
-  it("Given empty patch, Then result is { ok: false, error: 'parse_error' }", async () => {
-    const tool = createApplyPatchTool({ projectRoot });
-    const out = await textHandler(tool)({ patch: "no hunks here" });
-    const parsed = JSON.parse(out);
-    expect(parsed.ok).toBe(false);
-    expect(parsed.error).toBe("parse_error");
-  });
-
-  it("Given patch with path traversal, Then result is { ok: false, error: 'path_traversal' }", async () => {
-    const patch = [
-      "--- a/../../etc/passwd",
-      "+++ b/../../etc/passwd",
-      "@@ -1 +1 @@",
-      "-root",
-      "+hacked",
-    ].join("\n");
-    const tool = createApplyPatchTool({ projectRoot });
-    const out = await textHandler(tool)({ patch });
-    const parsed = JSON.parse(out);
-    expect(parsed.ok).toBe(false);
-    expect(parsed.error).toBe("path_traversal");
-  });
-
-  it("Given patch with forbidden path (.env), Then result is { ok: false, error: 'forbidden_path' }", async () => {
-    const patch = ["--- a/.env", "+++ b/.env", "@@ -1 +1 @@", "-SECRET=old", "+SECRET=new"].join(
-      "\n",
+describe("apply_patch V4A — Add / Update / Delete / Move", () => {
+  it("Add File creates the file with a trailing newline", async () => {
+    const root = project();
+    const r = await run(
+      root,
+      wrap("*** Add File: src/new.ts\n+export const x = 1;\n+const y = 2;"),
     );
-    const tool = createApplyPatchTool({ projectRoot });
-    const out = await textHandler(tool)({ patch });
-    const parsed = JSON.parse(out);
-    expect(parsed.ok).toBe(false);
-    expect(parsed.error).toBe("forbidden_path");
+    expect(r).toEqual({ ok: true, files_patched: ["src/new.ts"] });
+    expect(readFileSync(join(root, "src/new.ts"), "utf-8")).toBe(
+      "export const x = 1;\nconst y = 2;\n",
+    );
   });
 
-  it("Given patch with context mismatch, Then result is { ok: false, error: 'patch_failed' }", async () => {
-    writeFileSync(join(projectRoot, "mismatch.ts"), "actual\n");
-    const patch = [
-      "--- a/mismatch.ts",
-      "+++ b/mismatch.ts",
-      "@@ -1 +1 @@",
-      " expected_context",
-      "-old",
-      "+new",
-    ].join("\n");
-    const tool = createApplyPatchTool({ projectRoot });
-    const out = await textHandler(tool)({ patch });
-    const parsed = JSON.parse(out);
-    expect(parsed.ok).toBe(false);
-    expect(parsed.error).toBe("patch_failed");
+  it("Update File applies a context-anchored change", async () => {
+    const root = project({ "a.ts": "top\nfunction main\nold\nbottom\n" });
+    const r = await run(root, wrap("*** Update File: a.ts\n@@ function main\n-old\n+new"));
+    expect(r.ok).toBe(true);
+    expect(readFileSync(join(root, "a.ts"), "utf-8")).toBe("top\nfunction main\nnew\nbottom\n");
+  });
+
+  it("Delete File removes the file", async () => {
+    const root = project({ "gone.ts": "bye\n" });
+    const r = await run(root, wrap("*** Delete File: gone.ts"));
+    expect(r).toEqual({ ok: true, files_patched: ["gone.ts"] });
+    expect(existsSync(join(root, "gone.ts"))).toBe(false);
+  });
+
+  it("Update File + Move to writes the new content at the destination and removes the original", async () => {
+    const root = project({ "old.ts": "a\nb\n" });
+    const r = await run(root, wrap("*** Update File: old.ts\n*** Move to: sub/new.ts\n@@\n-a\n+A"));
+    expect(r).toEqual({ ok: true, files_patched: ["sub/new.ts"] });
+    expect(existsSync(join(root, "old.ts"))).toBe(false);
+    expect(readFileSync(join(root, "sub/new.ts"), "utf-8")).toBe("A\nb\n");
+  });
+});
+
+describe("apply_patch V4A — strict atomicity", () => {
+  it("a mismatch in the SECOND hunk leaves the FIRST file untouched (zero writes)", async () => {
+    const root = project({ "a.ts": "keep\n", "b.ts": "real\n" });
+    // hunk 1 (a.ts) is valid; hunk 2 (b.ts) context does not match → whole patch must abort.
+    const patch = wrap(
+      "*** Update File: a.ts\n@@\n-keep\n+CHANGED\n*** Update File: b.ts\n@@\n-does-not-exist\n+x",
+    );
+    const r = await run(root, patch);
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("patch_failed");
+    // a.ts MUST be unchanged — the plan aborted before any write.
+    expect(readFileSync(join(root, "a.ts"), "utf-8")).toBe("keep\n");
+    expect(readFileSync(join(root, "b.ts"), "utf-8")).toBe("real\n");
+  });
+});
+
+describe("apply_patch V4A — security + errors", () => {
+  it("refuses a forbidden path (.env)", async () => {
+    const root = project();
+    const r = await run(root, wrap("*** Add File: .env\n+SECRET=1"));
+    expect(r).toEqual({ ok: false, error: "forbidden_path", path: ".env" });
+  });
+
+  it("refuses a traversal path", async () => {
+    const root = project();
+    const r = await run(root, wrap("*** Add File: ../escape.ts\n+x"));
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("path_traversal");
+  });
+
+  it("returns not_found when updating a missing file", async () => {
+    const root = project();
+    const r = await run(root, wrap("*** Update File: missing.ts\n@@\n-a\n+b"));
+    expect(r).toEqual({ ok: false, error: "not_found", path: "missing.ts" });
+  });
+
+  it("returns parse_error for a malformed patch", async () => {
+    const root = project();
+    const r = await run(root, "not a patch at all");
+    expect(r.ok).toBe(false);
+    expect(r.error).toBe("parse_error");
   });
 });
