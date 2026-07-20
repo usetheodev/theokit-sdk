@@ -94,8 +94,7 @@ describe("SubAgent", () => {
   it("surfaces a child run error instead of swallowing it to '(no response)' — regression #143", async () => {
     const mockCreate = vi.fn().mockResolvedValue({
       send: vi.fn().mockResolvedValue({
-        wait: () =>
-          Promise.resolve({ status: "error", error: { message: "provider_unresolved" } }),
+        wait: () => Promise.resolve({ status: "error", error: { message: "provider_unresolved" } }),
       }),
       dispose: vi.fn(),
     });
