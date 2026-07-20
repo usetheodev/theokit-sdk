@@ -9,13 +9,19 @@
  * security-checked) before ANY write. A parse error, context mismatch, or path violation anywhere ⇒ typed
  * error and ZERO writes (stronger than Codex, which writes file-by-file and can leave partial writes).
  *
- * Return shape (always a JSON string):
+ * Return shape (always a JSON string — never throws on a bad patch):
  *   - `{ ok: true, files_patched: string[] }`
- *   - `{ ok: false, error: 'parse_error' | 'path_traversal' | 'forbidden_path' | 'not_found' | 'patch_failed' }`
+ *   - `{ ok: false, error: 'parse_error' | 'path_traversal' | 'forbidden_path' | 'not_found' |
+ *        'patch_failed' | 'duplicate_target' | 'file_exists' | 'io_error' }`
+ *
+ * Security/robustness (M18 review): forbidden secrets (`.env`/`.git`/`node_modules`/`.theo`) are blocked
+ * at ANY path depth and against absolute-path spelling; a file touched by two hunks is rejected
+ * (`duplicate_target`); Add over an existing file is rejected (`file_exists`); Delete of a missing file
+ * is `not_found`; any unexpected fs error maps to `io_error` (the handler never throws).
  */
 
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { dirname, relative } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 import { Tool } from "@theokit/sdk";
 import { z } from "zod";
@@ -65,15 +71,36 @@ async function applyV4APatch(projectRoot: string, patch: string): Promise<string
     const detail = err instanceof V4APatchError ? err.message : String(err);
     return JSON.stringify({ ok: false, error: "parse_error", detail });
   }
-  // Plan (verify) the WHOLE patch before any write; then execute. First failure ⇒ zero writes.
-  const plan = await buildPlan(projectRoot, hunks);
-  if ("error" in plan) return plan.error;
-  await executePlan(plan.ops);
-  return JSON.stringify({ ok: true, files_patched: plan.patched });
+  // Plan (verify) the WHOLE patch before any write; then execute. First failure ⇒ zero writes. An
+  // unexpected fs error during execute maps to a typed `io_error` (honors the always-JSON contract).
+  try {
+    const plan = await buildPlan(projectRoot, hunks);
+    if ("error" in plan) return plan.error;
+    await executePlan(plan.ops);
+    return JSON.stringify({ ok: true, files_patched: plan.patched });
+  } catch (err) {
+    return JSON.stringify({
+      ok: false,
+      error: "io_error",
+      detail: err instanceof Error ? err.message : String(err),
+    });
+  }
 }
 
-/** Read + compute + path-check every hunk into a write plan (no writes). First failure aborts. */
+/** The file paths a hunk mutates (a move touches both its source and destination). */
+function hunkTargets(hunk: V4AHunk): string[] {
+  if (hunk.kind === "update" && hunk.movePath) return [hunk.path, hunk.movePath];
+  return [hunk.path];
+}
+
+/** Read + compute + path-check every hunk into a write plan (no writes). First failure aborts. A file
+ *  touched by two hunks is rejected (Codex forbids editing the same file twice — otherwise the second
+ *  read sees the original and the first edit is silently lost). */
 async function buildPlan(projectRoot: string, hunks: V4AHunk[]): Promise<PlanResult> {
+  const dup = firstDuplicateTarget(hunks);
+  if (dup !== null) {
+    return { error: JSON.stringify({ ok: false, error: "duplicate_target", path: dup }) };
+  }
   const ops: FsOp[] = [];
   const patched: string[] = [];
   for (const hunk of hunks) {
@@ -83,6 +110,18 @@ async function buildPlan(projectRoot: string, hunks: V4AHunk[]): Promise<PlanRes
     patched.push(hunk.kind === "update" ? (hunk.movePath ?? hunk.path) : hunk.path);
   }
   return { ops, patched };
+}
+
+/** The first path touched by two hunks (Codex forbids editing the same file twice), or null. */
+function firstDuplicateTarget(hunks: V4AHunk[]): string | null {
+  const seen = new Set<string>();
+  for (const hunk of hunks) {
+    for (const t of hunkTargets(hunk)) {
+      if (seen.has(t)) return t;
+      seen.add(t);
+    }
+  }
+  return null;
 }
 
 /** Execute the write plan (all reads/computes/checks already passed). */
@@ -97,6 +136,16 @@ async function executePlan(ops: FsOp[]): Promise<void> {
   }
 }
 
+/** Does a path exist (any type)? */
+async function pathExists(abs: string): Promise<boolean> {
+  try {
+    await stat(abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Plan one hunk (Codex Hunk-kind dispatch) into filesystem ops, or an error JSON string. */
 async function planHunk(
   projectRoot: string,
@@ -104,8 +153,19 @@ async function planHunk(
 ): Promise<{ ops: FsOp[] } | { error: string }> {
   const scope = v4aScope(projectRoot, hunk.path);
   if ("error" in scope) return scope;
-  if (hunk.kind === "add") return { ops: [{ write: { abs: scope.abs, content: hunk.content } }] };
-  if (hunk.kind === "delete") return { ops: [{ rm: scope.abs }] };
+  if (hunk.kind === "add") {
+    // Codex rejects Add over an existing file — never silently clobber.
+    if (await pathExists(scope.abs)) {
+      return { error: JSON.stringify({ ok: false, error: "file_exists", path: hunk.path }) };
+    }
+    return { ops: [{ write: { abs: scope.abs, content: hunk.content } }] };
+  }
+  if (hunk.kind === "delete") {
+    if (!(await pathExists(scope.abs))) {
+      return { error: JSON.stringify({ ok: false, error: "not_found", path: hunk.path }) };
+    }
+    return { ops: [{ rm: scope.abs }] };
+  }
   return planUpdate(projectRoot, hunk, scope.abs);
 }
 
@@ -147,19 +207,35 @@ async function planUpdate(
   return { ops: [{ write: { abs: dest.abs, content: updated } }, { rm: abs }] };
 }
 
-/** Security-check a hunk path against the project root; returns the resolved abs path or an error JSON string. */
+/** Sensitive path segments — secret-bearing dirs/files that must never be written at ANY depth. */
+const FORBIDDEN_SEGMENTS = new Set([".env", ".git", "node_modules", ".theo"]);
+
+/** Any-segment forbidden check on a PROJECT-RELATIVE path. `isForbiddenPath` only inspects the first
+ *  segment (so a nested `sub/.git/hooks/…` or an absolute `<root>/.env` slips past); a writing tool must
+ *  block a sensitive segment at any depth. */
+function isForbiddenRel(rel: string): boolean {
+  return rel
+    .split(/[/\\]/)
+    .filter(Boolean)
+    .some((s) => s !== ".env.example" && (FORBIDDEN_SEGMENTS.has(s) || /^\.env\./.test(s)));
+}
+
+/** Security-check a hunk path against the project root; returns the resolved abs path or an error JSON
+ *  string. Resolves FIRST (rejecting traversal/symlink/absolute escape), then checks the resulting
+ *  project-relative path for a forbidden segment at any depth (closes the nested/absolute `.env` hole). */
 function v4aScope(projectRoot: string, file: string): { abs: string } | { error: string } {
-  if (isForbiddenPath(file)) {
-    return { error: JSON.stringify({ ok: false, error: "forbidden_path", path: file }) };
-  }
+  let abs: string;
   try {
-    const abs = safePathJoin(projectRoot, file);
+    abs = safePathJoin(projectRoot, file);
     assertNoSymlinkEscape(abs, projectRoot);
-    return { abs };
   } catch (err) {
     if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
       return { error: JSON.stringify({ ok: false, error: "path_traversal", path: file }) };
     }
     throw err;
   }
+  if (isForbiddenPath(file) || isForbiddenRel(relative(projectRoot, abs))) {
+    return { error: JSON.stringify({ ok: false, error: "forbidden_path", path: file }) };
+  }
+  return { abs };
 }
