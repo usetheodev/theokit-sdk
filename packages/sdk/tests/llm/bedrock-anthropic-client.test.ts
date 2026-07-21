@@ -133,10 +133,13 @@ describe("BedrockAnthropicClient — body massage", () => {
 });
 
 describe("BedrockAnthropicClient — helpful errors", () => {
-  // 30s ceiling: resolving "no credentials" probes the AWS SDK peer dep, which can
-  // exceed the default 5s under parallel turbo load (flake). Passes in isolation.
   it("EC-6: throws ConfigurationError when no token resolvable", async () => {
-    // env not set + peer dep missing → throws helpful error.
+    // Hermetic precondition. Under the parallel threads pool `process.env` is
+    // shared across files, so a sibling test's AWS_BEARER_TOKEN_BEDROCK could
+    // leak here — resolving a token and reaching a REAL fetch ("fetch failed")
+    // instead of the ConfigurationError. Force the "no credentials" state.
+    delete process.env.AWS_BEARER_TOKEN_BEDROCK;
+    __resetBedrockTokenCache();
     const client = new BedrockAnthropicClient({});
     const iter = client.stream(REQ, new AbortController().signal);
     await expect(iter.next()).rejects.toBeInstanceOf(ConfigurationError);

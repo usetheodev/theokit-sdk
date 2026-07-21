@@ -29,23 +29,15 @@ function run(cwd: string, args: string[] = []): { status: number; stdout: string
   }
 }
 
-const SKILL_DIRS = [
-  "theokit-agent-core",
-  "theokit-tools",
-  "theokit-memory",
-  "theokit-di",
-  "theokit-di-agent",
-  "theokit-gateways",
-  "theokit-rag",
-  "theokit-workflows",
-  "theokit-eval",
-  "theokit-cron",
-  "theokit-subscriptions",
-  "theokit-errors",
-  "theokit-config",
-  "theokit-streaming",
-  "theokit-budget",
-];
+// Derived from the template on disk (NOT hardcoded) — the scaffold's skill set
+// grows/shrinks over releases (e.g. theokit-rag removed at 4.2.7; +16 skills at
+// 4.2.8), and a hardcoded list silently rots. Reading the real dirs makes every
+// per-skill assertion below cover exactly what ships.
+const SKILLS_BASE = join(TEMPLATE_DIR, "dot-claude", "skills");
+const SKILL_DIRS = readdirSync(SKILLS_BASE, { withFileTypes: true })
+  .filter((d) => d.isDirectory())
+  .map((d) => d.name)
+  .sort();
 
 describe("init-claude CLI", () => {
   let tmpDir: string;
@@ -120,14 +112,14 @@ describe("init-claude CLI", () => {
     expect(content).not.toBe("old content");
   });
 
-  it("copies 15 skill directories", () => {
+  it("copies every template skill directory", () => {
     run(tmpDir);
     const skillsDir = join(tmpDir, ".claude", "skills");
     expect(existsSync(skillsDir)).toBe(true);
     const dirs = readdirSync(skillsDir, { withFileTypes: true })
       .filter((d) => d.isDirectory())
       .map((d) => d.name);
-    expect(dirs.length).toBe(15);
+    expect(dirs.length).toBe(SKILL_DIRS.length);
     for (const name of SKILL_DIRS) {
       expect(dirs).toContain(name);
     }
@@ -151,9 +143,12 @@ describe("AGENTS.md template", () => {
     expect(existsSync(agentsPath)).toBe(true);
   });
 
-  it("is under 150 lines", () => {
+  it("stays concise (<= 170 lines)", () => {
+    // Ceiling bumped from 150 when the #139 rewrite grew AGENTS.md to teach the
+    // full X.create() surface + anti-patterns (deliberate, correct content).
+    // Still a bloat guard — the doc must not balloon past a scannable page.
     const lines = readFileSync(agentsPath, "utf8").split("\n").length;
-    expect(lines).toBeLessThanOrEqual(150);
+    expect(lines).toBeLessThanOrEqual(170);
   });
 
   it("has import map with @theokit/sdk", () => {
@@ -209,7 +204,7 @@ describe("CLAUDE.md template", () => {
     expect(content).toContain("@AGENTS.md");
   });
 
-  it("lists all 15 skill directories", () => {
+  it("lists every skill directory", () => {
     const content = readFileSync(claudePath, "utf8");
     for (const name of SKILL_DIRS) {
       expect(content).toContain(name);
@@ -259,10 +254,10 @@ describe("settings.json template", () => {
   });
 });
 
-describe("All 15 skills", () => {
-  const skillsBase = join(TEMPLATE_DIR, "dot-claude", "skills");
+describe("All skills", () => {
+  const skillsBase = SKILLS_BASE;
 
-  it("all 15 skill directories exist with SKILL.md", () => {
+  it("every skill directory has a SKILL.md", () => {
     for (const name of SKILL_DIRS) {
       const skillPath = join(skillsBase, name, "SKILL.md");
       expect(existsSync(skillPath), `Missing: ${name}/SKILL.md`).toBe(true);
@@ -307,10 +302,22 @@ describe("All 15 skills", () => {
     }
   });
 
-  it("no skill references internal SDK paths", () => {
+  it("no skill references a NON-exported internal SDK path", () => {
+    // `@theokit/sdk/internal/persistence` + `/internal/security` ARE real,
+    // publicly-exported subpaths (semver-exempt, for extracted packages), so a
+    // skill may document them. Any OTHER `@theokit/sdk/internal/...` is banned.
+    const pkg = JSON.parse(readFileSync(join(import.meta.dirname, "../package.json"), "utf8"));
+    const allowed = new Set(
+      Object.keys(pkg.exports ?? {})
+        .filter((k) => k.startsWith("./internal/"))
+        .map((k) => `@theokit/sdk${k.slice(1)}`),
+    );
     for (const name of SKILL_DIRS) {
       const content = readFileSync(join(skillsBase, name, "SKILL.md"), "utf8");
-      expect(content, `${name} references internal path`).not.toContain("@theokit/sdk/internal");
+      const refs = content.match(/@theokit\/sdk\/internal\/[a-z-]+/g) ?? [];
+      for (const ref of refs) {
+        expect(allowed.has(ref), `${name} references non-exported internal path ${ref}`).toBe(true);
+      }
     }
   });
 
