@@ -132,6 +132,15 @@ export interface AgentDefinition {
    * parent's full toolset). Apply with `withSubagentToolScope`.
    */
   tools?: string[];
+  /**
+   * Per-subagent shell sandbox toggle. When `true`, the spawned child runs with
+   * `local.sandboxOptions.enabled = true` (the SDK's boolean shell sandbox). Absent
+   * ⇒ inherit the parent's sandbox posture. The SDK has no granular sandbox *mode*
+   * (read-only / workspace-write / danger); a mode string in the disk frontmatter is
+   * a typed load error, not a silent boolean coercion. Reasoning effort is NOT a
+   * field here — it rides inside `model.params` (e.g. `[{ id: "thinking", value: "low" }]`).
+   */
+  sandbox?: boolean;
 }
 
 /**

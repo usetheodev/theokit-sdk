@@ -133,8 +133,16 @@ export interface SubAgentSpec {
   name: string;
   description: string;
   instructions: string;
-  model?: string;
+  /**
+   * A bare id string (back-compat) OR a full {@link ModelSelection} carrying
+   * `params` (e.g. `[{ id: "thinking", value: "low" }]` for reasoning effort). The
+   * object form is required for per-subagent reasoning effort to survive to the child
+   * — the pre-M33 path took only `.id` and dropped params.
+   */
+  model?: string | ModelSelection;
   tools?: CustomTool[];
+  /** Per-subagent shell sandbox toggle (M33). `true` ⇒ child `local.sandboxOptions.enabled`. */
+  sandbox?: boolean;
   maxDelegationDepth?: number;
   /**
    * SE11 — called before the supervisor delegates. Return `{ proceed: false }`
@@ -236,16 +244,24 @@ async function collectChildToolResults(run: Run): Promise<string> {
  * overrides it), and — #55 — the parent's plugins (permission gate/guards) so the
  * child's inner tool calls run under the same policy.
  */
-function buildChildCreateOptions(
+export function buildChildCreateOptions(
   spec: SubAgentSpec,
   inherited: InheritedCredentials | undefined,
 ): AgentOptions {
-  const model: string | ModelSelection | undefined = spec.model
-    ? { id: spec.model }
-    : inherited?.model;
+  // M33 — carry the WHOLE model (a bare id becomes `{ id }`; a ModelSelection with
+  // `params` keeps its reasoning effort). The pre-M33 path wrapped `spec.model` as
+  // `{ id: spec.model }`, which only worked because spec.model was a string and
+  // silently dropped reasoning params.
+  const model: string | ModelSelection | undefined =
+    spec.model !== undefined
+      ? typeof spec.model === "string"
+        ? { id: spec.model }
+        : spec.model
+      : inherited?.model;
   return {
     ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
     ...(model !== undefined ? { model } : {}),
+    ...(spec.sandbox === true ? { local: { sandboxOptions: { enabled: true } } } : {}),
     ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
     systemPrompt: spec.instructions,
     tools: spec.tools ?? [],
@@ -444,8 +460,11 @@ export class SubAgent {
  * subset of the parent's tools (absent → the parent's full toolset, per the
  * `AgentDefinition.tools` contract).
  *
- * Per-subagent `mcpServers` on an `AgentDefinition` is honored by the cloud
- * runtime only; it is not wired into local delegation here.
+ * M33 — per-subagent `model` (with reasoning `params`) and `sandbox` are now wired
+ * into local delegation: each is carried onto the {@link SubAgentSpec} and applied to
+ * the child in {@link buildChildCreateOptions}. `"inherit"` (or an absent field) keeps
+ * the parent's value. Per-subagent `mcp` is rejected at load (see subagents-loader) —
+ * resolving server names→config on the local path is a follow-up.
  *
  * @internal
  */
@@ -461,7 +480,10 @@ export function subAgentToolsFromDefinitions(
       name,
       description: def.description,
       instructions: def.prompt,
-      ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model.id } : {}),
+      // Carry the FULL ModelSelection (id + reasoning params), not just the id, so
+      // per-subagent reasoning effort survives to buildChildCreateOptions.
+      ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model } : {}),
+      ...(def.sandbox !== undefined ? { sandbox: def.sandbox } : {}),
       tools: [...childTools],
     });
   });
