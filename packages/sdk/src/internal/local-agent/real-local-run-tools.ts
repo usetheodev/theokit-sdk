@@ -52,10 +52,14 @@ function bindParentCredentials(tools: ReadonlyArray<CustomTool>, agentOptions: A
   // #55 — hand the parent's code-registered plugins (array form carries the
   // PermissionPlugin) down so the child runs under the same permission gate.
   const parentPlugins = Array.isArray(agentOptions.plugins) ? agentOptions.plugins : undefined;
+  // M33 — hand down the parent's sandbox posture so a child of a sandboxed parent stays sandboxed unless
+  // its role opts out. A role's own `sandbox` (spec.sandbox) overrides this in buildChildCreateOptions.
+  const parentSandbox = agentOptions.local?.sandboxOptions?.enabled;
   const credentials: InheritedCredentials = {
     ...(agentOptions.apiKey !== undefined ? { apiKey: agentOptions.apiKey } : {}),
     ...(typeof agentOptions.model === "object" ? { model: agentOptions.model } : {}),
     ...(parentPlugins !== undefined ? { plugins: parentPlugins } : {}),
+    ...(parentSandbox !== undefined ? { sandbox: parentSandbox } : {}),
   };
   for (const tool of tools) inheritSubAgentCredentials(tool, credentials);
 }
