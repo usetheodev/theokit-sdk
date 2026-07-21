@@ -124,9 +124,12 @@ function resolveModel(
 ): ModelSelection | "inherit" | undefined {
   const modelId = asString(fields.model);
   const effort = asString(fields.reasoning_effort);
-  if (effort !== undefined && modelId === undefined) {
+  // reasoning_effort rides in model.params[thinking], so it needs a CONCRETE model id to attach to.
+  // Neither an absent model NOR `model: inherit` can carry it (the inherited id is unknown at load), so
+  // both are typed errors rather than a silently-dropped effort — the silent-gate class this guards.
+  if (effort !== undefined && (modelId === undefined || modelId === "inherit")) {
     throw new ConfigurationError(
-      `Subagent ${filename}: reasoning_effort requires a model (effort is a model parameter)`,
+      `Subagent ${filename}: reasoning_effort requires a concrete model (effort is a model parameter; an absent model or "inherit" cannot carry it)`,
       { code: "subagent_reasoning_effort_without_model" },
     );
   }
@@ -154,7 +157,12 @@ function resolveSandbox(
 }
 
 function asString(v: FrontmatterValue | undefined): string | undefined {
-  return typeof v === "string" ? v : undefined;
+  if (typeof v !== "string") return undefined;
+  // parseSimpleYaml does not strip quotes (documented), and `model`/`reasoning_effort` are fields users
+  // habitually quote (`model: "openai/gpt-4o"`). Strip a single matching surrounding quote pair so a
+  // quoted id/effort does not slip past validation and fail only at the provider.
+  const m = /^(["'])(.*)\1$/.exec(v);
+  return m ? m[2] : v;
 }
 
 /** Accept a YAML list (`string[]`) or a comma/space-separated scalar; trim + drop empties. */

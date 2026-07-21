@@ -55,6 +55,14 @@ describe("subagent loader — per-agent config (M33)", () => {
     ).rejects.toThrow(/worker\.md.*mcp|mcp.*not yet supported/);
   });
 
+  it("strips surrounding quotes from a quoted model/effort (a common frontmatter footgun)", async () => {
+    const md = `---\nname: q\ndescription: d\nmodel: "openai/gpt-4o-mini"\nreasoning_effort: "low"\n---\nbody`;
+    const defs = await withRole("q", md, (cwd) => loadSubagents(cwd, true, undefined));
+    const model = defs.q?.model;
+    expect(typeof model === "object" ? model.id : model).toBe("openai/gpt-4o-mini");
+    expect(typeof model === "object" ? model.params?.[0]?.value : undefined).toBe("low");
+  });
+
   it("parses a boolean sandbox", async () => {
     const md = `---\nname: worker\ndescription: does work\nsandbox: true\n---\nbody`;
     const defs = await withRole("worker", md, (cwd) => loadSubagents(cwd, true, undefined));
@@ -80,6 +88,15 @@ describe("subagent loader — per-agent config (M33)", () => {
     const md = `---\nname: bad\ndescription: d\nreasoning_effort: high\n---\nbody`;
     await expect(withRole("bad", md, (cwd) => loadSubagents(cwd, true, undefined))).rejects.toThrow(
       /reasoning_effort/,
+    );
+  });
+
+  it("rejects reasoning_effort with model: inherit — the inherited id cannot carry the param (no silent drop)", async () => {
+    // model: inherit + reasoning_effort would otherwise resolve to "inherit" and silently drop the
+    // effort — exactly the silent-gate class this milestone closes. It must be a typed error instead.
+    const md = `---\nname: bad\ndescription: d\nmodel: inherit\nreasoning_effort: low\n---\nbody`;
+    await expect(withRole("bad", md, (cwd) => loadSubagents(cwd, true, undefined))).rejects.toThrow(
+      /reasoning_effort.*concrete model|concrete model/,
     );
   });
 
@@ -118,7 +135,24 @@ describe("buildChildCreateOptions — the fields reach the child (M33)", () => {
     expect(opts.local?.sandboxOptions?.enabled).toBe(true);
   });
 
-  it("a child without overrides inherits the parent model and has no sandbox", () => {
+  it("a child of a sandboxed parent INHERITS the sandbox when its role omits the field (not default-open)", () => {
+    // The default-open bug: a child of a sandboxed parent ran unsandboxed unless every role opted in.
+    const opts = buildChildCreateOptions(
+      { name: "p", description: "d", instructions: "i" },
+      { apiKey: "k", sandbox: true },
+    );
+    expect(opts.local?.sandboxOptions?.enabled).toBe(true);
+  });
+
+  it("an explicit sandbox: false confines-OFF even under a sandboxed parent (distinct from absent)", () => {
+    const opts = buildChildCreateOptions(
+      { name: "p", description: "d", instructions: "i", sandbox: false },
+      { apiKey: "k", sandbox: true },
+    );
+    expect(opts.local?.sandboxOptions?.enabled).toBe(false);
+  });
+
+  it("a child with no role sandbox and an UNsandboxed parent has no local sandbox", () => {
     const opts = buildChildCreateOptions(
       { name: "p", description: "d", instructions: "i" },
       { apiKey: "k", model: { id: "parent/model" } },

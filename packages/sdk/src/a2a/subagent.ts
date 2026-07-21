@@ -33,6 +33,13 @@ export interface InheritedCredentials {
   readonly apiKey?: string;
   readonly model?: ModelSelection;
   /**
+   * The parent's shell-sandbox posture (`local.sandboxOptions.enabled`), handed down so a delegated
+   * child of a sandboxed parent stays sandboxed unless its role explicitly opts out. Without this a
+   * child ran unsandboxed whenever its role omitted `sandbox` — a default-open the sandbox wiring exists
+   * to prevent.
+   */
+  readonly sandbox?: boolean;
+  /**
    * #55 — the parent's code-registered plugins (e.g. a `PermissionPlugin`) handed
    * down so the child runs under the SAME policy. Without this, a delegated child's
    * inner tool calls escape the parent's argument-level permission gate. First-party
@@ -258,10 +265,13 @@ export function buildChildCreateOptions(
         ? { id: spec.model }
         : spec.model
       : inherited?.model;
+  // M33 — the role's own `sandbox` wins; when it omits the field, inherit the parent's posture. A role's
+  // explicit `sandbox: false` therefore confines-OFF a child of a sandboxed parent (distinct from absent).
+  const sandbox = spec.sandbox ?? inherited?.sandbox;
   return {
     ...(inherited?.apiKey !== undefined ? { apiKey: inherited.apiKey } : {}),
     ...(model !== undefined ? { model } : {}),
-    ...(spec.sandbox === true ? { local: { sandboxOptions: { enabled: true } } } : {}),
+    ...(sandbox !== undefined ? { local: { sandboxOptions: { enabled: sandbox } } } : {}),
     ...(inherited?.plugins !== undefined ? { plugins: inherited.plugins } : {}),
     systemPrompt: spec.instructions,
     tools: spec.tools ?? [],
