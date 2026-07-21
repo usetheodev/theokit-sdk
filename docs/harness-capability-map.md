@@ -156,11 +156,15 @@ const done = readJsonlIds("out/preds.jsonl", (r) => (r.patch ? String(r.id) : un
 ## Eval & sandbox — `@theokit/sdk/eval`, `@theokit/sdk/sandbox`
 
 ```typescript
-import { Eval, Scorers, loadJsonl, captureArtifact } from "@theokit/sdk/eval";
+import { Eval, Scorers, assertEval, EvalThresholdError, loadJsonl, captureArtifact } from "@theokit/sdk/eval";
 import { LocalSandbox, provisionRepo, RepoProvisionError } from "@theokit/sdk/sandbox";
-// Scorers.verifyGate({ sandbox, repoDir, failToPass, passToPass, command }) → exit-code scorer
-// provisionRepo(sandbox, { repoUrl, ref, instanceId }) → { repoDir } (clone+checkout via SandboxBackend)
-const ev = Eval.create({ name: "swe", dataset, scorers: [Scorers.verifyGate({ sandbox: new LocalSandbox(), repoDir, failToPass, passToPass, command })], agent });
+// Scorers: exactMatch, containsExpected, regex, jsonShape(zod), llmJudge, verifyGate,
+//          levenshtein({ threshold?, caseSensitive? }), numericDiff({ tolerance? }),
+//          embeddingSimilarity({ apiKey?, model?, threshold?, embed? })  ← SE41
+const ev = Eval.create({ name: "qa", dataset, scorers: [Scorers.levenshtein({ threshold: 0.8 })], agent, trials: 3 });
+const run = await ev.run();
+// CI gate (SE41): throws EvalThresholdError with every unmet threshold, else void.
+assertEval(run, { minMeanScore: 0.8, minPassRatio: 0.9, maxErrorRatio: 0, perScorer: { "levenshtein(>=0.8)": 0.7 } });
 ```
 
 ## Workflow, task store, cron, subscription, A2A, client
