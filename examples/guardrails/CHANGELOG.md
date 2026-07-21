@@ -1,5 +1,12 @@
 # @theokit/example-guardrails
 
+## 0.0.39
+
+### Patch Changes
+
+- Updated dependencies [4b70ff1]
+  - @theokit/sdk@4.6.1
+
 ## 0.0.38
 
 ### Patch Changes
