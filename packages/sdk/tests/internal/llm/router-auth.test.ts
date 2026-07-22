@@ -124,4 +124,36 @@ describe("M42 — router obtains the oauth bearer at stream time (plain profiles
     });
     expect(() => resolveProviderChain({ primary: "no-cred" })).toThrow(/No provider client/);
   });
+
+  it("an oauth provider WITHOUT a transform fails fast — never sends the __oauth_lazy_token__ placeholder (MEDIUM-1)", () => {
+    // OpenCode's auth model never puts a placeholder on the wire; a missing credential is MissingCredentialError.
+    // theokit's analog: an oauth provider that supplies neither transform.fetch nor an authorization header
+    // must throw a ConfigurationError, not POST "Bearer __oauth_lazy_token__" to the real upstream.
+    registerProvider({
+      name: "oauth-no-transform",
+      apiMode: "chat_completions",
+      envVars: [],
+      authType: "oauth_external",
+      baseUrl: "https://oauth.test/v1",
+      fallbackModels: ["oauth-no-transform/m"],
+      // NO transform → no fetch, no authorization header.
+    });
+    expect(() => resolveProviderChain({ primary: "oauth-no-transform" })).toThrow(
+      /no credential was resolved/,
+    );
+  });
+
+  it("an oauth provider whose transform supplies ONLY headers.authorization builds (no fetch needed)", () => {
+    registerProvider({
+      name: "oauth-headers-only",
+      apiMode: "responses_api",
+      envVars: [],
+      authType: "oauth_external",
+      baseUrl: "https://oauth.test/backend",
+      fallbackModels: ["oauth-headers-only/m"],
+      transform: { headers: () => ({ authorization: "Bearer TKN" }) },
+    });
+    const [client] = resolveProviderChain({ primary: "oauth-headers-only" });
+    expect(client).toBeDefined();
+  });
 });

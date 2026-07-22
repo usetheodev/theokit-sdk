@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.11.1
+
+### Patch Changes
+
+- Auth subsystem review fixes (agent-builder M42), grounded in OpenCode's provider-auth model: (1) an oauth provider that resolves NO credential now fails fast with a `ConfigurationError` (the `MissingCredentialError` analog) instead of putting the `__oauth_lazy_token__` placeholder on the wire — OpenCode never sends a placeholder; (2) `resolveCredential` no longer attributes a provider-less or mismatched-provider stored key to the requested provider (fail-closed — prevents cross-vendor key exposure, e.g. an Anthropic key POSTed to api.openai.com). The credential store/engine mechanics are unchanged.
+
 ## 4.11.0
 
 ### Minor Changes

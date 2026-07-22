@@ -283,6 +283,27 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     return { fetch: profile.transform.fetch?.(ctx), headers: profile.transform.headers?.(ctx) };
   };
 
+  // M42 review MEDIUM-1 — mirror OpenCode's auth model (packages/llm/src/route/auth.ts): a provider's auth
+  // resolves to real headers at request time or FAILS with `MissingCredentialError` — it NEVER puts a
+  // placeholder on the wire. theokit builds an oauth provider's client with the `__oauth_lazy_token__`
+  // placeholder (so the sync router can construct it), then the provider's `transform` (the theokit analog of
+  // OpenCode's `Auth.apply`) supplies the real bearer via fetch or an authorization header. If it supplies
+  // neither, fail fast here with the MissingCredentialError analog instead of POSTing the placeholder upstream.
+  const assertOAuthResolved = (t: {
+    fetch?: typeof fetch;
+    headers?: Record<string, string>;
+  }): void => {
+    if (apiKey !== "__oauth_lazy_token__") return;
+    const auth = t.headers?.authorization ?? t.headers?.Authorization;
+    if (t.fetch === undefined && auth === undefined) {
+      throw new ConfigurationError(
+        `provider "${profile.name}" uses OAuth (authType: ${profile.authType}) but no credential was ` +
+          `resolved. Register a ProviderProfile.transform whose fetch (or headers.authorization) supplies ` +
+          `the bearer — typically via resolveCredential() from "@theokit/sdk/auth".`,
+      );
+    }
+  };
+
   if (profile.apiMode === "chat_completions") {
     // ADR D191 (T8.1 dogfood fix): Ollama tool calling REQUIRES the native
     // `/api/chat` endpoint. OpenAI-compat `/v1/chat/completions` causes
@@ -314,6 +335,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // profile's static `extraHeaders`. OpenAIClient now honors `extraHeaders` (was ignored) — additive-safe:
     // no builtin sets it on chat_completions.
     const t = applyTransform();
+    assertOAuthResolved(t);
     if (t.fetch !== undefined) opts.fetch = t.fetch;
     const merged =
       profile.extraHeaders !== undefined || t.headers !== undefined
@@ -348,6 +370,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // (dynamic auth headers like a live `ChatGPT-Account-Id`), and `fetch` becomes the refresh-aware fetch
     // (closes the gap where `ResponsesApiClient` accepted a `fetch?` the router never passed).
     const t = applyTransform();
+    assertOAuthResolved(t);
     const mergedHeaders =
       profile.extraHeaders !== undefined || t.headers !== undefined
         ? { ...profile.extraHeaders, ...t.headers }
