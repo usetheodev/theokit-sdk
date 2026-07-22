@@ -60,6 +60,28 @@ afterEach(() => {
 });
 
 describe("Agent.create wires provider-plugin discovery (M47)", () => {
+  it("agent_resume_registers_a_trusted_plugin_profile (F1 — fresh-process resume path)", async () => {
+    trustedFixture("wiring-resume-provider");
+
+    const created = await Agent.create({
+      apiKey: "sk-test-not-used",
+      model: { id: "openai/gpt-4o" },
+      local: { cwd: process.cwd() },
+    });
+    const agentId = created.agentId;
+    await created[Symbol.asyncDispose]();
+
+    // Simulate a fresh process: discovery flag + registry reset — resume must re-discover.
+    _resetDiscovery();
+    _resetProvidersForTests();
+    const resumed = await Agent.resume(agentId, { apiKey: "sk-test-not-used" });
+    try {
+      expect(getProviderProfile("wiring-resume-provider")).toBeDefined();
+    } finally {
+      await resumed[Symbol.asyncDispose]();
+    }
+  });
+
   it("agent_create_registers_a_trusted_plugin_profile", async () => {
     trustedFixture("wiring-fixture-provider");
 

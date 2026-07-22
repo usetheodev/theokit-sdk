@@ -120,3 +120,25 @@ describe("M47 — dynamic-loader trust gate (fail-closed)", () => {
     expect(stderrSpy.mock.calls.map((c) => String(c[0])).join("")).toContain("NOT trusted");
   });
 });
+
+describe("M47 review fixes — F3/F5/F6", () => {
+  it("discovery_is_idempotent_behaviorally — trusted plugin evaluated exactly once across two calls", async () => {
+    fixturePlugin("good-provider");
+    trustFile(JSON.stringify(["good-provider"]));
+    await discoverProviderPlugins();
+    expect(existsSync(marker)).toBe(true);
+    rmSync(marker); // remove the marker: a re-evaluation would recreate it
+    await discoverProviderPlugins();
+    expect(existsSync(marker)).toBe(false); // second call was a no-op — no re-import, no re-register
+  });
+
+  it("non_string_entries_in_a_valid_array_are_discarded_WITH_a_warn (fail-closed AND fail-clear)", async () => {
+    fixturePlugin("some-provider");
+    trustFile(JSON.stringify([42, { name: "some-provider" }]));
+    const stderrSpy = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    await discoverProviderPlugins();
+    expect(existsSync(marker)).toBe(false);
+    const warns = stderrSpy.mock.calls.map((c) => String(c[0])).join("");
+    expect(warns).toContain("non-string"); // names the shape problem, not just the generic NOT-trusted
+  });
+});
