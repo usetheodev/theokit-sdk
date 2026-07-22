@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.2
+
+### Patch Changes
+
+- fix(session): `Agent.compact` hydrates the per-cwd registry from disk on a miss (same D21 path as `Agent.resume`) — a fresh process compacting a persisted session no longer fails with UnknownAgentError. Found live in the M50 probe.
+
 ## 4.16.1
 
 ### Patch Changes
