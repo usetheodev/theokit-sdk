@@ -138,8 +138,19 @@ async function loadDriver<T extends ResilientSqliteDb>(filePath: string): Promis
     betterSqliteCause = cause;
   }
   // Fallback: the Node 22.5+ built-in driver (the path the error message documents).
+  // `process.getBuiltinModule` (Node 22.3+) instead of `import("node:sqlite")` — bundlers that
+  // predate the sqlite builtin rewrite the import specifier to a bare "sqlite" package (proven in
+  // the published dist: "Cannot find package 'sqlite'"), while getBuiltinModule is opaque to them.
   try {
-    const mod = (await (driverLoaderOverrides?.nodeSqlite?.() ?? import("node:sqlite"))) as {
+    const mod = (await (driverLoaderOverrides?.nodeSqlite?.() ??
+      Promise.resolve(
+        (
+          process as { getBuiltinModule?: (id: string) => unknown }
+        ).getBuiltinModule?.("node:sqlite") ??
+          (() => {
+            throw new Error("node:sqlite built-in unavailable (Node < 22.3)");
+          })(),
+      ))) as {
       DatabaseSync: new (path: string) => {
         prepare(sql: string): unknown;
         exec(sql: string): void;
