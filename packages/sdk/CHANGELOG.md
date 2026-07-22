@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.12.1
+
+### Patch Changes
+
+- `Provider.builtins()` (agent-builder M43): returns every first-party builtin provider — including the `openai-chatgpt` Codex builtin — as model-provider plugins. A runtime that does NOT share the SDK's provider registry (the `theokit` agent server / `@theokit/agents`, which resolve models via their own `buildModelSelection`) can now route to any SDK builtin with ZERO provider-specific code: `Agent.create({ plugins: Provider.builtins() })` (or the agents `.plugins(Provider.builtins())`), then pick a `provider/model` id. Adding a provider stays one SDK file — it is auto-included. The full ProviderProfile (transport + the auth `transform`) rides along into the consuming runtime.
+
 ## 4.12.0
 
 ### Minor Changes
