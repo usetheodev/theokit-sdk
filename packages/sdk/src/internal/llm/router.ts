@@ -9,6 +9,7 @@ import { maybeWrapWithFaultInjection } from "./fault-injection.js";
 import { OllamaNativeClient } from "./ollama-native.js";
 import { OpenAIClient } from "./openai.js";
 import { PoolAwareLlmClient } from "./pool-aware-client.js";
+import { ResponsesApiClient } from "./responses.js";
 import type { LlmClient } from "./types.js";
 import { VertexRouterClient } from "./vertex-router.js";
 
@@ -314,6 +315,17 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // strip the lazy sentinel so client triggers @aws/bedrock-token-generator (D287).
     const realKey = apiKey === "__bedrock_lazy_token__" ? undefined : apiKey;
     return new BedrockAnthropicClient(realKey !== undefined ? { apiKey: realKey } : {});
+  }
+  if (profile.apiMode === "responses_api") {
+    // M40 (agent-builder) — the OpenAI Responses-API transport (ChatGPT Codex backend + any responses
+    // provider). Consumes `baseUrl` + `extraHeaders` from the profile (their first consumer). Was an
+    // unimplemented apiMode that threw below; now a first-class transport.
+    return new ResponsesApiClient({
+      apiKey,
+      ...(profile.baseUrl !== undefined ? { baseUrl: profile.baseUrl } : {}),
+      ...(profile.extraHeaders !== undefined ? { extraHeaders: profile.extraHeaders } : {}),
+      providerName: profile.name,
+    });
   }
   throw new ConfigurationError(
     `Provider "${profile.name}" requires apiMode "${profile.apiMode}" but no transport is registered. ` +
