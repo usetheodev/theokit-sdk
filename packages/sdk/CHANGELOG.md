@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.3
+
+### Patch Changes
+
+- fix(session): compaction summarizer falls back to the ENV-detected provider when no explicit key exists (the persisted registry never carries credentials) — a fresh-process `/compact` with only OPENROUTER_API_KEY in the environment now routes via OpenRouter instead of failing on the model-prefix provider.
+
 ## 4.16.2
 
 ### Patch Changes
