@@ -422,7 +422,13 @@ export class Agent {
       ) => Promise<string>;
     } = {},
   ): Promise<import("./internal/session/compact-session.js").CompactResult> {
-    const reg = getRegisteredAgent(agentId);
+    let reg = getRegisteredAgent(agentId);
+    if (reg === undefined) {
+      // Fresh process (e.g. a TUI /compact before any turn): hydrate the per-cwd registry from disk,
+      // exactly like Agent.resume does (D21).
+      await hydrateRegistryFromDisk(process.cwd());
+      reg = getRegisteredAgent(agentId);
+    }
     if (reg === undefined || reg.runtime !== "local") {
       throw new UnknownAgentError(`No local agent "${agentId}" registered — compact targets local sessions.`);
     }
