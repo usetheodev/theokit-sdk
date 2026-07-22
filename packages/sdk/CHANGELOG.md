@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.15.1
+
+### Patch Changes
+
+- fix(providers): wire `discoverProviderPlugins()` into `Agent.create` — the dynamic provider-plugin loader (and its M47 trust gate) was exported but never invoked on any production path, making the whole discovery surface dead code at runtime. Discovery now runs upfront on agent initialization (idempotent, fail-tolerant), honoring the `resolveProviderChain` contract.
+
 ## 4.15.0
 
 ### Minor Changes

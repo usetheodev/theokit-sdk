@@ -15,6 +15,7 @@ import {
   UnknownAgentError,
 } from "./errors.js";
 import { enabledPluginNames } from "./internal/plugins/enabled-names.js";
+import { discoverProviderPlugins } from "./internal/providers/discovery.js";
 import { setAgentFacade } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
@@ -107,6 +108,9 @@ export class Agent {
       pluginCount: enabledPluginNames(options.plugins).length,
     });
     try {
+      // M47 wiring — provider-plugin discovery runs upfront (the `resolveProviderChain`
+      // contract). Idempotent per process; fail-tolerant by design (never throws).
+      await discoverProviderPlugins();
       const agent = await runCreateUnderSpan(options, span);
       return agent;
     } catch (err) {
