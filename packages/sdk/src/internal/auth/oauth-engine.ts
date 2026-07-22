@@ -18,38 +18,14 @@
  */
 import { AuthCallbackError } from "../../server/auth/errors.js";
 
-import {
-  authFilePath,
-  type CredentialStoreConfig,
-  type ResolvedCredential,
-  readStoredOAuth,
-  writeCredential,
-} from "./credential-store.js";
-
-/** A provider's OAuth endpoints + client identity. Passed in (provider-agnostic, like Upstream). */
-export interface OAuthProviderConfig {
-  provider: string;
-  authorizeEndpoint: string;
-  tokenEndpoint: string;
-  clientId: string;
-  scopes: readonly string[];
-  redirectUri: string;
-}
-
-/** The token triple persisted to the store's oauth variant. */
-export interface OAuthTokens {
-  access: string;
-  refresh: string;
-  /** Epoch ms the access token expires. */
-  expires: number;
-  accountId?: string;
-}
-
-/** Injected HTTP + clock effects — deterministic in tests, real in production. */
-export interface HttpDeps {
-  fetch: typeof fetch;
-  now: () => number;
-}
+import type {
+  CredentialStoreConfig,
+  HttpDeps,
+  OAuthProviderConfig,
+  OAuthTokens,
+  ResolvedCredential,
+} from "./auth-types.js";
+import { authFilePath, readStoredOAuth, writeCredential } from "./credential-store.js";
 
 /** Refresh a token this many ms BEFORE it actually expires (avoid a last-second, mid-request expiry). */
 const REFRESH_SKEW_MS = 60_000;

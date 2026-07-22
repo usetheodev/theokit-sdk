@@ -48,6 +48,8 @@ const targets = [
   join(DIST, "subscription"),
   // Public tool-input sanitization sub-path.
   join(DIST, "sanitize"),
+  // M42 auth subsystem sub-path.
+  join(DIST, "auth"),
   join(DIST, "concurrency.d.ts"),
   join(DIST, "retry.d.ts"),
   // V2-3: persistence sub-path.

@@ -35,6 +35,8 @@ export default defineConfig({
     // Public tool-input sanitization primitive — leaf module (zod type-only + node:module +
     // lazy jsonrepair); DTS via tsc (tsconfig.tools-dts.json), mirrors the subscription pattern.
     "sanitize/index": "src/sanitize/index.ts",
+    // M42 — auth subsystem sub-entry (DTS via tsc; rollup-dts cannot bundle it into `.`).
+    "auth/index": "src/auth/index.ts",
     "a2a/index": "src/a2a/index.ts",
     "client/index": "src/client/index.ts",
     "sandbox/index": "src/sandbox/index.ts",

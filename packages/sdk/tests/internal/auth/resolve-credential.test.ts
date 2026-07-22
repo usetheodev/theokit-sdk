@@ -4,11 +4,11 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  type CredentialStoreConfig,
-  writeCredential,
-} from "../../../src/internal/auth/credential-store.js";
-import type { OAuthProviderConfig } from "../../../src/internal/auth/oauth-engine.js";
+import type {
+  CredentialStoreConfig,
+  OAuthProviderConfig,
+} from "../../../src/internal/auth/auth-types.js";
+import { writeCredential } from "../../../src/internal/auth/credential-store.js";
 import { resolveCredential } from "../../../src/internal/auth/resolve-credential.js";
 
 const roots: string[] = [];

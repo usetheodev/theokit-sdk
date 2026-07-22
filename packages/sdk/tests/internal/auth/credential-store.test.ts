@@ -13,10 +13,10 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import type { CredentialStoreConfig } from "../../../src/internal/auth/auth-types.js";
 import {
   authFilePath,
   CredentialError,
-  type CredentialStoreConfig,
   readAuthFile,
   readStoredOAuth,
   writeCredential,

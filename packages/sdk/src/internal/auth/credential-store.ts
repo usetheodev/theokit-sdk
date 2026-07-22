@@ -29,23 +29,11 @@ import { z } from "zod";
  *
  * @internal
  */
-
-/**
- * Where the credential store lives. Replaces agent-builder's hardcoded `.agent-builder`/`auth.json`/
- * `AGENT_BUILDER_HOME`. `homeEnvVar`, when set and present in `env`, overrides the whole directory
- * (mirroring Codex's `CODEX_HOME`) — so tests and multi-account setups point elsewhere without touching
- * `$HOME`. `env` is a PARAMETER for the same reason the store is: no ambient reads.
- */
-export interface CredentialStoreConfig {
-  /** Base home directory (e.g. `os.homedir()`). */
-  home: string;
-  /** The store subdirectory under `home` (e.g. `.agent-builder`, `.codex`). */
-  dirName: string;
-  /** The credential file name inside the store dir (e.g. `auth.json`). */
-  fileName: string;
-  /** Optional env var name that, when set + non-blank, overrides the full store dir. */
-  homeEnvVar?: string;
-}
+import type {
+  CredentialStoreConfig,
+  StoredCredential,
+  StoredOAuthCredential,
+} from "./auth-types.js";
 
 /** The store directory, honoring an optional `homeEnvVar` override. */
 export function credentialHome(
@@ -75,24 +63,6 @@ export class CredentialError extends Error {
 }
 
 /**
- * The flat bearer surface every consumer holds. `kind:'api'` is the classic API-key path; `kind:'oauth'`
- * is an OAuth session whose `apiKey` is the CURRENT access token, so consumers keep passing a flat bearer
- * string unchanged. `provider` is an open string (any registered provider name).
- */
-export interface ResolvedCredential {
-  kind: "api" | "oauth";
-  provider: string;
-  /** The effective BEARER the transport sends — an API key, or (oauth) the current access token. */
-  apiKey: string;
-  /** Where it came from — an env var NAME or a file path. Never the value. */
-  source: string;
-  /** True when the provider was derived rather than declared. */
-  inferred: boolean;
-  /** oauth only: epoch ms the access token expires. Drives the refresh in the oauth engine. */
-  expiresAt?: number;
-}
-
-/**
  * The on-disk store — a discriminated union on `type` (Upstream `Info` shape). A legacy file with NO
  * `type` (or `type: 'api'`) is the API-key variant — read unchanged, no migration. The `oauth` variant
  * carries the token pair + expiry.
@@ -118,24 +88,6 @@ const oauthFileSchema = z
 
 // oauth first (it requires `type: 'oauth'`); a legacy `{provider?, api_key}` falls through to api.
 const fileSchema = z.union([oauthFileSchema, apiFileSchema]);
-
-export interface StoredApiCredential {
-  type?: "api";
-  provider?: string;
-  api_key: string;
-}
-
-export interface StoredOAuthCredential {
-  type: "oauth";
-  provider: string;
-  access: string;
-  refresh: string;
-  /** Epoch ms the access token expires. */
-  expires: number;
-  account_id?: string;
-}
-
-export type StoredCredential = StoredApiCredential | StoredOAuthCredential;
 
 /**
  * Read the credential file. Absent ⇒ `undefined` (the normal case). Present-but-wrong is a typed error

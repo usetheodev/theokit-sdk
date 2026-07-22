@@ -11,13 +11,14 @@
  *
  * @internal (re-exported from the package barrel as public)
  */
-import {
-  authFilePath,
-  type CredentialStoreConfig,
-  type ResolvedCredential,
-  readAuthFile,
-} from "./credential-store.js";
-import { ensureFreshCredential, type HttpDeps, type OAuthProviderConfig } from "./oauth-engine.js";
+import type {
+  CredentialStoreConfig,
+  HttpDeps,
+  OAuthProviderConfig,
+  ResolvedCredential,
+} from "./auth-types.js";
+import { authFilePath, readAuthFile } from "./credential-store.js";
+import { ensureFreshCredential } from "./oauth-engine.js";
 
 export interface ResolveCredentialOptions {
   /** The provider whose stored credential to resolve. */

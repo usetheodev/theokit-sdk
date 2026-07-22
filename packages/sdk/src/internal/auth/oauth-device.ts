@@ -16,33 +16,16 @@
  */
 import { AuthCallbackError } from "../../server/auth/errors.js";
 
-import { exchangeCode, type OAuthProviderConfig, type OAuthTokens } from "./oauth-engine.js";
+import type {
+  DeviceCodeGrant,
+  DeviceDeps,
+  DeviceOAuthConfig,
+  OAuthTokens,
+  OpenAIDeviceConfig,
+} from "./auth-types.js";
+import { exchangeCode } from "./oauth-engine.js";
 
 // ─── OAuth 2.0 Device Authorization Grant (RFC 8628) — terminal-first / headless login ───
-
-/** A device-grant config: the OAuth config plus the RFC 8628 device authorization endpoint. */
-export interface DeviceOAuthConfig extends OAuthProviderConfig {
-  /** RFC 8628 device authorization endpoint — returns device_code + user_code + verification_uri. */
-  deviceCodeEndpoint: string;
-}
-
-/** The device authorization the user acts on. Times/interval are SECONDS (RFC 8628). */
-export interface DeviceCodeGrant {
-  deviceCode: string;
-  userCode: string;
-  verificationUri: string;
-  /** Seconds between token polls (server-mandated minimum). */
-  interval: number;
-  /** Seconds until the device_code expires. */
-  expiresIn: number;
-}
-
-/** Injected effects — deterministic in tests, real in production. */
-export interface DeviceDeps {
-  fetch: typeof fetch;
-  sleep: (ms: number) => Promise<void>;
-  now: () => number;
-}
 
 /** Buffer added to every poll interval to avoid hitting the server a hair early (from Upstream). */
 const POLLING_SAFETY_MARGIN_MS = 3000;
@@ -222,15 +205,6 @@ export async function deviceLogin(
 // ─── OpenAI / ChatGPT "headless" device flow (two-step; ADAPTED FROM Upstream codex.ts, MIT © 2025) ───
 
 /** The OpenAI two-step device config: usercode + poll endpoints return an authorization_code (not tokens). */
-export interface OpenAIDeviceConfig extends OAuthProviderConfig {
-  /** POST `{client_id}` here → `{device_auth_id, user_code, interval}`. */
-  deviceUsercodeEndpoint: string;
-  /** Poll `{device_auth_id, user_code}` here → 200 `{authorization_code, code_verifier}`; 403/404 = pending. */
-  devicePollEndpoint: string;
-  /** Verification URL the user opens to enter the code. */
-  verificationUri: string;
-}
-
 /** Step 1 (OpenAI) — request the user code. */
 export async function requestOpenAIUsercode(
   config: OpenAIDeviceConfig,
