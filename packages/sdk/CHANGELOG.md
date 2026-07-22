@@ -1,5 +1,35 @@
 # Changelog
 
+## 4.10.1
+
+### Patch Changes
+
+- Provider transform seam hardening (agent-builder M41 review): `OpenAIClient` now honors `extraHeaders` so `chat_completions` providers get `transform.headers` (previously silently dropped); the `transform` seam is invoked per-branch (no side effects for transports that ignore it); `ProviderTransform` + `ProviderTransformContext` are re-exported from the package entry; added back-compat golden tests (plain `responses_api` passthrough) + a `chat_completions` transform.fetch test.
+
+## 4.10.0
+
+### Minor Changes
+
+- Provider `transform` seam (agent-builder M41): `ProviderProfile` gains an optional `transform` (dynamic `headers(ctx)` + refresh-aware `fetch(ctx)`), fed through `selectTransport` into the `chat_completions` + `responses_api` transports — a provider can now own its per-request auth/headers. A profile without `transform` takes the static path byte-for-byte. Contract-shape adaptation of OpenCode's provider `auth.loader` (MIT).
+
+## 4.9.1
+
+### Patch Changes
+
+- Responses transport strips a `provider/` prefix from the model id (defense-in-depth: the ChatGPT Codex backend wants a bare `gpt-5.4`, decoupled from the router's provider-inference heuristic).
+
+## 4.9.0
+
+### Minor Changes
+
+- `responses_api` transport (agent-builder M40): a `ResponsesApiClient` for the OpenAI Responses API (ChatGPT Codex backend + any responses provider). The `responses_api` apiMode was declared but had no transport (`selectTransport` threw); this ships it — body build + SSE state machine, consuming `baseUrl` + `extraHeaders`. Protocol shape adapted from OpenCode's `openai-responses.ts` (MIT), recorded fixtures as golden tests.
+
+## 4.8.0
+
+### Minor Changes
+
+- `Agent.rename(agentId, name)` (agent-builder M39): the public mutator for the registry `name` field (mirrors `Agent.archive`/`setArchivedFlag`). The registry already carried `name` (`SDKAgentInfo.name`) but had no public setter.
+
 ## 4.7.1
 
 ### Patch Changes

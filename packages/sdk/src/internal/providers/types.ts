@@ -13,4 +13,6 @@ export type {
   ApiMode,
   AuthType,
   ProviderProfile,
+  ProviderTransform,
+  ProviderTransformContext,
 } from "../../types/provider-profile.js";

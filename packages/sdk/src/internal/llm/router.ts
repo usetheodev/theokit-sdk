@@ -267,13 +267,15 @@ function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4-mode transport ladder (chat_completions / anthropic_messages / responses_api / bedrock) + Ollama native dispatch (D191) + per-provider envOverride is one cohesive switch — splitting hurts readability and obscures the dispatch contract.
 function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
-  // M41 — the optional provider `transform` seam: a provider may supply a refresh-aware `fetch` and/or
-  // dynamic `headers` computed from the resolved bearer. Absent ⇒ every branch below takes its byte-for-byte
-  // static path. `fetch` is honored by every transport that accepts one; `headers` merges over `extraHeaders`
-  // on transports that carry them (responses_api).
-  const transformCtx = { apiKey };
-  const transformFetch = profile.transform?.fetch?.(transformCtx);
-  const transformHeaders = profile.transform?.headers?.(transformCtx);
+  // M41 — the optional provider `transform` seam (refresh-aware `fetch` + dynamic `headers` from the resolved
+  // bearer). Invoked LAZILY, per-branch, ONLY by the transports that consume it (chat_completions +
+  // responses_api) — so a transform's side effects (e.g. a token refresh) never fire for a transport that
+  // ignores it (anthropic / bedrock / ollama). Absent ⇒ each branch takes its byte-for-byte static path.
+  const applyTransform = (): { fetch?: typeof fetch; headers?: Record<string, string> } => {
+    if (profile.transform === undefined) return {};
+    const ctx = { apiKey };
+    return { fetch: profile.transform.fetch?.(ctx), headers: profile.transform.headers?.(ctx) };
+  };
 
   if (profile.apiMode === "chat_completions") {
     // ADR D191 (T8.1 dogfood fix): Ollama tool calling REQUIRES the native
@@ -302,8 +304,16 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // remote-box pointing without disturbing the others.
     const envOverride = resolveBaseUrlEnvOverride(profile.name);
     if (envOverride !== undefined) opts.baseUrl = envOverride;
-    // M41 — a provider-supplied fetch fully controls transport (headers/refresh) for chat_completions.
-    if (transformFetch !== undefined) opts.fetch = transformFetch;
+    // M41 — feed the provider transform: `fetch` (refresh-aware transport) + `headers` merged over the
+    // profile's static `extraHeaders`. OpenAIClient now honors `extraHeaders` (was ignored) — additive-safe:
+    // no builtin sets it on chat_completions.
+    const t = applyTransform();
+    if (t.fetch !== undefined) opts.fetch = t.fetch;
+    const merged =
+      profile.extraHeaders !== undefined || t.headers !== undefined
+        ? { ...profile.extraHeaders, ...t.headers }
+        : undefined;
+    if (merged !== undefined) opts.extraHeaders = merged;
     return new OpenAIClient(opts);
   }
   if (profile.apiMode === "anthropic_messages") {
@@ -331,15 +341,16 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // `baseUrl` + `extraHeaders`. M41 — feeds the provider `transform`: `headers` merge over `extraHeaders`
     // (dynamic auth headers like a live `ChatGPT-Account-Id`), and `fetch` becomes the refresh-aware fetch
     // (closes the gap where `ResponsesApiClient` accepted a `fetch?` the router never passed).
+    const t = applyTransform();
     const mergedHeaders =
-      profile.extraHeaders !== undefined || transformHeaders !== undefined
-        ? { ...profile.extraHeaders, ...transformHeaders }
+      profile.extraHeaders !== undefined || t.headers !== undefined
+        ? { ...profile.extraHeaders, ...t.headers }
         : undefined;
     return new ResponsesApiClient({
       apiKey,
       ...(profile.baseUrl !== undefined ? { baseUrl: profile.baseUrl } : {}),
       ...(mergedHeaders !== undefined ? { extraHeaders: mergedHeaders } : {}),
-      ...(transformFetch !== undefined ? { fetch: transformFetch } : {}),
+      ...(t.fetch !== undefined ? { fetch: t.fetch } : {}),
       providerName: profile.name,
     });
   }

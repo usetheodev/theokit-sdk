@@ -50,7 +50,12 @@ export interface ProviderTransformContext {
  * @public
  */
 export interface ProviderTransform {
-  /** Dynamic per-request headers, merged OVER the profile's static `extraHeaders`. */
+  /**
+   * Dynamic per-request headers, merged OVER the profile's static `extraHeaders`, and spread AFTER the
+   * transport's base `authorization`/`content-type`. A provider that owns its auth MAY intentionally set
+   * `authorization` here to override the resolved bearer — but a stray `authorization`/`content-type` key
+   * will silently replace the base header, so return only the headers you mean to add.
+   */
   headers?(ctx: ProviderTransformContext): Record<string, string>;
   /** A fetch to use for this provider's requests (refresh-aware / fully provider-controlled). */
   fetch?(ctx: ProviderTransformContext): typeof fetch;
