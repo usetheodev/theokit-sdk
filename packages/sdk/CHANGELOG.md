@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.14.0
+
+### Minor Changes
+
+- Data-provider fleet (agent-builder M45): 9 new first-party builtins on a data-only `openAiCompatibleProfile` base — `google` (DIRECT Gemini via the OpenAI-compat endpoint, `GOOGLE_API_KEY`/`GEMINI_API_KEY`; distinct from the `gemini` OpenRouter passthrough), `mistral`, `groq`, `cohere` (via `api.cohere.ai/compatibility/v1`), `deepinfra`, `together` (alias `togetherai`), `xai` (alias `grok`), `perplexity`, `cerebras` — each ~10 lines with source-cited values. Two defects fixed: the chat_completions URL-join no longer doubles version segments (`…/v1/v1/chat/completions` — every version-suffixed catalog baseUrl was broken for streaming) via version-segment detection + a data-only `ProviderProfile.chatCompletionsPath` escape (existing builtins byte-identical, contract-asserted), and Google is finally reachable (the `google-gemini` catalog entry was silently skipped by an alias collision). The `anthropic_messages` transport now consumes `extraHeaders` + the provider `transform` (mirror of the M41 chat_completions wiring) and the anthropic builtin ships `anthropic-beta: interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14` (the sanctioned behavior delta); openrouter gains theokit's own attribution headers (`HTTP-Referer: https://usetheo.dev`, `X-Title: theokit`); cerebras sends `X-Cerebras-3rd-Party-Integration: theokit`. A table-driven contract suite asserts identity + the EXACT wire URL and headers per provider. Values adapted from OpenCode (MIT); see NOTICE.
+
 ## 4.13.1
 
 ### Patch Changes
