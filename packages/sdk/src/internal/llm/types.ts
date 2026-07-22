@@ -37,7 +37,17 @@ export interface LlmToolResultPart {
   isError?: boolean;
 }
 
-export type LlmContentPart = LlmTextPart | LlmToolCallPart | LlmToolResultPart;
+/**
+ * M35 (multimodal) — an image part in a user message. `source` mirrors the `ImageBlock` shape
+ * (`{ type: "base64", media_type, data }`) so provider adapters serialize it to their own image format
+ * (OpenAI/OpenRouter `image_url` with a data URL; Anthropic native base64 source).
+ */
+export interface LlmImagePart {
+  type: "image";
+  source: { type: "base64"; media_type: string; data: string };
+}
+
+export type LlmContentPart = LlmTextPart | LlmToolCallPart | LlmToolResultPart | LlmImagePart;
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";

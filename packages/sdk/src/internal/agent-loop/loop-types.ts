@@ -77,6 +77,8 @@ export interface AgentLoopInputs {
   model: ModelSelection;
   systemPrompt?: string;
   userMessage: string;
+  /** M35 (multimodal) — images to attach to the first user turn as image content blocks. */
+  userImages?: import("../../types/run.js").SDKUserMessage["images"];
   llm: LlmClient;
   mcp: Map<string, McpClient>;
   hooks: HooksExecutor;

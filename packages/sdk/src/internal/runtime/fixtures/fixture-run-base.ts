@@ -21,11 +21,15 @@ import type { FixtureScript } from "./fixture-types.js";
  */
 export function prepareRunContext(message: string | SDKUserMessage): {
   userText: string;
+  userImages: SDKUserMessage["images"];
   id: string;
   startTime: number;
 } {
+  // M35 (multimodal) — carry a structured message's images alongside its text so the agent loop can
+  // attach them as image content blocks. A plain-string message has no images.
   const userText = typeof message === "string" ? message : message.text;
-  return { userText, id: generateRunId(), startTime: Date.now() };
+  const userImages = typeof message === "string" ? undefined : message.images;
+  return { userText, userImages, id: generateRunId(), startTime: Date.now() };
 }
 
 /**

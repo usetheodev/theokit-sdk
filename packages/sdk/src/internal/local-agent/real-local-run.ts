@@ -68,7 +68,7 @@ export interface CreateRealLocalRunOptions {
 }
 
 export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
-  const { userText, id, startTime } = prepareRunContext(options.message);
+  const { userText, userImages, id, startTime } = prepareRunContext(options.message);
   const supported = new Set<RunOperation>(["stream", "wait", "cancel", "conversation"]);
   // The base Run class accepts a FixtureScript for shape; the real LLM run does
   // not REPLAY it (`buildLoopInputs` drives the real agent loop instead of
@@ -93,7 +93,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
       supportedOps: supported,
       startTime,
     },
-    () => buildLoopInputs(options, id, userText),
+    () => buildLoopInputs(options, id, userText, userImages),
   );
   handle.bootstrap();
   registerRun(handle);
@@ -190,6 +190,7 @@ function buildLoopInputs(
   options: CreateRealLocalRunOptions,
   runId: string,
   userText: string,
+  userImages: import("../../types/run.js").SDKUserMessage["images"],
 ): AgentLoopInputs {
   // M1-2: per-send iteration ceiling. Validate at the boundary so an invalid
   // knob fails fast with a clear message instead of producing a degenerate budget.
@@ -242,6 +243,7 @@ function buildLoopInputs(
       ...(options.model?.params !== undefined ? { params: options.model.params } : {}),
     },
     userMessage: userText,
+    ...(userImages !== undefined ? { userImages } : {}),
     llm,
     mcp: buildMcpMap(options),
     hooks: options.hooks,
