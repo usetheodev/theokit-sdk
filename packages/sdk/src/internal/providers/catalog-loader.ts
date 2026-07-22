@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { type CatalogModel, catalogModelSchema } from "./catalog-schema.js";
 import { getProviderProfile, registerProvider } from "./registry.js";
 import type { ApiMode, AuthType, ProviderProfile } from "./types.js";
 
@@ -38,6 +39,85 @@ export interface CatalogEntry {
   modelsUrl?: string;
   hostname?: string;
   extraHeaders?: Record<string, string>;
+  /**
+   * M44 — OPTIONAL per-model data (models.dev shape, snake_case — see `catalog-schema.ts`), keyed by the
+   * BARE model id. Additive: entries without it behave byte-identically to before. The loader indexes this
+   * into the model-info index (`getCatalogModelInfo`) rather than onto `ProviderProfile` (ADR D2 — the
+   * builtins-first registration skip means profile-attached data would never reach builtin providers).
+   */
+  models?: Record<string, CatalogModel>;
+}
+
+/**
+ * M44 — the model-info index: `provider/model` → per-model catalog data (the EXACT-map key convention).
+ * Populated by the vendored catalog load AND patched by the optional models-dev source (cache entries win
+ * per model). The single lookup surface for capability / cost / limit enrichment.
+ */
+const modelInfoIndex = new Map<string, CatalogModel>();
+
+/** Look up per-model catalog data by `provider/model` key. @internal */
+export function getCatalogModelInfo(key: string): CatalogModel | undefined {
+  ensureModelIndexLoaded();
+  return modelInfoIndex.get(key);
+}
+
+/**
+ * Patch the index with fresher per-model data (the models-dev source). A patched entry wins over the
+ * vendored one for that model (shallow per-model replace — mirrors Upstream's `catalog.model.update`).
+ * @internal
+ */
+export function patchModelInfo(key: string, model: CatalogModel): void {
+  ensureModelIndexLoaded();
+  modelInfoIndex.set(key, model);
+}
+
+/** All indexed `provider/model` keys (for maintenance/tests). @internal */
+export function listModelInfoKeys(): string[] {
+  ensureModelIndexLoaded();
+  return [...modelInfoIndex.keys()];
+}
+
+let _modelIndexLoaded = false;
+function ensureModelIndexLoaded(): void {
+  if (_modelIndexLoaded) return;
+  _modelIndexLoaded = true;
+  const catalog = loadProviderCatalog();
+  for (const entry of Object.values(catalog)) {
+    indexEntryModels(entry);
+  }
+}
+
+/**
+ * Index an entry's `models` block. Runs for EVERY catalog entry — including those whose PROVIDER
+ * registration is skipped builtins-first — so builtin providers still get their per-model data (ADR D2).
+ * A malformed model sub-entry drops THAT MODEL with WARN and keeps the provider (EC-1 philosophy extended).
+ */
+function indexEntryModels(entry: CatalogEntry): void {
+  if (entry.models === undefined || typeof entry.models !== "object") return;
+  for (const [modelId, raw] of Object.entries(entry.models)) {
+    const parsed = catalogModelSchema.safeParse(raw);
+    if (!parsed.success) {
+      process.stderr.write(
+        `[theokit-sdk] WARN: Skipping malformed catalog model "${entry.id}/${modelId}": ` +
+          `${parsed.error.issues[0]?.message ?? "invalid"}\n`,
+      );
+      continue;
+    }
+    // Index under the entry id AND every alias — capability lookups are VENDOR-keyed (e.g.
+    // `google/gemini-2.5-pro` while the entry id is `google-gemini` with alias `google`), so alias keys are
+    // what make the vendor-keyed convention resolve without a second mapping table.
+    modelInfoIndex.set(`${entry.id}/${modelId}`, parsed.data);
+    for (const alias of entry.aliases ?? []) {
+      const key = `${alias}/${modelId}`;
+      if (!modelInfoIndex.has(key)) modelInfoIndex.set(key, parsed.data);
+    }
+  }
+}
+
+/** Test-only reset for the model-info index. @internal */
+export function _resetModelInfoIndexForTests(): void {
+  modelInfoIndex.clear();
+  _modelIndexLoaded = false;
 }
 
 interface LoadOptions {
