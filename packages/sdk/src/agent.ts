@@ -4,6 +4,7 @@ import {
   rehydrateExistingAgent,
   resolveAgentPersistenceCwd,
   runCreateUnderSpan,
+  setAgentName,
   setArchivedFlag,
   toAgentInfo,
 } from "./agent-helpers.js";
@@ -382,6 +383,21 @@ export class Agent {
    */
   static unarchive(agentId: string, _options: AgentOperationOptions = {}): Promise<void> {
     return setArchivedFlag(agentId, false);
+  }
+
+  /**
+   * Set the human-facing `name` of a registered agent (the label `Agent.list()` returns). The registry
+   * already carries a `name` field; this is the missing public mutator for it. Runtime-agnostic (mutates
+   * the local per-cwd registry for local agents; the cloud registry for cloud agents).
+   *
+   * @public
+   */
+  static async rename(
+    agentId: string,
+    name: string,
+    _options: AgentOperationOptions = {},
+  ): Promise<void> {
+    await setAgentName(agentId, name);
   }
 
   /**

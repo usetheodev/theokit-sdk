@@ -296,6 +296,17 @@ export async function setArchivedFlag(agentId: string, archived: boolean): Promi
   await flushRegistrySaves();
 }
 
+/**
+ * Set the human-facing `name` on a registered agent (used by `Agent.rename`). Mirrors
+ * {@link setArchivedFlag} — validates the agent exists, mutates the registry `name` field, and flushes.
+ * @internal
+ */
+export async function setAgentName(agentId: string, name: string): Promise<void> {
+  await getRegisteredAgentOrThrow(agentId);
+  updateRegisteredAgent(agentId, { name });
+  await flushRegistrySaves();
+}
+
 /** @internal */
 export async function getRegisteredAgentOrThrow(agentId: string): Promise<RegisteredAgent> {
   let agent = getRegisteredAgent(agentId);
