@@ -550,17 +550,19 @@ function userOrToolMessages(message: LlmMessage): Array<Record<string, unknown>>
   const userText = joinTextParts(message);
   // M35 — image parts turn the user message into OpenAI/OpenRouter's content-array form
   // (`[{type:"text"}, {type:"image_url", image_url:{url: data-URL}}]`); text-only stays a plain string.
-  const imageParts = message.content.filter((p) => p.type === "image") as Array<{
-    source: { media_type: string; data: string };
-  }>;
+  const imageParts = message.content.filter(
+    (p): p is import("./types.js").LlmImagePart => p.type === "image",
+  );
   if (imageParts.length > 0) {
     const content: Array<Record<string, unknown>> = [];
     if (userText.length > 0) content.push({ type: "text", text: userText });
     for (const img of imageParts) {
-      content.push({
-        type: "image_url",
-        image_url: { url: `data:${img.source.media_type};base64,${img.source.data}` },
-      });
+      // OpenAI/OpenRouter `image_url` accepts BOTH a data URL (inline base64) and a real https URL.
+      const url =
+        img.source.type === "base64"
+          ? `data:${img.source.media_type};base64,${img.source.data}`
+          : img.source.url;
+      content.push({ type: "image_url", image_url: { url } });
     }
     out.push({ role: "user", content });
   } else if (userText.length > 0) {

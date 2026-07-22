@@ -44,7 +44,7 @@ export interface LlmToolResultPart {
  */
 export interface LlmImagePart {
   type: "image";
-  source: { type: "base64"; media_type: string; data: string };
+  source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string };
 }
 
 export type LlmContentPart = LlmTextPart | LlmToolCallPart | LlmToolResultPart | LlmImagePart;

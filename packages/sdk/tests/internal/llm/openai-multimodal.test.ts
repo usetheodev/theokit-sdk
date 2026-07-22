@@ -32,6 +32,30 @@ describe("M35 — OpenAI/OpenRouter request serializes image parts to image_url"
     });
   });
 
+  it("forwards a {url} image as an image_url with the URL directly (no silent drop)", () => {
+    const req: LlmRequest = {
+      model: "openai/gpt-4o",
+      messages: [
+        {
+          role: "user",
+          content: [
+            { type: "text", text: "describe" },
+            { type: "image", source: { type: "url", url: "https://example.com/a.png" } },
+          ],
+        },
+      ],
+    };
+    const body = __testing__buildOpenAIBody(req, "openrouter");
+    const messages = body.messages as Array<{ role: string; content: unknown }>;
+    const parts = messages.find((m) => m.role === "user")!.content as Array<
+      Record<string, unknown>
+    >;
+    expect(parts).toContainEqual({
+      type: "image_url",
+      image_url: { url: "https://example.com/a.png" },
+    });
+  });
+
   it("keeps a text-only user turn as a plain string (back-compat)", () => {
     const req: LlmRequest = {
       model: "openai/gpt-4o",
