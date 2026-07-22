@@ -10,8 +10,25 @@
 
 import type { ProviderProfile } from "./types.js";
 
-const REGISTRY = new Map<string, ProviderProfile>();
-const ALIASES = new Map<string, string>();
+/**
+ * M44 B1 fix — the registry state lives on `globalThis` keyed by `Symbol.for`, so EVERY bundle copy of this
+ * module (tsup bundles each entry separately with `splitting: false` — `dist/index.js` and `dist/models.js`
+ * each embed their own copy) shares the SAME maps. Without this, `@theokit/sdk/models`'s
+ * `refreshModelCatalog` saw an eternally-empty registry and its patches were invisible to the core bundle's
+ * capability/pricing lookups (state duplication made load-bearing by M44).
+ */
+function globalSingleton<T>(key: string, create: () => T): T {
+  const g = globalThis as unknown as Record<symbol, T>;
+  const sym = Symbol.for(key);
+  if (g[sym] === undefined) g[sym] = create();
+  return g[sym];
+}
+
+const REGISTRY = globalSingleton(
+  "theokit-sdk.providers.registry",
+  () => new Map<string, ProviderProfile>(),
+);
+const ALIASES = globalSingleton("theokit-sdk.providers.aliases", () => new Map<string, string>());
 
 export function registerProvider(profile: ProviderProfile): void {
   if (REGISTRY.has(profile.name)) {

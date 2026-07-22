@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.13.1
+
+### Patch Changes
+
+- M44 adversarial-review fixes for the model catalog: (B1) the provider registry + model-info index now live on `globalThis` via `Symbol.for` so every bundle copy (`dist/index.js`, `dist/models.js` — tsup bundles entries separately) shares the SAME state — previously `refreshModelCatalog` from `@theokit/sdk/models` patched a bundle-local index invisible to capability/pricing lookups and saw an empty registry (a published-artifact-only defect the src-level tests could not catch); (H2) a live models-dev patch is now a per-field MERGE that preserves theokit extension fields (`cache_control`, overlay `structured_output`) instead of a wholesale replace that wiped them; (H3) the runtime refresh gained the models.dev↔theokit id mapping (google↔google-gemini, zai↔zhipu, togetherai↔together, fireworks-ai↔fireworks, amazon-bedrock↔bedrock, google-vertex↔vertex) resolving against catalog entries (id + aliases) with a WARN for skipped unknowns — Google/Z.AI/Together/Fireworks now actually refresh; (M4) `refreshModelCatalog` self-initializes provider registration so the `/models` subpath works standalone; (M5) pricing provenance is honest post-refresh (`catalog-models-dev` vs `catalog-vendored`); (M6) the anthropic builtin defaults (opus-4-7 / sonnet-4-6 / haiku-4-5) now carry `cache_control: true` in the vendored catalog; (L8) the models-dev cache honors `THEOKIT_HOME`; (L9) a missing/corrupt vendored catalog degrades with WARN instead of throwing from `resolveModelCapabilities`, cache patch errors never delete a valid cache, and refresh never rejects; (L10) the pricing step-5 fallback also tries the date-stripped id; (L11) falsy `THEOKIT_DISABLE_MODELS_FETCH` values (`0`/`false`/empty) no longer disable the fetch.
+
 ## 4.13.0
 
 ### Minor Changes

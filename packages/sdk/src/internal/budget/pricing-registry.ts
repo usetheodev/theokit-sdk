@@ -15,7 +15,7 @@
  * @internal
  */
 
-import { getCatalogModelInfo } from "../providers/catalog-loader.js";
+import { getCatalogModelInfo, isPatchedModelKey } from "../providers/catalog-loader.js";
 import pricingData from "./pricing-data.json" with { type: "json" };
 
 export interface PricingEntry {
@@ -133,8 +133,11 @@ export function getPricingEntry(opts: {
 
 /** Step-5 catalog cost lookup: direct `provider/model`, then the model id as-is when it carries a path. */
 function catalogCostFallback(provider: string, cleanedModel: string): PricingEntry | undefined {
-  const keys = [`${provider}/${cleanedModel}`, cleanedModel];
-  for (const key of keys) {
+  // M44 L10 fix — also try the date-stripped id (parity with the LiteLLM chain's step 2).
+  const stripped = stripDateSuffix(cleanedModel);
+  const candidates = [`${provider}/${cleanedModel}`, cleanedModel];
+  if (stripped !== cleanedModel) candidates.push(`${provider}/${stripped}`, stripped);
+  for (const key of candidates) {
     const info = getCatalogModelInfo(key);
     const cost = info?.cost;
     if (cost === undefined) continue;
@@ -146,7 +149,8 @@ function catalogCostFallback(provider: string, cleanedModel: string): PricingEnt
       outputCostPerMillion: cost.output,
       ...(cost.cache_read !== undefined ? { cacheReadCostPerMillion: cost.cache_read } : {}),
       ...(cost.cache_write !== undefined ? { cacheWriteCostPerMillion: cost.cache_write } : {}),
-      pricingVersion: "catalog-vendored",
+      // M44 M5 fix — honest provenance: a key patched by the LIVE models-dev source is not "vendored".
+      pricingVersion: isPatchedModelKey(key) ? "catalog-models-dev" : "catalog-vendored",
     };
   }
   return undefined;
