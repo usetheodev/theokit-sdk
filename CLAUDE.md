@@ -148,6 +148,36 @@ The cloud runtime depends on **Theo PaaS**, currently pre-release.
 - If a feature is cloud-only (artifacts, `autoCreatePR`, `envVars`, `git` metadata on results), say so explicitly.
 - If a feature is local-only (`local.force`, `local.settingSources`, file-based hooks discovery from `cwd`), say so explicitly.
 
+## Known capability gaps (do not overclaim)
+
+The SDK is an **imperative, in-process agent harness** — the agent loop is deliberately *linear*
+(`internal/agent-loop/loop.ts:50`). It is NOT an event-sourced / reactive / multi-participant
+"agent-engine". A 2026-07-22 capability comparison against durable-execution / collaborative runtimes
+recorded seven gaps in `ROADMAP.md` § **Capability Gap Register** (G1–G7). Read that register before
+claiming any of these — none is shipped, and several are not the SDK's layer at all:
+
+| Gap | Capability the SDK does NOT have today | Class |
+| --- | --- | --- |
+| G1 | Event-sourced core (typed state items · event queue · effects) | Architectural (ADR-gated) |
+| G2 | Durable execution of the **agent loop** (resume mid-loop after crash) — agents persist *messages* only (`types/session-store.ts:39-67`, fire-and-forget); only **Workflow** resumes, and only at explicit `suspend()` | Runtime-candidate (ADR-gated) |
+| G3 | Concurrent-signal handling / per-session event queue (`a2a` is fire-and-forget, no queue) | Split (runtime inbox + framework transport) |
+| G4 | Durable, **typed** HITL approval state (`pending/approved/denied/invalidated`) — today HITL is ephemeral (`hitl-middleware.ts:42`); workflow suspend is durable but untyped | Runtime-candidate |
+| G5 | Reactivity/invalidation (external data → prior decision stale → re-evaluate) — `invalidate*` in-tree is only prompt-cache | Architectural (depends on G1) |
+| G6 | Multiplayer sessions · per-participant views · cross-UI sync (`a2a` is in-process, not shared/durable) | **Framework/PaaS-owned** |
+| G7 | Agent Manager (unified fleet governance pane) — SDK exports telemetry + `RunEvent`, ships no pane | **Framework/PaaS-owned** |
+
+Honesty rules for this area:
+
+- **Do not describe the agent loop as durable/crash-resumable.** It resumes *conversation*, not
+  execution. Only the Workflow DSL has durable execution, and only at `suspend()` boundaries.
+- **Do not describe HITL as durable** unless it goes through workflow suspend/resume; the tool-gate
+  HITL is in-memory and dies with the process.
+- **G6/G7 are NOT SDK gaps** — multiplayer shared sessions and the governance pane are framework/PaaS
+  (Theo PaaS pre-release + M37/M38), same class as § Explicitly out of scope. Never file them as SDK
+  work without an owner ADR.
+- No G1–G7 milestone is accepted; each needs an owner ADR before code. `grep` the evidence, cite the
+  register, then claim.
+
 ## Relationship to other pillars
 
 | Pillar | Project | Current integration (verify before claiming) | Roadmap |

@@ -1393,6 +1393,140 @@ Capabilities found in other agent SDKs that we deliberately DO NOT adopt, becaus
 
 ---
 
+## Capability Gap Register — collaborative / durable-execution axis (2026-07-22)
+
+> Added 2026-07-22. Source: a capability comparison against **event-sourced, durable-execution, and
+> multi-participant agent runtimes** (the "agent-engine" architecture class), run against
+> `packages/sdk` at v4.12.0. This register is deliberately **honest about what the runtime does NOT do
+> today** — it is NOT a commitment to build all of it. Every gap is classified by the same runtime
+> vs. framework/PaaS lens used across § SDK Evolution and § Explicitly out of scope:
+>
+> - **RUNTIME-CANDIDATE** — a legitimate runtime primitive we could adopt; unscheduled, ADR-gated before any code.
+> - **ARCHITECTURAL (ADR-GATED)** — a change to the core execution model; requires an owner ADR to even accept the direction.
+> - **FRAMEWORK/PaaS-OWNED** — belongs to TheoKit (framework) or Theo PaaS (runtime service), not the SDK; documented here so we do not mis-attribute it as an SDK gap.
+>
+> The comparison confirmed the SDK's harness surface (agent shapes, tools, subagents/handoffs,
+> permission gate, workflow suspend/resume, retry/abort, telemetry export) is genuinely present. These
+> gaps are on a **different axis** — the reactive/collaborative/crash-durable execution model — where
+> the SDK today is an **imperative in-process harness** (`internal/agent-loop/loop.ts:50` describes the
+> loop as deliberately *linear*), not an event-sourced state machine.
+
+### G1 — Event-sourced reactive core (typed state items · event queue · effects) — ARCHITECTURAL (ADR-GATED)
+
+**Current state.** The agent loop is a linear imperative orchestrator (LLM round-trip → tool dispatch →
+stop-condition), `internal/agent-loop/loop.ts:50`. The `EventBus` is synchronous pub/sub whose handlers
+return `void` (`event-bus.ts:8`) — it is observability, not the engine. There is **no** typed
+state-item primitive that holds its own state and mutates via handlers, **no** event queue, and **no**
+"effect" concept (async side-effects that re-dispatch as new events). Grep for `context.?item` /
+`event.?queue` / handler-returned mutations = **0** in `packages/sdk/src`.
+
+**Gap.** Adopting an event-sourced reducer core (typed state items + a durable event queue + effects
+that re-enter the loop) is a **wholesale change to the execution model**, not an additive feature. It
+is the root that G2/G3/G5 depend on.
+
+**Disposition.** ADR-GATED. Do not build piecemeal. An owner ADR must first decide whether
+`@theokit/sdk` stays imperative-with-hooks (current, and a defensible choice) or grows an opt-in
+event-sourced execution mode. No milestone accepted.
+
+### G2 — Durable execution of the **agent loop** (resume mid-loop after crash) — RUNTIME-CANDIDATE (ADR-GATED)
+
+**Current state.** Two distinct mechanisms exist, neither resumes the *agent loop*:
+1. **Agent** durability = **message persistence only**. `SessionStore` is append-only `readRecords` /
+   `appendRecords` over the transcript (`types/session-store.ts:39-67`), and the per-turn write is
+   **fire-and-forget** (a crash mid-turn loses the in-flight turn). `Agent.resume` rehydrates
+   `LlmMessage[]` and re-prompts — it does **not** continue an interrupted tool-call loop.
+2. **Workflow** has real durable execution, but **coarse**: a snapshot is written only at an explicit
+   `ctx.suspend()` boundary (`internal/workflow/executor.ts:52-115,402-460`; `snapshot-store.ts:67`) —
+   no automatic per-step or mid-step checkpoint. Tasks / `JobQueue` are in-memory (`job-queue.ts`
+   is 100% in-memory; the `JsonFileTaskStore` persists status, not the running function).
+
+**Gap.** "Process/terminal dies → the agent continues where it left off" is **not** provided for
+agents. Only the separate Workflow DSL approximates it, and only at suspend points.
+
+**Disposition.** RUNTIME-CANDIDATE, ADR-GATED. A loop-level checkpoint contract is runtime-legitimate
+but heavy and interacts with G1. Gate behind an ADR that decides checkpoint granularity
+(suspend-boundary only vs. per-step vs. mid-step) before any code.
+
+### G3 — Concurrent-signal handling · per-session event queue · race conditions — SPLIT (RUNTIME-CANDIDATE + FRAMEWORK)
+
+**Current state.** `Semaphore` / `mapWithConcurrency` (`concurrency.ts:21-27`) bound *throughput*, not
+concurrent inbound signals. The `a2a` `MessageBus` dispatches **fire-and-forget, synchronously, with
+no queue** (`a2a/message-bus.ts:41`); the mailbox dispatches immediately to one handler. There is no
+serialized per-session inbox, no ordering/dedup of racing external signals.
+
+**Gap.** Multiple signals arriving at once (e.g. two updates landing while a turn is running) have no
+queue/serialization primitive.
+
+**Disposition.** SPLIT. A **serialized per-session inbox** is a RUNTIME-CANDIDATE (pairs with G2).
+**Durable transport into a live session** (reconnectable delivery, active/idle wake) is already
+assigned to the **framework** (M37 durable/reconnectable streams, M38 HITL continuation — see
+§ Explicitly out of scope, "Threaded-signal schedule delivery"). Keep that split.
+
+### G4 — First-class **durable, typed** human-in-the-loop approval state — RUNTIME-CANDIDATE
+
+**Current state.** Two half-measures, neither is a durable typed approval state:
+- The HITL middleware gate is **ephemeral** — a `Promise.race` in memory (`internal/runtime/tools/hitl-middleware.ts:42`); a restart/refresh drops the pending approval. The SE1 `canUseTool` gate (`permission-plugin.ts`) is likewise in-process.
+- Workflow `suspend`/`resume` **is** durable (survives refresh) but carries **no typed approval
+  semantics** — the dev hand-codes `{approved, by}` in the suspend payload; there is no
+  `pending | approved | denied | invalidated` state model.
+
+**Gap.** No primitive for a **durable approval object** with a typed lifecycle that survives process
+death and is queryable/renderable by a host.
+
+**Disposition.** RUNTIME-CANDIDATE. A typed durable approval state extending SE1 (permission) + the
+workflow snapshot store is the most self-contained gap here. Candidate milestone, unscheduled — spec
+the state model + persistence seam first.
+
+### G5 — Reactivity / invalidation (external data invalidates a prior decision → re-evaluate) — ARCHITECTURAL (depends on G1)
+
+**Current state.** No invalidation path. Every `invalidate*` symbol in the tree is **prompt-cache**
+invalidation (`internal/local-agent/local-agent-invalidate.ts`, `types/sdk-agent.ts` `invalidateCache`),
+unrelated to agent decisions. A completed Workflow is terminal (`workflow.ts:399`); there is no
+external-signal-triggered re-entry of a finished run.
+
+**Gap.** "New data arrives → prior conclusion is marked stale → the agent re-runs and revises" has no
+primitive.
+
+**Disposition.** ARCHITECTURAL. Depends on the G1 event core (a decision must be a re-evaluable state
+item, and a signal must re-enter the loop). Not actionable independently of G1.
+
+### G6 — Multiplayer sessions · per-participant views · cross-UI state sync — FRAMEWORK/PaaS-OWNED
+
+**Current state.** None. Zero hits for `participant` / `multiplayer` in `packages/sdk/src`. The `a2a`
+layer is **in-process** (`MessageBus` routes by id inside one `Map`, `a2a/message-bus.ts:17`), not a
+durable shared session across processes/clients. `Subscription` is one server → N read-only clients
+with a resume token, not N co-editing participants with divergent views.
+
+**Gap.** A shared, durable, multi-participant session where each participant renders a different typed
+view and an action in one UI (e.g. a cancellation) propagates to the others.
+
+**Disposition.** FRAMEWORK/PaaS-OWNED — same class as the existing out-of-scope items. Durable
+shared-session transport and multi-client fan-out belong to **Theo PaaS** + the framework's
+durable/reconnectable stream layer (M37/M38), not an in-process SDK primitive. The SDK's job is to
+stay embeddable inside such a session, not to host it. Reopening as an SDK concern requires an ADR with
+evidence that an in-process primitive is the right layer.
+
+### G7 — Agent Manager (unified fleet monitoring / governance pane) — FRAMEWORK/PaaS-OWNED
+
+**Current state.** The SDK **exports** telemetry (spans → Langfuse / Datadog / LangSmith / Arize /
+Braintrust / PostHog / Sentry, `internal/telemetry/adapters/`) and emits a typed `RunEvent` stream
+(SE2). It does **not** ship a unified control-plane; the code itself notes it "does NOT yet emit" a
+fleet surface (`types/batch.ts:70`).
+
+**Gap.** A single pane to monitor/govern a fleet of agents (published pro- and low-code agents in one
+view).
+
+**Disposition.** FRAMEWORK/PaaS-OWNED. The SDK provides the **primitives** (telemetry export +
+typed run events); the **pane** is Theo PaaS (pre-release) + the framework. This is the existing
+§ "Pre-release honesty" boundary, not a new SDK milestone. Do not build a dashboard in the SDK.
+
+**Summary.** Of the seven, **G4** is the cleanest runtime-candidate; **G2** and the inbox slice of
+**G3** are runtime-legitimate but ADR-gated and heavy; **G1/G5** are one architectural decision (adopt
+an event-sourced core or not) and gate the rest; **G6/G7** are framework/PaaS-owned by the project's
+own layering and are NOT SDK gaps. No milestone is accepted from this register without an owner ADR.
+
+---
+
 ## References
 
 Study-only reference material + full cross-validation reports live under
