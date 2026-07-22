@@ -418,7 +418,7 @@ export class Agent {
     options: {
       trigger?: "manual" | "auto";
       summarize?: (
-        messages: readonly import("./internal/runtime/compression/compression-summarizer.js").CompressibleMessage[],
+        messages: readonly import("./compaction.js").CompressibleMessage[],
       ) => Promise<string>;
     } = {},
   ): Promise<import("./internal/session/compact-session.js").CompactResult> {
