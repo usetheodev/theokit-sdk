@@ -71,7 +71,13 @@ describe("resolveCredential", () => {
   it("passes a still-valid oauth token through without a refresh", async () => {
     const store = newStore();
     writeCredential(
-      { type: "oauth", provider: "openai", access: "VALID", refresh: "r", expires: FIXED_NOW + 3600 * 1000 },
+      {
+        type: "oauth",
+        provider: "openai",
+        access: "VALID",
+        refresh: "r",
+        expires: FIXED_NOW + 3600 * 1000,
+      },
       store,
     );
     const spy = vi.fn();
@@ -93,10 +99,13 @@ describe("resolveCredential", () => {
       store,
     );
     const fetchImpl = (async () =>
-      new Response(JSON.stringify({ access_token: "FRESH", refresh_token: "r2", expires_in: 3600 }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })) as unknown as typeof fetch;
+      new Response(
+        JSON.stringify({ access_token: "FRESH", refresh_token: "r2", expires_in: 3600 }),
+        {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        },
+      )) as unknown as typeof fetch;
     const cred = await resolveCredential({
       provider: "openai",
       store,
