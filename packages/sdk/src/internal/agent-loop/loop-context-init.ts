@@ -5,20 +5,19 @@ import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import type { LlmContentPart, LlmMessage } from "../llm/types.js";
 
 /**
- * M35 (multimodal) — build the first user turn's content: the text block plus one image block per
- * attached image. An inline `{ data, mimeType }` image becomes a base64 image part the provider adapters
- * serialize; a `{ url }` image is skipped here (no base64 to forward) — the composer path always supplies
- * inline data. Text-only ⇒ just the text block (unchanged shape).
+ * M35 (multimodal) — build the first user turn's content: the text block plus one image part per attached
+ * image. Both `SDKImage` shapes are carried (no silent drop): inline `{ data, mimeType }` → a base64
+ * image part; `{ url }` → a url image part (provider adapters that support URLs forward it; those that
+ * don't fail fast). Text-only ⇒ just the text block (unchanged shape).
  */
 function buildUserContent(text: string, images: SDKUserMessage["images"]): LlmContentPart[] {
   const content: LlmContentPart[] = [{ type: "text", text }];
   for (const img of images ?? []) {
-    if ("data" in img) {
-      content.push({
-        type: "image",
-        source: { type: "base64", media_type: img.mimeType, data: img.data },
-      });
-    }
+    content.push(
+      "data" in img
+        ? { type: "image", source: { type: "base64", media_type: img.mimeType, data: img.data } }
+        : { type: "image", source: { type: "url", url: img.url } },
+    );
   }
   return content;
 }
