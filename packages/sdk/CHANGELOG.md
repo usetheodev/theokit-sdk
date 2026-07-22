@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.7
+
+### Patch Changes
+
+- fix(session): a model-prefix profile only wins the summarizer route when its credential is actually RESOLVABLE (oauth/none own their auth; api_key needs one of the profile's env vars set) — an `openai` prefix with only OPENROUTER_API_KEY in the environment now falls through to env detection instead of failing with "No provider client".
+
 ## 4.16.6
 
 ### Patch Changes

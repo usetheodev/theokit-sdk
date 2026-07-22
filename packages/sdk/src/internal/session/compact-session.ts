@@ -174,10 +174,18 @@ export function buildDefaultSummarizer(opts: {
     const modelPrefix = opts.agentModel.includes("/")
       ? opts.agentModel.slice(0, opts.agentModel.indexOf("/"))
       : undefined;
+    const prefixProfile = modelPrefix !== undefined ? getProviderProfile(modelPrefix) : undefined;
+    // A prefix profile is only USABLE when its credentials are actually resolvable here: oauth/none
+    // profiles own their auth; api_key profiles need one of their env vars set. A profile without a
+    // usable credential (e.g. `openai` builtin with only OPENROUTER_API_KEY in env) must NOT win.
+    const prefixUsable =
+      prefixProfile !== undefined &&
+      (prefixProfile.authType !== "api_key" ||
+        prefixProfile.envVars.some((v) => (process.env[v] ?? "").length > 0));
     const route = resolveSummarizerRoute({
       keyProvider: inferProviderFromApiKey(opts.apiKey),
       modelPrefix,
-      prefixHasProfile: modelPrefix !== undefined && getProviderProfile(modelPrefix) !== undefined,
+      prefixHasProfile: prefixUsable,
       envProvider: detectPrimaryProvider(),
     });
     const provider = route.provider;
