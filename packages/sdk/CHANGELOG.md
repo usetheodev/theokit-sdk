@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.12.0
+
+### Minor Changes
+
+- Codex provider as a builtin (agent-builder M43): a new first-class `openai-chatgpt` builtin `ProviderProfile` routes `openai-chatgpt/<model>` ids to the ChatGPT "Codex" backend (`https://chatgpt.com/backend-api/codex`, `responses_api`). Its `transform.fetch` resolves the LIVE credential from the ambient store per HTTP request — a freshly-refreshed Bearer + a dynamic `ChatGPT-Account-Id` header — so a mid-turn token expiry refreshes transparently with NO agent rebuild, and a not-logged-in request fails fast (no placeholder on the wire). The ambient store is `~/.theokit/auth.json` with a `THEOKIT_HOME` override so a consumer points it at its own store. Two account_id lifecycle fixes ship alongside: `ensureFreshCredential` now PRESERVES a stored `account_id` across refresh (OpenAI's refresh JWTs carry no top-level `account_id`), and `openaiDeviceLogin` JWT-extracts `chatgpt_account_id` at login. Protocol values + the OAuth config adapted from Upstream (MIT); see NOTICE. Consumers add a provider in one SDK file; the Codex backend needs zero provider logic in the app.
+
 ## 4.11.1
 
 ### Patch Changes
