@@ -99,7 +99,13 @@ export function buildResponsesBody(request: LlmRequest): Record<string, unknown>
   for (const message of request.messages) {
     for (const item of messageToInputItems(message)) input.push(item);
   }
-  const body: Record<string, unknown> = { model: request.model, input, stream: true, store: false };
+  // The Responses API wants the BARE model id (`gpt-5.4`), never a `provider/model` id. The router
+  // normally strips the provider prefix before the transport; strip here too as defense-in-depth so an
+  // unstripped `openai-chatgpt/gpt-5.4` can never reach the backend as a 400 (decoupled from the router's
+  // provider-inference heuristics).
+  const slash = request.model.lastIndexOf("/");
+  const model = slash >= 0 ? request.model.slice(slash + 1) : request.model;
+  const body: Record<string, unknown> = { model, input, stream: true, store: false };
   const instructions = collapseSystemText(request.system);
   if (instructions.length > 0) body.instructions = instructions;
   if (request.maxTokens !== undefined) body.max_output_tokens = request.maxTokens;
