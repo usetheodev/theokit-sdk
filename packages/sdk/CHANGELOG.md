@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.15.4
+
+### Patch Changes
+
+- fix(persistence): the node:sqlite fallback now resolves via `process.getBuiltinModule` — the published bundle's esbuild predates the sqlite builtin and rewrote `import("node:sqlite")` to a bare `sqlite` package specifier, so the 4.15.3 fallback failed at runtime in the DIST while passing against src (adversarial-dist lesson, again).
+
 ## 4.15.3
 
 ### Patch Changes
