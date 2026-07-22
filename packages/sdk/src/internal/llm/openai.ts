@@ -29,6 +29,21 @@ import type {
  * @internal
  */
 
+/**
+ * M45 — derive the chat-completions path from the baseUrl: a path already carrying a version segment
+ * (`/v1`, `/v1beta`, …) gets `/chat/completions`; host-only (or unparseable) baseUrls keep the legacy
+ * `/v1/chat/completions`. Unparseable NEVER throws (H1) — the transport surfaces a typed error at fetch time.
+ */
+function deriveChatPath(baseUrl: string): string {
+  try {
+    return /\/v\d+[a-z]*(\/|$)/.test(new URL(baseUrl).pathname)
+      ? "/chat/completions"
+      : "/v1/chat/completions";
+  } catch {
+    return "/v1/chat/completions";
+  }
+}
+
 export interface OpenAIClientOptions {
   apiKey: string;
   baseUrl?: string;
@@ -111,15 +126,15 @@ export class OpenAIClient implements LlmClient {
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: OpenAIClientOptions) {
-    this.baseUrl = options.baseUrl ?? "https://api.openai.com";
+    // M45 review M3 — strip trailing slashes so `…/v1/` (the python-openai-popularized form) joins cleanly.
+    this.baseUrl = (options.baseUrl ?? "https://api.openai.com").replace(/\/+$/, "");
     // M45 — URL-join rule (kills the /v1/v1 doubling): explicit override > version-segment detection >
     // legacy `/v1/chat/completions`. A baseUrl already carrying a version path segment (…/openai/v1,
     // …/v1beta/openai) gets only `/chat/completions`; host-only baseUrls are byte-identical to before.
-    this.chatPath =
-      options.chatCompletionsPath ??
-      (/\/v\d+[a-z]*(\/|$)/.test(new URL(this.baseUrl).pathname)
-        ? "/chat/completions"
-        : "/v1/chat/completions");
+    // M45 review H1 — the parse NEVER throws from the constructor: a malformed baseUrl (scheme-less host,
+    // empty env var) degrades to the LEGACY path (byte-identical to pre-M45 string concat) and fails, typed,
+    // at the first fetch — never poisoning the whole provider chain at construction time.
+    this.chatPath = options.chatCompletionsPath ?? deriveChatPath(this.baseUrl);
     this.fetchImpl = options.fetch ?? fetch;
   }
 

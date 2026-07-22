@@ -30,4 +30,10 @@ AI SDK based, theokit is hand-rolled):
   catalog consumption mechanism (disk cache + TTL + atomic write + fallback chain + kill-switch) is
   adapted from `packages/core/src/models-dev.ts`.
 
+- src/internal/providers/builtin/openai-compatible.ts + the M45 data-provider leaves — the
+  data-only profile-map pattern is adapted from `packages/llm/src/providers/openai-compatible-profile.ts`;
+  the `anthropic-beta` constant and the openrouter/cerebras attribution-header MECHANISMS are adapted from
+  `packages/core/src/plugin/provider/{anthropic,openrouter,cerebras}.ts` (header VALUES changed to theokit's
+  own — referer/integration headers attribute traffic).
+
 The MIT license permits this reuse with attribution; this file is that attribution.
