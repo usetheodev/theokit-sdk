@@ -133,13 +133,29 @@ export function buildDefaultSummarizer(opts: {
     );
     const { resolveProviderChain } = await import("../llm/router.js");
 
+    // Provider resolution mirrors the RUN's own (M4 rule: the explicit API key outranks the model
+    // prefix — an sk-or- key + openai/gpt model must summarize via OpenRouter too). Using anything
+    // else 401s in real setups (proven live in the M50 probe).
+    const { inferProviderFromApiKey, detectPrimaryProvider } = await import(
+      "../local-agent/real-local-run-provider.js"
+    );
+    const keyProvider = inferProviderFromApiKey(opts.apiKey);
+    const modelPrefix = opts.agentModel.includes("/")
+      ? opts.agentModel.slice(0, opts.agentModel.indexOf("/"))
+      : undefined;
+    const provider = keyProvider ?? modelPrefix ?? detectPrimaryProvider();
+
     let model: string;
-    try {
-      model = resolveCompressionModel(opts.agentModel);
-    } catch {
-      model = opts.agentModel; // registry miss — summarize with the agent's own model
+    if (keyProvider !== undefined && keyProvider !== modelPrefix) {
+      // Aggregator route (e.g. OpenRouter): pass the agent's full slug through unstripped.
+      model = opts.agentModel;
+    } else {
+      try {
+        model = resolveCompressionModel(opts.agentModel);
+      } catch {
+        model = opts.agentModel; // registry miss — summarize with the agent's own model
+      }
     }
-    const provider = model.includes("/") ? model.slice(0, model.indexOf("/")) : "openai";
 
     const callLlm = async (m: string, system: string, user: string): Promise<string> => {
       const chain = resolveProviderChain({
