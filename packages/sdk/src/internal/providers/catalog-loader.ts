@@ -53,7 +53,27 @@ export interface CatalogEntry {
  * Populated by the vendored catalog load AND patched by the optional models-dev source (cache entries win
  * per model). The single lookup surface for capability / cost / limit enrichment.
  */
-const modelInfoIndex = new Map<string, CatalogModel>();
+// M44 B1 fix — index state on globalThis (Symbol.for) so every bundle copy shares the SAME maps (see the
+// identical pattern + rationale in registry.ts).
+function globalSingleton<T>(key: string, create: () => T): T {
+  const g = globalThis as unknown as Record<symbol, T>;
+  const sym = Symbol.for(key);
+  if (g[sym] === undefined) g[sym] = create();
+  return g[sym];
+}
+
+const modelInfoIndex = globalSingleton(
+  "theokit-sdk.providers.model-info-index",
+  () => new Map<string, CatalogModel>(),
+);
+/** M44 M5 fix — keys patched by the live models-dev source (honest pricing provenance). */
+const patchedModelKeys = globalSingleton(
+  "theokit-sdk.providers.model-info-patched",
+  () => new Set<string>(),
+);
+const indexState = globalSingleton("theokit-sdk.providers.model-info-loaded", () => ({
+  loaded: false,
+}));
 
 /** Look up per-model catalog data by `provider/model` key. @internal */
 export function getCatalogModelInfo(key: string): CatalogModel | undefined {
@@ -61,14 +81,23 @@ export function getCatalogModelInfo(key: string): CatalogModel | undefined {
   return modelInfoIndex.get(key);
 }
 
+/** Was this key patched by the LIVE models-dev source (vs the vendored catalog)? @internal */
+export function isPatchedModelKey(key: string): boolean {
+  return patchedModelKeys.has(key);
+}
+
 /**
- * Patch the index with fresher per-model data (the models-dev source). A patched entry wins over the
- * vendored one for that model (shallow per-model replace — mirrors Upstream's `catalog.model.update`).
+ * Patch the index with fresher per-model data (the models-dev source). M44 H2 fix — a per-FIELD shallow
+ * MERGE, not a wholesale replace: models.dev can never supply the theokit extension fields
+ * (`cache_control`, `structured_output` overlays), so a replace would wipe them and silently flip
+ * capability answers. Incoming fields win; existing fields survive when the patch omits them.
  * @internal
  */
 export function patchModelInfo(key: string, model: CatalogModel): void {
   ensureModelIndexLoaded();
-  modelInfoIndex.set(key, model);
+  const existing = modelInfoIndex.get(key);
+  modelInfoIndex.set(key, existing === undefined ? model : { ...existing, ...model });
+  patchedModelKeys.add(key);
 }
 
 /** All indexed `provider/model` keys (for maintenance/tests). @internal */
@@ -77,13 +106,20 @@ export function listModelInfoKeys(): string[] {
   return [...modelInfoIndex.keys()];
 }
 
-let _modelIndexLoaded = false;
 function ensureModelIndexLoaded(): void {
-  if (_modelIndexLoaded) return;
-  _modelIndexLoaded = true;
-  const catalog = loadProviderCatalog();
-  for (const entry of Object.values(catalog)) {
-    indexEntryModels(entry);
+  if (indexState.loaded) return;
+  indexState.loaded = true;
+  // M44 L9 fix — never throw from a capability/pricing lookup: a missing/corrupt vendored catalog degrades
+  // to conservative defaults with a WARN (the deleted EXACT map could never throw; keep that property).
+  try {
+    const catalog = loadProviderCatalog();
+    for (const entry of Object.values(catalog)) {
+      indexEntryModels(entry);
+    }
+  } catch (err) {
+    process.stderr.write(
+      `[theokit-sdk] WARN: provider catalog unavailable (${(err as Error).message}) — per-model data disabled\n`,
+    );
   }
 }
 
@@ -117,7 +153,8 @@ function indexEntryModels(entry: CatalogEntry): void {
 /** Test-only reset for the model-info index. @internal */
 export function _resetModelInfoIndexForTests(): void {
   modelInfoIndex.clear();
-  _modelIndexLoaded = false;
+  patchedModelKeys.clear();
+  indexState.loaded = false;
 }
 
 interface LoadOptions {

@@ -1,5 +1,6 @@
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -25,6 +26,7 @@ import { _resetProvidersForTests } from "../../src/internal/providers/registry.j
  */
 
 const TEST_URL = "https://models-dev-test.invalid/api.json";
+const mkdirTmp = (): string => mkdtempSync(join(tmpdir(), "mds-home-"));
 const goodPayload = JSON.stringify({
   openai: {
     models: {
@@ -46,17 +48,30 @@ function cleanCache(): void {
   }
 }
 
+let _home: string;
+let _prevHome: string | undefined;
+
 beforeEach(() => {
   _resetModelInfoIndexForTests();
   _resetProvidersForTests();
   _resetBuiltinsRegistered();
   registerBuiltins();
+  _prevHome = process.env.THEOKIT_HOME;
+  _home = mkdirTmp();
+  process.env.THEOKIT_HOME = _home; // L8 — never touch the real ~/.theokit
   cleanCache();
   delete process.env.THEOKIT_DISABLE_MODELS_FETCH;
 });
 
 afterEach(() => {
   cleanCache();
+  if (_prevHome === undefined) delete process.env.THEOKIT_HOME;
+  else process.env.THEOKIT_HOME = _prevHome;
+  try {
+    rmSync(_home, { recursive: true, force: true });
+  } catch {
+    /* best effort */
+  }
   delete process.env.THEOKIT_DISABLE_MODELS_FETCH;
   vi.restoreAllMocks();
 });

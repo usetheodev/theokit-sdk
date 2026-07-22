@@ -54,6 +54,16 @@ const BUILTIN_MODELS = {
 // Vendor aliases the index needs so capability lookups (vendor-keyed: google/…, z-ai/…) resolve.
 const ALIAS_ADDITIONS = { "google-gemini": ["google"], zhipu: ["z-ai"] };
 
+// M44 M6 — theokit-extension capability fields models.dev can never supply, for models NOT in the former
+// EXACT map (the SDK's own builtin defaults). All current Anthropic models support prompt caching.
+const CAPABILITY_OVERRIDES = {
+  anthropic: {
+    "claude-opus-4-7": { cache_control: true },
+    "claude-sonnet-4-6": { cache_control: true },
+    "claude-haiku-4-5-20251001": { cache_control: true },
+  },
+};
+
 const DEPENDED_FIELDS = ["cost", "limit"]; // fail LOUD if models.dev removes/renames these (Blueprint §6.4)
 
 function bare(modelId) {
@@ -154,6 +164,8 @@ for (const entry of catalog) {
     let block = md ? fromModelsDev(md) : {};
     const caps = exactByEntry[entry.id]?.[modelId];
     if (caps) block = overlayExact(block, caps); // parity truth for former EXACT keys
+    const override = CAPABILITY_OVERRIDES[entry.id]?.[modelId];
+    if (override) Object.assign(block, override); // theokit extensions models.dev cannot supply (M6)
     if (Object.keys(block).length === 0) {
       process.stderr.write(
         `WARN: no data for ${entry.id}/${modelId} (not in models.dev, not in EXACT)\n`,

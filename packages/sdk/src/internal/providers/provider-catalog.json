@@ -205,7 +205,8 @@
         "modalities": {
           "input": ["text", "image", "pdf"],
           "output": ["text"]
-        }
+        },
+        "cache_control": true
       },
       "claude-sonnet-4-6": {
         "name": "Claude Sonnet 4.6",
@@ -228,7 +229,8 @@
         "modalities": {
           "input": ["text", "image", "pdf"],
           "output": ["text"]
-        }
+        },
+        "cache_control": true
       },
       "claude-haiku-4-5-20251001": {
         "name": "Claude Haiku 4.5",
@@ -251,7 +253,8 @@
         "modalities": {
           "input": ["text", "image", "pdf"],
           "output": ["text"]
-        }
+        },
+        "cache_control": true
       },
       "claude-opus-4": {
         "tool_call": true,

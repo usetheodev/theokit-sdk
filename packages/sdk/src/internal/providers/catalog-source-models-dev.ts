@@ -4,7 +4,8 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { Retry } from "../../retry.js";
-import { getCatalogModelInfo, patchModelInfo } from "./catalog-loader.js";
+import { registerBuiltins } from "./builtin/index.js";
+import { getCatalogModelInfo, loadProviderCatalog, patchModelInfo } from "./catalog-loader.js";
 import { catalogModelSchema } from "./catalog-schema.js";
 import { getProviderProfile } from "./registry.js";
 
@@ -44,7 +45,9 @@ export interface RefreshModelCatalogResult {
 
 /** The cache file for a source URL (custom URLs get a hash-suffixed name, mirroring Upstream). */
 export function cachePathFor(url: string): string {
-  const dir = join(homedir(), ".theokit", "cache", "models-dev");
+  // M44 L8 fix — honor the SDK home override so tests and multi-home setups never touch the real ~/.theokit.
+  const base = process.env.THEOKIT_HOME?.trim() || join(homedir(), ".theokit");
+  const dir = join(base, "cache", "models-dev");
   if (url === DEFAULT_URL) return join(dir, "api.json");
   const hash = createHash("sha256").update(url).digest("hex").slice(0, 12);
   return join(dir, `api-${hash}.json`);
@@ -67,23 +70,74 @@ function writeCacheAtomic(path: string, body: string): void {
   }
 }
 
-/** Parse + patch the index from an api.json payload. Unknown providers are skipped with WARN. */
+/**
+ * M44 H3 fix — models.dev provider ids ≠ theokit ids (google↔google-gemini, zai↔zhipu, togetherai↔together,
+ * fireworks-ai↔fireworks, amazon-bedrock↔bedrock, google-vertex↔vertex). The RUNTIME mapping mirrors the
+ * maintenance script's table; targets resolve against the CATALOG entries (id + aliases — the same namespace
+ * the vendored index uses) first, then the registry.
+ */
+const MODELS_DEV_ID_MAP: Record<string, string> = {
+  google: "google-gemini",
+  zai: "zhipu",
+  togetherai: "together",
+  "fireworks-ai": "fireworks",
+  "amazon-bedrock": "bedrock",
+  "google-vertex": "vertex",
+};
+
+let _catalogTargets: Map<string, { keys: string[] }> | undefined;
+/** external-id → the index keys (entry id + aliases) its models patch under. Lazy; catalog-first. */
+function catalogTargets(): Map<string, { keys: string[] }> {
+  if (_catalogTargets !== undefined) return _catalogTargets;
+  _catalogTargets = new Map();
+  try {
+    for (const entry of Object.values(loadProviderCatalog())) {
+      const keys = [entry.id, ...(entry.aliases ?? [])];
+      for (const k of keys) {
+        if (!_catalogTargets.has(k)) _catalogTargets.set(k, { keys });
+      }
+    }
+  } catch {
+    // catalog unavailable — registry fallback below still works
+  }
+  return _catalogTargets;
+}
+
+function resolvePatchKeys(externalId: string): string[] | undefined {
+  const mapped = MODELS_DEV_ID_MAP[externalId] ?? externalId;
+  const fromCatalog = catalogTargets().get(mapped);
+  if (fromCatalog !== undefined) return fromCatalog.keys;
+  const profile = getProviderProfile(mapped);
+  if (profile !== undefined) return [profile.name, ...(profile.aliases ?? [])];
+  return undefined;
+}
+
+/** Parse + patch the index from an api.json payload. Unknown providers are skipped with WARN (once each). */
 function patchIndexFromApiJson(raw: unknown): number {
   if (typeof raw !== "object" || raw === null) return 0;
   let patched = 0;
+  const skipped: string[] = [];
   for (const [providerId, provider] of Object.entries(raw as Record<string, unknown>)) {
     const models = (provider as { models?: Record<string, unknown> })?.models;
     if (models === undefined || typeof models !== "object") continue;
-    // Enrich ONLY providers the SDK knows (id or alias) — models.dev's npm/api fields cannot be mapped to a
-    // theokit apiMode/authType safely, so unknown providers are data we cannot route (skip with WARN).
-    const profile = getProviderProfile(providerId);
-    if (profile === undefined) continue;
+    // Enrich ONLY providers the SDK knows — models.dev's npm/api fields cannot be mapped to a theokit
+    // apiMode/authType safely, so unknown providers are data we cannot route.
+    const keys = resolvePatchKeys(providerId);
+    if (keys === undefined) {
+      skipped.push(providerId);
+      continue;
+    }
     for (const [modelId, rawModel] of Object.entries(models)) {
       const parsed = catalogModelSchema.safeParse(rawModel);
       if (!parsed.success) continue; // malformed model — drop silently (live data, additive drift expected)
-      patchModelInfo(`${profile.name}/${modelId}`, parsed.data);
+      for (const key of keys) patchModelInfo(`${key}/${modelId}`, parsed.data);
       patched++;
     }
+  }
+  if (skipped.length > 0) {
+    process.stderr.write(
+      `[theokit-sdk] WARN: models-dev refresh skipped ${skipped.length} unknown provider(s) (e.g. ${skipped.slice(0, 3).join(", ")})\n`,
+    );
   }
   return patched;
 }
@@ -100,16 +154,26 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
   } catch {
     return 0; // no cache — vendored data only
   }
+  let parsed: unknown;
   try {
-    return patchIndexFromApiJson(JSON.parse(body));
+    parsed = JSON.parse(body);
   } catch {
-    // corrupt cache: delete and fall through to the vendored catalog (Upstream's delete-and-fall-through)
+    // corrupt cache: delete and fall through to the vendored catalog (Upstream's delete-and-fall-through).
+    // M44 L9 fix — only a PARSE failure is cache corruption; a patch error must never delete a valid cache.
     try {
       unlinkSync(path);
     } catch {
       // best effort
     }
     process.stderr.write(`[theokit-sdk] WARN: corrupt models-dev cache deleted (${path})\n`);
+    return 0;
+  }
+  try {
+    return patchIndexFromApiJson(parsed);
+  } catch (err) {
+    process.stderr.write(
+      `[theokit-sdk] WARN: models-dev cache patch failed (${(err as Error).message})\n`,
+    );
     return 0;
   }
 }
@@ -122,7 +186,12 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
 export async function refreshModelCatalog(
   opts: RefreshModelCatalogOptions = {},
 ): Promise<RefreshModelCatalogResult> {
-  if (process.env.THEOKIT_DISABLE_MODELS_FETCH !== undefined) {
+  // M44 M4 fix — self-initialize provider registration so the `@theokit/sdk/models` subpath works standalone
+  // (without the consumer having built an Agent first).
+  registerBuiltins();
+  // M44 L11 fix — presence-based would treat "0"/"false"/"" as disabled; only truthy values disable.
+  const kill = process.env.THEOKIT_DISABLE_MODELS_FETCH;
+  if (kill !== undefined && kill !== "" && kill !== "0" && kill.toLowerCase() !== "false") {
     return { source: "skipped", models: 0 };
   }
   const url = opts.url ?? process.env.THEOKIT_MODELS_URL ?? DEFAULT_URL;
@@ -171,7 +240,14 @@ export async function refreshModelCatalog(
       `[theokit-sdk] WARN: models-dev cache write failed (${(err as Error).message})\n`,
     );
   }
-  return { source: "network", models: patchIndexFromApiJson(JSON.parse(body)) };
+  try {
+    return { source: "network", models: patchIndexFromApiJson(JSON.parse(body)) };
+  } catch (err) {
+    process.stderr.write(
+      `[theokit-sdk] WARN: models-dev patch failed (${(err as Error).message}) — serving existing data\n`,
+    );
+    return { source: "cache", models: 0 };
+  }
 }
 
 /** The enriched per-model view (public via `@theokit/sdk/models`): index lookup by (possibly prefixed) id. */
