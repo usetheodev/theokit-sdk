@@ -14,7 +14,7 @@ import { getProviderProfile } from "../../../src/internal/providers/registry.js"
 
 /**
  * M43 — the openai-chatgpt builtin. Its `transform.fetch` resolves the LIVE credential per request (fresh
- * Bearer + dynamic ChatGPT-Account-Id from the ambient store, pointed via THEOKIT_HOME). Hermetic: a tmp
+ * Bearer + dynamic ChatGPT-Account-Id from the ambient store, pointed via THEOKIT_AUTH_HOME). Hermetic: a tmp
  * store + a spy `globalThis.fetch` routed by URL (token endpoint → refresh json; codex endpoint → capture).
  */
 
@@ -26,22 +26,22 @@ let prevHome: string | undefined;
 function newHome(): CredentialStoreConfig {
   const dir = mkdtempSync(join(tmpdir(), "codex-store-"));
   roots.push(dir);
-  process.env.THEOKIT_HOME = dir; // the builtin's DEFAULT_STORE reads here
-  // a store config whose homeEnvVar override resolves to THEOKIT_HOME/auth.json (same file the builtin reads)
-  return { home: dir, dirName: ".ignored", fileName: "auth.json", homeEnvVar: "THEOKIT_HOME" };
+  process.env.THEOKIT_AUTH_HOME = dir; // the builtin's DEFAULT_STORE reads here
+  // a store config whose homeEnvVar override resolves to THEOKIT_AUTH_HOME/auth.json (same file the builtin reads)
+  return { home: dir, dirName: ".ignored", fileName: "auth.json", homeEnvVar: "THEOKIT_AUTH_HOME" };
 }
 
 beforeEach(() => {
   _resetBuiltinsRegistered();
   registerBuiltins();
   realFetch = globalThis.fetch;
-  prevHome = process.env.THEOKIT_HOME;
+  prevHome = process.env.THEOKIT_AUTH_HOME;
 });
 
 afterEach(() => {
   globalThis.fetch = realFetch;
-  if (prevHome === undefined) delete process.env.THEOKIT_HOME;
-  else process.env.THEOKIT_HOME = prevHome;
+  if (prevHome === undefined) delete process.env.THEOKIT_AUTH_HOME;
+  else process.env.THEOKIT_AUTH_HOME = prevHome;
   for (const r of roots.splice(0)) {
     try {
       rmSync(r, { recursive: true, force: true });

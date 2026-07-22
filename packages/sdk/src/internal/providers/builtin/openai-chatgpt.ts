@@ -20,15 +20,16 @@ import type { ProviderProfile } from "../types.js";
  */
 
 /**
- * The SDK-owned ambient credential store the transform reads. `homeEnvVar: "THEOKIT_HOME"` lets a consumer
- * point it at its existing store dir (e.g. agent-builder's `~/.agent-builder`) without a migration — the
- * OpenCode "ambient credential Service" analog.
+ * The SDK-owned ambient credential store the transform reads. Defaults to `~/.theokit/auth.json`. A consumer
+ * points it at its existing store dir via the DEDICATED `THEOKIT_AUTH_HOME` env var (NOT `THEOKIT_HOME` — that
+ * is the SDK's whole home directory for personality/credential-pool/profiles; overloading it would redirect
+ * the entire runtime). The OpenCode "ambient credential Service" analog.
  */
 const DEFAULT_STORE: CredentialStoreConfig = {
   home: homedir(),
   dirName: ".theokit",
   fileName: "auth.json",
-  homeEnvVar: "THEOKIT_HOME",
+  homeEnvVar: "THEOKIT_AUTH_HOME",
 };
 
 /**

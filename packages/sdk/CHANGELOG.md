@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.12.2
+
+### Patch Changes
+
+- Fix (agent-builder M43): the `openai-chatgpt` builtin's ambient credential store now uses a DEDICATED `THEOKIT_AUTH_HOME` env override instead of `THEOKIT_HOME`. `THEOKIT_HOME` is the SDK's whole home directory (personality, credential-pool, profiles) — overloading it to point the credential store redirected the entire runtime and broke non-Codex model resolution. `THEOKIT_AUTH_HOME` points ONLY the credential store; unset, the store defaults to `~/.theokit/auth.json`.
+
 ## 4.12.1
 
 ### Patch Changes
