@@ -31,6 +31,8 @@ export interface PostRunLifecycleInputs {
   sessionStore: SessionStore;
   /** SE40 — model id stamped into the assistant records. */
   model: string;
+  /** M50 — provider key for the auto-compaction summarizer (absent ⇒ env-resolved by the router). */
+  apiKey?: string;
   /** SE2 — surface a `compact_boundary` RunEvent when a persistence-side compaction fires. */
   onRunEvent?: RunEventSink;
   hooksExecutor: HooksExecutor;
@@ -99,11 +101,29 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // Claude-shaped transcript, once per send, from the rich `run.conversation()` view.
   // SE41 — through the session store (FS default or injected external store).
   const conversation = await safeConversation(run);
+  // M50 — size-driven auto-compaction rides the SAME persistence chain: real usage from the run's
+  // Completed (Codex `last_token_usage.total_tokens` analog) vs the model's catalog context window.
+  // Missing usage/window ⇒ the trigger never fires (fail-safe); the summarizer is the compression
+  // subsystem's aux-LLM via `buildDefaultSummarizer`.
+  const { getCatalogModelInfo } = await import("../../providers/catalog-loader.js");
+  const { buildDefaultSummarizer } = await import("../../session/compact-session.js");
+  const contextWindow = getCatalogModelInfo(model)?.limit?.context;
   persistTurnToTranscript(
     sessionStore,
     { cwd: workspaceCwd, agentId, model },
     agentId,
-    { userText, conversation },
+    {
+      userText,
+      conversation,
+      autoCompact: {
+        usageTotal: result.usage?.totalTokens,
+        contextWindow,
+        summarize: buildDefaultSummarizer({
+          agentModel: model,
+          ...(inputs.apiKey !== undefined ? { apiKey: inputs.apiKey } : {}),
+        }),
+      },
+    },
     onRunEvent !== undefined
       ? () => emitRunEvent(onRunEvent, { type: "compact_boundary", trigger: "auto" })
       : undefined,

@@ -405,6 +405,57 @@ export class Agent {
   }
 
   /**
+   * M50 — compact a LOCAL agent's persisted session transcript (Codex `/compact` parity): the
+   * history is summarized (recent user messages preserved verbatim + one marker'd summary) and an
+   * append-only `compact_boundary` + replacement chain is written — resume replays only the
+   * replacement + later turns. The summarizer defaults to the compression subsystem's aux-LLM
+   * (its first real caller); tests/consumers may inject their own.
+   *
+   * @public
+   */
+  static async compact(
+    agentId: string,
+    options: {
+      trigger?: "manual" | "auto";
+      summarize?: (
+        messages: readonly import("./internal/runtime/compression/compression-summarizer.js").CompressibleMessage[],
+      ) => Promise<string>;
+    } = {},
+  ): Promise<import("./internal/session/compact-session.js").CompactResult> {
+    const reg = getRegisteredAgent(agentId);
+    if (reg === undefined || reg.runtime !== "local") {
+      throw new UnknownAgentError(`No local agent "${agentId}" registered — compact targets local sessions.`);
+    }
+    const cwd = reg.cwd ?? process.cwd();
+    const optModel = reg.options.model;
+    const model =
+      reg.model?.id ?? (typeof optModel === "string" ? optModel : optModel?.id) ?? "unknown";
+    const { compactSessionTranscript, buildDefaultSummarizer } = await import(
+      "./internal/session/compact-session.js"
+    );
+    const { FsSessionStore } = await import("./internal/persistence/fs-session-store.js");
+    const { defaultBaseDir, expandTilde } = await import(
+      "./internal/persistence/session-transcript.js"
+    );
+    const baseDir = reg.options.local?.baseDir !== undefined
+      ? expandTilde(reg.options.local.baseDir)
+      : defaultBaseDir();
+    const store = new FsSessionStore({ baseDir, cwd });
+    return compactSessionTranscript({
+      store,
+      loc: { cwd, agentId, model },
+      sessionId: agentId,
+      trigger: options.trigger ?? "manual",
+      summarize:
+        options.summarize ??
+        buildDefaultSummarizer({
+          agentModel: model,
+          ...(reg.options.apiKey !== undefined ? { apiKey: reg.options.apiKey } : {}),
+        }),
+    });
+  }
+
+  /**
    * Permanently delete a cloud agent.
    *
    * @public

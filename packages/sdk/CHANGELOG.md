@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.0
+
+### Minor Changes
+
+- feat(session): context compaction, Codex-faithful (M50 agent-builder). `Agent.compact(agentId)` summarizes a local session's persisted transcript — recent USER messages preserved verbatim (20k-token budget, prior summaries filtered by marker) + one marker'd handoff summary as a user message — appended AFTER a `compact_boundary` (append-only; resume replays replacement + later turns). Size-driven AUTO-compaction fires in the persistence chain when the run's REAL usage crosses 90% of the model's catalog context window (Codex formula `(cw*9)/10`; missing usage/window never fires), with an anti-cascade guard (one attempt per turn). The summarizer is the compression subsystem's aux-LLM (`compressConversationWindow` — its first real caller). BREAKING-ish fix: the old 50-turn `compact_boundary` stub (no summary — it silently amnesia'd resumes) is REMOVED.
+
 ## 4.15.4
 
 ### Patch Changes

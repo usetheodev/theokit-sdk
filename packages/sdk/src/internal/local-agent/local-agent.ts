@@ -300,6 +300,8 @@ export class LocalAgent implements SDKAgent {
         workspaceCwd: this.workspaceCwd,
         sessionStore: this.sessionStore,
         model: this.model?.id ?? "unknown",
+        // M50 — the auto-compaction summarizer resolves credentials like the run itself.
+        ...(this.options.apiKey !== undefined ? { apiKey: this.options.apiKey } : {}),
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
         hooksExecutor: this.hooksExecutor,
         memoryGlue: this.memoryGlue,

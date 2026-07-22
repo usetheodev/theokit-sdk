@@ -1,0 +1,118 @@
+import { describe, expect, it } from "vitest";
+
+import {
+  autoCompactIfNeeded,
+  shouldAutoCompact,
+} from "../../../src/internal/session/compact-session.js";
+import { SessionTranscript } from "../../../src/internal/persistence/session-transcript.js";
+import type { SessionRecord } from "../../../src/types/session-record.js";
+import type { SessionStore } from "../../../src/types/session-store.js";
+
+/**
+ * M50 T0.3 — size-driven auto-compaction (Codex formula: fire at usage_real >= (cw*9)/10,
+ * `context_window.rs:74-79` + `openai_models.rs:459-469`) with an anti-cascade guard (never twice
+ * without a new turn). Replaces the 50-turn no-summary boundary stub (the amnesia bug).
+ */
+
+const LOC = { cwd: "/home/u/proj", agentId: "agent-1", model: "openai/gpt-4o-mini" };
+
+function storeWith(initial: SessionRecord[]): SessionStore & { records: SessionRecord[] } {
+  const records = [...initial];
+  return {
+    records,
+    async readRecords() {
+      return [...records];
+    },
+    async appendRecords(_agentId: string, delta: readonly SessionRecord[]) {
+      records.push(...delta);
+    },
+  } as unknown as SessionStore & { records: SessionRecord[] };
+}
+
+function seed(): SessionRecord[] {
+  const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
+  t.appendUserTurn("contexto longo");
+  t.appendAssistantTurn({ text: "resposta" });
+  return [...t.records()];
+}
+
+describe("shouldAutoCompact (fórmula Codex 0.9×cw)", () => {
+  it("auto_compact_fires_at_ninety_percent", () => {
+    expect(shouldAutoCompact({ usageTotal: 91_000, contextWindow: 100_000 })).toBe(true);
+    expect(shouldAutoCompact({ usageTotal: 90_000, contextWindow: 100_000 })).toBe(true); // >= no limiar
+    expect(shouldAutoCompact({ usageTotal: 85_000, contextWindow: 100_000 })).toBe(false);
+  });
+
+  it("missing_inputs_never_fire", () => {
+    expect(shouldAutoCompact({ usageTotal: undefined, contextWindow: 100_000 })).toBe(false);
+    expect(shouldAutoCompact({ usageTotal: 999_999, contextWindow: undefined })).toBe(false);
+  });
+});
+
+describe("autoCompactIfNeeded (guard anti-cascata)", () => {
+  it("compacts_once_and_not_again_without_new_turn", async () => {
+    const store = storeWith(seed());
+    let calls = 0;
+    const opts = {
+      store,
+      loc: LOC,
+      sessionId: LOC.agentId,
+      usageTotal: 95_000,
+      contextWindow: 100_000,
+      turnCount: 7,
+      summarize: async () => {
+        calls++;
+        return "resumo automático";
+      },
+    };
+    expect(await autoCompactIfNeeded(opts)).toBe(true);
+    // mesmo turnCount (sem turno novo) → não repete, mesmo acima do limiar
+    expect(await autoCompactIfNeeded(opts)).toBe(false);
+    expect(calls).toBe(1);
+    // turno NOVO acima do limiar → dispara de novo
+    expect(await autoCompactIfNeeded({ ...opts, turnCount: 8 })).toBe(true);
+    expect(calls).toBe(2);
+  });
+
+  it("below_threshold_never_compacts", async () => {
+    const store = storeWith(seed());
+    let calls = 0;
+    const fired = await autoCompactIfNeeded({
+      store,
+      loc: { ...LOC, agentId: "agent-below" },
+      sessionId: "agent-below",
+      usageTotal: 10_000,
+      contextWindow: 100_000,
+      turnCount: 1,
+      summarize: async () => {
+        calls++;
+        return "não deveria";
+      },
+    });
+    expect(fired).toBe(false);
+    expect(calls).toBe(0);
+    expect(store.records.some((r) => r.subtype === "compact_boundary")).toBe(false);
+  });
+
+  it("summarizer_failure_does_not_retry_same_turn_and_leaves_transcript_untouched", async () => {
+    const store = storeWith(seed());
+    const before = JSON.stringify(store.records);
+    let calls = 0;
+    const opts = {
+      store,
+      loc: { ...LOC, agentId: "agent-fail" },
+      sessionId: "agent-fail",
+      usageTotal: 95_000,
+      contextWindow: 100_000,
+      turnCount: 3,
+      summarize: async () => {
+        calls++;
+        throw new Error("llm fora");
+      },
+    };
+    expect(await autoCompactIfNeeded(opts)).toBe(false); // falha → não compactou
+    expect(await autoCompactIfNeeded(opts)).toBe(false); // mesmo turno → nem tenta de novo
+    expect(calls).toBe(1);
+    expect(JSON.stringify(store.records)).toBe(before);
+  });
+});

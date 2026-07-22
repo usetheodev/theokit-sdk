@@ -219,3 +219,42 @@ describe("SE40 — transcript file I/O (Claude layout)", () => {
     expect(recs[0]!.uuid).toBe("u1");
   });
 });
+
+describe("M50 — compact boundary with replacement (fim da amnésia)", () => {
+  it("boundary_with_replacement_replays_summary_after_resume", () => {
+    const t = new SessionTranscript(BASE);
+    t.appendUserTurn("pergunta antiga 1");
+    t.appendAssistantTurn({ text: "resposta antiga 1" });
+    t.appendUserTurn("pergunta antiga 2");
+    t.appendAssistantTurn({ text: "resposta antiga 2" });
+    // compact: boundary (novo root) + replacement encadeado nele (user recente + sumário-handoff)
+    t.appendCompactBoundary({ preTokens: 1000, trigger: "manual" });
+    t.appendUserTurn("pergunta antiga 2"); // user recente preservada verbatim
+    t.appendUserTurn("[COMPACT SUMMARY]\nprogresso: X decidido; falta Y");
+    // continuação pós-compact
+    t.appendUserTurn("pergunta nova");
+    t.appendAssistantTurn({ text: "resposta nova" });
+
+    const msgs = reconstructMessages(t.records());
+    const texts = msgs.map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)));
+    expect(texts.join("\n")).toContain("[COMPACT SUMMARY]");
+    expect(texts.join("\n")).toContain("pergunta nova");
+    expect(texts.join("\n")).not.toContain("resposta antiga 1"); // pré-boundary não replaya
+    // replacement vem ANTES da continuação
+    const iSummary = texts.findIndex((x) => x.includes("[COMPACT SUMMARY]"));
+    const iNew = texts.findIndex((x) => x.includes("pergunta nova"));
+    expect(iSummary).toBeGreaterThanOrEqual(0);
+    expect(iSummary).toBeLessThan(iNew);
+  });
+
+  it("legacy_boundary_without_replacement_still_terminates_walk", () => {
+    const t = new SessionTranscript(BASE);
+    t.appendUserTurn("antes");
+    t.appendCompactBoundary({ preTokens: 0, trigger: "auto" });
+    t.appendUserTurn("depois");
+    const msgs = reconstructMessages(t.records());
+    const joined = msgs.map((m) => JSON.stringify(m.content)).join("\n");
+    expect(joined).toContain("depois");
+    expect(joined).not.toContain("antes");
+  });
+});
