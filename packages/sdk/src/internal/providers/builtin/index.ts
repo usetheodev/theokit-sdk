@@ -16,6 +16,7 @@ import { LLAMACPP } from "./llamacpp.js";
 import { LMSTUDIO } from "./lmstudio.js";
 import { OLLAMA } from "./ollama.js";
 import { OPENAI } from "./openai.js";
+import { OPENAI_CHATGPT } from "./openai-chatgpt.js";
 import { OPENROUTER } from "./openrouter.js";
 import { VERTEX } from "./vertex.js";
 
@@ -27,6 +28,7 @@ export function registerBuiltins(): void {
   // First-party builtins (take priority — registered first)
   registerProvider(ANTHROPIC);
   registerProvider(OPENAI);
+  registerProvider(OPENAI_CHATGPT);
   registerProvider(OPENROUTER);
   registerProvider(GEMINI);
   registerProvider(OLLAMA);
@@ -43,4 +45,15 @@ export function _resetBuiltinsRegistered(): void {
   registered = false;
 }
 
-export { ANTHROPIC, BEDROCK, GEMINI, LLAMACPP, LMSTUDIO, OLLAMA, OPENAI, OPENROUTER, VERTEX };
+export {
+  ANTHROPIC,
+  BEDROCK,
+  GEMINI,
+  LLAMACPP,
+  LMSTUDIO,
+  OLLAMA,
+  OPENAI,
+  OPENAI_CHATGPT,
+  OPENROUTER,
+  VERTEX,
+};

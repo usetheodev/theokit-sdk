@@ -1,0 +1,94 @@
+import { homedir } from "node:os";
+
+import type { CredentialStoreConfig, OAuthProviderConfig } from "../../auth/auth-types.js";
+import { readStoredOAuth } from "../../auth/credential-store.js";
+import { resolveCredential } from "../../auth/resolve-credential.js";
+import type { ProviderProfile } from "../types.js";
+
+/**
+ * M43 — the ChatGPT "Codex" backend as a first-class builtin `ProviderProfile`. Migrated from the
+ * agent-builder M40 workaround; the SDK now owns the provider, so a consumer only selects
+ * `openai-chatgpt/<model>` and logs in — ZERO provider logic in the consumer.
+ *
+ * Grounded 100% in OpenCode's provider-auth model (see the codex-provider-in-sdk blueprint):
+ * - static profile + a `transform.fetch` that resolves the LIVE credential per HTTP request (fresh Bearer +
+ *   dynamic `ChatGPT-Account-Id`), so a mid-turn expiry refreshes transparently with NO agent rebuild;
+ * - the protocol values (endpoint, models, oauth config, `originator` header) are SDK-owned constants,
+ *   adapted from OpenCode's `openai.ts` (MIT © 2025 opencode — see NOTICE).
+ *
+ * @internal
+ */
+
+/**
+ * The SDK-owned ambient credential store the transform reads. `homeEnvVar: "THEOKIT_HOME"` lets a consumer
+ * point it at its existing store dir (e.g. agent-builder's `~/.agent-builder`) without a migration — the
+ * OpenCode "ambient credential Service" analog.
+ */
+const DEFAULT_STORE: CredentialStoreConfig = {
+  home: homedir(),
+  dirName: ".theokit",
+  fileName: "auth.json",
+  homeEnvVar: "THEOKIT_HOME",
+};
+
+/**
+ * The OpenAI OAuth config the transform resolves + refreshes against. `provider: "openai"` is the STORE
+ * provider (what `/login` persists), deliberately distinct from this profile's routing name `openai-chatgpt`
+ * — the two-namespace split (integration id vs routed provider) mirrors OpenCode. Endpoints/clientId/scopes
+ * adapted from OpenCode `openai.ts`.
+ */
+const OPENAI_OAUTH_CONFIG: OAuthProviderConfig = {
+  provider: "openai",
+  authorizeEndpoint: "https://auth.openai.com/oauth/authorize",
+  tokenEndpoint: "https://auth.openai.com/oauth/token",
+  clientId: "app_EMoamEEZ73f0CkXaXp7hrann",
+  scopes: ["openid", "profile", "email", "offline_access"],
+  redirectUri: "https://auth.openai.com/deviceauth/callback",
+};
+
+/**
+ * Build the per-request fetch: resolve a FRESH (refreshed) Bearer + the LIVE account-id from the ambient
+ * store, and inject them as headers. Re-resolves on EVERY call → mid-turn refresh with no rebuild. A
+ * `Headers` object is used so `authorization` is set case-insensitively (never doubled). If no credential is
+ * logged in, throw a clear error rather than putting the router's `__oauth_lazy_token__` placeholder on the
+ * wire (fail-closed — the OpenCode `MissingCredentialError` semantics).
+ */
+function codexFetch(): typeof fetch {
+  return (async (input: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) => {
+    const env = process.env as Record<string, string | undefined>;
+    const resolved = await resolveCredential({
+      provider: "openai",
+      store: DEFAULT_STORE,
+      oauth: OPENAI_OAUTH_CONFIG,
+      env,
+    });
+    if (resolved === undefined) {
+      throw new Error(
+        'openai-chatgpt: no ChatGPT credential found — run the OpenAI device login (e.g. "/login openai") first.',
+      );
+    }
+    const accountId = readStoredOAuth(DEFAULT_STORE, env)?.account_id;
+    const headers = new Headers(init?.headers);
+    headers.set("authorization", `Bearer ${resolved.apiKey}`);
+    if (accountId !== undefined) headers.set("ChatGPT-Account-Id", accountId);
+    return fetch(input, { ...init, headers });
+  }) as typeof fetch;
+}
+
+export const OPENAI_CHATGPT: ProviderProfile = {
+  name: "openai-chatgpt",
+  apiMode: "responses_api",
+  authType: "oauth_device_code",
+  baseUrl: "https://chatgpt.com/backend-api/codex",
+  envVars: [],
+  fallbackModels: [
+    "openai-chatgpt/gpt-5.4",
+    "openai-chatgpt/gpt-5.4-mini",
+    "openai-chatgpt/gpt-5.5",
+  ],
+  extraHeaders: { originator: "codex_cli_rs" },
+  transform: {
+    // Only `fetch` (async) can await the credential refresh; `headers` is sync and cannot.
+    fetch: () => codexFetch(),
+  },
+};
