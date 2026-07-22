@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.15.2
+
+### Patch Changes
+
+- fix(providers): M47 adversarial-review fixes on the dynamic-loader trust gate — (F1) `Agent.resume` now runs provider-plugin discovery (a fresh process resuming a persisted agent whose model targets a plugin provider no longer fails resolution); (F2) `Theokit.models.list({provider})` local path runs discovery too (sync surfaces stay builtins-only, documented); (F3) the discovery idempotence flag moved to `globalThis` (`Symbol.for`) matching the registry's M44 B1 pattern — no duplicate discovery per bundle entry; (F4/F7) the NOT-trusted WARN now says "then restart the process" and documents the comma-separated env format; (F5) non-string entries in a valid trust-file array WARN instead of being silently discarded.
+
 ## 4.15.1
 
 ### Patch Changes
