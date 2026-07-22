@@ -4,6 +4,8 @@ import { emitRunEvent } from "../../../types/run-events.js";
 import type { SessionStore } from "../../../types/session-store.js";
 import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
+import { getCatalogModelInfo } from "../../providers/catalog-loader.js";
+import { buildDefaultSummarizer } from "../../session/compact-session.js";
 import {
   appendSessionMessage,
   flushSessionWrites,
@@ -105,8 +107,6 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // Completed (Codex `last_token_usage.total_tokens` analog) vs the model's catalog context window.
   // Missing usage/window ⇒ the trigger never fires (fail-safe); the summarizer is the compression
   // subsystem's aux-LLM via `buildDefaultSummarizer`.
-  const { getCatalogModelInfo } = await import("../../providers/catalog-loader.js");
-  const { buildDefaultSummarizer } = await import("../../session/compact-session.js");
   const contextWindow = getCatalogModelInfo(model)?.limit?.context;
   // M50 review F2 — a model absent from the catalog silently disables the auto-trigger; the plan
   // promised a once-per-process WARN so the silence is at least visible.

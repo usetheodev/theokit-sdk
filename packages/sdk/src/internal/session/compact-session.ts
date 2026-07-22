@@ -15,6 +15,12 @@
  */
 
 import { type CompressibleMessage, estimateTokens } from "../../compaction.js";
+import { resolveProviderChain } from "../llm/router.js";
+import { detectPrimaryProvider, inferProviderFromApiKey } from "../local-agent/real-local-run-provider.js";
+import { getProviderProfile, registerBuiltins } from "../providers/index.js";
+import { resolveCompressionModel } from "../runtime/compression/compression-model-registry.js";
+import { compressConversationWindow } from "../runtime/compression/compression-summarizer.js";
+import { invalidateSessionCache } from "./agent-session.js";
 import type { SessionStore } from "../../types/session-store.js";
 import { reconstructMessages, SessionTranscript } from "../persistence/session-transcript.js";
 
@@ -120,7 +126,6 @@ export async function compactSessionTranscript(opts: {
   // M50 review F1 — the live process must FEEL the compaction: drop the in-memory session cache so
   // the next send re-hydrates from disk (replacement + later turns) instead of replaying the full
   // pre-compact history until a restart.
-  const { invalidateSessionCache } = await import("./agent-session.js");
   invalidateSessionCache(opts.loc.cwd, opts.loc.agentId);
 
   const postTokens = estimateTokens([...preserved, summary].join("\n"));
@@ -139,20 +144,9 @@ export function buildDefaultSummarizer(opts: {
   apiKey?: string;
 }): (messages: readonly CompressibleMessage[]) => Promise<string> {
   return async (messages) => {
-    const { compressConversationWindow } = await import(
-      "../runtime/compression/compression-summarizer.js"
-    );
-    const { resolveCompressionModel } = await import(
-      "../runtime/compression/compression-model-registry.js"
-    );
-    const { resolveProviderChain } = await import("../llm/router.js");
-
     // Provider resolution mirrors the RUN's own (M4 rule: the explicit API key outranks the model
     // prefix — an sk-or- key + openai/gpt model must summarize via OpenRouter too). Using anything
     // else 401s in real setups (proven live in the M50 probe).
-    const { inferProviderFromApiKey, detectPrimaryProvider } = await import(
-      "../local-agent/real-local-run-provider.js"
-    );
     const keyProvider = inferProviderFromApiKey(opts.apiKey);
     const modelPrefix = opts.agentModel.includes("/")
       ? opts.agentModel.slice(0, opts.agentModel.indexOf("/"))
@@ -161,7 +155,6 @@ export function buildDefaultSummarizer(opts: {
     // `openai-chatgpt` builtin owns its credentials; the M45 fleet resolves its own env vars), route
     // the summarizer through THAT provider — its transport/auth is exactly what the run uses. Only
     // when the prefix is unknown do we fall back to key-inference / env detection (aggregator case).
-    const { registerBuiltins, getProviderProfile } = await import("../providers/index.js");
     registerBuiltins();
     const prefixProfile = modelPrefix !== undefined ? getProviderProfile(modelPrefix) : undefined;
     const provider =
