@@ -67,6 +67,14 @@ describe("M40 — ResponsesApiClient (golden, OpenCode fixtures)", () => {
     ]);
   });
 
+  it("strips a provider prefix from the model (defense-in-depth: the backend wants a bare model id)", () => {
+    const body = buildResponsesBody({
+      model: "openai-chatgpt/gpt-5.4",
+      messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+    });
+    expect(body.model).toBe("gpt-5.4");
+  });
+
   it("streams text from the recorded text fixture → text_delta events + stop end_turn + usage", async () => {
     const fx = loadFixture("streams-text.json").interactions[0]!;
     const client = new ResponsesApiClient({
