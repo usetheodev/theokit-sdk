@@ -222,6 +222,12 @@ function sentinelForNoAuth(profile: ProviderProfile): string | undefined {
 function sentinelForLazyAuth(profile: ProviderProfile): string | undefined {
   if (profile.authType === "aws_bearer") return "__bedrock_lazy_token__";
   if (profile.authType === "gcp_oauth") return "__vertex_lazy_token__";
+  // M42: an oauth provider carries no static key — build the client with a lazy placeholder so its M41
+  // `transform.fetch(ctx)` (which calls `resolveCredential` to obtain a freshly-refreshed bearer) owns
+  // the real Authorization at stream time. Plain (api_key/none) profiles are unaffected.
+  if (profile.authType === "oauth_device_code" || profile.authType === "oauth_external") {
+    return "__oauth_lazy_token__";
+  }
   return undefined;
 }
 
