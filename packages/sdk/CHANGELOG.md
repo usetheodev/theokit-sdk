@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.6
+
+### Patch Changes
+
+- fix(session): the summarizer route precedence now mirrors the run's M4 rule EXACTLY (extracted as the pure, unit-tested `resolveSummarizerRoute`): explicit key's provider > model-prefix profile (oauth builtin / M45 fleet) > env detection. The 4.16.5 ordering put the prefix profile first, so an sk-or- key + `openai/…` model 401'd against the OpenAI platform (found live).
+
 ## 4.16.5
 
 ### Patch Changes
