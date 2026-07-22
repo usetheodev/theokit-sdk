@@ -98,7 +98,7 @@ describe("SE41 — external SessionStore resume across a cold start", () => {
     expect(after).toBeGreaterThan(before);
   });
 
-  it("compact_boundary records flow through the external store's appendRecords", async () => {
+  it("compact_boundary records flow through the external store's appendRecords (M50 size-driven)", async () => {
     const store = new MapSessionStore();
     const agentId = "agent-se41-compact";
     const agent = await Agent.create({
@@ -107,12 +107,22 @@ describe("SE41 — external SessionStore resume across a cold start", () => {
       model: { id: "openai/gpt-4o-mini" },
       local: { cwd, sessionStore: store },
     });
-    // 50 turns crosses the COMPACTION_CHECK_INTERVAL boundary → a compact_boundary append.
-    for (let i = 0; i < 50; i += 1) {
-      const run = await agent.send(`turn ${i}`);
-      await run.wait();
-    }
+    const run = await agent.send("turno 1");
+    await run.wait();
     await agent.dispose();
+    // M50 — the boundary is written by COMPACTION (size-driven or manual), not by turn count.
+    // Compact through the executor with the external store: the boundary + replacement must flow
+    // through the SAME appendRecords surface.
+    const { compactSessionTranscript } = await import(
+      "../../../src/internal/session/compact-session.js"
+    );
+    await compactSessionTranscript({
+      store,
+      loc: { cwd, agentId, model: "openai/gpt-4o-mini" },
+      sessionId: agentId,
+      trigger: "manual",
+      summarize: async () => "resumo via external store",
+    });
     const records = await store.readRecords(agentId);
     expect(records.some((r) => r.subtype === "compact_boundary")).toBe(true);
   });

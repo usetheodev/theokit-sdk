@@ -1,6 +1,5 @@
 import type { SessionStore } from "../../types/session-store.js";
 import {
-  appendCompactBoundaryRecord,
   type PersistTurnInput,
   persistTurn,
   readSessionMessages,
@@ -27,9 +26,6 @@ import {
 export type { SessionMessage } from "./session-types.js";
 
 import type { SessionMessage } from "./session-types.js";
-
-/** After this many persisted turns, an append-only compact_boundary is written. */
-const COMPACTION_CHECK_INTERVAL = 50;
 
 const sessions = new Map<string, SessionMessage[]>();
 const hydratedKeys = new Set<string>();
@@ -62,8 +58,8 @@ export function getSessionMessages(agentId: string): SessionMessage[] {
  * Persist a full conversation turn (user + assistant + tool blocks) to the native
  * transcript. Chained per-(agent, transcript) so on-disk order matches send order,
  * and fire-and-forget so `send()` is not blocked by disk I/O. Every
- * `COMPACTION_CHECK_INTERVAL` turns an append-only `compact_boundary` is written
- * (turn-count-driven, not size-driven), surfaced via the optional `onCompact` observer.
+ * M50 — when the caller supplies `turn.autoCompact`, size-driven auto-compaction (usage real vs
+ * the model's context window) runs in this same chain, surfaced via the optional `onCompact` observer.
  *
  * @internal
  */
@@ -80,12 +76,21 @@ export function persistTurnToTranscript(
       await persistTurn(store, loc, sessionId, turn);
       const count = (recordCounts.get(key) ?? 0) + 1;
       recordCounts.set(key, count);
-      if (count % COMPACTION_CHECK_INTERVAL === 0) {
-        await appendCompactBoundaryRecord(store, loc, sessionId, {
-          preTokens: 0,
-          trigger: "auto",
+      // M50 — the 50-turn no-summary boundary stub is GONE (it silently amnesia'd the session).
+      // Auto-compaction is now size-driven with a real summary: see `maybeAutoCompact` below,
+      // invoked in this same write chain by the post-run lifecycle when usage is known.
+      if (turn.autoCompact !== undefined) {
+        const { autoCompactIfNeeded } = await import("./compact-session.js");
+        const fired = await autoCompactIfNeeded({
+          store,
+          loc,
+          sessionId,
+          usageTotal: turn.autoCompact.usageTotal,
+          contextWindow: turn.autoCompact.contextWindow,
+          turnCount: count,
+          summarize: turn.autoCompact.summarize,
         });
-        onCompact?.();
+        if (fired) onCompact?.();
       }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);

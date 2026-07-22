@@ -39,6 +39,17 @@ function seedTranscript(
 export interface PersistTurnInput {
   userText: string;
   conversation: readonly ConversationTurn[];
+  /**
+   * M50 — when supplied, size-driven auto-compaction runs in the SAME write chain after the turn
+   * persists (usage real vs the model's context window; summarizer injected by the caller).
+   */
+  autoCompact?: {
+    usageTotal?: number | undefined;
+    contextWindow?: number | undefined;
+    summarize: (
+      messages: readonly import("../runtime/compression/compression-summarizer.js").CompressibleMessage[],
+    ) => Promise<string>;
+  };
 }
 
 interface MappedTurn {
