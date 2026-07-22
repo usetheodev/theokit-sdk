@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.13.0
+
+### Minor Changes
+
+- Model catalog enrichment (agent-builder M44): the vendored `provider-catalog.json` now carries OPTIONAL per-model data (`models` block — models.dev shape verbatim: `cost{input,output,cache_read,cache_write}` USD-per-1M, `limit{context,input,output}`, `modalities`, `tool_call`/`reasoning`/`structured_output`/`cache_control`, `release_date`, `status`), loaded into an internal model-info index keyed `provider/model` (entry id + aliases). Fully additive: entries without `models` behave byte-identically, `ProviderProfile` is untouched, the 10 builtins + all 43 catalog entries keep resolving, and a malformed model sub-entry drops that model with WARN keeping the provider. DRY reconciliation: `resolveModelCapabilities` is now catalog-backed (the hand-curated EXACT map migrated into the catalog and was deleted — parity-tested over the full old-map snapshot), and `getPricingEntry` gains a step-5 catalog fallback on total LiteLLM miss (provenance `pricingVersion:"catalog-vendored"`; the LiteLLM snapshot keeps absolute precedence — and the new drift advisory caught a real stale rate: `openai/o3` corrected 10/40 → 2/8). New on `@theokit/sdk/models`: `getModelInfo(modelId)` (the enriched per-model view) and `refreshModelCatalog({url?, force?})` — an EXPLICIT opt-in models.dev refresh with a 1h-TTL atomic disk cache under `~/.theokit/cache/models-dev/`, kill-switch `THEOKIT_DISABLE_MODELS_FETCH`, and the vendored catalog as offline fallback; startup and requests never touch the network. Mechanism adapted from OpenCode's models.dev consumption (MIT); see NOTICE. Maintenance: `scripts/refresh-catalog.mjs` regenerates the curated vendored subset (30 models, +36KB).
+
 ## 4.12.2
 
 ### Patch Changes
