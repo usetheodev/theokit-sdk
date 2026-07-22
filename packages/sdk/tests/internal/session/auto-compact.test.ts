@@ -161,3 +161,41 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
     clearAllSessions();
   });
 });
+
+describe("M50 F6 — resolveSummarizerRoute (precedência M4)", () => {
+  it("explicit_key_outranks_prefix (sk-or- + openai/model → openrouter, slug completo)", async () => {
+    const { resolveSummarizerRoute } = await import(
+      "../../../src/internal/session/compact-session.js"
+    );
+    expect(
+      resolveSummarizerRoute({ keyProvider: "openrouter", modelPrefix: "openai", prefixHasProfile: true, envProvider: "openai" }),
+    ).toEqual({ provider: "openrouter", fullSlug: true });
+  });
+
+  it("oauth_prefix_profile_wins_without_key (openai-chatgpt owns auth)", async () => {
+    const { resolveSummarizerRoute } = await import(
+      "../../../src/internal/session/compact-session.js"
+    );
+    expect(
+      resolveSummarizerRoute({ keyProvider: undefined, modelPrefix: "openai-chatgpt", prefixHasProfile: true, envProvider: "openrouter" }),
+    ).toEqual({ provider: "openai-chatgpt", fullSlug: false });
+  });
+
+  it("fleet_prefix_profile_wins_without_key (google resolves own env)", async () => {
+    const { resolveSummarizerRoute } = await import(
+      "../../../src/internal/session/compact-session.js"
+    );
+    expect(
+      resolveSummarizerRoute({ keyProvider: undefined, modelPrefix: "google", prefixHasProfile: true, envProvider: "openai" }),
+    ).toEqual({ provider: "google", fullSlug: false });
+  });
+
+  it("env_fallback_when_nothing_else (unknown prefix)", async () => {
+    const { resolveSummarizerRoute } = await import(
+      "../../../src/internal/session/compact-session.js"
+    );
+    expect(
+      resolveSummarizerRoute({ keyProvider: undefined, modelPrefix: "acme", prefixHasProfile: false, envProvider: "openrouter" }),
+    ).toEqual({ provider: "openrouter", fullSlug: true });
+  });
+});

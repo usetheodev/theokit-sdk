@@ -132,6 +132,29 @@ export async function compactSessionTranscript(opts: {
   return { preTokens, postTokens };
 }
 
+
+/**
+ * M50 review F6 (corrigido no probe) — the summarizer's provider route, PURE and unit-tested.
+ * Precedence mirrors the run's M4 rule exactly:
+ *   1. an EXPLICIT credential's provider wins (an sk-or- key + `openai/…` model must summarize via
+ *      OpenRouter — the key is the ground truth of which endpoint gets called);
+ *   2. else a model prefix with a REGISTERED profile (the oauth `openai-chatgpt` builtin owns its
+ *      auth; the M45 fleet resolves its own env vars) routes through that profile;
+ *   3. else the ENV-detected provider (fresh process, aggregator credential in env).
+ * `fullSlug` marks aggregator routes (provider ≠ prefix): the agent's slug passes unstripped.
+ */
+export function resolveSummarizerRoute(opts: {
+  keyProvider: string | undefined;
+  modelPrefix: string | undefined;
+  prefixHasProfile: boolean;
+  envProvider: string;
+}): { provider: string; fullSlug: boolean } {
+  const provider =
+    opts.keyProvider ??
+    (opts.prefixHasProfile && opts.modelPrefix !== undefined ? opts.modelPrefix : opts.envProvider);
+  return { provider, fullSlug: provider !== opts.modelPrefix };
+}
+
 // ─── Default summarizer (the ADR-D440 subsystem's first real caller) ─────────────────────────────
 
 /**
@@ -147,21 +170,20 @@ export function buildDefaultSummarizer(opts: {
     // Provider resolution mirrors the RUN's own (M4 rule: the explicit API key outranks the model
     // prefix — an sk-or- key + openai/gpt model must summarize via OpenRouter too). Using anything
     // else 401s in real setups (proven live in the M50 probe).
-    const keyProvider = inferProviderFromApiKey(opts.apiKey);
+    registerBuiltins();
     const modelPrefix = opts.agentModel.includes("/")
       ? opts.agentModel.slice(0, opts.agentModel.indexOf("/"))
       : undefined;
-    // M50 review F6 — when the model prefix names a REGISTERED provider profile (the oauth
-    // `openai-chatgpt` builtin owns its credentials; the M45 fleet resolves its own env vars), route
-    // the summarizer through THAT provider — its transport/auth is exactly what the run uses. Only
-    // when the prefix is unknown do we fall back to key-inference / env detection (aggregator case).
-    registerBuiltins();
-    const prefixProfile = modelPrefix !== undefined ? getProviderProfile(modelPrefix) : undefined;
-    const provider =
-      prefixProfile !== undefined ? modelPrefix as string : (keyProvider ?? detectPrimaryProvider());
+    const route = resolveSummarizerRoute({
+      keyProvider: inferProviderFromApiKey(opts.apiKey),
+      modelPrefix,
+      prefixHasProfile: modelPrefix !== undefined && getProviderProfile(modelPrefix) !== undefined,
+      envProvider: detectPrimaryProvider(),
+    });
+    const provider = route.provider;
 
     let model: string;
-    if (provider !== modelPrefix) {
+    if (route.fullSlug) {
       // Aggregator route (e.g. OpenRouter): pass the agent's full slug through unstripped.
       model = opts.agentModel;
     } else {
