@@ -39,7 +39,6 @@ const CONSERVATIVE_DEFAULTS: ModelCapabilities = {
   maxOutputTokens: 4096,
 };
 
-
 /** Routing prefixes to strip to find the underlying vendor model. */
 const ROUTING_PREFIXES = ["openrouter/", "vertex/", "bedrock/"] as const;
 
@@ -108,4 +107,3 @@ function inferVendorPrefix(bare: string): string {
   if (bare.startsWith("gemini")) return `google/${bare}`;
   return bare;
 }
-
