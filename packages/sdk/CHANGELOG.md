@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.1
+
+### Patch Changes
+
+- fix(session): the compaction summarizer resolves its provider the same way the RUN does (M4 rule — the explicit API key outranks the model prefix): an sk-or- key + `openai/…` model summarizes via OpenRouter with the full slug, instead of 401ing against OpenAI. Found live in the M50 tmux probe.
+
 ## 4.16.0
 
 ### Minor Changes
