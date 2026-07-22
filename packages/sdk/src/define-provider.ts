@@ -1,4 +1,6 @@
 import type { Plugin } from "./internal/plugins/types.js";
+import { registerBuiltins } from "./internal/providers/builtin/index.js";
+import { listProviders } from "./internal/providers/registry.js";
 import type { ProviderProfile } from "./internal/providers/types.js";
 
 /**
@@ -56,5 +58,18 @@ export class Provider {
   private constructor() {}
   static create(profile: ProviderProfile, opts?: DefineProviderOptions): Plugin {
     return defineProvider(profile, opts);
+  }
+
+  /**
+   * Every first-party builtin provider (anthropic, openai, openrouter, gemini, ollama, the ChatGPT/Codex
+   * `openai-chatgpt`, …) as model-provider plugins, ready to hand to `Agent.create({ plugins })` or any
+   * runtime that consumes model-provider plugins (e.g. the `theokit` agent server / `@theokit/agents`, whose
+   * own model resolution does NOT share this registry). Enables a consumer to route to ANY SDK builtin —
+   * including one added later in a single SDK file — with ZERO provider-specific code: just
+   * `.plugins(Provider.builtins())` once, then pick a `provider/model` id. @public
+   */
+  static builtins(): Plugin[] {
+    registerBuiltins();
+    return listProviders().map((profile) => defineProvider(profile));
   }
 }
