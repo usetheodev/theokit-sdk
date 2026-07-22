@@ -15,8 +15,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   authFilePath,
-  type CredentialStoreConfig,
   CredentialError,
+  type CredentialStoreConfig,
   readAuthFile,
   readStoredOAuth,
   writeCredential,
@@ -68,15 +68,16 @@ describe("credential-store — atomic 0600 write", () => {
   it("leaves no .tmp-* file after a successful write", () => {
     const { config, dir } = newStore();
     writeCredential({ provider: "openai", apiKey: "sk-live-abc" }, config);
-    const leftovers = readdirSync(dir)
-      .filter((f: string) => f.includes(".tmp-"));
+    const leftovers = readdirSync(dir).filter((f: string) => f.includes(".tmp-"));
     expect(leftovers).toEqual([]);
   });
 
   it("a failed write (empty key) leaves the previous file intact", () => {
     const { config } = newStore();
     writeCredential({ provider: "openai", apiKey: "sk-first" }, config);
-    expect(() => writeCredential({ provider: "openai", apiKey: "" }, config)).toThrow(CredentialError);
+    expect(() => writeCredential({ provider: "openai", apiKey: "" }, config)).toThrow(
+      CredentialError,
+    );
     const resolved = readAuthFile(config);
     expect(resolved).toBeDefined();
     expect((resolved as { api_key: string }).api_key).toBe("sk-first");

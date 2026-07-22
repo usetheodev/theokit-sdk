@@ -24,7 +24,9 @@ describe("M42 — router obtains the oauth bearer at stream time (plain profiles
     registerBuiltins();
   });
 
-  async function drain(client: { stream: (r: unknown, s: AbortSignal) => AsyncGenerator }): Promise<void> {
+  async function drain(client: {
+    stream: (r: unknown, s: AbortSignal) => AsyncGenerator;
+  }): Promise<void> {
     const gen = client.stream(
       { model: "m", messages: [{ role: "user", content: [{ type: "text", text: "hi" }] }] },
       new AbortController().signal,
@@ -75,7 +77,10 @@ describe("M42 — router obtains the oauth bearer at stream time (plain profiles
     let sentAuth = "";
     // In production this fetch calls resolveCredential to obtain a freshly-refreshed token; here we assert
     // the router BUILT the client (via the M42 lazy sentinel) and INVOKED the provider's transform.fetch.
-    const providerOwnedFetch = (async (_url: string, init?: { headers?: Record<string, string> }) => {
+    const providerOwnedFetch = (async (
+      _url: string,
+      init?: { headers?: Record<string, string> },
+    ) => {
       sentAuth = init?.headers?.authorization ?? init?.headers?.Authorization ?? "";
       return new Response(chatSse(), {
         status: 200,

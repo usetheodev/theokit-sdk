@@ -10,13 +10,6 @@ import {
   writeCredential,
 } from "../../../src/internal/auth/credential-store.js";
 import {
-  ensureFreshCredential,
-  exchangeCode,
-  type HttpDeps,
-  type OAuthProviderConfig,
-  refreshOAuthTokens,
-} from "../../../src/internal/auth/oauth-engine.js";
-import {
   type DeviceDeps,
   type DeviceOAuthConfig,
   extractAccountId,
@@ -24,6 +17,13 @@ import {
   openaiDeviceLogin,
   pollDeviceToken,
 } from "../../../src/internal/auth/oauth-device.js";
+import {
+  ensureFreshCredential,
+  exchangeCode,
+  type HttpDeps,
+  type OAuthProviderConfig,
+  refreshOAuthTokens,
+} from "../../../src/internal/auth/oauth-engine.js";
 
 /**
  * M42 — ported from agent-builder `oauth.test.ts` + `oauth-device.test.ts`. Injected fake fetch + fixed
@@ -180,13 +180,23 @@ describe("oauth-engine — ensureFreshCredential (skew / refresh / coalescing)",
   it("refreshes an expired token and re-persists it at 0600", async () => {
     const store = newStore();
     writeCredential(
-      { type: "oauth", provider: "openai", access: "OLD-ACCESS", refresh: "OLD-REFRESH", expires: FIXED_NOW },
+      {
+        type: "oauth",
+        provider: "openai",
+        access: "OLD-ACCESS",
+        refresh: "OLD-REFRESH",
+        expires: FIXED_NOW,
+      },
       store,
     );
     const deps: HttpDeps = {
       now: () => FIXED_NOW,
       fetch: (async () =>
-        okJson({ access_token: "NEW", refresh_token: "NEW-REF", expires_in: 3600 })) as unknown as typeof fetch,
+        okJson({
+          access_token: "NEW",
+          refresh_token: "NEW-REF",
+          expires_in: 3600,
+        })) as unknown as typeof fetch,
     };
     const out = await ensureFreshCredential(oauthCred(FIXED_NOW), { config, store }, deps);
     expect(out.apiKey).toBe("NEW");
@@ -246,13 +256,23 @@ describe("oauth-engine — ensureFreshCredential (skew / refresh / coalescing)",
     const outSpy = vi.spyOn(process.stdout, "write").mockReturnValue(true);
     const errSpy = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     writeCredential(
-      { type: "oauth", provider: "openai", access: "SECRET-ACCESS", refresh: "SECRET-REFRESH", expires: FIXED_NOW },
+      {
+        type: "oauth",
+        provider: "openai",
+        access: "SECRET-ACCESS",
+        refresh: "SECRET-REFRESH",
+        expires: FIXED_NOW,
+      },
       store,
     );
     const deps: HttpDeps = {
       now: () => FIXED_NOW,
       fetch: (async () =>
-        okJson({ access_token: "SECRET-ACCESS", refresh_token: "SECRET-REFRESH", expires_in: 3600 })) as unknown as typeof fetch,
+        okJson({
+          access_token: "SECRET-ACCESS",
+          refresh_token: "SECRET-REFRESH",
+          expires_in: 3600,
+        })) as unknown as typeof fetch,
     };
     await ensureFreshCredential(oauthCred(FIXED_NOW), { config, store }, deps);
     const captured =
@@ -281,7 +301,13 @@ describe("oauth-device — RFC 8628 + OpenAI two-step + JWT", () => {
       sleep: async () => {},
       fetch: (async () => responses[i++]!) as unknown as typeof fetch,
     };
-    const grant = { deviceCode: "dc", userCode: "UC", verificationUri: "u", interval: 1, expiresIn: 900 };
+    const grant = {
+      deviceCode: "dc",
+      userCode: "UC",
+      verificationUri: "u",
+      interval: 1,
+      expiresIn: 900,
+    };
     const tokens = await pollDeviceToken(deviceConfig, grant, deps);
     expect(tokens.access).toBe("acc");
   });
@@ -297,7 +323,13 @@ describe("oauth-device — RFC 8628 + OpenAI two-step + JWT", () => {
       sleep: async () => {},
       fetch: (async () => responses[i++]!) as unknown as typeof fetch,
     };
-    const grant = { deviceCode: "dc", userCode: "UC", verificationUri: "u", interval: 1, expiresIn: 900 };
+    const grant = {
+      deviceCode: "dc",
+      userCode: "UC",
+      verificationUri: "u",
+      interval: 1,
+      expiresIn: 900,
+    };
     const tokens = await pollDeviceToken(deviceConfig, grant, deps);
     expect(tokens.access).toBe("acc2");
   });
@@ -308,10 +340,14 @@ describe("oauth-device — RFC 8628 + OpenAI two-step + JWT", () => {
       sleep: async () => {},
       fetch: (async () => okJson({ error: "authorization_pending" })) as unknown as typeof fetch,
     };
-    const grant = { deviceCode: "dc", userCode: "UC", verificationUri: "u", interval: 1, expiresIn: 0 };
-    await expect(pollDeviceToken(deviceConfig, grant, deps)).rejects.toThrow(
-      /device code expired/,
-    );
+    const grant = {
+      deviceCode: "dc",
+      userCode: "UC",
+      verificationUri: "u",
+      interval: 1,
+      expiresIn: 0,
+    };
+    await expect(pollDeviceToken(deviceConfig, grant, deps)).rejects.toThrow(/device code expired/);
   });
 
   it("openaiDeviceLogin: 403 pending → authorization code → token exchange", async () => {
