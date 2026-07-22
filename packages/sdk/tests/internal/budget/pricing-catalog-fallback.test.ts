@@ -2,9 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { beforeEach, describe, expect, it } from "vitest";
 
-import {
-  getPricingEntry,
-} from "../../../src/internal/budget/pricing-registry.js";
+import { getPricingEntry } from "../../../src/internal/budget/pricing-registry.js";
 import {
   _resetModelInfoIndexForTests,
   getCatalogModelInfo,

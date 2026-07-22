@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
+import {
+  _resetBuiltinsRegistered,
+  registerBuiltins,
+} from "../../src/internal/providers/builtin/index.js";
 import {
   _resetModelInfoIndexForTests,
   getCatalogModelInfo,
@@ -7,10 +10,6 @@ import {
   loadProviderCatalog,
   patchModelInfo,
 } from "../../src/internal/providers/catalog-loader.js";
-import {
-  _resetBuiltinsRegistered,
-  registerBuiltins,
-} from "../../src/internal/providers/builtin/index.js";
 import {
   _resetProvidersForTests,
   getProviderProfile,

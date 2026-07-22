@@ -117,7 +117,9 @@ for (const f of DEPENDED_FIELDS) {
     (p) => p?.models && Object.values(p.models).some((m) => m && typeof m === "object" && f in m),
   );
   if (!anyHasField) {
-    throw new Error(`models.dev schema drift: depended-on field "${f}" missing from ALL model entries`);
+    throw new Error(
+      `models.dev schema drift: depended-on field "${f}" missing from ALL model entries`,
+    );
   }
 }
 
@@ -153,7 +155,9 @@ for (const entry of catalog) {
     const caps = exactByEntry[entry.id]?.[modelId];
     if (caps) block = overlayExact(block, caps); // parity truth for former EXACT keys
     if (Object.keys(block).length === 0) {
-      process.stderr.write(`WARN: no data for ${entry.id}/${modelId} (not in models.dev, not in EXACT)\n`);
+      process.stderr.write(
+        `WARN: no data for ${entry.id}/${modelId} (not in models.dev, not in EXACT)\n`,
+      );
       continue;
     }
     models[modelId] = block;
@@ -168,4 +172,6 @@ for (const entry of catalog) {
 
 writeFileSync(CATALOG, `${JSON.stringify(catalog, null, 2)}\n`);
 const size = readFileSync(CATALOG, "utf-8").length;
-console.log(`enriched ${CATALOG}: ${totalModels} models across entries; ${(size / 1024).toFixed(1)}KB`);
+console.log(
+  `enriched ${CATALOG}: ${totalModels} models across entries; ${(size / 1024).toFixed(1)}KB`,
+);
