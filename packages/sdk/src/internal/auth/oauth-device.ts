@@ -16,11 +16,7 @@
  */
 import { AuthCallbackError } from "../../server/auth/errors.js";
 
-import {
-  exchangeCode,
-  type OAuthProviderConfig,
-  type OAuthTokens,
-} from "./oauth-engine.js";
+import { exchangeCode, type OAuthProviderConfig, type OAuthTokens } from "./oauth-engine.js";
 
 // ─── OAuth 2.0 Device Authorization Grant (RFC 8628) — terminal-first / headless login ───
 
@@ -52,6 +48,7 @@ export interface DeviceDeps {
 const POLLING_SAFETY_MARGIN_MS = 3000;
 
 /** Step 1 — request a device code. POSTs `{client_id, scope}` to the device endpoint. */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RFC 8628 device-code request — cohesive network response parser ported verbatim (ADR D3).
 export async function requestDeviceCode(
   config: DeviceOAuthConfig,
   deps: Pick<DeviceDeps, "fetch">,
@@ -112,6 +109,7 @@ export async function requestDeviceCode(
  * `authorization_pending` (keep waiting) and `slow_down` (back off), with an expiry deadline so it cannot
  * spin forever.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: RFC 8628 poll state machine (authorization_pending / slow_down / success / expiry) — a cohesive loop ported verbatim (ADR D3); fragmenting it would obscure the protocol.
 export async function pollDeviceToken(
   config: DeviceOAuthConfig,
   grant: DeviceCodeGrant,
@@ -125,7 +123,10 @@ export async function pollDeviceToken(
     try {
       res = await deps.fetch(config.tokenEndpoint, {
         method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded", accept: "application/json" },
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          accept: "application/json",
+        },
         body: new URLSearchParams({
           client_id: config.clientId,
           device_code: grant.deviceCode,
@@ -157,7 +158,10 @@ export async function pollDeviceToken(
 
     if (typeof data.access_token === "string" && data.access_token.length > 0) {
       const expiresIn = typeof data.expires_in === "number" ? data.expires_in : 0;
-      const accountId = extractAccountId({ access_token: data.access_token, id_token: data.id_token });
+      const accountId = extractAccountId({
+        access_token: data.access_token,
+        id_token: data.id_token,
+      });
       return {
         access: data.access_token,
         // Some device-grant providers (e.g. GitHub) issue no separate refresh token — reuse the access
@@ -202,7 +206,9 @@ export async function pollDeviceToken(
 export async function deviceLogin(
   config: DeviceOAuthConfig,
   deps: DeviceDeps,
-  hooks: { onPrompt: (p: { userCode: string; verificationUri: string; expiresIn: number }) => void },
+  hooks: {
+    onPrompt: (p: { userCode: string; verificationUri: string; expiresIn: number }) => void;
+  },
 ): Promise<OAuthTokens> {
   const grant = await requestDeviceCode(config, deps);
   hooks.onPrompt({
@@ -271,6 +277,7 @@ export async function requestOpenAIUsercode(
  * Step 2+3 (OpenAI) — poll for the authorization code (200 = ready; 403/404 = pending; else fail), then
  * exchange it for tokens at the standard `/oauth/token` endpoint (reuses `exchangeCode`).
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: OpenAI two-step headless poll loop (200 ready / 403,404 pending / else fail) — cohesive network state machine ported verbatim (ADR D3).
 export async function openaiDeviceLogin(
   config: OpenAIDeviceConfig,
   deps: DeviceDeps,
@@ -347,7 +354,10 @@ export function parseJwtClaims(token: string): IdTokenClaims | undefined {
 }
 
 /** Best-effort account id from an id/access token's claims (OpenAI/ChatGPT shape). Adapted from OpenCode. */
-export function extractAccountId(tokens: { id_token?: string; access_token?: string }): string | undefined {
+export function extractAccountId(tokens: {
+  id_token?: string;
+  access_token?: string;
+}): string | undefined {
   for (const token of [tokens.id_token, tokens.access_token]) {
     if (token === undefined) continue;
     const claims = parseJwtClaims(token);

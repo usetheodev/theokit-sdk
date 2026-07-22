@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.11.0
+
+### Minor Changes
+
+- Auth subsystem (agent-builder M42): `@theokit/sdk` gains an `internal/auth/` credential store + OAuth engine, promoted DOWN from agent-builder's hardened M37 code, generalized to `provider: string` + a caller-supplied `CredentialStoreConfig` (no hardcoded client IDs). New public surface: `resolveCredential(name)` returns a fresh (transparently-refreshed) `ResolvedCredential`; `CredentialStoreConfig`, `ResolvedCredential`, `StoredOAuthCredential`, `OAuthProviderConfig`, `OAuthTokens`, `HttpDeps`, `CredentialError` re-exported. The credential store does an atomic O_EXCL + rename + fsync write at mode 0600 with 0700/0600 mode gates; the OAuth engine implements RFC 8628 device-grant + the OpenAI two-step headless flow + token exchange/refresh with in-flight-refresh coalescing (keyed by store path, rejected promise evicted — single-use refresh tokens are never double-spent) and a no-token-in-error discipline. The router's lazy-sentinel path now covers `oauth_device_code` / `oauth_external` so an oauth provider builds a client whose M41 `transform.fetch(ctx)` owns the fresh bearer at stream time — a mid-turn expiry refreshes without rebuilding the agent, and plain (api-key/env) profiles resolve byte-for-byte unchanged. Device-grant + JWT extraction + OpenAI two-step adapted from OpenCode (MIT); see NOTICE.
+
 ## 4.10.1
 
 ### Patch Changes

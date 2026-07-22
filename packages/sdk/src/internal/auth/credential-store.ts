@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import {
   chmodSync,
   closeSync,
@@ -10,7 +11,6 @@ import {
   unlinkSync,
   writeFileSync,
 } from "node:fs";
-import { randomBytes } from "node:crypto";
 import { join } from "node:path";
 
 import { z } from "zod";
@@ -53,7 +53,9 @@ export function credentialHome(
   env: Record<string, string | undefined> = {},
 ): string {
   const override = config.homeEnvVar !== undefined ? env[config.homeEnvVar]?.trim() : undefined;
-  return override !== undefined && override.length > 0 ? override : join(config.home, config.dirName);
+  return override !== undefined && override.length > 0
+    ? override
+    : join(config.home, config.dirName);
 }
 
 /** The credential file path inside the (possibly overridden) store directory. */
@@ -141,6 +143,69 @@ export type StoredCredential = StoredApiCredential | StoredOAuthCredential;
  * 0700 dir / 0600 file mode gates (ported verbatim — a writable dir lets an attacker swap the file for a
  * symlink to their own account).
  */
+/**
+ * The 0700-dir / 0600-file mode gates (ported verbatim). The DIRECTORY matters as much as the file:
+ * `mkdirSync(mode)` applies only at creation, so a pre-existing store dir keeps whatever mode it had, and a
+ * writable dir lets an attacker replace the credential file with a symlink to their own 0600 file — the
+ * agent then runs on THEIR account.
+ */
+function assertSecureModes(dirPath: string, path: string): void {
+  const dirMode = statSync(dirPath).mode & 0o777;
+  if ((dirMode & 0o022) !== 0) {
+    throw new CredentialError(
+      `${dirPath} is writable by other users (mode ${dirMode.toString(8)}), so the credential file ` +
+        `inside it can be replaced. Fix it with:  chmod 700 ${dirPath}`,
+    );
+  }
+  const mode = statSync(path).mode & 0o777;
+  if ((mode & 0o077) !== 0) {
+    throw new CredentialError(
+      `${path} is readable by other users (mode ${mode.toString(8)}). ` +
+        `A credential file must not be. Fix it with:  chmod 600 ${path}`,
+    );
+  }
+}
+
+/**
+ * A `z.union` reports a generic "Invalid input" at the root, hiding WHAT is wrong. Pick the sub-schema the
+ * file was CLEARLY aiming at (by its `type` discriminant) and surface that schema's specific issue.
+ */
+function describeUnionError(parsed: unknown, err: unknown, path: string): CredentialError {
+  const looksOAuth =
+    typeof parsed === "object" &&
+    parsed !== null &&
+    (parsed as { type?: unknown }).type === "oauth";
+  const specific = looksOAuth ? oauthFileSchema.safeParse(parsed) : apiFileSchema.safeParse(parsed);
+  let issue: z.ZodIssue | undefined;
+  if (!specific.success) {
+    issue = specific.error.issues[0];
+  } else if (err instanceof z.ZodError) {
+    issue = err.issues[0];
+  }
+  return new CredentialError(
+    `${path}: ${issue?.message ?? String(err)} [${issue?.path.join(".") || "root"}]`,
+  );
+}
+
+/** Parse the raw file into the store union, surfacing the SPECIFIC sub-schema issue (not a generic union error). */
+function parseStoredFile(raw: string, path: string): StoredCredential {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    // The parser's message embeds a snippet of the INPUT — up to the raw key when a user pastes the bare
+    // key instead of JSON. The position is not actionable anyway, so the expected shape is more useful.
+    throw new CredentialError(
+      `${path} is not valid JSON. Expected:  {"provider": "<name>", "api_key": "..."}`,
+    );
+  }
+  try {
+    return fileSchema.parse(parsed);
+  } catch (err) {
+    throw describeUnionError(parsed, err, path);
+  }
+}
+
 export function readAuthFile(
   config: CredentialStoreConfig,
   env: Record<string, string | undefined> = {},
@@ -155,56 +220,8 @@ export function readAuthFile(
     throw new CredentialError(`cannot read ${path}: ${(err as Error).message}`);
   }
 
-  // The DIRECTORY matters as much as the file. `mkdirSync(mode)` applies only at creation, so a
-  // pre-existing store dir keeps whatever mode it had. A writable dir lets an attacker replace the
-  // credential file with a symlink to their own 0600 file — the agent then runs on THEIR account.
-  const dirPath = credentialHome(config, env);
-  const dirMode = statSync(dirPath).mode & 0o777;
-  if ((dirMode & 0o022) !== 0) {
-    throw new CredentialError(
-      `${dirPath} is writable by other users (mode ${dirMode.toString(8)}), so the credential file ` +
-        `inside it can be replaced. Fix it with:  chmod 700 ${dirPath}`,
-    );
-  }
-
-  const mode = statSync(path).mode & 0o777;
-  if ((mode & 0o077) !== 0) {
-    throw new CredentialError(
-      `${path} is readable by other users (mode ${mode.toString(8)}). ` +
-        `A credential file must not be. Fix it with:  chmod 600 ${path}`,
-    );
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    // The parser's message embeds a snippet of the INPUT — up to the raw key when a user pastes the bare
-    // key instead of JSON. The position is not actionable anyway, so the expected shape is more useful.
-    throw new CredentialError(
-      `${path} is not valid JSON. Expected:  {"provider": "<name>", "api_key": "..."}`,
-    );
-  }
-
-  try {
-    return fileSchema.parse(parsed);
-  } catch (err) {
-    // A `z.union` reports a generic "Invalid input" at the root, hiding WHAT is wrong. Pick the sub-schema
-    // the file was CLEARLY aiming at (by its `type` discriminant) and surface that schema's specific issue.
-    const looksOAuth =
-      typeof parsed === "object" &&
-      parsed !== null &&
-      (parsed as { type?: unknown }).type === "oauth";
-    const specific = looksOAuth ? oauthFileSchema.safeParse(parsed) : apiFileSchema.safeParse(parsed);
-    const issue = !specific.success
-      ? specific.error.issues[0]
-      : err instanceof z.ZodError
-        ? err.issues[0]
-        : undefined;
-    throw new CredentialError(
-      `${path}: ${issue?.message ?? String(err)} [${issue?.path.join(".") || "root"}]`,
-    );
-  }
+  assertSecureModes(credentialHome(config, env), path);
+  return parseStoredFile(raw, path);
 }
 
 /**
@@ -234,19 +251,17 @@ function isOAuthWrite(
  * key. The api variant persists the unchanged `{provider, api_key}` (back-compat, no `type` key); the
  * oauth variant persists `{type:'oauth', provider, access, refresh, expires, account_id?}`.
  */
-export function writeCredential(
+/** Build the on-disk JSON payload for the credential variant, validating non-empty tokens. */
+function buildStorePayload(
   cred: { provider: string; apiKey: string } | StoredOAuthCredential,
-  config: CredentialStoreConfig,
-  env: Record<string, string | undefined> = {},
-): string {
-  let payload: Record<string, unknown>;
+): Record<string, unknown> {
   if (isOAuthWrite(cred)) {
     if (cred.access.length === 0 || cred.refresh.length === 0) {
       throw new CredentialError(
         "refusing to write an oauth credential with an empty access/refresh token",
       );
     }
-    payload = {
+    return {
       type: "oauth",
       provider: cred.provider,
       access: cred.access,
@@ -254,12 +269,19 @@ export function writeCredential(
       expires: cred.expires,
       ...(cred.account_id !== undefined ? { account_id: cred.account_id } : {}),
     };
-  } else {
-    if (typeof cred.apiKey !== "string" || cred.apiKey.length === 0) {
-      throw new CredentialError("refusing to write an empty API key");
-    }
-    payload = { provider: cred.provider, api_key: cred.apiKey };
   }
+  if (typeof cred.apiKey !== "string" || cred.apiKey.length === 0) {
+    throw new CredentialError("refusing to write an empty API key");
+  }
+  return { provider: cred.provider, api_key: cred.apiKey };
+}
+
+export function writeCredential(
+  cred: { provider: string; apiKey: string } | StoredOAuthCredential,
+  config: CredentialStoreConfig,
+  env: Record<string, string | undefined> = {},
+): string {
+  const payload = buildStorePayload(cred);
 
   const dir = credentialHome(config, env);
   mkdirSync(dir, { recursive: true, mode: 0o700 });
