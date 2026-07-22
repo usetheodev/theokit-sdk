@@ -1,5 +1,12 @@
 # Changelog
 
+## 4.15.3
+
+### Patch Changes
+
+- fix(persistence): implement the `node:sqlite` fallback the SQLite driver-load error message has always promised — on Node 22.5+ without the optional `better-sqlite3`, memory tools now work via the built-in driver (adapter shims `pragma()`; `loadExtension` degrades with a clear error). Previously only better-sqlite3 was tried, so every consumer without the native dep silently lost memory tools.
+- fix(memory): the "memory tools unavailable" WARN is now emitted ONCE per process per distinct message (globalThis registry) — it used to repeat on every `Agent.create` (the TUI creates one per turn), and raw stderr mid-frame corrupts Ink-style renderers (the flicker/duplicate-greeting bug).
+
 ## 4.15.2
 
 ### Patch Changes

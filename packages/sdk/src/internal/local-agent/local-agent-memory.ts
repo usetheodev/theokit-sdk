@@ -67,7 +67,17 @@ export class LocalAgentMemory {
       return this.toolsCache;
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(`[theokit-sdk] memory tools unavailable: ${message}\n`);
+      // Flicker-bug fix — `LocalAgentMemory` is rebuilt per Agent.create (the TUI creates one PER
+      // TURN), so an unconditional WARN repeated every turn; raw stderr mid-frame also corrupts
+      // Ink-style renderers. Warn ONCE per process per distinct message (globalThis — M44 B1
+      // pattern, shared across bundle copies).
+      const g = globalThis as unknown as Record<symbol, Set<string>>;
+      const sym = Symbol.for("theokit-sdk.memory.warned");
+      const warned = (g[sym] ??= new Set<string>());
+      if (!warned.has(message)) {
+        warned.add(message);
+        process.stderr.write(`[theokit-sdk] memory tools unavailable: ${message}\n`);
+      }
       return undefined;
     }
   }

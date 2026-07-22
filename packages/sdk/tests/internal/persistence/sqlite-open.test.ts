@@ -1,4 +1,5 @@
 import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -109,5 +110,51 @@ describe.skipIf(!process.env.VITEST || false)("openSqliteResilient", () => {
         },
       }),
     ).rejects.toThrow("callback failed");
+  });
+});
+
+describe("node:sqlite fallback (flicker-bug fix — the error message PROMISED this fallback)", () => {
+  it("falls_back_to_node_sqlite_when_better_sqlite3_is_unavailable", async () => {
+    const { openSqliteResilient, _setDriverLoadersForTests } = await import(
+      "../../../src/internal/persistence/sqlite-open.js"
+    );
+    const dir = mkdtempSync(join(tmpdir(), "sqlite-fallback-"));
+    // Simulate the consumer environment (agent-builder): better-sqlite3 not installed.
+    _setDriverLoadersForTests({ betterSqlite3: async () => { throw new Error("Cannot find package"); } });
+    try {
+      const db = await openSqliteResilient({ filePath: join(dir, "t.sqlite") });
+      db.exec("create table t(a)");
+      db.exec("insert into t values (1)");
+      const row = (db as unknown as { prepare(s: string): { get(): { a?: number } } })
+        .prepare("select a from t")
+        .get();
+      expect(row?.a).toBe(1);
+      // the pragma shim the WAL helper depends on:
+      const mode = db.pragma("journal_mode", { simple: true });
+      expect(typeof mode).toBe("string");
+      db.close();
+    } finally {
+      _setDriverLoadersForTests(undefined);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("clear_error_when_both_drivers_unavailable", async () => {
+    const { openSqliteResilient, _setDriverLoadersForTests } = await import(
+      "../../../src/internal/persistence/sqlite-open.js"
+    );
+    const dir = mkdtempSync(join(tmpdir(), "sqlite-none-"));
+    _setDriverLoadersForTests({
+      betterSqlite3: async () => { throw new Error("Cannot find package"); },
+      nodeSqlite: async () => { throw new Error("No such built-in module"); },
+    });
+    try {
+      await expect(openSqliteResilient({ filePath: join(dir, "t.sqlite") })).rejects.toThrow(
+        /SQLite driver/,
+      );
+    } finally {
+      _setDriverLoadersForTests(undefined);
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
