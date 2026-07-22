@@ -124,9 +124,12 @@ export async function hydrateSession(
 
   const persisted = await readSessionMessages(loc.store, agentId);
   if (persisted.length === 0) return;
-  if (!sessions.has(agentId) || sessions.get(agentId)?.length === 0) {
-    sessions.set(agentId, persisted);
-  }
+  // M51 review F4 — the DISK is the source of truth at hydration time: after an invalidation
+  // (compact/inject), an in-flight turn may have repopulated the cache with a SINGLE message before
+  // this hydrate ran; the old "skip when non-empty" guard then pinned the parent to a 1-message
+  // context (history + injected pair lost until restart). The persist chain serializes writes, so
+  // the disk already contains that in-flight turn — replacing is always correct.
+  sessions.set(agentId, persisted);
 }
 
 /**
