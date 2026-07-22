@@ -26,4 +26,8 @@ AI SDK based, theokit is hand-rolled):
   contract shape (a provider owns its per-request auth material + transparent token
   refresh) is adapted from `packages/upstream/src/plugin/provider/*.ts`.
 
+- src/internal/providers/catalog-source-models-dev.ts + scripts/refresh-catalog.mjs — the models.dev
+  catalog consumption mechanism (disk cache + TTL + atomic write + fallback chain + kill-switch) is
+  adapted from `packages/core/src/models-dev.ts`.
+
 The MIT license permits this reuse with attribution; this file is that attribution.

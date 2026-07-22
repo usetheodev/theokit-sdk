@@ -113,6 +113,9 @@ const WHITELIST = new Set<string>([
   // 0700 dir gate), and there is nothing to redact — the token IS the payload. Analogous to
   // `internal/mcp/token-storage.ts` above.
   "internal/auth/credential-store.ts",
+  // M44 — the models-dev catalog cache writes PUBLIC models.dev data (model names/costs/limits) to
+  // ~/.theokit/cache/. No secret ever flows through this module; there is nothing to redact.
+  "internal/providers/catalog-source-models-dev.ts",
   "internal/runtime/registry/agent-registry-store.ts",
   "internal/agent-loop/loop.ts",
   // `setAttribute(s)` callsites use spans returned by `telemetry.startSpan(...)`,
