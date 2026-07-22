@@ -10,5 +10,9 @@ export const OPENROUTER: ProviderProfile = {
   baseUrl: "https://openrouter.ai/api",
   modelsUrl: "https://openrouter.ai/api/v1/models",
   hostname: "openrouter.ai",
-  fallbackModels: ["openai/gpt-4o-mini", "anthropic/claude-3-haiku"],
+  // M45 — models refreshed (claude-3-haiku retired upstream).
+  fallbackModels: ["openai/gpt-4o-mini", "anthropic/claude-haiku-4-5"],
+  // M45 — OpenRouter app-attribution headers (mechanism from Upstream's openrouter plugin, MIT; VALUES are
+  // theokit's own — copying another app's referer would misattribute traffic).
+  extraHeaders: { "HTTP-Referer": "https://usetheo.dev", "X-Title": "theokit" },
 };

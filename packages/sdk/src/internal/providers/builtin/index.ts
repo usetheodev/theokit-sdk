@@ -11,6 +11,15 @@ import { registerCatalogProviders } from "../catalog-loader.js";
 import { registerProvider } from "../registry.js";
 import { ANTHROPIC } from "./anthropic.js";
 import { BEDROCK } from "./bedrock.js";
+import { CEREBRAS } from "./cerebras.js";
+import { COHERE } from "./cohere.js";
+import { DEEPINFRA } from "./deepinfra.js";
+import { GOOGLE } from "./google.js";
+import { GROQ } from "./groq.js";
+import { MISTRAL } from "./mistral.js";
+import { PERPLEXITY } from "./perplexity.js";
+import { TOGETHER } from "./together.js";
+import { XAI } from "./xai.js";
 import { GEMINI } from "./gemini.js";
 import { LLAMACPP } from "./llamacpp.js";
 import { LMSTUDIO } from "./lmstudio.js";
@@ -36,6 +45,16 @@ export function registerBuiltins(): void {
   registerProvider(LLAMACPP);
   registerProvider(BEDROCK);
   registerProvider(VERTEX);
+  // M45 — the data-provider fleet (one file each on the openai-compatible base).
+  registerProvider(GOOGLE);
+  registerProvider(MISTRAL);
+  registerProvider(GROQ);
+  registerProvider(COHERE);
+  registerProvider(DEEPINFRA);
+  registerProvider(TOGETHER);
+  registerProvider(XAI);
+  registerProvider(PERPLEXITY);
+  registerProvider(CEREBRAS);
   // Dynamic catalog — 40+ providers from JSON (T10.1, ADR D447)
   registerCatalogProviders();
 }

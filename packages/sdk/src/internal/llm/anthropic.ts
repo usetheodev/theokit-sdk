@@ -27,6 +27,12 @@ export interface AnthropicClientOptions {
   baseUrl?: string;
   version?: string;
   fetch?: typeof fetch;
+  /**
+   * M45 — extra HTTP headers merged into the request (the profile's static `extraHeaders` + a provider
+   * `transform.headers(ctx)`). Assigned AFTER the base headers (mirror of the M41 OpenAIClient wiring), so
+   * a provider that owns its auth CAN override them by design.
+   */
+  extraHeaders?: Record<string, string>;
 }
 
 interface AnthropicTextDelta {
@@ -89,14 +95,17 @@ export class AnthropicClient implements LlmClient {
     signal: AbortSignal,
   ): AsyncGenerator<LlmEvent, LlmFinish, void> {
     const body = buildAnthropicBody(request);
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+      "x-api-key": this.options.apiKey,
+      "anthropic-version": this.options.version ?? "2023-06-01",
+    };
+    // M45 — merge extra/dynamic headers (assign LAST — same override semantics as the chat_completions client).
+    if (this.options.extraHeaders !== undefined) Object.assign(headers, this.options.extraHeaders);
     const response = await this.fetchImpl(`${this.baseUrl}/v1/messages`, {
       method: "POST",
       signal,
-      headers: {
-        "content-type": "application/json",
-        "x-api-key": this.options.apiKey,
-        "anthropic-version": this.options.version ?? "2023-06-01",
-      },
+      headers,
       body: JSON.stringify(body),
     });
     if (!response.ok) {
