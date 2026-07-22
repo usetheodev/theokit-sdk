@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.17.0
+
+### Minor Changes
+
+- feat(session): `Agent.injectSessionTurn(agentId, {userText, assistantText})` — append a SYNTHETIC user+assistant pair to a local session's persisted transcript WITHOUT running an LLM turn (the Codex review-exit mechanism: the parent conversation "learns" a result for follow-ups). Chains onto the DAG leaf, invalidates the in-memory cache, serialized on the per-agent write chain (M51 agent-builder).
+
 ## 4.16.7
 
 ### Patch Changes

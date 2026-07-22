@@ -465,6 +465,48 @@ export class Agent {
   }
 
   /**
+   * M51 — inject a SYNTHETIC user+assistant pair into a LOCAL session's persisted transcript WITHOUT
+   * running an LLM turn (the Codex review-exit mechanism: the parent thread "learns" a result — e.g.
+   * review findings — so follow-ups work). Appends onto the DAG leaf and invalidates the in-memory
+   * cache; serialized on the per-agent write chain.
+   *
+   * @public
+   */
+  static async injectSessionTurn(
+    agentId: string,
+    turn: { userText: string; assistantText: string },
+  ): Promise<void> {
+    let reg = getRegisteredAgent(agentId);
+    if (reg === undefined) {
+      await hydrateRegistryFromDisk(process.cwd());
+      reg = getRegisteredAgent(agentId);
+    }
+    if (reg === undefined || reg.runtime !== "local") {
+      throw new UnknownAgentError(`No local agent "${agentId}" registered — injectSessionTurn targets local sessions.`);
+    }
+    const cwd = reg.cwd ?? process.cwd();
+    const optModel = reg.options.model;
+    const model =
+      reg.model?.id ?? (typeof optModel === "string" ? optModel : optModel?.id) ?? "unknown";
+    const { injectSessionTurn } = await import("./internal/session/inject-session.js");
+    const { FsSessionStore } = await import("./internal/persistence/fs-session-store.js");
+    const { defaultBaseDir, expandTilde } = await import(
+      "./internal/persistence/session-transcript.js"
+    );
+    const baseDir = reg.options.local?.baseDir !== undefined
+      ? expandTilde(reg.options.local.baseDir)
+      : defaultBaseDir();
+    const store = new FsSessionStore({ baseDir, cwd });
+    await injectSessionTurn({
+      store,
+      loc: { cwd, agentId, model },
+      sessionId: agentId,
+      userText: turn.userText,
+      assistantText: turn.assistantText,
+    });
+  }
+
+  /**
    * Permanently delete a cloud agent.
    *
    * @public
