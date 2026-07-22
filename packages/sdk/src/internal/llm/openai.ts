@@ -548,7 +548,24 @@ function userOrToolMessages(message: LlmMessage): Array<Record<string, unknown>>
     }
   }
   const userText = joinTextParts(message);
-  if (userText.length > 0) out.push({ role: "user", content: userText });
+  // M35 — image parts turn the user message into OpenAI/OpenRouter's content-array form
+  // (`[{type:"text"}, {type:"image_url", image_url:{url: data-URL}}]`); text-only stays a plain string.
+  const imageParts = message.content.filter((p) => p.type === "image") as Array<{
+    source: { media_type: string; data: string };
+  }>;
+  if (imageParts.length > 0) {
+    const content: Array<Record<string, unknown>> = [];
+    if (userText.length > 0) content.push({ type: "text", text: userText });
+    for (const img of imageParts) {
+      content.push({
+        type: "image_url",
+        image_url: { url: `data:${img.source.media_type};base64,${img.source.data}` },
+      });
+    }
+    out.push({ role: "user", content });
+  } else if (userText.length > 0) {
+    out.push({ role: "user", content: userText });
+  }
   return out;
 }
 

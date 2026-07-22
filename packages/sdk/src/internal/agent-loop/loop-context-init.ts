@@ -1,7 +1,28 @@
 import type { CustomTool, SDKAgent } from "../../types/agent.js";
 import type { SDKMessage } from "../../types/messages.js";
+import type { SDKUserMessage } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
-import type { LlmMessage } from "../llm/types.js";
+import type { LlmContentPart, LlmMessage } from "../llm/types.js";
+
+/**
+ * M35 (multimodal) — build the first user turn's content: the text block plus one image block per
+ * attached image. An inline `{ data, mimeType }` image becomes a base64 image part the provider adapters
+ * serialize; a `{ url }` image is skipped here (no base64 to forward) — the composer path always supplies
+ * inline data. Text-only ⇒ just the text block (unchanged shape).
+ */
+function buildUserContent(text: string, images: SDKUserMessage["images"]): LlmContentPart[] {
+  const content: LlmContentPart[] = [{ type: "text", text }];
+  for (const img of images ?? []) {
+    if ("data" in img) {
+      content.push({
+        type: "image",
+        source: { type: "base64", media_type: img.mimeType, data: img.data },
+      });
+    }
+  }
+  return content;
+}
+
 import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
@@ -145,7 +166,7 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     conversation: [],
     messages: [
       ...priorMessages,
-      { role: "user", content: [{ type: "text", text: inputs.userMessage }] },
+      { role: "user", content: buildUserContent(inputs.userMessage, inputs.userImages) },
     ],
     tools,
     finalText: "",

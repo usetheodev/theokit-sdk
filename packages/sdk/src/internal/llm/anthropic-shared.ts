@@ -73,6 +73,10 @@ export function toAnthropicWireMessage(message: LlmMessage): Record<string, unkn
     if (part.type === "tool_use") {
       return { type: "tool_use", id: part.id, name: part.name, input: part.input };
     }
+    // M35 — Anthropic native image block: base64 source, unchanged shape.
+    if (part.type === "image") {
+      return { type: "image", source: part.source };
+    }
     return {
       type: "tool_result",
       tool_use_id: part.toolUseId,
