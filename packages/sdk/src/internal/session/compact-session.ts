@@ -90,7 +90,15 @@ export async function compactSessionTranscript(opts: {
     const m = compressible[i];
     if (m === undefined || m.role !== "user" || isCompactSummary(m.content)) continue;
     const cost = estimateTokens(m.content);
-    if (budget + cost > COMPACT_USER_MESSAGE_MAX_TOKENS) break;
+    if (budget + cost > COMPACT_USER_MESSAGE_MAX_TOKENS) {
+      // M50 review F8 — Codex TRUNCATES the overflowing message and keeps the piece
+      // (compact.rs:620-629); dropping it entirely loses the most-recent context verbatim.
+      const remaining = COMPACT_USER_MESSAGE_MAX_TOKENS - budget;
+      if (remaining > 50) {
+        preserved.unshift(`${m.content.slice(0, remaining * 4)}\n[...truncated for compaction...]`);
+      }
+      break;
+    }
     budget += cost;
     preserved.unshift(m.content); // chronological order in the replacement
   }
@@ -108,6 +116,12 @@ export async function compactSessionTranscript(opts: {
   transcript.appendUserTurn(summary);
   const delta = transcript.records().slice(prior.length);
   await opts.store.appendRecords(opts.loc.agentId, delta);
+
+  // M50 review F1 — the live process must FEEL the compaction: drop the in-memory session cache so
+  // the next send re-hydrates from disk (replacement + later turns) instead of replaying the full
+  // pre-compact history until a restart.
+  const { invalidateSessionCache } = await import("./agent-session.js");
+  invalidateSessionCache(opts.loc.cwd, opts.loc.agentId);
 
   const postTokens = estimateTokens([...preserved, summary].join("\n"));
   return { preTokens, postTokens };
@@ -143,10 +157,15 @@ export function buildDefaultSummarizer(opts: {
     const modelPrefix = opts.agentModel.includes("/")
       ? opts.agentModel.slice(0, opts.agentModel.indexOf("/"))
       : undefined;
-    // No explicit key (e.g. a fresh process — the persisted registry never carries credentials):
-    // fall back to the ENV-detected provider, exactly like the run does — the model prefix alone
-    // 401s/misses when the only credential in the environment belongs to an aggregator.
-    const provider = keyProvider ?? detectPrimaryProvider();
+    // M50 review F6 — when the model prefix names a REGISTERED provider profile (the oauth
+    // `openai-chatgpt` builtin owns its credentials; the M45 fleet resolves its own env vars), route
+    // the summarizer through THAT provider — its transport/auth is exactly what the run uses. Only
+    // when the prefix is unknown do we fall back to key-inference / env detection (aggregator case).
+    const { registerBuiltins, getProviderProfile } = await import("../providers/index.js");
+    registerBuiltins();
+    const prefixProfile = modelPrefix !== undefined ? getProviderProfile(modelPrefix) : undefined;
+    const provider =
+      prefixProfile !== undefined ? modelPrefix as string : (keyProvider ?? detectPrimaryProvider());
 
     let model: string;
     if (provider !== modelPrefix) {

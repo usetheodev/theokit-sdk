@@ -447,7 +447,10 @@ export class Agent {
       ? expandTilde(reg.options.local.baseDir)
       : defaultBaseDir();
     const store = new FsSessionStore({ baseDir, cwd });
-    return compactSessionTranscript({
+    // M50 review F5 — serialize on the per-agent write chain so a manual compact never interleaves
+    // with an in-flight turn's persistence.
+    const { enqueueSessionWrite } = await import("./internal/session/agent-session.js");
+    return enqueueSessionWrite(cwd, agentId, () => compactSessionTranscript({
       store,
       loc: { cwd, agentId, model },
       sessionId: agentId,
@@ -458,7 +461,7 @@ export class Agent {
           agentModel: model,
           ...(reg.options.apiKey !== undefined ? { apiKey: reg.options.apiKey } : {}),
         }),
-    });
+    }));
   }
 
   /**
