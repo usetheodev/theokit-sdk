@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.15.0
+
+### Minor Changes
+
+- Dynamic provider-plugin trust gate (agent-builder M47): the out-of-tree loader (`~/.theokit/plugins/model-providers/<name>/index.{js,mjs}` — the documented extension path for shipping a provider as a package) now requires EXPLICIT human trust before any dynamic import. A plugin's code executes at import time (an arbitrary-code-execution surface), so nothing is evaluated unless the plugin name is listed in `~/.theokit/plugins/trusted-providers.json` (a JSON string array — the auditable primary) or the additive `THEOKIT_TRUSTED_PROVIDERS` env (comma-separated). Fail-closed: a missing or malformed trust file trusts NOTHING (malformed WARNs); an untrusted plugin is skipped with an actionable WARN naming the file to edit — its code is NEVER evaluated (proven by an import-side-effect fixture test). **BREAKING (deliberate security fix):** previously ANY package dropped into the plugins dir executed unguarded; existing plugin users must add their plugin names to the trust file (the WARN says exactly how).
+
 ## 4.14.1
 
 ### Patch Changes

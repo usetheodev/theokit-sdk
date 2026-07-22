@@ -12,7 +12,7 @@
  * @internal
  */
 
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
@@ -24,6 +24,46 @@ let discovered = false;
 
 function pluginsRoot(): string {
   return join(homedir(), ".theokit", "plugins", "model-providers");
+}
+
+/** The explicit trust allowlist the human edits (M47). Fail-closed: missing/malformed ⇒ empty. */
+function trustFilePath(): string {
+  return join(homedir(), ".theokit", "plugins", "trusted-providers.json");
+}
+
+/**
+ * M47 — the trust gate for the dynamic-import surface. A plugin's `index.{js,mjs}` executes arbitrary code
+ * at import time, so NOTHING is imported unless the human explicitly trusted the plugin name: either in
+ * `~/.theokit/plugins/trusted-providers.json` (a JSON string array — the auditable primary, mirroring the
+ * approved-hooks posture) or the additive `THEOKIT_TRUSTED_PROVIDERS` env (comma-separated convenience).
+ * Fail-closed: a missing or malformed trust file trusts NOTHING (a malformed file WARNs).
+ */
+function loadTrustedNames(): Set<string> {
+  const trusted = new Set<string>();
+  const path = trustFilePath();
+  if (existsSync(path)) {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(path, "utf-8"));
+      if (Array.isArray(parsed)) {
+        for (const name of parsed) {
+          if (typeof name === "string" && name.length > 0) trusted.add(name);
+        }
+      } else {
+        process.stderr.write(
+          `[theokit-sdk] WARN: ${path} is not a JSON array — trusting NO provider plugins (fail-closed)\n`,
+        );
+      }
+    } catch {
+      process.stderr.write(
+        `[theokit-sdk] WARN: ${path} is not valid JSON — trusting NO provider plugins (fail-closed)\n`,
+      );
+    }
+  }
+  for (const name of (process.env.THEOKIT_TRUSTED_PROVIDERS ?? "").split(",")) {
+    const trimmed = name.trim();
+    if (trimmed.length > 0) trusted.add(trimmed);
+  }
+  return trusted;
 }
 
 export async function discoverProviderPlugins(): Promise<void> {
@@ -40,7 +80,17 @@ export async function discoverProviderPlugins(): Promise<void> {
     return;
   }
 
+  const trusted = loadTrustedNames();
   for (const entry of entries) {
+    // M47 — the gate fires BEFORE any import(): untrusted code is never evaluated (import-time side effects
+    // ARE the attack; a post-import check would be theater).
+    if (!trusted.has(entry)) {
+      process.stderr.write(
+        `[theokit-sdk] WARN: provider plugin "${entry}" is present but NOT trusted — skipped. ` +
+          `To trust it, add "${entry}" to ${trustFilePath()} (JSON array) or THEOKIT_TRUSTED_PROVIDERS.\n`,
+      );
+      continue;
+    }
     await loadOne(join(root, entry), entry);
   }
 }
