@@ -8,7 +8,7 @@ import { openAiCompatibleProfile } from "./openai-compatible.js";
 export const GOOGLE = openAiCompatibleProfile({
   name: "google",
   baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
-  envVars: ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+  envVars: ["GOOGLE_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
   fallbackModels: ["gemini-2.5-pro", "gemini-2.5-flash"],
   hostname: "generativelanguage.googleapis.com",
 });

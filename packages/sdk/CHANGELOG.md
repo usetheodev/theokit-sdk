@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.14.1
+
+### Patch Changes
+
+- M45 adversarial-review fixes: (H1) a malformed `baseUrl` (scheme-less host, empty env var) no longer throws an untyped `TypeError` from the OpenAIClient CONSTRUCTOR — poisoning the whole provider chain at `resolveProviderChain` time even when only a fallback was misconfigured; the URL parse now degrades to the legacy `/v1/chat/completions` path (byte-identical to pre-M45) and fails typed at fetch time. (M2) re-running `registerBuiltins()` across bundle copies (`@theokit/sdk` + `@theokit/sdk/models`) no longer emits 19 bogus `overridden by user plugin` WARNs — the guard lives on `globalThis` like the registry itself. (M3) a trailing-slash versioned baseUrl (`…/v1/`) now joins cleanly (no `/v1//chat/completions`). (L1) the `google` builtin also honors `GOOGLE_GENERATIVE_AI_API_KEY` (the ai-sdk convention). (L4) `getCatalogCapabilities` resolves entry aliases (e.g. `google`). NOTICE extended for the M45 adaptations. **Migration note (M1):** the chat-completions URL-join now detects version segments ANYWHERE in the baseUrl path — a gateway mounting an OpenAI-compat surface under a versioned prefix (e.g. `https://gw.corp/v2/tenants/x`) that previously got `/v1/chat/completions` appended now gets `/chat/completions`; declare `chatCompletionsPath` on the profile to pin an exact path.
+
 ## 4.14.0
 
 ### Minor Changes

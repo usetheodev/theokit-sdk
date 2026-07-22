@@ -212,6 +212,11 @@ export function getCatalogCapabilities(providerId: string): ProviderCapabilities
     _capabilitiesCache = {};
     for (const entry of Object.values(catalog)) {
       _capabilitiesCache[entry.id] = entry.capabilities;
+      // M45 review L4 — alias keys too (e.g. entry `google-gemini` alias `google`), consistent with the
+      // model-info index's alias-keyed convention.
+      for (const alias of entry.aliases ?? []) {
+        if (_capabilitiesCache[alias] === undefined) _capabilitiesCache[alias] = entry.capabilities;
+      }
     }
   }
   return _capabilitiesCache[providerId];

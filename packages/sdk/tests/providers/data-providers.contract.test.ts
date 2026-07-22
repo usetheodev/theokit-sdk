@@ -30,7 +30,10 @@ function chatSse(): string {
 }
 
 /** Streams one turn via spy fetch; returns {url, headers}. */
-async function wire(providerName: string, apiKey = "sk-test-key"): Promise<{
+async function wire(
+  providerName: string,
+  apiKey = "sk-test-key",
+): Promise<{
   url: string;
   headers: Record<string, string>;
 }> {
@@ -39,12 +42,20 @@ async function wire(providerName: string, apiKey = "sk-test-key"): Promise<{
   const spy = (async (u: string | URL, init?: { headers?: Record<string, string> }) => {
     url = String(u);
     headers = { ...(init?.headers ?? {}) };
-    return new Response(chatSse(), { status: 200, headers: { "content-type": "text/event-stream" } });
+    return new Response(chatSse(), {
+      status: 200,
+      headers: { "content-type": "text/event-stream" },
+    });
   }) as unknown as typeof fetch;
   // inject the spy through the transform seam of a cloned profile (never mutates the registered one)
   const base = getProviderProfile(providerName);
   if (base === undefined) throw new Error(`profile ${providerName} not registered`);
-  const probed: ProviderProfile = { ...base, name: `${base.name}--wire-probe`, aliases: [], transform: { fetch: () => spy } };
+  const probed: ProviderProfile = {
+    ...base,
+    name: `${base.name}--wire-probe`,
+    aliases: [],
+    transform: { fetch: () => spy },
+  };
   registerProvider(probed);
   const [client] = resolveProviderChain({
     primary: probed.name,
@@ -112,16 +123,68 @@ const CONTRACTS: Array<{
   endpoint: string;
   headers?: Record<string, string>;
 }> = [
-  { name: "google", baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai", envVars: ["GOOGLE_API_KEY", "GEMINI_API_KEY"], endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions" },
-  { name: "mistral", baseUrl: "https://api.mistral.ai/v1", envVars: ["MISTRAL_API_KEY"], endpoint: "https://api.mistral.ai/v1/chat/completions" },
-  { name: "groq", baseUrl: "https://api.groq.com/openai/v1", envVars: ["GROQ_API_KEY"], endpoint: "https://api.groq.com/openai/v1/chat/completions" },
-  { name: "cohere", baseUrl: "https://api.cohere.ai/compatibility/v1", envVars: ["COHERE_API_KEY", "CO_API_KEY"], endpoint: "https://api.cohere.ai/compatibility/v1/chat/completions" },
-  { name: "deepinfra", baseUrl: "https://api.deepinfra.com/v1/openai", envVars: ["DEEPINFRA_API_KEY"], endpoint: "https://api.deepinfra.com/v1/openai/chat/completions" },
-  { name: "together", baseUrl: "https://api.together.xyz/v1", envVars: ["TOGETHER_API_KEY"], endpoint: "https://api.together.xyz/v1/chat/completions" },
-  { name: "xai", baseUrl: "https://api.x.ai/v1", envVars: ["XAI_API_KEY"], endpoint: "https://api.x.ai/v1/chat/completions" },
-  { name: "perplexity", baseUrl: "https://api.perplexity.ai", envVars: ["PERPLEXITY_API_KEY"], endpoint: "https://api.perplexity.ai/chat/completions" },
-  { name: "cerebras", baseUrl: "https://api.cerebras.ai/v1", envVars: ["CEREBRAS_API_KEY"], endpoint: "https://api.cerebras.ai/v1/chat/completions", headers: { "X-Cerebras-3rd-Party-Integration": "theokit" } },
-  { name: "openrouter", baseUrl: "https://openrouter.ai/api", envVars: ["OPENROUTER_API_KEY", "OPENAI_API_KEY"], endpoint: "https://openrouter.ai/api/v1/chat/completions", headers: { "HTTP-Referer": "https://usetheo.dev", "X-Title": "theokit" } },
+  {
+    name: "google",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+    envVars: ["GOOGLE_API_KEY", "GEMINI_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"],
+    endpoint: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  },
+  {
+    name: "mistral",
+    baseUrl: "https://api.mistral.ai/v1",
+    envVars: ["MISTRAL_API_KEY"],
+    endpoint: "https://api.mistral.ai/v1/chat/completions",
+  },
+  {
+    name: "groq",
+    baseUrl: "https://api.groq.com/openai/v1",
+    envVars: ["GROQ_API_KEY"],
+    endpoint: "https://api.groq.com/openai/v1/chat/completions",
+  },
+  {
+    name: "cohere",
+    baseUrl: "https://api.cohere.ai/compatibility/v1",
+    envVars: ["COHERE_API_KEY", "CO_API_KEY"],
+    endpoint: "https://api.cohere.ai/compatibility/v1/chat/completions",
+  },
+  {
+    name: "deepinfra",
+    baseUrl: "https://api.deepinfra.com/v1/openai",
+    envVars: ["DEEPINFRA_API_KEY"],
+    endpoint: "https://api.deepinfra.com/v1/openai/chat/completions",
+  },
+  {
+    name: "together",
+    baseUrl: "https://api.together.xyz/v1",
+    envVars: ["TOGETHER_API_KEY"],
+    endpoint: "https://api.together.xyz/v1/chat/completions",
+  },
+  {
+    name: "xai",
+    baseUrl: "https://api.x.ai/v1",
+    envVars: ["XAI_API_KEY"],
+    endpoint: "https://api.x.ai/v1/chat/completions",
+  },
+  {
+    name: "perplexity",
+    baseUrl: "https://api.perplexity.ai",
+    envVars: ["PERPLEXITY_API_KEY"],
+    endpoint: "https://api.perplexity.ai/chat/completions",
+  },
+  {
+    name: "cerebras",
+    baseUrl: "https://api.cerebras.ai/v1",
+    envVars: ["CEREBRAS_API_KEY"],
+    endpoint: "https://api.cerebras.ai/v1/chat/completions",
+    headers: { "X-Cerebras-3rd-Party-Integration": "theokit" },
+  },
+  {
+    name: "openrouter",
+    baseUrl: "https://openrouter.ai/api",
+    envVars: ["OPENROUTER_API_KEY", "OPENAI_API_KEY"],
+    endpoint: "https://openrouter.ai/api/v1/chat/completions",
+    headers: { "HTTP-Referer": "https://usetheo.dev", "X-Title": "theokit" },
+  },
 ];
 
 describe("M45 — data-provider contracts (identity + models + wire)", () => {
@@ -167,11 +230,16 @@ describe("M45 Phase 2 — anthropic transport extraHeaders (the sanctioned delta
     );
   }
 
-  async function anthropicWire(profileOverrides: Partial<ProviderProfile>): Promise<Record<string, string>> {
+  async function anthropicWire(
+    profileOverrides: Partial<ProviderProfile>,
+  ): Promise<Record<string, string>> {
     let headers: Record<string, string> = {};
     const spy = (async (_u: string | URL, init?: { headers?: Record<string, string> }) => {
       headers = { ...(init?.headers ?? {}) };
-      return new Response(anthropicSse(), { status: 200, headers: { "content-type": "text/event-stream" } });
+      return new Response(anthropicSse(), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
     }) as unknown as typeof fetch;
     const base = getProviderProfile("anthropic");
     const probed: ProviderProfile = {
@@ -214,7 +282,10 @@ describe("M45 Phase 2 — anthropic transport extraHeaders (the sanctioned delta
     let headers: Record<string, string> = {};
     const spy = (async (_u: string | URL, init?: { headers?: Record<string, string> }) => {
       headers = { ...(init?.headers ?? {}) };
-      return new Response(anthropicSse(), { status: 200, headers: { "content-type": "text/event-stream" } });
+      return new Response(anthropicSse(), {
+        status: 200,
+        headers: { "content-type": "text/event-stream" },
+      });
     }) as unknown as typeof fetch;
     registerProvider({
       name: "anthropic-transform-probe",
@@ -238,5 +309,53 @@ describe("M45 Phase 2 — anthropic transport extraHeaders (the sanctioned delta
     while (!r.done) r = await gen.next();
     expect(headers["static-h"]).toBe("s");
     expect(headers["dyn-h"]).toBe("d");
+  });
+});
+
+describe("M45 review fixes — H1/M2/M3", () => {
+  it("H1: a malformed baseUrl NEVER throws at construction — degrades to the legacy path", async () => {
+    registerProvider({
+      name: "h1-malformed",
+      apiMode: "chat_completions",
+      authType: "api_key",
+      envVars: [],
+      baseUrl: "192.168.1.5:1234", // scheme-less — new URL() would throw
+      fallbackModels: ["h1-malformed/m"],
+    });
+    // resolveProviderChain constructs the client eagerly — must not throw (chain poisoning)
+    const chain = resolveProviderChain({
+      primary: "h1-malformed",
+      apiKeys: { "h1-malformed": ["k"] },
+    });
+    expect(chain.length).toBe(1); // constructed fine; failure is typed at fetch time
+  });
+
+  it("M3: a trailing-slash versioned baseUrl joins cleanly (no /v1//chat)", async () => {
+    registerProvider({
+      name: "m3-trailing",
+      apiMode: "chat_completions",
+      authType: "api_key",
+      envVars: [],
+      baseUrl: "https://api.example.com/v1/",
+      fallbackModels: ["m3-trailing/m"],
+    });
+    const { url } = await wire("m3-trailing");
+    expect(url).toBe("https://api.example.com/v1/chat/completions");
+  });
+
+  it("M2: re-running registerBuiltins emits ZERO 'overridden' WARNs (cross-bundle guard on globalThis)", () => {
+    const errSpy: string[] = [];
+    const orig = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string) => {
+      errSpy.push(String(chunk));
+      return true;
+    }) as typeof process.stderr.write;
+    try {
+      registerBuiltins(); // second call in this process — guard must short-circuit
+      registerBuiltins();
+    } finally {
+      process.stderr.write = orig;
+    }
+    expect(errSpy.filter((l) => l.includes("overridden by user plugin"))).toEqual([]);
   });
 });
