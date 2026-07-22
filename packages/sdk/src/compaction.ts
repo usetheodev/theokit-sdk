@@ -23,10 +23,18 @@
 
 import { TheokitAgentError } from "./errors.js";
 import { selectCompressionWindow } from "./internal/runtime/compression/compression-helpers.js";
-import type { CompressibleMessage } from "./internal/runtime/compression/compression-summarizer.js";
 import { redactSecrets } from "./internal/security/redact.js";
 
-export type { CompressibleMessage };
+/**
+ * Minimal message shape for compaction/compression input. THE canonical public origin (leaf type —
+ * rollup-plugin-dts cannot re-export types from internal modules into entry bundles; M42 lesson).
+ *
+ * @public
+ */
+export interface CompressibleMessage {
+  role: "user" | "assistant" | "system";
+  content: string;
+}
 
 /**
  * Sentinel prefix marking a conversation checkpoint turn. A visible, structured,

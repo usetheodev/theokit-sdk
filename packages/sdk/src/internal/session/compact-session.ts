@@ -14,10 +14,9 @@
  * `Agent.compact` wires the ADR-D440 compression summarizer (its first real caller).
  */
 
-import { estimateTokens } from "../../compaction.js";
+import { type CompressibleMessage, estimateTokens } from "../../compaction.js";
 import type { SessionStore } from "../../types/session-store.js";
 import { reconstructMessages, SessionTranscript } from "../persistence/session-transcript.js";
-import type { CompressibleMessage } from "../runtime/compression/compression-summarizer.js";
 
 /** Textual marker prefixing every compact summary (Codex `SUMMARY_PREFIX` analog). */
 export const COMPACT_SUMMARY_MARKER = "[[theokit:compact-summary]]";

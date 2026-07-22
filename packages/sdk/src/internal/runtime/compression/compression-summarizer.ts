@@ -18,16 +18,10 @@
  * @internal
  */
 
-/**
- * Minimal message shape for compression input. Matches the
- * conversation-log shape without pulling in the full SDKMessage union.
- *
- * @internal
- */
-export interface CompressibleMessage {
-  role: "user" | "assistant" | "system";
-  content: string;
-}
+// Canonical origin moved to the public `compaction.ts` (leaf type — M42 DTS lesson); re-exported
+// here for the existing internal importers.
+import type { CompressibleMessage } from "../../../compaction.js";
+export type { CompressibleMessage };
 
 /**
  * Typed error thrown when the compression LLM call fails or returns

@@ -47,7 +47,7 @@ export interface PersistTurnInput {
     usageTotal?: number | undefined;
     contextWindow?: number | undefined;
     summarize: (
-      messages: readonly import("../runtime/compression/compression-summarizer.js").CompressibleMessage[],
+      messages: readonly import("../../compaction.js").CompressibleMessage[],
     ) => Promise<string>;
   };
 }
