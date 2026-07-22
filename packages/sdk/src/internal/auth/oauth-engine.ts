@@ -194,8 +194,16 @@ export async function ensureFreshCredential(
         );
       }
       const fresh = await refreshOAuthTokens(opts.config, stored.refresh, deps);
-      persistOAuthTokens(resolved.provider, fresh, opts.store, env);
-      return fresh;
+      // M43 D4 fix #1 — the OAuth refresh response returns JWTs, not a top-level `account_id`, so
+      // `parseTokenResponse` leaves `fresh.accountId` undefined. Prefer a freshly-derived id, else PRESERVE
+      // the stored one (account_id is stable) — otherwise the Codex `ChatGPT-Account-Id` header empties after
+      // the first refresh and the backend 401/403s.
+      const merged: OAuthTokens = {
+        ...fresh,
+        accountId: fresh.accountId ?? stored.account_id,
+      };
+      persistOAuthTokens(resolved.provider, merged, opts.store, env);
+      return merged;
     })();
     inFlightRefresh.set(path, refresh);
     refresh.finally(() => inFlightRefresh.delete(path)).catch(() => {});
