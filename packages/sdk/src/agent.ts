@@ -16,6 +16,7 @@ import {
 } from "./errors.js";
 import { enabledPluginNames } from "./internal/plugins/enabled-names.js";
 import { discoverProviderPlugins } from "./internal/providers/discovery.js";
+import { enqueueSessionWrite } from "./internal/session/agent-session.js";
 import { setAgentFacade } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
@@ -449,7 +450,6 @@ export class Agent {
     const store = new FsSessionStore({ baseDir, cwd });
     // M50 review F5 — serialize on the per-agent write chain so a manual compact never interleaves
     // with an in-flight turn's persistence.
-    const { enqueueSessionWrite } = await import("./internal/session/agent-session.js");
     return enqueueSessionWrite(cwd, agentId, () => compactSessionTranscript({
       store,
       loc: { cwd, agentId, model },

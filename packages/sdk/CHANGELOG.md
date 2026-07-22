@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.5
+
+### Patch Changes
+
+- fix(bundle): the M50 compaction wiring used dynamic imports of modules ALSO imported statically elsewhere — esbuild wrapped them in lazy `__esm` init blocks and static importers saw an undefined module state in the PUBLISHED dist only (`hydratedKeys.has` TypeError on every Agent.create; src/tests were unaffected — the adversarial-dist class again). All compaction imports are now static; the only dynamic edge left is agent-session→compact-session (the cycle breaker). Dist-level smoke added to the release ritual.
+
 ## 4.16.4
 
 ### Patch Changes
