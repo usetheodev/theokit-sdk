@@ -108,6 +108,24 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   const { getCatalogModelInfo } = await import("../../providers/catalog-loader.js");
   const { buildDefaultSummarizer } = await import("../../session/compact-session.js");
   const contextWindow = getCatalogModelInfo(model)?.limit?.context;
+  // M50 review F2 — a model absent from the catalog silently disables the auto-trigger; the plan
+  // promised a once-per-process WARN so the silence is at least visible.
+  if (contextWindow === undefined) {
+    const g = globalThis as unknown as Record<symbol, Set<string>>;
+    const sym = Symbol.for("theokit-sdk.compact.no-cw-warned");
+    const warned = (g[sym] ??= new Set<string>());
+    if (!warned.has(model)) {
+      warned.add(model);
+      process.stderr.write(
+        `[theokit-sdk] auto-compaction disabled: model "${model}" has no context-window entry in the catalog\n`,
+      );
+    }
+  }
+  // M50 review F3 — Codex uses the LAST response's usage as the active-context proxy; the aggregate
+  // sums every round (each re-sends the whole context) and fires the trigger prematurely on
+  // multi-round agentic turns. Prefer the last request's breakdown when available.
+  const lastRequestUsage = result.usage?.requests?.at(-1)?.totalTokens;
+  const usageForTrigger = lastRequestUsage ?? result.usage?.totalTokens;
   persistTurnToTranscript(
     sessionStore,
     { cwd: workspaceCwd, agentId, model },
@@ -116,7 +134,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       userText,
       conversation,
       autoCompact: {
-        usageTotal: result.usage?.totalTokens,
+        usageTotal: usageForTrigger,
         contextWindow,
         summarize: buildDefaultSummarizer({
           agentModel: model,

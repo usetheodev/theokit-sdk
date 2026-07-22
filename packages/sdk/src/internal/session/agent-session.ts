@@ -147,9 +147,46 @@ export function clearSession(agentId: string): void {
   sessions.delete(agentId);
 }
 
+/**
+ * M50 review F1 — drop BOTH the message cache and the hydration marker so the NEXT send re-hydrates
+ * from disk. Without this, a compaction only helps after a process restart: the live process keeps
+ * sending the full pre-compact history (the cache is read synchronously by every send).
+ */
+export function invalidateSessionCache(cwd: string, agentId: string): void {
+  sessions.delete(agentId);
+  hydratedKeys.delete(transcriptKey(cwd, agentId));
+}
+
+/**
+ * M50 review F5 — run `fn` serialized on the SAME per-(cwd,agentId) write chain the per-turn
+ * persistence uses, so a manual `Agent.compact` can never interleave with an in-flight turn's
+ * writes (boundary landing mid-turn would orphan the turn from the replay).
+ */
+export function enqueueSessionWrite<T>(
+  cwd: string,
+  agentId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const key = transcriptKey(cwd, agentId);
+  const prior = pendingWrites.get(key) ?? Promise.resolve();
+  const result = prior.then(fn);
+  pendingWrites.set(
+    key,
+    result.then(
+      () => undefined,
+      () => undefined,
+    ),
+  );
+  return result;
+}
+
 /** Test-only: drop every cached session and hydration marker. @internal */
 export function clearAllSessions(): void {
   sessions.clear();
   hydratedKeys.clear();
   recordCounts.clear();
+  // M50 review F11 — the auto-compact attempt marks live on globalThis; tests reset them here.
+  const g = globalThis as unknown as Record<symbol, Map<string, number>>;
+  const sym = Symbol.for("theokit-sdk.session.auto-compact-attempts");
+  g[sym]?.clear();
 }

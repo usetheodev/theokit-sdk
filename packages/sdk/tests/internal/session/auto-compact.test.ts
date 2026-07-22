@@ -2,9 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import {
   autoCompactIfNeeded,
+  compactSessionTranscript,
   shouldAutoCompact,
 } from "../../../src/internal/session/compact-session.js";
-import { SessionTranscript } from "../../../src/internal/persistence/session-transcript.js";
+import { reconstructMessages, SessionTranscript } from "../../../src/internal/persistence/session-transcript.js";
 import type { SessionRecord } from "../../../src/types/session-record.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
 
@@ -114,5 +115,49 @@ describe("autoCompactIfNeeded (guard anti-cascata)", () => {
     expect(await autoCompactIfNeeded(opts)).toBe(false); // mesmo turno → nem tenta de novo
     expect(calls).toBe(1);
     expect(JSON.stringify(store.records)).toBe(before);
+  });
+});
+
+describe("M50 review F5 — corrida compact × persist (serializada na chain)", () => {
+  it("manual_compact_never_interleaves_with_a_turn_write", async () => {
+    const { enqueueSessionWrite, clearAllSessions } = await import(
+      "../../../src/internal/session/agent-session.js"
+    );
+    clearAllSessions();
+    const store = storeWith(seed());
+    const order: string[] = [];
+    // compact LENTO enfileirado primeiro…
+    const slow = enqueueSessionWrite(LOC.cwd, LOC.agentId, async () => {
+      await new Promise((r) => setTimeout(r, 60));
+      order.push("compact");
+      await compactSessionTranscript({
+        store,
+        loc: LOC,
+        sessionId: LOC.agentId,
+        trigger: "manual",
+        summarize: async () => "resumo lento",
+      });
+    });
+    // …turno concorrente enfileirado logo depois — DEVE esperar o compact
+    const turn = enqueueSessionWrite(LOC.cwd, LOC.agentId, async () => {
+      order.push("turn");
+      const t = SessionTranscript.fromRecords(store.records, {
+        cwd: LOC.cwd,
+        sessionId: LOC.agentId,
+        model: LOC.model,
+      });
+      t.appendUserTurn("turno concorrente");
+      await store.appendRecords(LOC.agentId, t.records().slice(store.records.length));
+    });
+    await Promise.all([slow, turn]);
+    expect(order).toEqual(["compact", "turn"]); // serializado — nunca intercala
+    // e o turno parenteia PÓS-replacement (não vira órfão)
+    const msgs = reconstructMessages(store.records);
+    const joined = msgs
+      .map((m) => (Array.isArray(m.content) ? m.content.map((p) => ("text" in p ? (p as {text:string}).text : "")).join("") : ""))
+      .join("\n");
+    expect(joined).toContain("turno concorrente");
+    expect(joined).toContain("[[theokit:compact-summary]]");
+    clearAllSessions();
   });
 });

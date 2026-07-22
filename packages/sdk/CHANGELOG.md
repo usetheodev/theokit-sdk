@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.16.4
+
+### Patch Changes
+
+- fix(session): M50 adversarial-review fixes — (F1 BLOCKER) compaction now INVALIDATES the in-memory session cache, so the live process feels the compact on the very next send (it used to keep sending the full pre-compact history until restart); (F3) the auto-trigger uses the LAST request's usage as the active-context proxy (the across-rounds aggregate fired prematurely on agentic turns); (F5) `Agent.compact` serializes on the per-agent write chain (a manual compact can no longer interleave with an in-flight turn — race test added); (F6) the summarizer routes through the model-prefix provider PROFILE when registered (oauth `openai-chatgpt` builtin owns its auth; M45 fleet resolves its own env) before falling back to key/env inference; (F2) once-per-process WARN when the model has no catalog context window + gpt-5.x family added to the catalog (400k) with the `openai-chatgpt` alias so the product default can actually trigger; (F8) the user message that overflows the 20k preservation budget is TRUNCATED and kept (Codex parity) instead of dropped.
+
 ## 4.16.3
 
 ### Patch Changes
