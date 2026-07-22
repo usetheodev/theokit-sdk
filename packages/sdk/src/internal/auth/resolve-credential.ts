@@ -17,11 +17,7 @@ import {
   type ResolvedCredential,
   readAuthFile,
 } from "./credential-store.js";
-import {
-  ensureFreshCredential,
-  type HttpDeps,
-  type OAuthProviderConfig,
-} from "./oauth-engine.js";
+import { ensureFreshCredential, type HttpDeps, type OAuthProviderConfig } from "./oauth-engine.js";
 
 export interface ResolveCredentialOptions {
   /** The provider whose stored credential to resolve. */
@@ -40,6 +36,30 @@ export interface ResolveCredentialOptions {
  * Resolve a fresh credential for `provider` from the store, or `undefined` if the store holds none for it.
  * oauth credentials are auto-refreshed when `opts.oauth` is supplied; api credentials pass through.
  */
+/** Resolve (and, when a config is supplied, refresh) the oauth variant for the requested provider. */
+async function resolveOAuth(
+  stored: { provider: string; access: string; expires: number },
+  path: string,
+  opts: ResolveCredentialOptions,
+  env: Record<string, string | undefined>,
+): Promise<ResolvedCredential | undefined> {
+  if (stored.provider !== opts.provider) return undefined;
+  const base: ResolvedCredential = {
+    kind: "oauth",
+    provider: opts.provider,
+    apiKey: stored.access,
+    source: path,
+    inferred: false,
+    expiresAt: stored.expires,
+  };
+  if (opts.oauth === undefined) return base; // no config to refresh with — return the stored access token
+  const deps: HttpDeps = {
+    fetch: opts.deps?.fetch ?? fetch,
+    now: opts.deps?.now ?? (() => Date.now()),
+  };
+  return ensureFreshCredential(base, { config: opts.oauth, store: opts.store, env }, deps);
+}
+
 export async function resolveCredential(
   opts: ResolveCredentialOptions,
 ): Promise<ResolvedCredential | undefined> {
@@ -50,21 +70,7 @@ export async function resolveCredential(
   const path = authFilePath(opts.store, env);
 
   if (stored.type === "oauth") {
-    if (stored.provider !== opts.provider) return undefined;
-    const base: ResolvedCredential = {
-      kind: "oauth",
-      provider: opts.provider,
-      apiKey: stored.access,
-      source: path,
-      inferred: false,
-      expiresAt: stored.expires,
-    };
-    if (opts.oauth === undefined) return base; // no config to refresh with — return the stored access token
-    const deps: HttpDeps = {
-      fetch: opts.deps?.fetch ?? fetch,
-      now: opts.deps?.now ?? (() => Date.now()),
-    };
-    return ensureFreshCredential(base, { config: opts.oauth, store: opts.store, env }, deps);
+    return resolveOAuth(stored, path, opts, env);
   }
 
   // api variant: honor an explicit provider filter; a provider-less legacy file resolves as inferred.

@@ -63,10 +63,16 @@ function parseTokenResponse(body: unknown, now: number): OAuthTokens {
     account_id?: unknown;
   };
   if (typeof b.access_token !== "string" || b.access_token.length === 0) {
-    throw new AuthCallbackError("oauth_token_exchange_failed", "token response had no access_token");
+    throw new AuthCallbackError(
+      "oauth_token_exchange_failed",
+      "token response had no access_token",
+    );
   }
   if (typeof b.refresh_token !== "string" || b.refresh_token.length === 0) {
-    throw new AuthCallbackError("oauth_token_exchange_failed", "token response had no refresh_token");
+    throw new AuthCallbackError(
+      "oauth_token_exchange_failed",
+      "token response had no refresh_token",
+    );
   }
   const expiresIn = typeof b.expires_in === "number" ? b.expires_in : 3600;
   return {
@@ -99,7 +105,10 @@ async function postGrant(
   if (!res.ok) {
     // The body may carry an OAuth `error` code, but never echo it verbatim — it can contain a token in
     // some providers' error payloads. Report the status only.
-    throw new AuthCallbackError("oauth_token_exchange_failed", `token endpoint returned HTTP ${res.status}`);
+    throw new AuthCallbackError(
+      "oauth_token_exchange_failed",
+      `token endpoint returned HTTP ${res.status}`,
+    );
   }
   let json: unknown;
   try {
@@ -181,7 +190,11 @@ const inFlightRefresh = new Map<string, Promise<OAuthTokens>>();
  */
 export async function ensureFreshCredential(
   resolved: ResolvedCredential,
-  opts: { config: OAuthProviderConfig; store: CredentialStoreConfig; env?: Record<string, string | undefined> },
+  opts: {
+    config: OAuthProviderConfig;
+    store: CredentialStoreConfig;
+    env?: Record<string, string | undefined>;
+  },
   deps: HttpDeps,
 ): Promise<ResolvedCredential> {
   if (resolved.kind !== "oauth") return resolved;

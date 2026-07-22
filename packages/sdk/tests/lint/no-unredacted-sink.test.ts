@@ -108,6 +108,11 @@ const WHITELIST = new Set<string>([
   "internal/persistence/schema-version.ts",
   "internal/memory/storage/transcript-store.ts",
   "internal/mcp/token-storage.ts",
+  // M42 — the credential store's whole purpose is to PERSIST the credential (api key / oauth token
+  // pair) to disk. The write is deliberately secured (atomic O_EXCL + rename + fsync at mode 0600,
+  // 0700 dir gate), and there is nothing to redact — the token IS the payload. Analogous to
+  // `internal/mcp/token-storage.ts` above.
+  "internal/auth/credential-store.ts",
   "internal/runtime/registry/agent-registry-store.ts",
   "internal/agent-loop/loop.ts",
   // `setAttribute(s)` callsites use spans returned by `telemetry.startSpan(...)`,
