@@ -48,6 +48,12 @@ export interface OpenAIClientOptions {
    * Default `false` — a code assistant can legitimately print a literal `<function=` in code text.
    */
   extractToolCallsFromContent?: boolean;
+  /**
+   * M41 — extra HTTP headers merged into the request (the profile's static `extraHeaders` + a provider
+   * `transform.headers(ctx)`). Spread AFTER the base `authorization`/`content-type`, so a provider that owns
+   * its auth CAN override them by design (document this on `ProviderTransform.headers`).
+   */
+  extraHeaders?: Record<string, string>;
 }
 
 interface OpenAIDeltaChunk {
@@ -127,6 +133,8 @@ export class OpenAIClient implements LlmClient {
     if (this.options.organization !== undefined) {
       headers["openai-organization"] = this.options.organization;
     }
+    // M41 — merge extra/dynamic headers (spread last: a provider that owns its auth may override base headers).
+    if (this.options.extraHeaders !== undefined) Object.assign(headers, this.options.extraHeaders);
     const providerId = this.options.providerName ?? this.name;
     let response: Response;
     try {

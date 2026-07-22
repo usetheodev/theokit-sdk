@@ -119,7 +119,11 @@ export {
   type PreUserSendContext,
   type PreUserSendResult,
 } from "./internal/plugins/types.js";
-export type { ProviderProfile } from "./internal/providers/types.js";
+export type {
+  ProviderProfile,
+  ProviderTransform,
+  ProviderTransformContext,
+} from "./internal/providers/types.js";
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
