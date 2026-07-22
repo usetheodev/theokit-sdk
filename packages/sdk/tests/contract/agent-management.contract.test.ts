@@ -33,6 +33,21 @@ describe("Agent management contract", () => {
     expect(normalizeForGolden(fetched)).toEqual(localAgentInfoGolden);
   });
 
+  it("renames a local agent — the registry name field is the public rename target", async () => {
+    workspace = await createTempWorkspace("simple-node-project");
+    const agent = await Agent.create({
+      apiKey: "theo_test_contract_key",
+      name: "Before Rename",
+      model: { id: "google/gemini-2.0-flash-001" },
+      local: { cwd: workspace.cwd },
+    });
+
+    await Agent.rename(agent.agentId, "After Rename", { cwd: workspace.cwd });
+
+    const fetched = await Agent.get(agent.agentId, { cwd: workspace.cwd });
+    expect(fetched.name).toBe("After Rename");
+  });
+
   it("lists, filters, archives, unarchives, and deletes cloud agents", async () => {
     const agent = await Agent.create({
       apiKey: "theo_test_contract_key",
