@@ -267,6 +267,14 @@ function resolveApiKey(envVars: ReadonlyArray<string>): string | undefined {
  */
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: 4-mode transport ladder (chat_completions / anthropic_messages / responses_api / bedrock) + Ollama native dispatch (D191) + per-provider envOverride is one cohesive switch — splitting hurts readability and obscures the dispatch contract.
 function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
+  // M41 — the optional provider `transform` seam: a provider may supply a refresh-aware `fetch` and/or
+  // dynamic `headers` computed from the resolved bearer. Absent ⇒ every branch below takes its byte-for-byte
+  // static path. `fetch` is honored by every transport that accepts one; `headers` merges over `extraHeaders`
+  // on transports that carry them (responses_api).
+  const transformCtx = { apiKey };
+  const transformFetch = profile.transform?.fetch?.(transformCtx);
+  const transformHeaders = profile.transform?.headers?.(transformCtx);
+
   if (profile.apiMode === "chat_completions") {
     // ADR D191 (T8.1 dogfood fix): Ollama tool calling REQUIRES the native
     // `/api/chat` endpoint. OpenAI-compat `/v1/chat/completions` causes
@@ -294,6 +302,8 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // remote-box pointing without disturbing the others.
     const envOverride = resolveBaseUrlEnvOverride(profile.name);
     if (envOverride !== undefined) opts.baseUrl = envOverride;
+    // M41 — a provider-supplied fetch fully controls transport (headers/refresh) for chat_completions.
+    if (transformFetch !== undefined) opts.fetch = transformFetch;
     return new OpenAIClient(opts);
   }
   if (profile.apiMode === "anthropic_messages") {
@@ -317,13 +327,19 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     return new BedrockAnthropicClient(realKey !== undefined ? { apiKey: realKey } : {});
   }
   if (profile.apiMode === "responses_api") {
-    // M40 (agent-builder) — the OpenAI Responses-API transport (ChatGPT Codex backend + any responses
-    // provider). Consumes `baseUrl` + `extraHeaders` from the profile (their first consumer). Was an
-    // unimplemented apiMode that threw below; now a first-class transport.
+    // M40 — the OpenAI Responses-API transport (ChatGPT Codex backend + any responses provider). Consumes
+    // `baseUrl` + `extraHeaders`. M41 — feeds the provider `transform`: `headers` merge over `extraHeaders`
+    // (dynamic auth headers like a live `ChatGPT-Account-Id`), and `fetch` becomes the refresh-aware fetch
+    // (closes the gap where `ResponsesApiClient` accepted a `fetch?` the router never passed).
+    const mergedHeaders =
+      profile.extraHeaders !== undefined || transformHeaders !== undefined
+        ? { ...profile.extraHeaders, ...transformHeaders }
+        : undefined;
     return new ResponsesApiClient({
       apiKey,
       ...(profile.baseUrl !== undefined ? { baseUrl: profile.baseUrl } : {}),
-      ...(profile.extraHeaders !== undefined ? { extraHeaders: profile.extraHeaders } : {}),
+      ...(mergedHeaders !== undefined ? { extraHeaders: mergedHeaders } : {}),
+      ...(transformFetch !== undefined ? { fetch: transformFetch } : {}),
       providerName: profile.name,
     });
   }
