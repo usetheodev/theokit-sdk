@@ -74,14 +74,18 @@ export async function resolveCredential(
     return resolveOAuth(stored, path, opts, env);
   }
 
-  // api variant: honor an explicit provider filter; a provider-less legacy file resolves as inferred.
+  // api variant: require the stored `provider` to MATCH the requested provider (M42 review MEDIUM-2).
+  // The generic SDK cannot infer a provider from a key prefix (that was agent-builder app policy), so a
+  // provider-less or mismatched stored key is NOT attributed to the requested provider — otherwise a legacy
+  // `{api_key:"sk-ant-…"}` file could be POSTed to the wrong vendor's endpoint (cross-vendor key exposure).
+  // Fail-closed, mirroring Upstream, whose credential resolution never attributes a key across providers.
   if (stored.api_key.length === 0) return undefined;
-  if (stored.provider !== undefined && stored.provider !== opts.provider) return undefined;
+  if (stored.provider !== opts.provider) return undefined;
   return {
     kind: "api",
     provider: opts.provider,
     apiKey: stored.api_key,
     source: path,
-    inferred: stored.provider === undefined,
+    inferred: false,
   };
 }

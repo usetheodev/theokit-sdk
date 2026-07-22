@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -43,6 +43,24 @@ describe("resolveCredential", () => {
   it("returns undefined when the store is absent", async () => {
     const store = newStore();
     expect(await resolveCredential({ provider: "openai", store })).toBeUndefined();
+  });
+
+  it("does NOT attribute a provider-less legacy api file to the requested provider (MEDIUM-2, fail-closed)", async () => {
+    // A legacy {api_key:"…"} file with no `provider` must NOT be POSTed to whatever provider the caller asks
+    // for — cross-vendor key exposure. The generic SDK cannot infer provider from prefix; it fails closed.
+    const config = newStore();
+    const dir = join(config.home, config.dirName);
+    mkdirSync(dir, { recursive: true, mode: 0o700 });
+    const p = join(dir, config.fileName);
+    writeFileSync(p, '{"api_key":"sk-ant-legacy"}');
+    chmodSync(p, 0o600);
+    expect(await resolveCredential({ provider: "openai", store: config })).toBeUndefined();
+  });
+
+  it("does NOT attribute a mismatched-provider api file to the requested provider (MEDIUM-2)", async () => {
+    const config = newStore();
+    writeCredential({ provider: "anthropic", apiKey: "sk-ant-x" }, config);
+    expect(await resolveCredential({ provider: "openai", store: config })).toBeUndefined();
   });
 
   it("resolves an api credential without any network call", async () => {
