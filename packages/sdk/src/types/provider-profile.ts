@@ -75,6 +75,13 @@ export interface ProviderProfile {
   hostname?: string;
   fallbackModels: ReadonlyArray<string>;
   extraHeaders?: Record<string, string>;
+  /**
+   * M45 — explicit chat-completions path override (data-only). Absent, the transport derives it: a baseUrl
+   * whose path already carries a version segment (`/v1`, `/v2beta`, …) gets `/chat/completions` appended;
+   * a host-only baseUrl keeps the legacy `/v1/chat/completions`. Set this for shapes neither rule expresses
+   * (e.g. Perplexity's unversioned `/chat/completions`).
+   */
+  chatCompletionsPath?: string;
   bodyOverrides?: Record<string, unknown>;
   /**
    * M41 — the optional per-request behavior seam (dynamic headers + refresh-aware fetch). Absent ⇒ the profile

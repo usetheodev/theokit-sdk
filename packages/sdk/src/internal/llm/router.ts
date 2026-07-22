@@ -276,7 +276,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
   // M41 — the optional provider `transform` seam (refresh-aware `fetch` + dynamic `headers` from the resolved
   // bearer). Invoked LAZILY, per-branch, ONLY by the transports that consume it (chat_completions +
   // responses_api) — so a transform's side effects (e.g. a token refresh) never fire for a transport that
-  // ignores it (anthropic / bedrock / ollama). Absent ⇒ each branch takes its byte-for-byte static path.
+  // ignores it (bedrock / ollama). Absent ⇒ each branch takes its byte-for-byte static path.
   const applyTransform = (): { fetch?: typeof fetch; headers?: Record<string, string> } => {
     if (profile.transform === undefined) return {};
     const ctx = { apiKey };
@@ -322,6 +322,10 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     if (profile.extractToolCallsFromContent === true) {
       opts.extractToolCallsFromContent = true;
     }
+    // M45 — explicit chat-completions path override (data-only escape for unversioned shapes).
+    if (profile.chatCompletionsPath !== undefined) {
+      opts.chatCompletionsPath = profile.chatCompletionsPath;
+    }
     if (profile.name === "openai" && process.env.OPENAI_ORGANIZATION !== undefined) {
       opts.organization = process.env.OPENAI_ORGANIZATION;
     }
@@ -356,6 +360,16 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     }
     const opts: ConstructorParameters<typeof AnthropicClient>[0] = { apiKey };
     opts.baseUrl = process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
+    // M45 — feed the provider transform + static extraHeaders (mirror of the M41 chat_completions wiring),
+    // so anthropic_messages providers can carry headers (anthropic-beta) and refresh-aware fetches (M46).
+    const t = applyTransform();
+    assertOAuthResolved(t);
+    if (t.fetch !== undefined) opts.fetch = t.fetch;
+    const merged =
+      profile.extraHeaders !== undefined || t.headers !== undefined
+        ? { ...profile.extraHeaders, ...t.headers }
+        : undefined;
+    if (merged !== undefined) opts.extraHeaders = merged;
     return new AnthropicClient(opts);
   }
   if (profile.apiMode === "bedrock_anthropic") {

@@ -54,6 +54,8 @@ export interface OpenAIClientOptions {
    * its auth CAN override them by design (document this on `ProviderTransform.headers`).
    */
   extraHeaders?: Record<string, string>;
+  /** M45 — explicit chat-completions path (from `ProviderProfile.chatCompletionsPath`). */
+  chatCompletionsPath?: string;
 }
 
 interface OpenAIDeltaChunk {
@@ -105,10 +107,19 @@ interface OpenAIDeltaChunk {
 export class OpenAIClient implements LlmClient {
   readonly name = "openai";
   private readonly baseUrl: string;
+  private readonly chatPath: string;
   private readonly fetchImpl: typeof fetch;
 
   constructor(private readonly options: OpenAIClientOptions) {
     this.baseUrl = options.baseUrl ?? "https://api.openai.com";
+    // M45 — URL-join rule (kills the /v1/v1 doubling): explicit override > version-segment detection >
+    // legacy `/v1/chat/completions`. A baseUrl already carrying a version path segment (…/openai/v1,
+    // …/v1beta/openai) gets only `/chat/completions`; host-only baseUrls are byte-identical to before.
+    this.chatPath =
+      options.chatCompletionsPath ??
+      (/\/v\d+[a-z]*(\/|$)/.test(new URL(this.baseUrl).pathname)
+        ? "/chat/completions"
+        : "/v1/chat/completions");
     this.fetchImpl = options.fetch ?? fetch;
   }
 
@@ -138,7 +149,7 @@ export class OpenAIClient implements LlmClient {
     const providerId = this.options.providerName ?? this.name;
     let response: Response;
     try {
-      response = await this.fetchImpl(`${this.baseUrl}/v1/chat/completions`, {
+      response = await this.fetchImpl(`${this.baseUrl}${this.chatPath}`, {
         method: "POST",
         signal,
         headers,
