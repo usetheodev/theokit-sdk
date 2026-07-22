@@ -288,11 +288,18 @@ export async function openaiDeviceLogin(
           "device poll returned no authorization_code",
         );
       }
-      return exchangeCode(
+      const tokens = await exchangeCode(
         config,
         { code: data.authorization_code, verifier: data.code_verifier },
         deps,
       );
+      // M43 D4 fix #2 — the two-step exchange returns a JWT access token but `parseTokenResponse` only reads a
+      // top-level `account_id`. JWT-extract the `chatgpt_account_id` (as the generic device poll already does)
+      // so the login persists a non-empty account_id for the Codex `ChatGPT-Account-Id` header.
+      return {
+        ...tokens,
+        accountId: tokens.accountId ?? extractAccountId({ access_token: tokens.access }),
+      };
     }
     // 403/404 = still pending (user has not approved yet); anything else is a hard failure.
     if (res.status !== 403 && res.status !== 404) {
