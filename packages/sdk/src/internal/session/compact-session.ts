@@ -143,10 +143,13 @@ export function buildDefaultSummarizer(opts: {
     const modelPrefix = opts.agentModel.includes("/")
       ? opts.agentModel.slice(0, opts.agentModel.indexOf("/"))
       : undefined;
-    const provider = keyProvider ?? modelPrefix ?? detectPrimaryProvider();
+    // No explicit key (e.g. a fresh process — the persisted registry never carries credentials):
+    // fall back to the ENV-detected provider, exactly like the run does — the model prefix alone
+    // 401s/misses when the only credential in the environment belongs to an aggregator.
+    const provider = keyProvider ?? detectPrimaryProvider();
 
     let model: string;
-    if (keyProvider !== undefined && keyProvider !== modelPrefix) {
+    if (provider !== modelPrefix) {
       // Aggregator route (e.g. OpenRouter): pass the agent's full slug through unstripped.
       model = opts.agentModel;
     } else {
