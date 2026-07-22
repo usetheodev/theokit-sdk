@@ -345,3 +345,8 @@ function inferVendorPrefix(bare: string): string {
   if (bare.startsWith("gemini")) return `google/${bare}`;
   return bare;
 }
+
+/** M44 migration-only: dump the EXACT map for the snapshot fixture. Deleted with the map in T1.1. @internal */
+export function _exactSnapshotForMigration(): Record<string, ModelCapabilities> {
+  return Object.fromEntries(EXACT);
+}
