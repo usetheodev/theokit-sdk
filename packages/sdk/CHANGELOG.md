@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.17.1
+
+### Patch Changes
+
+- fix(session): hydration REPLACES the cache from disk (source of truth) instead of skipping when non-empty — after an invalidation (compact/inject), an in-flight turn repopulating the cache with one message used to pin the parent to a 1-message context until restart (M51 review F4; race test added).
+
 ## 4.17.0
 
 ### Minor Changes

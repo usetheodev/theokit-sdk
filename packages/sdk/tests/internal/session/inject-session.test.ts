@@ -99,3 +99,30 @@ describe("injectSessionTurn (M51)", () => {
     clearAllSessions();
   });
 });
+
+describe("M51 review F4 — corrida inject × turno em voo", () => {
+  it("hydrate_after_invalidation_replaces_from_disk_even_if_cache_repopulated", async () => {
+    const { appendSessionMessage, getSessionMessages, hydrateSession, clearAllSessions } =
+      await import("../../../src/internal/session/agent-session.js");
+    clearAllSessions();
+    const store = storeWith(seed());
+    // sessão viva hidratada
+    await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
+    // review termina → inject (invalida)
+    await injectSessionTurn({
+      store,
+      loc: LOC,
+      sessionId: LOC.agentId,
+      userText: "par-sintético",
+      assistantText: "findings",
+    });
+    // turno EM VOO completa depois do inject → repovoa o cache com 1 mensagem
+    appendSessionMessage(LOC.agentId, { role: "assistant", text: "resposta do turno em voo" });
+    // próximo send → hydrate DEVE substituir do disco (que tem TUDO), não pinar em 1 mensagem
+    await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
+    const joined = getSessionMessages(LOC.agentId).map((m) => m.text).join("\n");
+    expect(joined).toContain("olá"); // história original
+    expect(joined).toContain("par-sintético"); // par injetado
+    clearAllSessions();
+  });
+});
