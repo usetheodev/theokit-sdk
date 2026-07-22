@@ -4,24 +4,24 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import type {
+  CredentialStoreConfig,
+  DeviceDeps,
+  DeviceOAuthConfig,
+  HttpDeps,
+  OAuthProviderConfig,
+  OpenAIDeviceConfig,
+  ResolvedCredential,
+} from "../../../src/internal/auth/auth-types.js";
+import { writeCredential } from "../../../src/internal/auth/credential-store.js";
 import {
-  type CredentialStoreConfig,
-  type ResolvedCredential,
-  writeCredential,
-} from "../../../src/internal/auth/credential-store.js";
-import {
-  type DeviceDeps,
-  type DeviceOAuthConfig,
   extractAccountId,
-  type OpenAIDeviceConfig,
   openaiDeviceLogin,
   pollDeviceToken,
 } from "../../../src/internal/auth/oauth-device.js";
 import {
   ensureFreshCredential,
   exchangeCode,
-  type HttpDeps,
-  type OAuthProviderConfig,
   refreshOAuthTokens,
 } from "../../../src/internal/auth/oauth-engine.js";
 

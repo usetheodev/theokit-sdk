@@ -45,6 +45,8 @@
     "src/internal/workflow/**/*",
     "src/subscription/**/*",
     "src/sanitize/**/*",
+    "src/auth/**/*",
+    "src/internal/auth/**/*",
     "src/a2a/**/*",
     "src/client/**/*",
     "src/sandbox/**/*",

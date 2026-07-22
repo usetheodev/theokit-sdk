@@ -124,22 +124,9 @@ export type {
   ProviderTransform,
   ProviderTransformContext,
 } from "./internal/providers/types.js";
-// M42 — auth subsystem (credential store + OAuth engine). Internal modules re-exported as public surface.
-export {
-  type CredentialStoreConfig,
-  CredentialError,
-  type ResolvedCredential,
-  type StoredOAuthCredential,
-} from "./internal/auth/credential-store.js";
-export {
-  type HttpDeps,
-  type OAuthProviderConfig,
-  type OAuthTokens,
-} from "./internal/auth/oauth-engine.js";
-export {
-  type ResolveCredentialOptions,
-  resolveCredential,
-} from "./internal/auth/resolve-credential.js";
+// M42 — auth subsystem (credential store + OAuth engine) is exposed at the dedicated `@theokit/sdk/auth`
+// sub-entry (DTS built via tsc), NOT on this barrel: rollup-plugin-dts cannot bundle those modules into the
+// main `.d.ts` (same isolation the SDK uses for messages / subscription / sanitize). See `src/auth/index.ts`.
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
