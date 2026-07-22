@@ -15,6 +15,7 @@
  * @internal
  */
 
+import { getCatalogModelInfo } from "../providers/catalog-loader.js";
 import pricingData from "./pricing-data.json" with { type: "json" };
 
 export interface PricingEntry {
@@ -121,6 +122,33 @@ export function getPricingEntry(opts: {
     }
   }
 
+  // 5. M44 — catalog fallback (ADR D3: pricing-data.json FEEDS from the catalog, never replaced by it).
+  // On a TOTAL LiteLLM miss, consult the model-info index's `cost` (models.dev USD-per-1M convention —
+  // same unit as D378). Provenance marked "catalog-vendored" so CostBreakdown stays honest about the source.
+  const catalogEntry = catalogCostFallback(opts.provider, cleaned);
+  if (catalogEntry !== undefined) return catalogEntry;
+
+  return undefined;
+}
+
+/** Step-5 catalog cost lookup: direct `provider/model`, then the model id as-is when it carries a path. */
+function catalogCostFallback(provider: string, cleanedModel: string): PricingEntry | undefined {
+  const keys = [`${provider}/${cleanedModel}`, cleanedModel];
+  for (const key of keys) {
+    const info = getCatalogModelInfo(key);
+    const cost = info?.cost;
+    if (cost === undefined) continue;
+    const [prov, ...modelParts] = key.split("/");
+    return {
+      provider: prov ?? provider,
+      model: modelParts.join("/") || cleanedModel,
+      inputCostPerMillion: cost.input,
+      outputCostPerMillion: cost.output,
+      ...(cost.cache_read !== undefined ? { cacheReadCostPerMillion: cost.cache_read } : {}),
+      ...(cost.cache_write !== undefined ? { cacheWriteCostPerMillion: cost.cache_write } : {}),
+      pricingVersion: "catalog-vendored",
+    };
+  }
   return undefined;
 }
 
