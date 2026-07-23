@@ -32,6 +32,7 @@ export async function* runUntilImpl(
 ): AsyncGenerator<GoalEvent, GoalResult, void> {
   const maxTurns = options?.maxTurns ?? 20;
   const maxFails = options?.maxConsecutiveJudgeFailures ?? 3;
+  const tokenBudget = options?.tokenBudget; // M55 — undefined ⇒ ilimitado
   const signal = options?.signal;
   // Use a function (not direct property access) so TS does not narrow
   // `signal.aborted` to `false | undefined` after the initial check.
@@ -40,6 +41,7 @@ export async function* runUntilImpl(
   const isAborted = (): boolean => signal !== undefined && signal.aborted;
   let turn = 0;
   let consecutiveFailures = 0;
+  let tokensUsed = 0; // M55 — soma observada (0 se usage ausente — fail-open)
   let lastResponse = "";
 
   // EC-C: signal already aborted BEFORE first event → emit only [paused].
@@ -49,7 +51,7 @@ export async function* runUntilImpl(
       status: "paused",
       reason: "aborted via AbortSignal before first turn",
     };
-    return { status: "paused", turnsUsed: 0, finalResponse: undefined };
+    return { status: "paused", turnsUsed: 0, tokensUsed, finalResponse: undefined };
   }
 
   yield { type: "status_change", status: "active", reason: "Goal started" };
@@ -57,7 +59,12 @@ export async function* runUntilImpl(
   while (turn < maxTurns) {
     if (isAborted()) {
       yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
-      return { status: "paused", turnsUsed: turn, finalResponse: lastResponse || undefined };
+      return {
+        status: "paused",
+        turnsUsed: turn,
+        tokensUsed,
+        finalResponse: lastResponse || undefined,
+      };
     }
 
     turn += 1;
@@ -68,6 +75,9 @@ export async function* runUntilImpl(
     const run = await agent.send(continuationPrompt);
     const result = await run.wait();
     lastResponse = result.result ?? "";
+    // M55 — token accounting fail-open: só soma quando o run reporta usage.
+    const turnTokens = (result as { usage?: { totalTokens?: number } }).usage?.totalTokens;
+    if (typeof turnTokens === "number") tokensUsed += turnTokens;
     yield { type: "agent_response", turn, content: lastResponse };
 
     const judgeOpts: JudgeOptions = {};
@@ -95,6 +105,7 @@ export async function* runUntilImpl(
         return {
           status: "failed",
           turnsUsed: turn,
+          tokensUsed,
           finalResponse: lastResponse || undefined,
         };
       }
@@ -104,7 +115,12 @@ export async function* runUntilImpl(
 
     if (judgment.verdict === "done") {
       yield { type: "status_change", status: "completed", reason: judgment.reason };
-      return { status: "completed", turnsUsed: turn, finalResponse: lastResponse || undefined };
+      return {
+        status: "completed",
+        turnsUsed: turn,
+        tokensUsed,
+        finalResponse: lastResponse || undefined,
+      };
     }
     if (judgment.verdict === "skipped") {
       yield {
@@ -112,7 +128,27 @@ export async function* runUntilImpl(
         status: "completed",
         reason: `skipped: ${judgment.reason}`,
       };
-      return { status: "completed", turnsUsed: turn, finalResponse: lastResponse || undefined };
+      return {
+        status: "completed",
+        turnsUsed: turn,
+        tokensUsed,
+        finalResponse: lastResponse || undefined,
+      };
+    }
+
+    // M55 — checagem de token budget APÓS o turno (Codex: wind-down suave, para o loop).
+    if (tokenBudget !== undefined && tokensUsed >= tokenBudget) {
+      yield {
+        type: "status_change",
+        status: "budget_limited",
+        reason: `token budget (${tokenBudget}) reached: ${tokensUsed} used`,
+      };
+      return {
+        status: "budget_limited",
+        turnsUsed: turn,
+        tokensUsed,
+        finalResponse: lastResponse || undefined,
+      };
     }
 
     yield { type: "continuation", turn, prompt: continuationPrompt };
@@ -123,7 +159,12 @@ export async function* runUntilImpl(
     status: "failed",
     reason: `max turns (${maxTurns}) exhausted`,
   };
-  return { status: "failed", turnsUsed: turn, finalResponse: lastResponse || undefined };
+  return {
+    status: "failed",
+    turnsUsed: turn,
+    tokensUsed,
+    finalResponse: lastResponse || undefined,
+  };
 }
 
 /**
@@ -133,5 +174,27 @@ export async function* runUntilImpl(
  * @internal
  */
 export function composeContinuation(goal: string, lastResponse: string): string {
-  return `Continue working toward the goal: ${goal}\n\nYour last response was:\n${lastResponse.slice(0, 1000)}`;
+  // M55 — Codex-faithful continuation (ext/goal templates/goals/continuation.md): keep the FULL
+  // objective intact, work from current-state evidence, and audit completion requirement-by-requirement
+  // before declaring done. Improves the quality of what the judge then evaluates.
+  return [
+    "Continue working toward the active goal.",
+    "",
+    `<objective>\n${goal}\n</objective>`,
+    "",
+    "Continuation behavior:",
+    "- This goal persists across turns. Keep the full objective intact; if it cannot be finished now,",
+    "  make concrete progress toward the real requested end state and do not redefine success around a",
+    "  smaller or easier task.",
+    "",
+    "Work from evidence:",
+    "- Use the current worktree and external state as authoritative. Inspect the current state before",
+    "  relying on it. Improve, replace, or remove existing work as needed to satisfy the actual objective.",
+    "",
+    "Completion audit:",
+    "- Before deciding the goal is achieved, treat completion as unproven and verify it against the actual",
+    "  current state, requirement by requirement. Treat uncertain or indirect evidence as not achieved.",
+    "",
+    `Your last response was:\n${lastResponse.slice(0, 1000)}`,
+  ].join("\n");
 }

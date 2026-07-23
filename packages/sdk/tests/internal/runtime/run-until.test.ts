@@ -201,3 +201,103 @@ describe("runUntilImpl (T3.2)", () => {
     expect(verdictTypes).toBe(1);
   });
 });
+
+// ─── M55 (agent-builder goal autônomo) — token budget + estado budget_limited + continuation fiel ───
+
+function buildFakeAgentWithUsage(responses: string[], perTurnTokens: number | undefined): SDKAgent {
+  let i = 0;
+  return {
+    agentId: "fake-usage",
+    async send() {
+      const text = responses[i] ?? responses[responses.length - 1] ?? "…";
+      i += 1;
+      return {
+        wait: async () => ({
+          result: text,
+          ...(perTurnTokens !== undefined
+            ? { usage: { inputTokens: perTurnTokens, outputTokens: 0, totalTokens: perTurnTokens } }
+            : {}),
+        }),
+      };
+    },
+    close() {},
+    async reload() {},
+    async dispose() {},
+    async [Symbol.asyncDispose]() {},
+    async listArtifacts() {
+      return [];
+    },
+    async downloadArtifact(): Promise<Buffer> {
+      throw new Error("no");
+    },
+  } as unknown as SDKAgent;
+}
+
+const alwaysContinue = async (): Promise<JudgeResult> => ({
+  verdict: "continue",
+  reason: "keep going",
+  parseFailed: false,
+});
+
+describe("M55 — token budget + budget_limited state", () => {
+  it("budget_limited_fires_when_tokens_cross", async () => {
+    // 60 tokens/turno, budget 100 → após o turno 2 (120 > 100) para com budget_limited
+    const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 60);
+    const { events, result } = await collect(
+      runUntilImpl(agent, "goal X", { tokenBudget: 100, maxTurns: 20 }, { judge: alwaysContinue }),
+    );
+    expect(result.status).toBe("budget_limited");
+    expect(result.turnsUsed).toBe(2);
+    expect(result.tokensUsed).toBeGreaterThanOrEqual(100);
+    expect(events.some((e) => e.type === "status_change" && e.status === "budget_limited")).toBe(
+      true,
+    );
+  });
+
+  it("token_budget_absent_usage_never_trips", async () => {
+    // usage ausente → budget nunca conta (fail-open); para por maxTurns=2 → failed
+    const agent = buildFakeAgentWithUsage(["r1", "r2"], undefined);
+    const { result } = await collect(
+      runUntilImpl(agent, "goal", { tokenBudget: 10, maxTurns: 2 }, { judge: alwaysContinue }),
+    );
+    expect(result.status).toBe("failed"); // maxTurns, não budget_limited
+    expect(result.tokensUsed).toBe(0);
+  });
+
+  it("maxTurns_still_caps_as_safety_without_budget", async () => {
+    const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 5);
+    const { result } = await collect(
+      runUntilImpl(agent, "goal", { maxTurns: 2 }, { judge: alwaysContinue }),
+    );
+    expect(result.status).toBe("failed");
+    expect(result.turnsUsed).toBe(2);
+  });
+
+  it("result_reports_tokensUsed_on_completion", async () => {
+    const agent = buildFakeAgentWithUsage(["done-ish"], 42);
+    const doneJudge = async (): Promise<JudgeResult> => ({
+      verdict: "done",
+      reason: "ok",
+      parseFailed: false,
+    });
+    const { result } = await collect(runUntilImpl(agent, "goal", {}, { judge: doneJudge }));
+    expect(result.status).toBe("completed");
+    expect(result.tokensUsed).toBe(42);
+  });
+});
+
+describe("M55 — continuation fiel ao Codex", () => {
+  it("continuation_prompt_keeps_full_objective_and_audit_language", async () => {
+    const agent = buildFakeAgentWithUsage(["r1", "r2", "r3"], 1);
+    const { events } = await collect(
+      runUntilImpl(agent, "OBJETIVO_INTEIRO_XYZ", { maxTurns: 3 }, { judge: alwaysContinue }),
+    );
+    // turno 1 envia o goal cru; a continuation FIEL aparece nos turnos 2+ (prompt composto).
+    const cont = events.find((e) => e.type === "continuation" && e.turn >= 2);
+    expect(cont).toBeDefined();
+    if (cont && cont.type === "continuation") {
+      expect(cont.prompt).toContain("OBJETIVO_INTEIRO_XYZ"); // objetivo íntegro
+      expect(cont.prompt.toLowerCase()).toMatch(/evidence|audit/); // linguagem fiel ao continuation.md
+    }
+  });
+});
