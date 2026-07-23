@@ -73,11 +73,32 @@ export async function* runUntilImpl(
     const continuationPrompt = turn === 1 ? goal : composeContinuation(goal, lastResponse);
 
     const run = await agent.send(continuationPrompt);
+    // M55 review HIGH — thread the abort INTO the in-flight run: without this, Esc mid-turn is
+    // cosmetic (the turn keeps mutating the workspace until it finishes on its own). `run.cancel()`
+    // aborts the stream + in-flight tool calls (types/run.ts contract).
+    const cancelOnAbort = (): void => {
+      void (run as { cancel?: () => Promise<void> }).cancel?.();
+    };
+    if (signal !== undefined) {
+      if (signal.aborted) cancelOnAbort();
+      else signal.addEventListener("abort", cancelOnAbort, { once: true });
+    }
     const result = await run.wait();
+    if (signal !== undefined) signal.removeEventListener("abort", cancelOnAbort);
     lastResponse = result.result ?? "";
     // M55 — token accounting fail-open: só soma quando o run reporta usage.
     const turnTokens = (result as { usage?: { totalTokens?: number } }).usage?.totalTokens;
     if (typeof turnTokens === "number") tokensUsed += turnTokens;
+    // Re-check aborted right after the turn lands: a cancelled turn must NOT spend a judge call.
+    if (isAborted()) {
+      yield { type: "status_change", status: "paused", reason: "aborted via AbortSignal" };
+      return {
+        status: "paused",
+        turnsUsed: turn,
+        tokensUsed,
+        finalResponse: lastResponse || undefined,
+      };
+    }
     yield { type: "agent_response", turn, content: lastResponse };
 
     const judgeOpts: JudgeOptions = {};
