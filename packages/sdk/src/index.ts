@@ -73,6 +73,7 @@ export {
   type GenerateObjectOptions,
   type GenerateObjectResult,
 } from "./generate-object.js";
+export { type GoalLoopAgent, runGoalLoop } from "./goal-loop.js";
 // #57 — tool-result content guard options (SendOptions.toolResultGuard).
 export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-guard.js";
 // BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
