@@ -1391,6 +1391,181 @@ Capabilities found in other agent SDKs that we deliberately DO NOT adopt, becaus
 
 **Why now:** with SE45 taking coupling + pattern-fit to max, these five dimensions are the only remaining gap to a perfect architecture score. All are behavior-preserving structural hygiene on a codebase the audit already rated STRONG.
 
+### SE47 — [ ] Review remediation: security & auth (1 BLOCKER + 5 HIGH + 15 MEDIUM)
+
+> Added 2026-07-23 by `/roadmap-feature` (slug: `review-remediation-security-auth`). See CHANGELOG `[Unreleased] § Added`. **Provenance caveat (applies to SE47–SE52):** source is the `/review-cycle` run of 2026-07-23 (`knowledge-base/reviews/refactor/`), **cancelled at ~50% coverage (945/1880 files, 13 of 30 batches) BEFORE the adversarial jury ran**. Every item is agent-emitted with file:line evidence but carries manifest status `OPEN` — **not jury-adjudicated**. Treat each as a hypothesis to be proven by a RED test, not as an established defect.
+
+**Objective:** Close the security and authentication findings — the only theme containing a BLOCKER. The
+OAuth sign-in flow is broken by a cookie-name mismatch, and five hardening gaps (hard-coded fallback
+secret, open-redirect, DNS-rebinding SSRF, arbitrary file read, an untested command-injection defense)
+sit on the request path.
+
+**Definition of done:**
+
+- [ ] **Validation gate first (non-negotiable)** — for every item below, a RED test reproduces the defect BEFORE any fix. An item whose test cannot be made to fail is recorded as a **false positive** with the disproving evidence and closed as dismissed, not "fixed". No item is silently dropped.
+- [ ] **[BLOCKER] OAuth transaction-cookie name mismatch** — `startSignIn` writes the cookie as `theo_oauth_tx` while `finishSignIn` reads it via `getTransaction()` → `getCookie(req, COOKIE_NAME)` where `COOKIE_NAME` is `__Host-theo_oauth_tx` (`packages/sdk/src/server/auth/orchestrator.ts:124`). Verified: an end-to-end sign-in test drives startSignIn → finishSignIn against a real cookie jar and passes; the RED version fails before the fix.
+- [ ] **[HIGH] Hard-coded fallback OAuth secret removed (CWE-798)** — `orchestrator.ts:57` silently activates a hard-coded cryptographic secret when neither the SessionManager secret nor `THEOKIT_OAUTH_TX_SECRET` is set. Verified: missing secret now **fails fast** with a typed error (never a silent weak default); test asserts the typed error and message.
+- [ ] **[HIGH] Open-redirect backslash bypass (CWE-601)** — `validateReturnTo` blocks `//evil.com` but not `/\evil.com`, which browsers normalize to a protocol-relative URL (`packages/sdk/src/server/auth/validate-return-to.ts:25`). Verified: table-driven test covers `//`, `/\`, `\/`, `\\`, encoded and mixed-case variants.
+- [ ] **[HIGH] DNS-rebinding SSRF in the network guard (CWE-918)** — `screenedFetch()` screens the resolved IPs then hands the **hostname** to `fetchImpl`, which re-resolves independently (`packages/sdk-tools/src/internal/network-guard.ts:237`). Verified: fix pins the connection to the screened IP (or re-validates at connect time); test simulates a resolver returning a public IP first and a private IP on re-resolution.
+- [ ] **[HIGH] Arbitrary local-file read via `@path` import (CWE-22/CWE-73)** — `resolveImportPath` resolves an `@path` directive from a discovered `CLAUDE.md`/`GEMINI.md` to an absolute path with no containment check (`packages/sdk/src/internal/runtime/context/context-import-resolver.ts:76`). Verified: resolution is constrained to an explicit root; traversal (`../`, absolute, symlink-escape) rejected with a typed error.
+- [ ] **[HIGH] `shellEscapePosix` gains a test suite** — the sole command-injection defense for values interpolated into `/bin/sh -c` has zero tests despite its own docstring stating values "MUST be quoted to prevent command injection" (`packages/sdk/src/sandbox/shell-escape.ts:10`). Verified: property/table tests cover quotes, backticks, `$()`, newlines, NUL, unicode; a fuzz round-trip asserts the escaped value cannot break out.
+- [ ] **[MEDIUM] The 15 remaining security-theme items adjudicated** — includes cache-namespace path traversal (`sdk-cache/src/internal/store-json.ts:147`), the inconsistent Lance SQL-injection defense (`sdk-memory/src/internal/index/lance-index.ts:727` and `sdk/src/internal/memory/lance-index.ts:226` — `search()` neutralizes filter values, `removeFacts()` relies only on a weak single-quote escape), and the unscreened `interactive_shell` spawn (`sdk-tools/src/interactive-shell.ts:68`). Each either fixed with a RED-first test or dismissed with disproving evidence.
+- [ ] CHANGELOG `[Unreleased]` updated; full quality gate green (Biome + typecheck + suite); no public-API change without a Changeset.
+
+**Dependencies:** SE46 ([x]).
+
+**Top risks (new):**
+
+1. **Findings are not jury-validated** — fixing an unvalidated finding can introduce a regression to defend against a defect that does not exist. Mitigation: the validation gate above is the first DoD item; a non-reproducing item is dismissed, never "fixed" speculatively.
+2. **The OAuth cookie fix touches a live auth path** — a naive rename could break already-issued cookies mid-flight. Mitigation: accept both names on read for one release (write only the `__Host-` form), with an explicit deprecation note; never a silent break.
+
+**Why now:** the review surfaced the project's only BLOCKER here, and it breaks sign-in outright — every other theme is hygiene or correctness by comparison.
+
+---
+
+### SE48 — [ ] Review remediation: runtime correctness (5 HIGH + 59 MEDIUM)
+
+> Added 2026-07-23 by `/roadmap-feature` (slug: `review-remediation-runtime-correctness`). Provenance caveat: see SE47.
+
+**Objective:** Close the runtime-correctness and resilience findings from the `code` and `system_design`
+pillars — resource leaks, races, silent truncation, and missing timeouts on network calls that run on the
+agent's critical path.
+
+**Definition of done:**
+
+- [ ] **Validation gate first** — RED test reproduces each item before the fix; non-reproducing items are dismissed with disproving evidence (same contract as SE47).
+- [ ] **[HIGH] `Agent.batch` no longer silently truncates** — the bounded busy-poll (`for (let i = 0; i < 5000; i++)` at 5ms = ~25s cap, `packages/sdk/src/batch.ts:132`) breaks and returns a partial/incorrect result once a batch of N LLM calls exceeds the cap — routine, not exceptional. Verified: replaced with an unbounded await on completion plus an explicit caller-visible timeout that **throws a typed error** rather than returning silently; test drives a batch past the old cap.
+- [ ] **[HIGH] HITL approval timer cleared** — the approval timeout `setTimeout` is neither cleared nor `unref`'d, so after `approve()` wins the `Promise.race` the pending timer keeps the Node event loop alive up to 300s (`packages/sdk/src/internal/runtime/tools/hitl-middleware.ts:52`). Verified: test asserts the process/event loop is free immediately after a decision.
+- [ ] **[HIGH] `PermissionEngine` regex state reset** — `rule.tool.test(toolName)` is called without resetting `lastIndex`, so a global/sticky rule regex (`/^shell/g`) carries match state across evaluations and intermittently mismatches (`packages/sdk/src/permission-engine.ts:140`). Verified: test evaluates the same global-regex rule repeatedly and asserts a stable verdict.
+- [ ] **[HIGH] `BoundedBuffer` resolve/timeout race** — `push` wraps `entry.resolve/reject` to `clearTimeout` inside a `queueMicrotask`, but `pull()` may resolve synchronously in the same tick, leaving a window where the timeout still fires (`packages/sdk/src/subscription/internal/backpressure.ts:65`). Verified: deterministic test exercises the sync-resolve path.
+- [ ] **[HIGH] SQLite→Lance migration no longer writes placeholder embeddings** — `migrateSqliteToLance` embeds every fact with a hardcoded 8-dimension placeholder embedder and `renameSync`-commits that index on validation success (`packages/sdk-memory/src/internal/index/migrate-sqlite-to-lance.ts:156`), silently corrupting recall. Verified: migration requires a real embedder (fails fast without one); test asserts dimension parity with the configured provider and that no commit happens on placeholder data.
+- [ ] **[MEDIUM] The 59 remaining correctness/resilience items adjudicated** — dominated by missing timeouts (9 `system-design/timeout` + 4 `timeout`), retry (3) and backpressure (3) gaps on network paths (e.g. `memory-honcho/src/adapter.ts:196` — Honcho calls run unbounded on the agent path), two TOCTOU hydration guards, a blanket `catch` in `packages/acp/src/prompt-handler.ts:72` that logs to stderr and falls through, and a dead `--here` CLI flag with no handler (`packages/cli/src/commands/init.ts:99`). Each fixed with a RED-first test or dismissed with evidence.
+- [ ] CHANGELOG updated; full quality gate green; no unexplained public-API change.
+
+**Dependencies:** SE46 ([x]).
+
+**Top risks (new):**
+
+1. **Timeout/retry additions change runtime behavior under load** — a too-aggressive default can turn a slow-but-successful call into a failure. Mitigation: every timeout is configurable with a documented default derived from observed p99, never a guessed constant; add the metric before the bound.
+2. **The batch fix changes an observable contract** (silent truncation becomes a thrown error). Mitigation: treat as a behavior change with a Changeset and CHANGELOG entry under `Changed`; document the migration for callers that relied on the partial result.
+
+**Why now:** these are live correctness defects on the agent's critical path (resource leak, race, silent data corruption in memory migration) — they degrade silently, which is the most expensive failure mode to diagnose later.
+
+---
+
+### SE49 — [ ] Review remediation: license attribution & provenance NOTICE (12 HIGH + 48 MEDIUM)
+
+> Added 2026-07-23 by `/roadmap-feature` (slug: `review-remediation-license-provenance`). Provenance caveat: see SE47.
+
+**Objective:** Bring third-party attribution into compliance. The `license_provenance` pillar found 60
+items where code is self-declared as a port/derivation of a named or deliberately obfuscated upstream,
+with no corresponding `NOTICE` entry. Remediation is **compliance-only** — attribute, clean-room rewrite,
+or remove. **Never a git-history rewrite** (LOCKED ethical boundary, `rules/cycle-implement.md`).
+
+**Definition of done:**
+
+- [ ] **Validation gate first** — for each item, confirm from the file itself and `git log --follow` whether copied **expression** is actually present (vs functional parity, protocol identifiers, or consumption of a declared npm dependency — the pillar dismissed 16 such seeds as false positives in one batch alone). Non-copies are dismissed with evidence.
+- [ ] **[HIGH] Named-upstream ports attributed in `NOTICE`** — each with its license verified and cited: `sdk-tools/src/internal/v4a-patch.ts:4` (self-declared "faithful TypeScript reimplementation of the Codex `apply-patch` crate"), `sdk-budget/src/internal/normalize-usage.ts:3` (ports Hermes Agent's `normalize_usage`), `sdk/src/internal/session/compact-session.ts:4` and `sdk/src/types/goal-events.ts:46` (both cite codex-rs, Apache-2.0, with exact upstream line numbers), `sdk/src/internal/runtime/lifecycle/env-policy.ts:7` ("modeled on codex's ShellEnvironmentPolicy"), `sdk/src/sandbox/provision.ts:7` (line-level citation of `theocode-eval`).
+- [ ] **[HIGH] The obfuscated "peer-project" upstream named or the derivation removed** — five HIGH items cite an unnamed upstream via concrete file paths (`sdk-memory/src/internal/memory-types.ts:87` describes the package as a "systematic parity port" of a TypeScript memory stack called `memory-host-sdk`; also `sdk-memory/src/internal/tools.ts:12`, `sdk/src/internal/memory/embedding-adapter.ts:4`, `sdk/src/internal/memory/tools.ts:11`, `sdk/src/internal/llm/ollama-native.ts:8`). Euphemistic redaction ("peer-project", "a peer project-inspired") is **not** attribution. Verified: either the upstream is named with its license in `NOTICE`, or the derivation is clean-room rewritten / removed. A written determination is recorded for each.
+- [ ] **[MEDIUM] The 48 remaining provenance items adjudicated** — includes a second distinct undisclosed Python upstream in `sdk-memory/src/internal/active-memory/composite-scorer.ts:4`, the copied `chunkMarkdown()` algorithm (`sdk-memory/src/internal/store/chunk-markdown.ts:49`), the OpenAI-Agents-SDK-shaped `handoffs` surface (`sdk-handoff/src/handoff.ts:35`), and provenance signals surfaced only through git history. 30 of the 60 carry `attribution-notice-gap`.
+- [ ] **`NOTICE` exists and is shipped** — every published package with an attributed derivation includes `NOTICE` in its `files` array so it reaches consumers; a test or CI check asserts presence.
+- [ ] **Provenance-comment convention documented** — a short rule stating that origin comments MUST name the upstream + license, and that euphemisms are prohibited; CHANGELOG updated under `Changed`.
+
+**Dependencies:** SE46 ([x]).
+
+**Top risks (new):**
+
+1. **Legal exposure is real but the findings are unvalidated** — misattributing something that is NOT a copy is its own error, and correctly attributing a genuine copy may surface a license incompatibility that forces a rewrite. Mitigation: per-item written determination first (copy vs parity vs dependency); escalate any copyleft-in-permissive result to the project owner before shipping.
+2. **The `sdk-memory` finding claims the WHOLE package is a parity port** — if confirmed, remediation could exceed a NOTICE entry and require a clean-room rewrite of a shipped package. Mitigation: scope this item to a determination + ADR in this milestone; any rewrite is a separate, explicitly-scoped milestone.
+
+**Why now:** attribution debt compounds with every release that ships the unattributed code, and the review captured line-level upstream citations while the evidence is fresh.
+
+---
+
+### SE50 — [ ] Review remediation: complete the 3.0.0 `X.create()` migration in templates and docs (4 HIGH + 55 MEDIUM)
+
+> Added 2026-07-23 by `/roadmap-feature` (slug: `review-remediation-api-migration-drift`). Provenance caveat: see SE47.
+
+**Objective:** The `X.create()` collapse (SE36, v3.0) removed the `define*`/`create*` factory surface, but
+shipped templates, scaffolded starters and package READMEs still teach the removed API — so a user
+following the documented path writes code that does not compile. Close the migration on the consumer-facing
+side.
+
+**Definition of done:**
+
+- [ ] **Validation gate first** — every claimed drift is proven by grepping the public barrel (the symbol is genuinely absent) AND by compiling the documented snippet. Snippets that actually work are dismissed.
+- [ ] **[HIGH] Shipped templates compile against the current public API** — `sdk/templates/rag-agent/src/index.ts:9` imports and uses `defineTool`; `sdk/templates/telegram-bot/src/index.ts:12` uses `createAgentFactory`; the CLI-scaffolded `cli/templates/telegram-bot/src/index.ts:10` calls `createAgentFactory`. Verified: a CI job scaffolds **every** template and runs `tsc --noEmit` + the template's own test, so this class of drift cannot regress.
+- [ ] **[HIGH] Template READMEs teach the current API** — `cli/templates/telegram-bot/README.md:25` instructs `createAgentFactory` and `import defineTool from "@theokit/sdk"`, neither of which is exported. Verified: README snippets are extracted and type-checked by the same CI job.
+- [ ] **[MEDIUM] Package READMEs corrected** — `sdk-cache`/`sdk-handoff` READMEs reference the removed `definePlugin`; the `sdk-cache` README documents an option named `store` while the schema field is `persistence` (so persistence silently never engages); the `sdk-budget` quick-start calls `spent.toFixed(4)` where `getTotalUsd()` returns `number | undefined`, throwing a `TypeError` on exactly the unknown-cost path the package exists to handle; `sdk-cache`'s documented `stats()` shape does not match the code.
+- [ ] **[MEDIUM] Doc-surface and CHANGELOG integrity** — the CLI README documents 4 subcommands while `main.ts` registers 8 (`cli/README.md:3`); several CHANGELOGs violate Keep a Changelog (two `[Unreleased]` sections, duplicated/non-monotonic version headers in `cli`, `memory-honcho`, `memory-mem0`, `memory-supermemory`, `sdk-budget`, `sdk-memory`). The 29 `non_idiomatic_ts` items (including `cli/src/commands/acp.ts:146`'s `as never` cast) are adjudicated in the same pass.
+- [ ] CHANGELOG updated; docs and exported types agree (types win, per `CLAUDE.md`).
+
+**Dependencies:** SE46 ([x]).
+
+**Top risks (new):**
+
+1. **Templates are the first-run experience** — a broken scaffold is the most visible possible defect, and there is currently no gate preventing recurrence. Mitigation: the scaffold-and-typecheck CI job is itself a DoD item, not a follow-up.
+2. **Fixing the `sdk-cache` `store`/`persistence` doc could mask a real API bug** — if users configured `store` believing it worked, the correct fix may be to accept both or to error loudly on unknown keys. Mitigation: decide explicitly (accept-alias vs fail-fast on unknown option) and record it; do not silently edit only the prose.
+
+**Why now:** every day this ships, new users copy code that cannot compile — the highest-friction, lowest-effort class of defect in the whole review.
+
+---
+
+### SE51 — [ ] Review remediation: orphan subsystems and untested exported behavior (2 HIGH + 9 MEDIUM)
+
+> Added 2026-07-23 by `/roadmap-feature` (slug: `review-remediation-orphans-untested`). Provenance caveat: see SE47.
+
+**Objective:** Resolve code that is advertised but unreachable, or exported but unexercised. Each item is a
+**wire-or-remove** decision — the `M1` precedent (`#65`, "wire-or-remove the 7/10 dead plugin hooks") is the
+model.
+
+**Definition of done:**
+
+- [ ] **Validation gate first** — each orphan claim is proven by a grep showing zero production callers (tests-only references do not count as a caller), and each untested claim by the absence of an exercising test. Items with a real caller are dismissed.
+- [ ] **[HIGH] MCP OAuth 2.1 PKCE subsystem wired or removed** — the entire subsystem has no production invocation, yet the public config type advertises it as active (`packages/sdk/src/internal/mcp/oauth.ts:83`). Verified: either an integration test drives a real OAuth-protected MCP server end to end, or the subsystem AND its public config surface are removed together (never the code alone, leaving a lying type).
+- [ ] **[HIGH] Azure embedding adapter fixed and tested** — `embed()` is untested and ships a `{model}` URL template the shared factory never interpolates, so the endpoint is latently broken (`packages/sdk/src/internal/memory/adapters/azure-openai-embedding.ts:40`). Verified: a test asserts the fully-interpolated request URL.
+- [ ] **[MEDIUM] The 9 remaining items adjudicated** — dead capability toggles `AcpCapabilities.forkSession?`/`listSessions?` (`acp/src/types.ts:42`), dead `currentDepth()` in `sdk-handoff/src/internal/registry.ts:51` (depth is computed inline by the caller), dead `compositeScore()` + `DEFAULT_COMPOSITE_CONFIG` in `sdk-memory` active-memory, and the tautological `initialize_idempotent_second_call_returns_same_response (SHOULD TEST EC-11)` test in `acp/tests/lifecycle.test.ts:40` which asserts equality of a pure function called twice with identical inputs.
+- [ ] **No public type advertises a capability with no implementation path** — asserted by a dead-code gate (`knip`) run in CI over the public surface.
+- [ ] CHANGELOG updated; any removal ships with a Changeset (public-surface change).
+
+**Dependencies:** SE46 ([x]).
+
+**Top risks (new):**
+
+1. **Removing an "orphan" that is actually consumer-facing API breaks downstream users** — zero *internal* callers does not prove zero *external* ones for an exported symbol. Mitigation: for anything on the public barrel, deprecate for one release before removal; internal-only symbols may be removed directly.
+2. **Wiring the MCP OAuth subsystem is materially more work than removing it** — an unbudgeted integration could stall the milestone. Mitigation: make the wire-or-remove call explicitly at milestone start, recorded as a short ADR, before any code moves.
+
+**Why now:** a public type that advertises an unreachable capability is a promise the runtime cannot keep — it misleads users and hides the fact that the code was never exercised.
+
+---
+
+### SE52 — [ ] Review remediation: maintainability, structure and DRY-of-knowledge (1 HIGH + 75 MEDIUM)
+
+> Added 2026-07-23 by `/roadmap-feature` (slug: `review-remediation-maintainability`). Provenance caveat: see SE47.
+
+**Objective:** Absorb the structural findings from the `maintainability_extensibility`, `architecture`,
+`semantic_folders` and `design_patterns` pillars. All are behavior-preserving hygiene on a codebase the
+prior audits rated STRONG — none is a live defect.
+
+**Definition of done:**
+
+- [ ] **Validation gate first** — each item is confirmed against the current tree (the review ran at ~50% coverage and some files moved in SE45/SE46); stale items are dismissed with evidence rather than "fixed".
+- [ ] **[HIGH] `initLoopContext` decomposed** — a 97-line method (over the 60-LOC threshold) inlining memory init, three near-identical tool-registration loops and an active-pass, carrying a standing complexity suppression (`packages/sdk/src/internal/agent-loop/loop-context-init.ts:84`). Verified: the suppression is **deleted**, not relaxed; the three loops collapse to one parameterized registration; full suite green with no behavior change.
+- [ ] **[MEDIUM] DRY-of-knowledge consolidated (20 items: 10 `dry-of-knowledge` + 8 `dry-knowledge` + 2 variants)** — the HTTP-status → `MemoryAdapterError` translation ladder is reimplemented across all three `MemoryAdapter` packages (`memory-honcho`, `memory-mem0`, `memory-supermemory`); `isPathTraversal` is re-derived with a weak substring check in `cli/src/setup/gworkspace.ts:59` while a hardened sibling exists; mock error-injection blocks and fake agents/embedders are copy-pasted across test suites. Verified: one authoritative implementation per piece of knowledge, consumers routed through it.
+- [ ] **[MEDIUM] Boundary and cohesion items** — the `@theokit/acp` package reaches past the `SDKAgent` abstraction into a runtime internal (`acp/src/permission-plugin.ts:118`, DIP/ISP gap); `sdk-handoff` exports `src/internal/tool-injector.ts` as a public subpath while tagging it `@internal` (self-contradictory boundary); 3 duplicated type contracts and 2 error-hierarchy inconsistencies.
+- [ ] **[MEDIUM] Test trees mirror their source trees** — `sdk-memory/tests` is a flat 45-file folder although `src/internal` was deliberately split into 5 sub-concerns in SE46, and `sdk-tools/tests` is a flat 50-file folder collapsing the public/internal boundary; the repo convention is `sdk/tests` (100+ mirroring sub-directories).
+- [ ] Behavior preserved throughout: no public-API change without a Changeset; full quality gate green; `madge` cycles stay at 0 (SE45) and per-file LOC budgets hold (SE46).
+- [ ] CHANGELOG updated.
+
+**Dependencies:** SE46 ([x]), SE48 — the runtime correctness fixes land before this milestone restructures the same `internal/runtime` files, so the two do not fight over the same lines.
+
+**Top risks (new):**
+
+1. **Structural refactors on files that SE48 is also touching cause conflicts** — the SE43/SE45 lesson is that moves are safe only behind a green cycle gate. Mitigation: the SE48 dependency above; one module per commit with the full suite green.
+2. **DRY consolidation can couple modules that should stay independent** — the three memory adapters may legitimately diverge as their upstreams do. Mitigation: apply the Rule of 3 and consolidate only genuinely identical **knowledge**; a shared helper that forces lock-step upstream behavior is worse than the duplication.
+
+**Why now:** SE45/SE46 took architecture to its rule-aligned maximum; these are the residual items the multi-pillar review found on top of that work, and they are cheapest to absorb while the structure is fresh.
+
 ---
 
 ## Capability Gap Register — collaborative / durable-execution axis (2026-07-22)
