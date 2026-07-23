@@ -301,3 +301,54 @@ describe("M55 — continuation fiel ao Codex", () => {
     }
   });
 });
+
+describe("M55 review — abort threaded into the in-flight run", () => {
+  it("abort_during_send_cancels_run_and_skips_judge", async () => {
+    const controller = new AbortController();
+    let cancelCalled = false;
+    let judgeCalled = 0;
+    // wait() pende até cancel() ser chamado (mimetiza um turno longo interrompível)
+    const agent = {
+      agentId: "fake-abort",
+      async send() {
+        // aborta ENQUANTO o turno está em voo
+        setTimeout(() => controller.abort(), 10);
+        let unblock: () => void;
+        const blocked = new Promise<void>((r) => {
+          unblock = r;
+        });
+        return {
+          cancel: async () => {
+            cancelCalled = true;
+            unblock();
+          },
+          wait: async () => {
+            await blocked;
+            return { result: "interrompido" };
+          },
+        };
+      },
+      close() {},
+      async reload() {},
+      async dispose() {},
+      async [Symbol.asyncDispose]() {},
+      async listArtifacts() {
+        return [];
+      },
+      async downloadArtifact(): Promise<Buffer> {
+        throw new Error("no");
+      },
+    } as unknown as SDKAgent;
+    const judge = async (): Promise<JudgeResult> => {
+      judgeCalled += 1;
+      return { verdict: "continue", reason: "n/a", parseFailed: false };
+    };
+    const { result } = await collect(
+      runUntilImpl(agent, "goal", { signal: controller.signal }, { judge }),
+    );
+    expect(cancelCalled).toBe(true); // o abort CANCELOU o run em voo (não esperou o turno)
+    expect(judgeCalled).toBe(0); // pós-abort não gasta judge
+    expect(result.status).toBe("paused");
+    expect(result.turnsUsed).toBe(1);
+  });
+});
