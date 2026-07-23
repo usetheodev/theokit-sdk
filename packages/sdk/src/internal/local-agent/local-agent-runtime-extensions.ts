@@ -56,7 +56,7 @@ export function localAgentRunUntil(
         status: "paused",
         reason: "runUntil() requires an explicit goal (durable objectives removed in v4.0)",
       };
-      return { status: "paused", turnsUsed: 0, finalResponse: undefined };
+      return { status: "paused", turnsUsed: 0, tokensUsed: 0, finalResponse: undefined };
     }
     return yield* runUntilImpl(agent, goal, options, await buildDeps());
   }

@@ -43,7 +43,10 @@ export type GoalEvent =
   | { type: "continuation"; turn: number; prompt: string }
   | {
       type: "status_change";
-      status: "active" | "paused" | "completed" | "failed";
+      // M55 — estados fiéis ao Codex (ext/goal tool.rs:467-476). `budget_limited` = cruzou o tokenBudget;
+      // `blocked` reservado p/ o impasse ≥3 turnos (v1 usa failed). Aditivo — consumidores exaustivos
+      // ganham casos novos.
+      status: "active" | "paused" | "completed" | "failed" | "budget_limited" | "blocked";
       reason: string;
     };
 
@@ -54,8 +57,10 @@ export type GoalEvent =
  * @public
  */
 export interface GoalResult {
-  status: "completed" | "failed" | "paused";
+  status: "completed" | "failed" | "paused" | "budget_limited" | "blocked";
   turnsUsed: number;
+  /** M55 — tokens somados ao longo do loop (0 quando `usage` esteve ausente — fail-open). */
+  tokensUsed: number;
   finalResponse: string | undefined;
 }
 
@@ -73,8 +78,14 @@ export type RunUntilIterator = AsyncGenerator<GoalEvent, GoalResult, void>;
  * @public
  */
 export interface GoalOptions {
-  /** Hard cap on iterations. Default `20`. */
+  /** Hard cap on iterations (safety net against runaway). Default `20`. */
   maxTurns?: number;
+  /**
+   * M55 — token budget (Codex ext/goal parity, tool.rs:454-465). Soma `run.wait().usage.totalTokens`
+   * por turno; ao cruzar, o loop para com status `budget_limited`. Omitido ⇒ ilimitado (só maxTurns).
+   * `usage` ausente nunca estoura o budget (fail-open).
+   */
+  tokenBudget?: number;
   /** Bail after N consecutive judge parse failures. Default `3` (ADR D121). */
   maxConsecutiveJudgeFailures?: number;
   /** Judge model identifier. Default `"openai/gpt-4o-mini"` (ADR D119). */
