@@ -352,3 +352,19 @@ describe("M55 review — abort threaded into the in-flight run", () => {
     expect(result.turnsUsed).toBe(1);
   });
 });
+
+describe("M56 review — continuation marcada + preview tail-biased", () => {
+  it("continuation_carries_stable_marker_and_tail_of_last_response", async () => {
+    const { composeContinuation } = await import(
+      "../../../src/internal/runtime/lifecycle/run-until.js"
+    );
+    const { GOAL_CONTINUATION_MARKER } = await import("../../../src/goal-loop.js");
+    const long = `INICIO ${"x".repeat(2000)} CONCLUSAO-FINAL`;
+    const prompt = composeContinuation("obj", long);
+    // marker estável na 1ª linha — consumidores (timeline colapsada, backtrack, compact) detectam
+    expect(prompt.startsWith(GOAL_CONTINUATION_MARKER)).toBe(true);
+    // preview tail-biased: a CONCLUSÃO do turno anterior sobrevive, não a narração inicial
+    expect(prompt).toContain("CONCLUSAO-FINAL");
+    expect(prompt).not.toContain("INICIO ");
+  });
+});

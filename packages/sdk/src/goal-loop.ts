@@ -13,6 +13,13 @@
 import type { JudgeContext, JudgeOptions } from "./internal/judge/judge-call.js";
 import type { RunUntilDeps } from "./internal/runtime/lifecycle/run-until.js";
 import type { SDKAgent } from "./types/agent.js";
+
+/**
+ * Stable marker on the FIRST LINE of every goal-continuation prompt. Surfaces detect it to render the
+ * turn collapsed, exclude it from backtrack windows, and skip it in compaction preservation.
+ */
+export const GOAL_CONTINUATION_MARKER = "[[theokit:goal-continuation]]";
+
 import type { GoalEvent, GoalOptions, GoalResult } from "./types/goal-events.js";
 
 /** The minimal surface the goal loop drives — anything that can send a prompt and wait for it. */

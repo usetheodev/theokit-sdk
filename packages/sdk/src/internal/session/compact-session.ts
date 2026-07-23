@@ -15,14 +15,17 @@
  */
 
 import { type CompressibleMessage, estimateTokens } from "../../compaction.js";
+import type { SessionStore } from "../../types/session-store.js";
 import { resolveProviderChain } from "../llm/router.js";
-import { detectPrimaryProvider, inferProviderFromApiKey } from "../local-agent/real-local-run-provider.js";
+import {
+  detectPrimaryProvider,
+  inferProviderFromApiKey,
+} from "../local-agent/real-local-run-provider.js";
+import { reconstructMessages, SessionTranscript } from "../persistence/session-transcript.js";
 import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { resolveCompressionModel } from "../runtime/compression/compression-model-registry.js";
 import { compressConversationWindow } from "../runtime/compression/compression-summarizer.js";
 import { invalidateSessionCache } from "./agent-session.js";
-import type { SessionStore } from "../../types/session-store.js";
-import { reconstructMessages, SessionTranscript } from "../persistence/session-transcript.js";
 
 /** Textual marker prefixing every compact summary (Codex `SUMMARY_PREFIX` analog). */
 export const COMPACT_SUMMARY_MARKER = "[[theokit:compact-summary]]";
@@ -43,7 +46,12 @@ export interface CompactResult {
 
 /** Is this message a summary produced by a PRIOR compaction? (filtered from verbatim preservation). */
 export function isCompactSummary(content: string): boolean {
-  return content.startsWith(COMPACT_SUMMARY_MARKER);
+  // M56 — goal-continuation boilerplate is loop plumbing, not user knowledge: preserving N copies of
+  // the template verbatim would crowd out real user messages from the preservation budget.
+  return (
+    content.startsWith(COMPACT_SUMMARY_MARKER) ||
+    content.startsWith("[[theokit:goal-continuation]]")
+  );
 }
 
 /**
@@ -54,9 +62,13 @@ function plainText(content: unknown): string | undefined {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return undefined;
   const texts = content
-    .filter((p): p is { type: string; text: string } =>
-      p !== null && typeof p === "object" && (p as { type?: unknown }).type === "text" &&
-      typeof (p as { text?: unknown }).text === "string")
+    .filter(
+      (p): p is { type: string; text: string } =>
+        p !== null &&
+        typeof p === "object" &&
+        (p as { type?: unknown }).type === "text" &&
+        typeof (p as { text?: unknown }).text === "string",
+    )
     .map((p) => p.text);
   return texts.length > 0 ? texts.join("\n") : undefined;
 }
@@ -67,6 +79,7 @@ function plainText(content: unknown): string | undefined {
  *
  * @throws whatever `summarize` throws — with the transcript guaranteed untouched.
  */
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: pre-existing (M50) — flagged only because this file was touched by an unrelated one-line M56 change; refactor tracked separately.
 export async function compactSessionTranscript(opts: {
   store: SessionStore;
   loc: CompactLocation;
@@ -80,7 +93,10 @@ export async function compactSessionTranscript(opts: {
   const compressible: CompressibleMessage[] = [];
   for (const m of history) {
     const text = plainText(m.content);
-    if (text !== undefined && (m.role === "user" || m.role === "assistant" || m.role === "system")) {
+    if (
+      text !== undefined &&
+      (m.role === "user" || m.role === "assistant" || m.role === "system")
+    ) {
       compressible.push({ role: m.role, content: text });
     }
   }
@@ -132,7 +148,6 @@ export async function compactSessionTranscript(opts: {
   return { preTokens, postTokens };
 }
 
-
 /**
  * M50 review F6 (corrigido no probe) — the summarizer's provider route, PURE and unit-tested.
  * Precedence mirrors the run's M4 rule exactly:
@@ -166,6 +181,7 @@ export function buildDefaultSummarizer(opts: {
   agentModel: string;
   apiKey?: string;
 }): (messages: readonly CompressibleMessage[]) => Promise<string> {
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: pre-existing (M50) — flagged only because this file was touched by an unrelated one-line M56 change; refactor tracked separately.
   return async (messages) => {
     // Provider resolution mirrors the RUN's own (M4 rule: the explicit API key outranks the model
     // prefix — an sk-or- key + openai/gpt model must summarize via OpenRouter too). Using anything
@@ -202,6 +218,7 @@ export function buildDefaultSummarizer(opts: {
       }
     }
 
+    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: pre-existing (M50) — flagged only because this file was touched by an unrelated one-line M56 change; refactor tracked separately.
     const callLlm = async (m: string, system: string, user: string): Promise<string> => {
       const chain = resolveProviderChain({
         primary: provider,
@@ -283,7 +300,9 @@ export async function autoCompactIfNeeded(opts: {
     return true;
   } catch (cause) {
     const msg = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`[theokit-sdk] auto-compaction failed (left transcript untouched): ${msg}\n`);
+    process.stderr.write(
+      `[theokit-sdk] auto-compaction failed (left transcript untouched): ${msg}\n`,
+    );
     return false;
   }
 }
