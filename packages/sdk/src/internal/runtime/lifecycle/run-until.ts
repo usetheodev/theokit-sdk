@@ -13,6 +13,7 @@
  * @internal
  */
 
+import { GOAL_CONTINUATION_MARKER } from "../../../goal-loop.js";
 import type { SDKAgent } from "../../../types/agent.js";
 import type { GoalEvent, GoalOptions, GoalResult } from "../../../types/goal-events.js";
 import type { JudgeContext, JudgeOptions } from "../../judge/judge-call.js";
@@ -194,11 +195,13 @@ export async function* runUntilImpl(
  *
  * @internal
  */
+
 export function composeContinuation(goal: string, lastResponse: string): string {
   // M55 — Codex-faithful continuation (ext/goal templates/goals/continuation.md): keep the FULL
   // objective intact, work from current-state evidence, and audit completion requirement-by-requirement
   // before declaring done. Improves the quality of what the judge then evaluates.
   return [
+    GOAL_CONTINUATION_MARKER,
     "Continue working toward the active goal.",
     "",
     `<objective>\n${goal}\n</objective>`,
@@ -216,6 +219,6 @@ export function composeContinuation(goal: string, lastResponse: string): string 
     "- Before deciding the goal is achieved, treat completion as unproven and verify it against the actual",
     "  current state, requirement by requirement. Treat uncertain or indirect evidence as not achieved.",
     "",
-    `Your last response was:\n${lastResponse.slice(0, 1000)}`,
+    `Your last response was:\n${lastResponse.slice(-1000)}`,
   ].join("\n");
 }
