@@ -86,7 +86,12 @@ export function safePathJoin(base: string, ...parts: string[]): string {
   }
   const baseResolved = resolve(base);
   const target = resolve(base, ...parts);
-  if (target !== baseResolved && !target.startsWith(baseResolved + sep)) {
+  // The prefix must not double the separator. `resolve` strips a trailing `sep` from every base
+  // EXCEPT the filesystem root, where `resolve(sep) === sep`; there `baseResolved + sep` would be
+  // `//`, which no absolute path starts with, so a root base rejected EVERY path. Only the root
+  // takes this branch — for any other base the prefix is unchanged, so the check is not weakened.
+  const prefix = baseResolved.endsWith(sep) ? baseResolved : baseResolved + sep;
+  if (target !== baseResolved && !target.startsWith(prefix)) {
     throw new PathTraversalError(parts.join("/"), target);
   }
   return target;
