@@ -64,6 +64,25 @@ export class ForbiddenPathError extends ConfigurationError {
 }
 
 /**
+ * Is `target` the same as `base`, or strictly under it?
+ *
+ * The prefix must not double the separator. `resolve` strips a trailing `sep` from every base
+ * EXCEPT the filesystem root, where `resolve(sep) === sep`; there `base + sep` would be `//`, which
+ * no absolute path starts with, so a root base rejected EVERY path (#149). Only the root takes that
+ * branch — for any other base the prefix is unchanged, so containment is not weakened.
+ *
+ * Both containment checks in this module go through here: they had the same defect and were fixed
+ * one at a time, which is exactly how the two drifted apart in the first place.
+ *
+ * Both arguments MUST already be resolved absolute paths.
+ */
+function isInside(target: string, base: string): boolean {
+  if (target === base) return true;
+  const prefix = base.endsWith(sep) ? base : base + sep;
+  return target.startsWith(prefix);
+}
+
+/**
  * Join `base` with `...parts` and ensure the resolved absolute path stays
  * under `base`. Resolves FIRST, then prefix-checks (ADR D80) — prevents
  * normalized-escape bypasses like `subdir/.\\./bar`.
@@ -86,12 +105,7 @@ export function safePathJoin(base: string, ...parts: string[]): string {
   }
   const baseResolved = resolve(base);
   const target = resolve(base, ...parts);
-  // The prefix must not double the separator. `resolve` strips a trailing `sep` from every base
-  // EXCEPT the filesystem root, where `resolve(sep) === sep`; there `baseResolved + sep` would be
-  // `//`, which no absolute path starts with, so a root base rejected EVERY path. Only the root
-  // takes this branch — for any other base the prefix is unchanged, so the check is not weakened.
-  const prefix = baseResolved.endsWith(sep) ? baseResolved : baseResolved + sep;
-  if (target !== baseResolved && !target.startsWith(prefix)) {
+  if (!isInside(target, baseResolved)) {
     throw new PathTraversalError(parts.join("/"), target);
   }
   return target;
@@ -160,7 +174,7 @@ export function assertNoSymlinkEscape(path: string, base: string): void {
   const resolved = realpathOfDeepestExisting(path);
   if (resolved === undefined) return; // path has no existing prefix — nothing to attack
 
-  if (resolved !== baseResolved && !resolved.startsWith(baseResolved + sep)) {
+  if (!isInside(resolved, baseResolved)) {
     throw new PathTraversalError(`symlink ${path}`, resolved);
   }
 }

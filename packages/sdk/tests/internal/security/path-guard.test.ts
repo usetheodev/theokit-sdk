@@ -102,6 +102,24 @@ describe("safePathJoin (T1.1)", () => {
 });
 
 describe("assertNoSymlinkEscape (T1.2)", () => {
+  /**
+   * REGRESSION (#149, segunda ocorrência): a MESMA checagem de contenção existia em duas funções
+   * deste módulo, e o primeiro fix cobriu só `safePathJoin`. Com base na raiz, `assertNoSymlinkEscape`
+   * continuava rejeitando todo caminho existente — então `apply_patch` com `projectRoot: "/"` seguia
+   * quebrado mesmo depois do #149. Ambas agora passam por `isInside`, para não voltarem a divergir.
+   */
+  it("accepts an existing path when base is the filesystem root", () => {
+    const dir = mkdtempSync(join(tmpdir(), "root-base-"));
+    const file = join(dir, "f.txt");
+    writeFileSync(file, "x");
+    try {
+      expect(() => assertNoSymlinkEscape(file, sep)).not.toThrow();
+      expect(() => assertNoSymlinkEscape(dir, sep)).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   let tmpRoot: string;
   let baseDir: string;
 
