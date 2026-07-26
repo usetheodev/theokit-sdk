@@ -1,3 +1,4 @@
+import { TheokitAgentError } from "../../errors.js";
 /**
  * Judge call primitive (T2.2, ADRs D119-D121).
  *
@@ -30,10 +31,61 @@ export interface JudgeContext {
 
 /** Caller-supplied tuning knobs for the judge call. */
 export interface JudgeOptions {
-  /** Judge model identifier. Default `"openai/gpt-4o-mini"` (ADR D119). */
+  /**
+   * Judge model identifier. Quando ausente, DERIVA de {@link agentModel} — e só cai no literal
+   * `"openai/gpt-4o-mini"` se nem esse for informado.
+   *
+   * M80 — o default fixo era provider-cego: ele só resolve em OpenRouter. Com chave Anthropic dá
+   * 404, com bearer OAuth dá 401, e em ambos o goal queimava 3 turnos inteiros antes de falhar com
+   * razão enganosa. O agent-builder já contornava isso derivando por conta própria; o conhecimento
+   * pertence aqui.
+   */
   judgeModel?: string;
+  /**
+   * M80 — o modelo do agente CONDUZIDO. É a base da derivação: um judge que roda no mesmo modelo do
+   * chat funciona onde o chat funciona.
+   */
+  agentModel?: string;
   /** Override env. Default `process.env.OPENROUTER_API_KEY` (EC-A). */
   apiKey?: string;
+}
+
+/**
+ * M80 — a credencial ou o modelo do judge não servem: 401/404.
+ *
+ * Falha RÁPIDA por design. `rules/error-handling.md § 2` separa recuperável de irrecuperável, e um
+ * modelo inexistente não passa a existir no retry — dobrar isso em `{parseFailed: true}` fazia o loop
+ * tentar três vezes e reportar "failed" por limite de falhas consecutivas, escondendo que a causa era
+ * credencial. Falha lenta e opaca trocada por rápida e clara.
+ *
+ * Falha de PARSE e erro de rede continuam dobrados: são recuperáveis, e o loop já decide por falhas
+ * consecutivas.
+ */
+export class JudgeCredentialError extends TheokitAgentError {
+  override readonly name = "JudgeCredentialError";
+
+  constructor(
+    readonly httpStatus: number,
+    readonly judgeModel: string,
+    cause: unknown,
+  ) {
+    super(
+      `judge unavailable: model "${judgeModel}" returned ${String(httpStatus)}. ` +
+        "Pass `judgeModel`/`apiKey` that resolve for this provider, or omit `judgeModel` to derive " +
+        "it from the agent being driven.",
+      { code: "judge_credential", cause, isRetryable: false },
+    );
+  }
+}
+
+/** Extrai o status HTTP de um erro de provider, quando ele o carrega. */
+function statusHttpDe(err: unknown): number | undefined {
+  const s =
+    (err as { status?: unknown; statusCode?: unknown }).status ??
+    (err as { statusCode?: unknown }).statusCode;
+  if (typeof s === "number") return s;
+  const m = /\b(401|403|404)\b/.exec(err instanceof Error ? err.message : String(err));
+  return m?.[1] !== undefined ? Number(m[1]) : undefined;
 }
 
 /** Dependencies injected so `judge-call.ts` stays free of `Agent` import. */
@@ -67,7 +119,9 @@ export async function judgeCallImpl(
     };
   }
 
-  const judgeModel = options?.judgeModel ?? "openai/gpt-4o-mini";
+  // M80 — precedência: explícito > modelo do agente conduzido > o literal histórico. O literal só
+  // sobrevive como último recurso, para não quebrar quem nunca passou nenhum dos dois.
+  const judgeModel = options?.judgeModel ?? options?.agentModel ?? "openai/gpt-4o-mini";
   let auxAgent: SDKAgent | undefined;
   try {
     auxAgent = await deps.create({
@@ -81,6 +135,13 @@ export async function judgeCallImpl(
     const result = await run.wait();
     return parseVerdict(result.result ?? "");
   } catch (err) {
+    // M80 — 401/403/404 são de credencial/modelo: irrecuperáveis, falham rápido e tipado. Todo o
+    // resto (rede, timeout, 5xx) segue dobrado, porque É recuperável e o loop já decide por falhas
+    // consecutivas.
+    const status = statusHttpDe(err);
+    if (status === 401 || status === 403 || status === 404) {
+      throw new JudgeCredentialError(status, judgeModel, err);
+    }
     return {
       verdict: "continue",
       reason: `judge call failed: ${err instanceof Error ? err.message : String(err)}`,

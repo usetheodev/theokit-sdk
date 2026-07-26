@@ -144,6 +144,19 @@ export async function* runUntilImpl(
         finalResponse: lastResponse || undefined,
       };
     }
+    // M80 — o braço que faltava. Sem ele, um judge que reconhecesse impossibilidade só podia dizer
+    // "continue", e o loop repetia o mesmo turno até estourar o orçamento — reportando `failed` por
+    // limite em vez de `blocked` por impossibilidade. Duas causas distintas com o mesmo desfecho
+    // visível, e o consumidor precisava reconciliar depois do loop para distingui-las.
+    if (judgment.verdict === "blocked") {
+      yield { type: "status_change", status: "blocked", reason: judgment.reason };
+      return {
+        status: "blocked",
+        turnsUsed: turn,
+        tokensUsed,
+        finalResponse: lastResponse || undefined,
+      };
+    }
     if (judgment.verdict === "skipped") {
       yield {
         type: "status_change",
