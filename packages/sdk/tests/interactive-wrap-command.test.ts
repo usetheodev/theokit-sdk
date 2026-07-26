@@ -113,3 +113,41 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
     expect(chamadas, "a detecção foi congelada na construção").toBe(2);
   });
 });
+
+/**
+ * M75 review (arquitetura, MEDIUM) — a regra "seccomp só com rede restrita" tinha DUAS cópias.
+ *
+ * O construtor de `LinuxSandbox` decidia condicionalmente; `interactiveWrapCommand` instalava
+ * incondicionalmente. Divergiram já na primeira versão, e o efeito é a pior combinação possível: com
+ * `network: true` o bwrap **permite** a rede (sem `--unshare-net`) e o seccomp a **nega** com EPERM.
+ * O usuário pede rede, recebe o bind, e as chamadas morrem sem explicação.
+ *
+ * Este teste trava os dois caminhos na MESMA decisão. Se alguém voltar a duplicar a regra, ele cai.
+ */
+describe("M75 review — seccomp e rede decidem juntos nos dois caminhos", () => {
+  it("test_rede_liberada_NAO_instala_seccomp_no_interativo", () => {
+    const out = interactiveWrapCommand({
+      mode: "workspace-write",
+      network: true,
+      detect: detectaOk,
+    })("bash", "/w");
+    expect(out, "com a rede liberada o bwrap não deve isolá-la").not.toContain("--unshare-net");
+    expect(
+      out,
+      "o filtro cBPF nega syscalls de rede: instalá-lo com a rede liberada faz o bwrap permitir e o " +
+        "seccomp negar a MESMA coisa",
+    ).not.toContain("--seccomp");
+  });
+
+  it("test_rede_restrita_instala_seccomp_no_interativo", () => {
+    // CONTRAPROVA: sem ela o `not.toContain` acima ficaria verde mesmo se o seccomp nunca fosse
+    // instalado — e aí o teste protegeria a ausência do filtro em vez da coerência da regra.
+    const out = interactiveWrapCommand({
+      mode: "workspace-write",
+      network: false,
+      detect: detectaOk,
+    })("bash", "/w");
+    expect(out).toContain("--unshare-net");
+    expect(out, "com a rede fechada o filtro TEM de ser instalado").toContain("--seccomp");
+  });
+});
