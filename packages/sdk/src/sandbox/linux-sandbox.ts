@@ -6,6 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+import { redactSecrets } from "../internal/security/redact.js";
 import type { BwrapDetection, SandboxMode } from "./bwrap.js";
 import { buildBwrapArgv, detectBwrapMemoizado } from "./bwrap.js";
 import { LocalSandbox } from "./local-sandbox.js";
@@ -173,7 +174,7 @@ let seccompFilterPath: string | undefined | null; // undefined = not tried; null
 /** M57 — exported so the interactive PTY backend reuses the SAME memoized x64-gated seccomp program. */
 export function restrictedSeccompPath(): string | undefined {
   if (seccompFilterPath !== undefined) return seccompFilterPath ?? undefined;
-  const path = seccompPathForArch(process.arch, (m) => console.warn(m));
+  const path = seccompPathForArch(process.arch, (m) => console.warn(redactSecrets(m)));
   seccompFilterPath = path ?? null;
   return path;
 }
@@ -237,7 +238,7 @@ export function createSandboxBackend(opts: CreateSandboxBackendOptions): Sandbox
   if (!detection.ok) {
     if (!warnedUnavailable) {
       warnedUnavailable = true;
-      const warn = opts.warn ?? ((m: string) => console.warn(m));
+      const warn = opts.warn ?? ((m: string) => console.warn(redactSecrets(m)));
       warn(
         `[sandbox] OS-level enforcement unavailable (${detection.reason}) — ` +
           `falling back to tool-level gating only (sandbox_mode=${opts.mode}).`,

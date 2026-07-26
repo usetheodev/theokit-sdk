@@ -47,6 +47,18 @@ const SINK_PATTERNS: Sink[] = [
  *   wraps payload with `redactSecrets(JSON.stringify(record))`.
  * - `internal/memory/migrate-sqlite-to-lance.ts` — logger wrap is at
  *   module top.
+ * - `sandbox/linux-sandbox.ts` — `writeFileSync` grava o programa cBPF do seccomp
+ *   num arquivo temporário. O conteúdo é um `Buffer` de instruções BPF construído
+ *   por `buildSeccompFilter` a partir de números de syscall constantes: nenhum dado
+ *   do chamador, do ambiente ou da rede entra nele, então não há segredo possível.
+ *   Redigir um blob binário o corromperia.
+ *
+ *   RESÍDUO DECLARADO: a allowlist é por ARQUIVO, então esta entrada também isenta
+ *   mecanicamente os dois `console.warn` do mesmo arquivo — e um `console.warn` novo
+ *   adicionado ali no futuro escaparia do gate. Os dois atuais passam por
+ *   `redactSecrets` (o motivo da falha de detecção carrega um caminho de sistema de
+ *   arquivos), mas isso é DISCIPLINA, não enforcement. Granularidade por linha
+ *   resolveria; não existe hoje, e inventá-la aqui seria escopo de outro milestone.
  * - `internal/persistence/atomic-write.ts` — generic blob writer used
  *   by callers that must redact themselves before passing data in.
  * - `internal/persistence/jsonl.ts` — generic JSONL writer (`appendJsonl`)
@@ -96,6 +108,7 @@ const SINK_PATTERNS: Sink[] = [
  *   `err.message` only. (ADRs D206, D241.)
  */
 const WHITELIST = new Set<string>([
+  "sandbox/linux-sandbox.ts",
   "internal/security/redact.ts",
   "internal/error-mappers/shared.ts",
   "internal/telemetry/tracer.ts",
