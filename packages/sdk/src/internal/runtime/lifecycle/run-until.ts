@@ -109,6 +109,8 @@ export async function* runUntilImpl(
     const judgeOpts: JudgeOptions = {};
     if (options?.judgeModel !== undefined) judgeOpts.judgeModel = options.judgeModel;
     if (options?.judgeApiKey !== undefined) judgeOpts.apiKey = options.judgeApiKey;
+    // M80 — encaminha o modelo do agente conduzido para o judge derivar quando `judgeModel` é omitido.
+    if (options?.agentModel !== undefined) judgeOpts.agentModel = options.agentModel;
     const judgeCtx: JudgeContext = { goal, lastResponse };
     if (options?.subgoals !== undefined) judgeCtx.subgoals = options.subgoals;
     const judgment = await deps.judge(judgeCtx, judgeOpts);

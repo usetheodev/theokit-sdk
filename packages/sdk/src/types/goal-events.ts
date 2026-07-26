@@ -127,6 +127,14 @@ export interface GoalOptions {
   judgeModel?: string;
   /** Override env for the judge auxiliary agent. Default `OPENROUTER_API_KEY` (EC-A). */
   judgeApiKey?: string;
+  /**
+   * M80 — o modelo do agente CONDUZIDO, base da derivação do judge quando `judgeModel` é omitido.
+   *
+   * Existe porque o default fixo (`openai/gpt-4o-mini`) só resolve em OpenRouter: com chave
+   * Anthropic dá 404, com bearer OAuth dá 401, e o goal queimava 3 turnos antes de falhar com razão
+   * enganosa. Um judge que roda no mesmo modelo do chat funciona onde o chat funciona.
+   */
+  agentModel?: string;
   /** Optional subgoals fed to the judge prompt. */
   subgoals?: string[];
   /**
