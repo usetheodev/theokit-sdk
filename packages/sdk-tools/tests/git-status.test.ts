@@ -82,3 +82,25 @@ describe("M76 T2.2 — createGitStatusTool", () => {
     expect(t.name).toBe("repo_status");
   });
 });
+
+describe("M76 T2.2 — a linha de branch", () => {
+  it("test_inclui_branch_por_default", async () => {
+    // Sem ela o agente vê O QUE mudou mas não ONDE — e "estou na branch certa?" precede qualquer
+    // commit. O consumidor já dependia disto; migrar sem cobrir perderia comportamento em silêncio.
+    const t = createGitStatusTool({ projectRoot: repo });
+    const out = (await t.handler({})) as string;
+    expect(out).toMatch(/##/); // porcelain -b marca a branch com '## '
+  });
+
+  it("test_pode_ser_desligada", async () => {
+    const t = createGitStatusTool({ projectRoot: repo, includeBranch: false });
+    const out = (await t.handler({})) as string;
+    const parsed = JSON.parse(out) as { diff: string };
+    expect(
+      parsed.diff
+        .split("\n")
+        .filter(Boolean)
+        .every((l) => !l.startsWith("##")),
+    ).toBe(true);
+  });
+});
