@@ -114,7 +114,24 @@ describe.skipIf(!process.env.VITEST || false)("openSqliteResilient", () => {
 });
 
 describe("node:sqlite fallback (flicker-bug fix — the error message PROMISED this fallback)", () => {
-  it("falls_back_to_node_sqlite_when_better_sqlite3_is_unavailable", async () => {
+  /**
+   * Host-gated, e a razão importa: este teste substitui APENAS o carregador do `better-sqlite3` e
+   * espera o `node:sqlite` REAL do host. O builtin só passou a vir liberado no Node 22.x mais
+   * recente — no **22.12** ele ainda exige `--experimental-sqlite`, e `process.getBuiltinModule`
+   * devolve vazio. Quebrou exatamente assim na matriz de CI (`validate (node 22.12)`), enquanto
+   * `validate (node 22)` passava.
+   *
+   * Um teste não pode provar fallback para um driver que o host não tem. Pular é honesto AQUI —
+   * mas pular em silêncio não seria, então o motivo fica escrito e a condição é o próprio builtin,
+   * não uma comparação de versão (que erraria de novo: "22.12" < "22.3" como string).
+   */
+  const temNodeSqlite =
+    (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.(
+      "node:sqlite",
+    ) !== undefined;
+  const itComBuiltin = temNodeSqlite ? it : it.skip;
+
+  itComBuiltin("falls_back_to_node_sqlite_when_better_sqlite3_is_unavailable", async () => {
     const { openSqliteResilient, _setDriverLoadersForTests } = await import(
       "../../../src/internal/persistence/sqlite-open.js"
     );
