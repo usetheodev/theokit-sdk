@@ -73,7 +73,16 @@ describe("M76 T2.2 — createGitStatusTool", () => {
     // mudasse silenciosamente, approvals gravados deixariam de casar.
     const t = createGitStatusTool({ projectRoot: repo });
     expect(t.name).toBe("git_status");
-    expect(t.description.length).toBeGreaterThan(20);
+    // M76 review (M3) — `length > 20` era um oráculo vazio: 21 caracteres de lixo passavam. A
+    // descrição é o que o modelo lê para decidir CHAMAR a tool; se ela não disser o que a tool faz,
+    // a tool não é escolhida, e nenhum teste de comportamento pega isso.
+    //
+    // Nota sobre a primeira versão desta asserção: ela exigia `/git/i` e FALHOU — a descrição fala de
+    // "working-tree status", não da ferramenta que a implementa. O oráculo estava errado, não a
+    // descrição: descrever o COMPORTAMENTO (o que o modelo precisa para escolher) em vez do
+    // executável é a prática correta, e o teste agora ancora nisso.
+    expect(t.description).toMatch(/status/i);
+    expect(t.description).toMatch(/staged|untracked|working-tree/i);
   });
 
   it("test_name_da_fabrica_sobrescreve_como_nas_demais", () => {

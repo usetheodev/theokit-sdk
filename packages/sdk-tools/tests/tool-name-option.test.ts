@@ -22,9 +22,11 @@
  * não regridem.
  */
 import { describe, expect, it } from "vitest";
+import { createEditFileTool } from "../src/edit-file.js";
 import { withName } from "../src/internal/tool-aci.js";
 import { createListDirTool } from "../src/list-dir.js";
 import { createSearchTextTool } from "../src/search-text.js";
+import { createShellTool } from "../src/shell-exec.js";
 
 const raiz = "/tmp";
 
@@ -47,9 +49,30 @@ describe("M76 T1.2 — name/description como opção de fábrica", () => {
   });
 
   it("test_sem_description_o_default_e_preservado", () => {
+    // M76 review (M2) — as duas asserções anteriores (`length > 0` e `not.toBe("")`) diziam a MESMA
+    // coisa por dois caminhos, e nenhuma das duas testava o que o nome promete: que o default é
+    // PRESERVADO. Trocar a descrição por "x" satisfazia as duas. O oráculo do default é o próprio
+    // default — a descrição que o modelo lê tem de conter o que a tool faz.
     const t = createSearchTextTool({ projectRoot: raiz });
-    expect(t.description.length).toBeGreaterThan(0);
-    expect(t.description).not.toBe("");
+    expect(t.description).toMatch(/search|busca|grep|text/i);
+    // E não pode ser afetada por passar `name`: as duas opções são independentes.
+    expect(createSearchTextTool({ projectRoot: raiz, name: "grep" }).description).toBe(
+      t.description,
+    );
+  });
+
+  it("test_M1_name_e_description_valem_para_edit_file_e_shell_exec", () => {
+    // M76 review (M1) — a DoD dizia "todas as *ToolOptions", e o teste cobria só `search_text` e
+    // `list_dir`. `edit_file` e `shell_exec` são justamente as duas tools cujo nome é chave de
+    // APPROVAL: renomear uma delas sem que nada verifique é o caminho mais curto para um approval
+    // gravado deixar de casar em silêncio.
+    const edit = createEditFileTool({ projectRoot: raiz, name: "aplicar_patch" });
+    expect(edit.name).toBe("aplicar_patch");
+    expect(createEditFileTool({ projectRoot: raiz }).name).toBe("edit_file");
+
+    const sh = createShellTool({ projectRoot: raiz, name: "rodar" });
+    expect(sh.name).toBe("rodar");
+    expect(createShellTool({ projectRoot: raiz }).name).toBe("shell_exec");
   });
 
   it("test_with_name_continua_funcionando", () => {

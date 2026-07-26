@@ -46,6 +46,12 @@ describe("M76 T1.1 — o contrato de question fecha sem cast", () => {
     const t = createQuestionTool({ askUser: askerFalso });
     const props = t.inputSchema.properties;
     expect(props).toBeDefined();
+
+    // M76 review (M5) — `toBeDefined()` sozinho passa com `properties: {}`. A chave `question` é o
+    // contrato: o handler lê `input.question`, então um schema sem essa chave produz uma tool que o
+    // modelo chama sempre sem argumento. É a indexação que prova o tipo E a forma ao mesmo tempo.
+    expect(Object.keys(props as Record<string, unknown>)).toContain("question");
+    expect(t.inputSchema["required"]).toEqual(["question"]);
   });
 
   it("test_handler_de_um_argumento_continua_valido", () => {
