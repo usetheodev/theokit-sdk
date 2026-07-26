@@ -19,6 +19,7 @@
 
 import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
+import { isAbsolute } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 import { Tool } from "@theokit/sdk";
 import {
@@ -36,6 +37,7 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
+import { ehProibidoEmQualquerProfundidade } from "./path-scope.js";
 
 const DEFAULT_MAX_ENTRIES = 500;
 
@@ -51,6 +53,15 @@ export interface CreateListDirToolOptions {
   name?: string;
   /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
   description?: string;
+  /**
+   * M76 — opt-in "lista-em-qualquer-lugar": honra um `path` ABSOLUTO fora de `projectRoot`
+   * (paridade com `createReadFileTool`/`createSearchTextTool`, sandbox read-only do Codex).
+   *
+   * O guard de segredo por QUALQUER segmento continua valendo, e não é separável: `isForbiddenPath`
+   * só bloqueia o item sensível quando ele é o PRIMEIRO segmento, então um `/home/u/proj/.env/sub`
+   * passaria. Ligar o flag sem o guard é abrir exfiltração. Default `false` ⇒ absoluto rejeitado.
+   */
+  allowAbsolute?: boolean;
   /** Absolute path to the project root. Every listing is gated against this boundary. */
   projectRoot: string;
   /** Maximum number of entries returned per call. Default 500. */
@@ -80,8 +91,10 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
     }),
     handler: async ({ path }, ctx) => {
       const relative = path === "" || path === "." ? "." : path;
-      if (relative !== "." && isForbiddenPath(relative)) {
-        return JSON.stringify({ ok: false, error: "forbidden_path", path });
+      const veredito = decidirEscopo(relative, path, opts.allowAbsolute === true);
+      if (veredito.erro !== undefined) return veredito.erro;
+      if (veredito.raizAbsoluta !== undefined) {
+        return listViaLocalFs(veredito.raizAbsoluta, ".", path, max);
       }
       // SE31 — route through the pluggable backend when one is configured; else
       // the local `projectRoot` fs.
@@ -92,6 +105,35 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
       return listViaLocalFs(projectRoot, relative, path, max);
     },
   });
+}
+
+/**
+ * A decisão de escopo do `list_dir`, separada do handler.
+ *
+ * Extraída porque o gate de complexidade do SDK a separou por nós — e ele estava certo: DECIDIR se o
+ * caminho pode ser lido é a parte com consequência de segurança, e merece ser lida sozinha. O handler
+ * só orquestra depois.
+ *
+ * Devolve `{ erro }` quando o caminho é recusado, `{ raizAbsoluta }` quando é um absoluto honrado, ou
+ * `{}` quando é o caso relativo de sempre.
+ */
+function decidirEscopo(
+  relative: string,
+  original: string,
+  allowAbsolute: boolean,
+): { erro?: string; raizAbsoluta?: string } {
+  const recusa = (error: string): { erro: string } => ({
+    erro: JSON.stringify({ ok: false, error, path: original }),
+  });
+
+  if (relative !== "." && isForbiddenPath(relative)) return recusa("forbidden_path");
+  if (!isAbsolute(relative)) return {};
+
+  // M76 — absoluto só com opt-in, e SEMPRE com o guard por segmento: `isForbiddenPath` acima só olha
+  // o PRIMEIRO segmento, então um `/home/u/proj/.env/sub` passaria por ele.
+  if (!allowAbsolute) return recusa("path_traversal");
+  if (ehProibidoEmQualquerProfundidade(relative)) return recusa("forbidden_path");
+  return { raizAbsoluta: relative };
 }
 
 /** Local-`projectRoot` listing: boundary + readdir + bounded format. */
