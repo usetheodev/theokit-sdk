@@ -11,6 +11,7 @@
 export {
   clampYield,
   PtyInteractiveBackend,
+  type PtyInteractiveBackendOptions,
   YIELD_MAX_MS,
   YIELD_MIN_MS,
 } from "./pty-interactive-backend.js";
