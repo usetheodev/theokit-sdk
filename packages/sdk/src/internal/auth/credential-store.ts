@@ -15,6 +15,8 @@ import { join } from "node:path";
 
 import { z } from "zod";
 
+import { AuthenticationError } from "../../errors.js";
+
 /**
  * M42 — the SDK credential store. Promoted DOWN from agent-builder's hardened `agents/lib/credentials.ts`
  * (M37), generalized from a closed `openrouter|anthropic|openai` union to an open `provider: string` and
@@ -54,12 +56,28 @@ export function authFilePath(
   return join(credentialHome(config, env), config.fileName);
 }
 
-/** A credential problem the caller can act on. Never carries the key value. */
-export class CredentialError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "CredentialError";
-  }
+/**
+ * A credential problem the caller can act on. Never carries the key value.
+ *
+ * M78 — this used to extend bare `Error`, which quietly disabled classification for the entire auth
+ * path: `isTransientError` is `err instanceof TheokitAgentError && err.isRetryable === true`
+ * (`errors.ts:443`), so a credential failure could never be judged transient OR permanent. The
+ * predicate was not "forgotten" downstream — it was unusable there by construction.
+ *
+ * Extending `AuthenticationError` is ADDITIVE: the class still exists, still reports
+ * `name: "CredentialError"`, and every existing `instanceof CredentialError` stays true. It only
+ * gains ancestors. `AuthenticationError` pins `isRetryable: false`, so gaining the ability to be
+ * classified does NOT turn a revoked credential into a retry loop.
+ *
+ * The single reference does the same thing with one root type: Codex routes every domain failure
+ * through `CodexErr` with `is_retryable()` as a method (`protocol/src/error.rs:176`), rather than
+ * parallel classes extending the language's `Error`.
+ */
+export class CredentialError extends AuthenticationError {
+  // Field, not an assignment in the constructor: `AuthenticationError.name` is `override readonly`
+  // (`errors.ts:174`), so `this.name = …` does not compile. Caught by `tsc`, not by vitest — the
+  // suite was green with the broken assignment because the transpiler strips the type.
+  override readonly name: string = "CredentialError";
 }
 
 /**
