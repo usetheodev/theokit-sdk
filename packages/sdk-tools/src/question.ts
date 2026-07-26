@@ -7,8 +7,15 @@
  */
 
 export interface QuestionToolOptions {
-  /** Callback that presents a question to the user and resolves with their answer. */
-  askUser: (question: string) => Promise<string>;
+  /**
+   * Callback que apresenta a pergunta ao usuário e resolve com a resposta.
+   *
+   * M76 — passou a ser OPCIONAL: o asker preferencial vem do contexto da run
+   * (`ctx.context.askUser`), porque um valor fixado aqui é o "baked into each factory" que a doc do
+   * `CustomTool.handler` aponta como o problema que `ctx.context` existe para resolver. Este campo
+   * permanece como fallback, para quem constrói a tool com um asker fixo (retrocompatível).
+   */
+  askUser?: (question: string) => Promise<string>;
   /** Maximum time to wait for user response in ms. Default: 300_000 (5 min). */
   timeoutMs?: number;
 }
@@ -32,6 +39,21 @@ export interface QuestionTool {
   ) => Promise<string>;
 }
 
+/**
+ * Extrai o asker do contexto da run, se houver.
+ *
+ * `ctx.context` é `unknown` por contrato — é dado do usuário, e o SDK não o tipa. Um `context`
+ * presente mas SEM `askUser` (ex.: só `projectRoot`) não pode ser confundido com "há asker": a
+ * checagem é pela função, não pela presença do objeto.
+ */
+function askerDoContexto(context: unknown): ((question: string) => Promise<string>) | undefined {
+  if (typeof context !== "object" || context === null) return undefined;
+  const candidato = (context as { askUser?: unknown }).askUser;
+  return typeof candidato === "function"
+    ? (candidato as (question: string) => Promise<string>)
+    : undefined;
+}
+
 export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
   const timeoutMs = opts.timeoutMs ?? 300_000;
 
@@ -48,13 +70,30 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       },
       required: ["question"],
     },
-    handler: async (input: { question: string }): Promise<string> => {
+    handler: async (
+      input: { question: string },
+      ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
+    ): Promise<string> => {
+      // M76 — precedência: contexto da run > fábrica. `ctx.threadId` identifica a sessão, então uma
+      // tool compartilhada entre sessões passa a escopar o asker por sessão em vez de vazá-lo.
+      const askUser = askerDoContexto(ctx?.context) ?? opts.askUser;
+      if (askUser === undefined) {
+        // NUNCA uma promise pendente: sem asker, esperar o timeout de 5 min pararia o turno inteiro
+        // sem que ninguém soubesse por quê. Erro tipado, imediato (`error-handling.md` § 2).
+        return JSON.stringify({
+          ok: false,
+          error: "no_asker",
+          message:
+            "No asker available: pass `askUser` to createQuestionTool, or provide " +
+            "`context.askUser` via SendOptions.context.",
+        });
+      }
       const timeout = new Promise<never>((_, reject) => {
         setTimeout(() => reject(new Error("timeout")), timeoutMs);
       });
 
       try {
-        const answer = await Promise.race([opts.askUser(input.question), timeout]);
+        const answer = await Promise.race([askUser(input.question), timeout]);
         return JSON.stringify({ ok: true, answer });
       } catch (err) {
         if (err instanceof Error && err.message === "timeout") {
