@@ -25,7 +25,7 @@ import { reconstructMessages, SessionTranscript } from "../persistence/session-t
 import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { resolveCompressionModel } from "../runtime/compression/compression-model-registry.js";
 import { compressConversationWindow } from "../runtime/compression/compression-summarizer.js";
-import { invalidateSessionCache } from "./agent-session.js";
+import { invalidateSessionCache } from "./session-cache.js";
 
 /** Textual marker prefixing every compact summary (Codex `SUMMARY_PREFIX` analog). */
 export const COMPACT_SUMMARY_MARKER = "[[theokit:compact-summary]]";

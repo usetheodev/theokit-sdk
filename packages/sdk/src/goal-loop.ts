@@ -18,7 +18,7 @@ import type { SDKAgent } from "./types/agent.js";
  * Stable marker on the FIRST LINE of every goal-continuation prompt. Surfaces detect it to render the
  * turn collapsed, exclude it from backtrack windows, and skip it in compaction preservation.
  */
-export const GOAL_CONTINUATION_MARKER = "[[theokit:goal-continuation]]";
+export { GOAL_CONTINUATION_MARKER } from "./internal/runtime/lifecycle/goal-marker.js";
 
 import type { GoalEvent, GoalOptions, GoalResult } from "./types/goal-events.js";
 
