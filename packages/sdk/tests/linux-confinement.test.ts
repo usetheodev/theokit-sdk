@@ -15,9 +15,14 @@
  *
  * ## O que este arquivo NÃO substitui
  *
- * Os 24 testes originais (`bwrap.test.ts` 18 + `seccomp.test.ts` 6) migram inteiros em T4.1, com
- * mudança **apenas** em linhas de `import` (D4 do plano). Este arquivo é o RED da promoção, não a
- * suíte de paridade — confundir os dois deixaria a migração sem oráculo.
+ * Os 24 testes originais migraram em `tests/bwrap-argv.test.ts` (18) e `tests/seccomp-filter.test.ts`
+ * (6), com mudança **apenas** em linhas de `import` (D4 do plano). Este arquivo é o RED da promoção,
+ * não a suíte de paridade — confundir os dois deixaria a migração sem oráculo.
+ *
+ * CORREÇÃO (review do M75): esta nota **afirmava o falso** por um tempo. Os 24 tinham sido deletados
+ * e substituídos pelos 9 daqui, e o review provou por mutação o custo — trocar `buildSeccompFilter`
+ * por um filtro que não nega NADA passava 9/9. Os 9 daqui testam a FORMA (é Buffer, é determinístico);
+ * a SEMÂNTICA (quais syscalls são negados, em que ordem, com que guard) vive nos 24 migrados.
  */
 import { describe, expect, it } from "vitest";
 
@@ -81,9 +86,14 @@ describe("M75 T2.1 — detectBwrap promovido", () => {
   it("test_which_nulo_e_falha_honesta", () => {
     // O anti-hijack (recusar um `bwrap` que vive dentro do workspace) mora DENTRO de
     // `realProbes.which`, não em `detectBwrap` — injetar um probe falso o contornaria, e um teste que
-    // o "verifica" por probe injetado estaria medindo a própria fixture. Ele é coberto pelos 18
-    // testes de `bwrap.test.ts`, que migram intactos em T4.1. Aqui o que se mede é o contrato de
-    // `detectBwrap` diante de um `which` que não resolveu.
+    // o "verifica" por probe injetado estaria medindo a própria fixture.
+    //
+    // CORREÇÃO (review do M75): a versão anterior deste comentário dizia que o anti-hijack era
+    // "coberto pelos 18 testes de bwrap.test.ts". Falso nos dois sentidos — aqueles testes tinham
+    // sido deletados (hoje estão em `tests/bwrap-argv.test.ts`), e mesmo os originais NUNCA o
+    // cobriram (`grep realProbes` no arquivo original: zero). A lacuna é PRÉ-EXISTENTE e segue
+    // aberta; afirmar cobertura inexistente é pior que a lacuna, porque faz ninguém procurar.
+    // Aqui o que se mede é o contrato de `detectBwrap` diante de um `which` que não resolveu.
     const d = detectBwrap(probesFalsos({ which: () => null }));
     expect(d.ok).toBe(false);
     expect(d.ok === false && d.reason).toMatch(/PATH|found/i);

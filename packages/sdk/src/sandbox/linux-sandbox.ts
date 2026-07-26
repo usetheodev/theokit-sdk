@@ -4,7 +4,7 @@
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { redactSecrets } from "../internal/security/redact.js";
 import type { BwrapDetection, SandboxMode } from "./bwrap.js";
@@ -102,8 +102,7 @@ export class LinuxSandbox extends LocalSandbox {
     // which the outer shell would re-resolve via $PATH at spawn time (TOCTOU / hijack window).
     this.bin = opts.bin ?? "bwrap";
     this.env = opts.env ?? allowlistedEnv();
-    // Codex installs seccomp only when the network is restricted (landlock.rs:96-117); network on ⇒ none.
-    this.seccompPath = this.network ? undefined : restrictedSeccompPath();
+    this.seccompPath = seccompPathParaRede(this.network);
   }
 
   /** Extracted for test visibility — delegates to the pure `wrapCommandForSandbox` (M57, single wrap SoT). */
@@ -119,6 +118,36 @@ export class LinuxSandbox extends LocalSandbox {
       },
       command,
     );
+  }
+
+  /**
+   * M75 review (arquitetura, HIGH) — sem este override a classe MENTIA.
+   *
+   * `LinuxSandbox` se documenta como "kernel-enforced sandbox backend", mas sobrescrevia apenas
+   * `execute`. `uploadFile` continuava o herdado de `LocalSandbox`, que escreve direto no host via
+   * `fs/promises` e aceita caminho ABSOLUTO — sem bwrap, sem seccomp, sem restrição de caminho. E
+   * `SandboxBackend.writeFile` delega a ele. O resultado era uma classe incoerente: ler, buscar e
+   * listar passavam pelo confinamento; escrever, não.
+   *
+   * Rotear pelo `execute` embrulhado resolve na raiz: a escrita passa a viver sob a MESMA política
+   * do resto — se o bwrap nega o caminho, a escrita falha, como deve. O conteúdo vai por stdin (não
+   * por argv) porque argv tem limite de tamanho e conteúdo de arquivo não tem.
+   */
+  override async uploadFile(caminho: string, conteudo: string | Buffer): Promise<void> {
+    if (this.mode === "danger-full-access") return super.uploadFile(caminho, conteudo);
+
+    const alvo = caminho.startsWith("/") ? caminho : `${this.cwd}/${caminho}`;
+    const b64 = Buffer.from(conteudo).toString("base64");
+    // base64 numa única linha: evita qualquer citação de shell sobre conteúdo arbitrário, que é
+    // exatamente onde uma escrita "confinada" viraria injeção de comando.
+    const r = await this.execute(
+      `mkdir -p ${shellQuote(dirname(alvo))} && printf %s ${shellQuote(b64)} | base64 -d > ${shellQuote(alvo)}`,
+    );
+    if (r.exitCode !== 0) {
+      throw new Error(
+        `uploadFile bloqueado ou falhou sob confinamento (${alvo}): ${r.stderr.trim() || `exit ${r.exitCode}`}`,
+      );
+    }
   }
 
   override execute(command: string, opts?: { timeoutMs?: number }) {
@@ -264,6 +293,23 @@ export function resetInteractiveWarnLatch(): void {
   avisouInterativo = false;
 }
 
+/**
+ * A regra "seccomp SÓ com rede restrita" — em UM lugar.
+ *
+ * O Codex instala o filtro apenas quando a rede está fechada (`landlock.rs:96-117`), e não é
+ * detalhe: o programa cBPF **nega as syscalls de rede** (`NETWORK_DENIED`). Aplicá-lo com a rede
+ * liberada produz a pior combinação possível — o bwrap **permite** a rede (sem `--unshare-net`) e o
+ * seccomp a **nega** com EPERM. O usuário pediu rede, recebeu o bind, e as chamadas morrem.
+ *
+ * Existia duplicada: o construtor decidia condicionalmente, `interactiveWrapCommand` instalava
+ * incondicionalmente. Divergiam já na primeira versão (review de arquitetura do M75, provado em
+ * runtime: `network:true` dava `--seccomp` no interativo e não no one-shot). Duas cópias de uma regra
+ * de segurança não é duplicação de forma — é duplicação de CONHECIMENTO, e ela já tinha divergido.
+ */
+function seccompPathParaRede(redeLiberada: boolean): string | undefined {
+  return redeLiberada ? undefined : restrictedSeccompPath();
+}
+
 export interface InteractiveWrapOptions {
   mode: SandboxMode;
   /** `true` mantém a rede. Default `false`, igual ao `run_shell` não-interativo. */
@@ -289,24 +335,51 @@ export interface InteractiveWrapOptions {
  * As duas rotas que devolvem `null` são semanticamente diferentes e o código não as funde:
  * `danger-full-access` é opt-out explícito e NÃO avisa; bwrap indisponível é falha e avisa uma vez.
  */
+/**
+ * A decisão de confinar ou degradar, separada do wrap em si.
+ *
+ * Extraída porque são duas responsabilidades e o gate de complexidade do SDK as separou por nós:
+ * DECIDIR (há confinamento disponível? o usuário optou por sair?) e APLICAR (montar o argv). Manter
+ * juntas fazia o closure passar de 10 de complexidade cognitiva — e o linter estava certo: a parte
+ * que decide é a que tem consequência de segurança e merece ser lida sozinha.
+ *
+ * Devolve o binário validado quando há confinamento, ou `null` quando não há — avisando UMA vez, e
+ * apenas quando a ausência é uma falha (não quando é opt-out).
+ */
+function decidirConfinamento(opts: InteractiveWrapOptions): string | null {
+  if (opts.mode === "danger-full-access") return null;
+
+  const detection = (opts.detect ?? detectBwrapMemoizado)();
+  if (detection.ok) return detection.bin;
+
+  if (!avisouInterativo) {
+    avisouInterativo = true;
+    const warn = opts.warn ?? ((m: string) => console.warn(redactSecrets(m)));
+    warn(
+      `[sandbox] OS-level enforcement unavailable (${detection.reason}) — interactive session ` +
+        `runs WITHOUT kernel confinement (sandbox_mode=${opts.mode}).`,
+    );
+  }
+  return null;
+}
+
+/**
+ * A composição que o caminho interativo precisa — o par de `createSandboxBackend`.
+ *
+ * `createSandboxBackend` resolve isto para o caminho não-interativo devolvendo um BACKEND pronto. O
+ * PTY não aceita um backend: ele é dono do spawn e só admite transformar o comando. Esta função
+ * entrega a MESMA decisão na forma que o PTY aceita — `(command, cwd) => string | null`.
+ *
+ * A detecção é consultada **a cada wrap**, não congelada na construção: uma sessão interativa vive
+ * por horas, e uma detecção positiva obsoleta continuaria afirmando confinamento depois de o binário
+ * sumir.
+ */
 export function interactiveWrapCommand(
   opts: InteractiveWrapOptions,
 ): (command: string, cwd: string) => string | null {
   return (command: string, cwd: string): string | null => {
-    if (opts.mode === "danger-full-access") return null;
-
-    const detection = (opts.detect ?? detectBwrapMemoizado)();
-    if (!detection.ok) {
-      if (!avisouInterativo) {
-        avisouInterativo = true;
-        const warn = opts.warn ?? ((m: string) => console.warn(redactSecrets(m)));
-        warn(
-          `[sandbox] OS-level enforcement unavailable (${detection.reason}) — interactive session ` +
-            `runs WITHOUT kernel confinement (sandbox_mode=${opts.mode}).`,
-        );
-      }
-      return null;
-    }
+    const bin = decidirConfinamento(opts);
+    if (bin === null) return null;
 
     return wrapCommandForSandbox(
       opts.mode,
@@ -314,8 +387,8 @@ export function interactiveWrapCommand(
         cwd,
         network: opts.network ?? false,
         env: allowlistedEnv(),
-        bin: detection.bin,
-        seccompPath: restrictedSeccompPath(),
+        bin,
+        seccompPath: seccompPathParaRede(opts.network ?? false),
       },
       command,
     );
