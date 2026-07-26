@@ -265,6 +265,116 @@ export function isContextOverflowError(err: unknown): boolean {
   );
 }
 
+/**
+ * M77 — the margin is outside `(0, 1]`. Typed, because a margin > 1 would GROW the assumed window,
+ * which is the unsafe direction: `shouldCompact` is monotonically decreasing in `contextWindow`, so
+ * overestimating it makes the trigger fire too late and the context overflow.
+ */
+export class ContextWindowMarginError extends TheokitAgentError {
+  constructor(readonly margin: number) {
+    super(
+      `context-window margin must be in (0, 1], got ${String(margin)}. ` +
+        `A margin above 1 grows the assumed window and delays compaction past the real limit.`,
+      { code: "invalid_context_window_margin" },
+    );
+  }
+}
+
+/**
+ * M77 — default safety margin on the context window.
+ *
+ * `0.95` is not a guess: it is the single reference's value. Codex ships
+ * `effective_context_window_percent: 95` (`models-manager/src/model_info.rs:158`) and never budgets
+ * against 100% of a window. Being MULTIPLICATIVE, it stays conservative at any window size, which a
+ * fixed subtraction would not.
+ */
+export const CONTEXT_WINDOW_MARGIN = 0.95;
+
+/**
+ * M77 — the floor used ONLY when neither the catalog nor the caller knows the window.
+ *
+ * Honest about its own weakness. This number has **one** source (the M77 milestone text); the search
+ * for a second one failed, because the reference has no fallback at all — Codex returns `Option` and
+ * its callers early-return (`core/src/session/turn_context.rs:213`, `core/src/compact_remote.rs:374`).
+ *
+ * It is conservative only UPWARD. For a model whose real window is larger, budgeting against 128k
+ * compacts early — wasteful but safe. For a model whose real window is SMALLER (an 8k or 32k model
+ * absent from the catalog), it compacts too late and the context still overflows. That residual risk
+ * is real and is why {@link resolveEffectiveContextWindow} never lets this floor compete with a known
+ * catalog value, and why the `compaction_fallback` event exists: a surface can show that the budget is
+ * a guess instead of the user finding out when the provider rejects the request.
+ */
+export const CONTEXT_WINDOW_FLOOR = 128_000;
+
+/** Where the effective window came from — carried into the M77 structured event. */
+export type ContextWindowSource = "override" | "catalog" | "fallback";
+
+/** Input to {@link resolveEffectiveContextWindow}. */
+export interface EffectiveContextWindowInput {
+  /** Caller-supplied window, in tokens. Clamped by `catalog` when both are present. */
+  readonly override?: number | undefined;
+  /** The model's window from the catalog, in tokens. Absent when the model is unknown. */
+  readonly catalog?: number | undefined;
+  /** Safety margin in `(0, 1]`. Codex uses 0.95 (`model_info.rs:158`). */
+  readonly margin: number;
+  /** Conservative floor used ONLY when neither `override` nor `catalog` is available. */
+  readonly floor?: number | undefined;
+}
+
+/** Result of {@link resolveEffectiveContextWindow}. */
+export interface EffectiveContextWindow {
+  /** The window to budget against, after clamp and margin. */
+  readonly window: number;
+  /** Which input won — `"fallback"` means neither override nor catalog was available. */
+  readonly source: ContextWindowSource;
+  /** `true` when an `override` above the catalog window was clamped down to it. */
+  readonly clamped: boolean;
+}
+
+/**
+ * Resolve the window to budget against — the fail-SAFE replacement for reading the catalog directly.
+ *
+ * Today `post-run-lifecycle.ts` reads `getCatalogModelInfo(model)?.limit?.context` and, when that is
+ * `undefined`, auto-compaction simply never fires. That is fail-OPEN: the context grows until the
+ * provider rejects the request. (The comment there calls it "fail-safe" — M77 corrects it.)
+ *
+ * Three techniques, two of them borrowed from the single reference:
+ *
+ *  1. **Override, CLAMPED by the catalog** — Codex `models-manager/src/model_info.rs:26-31` lets
+ *     config override the window but limits it with `context_window.min(max_context_window)`.
+ *     Without the clamp, declaring 999k on a 200k model reopens the overflow through another door.
+ *  2. **Multiplicative margin** — Codex `model_info.rs:158` (`effective_context_window_percent: 95`)
+ *     never budgets against 100% of the window. Being multiplicative, it is conservative for ANY
+ *     window size.
+ *  3. **Floor, only when nothing is known** — deliberately NOT a blanket default. A fixed floor is
+ *     conservative only upward: applied to a small model it would inflate the assumed window and
+ *     reproduce the very fail-open this function exists to close. Hence the floor never competes
+ *     with a known catalog value.
+ *
+ * Pure — no catalog lookup, no I/O. The caller supplies the numbers, mirroring `shouldCompact`.
+ */
+export function resolveEffectiveContextWindow(
+  input: EffectiveContextWindowInput,
+): EffectiveContextWindow {
+  if (!(input.margin > 0) || input.margin > 1) {
+    throw new ContextWindowMarginError(input.margin);
+  }
+
+  const withMargin = (raw: number): number => Math.floor(raw * input.margin);
+
+  if (input.override !== undefined) {
+    const clamped = input.catalog !== undefined && input.override > input.catalog;
+    const raw = clamped ? (input.catalog as number) : input.override;
+    return { window: withMargin(raw), source: "override", clamped };
+  }
+
+  if (input.catalog !== undefined) {
+    return { window: withMargin(input.catalog), source: "catalog", clamped: false };
+  }
+
+  return { window: withMargin(input.floor ?? 0), source: "fallback", clamped: false };
+}
+
 /** Input to {@link shouldCompact}: an estimate, the model's window, and reserved headroom. */
 export interface ShouldCompactInput {
   /** Estimated token count of the next request (e.g. from {@link estimateTokens}). */

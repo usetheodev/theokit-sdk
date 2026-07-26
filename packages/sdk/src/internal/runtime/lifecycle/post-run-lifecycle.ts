@@ -1,3 +1,8 @@
+import {
+  CONTEXT_WINDOW_FLOOR,
+  CONTEXT_WINDOW_MARGIN,
+  resolveEffectiveContextWindow,
+} from "../../../compaction.js";
 import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
 import { emitRunEvent } from "../../../types/run-events.js";
@@ -14,6 +19,7 @@ import {
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import { shouldUsePortMemoryPath } from "../memory/memory-path-selector.js";
 import type { MemoryProvider } from "../memory/memory-provider.js";
+import { buildContextBudgetEvent } from "./context-budget-event.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
@@ -104,23 +110,23 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // SE41 — through the session store (FS default or injected external store).
   const conversation = await safeConversation(run);
   // M50 — size-driven auto-compaction rides the SAME persistence chain: real usage from the run's
-  // Completed (Codex `last_token_usage.total_tokens` analog) vs the model's catalog context window.
-  // Missing usage/window ⇒ the trigger never fires (fail-safe); the summarizer is the compression
-  // subsystem's aux-LLM via `buildDefaultSummarizer`.
-  const contextWindow = getCatalogModelInfo(model)?.limit?.context;
-  // M50 review F2 — a model absent from the catalog silently disables the auto-trigger; the plan
-  // promised a once-per-process WARN so the silence is at least visible.
-  if (contextWindow === undefined) {
-    const g = globalThis as unknown as Record<symbol, Set<string>>;
-    const sym = Symbol.for("theokit-sdk.compact.no-cw-warned");
-    g[sym] ??= new Set<string>();
-    const warned = g[sym];
-    if (!warned.has(model)) {
-      warned.add(model);
-      process.stderr.write(
-        `[theokit-sdk] auto-compaction disabled: model "${model}" has no context-window entry in the catalog\n`,
-      );
-    }
+  // Completed (Codex `last_token_usage.total_tokens` analog) vs the model's context window. The
+  // summarizer is the compression subsystem's aux-LLM via `buildDefaultSummarizer`.
+  //
+  // M77 — this used to read the catalog directly and, when the model was absent, leave the window
+  // `undefined` so the trigger never fired. The comment here called that "fail-safe"; it was the
+  // opposite. Not compacting when the window is unknown lets the conversation grow until the
+  // PROVIDER rejects it — fail-OPEN, and silent. It now resolves to a floor and says so, so the
+  // budget degrades instead of disappearing.
+  const resolvedWindow = resolveEffectiveContextWindow({
+    catalog: getCatalogModelInfo(model)?.limit?.context,
+    margin: CONTEXT_WINDOW_MARGIN,
+    floor: CONTEXT_WINDOW_FLOOR,
+  });
+  const contextWindow = resolvedWindow.window;
+  const budgetEvent = buildContextBudgetEvent(model, resolvedWindow);
+  if (budgetEvent !== undefined && onRunEvent !== undefined) {
+    emitRunEvent(onRunEvent, budgetEvent);
   }
   // M50 review F3 — Codex uses the LAST response's usage as the active-context proxy; the aggregate
   // sums every round (each re-sends the whole context) and fires the trigger prematurely on
