@@ -20,7 +20,8 @@
       "!docs",
       "!**/.theokit",
       "!.claude/knowledge-base/reference",
-      "!.claude/knowledge-base/references"
+      "!.claude/knowledge-base/references",
+      "!refactor"
     ]
   },
   "formatter": {
@@ -49,7 +50,9 @@
       "complexity": {
         "noExcessiveCognitiveComplexity": {
           "level": "error",
-          "options": { "maxAllowedComplexity": 10 }
+          "options": {
+            "maxAllowedComplexity": 10
+          }
         }
       }
     }
