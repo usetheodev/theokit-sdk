@@ -283,6 +283,37 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     return { fetch: profile.transform.fetch?.(ctx), headers: profile.transform.headers?.(ctx) };
   };
 
+  /**
+   * Aplica o transform do provider sobre `opts` e devolve o cliente construído.
+   *
+   * Os ramos `chat_completions` e `anthropic_messages` faziam isto de forma IDÊNTICA, diferindo só no
+   * construtor final. É duplicação de CONHECIMENTO: "aplique o transform, exija que o OAuth esteja
+   * resolvido, e mescle os headers dinâmicos POR CIMA dos estáticos do profile" é a mesma regra para
+   * qualquer provider — corrigi-la num ramo e esquecer o outro deixaria um provider com transporte
+   * refresh-aware e o outro sem, silenciosamente.
+   *
+   * Genérica sobre `O` porque cada ramo declara seu próprio `opts` com o tipo do construtor dele
+   * (`ConstructorParameters<typeof OpenAIClient>[0]` vs o do Anthropic) — foi por isso que uma
+   * primeira tentativa com helper não-genérico, declarado antes dos `if`, não compilou.
+   */
+  const comTransform = <
+    O extends { fetch?: typeof fetch; extraHeaders?: Record<string, string> },
+    C,
+  >(
+    opts: O,
+    criar: (o: O) => C,
+  ): C => {
+    const t = applyTransform();
+    assertOAuthResolved(t);
+    if (t.fetch !== undefined) opts.fetch = t.fetch;
+    const merged =
+      profile.extraHeaders !== undefined || t.headers !== undefined
+        ? { ...profile.extraHeaders, ...t.headers }
+        : undefined;
+    if (merged !== undefined) opts.extraHeaders = merged;
+    return criar(opts);
+  };
+
   // M42 review MEDIUM-1 — mirror OpenCode's auth model (packages/llm/src/route/auth.ts): a provider's auth
   // resolves to real headers at request time or FAILS with `MissingCredentialError` — it NEVER puts a
   // placeholder on the wire. theokit builds an oauth provider's client with the `__oauth_lazy_token__`
@@ -338,15 +369,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     // M41 — feed the provider transform: `fetch` (refresh-aware transport) + `headers` merged over the
     // profile's static `extraHeaders`. OpenAIClient now honors `extraHeaders` (was ignored) — additive-safe:
     // no builtin sets it on chat_completions.
-    const t = applyTransform();
-    assertOAuthResolved(t);
-    if (t.fetch !== undefined) opts.fetch = t.fetch;
-    const merged =
-      profile.extraHeaders !== undefined || t.headers !== undefined
-        ? { ...profile.extraHeaders, ...t.headers }
-        : undefined;
-    if (merged !== undefined) opts.extraHeaders = merged;
-    return new OpenAIClient(opts);
+    return comTransform(opts, (o) => new OpenAIClient(o));
   }
   if (profile.apiMode === "anthropic_messages") {
     // Vertex sub-dispatch (D301): when profile.name === "vertex", route to
@@ -362,15 +385,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     opts.baseUrl = process.env.ANTHROPIC_API_BASE_URL ?? profile.baseUrl;
     // M45 — feed the provider transform + static extraHeaders (mirror of the M41 chat_completions wiring),
     // so anthropic_messages providers can carry headers (anthropic-beta) and refresh-aware fetches (M46).
-    const t = applyTransform();
-    assertOAuthResolved(t);
-    if (t.fetch !== undefined) opts.fetch = t.fetch;
-    const merged =
-      profile.extraHeaders !== undefined || t.headers !== undefined
-        ? { ...profile.extraHeaders, ...t.headers }
-        : undefined;
-    if (merged !== undefined) opts.extraHeaders = merged;
-    return new AnthropicClient(opts);
+    return comTransform(opts, (o) => new AnthropicClient(o));
   }
   if (profile.apiMode === "bedrock_anthropic") {
     // D301: dedicated Bedrock InvokeModel client. apiKey from env when set;

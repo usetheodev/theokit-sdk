@@ -435,22 +435,10 @@ export class Agent {
         `No local agent "${agentId}" registered — compact targets local sessions.`,
       );
     }
-    const cwd = reg.cwd ?? process.cwd();
-    const optModel = reg.options.model;
-    const model =
-      reg.model?.id ?? (typeof optModel === "string" ? optModel : optModel?.id) ?? "unknown";
     const { compactSessionTranscript, buildDefaultSummarizer } = await import(
       "./internal/session/compact-session.js"
     );
-    const { FsSessionStore } = await import("./internal/persistence/fs-session-store.js");
-    const { defaultBaseDir, expandTilde } = await import(
-      "./internal/persistence/session-transcript.js"
-    );
-    const baseDir =
-      reg.options.local?.baseDir !== undefined
-        ? expandTilde(reg.options.local.baseDir)
-        : defaultBaseDir();
-    const store = new FsSessionStore({ baseDir, cwd });
+    const { cwd, model, store } = await abrirStoreLocal(reg);
     // M50 review F5 — serialize on the per-agent write chain so a manual compact never interleaves
     // with an in-flight turn's persistence.
     return enqueueSessionWrite(cwd, agentId, () =>
@@ -491,20 +479,8 @@ export class Agent {
         `No local agent "${agentId}" registered — injectSessionTurn targets local sessions.`,
       );
     }
-    const cwd = reg.cwd ?? process.cwd();
-    const optModel = reg.options.model;
-    const model =
-      reg.model?.id ?? (typeof optModel === "string" ? optModel : optModel?.id) ?? "unknown";
     const { injectSessionTurn } = await import("./internal/session/inject-session.js");
-    const { FsSessionStore } = await import("./internal/persistence/fs-session-store.js");
-    const { defaultBaseDir, expandTilde } = await import(
-      "./internal/persistence/session-transcript.js"
-    );
-    const baseDir =
-      reg.options.local?.baseDir !== undefined
-        ? expandTilde(reg.options.local.baseDir)
-        : defaultBaseDir();
-    const store = new FsSessionStore({ baseDir, cwd });
+    const { cwd, model, store } = await abrirStoreLocal(reg);
     await injectSessionTurn({
       store,
       loc: { cwd, agentId, model },
@@ -553,3 +529,36 @@ setAgentFacade({
   resume: (agentId, options) => Agent.resume(agentId, options),
   batch: (prompts, options) => Agent.batch(prompts, options),
 });
+
+/**
+ * Abre o store de sessão local de um agente registrado.
+ *
+ * Estava duplicado em `Agent.compact` e `Agent.injectSessionTurn` — os dois resolviam `cwd`, o `model`
+ * (com o mesmo fallback de três níveis) e montavam o `FsSessionStore` com o mesmo `baseDir`. Isso é
+ * duplicação de CONHECIMENTO: "como localizar o transcript de um agente local" é UMA regra, e uma
+ * cópia corrigida sem a outra faria `compact` e `injectSessionTurn` operarem sobre arquivos
+ * diferentes — corrupção silenciosa, não erro.
+ */
+async function abrirStoreLocal(reg: {
+  cwd?: string;
+  model?: { id: string };
+  options: { model?: string | { id: string }; local?: { baseDir?: string } };
+}): Promise<{
+  cwd: string;
+  model: string;
+  store: import("./internal/persistence/fs-session-store.js").FsSessionStore;
+}> {
+  const cwd = reg.cwd ?? process.cwd();
+  const optModel = reg.options.model;
+  const model =
+    reg.model?.id ?? (typeof optModel === "string" ? optModel : optModel?.id) ?? "unknown";
+  const { FsSessionStore } = await import("./internal/persistence/fs-session-store.js");
+  const { defaultBaseDir, expandTilde } = await import(
+    "./internal/persistence/session-transcript.js"
+  );
+  const baseDir =
+    reg.options.local?.baseDir !== undefined
+      ? expandTilde(reg.options.local.baseDir)
+      : defaultBaseDir();
+  return { cwd, model, store: new FsSessionStore({ baseDir, cwd }) };
+}
