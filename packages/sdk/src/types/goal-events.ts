@@ -36,7 +36,8 @@ export type GoalEvent =
   | {
       type: "judge_verdict";
       turn: number;
-      verdict: "done" | "continue" | "skipped";
+      /** M80 — `"blocked"` entrou: o judge pode declarar impossibilidade, não só "continue". */
+      verdict: "done" | "continue" | "skipped" | "blocked";
       reason: string;
       parseFailed: boolean;
     }
