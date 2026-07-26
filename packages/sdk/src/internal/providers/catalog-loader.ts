@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { globalSingleton } from "../global-singleton.js";
 import { type CatalogModel, catalogModelSchema } from "./catalog-schema.js";
 import { getProviderProfile, registerProvider } from "./registry.js";
 import type { ApiMode, AuthType, ProviderProfile } from "./types.js";
@@ -55,13 +56,6 @@ export interface CatalogEntry {
  */
 // M44 B1 fix — index state on globalThis (Symbol.for) so every bundle copy shares the SAME maps (see the
 // identical pattern + rationale in registry.ts).
-function globalSingleton<T>(key: string, create: () => T): T {
-  const g = globalThis as unknown as Record<symbol, T>;
-  const sym = Symbol.for(key);
-  if (g[sym] === undefined) g[sym] = create();
-  return g[sym];
-}
-
 const modelInfoIndex = globalSingleton(
   "theokit-sdk.providers.model-info-index",
   () => new Map<string, CatalogModel>(),
