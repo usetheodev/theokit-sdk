@@ -39,6 +39,14 @@ export interface CreateGitStatusToolOptions {
   name?: string;
   /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal abaixo (aditivo). */
   description?: string;
+  /**
+   * Incluir a linha de branch (`-b`) no início da saída. Default `true`.
+   *
+   * Sem ela o agente vê o que mudou mas não ONDE — e "estou na branch certa?" é a pergunta que
+   * precede qualquer commit. O consumidor (agent-builder) já dependia disso; omiti-la faria a
+   * migração perder comportamento em silêncio, que é o que a deleção de código local não pode custar.
+   */
+  includeBranch?: boolean;
 }
 
 export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomTool {
@@ -70,7 +78,8 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
 
       // `--porcelain` (v1) é o contrato estável para leitura por máquina; o formato humano muda
       // entre versões do git e quebraria o parsing do consumidor sem aviso.
-      const args = ["status", "--porcelain"];
+      const args = ["status", "--porcelain=v1"];
+      if (opts.includeBranch !== false) args.push("-b");
       if (path !== undefined && path !== "") args.push("--", path);
 
       const result = await runGitProcess(projectRoot, args, timeoutMs, maxStdoutBytes);
