@@ -21,6 +21,7 @@
 // Canonical origin moved to the public `compaction.ts` (leaf type — M42 DTS lesson); re-exported
 // here for the existing internal importers.
 import type { CompressibleMessage } from "../../../compaction.js";
+
 export type { CompressibleMessage };
 
 /**

@@ -51,6 +51,11 @@ function trustFilePath(): string {
  * approved-hooks posture) or the additive `THEOKIT_TRUSTED_PROVIDERS` env (comma-separated convenience).
  * Fail-closed: a missing or malformed trust file trusts NOTHING (a malformed file WARNs).
  */
+// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
 function loadTrustedNames(): Set<string> {
   const trusted = new Set<string>();
   const path = trustFilePath();

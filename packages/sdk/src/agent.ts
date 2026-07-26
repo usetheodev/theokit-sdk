@@ -16,7 +16,6 @@ import {
 } from "./errors.js";
 import { enabledPluginNames } from "./internal/plugins/enabled-names.js";
 import { discoverProviderPlugins } from "./internal/providers/discovery.js";
-import { enqueueSessionWrite } from "./internal/session/agent-session.js";
 import { setAgentFacade } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
@@ -33,6 +32,7 @@ import {
   getRun as getRegisteredRun,
   listRunsByAgent,
 } from "./internal/runtime/registry/run-registry.js";
+import { enqueueSessionWrite } from "./internal/session/agent-session.js";
 import { SPAN_NAMES } from "./internal/telemetry/span-names.js";
 import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
@@ -431,7 +431,9 @@ export class Agent {
       reg = getRegisteredAgent(agentId);
     }
     if (reg === undefined || reg.runtime !== "local") {
-      throw new UnknownAgentError(`No local agent "${agentId}" registered — compact targets local sessions.`);
+      throw new UnknownAgentError(
+        `No local agent "${agentId}" registered — compact targets local sessions.`,
+      );
     }
     const cwd = reg.cwd ?? process.cwd();
     const optModel = reg.options.model;
@@ -444,24 +446,27 @@ export class Agent {
     const { defaultBaseDir, expandTilde } = await import(
       "./internal/persistence/session-transcript.js"
     );
-    const baseDir = reg.options.local?.baseDir !== undefined
-      ? expandTilde(reg.options.local.baseDir)
-      : defaultBaseDir();
+    const baseDir =
+      reg.options.local?.baseDir !== undefined
+        ? expandTilde(reg.options.local.baseDir)
+        : defaultBaseDir();
     const store = new FsSessionStore({ baseDir, cwd });
     // M50 review F5 — serialize on the per-agent write chain so a manual compact never interleaves
     // with an in-flight turn's persistence.
-    return enqueueSessionWrite(cwd, agentId, () => compactSessionTranscript({
-      store,
-      loc: { cwd, agentId, model },
-      sessionId: agentId,
-      trigger: options.trigger ?? "manual",
-      summarize:
-        options.summarize ??
-        buildDefaultSummarizer({
-          agentModel: model,
-          ...(reg.options.apiKey !== undefined ? { apiKey: reg.options.apiKey } : {}),
-        }),
-    }));
+    return enqueueSessionWrite(cwd, agentId, () =>
+      compactSessionTranscript({
+        store,
+        loc: { cwd, agentId, model },
+        sessionId: agentId,
+        trigger: options.trigger ?? "manual",
+        summarize:
+          options.summarize ??
+          buildDefaultSummarizer({
+            agentModel: model,
+            ...(reg.options.apiKey !== undefined ? { apiKey: reg.options.apiKey } : {}),
+          }),
+      }),
+    );
   }
 
   /**
@@ -482,7 +487,9 @@ export class Agent {
       reg = getRegisteredAgent(agentId);
     }
     if (reg === undefined || reg.runtime !== "local") {
-      throw new UnknownAgentError(`No local agent "${agentId}" registered — injectSessionTurn targets local sessions.`);
+      throw new UnknownAgentError(
+        `No local agent "${agentId}" registered — injectSessionTurn targets local sessions.`,
+      );
     }
     const cwd = reg.cwd ?? process.cwd();
     const optModel = reg.options.model;
@@ -493,9 +500,10 @@ export class Agent {
     const { defaultBaseDir, expandTilde } = await import(
       "./internal/persistence/session-transcript.js"
     );
-    const baseDir = reg.options.local?.baseDir !== undefined
-      ? expandTilde(reg.options.local.baseDir)
-      : defaultBaseDir();
+    const baseDir =
+      reg.options.local?.baseDir !== undefined
+        ? expandTilde(reg.options.local.baseDir)
+        : defaultBaseDir();
     const store = new FsSessionStore({ baseDir, cwd });
     await injectSessionTurn({
       store,

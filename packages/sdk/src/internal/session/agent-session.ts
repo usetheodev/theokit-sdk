@@ -71,6 +71,11 @@ export function persistTurnToTranscript(
   onCompact?: () => void,
 ): void {
   const key = transcriptKey(loc.cwd, loc.agentId);
+  // Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+  // de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+  // pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+  // arriscado. Rastreado em usetheodev/theokit-sdk#151.
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
   const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
     try {
       await persistTurn(store, loc, sessionId, turn);

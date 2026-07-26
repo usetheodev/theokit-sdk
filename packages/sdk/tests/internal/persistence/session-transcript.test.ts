@@ -236,7 +236,9 @@ describe("M50 — compact boundary with replacement (fim da amnésia)", () => {
     t.appendAssistantTurn({ text: "resposta nova" });
 
     const msgs = reconstructMessages(t.records());
-    const texts = msgs.map((m) => (typeof m.content === "string" ? m.content : JSON.stringify(m.content)));
+    const texts = msgs.map((m) =>
+      typeof m.content === "string" ? m.content : JSON.stringify(m.content),
+    );
     expect(texts.join("\n")).toContain("[COMPACT SUMMARY]");
     expect(texts.join("\n")).toContain("pergunta nova");
     expect(texts.join("\n")).not.toContain("resposta antiga 1"); // pré-boundary não replaya

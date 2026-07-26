@@ -73,7 +73,8 @@ export class LocalAgentMemory {
       // pattern, shared across bundle copies).
       const g = globalThis as unknown as Record<symbol, Set<string>>;
       const sym = Symbol.for("theokit-sdk.memory.warned");
-      const warned = (g[sym] ??= new Set<string>());
+      g[sym] ??= new Set<string>();
+      const warned = g[sym];
       if (!warned.has(message)) {
         warned.add(message);
         process.stderr.write(`[theokit-sdk] memory tools unavailable: ${message}\n`);
