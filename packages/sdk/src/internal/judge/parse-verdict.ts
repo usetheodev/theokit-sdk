@@ -9,7 +9,7 @@
  * @internal
  */
 
-import type { JudgeResult } from "./types.js";
+import type { JudgeResult } from "../../types/goal-events.js";
 
 const DONE_PREFIX = "DONE:";
 const CONTINUE_PREFIX = "CONTINUE:";
