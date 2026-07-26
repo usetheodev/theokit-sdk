@@ -106,7 +106,12 @@ export { type CreateSearchTextToolOptions, createSearchTextTool } from "./search
 export { type CreateShellToolOptions, createShellTool } from "./shell-exec.js";
 export { type PlanNode, todoItemsToPlanNodes } from "./todo-plan-nodes.js";
 export { createTodolistTool, type TodoItem, type TodolistTool } from "./todolist.js";
-export { type TruncationOptions, type TruncationResult, truncateOutput } from "./truncation.js";
+export {
+  type TruncationMode,
+  type TruncationOptions,
+  type TruncationResult,
+  truncateOutput,
+} from "./truncation.js";
 export { createUpdatePlanTool } from "./update-plan.js";
 export { type CreateWebFetchToolOptions, createWebFetchTool } from "./web-fetch.js";
 export {
