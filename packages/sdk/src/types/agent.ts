@@ -383,6 +383,20 @@ export interface AgentOptions {
   local?: LocalOptions;
   cloud?: CloudOptions;
   mcpServers?: Record<string, McpServerConfig>;
+  /**
+   * M77 — how long an MCP client lives.
+   *
+   * `'run'` (DEFAULT, and the historical behaviour) spawns a client per `send` and drops it when the
+   * run ends. `'session'` pools clients per `(agentId, server, config)` and keeps them across turns,
+   * which is what the reference does — Codex holds its connection manager in `SessionServices`
+   * (`core/src/state/service.rs:116`). Measured cost of the per-run path: 193 / 138 / 134 ms of
+   * spawn + handshake on every turn.
+   *
+   * Opt-in rather than default because it changes the FAILURE model: a server that dies mid-session
+   * becomes a reachable state. One-shot and cron runs gain nothing from pooling and would pay that
+   * risk, so they keep `'run'` unless they ask otherwise.
+   */
+  mcpLifecycle?: "run" | "session";
   agents?: Record<string, AgentDefinition>;
   agentId?: string;
   /** Context manager configuration. See `agent.context`. */

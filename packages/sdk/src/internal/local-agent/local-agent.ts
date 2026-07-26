@@ -69,6 +69,7 @@ import {
 } from "./local-agent-runtime-extensions.js";
 import { executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
+import { disposeSessionMcpClients } from "./real-local-run.js";
 
 /**
  * Local SDKAgent implementation. Owns the workspace cwd plus the file-based
@@ -457,6 +458,11 @@ export class LocalAgent implements SDKAgent {
     // `writeSessionSummary` finishes, leaving the caller to read a
     // partially-written `.theokit/memory/sessions/<runId>.md` file.
     await withCwdMutex(`agent-send:${this.agentId}`, () => Promise.resolve());
+    // M77 — release this session's pooled MCP clients (`mcpLifecycle: 'session'`). A pooled client
+    // outlives the run by design; without this it would outlive the AGENT too, leaving an orphan
+    // child process per server for the life of the host. No-op for the default `'run'` lifecycle,
+    // which never puts anything in the pool.
+    disposeSessionMcpClients(this.agentId);
     // Now flush any remaining disk writes so the on-disk state matches the
     // in-memory state before the caller proceeds (ADR D17 + D18).
     await flushSessionWrites();
