@@ -27,15 +27,18 @@ export type { SessionMessage } from "./session-types.js";
 
 import type { SessionMessage } from "./session-types.js";
 
-const sessions = new Map<string, SessionMessage[]>();
-const hydratedKeys = new Set<string>();
+// M75 — o cache mora numa folha; ver session-cache.ts para a razao (quebra de ciclo por extracao).
+export {
+  hydratedKeys,
+  invalidateSessionCache,
+  sessions,
+  transcriptKey,
+} from "./session-cache.js";
+
+import { hydratedKeys, sessions, transcriptKey } from "./session-cache.js";
+
 const pendingWrites = new Map<string, Promise<void>>();
 const recordCounts = new Map<string, number>();
-
-/** The per-(cwd, agentId) transcript key for cache/hydration bookkeeping. */
-function transcriptKey(cwd: string, agentId: string): string {
-  return `${cwd}::${agentId}`;
-}
 
 /**
  * Append a session message to the in-memory cache only. Disk persistence for the
@@ -160,11 +163,6 @@ export function clearSession(agentId: string): void {
  * from disk. Without this, a compaction only helps after a process restart: the live process keeps
  * sending the full pre-compact history (the cache is read synchronously by every send).
  */
-export function invalidateSessionCache(cwd: string, agentId: string): void {
-  sessions.delete(agentId);
-  hydratedKeys.delete(transcriptKey(cwd, agentId));
-}
-
 /**
  * M50 review F5 — run `fn` serialized on the SAME per-(cwd,agentId) write chain the per-turn
  * persistence uses, so a manual `Agent.compact` can never interleave with an in-flight turn's
