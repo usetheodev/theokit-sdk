@@ -18,6 +18,16 @@ export interface QuestionToolOptions {
   askUser?: (question: string) => Promise<string>;
   /** Maximum time to wait for user response in ms. Default: 300_000 (5 min). */
   timeoutMs?: number;
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ `"question"` (aditivo).
+   *
+   * O consumidor precisava disto: o Codex chama a tool de `request_user_input`, e sem a opção ele
+   * era obrigado a reconstruir o objeto inteiro à mão — o adaptador com dois casts que a T3.3
+   * eliminou.
+   */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
 }
 
 /**
@@ -64,11 +74,12 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
   const timeoutMs = opts.timeoutMs ?? 300_000;
 
   return {
-    name: "question",
+    name: opts.name ?? "question",
     description:
+      opts.description ??
       "Ask the user a question and wait for their response. " +
-      "Use when you need clarification or confirmation before proceeding. " +
-      "Returns { ok, answer } or { ok: false, error: 'timeout' }.",
+        "Use when you need clarification or confirmation before proceeding. " +
+        "Returns { ok, answer } or { ok: false, error: 'timeout' }.",
     inputSchema: {
       type: "object" as const,
       properties: {
