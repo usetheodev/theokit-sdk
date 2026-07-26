@@ -14,15 +14,14 @@
  *   - `{ ok: false, error: 'not_a_repo' | 'path_traversal' | 'timeout' }`
  */
 
-import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 import { Tool } from "@theokit/sdk";
 import { resolveSandbox, type SandboxProvider } from "@theokit/sdk/sandbox";
 import { z } from "zod";
+import { formatGitResult, runGitProcess } from "./internal/git-exec.js";
 import { checkPathScope } from "./path-scope.js";
-import { armTimeoutKill, attachChildSettlers } from "./subprocess.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_STDOUT_BYTES = 5 * 1024 * 1024;
@@ -114,75 +113,4 @@ function buildDiffArgs(cached: boolean | undefined, path: string | undefined): s
   if (cached === true) args.push("--cached");
   if (path !== undefined && path !== "") args.push("--", path);
   return args;
-}
-
-function formatGitResult(result: GitProcessResult, timeoutMs: number): string {
-  if (result.kind === "timeout") {
-    return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
-  }
-  if (result.kind === "error") {
-    return JSON.stringify({ ok: false, error: "git_failed", stderr: result.stderr });
-  }
-  return JSON.stringify({ ok: true, diff: result.stdout, truncated: result.truncated });
-}
-
-type GitProcessResult =
-  | { kind: "ok"; stdout: string; truncated: boolean }
-  | { kind: "error"; stderr: string }
-  | { kind: "timeout" };
-
-function runGitProcess(
-  cwd: string,
-  args: string[],
-  timeoutMs: number,
-  maxStdoutBytes: number,
-): Promise<GitProcessResult> {
-  return new Promise((resolve) => {
-    // Detached process group so we can kill the whole tree on timeout (EC-7).
-    const child = spawn("git", args, { cwd, detached: true, stdio: ["ignore", "pipe", "pipe"] });
-    const stdoutChunks: Buffer[] = [];
-    const stderrChunks: Buffer[] = [];
-    let stdoutBytes = 0;
-    let truncated = false;
-
-    const gate = armTimeoutKill<GitProcessResult>(
-      child,
-      timeoutMs,
-      () => ({ kind: "timeout" }),
-      resolve,
-    );
-
-    child.stdout.on("data", (chunk: Buffer) => {
-      if (gate.settled()) return;
-      if (stdoutBytes >= maxStdoutBytes) {
-        truncated = true;
-        return;
-      }
-      const remaining = maxStdoutBytes - stdoutBytes;
-      if (chunk.length > remaining) {
-        stdoutChunks.push(chunk.subarray(0, remaining));
-        stdoutBytes = maxStdoutBytes;
-        truncated = true;
-      } else {
-        stdoutChunks.push(chunk);
-        stdoutBytes += chunk.length;
-      }
-    });
-
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderrChunks.push(chunk);
-    });
-
-    attachChildSettlers<GitProcessResult>(
-      child,
-      gate,
-      (code) => {
-        const stdout = Buffer.concat(stdoutChunks).toString("utf-8");
-        const stderr = Buffer.concat(stderrChunks).toString("utf-8");
-        return code === 0 ? { kind: "ok", stdout, truncated } : { kind: "error", stderr };
-      },
-      (err) => ({ kind: "error", stderr: err.message }),
-      resolve,
-    );
-  });
 }
