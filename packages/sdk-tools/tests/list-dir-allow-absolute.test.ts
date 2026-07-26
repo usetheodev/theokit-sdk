@@ -36,6 +36,10 @@ afterAll(() => {
 });
 
 writeFileSync(join(fora, "visivel.txt"), "x");
+// Âncora de não-vacuidade da contraprova relativa (M76 review / M6): sem um arquivo DENTRO da raiz,
+// `chamar(".")` devolve listagem vazia nos dois lados e o `toBe` compara vazio com vazio — passaria
+// mesmo se o flag quebrasse o caminho relativo por completo.
+writeFileSync(join(raiz, "dentro-da-raiz.txt"), "x");
 // `.env` num segmento do MEIO — o caso que `isForbiddenPath` sozinho não pega.
 const comSegredoNoMeio = join(fora, ".env", "sub");
 mkdirSync(comSegredoNoMeio, { recursive: true });
@@ -74,6 +78,15 @@ describe("M76 T2.1 — allowAbsolute em list_dir", () => {
     // ele ligado ou desligado. Sem esta, um bug que liberasse tudo passaria nos testes acima.
     const comFlag = await chamar(".", true);
     const semFlag = await chamar(".");
+
+    // M76 review (M6) — a ÂNCORA vem antes da comparação. A versão anterior só fazia o `toBe`, e a
+    // raiz era um tmpdir vazio: comparava listagem-vazia com listagem-vazia. Uma implementação que
+    // devolvesse "" para todo caminho relativo passava. Provar que os dois lados são IGUAIS só vale
+    // depois de provar que os dois lados têm CONTEÚDO.
+    expect(comFlag, "a listagem relativa tem de conter o arquivo da raiz").toContain(
+      "dentro-da-raiz.txt",
+    );
+    expect(semFlag).toContain("dentro-da-raiz.txt");
     expect(comFlag).toBe(semFlag);
   });
 });

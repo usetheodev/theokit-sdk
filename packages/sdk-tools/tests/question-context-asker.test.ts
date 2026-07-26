@@ -102,10 +102,19 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
     expect(daFabrica).toBe(1);
   });
 
-  it("test_askers_de_threadIds_distintos_nao_se_misturam", async () => {
-    // Concurrent test com atomic-counter invariant: duas sessões perguntam ao MESMO tempo e cada
-    // uma recebe a resposta do SEU thread. É o invariante que permite matar o singleton de módulo —
-    // com estado global, uma das duas veria a pergunta da outra.
+  it("test_handler_e_reentrante_duas_chamadas_simultaneas_nao_se_contaminam", async () => {
+    // M76 review (H3) — o NOME anterior ("askers de threadIds distintos não se misturam") afirmava
+    // mais do que este teste prova. Ele sugeria que a tool ISOLA estado por sessão; a tool não tem
+    // estado nenhum. Cada `handler` captura seu asker numa `const` local, então a não-mistura aqui é
+    // **por construção**, não por isolamento — e um teste que não pode falhar não certifica nada.
+    //
+    // O que ele legitimamente protege é a REENTRÂNCIA: se alguém refatorasse `question.ts` para
+    // cachear o asker num `let` de módulo (a otimização plausível), duas chamadas simultâneas
+    // passariam a se contaminar e este teste cairia. É um teste de não-regressão, e o nome agora diz
+    // isso.
+    //
+    // O invariante de isolamento POR SESSÃO — o que de fato justificou matar o singleton — vive onde
+    // o estado vive: `agents/interactive/ask-bridge.test.ts`, no consumidor. Aqui ele seria vácuo.
     const t = createQuestionTool({});
     const chamadas: string[] = [];
     const asker = (tag: string) => async (): Promise<string> => {
