@@ -11,7 +11,10 @@ describe("createQuestionTool", () => {
 
     expect(result.ok).toBe(true);
     expect(result.answer).toBe("yes, proceed");
-    expect(askUser).toHaveBeenCalledWith("Continue?");
+    // M76 — o asker passou a receber um 2o argumento: o `threadId` da run, para que uma tool
+    // compartilhada entre sessoes escope o estado por sessao. Aqui nao ha `ctx`, entao vem
+    // `undefined` — a assercao explicita isso em vez de esconder o argumento novo.
+    expect(askUser).toHaveBeenCalledWith("Continue?", undefined);
   });
 
   it("returns timeout error when user does not respond in time", async () => {

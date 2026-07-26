@@ -18,6 +18,11 @@ import { Tool } from "@theokit/sdk";
 import { z } from "zod";
 
 export interface CreateCurrentTimeToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Injectable clock — defaults to `() => new Date()`. Pass a fixed clock for deterministic tests. */
   clock?: () => Date;
 }
@@ -46,13 +51,14 @@ export function createCurrentTimeTool(opts: CreateCurrentTimeToolOptions = {}): 
   const clock = opts.clock ?? (() => new Date());
 
   return Tool.create({
-    name: "current_time",
+    name: opts.name ?? "current_time",
     description:
+      opts.description ??
       "Get the current date and time. Returns { current_time, iso, timezone } as a JSON string, where " +
-      "current_time is 'YYYY-MM-DD HH:MM:SS <timezone>' and iso is the ISO-8601 instant. Pass an optional " +
-      "IANA timezone (e.g. 'America/Sao_Paulo', 'Europe/Lisbon'); defaults to UTC. Never state the date " +
-      "or time from memory — always call this. Returns { ok: false, error: 'invalid_timezone' } for an " +
-      "unknown timezone.",
+        "current_time is 'YYYY-MM-DD HH:MM:SS <timezone>' and iso is the ISO-8601 instant. Pass an optional " +
+        "IANA timezone (e.g. 'America/Sao_Paulo', 'Europe/Lisbon'); defaults to UTC. Never state the date " +
+        "or time from memory — always call this. Returns { ok: false, error: 'invalid_timezone' } for an " +
+        "unknown timezone.",
     inputSchema: z.object({
       timezone: z
         .string()

@@ -55,6 +55,11 @@ export interface PlanModeToolWithStore {
  * @public
  */
 export interface PlanModeToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Store the submitted `plan` is persisted to on `exit`. */
   artifactStore: SessionArtifactStore;
   /** Artifact id under which the plan is stored. Default `"plan"`. */
@@ -127,8 +132,8 @@ export function createPlanModeTool(
 
   const { artifactStore, artifactId = "plan" } = options;
   return {
-    name: "plan_mode",
-    description: DESCRIPTION,
+    name: options.name ?? "plan_mode",
+    description: options.description ?? DESCRIPTION,
     inputSchema: planModeSchema(true),
     handler: async (input: { action: string; plan?: string }): Promise<string> => {
       if (input.action === "enter") {

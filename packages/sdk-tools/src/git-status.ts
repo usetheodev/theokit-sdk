@@ -19,9 +19,11 @@ import { join } from "node:path";
 
 import type { CustomTool } from "@theokit/sdk";
 import { Tool } from "@theokit/sdk";
+import type { SandboxProvider } from "@theokit/sdk/sandbox";
+import { resolveSandbox } from "@theokit/sdk/sandbox";
 import { z } from "zod";
+import { formatGitResult, runGitProcess, shq } from "./internal/git-exec.js";
 
-import { formatGitResult, runGitProcess } from "./internal/git-exec.js";
 import { checkPathScope } from "./path-scope.js";
 
 export interface CreateGitStatusToolOptions {
@@ -31,6 +33,15 @@ export interface CreateGitStatusToolOptions {
   timeoutMs?: number;
   /** Cap on captured stdout; excess sets `truncated: true`. Default 5 MB. */
   maxStdoutBytes?: number;
+  /**
+   * Backend de execução injetado (`@theokit/sdk/sandbox`) — quando presente, `git status` roda via
+   * `SandboxBackend.execute`; omitido ⇒ o `git` local (inalterado).
+   *
+   * Simetria com `createGitDiffTool`, apontada pelo review do M76: sem isto `git_diff` rodaria
+   * confinado e `git_status` não, na mesma sessão — e a assimetria seria invisível até alguém
+   * perceber que uma das duas escapa do sandbox.
+   */
+  sandbox?: SandboxProvider;
   /**
    * M76 — nome exposto ao modelo. Omitido ⇒ `"git_status"` (aditivo).
    *
@@ -65,7 +76,7 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
         .optional()
         .describe("Optional project-relative path to scope the status report."),
     }),
-    handler: async ({ path }) => {
+    handler: async ({ path }, ctx) => {
       // Fora de um repositório, `git status` escreve no stderr e sai não-zero. Devolver string vazia
       // aqui seria pior que um erro: o modelo a leria como "não há mudanças" — indistinguível do
       // caso feliz, e falso. `error-handling.md` § 2 exige erro tipado.
@@ -76,14 +87,50 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
       const scopeCheck = checkPathScope(path, projectRoot);
       if (scopeCheck !== null) return scopeCheck;
 
-      // `--porcelain` (v1) é o contrato estável para leitura por máquina; o formato humano muda
-      // entre versões do git e quebraria o parsing do consumidor sem aviso.
-      const args = ["status", "--porcelain=v1"];
-      if (opts.includeBranch !== false) args.push("-b");
-      if (path !== undefined && path !== "") args.push("--", path);
+      const args = montarArgs(path, opts.includeBranch !== false);
 
+      if (opts.sandbox !== undefined) {
+        return statusViaSandbox(opts.sandbox, ctx, args, timeoutMs);
+      }
       const result = await runGitProcess(projectRoot, args, timeoutMs, maxStdoutBytes);
       return formatGitResult(result, timeoutMs);
     },
   });
+}
+
+/**
+ * Os argumentos do `git status`.
+ *
+ * `--porcelain=v1` é deliberado: é o contrato estável para leitura por máquina. O formato humano
+ * muda entre versões do git e quebraria o parsing do consumidor sem aviso.
+ */
+function montarArgs(path: string | undefined, comBranch: boolean): string[] {
+  const args = ["status", "--porcelain=v1"];
+  if (comBranch) args.push("-b");
+  if (path !== undefined && path !== "") args.push("--", path);
+  return args;
+}
+
+/**
+ * `git status` via `SandboxBackend` — o caminho surface-agnostic, espelhando `diffViaSandbox`.
+ *
+ * Existe por simetria com `git_diff`: sem ele, numa sessão confinada o diff rodaria dentro do
+ * sandbox e o status fora — e a assimetria seria invisível até alguém notar que uma das duas escapa.
+ */
+async function statusViaSandbox(
+  sandbox: SandboxProvider,
+  ctx: unknown,
+  args: string[],
+  timeoutMs: number,
+): Promise<string> {
+  const command = ["git", ...args].map(shq).join(" ");
+  const backend = await resolveSandbox(sandbox, ctx ?? {});
+  const r = await backend.execute(command, { timeoutMs });
+  if (r.timedOut) return JSON.stringify({ ok: false, error: "timeout", timeoutMs });
+  if (r.exitCode !== 0) {
+    return /not a git repository/i.test(r.stderr)
+      ? JSON.stringify({ ok: false, error: "not_a_repo" })
+      : JSON.stringify({ ok: false, error: "git_failed", stderr: r.stderr });
+  }
+  return JSON.stringify({ ok: true, diff: r.stdout, truncated: false });
 }

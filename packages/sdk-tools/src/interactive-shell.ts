@@ -27,6 +27,11 @@ import {
 import { z } from "zod";
 
 export interface CreateInteractiveShellToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** The interactive backend, or a per-request resolver of one (injected — never a direct native dep). */
   interactive: InteractiveProvider<unknown>;
 }
@@ -47,12 +52,13 @@ function toErrorJson(err: unknown): string {
 export function createInteractiveShellTool(opts: CreateInteractiveShellToolOptions): CustomTool {
   const { interactive } = opts;
   return Tool.create({
-    name: "interactive_shell",
+    name: opts.name ?? "interactive_shell",
     description:
+      opts.description ??
       "Start an interactive shell session for a command that PROMPTS for input or is a REPL " +
-      "(python, node, `git rebase -i`, a `read` prompt) — NOT for one-shot commands (use shell_exec). " +
-      "Returns a session_id; drive it with write_stdin, reading the incremental output each step. " +
-      "Returns { ok, session_id, output } or { ok: false, error }.",
+        "(python, node, `git rebase -i`, a `read` prompt) — NOT for one-shot commands (use shell_exec). " +
+        "Returns a session_id; drive it with write_stdin, reading the incremental output each step. " +
+        "Returns { ok, session_id, output } or { ok: false, error }.",
     inputSchema: z.object({
       command: z
         .string()

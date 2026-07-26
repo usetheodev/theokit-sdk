@@ -15,7 +15,13 @@ export interface QuestionToolOptions {
    * `CustomTool.handler` aponta como o problema que `ctx.context` existe para resolver. Este campo
    * permanece como fallback, para quem constrói a tool com um asker fixo (retrocompatível).
    */
-  askUser?: (question: string) => Promise<string>;
+  askUser?: (question: string, threadId?: string) => Promise<string>;
+  /**
+   * Chamado quando a pergunta é ABANDONADA (timeout ou cancelamento da run), para que o lado da UI
+   * libere o slot. Sem ele o timeout deixa a pergunta pendente para sempre — a UI segue mostrando
+   * um prompt que ninguém aguarda e a próxima pergunta falha com "já há uma pendente".
+   */
+  onAbandon?: (threadId?: string) => void;
   /** Maximum time to wait for user response in ms. Default: 300_000 (5 min). */
   timeoutMs?: number;
   /**
@@ -62,11 +68,13 @@ export interface QuestionTool {
  * presente mas SEM `askUser` (ex.: só `projectRoot`) não pode ser confundido com "há asker": a
  * checagem é pela função, não pela presença do objeto.
  */
-function askerDoContexto(context: unknown): ((question: string) => Promise<string>) | undefined {
+function askerDoContexto(
+  context: unknown,
+): ((question: string, threadId?: string) => Promise<string>) | undefined {
   if (typeof context !== "object" || context === null) return undefined;
   const candidato = (context as { askUser?: unknown }).askUser;
   return typeof candidato === "function"
-    ? (candidato as (question: string) => Promise<string>)
+    ? (candidato as (question: string, threadId?: string) => Promise<string>)
     : undefined;
 }
 
@@ -110,10 +118,20 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       });
 
       try {
-        const answer = await Promise.race([askUser(String(input.question ?? "")), timeout]);
+        // M76 review — o `threadId` e ENCAMINHADO ao asker. Sem isto a cadeia ctx.threadId -> bridge
+        // nao existia: o bridge caia sempre no slot padrao e o Map tinha uma chave para sempre — o
+        // `let pending` com outro nome. A capacidade existia; a fiacao, nao.
+        const answer = await Promise.race([
+          askUser(String(input.question ?? ""), ctx?.threadId),
+          timeout,
+        ]);
         return JSON.stringify({ ok: true, answer });
       } catch (err) {
         if (err instanceof Error && err.message === "timeout") {
+          // M76 review (MEDIUM-1) — avisa o asker que a pergunta MORREU. Sem isto o slot ficava
+          // ocupado para sempre: a UI seguia renderizando um prompt órfão, e toda pergunta seguinte
+          // recebia "já há uma pendente" — um erro permanente para algo que ninguém mais espera.
+          opts.onAbandon?.(ctx?.threadId);
           return JSON.stringify({
             ok: false,
             error: "timeout",

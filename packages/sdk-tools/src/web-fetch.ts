@@ -26,6 +26,11 @@ const DEFAULT_TIMEOUT_MS = 30_000;
 const MAX_BODY_BYTES = 1 * 1024 * 1024; // 1 MB
 
 export interface CreateWebFetchToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Default timeout in ms. */
   defaultTimeoutMs?: number;
   /**
@@ -54,13 +59,14 @@ export function createWebFetchTool(opts?: CreateWebFetchToolOptions): CustomTool
   const lookup = opts?.lookup;
 
   return Tool.create({
-    name: "web_fetch",
+    name: opts?.name ?? "web_fetch",
     description:
+      opts?.description ??
       "Fetch the contents of a URL via HTTP/HTTPS. Use only for URLs the user provided or that you " +
-      "are confident help with the task; never invent or guess URLs. Rejects non-http(s) URLs and " +
-      "is SSRF-guarded by default (private/loopback/link-local/cloud-metadata hosts are refused " +
-      "with an ssrf_blocked error). The response body is capped at 1 MB. Returns " +
-      "{ ok, content, status_code, content_type } or { ok: false, error }.",
+        "are confident help with the task; never invent or guess URLs. Rejects non-http(s) URLs and " +
+        "is SSRF-guarded by default (private/loopback/link-local/cloud-metadata hosts are refused " +
+        "with an ssrf_blocked error). The response body is capped at 1 MB. Returns " +
+        "{ ok, content, status_code, content_type } or { ok: false, error }.",
     inputSchema: z.object({
       url: z.string().min(1).describe("URL to fetch (http or https only)."),
       timeout_ms: z

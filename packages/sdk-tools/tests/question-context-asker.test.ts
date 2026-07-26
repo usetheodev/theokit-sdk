@@ -124,3 +124,48 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
     expect(b).toContain("s2");
   });
 });
+
+/**
+ * M76 review (HIGH-1 e MEDIUM-1) — a FIAÇÃO, não a capacidade.
+ *
+ * O review adversarial encontrou o defeito central do milestone: `AskBridge` suportava escopo por
+ * sessão e o handler recebia `ctx.threadId`, mas **o valor nunca era encaminhado**. O `Map` tinha uma
+ * chave para sempre — o `let pending` com outro nome. Os testes anteriores construíam o bridge à mão
+ * e passavam `'s1'`/`'s2'`: provavam que a CLASSE suporta, não que o SISTEMA usa.
+ *
+ * Estes dois testam a ligação. Sem eles, desligá-la de novo não quebraria nada.
+ */
+describe("M76 review — a fiação de threadId e a liberação do slot", () => {
+  it("test_o_threadId_do_ctx_CHEGA_ao_asker", async () => {
+    const recebidos: (string | undefined)[] = [];
+    const t = createQuestionTool({
+      askUser: async (_q, threadId) => {
+        recebidos.push(threadId);
+        return "ok";
+      },
+    });
+
+    await t.handler({ question: "q" }, { threadId: "sessao-42" });
+
+    expect(
+      recebidos[0],
+      "o threadId não chegou ao asker — o Map do bridge cairia sempre no slot padrão",
+    ).toBe("sessao-42");
+  });
+
+  it("test_o_timeout_AVISA_que_a_pergunta_foi_abandonada", async () => {
+    // Sem este aviso o slot fica ocupado para sempre: a UI segue mostrando um prompt órfão e toda
+    // pergunta seguinte recebe "já há uma pendente" — erro permanente por algo que ninguém espera.
+    const abandonados: (string | undefined)[] = [];
+    const t = createQuestionTool({
+      askUser: () => new Promise<string>(() => undefined), // nunca resolve
+      timeoutMs: 20,
+      onAbandon: (threadId) => abandonados.push(threadId),
+    });
+
+    const out = (await t.handler({ question: "q" }, { threadId: "s9" })) as string;
+
+    expect(JSON.parse(out).error).toBe("timeout");
+    expect(abandonados, "o timeout tem de liberar o slot da sessão").toEqual(["s9"]);
+  });
+});
