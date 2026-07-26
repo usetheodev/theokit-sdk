@@ -35,6 +35,11 @@ import {
 import { applyUpdateChunks, parseV4A, type V4AHunk, V4APatchError } from "./internal/v4a-patch.js";
 
 export interface CreateApplyPatchToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Absolute path to the project root. Every hunk path is gated against this boundary. */
   projectRoot: string;
 }
@@ -43,14 +48,15 @@ export function createApplyPatchTool(opts: CreateApplyPatchToolOptions): CustomT
   const { projectRoot } = opts;
 
   return Tool.create({
-    name: "apply_patch",
+    name: opts.name ?? "apply_patch",
     description:
+      opts.description ??
       "Apply a Codex-style V4A patch. The patch is `*** Begin Patch` … `*** End Patch` wrapping one or " +
-      "more hunks: `*** Add File: <path>` (then `+`lines), `*** Delete File: <path>`, or `*** Update " +
-      "File: <path>` (optional `*** Move to: <path>`) with `@@`-anchored `+` (add) / `-` (remove) / ` ` " +
-      "(context) lines. Read a file first so your context/removed lines match. Applied atomically — a " +
-      "mismatch anywhere aborts the whole patch with zero writes; each path is security-checked. Returns " +
-      "{ ok, files_patched } or { ok: false, error }.",
+        "more hunks: `*** Add File: <path>` (then `+`lines), `*** Delete File: <path>`, or `*** Update " +
+        "File: <path>` (optional `*** Move to: <path>`) with `@@`-anchored `+` (add) / `-` (remove) / ` ` " +
+        "(context) lines. Read a file first so your context/removed lines match. Applied atomically — a " +
+        "mismatch anywhere aborts the whole patch with zero writes; each path is security-checked. Returns " +
+        "{ ok, files_patched } or { ok: false, error }.",
     inputSchema: z.object({
       patch: z.string().min(1).describe("V4A patch: *** Begin Patch … *** End Patch."),
     }),

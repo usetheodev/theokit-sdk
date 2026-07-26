@@ -52,6 +52,11 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const BINARY_PROBE_BYTES = 8 * 1024;
 
 export interface CreateReadFileToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Absolute path to the project root. Every read is gated against this boundary. */
   projectRoot: string;
   /**
@@ -130,17 +135,18 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
   const abs = allowAbsolute === true ? " Absolute paths outside the project are honored." : "";
 
   return Tool.create({
-    name: "read_file",
+    name: opts.name ?? "read_file",
     description:
+      opts.description ??
       "Read a text file as UTF-8. ALWAYS read a file before you edit it (edit_file) or overwrite it " +
-      "(write_file), so your old_string / new content matches the real bytes exactly." +
-      numbered +
-      abs +
-      " By default returns the whole file; use the optional offset (1-based first line) + limit to page " +
-      "through a large file, or search_text to locate a symbol. Refuses sensitive files (.env, .git/, " +
-      "node_modules/, .theo/, lock files) and " +
-      "binary files (null byte in the first 8 KB); caps at 5 MB. Returns { ok, content, size } or " +
-      "{ ok: false, error }.",
+        "(write_file), so your old_string / new content matches the real bytes exactly." +
+        numbered +
+        abs +
+        " By default returns the whole file; use the optional offset (1-based first line) + limit to page " +
+        "through a large file, or search_text to locate a symbol. Refuses sensitive files (.env, .git/, " +
+        "node_modules/, .theo/, lock files) and " +
+        "binary files (null byte in the first 8 KB); caps at 5 MB. Returns { ok, content, size } or " +
+        "{ ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("File path (project-relative; absolute when allowed)."),
       offset: z

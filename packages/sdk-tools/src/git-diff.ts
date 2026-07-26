@@ -20,13 +20,18 @@ import type { CustomTool } from "@theokit/sdk";
 import { Tool } from "@theokit/sdk";
 import { resolveSandbox, type SandboxProvider } from "@theokit/sdk/sandbox";
 import { z } from "zod";
-import { formatGitResult, runGitProcess } from "./internal/git-exec.js";
+import { formatGitResult, runGitProcess, shq } from "./internal/git-exec.js";
 import { checkPathScope } from "./path-scope.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_STDOUT_BYTES = 5 * 1024 * 1024;
 
 export interface CreateGitDiffToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   projectRoot: string;
   timeoutMs?: number;
   maxStdoutBytes?: number;
@@ -36,9 +41,6 @@ export interface CreateGitDiffToolOptions {
 }
 
 /** POSIX single-quote a `git diff` argument for the backend command string (safe against metacharacters). */
-function shq(arg: string): string {
-  return `'${arg.replace(/'/g, `'\\''`)}'`;
-}
 
 /** Run `git diff` through an injected SandboxBackend, mapping its result to git_diff's JSON shape. The
  *  scope check (pure security) still applies; the local `.git` existsSync check does not (the repo is in
@@ -74,12 +76,13 @@ export function createGitDiffTool(opts: CreateGitDiffToolOptions): CustomTool {
   } = opts;
 
   return Tool.create({
-    name: "git_diff",
+    name: opts.name ?? "git_diff",
     description:
+      opts.description ??
       "Return the unified diff of the project's working tree (or staged " +
-      "changes when cached=true). Scoped to a single file when 'path' is " +
-      "provided. Requires the project to be a git repository. Returns " +
-      "{ ok, diff, truncated? } or { ok: false, error }.",
+        "changes when cached=true). Scoped to a single file when 'path' is " +
+        "provided. Requires the project to be a git repository. Returns " +
+        "{ ok, diff, truncated? } or { ok: false, error }.",
     inputSchema: z.object({
       path: z.string().optional().describe("Optional project-relative file or dir scope."),
       cached: z

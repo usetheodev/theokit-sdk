@@ -10,6 +10,11 @@ import { spawn } from "node:child_process";
 
 import { armTimeoutKill, attachChildSettlers } from "../subprocess.js";
 
+/** Aspas POSIX para o comando que cruza o shell do sandbox. Compartilhado por git_diff e git_status. */
+export function shq(arg: string): string {
+  return `'${arg.replaceAll("'", `'\\''`)}'`;
+}
+
 export function formatGitResult(result: GitProcessResult, timeoutMs: number): string {
   if (result.kind === "timeout") {
     return JSON.stringify({ ok: false, error: "timeout", timeoutMs });

@@ -39,6 +39,11 @@ const DEFAULT_EXCLUDES = new Set(["node_modules", ".git", "dist", ".theo"]);
 const MAX_BACKEND_WALK_DEPTH = 64;
 
 export interface CreateGlobToolOptions {
+  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
+   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Absolute path to the project root. */
   projectRoot: string;
   /** Optional injected filesystem (`@theokit/sdk/filesystem`) — when provided, the walk reads through the
@@ -50,13 +55,14 @@ export function createGlobTool(opts: CreateGlobToolOptions): CustomTool {
   const { projectRoot, filesystem } = opts;
 
   return Tool.create({
-    name: "glob_files",
+    name: opts.name ?? "glob_files",
     description:
+      opts.description ??
       "Find files by glob pattern across the project — fast at any repo size. Use glob_files when " +
-      "you know the filename SHAPE; use search_text when you know the file CONTENT; use read_file " +
-      "when you know the exact path. The pattern supports * and ** wildcards (e.g. '**/*.ts', " +
-      "'src/**/*.json'); node_modules/.git/dist/.theo are excluded and results are relative paths. " +
-      "Returns { ok, files } or { ok: false, error }.",
+        "you know the filename SHAPE; use search_text when you know the file CONTENT; use read_file " +
+        "when you know the exact path. The pattern supports * and ** wildcards (e.g. '**/*.ts', " +
+        "'src/**/*.json'); node_modules/.git/dist/.theo are excluded and results are relative paths. " +
+        "Returns { ok, files } or { ok: false, error }.",
     inputSchema: z.object({
       pattern: z.string().min(1).describe("Glob pattern (e.g. '**/*.ts', 'src/**/*.json')."),
       cwd: z.string().optional().describe("Project-relative subdirectory to search from."),
