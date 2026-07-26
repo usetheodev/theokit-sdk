@@ -248,3 +248,76 @@ export function createSandboxBackend(opts: CreateSandboxBackendOptions): Sandbox
   }
   return new LinuxSandbox(config, { mode: opts.mode, network: opts.network, bin: detection.bin });
 }
+
+/**
+ * M75 T3.2 — latch do aviso do caminho INTERATIVO.
+ *
+ * Separado do latch de `createSandboxBackend` de propósito: são duas decisões distintas, tomadas em
+ * momentos distintos, e um usuário que só use shell interativo precisa ver o aviso mesmo que o
+ * caminho não-interativo já o tenha emitido — senão a sessão em que ele realmente digita comandos
+ * seria a única sem o alerta.
+ */
+let avisouInterativo = false;
+
+/** Reset para testes — o latch é estado de módulo e testes precisam de isolamento. */
+export function resetInteractiveWarnLatch(): void {
+  avisouInterativo = false;
+}
+
+export interface InteractiveWrapOptions {
+  mode: SandboxMode;
+  /** `true` mantém a rede. Default `false`, igual ao `run_shell` não-interativo. */
+  network?: boolean;
+  /** Injetável para testes; default é a detecção real memoizada. */
+  detect?: () => BwrapDetection;
+  /** Injetável para testes; default é `console.warn` com redação. */
+  warn?: (message: string) => void;
+}
+
+/**
+ * A composição que o caminho interativo precisa — o par de `createSandboxBackend`.
+ *
+ * `createSandboxBackend` resolve isto para o caminho não-interativo devolvendo um BACKEND pronto. O
+ * PTY não aceita um backend: ele é dono do spawn e só admite transformar o comando. Esta função
+ * entrega a MESMA decisão na forma que o PTY aceita — `(command, cwd) => string | null` —, pronta
+ * para `new PtyInteractiveBackend({ wrapCommand: interactiveWrapCommand({ mode }) })`.
+ *
+ * A detecção é consultada **a cada wrap**, não congelada na construção: uma sessão interativa vive
+ * por horas, e uma detecção positiva obsoleta continuaria afirmando confinamento depois de o binário
+ * sumir (a revalidação por `existsSync` vive dentro de `detectBwrapMemoizado`).
+ *
+ * As duas rotas que devolvem `null` são semanticamente diferentes e o código não as funde:
+ * `danger-full-access` é opt-out explícito e NÃO avisa; bwrap indisponível é falha e avisa uma vez.
+ */
+export function interactiveWrapCommand(
+  opts: InteractiveWrapOptions,
+): (command: string, cwd: string) => string | null {
+  return (command: string, cwd: string): string | null => {
+    if (opts.mode === "danger-full-access") return null;
+
+    const detection = (opts.detect ?? detectBwrapMemoizado)();
+    if (!detection.ok) {
+      if (!avisouInterativo) {
+        avisouInterativo = true;
+        const warn = opts.warn ?? ((m: string) => console.warn(redactSecrets(m)));
+        warn(
+          `[sandbox] OS-level enforcement unavailable (${detection.reason}) — interactive session ` +
+            `runs WITHOUT kernel confinement (sandbox_mode=${opts.mode}).`,
+        );
+      }
+      return null;
+    }
+
+    return wrapCommandForSandbox(
+      opts.mode,
+      {
+        cwd,
+        network: opts.network ?? false,
+        env: allowlistedEnv(),
+        bin: detection.bin,
+        seccompPath: restrictedSeccompPath(),
+      },
+      command,
+    );
+  };
+}
