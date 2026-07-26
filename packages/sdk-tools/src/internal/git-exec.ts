@@ -20,7 +20,7 @@ export function formatGitResult(result: GitProcessResult, timeoutMs: number): st
   return JSON.stringify({ ok: true, diff: result.stdout, truncated: result.truncated });
 }
 
-export type GitProcessResult =
+type GitProcessResult =
   | { kind: "ok"; stdout: string; truncated: boolean }
   | { kind: "error"; stderr: string }
   | { kind: "timeout" };
