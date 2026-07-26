@@ -8,6 +8,7 @@
  * @internal
  */
 
+import { globalSingleton } from "../global-singleton.js";
 import type { ProviderProfile } from "./types.js";
 
 /**
@@ -17,13 +18,6 @@ import type { ProviderProfile } from "./types.js";
  * `refreshModelCatalog` saw an eternally-empty registry and its patches were invisible to the core bundle's
  * capability/pricing lookups (state duplication made load-bearing by M44).
  */
-function globalSingleton<T>(key: string, create: () => T): T {
-  const g = globalThis as unknown as Record<symbol, T>;
-  const sym = Symbol.for(key);
-  if (g[sym] === undefined) g[sym] = create();
-  return g[sym];
-}
-
 const REGISTRY = globalSingleton(
   "theokit-sdk.providers.registry",
   () => new Map<string, ProviderProfile>(),

@@ -18,19 +18,13 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 
+import { globalSingleton } from "../global-singleton.js";
 import { registerProvider } from "./registry.js";
 
 // M47 review F3 — the idempotence flag lives on `globalThis` via `Symbol.for`, mirroring registry.ts's
 // M44 B1 pattern: tsup bundles each entry (`dist/index.js`, `dist/cron.js`, …) with its OWN module copy,
 // so a module-local `let discovered` would re-run discovery once per entry (duplicate I/O + spurious
 // "Provider overridden" WARNs). Every bundle copy shares THIS state.
-function globalSingleton<T>(key: string, create: () => T): T {
-  const g = globalThis as unknown as Record<symbol, T>;
-  const sym = Symbol.for(key);
-  if (g[sym] === undefined) g[sym] = create();
-  return g[sym];
-}
-
 const discoveryState = globalSingleton("theokit-sdk.providers.discovered", () => ({
   done: false,
 }));
