@@ -1,4 +1,38 @@
 /**
+ * M80 — os verdicts terminais que um judge pode devolver.
+ *
+ * `"blocked"` entrou aqui neste milestone. `GoalResult.status` já o carregava, mas o judge não tinha
+ * como EMITI-LO: seu vocabulário era `done | continue | skipped`, então diante de um bloqueio real
+ * ele só podia dizer `continue` — e o loop repetia o mesmo turno até estourar o orçamento,
+ * reportando `failed` por limite em vez de `blocked` por impossibilidade. Duas causas diferentes com
+ * o mesmo desfecho visível.
+ *
+ * @public
+ */
+export type Verdict = "done" | "continue" | "skipped" | "blocked";
+
+/**
+ * M80 — resultado de uma chamada ao judge, agora público.
+ *
+ * Era `internal/`, então um consumidor que quisesse tipar o retorno — para reagir a `blocked` sem
+ * string mágica — precisava redeclarar a forma. É a mesma duplicação que o M78 fechou para a
+ * hierarquia de erro: sem superfície pública, reimplementar é a única saída legal para quem está
+ * atrás da fronteira de camadas.
+ *
+ * @public
+ */
+export interface JudgeResult {
+  verdict: Verdict;
+  reason: string;
+  /**
+   * `true` quando o texto não começou com um dos prefixos canônicos. O verdict vira `"continue"`
+   * (fail-safe) para não parar cedo demais; o chamador conta falhas consecutivas e desiste via
+   * `maxConsecutiveJudgeFailures`.
+   */
+  parseFailed: boolean;
+}
+
+/**
  * Public event types emitted by {@link SDKAgent.runUntil} (ADRs D115-D117).
  *
  * Discriminated union by `type` field so consumers can `switch (event.type)`

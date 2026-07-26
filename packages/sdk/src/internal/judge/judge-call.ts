@@ -19,8 +19,8 @@ import { TheokitAgentError } from "../../errors.js";
  */
 
 import type { AgentOptions, SDKAgent } from "../../types/agent.js";
+import type { JudgeResult } from "../../types/goal-events.js";
 import { parseVerdict } from "./parse-verdict.js";
-import type { JudgeResult } from "./types.js";
 
 /** Inputs to the judge — pure data. */
 export interface JudgeContext {

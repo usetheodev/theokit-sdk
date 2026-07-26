@@ -93,6 +93,7 @@ export {
   type CounterBudgetTrackerOptions,
   createCounterBudgetTracker,
 } from "./internal/budget/tracker/budget-tracker-counter.js";
+export { JudgeCredentialError } from "./internal/judge/judge-call.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
 // Transitional: `Agent.create({ handoffs: [...] })` still works while
@@ -228,6 +229,16 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 export type { CustomTool, SDKAgent } from "./types/agent.js";
 // SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
 export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
+// M80 — `JudgeResult` e `Verdict` viram públicos.
+//
+// Eram `internal/`, então um consumidor que quisesse tipar o retorno do judge — para reagir a
+// `blocked` sem string mágica, por exemplo — precisava redeclarar a forma. É a mesma duplicação que
+// o M78 fechou para a hierarquia de erro: sem a superfície pública, reimplementar é a única saída
+// legal para quem está atrás da fronteira de camadas.
+//
+// `JudgeCredentialError` acompanha porque é o erro que a falha-rápida do M80 lança: quem faz `catch`
+// no goal loop precisa distinguir "credencial do judge não serve" de qualquer outra falha.
+export type { JudgeResult, Verdict } from "./types/goal-events.js";
 // Type contract
 export type * from "./types/index.js";
 // SE24 — guardrail processor pipeline (inputProcessors / outputProcessors).

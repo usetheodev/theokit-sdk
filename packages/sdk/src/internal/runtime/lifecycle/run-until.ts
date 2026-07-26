@@ -14,9 +14,13 @@
  */
 
 import type { SDKAgent } from "../../../types/agent.js";
-import type { GoalEvent, GoalOptions, GoalResult } from "../../../types/goal-events.js";
+import type {
+  GoalEvent,
+  GoalOptions,
+  GoalResult,
+  JudgeResult,
+} from "../../../types/goal-events.js";
 import type { JudgeContext, JudgeOptions } from "../../judge/judge-call.js";
-import type { JudgeResult } from "../../judge/types.js";
 import { GOAL_CONTINUATION_MARKER } from "./goal-marker.js";
 
 /** DI contract: the judge is the only external touchpoint. */
