@@ -70,8 +70,32 @@ function capTail(buf: string, max: number): string {
   return buf.length > max ? `…(truncated)\n${buf.slice(-max)}` : buf;
 }
 
+/**
+ * M75 T3.1 — como o chamador embrulha o comando antes do spawn.
+ *
+ * Existe para que confinamento (sandbox) componha com PTY sem herança: o backend continua dono do
+ * spawn, o chamador continua dono da política, e nenhum dos dois conhece o tipo do outro.
+ */
+export interface PtyInteractiveBackendOptions {
+  /**
+   * Transforma o comando imediatamente antes do spawn. Recebe o `cwd` JÁ RESOLVIDO — o PTY spawna
+   * nele, então um wrap que mirasse outro diretório produziria confinamento que não confina nada.
+   *
+   * Devolver `null` significa **não embrulhe** — decisão explícita, distinta de "embrulhei e deu no
+   * mesmo". É o caso do modo sem confinamento.
+   */
+  readonly wrapCommand?: (command: string, cwd: string) => string | null;
+}
+
 export class PtyInteractiveBackend extends InteractiveBackend {
   private readonly sessions = new Map<string, PtySession>();
+  private readonly wrapCommand: ((command: string, cwd: string) => string | null) | undefined;
+
+  constructor(options: PtyInteractiveBackendOptions = {}) {
+    super();
+    this.wrapCommand = options.wrapCommand;
+  }
+
   private ptyModule: PtyModule | null | undefined;
   private exitReaperArmed = false;
 
@@ -126,9 +150,13 @@ export class PtyInteractiveBackend extends InteractiveBackend {
         `interactive shell unavailable: cwd does not exist: ${cwd}`,
       );
     }
+    // M75 T3.1 — o wrap entra AQUI: depois do cwd resolvido e validado, antes do spawn. É o ponto
+    // único por onde todo comando passa, então não há caminho que escape do confinamento.
+    const efetivo = this.wrapCommand?.(command, cwd) ?? command;
+
     const shell = process.env.SHELL ?? "/bin/bash";
     try {
-      return pty.spawn(shell, ["-c", command], {
+      return pty.spawn(shell, ["-c", efetivo], {
         name: "xterm-color",
         cols: opts?.cols ?? 80,
         rows: opts?.rows ?? 24,
