@@ -30,6 +30,17 @@ import {
 } from "./internal/path-guard.js";
 
 export interface CreateEditFileToolOptions {
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   *
+   * Existe porque, no Codex, o nome NASCE na definição da tool e é a chave de decisão de approval —
+   * três consumidores (modelo, approval, telemetry) de uma string decidida num lugar só. Renomear
+   * depois da construção é mudar a identidade de algo já publicado ao modelo. `withName` continua
+   * para o caso genuinamente dinâmico.
+   */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Absolute path to the project root. Every edit is gated against this boundary. */
   projectRoot: string;
   /** Optional injected filesystem (`@theokit/sdk/filesystem`) — when provided, the read + `.bak` backup +
@@ -141,15 +152,16 @@ export function createEditFileTool(opts: CreateEditFileToolOptions): CustomTool 
   const { projectRoot, filesystem } = opts;
 
   return Tool.create({
-    name: "edit_file",
+    name: opts.name ?? "edit_file",
     description:
+      opts.description ??
       "Make an exact string replacement in a project-relative file. Replaces the FIRST occurrence " +
-      "of old_string with new_string (a whitespace-normalized fallback is attempted if the exact " +
-      "match fails) and writes a .bak backup first. Read the file first so old_string matches the " +
-      "on-disk text exactly; include enough surrounding context to make it unique — only the first " +
-      "match is replaced, so a too-short old_string can edit the wrong location. old_string must be " +
-      "non-empty and differ from new_string; to change every occurrence, call edit_file repeatedly. " +
-      "Returns { ok, replacements } or { ok: false, error }.",
+        "of old_string with new_string (a whitespace-normalized fallback is attempted if the exact " +
+        "match fails) and writes a .bak backup first. Read the file first so old_string matches the " +
+        "on-disk text exactly; include enough surrounding context to make it unique — only the first " +
+        "match is replaced, so a too-short old_string can edit the wrong location. old_string must be " +
+        "non-empty and differ from new_string; to change every occurrence, call edit_file repeatedly. " +
+        "Returns { ok, replacements } or { ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
       old_string: z.string().min(1).describe("String to find in the file."),

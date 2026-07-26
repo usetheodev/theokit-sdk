@@ -40,6 +40,17 @@ import {
 const DEFAULT_MAX_ENTRIES = 500;
 
 export interface CreateListDirToolOptions {
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   *
+   * Existe porque, no Codex, o nome NASCE na definição da tool e é a chave de decisão de approval —
+   * três consumidores (modelo, approval, telemetry) de uma string decidida num lugar só. Renomear
+   * depois da construção é mudar a identidade de algo já publicado ao modelo. `withName` continua
+   * para o caso genuinamente dinâmico.
+   */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Absolute path to the project root. Every listing is gated against this boundary. */
   projectRoot: string;
   /** Maximum number of entries returned per call. Default 500. */
@@ -57,12 +68,13 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
   const { projectRoot, max = DEFAULT_MAX_ENTRIES, filesystem } = opts;
 
   return Tool.create({
-    name: "list_dir",
+    name: opts.name ?? "list_dir",
     description:
+      opts.description ??
       `Return the direct entries of a project-relative directory. ` +
-      `Refuses paths outside the project root or in the sensitive-file ` +
-      `blocklist (.env, .git/, node_modules/, .theo/, lock files). Caps ` +
-      `at ${String(max)} entries by default; result carries truncated + totalCount.`,
+        `Refuses paths outside the project root or in the sensitive-file ` +
+        `blocklist (.env, .git/, node_modules/, .theo/, lock files). Caps ` +
+        `at ${String(max)} entries by default; result carries truncated + totalCount.`,
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative directory path. Use '.' for root."),
     }),

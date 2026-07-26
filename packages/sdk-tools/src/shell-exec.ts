@@ -36,6 +36,17 @@ async function execViaSandbox(
 }
 
 export interface CreateShellToolOptions {
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   *
+   * Existe porque, no Codex, o nome NASCE na definição da tool e é a chave de decisão de approval —
+   * três consumidores (modelo, approval, telemetry) de uma string decidida num lugar só. Renomear
+   * depois da construção é mudar a identidade de algo já publicado ao modelo. `withName` continua
+   * para o caso genuinamente dinâmico.
+   */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   /** Absolute path to the project root. Commands execute in this cwd. */
   projectRoot: string;
   /** Default timeout in ms. Capped at 300s. */
@@ -66,15 +77,16 @@ export function createShellTool(opts: CreateShellToolOptions): CustomTool {
   } = opts;
 
   return Tool.create({
-    name: "shell_exec",
+    name: opts.name ?? "shell_exec",
     description:
+      opts.description ??
       "Execute a shell command in the project directory. Use this for terminal operations — running " +
-      "tests, git, package managers, build tools. Do NOT use it for file operations (reading, " +
-      "writing, editing, finding files): prefer the specialized read_file/write_file/edit_file/" +
-      "glob_files/search_text tools, which are path-checked and safer. Only commit, push, or change " +
-      "git state when the user explicitly asks. timeout_ms defaults to 30000 (max 300000); " +
-      "stdout/stderr are capped (~5 MB). Returns { ok, stdout, stderr, exit_code } or " +
-      "{ ok: false, error }.",
+        "tests, git, package managers, build tools. Do NOT use it for file operations (reading, " +
+        "writing, editing, finding files): prefer the specialized read_file/write_file/edit_file/" +
+        "glob_files/search_text tools, which are path-checked and safer. Only commit, push, or change " +
+        "git state when the user explicitly asks. timeout_ms defaults to 30000 (max 300000); " +
+        "stdout/stderr are capped (~5 MB). Returns { ok, stdout, stderr, exit_code } or " +
+        "{ ok: false, error }.",
     inputSchema: z.object({
       command: z.string().min(1).describe("Shell command to execute."),
       timeout_ms: z

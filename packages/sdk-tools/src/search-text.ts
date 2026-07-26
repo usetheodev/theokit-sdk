@@ -54,6 +54,17 @@ const PREVIEW_MAX = 200;
 const MAX_BACKEND_WALK_DEPTH = 64;
 
 export interface CreateSearchTextToolOptions {
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   *
+   * Existe porque, no Codex, o nome NASCE na definição da tool e é a chave de decisão de approval —
+   * três consumidores (modelo, approval, telemetry) de uma string decidida num lugar só. Renomear
+   * depois da construção é mudar a identidade de algo já publicado ao modelo. `withName` continua
+   * para o caso genuinamente dinâmico.
+   */
+  name?: string;
+  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  description?: string;
   projectRoot: string;
   /** Cap on total matches returned. Default 100. */
   maxMatches?: number;
@@ -89,14 +100,15 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
   const queryMatch = regex ? "matched as a regex" : "matched as a substring, not a regex";
 
   return Tool.create({
-    name: "search_text",
+    name: opts.name ?? "search_text",
     description:
+      opts.description ??
       `Search file CONTENTS for ${queryKind} across the project tree (the query is ${queryMatch}). ` +
-      `Use search_text when you know the content; use glob_files when you know the filename shape; use ` +
-      `read_file when you know the exact path. Skips sensitive dirs (.env/.git/node_modules/.theo), ` +
-      `binary files, and files over 1 MB; 'path' scopes the search to a subdirectory. Returns up to ` +
-      `${String(maxMatches)} matches as { file, line, preview } — cite locations to the user as ` +
-      `file:line. Returns { ok, matches } or { ok: false, error }.`,
+        `Use search_text when you know the content; use glob_files when you know the filename shape; use ` +
+        `read_file when you know the exact path. Skips sensitive dirs (.env/.git/node_modules/.theo), ` +
+        `binary files, and files over 1 MB; 'path' scopes the search to a subdirectory. Returns up to ` +
+        `${String(maxMatches)} matches as { file, line, preview } — cite locations to the user as ` +
+        `file:line. Returns { ok, matches } or { ok: false, error }.`,
     inputSchema: z.object({
       query: regex
         ? z.string().min(1).describe("A JavaScript regular expression, e.g. 'function\\\\s+main'.")
