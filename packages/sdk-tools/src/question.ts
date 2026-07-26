@@ -33,8 +33,14 @@ export interface QuestionTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
+  /**
+   * M76 — o input é `Record<string, unknown>`, não `{ question: string }`, por CONTRAVARIÂNCIA: um
+   * handler que aceita só o tipo estreito não é atribuível a um que aceita o largo, e o `CustomTool`
+   * do SDK declara o largo. Declarar estreito aqui obrigava o consumidor a um cast — que era
+   * exatamente o defeito. O estreitamento acontece DENTRO do handler, onde há validação.
+   */
   handler: (
-    input: { question: string },
+    input: Record<string, unknown>,
     ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
   ) => Promise<string>;
 }
@@ -71,7 +77,7 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       required: ["question"],
     },
     handler: async (
-      input: { question: string },
+      input: Record<string, unknown>,
       ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
     ): Promise<string> => {
       // M76 — precedência: contexto da run > fábrica. `ctx.threadId` identifica a sessão, então uma
@@ -93,7 +99,7 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       });
 
       try {
-        const answer = await Promise.race([askUser(input.question), timeout]);
+        const answer = await Promise.race([askUser(String(input.question ?? "")), timeout]);
         return JSON.stringify({ ok: true, answer });
       } catch (err) {
         if (err instanceof Error && err.message === "timeout") {
