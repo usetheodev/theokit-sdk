@@ -85,15 +85,47 @@ export interface PtyInteractiveBackendOptions {
    * mesmo". É o caso do modo sem confinamento.
    */
   readonly wrapCommand?: (command: string, cwd: string) => string | null;
+
+  /**
+   * M77 — teto de sessões VIVAS simultâneas. Ausente ⇒ sem teto (o comportamento de sempre).
+   *
+   * Cada sessão é um processo real com TTL de 5 minutos. Um modelo que não percebe que já tem um
+   * shell aberto abre outro, e o TTL só recolhe depois — tarde demais quando o limite é o número de
+   * PIDs da máquina. Ao estourar, {@link MaxSessionsError} lista as sessões vivas, porque a ação
+   * correta é **reusar** uma delas e um erro que não diz isso só ensina o modelo a tentar de novo.
+   */
+  readonly maxSessions?: number;
+}
+
+/**
+ * M77 — o teto de {@link PtyInteractiveBackendOptions.maxSessions} foi atingido.
+ *
+ * Carrega `liveSessionIds` por design: `rules/error-handling.md § 2` pede mensagem com contexto
+ * suficiente para agir, e aqui a ação é reusar uma sessão existente. Um erro que apenas informasse
+ * "limite atingido" deixaria o modelo sem saída — ele tentaria de novo, falharia de novo.
+ */
+export class MaxSessionsError extends InteractiveUnavailableError {
+  constructor(
+    readonly max: number,
+    readonly liveSessionIds: readonly string[],
+  ) {
+    super(
+      `interactive session limit reached (${String(max)} live). ` +
+        `Reuse one of the open sessions instead of starting another: ${liveSessionIds.join(", ")}`,
+    );
+  }
 }
 
 export class PtyInteractiveBackend extends InteractiveBackend {
   private readonly sessions = new Map<string, PtySession>();
   private readonly wrapCommand: ((command: string, cwd: string) => string | null) | undefined;
+  /** M77 — live-session ceiling; `undefined` means unlimited (the historical behaviour). */
+  private readonly maxSessions: number | undefined;
 
   constructor(options: PtyInteractiveBackendOptions = {}) {
     super();
     this.wrapCommand = options.wrapCommand;
+    this.maxSessions = options.maxSessions;
   }
 
   private ptyModule: PtyModule | null | undefined;
@@ -175,6 +207,18 @@ export class PtyInteractiveBackend extends InteractiveBackend {
     opts?: StartInteractiveOptions,
   ): Promise<StartInteractiveResult> {
     this.armExitReaper();
+    // M77 — the ceiling, checked against LIVE sessions (`onExit` and `kill` both delete from the
+    // Map), so killing one frees a slot.
+    //
+    // ATOMICITY, and why it is not an accident to preserve carelessly: everything from here down to
+    // `this.sessions.set(id, session)` is SYNCHRONOUS — `spawnPty` does not await. Two concurrent
+    // `startInteractive` calls therefore cannot interleave between this check and the insert, so the
+    // ceiling holds without a lock. If a future refactor makes any step in that span asynchronous
+    // (an `await this.loadPty()` would be the plausible one), both callers would observe the old
+    // count and both would pass. `tests/max-sessions.test.ts` covers exactly that regression.
+    if (this.maxSessions !== undefined && this.sessions.size >= this.maxSessions) {
+      throw new MaxSessionsError(this.maxSessions, [...this.sessions.keys()]);
+    }
     const ttlMs = opts?.ttlMs ?? DEFAULT_TTL_MS;
     const maxBytes = opts?.maxBytes ?? DEFAULT_MAX_BYTES;
     const proc = this.spawnPty(command, opts);

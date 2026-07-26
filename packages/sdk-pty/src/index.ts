@@ -10,6 +10,7 @@
  */
 export {
   clampYield,
+  MaxSessionsError,
   PtyInteractiveBackend,
   type PtyInteractiveBackendOptions,
   YIELD_MAX_MS,
