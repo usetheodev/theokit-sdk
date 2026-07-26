@@ -43,6 +43,7 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
+import { ehProibidoEmQualquerProfundidade } from "./path-scope.js";
 import type { ReadTracker } from "./read-tracker.js";
 
 /** Max single-file read size, in bytes. 5 MB ceiling — enough for any source file. */
@@ -87,20 +88,6 @@ export interface CreateReadFileToolOptions {
 }
 
 /** Sensitive path segments — secret-bearing dirs/files that must never be read at ANY depth. */
-const SENSITIVE_SEGMENTS = new Set([".env", ".git", "node_modules", ".theo"]);
-
-/**
- * Any-segment secret guard for `allowAbsolute` reads. `isForbiddenPath` only blocks the sensitive item
- * when it is the FIRST (project-relative) segment; an absolute path (`/home/u/proj/.env`) puts it deeper,
- * so this checks EVERY segment. Closes the reads-anywhere exfiltration hole (`.env`/`.git`/… at any depth).
- */
-function isForbiddenAtAnyDepth(path: string): boolean {
-  const segs = path.replace(/\\/g, "/").split("/").filter(Boolean);
-  return segs.some((s) => {
-    if (s === ".env.example") return false; // template — safe to read
-    return SENSITIVE_SEGMENTS.has(s) || /^\.env\./.test(s);
-  });
-}
 
 /** Secret guard for both read paths — the project-relative first-segment check plus, for an honored
  *  absolute path (`allowAbsolute`), an any-depth check. Returns an error JSON string, or null if safe. */
@@ -108,7 +95,7 @@ function forbiddenReadError(path: string, allowAbsolute: boolean): string | null
   if (isForbiddenPath(path)) {
     return JSON.stringify({ ok: false, error: "forbidden_path", path });
   }
-  if (allowAbsolute && isAbsolute(path) && isForbiddenAtAnyDepth(path)) {
+  if (allowAbsolute && isAbsolute(path) && ehProibidoEmQualquerProfundidade(path)) {
     return JSON.stringify({ ok: false, error: "forbidden_path", path });
   }
   return null;
