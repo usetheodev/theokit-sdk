@@ -19,6 +19,7 @@ import type { HooksExecutor } from "../runtime/hooks/hooks-executor.js";
 import { registerRun } from "../runtime/registry/run-registry.js";
 import type { SessionMessage } from "../session/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
+import { McpClientPool } from "./mcp-pool.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
 import { buildCustomToolsInput } from "./real-local-run-tools.js";
 
@@ -342,12 +343,55 @@ function buildLoopInputs(
  *  - `sendOptions.tools = [t1, ...]`  → use exactly these for this run
  */
 
+/**
+ * M77 — the process-wide pool backing `mcpLifecycle: 'session'`.
+ *
+ * Keyed by `(agentId, server, config)`, so it is session-scoped despite being a module-level object:
+ * `agentId` IS the session identity here (it is what `getSessionMessages` keys the transcript cache
+ * by), and `LocalAgent.dispose()` releases its own entries. Two agents never see each other's
+ * clients.
+ */
+const sessionMcpPool = new McpClientPool<McpClient>();
+
+/** M77 — release one session's pooled MCP clients. Called from `LocalAgent.dispose()`. */
+export function disposeSessionMcpClients(agentId: string): void {
+  sessionMcpPool.disposeSession(agentId, (client) => {
+    void client.close();
+  });
+}
+
+/**
+ * M77 — the production seam, exported for the wiring test.
+ *
+ * Exported (`_` prefix, `@internal`) rather than left private because the pool is only worth having
+ * if `buildMcpMap` actually reaches it. Testing the pool class alone would prove the CLASS reuses,
+ * not that the SYSTEM does — the exact gap the M76 review found in the ask-bridge.
+ *
+ * @internal
+ */
+export function _buildMcpMapForTests(options: CreateRealLocalRunOptions): Map<string, McpClient> {
+  return buildMcpMap(options);
+}
+
 function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
   const map = new Map<string, McpClient>();
   const inline = options.sendOptions.mcpServers ?? options.agentOptions.mcpServers;
   if (inline === undefined) return map;
+
+  // M77 — `'run'` stays the default: a client per send, dropped with the run. Only an explicit
+  // `mcpLifecycle: 'session'` reaches the pool, because pooling changes the failure model (see the
+  // option's docblock). The reap runs on acquisition rather than on a timer: a timer would keep the
+  // process alive, and a pool nobody touches has nothing worth reaping.
+  const pooled = options.agentOptions.mcpLifecycle === "session";
+  if (pooled) sessionMcpPool.reapIdle((c) => void c.close());
+
   for (const [name, config] of Object.entries(inline)) {
-    map.set(name, createMcpClient(name, config));
+    map.set(
+      name,
+      pooled
+        ? sessionMcpPool.acquire(options.agentId, name, config, () => createMcpClient(name, config))
+        : createMcpClient(name, config),
+    );
   }
   return map;
 }
