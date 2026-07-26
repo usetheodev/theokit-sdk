@@ -13,11 +13,23 @@ export interface QuestionToolOptions {
   timeoutMs?: number;
 }
 
+/**
+ * M76 — alinhado ao `CustomTool` do SDK. Era uma interface própria com `inputSchema: unknown`, o que
+ * obrigava todo consumidor a escrever um cast para registrar a tool — e cast não conserta contrato,
+ * só silencia o compilador, transformando uma futura mudança de assinatura em erro de RUNTIME.
+ *
+ * Estreitar foi aditivo: o valor sempre foi um objeto (`{ type: "object", properties, required }`
+ * logo abaixo); só o tipo declarado estava frouxo. O handler aceita o 2º argumento opcional do
+ * contrato (`ctx`), por onde o M76 passa a resolver o asker por sessão.
+ */
 export interface QuestionTool {
   name: string;
   description: string;
-  inputSchema: unknown;
-  handler: (input: { question: string }) => Promise<string>;
+  inputSchema: Record<string, unknown>;
+  handler: (
+    input: { question: string },
+    ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
+  ) => Promise<string>;
 }
 
 export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
