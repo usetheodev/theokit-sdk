@@ -1,13 +1,12 @@
 import { describe, expect, it } from "vitest";
-
-import {
-  COMPACT_SUMMARY_MARKER,
-  compactSessionTranscript,
-} from "../../../src/internal/session/compact-session.js";
 import {
   reconstructMessages,
   SessionTranscript,
 } from "../../../src/internal/persistence/session-transcript.js";
+import {
+  COMPACT_SUMMARY_MARKER,
+  compactSessionTranscript,
+} from "../../../src/internal/session/compact-session.js";
 import type { SessionRecord } from "../../../src/types/session-record.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
 
@@ -49,7 +48,8 @@ describe("compactSessionTranscript", () => {
       loc: LOC,
       sessionId: LOC.agentId,
       trigger: "manual",
-      summarize: async (msgs) => `resumo de ${msgs.length} mensagens: usuário mora perto de Curitiba`,
+      summarize: async (msgs) =>
+        `resumo de ${msgs.length} mensagens: usuário mora perto de Curitiba`,
     });
 
     const msgs = reconstructMessages(store.records);

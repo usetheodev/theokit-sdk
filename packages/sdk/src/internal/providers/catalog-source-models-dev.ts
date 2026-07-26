@@ -113,6 +113,11 @@ function resolvePatchKeys(externalId: string): string[] | undefined {
 }
 
 /** Parse + patch the index from an api.json payload. Unknown providers are skipped with WARN (once each). */
+// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
 function patchIndexFromApiJson(raw: unknown): number {
   if (typeof raw !== "object" || raw === null) return 0;
   let patched = 0;
@@ -183,6 +188,11 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
  * Fail-closed: any failure keeps serving the current index (cache or vendored). Kill-switch:
  * `THEOKIT_DISABLE_MODELS_FETCH`.
  */
+// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
 export async function refreshModelCatalog(
   opts: RefreshModelCatalogOptions = {},
 ): Promise<RefreshModelCatalogResult> {

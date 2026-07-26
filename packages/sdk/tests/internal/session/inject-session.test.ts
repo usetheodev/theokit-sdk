@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
-
-import { injectSessionTurn } from "../../../src/internal/session/inject-session.js";
 import {
   reconstructMessages,
   SessionTranscript,
 } from "../../../src/internal/persistence/session-transcript.js";
+import { injectSessionTurn } from "../../../src/internal/session/inject-session.js";
 import type { SessionRecord } from "../../../src/types/session-record.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
 
@@ -72,7 +71,11 @@ describe("injectSessionTurn (M51)", () => {
     });
     expect(getSessionMessages(LOC.agentId)).toEqual([]); // cache invalidado
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
-    expect(getSessionMessages(LOC.agentId).map((m) => m.text).join("\n")).toContain("par sintético");
+    expect(
+      getSessionMessages(LOC.agentId)
+        .map((m) => m.text)
+        .join("\n"),
+    ).toContain("par sintético");
     clearAllSessions();
   });
 
@@ -120,7 +123,9 @@ describe("M51 review F4 — corrida inject × turno em voo", () => {
     appendSessionMessage(LOC.agentId, { role: "assistant", text: "resposta do turno em voo" });
     // próximo send → hydrate DEVE substituir do disco (que tem TUDO), não pinar em 1 mensagem
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
-    const joined = getSessionMessages(LOC.agentId).map((m) => m.text).join("\n");
+    const joined = getSessionMessages(LOC.agentId)
+      .map((m) => m.text)
+      .join("\n");
     expect(joined).toContain("olá"); // história original
     expect(joined).toContain("par-sintético"); // par injetado
     clearAllSessions();

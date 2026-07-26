@@ -128,6 +128,11 @@ function ensureModelIndexLoaded(): void {
  * registration is skipped builtins-first — so builtin providers still get their per-model data (ADR D2).
  * A malformed model sub-entry drops THAT MODEL with WARN and keeps the provider (EC-1 philosophy extended).
  */
+// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
 function indexEntryModels(entry: CatalogEntry): void {
   if (entry.models === undefined || typeof entry.models !== "object") return;
   for (const [modelId, raw] of Object.entries(entry.models)) {
@@ -206,6 +211,11 @@ export function loadProviderCatalog(opts?: LoadOptions): Record<string, CatalogE
 
 let _capabilitiesCache: Record<string, ProviderCapabilities> | null = null;
 
+// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
 export function getCatalogCapabilities(providerId: string): ProviderCapabilities | undefined {
   if (_capabilitiesCache === null) {
     const catalog = loadProviderCatalog();

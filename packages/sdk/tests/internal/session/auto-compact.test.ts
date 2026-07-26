@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
-
+import {
+  reconstructMessages,
+  SessionTranscript,
+} from "../../../src/internal/persistence/session-transcript.js";
 import {
   autoCompactIfNeeded,
   compactSessionTranscript,
   shouldAutoCompact,
 } from "../../../src/internal/session/compact-session.js";
-import { reconstructMessages, SessionTranscript } from "../../../src/internal/persistence/session-transcript.js";
 import type { SessionRecord } from "../../../src/types/session-record.js";
 import type { SessionStore } from "../../../src/types/session-store.js";
 
@@ -154,7 +156,11 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
     // e o turno parenteia PÓS-replacement (não vira órfão)
     const msgs = reconstructMessages(store.records);
     const joined = msgs
-      .map((m) => (Array.isArray(m.content) ? m.content.map((p) => ("text" in p ? (p as {text:string}).text : "")).join("") : ""))
+      .map((m) =>
+        Array.isArray(m.content)
+          ? m.content.map((p) => ("text" in p ? (p as { text: string }).text : "")).join("")
+          : "",
+      )
       .join("\n");
     expect(joined).toContain("turno concorrente");
     expect(joined).toContain("[[theokit:compact-summary]]");
@@ -168,7 +174,12 @@ describe("M50 F6 — resolveSummarizerRoute (precedência M4)", () => {
       "../../../src/internal/session/compact-session.js"
     );
     expect(
-      resolveSummarizerRoute({ keyProvider: "openrouter", modelPrefix: "openai", prefixHasProfile: true, envProvider: "openai" }),
+      resolveSummarizerRoute({
+        keyProvider: "openrouter",
+        modelPrefix: "openai",
+        prefixHasProfile: true,
+        envProvider: "openai",
+      }),
     ).toEqual({ provider: "openrouter", fullSlug: true });
   });
 
@@ -177,7 +188,12 @@ describe("M50 F6 — resolveSummarizerRoute (precedência M4)", () => {
       "../../../src/internal/session/compact-session.js"
     );
     expect(
-      resolveSummarizerRoute({ keyProvider: undefined, modelPrefix: "openai-chatgpt", prefixHasProfile: true, envProvider: "openrouter" }),
+      resolveSummarizerRoute({
+        keyProvider: undefined,
+        modelPrefix: "openai-chatgpt",
+        prefixHasProfile: true,
+        envProvider: "openrouter",
+      }),
     ).toEqual({ provider: "openai-chatgpt", fullSlug: false });
   });
 
@@ -186,7 +202,12 @@ describe("M50 F6 — resolveSummarizerRoute (precedência M4)", () => {
       "../../../src/internal/session/compact-session.js"
     );
     expect(
-      resolveSummarizerRoute({ keyProvider: undefined, modelPrefix: "google", prefixHasProfile: true, envProvider: "openai" }),
+      resolveSummarizerRoute({
+        keyProvider: undefined,
+        modelPrefix: "google",
+        prefixHasProfile: true,
+        envProvider: "openai",
+      }),
     ).toEqual({ provider: "google", fullSlug: false });
   });
 
@@ -195,7 +216,12 @@ describe("M50 F6 — resolveSummarizerRoute (precedência M4)", () => {
       "../../../src/internal/session/compact-session.js"
     );
     expect(
-      resolveSummarizerRoute({ keyProvider: undefined, modelPrefix: "acme", prefixHasProfile: false, envProvider: "openrouter" }),
+      resolveSummarizerRoute({
+        keyProvider: undefined,
+        modelPrefix: "acme",
+        prefixHasProfile: false,
+        envProvider: "openrouter",
+      }),
     ).toEqual({ provider: "openrouter", fullSlug: true });
   });
 });

@@ -101,7 +101,9 @@ function adaptNodeSqlite(db: {
   loadExtension?: (path: string) => void;
 }): ResilientSqliteDb {
   const pragma = (statement: string, options?: { simple?: boolean }): unknown => {
-    const stmt = db.prepare(`PRAGMA ${statement}`) as { get(): Record<string, unknown> | undefined };
+    const stmt = db.prepare(`PRAGMA ${statement}`) as {
+      get(): Record<string, unknown> | undefined;
+    };
     const row = stmt.get();
     if (options?.simple === true) {
       return row === undefined ? undefined : Object.values(row)[0];
@@ -119,16 +121,24 @@ function adaptNodeSqlite(db: {
         };
       }
       const value = Reflect.get(target, prop, receiver) as unknown;
-      return typeof value === "function" ? (value as (...a: unknown[]) => unknown).bind(target) : value;
+      return typeof value === "function"
+        ? (value as (...a: unknown[]) => unknown).bind(target)
+        : value;
     },
   });
 }
 
+// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
 async function loadDriver<T extends ResilientSqliteDb>(filePath: string): Promise<T> {
   let betterSqliteCause: unknown;
   try {
-    const mod = (await (driverLoaderOverrides?.betterSqlite3?.() ??
-      import("better-sqlite3"))) as { default?: unknown };
+    const mod = (await (driverLoaderOverrides?.betterSqlite3?.() ?? import("better-sqlite3"))) as {
+      default?: unknown;
+    };
     const Ctor = mod.default ?? mod;
     if (typeof Ctor !== "function") {
       throw new Error(`better-sqlite3 export is not a constructor (got ${typeof Ctor})`);
@@ -144,14 +154,16 @@ async function loadDriver<T extends ResilientSqliteDb>(filePath: string): Promis
   try {
     const mod = (await (driverLoaderOverrides?.nodeSqlite?.() ??
       Promise.resolve(
-        (
-          process as { getBuiltinModule?: (id: string) => unknown }
-        ).getBuiltinModule?.("node:sqlite") ??
+        (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.(
+          "node:sqlite",
+        ) ??
           (() => {
             throw new Error("node:sqlite built-in unavailable (Node < 22.3)");
           })(),
       ))) as {
-      DatabaseSync: new (path: string) => {
+      DatabaseSync: new (
+        path: string,
+      ) => {
         prepare(sql: string): unknown;
         exec(sql: string): void;
         close(): void;
@@ -159,7 +171,8 @@ async function loadDriver<T extends ResilientSqliteDb>(filePath: string): Promis
     };
     return adaptNodeSqlite(new mod.DatabaseSync(filePath)) as T;
   } catch (nodeSqliteCause) {
-    const b = betterSqliteCause instanceof Error ? betterSqliteCause.message : String(betterSqliteCause);
+    const b =
+      betterSqliteCause instanceof Error ? betterSqliteCause.message : String(betterSqliteCause);
     const n = nodeSqliteCause instanceof Error ? nodeSqliteCause.message : String(nodeSqliteCause);
     throw new ConfigurationError(
       `Failed to load SQLite driver. Install \`better-sqlite3\` or run on Node 22.5+ for built-in \`node:sqlite\`. better-sqlite3: ${b}; node:sqlite: ${n}`,

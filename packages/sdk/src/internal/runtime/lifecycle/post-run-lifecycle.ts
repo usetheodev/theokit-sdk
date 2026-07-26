@@ -113,7 +113,8 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   if (contextWindow === undefined) {
     const g = globalThis as unknown as Record<symbol, Set<string>>;
     const sym = Symbol.for("theokit-sdk.compact.no-cw-warned");
-    const warned = (g[sym] ??= new Set<string>());
+    g[sym] ??= new Set<string>();
+    const warned = g[sym];
     if (!warned.has(model)) {
       warned.add(model);
       process.stderr.write(

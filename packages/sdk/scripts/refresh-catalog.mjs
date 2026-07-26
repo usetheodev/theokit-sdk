@@ -71,6 +71,11 @@ function bare(modelId) {
   return i >= 0 ? modelId.slice(i + 1) : modelId;
 }
 
+// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
+// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
+// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// arriscado. Rastreado em usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
 function fromModelsDev(m) {
   const out = {};
   if (typeof m.name === "string") out.name = m.name;
@@ -144,7 +149,8 @@ for (const [key, caps] of Object.entries(snapshot)) {
     process.stderr.write(`WARN: no entry mapping for EXACT vendor "${vendor}" (${key})\n`);
     continue;
   }
-  (exactByEntry[entryId] ??= {})[model] = caps;
+  exactByEntry[entryId] ??= {};
+  exactByEntry[entryId][model] = caps;
 }
 
 let totalModels = 0;

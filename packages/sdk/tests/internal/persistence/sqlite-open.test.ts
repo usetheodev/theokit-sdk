@@ -1,5 +1,5 @@
-import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -120,7 +120,11 @@ describe("node:sqlite fallback (flicker-bug fix — the error message PROMISED t
     );
     const dir = mkdtempSync(join(tmpdir(), "sqlite-fallback-"));
     // Simulate the consumer environment (agent-builder): better-sqlite3 not installed.
-    _setDriverLoadersForTests({ betterSqlite3: async () => { throw new Error("Cannot find package"); } });
+    _setDriverLoadersForTests({
+      betterSqlite3: async () => {
+        throw new Error("Cannot find package");
+      },
+    });
     try {
       const db = await openSqliteResilient({ filePath: join(dir, "t.sqlite") });
       db.exec("create table t(a)");
@@ -145,8 +149,12 @@ describe("node:sqlite fallback (flicker-bug fix — the error message PROMISED t
     );
     const dir = mkdtempSync(join(tmpdir(), "sqlite-none-"));
     _setDriverLoadersForTests({
-      betterSqlite3: async () => { throw new Error("Cannot find package"); },
-      nodeSqlite: async () => { throw new Error("No such built-in module"); },
+      betterSqlite3: async () => {
+        throw new Error("Cannot find package");
+      },
+      nodeSqlite: async () => {
+        throw new Error("No such built-in module");
+      },
     });
     try {
       await expect(openSqliteResilient({ filePath: join(dir, "t.sqlite") })).rejects.toThrow(

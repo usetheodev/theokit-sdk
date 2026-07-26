@@ -5,13 +5,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.openai.com/v1",
-    "envVars": [
-      "OPENAI_API_KEY"
-    ],
-    "fallbackModels": [
-      "gpt-4o-mini",
-      "gpt-4o"
-    ],
+    "envVars": ["OPENAI_API_KEY"],
+    "fallbackModels": ["gpt-4o-mini", "gpt-4o"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -19,10 +14,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "openai",
-      "openai-chatgpt"
-    ],
+    "aliases": ["openai", "openai-chatgpt"],
     "models": {
       "gpt-4o-mini": {
         "name": "GPT-4o mini",
@@ -42,13 +34,8 @@
           "output": 16384
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -70,13 +57,8 @@
           "output": 16384
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -97,13 +79,8 @@
           "output": 4096
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -125,12 +102,8 @@
           "output": 100000
         },
         "modalities": {
-          "input": [
-            "text"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -152,12 +125,8 @@
           "output": 100000
         },
         "modalities": {
-          "input": [
-            "text"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -179,13 +148,8 @@
           "output": 32768
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -221,13 +185,8 @@
     "apiMode": "anthropic_messages",
     "authType": "api_key",
     "baseUrl": "https://api.anthropic.com/v1",
-    "envVars": [
-      "ANTHROPIC_API_KEY"
-    ],
-    "fallbackModels": [
-      "claude-sonnet-4-20250514",
-      "claude-3-5-haiku-latest"
-    ],
+    "envVars": ["ANTHROPIC_API_KEY"],
+    "fallbackModels": ["claude-sonnet-4-20250514", "claude-3-5-haiku-latest"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -235,18 +194,14 @@
       "supportsStreaming": true,
       "supportsCacheControl": true
     },
-    "aliases": [
-      "anthropic"
-    ],
+    "aliases": ["anthropic"],
     "models": {
       "claude-3-5-haiku-latest": {
         "tool_call": true,
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text"
-          ]
+          "input": ["text"]
         },
         "limit": {
           "context": 200000,
@@ -272,14 +227,8 @@
           "output": 128000
         },
         "modalities": {
-          "input": [
-            "text",
-            "image",
-            "pdf"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image", "pdf"],
+          "output": ["text"]
         },
         "cache_control": true
       },
@@ -302,14 +251,8 @@
           "output": 128000
         },
         "modalities": {
-          "input": [
-            "text",
-            "image",
-            "pdf"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image", "pdf"],
+          "output": ["text"]
         },
         "cache_control": true
       },
@@ -332,14 +275,8 @@
           "output": 64000
         },
         "modalities": {
-          "input": [
-            "text",
-            "image",
-            "pdf"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image", "pdf"],
+          "output": ["text"]
         },
         "cache_control": true
       },
@@ -348,10 +285,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -363,10 +297,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -378,10 +309,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -393,10 +321,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -408,10 +333,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -423,10 +345,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -438,10 +357,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -453,10 +369,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -468,10 +381,7 @@
         "structured_output": false,
         "cache_control": true,
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ]
+          "input": ["text", "image"]
         },
         "limit": {
           "context": 200000,
@@ -486,12 +396,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://openrouter.ai/api/v1",
-    "envVars": [
-      "OPENROUTER_API_KEY"
-    ],
-    "fallbackModels": [
-      "openai/gpt-4o-mini"
-    ],
+    "envVars": ["OPENROUTER_API_KEY"],
+    "fallbackModels": ["openai/gpt-4o-mini"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -499,9 +405,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "openrouter"
-    ]
+    "aliases": ["openrouter"]
   },
   {
     "id": "groq",
@@ -509,12 +413,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.groq.com/openai/v1",
-    "envVars": [
-      "GROQ_API_KEY"
-    ],
-    "fallbackModels": [
-      "llama-3.3-70b-versatile"
-    ],
+    "envVars": ["GROQ_API_KEY"],
+    "fallbackModels": ["llama-3.3-70b-versatile"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -539,12 +439,8 @@
           "output": 32768
         },
         "modalities": {
-          "input": [
-            "text"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text"],
+          "output": ["text"]
         }
       }
     }
@@ -555,12 +451,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.mistral.ai/v1",
-    "envVars": [
-      "MISTRAL_API_KEY"
-    ],
-    "fallbackModels": [
-      "mistral-large-latest"
-    ],
+    "envVars": ["MISTRAL_API_KEY"],
+    "fallbackModels": ["mistral-large-latest"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -585,13 +477,8 @@
           "output": 262144
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         }
       }
     }
@@ -602,12 +489,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.deepseek.com/v1",
-    "envVars": [
-      "DEEPSEEK_API_KEY"
-    ],
-    "fallbackModels": [
-      "deepseek-chat"
-    ],
+    "envVars": ["DEEPSEEK_API_KEY"],
+    "fallbackModels": ["deepseek-chat"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -633,12 +516,8 @@
           "output": 384000
         },
         "modalities": {
-          "input": [
-            "text"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text"],
+          "output": ["text"]
         }
       },
       "deepseek-v4-flash": {
@@ -659,12 +538,8 @@
           "output": 8000
         },
         "modalities": {
-          "input": [
-            "text"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -673,9 +548,7 @@
         "structured_output": false,
         "cache_control": false,
         "modalities": {
-          "input": [
-            "text"
-          ]
+          "input": ["text"]
         },
         "limit": {
           "context": 131072,
@@ -690,12 +563,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.together.xyz/v1",
-    "envVars": [
-      "TOGETHER_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"
-    ],
+    "envVars": ["TOGETHER_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -710,12 +579,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.fireworks.ai/inference/v1",
-    "envVars": [
-      "FIREWORKS_API_KEY"
-    ],
-    "fallbackModels": [
-      "accounts/fireworks/models/llama-v3p1-70b-instruct"
-    ],
+    "envVars": ["FIREWORKS_API_KEY"],
+    "fallbackModels": ["accounts/fireworks/models/llama-v3p1-70b-instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -730,13 +595,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
-    "envVars": [
-      "GOOGLE_API_KEY",
-      "GEMINI_API_KEY"
-    ],
-    "fallbackModels": [
-      "gemini-2.0-flash"
-    ],
+    "envVars": ["GOOGLE_API_KEY", "GEMINI_API_KEY"],
+    "fallbackModels": ["gemini-2.0-flash"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -744,10 +604,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "gemini",
-      "google"
-    ],
+    "aliases": ["gemini", "google"],
     "models": {
       "gemini-2.0-flash": {
         "name": "Gemini 2.0 Flash",
@@ -767,16 +624,8 @@
           "output": 8192
         },
         "modalities": {
-          "input": [
-            "text",
-            "image",
-            "audio",
-            "video",
-            "pdf"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image", "audio", "video", "pdf"],
+          "output": ["text"]
         },
         "status": "deprecated"
       },
@@ -798,13 +647,8 @@
           "output": 8000
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         },
         "cache_control": false
       },
@@ -826,13 +670,8 @@
           "output": 8000
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         },
         "cache_control": false
       }
@@ -845,9 +684,7 @@
     "authType": "none",
     "baseUrl": "http://localhost:11434/v1",
     "envVars": [],
-    "fallbackModels": [
-      "llama3.2"
-    ],
+    "fallbackModels": ["llama3.2"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -855,9 +692,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "ollama"
-    ]
+    "aliases": ["ollama"]
   },
   {
     "id": "lmstudio",
@@ -866,9 +701,7 @@
     "authType": "none",
     "baseUrl": "http://localhost:1234/v1",
     "envVars": [],
-    "fallbackModels": [
-      "lmstudio-community/default"
-    ],
+    "fallbackModels": ["lmstudio-community/default"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -876,9 +709,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "lmstudio"
-    ]
+    "aliases": ["lmstudio"]
   },
   {
     "id": "llamacpp",
@@ -887,9 +718,7 @@
     "authType": "none",
     "baseUrl": "http://localhost:8080/v1",
     "envVars": [],
-    "fallbackModels": [
-      "default"
-    ],
+    "fallbackModels": ["default"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -897,9 +726,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "llamacpp"
-    ]
+    "aliases": ["llamacpp"]
   },
   {
     "id": "bedrock",
@@ -907,13 +734,8 @@
     "apiMode": "bedrock",
     "authType": "aws_sdk",
     "baseUrl": "https://bedrock-runtime.us-east-1.amazonaws.com",
-    "envVars": [
-      "AWS_ACCESS_KEY_ID",
-      "AWS_SECRET_ACCESS_KEY"
-    ],
-    "fallbackModels": [
-      "anthropic.claude-3-5-sonnet-20241022-v2:0"
-    ],
+    "envVars": ["AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY"],
+    "fallbackModels": ["anthropic.claude-3-5-sonnet-20241022-v2:0"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -921,9 +743,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": true
     },
-    "aliases": [
-      "bedrock"
-    ]
+    "aliases": ["bedrock"]
   },
   {
     "id": "vertex",
@@ -931,12 +751,8 @@
     "apiMode": "chat_completions",
     "authType": "gcp_oauth",
     "baseUrl": "https://us-central1-aiplatform.googleapis.com/v1",
-    "envVars": [
-      "GOOGLE_APPLICATION_CREDENTIALS"
-    ],
-    "fallbackModels": [
-      "gemini-1.5-pro"
-    ],
+    "envVars": ["GOOGLE_APPLICATION_CREDENTIALS"],
+    "fallbackModels": ["gemini-1.5-pro"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -944,9 +760,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "vertex"
-    ]
+    "aliases": ["vertex"]
   },
   {
     "id": "cohere",
@@ -954,12 +768,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.cohere.com/v2",
-    "envVars": [
-      "COHERE_API_KEY"
-    ],
-    "fallbackModels": [
-      "command-r-plus"
-    ],
+    "envVars": ["COHERE_API_KEY"],
+    "fallbackModels": ["command-r-plus"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -974,12 +784,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.perplexity.ai",
-    "envVars": [
-      "PERPLEXITY_API_KEY"
-    ],
-    "fallbackModels": [
-      "llama-3.1-sonar-large-128k-online"
-    ],
+    "envVars": ["PERPLEXITY_API_KEY"],
+    "fallbackModels": ["llama-3.1-sonar-large-128k-online"],
     "capabilities": {
       "supportsToolUse": false,
       "supportsVision": false,
@@ -994,12 +800,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.x.ai/v1",
-    "envVars": [
-      "XAI_API_KEY"
-    ],
-    "fallbackModels": [
-      "grok-2"
-    ],
+    "envVars": ["XAI_API_KEY"],
+    "fallbackModels": ["grok-2"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1007,9 +809,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "grok"
-    ]
+    "aliases": ["grok"]
   },
   {
     "id": "sambanova",
@@ -1017,12 +817,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.sambanova.ai/v1",
-    "envVars": [
-      "SAMBANOVA_API_KEY"
-    ],
-    "fallbackModels": [
-      "Meta-Llama-3.1-70B-Instruct"
-    ],
+    "envVars": ["SAMBANOVA_API_KEY"],
+    "fallbackModels": ["Meta-Llama-3.1-70B-Instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1037,12 +833,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.cerebras.ai/v1",
-    "envVars": [
-      "CEREBRAS_API_KEY"
-    ],
-    "fallbackModels": [
-      "llama3.1-70b"
-    ],
+    "envVars": ["CEREBRAS_API_KEY"],
+    "fallbackModels": ["llama3.1-70b"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1057,12 +849,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.deepinfra.com/v1/openai",
-    "envVars": [
-      "DEEPINFRA_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta-llama/Meta-Llama-3.1-70B-Instruct"
-    ],
+    "envVars": ["DEEPINFRA_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3.1-70B-Instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1077,13 +865,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api-inference.huggingface.co/v1",
-    "envVars": [
-      "HF_TOKEN",
-      "HUGGINGFACE_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta-llama/Llama-3.2-3B-Instruct"
-    ],
+    "envVars": ["HF_TOKEN", "HUGGINGFACE_API_KEY"],
+    "fallbackModels": ["meta-llama/Llama-3.2-3B-Instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1098,12 +881,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://integrate.api.nvidia.com/v1",
-    "envVars": [
-      "NVIDIA_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta/llama-3.1-70b-instruct"
-    ],
+    "envVars": ["NVIDIA_API_KEY"],
+    "fallbackModels": ["meta/llama-3.1-70b-instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1118,12 +897,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://llama3-1-70b.lepton.run/api/v1",
-    "envVars": [
-      "LEPTON_API_KEY"
-    ],
-    "fallbackModels": [
-      "llama3-1-70b"
-    ],
+    "envVars": ["LEPTON_API_KEY"],
+    "fallbackModels": ["llama3-1-70b"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1138,12 +913,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.endpoints.anyscale.com/v1",
-    "envVars": [
-      "ANYSCALE_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta-llama/Meta-Llama-3-70B-Instruct"
-    ],
+    "envVars": ["ANYSCALE_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3-70B-Instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1158,12 +929,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://openai-proxy.replicate.com/v1",
-    "envVars": [
-      "REPLICATE_API_TOKEN"
-    ],
-    "fallbackModels": [
-      "meta/meta-llama-3-70b-instruct"
-    ],
+    "envVars": ["REPLICATE_API_TOKEN"],
+    "fallbackModels": ["meta/meta-llama-3-70b-instruct"],
     "capabilities": {
       "supportsToolUse": false,
       "supportsVision": true,
@@ -1178,12 +945,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.ai21.com/studio/v1",
-    "envVars": [
-      "AI21_API_KEY"
-    ],
-    "fallbackModels": [
-      "jamba-1.5-large"
-    ],
+    "envVars": ["AI21_API_KEY"],
+    "fallbackModels": ["jamba-1.5-large"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1198,12 +961,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.aleph-alpha.com/v1",
-    "envVars": [
-      "ALEPH_ALPHA_API_KEY"
-    ],
-    "fallbackModels": [
-      "luminous-extended"
-    ],
+    "envVars": ["ALEPH_ALPHA_API_KEY"],
+    "fallbackModels": ["luminous-extended"],
     "capabilities": {
       "supportsToolUse": false,
       "supportsVision": false,
@@ -1218,13 +977,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.cloudflare.com/client/v4/accounts/{account_id}/ai/v1",
-    "envVars": [
-      "CLOUDFLARE_API_TOKEN",
-      "CLOUDFLARE_ACCOUNT_ID"
-    ],
-    "fallbackModels": [
-      "@cf/meta/llama-3.1-70b-instruct"
-    ],
+    "envVars": ["CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"],
+    "fallbackModels": ["@cf/meta/llama-3.1-70b-instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1239,13 +993,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://{resource}.openai.azure.com/openai/deployments/{deployment}",
-    "envVars": [
-      "AZURE_OPENAI_API_KEY",
-      "AZURE_OPENAI_ENDPOINT"
-    ],
-    "fallbackModels": [
-      "gpt-4o"
-    ],
+    "envVars": ["AZURE_OPENAI_API_KEY", "AZURE_OPENAI_ENDPOINT"],
+    "fallbackModels": ["gpt-4o"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1260,12 +1009,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://models.inference.ai.azure.com",
-    "envVars": [
-      "GITHUB_TOKEN"
-    ],
-    "fallbackModels": [
-      "gpt-4o-mini"
-    ],
+    "envVars": ["GITHUB_TOKEN"],
+    "fallbackModels": ["gpt-4o-mini"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1280,12 +1025,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.hyperbolic.xyz/v1",
-    "envVars": [
-      "HYPERBOLIC_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta-llama/Meta-Llama-3.1-70B-Instruct"
-    ],
+    "envVars": ["HYPERBOLIC_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3.1-70B-Instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1300,12 +1041,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.novita.ai/v3/openai",
-    "envVars": [
-      "NOVITA_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta-llama/llama-3.1-70b-instruct"
-    ],
+    "envVars": ["NOVITA_API_KEY"],
+    "fallbackModels": ["meta-llama/llama-3.1-70b-instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1320,12 +1057,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.moonshot.cn/v1",
-    "envVars": [
-      "MOONSHOT_API_KEY"
-    ],
-    "fallbackModels": [
-      "moonshot-v1-8k"
-    ],
+    "envVars": ["MOONSHOT_API_KEY"],
+    "fallbackModels": ["moonshot-v1-8k"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1340,12 +1073,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "envVars": [
-      "DASHSCOPE_API_KEY"
-    ],
-    "fallbackModels": [
-      "qwen-plus"
-    ],
+    "envVars": ["DASHSCOPE_API_KEY"],
+    "fallbackModels": ["qwen-plus"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1353,18 +1082,14 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "dashscope"
-    ],
+    "aliases": ["dashscope"],
     "models": {
       "qwen3-coder-30b-a3b-instruct": {
         "tool_call": true,
         "structured_output": false,
         "cache_control": false,
         "modalities": {
-          "input": [
-            "text"
-          ]
+          "input": ["text"]
         },
         "limit": {
           "context": 160000,
@@ -1379,12 +1104,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
-    "envVars": [
-      "ZHIPU_API_KEY"
-    ],
-    "fallbackModels": [
-      "glm-4-plus"
-    ],
+    "envVars": ["ZHIPU_API_KEY"],
+    "fallbackModels": ["glm-4-plus"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1392,10 +1113,7 @@
       "supportsStreaming": true,
       "supportsCacheControl": false
     },
-    "aliases": [
-      "glm",
-      "z-ai"
-    ],
+    "aliases": ["glm", "z-ai"],
     "models": {
       "glm-4.7-flash": {
         "name": "GLM-4.7-Flash",
@@ -1415,12 +1133,8 @@
           "output": 8000
         },
         "modalities": {
-          "input": [
-            "text"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text"],
+          "output": ["text"]
         },
         "structured_output": false,
         "cache_control": false
@@ -1433,12 +1147,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.minimax.chat/v1",
-    "envVars": [
-      "MINIMAX_API_KEY"
-    ],
-    "fallbackModels": [
-      "MiniMax-Text-01"
-    ],
+    "envVars": ["MINIMAX_API_KEY"],
+    "fallbackModels": ["MiniMax-Text-01"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1453,12 +1163,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.baichuan-ai.com/v1",
-    "envVars": [
-      "BAICHUAN_API_KEY"
-    ],
-    "fallbackModels": [
-      "Baichuan4"
-    ],
+    "envVars": ["BAICHUAN_API_KEY"],
+    "fallbackModels": ["Baichuan4"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1473,12 +1179,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.voyageai.com/v1",
-    "envVars": [
-      "VOYAGE_API_KEY"
-    ],
-    "fallbackModels": [
-      "voyage-3"
-    ],
+    "envVars": ["VOYAGE_API_KEY"],
+    "fallbackModels": ["voyage-3"],
     "capabilities": {
       "supportsToolUse": false,
       "supportsVision": false,
@@ -1493,12 +1195,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.jina.ai/v1",
-    "envVars": [
-      "JINA_API_KEY"
-    ],
-    "fallbackModels": [
-      "jina-embeddings-v3"
-    ],
+    "envVars": ["JINA_API_KEY"],
+    "fallbackModels": ["jina-embeddings-v3"],
     "capabilities": {
       "supportsToolUse": false,
       "supportsVision": false,
@@ -1513,13 +1211,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://oai.helicone.ai/v1",
-    "envVars": [
-      "HELICONE_API_KEY",
-      "OPENAI_API_KEY"
-    ],
-    "fallbackModels": [
-      "gpt-4o-mini"
-    ],
+    "envVars": ["HELICONE_API_KEY", "OPENAI_API_KEY"],
+    "fallbackModels": ["gpt-4o-mini"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1545,13 +1238,8 @@
           "output": 16384
         },
         "modalities": {
-          "input": [
-            "text",
-            "image"
-          ],
-          "output": [
-            "text"
-          ]
+          "input": ["text", "image"],
+          "output": ["text"]
         }
       }
     }
@@ -1562,12 +1250,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.portkey.ai/v1",
-    "envVars": [
-      "PORTKEY_API_KEY"
-    ],
-    "fallbackModels": [
-      "gpt-4o-mini"
-    ],
+    "envVars": ["PORTKEY_API_KEY"],
+    "fallbackModels": ["gpt-4o-mini"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": true,
@@ -1582,12 +1266,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://bridge.baseten.co/v1",
-    "envVars": [
-      "BASETEN_API_KEY"
-    ],
-    "fallbackModels": [
-      "meta-llama/Meta-Llama-3-70B-Instruct"
-    ],
+    "envVars": ["BASETEN_API_KEY"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3-70B-Instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,
@@ -1602,13 +1282,8 @@
     "apiMode": "chat_completions",
     "authType": "api_key",
     "baseUrl": "https://api.modal.com/v1",
-    "envVars": [
-      "MODAL_TOKEN_ID",
-      "MODAL_TOKEN_SECRET"
-    ],
-    "fallbackModels": [
-      "meta-llama/Meta-Llama-3-70B-Instruct"
-    ],
+    "envVars": ["MODAL_TOKEN_ID", "MODAL_TOKEN_SECRET"],
+    "fallbackModels": ["meta-llama/Meta-Llama-3-70B-Instruct"],
     "capabilities": {
       "supportsToolUse": true,
       "supportsVision": false,

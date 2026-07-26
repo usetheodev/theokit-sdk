@@ -11,8 +11,8 @@ import type {
   ResolvedCredential,
 } from "../../../src/internal/auth/auth-types.js";
 import { readStoredOAuth, writeCredential } from "../../../src/internal/auth/credential-store.js";
-import { ensureFreshCredential } from "../../../src/internal/auth/oauth-engine.js";
 import { openaiDeviceLogin } from "../../../src/internal/auth/oauth-device.js";
+import { ensureFreshCredential } from "../../../src/internal/auth/oauth-engine.js";
 
 /**
  * M43 — the account_id lifecycle (ADR D4). account_id is the ChatGPT-Account-Id the Codex backend requires
@@ -87,7 +87,11 @@ describe("account_id lifecycle (M43 D4)", () => {
       now: () => NOW,
       // refresh response has NO account_id (OpenAI returns JWTs, not a top-level account_id)
       fetch: (async () =>
-        okJson({ access_token: "NEW", refresh_token: "NEW-REF", expires_in: 3600 })) as unknown as typeof fetch,
+        okJson({
+          access_token: "NEW",
+          refresh_token: "NEW-REF",
+          expires_in: 3600,
+        })) as unknown as typeof fetch,
     };
     await ensureFreshCredential(expiredCred, { config, store }, deps);
     const stored = readStoredOAuth(store);
@@ -98,7 +102,14 @@ describe("account_id lifecycle (M43 D4)", () => {
   it("refresh PREFERS a fresh account_id when the refresh response carries one", async () => {
     const store = newStore();
     writeCredential(
-      { type: "oauth", provider: "openai", access: "OLD", refresh: "OLD-REF", expires: NOW, account_id: "old-acct" },
+      {
+        type: "oauth",
+        provider: "openai",
+        access: "OLD",
+        refresh: "OLD-REF",
+        expires: NOW,
+        account_id: "old-acct",
+      },
       store,
     );
     const deps: HttpDeps = {
