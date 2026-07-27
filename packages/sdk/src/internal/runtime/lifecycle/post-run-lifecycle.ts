@@ -94,6 +94,34 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   try {
     result = await run.wait();
   } catch {
+    // M93 — persiste o que o turno JÁ PRODUZIU antes de sair.
+    //
+    // O `flushSessionWrites` abaixo sempre esteve aqui, e sempre drenou um conjunto **vazio**:
+    // `persistTurnToTranscript` é chamado só mais adiante nesta função — o **único** chamador no
+    // repositório —, depois deste `return`. Um 429 depois de oito tool calls destruía o turno inteiro
+    // sem deixar nada em disco, e combinado com a ausência de retry no caminho de chave única (também
+    // fechada no M93) a perda era total.
+    //
+    // Persiste o **parcial**, sem reconstruir: um turno que falhou em `run.wait()` tem histórico real
+    // — user + tool calls concluídas. Descartá-lo é a perda; inventar o resto seria pior que a perda.
+    // O `catch` interno existe porque uma falha ao gravar não pode mascarar o erro do turno, que é o
+    // que o chamador está esperando (`error-handling.md`: cleanup não propaga sobre o erro original).
+    try {
+      const parcial = await safeConversation(run);
+      if (parcial !== undefined) {
+        persistTurnToTranscript(
+          sessionStore,
+          { cwd: workspaceCwd, agentId, model },
+          agentId,
+          { userText, conversation: parcial },
+        );
+      }
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : String(cause);
+      process.stderr.write(
+        `[theokit-sdk] partial transcript write failed (${agentId}): ${msg}\n`,
+      );
+    }
     // Caller observes failures via their own run.wait()/stream(); the
     // mutex still releases via the flushes below.
     await flushSessionWrites();

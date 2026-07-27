@@ -23,11 +23,11 @@ import { dirname } from "node:path";
 
 import type { SessionStore } from "../../types/session-store.js";
 import { withFileLock } from "./file-lock.js";
+import { appendJsonl } from "./jsonl.js";
 import {
   readTranscript,
   type SessionRecord,
   transcriptPath,
-  writeTranscript,
 } from "./session-transcript.js";
 
 /** Options identifying the on-disk transcript location for the FS default store. */
@@ -63,8 +63,22 @@ export class FsSessionStore implements SessionStore {
     // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the parent dir.
     await mkdir(dirname(path), { recursive: true });
     await withFileLock(path, async () => {
-      const prior = await readTranscript(path);
-      await writeTranscript(path, [...prior, ...records]);
+      // M93 — acrescenta o DELTA em vez de reescrever o arquivo inteiro.
+      //
+      // Antes: `readTranscript` + `writeTranscript` de tudo, por turno. O(n) de I/O **e** de parse a
+      // cada turno, O(n²) por sessão — a nota do consumidor em `agents/lib/session/backtrack.ts`
+      // registra 1,4 MB / 3000 linhas em 200 turnos.
+      //
+      // Correto porque o formato **já é append-only**: o DAG de `parentUuid` não depende da ordem de
+      // linha, e cada registro carrega o próprio pai. `appendJsonl` **já existia no pacote** e tinha um
+      // único chamador (`eval/runner.ts`) — a primitiva estava lá, o store é que a ignorava (rung 4).
+      //
+      // O `withFileLock` **permanece**: ele é o que serializa dois `appendRecords` concorrentes, e
+      // trocar a operação não pode afrouxar a serialização.
+      //
+      // `writeTranscript` continua existindo para **compactação**, a única operação que legitimamente
+      // reescreve o arquivo.
+      for (const record of records) appendJsonl(path, record);
     });
   }
 }
