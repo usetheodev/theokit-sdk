@@ -10,6 +10,7 @@ import {
 import { extractHermesToolCalls, StreamSuppressionBuffer } from "./hermes-tool-extract.js";
 import { toOpenAIMessages } from "./openai-messages.js";
 import { parseSseStream } from "./sse.js";
+import { wrapTransportError } from "./transport-error.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -177,7 +178,10 @@ export class OpenAIClient implements LlmClient {
         endpoint: "/v1/chat/completions",
       });
       if (mapped !== undefined) throw mapped;
-      throw fetchErr;
+      // M93 — antes daqui saía `throw fetchErr` cru para todo provider que não fosse Ollama, e
+      // erro estrangeiro é NÃO-transitório por contrato (`errors.ts:429`): o retry ficava desligado
+      // no caso mais clássico.
+      throw wrapTransportError(fetchErr, { providerId, endpoint: "/v1/chat/completions" });
     }
     if (!response.ok) {
       const text = await response.text().catch(() => "");

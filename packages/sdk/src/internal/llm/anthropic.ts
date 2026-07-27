@@ -3,6 +3,7 @@ import { mapAnthropicError } from "../error-mappers/anthropic.js";
 import { buildAnthropicCommonBody, mapAnthropicStopReason } from "./anthropic-shared.js";
 import { makeLlmFinish, parseToolArguments } from "./finish.js";
 import { parseSseStream } from "./sse.js";
+import { wrapTransportError } from "./transport-error.js";
 import type {
   LlmClient,
   LlmEvent,
@@ -102,12 +103,20 @@ export class AnthropicClient implements LlmClient {
     };
     // M45 — merge extra/dynamic headers (assign LAST — same override semantics as the chat_completions client).
     if (this.options.extraHeaders !== undefined) Object.assign(headers, this.options.extraHeaders);
-    const response = await this.fetchImpl(`${this.baseUrl}/v1/messages`, {
-      method: "POST",
-      signal,
-      headers,
-      body: JSON.stringify(body),
-    });
+    let response: Response;
+    try {
+      response = await this.fetchImpl(`${this.baseUrl}/v1/messages`, {
+        method: "POST",
+        signal,
+        headers,
+        body: JSON.stringify(body),
+      });
+    } catch (fetchErr) {
+      // M93 — uma falha de socket não tem `Response`, então `mapAnthropicError` nunca a via e ela
+      // subia crua. Erro estrangeiro é NÃO-transitório por contrato de `isTransientError`, então o
+      // retry ficava desligado justamente no ECONNREFUSED/ETIMEDOUT.
+      throw wrapTransportError(fetchErr, { providerId: this.name, endpoint: "/v1/messages" });
+    }
     if (!response.ok) {
       const text = await response.text().catch(() => "");
       // Parse body as JSON when possible — gives the mapper access to

@@ -9,11 +9,27 @@
  * - strategy defaults to fill_first when omitted
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+/**
+ * Descasca TODOS os decorators até o transporte real, em laço.
+ *
+ * Em laço e não em dois `if`: a ordem em que router e chain-builder envolvem não é fixa, e um
+ * desembrulho posicional passa a depender dela. M93 — o `RetryingLlmClient` foi o segundo
+ * decorator a entrar; o terceiro não deve quebrar estes testes de novo.
+ */
+function descascar(client: LlmClient): LlmClient {
+  let atual = client;
+  for (;;) {
+    if (atual instanceof RetryingLlmClient) atual = atual.inner;
+    else if (atual instanceof FaultInjectingLlmClient) atual = atual.inner;
+    else return atual;
+  }
+}
 
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfigurationError } from "../../../src/errors.js";
 import { FaultInjectingLlmClient } from "../../../src/internal/llm/fault-injection.js";
 import { PoolAwareLlmClient } from "../../../src/internal/llm/pool-aware-client.js";
+import { RetryingLlmClient } from "../../../src/internal/llm/retrying-client.js";
 import {
   _resetCredentialPoolWarnings,
   resolveProviderChain,
@@ -27,7 +43,10 @@ import type { LlmClient } from "../../../src/internal/llm/types.js";
  * one level deep — same pattern PoolAware uses for its inner transport.
  */
 function unwrapFaultInjection(client: LlmClient): LlmClient {
-  return client instanceof FaultInjectingLlmClient ? client.inner : client;
+  // M93 — desembrulha os DOIS decorators. O `RetryingLlmClient` entrou entre o router e o pool;
+  // a intenção destes testes ("o router usa o pool") continua valendo, só passou a haver uma
+  // camada no caminho.
+  return descascar(client);
 }
 
 import {

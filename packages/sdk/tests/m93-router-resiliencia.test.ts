@@ -35,7 +35,10 @@ describe("M93 — os dois braços do router têm retry", () => {
   });
 
   it("o braco de DUAS chaves tambem — a assimetria some", () => {
-    const chain = resolveProviderChain({ primary: "openai", apiKeys: { openai: ["k1", "k2"] } } as never);
+    const chain = resolveProviderChain({
+      primary: "openai",
+      apiKeys: { openai: ["k1", "k2"] },
+    } as never);
     expect(chain.length).toBeGreaterThan(0);
     expect(temRetry(chain[0])).toBe(true);
   });
@@ -53,7 +56,8 @@ describe("M93 — os dois braços do router têm retry", () => {
   it("CONTRAPROVA — sem chave nenhuma a cadeia LANCA, e nao devolve vazio em silencio", () => {
     // O comportamento pré-existente, preservado: falhar alto em vez de devolver uma cadeia vazia que
     // só quebraria no primeiro turno (`error-handling.md § 2`).
-    const chamar = () => resolveProviderChain({ primary: "nao-existe-mesmo", apiKeys: {} } as never);
+    const chamar = () =>
+      resolveProviderChain({ primary: "nao-existe-mesmo", apiKeys: {} } as never);
     expect(chamar).toThrow(/provider/i);
   });
 });

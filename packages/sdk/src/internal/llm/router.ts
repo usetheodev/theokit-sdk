@@ -9,8 +9,8 @@ import { maybeWrapWithFaultInjection } from "./fault-injection.js";
 import { OllamaNativeClient } from "./ollama-native.js";
 import { OpenAIClient } from "./openai.js";
 import { PoolAwareLlmClient } from "./pool-aware-client.js";
-import { RetryingLlmClient } from "./retrying-client.js";
 import { ResponsesApiClient } from "./responses.js";
+import { RetryingLlmClient } from "./retrying-client.js";
 import type { LlmClient } from "./types.js";
 import { VertexRouterClient } from "./vertex-router.js";
 
@@ -107,7 +107,12 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     // o cliente sem o decorator, e deixá-lo de fora criaria a mesma assimetria que o milestone remove,
     // só que num caminho menos visível.
     return new RetryingLlmClient(
-      new PoolAwareLlmClient(ambient, (apiKey) => selectTransport(profile, apiKey), undefined, resilience),
+      new PoolAwareLlmClient(
+        ambient,
+        (apiKey) => selectTransport(profile, apiKey),
+        undefined,
+        resilience,
+      ),
     );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
@@ -154,7 +159,12 @@ function buildPoolOrSingle(args: {
     // rede, que `classifyAndDecide` manda propagar porque "pool não ajuda"). Aditivo: o comportamento
     // de rotação não muda.
     return new RetryingLlmClient(
-      new PoolAwareLlmClient(pool, (apiKey) => selectTransport(profile, apiKey), undefined, resilience),
+      new PoolAwareLlmClient(
+        pool,
+        (apiKey) => selectTransport(profile, apiKey),
+        undefined,
+        resilience,
+      ),
     );
   }
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
