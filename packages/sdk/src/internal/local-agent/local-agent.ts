@@ -301,6 +301,11 @@ export class LocalAgent implements SDKAgent {
         workspaceCwd: this.workspaceCwd,
         sessionStore: this.sessionStore,
         model: this.model?.id ?? "unknown",
+        // M94 — a janela declarada atravessa até o orçamento. Sem isto o `override` do resolvedor
+        // existia desde o M77 e nenhum call site de produção o passava.
+        ...(this.model?.contextWindow !== undefined
+          ? { contextWindow: this.model.contextWindow }
+          : {}),
         // M50 — the auto-compaction summarizer resolves credentials like the run itself.
         ...(this.options.apiKey !== undefined ? { apiKey: this.options.apiKey } : {}),
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),

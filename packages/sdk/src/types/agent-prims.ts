@@ -31,6 +31,14 @@ export interface ModelParameterValue {
 export interface ModelSelection {
   id: string;
   params?: ModelParameterValue[];
+  /**
+   * M94 — janela de contexto do modelo, em tokens. Vira o `override` do resolvedor de janela.
+   *
+   * Existe para modelos SEM entrada de catálogo: sem ela, um modelo de 400k era orçado contra o
+   * piso de 128k e compactava ~3× mais do que precisava. Um valor acima do que o catálogo conhece
+   * é clampeado — declarar 10M não estoura o provider.
+   */
+  contextWindow?: number;
 }
 
 /**

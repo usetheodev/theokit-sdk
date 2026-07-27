@@ -1,5 +1,19 @@
 # Changelog
 
+## 4.31.1
+
+### Patch Changes
+
+- M93 — oito correções da revisão adversarial.
+
+  - **O retry deixa de reexecutar um stream já parcialmente consumido.** Uma falha depois do primeiro evento reexecutava o turno inteiro, duplicando texto e blocos `tool_use` — exatamente no cenário que motivou o retry (429 depois de várias tool calls).
+  - **O transcript volta a nascer `0600`.** A troca para append incremental perdeu o modo explícito e, sob `umask 022`, o arquivo — que carrega conteúdo em trânsito — nascia legível por outros.
+  - **Um append sobre arquivo truncado por crash não engole mais o registro novo.**
+  - **Erro transitório passa a ser decidido pelo status estruturado, não pelo texto da mensagem.** A heurística anterior classificava `ECONNREFUSED …:443` como não-transitório porque a porta casava o padrão de "4xx": o retry ficava desligado justamente para falha de rede.
+  - **Falha de socket passa a ser tipada nos transportes Anthropic e OpenAI.** Sem isso, o erro cru escapava e nenhuma política de retry o reconhecia.
+  - **`CredentialPoolExhaustedError` e circuito aberto deixam de ser reexecutados.** O pool já gastou o próprio orçamento; reexecutar por cima triplicava a espera e desfazia o fail-fast do circuit breaker.
+  - Cancelamento (`AbortError`) nunca é confundido com falha de rede.
+
 ## 4.31.0
 
 ### Minor Changes

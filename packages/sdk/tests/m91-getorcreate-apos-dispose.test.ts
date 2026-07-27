@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest'
-import { Agent } from '../src/agent.js'
+import { describe, expect, it } from "vitest";
+import { Agent } from "../src/agent.js";
 
 /**
  * M91 — o docstring de `getOrCreate` afirmava o oposto do comportamento real.
@@ -14,21 +14,25 @@ import { Agent } from '../src/agent.js'
  *
  * Este arquivo existe para que a correção do docstring não volte a divergir do código.
  */
-describe('M91 — getOrCreate depois de dispose', () => {
-  const opts = { apiKey: 'sk-test', model: { id: 'openai/gpt-4o-mini' }, local: { cwd: process.cwd() } }
+describe("M91 — getOrCreate depois de dispose", () => {
+  const opts = {
+    apiKey: "sk-test",
+    model: { id: "openai/gpt-4o-mini" },
+    local: { cwd: process.cwd() },
+  };
 
-  it('cache-hit VIVO devolve a mesma instancia', async () => {
-    const a = await Agent.getOrCreate('m91-vivo', opts as never)
-    const b = await Agent.getOrCreate('m91-vivo', opts as never)
-    expect(b).toBe(a)
-    await a.dispose()
-  })
+  it("cache-hit VIVO devolve a mesma instancia", async () => {
+    const a = await Agent.getOrCreate("m91-vivo", opts as never);
+    const b = await Agent.getOrCreate("m91-vivo", opts as never);
+    expect(b).toBe(a);
+    await a.dispose();
+  });
 
-  it('depois de dispose, getOrCreate devolve instancia NOVA — sem Agent.delete manual', async () => {
-    const a = await Agent.getOrCreate('m91-disp', opts as never)
-    await a.dispose()
-    const b = await Agent.getOrCreate('m91-disp', opts as never)
-    expect(b).not.toBe(a)
-    await b.dispose()
-  })
-})
+  it("depois de dispose, getOrCreate devolve instancia NOVA — sem Agent.delete manual", async () => {
+    const a = await Agent.getOrCreate("m91-disp", opts as never);
+    await a.dispose();
+    const b = await Agent.getOrCreate("m91-disp", opts as never);
+    expect(b).not.toBe(a);
+    await b.dispose();
+  });
+});
