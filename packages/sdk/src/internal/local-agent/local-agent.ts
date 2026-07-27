@@ -260,6 +260,19 @@ export class LocalAgent implements SDKAgent {
     });
   }
 
+  /**
+   * A janela de contexto declarada na seleção de modelo, no formato de spread condicional.
+   *
+   * M94 — sem isto, o `override` de `resolveEffectiveContextWindow` existia desde o M77 e nenhum
+   * call site de produção o passava: um modelo de 400k sem entrada de catálogo era orçado contra o
+   * piso de 128k. Método próprio porque o spread inline empurrava `runLockedSendCycle` para além do
+   * teto de complexidade cognitiva do projeto.
+   */
+  #janelaDeclarada(): { contextWindow?: number } {
+    const declarada = this.model?.contextWindow;
+    return declarada !== undefined ? { contextWindow: declarada } : {};
+  }
+
   private async runLockedSendCycle(
     message: string | SDKUserMessage,
     options: SendOptions,
@@ -301,11 +314,7 @@ export class LocalAgent implements SDKAgent {
         workspaceCwd: this.workspaceCwd,
         sessionStore: this.sessionStore,
         model: this.model?.id ?? "unknown",
-        // M94 — a janela declarada atravessa até o orçamento. Sem isto o `override` do resolvedor
-        // existia desde o M77 e nenhum call site de produção o passava.
-        ...(this.model?.contextWindow !== undefined
-          ? { contextWindow: this.model.contextWindow }
-          : {}),
+        ...this.#janelaDeclarada(),
         // M50 — the auto-compaction summarizer resolves credentials like the run itself.
         ...(this.options.apiKey !== undefined ? { apiKey: this.options.apiKey } : {}),
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),

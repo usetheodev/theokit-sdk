@@ -49,6 +49,8 @@ export {
   // TRÊS arquivos, e as três cópias ignoravam `THEOKIT_HOME` junto com esta.
   transcriptRoot,
 } from "./internal/persistence/session-transcript.js";
+// M94 — a forma do registro deixa de ser `Record<string, unknown>`; o consumidor derrubava os casts.
+export type { TranscriptBlock, TranscriptMessage } from "./types/session-record.js";
 export {
   acquireSessionWriter,
   SessionBusyError,

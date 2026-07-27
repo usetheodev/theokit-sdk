@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.32.0
+
+### Minor Changes
+
+- M94 — publica quatro resolvedores que o SDK já conhecia internamente.
+
+  - **`transcriptRoot()` é exportado e honra `THEOKIT_HOME`.** Antes, a raiz do transcript ignorava a variável enquanto os stores irmãos a respeitavam: quem a definia tinha o estado partido em dois em silêncio, e as sessões antigas sumiam da listagem sem erro. O fallback continua sendo `~/.theokit` — deliberadamente **não** o resolvedor cwd-ancorado de `paths.ts`, cuja troca moveria o transcript de quem **não** define a variável.
+  - **`ModelSelection.contextWindow` atravessa até o orçamento de compactação.** O resolvedor aceitava um `override` desde a versão anterior e nenhum caminho de produção o passava: um modelo de 400k sem entrada de catálogo era orçado contra o piso de 128k e compactava cerca de três vezes mais do que precisava. Um valor acima do que o catálogo conhece continua sendo limitado.
+  - **`SessionRecord.message` deixa de ser `Record<string, unknown>`.** O novo `TranscriptMessage` descreve a forma que o escritor sempre produziu. **Não** se chama `SessionMessage`: esse nome já existe com forma incompatível, e reaproveitá-lo repetiria uma quebra silenciosa anterior. A leitura do disco segue tolerante — o que muda é o tipo.
+  - **`Provider.forModel(modelId)`** dá um dono único à gramática `provider/modelo`. Um id sem barra devolve `undefined` em vez de casar parcialmente, para que quem chama possa distinguir "modelo não-roteável" de "caminho default".
+
+  Nota de rótulo: `4.31.1` já continha, por engano, parte destas adições — foi publicado como patch quando o correto era minor. Nada quebra (adições são compatíveis), e esta versão declara a superfície corretamente.
+
 ## 4.31.1
 
 ### Patch Changes

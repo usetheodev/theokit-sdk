@@ -72,4 +72,25 @@ export class Provider {
     registerBuiltins();
     return listProviders().map((profile) => defineProvider(profile));
   }
+
+  /**
+   * O builtin que atende `modelId`, ou `undefined` quando nenhum atende.
+   *
+   * A gramática de um id de modelo — `provider/modelo` — passa a ter **um** dono. M94: o consumidor
+   * a refazia à mão com `modelId.slice(0, modelId.indexOf('/'))`, que num id **sem barra** devolve o
+   * id menos o último caractere (`claude-opus-5` → `claude-opus-`): casa provider nenhum e o
+   * chamador seguia para o default, sem distinguir isso de um acerto. Um modelo não-roteável era
+   * indistinguível do caminho feliz.
+   *
+   * Devolve `undefined` em vez de lançar: quem decide se a ausência é erro é o chamador, e só ele
+   * sabe se o modelo veio de um `--model` explícito (erro) ou do default (normal).
+   *
+   * @public
+   */
+  static forModel(modelId: string): Plugin | undefined {
+    const corte = modelId.indexOf("/");
+    if (corte <= 0) return undefined;
+    const nome = modelId.slice(0, corte);
+    return Provider.builtins().find((p) => p.name === nome);
+  }
 }

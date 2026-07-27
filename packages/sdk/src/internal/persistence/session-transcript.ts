@@ -18,7 +18,7 @@ import { mkdir, readFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-import type { SessionRecord } from "../../types/session-record.js";
+import type { SessionRecord, TranscriptBlock } from "../../types/session-record.js";
 import type { LlmContentPart, LlmMessage, LlmToolResultPart } from "../llm/types.js";
 import { redactSecrets } from "../security/redact.js";
 import { replaceFileAtomic } from "./atomic-write.js";
@@ -62,7 +62,10 @@ function redactValue(value: unknown): unknown {
   }
 }
 
-type Block = Record<string, unknown>;
+// M94 — era `Record<string, unknown>`. O tipo publicado descreve a mesma forma que este arquivo
+// sempre produziu; o alias local passa a apontar para ele para que escritor e leitor não possam
+// divergir em silêncio.
+type Block = TranscriptBlock;
 
 /**
  * Builds a session transcript append-by-append, maintaining the `parentUuid` chain. Each turn mints a
