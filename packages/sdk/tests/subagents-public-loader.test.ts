@@ -57,9 +57,9 @@ describe("M81 T2.1 — loader de subagents público", () => {
     // Risco #2 do ROADMAP. Devolver o texto do `.md` ou a forma do frontmatter congelaria um formato
     // interno como API pública; devolver `AgentDefinition` deixa o formato livre para mudar.
     const encontrados = await discoverSubagents(cwd);
-    const explorer = encontrados["explorer"] as unknown as Record<string, unknown>;
+    const explorer = encontrados.explorer as unknown as Record<string, unknown>;
 
-    expect(explorer["description"], "a descrição tem de vir interpretada").toBe("explora o repo");
+    expect(explorer.description, "a descrição tem de vir interpretada").toBe("explora o repo");
     expect(
       JSON.stringify(explorer),
       "o retorno não pode carregar o texto bruto do frontmatter",

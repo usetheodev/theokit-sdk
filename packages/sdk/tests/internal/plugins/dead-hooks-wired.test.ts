@@ -20,6 +20,12 @@ function pluginOn(hook: string, fn: (...a: unknown[]) => unknown): Plugin {
 }
 
 const sessionCtx = { agentId: "a", runId: "r" };
+/**
+ * M82 — the tool-result seam carries the turn's tool calls. Empty here on purpose: these tests drive
+ * the PluginManager directly, with no turn behind them; the correlation itself is proved end-to-end in
+ * `tests/transform-tool-result-context.test.ts`.
+ */
+const transformCtx = { ...sessionCtx, toolCalls: [] };
 
 describe("previously-dead plugin hooks are wired (#65)", () => {
   it("post_tool_call fires with the tool result", async () => {
@@ -64,7 +70,7 @@ describe("previously-dead plugin hooks are wired (#65)", () => {
     await mgr.initialize([
       pluginOn("transform_tool_result", (results) => [...(results as string[]), "added"]),
     ]);
-    const out = await mgr.runTransformToolResultHooks(["orig"], sessionCtx);
+    const out = await mgr.runTransformToolResultHooks(["orig"], transformCtx);
     expect(out).toEqual(["orig", "added"]);
   });
 
@@ -82,7 +88,7 @@ describe("previously-dead plugin hooks are wired (#65)", () => {
       }),
     ]);
     // The throw is caught + logged; the original payload flows through unchanged.
-    const out = await mgr.runTransformToolResultHooks(["safe"], sessionCtx);
+    const out = await mgr.runTransformToolResultHooks(["safe"], transformCtx);
     expect(out).toEqual(["safe"]);
   });
 

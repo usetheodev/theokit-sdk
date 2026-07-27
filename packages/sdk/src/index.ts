@@ -116,10 +116,17 @@ export {
   Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
+  type PostToolCallContext,
   type PreToolCallContext,
   type PreToolCallDecision,
   type PreUserSendContext,
   type PreUserSendResult,
+  type SessionLifecycleContext,
+  // M82 — the transform seam's context. Public because a hook author cannot honour a tool-scoped
+  // policy without it, and typing the handler by hand is how the consumer ended up reinventing it.
+  type ToolCallSummary,
+  type ToolResultTransformContext,
+  type TransformContext,
 } from "./internal/plugins/types.js";
 export type {
   ProviderProfile,
