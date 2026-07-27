@@ -14,7 +14,15 @@
  *
  * @internal
  */
-import { appendFileSync, mkdirSync, readFileSync } from "node:fs";
+import {
+  closeSync,
+  fstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  readSync,
+  writeSync,
+} from "node:fs";
 import { dirname } from "node:path";
 
 /** Raised when a JSONL line is not valid JSON or is not a JSON object. Carries the 1-based line number. */
@@ -117,7 +125,49 @@ function parsearLinha(
  */
 export function appendJsonl(path: string, record: unknown): void {
   mkdirSync(dirname(path), { recursive: true });
-  appendFileSync(path, `${JSON.stringify(record)}\n`);
+  const prefixo = precisaDeQuebraAntes(path) ? "\n" : "";
+  // M93 (revisão adversarial, H1) — `0o600`. `appendFileSync` não aceita `mode`, então a permissão
+  // vinha do umask: sob `umask 022` o transcript nascia `0664`, world-readable. O caminho anterior
+  // (`replaceFileAtomic`) fixava `0o600` de propósito — "holds the FULL in-flight content
+  // (credential snapshots, OAuth tokens)" (`atomic-write.ts:107`) — e trocar para append perdeu isso
+  // em silêncio. A mesma classe já havia sido pega no consumidor (`atomic-sync.ts`, M88 HIGH-1).
+  //
+  // `mode` só vale na CRIAÇÃO; um arquivo pré-existente mantém a permissão que já tem.
+  const fd = openSync(path, "a", 0o600);
+  try {
+    writeSync(fd, `${prefixo}${JSON.stringify(record)}\n`);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/**
+ * O arquivo termina sem `\n`? Então a última linha está truncada — um crash no meio de um append.
+ *
+ * Sem esta checagem o append seguinte **cola** no meio da linha partida, produzindo uma linha
+ * inválida que o leitor descarta: o registro NOVO some junto com o parcial. O caminho anterior
+ * (read-modify-write) se auto-curava disso porque reescrevia o arquivo inteiro. Medido na revisão
+ * adversarial do M93 (H2): após um append sobre arquivo truncado, o registro recém-escrito não era
+ * mais legível.
+ *
+ * Lê **um byte**, não o arquivo.
+ */
+function precisaDeQuebraAntes(path: string): boolean {
+  let fd: number;
+  try {
+    fd = openSync(path, "r");
+  } catch {
+    return false; // arquivo ainda não existe: nada a emendar
+  }
+  try {
+    const tamanho = fstatSync(fd).size;
+    if (tamanho === 0) return false;
+    const buf = Buffer.alloc(1);
+    readSync(fd, buf, 0, 1, tamanho - 1);
+    return buf[0] !== 0x0a;
+  } finally {
+    closeSync(fd);
+  }
 }
 
 /**

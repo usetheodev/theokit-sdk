@@ -24,11 +24,7 @@ import { dirname } from "node:path";
 import type { SessionStore } from "../../types/session-store.js";
 import { withFileLock } from "./file-lock.js";
 import { appendJsonl } from "./jsonl.js";
-import {
-  readTranscript,
-  type SessionRecord,
-  transcriptPath,
-} from "./session-transcript.js";
+import { readTranscript, type SessionRecord, transcriptPath } from "./session-transcript.js";
 
 /** Options identifying the on-disk transcript location for the FS default store. */
 export interface FsSessionStoreOptions {
@@ -73,8 +69,17 @@ export class FsSessionStore implements SessionStore {
       // linha, e cada registro carrega o próprio pai. `appendJsonl` **já existia no pacote** e tinha um
       // único chamador (`eval/runner.ts`) — a primitiva estava lá, o store é que a ignorava (rung 4).
       //
-      // O `withFileLock` **permanece**: ele é o que serializa dois `appendRecords` concorrentes, e
-      // trocar a operação não pode afrouxar a serialização.
+      // O `withFileLock` permanece — mas a afirmação anterior de que "ele é o que serializa dois
+      // `appendRecords` concorrentes" era forte demais, e a revisão adversarial do M93 mediu isso:
+      // removê-lo não reprova nenhum teste. A razão é o próprio parágrafo acima — o DAG de
+      // `parentUuid` não depende da ordem de linha, então dois lotes intercalados reconstroem igual.
+      // O trabalho que o lock fazia (proteger um read-modify-write) sumiu junto com o rewrite.
+      //
+      // O que ele ainda cobre é a janela TOCTOU de `precisaDeQuebraAntes` (ler o último byte, depois
+      // escrever): sem ele, dois processos podem ambos concluir "falta \n" e produzir uma linha em
+      // branco — que o leitor descarta, isto é, benigno. Fica como **defesa declarada, não
+      // mecanizada** (a disciplina de `error-handling.md § 4`: enumerar o resíduo em vez de deixar a
+      // ausência de teste passar por cobertura).
       //
       // `writeTranscript` continua existindo para **compactação**, a única operação que legitimamente
       // reescreve o arquivo.

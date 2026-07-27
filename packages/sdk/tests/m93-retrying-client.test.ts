@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { AuthenticationError, RateLimitError } from "../src/errors.js";
-import { RetryingLlmClient, ehTransitorio, MAX_TENTATIVAS } from "../src/internal/llm/retrying-client.js";
+import {
+  ehTransitorio,
+  MAX_TENTATIVAS,
+  RetryingLlmClient,
+} from "../src/internal/llm/retrying-client.js";
 import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.js";
 
 /**
@@ -15,13 +19,12 @@ import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.j
  * provider é necessária — a lição que o M92 pagou para aprender, depois de eu ter declarado o oposto
  * imensurável.
  */
-const clienteQueFalha = (
-  erros: unknown[],
-): { cliente: LlmClient; tentativas: () => number } => {
+const clienteQueFalha = (erros: unknown[]): { cliente: LlmClient; tentativas: () => number } => {
   let n = 0;
   const cliente: LlmClient = {
     name: "falso",
     // eslint-disable-next-line @typescript-eslint/require-await
+    // biome-ignore lint/correctness/useYield: transporte que SÓ falha — não emitir é o ponto do teste
     async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
       const erro = erros[n];
       n += 1;

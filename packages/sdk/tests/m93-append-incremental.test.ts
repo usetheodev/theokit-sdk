@@ -27,7 +27,9 @@ const montar = () => {
   const caminho = transcriptPath(base, cwd, "ag-1");
   const linhas = (): number => {
     try {
-      return readFileSync(caminho, "utf8").split("\n").filter((l) => l !== "").length;
+      return readFileSync(caminho, "utf8")
+        .split("\n")
+        .filter((l) => l !== "").length;
     } catch {
       return 0;
     }
@@ -92,7 +94,12 @@ describe("M93 — append incremental", () => {
    * exatamente 7 linhas — nenhuma perdida, nenhuma duplicada. `withFileLock` permanece e é o que
    * serializa; trocar a operação não pode afrouxar isso.
    */
-  it("dois appendRecords CONCORRENTES nao perdem linha — o lock permanece", async () => {
+  // NOTA (revisão adversarial do M93): este teste NÃO prova que o lock é necessário — removê-lo
+  // deixa a suíte verde, porque `appendJsonl` é síncrono e o DAG de `parentUuid` torna a
+  // intercalação segura. O que ele prova é o invariante que importa: nenhuma linha se perde sob
+  // concorrência. A defesa que o lock ainda oferece está declarada em `fs-session-store.ts` como
+  // resíduo não-mecanizado, em vez de reivindicada aqui como cobertura.
+  it("dois appendRecords CONCORRENTES nao perdem linha", async () => {
     const { store, linhas } = montar();
     await Promise.all([
       store.appendRecords("ag-1", [reg("a"), reg("b"), reg("c")] as never),
