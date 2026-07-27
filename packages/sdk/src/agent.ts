@@ -302,8 +302,21 @@ export class Agent {
    * Caveats:
    * - The function-level `agentId` always wins over `options.agentId`.
    * - Options differ between calls? Last-call-wins for this handle (matches `Agent.resume`).
-   * - Disposed agents are NOT auto-deleted from the registry. To force a fresh
-   *   agent, call `Agent.delete(agentId)` first.
+   * - A DISPOSED agent is replaced automatically. `dispose()` evicts the id from the
+   *   live cache (`liveAgentRegistry.forget`), so the next `getOrCreate(id)` builds a
+   *   fresh handle — no `Agent.delete(agentId)` needed.
+   *
+   *   This bullet used to say the opposite ("Disposed agents are NOT auto-deleted...
+   *   call `Agent.delete(agentId)` first"). It was measured false in M91:
+   *   `tests/m91-getorcreate-apos-dispose.test.ts` builds an agent, disposes it, and
+   *   gets a different instance back. The claim was about the PERSISTENT registry and
+   *   read as being about the live cache — and consumers built around the wrong half.
+   *   The agent-builder's M85 interrupt rotates the session id to work around a
+   *   constraint that does not exist.
+   *
+   * - `close()` marks the handle disposed WITHOUT evicting the cache entry. It is
+   *   internal and unused today; if it becomes reachable, this bullet stops being true
+   *   for that path.
    *
    * @public
    */
