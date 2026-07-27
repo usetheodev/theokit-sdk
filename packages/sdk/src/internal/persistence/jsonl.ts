@@ -52,27 +52,59 @@ function tryParseObjectLine(line: string): Record<string, unknown> | undefined {
  */
 export function loadJsonl<T = Record<string, unknown>>(
   path: string,
-  opts: { map?: (raw: Record<string, unknown>, lineNumber: number) => T } = {},
+  opts: {
+    map?: (raw: Record<string, unknown>, lineNumber: number) => T;
+    /**
+     * M81 — tolerate a truncated LAST line (a crash artifact: the process died mid-write).
+     *
+     * Opt-in on purpose. As a default it would also swallow corruption in the MIDDLE of the file,
+     * turning loud data loss into silent data loss — the wrong trade for a session store.
+     */
+    tolerateTrailingPartialLine?: boolean;
+  } = {},
 ): T[] {
-  const text = readFileSync(path, "utf8");
+  const linhas = readFileSync(path, "utf8").split("\n");
   const out: T[] = [];
-  let lineNumber = 0;
-  for (const rawLine of text.split("\n")) {
-    lineNumber += 1;
-    const line = rawLine.trim();
+  for (let i = 0; i < linhas.length; i += 1) {
+    const lineNumber = i + 1;
+    const line = (linhas[i] ?? "").trim();
     if (line.length === 0) continue;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(line);
-    } catch {
-      throw new JsonlParseError(`line ${lineNumber}: invalid JSON`, lineNumber);
-    }
-    if (!isPlainObject(parsed)) {
-      throw new JsonlParseError(`line ${lineNumber}: not a JSON object`, lineNumber);
-    }
+    // M81 — `undefined` = linha inválida tolerada (última, truncada por crash). Qualquer outra
+    // linha inválida já lançou dentro de `parsearLinha`.
+    const parsed = parsearLinha(
+      line,
+      lineNumber,
+      opts.tolerateTrailingPartialLine === true && lineNumber === linhas.length,
+    );
+    if (parsed === undefined) break;
     out.push(opts.map ? opts.map(parsed, lineNumber) : (parsed as unknown as T));
   }
   return out;
+}
+
+/**
+ * Parse de UMA linha, devolvendo `undefined` quando ela é uma última-linha-truncada tolerada.
+ *
+ * Extraído porque `loadJsonl` passou do teto de complexidade cognitiva quando ganhou a tolerância —
+ * e porque parse-de-linha e iteração-do-arquivo são duas responsabilidades que só estavam juntas
+ * por hábito.
+ */
+function parsearLinha(
+  line: string,
+  lineNumber: number,
+  tolerar: boolean,
+): Record<string, unknown> | undefined {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(line);
+  } catch {
+    if (tolerar) return undefined;
+    throw new JsonlParseError(`line ${lineNumber}: invalid JSON`, lineNumber);
+  }
+  if (!isPlainObject(parsed)) {
+    throw new JsonlParseError(`line ${lineNumber}: not a JSON object`, lineNumber);
+  }
+  return parsed;
 }
 
 /**

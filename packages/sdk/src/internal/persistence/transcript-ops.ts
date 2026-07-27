@@ -1,0 +1,163 @@
+/**
+ * M81 — transcript operations the consumer was doing by hand INSIDE the framework's own store.
+ *
+ * ## What this replaces
+ *
+ * `agents/lib/session/backtrack.ts:188` (agent-builder) wrote straight into the session store with a
+ * bare `writeFileSync` — no atomicity, no lock, no API. 243 lines re-implementing parse, cut and
+ * write for a format the framework owns. The consumer is not at fault: nothing here was reachable.
+ *
+ * ## The rule that travels WITH the operation
+ *
+ * `rules/audit-trail-rotation.md § Session transcripts (M60)` defines a NEVER-delete list — the live
+ * pointer, the most recent transcript, and any active registry entry. That rule lived in the
+ * CONSUMER. Moving the operation here without moving the rule would ship an API able to destroy
+ * exactly what the rule protects — the same shape of defect as M80's `reconcileUpdateGoalStatus`:
+ * critical knowledge outside the module that needs it, applied by convention.
+ *
+ * So `forkTranscript` takes `liveSessionPaths` and refuses, with a TYPED error, to write over any of
+ * them. The caller supplies the list because only the caller knows which session is live; the
+ * enforcement lives here because that is where the write happens.
+ *
+ * @internal
+ */
+
+import { closeSync, openSync, readFileSync, readSync, statSync, writeSync } from "node:fs";
+
+import { TheokitAgentError } from "../../errors.js";
+
+/**
+ * M81 — the target is a protected session (live pointer / most-recent transcript / active entry).
+ *
+ * Typed rather than a bare `Error` because the caller must distinguish "this session is protected"
+ * from "the disk is full": the first is a correct refusal, the second is an incident.
+ */
+export class LiveSessionError extends TheokitAgentError {
+  override readonly name = "LiveSessionError";
+
+  constructor(readonly path: string) {
+    super(
+      `refusing to write over a live session transcript: ${path}. ` +
+        "Fork to a new id instead — the live pointer, the most recent transcript and any active " +
+        "registry entry are never overwritten (audit-trail rotation, M60).",
+      { code: "live_session_protected", isRetryable: false },
+    );
+  }
+}
+
+/** Options for {@link forkTranscript}. */
+export interface ForkTranscriptOptions {
+  /** Keep records `[0, beforeRecordIndex)`. Omit to copy the whole transcript. */
+  readonly beforeRecordIndex?: number;
+  /**
+   * Paths that must never be written over — the live pointer, the most recent transcript, any active
+   * registry entry. The caller supplies them because only the caller knows which session is live.
+   */
+  readonly liveSessionPaths?: readonly string[];
+}
+
+/**
+ * Copy `src` into `dst`, keeping the first `beforeRecordIndex` records. The SOURCE is never touched.
+ *
+ * Atomicity comes from `wx` (exclusive create): two concurrent forks to the same destination cannot
+ * both succeed — the loser gets `EEXIST` rather than writing over a half-written file. That is also
+ * why an existing destination is a refusal, not a silent overwrite: losing a transcript without an
+ * error is the worst failure mode for an operation that touches user sessions.
+ */
+export function forkTranscript(
+  src: string,
+  dst: string,
+  options: ForkTranscriptOptions = {},
+): void {
+  for (const live of options.liveSessionPaths ?? []) {
+    if (live === dst) throw new LiveSessionError(dst);
+  }
+
+  const lines = readFileSync(src, "utf8")
+    .split("\n")
+    .filter((l) => l.trim().length > 0);
+  const kept =
+    options.beforeRecordIndex === undefined ? lines : lines.slice(0, options.beforeRecordIndex);
+  const body = kept.length > 0 ? `${kept.join("\n")}\n` : "";
+
+  // `wx` — fails with EEXIST instead of truncating. The exclusivity IS the concurrency guarantee.
+  const fd = openSync(dst, "wx");
+  try {
+    writeSync(fd, body);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+/** Options for {@link readJsonlTail}. */
+export interface ReadJsonlTailOptions {
+  /** Maximum records to return, counted from the END. */
+  readonly maxRecords?: number;
+  /** Stop once a line contains this marker (exclusive). */
+  readonly sinceMarker?: string;
+  /** Test-only: also report how many bytes were read, to prove the read is not whole-file. */
+  readonly _stats?: boolean;
+}
+
+const TAIL_CHUNK = 64 * 1024;
+
+/**
+ * Lê chunks de trás para frente até acumular linhas completas suficientes.
+ *
+ * Extraído de `readJsonlTail` porque o laço de leitura e a seleção de registros são duas
+ * responsabilidades — e juntas passavam do teto de complexidade. A primeira linha do buffer pode
+ * estar cortada ao meio quando a leitura parou antes do início do arquivo; por isso ela é descartada.
+ */
+function lerCaudaBruta(path: string, want: number): { linhas: string[]; bytesRead: number } {
+  const size = statSync(path).size;
+  const fd = openSync(path, "r");
+  let bytesRead = 0;
+  let tail = "";
+  let pos = size;
+  try {
+    while (pos > 0) {
+      const len = Math.min(TAIL_CHUNK, pos);
+      pos -= len;
+      const buf = Buffer.alloc(len);
+      readSync(fd, buf, 0, len, pos);
+      bytesRead += len;
+      tail = buf.toString("utf8") + tail;
+      if (naoVazias(tail).length > want) break;
+    }
+  } finally {
+    closeSync(fd);
+  }
+  const linhas = naoVazias(tail);
+  return { linhas: pos > 0 ? linhas.slice(1) : linhas, bytesRead };
+}
+
+/** Linhas com conteúdo, na ordem do arquivo. */
+function naoVazias(texto: string): string[] {
+  return texto.split("\n").filter((l) => l.trim().length > 0);
+}
+
+/**
+ * Read the LAST records of a JSONL file without loading the whole thing.
+ *
+ * Reads fixed-size chunks backwards from EOF until enough newlines have been seen. A session
+ * transcript grows without bound; loading megabytes to show the last three turns is the cost this
+ * exists to avoid — and a `slice` over a full read would be that same cost with a better name.
+ */
+export function readJsonlTail<T = Record<string, unknown>>(
+  path: string,
+  options: ReadJsonlTailOptions = {},
+): T[] {
+  const want = options.maxRecords ?? Number.POSITIVE_INFINITY;
+  const { linhas, bytesRead } = lerCaudaBruta(path, want);
+
+  let sel = linhas;
+  if (options.sinceMarker !== undefined) {
+    const marcador = options.sinceMarker;
+    const idx = sel.findLastIndex((l) => l.includes(marcador));
+    if (idx >= 0) sel = sel.slice(idx + 1);
+  }
+  if (Number.isFinite(want)) sel = sel.slice(-want);
+
+  const out = sel.map((l) => JSON.parse(l) as T);
+  return options._stats === true ? (Object.assign(out, { bytesRead }) as T[]) : out;
+}

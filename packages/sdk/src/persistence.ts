@@ -46,7 +46,11 @@ export {
   encodeProjectDir,
   transcriptPath,
 } from "./internal/persistence/session-transcript.js";
-
+export {
+  acquireSessionWriter,
+  SessionBusyError,
+  type SessionWriterLease,
+} from "./internal/persistence/session-writer.js";
 // Resilient SQLite bootstrap (corruption recovery) + WAL/FK setup.
 export type {
   OpenSqliteResilientOptions,
@@ -55,3 +59,16 @@ export type {
 export { isCorruptionError, openSqliteResilient } from "./internal/persistence/sqlite-open.js";
 export type { WalApplyResult } from "./internal/persistence/sqlite-wal.js";
 export { applyWalWithFallback } from "./internal/persistence/sqlite-wal.js";
+// M81 — operações de transcript que o consumidor fazia à mão DENTRO deste store.
+//
+// `agent-builder` escrevia com `writeFileSync` cru no store de sessões (243 LoC reimplementando
+// parse, corte e escrita de um formato que é nosso), porque nada aqui era alcançável. Junto com as
+// operações viaja a regra que as protege: `forkTranscript` recusa escrever sobre uma sessão viva —
+// mover a operação sem a regra entregaria uma API capaz de apagar o que a regra existe para proteger.
+export {
+  type ForkTranscriptOptions,
+  forkTranscript,
+  LiveSessionError,
+  type ReadJsonlTailOptions,
+  readJsonlTail,
+} from "./internal/persistence/transcript-ops.js";

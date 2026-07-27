@@ -4,6 +4,7 @@ export default defineConfig({
   entry: {
     index: "src/index.ts",
     errors: "src/errors.ts",
+    "subagents-loader": "src/subagents-loader.ts",
     cron: "src/cron.ts",
     // M1-5: SDKMessage readers — leaf-type-only deps; DTS via tsc (tsconfig.tools-dts.json).
     messages: "src/messages.ts",
@@ -63,6 +64,7 @@ export default defineConfig({
     entry: {
       index: "src/index.ts",
       errors: "src/errors.ts",
+      "subagents-loader": "src/subagents-loader.ts",
       cron: "src/cron.ts",
       "server/auth/index": "src/server/auth/index.ts",
       "server/errors-envelope": "src/server/errors-envelope.ts",
