@@ -99,6 +99,40 @@ export interface TransformContext {
 }
 
 /**
+ * M82 — one tool call of the turn, as seen by `transform_tool_result`. `id` is the correlation key
+ * back into the batch: it equals the `toolUseId` of the matching `tool_result` part.
+ *
+ * @public
+ */
+export interface ToolCallSummary {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+}
+
+/**
+ * M82 — context for `transform_tool_result`, the only tool-stage hook whose return value the SDK
+ * actually applies (`#runTransform` folds it; `#runFireAndForget` discards `post_tool_call`'s).
+ *
+ * Before M82 this seam knew only `{agentId, runId}`, so a hook could transform results but could not
+ * tell WHICH tool produced which one. A policy scoped to a tool name — the common case — therefore
+ * had to live on `post_tool_call`, whose return is discarded, and silently degraded to observation.
+ *
+ * `toolCalls` is PLURAL because the seam is batch-shaped: `dispatchTools` runs every tool call of the
+ * turn and the hook receives all results together. A singular `name` would have to lie in any
+ * multi-tool turn. Correlate with `LlmToolResultPart.toolUseId === ToolCallSummary.id`.
+ *
+ * Kept separate from {@link TransformContext} on purpose: that type is shared with
+ * `transform_llm_output`, which has no tool call at all, and an optional field there would be
+ * permanently `undefined` for half its consumers.
+ *
+ * @public
+ */
+export interface ToolResultTransformContext extends TransformContext {
+  toolCalls: readonly ToolCallSummary[];
+}
+
+/**
  * Context passed to `pre_user_send` hook handlers (ADR D145).
  *
  * @public

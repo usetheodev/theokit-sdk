@@ -25,6 +25,7 @@ import type {
   PreUserSendContext,
   PreUserSendResult,
   SessionLifecycleContext,
+  ToolResultTransformContext,
   TransformContext,
 } from "./types.js";
 
@@ -260,7 +261,7 @@ export class PluginManager {
   }
 
   /** #65/#57 — transform tool results before they reach the LLM (the #57 seam). @internal */
-  runTransformToolResultHooks<T>(results: T, ctx: TransformContext): Promise<T> {
+  runTransformToolResultHooks<T>(results: T, ctx: ToolResultTransformContext): Promise<T> {
     return this.#runTransform("transform_tool_result", results, ctx);
   }
 

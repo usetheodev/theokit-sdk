@@ -393,16 +393,28 @@ async function transformLlmOutputText(
     : text;
 }
 
-/** #57/#65 — built-in tool-result guard then the transform_tool_result hook fold. */
+/**
+ * #57/#65 — built-in tool-result guard then the transform_tool_result hook fold.
+ *
+ * M82 — `toolCalls` is threaded into the hook context. The data was already in the caller's scope
+ * (`llmOutput.toolCalls`) and was simply dropped, which left this seam — the ONLY tool-stage channel
+ * whose return value the SDK applies — unable to say which tool produced which result. A scoped
+ * policy therefore had to sit on `post_tool_call`, whose return is discarded, and silently degraded
+ * to observation. Plural because the seam is batch-shaped; correlate by `toolUseId === id`.
+ */
 async function guardAndTransformToolResults(
   inputs: AgentLoopInputs,
   raw: LlmContentPart[],
   ctx: { agentId: string; runId: string },
+  toolCalls: readonly LlmToolCallPart[],
 ): Promise<LlmContentPart[]> {
   const guarded =
     inputs.toolResultGuard !== undefined ? applyToolResultGuard(raw, inputs.toolResultGuard) : raw;
   return inputs.pluginManager !== undefined
-    ? inputs.pluginManager.runTransformToolResultHooks(guarded, ctx)
+    ? inputs.pluginManager.runTransformToolResultHooks(guarded, {
+        ...ctx,
+        toolCalls: toolCalls.map((c) => ({ id: c.id, name: c.name, args: c.input })),
+      })
     : guarded;
 }
 
@@ -438,7 +450,12 @@ export async function continueOrTerminate(
     ctx.events,
     ctx.sendSpan, // M3 #64 — nest tool.call spans under agent.send
   );
-  const toolResults = await guardAndTransformToolResults(inputs, rawResults, tCtx);
+  const toolResults = await guardAndTransformToolResults(
+    inputs,
+    rawResults,
+    tCtx,
+    llmOutput.toolCalls,
+  );
   ctx.messages.push({ role: "user", content: toolResults });
   if (inputs.onStep !== undefined) {
     const cb = inputs.onStep;
