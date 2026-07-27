@@ -280,9 +280,26 @@ export function reconstructMessages(records: readonly SessionRecord[]): LlmMessa
 
 // ─── File I/O (the on-disk Claude layout) ─────────────────────────────────────────────────────────
 
-/** Default transcript base dir. `~/.theokit` isolates our sessions; set to `~/.claude` for CLI interop. */
-export function defaultBaseDir(): string {
+/**
+ * Raiz do estado de transcript.
+ *
+ * `THEOKIT_HOME` vence; o fallback é `~/.theokit`. Home-ancorado de propósito, e NÃO
+ * `getTheokitHome(cwd)` de `paths.ts`: aquele faz fallback para `<cwd>/.theokit`, e trocar
+ * por ele moveria o transcript de todo mundo que **não** define a variável. O irmão com a
+ * forma certa é `catalog-source-models-dev.ts` (M94 ADR-2).
+ *
+ * Antes do M94 esta função ignorava a env, então quem a definia tinha o estado partido em
+ * dois em silêncio — as sessões continuavam em `~/.theokit` enquanto o resto do SDK migrava.
+ */
+export function transcriptRoot(): string {
+  const override = process.env.THEOKIT_HOME?.trim();
+  if (override !== undefined && override.length > 0) return override;
   return join(homedir(), ".theokit");
+}
+
+/** @deprecated Use {@link transcriptRoot}. Mantido como alias — mesmo valor. */
+export function defaultBaseDir(): string {
+  return transcriptRoot();
 }
 
 /**

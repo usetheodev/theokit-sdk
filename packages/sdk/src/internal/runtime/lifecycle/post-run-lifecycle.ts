@@ -1,6 +1,7 @@
 import {
   CONTEXT_WINDOW_FLOOR,
   CONTEXT_WINDOW_MARGIN,
+  type EffectiveContextWindow,
   resolveEffectiveContextWindow,
 } from "../../../compaction.js";
 import type { Run } from "../../../types/run.js";
@@ -39,6 +40,14 @@ export interface PostRunLifecycleInputs {
   sessionStore: SessionStore;
   /** SE40 — model id stamped into the assistant records. */
   model: string;
+  /**
+   * M94 — janela declarada na definição do agente, em tokens.
+   *
+   * Repassada como `override` ao resolvedor. Existe porque um modelo sem entrada de catálogo
+   * (OpenRouter) ficava preso no piso de 128k mesmo tendo 400k — compactando ~3× mais do que
+   * precisa. O clamp por catálogo continua protegendo contra valor inflado.
+   */
+  contextWindow?: number | undefined;
   /** M50 — provider key for the auto-compaction summarizer (absent ⇒ env-resolved by the router). */
   apiKey?: string;
   /** SE2 — surface a `compact_boundary` RunEvent when a persistence-side compaction fires. */
@@ -76,6 +85,31 @@ export interface PostRunLifecycleInputs {
  *
  * @internal
  */
+/**
+ * Resolve a janela a orçar para um run — o ponto onde a janela declarada encontra o catálogo.
+ *
+ * Existe como função própria porque a FIAÇÃO é o que estava quebrado: `resolveEffectiveContextWindow`
+ * aceita `override` desde o M77 e o único call site nunca o passava. Uma função pura torna esse
+ * repasse testável sem reconstruir metade do runtime — um mutante que pare de repassar reprova.
+ *
+ * `contextWindow` não-positivo é ignorado: como override ele produziria um orçamento que dispara
+ * compactação a cada turno, que é pior que o piso conservador.
+ *
+ * @internal
+ */
+export function resolveWindowForRun(
+  model: string,
+  contextWindow: number | undefined,
+): EffectiveContextWindow {
+  const override = contextWindow !== undefined && contextWindow > 0 ? contextWindow : undefined;
+  return resolveEffectiveContextWindow({
+    ...(override !== undefined ? { override } : {}),
+    catalog: getCatalogModelInfo(model)?.limit?.context,
+    margin: CONTEXT_WINDOW_MARGIN,
+    floor: CONTEXT_WINDOW_FLOOR,
+  });
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: lifecycle orchestrator dispatches across multiple subsystems
 export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promise<void> {
   const {
@@ -85,6 +119,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     workspaceCwd,
     sessionStore,
     model,
+    contextWindow,
     onRunEvent,
     hooksExecutor,
     memoryGlue,
@@ -109,18 +144,14 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     try {
       const parcial = await safeConversation(run);
       if (parcial !== undefined) {
-        persistTurnToTranscript(
-          sessionStore,
-          { cwd: workspaceCwd, agentId, model },
-          agentId,
-          { userText, conversation: parcial },
-        );
+        persistTurnToTranscript(sessionStore, { cwd: workspaceCwd, agentId, model }, agentId, {
+          userText,
+          conversation: parcial,
+        });
       }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
-        `[theokit-sdk] partial transcript write failed (${agentId}): ${msg}\n`,
-      );
+      process.stderr.write(`[theokit-sdk] partial transcript write failed (${agentId}): ${msg}\n`);
     }
     // Caller observes failures via their own run.wait()/stream(); the
     // mutex still releases via the flushes below.
@@ -146,12 +177,8 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // opposite. Not compacting when the window is unknown lets the conversation grow until the
   // PROVIDER rejects it — fail-OPEN, and silent. It now resolves to a floor and says so, so the
   // budget degrades instead of disappearing.
-  const resolvedWindow = resolveEffectiveContextWindow({
-    catalog: getCatalogModelInfo(model)?.limit?.context,
-    margin: CONTEXT_WINDOW_MARGIN,
-    floor: CONTEXT_WINDOW_FLOOR,
-  });
-  const contextWindow = resolvedWindow.window;
+  const resolvedWindow = resolveWindowForRun(model, contextWindow);
+  const janelaEfetiva = resolvedWindow.window;
   const budgetEvent = buildContextBudgetEvent(model, resolvedWindow);
   if (budgetEvent !== undefined && onRunEvent !== undefined) {
     emitRunEvent(onRunEvent, budgetEvent);
@@ -170,7 +197,9 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       conversation,
       autoCompact: {
         usageTotal: usageForTrigger,
-        contextWindow,
+        // A janela EFETIVA (após override, clamp e margem) — não a declarada. Trocar por
+        // `contextWindow` aqui orçaria contra um número que o clamp já rejeitou.
+        contextWindow: janelaEfetiva,
         summarize: buildDefaultSummarizer({
           agentModel: model,
           ...(inputs.apiKey !== undefined ? { apiKey: inputs.apiKey } : {}),

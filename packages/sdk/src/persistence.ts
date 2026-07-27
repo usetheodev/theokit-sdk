@@ -45,6 +45,9 @@ export { PersistenceSchema } from "./internal/persistence/persistence-schema.js"
 export {
   encodeProjectDir,
   transcriptPath,
+  // M94 — a raiz do estado de transcript. Exportada porque o consumidor a duplicava em
+  // TRÊS arquivos, e as três cópias ignoravam `THEOKIT_HOME` junto com esta.
+  transcriptRoot,
 } from "./internal/persistence/session-transcript.js";
 export {
   acquireSessionWriter,
