@@ -1,5 +1,48 @@
 # Changelog
 
+## 4.31.0
+
+### Minor Changes
+
+- d8412b6: **Um erro transitório de provider deixa de destruir o turno inteiro.**
+
+  Três defeitos que, combinados, tornavam a perda total:
+
+  - **O caminho de chave única não tinha retry.** `buildPoolOrSingle` dava `PoolAwareLlmClient` — circuit
+    breaker, backoff de jitter total, `Retry-After`, rotação — com **≥ 2** chaves, e o transporte **cru**
+    com uma. Um consumidor que resolve exatamente uma credencial (o caso comum) caía sempre no braço sem
+    resiliência. A assimetria não tem justificativa de domínio: **um pool de 1 chave é um pool de tamanho
+    1**. `RetryingLlmClient` é composição — `computeBackoffMs` e `sleepWithAbort` já eram módulos
+    independentes — e aplica-se aos **três** braços (o do pool ambiente também estava de fora).
+
+  - **O caminho de erro não persistia nada.** O `catch` de `run.wait()` chamava `flushSessionWrites()` e
+    retornava; `persistTurnToTranscript` é chamado só depois, e é o único chamador do repositório. O
+    flush drenava um conjunto **vazio**. Agora persiste o **parcial** — user + tool calls concluídas —
+    sem reconstruir o que não aconteceu.
+
+  - **`appendRecords` reescrevia o arquivo inteiro por turno.** O(n) de I/O **e** de parse a cada turno,
+    O(n²) por sessão. Correto porque o formato **já é append-only** (o DAG de `parentUuid` não depende da
+    ordem de linha), e `appendJsonl` **já existia** no pacote com um único chamador. O `withFileLock`
+    permanece — é ele que serializa appends concorrentes.
+
+  Só erro **transitório** reexecuta: 402 (billing) não é, porque cota não se resolve em milissegundos, e
+  401 falha na primeira. Teto de 3 tentativas, ciente de `AbortSignal`.
+
+### Patch Changes
+
+- f76ed61: Corrige o docstring de `Agent.getOrCreate`, que afirmava o oposto do comportamento real.
+
+  Ele dizia: _"Disposed agents are NOT auto-deleted from the registry. To force a fresh agent, call
+  `Agent.delete(agentId)` first."_ Medido, é falso — `dispose()` chama `liveAgentRegistry.forget(id)`,
+  então o próximo `getOrCreate(id)` constrói um handle novo, sem `Agent.delete`.
+
+  A afirmação era sobre o registro **persistente** e foi lida como sendo sobre o **cache vivo**; um
+  consumidor construiu em cima da metade errada. Travado por `tests/m91-getorcreate-apos-dispose.test.ts`.
+
+  O bullet novo também registra o que continua verdadeiro: `close()` marca o handle descartado **sem**
+  evictar a entrada do cache. É interno e sem chamador hoje; se voltar a ser alcançável, o bullet deixa
+  de valer para aquele caminho — e está escrito para que a próxima pessoa não precise redescobrir.
+
 ## 4.17.1
 
 ### Patch Changes
