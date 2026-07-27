@@ -9,6 +9,7 @@ import { maybeWrapWithFaultInjection } from "./fault-injection.js";
 import { OllamaNativeClient } from "./ollama-native.js";
 import { OpenAIClient } from "./openai.js";
 import { PoolAwareLlmClient } from "./pool-aware-client.js";
+import { RetryingLlmClient } from "./retrying-client.js";
 import { ResponsesApiClient } from "./responses.js";
 import type { LlmClient } from "./types.js";
 import { VertexRouterClient } from "./vertex-router.js";
@@ -102,11 +103,11 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     routerOptions.onRateLimit !== undefined ? { onRateLimit: routerOptions.onRateLimit } : {};
   const ambient = currentCredentialPool(name);
   if (ambient !== undefined) {
-    return new PoolAwareLlmClient(
-      ambient,
-      (apiKey) => selectTransport(profile, apiKey),
-      undefined,
-      resilience,
+    // M93 — o TERCEIRO braço. Achado ao escrever o teste do segundo: o pool ambiente também devolvia
+    // o cliente sem o decorator, e deixá-lo de fora criaria a mesma assimetria que o milestone remove,
+    // só que num caminho menos visível.
+    return new RetryingLlmClient(
+      new PoolAwareLlmClient(ambient, (apiKey) => selectTransport(profile, apiKey), undefined, resilience),
     );
   }
   const poolKeys = filterPoolKeys(routerOptions.apiKeys?.[name]);
@@ -149,11 +150,11 @@ function buildPoolOrSingle(args: {
     const pool = new CredentialPool(name, entries, strategy);
     const resilience =
       routerOptions.onRateLimit !== undefined ? { onRateLimit: routerOptions.onRateLimit } : {};
-    return new PoolAwareLlmClient(
-      pool,
-      (apiKey) => selectTransport(profile, apiKey),
-      undefined,
-      resilience,
+    // M93 — o pool JÁ tinha retry por dentro; o decorator por fora cobre o que ele propaga (5xx e
+    // rede, que `classifyAndDecide` manda propagar porque "pool não ajuda"). Aditivo: o comportamento
+    // de rotação não muda.
+    return new RetryingLlmClient(
+      new PoolAwareLlmClient(pool, (apiKey) => selectTransport(profile, apiKey), undefined, resilience),
     );
   }
   // 1-entry pool / single-key fast path: prefer explicit apiKeys[name] over env.
@@ -167,7 +168,10 @@ function buildPoolOrSingle(args: {
     sentinelForNoAuth(profile) ??
     sentinelForLazyAuth(profile);
   if (apiKey === undefined) return undefined;
-  return selectTransport(profile, apiKey);
+  // M93 — o braço de UMA chave devolvia o transporte CRU, sem retry nenhum. Um pool de 1 chave é um
+  // pool de tamanho 1: o que muda entre 1 e 2 chaves é haver para onde rotacionar, não haver ou não
+  // resiliência. O consumidor típico resolve exatamente uma credencial e caía sempre aqui.
+  return new RetryingLlmClient(selectTransport(profile, apiKey));
 }
 
 function resolveBaseUrlEnvOverride(providerName: string): string | undefined {
