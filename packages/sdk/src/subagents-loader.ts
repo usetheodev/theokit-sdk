@@ -18,16 +18,66 @@
  * parsed value leaves the format free to change.
  */
 
+import { ConfigurationError } from "./errors.js";
 import { loadSubagents } from "./internal/runtime/skills/subagents-loader.js";
 import type { AgentDefinition } from "./types/agent.js";
+
+/**
+ * The parsed subagent definition this module hands back.
+ *
+ * Re-exported here — beside the loader that produces it — so a consumer can NAME the value it
+ * receives without reaching into `types/agent`, which no subpath publishes. A layer above may then
+ * alias it (`AgentDefinition as SubagentDefinition`) to sidestep a name it has already spent.
+ */
+export type { AgentDefinition } from "./types/agent.js";
+
+/**
+ * Where subagent definitions may be read from. A closed union rather than a boolean: a third
+ * source can join it without breaking the signature, and the call site reads as what it means.
+ */
+export type SubagentSource = "project";
+
+const FONTES_ACEITAS: readonly SubagentSource[] = ["project"];
+
+/** Options for {@link discoverSubagents} / {@link loadSubagentDefinition}. */
+export interface DiscoverSubagentsOptions {
+  /**
+   * Which sources to read. Defaults to `["project"]` — `<cwd>/.theokit/agents/*.md`.
+   *
+   * An empty list reads NOTHING: the directory is never opened, so a caller that has not yet
+   * established trust in `cwd` can decline the read rather than filter its result.
+   */
+  readonly settingSources?: readonly SubagentSource[];
+}
+
+// Validated at the boundary (error-handling.md § 2): the union is erased at runtime, so a JS
+// caller — or a value crossing a serialization hop — can still carry a source nobody honors.
+// Dropping it silently would read as "no subagents found", which is the same shape as success.
+function resolverFontes(options: DiscoverSubagentsOptions | undefined): readonly SubagentSource[] {
+  const declaradas = options?.settingSources;
+  if (declaradas === undefined) return FONTES_ACEITAS;
+  for (const fonte of declaradas) {
+    if (!FONTES_ACEITAS.includes(fonte)) {
+      throw new ConfigurationError(
+        `Unknown subagent setting source "${String(fonte)}" (accepted: ${FONTES_ACEITAS.join(", ")})`,
+        { code: "subagent_unknown_setting_source" },
+      );
+    }
+  }
+  return declaradas;
+}
 
 /**
  * Discover the subagents defined under `<cwd>/.theokit/agents/*.md`.
  *
  * An absent directory yields `{}` — a project without subagents is the common case, not an error.
  */
-export async function discoverSubagents(cwd: string): Promise<Record<string, AgentDefinition>> {
-  return loadSubagents(cwd, true, undefined);
+export async function discoverSubagents(
+  cwd: string,
+  options?: DiscoverSubagentsOptions,
+): Promise<Record<string, AgentDefinition>> {
+  const fontes = resolverFontes(options);
+  return loadSubagents(cwd, fontes.includes("project"), undefined);
 }
 
 /**
@@ -39,6 +89,7 @@ export async function discoverSubagents(cwd: string): Promise<Record<string, Age
 export async function loadSubagentDefinition(
   name: string,
   cwd: string,
+  options?: DiscoverSubagentsOptions,
 ): Promise<AgentDefinition | undefined> {
-  return (await discoverSubagents(cwd))[name];
+  return (await discoverSubagents(cwd, options))[name];
 }
