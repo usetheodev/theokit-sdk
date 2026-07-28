@@ -19,6 +19,7 @@ import {
   acquireSessionWriter,
   JANELA_DE_HEARTBEAT_MS,
   SessionBusyError,
+  sessaoTemEscritor,
 } from "../src/internal/persistence/session-writer.js";
 
 const criados: Array<{ release: () => Promise<void> }> = [];
@@ -138,5 +139,27 @@ describe("M95/LOW-3 — um lock que é DIRETÓRIO não tranca a sessão para sem
     const p = novoCaminho();
     mkdirSync(`${p}.writer.lock`, { recursive: true });
     await expect(acquireSessionWriter(p)).rejects.not.toBeInstanceOf(SessionBusyError);
+  });
+});
+
+describe("M95 — consultar não é tomar (MEDIUM-1)", () => {
+  it("consultar uma sessão livre NÃO deixa rastro nem cria disputa", () => {
+    const p = novoCaminho();
+    expect(sessaoTemEscritor(p)).toBe(false);
+    // A versão anterior do pré-check ADQUIRIA para perguntar: dois processos consultando uma
+    // sessão livre ao mesmo tempo faziam um perder, e o consumidor forkava sem motivo.
+    expect(sessaoTemEscritor(p), "a consulta mudou o estado").toBe(false);
+  });
+
+  it("uma sessão com dono vivo é reportada como ocupada", async () => {
+    const p = novoCaminho();
+    lockDe(p, { pid: process.ppid, hostname: hostname(), mtime: Date.now() });
+    expect(sessaoTemEscritor(p)).toBe(true);
+  });
+
+  it("um lock de dono morto NÃO conta como escritor", () => {
+    const p = novoCaminho();
+    lockDe(p, { pid: 4_194_305, hostname: hostname(), mtime: Date.now() });
+    expect(sessaoTemEscritor(p)).toBe(false);
   });
 });

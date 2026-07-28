@@ -29,7 +29,15 @@
  * @internal
  */
 
-import { closeSync, fchmodSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fchmodSync,
+  openSync,
+  readFileSync,
+  rmSync,
+  writeSync,
+} from "node:fs";
 import { hostname } from "node:os";
 
 import { TheokitAgentError } from "../../errors.js";
@@ -125,7 +133,9 @@ function lerDono(lockPath: string): DonoDoLock | undefined {
     if (code === "ENOENT") return undefined;
     // `EISDIR` — o caminho do lock é um DIRETÓRIO. Nenhum processo desta biblioteca cria um; é
     // lixo de outra coisa, e nunca vai virar um lock legível. Fail-closed aqui trancaria a sessão
-    // para sempre, sem recuperação — o oposto do que este milestone existe para garantir.
+    // para sempre. Tratado como sem-dono: a aquisição segue e falha com o erro de FS real, que
+    // diz o que está errado — em vez de um SessionBusyError permanente que não diz nada. NÃO é
+    // "reclamável": o lock não é removido, e quem chama segue sem lease.
     if (code === "EISDIR") return undefined;
     // Qualquer outra falha de leitura (`EACCES` num diretório compartilhado, `EIO`) é diferente em
     // espécie: o lock **existe** e nós é que não conseguimos ler o dono. Tratar como livre faria
@@ -192,6 +202,31 @@ function reclamavel(dono: DonoDoLock | undefined): boolean {
     return Date.now() - dono.mtime > JANELA_DE_HEARTBEAT_MS;
   }
   return !processoVivo(dono.pid);
+}
+
+/**
+ * A sessão tem escritor **agora**? Consulta que NÃO toma o lease.
+ *
+ * M95 — existe porque perguntar tomando cria a disputa que se queria detectar: dois processos
+ * consultando uma sessão **livre** ao mesmo tempo faziam um deles perder, e o consumidor forkava
+ * sem motivo. Medido na revisão adversarial: `CORRIDA: forks espurios = 1`.
+ *
+ * É uma foto, não uma garantia: entre a consulta e a aquisição real alguém pode tomar a sessão.
+ * Quem precisa da garantia usa {@link acquireSessionWriter}; quem precisa **decidir um id antes de
+ * abrir nada** usa isto, e trata a corrida onde ela aparece.
+ *
+ * @internal
+ */
+export function sessaoTemEscritor(sessionPath: string): boolean {
+  const lockPath = `${sessionPath}.writer.lock`;
+  if (!existsSync(lockPath)) return false;
+  try {
+    return !reclamavel(lerDono(lockPath));
+  } catch {
+    // `lerDono` lança quando o lock existe e não pode ser lido — fail-closed, mesma razão de lá:
+    // não saber quem é o dono não é o mesmo que não haver dono.
+    return true;
+  }
 }
 
 export async function acquireSessionWriter(sessionPath: string): Promise<SessionWriterLease> {
