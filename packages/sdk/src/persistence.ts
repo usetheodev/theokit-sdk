@@ -53,6 +53,8 @@ export {
   acquireSessionWriter,
   SessionBusyError,
   type SessionWriterLease,
+  // M95 — consulta sem tomar: perguntar tomando cria a disputa que se queria detectar.
+  sessaoTemEscritor,
 } from "./internal/persistence/session-writer.js";
 // Resilient SQLite bootstrap (corruption recovery) + WAL/FK setup.
 export type {

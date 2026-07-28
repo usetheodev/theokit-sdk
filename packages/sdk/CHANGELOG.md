@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.35.0
+
+### Minor Changes
+
+- Publica uma consulta que responde "esta sessão tem escritor?" sem tomar a trava.
+
+  Perguntar tomando cria a disputa que se queria detectar: dois processos consultando uma sessão **livre** ao mesmo tempo faziam um deles perder, e quem consome derivava uma sessão nova sem motivo. A consulta é uma foto, não uma garantia — quem precisa da garantia continua tomando a trava; quem precisa decidir um identificador antes de abrir qualquer coisa usa a consulta e trata a corrida onde ela aparece.
+
 ## 4.34.2
 
 ### Patch Changes
