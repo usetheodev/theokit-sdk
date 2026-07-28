@@ -105,3 +105,19 @@ describe("M95 — quando um lock é reclamável", () => {
     criados.push(await acquireSessionWriter(p));
   });
 });
+
+describe("M95 — um dono VIVO nunca perde o lease por idade", () => {
+  it("lock antigo de processo vivo no MESMO host NÃO é reclamável", async () => {
+    // O `mtime` é gravado na AQUISIÇÃO e não é tocado a cada append. Com a janela valendo também
+    // no mesmo host, qualquer sessão que durasse mais que ela — isto é, toda sessão real — podia
+    // ser roubada por outro processo. No mesmo host o `pid` é autoritativo: ou o processo existe,
+    // ou não existe. A idade não acrescenta informação, só um modo de falhar.
+    const p = novoCaminho();
+    lockDe(p, {
+      pid: process.ppid,
+      hostname: hostname(),
+      mtime: Date.now() - JANELA_DE_HEARTBEAT_MS * 10,
+    });
+    await expect(acquireSessionWriter(p)).rejects.toBeInstanceOf(SessionBusyError);
+  });
+});
