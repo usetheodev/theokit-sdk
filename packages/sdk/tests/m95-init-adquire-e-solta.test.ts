@@ -95,3 +95,30 @@ describe("M95 — um init que falha DEPOIS de adquirir solta o lease (HIGH-1)", 
     ).toBe(false);
   });
 });
+
+describe("M95/LOW-1 — um init que falha não solta o lease dos OUTROS agentes", () => {
+  it("o lease de um agente vivo sobrevive à falha de init de outro", async () => {
+    const base = mkdtempSync(join(tmpdir(), "m95-init-"));
+    const vivo = await agente(base, "ag-vivo");
+    expect(existsSync(`${transcriptPath(base, base, "ag-vivo")}.writer.lock`)).toBe(true);
+
+    // Um segundo agente NO MESMO store falha no init depois de adquirir.
+    const p = transcriptPath(base, base, "ag-falha");
+    mkdirSync(dirname(p), { recursive: true });
+    writeFileSync(p, "x", { mode: 0o000 });
+    const b = new LocalAgent({
+      ...(opcoes(base, "ag-falha") as object),
+      local: {
+        cwd: base,
+        baseDir: base,
+        sessionStore: (vivo as unknown as { sessionStore: unknown }).sessionStore,
+      },
+    } as never);
+    await b.initialize().catch(() => undefined);
+
+    expect(
+      existsSync(`${transcriptPath(base, base, "ag-vivo")}.writer.lock`),
+      "a falha de um agente liberou o lease de outro, que segue escrevendo",
+    ).toBe(true);
+  });
+});

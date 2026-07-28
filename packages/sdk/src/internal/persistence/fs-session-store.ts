@@ -159,6 +159,20 @@ export class FsSessionStore implements SessionStore {
   }
 
   /**
+   * Solta o lease de UM agente.
+   *
+   * Existe porque `dispose()` solta **todos** os leases do store, e um store injetado pelo
+   * consumidor pode servir vários agentes: um init que falha para o agente B não pode liberar o
+   * lease do agente A, que segue vivo e escrevendo.
+   */
+  async release(agentId: string): Promise<void> {
+    const lease = this.#leases.get(agentId);
+    if (lease === undefined) return;
+    this.#leases.delete(agentId);
+    await lease.release();
+  }
+
+  /**
    * Solta todo lease que este store detém.
    *
    * Sem isto o `.writer.lock` sobrevive ao processo e a próxima abertura teria de esperar a janela

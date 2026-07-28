@@ -123,6 +123,10 @@ function lerDono(lockPath: string): DonoDoLock | undefined {
     const code = (err as NodeJS.ErrnoException).code;
     // `ENOENT` — sumiu entre o `EEXIST` e a leitura. Corrida benigna: o lock não existe mais.
     if (code === "ENOENT") return undefined;
+    // `EISDIR` — o caminho do lock é um DIRETÓRIO. Nenhum processo desta biblioteca cria um; é
+    // lixo de outra coisa, e nunca vai virar um lock legível. Fail-closed aqui trancaria a sessão
+    // para sempre, sem recuperação — o oposto do que este milestone existe para garantir.
+    if (code === "EISDIR") return undefined;
     // Qualquer outra falha de leitura (`EACCES` num diretório compartilhado, `EIO`) é diferente em
     // espécie: o lock **existe** e nós é que não conseguimos ler o dono. Tratar como livre faria
     // dois escritores conviverem — precisamente o que o lease existe para impedir —, e o `0600`

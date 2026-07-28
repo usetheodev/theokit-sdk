@@ -119,6 +119,12 @@ async function adquirirLeaseSePossivel(store: unknown, agentId: string): Promise
   }
 }
 
+/** Solta o lease de um agente, quando o store souber soltá-lo por id. */
+async function soltarLeaseSePossivel(store: unknown, agentId: string): Promise<void> {
+  const r = (store as { release?: (id: string) => Promise<void> }).release;
+  if (typeof r === "function") await r.call(store, agentId);
+}
+
 async function disposeSessionStore(store: unknown): Promise<void> {
   const d = (store as { dispose?: () => Promise<void> }).dispose;
   if (typeof d === "function") await d.call(store);
@@ -275,7 +281,9 @@ export class LocalAgent implements SDKAgent {
       // ADR D163 — hydrate previously-active personality slug (no-op if none).
       await this.personalityStore.hydrate(this.agentId);
     } catch (err) {
-      await disposeSessionStore(this.sessionStore);
+      // Solta o lease DESTE agente, não todos os do store: um store injetado pode servir vários
+      // agentes, e um init que falha para B não pode liberar o lease de A, que segue escrevendo.
+      await soltarLeaseSePossivel(this.sessionStore, this.agentId);
       throw err;
     }
   }

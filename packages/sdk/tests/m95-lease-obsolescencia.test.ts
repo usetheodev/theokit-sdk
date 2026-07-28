@@ -11,7 +11,7 @@
  * porque é o único sinal que não mente.
  */
 
-import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -127,5 +127,16 @@ describe("M95/LOW-1 — o lock não pode ser forjado por outro usuário", () => 
     const p = novoCaminho();
     criados.push(await acquireSessionWriter(p));
     expect(statSync(`${p}.writer.lock`).mode & 0o077).toBe(0);
+  });
+});
+
+describe("M95/LOW-3 — um lock que é DIRETÓRIO não tranca a sessão para sempre", () => {
+  it("EISDIR é tratado como lixo reclamável, não como dono desconhecido", async () => {
+    // O fail-closed de `lerDono` existe para o caso "o lock existe e eu não consigo ler o dono".
+    // Um diretório nunca vai virar um lock legível: recusar para sempre seria criar a trava
+    // permanente que este milestone veio eliminar.
+    const p = novoCaminho();
+    mkdirSync(`${p}.writer.lock`, { recursive: true });
+    await expect(acquireSessionWriter(p)).rejects.not.toBeInstanceOf(SessionBusyError);
   });
 });
