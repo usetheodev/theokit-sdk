@@ -125,15 +125,28 @@ function processoVivo(pid: number): boolean {
  * ADR-2 do plano: reclamar por `pid` sozinho tem falso positivo entre máquinas — o mesmo número
  * existe noutro host, apontando para um processo sem relação. Então:
  *
- * - **mesmo host:** o `pid` é autoritativo. Processo morto ⇒ reclamável na hora.
+ * - **mesmo host:** o `pid` é autoritativo, e **só** ele. Processo morto ⇒ reclamável na hora;
+ *   processo vivo ⇒ nunca, por mais velho que o lock esteja.
  * - **outro host:** o `pid` não diz nada aqui. Só a janela de heartbeat vale, porque é o único
  *   sinal que não mente entre máquinas.
+ *
+ * ## Por que a idade NÃO conta no mesmo host
+ *
+ * A primeira versão fazia `velho || !processoVivo(pid)`, e isso era um defeito grave: o `mtime` é
+ * gravado na **aquisição** e não é tocado a cada append, então qualquer sessão que durasse mais que
+ * a janela — isto é, **toda sessão real** — passava a ser roubável por outro processo. Dois
+ * escritores no mesmo transcript é exatamente o que o lease existe para impedir.
+ *
+ * No mesmo host a pergunta "o dono ainda existe?" tem resposta exata, e a idade não acrescenta
+ * informação nenhuma a ela — só um modo de errar. Manter a janela ali seria heurística por cima de
+ * um fato.
  */
 function reclamavel(dono: DonoDoLock | undefined): boolean {
   if (dono === undefined) return true; // ilegível ou sumido
-  const velho = Date.now() - dono.mtime > JANELA_DE_HEARTBEAT_MS;
-  if (dono.hostname !== hostname()) return velho;
-  return velho || !processoVivo(dono.pid);
+  if (dono.hostname !== hostname()) {
+    return Date.now() - dono.mtime > JANELA_DE_HEARTBEAT_MS;
+  }
+  return !processoVivo(dono.pid);
 }
 
 export async function acquireSessionWriter(sessionPath: string): Promise<SessionWriterLease> {

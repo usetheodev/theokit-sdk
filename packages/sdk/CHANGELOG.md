@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.33.1
+
+### Patch Changes
+
+- Corrige um lease de sessão que podia ser tomado de um processo vivo.
+
+  O registro de dono é gravado na aquisição e não é renovado a cada escrita, e a versão anterior considerava reclamável qualquer lock mais velho que a janela de heartbeat — inclusive no mesmo host. Na prática isso significava que **toda** sessão que durasse mais que a janela ficava disponível para um segundo escritor, que é exatamente o que o lease existe para impedir.
+
+  No mesmo host a pergunta "o dono ainda existe?" tem resposta exata, e a idade não acrescenta nada a ela. A janela continua valendo entre máquinas diferentes, onde um número de processo não significa nada.
+
 ## 4.33.0
 
 ### Minor Changes
