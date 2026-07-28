@@ -87,6 +87,38 @@ import { disposeSessionMcpClients } from "./real-local-run.js";
  * exigi-la na interface mantém a porta pequena — alargá-la obrigaria todo store externo a
  * implementar um método que a maioria não precisa (ISP).
  */
+/**
+ * Toma o lease de escritor quando o store souber tomá-lo.
+ *
+ * Testar a capacidade em vez de exigi-la na interface mantém a porta de dois métodos que
+ * `types/session-store.ts` declara — um store externo (Postgres, S3) não tem lease de arquivo e não
+ * deve ser obrigado a fingir que tem (ISP).
+ */
+async function adquirirLeaseSePossivel(store: unknown, agentId: string): Promise<void> {
+  const a = (store as { acquire?: (id: string) => Promise<void> }).acquire;
+  if (typeof a !== "function") return;
+  try {
+    await a.call(store, agentId);
+  } catch (err) {
+    // `SessionBusyError` PROPAGA — é o ponto inteiro: outro processo detém a sessão, e quem
+    // chamou precisa decidir (o `exec` forka para um id novo).
+    if (err instanceof Error && err.name === "SessionBusyError") throw err;
+    // Qualquer outra falha de I/O (EACCES num diretório read-only, ENOSPC) **não** é disputa: não
+    // há segundo escritor, há um lugar onde nada se escreve. Derrubar o init nesse caso trocaria
+    // "sem proteção contra concorrência" por "agente não sobe" — e a gravação em si já é
+    // best-effort por contrato, então o turno seguiria igual sem o lease.
+    //
+    // Medido: nove testes de personality usam um `baseDir` sob `/var/empty`, onde o `mkdir` do
+    // lease falha. Eles nunca escrevem transcript; exigir o lease ali seria exigir permissão para
+    // proteger um arquivo que não existe.
+    process.stderr.write(
+      `[theokit-sdk] writer lease unavailable for ${agentId} (${
+        err instanceof Error ? err.message : String(err)
+      }) — proceeding without single-writer protection\n`,
+    );
+  }
+}
+
 async function disposeSessionStore(store: unknown): Promise<void> {
   const d = (store as { dispose?: () => Promise<void> }).dispose;
   if (typeof d === "function") await d.call(store);
@@ -225,6 +257,13 @@ export class LocalAgent implements SDKAgent {
     );
     // SE40 — hydrate persisted session history from the native transcript so a
     // resumed agent sees the conversation from the previous process.
+    // M95 — o lease de escritor é tomado no INIT, antes de qualquer turno.
+    //
+    // Aqui, e não no `appendRecords`: o contrato de `SessionStore` torna a rejeição de append
+    // best-effort (logada em stderr, não lançada), então adquirir lá fazia o `SessionBusyError`
+    // ser engolido e o turno do usuário sumir em silêncio. No init o erro chega a quem pode
+    // decidir — o `exec` forka para um id novo, que é o que a mensagem do erro prescreve.
+    await adquirirLeaseSePossivel(this.sessionStore, this.agentId);
     await hydrateSession(this.agentId, { store: this.sessionStore, cwd: this.workspaceCwd });
     // ADR D163 — hydrate previously-active personality slug (no-op if none).
     await this.personalityStore.hydrate(this.agentId);

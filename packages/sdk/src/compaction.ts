@@ -356,11 +356,16 @@ export interface EffectiveContextWindow {
 /**
  * Teto absoluto de janela declarada, usado quando não há entrada de catálogo para comparar.
  *
- * 2M tokens — acima da maior janela publicada por qualquer provider hoje com folga larga, então
- * não recusa nada legítimo; e bem abaixo de um erro de digitação típico (um zero a mais em 400k dá
- * 4M). O teto existe para transformar um typo em orçamento conservador em vez de em fail-OPEN.
+ * **10M**, não 2M. A primeira versão usou 2M com a justificativa de estar "acima da maior janela
+ * publicada com folga larga" — e a revisão adversarial mediu o contrário: o Llama 4 Scout publica
+ * **10M**, e chega justamente por OpenRouter, que é o provider **sem** catálogo, isto é, o caso que
+ * este teto existe para cobrir. O usuário perderia 80% da janela declarada, em silêncio.
+ *
+ * O teto continua servindo ao que motiva sua existência — um zero a mais em 400k dá 4M, que passa;
+ * dois zeros dão 40M, que não. Um limite que recusa configuração legítima é pior que limite nenhum,
+ * porque o fail-OPEN é visível quando acontece e a perda silenciosa de 80% não é.
  */
-export const TETO_ABSOLUTO_DE_JANELA = 2_000_000;
+export const TETO_ABSOLUTO_DE_JANELA = 10_000_000;
 
 export function resolveEffectiveContextWindow(
   input: EffectiveContextWindowInput,

@@ -70,9 +70,17 @@ describe("M95 — o clamp existe TAMBÉM sem catálogo (H2 da revisão)", () => 
   it("um override absurdo sem catálogo é limitado pelo teto absoluto", () => {
     // O cenário é um zero a mais: `context_window = 4000000` em vez de 400000. Antes, sem entrada
     // de catálogo, o valor passava inteiro e o agente nunca compactava até o provider recusar.
-    const r = resolveWindowForRun("openrouter/sem-catalogo", 10_000_000);
+    // Dois zeros a mais em 400k. Um zero a mais (4M) é configuração plausível e passa.
+    const r = resolveWindowForRun("openrouter/sem-catalogo", 400_000_000);
     expect(r.clamped, "passou sem limite — fail-OPEN silencioso").toBe(true);
     expect(r.window).toBeLessThanOrEqual(TETO_ABSOLUTO_DE_JANELA);
+  });
+
+  it("a janela real do Llama 4 Scout (10M) NÃO é recusada — ela chega por OpenRouter", () => {
+    // O teto anterior era 2M e clampearia isto para 2M: perda silenciosa de 80% da janela
+    // declarada, justamente no provider sem catálogo que o teto existe para cobrir.
+    const r = resolveWindowForRun("openrouter/llama-4-scout", 10_000_000);
+    expect(r.clamped).toBe(false);
   });
 
   it("um override plausível sem catálogo NÃO é tocado", () => {

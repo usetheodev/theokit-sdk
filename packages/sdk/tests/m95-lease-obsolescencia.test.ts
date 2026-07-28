@@ -11,7 +11,7 @@
  * porque é o único sinal que não mente.
  */
 
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { hostname, tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -119,5 +119,13 @@ describe("M95 — um dono VIVO nunca perde o lease por idade", () => {
       mtime: Date.now() - JANELA_DE_HEARTBEAT_MS * 10,
     });
     await expect(acquireSessionWriter(p)).rejects.toBeInstanceOf(SessionBusyError);
+  });
+});
+
+describe("M95/LOW-1 — o lock não pode ser forjado por outro usuário", () => {
+  it("nasce 0600 — com 0664 outro usuário do grupo sobrescreveria e forjaria posse", async () => {
+    const p = novoCaminho();
+    criados.push(await acquireSessionWriter(p));
+    expect(statSync(`${p}.writer.lock`).mode & 0o077).toBe(0);
   });
 });

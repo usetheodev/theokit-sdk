@@ -1,5 +1,21 @@
 # Changelog
 
+## 4.34.0
+
+### Minor Changes
+
+- O lease de escritor passa a ser tomado na abertura da sessão, não na primeira gravação.
+
+  **Corrige uma perda silenciosa de turno.** A gravação de sessão é best-effort por contrato — uma rejeição é registrada em stderr, nunca lançada a quem chamou. Tomar o lease ali fazia o erro de "sessão ocupada" ser engolido: em vez de dois escritores intercalarem linhas, o perdedor **perdia o turno inteiro**, sem nada em disco e sem como reagir. Na abertura, o erro chega a quem pode decidir — e a decisão que ele prescreve é criar uma sessão derivada.
+
+  Uma falha de I/O que **não** seja disputa (diretório sem permissão, disco cheio) não derruba mais a abertura do agente: não há segundo escritor a evitar, e a gravação já era best-effort.
+
+  ### Corrigido
+
+  - **As caches de sessão em memória voltam a ser apagadas de fato.** Três dos quatro mapas são endereçados por uma chave composta e estavam sendo removidos por outra: na prática, nunca eram apagados. E o descarte por limite deixava a marca de hidratação para trás, fazendo uma sessão descartada voltar **vazia** em vez de recarregar do disco.
+  - **O arquivo de trava nasce restrito ao dono.** Com a permissão anterior, outro usuário do mesmo grupo podia sobrescrevê-lo e forjar a posse da sessão — a partir daí o dono legítimo é quem passava a ser recusado.
+  - **O limite máximo de janela de contexto declarada subiu para 10M.** O valor anterior recusava a janela real de um modelo publicado — que chega exatamente pelo provider sem catálogo, isto é, o caso que o limite existe para cobrir. Perder 80% da janela em silêncio é pior que o excesso que o limite evita.
+
 ## 4.33.1
 
 ### Patch Changes

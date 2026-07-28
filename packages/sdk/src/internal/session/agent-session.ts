@@ -74,10 +74,28 @@ function aplicarTeto(): void {
     const maisAntiga = sessions.keys().next().value;
     if (maisAntiga === undefined) return;
     sessions.delete(maisAntiga);
-    hydratedKeys.delete(maisAntiga);
-    pendingWrites.delete(maisAntiga);
-    recordCounts.delete(maisAntiga);
+    esquecerEscrituracao(maisAntiga);
   }
+}
+
+/**
+ * Apaga a escrituração de um `agentId` em TODOS os `cwd` onde ele aparece.
+ *
+ * Os três mapas são chaveados por `transcriptKey(cwd, agentId)`; `sessions` é o único chaveado pelo
+ * `agentId` cru. A primeira versão do teto apagava os três com a chave de `sessions` — isto é, não
+ * apagava nada — e deixava `hydratedKeys` **órfã**. Como `hydrateSession` retorna cedo quando a
+ * marca está lá, uma sessão evictada voltava **vazia** em vez de reidratar do disco: amnésia
+ * silenciosa, e regressão nova do M95, porque antes dele nada evictava.
+ *
+ * O teto só conhece o `agentId`, não o `cwd`, então varre pelo sufixo — que é o formato que
+ * `transcriptKey` produz. Varredura em vez de índice porque estes mapas têm dezenas de entradas,
+ * não milhares: um índice inverso aqui seria estrutura nova para um problema que não existe.
+ */
+function esquecerEscrituracao(agentId: string): void {
+  const sufixo = transcriptKey("", agentId).slice(0 - agentId.length - 2);
+  for (const k of [...hydratedKeys]) if (k.endsWith(sufixo)) hydratedKeys.delete(k);
+  for (const k of [...pendingWrites.keys()]) if (k.endsWith(sufixo)) pendingWrites.delete(k);
+  for (const k of [...recordCounts.keys()]) if (k.endsWith(sufixo)) recordCounts.delete(k);
 }
 
 /**
@@ -99,9 +117,13 @@ export function descartarSessao(cwd: string, agentId: string): number {
   // chama `getSessionMessages(agentId)` após `agent.dispose()`. Apagá-lo aqui devolvia lista vazia
   // e quebrava dois goldens. Quem o limita é o teto LRU acima; os três abaixo são escrituração
   // pura, sem leitor pós-dispose.
+  //
+  // A chave é `transcriptKey(cwd, agentId)` nos TRÊS — não o `agentId` cru. A primeira versão
+  // apagava dois deles pelo `agentId` e portanto **nunca apagava nada**; o teste não pegava porque
+  // afirmava apenas que a SEGUNDA chamada devolve 0, o que é verdade mesmo assim.
   if (hydratedKeys.delete(chave)) removidas++;
-  if (pendingWrites.delete(agentId)) removidas++;
-  if (recordCounts.delete(agentId)) removidas++;
+  if (pendingWrites.delete(chave)) removidas++;
+  if (recordCounts.delete(chave)) removidas++;
   return removidas;
 }
 
