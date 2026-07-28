@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.33.0
+
+### Minor Changes
+
+- M95 — o escritor único passa a existir de fato, e as caches de sessão ganham dono.
+
+  - **A garantia de escritor único está ligada.** Ela existia como função desde a versão que a introduziu e não tinha **nenhum** chamador: o transcript nunca foi protegido. Agora o store a adquire na primeira gravação e a solta ao encerrar.
+  - **Um processo que morreu deixa de trancar a sessão para sempre.** O lock não registrava dono, então uma interface encerrada abruptamente bloqueava o usuário fora da própria sessão sem caminho de recuperação. O lock passa a gravar `{pid, hostname, mtime}`, e um dono morto — ou um lock mais velho que a janela de heartbeat — cede o lugar. Entre máquinas diferentes só a janela vale, porque um número de processo não significa nada fora do host onde nasceu.
+  - **As caches de sessão em memória param de crescer sem limite.** Duas das quatro nunca eram apagadas por sessão; agora todas caem no encerramento do agente, e a conversa em cache respeita um teto com descarte da menos recente.
+
+  ### Corrigido
+
+  - **Uma janela de contexto declarada absurdamente alta volta a ser limitada mesmo sem entrada de catálogo.** O limite só existia quando havia catálogo — e a razão de ser da declaração é justamente o modelo que não tem. Um zero a mais na configuração fazia o agente nunca compactar até o provider recusar o turno.
+  - **A resolução de provider a partir do id de modelo passa a usar o parser canônico**, então aliases, maiúsculas e espaços resolvem como em todo o resto do SDK. A versão anterior refazia a separação à mão e não reconhecia sete formas válidas.
+
 ## 4.32.0
 
 ### Minor Changes

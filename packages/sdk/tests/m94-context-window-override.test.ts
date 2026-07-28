@@ -17,6 +17,7 @@
  * recebe o que o lifecycle tem em mãos, e um mutante que pare de repassar o override reprova aqui.
  */
 import { describe, expect, it } from "vitest";
+import { TETO_ABSOLUTO_DE_JANELA } from "../src/compaction.js";
 import { getCatalogModelInfo } from "../src/internal/providers/catalog-loader.js";
 import { resolveWindowForRun } from "../src/internal/runtime/lifecycle/post-run-lifecycle.js";
 
@@ -62,5 +63,30 @@ describe("M94 — resolveWindowForRun", () => {
     // Negativo/zero como override produziria um orçamento que dispara compactação a cada turno.
     expect(resolveWindowForRun("x/y", 0).source).toBe("fallback");
     expect(resolveWindowForRun("x/y", -1).source).toBe("fallback");
+  });
+});
+
+describe("M95 — o clamp existe TAMBÉM sem catálogo (H2 da revisão)", () => {
+  it("um override absurdo sem catálogo é limitado pelo teto absoluto", () => {
+    // O cenário é um zero a mais: `context_window = 4000000` em vez de 400000. Antes, sem entrada
+    // de catálogo, o valor passava inteiro e o agente nunca compactava até o provider recusar.
+    const r = resolveWindowForRun("openrouter/sem-catalogo", 10_000_000);
+    expect(r.clamped, "passou sem limite — fail-OPEN silencioso").toBe(true);
+    expect(r.window).toBeLessThanOrEqual(TETO_ABSOLUTO_DE_JANELA);
+  });
+
+  it("um override plausível sem catálogo NÃO é tocado", () => {
+    const r = resolveWindowForRun("openrouter/sem-catalogo", 400_000);
+    expect(r.clamped).toBe(false);
+    expect(r.window).toBe(Math.floor(400_000 * 0.95));
+  });
+
+  it("o catálogo continua sendo o teto preferido quando existe", () => {
+    const comCatalogo = MODELOS_CANDIDATOS.find(
+      (m) => getCatalogModelInfo(m)?.limit?.context !== undefined,
+    );
+    const janela = getCatalogModelInfo(comCatalogo as string)?.limit?.context as number;
+    const r = resolveWindowForRun(comCatalogo as string, TETO_ABSOLUTO_DE_JANELA - 1);
+    expect(r.window).toBe(Math.floor(janela * 0.95));
   });
 });

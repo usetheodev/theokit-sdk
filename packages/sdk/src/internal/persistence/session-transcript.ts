@@ -230,7 +230,7 @@ function blockToPart(b: Block): LlmContentPart | undefined {
 /** Map one record to an LlmMessage; `undefined` for non-conversational (system) records. */
 function recordToMessage(rec: SessionRecord): LlmMessage | undefined {
   if (rec.type !== "user" && rec.type !== "assistant") return undefined;
-  const blocks = (rec.message?.content as Block[] | undefined) ?? [];
+  const blocks = rec.message?.content ?? [];
   const parts = blocks.map(blockToPart).filter((p): p is LlmContentPart => p !== undefined);
   return { role: rec.type, content: parts };
 }

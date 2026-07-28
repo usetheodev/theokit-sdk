@@ -1,3 +1,4 @@
+import { parseModelId } from "./internal/llm/model-identifier.js";
 import type { Plugin } from "./internal/plugins/types.js";
 import { registerBuiltins } from "./internal/providers/builtin/index.js";
 import { listProviders } from "./internal/providers/registry.js";
@@ -88,9 +89,17 @@ export class Provider {
    * @public
    */
   static forModel(modelId: string): Plugin | undefined {
-    const corte = modelId.indexOf("/");
-    if (corte <= 0) return undefined;
-    const nome = modelId.slice(0, corte);
-    return Provider.builtins().find((p) => p.name === nome);
+    // Delega ao `parseModelId`, que é o dono canônico da gramática — o DoD do M94 pedia
+    // exatamente isso ("reusando o parser de id do próprio SDK para que a gramática tenha UM
+    // dono") e a primeira versão refez `indexOf`/`slice` inline, reinventando o dono ao lado dele.
+    //
+    // A revisão adversarial mediu o custo: 7 de 8 divergências. `lm-studio/qwen3` resolve para o
+    // builtin real `lmstudio` pelo parser e para NADA pelo slice — e como o consumidor passou a
+    // lançar quando não há provider, um comando customizado que funcionava antes do M94 passaria a
+    // falhar. `Anthropic/…`, `␣openai/…`, `llama.cpp/…` idem. E o inverso: `openai/` (nome vazio) o
+    // parser rejeita e o slice aceitava.
+    const { provider } = parseModelId(modelId);
+    if (provider === undefined) return undefined;
+    return Provider.builtins().find((p) => p.name === provider);
   }
 }

@@ -71,6 +71,14 @@ const SINK_PATTERNS: Sink[] = [
  * - `internal/mcp/token-storage.ts` — writes encrypted OAuth tokens
  *   inside `~/.theokit/mcp-tokens.json`; redacting here would corrupt
  *   the persisted bundle. File perm 0600 + keychain fallback (D41).
+ * - `internal/persistence/session-writer.ts` — M95: grava o DONO do lease no `.writer.lock`
+ *   (`{pid, hostname, mtime}`). Nenhum dado do usuário, da conversa ou do provider entra ali — são
+ *   três campos gerados pelo próprio processo, e são exatamente o que torna um lock órfão
+ *   reclamável em vez de trancar a sessão para sempre. Redigi-los destruiria a única informação
+ *   que o arquivo existe para carregar.
+ *
+ *   RESÍDUO DECLARADO: como as demais, esta entrada é por ARQUIVO — um sink novo adicionado a
+ *   `session-writer.ts` no futuro escaparia do gate. Hoje o arquivo tem um único `writeFileSync`.
  * - `internal/persistence/file-lock.ts` — writes companion lockfile
  *   with empty content for proper-lockfile semantics; no payload.
  * - `internal/llm/*` clients — call `setAttributes` on local nooperands,
@@ -117,6 +125,7 @@ const WHITELIST = new Set<string>([
   "internal/persistence/atomic-write.ts",
   "internal/persistence/jsonl.ts",
   "internal/persistence/exclusive-create.ts",
+  "internal/persistence/session-writer.ts",
   "internal/persistence/file-lock.ts",
   "internal/persistence/schema-version.ts",
   "internal/memory/storage/transcript-store.ts",

@@ -49,6 +49,18 @@ describe("M94 — Provider.forModel", () => {
     expect(Provider.forModel("naoexiste/algum-modelo")).toBeUndefined();
   });
 
+  it("aliases e caixa resolvem — a gramática tem UM dono", () => {
+    // Medido na revisão adversarial: 7 de 8 divergências entre o parser canônico e o slice inline.
+    // `lm-studio` é alias de `lmstudio`, que É builtin; recusá-lo faria um comando customizado que
+    // funcionava antes do M94 passar a LANÇAR, porque o consumidor agora falha alto.
+    expect(Provider.forModel("Anthropic/claude-sonnet-4-5")?.name).toBe("anthropic");
+    expect(Provider.forModel(" openai/gpt-4o")?.name).toBe("openai");
+  });
+
+  it("nome de modelo vazio é recusado — o slice inline aceitava", () => {
+    expect(Provider.forModel("openai/")).toBeUndefined();
+  });
+
   it("a barra final não vira provider vazio", () => {
     expect(Provider.forModel("/modelo")).toBeUndefined();
   });
