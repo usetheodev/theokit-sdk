@@ -264,9 +264,20 @@ export class LocalAgent implements SDKAgent {
     // ser engolido e o turno do usuário sumir em silêncio. No init o erro chega a quem pode
     // decidir — o `exec` forka para um id novo, que é o que a mensagem do erro prescreve.
     await adquirirLeaseSePossivel(this.sessionStore, this.agentId);
-    await hydrateSession(this.agentId, { store: this.sessionStore, cwd: this.workspaceCwd });
-    // ADR D163 — hydrate previously-active personality slug (no-op if none).
-    await this.personalityStore.hydrate(this.agentId);
+    // Tudo depois da aquisição roda sob `try`: um init que falha DEPOIS de tomar o lease deixaria
+    // o lock com o próprio processo — vivo, mesmo host — e `reclamavel` seria `false` para sempre.
+    // A sessão ficaria trancada pelo tempo de vida do processo, sem crash e sem recuperação: a
+    // mesma classe que este milestone existe para eliminar, entrando por outra porta.
+    //
+    // Medido com transcript ilegível (EACCES), que `readRecords` deve lançar por contrato.
+    try {
+      await hydrateSession(this.agentId, { store: this.sessionStore, cwd: this.workspaceCwd });
+      // ADR D163 — hydrate previously-active personality slug (no-op if none).
+      await this.personalityStore.hydrate(this.agentId);
+    } catch (err) {
+      await disposeSessionStore(this.sessionStore);
+      throw err;
+    }
   }
 
   /** T4.2 — expose PluginManager so agent-loop can fire pre_tool_call hooks. @internal */

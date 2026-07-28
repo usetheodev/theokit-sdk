@@ -1,5 +1,15 @@
 # Changelog
 
+## 4.34.1
+
+### Patch Changes
+
+- Corrige três formas de a trava de sessão ficar presa ou ser ignorada.
+
+  - **Uma abertura de sessão que falha depois de tomar a trava agora a solta.** O dono ficava sendo o próprio processo — vivo, mesma máquina — e a trava nunca mais era considerada obsoleta: a sessão ficava bloqueada pelo tempo de vida do processo, sem crash e sem caminho de recuperação. É a mesma situação que a trava existe para eliminar, entrando por outra porta.
+  - **Uma trava que existe mas não pode ser lida deixa de ser tratada como inexistente.** Não saber quem é o dono não é o mesmo que não haver dono: a versão anterior seguia em frente sem proteção, com outro escritor ativo na mesma sessão. Em diretório compartilhado isso era o caminho comum, porque a permissão restrita torna a trava alheia ilegível por desenho.
+  - **A permissão restrita passa a valer também para uma trava herdada de versão anterior**, que antes mantinha a permissão antiga depois de ser reclamada.
+
 ## 4.34.0
 
 ### Minor Changes
