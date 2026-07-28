@@ -29,7 +29,7 @@
  * @internal
  */
 
-import { closeSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
 import { hostname } from "node:os";
 
 import { TheokitAgentError } from "../../errors.js";
@@ -68,19 +68,46 @@ export interface SessionWriterLease {
  * processes, not just across async tasks in one process.
  */
 /**
- * Janela de heartbeat: um lock mais velho que isto é considerado obsoleto.
+ * Janela de obsolescência **entre máquinas** — e só entre elas.
  *
- * 30 s. Curta o bastante para não trancar o usuário por minutos depois de um crash; longa o
- * bastante para não reclamar o lock de um processo vivo que só está lento em I/O. O dono toca o
- * arquivo a cada aquisição, então um processo ativo nunca cruza a janela.
+ * 30 s a partir da AQUISIÇÃO. O nome "heartbeat" seria mentira: o registro é gravado uma vez, na
+ * tomada do lease, e **não** é renovado a cada escrita. A versão anterior deste comentário dizia
+ * "o dono toca o arquivo a cada aquisição, então um processo ativo nunca cruza a janela" — falso
+ * duas vezes, e a revisão adversarial mediu as duas.
+ *
+ * No **mesmo host** isso não importa: `reclamavel` decide pelo `pid`, que é exato, e a idade não
+ * entra na conta. Entre hosts, importa e é um limite real: um dono remoto **vivo** perde o lease
+ * depois de 30 s, porque não há como perguntar a outra máquina se o processo dela existe.
+ *
+ * **Resíduo declarado, não mecanizado** (a disciplina de `error-handling.md § 4`): renovar o
+ * registro a cada append fecharia essa janela, ao custo de um `write` por turno num arquivo que
+ * hoje é escrito uma vez por sessão. Não foi feito, e o caso multi-host não é o que motiva este
+ * milestone — o enunciado é `exec` e TUI na mesma máquina.
  */
 export const JANELA_DE_HEARTBEAT_MS = 30_000;
 
-/** Quem detém o lock. Gravado como JSON no `.lock`. */
+/** Quem detém o lock. Gravado como JSON no `.writer.lock`. */
 interface DonoDoLock {
   pid: number;
   hostname: string;
   mtime: number;
+}
+
+/**
+ * Grava o dono com permissão restrita ao usuário.
+ *
+ * `0600` porque o lock é uma afirmação de POSSE: com o `0664` que o umask usual produz, outro
+ * usuário do mesmo grupo pode sobrescrever o arquivo e forjar a posse da sessão — e a partir daí o
+ * dono legítimo é quem passa a receber `SessionBusyError`. O conteúdo (`pid`, `hostname`) é de
+ * baixa sensibilidade; o que a permissão protege é a **integridade** do sinal, não o sigilo dele.
+ */
+function gravarDono(lockPath: string, dono: DonoDoLock): void {
+  const fd = openSync(lockPath, "w", 0o600);
+  try {
+    writeSync(fd, JSON.stringify(dono));
+  } finally {
+    closeSync(fd);
+  }
 }
 
 /** Lê o dono do lock. `undefined` quando o arquivo sumiu ou o conteúdo é ilegível. */
@@ -163,18 +190,19 @@ export async function acquireSessionWriter(sessionPath: string): Promise<Session
   const meu: DonoDoLock = { pid: process.pid, hostname: hostname(), mtime: Date.now() };
   let fd: number;
   try {
-    fd = openSync(lockPath, "wx");
+    // O modo vale na CRIAÇÃO — o `w` de `gravarDono` não altera arquivo existente.
+    fd = openSync(lockPath, "wx", 0o600);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
     // M95 — o lock existe. Até aqui isso bastava para recusar, e era o defeito: uma TUI morta por
     // SIGKILL trancava o usuário para fora da própria sessão PERMANENTEMENTE, sem caminho de
     // recuperação documentado. Agora o lock diz quem é o dono, e um dono morto cede o lugar.
     if (!reclamavel(lerDono(lockPath))) throw new SessionBusyError(sessionPath);
-    writeFileSync(lockPath, JSON.stringify(meu));
+    gravarDono(lockPath, meu);
     return criarLease(sessionPath, lockPath);
   }
   closeSync(fd);
-  writeFileSync(lockPath, JSON.stringify(meu));
+  gravarDono(lockPath, meu);
 
   return criarLease(sessionPath, lockPath);
 }

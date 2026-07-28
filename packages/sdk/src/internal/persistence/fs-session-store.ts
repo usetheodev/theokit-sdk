@@ -107,13 +107,7 @@ export class FsSessionStore implements SessionStore {
     const path = transcriptPath(this.#baseDir, this.#cwd, agentId);
     // mkdir BEFORE the lock: withFileLock's companion `<path>.lock` needs the parent dir.
     await mkdir(dirname(path), { recursive: true });
-    // M95 — a garantia de escritor único do M81 finalmente LIGADA. Ela existia como
-    // `acquireSessionWriter` e tinha ZERO chamadores de produção desde o dia em que foi escrita;
-    // o roadmap a registrava como entregue. Adquirido no primeiro append (leitura segue livre) e
-    // solto em `dispose()`.
-    if (!this.#leases.has(agentId)) {
-      this.#leases.set(agentId, await adquirirCompartilhado(path));
-    }
+
     await withFileLock(path, async () => {
       // M93 — acrescenta o DELTA em vez de reescrever o arquivo inteiro.
       //
@@ -141,6 +135,27 @@ export class FsSessionStore implements SessionStore {
       // reescreve o arquivo.
       for (const record of records) appendJsonl(path, record);
     });
+  }
+
+  /**
+   * Toma o lease de escritor da sessão. Lança `SessionBusyError` quando outro processo a detém.
+   *
+   * **Explícito, e NÃO no `appendRecords`** — a revisão adversarial do M95 mediu por que isso
+   * importa: o contrato de `SessionStore` diz que "an `appendRecords` rejection is logged to
+   * stderr, NOT thrown to the caller (best-effort write)". Adquirir ali fazia o `SessionBusyError`
+   * ser **engolido**, e o resultado era pior que o problema original: em vez de dois escritores
+   * intercalarem linhas, o perdedor **perdia o turno em silêncio** — nada em disco, um aviso em
+   * stderr invisível sob a TUI, e o chamador sem como reagir.
+   *
+   * No init o erro chega a quem pode agir: o `exec` forka para um id novo, que é o que a própria
+   * mensagem do erro prescreve. É a diferença entre falhar onde dá para decidir e falhar onde só
+   * dá para perder.
+   */
+  async acquire(agentId: string): Promise<void> {
+    if (this.#leases.has(agentId)) return;
+    const path = transcriptPath(this.#baseDir, this.#cwd, agentId);
+    await mkdir(dirname(path), { recursive: true });
+    this.#leases.set(agentId, await adquirirCompartilhado(path));
   }
 
   /**

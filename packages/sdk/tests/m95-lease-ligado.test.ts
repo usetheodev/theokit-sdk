@@ -36,17 +36,33 @@ function novoStore(baseDir: string): FsSessionStore {
 }
 
 describe("M95 — o lease está ligado", () => {
-  it("o primeiro append adquire o lease", async () => {
+  it("acquire() toma o lease", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
     const store = novoStore(base);
-    await store.appendRecords("ag", [registro("a")]);
+    await store.acquire("ag");
     expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(true);
+  });
+
+  it("appendRecords NUNCA lança SessionBusyError — o turno não some em silêncio", async () => {
+    // BLOCKER-1 da revisão adversarial. O contrato de `SessionStore` diz que rejeição de append é
+    // best-effort: "logged to stderr, NOT thrown to the caller". Adquirir o lease ali fazia o
+    // SessionBusyError ser ENGOLIDO, e o perdedor perdia o turno inteiro sem nada em disco e sem
+    // como reagir — pior que o problema original, que era intercalar linhas.
+    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
+    const path = transcriptPath(base, "/algum/cwd", "ag");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(
+      `${path}.writer.lock`,
+      JSON.stringify({ pid: process.ppid, hostname: hostname(), mtime: Date.now() }),
+    );
+    const store = novoStore(base);
+    await expect(store.appendRecords("ag", [registro("b")])).resolves.toBeUndefined();
   });
 
   it("dispose libera o lease", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
     const store = new FsSessionStore({ baseDir: base, cwd: "/algum/cwd" });
-    await store.appendRecords("ag", [registro("a")]);
+    await store.acquire("ag");
     await store.dispose();
     expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(false);
   });
@@ -63,16 +79,7 @@ describe("M95 — o lease está ligado", () => {
       JSON.stringify({ pid: process.ppid, hostname: hostname(), mtime: Date.now() }),
     );
     const store = novoStore(base);
-    await expect(store.appendRecords("ag", [registro("b")])).rejects.toBeInstanceOf(
-      SessionBusyError,
-    );
-  });
-
-  it("um delta vazio NÃO adquire lease — nada a escrever, nada a trancar", async () => {
-    const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
-    const store = novoStore(base);
-    await store.appendRecords("ag", []);
-    expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(false);
+    await expect(store.acquire("ag")).rejects.toBeInstanceOf(SessionBusyError);
   });
 
   it("ler NÃO adquire lease — leitura concorrente continua livre", async () => {
@@ -85,7 +92,7 @@ describe("M95 — o lease está ligado", () => {
   it("dispose é idempotente", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
     const store = new FsSessionStore({ baseDir: base, cwd: "/algum/cwd" });
-    await store.appendRecords("ag", [registro("a")]);
+    await store.acquire("ag");
     await store.dispose();
     await expect(store.dispose()).resolves.toBeUndefined();
   });
