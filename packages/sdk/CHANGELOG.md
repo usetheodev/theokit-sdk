@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.34.2
+
+### Patch Changes
+
+- Dois refinamentos na trava de sessão.
+
+  - **Uma abertura que falha solta apenas a trava do próprio agente.** Um armazenamento injetado pelo consumidor pode servir vários agentes, e a versão anterior liberava todas as travas dele — um agente que falha ao abrir derrubava a proteção de outro que seguia escrevendo.
+  - **Um caminho de trava que seja um diretório volta a ser recuperável.** Nenhum processo desta biblioteca cria um, e tratá-lo como "dono desconhecido" bloqueava a sessão para sempre — o oposto do que a trava existe para garantir.
+
 ## 4.34.1
 
 ### Patch Changes
