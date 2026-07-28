@@ -29,7 +29,7 @@
  * @internal
  */
 
-import { closeSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
+import { closeSync, fchmodSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
 import { hostname } from "node:os";
 
 import { TheokitAgentError } from "../../errors.js";
@@ -105,6 +105,10 @@ function gravarDono(lockPath: string, dono: DonoDoLock): void {
   const fd = openSync(lockPath, "w", 0o600);
   try {
     writeSync(fd, JSON.stringify(dono));
+    // O `mode` do `open` só vale na CRIAÇÃO. Um `.writer.lock` herdado de uma versão anterior — ou
+    // deixado por um processo com umask diferente — continuaria `0664` depois de reclamado, e a
+    // janela de forja que o modo fecha para locks novos seguiria aberta para os antigos.
+    fchmodSync(fd, 0o600);
   } finally {
     closeSync(fd);
   }
@@ -115,8 +119,18 @@ function lerDono(lockPath: string): DonoDoLock | undefined {
   let bruto: string;
   try {
     bruto = readFileSync(lockPath, "utf8");
-  } catch {
-    return undefined; // sumiu entre o EEXIST e a leitura — corrida benigna, trate como livre
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    // `ENOENT` — sumiu entre o `EEXIST` e a leitura. Corrida benigna: o lock não existe mais.
+    if (code === "ENOENT") return undefined;
+    // Qualquer outra falha de leitura (`EACCES` num diretório compartilhado, `EIO`) é diferente em
+    // espécie: o lock **existe** e nós é que não conseguimos ler o dono. Tratar como livre faria
+    // dois escritores conviverem — precisamente o que o lease existe para impedir —, e o `0600`
+    // que protege o lock contra forja AMPLIA essa superfície: num diretório compartilhado, o lock
+    // do outro usuário é ilegível por desenho.
+    //
+    // Não saber quem é o dono não é o mesmo que não haver dono. Fail-closed.
+    throw new SessionBusyError(lockPath.replace(/\.writer\.lock$/, ""));
   }
   try {
     const d = JSON.parse(bruto) as Partial<DonoDoLock>;
