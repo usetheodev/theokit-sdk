@@ -50,7 +50,59 @@ const recordCounts = new Map<string, number>();
 export function appendSessionMessage(agentId: string, message: SessionMessage): void {
   const existing = sessions.get(agentId) ?? [];
   existing.push(message);
+  // `delete` + `set` reinsere no FIM: `Map` do JS preserva ordem de inserção, então a primeira
+  // chave é sempre a menos recentemente tocada. É o LRU inteiro, sem estrutura nova (rung 2/5 da
+  // parcimônia — a ordenação que precisamos já é garantia da linguagem).
+  sessions.delete(agentId);
   sessions.set(agentId, existing);
+  aplicarTeto();
+}
+
+/**
+ * Teto de sessões mantidas em memória.
+ *
+ * O runtime só lê a sessão **ativa**; o resto é cache puro, reconstruível do transcript em disco.
+ * 32 é folgado de propósito — o caminho primário de remoção é o `descartarSessao()` explícito no
+ * fim da vida do agente, e este teto é rede de segurança contra um processo de vida longa que roda
+ * centenas de sessões (risco #2 do plano: um teto apertado poderia evictar sessão ainda referenciada
+ * por um fluxo assíncrono em voo).
+ */
+export const TETO_DE_SESSOES_EM_CACHE = 32;
+
+function aplicarTeto(): void {
+  while (sessions.size > TETO_DE_SESSOES_EM_CACHE) {
+    const maisAntiga = sessions.keys().next().value;
+    if (maisAntiga === undefined) return;
+    sessions.delete(maisAntiga);
+    hydratedKeys.delete(maisAntiga);
+    pendingWrites.delete(maisAntiga);
+    recordCounts.delete(maisAntiga);
+  }
+}
+
+/**
+ * Apaga a escrituração de módulo do agente e devolve quantas entradas saíram.
+ *
+ * M95 — `invalidateSessionCache` limpava **dois** dos quatro mapas (`sessions`, `hydratedKeys`);
+ * `pendingWrites` e `recordCounts` nunca eram tocados por id, então cresciam pela vida do processo.
+ * Nenhum dos dois é grande por entrada — o vazamento é de contagem, não de volume — mas cache sem
+ * dono da remoção é cache que só cresce.
+ *
+ * Devolve a contagem para que o chamador possa provar a remoção; um segundo descarte devolve 0,
+ * que é o que torna o teste de idempotência possível sem expor os mapas.
+ */
+export function descartarSessao(cwd: string, agentId: string): number {
+  const chave = transcriptKey(cwd, agentId);
+  let removidas = 0;
+  // `sessions` NÃO é apagado aqui — e a distinção é medida, não estética. Ele é a conversa
+  // legível, e há leitor legítimo DEPOIS do dispose: o golden `two-concurrent-sends-serialize`
+  // chama `getSessionMessages(agentId)` após `agent.dispose()`. Apagá-lo aqui devolvia lista vazia
+  // e quebrava dois goldens. Quem o limita é o teto LRU acima; os três abaixo são escrituração
+  // pura, sem leitor pós-dispose.
+  if (hydratedKeys.delete(chave)) removidas++;
+  if (pendingWrites.delete(agentId)) removidas++;
+  if (recordCounts.delete(agentId)) removidas++;
+  return removidas;
 }
 
 export function getSessionMessages(agentId: string): SessionMessage[] {

@@ -353,6 +353,15 @@ export interface EffectiveContextWindow {
  *
  * Pure — no catalog lookup, no I/O. The caller supplies the numbers, mirroring `shouldCompact`.
  */
+/**
+ * Teto absoluto de janela declarada, usado quando não há entrada de catálogo para comparar.
+ *
+ * 2M tokens — acima da maior janela publicada por qualquer provider hoje com folga larga, então
+ * não recusa nada legítimo; e bem abaixo de um erro de digitação típico (um zero a mais em 400k dá
+ * 4M). O teto existe para transformar um typo em orçamento conservador em vez de em fail-OPEN.
+ */
+export const TETO_ABSOLUTO_DE_JANELA = 2_000_000;
+
 export function resolveEffectiveContextWindow(
   input: EffectiveContextWindowInput,
 ): EffectiveContextWindow {
@@ -363,9 +372,20 @@ export function resolveEffectiveContextWindow(
   const withMargin = (raw: number): number => Math.floor(raw * input.margin);
 
   if (input.override !== undefined) {
-    const clamped = input.catalog !== undefined && input.override > input.catalog;
-    const raw = clamped ? (input.catalog as number) : input.override;
-    return { window: withMargin(raw), source: "override", clamped };
+    // O catálogo é o teto preferido; sem ele vale o TETO ABSOLUTO.
+    //
+    // M95 (revisão adversarial do M94) — a versão anterior clampeava **apenas** quando havia
+    // entrada de catálogo, e a razão de ser da chave `contextWindow` é justamente o modelo que
+    // NÃO tem entrada (OpenRouter tem zero). Ou seja: o clamp faltava exatamente no caso que
+    // justifica a feature, enquanto a documentação — inclusive um CHANGELOG já publicado —
+    // afirmava sem condicional que "declarar 10M não estoura o provider".
+    //
+    // O cenário concreto é um zero a mais: `context_window = 4000000`. O único guarda era um
+    // `.positive().int()`, que não limita para cima. O agente nunca compactaria até o provider
+    // recusar o turno — o fail-OPEN silencioso que o M77 existe para impedir.
+    const teto = input.catalog ?? TETO_ABSOLUTO_DE_JANELA;
+    const clamped = input.override > teto;
+    return { window: withMargin(clamped ? teto : input.override), source: "override", clamped };
   }
 
   if (input.catalog !== undefined) {

@@ -29,7 +29,8 @@
  * @internal
  */
 
-import { closeSync, openSync, rmSync } from "node:fs";
+import { closeSync, openSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 
 import { TheokitAgentError } from "../../errors.js";
 
@@ -66,19 +67,107 @@ export interface SessionWriterLease {
  * SDK's `withFileLock` builds on. Exclusivity comes from the filesystem, so it holds across
  * processes, not just across async tasks in one process.
  */
+/**
+ * Janela de heartbeat: um lock mais velho que isto é considerado obsoleto.
+ *
+ * 30 s. Curta o bastante para não trancar o usuário por minutos depois de um crash; longa o
+ * bastante para não reclamar o lock de um processo vivo que só está lento em I/O. O dono toca o
+ * arquivo a cada aquisição, então um processo ativo nunca cruza a janela.
+ */
+export const JANELA_DE_HEARTBEAT_MS = 30_000;
+
+/** Quem detém o lock. Gravado como JSON no `.lock`. */
+interface DonoDoLock {
+  pid: number;
+  hostname: string;
+  mtime: number;
+}
+
+/** Lê o dono do lock. `undefined` quando o arquivo sumiu ou o conteúdo é ilegível. */
+function lerDono(lockPath: string): DonoDoLock | undefined {
+  let bruto: string;
+  try {
+    bruto = readFileSync(lockPath, "utf8");
+  } catch {
+    return undefined; // sumiu entre o EEXIST e a leitura — corrida benigna, trate como livre
+  }
+  try {
+    const d = JSON.parse(bruto) as Partial<DonoDoLock>;
+    if (
+      typeof d.pid !== "number" ||
+      typeof d.hostname !== "string" ||
+      typeof d.mtime !== "number"
+    ) {
+      return undefined;
+    }
+    return { pid: d.pid, hostname: d.hostname, mtime: d.mtime };
+  } catch {
+    // JSON ilegível: um lock que ninguém consegue interpretar não pode trancar a sessão para
+    // sempre. Tratar como obsoleto é a escolha recuperável; o custo é o mesmo de um lock velho.
+    return undefined;
+  }
+}
+
+/** O processo existe? `signal 0` não envia nada — só consulta permissão/existência. */
+function processoVivo(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM significa que ele EXISTE e é de outro usuário.
+    return (err as NodeJS.ErrnoException).code === "EPERM";
+  }
+}
+
+/**
+ * O lock pode ser tomado de quem o detém?
+ *
+ * ADR-2 do plano: reclamar por `pid` sozinho tem falso positivo entre máquinas — o mesmo número
+ * existe noutro host, apontando para um processo sem relação. Então:
+ *
+ * - **mesmo host:** o `pid` é autoritativo. Processo morto ⇒ reclamável na hora.
+ * - **outro host:** o `pid` não diz nada aqui. Só a janela de heartbeat vale, porque é o único
+ *   sinal que não mente entre máquinas.
+ */
+function reclamavel(dono: DonoDoLock | undefined): boolean {
+  if (dono === undefined) return true; // ilegível ou sumido
+  const velho = Date.now() - dono.mtime > JANELA_DE_HEARTBEAT_MS;
+  if (dono.hostname !== hostname()) return velho;
+  return velho || !processoVivo(dono.pid);
+}
+
 export async function acquireSessionWriter(sessionPath: string): Promise<SessionWriterLease> {
-  const lockPath = `${sessionPath}.lock`;
+  // M95 — `.writer.lock`, NÃO `.lock`.
+  //
+  // `withFileLock(path, fn)` já usa `<path>.lock` como companheiro. Enquanto o lease não era
+  // chamado de lugar nenhum (o defeito que este milestone corrige) a colisão era teórica; ligá-lo
+  // ao mesmo arquivo faria o lease de vida longa bloquear toda seção crítica curta do mesmo path.
+  //
+  // Dois arquivos porque são duas coisas: `withFileLock` protege uma seção com início e fim; o
+  // lease é POSSE, mantida através de turnos, com `release()` explícito — a distinção que o
+  // docstring do M81 acima já explica.
+  const lockPath = `${sessionPath}.writer.lock`;
+  const meu: DonoDoLock = { pid: process.pid, hostname: hostname(), mtime: Date.now() };
   let fd: number;
   try {
     fd = openSync(lockPath, "wx");
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "EEXIST") {
-      throw new SessionBusyError(sessionPath);
-    }
-    throw err;
+    if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
+    // M95 — o lock existe. Até aqui isso bastava para recusar, e era o defeito: uma TUI morta por
+    // SIGKILL trancava o usuário para fora da própria sessão PERMANENTEMENTE, sem caminho de
+    // recuperação documentado. Agora o lock diz quem é o dono, e um dono morto cede o lugar.
+    if (!reclamavel(lerDono(lockPath))) throw new SessionBusyError(sessionPath);
+    writeFileSync(lockPath, JSON.stringify(meu));
+    return criarLease(sessionPath, lockPath);
   }
   closeSync(fd);
+  writeFileSync(lockPath, JSON.stringify(meu));
 
+  return criarLease(sessionPath, lockPath);
+}
+
+/** O lease em si — `release()` idempotente. Extraído porque a aquisição tem dois caminhos de saída. */
+function criarLease(sessionPath: string, lockPath: string): SessionWriterLease {
   let released = false;
   return {
     sessionPath,

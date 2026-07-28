@@ -46,6 +46,7 @@ import {
 import { SystemPromptPipeline } from "../runtime/system-prompt/pipeline.js";
 import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
 import { validateToolCatalog } from "../runtime/validation/validate-agent-options.js";
+import { descartarSessao } from "../session/agent-session.js";
 import { flushSessionWrites, hydrateSession } from "../session/index.js";
 import { SPAN_NAMES } from "../telemetry/span-names.js";
 import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
@@ -78,6 +79,19 @@ import { disposeSessionMcpClients } from "./real-local-run.js";
  *
  * @internal
  */
+/**
+ * Solta o lease do store, quando ele tiver um.
+ *
+ * `SessionStore` é uma porta de **dois métodos** por contrato (`types/session-store.ts`), e um store
+ * injetado pelo consumidor não é obrigado a ter ciclo de vida. Testar a capacidade em vez de
+ * exigi-la na interface mantém a porta pequena — alargá-la obrigaria todo store externo a
+ * implementar um método que a maioria não precisa (ISP).
+ */
+async function disposeSessionStore(store: unknown): Promise<void> {
+  const d = (store as { dispose?: () => Promise<void> }).dispose;
+  if (typeof d === "function") await d.call(store);
+}
+
 export class LocalAgent implements SDKAgent {
   readonly agentId: string;
   model: ModelSelection | undefined;
@@ -481,6 +495,13 @@ export class LocalAgent implements SDKAgent {
     // in-memory state before the caller proceeds (ADR D17 + D18).
     await flushSessionWrites();
     await flushRegistrySaves(this.workspaceCwd);
+    // M95 — solta o lease de escritor e apaga as QUATRO caches de módulo deste agente.
+    //
+    // A ordem importa: depois do `flushSessionWrites`, senão soltaríamos o lease com escrita
+    // pendente. `invalidateSessionCache` limpava dois dos quatro mapas; `pendingWrites` e
+    // `recordCounts` nunca eram apagados por id e cresciam pela vida do processo.
+    await disposeSessionStore(this.sessionStore);
+    descartarSessao(this.workspaceCwd, this.agentId);
   }
 
   [Symbol.asyncDispose](): Promise<void> {
