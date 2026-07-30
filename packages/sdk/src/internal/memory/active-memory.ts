@@ -1,3 +1,4 @@
+import { diag } from "../diagnostics.js";
 import type { CircuitBreaker } from "../resilience/circuit-breaker.js";
 import { HISTOGRAM_NAMES, SPAN_NAMES } from "../telemetry/span-names.js";
 import { NOOP_SPAN, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
@@ -232,7 +233,7 @@ async function searchOnce(
     return { summary, durationMs: Date.now() - started, status: "ok", hits };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`[theokit-sdk] active-memory recall failed: ${message}\n`);
+    diag(`[theokit-sdk] active-memory recall failed: ${message}\n`);
     return { summary: undefined, durationMs: Date.now() - started, status: "error", hits: [] };
   }
 }

@@ -20,6 +20,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { ConfigurationError } from "../../../errors.js";
+import { diag } from "../../diagnostics.js";
 
 /** The five lifecycle events the SDK runtime actually fires. */
 export type HookEvent = "preRun" | "postRun" | "preToolUse" | "postToolUse" | "stop";
@@ -62,7 +63,7 @@ const warned = new Set<string>();
 export function warnOnce(key: string, message: string): void {
   if (warned.has(key)) return;
   warned.add(key);
-  process.stderr.write(`${message}\n`);
+  diag(`${message}\n`);
 }
 
 /** Reset for tests; not exported via barrel. @internal */

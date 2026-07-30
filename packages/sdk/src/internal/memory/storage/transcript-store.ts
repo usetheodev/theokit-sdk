@@ -1,5 +1,5 @@
 import { join } from "node:path";
-
+import { diag } from "../../diagnostics.js";
 import { atomicWriteJson } from "../../persistence/atomic-write.js";
 import { memoryDir } from "./markdown-store.js";
 
@@ -43,6 +43,6 @@ export async function persistActiveMemoryTranscript(
     await atomicWriteJson(file, transcript);
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`[theokit-sdk] active-memory transcript persist failed: ${message}\n`);
+    diag(`[theokit-sdk] active-memory transcript persist failed: ${message}\n`);
   }
 }

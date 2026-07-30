@@ -37,6 +37,7 @@ import {
   type TaskState,
   type TaskStoreOptions,
 } from "../../types/task.js";
+import { diag } from "../diagnostics.js";
 import { type AsyncSemaphore, createSemaphore } from "../runtime/concurrency/async-semaphore.js";
 import { RingBuffer } from "./ring-buffer.js";
 import { getTaskStoreFor, InMemoryTaskStore, type TaskStore } from "./store.js";
@@ -102,7 +103,7 @@ export function __getSubscribersCountForTests(taskId: string): number {
 
 export function configure(opts: TaskRegistryOptions): void {
   if (state.firstSubmitSeen) {
-    process.stderr.write(
+    diag(
       "[task] configure() ignored — registry already in use; reset via __resetTaskRegistryForTests()\n",
     );
     return;
@@ -120,7 +121,7 @@ function emitToSubscribers(taskId: string, event: TaskEvent): void {
     try {
       cb(event);
     } catch (err) {
-      process.stderr.write(`[task] subscriber threw: ${(err as Error).message}\n`);
+      diag(`[task] subscriber threw: ${(err as Error).message}\n`);
     }
   }
 }
@@ -133,7 +134,7 @@ async function safeUpdate(
     return await state.store.update(taskId, mutate);
   } catch (err) {
     // EC-9: store failure should not swallow the event.
-    process.stderr.write(`[task] store.update failed for ${taskId}: ${(err as Error).message}\n`);
+    diag(`[task] store.update failed for ${taskId}: ${(err as Error).message}\n`);
     return undefined;
   }
 }

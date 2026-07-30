@@ -8,6 +8,7 @@
  * @internal
  */
 
+import { diag } from "../diagnostics.js";
 import { globalSingleton } from "../global-singleton.js";
 import type { ProviderProfile } from "./types.js";
 
@@ -26,16 +27,14 @@ const ALIASES = globalSingleton("theokit-sdk.providers.aliases", () => new Map<s
 
 export function registerProvider(profile: ProviderProfile): void {
   if (REGISTRY.has(profile.name)) {
-    process.stderr.write(`[theokit-sdk] Provider "${profile.name}" overridden by user plugin.\n`);
+    diag(`[theokit-sdk] Provider "${profile.name}" overridden by user plugin.\n`);
   }
   REGISTRY.set(profile.name, profile);
   for (const alias of profile.aliases ?? []) {
     // EC-5: surface alias collision so operators notice mis-routing.
     const previous = ALIASES.get(alias);
     if (previous !== undefined && previous !== profile.name) {
-      process.stderr.write(
-        `[theokit-sdk] Alias "${alias}" collision: was "${previous}", now "${profile.name}".\n`,
-      );
+      diag(`[theokit-sdk] Alias "${alias}" collision: was "${previous}", now "${profile.name}".\n`);
     }
     ALIASES.set(alias, profile.name);
   }

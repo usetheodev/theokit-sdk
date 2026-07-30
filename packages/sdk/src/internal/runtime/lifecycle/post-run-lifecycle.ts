@@ -8,6 +8,7 @@ import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
 import { emitRunEvent } from "../../../types/run-events.js";
 import type { SessionStore } from "../../../types/session-store.js";
+import { diag } from "../../diagnostics.js";
 import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
 import { getCatalogModelInfo } from "../../providers/catalog-loader.js";
@@ -151,7 +152,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(`[theokit-sdk] partial transcript write failed (${agentId}): ${msg}\n`);
+      diag(`[theokit-sdk] partial transcript write failed (${agentId}): ${msg}\n`);
     }
     // Caller observes failures via their own run.wait()/stream(); the
     // mutex still releases via the flushes below.
@@ -248,9 +249,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
-        `[theokit-sdk] session summary write failed (${result.id}): ${message}\n`,
-      );
+      diag(`[theokit-sdk] session summary write failed (${result.id}): ${message}\n`);
     }
   }
 
