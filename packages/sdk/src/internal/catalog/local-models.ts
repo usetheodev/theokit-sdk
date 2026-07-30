@@ -17,6 +17,7 @@
 import { ConfigurationError } from "../../errors.js";
 import type { SDKModel } from "../../types/theokit.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
+import { readErrorResponseBody } from "../http.js";
 
 interface OpenAiModelsResponse {
   object?: string;
@@ -48,13 +49,7 @@ export async function listLocalModelsViaOpenAiCompat(baseUrl: string): Promise<S
     );
   }
   if (!response.ok) {
-    const text = await response.text().catch(() => "");
-    let body: unknown = text;
-    try {
-      body = JSON.parse(text);
-    } catch {
-      // keep as string
-    }
+    const body = await readErrorResponseBody(response);
     const mapped = mapOllamaHttpError({
       providerId: "ollama",
       status: response.status,
