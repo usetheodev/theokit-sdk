@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-
+import { diag } from "../../diagnostics.js";
 import { discoverSkills, type Skill } from "./discover-skills.js";
 import { stripSkillFrontmatter } from "./skill-frontmatter.js";
 
@@ -78,9 +78,7 @@ export class SkillsManager {
     const skillsRoot = this.skillsDir ?? join(this.cwd, ".theokit", "skills");
     const discovered = await discoverSkills(skillsRoot, {
       onInvalidSkill: (info) => {
-        process.stderr.write(
-          `[theokit-sdk] skill ${info.name} skipped (${info.code}): ${info.message}\n`,
-        );
+        diag(`[theokit-sdk] skill ${info.name} skipped (${info.code}): ${info.message}\n`);
       },
     });
     this.skills = this.mergeInline(discovered);

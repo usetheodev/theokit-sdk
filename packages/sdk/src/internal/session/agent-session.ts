@@ -35,6 +35,7 @@ export {
   transcriptKey,
 } from "./session-cache.js";
 
+import { diag } from "../diagnostics.js";
 import { hydratedKeys, sessions, transcriptKey } from "./session-cache.js";
 
 const pendingWrites = new Map<string, Promise<void>>();
@@ -176,9 +177,7 @@ export function persistTurnToTranscript(
       }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
-        `[theokit-sdk] session transcript write failed (${loc.agentId}): ${msg}\n`,
-      );
+      diag(`[theokit-sdk] session transcript write failed (${loc.agentId}): ${msg}\n`);
     }
   });
   pendingWrites.set(

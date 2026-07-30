@@ -16,6 +16,7 @@
 
 import { type CompressibleMessage, estimateTokens } from "../../compaction.js";
 import type { SessionStore } from "../../types/session-store.js";
+import { diag } from "../diagnostics.js";
 import { resolveProviderChain } from "../llm/router.js";
 import {
   detectPrimaryProvider,
@@ -300,9 +301,7 @@ export async function autoCompactIfNeeded(opts: {
     return true;
   } catch (cause) {
     const msg = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(
-      `[theokit-sdk] auto-compaction failed (left transcript untouched): ${msg}\n`,
-    );
+    diag(`[theokit-sdk] auto-compaction failed (left transcript untouched): ${msg}\n`);
     return false;
   }
 }

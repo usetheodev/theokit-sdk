@@ -19,6 +19,7 @@
  */
 
 import type { SDKAgent } from "../../../types/agent.js";
+import { diag } from "../../diagnostics.js";
 
 export type EvictReason = "lru" | "idle" | "explicit";
 
@@ -110,7 +111,7 @@ export class LiveAgentRegistry {
     if (existing !== undefined && existing.agent !== agent) {
       // Dispose the old entry off the hot path. Errors swallowed per D309.
       void existing.agent.dispose().catch(() => {
-        process.stderr.write(`[theokit-sdk] dispose during overwrite failed (${id})\n`);
+        diag(`[theokit-sdk] dispose during overwrite failed (${id})\n`);
       });
     }
     this.#agents.set(id, { agent, lastUsedAt: Date.now() });
@@ -229,14 +230,14 @@ export class LiveAgentRegistry {
       await agent.dispose();
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(`[theokit-sdk] dispose during eviction failed (${id}): ${msg}\n`);
+      diag(`[theokit-sdk] dispose during eviction failed (${id}): ${msg}\n`);
     }
     if (this.#onEvict !== undefined) {
       try {
         this.#onEvict(id, reason);
       } catch (cause) {
         const msg = cause instanceof Error ? cause.message : String(cause);
-        process.stderr.write(`[theokit-sdk] onEvict listener threw (${id}): ${msg}\n`);
+        diag(`[theokit-sdk] onEvict listener threw (${id}): ${msg}\n`);
       }
     }
   }

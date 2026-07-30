@@ -1,3 +1,5 @@
+import { diag } from "../diagnostics.js";
+
 /**
  * Canonical secret redaction module (ADRs D68-D73).
  *
@@ -31,7 +33,7 @@ function readEnvOnce(): boolean {
 // D70: warn once on opt-out so the user knows they're vulnerable.
 let warnedOptOut = false;
 if (!REDACT_ENABLED && !warnedOptOut) {
-  process.stderr.write(
+  diag(
     "[theokit-sdk] Secret redaction is DISABLED via THEOKIT_REDACT_SECRETS. " +
       "Credentials may leak into errors, telemetry, logs, transcripts.\n",
   );

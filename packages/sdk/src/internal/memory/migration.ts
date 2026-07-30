@@ -1,5 +1,5 @@
 import { access, readFile, unlink } from "node:fs/promises";
-
+import { diag } from "../diagnostics.js";
 import { appendFactToMarkdown, memoryMdPath } from "./storage/markdown-store.js";
 import { legacyMemoryJsonPath, type MemoryConfig, type MemoryFact } from "./types.js";
 
@@ -40,13 +40,11 @@ async function writeMigratedFacts(
   try {
     for (const fact of facts) await appendFactToMarkdown(cwd, fact);
     await unlink(jsonPath).catch(() => undefined);
-    process.stderr.write(
-      `[theokit-sdk] migrated ${facts.length} fact(s) from ${jsonPath} to MEMORY.md\n`,
-    );
+    diag(`[theokit-sdk] migrated ${facts.length} fact(s) from ${jsonPath} to MEMORY.md\n`);
     return { migrated: true, factCount: facts.length };
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`[theokit-sdk] memory migration failed (readonly fs?): ${message}\n`);
+    diag(`[theokit-sdk] memory migration failed (readonly fs?): ${message}\n`);
     return { migrated: false, factCount: 0, reason: "readonly-fs" };
   }
 }
@@ -72,7 +70,7 @@ export async function migrateLegacyJson(
     return { migrated: false, factCount: 0, reason: "no-legacy-json" };
   }
   if (await fileExists(memoryMdPath(cwd))) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] memory migration skipped: both MEMORY.md and legacy JSON exist at ${jsonPath}; leaving both intact\n`,
     );
     return { migrated: false, factCount: 0, reason: "markdown-exists" };

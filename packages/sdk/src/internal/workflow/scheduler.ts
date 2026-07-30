@@ -7,6 +7,7 @@
  */
 
 import { Cron } from "croner";
+import { diag } from "../diagnostics.js";
 
 export interface WorkflowSchedulerOptions {
   schedule: string;
@@ -36,7 +37,7 @@ export class WorkflowScheduler {
         await this._handler();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        process.stderr.write(`[theokit-sdk] WorkflowScheduler error: ${msg}\n`);
+        diag(`[theokit-sdk] WorkflowScheduler error: ${msg}\n`);
       }
     });
   }
