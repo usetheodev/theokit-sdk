@@ -227,6 +227,7 @@ Você domina o M1 quando consegue, em 2 minutos e sem consultar nada, argumentar
 - Descrever o loop iteração por iteração, incluindo o que acontece nas bordas.
 - Enumerar todas as formas de um loop terminar — inclusive as ruins.
 - Reconhecer *doom loop*, truncamento silencioso e a diferença entre eles.
+- Distinguir as três **cadências de controle** — ReAct, turn-based e closed-loop autônomo — pelo critério de quem autoriza o próximo ciclo, e saber o que cada uma exige antes de ir a produção.
 
 ### 2.1 O loop canônico
 
@@ -299,7 +300,101 @@ e `tokens_contexto` **cresce monotonicamente** dentro de um run. Consequências 
 - Reduzir o número de iterações economiza mais que reduzir o tamanho do prompt inicial.
 - Cache de prompt (quando o provider suporta) é a otimização de maior alavancagem em agentes com system prompt grande.
 
+### 2.5 Cadência de controle: quem decide continuar
+
+As seções anteriores descreveram **um** ciclo. Falta o eixo que decide a forma do sistema inteiro: **quando o ciclo recomeça, quem autoriza?** Este eixo é ortogonal aos outros dois que o curso usa — ao padrão de raciocínio (§1.3) e ao grau de determinismo (§6.1) — e é o que separa um chatbot de uma rotina noturna.
+
+Três arquiteturas, em ordem crescente de autonomia:
+
+| | **ReAct** | **Turn-based** | **Closed-loop autônomo** |
+| --- | --- | --- | --- |
+| Escopo do ciclo | uma iteração dentro do run | um run inteiro | vários runs encadeados |
+| Quem continua | o modelo (pede outra ferramenta) | **o humano** (manda a próxima mensagem) | **um avaliador automático** |
+| Quem para | o modelo, ao emitir texto final | o humano, ao não mandar mais nada | o critério de conclusão, o orçamento ou o teto |
+| Latência percebida | segundos | interativa | minutos a horas |
+| Onde erra caro | ferramenta mal descrita | — | **erro se propaga sem testemunha** |
+
+#### ReAct — o ciclo interno
+
+É o loop de §2.1: raciocina → age → observa, repetido dentro de **um** `send`. Você não o "liga"; ele é o que um agente com ferramentas faz. O controle é do modelo, e o limite é externo:
+
+```typescript
+const run = await agent.send("Investigue por que o build quebrou", {
+  maxIterations: 12, // teto de iterações ReAct neste envio (padrão do loop: 8)
+});
+```
+
+O `Lab 1.2` já pede que você escreva esse loop na mão. Ele é a base: os outros dois tipos **contêm** ReAct, não o substituem.
+
+#### Turn-based — o humano fecha o ciclo
+
+O agente executa seu ciclo interno e devolve o resultado. Nada mais acontece até uma nova mensagem. É o padrão de chat, de copiloto, de CLI interativo:
+
+```typescript
+const r1 = await (await agent.send("Encontre o bug em src/auth.ts")).wait();
+// ... o humano lê, avalia, decide ...
+const r2 = await (await agent.send("Corrija e adicione um teste de regressão")).wait();
+```
+
+Parece o modo "menos avançado" e é, na verdade, **o padrão correto para a maioria dos produtos**. A pausa entre turnos não é uma limitação: é o ponto de revisão humana mais barato que existe. Você só deve abrir mão dela quando tiver um avaliador automático confiável para colocar no lugar — e é exatamente isso que o terceiro tipo exige.
+
+Há um caso híbrido importante: o run terminou no teto de iterações (§2.2) e o trabalho ficou **truncado**. Continuar é mecânico, não é decisão de produto — e para isso existe um driver:
+
+```typescript
+const res = await agent.runToCompletion?.("Refatore o módulo de billing", {
+  maxRounds: 5,            // teto de re-envios (padrão 5)
+  continuationPrompt: "continue",
+  onTruncated: ({ round }) => metrics.increment("agent.truncated", { round }),
+});
+
+// terminal: "done" | "step_limit" | "no_progress"
+if (res?.terminal === "step_limit") alertar("não terminou em 5 rodadas");
+```
+
+Note o que ele devolve: `terminal`, `rounds`, `lastResult` e `usage` **somado de todas as rodadas**. Isso é o mínimo honesto para um driver de continuação — sem o `usage` agregado, o custo real de uma tarefa que precisou de 4 re-envios ficaria invisível.
+
+#### Closed-loop autônomo — a máquina fecha o ciclo
+
+Aqui não há humano entre os ciclos. Alguma coisa precisa julgar "já terminou?" e decidir continuar ou parar. No SDK, o julgamento é um LLM-as-judge e o loop é `runUntil`:
+
+```typescript
+for await (const ev of agent.runUntil?.("Todos os testes de billing passando", {
+  maxTurns: 20,                      // teto duro contra loop infinito (padrão 20)
+  tokenBudget: 500_000,              // para com status "budget_limited" ao cruzar
+  maxConsecutiveJudgeFailures: 3,    // juiz ilegível 3× seguidas ⇒ desiste (padrão 3)
+  judgeModel: "openai/gpt-4o-mini",
+  subgoals: ["corrigir o cálculo de imposto", "cobrir o caso de reembolso"],
+  signal: controller.signal,
+}) ?? []) {
+  console.log(ev);
+}
+// GoalResult.status: "completed" | "failed" | "paused" | "budget_limited" | "blocked"
+```
+
+Olhe os cinco status finais. Só **um** é sucesso. Um loop fechado bem desenhado passa a maior parte do tempo de projeto tratando os outros quatro — e `budget_limited` existir como status próprio, em vez de virar `failed`, é a diferença entre "acabou o dinheiro" e "o trabalho está errado". Confundir os dois faz o time investigar o bug errado.
+
+Variantes de gatilho, todas fechadas: `Cron.create(...)` dispara por tempo (§11.4); `SendOptions.completionCheck` julga **um** envio em vez do objetivo inteiro (§10.4); `Squad` e subagentes (§6.4–6.5) fecham o ciclo por delegação — um orquestrador distribui e agrega sem consultar humano.
+
+#### Custos e segurança: por que loop fechado é outra categoria de risco
+
+Nos dois primeiros tipos, um humano vê cada resultado. No terceiro, ninguém vê — e é aí que os modos de falha dos módulos seguintes deixam de ser teoria:
+
+| Risco | Por que só morde no loop fechado | Contenção (módulo) |
+| --- | --- | --- |
+| **Custo desgovernado** | ninguém percebe a 40ª iteração; contexto cresce a cada uma (§2.4) | `tokenBudget`, `budgetTracker`, teto por tenant (§7.2, §11.2) |
+| **Doom loop** | sem humano, repete indefinidamente | guard on por padrão, soft 3 / hard 5 (§2.3) |
+| **Ação destrutiva** | não há confirmação no caminho | permissões fail-closed; `deny` imune a modo (§7.3) |
+| **Injeção indireta** | conteúdo hostil de ferramenta age sem revisão | `toolResultGuard: { delimit: true }` (§5.5) |
+| **Juiz complacente** | o loop declara sucesso sozinho | calibrar o juiz contra rótulos humanos (§10.4) |
+| **Deriva silenciosa** | erro pequeno se acumula por rodadas | eval em CI + `onRunEvent` para auditoria (§10, §4.4) |
+
+O item mais traiçoeiro é o penúltimo: **em loop fechado, o avaliador é a única testemunha.** Um juiz mal calibrado não produz um erro — produz um relatório de sucesso. Por isso §10.4 insiste em medir a concordância do juiz com humanos antes de confiar nele, e por isso `completionCheck` trata juiz ilegível como `complete: false` em vez de assumir aprovação.
+
+**Regra de progressão:** comece turn-based. Só feche o ciclo quando tiver (a) um critério de conclusão que você consegue medir, (b) orçamento com teto rígido, e (c) permissões fail-closed. Faltando qualquer um dos três, o loop fechado é uma forma cara de errar sem ninguém olhando.
+
 ### Labs do Módulo 2
+
+**Lab 2.0 — Os três tipos, o mesmo problema (90 min).** Pegue uma tarefa ("corrija os testes que estão falhando") e implemente as três cadências: turn-based (`send` + `wait`, você decide continuar), continuação mecânica (`runToCompletion`) e fechada (`runUntil` com critério + `tokenBudget`). Compare custo total, tempo de parede e quantas vezes **você** precisou intervir. Escreva qual entregaria em produção e por quê.
 
 **Lab 2.1 — Instrumente o loop (30 min).** Rode um agente com uma ferramenta e conte iterações, tokens por iteração e custo acumulado. Plote (ou apenas tabule) tokens por iteração. Objetivo: **ver o crescimento com os próprios olhos.**
 
@@ -309,7 +404,7 @@ e `tokens_contexto` **cresce monotonicamente** dentro de um run. Consequências 
 
 ### Critério de domínio
 
-Dado um `RunResult` arbitrário, você identifica qual dos sete terminais ocorreu e prescreve a ação correta — sem consultar a tabela.
+Dado um `RunResult` arbitrário, você identifica qual dos sete terminais ocorreu e prescreve a ação correta — sem consultar a tabela. E, dado um requisito de produto, escolhe a cadência de controle (ReAct puro, turn-based ou closed-loop) justificando pelas três pré-condições de §2.5 — critério mensurável, orçamento com teto, permissões fail-closed.
 
 ---
 
@@ -1818,16 +1913,17 @@ import { createReadFileTool, createWriteFileTool, createEditFileTool, createShel
 
 ## D. Glossário
 
-**ACI** — Agent-Computer Interface: o design da superfície de ferramentas exposta ao modelo. · **Doom loop** — repetição de chamadas idênticas sem progresso. · **Guardrail** — processador de entrada/saída que pode bloquear. · **HITL** — human in the loop. · **MCP** — Model Context Protocol, para servidores de ferramenta externos. · **ReAct** — reason + act em loop. · **Skill** — pacote de instrução recuperável por nome/descrição. · **Tripwire** — bloqueio disparado por guardrail. · **Truncamento silencioso** — parar no teto de iterações e parecer concluído. · **Wiring triad** — chamador + teste de integração + métrica de runtime; a definição de "pronto" neste projeto.
+**ACI** — Agent-Computer Interface: o design da superfície de ferramentas exposta ao modelo. · **Cadência de controle** — quem autoriza o próximo ciclo: o modelo (ReAct), o humano (turn-based) ou um avaliador automático (closed-loop). Ver §2.5. · **Closed-loop autônomo** — encadeia runs sem pausa humana; um critério de conclusão decide continuar ou parar (`runUntil`, `Cron`). · **Doom loop** — repetição de chamadas idênticas sem progresso. · **Guardrail** — processador de entrada/saída que pode bloquear. · **HITL** — human in the loop. · **MCP** — Model Context Protocol, para servidores de ferramenta externos. · **ReAct** — reason + act em loop; o ciclo *interno* de um run. · **Skill** — pacote de instrução recuperável por nome/descrição. · **Tripwire** — bloqueio disparado por guardrail. · **Truncamento silencioso** — parar no teto de iterações e parecer concluído. · **Turn-based** — um run por vez; o humano fecha o ciclo mandando a próxima mensagem. · **Wiring triad** — chamador + teste de integração + métrica de runtime; a definição de "pronto" neste projeto.
 
 ## E. Notas de precisão deste documento
 
 1. **`budgetTracker`** — a docstring de `types/agent.ts` diz "somente superfície de tipos, sem enforcement em runtime". Falso: `internal/agent-loop/loop.ts:80` chama `evaluateBudgetGate(...)`, `:109` chama `nextIteration()`, `:365`/`:372` chamam `track(...)`. **O enforcement existe.** Divergência a corrigir no repositório.
 2. **`memoryProvider`** — docstring análoga ("wired to the type surface only"), também **desatualizada**: `internal/agent-loop/loop-context-init.ts:86-88` chama `init(...)`, `loop.ts:156` chama `sync(...)`, `loop.ts:184` chama `dispose(...)`, e `internal/runtime/lifecycle/post-run-lifecycle.ts:234` chama `recordSessionSummary(...)`. **O wiring existe.** A mesma docstring ainda cita `createNoopMemoryProvider()`, fábrica removida no v3.0.0 — o nome atual é `NoopMemoryProvider.create()` (relacionado ao tema do milestone SE50: a migração `X.create()` não foi concluída em docs e templates).
-3. **Método usado para verificar** — toda API deste curso foi conferida contra `packages/sdk/src/types/` e `examples/`. As três divergências acima foram encontradas justamente porque a verificação foi feita contra o código, e não contra a documentação. É o mesmo método que o curso pede de você.
-4. **Runtime cloud** — pré-release (depende do Theo PaaS). Todo exemplo aqui é local.
-5. **Comparativo do M9** — datado (julho/2026), calibrado por pesquisa web; descreve modelos arquiteturais, não versões.
-6. **Contagens** — 502 arquivos-fonte / ~62,6 kLoC no SDK, 629 arquivos de teste / ~71,4 kLoC, 30 sub-entradas de export, 71 exemplos: medidos neste repositório em 2026-07-30. "43 providers" vem do `README.md`, não recontado independentemente.
+3. **Por que `agent.runUntil?.(…)` e `agent.runToCompletion?.(…)` levam `?.`** — esses métodos são **opcionais** na interface `SDKAgent` (`types/sdk-agent.ts` os declara com `?`), assim como `fork`, `streamToCompletion`, `invalidateCache` e `usePersonality`. É a mesma razão de `Run.supports()` existir (§4.5): local e cloud não oferecem o mesmo conjunto. O `?.` nos exemplos não é defensividade decorativa — é o que o tipo exige. Em runtime local, prefira checar a capacidade explicitamente a assumir que está lá.
+4. **Método usado para verificar** — toda API deste curso foi conferida contra `packages/sdk/src/types/` e `examples/`. As duas divergências dos itens 1 e 2 apareceram justamente porque a verificação foi feita contra o código, e não contra a documentação. É o mesmo método que o curso pede de você.
+5. **Runtime cloud** — pré-release (depende do Theo PaaS). Todo exemplo aqui é local.
+6. **Comparativo do M9** — datado (julho/2026), calibrado por pesquisa web; descreve modelos arquiteturais, não versões.
+7. **Contagens** — 502 arquivos-fonte / ~62,6 kLoC no SDK, 629 arquivos de teste / ~71,4 kLoC, 30 sub-entradas de export, 71 exemplos: medidos neste repositório em 2026-07-30. "43 providers" vem do `README.md`, não recontado independentemente.
 
 ## F. Leitura recomendada
 
