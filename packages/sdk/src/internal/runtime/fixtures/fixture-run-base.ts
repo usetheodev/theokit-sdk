@@ -106,6 +106,38 @@ export abstract class FixtureRunBase implements Run {
     while (index < this.script.events.length) {
       yield this.script.events[index++] as SDKMessage;
     }
+    yield* this.terminalErrorEvent();
+  }
+
+  /**
+   * theokit#101 — quando o run termina em erro, `stream()` tem de DIZER.
+   *
+   * O erro sempre existiu: o loop o registra em `ctx.error` e `wait()` devolve
+   * `status: 'error'` com a mensagem. Só o `stream()` não o mencionava — ele drena
+   * `script.events` e para. Uma falha de provider (404 "No endpoints found", auth, timeout)
+   * produzia um turno que parecia bem-sucedido e vazio, em TODA superfície que consome o
+   * stream: HTTP web, MCP, stdio, TUI in-process.
+   *
+   * Erro silencioso é o pior tipo (Regra Inquebrável 8). E a assimetria era o que o tornava
+   * difícil de diagnosticar: quem depurasse por `wait()` via o erro e não reproduziria o
+   * relato de quem depurava pelo stream.
+   *
+   * Emite `SDKStatusMessage` com `status: "ERROR"` — o tipo JÁ EXISTE na união `SDKMessage`
+   * e já é esperado por quem consome. Um tipo novo seria breaking para todo consumidor que
+   * faz switch exaustivo; este é aditivo, e um consumidor que ignore `status` simplesmente
+   * segue como antes — nunca pior que hoje.
+   */
+  private *terminalErrorEvent(): Generator<SDKMessage> {
+    if (this.status !== "error") return;
+    const detail = this.script.errorDetail;
+    yield {
+      type: "status",
+      agent_id: this.agentId,
+      run_id: this.id,
+      status: "ERROR",
+      // Sem mensagem, o consumidor sabe QUE falhou e não O QUÊ — que é metade do defeito.
+      ...(detail?.message !== undefined ? { message: detail.message } : {}),
+    } satisfies SDKMessage;
   }
 
   wait(): Promise<RunResult> {
