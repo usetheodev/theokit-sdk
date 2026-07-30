@@ -228,6 +228,7 @@ Você domina o M1 quando consegue, em 2 minutos e sem consultar nada, argumentar
 - Enumerar todas as formas de um loop terminar — inclusive as ruins.
 - Reconhecer *doom loop*, truncamento silencioso e a diferença entre eles.
 - Distinguir as três **cadências de controle** — ReAct, turn-based e closed-loop autônomo — pelo critério de quem autoriza o próximo ciclo, e saber o que cada uma exige antes de ir a produção.
+- Implementar **HITL** nos dois seams do SDK (gate de ferramenta e suspend de workflow), escolher entre eles pela durabilidade exigida, e desenhar a tela de aprovação que torna a decisão informada.
 
 ### 2.1 O loop canônico
 
@@ -392,6 +393,222 @@ O item mais traiçoeiro é o penúltimo: **em loop fechado, o avaliador é a ún
 
 **Regra de progressão:** comece turn-based. Só feche o ciclo quando tiver (a) um critério de conclusão que você consegue medir, (b) orçamento com teto rígido, e (c) permissões fail-closed. Faltando qualquer um dos três, o loop fechado é uma forma cara de errar sem ninguém olhando.
 
+### 2.6 Aplicação real: onde o loop para e o humano decide
+
+A §2.5 terminou dizendo que só se fecha o ciclo quando há um avaliador confiável. Falta o caso mais comum na prática: **o loop é autônomo, mas uma ação específica dentro dele exige um humano.** Não é o humano conduzindo (turn-based) nem ausente (closed-loop) — é o humano como *gate* de uma ação irreversível.
+
+#### O cenário
+
+Agente de suporte que resolve tickets sozinho: consulta pedido, calcula elegibilidade, responde o cliente. Uma das ferramentas **emite reembolso** — mexe em dinheiro, é irreversível e a política diz que acima de R$ 500 alguém aprova.
+
+O requisito, traduzido para engenharia: `issue_refund` não pode executar sem decisão humana quando `amount > 500`; todo o resto do loop segue autônomo.
+
+#### Dois seams, garantias diferentes
+
+O SDK oferece dois pontos de parada. **Eles não são intercambiáveis** e a diferença é a que mais causa incidente:
+
+| | **Gate de ferramenta** | **Suspend de workflow** |
+| --- | --- | --- |
+| Onde para | antes de despachar a ferramenta | numa fronteira de passo |
+| Sobrevive a restart? | **NÃO** — vive em memória | **SIM** — grava snapshot |
+| Espera | uma `Promise` pendurada no processo | nada pendurado; o processo pode morrer |
+| Janela realista | segundos a minutos | horas a dias |
+| Como o humano responde | mesma instância, via canal vivo | qualquer instância, via `runId` |
+| Custo de errar | aprovação perdida no deploy | — |
+
+**A regra:** se a aprovação pode demorar mais que a vida do seu processo, o gate de ferramenta é a escolha errada — não importa quão conveniente pareça.
+
+#### Seam A — gate de ferramenta (aprovação em segundos)
+
+```typescript
+import { Agent, PermissionEngine, PermissionPlugin, Tool } from "@theokit/sdk";
+import { z } from "zod";
+
+const issueRefund = Tool.create({
+  name: "issue_refund",
+  description: "Issue a refund for an order. Irreversible.",
+  inputSchema: z.object({
+    orderId: z.string().describe("Order id, e.g. 'ORD-12345'."),
+    amount: z.number().positive().describe("Refund amount in BRL."),
+  }),
+  async handler({ orderId, amount }) {
+    await payments.refund(orderId, amount); // já autorizado quando chega aqui
+    return `refunded ${amount} on ${orderId}`;
+  },
+});
+
+// 1) A política é determinística e testável SEM LLM (§7.3).
+const engine = new PermissionEngine([
+  { tool: "issue_refund", action: "ask" }, // "ask" = precisa de decisão
+  { tool: /^(get|list)_/, action: "allow" },
+]);
+
+// 2) O gate resolve o "ask". Ausência de gate num "ask" ⇒ bloqueio fail-closed.
+const gate = PermissionPlugin.create(engine, {
+  mode: "default",
+  canUseTool: async (toolName, input, ctx) => {
+    const amount = Number(input.amount ?? 0);
+    // Abaixo do limite a política não precisa de gente: decide sozinha.
+    if (amount <= 500) return { behavior: "allow" };
+
+    // Acima, pergunta a um humano. `aprovacoes` é SEU código (próxima seção).
+    const decisao = await aprovacoes.pedir({
+      toolName,
+      input,
+      mode: ctx.mode,
+      timeoutMs: 120_000,
+    });
+
+    return decisao.aprovado
+      ? { behavior: "allow" }
+      : { behavior: "deny", message: `Reembolso negado por ${decisao.por}: ${decisao.motivo}` };
+  },
+});
+
+const agent = await Agent.create({
+  apiKey: process.env.OPENROUTER_API_KEY,
+  model: { id: "openai/gpt-4o-mini" },
+  tools: [issueRefund],
+  plugins: [gate],
+  local: { cwd: process.cwd(), sandboxOptions: { enabled: false } },
+});
+```
+
+Três propriedades que valem mais que o código:
+
+1. **A mensagem do `deny` volta para o modelo.** Não é log — é a próxima observação do loop ReAct. "Negado por João: cliente já reembolsado em março" faz o agente explicar ao cliente; um `deny` mudo faz ele tentar de novo (§5.4).
+2. **O `deny` não derruba o run.** O loop continua com essa informação. É política, não erro (§2.2).
+3. **Sem gate, um `ask` bloqueia.** O default é negar, não passar. Um sistema que "libera quando a UI está fora do ar" não é um gate.
+
+Para observar isso fora do canal de conteúdo, use o evento tipado:
+
+```typescript
+const run = await agent.send("Cliente quer reembolso do ORD-991", {
+  onRunEvent: (ev) => {
+    if (ev.type === "permission_denied") auditoria.registrar(ev);
+  },
+});
+```
+
+#### Seam B — suspend de workflow (aprovação em horas ou dias)
+
+Se o gerente aprova só no dia seguinte, nada pode ficar pendurado na memória. Aqui a parada é uma fronteira de passo, e o estado vai para disco:
+
+```typescript
+import { Workflow, agentStep, fn } from "@theokit/sdk/workflow";
+
+const refundFlow = Workflow.create({ name: "refund-approval" })
+  .then(fn("avaliar", async (ticket: { orderId: string; amount: number }) => ticket))
+  .then(
+    fn("portao", async (ticket, ctx) => {
+      const t = ticket as { orderId: string; amount: number };
+      if (t.amount <= 500) return { aprovado: true, por: "política", automatico: true };
+
+      // Grava snapshot e PARA. `suspend` devolve Promise<never>: nada abaixo executa.
+      await ctx.suspend({ aguardando: "aprovacao-humana", ...t });
+      return { aprovado: false }; // inalcançável — o sentinel encerra o passo
+    }),
+  )
+  .then(
+    fn("executar", async (decisao) => {
+      const d = decisao as { aprovado: boolean; por?: string };
+      if (!d.aprovado) return `reembolso negado por ${d.por ?? "humano"}`;
+      return "reembolso emitido";
+    }),
+  )
+  .commit();
+
+// --- processo 1: o ticket chega ---
+const run = await refundFlow.run({ orderId: "ORD-991", amount: 1200 });
+console.log(run.status); // "suspended"
+await filaDeAprovacao.enfileirar({ runId: run.id, orderId: "ORD-991", amount: 1200 });
+
+// --- horas depois, OUTRO processo (deploy no meio, tanto faz) ---
+const retomado = await Workflow.resume({
+  runId: pedido.runId,
+  workflow: refundFlow,
+  payload: { aprovado: true, por: "gerente@empresa.com" },
+});
+console.log(retomado.status, retomado.output); // "completed" · "reembolso emitido"
+```
+
+O `runId` é o **contrato inteiro** entre o agente e a interface humana. É o que você enfileira, mostra na tela e recebe de volta — não um objeto vivo, não uma callback: um identificador que sobrevive a restart.
+
+> **Honestidade sobre a garantia (gap G4 do `ROADMAP.md`).** O suspend é durável, mas o payload é `unknown` — não há estado de aprovação **tipado** (`pending`/`approved`/`denied`/`invalidated`) mantido pelo SDK. Quem modela isso é você, na sua tabela. E o gate do Seam A **não é durável**: morre com o processo. Descrever o tool-gate HITL como durável é o erro que o `CLAUDE.md` deste projeto proíbe explicitamente.
+
+#### A interação com o humano na interface
+
+O que o SDK entrega é o ponto de parada. A ponte até a tela é sua — e tem forma diferente em cada seam.
+
+**Seam A** — há uma `Promise` esperando *neste* processo, então o canal precisa ser vivo e a mesma instância precisa receber a resposta:
+
+```
+[agente]  canUseTool()  ─── pedido ──▶  [servidor]  ── SSE/WebSocket ──▶  [UI]
+                                             ▲                              │
+   Promise pendurada                         └────── POST /aprovar ─────────┘
+   (mesma instância, com timeout)
+```
+
+```typescript
+// Seu código — o SDK não opina sobre transporte.
+const pendentes = new Map<string, { resolve: (d: Decisao) => void }>();
+
+export const aprovacoes = {
+  pedir(req: { toolName: string; input: unknown; mode: string; timeoutMs: number }) {
+    const id = crypto.randomUUID();
+    return new Promise<Decisao>((resolve) => {
+      const timer = setTimeout(
+        // Timeout é NEGAR, nunca aprovar. Ninguém respondeu ⇒ não autorizado.
+        () => { pendentes.delete(id); resolve({ aprovado: false, por: "timeout", motivo: "sem resposta" }); },
+        req.timeoutMs,
+      );
+      pendentes.set(id, { resolve: (d) => { clearTimeout(timer); pendentes.delete(id); resolve(d); } });
+      sse.emitir("aprovacao:pendente", { id, ...req }); // acende o card na UI
+    });
+  },
+  responder(id: string, d: Decisao) {
+    pendentes.get(id)?.resolve(d); // id desconhecido = no-op (já expirou)
+  },
+};
+```
+
+**Seam B** — não há nada pendurado. A UI lê da sua tabela e chama `resume`; qualquer instância serve:
+
+```
+[workflow] ──▶ status "suspended" + runId ──▶ [tabela de aprovações] ──▶ [UI lista pendências]
+                                                        ▲                          │
+                                            Workflow.resume({runId, payload}) ◀─────┘
+```
+
+O que a tela precisa mostrar, nos dois casos — e cada item existe por um motivo:
+
+| Elemento | Por quê |
+| --- | --- |
+| **A ação exata** (`issue_refund`, ORD-991, R$ 1.200) | aprovar sem ver o argumento é carimbar |
+| **Por que parou** (regra `ask` + valor acima de R$ 500) | o humano precisa saber qual política disparou |
+| **Contexto do agente** (o que ele concluiu até aqui) | sem isso a decisão é cega |
+| **Aprovar / Negar + campo de motivo** | o motivo volta ao modelo no `deny` e vira trilha de auditoria |
+| **Prazo restante** (Seam A) | deixa explícito que silêncio = negado |
+| **Quem decidiu e quando** | auditoria; em fluxo financeiro, obrigatório |
+
+Três armadilhas que aparecem sempre nesta tela:
+
+- **Timeout que aprova.** Se ninguém responde, a resposta é *não*. Um gate que libera por cansaço não é gate — e o `HitlMiddleware` interno do SDK segue essa regra (falha ⇒ nega).
+- **Aprovar sem mostrar o argumento.** Um card dizendo "o agente quer usar `issue_refund`" sem o valor treina o humano a clicar em "sim". O objetivo é uma decisão informada, não um clique.
+- **Botão que não volta motivo.** No `deny`, a `message` é a próxima observação do modelo. Negar em silêncio produz nova tentativa — você comprou um doom loop (§2.3) com participação humana.
+
+#### Escolhendo o seam
+
+| Situação | Seam | Motivo |
+| --- | --- | --- |
+| Operador acompanhando ao vivo, decide em segundos | **A** — gate | mais simples, sem persistência |
+| Aprovação assíncrona (gerente, compliance, outro turno) | **B** — suspend | sobrevive a restart e deploy |
+| Serverless / multi-pod | **B** | não há processo estável para segurar a Promise |
+| A ação é reversível e barata | **nenhum** | regra determinística resolve (§7.3) |
+| Precisa dos dois (auto até R$ 500, humano acima) | A **ou** B com o corte no gate | o limite é política, não é HITL |
+
+**Regra de bolso:** o gate de ferramenta é para *interromper*; o suspend de workflow é para *agendar uma decisão*. Confundir os dois é como usar uma variável em memória onde o requisito pedia banco de dados.
+
 ### Labs do Módulo 2
 
 **Lab 2.0 — Os três tipos, o mesmo problema (90 min).** Pegue uma tarefa ("corrija os testes que estão falhando") e implemente as três cadências: turn-based (`send` + `wait`, você decide continuar), continuação mecânica (`runToCompletion`) e fechada (`runUntil` com critério + `tokenBudget`). Compare custo total, tempo de parede e quantas vezes **você** precisou intervir. Escreva qual entregaria em produção e por quê.
@@ -402,9 +619,13 @@ O item mais traiçoeiro é o penúltimo: **em loop fechado, o avaliador é a ún
 
 **Lab 2.3 — Ferramenta tóxica (20 min).** Crie uma ferramenta que devolve 20 KB de texto. Meça o custo de um run de 4 iterações com e sem ela. Escreva a conclusão em uma frase.
 
+**Lab 2.4 — HITL com gate de ferramenta (90 min).** Implemente o Seam A do §2.6: `PermissionEngine` com `ask` em `issue_refund`, `canUseTool` que auto-aprova até R$ 500 e pergunta acima disso. Exponha um endpoint SSE + uma página com um botão Aprovar e um Negar com campo de motivo. Prove três coisas: (a) o `deny` chega ao modelo como observação e muda a resposta ao cliente; (b) o timeout **nega**; (c) removendo o `canUseTool`, o `ask` bloqueia sozinho (fail-closed).
+
+**Lab 2.5 — HITL durável e o teste que separa os seams (90 min).** Implemente o Seam B com `ctx.suspend` + `Workflow.resume`, persistindo `runId` numa tabela. Então faça o teste decisivo: **mate o processo entre a suspensão e a aprovação**, suba de novo e retome pelo `runId`. Repita o mesmo teste no Lab 2.4 e documente o que acontece. Esse par de resultados é a justificativa que você vai usar numa ADR quando alguém propuser o gate de ferramenta para uma aprovação de compliance.
+
 ### Critério de domínio
 
-Dado um `RunResult` arbitrário, você identifica qual dos sete terminais ocorreu e prescreve a ação correta — sem consultar a tabela. E, dado um requisito de produto, escolhe a cadência de controle (ReAct puro, turn-based ou closed-loop) justificando pelas três pré-condições de §2.5 — critério mensurável, orçamento com teto, permissões fail-closed.
+Dado um `RunResult` arbitrário, você identifica qual dos sete terminais ocorreu e prescreve a ação correta — sem consultar a tabela. E, dado um requisito de produto, escolhe a cadência de controle (ReAct puro, turn-based ou closed-loop) justificando pelas três pré-condições de §2.5 — critério mensurável, orçamento com teto, permissões fail-closed. Sobre HITL: você responde "isto sobrevive a um deploy?" antes de escolher o seam, e sabe dizer por que a resposta do gate de ferramenta é *não*.
 
 ---
 
@@ -1913,7 +2134,7 @@ import { createReadFileTool, createWriteFileTool, createEditFileTool, createShel
 
 ## D. Glossário
 
-**ACI** — Agent-Computer Interface: o design da superfície de ferramentas exposta ao modelo. · **Cadência de controle** — quem autoriza o próximo ciclo: o modelo (ReAct), o humano (turn-based) ou um avaliador automático (closed-loop). Ver §2.5. · **Closed-loop autônomo** — encadeia runs sem pausa humana; um critério de conclusão decide continuar ou parar (`runUntil`, `Cron`). · **Doom loop** — repetição de chamadas idênticas sem progresso. · **Guardrail** — processador de entrada/saída que pode bloquear. · **HITL** — human in the loop. · **MCP** — Model Context Protocol, para servidores de ferramenta externos. · **ReAct** — reason + act em loop; o ciclo *interno* de um run. · **Skill** — pacote de instrução recuperável por nome/descrição. · **Tripwire** — bloqueio disparado por guardrail. · **Truncamento silencioso** — parar no teto de iterações e parecer concluído. · **Turn-based** — um run por vez; o humano fecha o ciclo mandando a próxima mensagem. · **Wiring triad** — chamador + teste de integração + métrica de runtime; a definição de "pronto" neste projeto.
+**ACI** — Agent-Computer Interface: o design da superfície de ferramentas exposta ao modelo. · **Cadência de controle** — quem autoriza o próximo ciclo: o modelo (ReAct), o humano (turn-based) ou um avaliador automático (closed-loop). Ver §2.5. · **Closed-loop autônomo** — encadeia runs sem pausa humana; um critério de conclusão decide continuar ou parar (`runUntil`, `Cron`). · **Doom loop** — repetição de chamadas idênticas sem progresso. · **Guardrail** — processador de entrada/saída que pode bloquear. · **HITL** — human in the loop: o humano decide uma ação específica dentro de um loop que segue autônomo. Dois seams no SDK, com garantias diferentes (§2.6): **gate de ferramenta** (`canUseTool` — efêmero, morre com o processo) e **suspend de workflow** (`ctx.suspend` + `Workflow.resume` — durável, retomado por `runId`). · **MCP** — Model Context Protocol, para servidores de ferramenta externos. · **ReAct** — reason + act em loop; o ciclo *interno* de um run. · **Skill** — pacote de instrução recuperável por nome/descrição. · **Tripwire** — bloqueio disparado por guardrail. · **Truncamento silencioso** — parar no teto de iterações e parecer concluído. · **Turn-based** — um run por vez; o humano fecha o ciclo mandando a próxima mensagem. · **Wiring triad** — chamador + teste de integração + métrica de runtime; a definição de "pronto" neste projeto.
 
 ## E. Notas de precisão deste documento
 
