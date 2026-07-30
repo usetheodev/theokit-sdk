@@ -14,7 +14,6 @@ import type {
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { SessionStore } from "../../types/session-store.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
-import { diag } from "../diagnostics.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { FsSessionStore } from "../persistence/fs-session-store.js";
@@ -35,8 +34,7 @@ import {
 import type { MemoryFact } from "../runtime/memory/memory-store.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import type { PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
-import { flushRegistrySaves, updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
-import { liveAgentRegistry } from "../runtime/registry/live-agent-registry.js";
+import { updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
 import type { SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
 import {
@@ -47,13 +45,18 @@ import {
 import { SystemPromptPipeline } from "../runtime/system-prompt/pipeline.js";
 import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
 import { validateToolCatalog } from "../runtime/validation/validate-agent-options.js";
-import { descartarSessao } from "../session/agent-session.js";
-import { flushSessionWrites, hydrateSession } from "../session/index.js";
+import { hydrateSession } from "../session/index.js";
 import { SPAN_NAMES } from "../telemetry/span-names.js";
 import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
+import {
+  adquirirLeaseSePossivel,
+  disposeLocalAgentSession,
+  reloadLocalAgent,
+  soltarLeaseSePossivel,
+} from "./local-agent-lifecycle.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
@@ -71,7 +74,6 @@ import {
 } from "./local-agent-runtime-extensions.js";
 import { executeSendLocked } from "./local-agent-send.js";
 import { registerRunAsTask } from "./local-agent-task-wrap.js";
-import { disposeSessionMcpClients } from "./real-local-run.js";
 
 /**
  * Local SDKAgent implementation. Owns the workspace cwd plus the file-based
@@ -80,57 +82,6 @@ import { disposeSessionMcpClients } from "./real-local-run.js";
  *
  * @internal
  */
-/**
- * Solta o lease do store, quando ele tiver um.
- *
- * `SessionStore` é uma porta de **dois métodos** por contrato (`types/session-store.ts`), e um store
- * injetado pelo consumidor não é obrigado a ter ciclo de vida. Testar a capacidade em vez de
- * exigi-la na interface mantém a porta pequena — alargá-la obrigaria todo store externo a
- * implementar um método que a maioria não precisa (ISP).
- */
-/**
- * Toma o lease de escritor quando o store souber tomá-lo.
- *
- * Testar a capacidade em vez de exigi-la na interface mantém a porta de dois métodos que
- * `types/session-store.ts` declara — um store externo (Postgres, S3) não tem lease de arquivo e não
- * deve ser obrigado a fingir que tem (ISP).
- */
-async function adquirirLeaseSePossivel(store: unknown, agentId: string): Promise<void> {
-  const a = (store as { acquire?: (id: string) => Promise<void> }).acquire;
-  if (typeof a !== "function") return;
-  try {
-    await a.call(store, agentId);
-  } catch (err) {
-    // `SessionBusyError` PROPAGA — é o ponto inteiro: outro processo detém a sessão, e quem
-    // chamou precisa decidir (o `exec` forka para um id novo).
-    if (err instanceof Error && err.name === "SessionBusyError") throw err;
-    // Qualquer outra falha de I/O (EACCES num diretório read-only, ENOSPC) **não** é disputa: não
-    // há segundo escritor, há um lugar onde nada se escreve. Derrubar o init nesse caso trocaria
-    // "sem proteção contra concorrência" por "agente não sobe" — e a gravação em si já é
-    // best-effort por contrato, então o turno seguiria igual sem o lease.
-    //
-    // Medido: nove testes de personality usam um `baseDir` sob `/var/empty`, onde o `mkdir` do
-    // lease falha. Eles nunca escrevem transcript; exigir o lease ali seria exigir permissão para
-    // proteger um arquivo que não existe.
-    diag(
-      `[theokit-sdk] writer lease unavailable for ${agentId} (${
-        err instanceof Error ? err.message : String(err)
-      }) — proceeding without single-writer protection\n`,
-    );
-  }
-}
-
-/** Solta o lease de um agente, quando o store souber soltá-lo por id. */
-async function soltarLeaseSePossivel(store: unknown, agentId: string): Promise<void> {
-  const r = (store as { release?: (id: string) => Promise<void> }).release;
-  if (typeof r === "function") await r.call(store, agentId);
-}
-
-async function disposeSessionStore(store: unknown): Promise<void> {
-  const d = (store as { dispose?: () => Promise<void> }).dispose;
-  if (typeof d === "function") await d.call(store);
-}
-
 export class LocalAgent implements SDKAgent {
   readonly agentId: string;
   model: ModelSelection | undefined;
@@ -140,8 +91,8 @@ export class LocalAgent implements SDKAgent {
   plugins?: { list: () => Promise<PluginMetadata[]> };
   memory?: import("../../types/memory-adapter.js").AgentMemory;
 
-  private readonly options: AgentOptions;
-  private readonly workspaceCwd: string;
+  readonly options: AgentOptions;
+  readonly workspaceCwd: string;
   /**
    * SE40 — base dir for the native Claude-shaped session transcript. Default
    * `~/.theokit`; set `local.baseDir: "~/.claude"` for Claude Code CLI interop.
@@ -152,20 +103,20 @@ export class LocalAgent implements SDKAgent {
    * identical to SE40); `local.sessionStore` injects an external store (Postgres /
    * Redis / KV) so resume works on serverless (ephemeral FS) and multi-host.
    */
-  private readonly sessionStore: SessionStore;
+  readonly sessionStore: SessionStore;
   /**
    * D319: lifecycle AbortController fired on `dispose()`. Composed with the
    * caller's `SendOptions.signal` via `anySignal` so the LLM `fetch()`
    * aborts on either signal (user cancel OR dispose).
    */
-  private readonly lifecycleAbortController = new AbortController();
-  private readonly settingSourcesIncludeProject: boolean;
+  readonly lifecycleAbortController = new AbortController();
+  readonly settingSourcesIncludeProject: boolean;
   private readonly settingSourcesIncludePlugins: boolean;
   private resolvedSubagents: Record<string, AgentDefinition> = {};
   private disposed = false;
   private invalidationPending: { reason: string; at: number } | undefined;
-  private readonly skillsManager: SkillsManager | undefined;
-  private readonly pluginsManager: PluginsManager | undefined;
+  readonly skillsManager: SkillsManager | undefined;
+  readonly pluginsManager: PluginsManager | undefined;
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
   private readonly memoryGlue: LocalAgentMemory;
@@ -522,45 +473,13 @@ export class LocalAgent implements SDKAgent {
   }
 
   async reload(): Promise<void> {
-    if (this.context !== undefined) await this.context.refresh();
-    if (this.skillsManager !== undefined) await this.skillsManager.refresh();
-    if (this.pluginsManager !== undefined) await this.pluginsManager.refresh();
-    this.resolvedSubagents = await loadSubagents(
-      this.workspaceCwd,
-      this.settingSourcesIncludeProject,
-      this.options.agents,
-    );
+    this.resolvedSubagents = await reloadLocalAgent(this);
   }
 
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    // Evict from live cache so the next Agent.getOrCreate(id) builds fresh.
-    liveAgentRegistry.forget(this.agentId);
-    // D319: fire the lifecycle abort so any in-flight LLM `fetch()` cancels.
-    // `abort()` is idempotent — safe to call even when already aborted.
-    this.lifecycleAbortController.abort();
-    // Wait for any in-flight send + post-run lifecycle to release the
-    // per-agent send mutex. Without this, `dispose()` could return before
-    // `writeSessionSummary` finishes, leaving the caller to read a
-    // partially-written `.theokit/memory/sessions/<runId>.md` file.
-    await withCwdMutex(`agent-send:${this.agentId}`, () => Promise.resolve());
-    // M77 — release this session's pooled MCP clients (`mcpLifecycle: 'session'`). A pooled client
-    // outlives the run by design; without this it would outlive the AGENT too, leaving an orphan
-    // child process per server for the life of the host. No-op for the default `'run'` lifecycle,
-    // which never puts anything in the pool.
-    disposeSessionMcpClients(this.agentId);
-    // Now flush any remaining disk writes so the on-disk state matches the
-    // in-memory state before the caller proceeds (ADR D17 + D18).
-    await flushSessionWrites();
-    await flushRegistrySaves(this.workspaceCwd);
-    // M95 — solta o lease de escritor e apaga as QUATRO caches de módulo deste agente.
-    //
-    // A ordem importa: depois do `flushSessionWrites`, senão soltaríamos o lease com escrita
-    // pendente. `invalidateSessionCache` limpava dois dos quatro mapas; `pendingWrites` e
-    // `recordCounts` nunca eram apagados por id e cresciam pela vida do processo.
-    await disposeSessionStore(this.sessionStore);
-    descartarSessao(this.workspaceCwd, this.agentId);
+    await disposeLocalAgentSession(this);
   }
 
   [Symbol.asyncDispose](): Promise<void> {

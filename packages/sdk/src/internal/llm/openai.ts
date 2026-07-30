@@ -2,6 +2,7 @@ import { NetworkError } from "../../errors.js";
 import { diag } from "../diagnostics.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
+import { readErrorResponseBody } from "../http.js";
 import {
   collapseSystemText,
   makeLlmFinish,
@@ -185,13 +186,7 @@ export class OpenAIClient implements LlmClient {
       throw wrapTransportError(fetchErr, { providerId, endpoint: "/v1/chat/completions" });
     }
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
-      let body: unknown = text;
-      try {
-        body = JSON.parse(text);
-      } catch {
-        // not JSON — keep as string for mapper raw field
-      }
+      const body = await readErrorResponseBody(response);
       // T1.1: try Ollama-specific HTTP mapper first; falls through to generic.
       const ollamaMapped = mapOllamaHttpError({
         providerId,
