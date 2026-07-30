@@ -49,13 +49,39 @@ interface Outcome {
   waitError: string | null;
 }
 
+/**
+ * Troca duas variáveis de ambiente e devolve o restaurador. Extraído porque o par
+ * salva/restaura duplicava quatro ramos dentro do corpo do cenário e estourava o limite de
+ * complexidade cognitiva do Biome — e porque `undefined` NÃO pode virar a string "undefined"
+ * ao restaurar, que é o erro clássico deste padrão.
+ */
+function withEnv(vars: Record<string, string>): () => void {
+  const anterior = new Map<string, string | undefined>();
+  for (const [chave, valor] of Object.entries(vars)) {
+    anterior.set(chave, process.env[chave]);
+    process.env[chave] = valor;
+  }
+  return () => {
+    for (const [chave, valor] of anterior) {
+      if (valor === undefined) delete process.env[chave];
+      else process.env[chave] = valor;
+    }
+  };
+}
+
+/** Classifica um chunk do stream como sinal de erro, nas duas formas legítimas. */
+function ehSinalDeErro(chunk: unknown): boolean {
+  const c = chunk as { type?: unknown; status?: unknown };
+  return c.type === "error" || (c.type === "status" && c.status === "ERROR");
+}
+
 async function streamAgainst404(): Promise<Outcome> {
   const { Agent } = await import("../src/index.js");
   const stub = await startNotFoundStub();
-  const prevKey = process.env.ANTHROPIC_API_KEY;
-  const prevUrl = process.env.ANTHROPIC_API_BASE_URL;
-  process.env.ANTHROPIC_API_KEY = "sk-stub";
-  process.env.ANTHROPIC_API_BASE_URL = stub.url;
+  const restaurarEnv = withEnv({
+    ANTHROPIC_API_KEY: "sk-stub",
+    ANTHROPIC_API_BASE_URL: stub.url,
+  });
 
   const outcome: Outcome = {
     chunks: 0,
@@ -72,12 +98,7 @@ async function streamAgainst404(): Promise<Outcome> {
     const run = await agent.send("oi");
     for await (const chunk of run.stream()) {
       outcome.chunks += 1;
-      const c = chunk as { type?: unknown; status?: unknown };
-      // Duas formas legítimas de sinalizar erro no stream: um chunk `error` (forma da camada
-      // @theokit/agents) ou um `status` terminal `ERROR` (forma que a união SDKMessage já tem).
-      if (c.type === "error" || (c.type === "status" && c.status === "ERROR")) {
-        outcome.errorChunks += 1;
-      }
+      if (ehSinalDeErro(chunk)) outcome.errorChunks += 1;
     }
     // O MESMO run, pela outra superfície: `wait()` conhece o erro?
     const settled = (await run.wait()) as { status?: string; error?: { message?: string } };
@@ -86,10 +107,7 @@ async function streamAgainst404(): Promise<Outcome> {
   } catch (err) {
     outcome.threw = err instanceof Error ? err.message : String(err);
   } finally {
-    if (prevKey === undefined) delete process.env.ANTHROPIC_API_KEY;
-    else process.env.ANTHROPIC_API_KEY = prevKey;
-    if (prevUrl === undefined) delete process.env.ANTHROPIC_API_BASE_URL;
-    else process.env.ANTHROPIC_API_BASE_URL = prevUrl;
+    restaurarEnv();
     stub.server.close();
   }
   return outcome;
