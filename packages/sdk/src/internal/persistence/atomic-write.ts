@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, open, rename, statfs, unlink } from "node:fs/promises";
 import { dirname } from "node:path";
+import { diag } from "../diagnostics.js";
 
 // T5.8 — Linux filesystem magic numbers (from `<linux/magic.h>`).
 // Used by `detectNetworkFsName` to identify the parent directory's
@@ -45,7 +46,7 @@ async function warnOnNetworkFsOnce(dirPath: string, label: string): Promise<void
     const info = await statfs(dirPath);
     const fsName = detectNetworkFsName(info.type);
     if (fsName === null) return;
-    process.stderr.write(
+    diag(
       `[theokit-sdk] ${label}: detected network fs (${fsName}) at ${dirPath} — ` +
         "rename() atomicity guarantees may be weaker than expected.\n",
     );

@@ -1,4 +1,5 @@
 import { NetworkError } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import {
@@ -417,7 +418,7 @@ class OpenAIStreamAccumulator {
         stopReason = "tool_use";
         // Observability (wiring triad pillar c): recovery is a model-misbehavior workaround, so make
         // it visible — a route that leaks often should be diagnosable without a debugger.
-        process.stderr.write(
+        diag(
           `[theokit-sdk] recovered ${recovered.toolCalls.length} leaked tool call(s) from assistant content ` +
             `(provider="${this.providerName}", names=${recovered.toolCalls.map((c) => c.name).join(",")})\n`,
         );
@@ -425,7 +426,7 @@ class OpenAIStreamAccumulator {
       // R5 observability: a leaked block DROPPED by the request-scoped allowlist is the guard firing —
       // surface it too, so a model emitting `<function=NAME>` for an undeclared tool is diagnosable.
       if (recovered.droppedNames.length > 0) {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] dropped ${recovered.droppedNames.length} leaked block(s) whose name is not a ` +
             `tool in the request (provider="${this.providerName}", names=${recovered.droppedNames.join(",")})\n`,
         );

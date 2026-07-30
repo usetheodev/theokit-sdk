@@ -16,6 +16,7 @@
  */
 
 import { AuthenticationError, NetworkError, RateLimitError } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
 
 /**
@@ -59,9 +60,7 @@ export async function tryFirstEvent(
     ) {
       if (logFallback) {
         const errCode = cause.metadata?.code ?? cause.code ?? "unknown";
-        process.stderr.write(
-          `[theokit-sdk] provider ${client.name} failed (${errCode}): falling back\n`,
-        );
+        diag(`[theokit-sdk] provider ${client.name} failed (${errCode}): falling back\n`);
       }
       return { kind: "handshake_error", error: cause };
     }

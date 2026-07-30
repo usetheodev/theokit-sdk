@@ -1,3 +1,4 @@
+import { diag } from "../../diagnostics.js";
 /**
  * Try/catch wrapper that catches BOTH synchronous throws AND async rejections.
  * On error, writes a one-line diagnostic to stderr and returns `fallback`.
@@ -21,7 +22,7 @@ export async function safeCall<T>(
     return await fn();
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`[theokit-sdk] ${label} failed: ${message}\n`);
+    diag(`[theokit-sdk] ${label} failed: ${message}\n`);
     return fallback;
   }
 }

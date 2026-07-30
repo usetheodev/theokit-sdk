@@ -10,6 +10,7 @@
  */
 
 import type { CustomTool } from "../../types/agent.js";
+import { diag } from "../diagnostics.js";
 import type {
   CommandHandler,
   CommandOptions,
@@ -61,7 +62,7 @@ export function createPluginContext(): {
       // and pass null/undefined; ignore + warn rather than crash the loop
       // downstream when `runPreToolCallHooks` tries to invoke the handler.
       if (typeof handler !== "function") {
-        process.stderr.write(`[theokit-sdk] ignoring non-function handler for hook "${hook}"\n`);
+        diag(`[theokit-sdk] ignoring non-function handler for hook "${hook}"\n`);
         return;
       }
       const existing = registrations.hooks.get(hook) ?? [];

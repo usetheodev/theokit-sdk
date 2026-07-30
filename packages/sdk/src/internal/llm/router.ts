@@ -1,4 +1,5 @@
 import { ConfigurationError } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 import { getProviderProfile, type ProviderProfile, registerBuiltins } from "../providers/index.js";
 import { AnthropicClient } from "./anthropic.js";
 import { BedrockAnthropicClient } from "./bedrock-anthropic.js";
@@ -206,7 +207,7 @@ const warnedNoAuthApiKeys = new Set<string>();
 function warnNoAuthApiKeysIgnoredOnce(provider: string): void {
   if (warnedNoAuthApiKeys.has(provider)) return;
   warnedNoAuthApiKeys.add(provider);
-  process.stderr.write(
+  diag(
     `[theokit-sdk] provider "${provider}" has authType: "none" — apiKeys ignored (no auth required for local runtime).\n`,
   );
 }
@@ -259,7 +260,7 @@ function warnUnknownProvidersInApiKeys(apiKeys: Record<string, string[]> | undef
     const profile = getProviderProfile(name);
     if (profile === undefined) {
       warnedProviders.add(name);
-      process.stderr.write(
+      diag(
         `[theokit-sdk] credential-pool: unknown provider "${name}" in apiKeys (no profile registered)\n`,
       );
     }

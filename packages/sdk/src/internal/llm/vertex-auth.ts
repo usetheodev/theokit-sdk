@@ -17,6 +17,7 @@
 import { createRequire } from "node:module";
 
 import { ConfigurationError } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 
 interface GoogleAuthClient {
   getAccessToken: () => Promise<{ token: string | null }>;
@@ -72,7 +73,7 @@ async function getAuthClientOrThrow(): Promise<GoogleAuthClient> {
   } catch (err) {
     // ADC chain exhausted at client construction time — return a stub that
     // forces resolveVertexAccessToken to return undefined.
-    process.stderr.write(
+    diag(
       `[theokit-sdk] Vertex ADC initialization failed: ${err instanceof Error ? err.message : String(err)}\n`,
     );
     return { getAccessToken: async () => ({ token: null }) };

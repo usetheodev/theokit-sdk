@@ -11,6 +11,7 @@ import { createRequire } from "node:module";
  */
 
 import type { TelemetrySettings } from "../../types/agent.js";
+import { diag } from "../diagnostics.js";
 import { redactSecrets } from "../security/index.js";
 import { tryAutoRegisterAdapters } from "./adapter-registry.js";
 
@@ -149,7 +150,7 @@ function safe<T>(op: () => T, fallback: T): T {
     if (!warnedOnce) {
       warnedOnce = true;
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
+      diag(
         `[theokit-sdk] telemetry exporter error (suppressed; agent.send continues): ${message}\n`,
       );
     }
@@ -171,7 +172,7 @@ export function createTelemetry(settings: TelemetrySettings | undefined): Teleme
     // Telemetry enabled but OTel not installed — warn once and degrade to no-op.
     if (!warnedOnce) {
       warnedOnce = true;
-      process.stderr.write(
+      diag(
         "[theokit-sdk] telemetry.enabled = true but `@opentelemetry/api` is not installed; telemetry is a no-op.\n",
       );
     }

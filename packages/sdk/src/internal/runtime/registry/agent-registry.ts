@@ -1,3 +1,4 @@
+import { diag } from "../../diagnostics.js";
 import type { AgentRuntime, RegisteredAgent } from "./agent-registry-contract.js";
 import { fromSerialized, loadRegistry, saveRegistry } from "./agent-registry-store.js";
 
@@ -74,7 +75,7 @@ function scheduleSaveForCwd(cwd: string): Promise<void> {
       }
     } catch (cause) {
       const msg = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(`[theokit-sdk] registry persist failed (${cwd}): ${msg}\n`);
+      diag(`[theokit-sdk] registry persist failed (${cwd}): ${msg}\n`);
     } finally {
       pendingSaves.delete(cwd);
     }

@@ -20,6 +20,7 @@ import {
   NetworkError,
   RateLimitError,
 } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 import { CircuitBreaker } from "../resilience/circuit-breaker.js";
 import type { CredentialPool } from "./credential-pool.js";
 import { computeBackoffMs, sleepWithAbort } from "./retry.js";
@@ -188,7 +189,7 @@ export class PoolAwareLlmClient implements LlmClient {
               : {}),
           });
         } catch (persistErr) {
-          process.stderr.write(
+          diag(
             `[theokit-sdk] credential-pool: persist failed during rotate; continuing in-memory: ${
               persistErr instanceof Error ? persistErr.message : String(persistErr)
             }\n`,

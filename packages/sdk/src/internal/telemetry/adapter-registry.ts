@@ -1,4 +1,5 @@
 import type { TelemetrySettings } from "../../types/agent.js";
+import { diag } from "../diagnostics.js";
 import { arizeAdapter } from "./adapters/arize.js";
 import { braintrustAdapter } from "./adapters/braintrust.js";
 import { datadogAdapter } from "./adapters/datadog.js";
@@ -54,10 +55,10 @@ export function tryAutoRegisterAdapters(settings: TelemetrySettings | undefined)
     try {
       adapter.register();
       registered.add(adapter.moduleName);
-      process.stderr.write(`[theokit-sdk] telemetry: ${adapter.displayName} auto-instrumented.\n`);
+      diag(`[theokit-sdk] telemetry: ${adapter.displayName} auto-instrumented.\n`);
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
+      diag(
         `[theokit-sdk] telemetry: ${adapter.displayName} detected but failed to register: ${message}\n`,
       );
     }

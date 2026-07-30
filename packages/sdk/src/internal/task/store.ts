@@ -32,6 +32,7 @@ import {
   type TaskState,
   type TaskStoreOptions,
 } from "../../types/task.js";
+import { diag } from "../diagnostics.js";
 import { atomicWriteText } from "../persistence/atomic-write.js";
 
 const JSON_LOAD_CAP = 256;
@@ -195,7 +196,7 @@ export class JsonFileTaskStore implements TaskStore {
       const code = (err as NodeJS.ErrnoException).code;
       if (code === "ENOENT") return undefined;
       // Corrupt JSON or other I/O error — log + degrade gracefully (D50/EC-7 cache pattern).
-      process.stderr.write(`[task-store] failed to read ${id}: ${(err as Error).message}\n`);
+      diag(`[task-store] failed to read ${id}: ${(err as Error).message}\n`);
       return undefined;
     }
   }
