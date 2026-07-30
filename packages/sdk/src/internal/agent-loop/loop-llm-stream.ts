@@ -1,3 +1,4 @@
+import { diag } from "../diagnostics.js";
 import type { LlmClient, LlmTool, LlmToolCallPart } from "../llm/types.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
@@ -69,7 +70,7 @@ function emitLlmMetrics(
     inputs.telemetry?.recordHistogram(HISTOGRAM_NAMES.LLM_USAGE_MISSING, 1, {
       provider: inputs.llm.name,
     });
-    process.stderr.write(
+    diag(
       `[theokit-sdk] llm usage missing from ${inputs.llm.name} finish — budget may undercount\n`,
     );
     return;

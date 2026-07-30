@@ -5,6 +5,7 @@ import { emitRunEvent } from "../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
 import { LOCAL_RUNTIME_MOCK_KEY } from "../auth/api-key-validator.js";
+import { diag } from "../diagnostics.js";
 import { FallbackLlmClient } from "../llm/fallback-client.js";
 import { parseModelId } from "../llm/model-identifier.js";
 import { resolveProviderChain } from "../llm/router.js";
@@ -136,9 +137,7 @@ export function resolveRunProvider(options: CreateRealLocalRunOptions): {
   if (registered > 0 && !pluginProvidersAnnounced) {
     pluginProvidersAnnounced = true;
     const names = profiles.map((e) => e.profile.name).join(", ");
-    process.stderr.write(
-      `[theokit-sdk] registered ${registered} plugin provider profile(s): ${names}\n`,
-    );
+    diag(`[theokit-sdk] registered ${registered} plugin provider profile(s): ${names}\n`);
   }
   const parsedModel = parseModelId(options.model?.id);
   const modelInferredProvider =

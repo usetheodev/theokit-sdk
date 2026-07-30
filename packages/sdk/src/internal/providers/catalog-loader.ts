@@ -10,6 +10,7 @@
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { diag } from "../diagnostics.js";
 import { globalSingleton } from "../global-singleton.js";
 import { type CatalogModel, catalogModelSchema } from "./catalog-schema.js";
 import { getProviderProfile, registerProvider } from "./registry.js";
@@ -111,7 +112,7 @@ function ensureModelIndexLoaded(): void {
       indexEntryModels(entry);
     }
   } catch (err) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] WARN: provider catalog unavailable (${(err as Error).message}) — per-model data disabled\n`,
     );
   }
@@ -132,7 +133,7 @@ function indexEntryModels(entry: CatalogEntry): void {
   for (const [modelId, raw] of Object.entries(entry.models)) {
     const parsed = catalogModelSchema.safeParse(raw);
     if (!parsed.success) {
-      process.stderr.write(
+      diag(
         `[theokit-sdk] WARN: Skipping malformed catalog model "${entry.id}/${modelId}": ` +
           `${parsed.error.issues[0]?.message ?? "invalid"}\n`,
       );
@@ -193,7 +194,7 @@ export function loadProviderCatalog(opts?: LoadOptions): Record<string, CatalogE
   for (const raw of entries) {
     const validated = validateEntry(raw as Record<string, unknown>);
     if (validated === null) {
-      process.stderr.write(
+      diag(
         `[theokit-sdk] WARN: Skipping malformed catalog entry: ${JSON.stringify(raw).slice(0, 100)}\n`,
       );
       continue;

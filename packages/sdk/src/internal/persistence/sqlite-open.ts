@@ -19,6 +19,7 @@ import { mkdir, rename } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { ConfigurationError } from "../../errors.js";
+import { diag } from "../diagnostics.js";
 import { applyWalWithFallback } from "./sqlite-wal.js";
 
 /** Minimal SQLite handle surface every driver (`better-sqlite3`) exposes. */
@@ -198,7 +199,7 @@ async function renameAside(filePath: string, label: string): Promise<void> {
   await rename(filePath, asidePath).catch(() => undefined);
   await rename(`${filePath}-wal`, `${asidePath}-wal`).catch(() => undefined);
   await rename(`${filePath}-shm`, `${asidePath}-shm`).catch(() => undefined);
-  process.stderr.write(
+  diag(
     `[theokit-sdk] ${label} database corrupt; renamed aside to ${asidePath} and rebuilt schema\n`,
   );
 }

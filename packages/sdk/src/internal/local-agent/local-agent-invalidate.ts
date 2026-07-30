@@ -1,3 +1,4 @@
+import { diag } from "../diagnostics.js";
 /**
  * `Agent.invalidateCache` helpers extracted from LocalAgent (T3.2 / T4.3,
  * ADR D94). Keeps `local-agent.ts` under the 400-LoC gate while providing
@@ -20,14 +21,12 @@ export async function applyDeferredInvalidation(
   pending: InvalidationPending,
   refresh: () => Promise<void>,
 ): Promise<void> {
-  process.stderr.write(
-    `[theokit-sdk] applying deferred cache invalidation (${agentId}): ${pending.reason}\n`,
-  );
+  diag(`[theokit-sdk] applying deferred cache invalidation (${agentId}): ${pending.reason}\n`);
   try {
     await refresh();
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`[theokit-sdk] invalidateCache reload failed (continuing): ${msg}\n`);
+    diag(`[theokit-sdk] invalidateCache reload failed (continuing): ${msg}\n`);
   }
 }
 
@@ -46,9 +45,7 @@ export async function invalidateCacheImpl(
 ): Promise<void> {
   if (disposed) return;
   if (options.applyNow === true) {
-    process.stderr.write(
-      `[theokit-sdk] invalidateCache applyNow disposing agent (${agentId}): ${reason}\n`,
-    );
+    diag(`[theokit-sdk] invalidateCache applyNow disposing agent (${agentId}): ${reason}\n`);
     await dispose();
     return;
   }

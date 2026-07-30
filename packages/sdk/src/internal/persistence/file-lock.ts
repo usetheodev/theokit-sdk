@@ -12,6 +12,7 @@
  * @internal
  */
 
+import { diag } from "../diagnostics.js";
 import { withCwdMutex } from "./cwd-mutex.js";
 
 interface ProperLockfileModule {
@@ -46,7 +47,7 @@ async function getProperLockfile(): Promise<ProperLockfileModule | null> {
     if (!validateLockModule(mod)) {
       if (!warnedStructural) {
         warnedStructural = true;
-        process.stderr.write(
+        diag(
           "[theokit-sdk] proper-lockfile: imported module does NOT expose " +
             "the expected `lock`/`unlock` API surface. This may indicate a " +
             "supply-chain compromise or an incompatible major version. " +
@@ -140,7 +141,7 @@ export async function withFileLock<T>(
   if (lib === null) {
     if (!warnedMissing) {
       warnedMissing = true;
-      process.stderr.write(
+      diag(
         "[theokit-sdk] proper-lockfile not installed; " +
           "cross-process file lock unavailable. " +
           "Install with: pnpm add proper-lockfile\n",

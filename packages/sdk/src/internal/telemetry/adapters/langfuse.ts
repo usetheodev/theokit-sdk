@@ -1,3 +1,4 @@
+import { diag } from "../../diagnostics.js";
 import { safeRequire, type TelemetryAdapter } from "../safe-require.js";
 
 /**
@@ -50,7 +51,7 @@ export const langfuseAdapter: TelemetryAdapter = {
     }
     if (lf.LangfuseSpanProcessor === undefined) {
       // Langfuse v2: no OTel span processor. Skip with a one-time hint.
-      process.stderr.write(
+      diag(
         "[theokit-sdk] @langfuse/node detected but LangfuseSpanProcessor not found (v2?). Use Langfuse v3+ for auto-instrumentation.\n",
       );
       return;

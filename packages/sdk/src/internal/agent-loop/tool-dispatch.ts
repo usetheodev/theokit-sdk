@@ -1,6 +1,7 @@
 import type { SDKMessage, SDKToolUseMessage } from "../../types/messages.js";
 import { emitRunEvent } from "../../types/run-events.js";
 import type { InteractionUpdate } from "../../types/updates.js";
+import { diag } from "../diagnostics.js";
 import { generateCallId } from "../ids.js";
 import type { LlmContentPart, LlmToolCallPart } from "../llm/types.js";
 import { checkToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
@@ -421,7 +422,7 @@ function finalizeSpanAndPostHook(
       runId: inputs.runId,
     })
     .catch((err: unknown) => {
-      process.stderr.write(
+      diag(
         `[theokit-sdk] postToolUse hook error (swallowed): ${err instanceof Error ? err.message : String(err)}\n`,
       );
     });
@@ -451,7 +452,7 @@ async function emitToolLifecycleDelta(
   try {
     await inputs.onDelta({ update });
   } catch (err) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] onDelta tool-lifecycle emit error (swallowed): ${err instanceof Error ? err.message : String(err)}\n`,
     );
   }
@@ -474,7 +475,7 @@ async function safeEmitToolHook<E>(
     await callback(event);
   } catch (cause) {
     const msg = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`[theokit-sdk] tool lifecycle hook threw: ${msg}\n`);
+    diag(`[theokit-sdk] tool lifecycle hook threw: ${msg}\n`);
   }
 }
 

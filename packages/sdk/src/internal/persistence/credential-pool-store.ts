@@ -32,6 +32,7 @@
 
 import { mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import { diag } from "../diagnostics.js";
 import type { CredentialPoolSnapshot } from "../llm/credential-pool-types.js";
 import { withFileLock } from "./file-lock.js";
 import { getTheokitHome } from "./paths.js";
@@ -125,7 +126,7 @@ export class DebouncedPoolSaver {
     this.pending = setTimeout(() => {
       this.pending = undefined;
       this.nextSave = saveCredentialPoolStore(this.cwd, this.getSnapshots()).catch((err) => {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] credential-pool: debounced save failed: ${
             err instanceof Error ? err.message : String(err)
           }\n`,
@@ -140,7 +141,7 @@ export class DebouncedPoolSaver {
       clearTimeout(this.pending);
       this.pending = undefined;
       this.nextSave = saveCredentialPoolStore(this.cwd, this.getSnapshots()).catch((err) => {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] credential-pool: flush save failed: ${
             err instanceof Error ? err.message : String(err)
           }\n`,

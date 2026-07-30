@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 import { Retry } from "../../retry.js";
+import { diag } from "../diagnostics.js";
 import { registerBuiltins } from "./builtin/index.js";
 import { getCatalogModelInfo, loadProviderCatalog, patchModelInfo } from "./catalog-loader.js";
 import { catalogModelSchema } from "./catalog-schema.js";
@@ -140,7 +141,7 @@ function patchIndexFromApiJson(raw: unknown): number {
     }
   }
   if (skipped.length > 0) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] WARN: models-dev refresh skipped ${skipped.length} unknown provider(s) (e.g. ${skipped.slice(0, 3).join(", ")})\n`,
     );
   }
@@ -170,15 +171,13 @@ export function loadCacheIntoIndex(url: string = DEFAULT_URL): number {
     } catch {
       // best effort
     }
-    process.stderr.write(`[theokit-sdk] WARN: corrupt models-dev cache deleted (${path})\n`);
+    diag(`[theokit-sdk] WARN: corrupt models-dev cache deleted (${path})\n`);
     return 0;
   }
   try {
     return patchIndexFromApiJson(parsed);
   } catch (err) {
-    process.stderr.write(
-      `[theokit-sdk] WARN: models-dev cache patch failed (${(err as Error).message})\n`,
-    );
+    diag(`[theokit-sdk] WARN: models-dev cache patch failed (${(err as Error).message})\n`);
     return 0;
   }
 }
@@ -236,7 +235,7 @@ export async function refreshModelCatalog(
     body = await res.text();
     JSON.parse(body); // validate before persisting — never cache garbage
   } catch (err) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] WARN: models-dev refresh failed (${(err as Error).message}) — serving existing data\n`,
     );
     // fail-closed: serve whatever we already have (stale cache if present, else vendored)
@@ -246,14 +245,12 @@ export async function refreshModelCatalog(
   try {
     writeCacheAtomic(path, body);
   } catch (err) {
-    process.stderr.write(
-      `[theokit-sdk] WARN: models-dev cache write failed (${(err as Error).message})\n`,
-    );
+    diag(`[theokit-sdk] WARN: models-dev cache write failed (${(err as Error).message})\n`);
   }
   try {
     return { source: "network", models: patchIndexFromApiJson(JSON.parse(body)) };
   } catch (err) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] WARN: models-dev patch failed (${(err as Error).message}) — serving existing data\n`,
     );
     return { source: "cache", models: 0 };

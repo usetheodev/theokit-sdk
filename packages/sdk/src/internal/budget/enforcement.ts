@@ -13,6 +13,7 @@
 
 import { BudgetExceededError } from "../../errors.js";
 import type { BudgetMode, BudgetOptions } from "../../types/budget.js";
+import { diag } from "../diagnostics.js";
 import { charge, spentIn } from "./ledger.js";
 import { defaultMode, getBudgetOptionsRaw } from "./registry.js";
 
@@ -59,7 +60,7 @@ export async function chargeAndCheckThresholds(name: string, actualUsd: number):
   const opts = getBudgetOptionsRaw(name);
   if (opts === undefined) {
     // EC-20: budget deleted during in-flight call. Charge is silent no-op.
-    process.stderr.write(
+    diag(
       `[budget] charge for deleted budget "${name}" is a no-op (was the budget removed during in-flight send?)\n`,
     );
     return;
@@ -114,7 +115,7 @@ async function dispatchThreshold(
   } catch (err) {
     // EC-8: callback throw isolated
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`[budget] onThreshold callback threw: ${msg}\n`);
+    diag(`[budget] onThreshold callback threw: ${msg}\n`);
   }
 }
 
@@ -127,7 +128,7 @@ async function dispatchExceed(
 ): Promise<void> {
   if (opts.onExceed === undefined) {
     if (mode === "warn") {
-      process.stderr.write(
+      diag(
         `[budget] "${opts.name}" exceeded ${window} limit: $${spentUsd.toFixed(4)} > $${limitUsd.toFixed(4)}\n`,
       );
     }
@@ -143,6 +144,6 @@ async function dispatchExceed(
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
-    process.stderr.write(`[budget] onExceed callback threw: ${msg}\n`);
+    diag(`[budget] onExceed callback threw: ${msg}\n`);
   }
 }

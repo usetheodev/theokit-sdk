@@ -31,6 +31,7 @@
  * @internal
  */
 
+import { diag } from "../diagnostics.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
 
@@ -134,7 +135,7 @@ function parseOverrideOrWarnOnce(): ParsedOverride | undefined {
 function warnInvalidJsonOnce(_raw: string): void {
   if (warnedInvalidJson) return;
   warnedInvalidJson = true;
-  process.stderr.write(
+  diag(
     `[theokit-sdk] ${ENV_OVERRIDE_KEY} is set but value is not valid JSON of shape ` +
       `\`{"status": number, "body": object | string}\`. Falling back to real LLM call. ` +
       `This warning is shown once per process.\n`,

@@ -17,7 +17,7 @@ import { readdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { pathToFileURL } from "node:url";
-
+import { diag } from "../diagnostics.js";
 import { globalSingleton } from "../global-singleton.js";
 import { registerProvider } from "./registry.js";
 
@@ -66,17 +66,17 @@ function loadTrustedNames(): Set<string> {
         // (numbers, objects) silently trusting nothing would leave the user with only the generic
         // per-plugin WARN and no clue the FILE shape is wrong.
         if (discarded > 0) {
-          process.stderr.write(
+          diag(
             `[theokit-sdk] WARN: ${path} contains ${discarded} non-string entr${discarded === 1 ? "y" : "ies"} — discarded (entries must be plugin-name strings)\n`,
           );
         }
       } else {
-        process.stderr.write(
+        diag(
           `[theokit-sdk] WARN: ${path} is not a JSON array — trusting NO provider plugins (fail-closed)\n`,
         );
       }
     } catch {
-      process.stderr.write(
+      diag(
         `[theokit-sdk] WARN: ${path} is not valid JSON — trusting NO provider plugins (fail-closed)\n`,
       );
     }
@@ -109,7 +109,7 @@ export async function discoverProviderPlugins(): Promise<void> {
     if (!trusted.has(entry)) {
       // M47 review F4/F7 — the remedy must be complete: discovery is once-per-process (the latch above),
       // so editing the trust file only takes effect after a restart; and the env format is comma-separated.
-      process.stderr.write(
+      diag(
         `[theokit-sdk] WARN: provider plugin "${entry}" is present but NOT trusted — skipped. ` +
           `To trust it, add "${entry}" to ${trustFilePath()} (JSON array of names) or ` +
           `THEOKIT_TRUSTED_PROVIDERS (comma-separated), then restart the process.\n`,
@@ -141,7 +141,7 @@ async function loadOne(dir: string, entryName: string): Promise<void> {
       return;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[theokit-sdk] failed to load provider plugin "${entryName}": ${msg}\n`);
+      diag(`[theokit-sdk] failed to load provider plugin "${entryName}": ${msg}\n`);
       return;
     }
   }

@@ -14,6 +14,7 @@ import type {
 import type { Run, SDKUserMessage, SendOptions } from "../../types/run.js";
 import type { SessionStore } from "../../types/session-store.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { diag } from "../diagnostics.js";
 import { generateLocalAgentId } from "../ids.js";
 import { withCwdMutex } from "../persistence/cwd-mutex.js";
 import { FsSessionStore } from "../persistence/fs-session-store.js";
@@ -111,7 +112,7 @@ async function adquirirLeaseSePossivel(store: unknown, agentId: string): Promise
     // Medido: nove testes de personality usam um `baseDir` sob `/var/empty`, onde o `mkdir` do
     // lease falha. Eles nunca escrevem transcript; exigir o lease ali seria exigir permissão para
     // proteger um arquivo que não existe.
-    process.stderr.write(
+    diag(
       `[theokit-sdk] writer lease unavailable for ${agentId} (${
         err instanceof Error ? err.message : String(err)
       }) — proceeding without single-writer protection\n`,

@@ -22,6 +22,7 @@ function buildUserContent(text: string, images: SDKUserMessage["images"]): LlmCo
   return content;
 }
 
+import { diag } from "../diagnostics.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
@@ -190,7 +191,7 @@ export async function safeListTools(client: McpClient, serverName?: string): Pro
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     const server = serverName ?? "unknown";
-    process.stderr.write(`[theokit-sdk] mcp listTools failed (server=${server}): ${message}\n`);
+    diag(`[theokit-sdk] mcp listTools failed (server=${server}): ${message}\n`);
     return [];
   }
 }
