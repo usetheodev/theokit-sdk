@@ -28,7 +28,21 @@ import { fromSerialized, loadRegistry, saveRegistry } from "./agent-registry-sto
 export type { AgentRuntime, RegisteredAgent };
 
 const agents = new Map<string, RegisteredAgent>();
-const hydratedCwds = new Set<string>();
+/**
+ * In-flight AND completed hydrations, keyed by `cwd`.
+ *
+ * M107 — this used to be a `Set<string>` marking "already hydrated", and the mark was written
+ * BEFORE the `await` on the disk read. A second concurrent `hydrateRegistryFromDisk(cwd)` therefore
+ * saw the mark and returned immediately, while the first call had not populated anything yet — so
+ * the second caller listed an EMPTY registry and got `[]`. Memoizing the promise instead of a flag
+ * makes the second caller await the same read.
+ *
+ * The bug was latent while `Agent.list` always hydrated `process.cwd()`; making `cwd` a real
+ * parameter turns "two concurrent listings of a not-yet-hydrated project" into an ordinary path —
+ * and that listing feeds `activeKnown`, a NEVER-delete guard on a path that calls `unlink`. An empty
+ * listing there is not a slow listing, it is a deleted transcript.
+ */
+const hydrations = new Map<string, Promise<void>>();
 const pendingSaves = new Map<string, Promise<void>>();
 const dirtyCwds = new Set<string>();
 
@@ -93,10 +107,30 @@ export function getRegisteredAgent(agentId: string): RegisteredAgent | undefined
   return agents.get(agentId);
 }
 
-export function listRegisteredAgents(runtime?: AgentRuntime): RegisteredAgent[] {
-  const all = Array.from(agents.values());
-  if (runtime === undefined) return all;
-  return all.filter((agent) => agent.runtime === runtime);
+/**
+ * The registered agents, optionally narrowed by runtime and by workspace `cwd`.
+ *
+ * ## M107 — why `cwd` is a parameter here and not a filter at the call site
+ *
+ * The in-memory Map is process-wide, so hydrating a foreign `cwd` pours its entries into the SAME
+ * Map that a later un-narrowed listing reads. Without this filter, listing project A would make
+ * project B "own" A's sessions — and the consumer feeds that list into `activeKnown`, one of the
+ * NEVER-delete guards on a path that calls `unlink`.
+ *
+ * The narrowing uses {@link resolveRegistryCwd}, NOT `agent.cwd === cwd`, and that is the whole
+ * point: `cwd` is optional on a registered agent, and its absence ALREADY means `process.cwd()` for
+ * the purposes of routing the entry to a file on disk. A naive equality check would drop every
+ * cwd-less entry from the listing of its own project — an entry missing from `activeKnown` is an
+ * entry the collector stops protecting. Filter and persistence must answer "which project owns
+ * this?" the same way, or they are two oracles over one fact.
+ *
+ * @internal
+ */
+export function listRegisteredAgents(runtime?: AgentRuntime, cwd?: string): RegisteredAgent[] {
+  let out = Array.from(agents.values());
+  if (runtime !== undefined) out = out.filter((agent) => agent.runtime === runtime);
+  if (cwd !== undefined) out = out.filter((agent) => resolveRegistryCwd(agent) === cwd);
+  return out;
 }
 
 export function updateRegisteredAgent(
@@ -126,7 +160,7 @@ export function removeRegisteredAgent(agentId: string): boolean {
 
 export function clearAgentRegistry(): void {
   agents.clear();
-  hydratedCwds.clear();
+  hydrations.clear();
 }
 
 /**
@@ -138,14 +172,25 @@ export function clearAgentRegistry(): void {
  * @internal
  */
 export async function hydrateRegistryFromDisk(cwd: string): Promise<void> {
-  if (hydratedCwds.has(cwd)) return;
-  hydratedCwds.add(cwd);
-  const persisted = await loadRegistry(cwd);
-  for (const [id, entry] of Object.entries(persisted)) {
-    if (!agents.has(id)) {
-      agents.set(id, fromSerialized(entry));
+  const emAndamento = hydrations.get(cwd);
+  if (emAndamento !== undefined) return emAndamento;
+  const hidratacao = (async () => {
+    const persisted = await loadRegistry(cwd);
+    for (const [id, entry] of Object.entries(persisted)) {
+      if (!agents.has(id)) {
+        agents.set(id, fromSerialized(entry));
+      }
     }
-  }
+  })().catch((cause: unknown) => {
+    // A failed hydration must not stay memoized as "done": the next call would resolve
+    // successfully over a registry that was never read — an empty list indistinguishable from
+    // "this project has no agents". Dropping the entry lets the next call retry, and the error
+    // still propagates to THIS caller (`error-handling.md § 2` — never swallow).
+    hydrations.delete(cwd);
+    throw cause;
+  });
+  hydrations.set(cwd, hidratacao);
+  return hidratacao;
 }
 
 /**
@@ -155,8 +200,8 @@ export async function hydrateRegistryFromDisk(cwd: string): Promise<void> {
  * @internal
  */
 export function invalidateRegistryHydration(cwd?: string): void {
-  if (cwd !== undefined) hydratedCwds.delete(cwd);
-  else hydratedCwds.clear();
+  if (cwd !== undefined) hydrations.delete(cwd);
+  else hydrations.clear();
 }
 
 /**
