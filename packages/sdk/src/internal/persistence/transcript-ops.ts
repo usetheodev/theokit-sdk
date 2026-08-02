@@ -54,6 +54,20 @@ export interface ForkTranscriptOptions {
    * registry entry. The caller supplies them because only the caller knows which session is live.
    */
   readonly liveSessionPaths?: readonly string[];
+  /**
+   * M107 — permission bits for the created destination. Default: `0o600`.
+   *
+   * A transcript carries the conversation. Before M107 no mode was passed at all, so the file was
+   * born `0o666 & ~umask` — measured `0o664` (group-WRITABLE) on a `umask 002` machine, `0o644` on
+   * `umask 022`, `0o466` on `umask 0200`. This is a DEFAULT and not a required knob on purpose: a
+   * knob would reach zero consumers by omission, which is the failure mode that matters.
+   *
+   * As with any `open` mode, the `umask` may still CLEAR bits — under `umask 0200` the result is
+   * `0o400`. That is accepted: the invariant bought here is "neither group nor others", and `0o400`
+   * satisfies it more strictly. The SDK deliberately does not `fchmod` the default back, because
+   * that would hand back a bit the operator asked to remove.
+   */
+  readonly mode?: number;
 }
 
 /**
@@ -80,8 +94,9 @@ export function forkTranscript(
     options.beforeRecordIndex === undefined ? lines : lines.slice(0, options.beforeRecordIndex);
   const body = kept.length > 0 ? `${kept.join("\n")}\n` : "";
 
-  // `wx` — fails with EEXIST instead of truncating. The exclusivity IS the concurrency guarantee.
-  const fd = openSync(dst, "wx");
+  // `wx` — fails with EEXIST instead of truncating. The exclusivity IS the concurrency guarantee,
+  // and M107 only added the third argument: the mode. See `ForkTranscriptOptions.mode`.
+  const fd = openSync(dst, "wx", options.mode ?? 0o600);
   try {
     writeSync(fd, body);
   } finally {
