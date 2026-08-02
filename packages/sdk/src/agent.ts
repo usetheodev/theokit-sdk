@@ -333,15 +333,15 @@ export class Agent {
   }
 
   /**
-   * List agents (local or cloud).
+   * List agents (local or cloud). M107 — `cwd` is READ now, not ignored;
+   * `limit`/`cursor` still are not (see `tests/agent-list-cwd.test.ts`).
    *
    * @public
    */
   static async list(options: ListAgentsOptions = {}): Promise<ListResult<SDKAgentInfo>> {
-    await hydrateRegistryFromDisk(process.cwd());
-    const runtime = options.runtime;
-    const all = listRegisteredAgents(runtime);
-    const items = all.map((agent) => toAgentInfo(agent));
+    const cwd = ("cwd" in options ? options.cwd : undefined) ?? process.cwd();
+    await hydrateRegistryFromDisk(cwd);
+    const items = listRegisteredAgents(options.runtime, cwd).map((agent) => toAgentInfo(agent));
     return { items };
   }
 
