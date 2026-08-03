@@ -394,6 +394,15 @@ class StdioMcpClient extends BaseMcpClient {
 class HttpMcpClient extends BaseMcpClient {
   readonly name: string;
   private nextId = 1;
+  /**
+   * The `mcp-session-id` a STATEFUL server issues on `initialize`.
+   *
+   * The comment on `request` used to say "the http transport is stateless". That is true of the
+   * *connection* — each POST opens a fresh one — and false of the *session*: a server that follows
+   * Streamable HTTP answers 400 to every call that omits this header, so a stateful server served
+   * exactly zero tools to this client. Captured once, replayed after.
+   */
+  private sessionId: string | undefined;
   private readonly fetchImpl: typeof fetch;
 
   constructor(
@@ -410,14 +419,44 @@ class HttpMcpClient extends BaseMcpClient {
     return Promise.resolve();
   }
 
+  /**
+   * The wire headers for one request.
+   *
+   * Extracted from `request` rather than inlined: the session/accept handling pushed that method
+   * past the cognitive-complexity ceiling, and a header policy is a different concern from the
+   * fetch/timeout/error handling around it (SRP). The user-supplied spread stays LAST — that
+   * override contract predates this change and is the only escape a user has while a server
+   * misbehaves.
+   */
+  private buildHeaders(): Record<string, string> {
+    return {
+      "content-type": "application/json",
+      // Streamable HTTP asks for BOTH media types. Declaring only `application/json` makes a
+      // spec-enforcing server answer 406 before any RPC is even reachable.
+      accept: "application/json, text/event-stream",
+      // Present only for a STATEFUL server. For a stateless one nothing is sent — inventing a
+      // header would trade one broken transport for another.
+      ...(this.sessionId !== undefined ? { "mcp-session-id": this.sessionId } : {}),
+      ...(this.config.headers ?? {}),
+    };
+  }
+
+  /**
+   * Capture the session on the FIRST response that carries it (the `initialize`).
+   *
+   * Never overwritten by a later one: a server that re-issues mid-session would otherwise split
+   * the session in two, and the second half would not see the first half's state.
+   */
+  private captureSession(response: Response): void {
+    if (this.sessionId !== undefined) return;
+    const issued = response.headers.get("mcp-session-id");
+    if (issued !== null && issued !== "") this.sessionId = issued;
+  }
+
   protected async request(method: string, params: Record<string, unknown>): Promise<unknown> {
     const id = this.nextId++;
     const payload: RpcRequest = { jsonrpc: "2.0", id, method, params };
-    const headers: Record<string, string> = {
-      "content-type": "application/json",
-      accept: "application/json",
-      ...(this.config.headers ?? {}),
-    };
+    const headers = this.buildHeaders();
     const timeoutMs = this.config.requestTimeoutMs ?? DEFAULT_MCP_TIMEOUT_MS;
     let response: Response;
     try {
@@ -443,6 +482,7 @@ class HttpMcpClient extends BaseMcpClient {
         code: "mcp_http_error",
       });
     }
+    this.captureSession(response);
     try {
       return (await response.json()) as unknown;
     } catch (cause) {
