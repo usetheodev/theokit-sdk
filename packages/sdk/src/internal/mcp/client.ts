@@ -447,6 +447,32 @@ class HttpMcpClient extends BaseMcpClient {
    * Never overwritten by a later one: a server that re-issues mid-session would otherwise split
    * the session in two, and the second half would not see the first half's state.
    */
+  /**
+   * Read one JSON-RPC response, in either encoding the server may choose.
+   *
+   * Streamable HTTP lets the server answer a POST with `application/json` OR `text/event-stream`,
+   * and the client advertises both. Reading the body with `response.json()` unconditionally is what
+   * turned a working server into `Unexpected token 'e', "event: mes"... is not valid JSON` the
+   * moment the Accept header started asking for SSE — measured against a real server, not imagined.
+   *
+   * Only the `data:` payload is JSON; `event:` / `id:` / `retry:` lines and comments are framing.
+   * A single JSON-RPC reply arrives as one event, so the FIRST parseable `data:` is the answer.
+   */
+  private async readBody(response: Response): Promise<unknown> {
+    const tipo = response.headers.get("content-type") ?? "";
+    if (!tipo.includes("text/event-stream")) return (await response.json()) as unknown;
+    const texto = await response.text();
+    for (const linha of texto.split(/\r?\n/)) {
+      if (!linha.startsWith("data:")) continue;
+      const carga = linha.slice(5).trim();
+      if (carga === "") continue;
+      return JSON.parse(carga) as unknown;
+    }
+    throw new NetworkError(`MCP ${this.name} returned an event stream with no data payload`, {
+      code: "mcp_http_error",
+    });
+  }
+
   private captureSession(response: Response): void {
     if (this.sessionId !== undefined) return;
     const issued = response.headers.get("mcp-session-id");
@@ -484,7 +510,7 @@ class HttpMcpClient extends BaseMcpClient {
     }
     this.captureSession(response);
     try {
-      return (await response.json()) as unknown;
+      return await this.readBody(response);
     } catch (cause) {
       // #59 — the body read is bounded by the SAME `AbortSignal.timeout`. A
       // server that returns headers then stalls the body aborts here; map that
