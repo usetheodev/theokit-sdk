@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.37.1
+
+### Patch Changes
+
+- Servidores MCP com transporte HTTP **stateful** voltam a servir suas ferramentas: o cliente passa a guardar a sessão que o servidor emite no handshake e a reenviá-la nas chamadas seguintes, e passa a declarar os dois tipos de mídia que a especificação pede.
+
 ## 4.37.0
 
 ### Minor Changes
