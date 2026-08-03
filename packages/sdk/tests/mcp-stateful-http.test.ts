@@ -198,3 +198,66 @@ describe("MCP Streamable HTTP — stateful session", () => {
     );
   });
 });
+
+/**
+ * Um servidor que **honra o `Accept`**: responde `text/event-stream` quando o cliente o pede.
+ *
+ * Este e o fixture que faltava. O primeiro servidor deste arquivo devolve JSON qualquer que seja o
+ * `Accept`, entao concordava com a producao ate a producao mudar: quando o cliente passou a pedir
+ * SSE (a correcao da spec), um servidor real passou a responder SSE e `response.json()` quebrou com
+ * `Unexpected token 'e', "event: mes"`. Medido em producao, nao imaginado.
+ */
+function sseServer(): Promise<{ url: string; close: () => Promise<void> }> {
+  const srv: Server = createServer((req, res) => {
+    void lerCorpo(req).then((body) => {
+      const parsed = JSON.parse(body) as { id?: unknown; method?: string };
+      const aceita = String(req.headers.accept ?? "");
+      const payload = JSON.stringify({
+        jsonrpc: "2.0",
+        id: parsed.id ?? 1,
+        result: resultadoDe(parsed.method),
+      });
+      if (aceita.includes("text/event-stream")) {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.end(`event: message\ndata: ${payload}\n\n`);
+        return;
+      }
+      res.writeHead(200, { "content-type": "application/json" });
+      res.end(payload);
+    });
+  });
+  return new Promise((resolve) => {
+    srv.listen(0, "127.0.0.1", () => {
+      const { port } = srv.address() as AddressInfo;
+      resolve({
+        url: `http://127.0.0.1:${String(port)}/mcp`,
+        close: () =>
+          new Promise<void>((r) => {
+            srv.close(() => {
+              r();
+            });
+          }),
+      });
+    });
+  });
+}
+
+describe("MCP Streamable HTTP — resposta SSE", () => {
+  it("parses a text/event-stream response instead of throwing on JSON.parse", async () => {
+    // O cliente PEDE `text/event-stream`; um servidor que honra o pedido responde SSE. Antes desta
+    // correcao, `response.json()` lancava e o servidor inteiro ficava sem tools — foi o que
+    // aconteceu com um servidor real (`theo-skills`) apos a correcao do Accept.
+    const srv = await sseServer();
+    try {
+      const client = createMcpClient("sse", { type: "http", url: srv.url });
+      await client.initialize();
+      const tools = await client.listTools();
+      expect(
+        tools.map((t) => t.name),
+        "a resposta SSE nao foi parseada — o servidor serve zero tools",
+      ).toEqual(["ping"]);
+    } finally {
+      await srv.close();
+    }
+  });
+});
