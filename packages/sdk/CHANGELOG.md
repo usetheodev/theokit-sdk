@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.37.2
+
+### Patch Changes
+
+- Servidores MCP que respondem em fluxo de eventos voltam a entregar suas ferramentas: a resposta passa a ser lida no formato que o próprio cliente pediu, em vez de falhar ao interpretá-la.
+
 ## 4.37.1
 
 ### Patch Changes
