@@ -1,12 +1,12 @@
 /**
- * M94 Fase 3 — o tipo do registro e a gramática do id de modelo.
+ * M94 Phase 3 — the record's type and the model-id grammar.
  *
- * ## ADR-1: o tipo novo NÃO se chama `SessionMessage`
+ * ## ADR-1: the new type is NOT called `SessionMessage`
  *
  * O ROADMAP pede "o SDK publica `SessionMessage { role; content: Array<…> }`". Medido:
- * `SessionMessage` **já existe** (`internal/session/session-types.ts:49`) e é `{role, text}` — forma
- * **incompatível**. Reusar o nome faria atribuições falharem em silêncio para quem já o consome:
- * exatamente o M91, onde repropor `BudgetExceededError` custou dois patches. O tipo novo é
+ * `SessionMessage` **already exists** (`internal/session/session-types.ts:49`) and is `{role, text}` — an
+ * **incompatible** shape. Reusing the name would make assignments fail silently for existing consumers:
+ * exactly M91, where repurposing `BudgetExceededError` cost two patches. The new type is
  * `TranscriptMessage`.
  */
 import { describe, expect, it } from "vitest";
@@ -27,7 +27,7 @@ describe("M94 — TranscriptMessage", () => {
     expect(m.content[0]?.type).toBe("text");
   });
 
-  it("o SessionMessage existente segue intacto — anti-regressão do ADR-1", () => {
+  it("the existing SessionMessage stays intact — ADR-1 anti-regression", () => {
     const antigo: SessionMessage = { role: "assistant", text: "texto plano" };
     expect(antigo.text).toBe("texto plano");
   });
@@ -38,30 +38,30 @@ describe("M94 — Provider.forModel", () => {
     expect(Provider.forModel("anthropic/claude-sonnet-4-5")?.name).toBe("anthropic");
   });
 
-  it("um id SEM barra devolve undefined — hoje isso virava o caminho default em silêncio", () => {
-    // `modelId.slice(0, modelId.indexOf('/'))` com indexOf === -1 devolve o id sem o ÚLTIMO
+  it("an id WITHOUT a slash returns undefined — today that silently became the default path", () => {
+    // `modelId.slice(0, modelId.indexOf('/'))` with indexOf === -1 returns the id minus its LAST
     // caractere ('claude-opus-5' -> 'claude-opus-'), casa provider nenhum, e o consumidor
     // seguia para o default sem distinguir isso de um acerto.
     expect(Provider.forModel("claude-opus-5")).toBeUndefined();
   });
 
-  it("um provider inexistente devolve undefined, não um casamento parcial", () => {
+  it("a nonexistent provider returns undefined, not a partial match", () => {
     expect(Provider.forModel("naoexiste/algum-modelo")).toBeUndefined();
   });
 
-  it("aliases e caixa resolvem — a gramática tem UM dono", () => {
-    // Medido na revisão adversarial: 7 de 8 divergências entre o parser canônico e o slice inline.
-    // `lm-studio` é alias de `lmstudio`, que É builtin; recusá-lo faria um comando customizado que
-    // funcionava antes do M94 passar a LANÇAR, porque o consumidor agora falha alto.
+  it("aliases and case resolve — the grammar has ONE owner", () => {
+    // Measured in adversarial review: 7 of 8 divergences between the canonical parser and the inline slice.
+    // `lm-studio` is an alias of `lmstudio`, which IS builtin; refusing it would make a custom command that
+    // worked before M94 start THROWING, because the consumer now fails loudly.
     expect(Provider.forModel("Anthropic/claude-sonnet-4-5")?.name).toBe("anthropic");
     expect(Provider.forModel(" openai/gpt-4o")?.name).toBe("openai");
   });
 
-  it("nome de modelo vazio é recusado — o slice inline aceitava", () => {
+  it("an empty model name is refused — the inline slice accepted it", () => {
     expect(Provider.forModel("openai/")).toBeUndefined();
   });
 
-  it("a barra final não vira provider vazio", () => {
+  it("a trailing slash does not become an empty provider", () => {
     expect(Provider.forModel("/modelo")).toBeUndefined();
   });
 });

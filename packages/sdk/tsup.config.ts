@@ -75,28 +75,28 @@ export default defineConfig({
   sourcemap: true,
   clean: true,
   treeshake: true,
-  // M78 — `splitting: true`, e a razão é de CORRETUDE, não de tamanho.
+  // M78 — `splitting: true`, and the reason is CORRECTNESS, not size.
   //
-  // Com `splitting: false`, o esbuild INLINA o código compartilhado em cada entry point em vez de
+  // With `splitting: false`, esbuild INLINES the shared code into each entry point instead of
   // emitir um chunk comum. `TheokitAgentError` acabava duplicado em `errors.js`, `auth/index.js`,
-  // `compaction.js`, `subscription/index.js` — classes distintas com o mesmo nome. A consequência:
+  // `compaction.js`, `subscription/index.js` — distinct classes with the same name. The consequence:
   //
   //     import { TheokitAgentError } from "@theokit/sdk/errors";
   //     import { CredentialError }    from "@theokit/sdk/auth";
   //     new CredentialError("x") instanceof TheokitAgentError  // => FALSE
   //
-  // A cadeia de protótipos estava certa; o objeto de classe é que era outro. Isso anula toda a
-  // premissa de uma hierarquia de erro única: um `catch` não consegue discriminar erro do framework
+  // The prototype chain was right; it was the class object that differed. That nullifies the whole
+  // premise of a single error hierarchy: a `catch` cannot discriminate a framework error
   // quando o erro atravessou um subpath diferente do usado para importar o tipo.
   //
   // O teste de paridade do M73 previu exatamente este modo de falha ("se o build inlinear o SDK, a
-  // camada exporta uma CÓPIA e `instanceof` vira false silenciosamente"), mas o previu para a camada;
-  // ele já acontecia aqui, entre subpaths do próprio SDK. Nenhum teste unitário pegava — todos
-  // importam do fonte, onde a classe é uma só. Só a execução contra os pacotes PUBLICADOS revelou.
+  // layer exports a COPY and `instanceof` silently becomes false"), but predicted it for the layer;
+  // it was already happening here, between the SDK's own subpaths. No unit test caught it — they all
+  // import from source, where there is only one class. Only running against the PUBLISHED packages revealed it.
   //
   // Efeito colateral bem-vindo: `dist/index.js` caiu de 207.514 para 20.447 bytes, porque o que era
-  // duplicado virou chunk compartilhado. O orçamento de 215.000 ficou folgado demais e merece ser
-  // reapertado numa mudança própria — baixá-lo aqui misturaria duas decisões.
+  // duplicated code became a shared chunk. The 215,000 budget became too loose and deserves to be
+  // tightened in a change of its own — lowering it here would mix two decisions.
   splitting: true,
   outDir: "dist",
   target: "node22",

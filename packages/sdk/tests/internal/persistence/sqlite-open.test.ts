@@ -115,15 +115,15 @@ describe.skipIf(!process.env.VITEST || false)("openSqliteResilient", () => {
 
 describe("node:sqlite fallback (flicker-bug fix — the error message PROMISED this fallback)", () => {
   /**
-   * Host-gated, e a razão importa: este teste substitui APENAS o carregador do `better-sqlite3` e
-   * espera o `node:sqlite` REAL do host. O builtin só passou a vir liberado no Node 22.x mais
+   * Host-gated, and the reason matters: this test replaces ONLY the `better-sqlite3` loader and
+   * expects the host's REAL `node:sqlite`. The builtin only became unflagged in later Node 22.x
    * recente — no **22.12** ele ainda exige `--experimental-sqlite`, e `process.getBuiltinModule`
    * devolve vazio. Quebrou exatamente assim na matriz de CI (`validate (node 22.12)`), enquanto
    * `validate (node 22)` passava.
    *
-   * Um teste não pode provar fallback para um driver que o host não tem. Pular é honesto AQUI —
-   * mas pular em silêncio não seria, então o motivo fica escrito e a condição é o próprio builtin,
-   * não uma comparação de versão (que erraria de novo: "22.12" < "22.3" como string).
+   * A test cannot prove a fallback to a driver the host does not have. Skipping is honest HERE —
+   * but skipping silently would not be, so the reason is written down and the condition is the builtin itself,
+   * not a version comparison (which would be wrong again: "22.12" < "22.3" as strings).
    */
   const temNodeSqlite =
     (process as { getBuiltinModule?: (id: string) => unknown }).getBuiltinModule?.(

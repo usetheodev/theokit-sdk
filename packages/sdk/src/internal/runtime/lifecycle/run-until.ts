@@ -91,7 +91,7 @@ export async function* runUntilImpl(
     const result = await run.wait();
     if (signal !== undefined) signal.removeEventListener("abort", cancelOnAbort);
     lastResponse = result.result ?? "";
-    // M55 — token accounting fail-open: só soma quando o run reporta usage.
+    // M55 — token accounting fails open: it only sums when the run reports usage.
     const turnTokens = (result as { usage?: { totalTokens?: number } }).usage?.totalTokens;
     if (typeof turnTokens === "number") tokensUsed += turnTokens;
     // Re-check aborted right after the turn lands: a cancelled turn must NOT spend a judge call.
@@ -109,7 +109,7 @@ export async function* runUntilImpl(
     const judgeOpts: JudgeOptions = {};
     if (options?.judgeModel !== undefined) judgeOpts.judgeModel = options.judgeModel;
     if (options?.judgeApiKey !== undefined) judgeOpts.apiKey = options.judgeApiKey;
-    // M80 — encaminha o modelo do agente conduzido para o judge derivar quando `judgeModel` é omitido.
+    // M80 — forwards the driven agent's model so the judge can derive when `judgeModel` is omitted.
     if (options?.agentModel !== undefined) judgeOpts.agentModel = options.agentModel;
     const judgeCtx: JudgeContext = { goal, lastResponse };
     if (options?.subgoals !== undefined) judgeCtx.subgoals = options.subgoals;
@@ -150,10 +150,10 @@ export async function* runUntilImpl(
         finalResponse: lastResponse || undefined,
       };
     }
-    // M80 — o braço que faltava. Sem ele, um judge que reconhecesse impossibilidade só podia dizer
-    // "continue", e o loop repetia o mesmo turno até estourar o orçamento — reportando `failed` por
+    // M80 — the missing arm. Without it, a judge recognizing impossibility could only say
+    // "continue", and the loop repeated the same turn until it blew the budget — reporting `failed` on
     // limite em vez de `blocked` por impossibilidade. Duas causas distintas com o mesmo desfecho
-    // visível, e o consumidor precisava reconciliar depois do loop para distingui-las.
+    // visible outcome, and the consumer had to reconcile after the loop to tell them apart.
     if (judgment.verdict === "blocked") {
       yield { type: "status_change", status: "blocked", reason: judgment.reason };
       return {
@@ -177,7 +177,7 @@ export async function* runUntilImpl(
       };
     }
 
-    // M55 — checagem de token budget APÓS o turno (Codex: wind-down suave, para o loop).
+    // M55 — token-budget check AFTER the turn (Codex: gentle wind-down, stops the loop).
     if (tokenBudget !== undefined && tokensUsed >= tokenBudget) {
       yield {
         type: "status_change",

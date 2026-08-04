@@ -113,18 +113,18 @@ export abstract class FixtureRunBase implements Run {
    * theokit#101 — quando o run termina em erro, `stream()` tem de DIZER.
    *
    * O erro sempre existiu: o loop o registra em `ctx.error` e `wait()` devolve
-   * `status: 'error'` com a mensagem. Só o `stream()` não o mencionava — ele drena
+   * `status: 'error'` with the message. Only `stream()` failed to mention it — it drains
    * `script.events` e para. Uma falha de provider (404 "No endpoints found", auth, timeout)
-   * produzia um turno que parecia bem-sucedido e vazio, em TODA superfície que consome o
+   * produced a turn that looked successful and empty, on EVERY surface consuming the
    * stream: HTTP web, MCP, stdio, TUI in-process.
    *
-   * Erro silencioso é o pior tipo (Regra Inquebrável 8). E a assimetria era o que o tornava
-   * difícil de diagnosticar: quem depurasse por `wait()` via o erro e não reproduziria o
+   * A silent error is the worst kind (Unbreakable Rule 8). And the asymmetry was what made it
+   * hard to diagnose: anyone debugging via `wait()` saw the error and would not reproduce the
    * relato de quem depurava pelo stream.
    *
-   * Emite `SDKStatusMessage` com `status: "ERROR"` — o tipo JÁ EXISTE na união `SDKMessage`
-   * e já é esperado por quem consome. Um tipo novo seria breaking para todo consumidor que
-   * faz switch exaustivo; este é aditivo, e um consumidor que ignore `status` simplesmente
+   * It emits `SDKStatusMessage` with `status: "ERROR"` — the type ALREADY EXISTS in the `SDKMessage` union
+   * and is already expected by consumers. A new type would be breaking for every consumer doing
+   * an exhaustive switch; this one is additive, and a consumer ignoring `status` simply
    * segue como antes — nunca pior que hoje.
    */
   private *terminalErrorEvent(): Generator<SDKMessage> {
@@ -135,7 +135,7 @@ export abstract class FixtureRunBase implements Run {
       agent_id: this.agentId,
       run_id: this.id,
       status: "ERROR",
-      // Sem mensagem, o consumidor sabe QUE falhou e não O QUÊ — que é metade do defeito.
+      // Without a message, the consumer knows THAT it failed and not WHAT — which is half the defect.
       ...(detail?.message !== undefined ? { message: detail.message } : {}),
     } satisfies SDKMessage;
   }

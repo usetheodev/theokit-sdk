@@ -179,7 +179,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // PROVIDER rejects it — fail-OPEN, and silent. It now resolves to a floor and says so, so the
   // budget degrades instead of disappearing.
   const resolvedWindow = resolveWindowForRun(model, contextWindow);
-  const janelaEfetiva = resolvedWindow.window;
+  const effectiveWindow = resolvedWindow.window;
   const budgetEvent = buildContextBudgetEvent(model, resolvedWindow);
   if (budgetEvent !== undefined && onRunEvent !== undefined) {
     emitRunEvent(onRunEvent, budgetEvent);
@@ -200,7 +200,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
         usageTotal: usageForTrigger,
         // The EFFECTIVE window (after override, clamp and margin) — not the declared one. Swapping for
         // `contextWindow` here would budget against a number the clamp already rejected.
-        contextWindow: janelaEfetiva,
+        contextWindow: effectiveWindow,
         summarize: buildDefaultSummarizer({
           agentModel: model,
           ...(inputs.apiKey !== undefined ? { apiKey: inputs.apiKey } : {}),

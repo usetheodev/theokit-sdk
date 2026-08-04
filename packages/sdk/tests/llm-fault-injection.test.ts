@@ -3,18 +3,18 @@
  *
  * Determinismo de chaos test: substitui hit real ao provider por response
  * sintetizado a partir de JSON em env var. Gated por `NODE_ENV=test` para
- * impedir uso acidental em produção (FAANG fail-safe).
+ * prevent accidental use in production (FAANG fail-safe).
  *
- * Cobertura BDD obrigatória:
+ * Mandatory BDD coverage:
  *   - Gate: NODE_ENV != "test" → noop (no fault injection ativado)
  *   - Gate: env var ausente / empty → noop
- *   - Gate: JSON inválido → one-shot stderr warn + noop (gracioso)
+ *   - Gate: invalid JSON -> one-shot stderr warn + noop (graceful)
  *   - Active: status 200 + text content → yield text_delta + stop end_turn
  *   - Active: status 429 → throw RateLimitError com providerId
  *   - Active: status 401 → throw AuthenticationError
  *   - Active: status 500 → throw NetworkError (server_error)
  *   - Active: status 400 → throw ConfigurationError
- *   - Idempotente: múltiplos calls com mesma override produzem mesmo output
+ *   - Idempotent: multiple calls with the same override produce the same output
  */
 
 import { afterEach, beforeEach, describe, expect, it } from "vitest";

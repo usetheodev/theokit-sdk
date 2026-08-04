@@ -39,7 +39,7 @@ function seed(): SessionRecord[] {
   return [...t.records()];
 }
 
-describe("shouldAutoCompact (fórmula Codex 0.9×cw)", () => {
+describe("shouldAutoCompact (Codex formula 0.9*cw)", () => {
   it("auto_compact_fires_at_ninety_percent", () => {
     expect(shouldAutoCompact({ usageTotal: 91_000, contextWindow: 100_000 })).toBe(true);
     expect(shouldAutoCompact({ usageTotal: 90_000, contextWindow: 100_000 })).toBe(true); // >= no limiar
@@ -65,11 +65,11 @@ describe("autoCompactIfNeeded (guard anti-cascata)", () => {
       turnCount: 7,
       summarize: async () => {
         calls++;
-        return "resumo automático";
+        return "automatic summary";
       },
     };
     expect(await autoCompactIfNeeded(opts)).toBe(true);
-    // mesmo turnCount (sem turno novo) → não repete, mesmo acima do limiar
+    // same turnCount (no new turn) -> does not repeat, even above the threshold
     expect(await autoCompactIfNeeded(opts)).toBe(false);
     expect(calls).toBe(1);
     // turno NOVO acima do limiar → dispara de novo
@@ -89,7 +89,7 @@ describe("autoCompactIfNeeded (guard anti-cascata)", () => {
       turnCount: 1,
       summarize: async () => {
         calls++;
-        return "não deveria";
+        return "should not";
       },
     });
     expect(fired).toBe(false);
@@ -113,7 +113,7 @@ describe("autoCompactIfNeeded (guard anti-cascata)", () => {
         throw new Error("llm down");
       },
     };
-    expect(await autoCompactIfNeeded(opts)).toBe(false); // falha → não compactou
+    expect(await autoCompactIfNeeded(opts)).toBe(false); // failure -> did not compact
     expect(await autoCompactIfNeeded(opts)).toBe(false); // mesmo turno → nem tenta de novo
     expect(calls).toBe(1);
     expect(JSON.stringify(store.records)).toBe(before);
@@ -153,7 +153,7 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
     });
     await Promise.all([slow, turn]);
     expect(order).toEqual(["compact", "turn"]); // serializado — nunca intercala
-    // e o turno parenteia PÓS-replacement (não vira órfão)
+    // and the turn parents POST-replacement (does not become an orphan)
     const msgs = reconstructMessages(store.records);
     const joined = msgs
       .map((m) =>
@@ -168,7 +168,7 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
   });
 });
 
-describe("M50 F6 — resolveSummarizerRoute (precedência M4)", () => {
+describe("M50 F6 — resolveSummarizerRoute (M4 precedence)", () => {
   it("explicit_key_outranks_prefix (sk-or- + openai/model → openrouter, slug completo)", async () => {
     const { resolveSummarizerRoute } = await import(
       "../../../src/internal/session/compact-session.js"

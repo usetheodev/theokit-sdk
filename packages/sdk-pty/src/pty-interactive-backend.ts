@@ -73,26 +73,26 @@ function capTail(buf: string, max: number): string {
 /**
  * M75 T3.1 — como o chamador embrulha o comando antes do spawn.
  *
- * Existe para que confinamento (sandbox) componha com PTY sem herança: o backend continua dono do
- * spawn, o chamador continua dono da política, e nenhum dos dois conhece o tipo do outro.
+ * It exists so confinement (sandbox) composes with the PTY without inheritance: the backend keeps owning the
+ * spawn, the caller keeps owning the policy, and neither knows the other's type.
  */
 export interface PtyInteractiveBackendOptions {
   /**
-   * Transforma o comando imediatamente antes do spawn. Recebe o `cwd` JÁ RESOLVIDO — o PTY spawna
-   * nele, então um wrap que mirasse outro diretório produziria confinamento que não confina nada.
+   * Transforms the command immediately before the spawn. It receives the ALREADY-RESOLVED `cwd` — the PTY spawns
+   * in it, so a wrap targeting another directory would produce confinement that confines nothing.
    *
-   * Devolver `null` significa **não embrulhe** — decisão explícita, distinta de "embrulhei e deu no
-   * mesmo". É o caso do modo sem confinamento.
+   * Returning `null` means **do not wrap** — an explicit decision, distinct from "I wrapped and it made no
+   * difference". It is the case of the unconfined mode.
    */
   readonly wrapCommand?: (command: string, cwd: string) => string | null;
 
   /**
-   * M77 — teto de sessões VIVAS simultâneas. Ausente ⇒ sem teto (o comportamento de sempre).
+   * M77 — ceiling on simultaneously LIVE sessions. Absent => no ceiling (the long-standing behavior).
    *
-   * Cada sessão é um processo real com TTL de 5 minutos. Um modelo que não percebe que já tem um
-   * shell aberto abre outro, e o TTL só recolhe depois — tarde demais quando o limite é o número de
-   * PIDs da máquina. Ao estourar, {@link MaxSessionsError} lista as sessões vivas, porque a ação
-   * correta é **reusar** uma delas e um erro que não diz isso só ensina o modelo a tentar de novo.
+   * Each session is a real process with a 5-minute TTL. A model that does not notice it already has a
+   * shell open opens another, and the TTL only collects later — too late when the limit is the machine's
+   * PID count. On overflow, {@link MaxSessionsError} lists the live sessions, because the correct
+   * action is to **reuse** one of them, and an error that does not say so only teaches the model to retry.
    */
   readonly maxSessions?: number;
 }
@@ -101,8 +101,8 @@ export interface PtyInteractiveBackendOptions {
  * M77 — o teto de {@link PtyInteractiveBackendOptions.maxSessions} foi atingido.
  *
  * Carrega `liveSessionIds` por design: `rules/error-handling.md § 2` pede mensagem com contexto
- * suficiente para agir, e aqui a ação é reusar uma sessão existente. Um erro que apenas informasse
- * "limite atingido" deixaria o modelo sem saída — ele tentaria de novo, falharia de novo.
+ * enough context to act, and here the action is reusing an existing session. An error merely stating
+ * "limit reached" would leave the model with no way out — it would retry, and fail again.
  */
 export class MaxSessionsError extends InteractiveUnavailableError {
   constructor(
@@ -182,8 +182,8 @@ export class PtyInteractiveBackend extends InteractiveBackend {
         `interactive shell unavailable: cwd does not exist: ${cwd}`,
       );
     }
-    // M75 T3.1 — o wrap entra AQUI: depois do cwd resolvido e validado, antes do spawn. É o ponto
-    // único por onde todo comando passa, então não há caminho que escape do confinamento.
+    // M75 T3.1 — the wrap goes HERE: after the cwd is resolved and validated, before the spawn. It is the
+    // single point every command passes through, so no path escapes the confinement.
     const efetivo = this.wrapCommand?.(command, cwd) ?? command;
 
     const shell = process.env.SHELL ?? "/bin/bash";

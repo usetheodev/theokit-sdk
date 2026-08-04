@@ -180,9 +180,9 @@ export class OpenAIClient implements LlmClient {
         endpoint: "/v1/chat/completions",
       });
       if (mapped !== undefined) throw mapped;
-      // M93 — antes daqui saía `throw fetchErr` cru para todo provider que não fosse Ollama, e
-      // erro estrangeiro é NÃO-transitório por contrato (`errors.ts:429`): o retry ficava desligado
-      // no caso mais clássico.
+      // M93 — before this, a raw `throw fetchErr` left here for every provider other than Ollama, and
+      // a foreign error is NON-transient by contract (`errors.ts:429`): retry stayed off
+      // in the most classic case.
       throw wrapTransportError(fetchErr, { providerId, endpoint: "/v1/chat/completions" });
     }
     if (!response.ok) {

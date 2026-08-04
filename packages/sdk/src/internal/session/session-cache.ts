@@ -1,18 +1,18 @@
 import type { SessionMessage } from "./session-types.js";
 
 /**
- * O cache de sessão em memória — num módulo FOLHA, de propósito.
+ * The in-memory session cache — in a LEAF module, on purpose.
  *
  * O estado e o invalidador viviam em `agent-session.ts`, e `compact-session.ts` importava
- * `invalidateSessionCache` de lá — enquanto `agent-session.ts` importava `autoCompactIfNeeded` de
- * volta. O ciclo estava quebrado em runtime (a volta é `await import()` dinâmico), mas o detector
- * conta a aresta dinâmica, e contar import dinâmico como ciclo torna o gate impossível de satisfazer
- * sem abandonar a técnica canônica de quebrar ciclos.
+ * `invalidateSessionCache` from there — while `agent-session.ts` imported `autoCompactIfNeeded`
+ * back. The cycle was broken at runtime (the return edge is a dynamic `await import()`), but the detector
+ * counts the dynamic edge, and counting a dynamic import as a cycle makes the gate impossible to satisfy
+ * without abandoning the canonical cycle-breaking technique.
  *
- * O dono natural deste estado nunca foi `agent-session.ts`: são dois mapas de processo que ambos os
- * módulos consultam. Extraí-los para uma folha remove o ciclo em QUALQUER detector, sem política de
- * ferramenta e sem mudar uma linha de comportamento — as mesmas instâncias de `Map`/`Set` continuam
- * sendo as únicas do processo, porque módulo ES é singleton.
+ * This state's natural owner was never `agent-session.ts`: they are two process-wide maps that both
+ * modules read. Extracting them into a leaf removes the cycle under ANY detector, with no tool
+ * policy and without changing a line of behavior — the same `Map`/`Set` instances remain
+ * the only ones in the process, because an ES module is a singleton.
  */
 export const sessions = new Map<string, SessionMessage[]>();
 export const hydratedKeys = new Set<string>();

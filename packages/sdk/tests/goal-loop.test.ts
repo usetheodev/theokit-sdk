@@ -25,7 +25,7 @@ describe("runGoalLoop (public)", () => {
         ? { verdict: "continue", reason: "mais", parseFailed: false }
         : { verdict: "done", reason: "ok", parseFailed: false };
     };
-    const gen = runGoalLoop(agent, "objetivo X", { maxTurns: 5 }, { judge });
+    const gen = runGoalLoop(agent, "goal X", { maxTurns: 5 }, { judge });
     const events: unknown[] = [];
     let result: unknown;
     while (true) {
@@ -37,7 +37,7 @@ describe("runGoalLoop (public)", () => {
       events.push(r.value);
     }
     expect(sent.length).toBe(2); // turno 1 (goal) + turno 2 (continuation)
-    expect(sent[1]).toContain("objetivo X"); // continuation carrega o objetivo íntegro
+    expect(sent[1]).toContain("goal X"); // the continuation carries the goal intact
     expect((result as { status: string }).status).toBe("completed");
     expect((result as { tokensUsed: number }).tokensUsed).toBe(20);
   });

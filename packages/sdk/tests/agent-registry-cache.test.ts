@@ -171,12 +171,12 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
       local: { cwd: root },
     });
     // M77 — era `await new Promise((r) => setTimeout(r, 100))`: uma espera FIXA por um despejo
-    // assíncrono. Passava sozinho e falhava sob a carga da suíte completa (observado 1 vez em 3),
-    // porque 100 ms deixam de bastar quando a máquina está ocupada. `rules/testing.md § 6` lista
-    // tempo em teste unitário como anti-pattern, e `§ 3` trata flake como bug.
+    // asynchronous. It passed alone and failed under the full suite's load (observed 1 in 3),
+    // because 100 ms stops being enough when the machine is busy. `rules/testing.md` § 6 lists
+    // time in a unit test as an anti-pattern, and § 3 treats a flake as a bug.
     //
-    // Aumentar o número só move o limiar. Esperar pela CONDIÇÃO com prazo remove a suposição de
-    // tempo sem enfraquecer a asserção: o teste segue exigindo que `aid` seja despejado, e falha
+    // Raising the number only moves the threshold. Waiting for the CONDITION with a deadline removes the
+    // timing assumption without weakening the assertion: the test still requires `aid` to be evicted, and fails
     // igual se isso nunca acontecer.
     const prazo = Date.now() + 5_000;
     while (!evicted.includes(aid) && Date.now() < prazo) {

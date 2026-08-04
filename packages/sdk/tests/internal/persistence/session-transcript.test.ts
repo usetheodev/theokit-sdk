@@ -220,18 +220,18 @@ describe("SE40 — transcript file I/O (Claude layout)", () => {
   });
 });
 
-describe("M50 — compact boundary with replacement (fim da amnésia)", () => {
+describe("M50 — compact boundary with replacement (end of the amnesia)", () => {
   it("boundary_with_replacement_replays_summary_after_resume", () => {
     const t = new SessionTranscript(BASE);
     t.appendUserTurn("pergunta antiga 1");
     t.appendAssistantTurn({ text: "resposta antiga 1" });
     t.appendUserTurn("pergunta antiga 2");
     t.appendAssistantTurn({ text: "resposta antiga 2" });
-    // compact: boundary (novo root) + replacement encadeado nele (user recente + sumário-handoff)
+    // compact: boundary (new root) + replacement chained onto it (recent user + handoff summary)
     t.appendCompactBoundary({ preTokens: 1000, trigger: "manual" });
     t.appendUserTurn("pergunta antiga 2"); // user recente preservada verbatim
     t.appendUserTurn("[COMPACT SUMMARY]\nprogresso: X decidido; falta Y");
-    // continuação pós-compact
+    // post-compact continuation
     t.appendUserTurn("pergunta nova");
     t.appendAssistantTurn({ text: "resposta nova" });
 
@@ -241,8 +241,8 @@ describe("M50 — compact boundary with replacement (fim da amnésia)", () => {
     );
     expect(texts.join("\n")).toContain("[COMPACT SUMMARY]");
     expect(texts.join("\n")).toContain("pergunta nova");
-    expect(texts.join("\n")).not.toContain("resposta antiga 1"); // pré-boundary não replaya
-    // replacement vem ANTES da continuação
+    expect(texts.join("\n")).not.toContain("old answer 1"); // pre-boundary does not replay
+    // the replacement comes BEFORE the continuation
     const iSummary = texts.findIndex((x) => x.includes("[COMPACT SUMMARY]"));
     const iNew = texts.findIndex((x) => x.includes("pergunta nova"));
     expect(iSummary).toBeGreaterThanOrEqual(0);
