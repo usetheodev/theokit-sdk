@@ -33,7 +33,7 @@
  * @internal
  */
 
-import { readdir, readFile, stat } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -232,21 +232,32 @@ interface Offender {
   text: string;
 }
 
+/** Directories that hold build output or dependencies, never source we own. */
+const SKIP_DIRS = new Set(["node_modules", "dist", "coverage", ".turbo", ".git"]);
+
+/**
+ * `withFileTypes` matters here, not as a micro-optimization: the first version called `stat` once
+ * per entry while walking the whole monorepo, and the test blew a 20 s timeout. A gate slow enough
+ * to time out is a gate someone disables.
+ */
 async function walk(dir: string, out: string[] = []): Promise<string[]> {
-  let entries: string[];
+  let entries: Awaited<ReturnType<typeof readdir>>;
   try {
-    entries = await readdir(dir);
+    entries = await readdir(dir, { withFileTypes: true });
   } catch {
     // A scan root that does not exist is not a violation — packages come and go.
     return out;
   }
-  for (const name of entries) {
-    if (name === "node_modules" || name === "dist" || name === "coverage") continue;
-    const full = join(dir, name);
-    const s = await stat(full);
-    if (s.isDirectory()) await walk(full, out);
-    else if (full.endsWith(".ts") && !full.endsWith(".d.ts")) out.push(full);
+  const subdirs: string[] = [];
+  for (const entry of entries) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) {
+      if (!SKIP_DIRS.has(entry.name)) subdirs.push(full);
+    } else if (full.endsWith(".ts") && !full.endsWith(".d.ts")) {
+      out.push(full);
+    }
   }
+  await Promise.all(subdirs.map((d) => walk(d, out)));
   return out;
 }
 
@@ -312,13 +323,10 @@ async function scanFile(file: string): Promise<Offender[]> {
 }
 
 async function collectOffenders(): Promise<Offender[]> {
-  const offenders: Offender[] = [];
-  for (const root of SCAN_ROOTS) {
-    for (const file of await walk(join(PACKAGES_ROOT, root))) {
-      offenders.push(...(await scanFile(file)));
-    }
-  }
-  return offenders;
+  const files: string[] = [];
+  for (const root of SCAN_ROOTS) files.push(...(await walk(join(PACKAGES_ROOT, root))));
+  const perFile = await Promise.all(files.map(scanFile));
+  return perFile.flat();
 }
 
 describe("codebase is English-only (no PT-BR)", () => {

@@ -23,7 +23,7 @@
  *
  * ROADMAP risk #2: exporting the loader may freeze an internal format as public API. That is why
  * the return is an `AgentDefinition` — the already-interpreted data — and not the `.md` text nor the shape of
- * frontmatter. O formato de arquivo permanece detalhe interno, livre para mudar.
+ * frontmatter. The file format stays an internal detail, free to change.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -53,7 +53,7 @@ describe("M81 T2.1 — public subagents loader", () => {
     expect(Object.keys(encontrados).sort()).toEqual(["analyst", "explorer"]);
   });
 
-  it("test_devolve_a_config_PARSEADA_e_nao_o_formato_de_arquivo", async () => {
+  it("test_returns_the_PARSED_config_and_not_the_file_format", async () => {
     // Risco #2 do ROADMAP. Devolver o texto do `.md` ou a forma do frontmatter congelaria um formato
     // internal format as public API; returning an `AgentDefinition` leaves the format free to change.
     const encontrados = await discoverSubagents(cwd);
@@ -66,14 +66,14 @@ describe("M81 T2.1 — public subagents loader", () => {
     ).not.toContain("---");
   });
 
-  it("test_CONTRAPROVA_diretorio_vazio_devolve_lista_vazia_sem_lancar", async () => {
+  it("test_COUNTERPROOF_an_empty_directory_returns_an_empty_list_without_throwing", async () => {
     // A project with no subagents is the common case, not an error. Without this counter-proof, an implementation
     // throwing on `ENOENT` would pass the tests above and break every new project.
-    const vazio = mkdtempSync(join(tmpdir(), "m81-vazio-"));
+    const empty = mkdtempSync(join(tmpdir(), "m81-empty-"));
     try {
-      expect(await discoverSubagents(vazio)).toEqual({});
+      expect(await discoverSubagents(empty)).toEqual({});
     } finally {
-      rmSync(vazio, { recursive: true, force: true });
+      rmSync(empty, { recursive: true, force: true });
     }
   });
 });

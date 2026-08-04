@@ -31,11 +31,11 @@ function fileMode(target: string): number {
  * creating a file afterwards. The `finally` is what prevents that.
  */
 async function sobUmask(mask: number, fn: () => Promise<void>): Promise<void> {
-  const anterior = process.umask(mask);
+  const previous = process.umask(mask);
   try {
     await fn();
   } finally {
-    process.umask(anterior);
+    process.umask(previous);
   }
 }
 
@@ -130,7 +130,7 @@ describe("atomicWriteJson", () => {
  *
  * When the caller ASKS for a mode, the `umask` must not have the last word silently — that was
  * exactly the reason written in the local workaround this item exists to erase. The reassertion goes on the
- * DESCRITOR, antes do `rename`, e nunca depois: dar `chmod` depois do rename deixaria o arquivo
+ * DESCRIPTOR, before the `rename`, and never after: chmod-ing after the rename would leave the file
  * briefly carrying the umask's mode, which is the anti-pattern measured in
  * `references/opencode/packages/core/src/fs-util.ts:110-114`. A forma escolhida — fileMode como
  * `open` parameter — is the single reference's
@@ -149,15 +149,15 @@ describe("M107 T1.1 — atomicWriteJson honra mode e exclusive", () => {
 
   it("test_without_options_the_behavior_is_identical", async () => {
     // Arrange — the two modes MEASURED before the change, per umask.
-    const medidoAntes = new Map([
+    const measuredBefore = new Map([
       [0o002, 0o600],
       [0o200, 0o400],
     ]);
 
-    for (const [mask, expected] of medidoAntes) {
+    for (const [mask, expected] of measuredBefore) {
       await sobUmask(mask, async () => {
         const noBag = join(dir, `sem-bag-${mask.toString(8)}.json`);
-        const emptyBag = join(dir, `bag-vazio-${mask.toString(8)}.json`);
+        const emptyBag = join(dir, `bag-empty-${mask.toString(8)}.json`);
 
         // Act
         await atomicWriteJson(noBag, { a: 1 });
@@ -172,7 +172,7 @@ describe("M107 T1.1 — atomicWriteJson honra mode e exclusive", () => {
     }
   });
 
-  it("test_mode_e_honrado_mesmo_quando_o_umask_limparia_o_bit", async () => {
+  it("test_mode_is_honored_even_when_the_umask_would_clear_the_bit", async () => {
     // Arrange — `umask 0o200` clears the owner write bit. Without the reassertion on the descriptor, the
     // file comes out `0o400` (measured) and the caller's request is lost SILENTLY.
     const path = join(dir, "pedido-explicito.json");
@@ -199,7 +199,7 @@ describe("M107 T1.1 — atomicWriteJson honra mode e exclusive", () => {
     });
   });
 
-  it("test_mode_invalido_propaga_o_erro_do_sistema", async () => {
+  it("test_an_invalid_mode_propagates_the_system_error", async () => {
     // Arrange — NEGATIVE CASE (distinct from an edge case): the mode is invalid, not extreme.
     const path = join(dir, "fileMode-invalido.json");
 
@@ -209,7 +209,7 @@ describe("M107 T1.1 — atomicWriteJson honra mode e exclusive", () => {
     expect(readdirSync(dir)).toEqual([]);
   });
 
-  it("test_falha_no_rename_nao_deixa_temporario", async () => {
+  it("test_a_rename_failure_leaves_no_temp_file", async () => {
     // Arrange — REGRESSION (not RED): the destination is a NON-EMPTY directory, so the `rename` fails.
     // What is proven is that temp-file cleanup still holds on the new path.
     const path = join(dir, "alvo-ocupado");
@@ -221,7 +221,7 @@ describe("M107 T1.1 — atomicWriteJson honra mode e exclusive", () => {
     expect(readdirSync(dir).filter((f) => f.includes(".tmp"))).toEqual([]);
   });
 
-  it("test_dois_escritores_concorrentes_no_mesmo_destino_nao_produzem_arquivo_parcial", async () => {
+  it("test_two_concurrent_writers_on_the_same_destination_produce_no_partial_file", async () => {
     // Arrange — atomicity under multiple writers is the module's contract, and `mode`/`exclusive`
     // touch CREATION, which is where a race would manifest.
     const path = join(dir, "disputado.json");

@@ -1,7 +1,7 @@
 /**
  * M76 T3.1 — the asker comes from the run's CONTEXT, not from a value pinned at construction.
  *
- * ## O desenho estava escrito por quem construiu o SDK
+ * ## The design was already written down by the SDK's own authors
  *
  * A doc de `CustomTool.handler` descreve este caso de uso em duas frases:
  *
@@ -25,7 +25,7 @@
  * ## The negative case is mandatory
  *
  * With no asker at all, the tool **must not** return a promise that never resolves: the turn would stall until the
- * timeout de 5 minutos. `error-handling.md` § 2 exige erro tipado, e ele precisa ser IMEDIATO.
+ * 5-minute timeout. `error-handling.md` § 2 requires a typed error, and it has to be IMMEDIATE.
  */
 import { describe, expect, it } from "vitest";
 
@@ -76,8 +76,8 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
     expect(out).toContain("fabrica");
   });
 
-  it("test_NEGATIVO_sem_asker_nenhum_erro_tipado_imediato", async () => {
-    // Sem asker, o antigo desenho devolveria uma promise pendente e o turno pararia 5 minutos.
+  it("test_NEGATIVE_with_no_asker_an_immediate_typed_error", async () => {
+    // With no asker, the old design would return a pending promise and the turn would stall 5 minutes.
     const t = createQuestionTool({});
     const inicio = Date.now();
     const out = (await t.handler({ question: "qual?" })) as string;
@@ -104,7 +104,7 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
     expect(fromFactory).toBe(1);
   });
 
-  it("test_handler_e_reentrante_duas_chamadas_simultaneas_nao_se_contaminam", async () => {
+  it("test_the_handler_is_reentrant_two_simultaneous_calls_do_not_contaminate_each_other", async () => {
     // M76 review (H3) — the previous NAME ("askers from distinct threadIds do not mix") claimed
     // more than this test proves. It suggested the tool ISOLATES state per session; the tool has no
     // state at all. Each `handler` captures its asker in a local `const`, so the non-mixing here is
@@ -113,7 +113,7 @@ describe("M76 T3.1 — o asker vem do contexto", () => {
     // What it legitimately protects is REENTRANCY: if someone refactored `question.ts` to
     // cache the asker in a module-level `let` (the plausible optimization), two simultaneous calls
     // would start contaminating each other and this test would fail. It is a non-regression test, and the name now says
-    // isso.
+    // that.
     //
     // The PER-SESSION isolation invariant — what actually justified killing the singleton — lives where
     // the state lives: `agents/interactive/ask-bridge.test.ts`, in the consumer. Here it would be vacuous.
@@ -156,15 +156,15 @@ describe("M76 review — threadId wiring and slot release", () => {
       },
     });
 
-    await t.handler({ question: "q" }, { threadId: "sessao-42" });
+    await t.handler({ question: "q" }, { threadId: "session-42" });
 
     expect(
       recebidos[0],
       "the threadId did not reach the asker — the bridge Map would always fall into the default slot",
-    ).toBe("sessao-42");
+    ).toBe("session-42");
   });
 
-  it("test_o_timeout_AVISA_que_a_pergunta_foi_abandonada", async () => {
+  it("test_the_timeout_NOTIFIES_that_the_question_was_abandoned", async () => {
     // Without this notice the slot stays occupied forever: the UI keeps showing an orphaned prompt and every
     // subsequent question gets "one is already pending" — a permanent error for something nobody awaits.
     const abandoned: (string | undefined)[] = [];

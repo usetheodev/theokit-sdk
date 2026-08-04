@@ -1,11 +1,11 @@
-// MIGRADO do agent-builder no M75 T4.1 — SEGUNDA tentativa, e a razao esta no review.
+// MIGRATED from the agent-builder in M75 T4.1 — SECOND attempt, and the reason is in the review.
 //
 // A primeira "migracao" escreveu testes NOVOS com probes injetados e deletou estes 24. O review
-// provou por MUTACAO o que isso custou: trocar buildSeccompFilter por `Buffer.alloc(8)` — um filtro
-// que nao nega NADA, sem arch guard, sem ptrace, sem io_uring, sem AF_INET — passava 9/9. A
+// proved by MUTATION what that cost: swapping buildSeccompFilter for `Buffer.alloc(8)` — a filter
+// that denies NOTHING, no arch guard, no ptrace, no io_uring, no AF_INET — passed 9/9. The
 // semantica inteira do filtro cBPF estava vacua.
 //
-// Aqui a mudanca e SO no bloco de import (D4). Nenhum corpo, nenhuma assercao.
+// Here the change is ONLY in the import block (D4). No body, no assertion.
 
 import { describe, expect, it } from "vitest";
 
@@ -50,7 +50,7 @@ describe("buildSeccompFilter", () => {
 
   it("always_denied_present_recvfrom_and_sendmsg_absent", () => {
     const ks = jeqConstants(buildSeccompFilter({ networkRestricted: true }));
-    // sempre-negados (landlock.rs:179-184)
+    // always-denied (landlock.rs:179-184)
     for (const nr of [101, 310, 311, 425, 426, 427]) expect(ks).toContain(nr);
     // recvfrom(45) e sendmsg(46) NUNCA negados (landlock.rs:198-201)
     expect(ks).not.toContain(45);
@@ -64,7 +64,7 @@ describe("buildSeccompFilter", () => {
     const off = jeqConstants(buildSeccompFilter({ networkRestricted: false }));
     // without a restricted network, the socket set does NOT go in (but the always-denied ones do)
     for (const nr of [42, 49, 44]) expect(off).not.toContain(nr);
-    expect(off).toContain(101); // ptrace sempre
+    expect(off).toContain(101); // ptrace always
   });
 
   it("socket_family_checks_args0_offset16", () => {

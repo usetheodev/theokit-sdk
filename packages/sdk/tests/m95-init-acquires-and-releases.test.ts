@@ -23,7 +23,7 @@ afterEach(async () => {
   for (const a of criados.splice(0)) await a.dispose();
 });
 
-function opcoes(baseDir: string, agentId: string): AgentOptions {
+function options(baseDir: string, agentId: string): AgentOptions {
   return {
     agentId,
     apiKey: "theo_test_m95",
@@ -33,14 +33,14 @@ function opcoes(baseDir: string, agentId: string): AgentOptions {
 }
 
 async function agente(baseDir: string, agentId: string): Promise<LocalAgent> {
-  const a = new LocalAgent(opcoes(baseDir, agentId));
+  const a = new LocalAgent(options(baseDir, agentId));
   criados.push(a);
   await a.initialize();
   return a;
 }
 
-/** Um `.writer.lock` de dono vivo e alheio — o pid do processo pai. */
-function lockDeOutroProcesso(baseDir: string, agentId: string): string {
+/** A `.writer.lock` owned by a live, foreign owner — the parent process's pid. */
+function lockFromAnotherProcess(baseDir: string, agentId: string): string {
   const p = transcriptPath(baseDir, baseDir, agentId);
   mkdirSync(dirname(p), { recursive: true });
   writeFileSync(
@@ -51,7 +51,7 @@ function lockDeOutroProcesso(baseDir: string, agentId: string): string {
 }
 
 describe("M95 — o init toma o lease (mutante N1)", () => {
-  it("depois de initialize(), o lock existe", async () => {
+  it("after initialize(), the lock exists", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
     await agente(base, "ag-n1");
     expect(existsSync(`${transcriptPath(base, base, "ag-n1")}.writer.lock`)).toBe(true);
@@ -59,7 +59,7 @@ describe("M95 — o init toma o lease (mutante N1)", () => {
 
   it("dispose() solta o lock", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
-    const a = new LocalAgent(opcoes(base, "ag-n1b"));
+    const a = new LocalAgent(options(base, "ag-n1b"));
     await a.initialize();
     await a.dispose();
     expect(existsSync(`${transcriptPath(base, base, "ag-n1b")}.writer.lock`)).toBe(false);
@@ -69,23 +69,23 @@ describe("M95 — o init toma o lease (mutante N1)", () => {
 describe("M95 — SessionBusyError PROPAGA do init (mutante N2)", () => {
   it("initialize() throws when another live process holds the session", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
-    lockDeOutroProcesso(base, "ag-n2");
-    const a = new LocalAgent(opcoes(base, "ag-n2"));
+    lockFromAnotherProcess(base, "ag-n2");
+    const a = new LocalAgent(options(base, "ag-n2"));
     criados.push(a);
     await expect(a.initialize()).rejects.toBeInstanceOf(SessionBusyError);
   });
 });
 
-describe("M95 — um init que falha DEPOIS de adquirir solta o lease (HIGH-1)", () => {
+describe("M95 — an init that fails AFTER acquiring releases the lease (HIGH-1)", () => {
   it("the lock is not left with this very process, which would lock it forever", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
     const p = transcriptPath(base, base, "ag-h1");
     mkdirSync(dirname(p), { recursive: true });
     // Unreadable transcript: `readRecords` MUST throw by contract ("a resume cannot proceed on a
     // silent partial history"), and that happens AFTER the acquisition.
-    writeFileSync(p, "conteudo", { mode: 0o000 });
+    writeFileSync(p, "content", { mode: 0o000 });
 
-    const a = new LocalAgent(opcoes(base, "ag-h1"));
+    const a = new LocalAgent(options(base, "ag-h1"));
     await a.initialize().catch(() => undefined);
 
     // If the lease leaks, it stays with THIS process — alive, same host — and is never reclaimable again.
@@ -102,12 +102,12 @@ describe("M95/LOW-1 — a failing init does not release OTHER agents' leases", (
     const vivo = await agente(base, "ag-vivo");
     expect(existsSync(`${transcriptPath(base, base, "ag-vivo")}.writer.lock`)).toBe(true);
 
-    // Um segundo agente NO MESMO store falha no init depois de adquirir.
-    const p = transcriptPath(base, base, "ag-falha");
+    // A second agent IN THE SAME store fails at init after acquiring.
+    const p = transcriptPath(base, base, "ag-fails");
     mkdirSync(dirname(p), { recursive: true });
     writeFileSync(p, "x", { mode: 0o000 });
     const b = new LocalAgent({
-      ...(opcoes(base, "ag-falha") as object),
+      ...(options(base, "ag-fails") as object),
       local: {
         cwd: base,
         baseDir: base,
@@ -118,7 +118,7 @@ describe("M95/LOW-1 — a failing init does not release OTHER agents' leases", (
 
     expect(
       existsSync(`${transcriptPath(base, base, "ag-vivo")}.writer.lock`),
-      "a falha de um agente liberou o lease de outro, que segue escrevendo",
+      "one agent's failure released another's lease, which is still writing",
     ).toBe(true);
   });
 });

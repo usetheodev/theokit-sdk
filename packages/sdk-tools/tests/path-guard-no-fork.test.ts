@@ -62,7 +62,7 @@ describe("#150 — path-guard with no fork of the canonical one", () => {
   });
 
   it("test_a_filesystem_root_base_accepts_a_path", () => {
-    // #149 — o fork recusava TODO caminho quando a base era `/`.
+    // #149 — the fork refused EVERY path when the base was `/`.
     expect(safePathJoin("/", "a.txt")).toBe(joinCanonico("/", "a.txt"));
   });
 

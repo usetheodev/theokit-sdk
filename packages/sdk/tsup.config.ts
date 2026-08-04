@@ -87,14 +87,14 @@ export default defineConfig({
   //
   // The prototype chain was right; it was the class object that differed. That nullifies the whole
   // premise of a single error hierarchy: a `catch` cannot discriminate a framework error
-  // quando o erro atravessou um subpath diferente do usado para importar o tipo.
+  // when the error crossed a subpath different from the one used to import the type.
   //
-  // O teste de paridade do M73 previu exatamente este modo de falha ("se o build inlinear o SDK, a
+  // M73's parity test predicted exactly this failure mode ("if the build inlines the SDK, the
   // layer exports a COPY and `instanceof` silently becomes false"), but predicted it for the layer;
   // it was already happening here, between the SDK's own subpaths. No unit test caught it — they all
   // import from source, where there is only one class. Only running against the PUBLISHED packages revealed it.
   //
-  // Efeito colateral bem-vindo: `dist/index.js` caiu de 207.514 para 20.447 bytes, porque o que era
+  // Welcome side effect: `dist/index.js` dropped from 207,514 to 20,447 bytes, because what used to be
   // duplicated code became a shared chunk. The 215,000 budget became too loose and deserves to be
   // tightened in a change of its own — lowering it here would mix two decisions.
   splitting: true,

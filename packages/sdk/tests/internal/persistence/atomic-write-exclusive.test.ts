@@ -22,7 +22,7 @@
  *
  * | Mutation in `atomic-write.ts` | Tests that die |
  * |---|---|
- * | `const flag = options?.exclusive === true ? "wx" : "w"` → `const flag = "w"` | `test_exclusive_falha_quando_o_temporario_ja_existe` |
+ * | `const flag = options?.exclusive === true ? "wx" : "w"` -> `const flag = "w"` | `test_exclusive_fails_when_the_temp_file_already_exists` |
  *
  * The test pair is what gives the mutation meaning: without `exclusive`, a leftover temp file **is**
  * truncated (today's behavior, preserved); with `exclusive`, it is a refusal. A test of only the
@@ -42,8 +42,8 @@ vi.mock("node:crypto", async (importOriginal) => {
 import { atomicWriteJson } from "../../../src/internal/persistence/atomic-write.js";
 
 /** The temp path production will choose, given the deterministic `randomBytes` above. */
-function caminhoDoTemporario(destino: string): string {
-  return `${destino}.${process.pid}.${Buffer.alloc(8, 0xab).toString("hex")}.tmp`;
+function tempPathFor(destination: string): string {
+  return `${destination}.${process.pid}.${Buffer.alloc(8, 0xab).toString("hex")}.tmp`;
 }
 
 let dir: string;
@@ -57,46 +57,46 @@ afterEach(() => {
 });
 
 describe("M107 T1.1 — exclusive makes the temp file born by exclusive creation", () => {
-  it("test_exclusive_falha_quando_o_temporario_ja_existe", async () => {
+  it("test_exclusive_fails_when_the_temp_file_already_exists", async () => {
     // Arrange — the temp file production would choose is already on disk (residue of an interrupted
     // write, or planted). The destination has prior content that must not be lost.
-    const destino = join(dir, "config.json");
-    writeFileSync(destino, '{\n  "anterior": true\n}\n');
-    writeFileSync(caminhoDoTemporario(destino), "residuo");
+    const destination = join(dir, "config.json");
+    writeFileSync(destination, '{\n  "previous": true\n}\n');
+    writeFileSync(tempPathFor(destination), "residue");
 
     // Act + Assert — exclusive creation refuses with the SYSTEM's error, not silenced.
-    await expect(atomicWriteJson(destino, { novo: true }, { exclusive: true })).rejects.toThrow(
+    await expect(atomicWriteJson(destination, { novo: true }, { exclusive: true })).rejects.toThrow(
       /EEXIST/,
     );
 
     // Assert — the destination was NOT touched, nor was the residue (the refusal happens at creation).
-    expect(readFileSync(destino, "utf-8")).toBe('{\n  "anterior": true\n}\n');
-    expect(readFileSync(caminhoDoTemporario(destino), "utf-8")).toBe("residuo");
+    expect(readFileSync(destination, "utf-8")).toBe('{\n  "previous": true\n}\n');
+    expect(readFileSync(tempPathFor(destination), "utf-8")).toBe("residue");
   });
 
   it("test_sem_exclusive_um_temporario_residuo_continua_sendo_truncado", async () => {
     // Arrange — the same scenario, WITHOUT the option: this is today's behavior, and it is preserved.
-    const destino = join(dir, "config.json");
-    writeFileSync(caminhoDoTemporario(destino), "residuo");
+    const destination = join(dir, "config.json");
+    writeFileSync(tempPathFor(destination), "residue");
 
     // Act
-    await atomicWriteJson(destino, { novo: true });
+    await atomicWriteJson(destination, { novo: true });
 
     // Assert — the write won, and the temp file became the destination (nothing left over).
-    expect(readFileSync(destino, "utf-8")).toBe('{\n  "novo": true\n}\n');
+    expect(readFileSync(destination, "utf-8")).toBe('{\n  "novo": true\n}\n');
     expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 
-  it("test_exclusive_escreve_normalmente_quando_nao_ha_residuo", async () => {
+  it("test_exclusive_writes_normally_when_there_is_no_residue", async () => {
     // Arrange — the option's happy path: with no residue, `exclusive` changes nothing observable.
-    const destino = join(dir, "config.json");
-    expect(existsSync(caminhoDoTemporario(destino))).toBe(false);
+    const destination = join(dir, "config.json");
+    expect(existsSync(tempPathFor(destination))).toBe(false);
 
     // Act
-    await atomicWriteJson(destino, { a: 1 }, { exclusive: true });
+    await atomicWriteJson(destination, { a: 1 }, { exclusive: true });
 
     // Assert
-    expect(readFileSync(destino, "utf-8")).toBe('{\n  "a": 1\n}\n');
+    expect(readFileSync(destination, "utf-8")).toBe('{\n  "a": 1\n}\n');
     expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 });

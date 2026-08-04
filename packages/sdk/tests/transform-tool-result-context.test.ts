@@ -46,13 +46,13 @@ interface ParteDeResultado {
 /** `toolUseId` -> content, resolved by the tool's NAME. It is the whole correlation, isolated from the test. */
 function porNomeDeTool(results: unknown, ctx: ToolResultTransformContext): Record<string, string> {
   const porId = new Map(ctx.toolCalls.map((t) => [t.id, t.name]));
-  const saida: Record<string, string> = {};
-  for (const parte of results as ParteDeResultado[]) {
-    if (parte.type !== "tool_result") continue;
-    const nome = porId.get(parte.toolUseId ?? "");
-    if (nome !== undefined) saida[nome] = String(parte.content);
+  const output: Record<string, string> = {};
+  for (const part of results as ParteDeResultado[]) {
+    if (part.type !== "tool_result") continue;
+    const name = porId.get(part.toolUseId ?? "");
+    if (name !== undefined) output[name] = String(part.content);
   }
-  return saida;
+  return output;
 }
 
 /** LLM que emite as tool calls pedidas no 1º turn e encerra no 2º. */
@@ -165,10 +165,10 @@ describe("M82 — transform_tool_result recebe o contexto de tool call", () => {
     expect(correlacionado.beta).toContain("resultado-de-beta");
   });
 
-  it("test_CONTRAPROVA_TransformContext_compartilhado_NAO_ganhou_toolCalls", () => {
+  it("test_COUNTERPROOF_the_shared_TransformContext_did_NOT_gain_toolCalls", () => {
     // ADR-1: `TransformContext` also serves `transform_llm_output`, which has no tool call at all.
     // An optional `toolCalls?` there would always be `undefined` for half the consumers — the type
-    // mentiria. Sem esta contraprova, resolver T1.1 poluindo o tipo compartilhado passaria.
+    // would lie. Without this counter-proof, solving T1.1 by polluting the shared type would pass.
     const base: TransformContext = { agentId: "a", runId: "r" };
     // @ts-expect-error — `toolCalls` does NOT belong to the shared context.
     const proibido = base.toolCalls;

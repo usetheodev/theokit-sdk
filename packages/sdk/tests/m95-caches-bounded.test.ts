@@ -2,10 +2,10 @@
  * M95 Phase 3 — the four module-level caches gain a ceiling and eviction.
  *
  * `agent-session.ts` and `session-cache.ts` keep four process-wide maps — `sessions`,
- * `hydratedKeys`, `pendingWrites`, `recordCounts` — e nenhum apaga entrada por id ao fim da vida
+ * `hydratedKeys`, `pendingWrites`, `recordCounts` — and none erases an entry by id at the end of an
  * do agente. Medido: `invalidateSessionCache` limpa **dois** (`sessions`, `hydratedKeys`); os
  * the other two are never touched by id. In a long-lived process running many sessions, that is
- * crescimento sem dono.
+ * ownerless growth.
  */
 import { describe, expect, it } from "vitest";
 import {

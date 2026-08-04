@@ -111,7 +111,7 @@ describe("Auth.create() — config validation", () => {
     expect(() => Auth.create({ session, providers: [bad] })).toThrow(/invalid_provider_name/);
   });
 
-  it("accepts empty providers (Caminho A escape hatch)", () => {
+  it("accepts empty providers (Path A escape hatch)", () => {
     const session = mockSession<{ userId: string }>();
     expect(() => Auth.create({ session })).not.toThrow();
   });
@@ -223,7 +223,7 @@ describe("EC-10 (v1.1) — rotateSession on login (OWASP A07:2021)", () => {
   });
 });
 
-describe("signIn — Caminho A escape hatch", () => {
+describe("signIn — Path A escape hatch", () => {
   it("creates session directly from profile without OAuth flow", async () => {
     const session = mockSession<{ userId: string }>();
     const auth = Auth.create({

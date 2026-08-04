@@ -61,14 +61,14 @@ describe("M93 — RetryingLlmClient", () => {
     expect(attempts()).toBe(1);
   });
 
-  it("sucesso na SEGUNDA tentativa nao chama a terceira", async () => {
+  it("success on the SECOND attempt does not call a third", async () => {
     const { client, attempts } = failingClient([rate429()]);
     const comRetry = new RetryingLlmClient(client, { rng: () => 0 });
     await drenar(comRetry);
     expect(attempts()).toBe(2);
   });
 
-  it("402 (billing) NAO e transitorio — cota nao se resolve em milissegundos", () => {
+  it("402 (billing) is NOT transient — a quota does not resolve in milliseconds", () => {
     const billing = new RateLimitError("402", { metadata: { statusCode: 402 } as never });
     expect(isRetriableError(billing)).toBe(false);
   });
@@ -77,7 +77,7 @@ describe("M93 — RetryingLlmClient", () => {
     expect(isRetriableError(rate429())).toBe(true);
   });
 
-  it("o client sem falha atravessa sem tentativa extra", async () => {
+  it("a non-failing client passes through with no extra attempt", async () => {
     const { client, attempts } = failingClient([]);
     const comRetry = new RetryingLlmClient(client, { rng: () => 0 });
     await drenar(comRetry);

@@ -117,8 +117,8 @@ describe("node:sqlite fallback (flicker-bug fix — the error message PROMISED t
   /**
    * Host-gated, and the reason matters: this test replaces ONLY the `better-sqlite3` loader and
    * expects the host's REAL `node:sqlite`. The builtin only became unflagged in later Node 22.x
-   * recente — no **22.12** ele ainda exige `--experimental-sqlite`, e `process.getBuiltinModule`
-   * devolve vazio. Quebrou exatamente assim na matriz de CI (`validate (node 22.12)`), enquanto
+   * Node 22.x — on **22.12** it still requires `--experimental-sqlite`, and `process.getBuiltinModule`
+   * returns empty. It broke exactly like that in the CI matrix (`validate (node 22.12)`), while
    * `validate (node 22)` passava.
    *
    * A test cannot prove a fallback to a driver the host does not have. Skipping is honest HERE —

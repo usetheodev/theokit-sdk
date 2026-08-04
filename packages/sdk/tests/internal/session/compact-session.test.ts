@@ -67,7 +67,7 @@ describe("compactSessionTranscript", () => {
   it("prior_summaries_filtered_from_preservation", async () => {
     const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
     t.appendUserTurn(`${COMPACT_SUMMARY_MARKER}\nold summary that must not duplicate`);
-    t.appendUserTurn("pergunta atual");
+    t.appendUserTurn("current question");
     const store = storeWith([...t.records()]);
 
     await compactSessionTranscript({
@@ -86,7 +86,7 @@ describe("compactSessionTranscript", () => {
     );
     const oldSummaryCopies = texts.filter((x) => x.includes("old summary")).length;
     expect(oldSummaryCopies).toBe(0); // the previous summary does NOT enter the new replacement verbatim
-    expect(texts.join("\n")).toContain("pergunta atual");
+    expect(texts.join("\n")).toContain("current question");
   });
 
   it("summarizer_failure_leaves_transcript_untouched", async () => {

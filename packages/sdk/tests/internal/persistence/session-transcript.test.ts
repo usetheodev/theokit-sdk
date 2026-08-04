@@ -223,40 +223,40 @@ describe("SE40 — transcript file I/O (Claude layout)", () => {
 describe("M50 — compact boundary with replacement (end of the amnesia)", () => {
   it("boundary_with_replacement_replays_summary_after_resume", () => {
     const t = new SessionTranscript(BASE);
-    t.appendUserTurn("pergunta antiga 1");
-    t.appendAssistantTurn({ text: "resposta antiga 1" });
-    t.appendUserTurn("pergunta antiga 2");
-    t.appendAssistantTurn({ text: "resposta antiga 2" });
+    t.appendUserTurn("old question 1");
+    t.appendAssistantTurn({ text: "old answer 1" });
+    t.appendUserTurn("old question 2");
+    t.appendAssistantTurn({ text: "old answer 2" });
     // compact: boundary (new root) + replacement chained onto it (recent user + handoff summary)
     t.appendCompactBoundary({ preTokens: 1000, trigger: "manual" });
-    t.appendUserTurn("pergunta antiga 2"); // user recente preservada verbatim
+    t.appendUserTurn("old question 2"); // recent user message preserved verbatim
     t.appendUserTurn("[COMPACT SUMMARY]\nprogresso: X decidido; falta Y");
     // post-compact continuation
-    t.appendUserTurn("pergunta nova");
-    t.appendAssistantTurn({ text: "resposta nova" });
+    t.appendUserTurn("new question");
+    t.appendAssistantTurn({ text: "new answer" });
 
     const msgs = reconstructMessages(t.records());
     const texts = msgs.map((m) =>
       typeof m.content === "string" ? m.content : JSON.stringify(m.content),
     );
     expect(texts.join("\n")).toContain("[COMPACT SUMMARY]");
-    expect(texts.join("\n")).toContain("pergunta nova");
+    expect(texts.join("\n")).toContain("new question");
     expect(texts.join("\n")).not.toContain("old answer 1"); // pre-boundary does not replay
     // the replacement comes BEFORE the continuation
     const iSummary = texts.findIndex((x) => x.includes("[COMPACT SUMMARY]"));
-    const iNew = texts.findIndex((x) => x.includes("pergunta nova"));
+    const iNew = texts.findIndex((x) => x.includes("new question"));
     expect(iSummary).toBeGreaterThanOrEqual(0);
     expect(iSummary).toBeLessThan(iNew);
   });
 
   it("legacy_boundary_without_replacement_still_terminates_walk", () => {
     const t = new SessionTranscript(BASE);
-    t.appendUserTurn("antes");
+    t.appendUserTurn("before");
     t.appendCompactBoundary({ preTokens: 0, trigger: "auto" });
-    t.appendUserTurn("depois");
+    t.appendUserTurn("after");
     const msgs = reconstructMessages(t.records());
     const joined = msgs.map((m) => JSON.stringify(m.content)).join("\n");
-    expect(joined).toContain("depois");
-    expect(joined).not.toContain("antes");
+    expect(joined).toContain("after");
+    expect(joined).not.toContain("before");
   });
 });

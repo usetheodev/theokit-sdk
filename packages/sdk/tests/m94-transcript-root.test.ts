@@ -19,7 +19,7 @@ afterEach(() => {
 });
 
 describe("M94 — transcriptRoot", () => {
-  it("honra THEOKIT_HOME quando setada", () => {
+  it("honors THEOKIT_HOME when it is set", () => {
     process.env.THEOKIT_HOME = "/tmp/m94-raiz-custom";
     expect(transcriptRoot()).toBe("/tmp/m94-raiz-custom");
   });
@@ -35,7 +35,7 @@ describe("M94 — transcriptRoot", () => {
     expect(transcriptRoot()).not.toBe(join(process.cwd(), ".theokit"));
   });
 
-  it("defaultBaseDir delega — inline de homedir() reprova aqui", () => {
+  it("defaultBaseDir delegates — an inlined homedir() fails here", () => {
     process.env.THEOKIT_HOME = "/tmp/m94-delega";
     expect(defaultBaseDir()).toBe("/tmp/m94-delega");
   });

@@ -36,7 +36,7 @@
  * not additive and does not fit in a minor.
  *
  * And `limit` cannot land alone: `limit` without `nextCursor` is **silent truncation** — exactly
- * a armadilha latente que o `CursorNaoDrenadoError` do consumidor existe para pegar, e num caminho
+ * the latent trap the consumer's `CursorNotDrainedError` exists to catch, and on a path
  * that deletes files. Shipping half a pagination would trade "ignored parameter" for "a partial page
  * presented as the complete population", which is strictly worse.
  *
@@ -44,12 +44,12 @@
  * and the item measured as actionable is `cwd`. Parsimony rung 1 — what need not exist now is not
  * written now. **Declared residue:** the layer's `limit`/`cursor` narrowing block still holds and
  * needs its own assertion citing its exit criterion (EC-14),
- * trabalho da Fase 2 deste plano.
+ * Phase 2 work of this plan.
  *
  * ## Why this file is NOT `tests/contract/agent-management.contract.test.ts`
  *
  * The plan names that file, and the acceptance criterion says to run `npx vitest run
- * packages/sdk/tests/contract/agent-management.contract.test.ts` retornar 0. **Medido: esse comando
+ * packages/sdk/tests/contract/agent-management.contract.test.ts` returning 0. **Measured: that command
  * returns 1** — `vitest.config.ts` lists `tests/contract/**` under `exclude`, and the output is
  * literally `No test files found, exiting with code 1`. That directory only runs under
  * `pnpm test:roadmap`. Writing the lock there would produce a gate that never runs at the real
@@ -59,7 +59,7 @@
  *
  * ## The race this file FOUND (did not predict)
  *
- * `test_two_simultaneous_hydrations_of_the_same_cwd_do_not_duplicate_entries` continuou vermelho depois de
+ * `test_two_simultaneous_hydrations_of_the_same_cwd_do_not_duplicate_entries` stayed red after
  * `Agent.list` already honoring `cwd`, and the reason is a **pre-existing** defect:
  * `hydrateRegistryFromDisk` marked the `cwd` hydrated BEFORE awaiting the disk read, so the second
  * concurrent call saw the marker and returned immediately — listing a still-empty registry. The
@@ -129,7 +129,7 @@ beforeEach(() => {
 afterEach(async () => {
   // `agent-without-cwd` is routed to `process.cwd()`, that is, to THIS repository's own registry
   // (`packages/sdk/.theokit/agents/registry.json`, gitignored). Leaving it there would contaminate any
-  // teste futuro que liste o cwd do processo — o tipo de estado compartilhado que a nota EC-7 do
+  // a future test listing the process cwd — the kind of shared state the EC-7 note in
   // `vitest.config.ts` requires each test to clean up after itself.
   removeRegisteredAgent("agent-without-cwd");
   await flushRegistrySaves();
@@ -157,10 +157,10 @@ describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
   it("test_list_of_a_nonexistent_cwd_returns_an_empty_list_without_throwing", async () => {
     // Arrange — NEGATIVE CASE. A project with no registry and a project deleted from disk are the
     // same outcome, and the session collector DEPENDS on this not throwing.
-    const inexistente = join(tmpdir(), "m107-nao-existe-de-jeito-nenhum-xyz");
+    const nonexistent = join(tmpdir(), "m107-does-not-exist-at-all-xyz");
 
     // Act
-    const r = await Agent.list({ runtime: "local", cwd: inexistente });
+    const r = await Agent.list({ runtime: "local", cwd: nonexistent });
 
     // Assert
     expect(r.items).toEqual([]);
@@ -170,7 +170,7 @@ describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
     // Arrange — the task's GUARD INVARIANT. The in-memory map is process-global, so hydrating a
     // foreign `cwd` dumps its entries into that map. If the listing did not filter, project B would
     // start "having" project A's sessions — and this is `activeKnown`, in a guard on
-    // NEVER-delete, que consumiria isso.
+    // NEVER-delete guard, which would consume this.
     const projectA = project();
     const projectB = project();
     await persist("agent-only-in-A", projectA);
@@ -190,7 +190,7 @@ describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
 
   it("test_an_entry_without_cwd_belongs_to_the_process_cwd", async () => {
     // Arrange — EC-7, the COMPLETENESS half. `cwd` is optional on `RegisteredAgent`, and its absence already
-    // significa `process.cwd()` para efeito de ROTEAMENTO em disco. O filtro tem de usar a mesma
+    // means `process.cwd()` for on-disk ROUTING purposes. The filter has to use the same
     // rule, or every entry without a `cwd` would vanish from its own project's listing.
     const otherProject = project();
     registerAgent(entry("agent-without-cwd"));
@@ -220,7 +220,7 @@ describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
       Agent.list({ runtime: "local", cwd: projectA }),
     ]);
 
-    // Assert (happens-before observation, depois da barreira)
+    // Assert (happens-before observation, after the barrier)
     expect(ids(a).filter((i) => i === "agent-double")).toHaveLength(1);
     expect(ids(b).filter((i) => i === "agent-double")).toHaveLength(1);
   });

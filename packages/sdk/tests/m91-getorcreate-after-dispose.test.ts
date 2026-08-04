@@ -14,21 +14,21 @@ import { Agent } from "../src/agent.js";
  *
  * This file exists so the docstring's correction does not diverge from the code again.
  */
-describe("M91 — getOrCreate depois de dispose", () => {
+describe("M91 — getOrCreate after dispose", () => {
   const opts = {
     apiKey: "sk-test",
     model: { id: "openai/gpt-4o-mini" },
     local: { cwd: process.cwd() },
   };
 
-  it("cache-hit VIVO devolve a mesma instancia", async () => {
+  it("a LIVE cache hit returns the same instance", async () => {
     const a = await Agent.getOrCreate("m91-vivo", opts as never);
     const b = await Agent.getOrCreate("m91-vivo", opts as never);
     expect(b).toBe(a);
     await a.dispose();
   });
 
-  it("depois de dispose, getOrCreate devolve instancia NOVA — sem Agent.delete manual", async () => {
+  it("after dispose, getOrCreate returns a NEW instance — with no manual Agent.delete", async () => {
     const a = await Agent.getOrCreate("m91-disp", opts as never);
     await a.dispose();
     const b = await Agent.getOrCreate("m91-disp", opts as never);

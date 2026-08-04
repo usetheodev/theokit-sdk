@@ -17,22 +17,22 @@ import type { Run } from "../src/types/run.js";
 import type { SessionRecord, SessionStore } from "../src/types/session-store.js";
 
 /** In-memory store — the port has two methods, and this is what it exists for. */
-function storeEmMemoria(): SessionStore & { gravados: SessionRecord[] } {
-  const gravados: SessionRecord[] = [];
+function storeEmMemoria(): SessionStore & { written: SessionRecord[] } {
+  const written: SessionRecord[] = [];
   return {
-    gravados,
-    readRecords: async () => gravados,
+    written,
+    readRecords: async () => written,
     appendRecords: async (_id: string, records: SessionRecord[]) => {
-      gravados.push(...records);
+      written.push(...records);
     },
-  } as SessionStore & { gravados: SessionRecord[] };
+  } as SessionStore & { written: SessionRecord[] };
 }
 
 /** A run whose `wait()` rejects — the 429 after N tool calls — but which HAS already produced conversation. */
 function runFailingWithPartial(partial: unknown[]): Run {
   return {
     wait: async () => {
-      throw new Error("429 rate limited depois de 8 tool calls");
+      throw new Error("429 rate limited after 8 tool calls");
     },
     conversation: async () => partial,
   } as unknown as Run;
@@ -43,8 +43,8 @@ const inertes = {
   memoryGlue: { onTurn: async () => undefined } as never,
 };
 
-describe("M93/M1 — o filePath de erro persiste de verdade", () => {
-  it("um turno que falha DEIXA o partial no store", async () => {
+describe("M93/M1 — the error path genuinely persists", () => {
+  it("a failing turn LEAVES the partial in the store", async () => {
     const store = storeEmMemoria();
     await runPostRunLifecycle({
       run: runFailingWithPartial([
@@ -57,10 +57,10 @@ describe("M93/M1 — o filePath de erro persiste de verdade", () => {
       model: "claude-sonnet-4-5",
       ...inertes,
     });
-    // Antes do M93 isto era 0: `flushSessionWrites` drenava um conjunto vazio, porque
+    // Before M93 this was 0: `flushSessionWrites` drained an empty set, because
     // `persistTurnToTranscript` was only called later, at a point the error never reached.
-    expect(store.gravados.length, "nada foi persistido no filePath de erro").toBeGreaterThan(0);
-    expect(JSON.stringify(store.gravados)).toContain("oi");
+    expect(store.written.length, "nothing was persisted on the error path").toBeGreaterThan(0);
+    expect(JSON.stringify(store.written)).toContain("oi");
   });
 
   it("a WRITE failure neither masks the provider error nor escapes", async () => {

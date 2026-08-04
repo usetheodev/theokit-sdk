@@ -54,7 +54,7 @@ writeFileSync(
 
 function leiturasDoDiretorioDeAgentes(): unknown[] {
   return readdirEspiao.mock.calls.filter(
-    ([caminho]) => typeof caminho === "string" && caminho.includes(join(".theokit", "agents")),
+    ([p]) => typeof p === "string" && p.includes(join(".theokit", "agents")),
   );
 }
 
@@ -72,7 +72,7 @@ describe("M96 U3 — settingSources on the loader public port", () => {
     expect(explicito).toEqual(comDefault);
   });
 
-  it("test_NEGATIVO_settingSources_vazio_devolve_objeto_vazio_E_NAO_LE_O_DIRETORIO", async () => {
+  it("test_NEGATIVE_an_empty_settingSources_returns_an_empty_object_AND_DOES_NOT_READ_THE_DIRECTORY", async () => {
     readdirEspiao.mockClear();
 
     const found = await discoverSubagents(cwd, { settingSources: [] });
@@ -84,8 +84,8 @@ describe("M96 U3 — settingSources on the loader public port", () => {
     ).toHaveLength(0);
   });
 
-  it("test_NEGATIVO_uma_fonte_desconhecida_e_erro_tipado", async () => {
-    // error-handling.md § 2: erro tipado nomeando o valor recebido e as fontes aceitas, nunca um
+  it("test_NEGATIVE_an_unknown_source_is_a_typed_error", async () => {
+    // error-handling.md § 2: a typed error naming the received value and the accepted sources, never a
     // neither a silent `undefined` nor a filter that discards the invalid source without warning.
     const fonteInvalida = ["global"] as unknown as readonly "project"[];
 
@@ -97,7 +97,7 @@ describe("M96 U3 — settingSources on the loader public port", () => {
     );
   });
 
-  it("test_NEGATIVO_uma_fonte_desconhecida_NAO_LE_O_DIRETORIO", async () => {
+  it("test_NEGATIVE_an_unknown_source_DOES_NOT_READ_THE_DIRECTORY", async () => {
     // The effect half of the negative case above: refusing AFTER reading would already have read.
     readdirEspiao.mockClear();
     const fonteInvalida = ["global"] as unknown as readonly "project"[];
@@ -115,15 +115,15 @@ describe("M96 U3 — settingSources on the loader public port", () => {
     expect(await loadSubagentDefinition("analyst", cwd, { settingSources: [] })).toBeUndefined();
   });
 
-  it("test_a_aridade_publicada_e_2_porque_a_assinatura_NAO_tem_inicializador", async () => {
-    // EC-6: `function f(cwd, options)` devolve 2; `function f(cwd, options = {})` devolve 1. As duas
+  it("test_the_published_arity_is_2_because_the_signature_has_NO_initializer", async () => {
+    // EC-6: `function f(cwd, options)` returns 2; `function f(cwd, options = {})` returns 1. The two
     // shapes implement D7, and only one satisfies the criteria anchored on arity (T2.1, T7.1).
     // The PRIMARY oracle of those criteria is the effect one (`{ settingSources: [] }` -> `{}`), measured
     // above; this is the secondary assertion pinning the shape where it is decided.
     expect(discoverSubagents.length).toBe(2);
   });
 
-  it("test_o_tipo_da_definicao_e_alcancavel_pelo_subpath_do_loader", async () => {
+  it("test_the_definition_type_is_reachable_via_the_loader_subpath", async () => {
     // D6: a camada `@theokit/agents` vai aliasar este tipo como `SubagentDefinition`, e o alias
     // needs a symbol to resolve from. `tsconfig.json` includes `tests/**/*`, so
     // `pnpm typecheck` is what executes this assertion — the runtime value only anchors it.

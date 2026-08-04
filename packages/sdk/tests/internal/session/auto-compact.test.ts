@@ -35,7 +35,7 @@ function storeWith(initial: SessionRecord[]): SessionStore & { records: SessionR
 function seed(): SessionRecord[] {
   const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
   t.appendUserTurn("contexto longo");
-  t.appendAssistantTurn({ text: "resposta" });
+  t.appendAssistantTurn({ text: "answer" });
   return [...t.records()];
 }
 
@@ -114,7 +114,7 @@ describe("autoCompactIfNeeded (guard anti-cascata)", () => {
       },
     };
     expect(await autoCompactIfNeeded(opts)).toBe(false); // failure -> did not compact
-    expect(await autoCompactIfNeeded(opts)).toBe(false); // mesmo turno → nem tenta de novo
+    expect(await autoCompactIfNeeded(opts)).toBe(false); // same turn -> does not even retry
     expect(calls).toBe(1);
     expect(JSON.stringify(store.records)).toBe(before);
   });
@@ -128,7 +128,7 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
     clearAllSessions();
     const store = storeWith(seed());
     const order: string[] = [];
-    // compact LENTO enfileirado primeiro…
+    // SLOW compact queued first...
     const slow = enqueueSessionWrite(LOC.cwd, LOC.agentId, async () => {
       await new Promise((r) => setTimeout(r, 60));
       order.push("compact");
@@ -140,7 +140,7 @@ describe("M50 review F5 — corrida compact × persist (serializada na chain)", 
         summarize: async () => "resumo lento",
       });
     });
-    // …turno concorrente enfileirado logo depois — DEVE esperar o compact
+    // ...a concurrent turn queued right after — it MUST wait for the compact
     const turn = enqueueSessionWrite(LOC.cwd, LOC.agentId, async () => {
       order.push("turn");
       const t = SessionTranscript.fromRecords(store.records, {

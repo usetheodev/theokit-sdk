@@ -12,7 +12,7 @@
  *  - the default `'run'` mode does NOT arrive — the counter-proof that stops the pool from silently becoming
  *    everyone's path, changing the failure model of cron and one-shot with nobody asking;
  *  - `dispose()` frees the session's clients, otherwise one child process per server outlives the
- *    agente pelo resto da vida do host.
+ *    agent for the rest of the host's life.
  */
 import { describe, expect, it, vi } from "vitest";
 
@@ -48,7 +48,7 @@ const opts = (agentId: string, lifecycle?: "run" | "session"): never =>
   }) as never;
 
 describe("M77 T3.1 — the pool wiring in buildMcpMap", () => {
-  it("test_lifecycle_session_REUSA_entre_dois_turns_da_mesma_sessao", () => {
+  it("test_lifecycle_session_REUSES_across_two_turns_of_the_same_session", () => {
     created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-1", "session"));
     const b = _buildMcpMapForTests(opts("agente-1", "session"));
@@ -59,8 +59,8 @@ describe("M77 T3.1 — the pool wiring in buildMcpMap", () => {
     disposeSessionMcpClients("agente-1");
   });
 
-  it("test_CONTRAPROVA_o_default_run_NAO_reusa", () => {
-    // A contraprova que importa. Sem ela, fazer o pool valer para todos passaria no teste acima e
+  it("test_COUNTERPROOF_the_default_run_does_NOT_reuse", () => {
+    // The counter-proof that matters. Without it, making the pool apply to everyone would pass the test above and
     // would change the failure model of cron and one-shot with nobody having asked (plan ADR D3).
     created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-2"));
@@ -73,7 +73,7 @@ describe("M77 T3.1 — the pool wiring in buildMcpMap", () => {
     expect(b.get("fs")).not.toBe(a.get("fs"));
   });
 
-  it("test_agentes_distintos_nao_compartilham_mesmo_em_modo_session", () => {
+  it("test_distinct_agents_do_not_share_even_in_session_mode", () => {
     created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-3", "session"));
     const b = _buildMcpMapForTests(opts("agente-4", "session"));
@@ -84,14 +84,14 @@ describe("M77 T3.1 — the pool wiring in buildMcpMap", () => {
     disposeSessionMcpClients("agente-4");
   });
 
-  it("test_dispose_FECHA_o_cliente_e_o_proximo_turn_cria_de_novo", () => {
+  it("test_dispose_CLOSES_the_client_and_the_next_turn_creates_it_again", () => {
     created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-5", "session"));
     const cliente = a.get("fs") as unknown as { close: ReturnType<typeof vi.fn> };
 
     disposeSessionMcpClients("agente-5");
 
-    // Sem isto, um processo-filho por servidor sobrevive ao agente pelo resto da vida do host.
+    // Without this, one child process per server outlives the agent for the rest of the host's life.
     expect(cliente.close).toHaveBeenCalled();
     _buildMcpMapForTests(opts("agente-5", "session"));
     expect(created, "the key left the pool — a closed client is not handed back").toHaveLength(2);

@@ -1,11 +1,11 @@
-// MIGRADO do agent-builder no M75 T4.1 — SEGUNDA tentativa, e a razao esta no review.
+// MIGRATED from the agent-builder in M75 T4.1 — SECOND attempt, and the reason is in the review.
 //
 // A primeira "migracao" escreveu testes NOVOS com probes injetados e deletou estes 24. O review
-// provou por MUTACAO o que isso custou: trocar buildSeccompFilter por `Buffer.alloc(8)` — um filtro
-// que nao nega NADA, sem arch guard, sem ptrace, sem io_uring, sem AF_INET — passava 9/9. A
+// proved by MUTATION what that cost: swapping buildSeccompFilter for `Buffer.alloc(8)` — a filter
+// that denies NOTHING, no arch guard, no ptrace, no io_uring, no AF_INET — passed 9/9. The
 // semantica inteira do filtro cBPF estava vacua.
 //
-// Aqui a mudanca e SO no bloco de import (D4). Nenhum corpo, nenhuma assercao.
+// Here the change is ONLY in the import block (D4). No body, no assertion.
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -78,7 +78,7 @@ describe("buildBwrapArgv", () => {
   });
 });
 
-describe("detectBwrap (fail-closed em cada sonda)", () => {
+describe("detectBwrap (fail-closed on each probe)", () => {
   const okProbes = {
     which: () => "/usr/bin/bwrap",
     helpText: () => "--perms --ro-bind --unshare-net",
@@ -149,13 +149,13 @@ describe("M53 review fixes — env confinement + absolute bin", () => {
  * M71 T1.1 — the probe runs once per PROCESS, not per turn.
  *
  * Measured before: `detectBwrap()` costs **22.2 ms** and was not memoized — the second call cost
- * 19,4 ms. `buildChatAgent` no caminho headless disparava **duas** (via `createSandboxBackend` e via
+ * 19.4 ms. `buildChatAgent` on the headless path fired **two** (via `createSandboxBackend` and via
  * `resolveSandboxPosture`, which M70 added), totalling 46.4 ms per construction. Under `strace`, ~90%
  * of the 182 syscalls of a warm construction came from here.
  *
  * **Why no invalidation.** The milestone called for invalidating on `SessionStart`, but
  * `agents/lib/hooks/hooks.ts:28-30` documents — as a MEASURED correction of an earlier assumption — that
- * esse evento dispara **uma vez por TURNO**. Invalidar ali re-sondaria a cada turno, ou seja, seria
+ * that event fires **once per TURN**. Invalidating there would re-probe every turn, that is, it would be
  * exactly the behavior this test exists to eliminate. The reference does not invalidate either:
  * its only cache is a write-once `OnceLock` (`linux-sandbox/src/launcher.rs:52`).
  *
@@ -180,10 +180,10 @@ describe("M71 T1.1 — per-process memoization", () => {
     expect(probeCalls, "injected probes must not be memoized").toBe(2);
 
     resetBwrapMemo();
-    let reais = 0;
+    let realRuns = 0;
     const asIfReal = {
       which: () => {
-        reais++;
+        realRuns++;
         return null;
       },
       helpText: () => null,
@@ -192,7 +192,7 @@ describe("M71 T1.1 — per-process memoization", () => {
     detectBwrapMemoized(asIfReal);
     detectBwrapMemoized(asIfReal);
     detectBwrapMemoized(asIfReal);
-    expect(reais, "a sondagem memoizada deve rodar UMA vez").toBe(1);
+    expect(realRuns, "the memoized probe must run ONCE").toBe(1);
   });
 
   it("test_a_segunda_chamada_e_praticamente_gratis", () => {
@@ -234,7 +234,7 @@ describe("M71 T1.1 — per-process memoization", () => {
    * the whole process and M70's veto would approve a gated tool citing a confinement that no longer
    * exists — the defect M70 fixed, reintroduced by M71's memoization.
    */
-  it("test_o_memo_rebaixa_o_positivo_quando_o_binario_some_do_host", () => {
+  it("test_the_memo_downgrades_the_positive_when_the_binary_leaves_the_host", () => {
     const dir = mkdtempSync(join(tmpdir(), "m71-bwrap-"));
     const bin = join(dir, "bwrap");
     writeFileSync(bin, "#!/bin/sh\n");
@@ -250,7 +250,7 @@ describe("M71 T1.1 — per-process memoization", () => {
     expect(after.ok === false && after.reason).toMatch(/disappeared/);
   });
 
-  it("test_a_revalidacao_nao_re_sonda", () => {
+  it("test_revalidation_does_not_re_probe", () => {
     // Revalidation is 1 syscall, not the 22.2 ms probe memoization exists to eliminate.
     const dir = mkdtempSync(join(tmpdir(), "m71-bwrap-"));
     const bin = join(dir, "bwrap");
