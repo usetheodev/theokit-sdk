@@ -40,48 +40,49 @@ export interface FsSessionStoreOptions {
  * @internal
  */
 /**
- * Leases compartilhados por caminho, com contagem de referências.
+ * Reference-counted leases, shared per path.
  *
- * `acquireSessionWriter` é ESTRITO de propósito: duas aquisições concorrentes do mesmo caminho, e
- * exatamente uma vence — "um lease que deixasse as duas passarem seria decorativo" (o teste do M81
- * diz isso com todas as letras, e está certo). Esse é o contrato do primitivo, e ele não muda.
+ * `acquireSessionWriter` is STRICT on purpose: two concurrent acquisitions of the same path, and
+ * exactly one wins — "a lease that let both through would be decorative" (the M81 test says exactly
+ * that, and it is right). That is the primitive's contract, and it does not change.
  *
- * Mas dentro de UM processo é normal existir mais de um store sobre a mesma sessão: os testes
- * golden de compactação e de sends concorrentes fazem exatamente isso, e são registro de
- * comportamento real do runtime. Aplicar o primitivo cru ali transformaria um padrão legítimo em
+ * But within ONE process it is normal to have more than one store over the same session: the golden
+ * compaction tests and the concurrent-send tests do exactly that, and they record real runtime
+ * behavior. Applying the raw primitive there would turn a legitimate pattern into a
  * `SessionBusyError`.
  *
- * A conciliação é aqui, no consumidor do primitivo: o processo tira UM lease por caminho e conta
- * quantos stores o usam. O último a soltar libera de fato. Cross-process continua estrito — que é o
- * problema que o M81 enuncia ("`exec resume --last` pode escrever na sessão viva da TUI").
+ * The reconciliation belongs here, in the primitive's consumer: the process takes ONE lease per path
+ * and counts how many stores use it. The last to release actually frees it. Cross-process stays
+ * strict — which is the problem M81 states ("`exec resume --last` can write into the TUI's live
+ * session").
  */
-const compartilhados = new Map<string, { lease: SessionWriterLease; refs: number }>();
+const sharedLeases = new Map<string, { lease: SessionWriterLease; refs: number }>();
 
-async function adquirirCompartilhado(path: string): Promise<SessionWriterLease> {
-  const existente = compartilhados.get(path);
-  if (existente !== undefined) {
-    existente.refs++;
-    return criarProxy(path);
+async function acquireShared(path: string): Promise<SessionWriterLease> {
+  const existing = sharedLeases.get(path);
+  if (existing !== undefined) {
+    existing.refs++;
+    return createProxy(path);
   }
   const lease = await acquireSessionWriter(path);
-  compartilhados.set(path, { lease, refs: 1 });
-  return criarProxy(path);
+  sharedLeases.set(path, { lease, refs: 1 });
+  return createProxy(path);
 }
 
-/** Um handle que decrementa a contagem; o último a soltar libera o lease de verdade. */
-function criarProxy(path: string): SessionWriterLease {
-  let solto = false;
+/** A handle that decrements the count; the last to release frees the real lease. */
+function createProxy(path: string): SessionWriterLease {
+  let released = false;
   return {
     sessionPath: path,
     release: async (): Promise<void> => {
-      if (solto) return;
-      solto = true;
-      const entrada = compartilhados.get(path);
-      if (entrada === undefined) return;
-      entrada.refs--;
-      if (entrada.refs > 0) return;
-      compartilhados.delete(path);
-      await entrada.lease.release();
+      if (released) return;
+      released = true;
+      const entry = sharedLeases.get(path);
+      if (entry === undefined) return;
+      entry.refs--;
+      if (entry.refs > 0) return;
+      sharedLeases.delete(path);
+      await entry.lease.release();
     },
   };
 }
@@ -89,7 +90,7 @@ function criarProxy(path: string): SessionWriterLease {
 export class FsSessionStore implements SessionStore {
   readonly #baseDir: string;
   readonly #cwd: string;
-  /** Um lease por `agentId` — um store serve mais de uma sessão ao longo da vida do processo. */
+  /** One lease per `agentId` — a store serves more than one session over the process lifetime. */
   readonly #leases = new Map<string, SessionWriterLease>();
 
   constructor(options: FsSessionStoreOptions) {
@@ -109,61 +110,62 @@ export class FsSessionStore implements SessionStore {
     await mkdir(dirname(path), { recursive: true });
 
     await withFileLock(path, async () => {
-      // M93 — acrescenta o DELTA em vez de reescrever o arquivo inteiro.
+      // M93 — appends the DELTA instead of rewriting the whole file.
       //
-      // Antes: `readTranscript` + `writeTranscript` de tudo, por turno. O(n) de I/O **e** de parse a
-      // cada turno, O(n²) por sessão — a nota do consumidor em `agents/lib/session/backtrack.ts`
-      // registra 1,4 MB / 3000 linhas em 200 turnos.
+      // Before: `readTranscript` + `writeTranscript` of everything, per turn. O(n) of I/O **and** of
+      // parsing on every turn, O(n^2) per session — the consumer note in
+      // `agents/lib/session/backtrack.ts` records 1.4 MB / 3000 lines over 200 turns.
       //
-      // Correto porque o formato **já é append-only**: o DAG de `parentUuid` não depende da ordem de
-      // linha, e cada registro carrega o próprio pai. `appendJsonl` **já existia no pacote** e tinha um
-      // único chamador (`eval/runner.ts`) — a primitiva estava lá, o store é que a ignorava (rung 4).
+      // Correct because the format **is already append-only**: the `parentUuid` DAG does not depend
+      // on line order, and every record carries its own parent. `appendJsonl` **already existed in
+      // the package** and had a single caller (`eval/runner.ts`) — the primitive was there, it was
+      // the store that ignored it (rung 4).
       //
-      // O `withFileLock` permanece — mas a afirmação anterior de que "ele é o que serializa dois
-      // `appendRecords` concorrentes" era forte demais, e a revisão adversarial do M93 mediu isso:
-      // removê-lo não reprova nenhum teste. A razão é o próprio parágrafo acima — o DAG de
-      // `parentUuid` não depende da ordem de linha, então dois lotes intercalados reconstroem igual.
-      // O trabalho que o lock fazia (proteger um read-modify-write) sumiu junto com o rewrite.
+      // `withFileLock` stays — but the earlier claim that "it is what serializes two concurrent
+      // `appendRecords`" was too strong, and M93's adversarial review measured it: removing it fails
+      // no test. The reason is the paragraph above — the `parentUuid` DAG does not depend on line
+      // order, so two interleaved batches reconstruct identically. The work the lock was doing
+      // (protecting a read-modify-write) disappeared along with the rewrite.
       //
-      // O que ele ainda cobre é a janela TOCTOU de `precisaDeQuebraAntes` (ler o último byte, depois
-      // escrever): sem ele, dois processos podem ambos concluir "falta \n" e produzir uma linha em
-      // branco — que o leitor descarta, isto é, benigno. Fica como **defesa declarada, não
-      // mecanizada** (a disciplina de `error-handling.md § 4`: enumerar o resíduo em vez de deixar a
-      // ausência de teste passar por cobertura).
+      // What it still covers is the TOCTOU window in `needsLineBreakBefore` (read the last byte,
+      // then write): without it, two processes can both conclude "a \n is missing" and produce a
+      // blank line — which the reader discards, i.e. benign. It stays as a **declared, not
+      // mechanized** defense (the discipline in `error-handling.md` § 4: enumerate the residue
+      // rather than let a missing test pass for coverage).
       //
-      // `writeTranscript` continua existindo para **compactação**, a única operação que legitimamente
-      // reescreve o arquivo.
+      // `writeTranscript` still exists for **compaction**, the one operation that legitimately
+      // rewrites the file.
       for (const record of records) appendJsonl(path, record);
     });
   }
 
   /**
-   * Toma o lease de escritor da sessão. Lança `SessionBusyError` quando outro processo a detém.
+   * Takes the session's writer lease. Throws `SessionBusyError` when another process holds it.
    *
-   * **Explícito, e NÃO no `appendRecords`** — a revisão adversarial do M95 mediu por que isso
-   * importa: o contrato de `SessionStore` diz que "an `appendRecords` rejection is logged to
-   * stderr, NOT thrown to the caller (best-effort write)". Adquirir ali fazia o `SessionBusyError`
-   * ser **engolido**, e o resultado era pior que o problema original: em vez de dois escritores
-   * intercalarem linhas, o perdedor **perdia o turno em silêncio** — nada em disco, um aviso em
-   * stderr invisível sob a TUI, e o chamador sem como reagir.
+   * **Explicit, and NOT inside `appendRecords`** — M95's adversarial review measured why that
+   * matters: the `SessionStore` contract states that "an `appendRecords` rejection is logged to
+   * stderr, NOT thrown to the caller (best-effort write)". Acquiring there made the
+   * `SessionBusyError` get **swallowed**, and the result was worse than the original problem:
+   * instead of two writers interleaving lines, the loser **lost the turn silently** — nothing on
+   * disk, a stderr warning invisible under the TUI, and no way for the caller to react.
    *
-   * No init o erro chega a quem pode agir: o `exec` forka para um id novo, que é o que a própria
-   * mensagem do erro prescreve. É a diferença entre falhar onde dá para decidir e falhar onde só
-   * dá para perder.
+   * At init the error reaches someone who can act: `exec` forks to a new id, which is exactly what
+   * the error message itself prescribes. It is the difference between failing where a decision is
+   * possible and failing where only loss is.
    */
   async acquire(agentId: string): Promise<void> {
     if (this.#leases.has(agentId)) return;
     const path = transcriptPath(this.#baseDir, this.#cwd, agentId);
     await mkdir(dirname(path), { recursive: true });
-    this.#leases.set(agentId, await adquirirCompartilhado(path));
+    this.#leases.set(agentId, await acquireShared(path));
   }
 
   /**
-   * Solta o lease de UM agente.
+   * Releases ONE agent's lease.
    *
-   * Existe porque `dispose()` solta **todos** os leases do store, e um store injetado pelo
-   * consumidor pode servir vários agentes: um init que falha para o agente B não pode liberar o
-   * lease do agente A, que segue vivo e escrevendo.
+   * It exists because `dispose()` releases **every** lease the store holds, and a store injected by
+   * the consumer may serve several agents: an init that fails for agent B must not free agent A's
+   * lease, which is still live and writing.
    */
   async release(agentId: string): Promise<void> {
     const lease = this.#leases.get(agentId);
@@ -173,11 +175,11 @@ export class FsSessionStore implements SessionStore {
   }
 
   /**
-   * Solta todo lease que este store detém.
+   * Releases every lease this store holds.
    *
-   * Sem isto o `.writer.lock` sobrevive ao processo e a próxima abertura teria de esperar a janela
-   * de heartbeat — recuperável, mas 30 s de espera para um encerramento LIMPO seria um defeito
-   * evitável. Idempotente: chamar duas vezes não é erro.
+   * Without it the `.writer.lock` outlives the process and the next open would have to wait out the
+   * heartbeat window — recoverable, but 30 s of waiting after a CLEAN shutdown would be an avoidable
+   * defect. Idempotent: calling it twice is not an error.
    */
   async dispose(): Promise<void> {
     const leases = [...this.#leases.values()];
