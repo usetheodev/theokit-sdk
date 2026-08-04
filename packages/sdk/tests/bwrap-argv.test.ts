@@ -21,9 +21,9 @@ import {
 } from "../src/sandbox/bwrap.js";
 
 /**
- * M53 T0.1 — bwrap argv puro por policy + detecção honesta (3 sondas Codex-faithful:
+ * M53 T0.1 — pure bwrap argv per policy + honest detection (3 Codex-faithful probes:
  * which fora do cwd, `--help` ⊃ `--perms`, probe de user-namespace com timeout).
- * Flags espelham `codex-rs/linux-sandbox/src/bwrap.rs` (subconjunto sem seccomp 2-estágios).
+ * Flags mirror `codex-rs/linux-sandbox/src/bwrap.rs` (subset without the 2-stage seccomp).
  */
 
 const CWD = "/home/u/proj";
@@ -33,7 +33,7 @@ describe("buildBwrapArgv", () => {
     const argv = buildBwrapArgv("workspace-write", { cwd: CWD, gitDirExists: true });
     expect(argv).not.toBeNull();
     const a = argv!;
-    // núcleo sempre presente (bwrap.rs:318-332,446-452)
+    // core, always present (bwrap.rs:318-332,446-452)
     for (const flag of ["--new-session", "--die-with-parent", "--unshare-user", "--unshare-pid"]) {
       expect(a).toContain(flag);
     }
@@ -123,7 +123,7 @@ describe("detectBwrap (fail-closed em cada sonda)", () => {
 
 describe("M53 review fixes — env confinement + absolute bin", () => {
   it("clearenv_precedes_setenv_allowlist", () => {
-    // MEDIUM-3: --clearenv (Codex env_clear) + re-inject só o allowlist, nunca herdar secrets por nome
+    // MEDIUM-3: --clearenv (Codex env_clear) + re-inject only the allowlist, never inherit secrets by name
     const a = buildBwrapArgv("workspace-write", {
       cwd: CWD,
       gitDirExists: false,
@@ -131,7 +131,7 @@ describe("M53 review fixes — env confinement + absolute bin", () => {
     })!;
     const joined = a.join(" ");
     expect(a).toContain("--clearenv");
-    // --clearenv ANTES de qualquer --setenv (senão o clear apaga o que foi setado)
+    // --clearenv BEFORE any --setenv (otherwise the clear wipes what was set)
     expect(a.indexOf("--clearenv")).toBeLessThan(a.indexOf("--setenv"));
     expect(joined).toContain("--setenv PATH /usr/bin");
     expect(joined).toContain("--setenv HOME /home/u");
@@ -146,42 +146,42 @@ describe("M53 review fixes — env confinement + absolute bin", () => {
 });
 
 /**
- * M71 T1.1 — a sondagem roda uma vez por PROCESSO, não por turno.
+ * M71 T1.1 — the probe runs once per PROCESS, not per turn.
  *
- * Medido antes: `detectBwrap()` custa **22,2 ms** e não era memoizada — a segunda chamada custava
+ * Measured before: `detectBwrap()` costs **22.2 ms** and was not memoized — the second call cost
  * 19,4 ms. `buildChatAgent` no caminho headless disparava **duas** (via `createSandboxBackend` e via
- * `resolveSandboxPosture`, que o M70 acrescentou), somando 46,4 ms por construção. Em `strace`, ~90%
- * dos 182 syscalls de uma construção aquecida vinham daqui.
+ * `resolveSandboxPosture`, which M70 added), totalling 46.4 ms per construction. Under `strace`, ~90%
+ * of the 182 syscalls of a warm construction came from here.
  *
- * **Por que sem invalidação.** O milestone mandava invalidar no `SessionStart`, mas
- * `agents/lib/hooks/hooks.ts:28-30` documenta — como correção MEDIDA de uma suposição anterior — que
+ * **Why no invalidation.** The milestone called for invalidating on `SessionStart`, but
+ * `agents/lib/hooks/hooks.ts:28-30` documents — as a MEASURED correction of an earlier assumption — that
  * esse evento dispara **uma vez por TURNO**. Invalidar ali re-sondaria a cada turno, ou seja, seria
- * exatamente o comportamento que este teste existe para eliminar. A referência também não invalida:
- * seu único cache é um `OnceLock` write-once (`linux-sandbox/src/launcher.rs:52`).
+ * exactly the behavior this test exists to eliminate. The reference does not invalidate either:
+ * its only cache is a write-once `OnceLock` (`linux-sandbox/src/launcher.rs:52`).
  *
- * O preço, dito na cara: `bwrap` instalado DEPOIS do processo começar não é detectado até reiniciar.
+ * The price, stated plainly: a `bwrap` installed AFTER the process starts is not detected until restart.
  */
-describe("M71 T1.1 — memoização por processo", () => {
+describe("M71 T1.1 — per-process memoization", () => {
   it("test_detectBwrap_sonda_uma_vez_so", () => {
     resetBwrapMemo();
-    let sondas = 0;
+    let probeCalls = 0;
     const probes = {
       which: () => {
-        sondas++;
+        probeCalls++;
         return "/usr/bin/bwrap";
       },
       helpText: () => "--perms",
       userns: () => true,
     };
-    // O memo vale para os probes REAIS. Com probes injetados (teste), cada chamada sonda — senão um
+    // The memo applies to the REAL probes. With injected probes (test), every call probes — otherwise a
     // teste envenenaria o cache do processo para todos os outros.
     detectBwrap(probes);
     detectBwrap(probes);
-    expect(sondas, "probes injetados não devem ser memoizados").toBe(2);
+    expect(probeCalls, "injected probes must not be memoized").toBe(2);
 
     resetBwrapMemo();
     let reais = 0;
-    const comoSeFosseReal = {
+    const asIfReal = {
       which: () => {
         reais++;
         return null;
@@ -189,9 +189,9 @@ describe("M71 T1.1 — memoização por processo", () => {
       helpText: () => null,
       userns: () => false,
     };
-    detectBwrapMemoized(comoSeFosseReal);
-    detectBwrapMemoized(comoSeFosseReal);
-    detectBwrapMemoized(comoSeFosseReal);
+    detectBwrapMemoized(asIfReal);
+    detectBwrapMemoized(asIfReal);
+    detectBwrapMemoized(asIfReal);
     expect(reais, "a sondagem memoizada deve rodar UMA vez").toBe(1);
   });
 
@@ -206,11 +206,11 @@ describe("M71 T1.1 — memoização por processo", () => {
   });
 
   it("test_o_memo_preserva_o_resultado_negativo", () => {
-    // Fail-closed também é resultado: um host SEM bwrap não pode re-sondar por turno só porque a
-    // resposta foi "não".
+    // Failing closed is a result too: a host WITHOUT bwrap must not re-probe every turn just because
+    // the answer was "no".
     resetBwrapMemo();
     let n = 0;
-    const semBwrap = {
+    const withoutBwrap = {
       which: () => {
         n++;
         return null;
@@ -218,20 +218,21 @@ describe("M71 T1.1 — memoização por processo", () => {
       helpText: () => null,
       userns: () => false,
     };
-    const a = detectBwrapMemoized(semBwrap);
-    const b = detectBwrapMemoized(semBwrap);
+    const a = detectBwrapMemoized(withoutBwrap);
+    const b = detectBwrapMemoized(withoutBwrap);
     expect(a.ok).toBe(false);
     expect(b).toEqual(a);
     expect(n).toBe(1);
   });
 
   /**
-   * Review F-perf-9 — o sentido do memo obsoleto que o m71-custo-por-turn#ADR-1 original não declarou, e o único com
-   * consequência de segurança: o binário validado some do host DEPOIS da detecção.
+   * Review F-perf-9 — the direction of stale memo the original m71-custo-por-turn#ADR-1 did not
+   * declare, and the only one with a security consequence: the validated binary disappears from the
+   * host AFTER detection.
    *
-   * Sem revalidação, a postura seguiria afirmando `enforced: true / "kernel (bwrap)"` pelo processo
-   * inteiro e o veto do M70 aprovaria tool gateada citando um confinamento que não existe mais — o
-   * defeito que o M70 corrigiu, reintroduzido pela memoização do M71.
+   * Without revalidation, the posture would keep asserting `enforced: true / "kernel (bwrap)"` for
+   * the whole process and M70's veto would approve a gated tool citing a confinement that no longer
+   * exists — the defect M70 fixed, reintroduced by M71's memoization.
    */
   it("test_o_memo_rebaixa_o_positivo_quando_o_binario_some_do_host", () => {
     const dir = mkdtempSync(join(tmpdir(), "m71-bwrap-"));
@@ -242,15 +243,15 @@ describe("M71 T1.1 — memoização por processo", () => {
 
     expect(detectBwrapMemoized(probes)).toEqual({ ok: true, bin });
 
-    rmSync(bin); // o operador removeu/renomeou o bwrap no meio da sessão
+    rmSync(bin); // the operator removed/renamed bwrap mid-session
 
-    const depois = detectBwrapMemoized(probes);
-    expect(depois.ok, "o memo seguiu afirmando confinamento de kernel sem o binário").toBe(false);
-    expect(depois.ok === false && depois.reason).toMatch(/disappeared/);
+    const after = detectBwrapMemoized(probes);
+    expect(after.ok, "the memo kept asserting kernel confinement without the binary").toBe(false);
+    expect(after.ok === false && after.reason).toMatch(/disappeared/);
   });
 
   it("test_a_revalidacao_nao_re_sonda", () => {
-    // A revalidação é 1 syscall, não a sondagem de 22,2ms que a memoização existe para eliminar.
+    // Revalidation is 1 syscall, not the 22.2 ms probe memoization exists to eliminate.
     const dir = mkdtempSync(join(tmpdir(), "m71-bwrap-"));
     const bin = join(dir, "bwrap");
     writeFileSync(bin, "#!/bin/sh\n");
@@ -265,7 +266,7 @@ describe("M71 T1.1 — memoização por processo", () => {
       userns: () => true,
     };
     for (let i = 0; i < 50; i++) detectBwrapMemoized(probes);
-    expect(n, "a revalidação virou re-sondagem — o ganho do M71 morreu").toBe(1);
+    expect(n, "revalidation turned into a re-probe — M71's gain is dead").toBe(1);
   });
 
   it("test_o_reset_existe_e_e_explicito", () => {
@@ -282,6 +283,6 @@ describe("M71 T1.1 — memoização por processo", () => {
     detectBwrapMemoized(p);
     resetBwrapMemo();
     detectBwrapMemoized(p);
-    expect(n, "o reset é o seam do TESTE — produção nunca o chama").toBe(2);
+    expect(n, "the reset is the TEST seam — production never calls it").toBe(2);
   });
 });
