@@ -71,11 +71,11 @@ function bare(modelId) {
   return i >= 0 ? modelId.slice(i + 1) : modelId;
 }
 
-// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
-// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
-// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
-// arriscado. Rastreado em usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+// sweeping these files (a nested root under refactor/). It is not new code and was not touched
+// by M75; refactoring SDK internals without review would trade a visible problem for a risky
+// diff. Tracked in usetheodev/theokit-sdk#151.
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function fromModelsDev(m) {
   const out = {};
   if (typeof m.name === "string") out.name = m.name;

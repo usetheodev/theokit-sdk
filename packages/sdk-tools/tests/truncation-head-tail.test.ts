@@ -67,14 +67,14 @@ describe("M77 T4.1 — truncamento head+tail", () => {
     // Backward compatibility: the helper is exported from the public barrel. Changing the default silently
     // would change the output of any future consumer that had already adopted the old mode.
     const noMode = truncateOutput(longo, { maxBytes: 200, outputDir });
-    const comHead = truncateOutput(longo, { maxBytes: 200, mode: "head", outputDir });
+    const withHead = truncateOutput(longo, { maxBytes: 200, mode: "head", outputDir });
 
     // Compare the SEGMENT, not the whole string: the trailer carries the `overflowPath`, which is now
     // deliberately unique per call (the collision fix just below). The first version
     // of this test did a `toBe` on the full content and started failing because of the fix itself —
     // the oracle was measuring the file name, not the cutting mode.
-    const trecho = (s: string): string => s.split("\n\n[Output truncated")[0] ?? "";
-    expect(trecho(noMode.content)).toBe(trecho(comHead.content));
+    const segment = (s: string): string => s.split("\n\n[Output truncated")[0] ?? "";
+    expect(segment(noMode.content)).toBe(segment(withHead.content));
     expect(noMode.content, "the default cuts the tail, as it always did").not.toContain("line-59");
   });
 
