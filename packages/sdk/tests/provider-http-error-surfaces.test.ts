@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { afterEach, describe, expect, it } from "vitest";
 
 /**
- * theokit#101 — uma falha do provider tem de APARECER.
+ * theokit#101 — a provider failure has to SHOW UP.
  *
  * Reportado: apontando um agent para um model id inexistente, o OpenRouter devolve
  * `404 {"message":"No endpoints found..."}` and the stream produced ONLY `{type:'start'}` and

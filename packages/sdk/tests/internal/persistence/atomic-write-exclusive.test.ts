@@ -11,7 +11,7 @@
  *
  * The seam is therefore **`vi.mock("node:crypto")`**, making `randomBytes` deterministic only inside
  * this file. It lives in a separate file on purpose: `vi.mock` replaces the module for the whole
- * grafo do arquivo de teste, e contaminar `atomic-write-json.test.ts` — que afirma justamente o
+ * test file's graph, and contaminating `atomic-write-json.test.ts` — which asserts precisely the
  * production behavior — it would trade an oracle for a scenario.
  *
  * No seam was opened in PRODUCTION code: the suffix generator is still the real `node:crypto`

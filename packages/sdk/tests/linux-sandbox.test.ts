@@ -30,7 +30,7 @@ import {
 } from "../src/sandbox/index.js";
 
 const detectaOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
-const detectaFalha = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
+const detectFailure = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
 
 describe("M75 T2.2 — wrapCommandForSandbox", () => {
   it("test_embrulha_com_bwrap_e_preserva_o_comando_entre_aspas", () => {
@@ -41,19 +41,19 @@ describe("M75 T2.2 — wrapCommandForSandbox", () => {
     );
     expect(w).not.toBeNull();
     // The command crosses ONE extra `/bin/sh -c`: the quoting must survive, otherwise a command with
-    // aspas simples viraria outro comando dentro do sandbox.
+    // single quotes would become a different command inside the sandbox.
     expect(w).toContain("/bin/sh -c");
     expect(w).toContain("--unshare-net");
   });
 
-  it("test_danger_full_access_devolve_null", () => {
+  it("test_danger_full_access_returns_null", () => {
     // `null` = "do not wrap". Returning the raw command would conflate the two in the caller.
     expect(
       wrapCommandForSandbox("danger-full-access", { cwd: "/w", env: {} }, "echo oi"),
     ).toBeNull();
   });
 
-  it("test_seccomp_so_entra_quando_ha_caminho", () => {
+  it("test_seccomp_only_goes_in_when_there_is_a_path", () => {
     const sem = wrapCommandForSandbox("workspace-write", { cwd: "/w", env: {} }, "true");
     const com = wrapCommandForSandbox(
       "workspace-write",
@@ -68,10 +68,10 @@ describe("M75 T2.2 — wrapCommandForSandbox", () => {
 });
 
 describe("M75 T2.2 — allowlistedEnv", () => {
-  it("test_reinjeta_apenas_o_permitido_e_descarta_o_resto", () => {
-    // Modelo env_clear do Codex: o filho recebe o que precisa para rodar um shell, nunca o env do pai
+  it("test_reinjects_only_what_is_allowed_and_discards_the_rest", () => {
+    // Codex's env_clear model: the child gets what it needs to run a shell, never the parent's env
     // — which may hold a secret under a name no name-based heuristic catches.
-    const env = allowlistedEnv({ PATH: "/bin", MINHA_CHAVE_ESQUISITA: "s3cr3t", HOME: "/h" });
+    const env = allowlistedEnv({ PATH: "/bin", MY_ODDLY_NAMED_KEY: "s3cr3t", HOME: "/h" });
     expect(env).toEqual({ PATH: "/bin", HOME: "/h" });
     expect(Object.values(env)).not.toContain("s3cr3t");
   });
@@ -99,12 +99,12 @@ describe("M75 T2.2 — LinuxSandbox", () => {
 });
 
 describe("M75 T2.2 — honest degradation (negative cases)", () => {
-  it("test_bwrap_ausente_avisa_UMA_vez_e_devolve_backend_sem_confinamento", () => {
+  it("test_absent_bwrap_warns_ONCE_and_returns_an_unconfined_backend", () => {
     resetSandboxWarnLatch();
     const warnings: string[] = [];
     const opts = {
       mode: "workspace-write" as const,
-      detect: detectaFalha,
+      detect: detectFailure,
       warn: (m: string) => warnings.push(m),
     };
     const a = createSandboxBackend(opts);
@@ -118,17 +118,17 @@ describe("M75 T2.2 — honest degradation (negative cases)", () => {
     expect(warnings, "the warning repeated — it becomes noise and stops being read").toHaveLength(
       1,
     );
-    expect(warnings[0], "o aviso precisa dizer POR QUE e em que modo").toMatch(
+    expect(warnings[0], "the warning must say WHY and in which mode").toMatch(
       /PATH.*workspace-write/s,
     );
   });
 
-  it("test_danger_full_access_nao_avisa_porque_e_opt_out_explicito", () => {
+  it("test_danger_full_access_does_not_warn_because_it_is_an_explicit_opt_out", () => {
     resetSandboxWarnLatch();
     const warnings: string[] = [];
     const s = createSandboxBackend({
       mode: "danger-full-access",
-      detect: detectaFalha,
+      detect: detectFailure,
       warn: (m: string) => warnings.push(m),
     });
     expect(s).not.toBeInstanceOf(LinuxSandbox);
@@ -136,13 +136,13 @@ describe("M75 T2.2 — honest degradation (negative cases)", () => {
     expect(warnings, "an explicit opt-out is not an anomaly and must not warn").toHaveLength(0);
   });
 
-  it("test_arquitetura_nao_x64_recusa_seccomp_e_avisa", () => {
+  it("test_a_non_x64_architecture_refuses_seccomp_and_warns", () => {
     // ARCH GUARD: the cBPF program is x86_64 and its guard KILLS every syscall from another
     // architecture — the first execve would die, and silently, because generation works and bwrap
     // accepts it.
     const warnings: string[] = [];
     const p = seccompPathForArch("arm64", (m) => warnings.push(m));
-    expect(p, "em arm64 nenhum caminho de seccomp pode ser devolvido").toBeUndefined();
+    expect(p, "on arm64 no seccomp path may be returned").toBeUndefined();
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toMatch(/x86_64|x64/i);
   });
@@ -155,16 +155,16 @@ describe("M75 T2.2 — resolveSandboxPosture", () => {
     expect(p.detail).toMatch(/kernel/i);
   });
 
-  it("test_sem_bwrap_diz_nao_confinado_COM_o_motivo", () => {
+  it("test_without_bwrap_it_says_not_confined_WITH_the_reason", () => {
     // The posture is what the UI shows. "not confined" without a reason leaves the user with no action; with the
-    // motivo ele sabe se instala o bwrap ou se mudou de modo.
-    const p = resolveSandboxPosture({ mode: "workspace-write", detect: detectaFalha });
+    // reason they know whether to install bwrap or whether they changed mode.
+    const p = resolveSandboxPosture({ mode: "workspace-write", detect: detectFailure });
     expect(p.enforced).toBe(false);
     expect(p.detail).toContain("PATH");
   });
 
-  it("test_danger_full_access_e_honestamente_nao_confinado", () => {
+  it("test_danger_full_access_is_honestly_not_confined", () => {
     const p = resolveSandboxPosture({ mode: "danger-full-access", detect: detectaOk });
-    expect(p.enforced, "danger-full-access nunca pode reportar confinamento").toBe(false);
+    expect(p.enforced, "danger-full-access may never report confinement").toBe(false);
   });
 });

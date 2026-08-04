@@ -61,7 +61,7 @@ function resultadoDe(method: string | undefined): Record<string, unknown> {
 }
 
 /** True when the spec says this request must carry the session and it does not. */
-function faltaSessao(
+function missingSession(
   opts: { emitSessionId: boolean },
   m: string | undefined,
   id: string | undefined,
@@ -86,7 +86,7 @@ function statefulServer(opts: { emitSessionId: boolean }): Promise<{
         accept: req.headers.accept as string | undefined,
       });
 
-      if (faltaSessao(opts, parsed.method, sessionId)) {
+      if (missingSession(opts, parsed.method, sessionId)) {
         res.writeHead(400, { "content-type": "application/json" });
         res.end(
           JSON.stringify({
@@ -200,12 +200,12 @@ describe("MCP Streamable HTTP — stateful session", () => {
 });
 
 /**
- * Um servidor que **honra o `Accept`**: responde `text/event-stream` quando o cliente o pede.
+ * A server that **honors `Accept`**: it answers `text/event-stream` when the client asks for it.
  *
- * Este e o fixture que faltava. O primeiro servidor deste arquivo devolve JSON qualquer que seja o
- * `Accept`, entao concordava com a producao ate a producao mudar: quando o cliente passou a pedir
- * SSE (a correcao da spec), um servidor real passou a responder SSE e `response.json()` quebrou com
- * `Unexpected token 'e', "event: mes"`. Medido em producao, nao imaginado.
+ * This is the fixture that was missing. The first server in this file returns JSON whatever the
+ * `Accept`, so it agreed with production until production changed: when the client started asking for
+ * SSE (the spec fix), a real server started answering SSE and `response.json()` broke with
+ * `Unexpected token 'e', "event: mes"`. Measured in production, not imagined.
  */
 function sseServer(): Promise<{ url: string; close: () => Promise<void> }> {
   const srv: Server = createServer((req, res) => {
@@ -242,11 +242,11 @@ function sseServer(): Promise<{ url: string; close: () => Promise<void> }> {
   });
 }
 
-describe("MCP Streamable HTTP — resposta SSE", () => {
+describe("MCP Streamable HTTP — SSE response", () => {
   it("parses a text/event-stream response instead of throwing on JSON.parse", async () => {
-    // O cliente PEDE `text/event-stream`; um servidor que honra o pedido responde SSE. Antes desta
-    // correcao, `response.json()` lancava e o servidor inteiro ficava sem tools — foi o que
-    // aconteceu com um servidor real (`theo-skills`) apos a correcao do Accept.
+    // The client ASKS for `text/event-stream`; a server honoring the request answers SSE. Before this
+    // fix, `response.json()` threw and the whole server ended up with no tools — which is what
+    // happened with a real server (`theo-skills`) after the Accept fix.
     const srv = await sseServer();
     try {
       const client = createMcpClient("sse", { type: "http", url: srv.url });
@@ -254,7 +254,7 @@ describe("MCP Streamable HTTP — resposta SSE", () => {
       const tools = await client.listTools();
       expect(
         tools.map((t) => t.name),
-        "a resposta SSE nao foi parseada — o servidor serve zero tools",
+        "the SSE response was not parsed — the server serves zero tools",
       ).toEqual(["ping"]);
     } finally {
       await srv.close();

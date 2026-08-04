@@ -29,12 +29,12 @@ function storeEmMemoria(): SessionStore & { gravados: SessionRecord[] } {
 }
 
 /** A run whose `wait()` rejects — the 429 after N tool calls — but which HAS already produced conversation. */
-function runQueFalhaComParcial(parcial: unknown[]): Run {
+function runFailingWithPartial(partial: unknown[]): Run {
   return {
     wait: async () => {
       throw new Error("429 rate limited depois de 8 tool calls");
     },
-    conversation: async () => parcial,
+    conversation: async () => partial,
   } as unknown as Run;
 }
 
@@ -43,12 +43,12 @@ const inertes = {
   memoryGlue: { onTurn: async () => undefined } as never,
 };
 
-describe("M93/M1 — o caminho de erro persiste de verdade", () => {
-  it("um turno que falha DEIXA o parcial no store", async () => {
+describe("M93/M1 — o filePath de erro persiste de verdade", () => {
+  it("um turno que falha DEIXA o partial no store", async () => {
     const store = storeEmMemoria();
     await runPostRunLifecycle({
-      run: runQueFalhaComParcial([
-        { role: "assistant", content: [{ type: "text", text: "parcial" }] },
+      run: runFailingWithPartial([
+        { role: "assistant", content: [{ type: "text", text: "partial" }] },
       ]),
       userText: "oi",
       agentId: "ag-1",
@@ -59,7 +59,7 @@ describe("M93/M1 — o caminho de erro persiste de verdade", () => {
     });
     // Antes do M93 isto era 0: `flushSessionWrites` drenava um conjunto vazio, porque
     // `persistTurnToTranscript` was only called later, at a point the error never reached.
-    expect(store.gravados.length, "nada foi persistido no caminho de erro").toBeGreaterThan(0);
+    expect(store.gravados.length, "nada foi persistido no filePath de erro").toBeGreaterThan(0);
     expect(JSON.stringify(store.gravados)).toContain("oi");
   });
 
@@ -74,7 +74,7 @@ describe("M93/M1 — o caminho de erro persiste de verdade", () => {
     try {
       await expect(
         runPostRunLifecycle({
-          run: runQueFalhaComParcial([{ role: "assistant", content: [] }]),
+          run: runFailingWithPartial([{ role: "assistant", content: [] }]),
           userText: "oi",
           agentId: "ag-2",
           workspaceCwd: process.cwd(),
