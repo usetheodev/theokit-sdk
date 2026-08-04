@@ -27,9 +27,9 @@ export type TranscriptBlock =
  * **It is NOT called `SessionMessage`** — that name already exists in
  * `internal/session/session-types.ts` with the shape `{role, text}`, incompatible with this one.
  * Reusing an exported name for a new shape is
- * precisamente a quebra silenciosa que o M91 custou dois patches para desfazer.
+ * precisely the silent break M91 cost two patches to undo.
  *
- * O parse do disco continua **tolerante** (`readTranscript` pula linha malformada): o que muda aqui
+ * Parsing from disk stays **tolerant** (`readTranscript` skips a malformed line): what changes here
  * is the **type**, not leniency — records written by earlier versions stay readable.
  *
  * @public
@@ -60,9 +60,9 @@ export interface SessionRecord {
   subtype?: string;
   compactMetadata?: { preTokens: number; trigger: string };
   /**
-   * O corpo da mensagem, na forma que o escritor de transcript de fato grava.
+   * The message body, in the shape the transcript writer actually writes.
    *
-   * M94 — era `Record<string, unknown>`, e o consumidor recuperava o tipo com cast a cada leitura.
+   * M94 — it was `Record<string, unknown>`, and the consumer recovered the type with a cast on every read.
    * The shape **has always been fixed** (`SessionTranscript.appendToolResults` / `#push` produce
    * it); it simply was not declared. It stays optional because system records carry no message.
    */

@@ -1,7 +1,7 @@
 /**
  * The goal-loop's continuation marker — in a LEAF module, on purpose.
  *
- * Ele vivia em `goal-loop.ts` e era importado por `run-until.ts`, que o `goal-loop` por sua vez
+ * It lived in `goal-loop.ts` and was imported by `run-until.ts`, which `goal-loop` in turn
  * imports back. The cycle was broken at runtime (the return edge is `import type` + a dynamic
  * `await import()`), but the cycle detector counts the dynamic edge — and counting a dynamic import as a cycle
  * makes the gate impossible to satisfy without abandoning the canonical cycle-breaking technique.

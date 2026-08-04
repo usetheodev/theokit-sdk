@@ -6,7 +6,7 @@
  *
  * M76 — born alongside `git_diff` and sharing the execution engine (`internal/git-exec.ts`): the stdout
  * ceiling, process-group kill on timeout and mapping to a typed error are the SAME rule
- * para qualquer subcomando do git. O consumidor (agent-builder) tinha isto local em 62 LoC; nada ali
+ * for any git subcommand. The consumer (agent-builder) had this locally in 62 LoC; nothing there
  * was specific to it.
  *
  * Result shape (always a JSON string):
@@ -37,7 +37,7 @@ export interface CreateGitStatusToolOptions {
    * Injected execution backend (`@theokit/sdk/sandbox`) — when present, `git status` runs via
    * `SandboxBackend.execute`; omitido ⇒ o `git` local (inalterado).
    *
-   * Simetria com `createGitDiffTool`, apontada pelo review do M76: sem isto `git_diff` rodaria
+   * Symmetry with `createGitDiffTool`, flagged by the M76 review: without it `git_diff` would run
    * confined and `git_status` not, in the same session — and the asymmetry would be invisible until someone
    * perceber que uma das duas escapa do sandbox.
    */
@@ -112,7 +112,7 @@ function buildArgs(path: string | undefined, withBranch: boolean): string[] {
 }
 
 /**
- * `git status` via `SandboxBackend` — o caminho surface-agnostic, espelhando `diffViaSandbox`.
+ * `git status` via `SandboxBackend` — the surface-agnostic path, mirroring `diffViaSandbox`.
  *
  * It exists for symmetry with `git_diff`: without it, in a confined session the diff would run inside the
  * sandbox and the status outside — and the asymmetry would be invisible until someone noticed one of the two escapes.

@@ -2,7 +2,7 @@
  * `git` execution for tools — the engine shared by `git_diff` and `git_status`.
  *
  * M76 — promoted from `git-diff.ts`, where it was private. Duplicating it in `git-status` would duplicate
- * CONHECIMENTO: o teto de stdout, o kill do grupo de processos no timeout e o mapeamento para erro
+ * KNOWLEDGE: the stdout ceiling, the process-group kill on timeout and the mapping to a typed
  * typed error are the SAME rule for any git subcommand. Two copies would diverge at the first
  * fix, and the symptom would be one tool with a timeout and another that hangs the turn.
  */
@@ -10,7 +10,7 @@ import { spawn } from "node:child_process";
 
 import { armTimeoutKill, attachChildSettlers } from "../subprocess.js";
 
-/** Aspas POSIX para o comando que cruza o shell do sandbox. Compartilhado por git_diff e git_status. */
+/** POSIX quoting for the command crossing the sandbox shell. Shared by git_diff and git_status. */
 export function shq(arg: string): string {
   return `'${arg.replaceAll("'", `'\\''`)}'`;
 }

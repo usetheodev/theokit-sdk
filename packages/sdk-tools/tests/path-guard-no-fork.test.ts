@@ -41,11 +41,11 @@ describe("#150 — path-guard with no fork of the canonical one", () => {
   it("test_bloqueia_todo_segredo_que_o_canonical_bloqueia", () => {
     for (const p of SEGREDOS) {
       expect(canonical(p), `invalid fixture: the canonical guard should block ${p}`).toBe(true);
-      expect(isForbiddenPath(p), `${p} escapou do guard deste pacote`).toBe(true);
+      expect(isForbiddenPath(p), `${p} escaped this package guard`).toBe(true);
     }
   });
 
-  it("test_nao_bloqueia_codigo_legitimo", () => {
+  it("test_does_not_block_legitimate_code", () => {
     for (const p of LEGITIMOS) {
       expect(canonical(p)).toBe(false);
       expect(isForbiddenPath(p), `${p} foi bloqueado indevidamente`).toBe(false);
@@ -61,7 +61,7 @@ describe("#150 — path-guard with no fork of the canonical one", () => {
     expect(() => safePathJoin("/tmp", `a${CONTROL}b`)).toThrow();
   });
 
-  it("test_base_na_raiz_do_filesystem_aceita_caminho", () => {
+  it("test_a_filesystem_root_base_accepts_a_path", () => {
     // #149 — o fork recusava TODO caminho quando a base era `/`.
     expect(safePathJoin("/", "a.txt")).toBe(joinCanonico("/", "a.txt"));
   });

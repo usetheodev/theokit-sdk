@@ -33,17 +33,17 @@ export interface JudgeContext {
 export interface JudgeOptions {
   /**
    * Judge model identifier. When absent, it DERIVES from {@link agentModel} — and only falls back to the literal
-   * `"openai/gpt-4o-mini"` se nem esse for informado.
+   * `"openai/gpt-4o-mini"` when neither is provided.
    *
    * M80 — the fixed default was provider-blind: it only resolves on OpenRouter. With an Anthropic key it gives
    * 404, with an OAuth bearer it gives 401, and in both the goal burned 3 whole turns before failing with
    * a misleading reason. The agent-builder already worked around this by deriving on its own; the knowledge
-   * pertence aqui.
+   * belongs here.
    */
   judgeModel?: string;
   /**
    * M80 — the DRIVEN agent's model. It is the basis of the derivation: a judge running on the same model as the
-   * chat funciona onde o chat funciona.
+   * chat works wherever chat works.
    */
   agentModel?: string;
   /** Override env. Default `process.env.OPENROUTER_API_KEY` (EC-A). */
@@ -78,7 +78,7 @@ export class JudgeCredentialError extends TheokitAgentError {
   }
 }
 
-/** Extrai o status HTTP de um erro de provider, quando ele o carrega. */
+/** Extracts the HTTP status from a provider error, when it carries one. */
 function statusHttpDe(err: unknown): number | undefined {
   const s =
     (err as { status?: unknown; statusCode?: unknown }).status ??

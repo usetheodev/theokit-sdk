@@ -152,7 +152,7 @@ export async function* runUntilImpl(
     }
     // M80 — the missing arm. Without it, a judge recognizing impossibility could only say
     // "continue", and the loop repeated the same turn until it blew the budget — reporting `failed` on
-    // limite em vez de `blocked` por impossibilidade. Duas causas distintas com o mesmo desfecho
+    // a limit rather than `blocked` on impossibility. Two distinct causes with the same
     // visible outcome, and the consumer had to reconcile after the loop to tell them apart.
     if (judgment.verdict === "blocked") {
       yield { type: "status_change", status: "blocked", reason: judgment.reason };

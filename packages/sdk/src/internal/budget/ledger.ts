@@ -4,7 +4,7 @@
  * Singleton mutex-protected. Stores per-budget ChargeLog[] arrays;
  * `spentIn(window)` filters by timestamp.
  *
- * EC-6: GC eviction runs DENTRO do mesmo mutex que charge — sem race.
+ * EC-6: GC eviction runs INSIDE the same mutex as charge — no race.
  * EC-9: charge() is called inside the same critical section as preflight
  * check by Budget enforcement.
  *

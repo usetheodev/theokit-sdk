@@ -45,7 +45,7 @@ export { PersistenceSchema } from "./internal/persistence/persistence-schema.js"
 export {
   encodeProjectDir,
   transcriptPath,
-  // M94 — a raiz do estado de transcript. Exportada porque o consumidor a duplicava em
+  // M94 — the transcript state's root. Exported because the consumer duplicated it in
   // THREE files, and all three copies ignored `THEOKIT_HOME` along with this one.
   transcriptRoot,
 } from "./internal/persistence/session-transcript.js";
@@ -53,7 +53,7 @@ export {
   acquireSessionWriter,
   SessionBusyError,
   type SessionWriterLease,
-  // M95 — consulta sem tomar: perguntar tomando cria a disputa que se queria detectar.
+  // M95 — query without taking: asking by taking creates the contention it meant to detect.
   sessionHasWriter,
 } from "./internal/persistence/session-writer.js";
 // Resilient SQLite bootstrap (corruption recovery) + WAL/FK setup.

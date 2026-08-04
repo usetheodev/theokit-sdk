@@ -75,7 +75,7 @@ export class Provider {
   }
 
   /**
-   * O builtin que atende `modelId`, ou `undefined` quando nenhum atende.
+   * The builtin serving `modelId`, or `undefined` when none does.
    *
    * The grammar of a model id — `provider/model` — now has **one** owner. M94: the consumer
    * redid it by hand with `modelId.slice(0, modelId.indexOf('/'))`, which on an id **without a slash** returns the
@@ -94,9 +94,9 @@ export class Provider {
     // owner") and the first version redid `indexOf`/`slice` inline, reinventing the owner right next to it.
     //
     // Adversarial review measured the cost: 7 of 8 divergences. `lm-studio/qwen3` resolves to the
-    // builtin real `lmstudio` pelo parser e para NADA pelo slice — e como o consumidor passou a
+    // real `lmstudio` builtin via the parser and to NOTHING via the slice — and since the consumer now
     // throwing when there is no provider, a custom command that worked before M94 would start
-    // falhar. `Anthropic/…`, `␣openai/…`, `llama.cpp/…` idem. E o inverso: `openai/` (nome vazio) o
+    // fails. `Anthropic/...`, ` openai/...`, `llama.cpp/...` likewise. And the inverse: `openai/` (empty name) the
     // parser rejeita e o slice aceitava.
     const { provider } = parseModelId(modelId);
     if (provider === undefined) return undefined;

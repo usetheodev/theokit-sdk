@@ -30,25 +30,25 @@ import { disposeSessionMcpClients } from "./real-local-run.js";
  *
  * Testing for the capability rather than requiring it in the interface keeps the two-method port
  * `types/session-store.ts` declares — an external store (Postgres, S3) has no file lease and does not
- * deve ser obrigado a fingir que tem (ISP).
+ * must not be forced to pretend it has one (ISP).
  *
  * @internal
  */
-export async function adquirirLeaseSePossivel(store: unknown, agentId: string): Promise<void> {
+export async function acquireLeaseIfPossible(store: unknown, agentId: string): Promise<void> {
   const a = (store as { acquire?: (id: string) => Promise<void> }).acquire;
   if (typeof a !== "function") return;
   try {
     await a.call(store, agentId);
   } catch (err) {
     // `SessionBusyError` PROPAGATES — that is the whole point: another process holds the session, and whoever
-    // chamou precisa decidir (o `exec` forka para um id novo).
+    // called it needs to decide (`exec` forks to a new id).
     if (err instanceof Error && err.name === "SessionBusyError") throw err;
     // Any other I/O failure (EACCES in a read-only directory, ENOSPC) is **not** contention: there
     // is no second writer, there is a place where nothing can be written. Failing init in that case
     // would trade "no concurrency protection" for "the agent does not start" — and the write itself
     // is best-effort by contract, so the turn would proceed the same without the lease.
     //
-    // Medido: nove testes de personality usam um `baseDir` sob `/var/empty`, onde o `mkdir` do
+    // Measured: nine personality tests use a `baseDir` under `/var/empty`, where the lease's
     // the lease fails. They never write a transcript; requiring the lease there would mean
     // requiring permission to protect a file that does not exist.
     diag(
@@ -69,7 +69,7 @@ export async function adquirirLeaseSePossivel(store: unknown, agentId: string): 
  *
  * @internal
  */
-export async function soltarLeaseSePossivel(store: unknown, agentId: string): Promise<void> {
+export async function releaseLeaseIfPossible(store: unknown, agentId: string): Promise<void> {
   const r = (store as { release?: (id: string) => Promise<void> }).release;
   if (typeof r === "function") await r.call(store, agentId);
 }
@@ -124,8 +124,8 @@ export async function disposeLocalAgentSession(agent: LocalAgentDisposeTarget): 
   // M95 — releases the writer lease and erases this agent's FOUR module caches.
   //
   // Order matters: after `flushSessionWrites`, otherwise we would release the lease with a write
-  // pendente. `invalidateSessionCache` limpava dois dos quatro mapas; `pendingWrites` e
-  // `recordCounts` nunca eram apagados por id e cresciam pela vida do processo.
+  // pending. `invalidateSessionCache` cleared two of the four maps; `pendingWrites` and
+  // `recordCounts` were never erased by id and grew for the life of the process.
   await disposeSessionStore(agent.sessionStore);
   discardSession(agent.workspaceCwd, agent.agentId);
 }

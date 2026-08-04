@@ -45,7 +45,7 @@ export interface PostRunLifecycleInputs {
    * M94 — window declared on the agent definition, in tokens.
    *
    * Forwarded as `override` to the resolver. It exists because a model with no catalog entry
-   * (OpenRouter) ficava preso no piso de 128k mesmo tendo 400k — compactando ~3× mais do que
+   * (OpenRouter) stayed pinned to the 128k floor despite having 400k — compacting ~3x more than
    * needs it. The catalog clamp still protects against an inflated value.
    */
   contextWindow?: number | undefined;
@@ -132,7 +132,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   } catch {
     // M93 — persists what the turn HAS ALREADY PRODUCED before leaving.
     //
-    // O `flushSessionWrites` abaixo sempre esteve aqui, e sempre drenou um conjunto **vazio**:
+    // The `flushSessionWrites` below has always been here, and always drained an **empty** set:
     // `persistTurnToTranscript` is only called later in this function — the **only** caller in the
     // repository — after this `return`. A 429 after eight tool calls destroyed the whole turn
     // leaving nothing on disk, and combined with the absent retry on the single-key path (also

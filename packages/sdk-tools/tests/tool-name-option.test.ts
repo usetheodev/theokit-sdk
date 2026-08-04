@@ -28,24 +28,24 @@ import { createListDirTool } from "../src/list-dir.js";
 import { createSearchTextTool } from "../src/search-text.js";
 import { createShellTool } from "../src/shell-exec.js";
 
-const raiz = "/tmp";
+const root = "/tmp";
 
 describe("M76 T1.2 — name/description as a factory option", () => {
   it("test_name_da_fabrica_vence_o_default", () => {
-    const t = createSearchTextTool({ projectRoot: raiz, name: "grep" });
+    const t = createSearchTextTool({ projectRoot: root, name: "grep" });
     expect(t.name).toBe("grep");
   });
 
   it("test_description_da_fabrica_vence_o_default", () => {
-    const t = createSearchTextTool({ projectRoot: raiz, description: "Busca literal ou regex." });
+    const t = createSearchTextTool({ projectRoot: root, description: "Busca literal ou regex." });
     expect(t.description).toBe("Busca literal ou regex.");
   });
 
   it("test_sem_name_o_default_e_preservado", () => {
     // O teste mais importante: retrocompatibilidade. Um default que escorrega muda a tool que o
     // the model sees and breaks approvals recorded by name — with no error, no log.
-    expect(createSearchTextTool({ projectRoot: raiz }).name).toBe("search_text");
-    expect(createListDirTool({ projectRoot: raiz }).name).toBe("list_dir");
+    expect(createSearchTextTool({ projectRoot: root }).name).toBe("search_text");
+    expect(createListDirTool({ projectRoot: root }).name).toBe("list_dir");
   });
 
   it("test_sem_description_o_default_e_preservado", () => {
@@ -53,10 +53,10 @@ describe("M76 T1.2 — name/description as a factory option", () => {
     // thing two ways, and neither tested what the name promises: that the default is
     // PRESERVED. Replacing the description with "x" satisfied both. The default's oracle is the
     // default itself — the description the model reads must contain what the tool does.
-    const t = createSearchTextTool({ projectRoot: raiz });
+    const t = createSearchTextTool({ projectRoot: root });
     expect(t.description).toMatch(/search|busca|grep|text/i);
     // And it must not be affected by passing `name`: the two options are independent.
-    expect(createSearchTextTool({ projectRoot: raiz, name: "grep" }).description).toBe(
+    expect(createSearchTextTool({ projectRoot: root, name: "grep" }).description).toBe(
       t.description,
     );
   });
@@ -66,27 +66,27 @@ describe("M76 T1.2 — name/description as a factory option", () => {
     // `list_dir`. `edit_file` and `shell_exec` are precisely the two tools whose name is an
     // APPROVAL key: renaming one of them with nothing checking is the shortest path to a recorded
     // approval silently ceasing to match.
-    const edit = createEditFileTool({ projectRoot: raiz, name: "aplicar_patch" });
-    expect(edit.name).toBe("aplicar_patch");
-    expect(createEditFileTool({ projectRoot: raiz }).name).toBe("edit_file");
+    const edit = createEditFileTool({ projectRoot: root, name: "apply_patch" });
+    expect(edit.name).toBe("apply_patch");
+    expect(createEditFileTool({ projectRoot: root }).name).toBe("edit_file");
 
-    const sh = createShellTool({ projectRoot: raiz, name: "rodar" });
+    const sh = createShellTool({ projectRoot: root, name: "rodar" });
     expect(sh.name).toBe("rodar");
-    expect(createShellTool({ projectRoot: raiz }).name).toBe("shell_exec");
+    expect(createShellTool({ projectRoot: root }).name).toBe("shell_exec");
   });
 
   it("test_with_name_continua_funcionando", () => {
     // The dynamic path does not regress: renaming AFTERWARDS remains possible for callers deciding the
     // name outside construction.
-    const t = withName(createSearchTextTool({ projectRoot: raiz }), "grep");
+    const t = withName(createSearchTextTool({ projectRoot: root }), "grep");
     expect(t.name).toBe("grep");
   });
 
-  it("test_a_opcao_e_o_decorator_concordam", () => {
+  it("test_the_option_and_the_decorator_agree", () => {
     // ANCHOR: both paths produce the SAME name. If they diverged, we would have two sources of
-    // verdade para a chave de approval — exatamente o defeito que este milestone existe para fechar.
-    const viaOpcao = createSearchTextTool({ projectRoot: raiz, name: "grep" });
-    const viaDecorator = withName(createSearchTextTool({ projectRoot: raiz }), "grep");
-    expect(viaOpcao.name).toBe(viaDecorator.name);
+    // true for the approval key — exactly the defect this milestone exists to close.
+    const viaOption = createSearchTextTool({ projectRoot: root, name: "grep" });
+    const viaDecorator = withName(createSearchTextTool({ projectRoot: root }), "grep");
+    expect(viaOption.name).toBe(viaDecorator.name);
   });
 });

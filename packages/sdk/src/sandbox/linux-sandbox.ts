@@ -1,6 +1,6 @@
 // Promovido do agent-builder no M75 (plano m75-sandbox-kernel-no-framework, D1). Renomeado de
 // `BwrapSandbox` para `LinuxSandbox`: bwrap e a IMPLEMENTACAO, Linux e o contrato — trocar o
-// mecanismo (landlock, por exemplo) nao deveria mudar o nome que o consumidor importa.
+// mechanism (landlock, for example) should not change the name the consumer imports.
 
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

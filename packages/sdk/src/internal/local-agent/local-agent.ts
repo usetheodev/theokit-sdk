@@ -52,10 +52,10 @@ import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstra
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
 import {
-  adquirirLeaseSePossivel,
+  acquireLeaseIfPossible,
   disposeLocalAgentSession,
+  releaseLeaseIfPossible,
   reloadLocalAgent,
-  soltarLeaseSePossivel,
 } from "./local-agent-lifecycle.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
@@ -221,7 +221,7 @@ export class LocalAgent implements SDKAgent {
     // best-effort (logged to stderr, not thrown), so acquiring there made the `SessionBusyError`
     // get swallowed and the user's turn vanish silently. At init the error reaches whoever can
     // decide — `exec` forks to a new id, which is what the error message prescribes.
-    await adquirirLeaseSePossivel(this.sessionStore, this.agentId);
+    await acquireLeaseIfPossible(this.sessionStore, this.agentId);
     // Everything after the acquisition runs under `try`: an init failing AFTER taking the lease would leave
     // the lock held by this very process — alive, same host — and `reclaimable` would be `false` forever.
     // The session would stay locked for the process's lifetime, with no crash and no recovery: the
@@ -235,7 +235,7 @@ export class LocalAgent implements SDKAgent {
     } catch (err) {
       // Releases THIS agent's lease, not all of the store's: an injected store may serve several
       // agents, and an init that fails for B must not free A's lease, which is still writing.
-      await soltarLeaseSePossivel(this.sessionStore, this.agentId);
+      await releaseLeaseIfPossible(this.sessionStore, this.agentId);
       throw err;
     }
   }
@@ -287,14 +287,14 @@ export class LocalAgent implements SDKAgent {
   /**
    * The context window declared on the model selection, in conditional-spread form.
    *
-   * M94 — sem isto, o `override` de `resolveEffectiveContextWindow` existia desde o M77 e nenhum
+   * M94 — without this, `resolveEffectiveContextWindow`'s `override` had existed since M77 and no
    * production call site passed it: a 400k model with no catalog entry was budgeted against the
    * 128k floor. Its own method because the inline spread pushed `runLockedSendCycle` past the
-   * teto de complexidade cognitiva do projeto.
+   * project's cognitive-complexity ceiling.
    */
   #declaredWindow(): { contextWindow?: number } {
-    const declarada = this.model?.contextWindow;
-    return declarada !== undefined ? { contextWindow: declarada } : {};
+    const declared = this.model?.contextWindow;
+    return declared !== undefined ? { contextWindow: declared } : {};
   }
 
   private async runLockedSendCycle(
