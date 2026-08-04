@@ -120,10 +120,10 @@ const TAIL_CHUNK = 64 * 1024;
  * Reads chunks backwards until enough complete lines have accumulated.
  *
  * Extracted from `readJsonlTail` because the read loop and the record selection are two
- * responsabilidades — e juntas passavam do teto de complexidade. A primeira linha do buffer pode
+ * responsibilities — and together they exceeded the complexity ceiling. The buffer's first line may
  * be cut in half when the read stopped before the start of the file; that is why it is discarded.
  */
-function lerCaudaBruta(path: string, want: number): { linhas: string[]; bytesRead: number } {
+function lerCaudaBruta(path: string, want: number): { lines: string[]; bytesRead: number } {
   const size = statSync(path).size;
   const fd = openSync(path, "r");
   let bytesRead = 0;
@@ -137,18 +137,18 @@ function lerCaudaBruta(path: string, want: number): { linhas: string[]; bytesRea
       readSync(fd, buf, 0, len, pos);
       bytesRead += len;
       tail = buf.toString("utf8") + tail;
-      if (naoVazias(tail).length > want) break;
+      if (nonEmptyLines(tail).length > want) break;
     }
   } finally {
     closeSync(fd);
   }
-  const linhas = naoVazias(tail);
-  return { linhas: pos > 0 ? linhas.slice(1) : linhas, bytesRead };
+  const lines = nonEmptyLines(tail);
+  return { lines: pos > 0 ? lines.slice(1) : lines, bytesRead };
 }
 
 /** Non-empty lines, in file order. */
-function naoVazias(texto: string): string[] {
-  return texto.split("\n").filter((l) => l.trim().length > 0);
+function nonEmptyLines(text: string): string[] {
+  return text.split("\n").filter((l) => l.trim().length > 0);
 }
 
 /**
@@ -163,9 +163,9 @@ export function readJsonlTail<T = Record<string, unknown>>(
   options: ReadJsonlTailOptions = {},
 ): T[] {
   const want = options.maxRecords ?? Number.POSITIVE_INFINITY;
-  const { linhas, bytesRead } = lerCaudaBruta(path, want);
+  const { lines, bytesRead } = lerCaudaBruta(path, want);
 
-  let sel = linhas;
+  let sel = lines;
   if (options.sinceMarker !== undefined) {
     const marcador = options.sinceMarker;
     const idx = sel.findLastIndex((l) => l.includes(marcador));

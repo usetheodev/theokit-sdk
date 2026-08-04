@@ -92,7 +92,7 @@ export interface AtomicWriteFileOptions {
    * Permission bits of the created file. Default: `0o600`, the previous fixed
    * literal — filtered by the `umask`, as it always was. When provided, the mode is
    * reasserted on the descriptor, so the `umask` cannot silently
-   * limpar bits que o chamador pediu.
+   * clearing bits the caller asked for.
    */
   mode?: number;
   /**
@@ -120,7 +120,7 @@ export interface AtomicWriteFileOptions {
  * ## M107 — `options` is optional, and the default is byte-identical
  *
  * The third parameter is additive: every earlier caller still compiles and
- * escrevendo exatamente o mesmo byte, com o mesmo modo, no mesmo caminho.
+ * writing exactly the same bytes, with the same mode, to the same path.
  *
  * The mode reassertion (`handle.chmod`) is **conditional on `mode !== undefined`**,
  * and that is not cosmetic. `open`'s mode argument is filtered by the `umask`,
@@ -135,7 +135,7 @@ export interface AtomicWriteFileOptions {
  * consumers. When the caller DOES ask for a mode, however, letting the `umask` decide
  * silently is the defect this parameter exists to close; hence the reassertion.
  *
- * Ela vai no DESCRITOR, antes do `rename`, nunca depois: dar `chmod` no arquivo
+ * It goes on the DESCRIPTOR, before the `rename`, never after: chmod-ing the final
  * final one would leave a window where it carries the `umask`'s mode — the anti-pattern
  * de `upstream/packages/core/src/fs-util.ts:110-114`. A forma escolhida (modo como
  * `open` argument) is that of `upstream/network-proxy/src/certs.rs:687,783-791`.

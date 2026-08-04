@@ -58,7 +58,7 @@ export function setDiagnosticsSink(next: DiagnosticsSink | undefined): void {
  * Emits a library diagnostic message.
  *
  * Replaces `process.stderr.write` on internal paths. Never throws: a faulty sink must not
- * pode derrubar o run que ele apenas observa.
+ * must not take down the run it merely observes.
  */
 export function diag(message: string): void {
   if (sink !== undefined) {

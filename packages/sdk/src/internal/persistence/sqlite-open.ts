@@ -129,11 +129,11 @@ function adaptNodeSqlite(db: {
   });
 }
 
-// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
-// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
-// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+// sweeping these files (a nested root under refactor/). It is not new code and was not touched
+// by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // arriscado. Rastreado em usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 async function loadDriver<T extends ResilientSqliteDb>(filePath: string): Promise<T> {
   let betterSqliteCause: unknown;
   try {

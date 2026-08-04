@@ -62,7 +62,7 @@ function redactValue(value: unknown): unknown {
   }
 }
 
-// M94 — era `Record<string, unknown>`. O tipo publicado descreve a mesma forma que este arquivo
+// M94 — it was `Record<string, unknown>`. The published type describes the same shape this file
 // has always produced; the local alias now points at it so writer and reader cannot
 // diverge silently.
 type Block = TranscriptBlock;
@@ -287,7 +287,7 @@ export function reconstructMessages(records: readonly SessionRecord[]): LlmMessa
  * Raiz do estado de transcript.
  *
  * `THEOKIT_HOME` wins; the fallback is `~/.theokit`. Home-anchored on purpose, and NOT
- * `getTheokitHome(cwd)` de `paths.ts`: aquele faz fallback para `<cwd>/.theokit`, e trocar
+ * `paths.ts`'s `getTheokitHome(cwd)`: that one falls back to `<cwd>/.theokit`, and switching
  * by it would move the transcript of everyone who does **not** set the variable. The sibling with the
  * right shape is `catalog-source-models-dev.ts` (M94 ADR-2).
  *
@@ -300,7 +300,7 @@ export function transcriptRoot(): string {
   return join(homedir(), ".theokit");
 }
 
-/** @deprecated Use {@link transcriptRoot}. Mantido como alias — mesmo valor. */
+/** @deprecated Use {@link transcriptRoot}. Kept as an alias — same value. */
 export function defaultBaseDir(): string {
   return transcriptRoot();
 }

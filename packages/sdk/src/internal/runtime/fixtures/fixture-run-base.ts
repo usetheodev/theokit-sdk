@@ -110,22 +110,22 @@ export abstract class FixtureRunBase implements Run {
   }
 
   /**
-   * theokit#101 — quando o run termina em erro, `stream()` tem de DIZER.
+   * theokit#101 — when the run ends in error, `stream()` has to SAY SO.
    *
-   * O erro sempre existiu: o loop o registra em `ctx.error` e `wait()` devolve
+   * The error always existed: the loop records it in `ctx.error` and `wait()` returns
    * `status: 'error'` with the message. Only `stream()` failed to mention it — it drains
-   * `script.events` e para. Uma falha de provider (404 "No endpoints found", auth, timeout)
+   * `script.events` and stops. A provider failure (404 "No endpoints found", auth, timeout)
    * produced a turn that looked successful and empty, on EVERY surface consuming the
    * stream: HTTP web, MCP, stdio, TUI in-process.
    *
    * A silent error is the worst kind (Unbreakable Rule 8). And the asymmetry was what made it
    * hard to diagnose: anyone debugging via `wait()` saw the error and would not reproduce the
-   * relato de quem depurava pelo stream.
+   * report of anyone debugging via the stream.
    *
    * It emits `SDKStatusMessage` with `status: "ERROR"` — the type ALREADY EXISTS in the `SDKMessage` union
    * and is already expected by consumers. A new type would be breaking for every consumer doing
    * an exhaustive switch; this one is additive, and a consumer ignoring `status` simply
-   * segue como antes — nunca pior que hoje.
+   * behaves as before — never worse than today.
    */
   private *terminalErrorEvent(): Generator<SDKMessage> {
     if (this.status !== "error") return;

@@ -26,6 +26,10 @@
  *   written entirely without accents can slip past tier 1; tier 2 narrows that
  *   gap without closing it. Stated honestly rather than claimed complete.
  *
+ *   `logo` was removed from the lexicon after it flagged `logo.png`: it is a
+ *   common English noun as well as Portuguese, and a lexicon entry that fires
+ *   on ordinary English is a gate that teaches people to ignore it.
+ *
  * @internal
  */
 
@@ -198,7 +202,6 @@ const PT_LEXICON = new Set([
   "ambos",
   "ambas",
   "ainda",
-  "logo",
   "pois",
 ]);
 
@@ -210,6 +213,16 @@ const PT_LEXICON = new Set([
 const DIACRITIC = /[À-ÖØ-öø-ÿ]/;
 
 const WORD = /[A-Za-zÀ-ÿ]+/g;
+
+/**
+ * Identifiers that are not prose and must not be tokenized as words.
+ *
+ * IANA timezone ids are the live case: `America/Sao_Paulo` is a standardized key, and splitting it
+ * yields `Sao`, which the lexicon reads as an unaccented `são`. Mutilating the lexicon to hide that
+ * would blind the gate to the real word, so the noise is removed from the line instead.
+ */
+const NOT_PROSE =
+  /\b(?:Africa|America|Antarctica|Asia|Atlantic|Australia|Europe|Indian|Pacific)\/[A-Za-z_]+/g;
 
 interface Offender {
   file: string;
@@ -248,7 +261,7 @@ function stripDiacritics(word: string): string {
 
 /** Every word-part of a line, with allowlisted loanwords already dropped. */
 function candidateParts(line: string): string[] {
-  return (line.match(WORD) ?? [])
+  return (line.replace(NOT_PROSE, " ").match(WORD) ?? [])
     .filter((token) => !WORD_ALLOWLIST.has(token.toLowerCase()))
     .flatMap(identifierParts)
     .filter((part) => !WORD_ALLOWLIST.has(part.toLowerCase()));

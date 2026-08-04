@@ -304,11 +304,11 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
    * The `chat_completions` and `anthropic_messages` arms did this IDENTICALLY, differing only in the
    * final constructor. That is duplicated KNOWLEDGE: "apply the transform, require OAuth to be
    * resolved, and merge the dynamic headers ON TOP of the profile's static ones" is the same rule for
-   * qualquer provider — corrigi-la num ramo e esquecer o outro deixaria um provider com transporte
-   * refresh-aware e o outro sem, silenciosamente.
+   * any provider — fixing it in one arm and forgetting the other would leave one provider with a
+   * refresh-aware transport and the other without, silently.
    *
    * Generic over `O` because each arm declares its own `opts` with its constructor's type
-   * (`ConstructorParameters<typeof OpenAIClient>[0]` vs o do Anthropic) — foi por isso que uma
+   * (`ConstructorParameters<typeof OpenAIClient>[0]` vs Anthropic's) — that is why a
    * the first attempt with a non-generic helper, declared before the `if`s, did not compile.
    */
   const comTransform = <
@@ -316,7 +316,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
     C,
   >(
     opts: O,
-    criar: (o: O) => C,
+    construct: (o: O) => C,
   ): C => {
     const t = applyTransform();
     assertOAuthResolved(t);
@@ -326,7 +326,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
         ? { ...profile.extraHeaders, ...t.headers }
         : undefined;
     if (merged !== undefined) opts.extraHeaders = merged;
-    return criar(opts);
+    return construct(opts);
   };
 
   // M42 review MEDIUM-1 — mirror Upstream's auth model (packages/llm/src/route/auth.ts): a provider's auth

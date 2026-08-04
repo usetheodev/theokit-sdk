@@ -1,7 +1,7 @@
 /**
  * Types the socket failure `fetch` throws **before** any response exists.
  *
- * ## O buraco que isto fecha
+ * ## The hole this closes
  *
  * `mapAnthropicError` / `mapOpenAIError` only come into play when there is a `Response` — that is, for
  * **HTTP** errors. An ECONNREFUSED / ETIMEDOUT / DNS failure blows up at `await fetch(...)`, and until
@@ -9,8 +9,8 @@
  * rethrew the rest (`throw fetchErr`).
  *
  * This matters because `isTransientError` — the SDK's single source of truth — returns `false` for
- * erro estrangeiro **por contrato** ("wrap a foreign error in the appropriate SDK error first",
- * `errors.ts:429`). Com o transporte deixando o erro cru escapar, o retry do M93 estaria morto
+ * a foreign error **by contract** ("wrap a foreign error in the appropriate SDK error first",
+ * `errors.ts:429`). With the transport letting the raw error escape, M93's retry would be dead
  * exactly the most classic failure it exists to cover. The same applied to the pool's
  * `classifyAndDecide`, which predates this milestone.
  *
@@ -31,7 +31,7 @@ function ehAbort(err: unknown): boolean {
 }
 
 /**
- * Envolve uma falha de socket num {@link NetworkError}, preservando a causa.
+ * Wraps a socket failure in a {@link NetworkError}, preserving the cause.
  *
  * Returns the original error — unwrapped — when it is an abort or already an SDK error.
  */

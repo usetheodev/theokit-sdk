@@ -461,12 +461,12 @@ class HttpMcpClient extends BaseMcpClient {
   private async readBody(response: Response): Promise<unknown> {
     const tipo = response.headers.get("content-type") ?? "";
     if (!tipo.includes("text/event-stream")) return (await response.json()) as unknown;
-    const texto = await response.text();
-    for (const linha of texto.split(/\r?\n/)) {
-      if (!linha.startsWith("data:")) continue;
-      const carga = linha.slice(5).trim();
-      if (carga === "") continue;
-      return JSON.parse(carga) as unknown;
+    const text = await response.text();
+    for (const line of text.split(/\r?\n/)) {
+      if (!line.startsWith("data:")) continue;
+      const payload = line.slice(5).trim();
+      if (payload === "") continue;
+      return JSON.parse(payload) as unknown;
     }
     throw new NetworkError(`MCP ${this.name} returned an event stream with no data payload`, {
       code: "mcp_http_error",

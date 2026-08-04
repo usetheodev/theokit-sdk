@@ -27,7 +27,7 @@ export type { SessionMessage } from "./session-types.js";
 
 import type { SessionMessage } from "./session-types.js";
 
-// M75 — o cache mora numa folha; ver session-cache.ts para a razao (quebra de ciclo por extracao).
+// M75 — the cache lives in a leaf; see session-cache.ts for the reason (cycle broken by extraction).
 export {
   hydratedKeys,
   invalidateSessionCache,
@@ -111,8 +111,8 @@ function esquecerEscrituracao(agentId: string): void {
  * makes the idempotency test possible without exposing the maps.
  */
 export function discardSession(cwd: string, agentId: string): number {
-  const chave = transcriptKey(cwd, agentId);
-  let removidas = 0;
+  const key = transcriptKey(cwd, agentId);
+  let removed = 0;
   // `sessions` is NOT erased here — and the distinction is measured, not aesthetic. It holds the
   // readable conversation, and there is a legitimate reader AFTER dispose: the golden
   // `two-concurrent-sends-serialize` calls `getSessionMessages(agentId)` after `agent.dispose()`.
@@ -122,10 +122,10 @@ export function discardSession(cwd: string, agentId: string): number {
   // The key is `transcriptKey(cwd, agentId)` in ALL THREE — not the raw `agentId`. The first version
   // erased two of them by `agentId` and therefore **never erased anything**; the test did not catch
   // it because it only asserted that the SECOND call returns 0, which is true either way.
-  if (hydratedKeys.delete(chave)) removidas++;
-  if (pendingWrites.delete(chave)) removidas++;
-  if (recordCounts.delete(chave)) removidas++;
-  return removidas;
+  if (hydratedKeys.delete(key)) removed++;
+  if (pendingWrites.delete(key)) removed++;
+  if (recordCounts.delete(key)) removed++;
+  return removed;
 }
 
 export function getSessionMessages(agentId: string): SessionMessage[] {
@@ -149,11 +149,11 @@ export function persistTurnToTranscript(
   onCompact?: () => void,
 ): void {
   const key = transcriptKey(loc.cwd, loc.agentId);
-  // Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
-  // de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
-  // pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+  // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+  // sweeping these files (a nested root under refactor/). It is not new code and was not touched
+  // by M75; refactoring SDK internals without review would trade a visible problem for a diff
   // arriscado. Rastreado em usetheodev/theokit-sdk#151.
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
   const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
     try {
       await persistTurn(store, loc, sessionId, turn);

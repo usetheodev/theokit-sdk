@@ -132,11 +132,11 @@ export function getPricingEntry(opts: {
 }
 
 /** Step-5 catalog cost lookup: direct `provider/model`, then the model id as-is when it carries a path. */
-// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
-// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
-// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+// sweeping these files (a nested root under refactor/). It is not new code and was not touched
+// by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // arriscado. Rastreado em usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function catalogCostFallback(provider: string, cleanedModel: string): PricingEntry | undefined {
   // M44 L10 fix — also try the date-stripped id (parity with the LiteLLM chain's step 2).
   const stripped = stripDateSuffix(cleanedModel);

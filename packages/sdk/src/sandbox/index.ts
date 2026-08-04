@@ -14,8 +14,8 @@ export {
   type SandboxMode,
 } from "./bwrap.js";
 // M75 T2.2 — o backend com enforcement de kernel + o wrap + a postura. `wrapCommandForSandbox` e
-// `resolveSandboxPosture` sao API PUBLICA por exigencia do M75 (T2.3): a primeira para quem compoe o
-// wrap noutro lugar (o PTY interativo), a segunda para a UI responder "estou confinado agora?".
+// `resolveSandboxPosture` are PUBLIC API as required by M75 (T2.3): the first for whoever composes the
+// wrap elsewhere (the interactive PTY), the second so the UI can answer "am I confined right now?".
 export {
   allowlistedEnv,
   type CreateSandboxBackendOptions,

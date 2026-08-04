@@ -124,7 +124,7 @@ function createSquad(options: SquadOptions): Squad {
 
   return {
     run: async (input: unknown): Promise<SquadRun> => {
-      const run = await (await montarPipeline(agents, options.name)).run(input);
+      const run = await (await buildPipeline(agents, options.name)).run(input);
       return { result: run.output, status: run.status, steps: run.stepResults };
     },
   };
@@ -137,7 +137,7 @@ function createSquad(options: SquadOptions): Squad {
  * "building the pipeline" and "running it and translating the result" are two responsibilities that were only
  * juntas por proximidade.
  */
-async function montarPipeline(
+async function buildPipeline(
   agents: ReadonlyArray<SDKAgent | AgentDefinition>,
   nome: string | undefined,
 ): Promise<ReturnType<ReturnType<typeof Workflow.create>["commit"]>> {

@@ -7,7 +7,7 @@
  * `*.pem` `*.key` `*.p12`), case-insensitive normalization, NUL/control-char rejection (T5.5), the
  * filesystem-root base fix (#149) — while the copy stood still. Nothing in CI compared the two, and the
  * divergence grew with every fix applied to only one side: an agent could read `.ssh/id_rsa`,
- * `.aws/credentials` e `*.pem` pelo fork.
+ * `.aws/credentials` and `*.pem` through the fork.
  *
  * The file remains as a re-export point so the 9 consumers need not change their imports
  * (and so this comment sits in the path of anyone tempted to vendor again). It does NOT

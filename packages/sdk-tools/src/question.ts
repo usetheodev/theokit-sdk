@@ -18,7 +18,7 @@ export interface QuestionToolOptions {
   askUser?: (question: string, threadId?: string) => Promise<string>;
   /**
    * Called when the question is ABANDONED (timeout or run cancellation), so the UI side can
-   * libere o slot. Sem ele o timeout deixa a pergunta pendente para sempre — a UI segue mostrando
+   * release the slot. Without it the timeout leaves the question pending forever — the UI keeps showing
    * a prompt nobody is waiting on and the next question fails with "one is already pending".
    */
   onAbandon?: (threadId?: string) => void;
@@ -41,7 +41,7 @@ export interface QuestionToolOptions {
  * forced every consumer to write a cast to register the tool — and a cast does not fix a contract,
  * it only silences the compiler, turning a future signature change into a RUNTIME error.
  *
- * Estreitar foi aditivo: o valor sempre foi um objeto (`{ type: "object", properties, required }`
+ * Narrowing was additive: the value has always been an object (`{ type: "object", properties, required }`
  * just below); only the declared type was loose. The handler accepts the contract's optional 2nd
  * argument (`ctx`), through which M76 now resolves the asker per session.
  */
@@ -52,7 +52,7 @@ export interface QuestionTool {
   /**
    * M76 — the input is `Record<string, unknown>`, not `{ question: string }`, by CONTRAVARIANCE: a
    * handler accepting only the narrow type is not assignable to one accepting the wide type, and `CustomTool`
-   * do SDK declara o largo. Declarar estreito aqui obrigava o consumidor a um cast — que era
+   * SDK declares the wide one. Declaring narrow here forced the consumer into a cast — which was
    * exactly the defect. Narrowing happens INSIDE the handler, where validation lives.
    */
   handler: (
@@ -103,7 +103,7 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       // tool shared across sessions now scopes the asker per session instead of leaking it.
       const askUser = askerDoContexto(ctx?.context) ?? opts.askUser;
       if (askUser === undefined) {
-        // NUNCA uma promise pendente: sem asker, esperar o timeout de 5 min pararia o turno inteiro
+        // NEVER a pending promise: with no asker, waiting out the 5 min timeout would stall the whole turn
         // with nobody knowing why. Typed error, immediate (`error-handling.md` § 2).
         return JSON.stringify({
           ok: false,
@@ -118,9 +118,9 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       });
 
       try {
-        // M76 review — o `threadId` e ENCAMINHADO ao asker. Sem isto a cadeia ctx.threadId -> bridge
-        // nao existia: o bridge caia sempre no slot padrao e o Map tinha uma chave para sempre — o
-        // `let pending` com outro nome. A capacidade existia; a fiacao, nao.
+        // M76 review — the `threadId` is FORWARDED to the asker. Without it the chain ctx.threadId -> bridge
+        // did not exist: the bridge always fell into the default slot and the Map had one key forever — the
+        // `let pending` under another name. The capability existed; the wiring did not.
         const answer = await Promise.race([
           askUser(String(input.question ?? ""), ctx?.threadId),
           timeout,
@@ -128,7 +128,7 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
         return JSON.stringify({ ok: true, answer });
       } catch (err) {
         if (err instanceof Error && err.message === "timeout") {
-          // M76 review (MEDIUM-1) — avisa o asker que a pergunta MORREU. Sem isto o slot ficava
+          // M76 review (MEDIUM-1) — tells the asker the question DIED. Without it the slot stayed
           // occupied forever: the UI kept rendering an orphaned prompt, and every subsequent question
           // got "one is already pending" — a permanent error for something nobody awaits anymore.
           opts.onAbandon?.(ctx?.threadId);

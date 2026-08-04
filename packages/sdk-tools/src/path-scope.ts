@@ -28,7 +28,7 @@ export function checkPathScope(path: string | undefined, projectRoot: string): s
 }
 
 /**
- * Segmentos que nunca podem aparecer num caminho honrado por `allowAbsolute`.
+ * Segments that may never appear in a path honored by `allowAbsolute`.
  *
  * M76 — promoted from `read-file.ts`, where it was private. Duplicating it in `list-dir` would duplicate
  * security KNOWLEDGE: the copies would have to agree on what counts as a secret, and one fixed
