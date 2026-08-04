@@ -1,61 +1,63 @@
 /**
- * Canal único de diagnóstico da biblioteca — silencioso por padrão (#147).
+ * The library's single diagnostics channel — silent by default (#147).
  *
  * ## O problema
  *
- * O SDK escrevia diagnósticos direto em `process.stderr` a partir de caminhos quentes —
- * 92 sítios em 51 arquivos sob `internal/`. Numa host de TUI (Ink, alternate screen), essas
- * escritas se intercalam com o render e **corrompem o frame**. E o host não tinha como
- * interceptá-las: não havia logger injetável. Um consumidor chegou a instalar
- * `proper-lockfile` só para calar UMA delas.
+ * The SDK wrote diagnostics straight to `process.stderr` from hot paths — 92 sites across 51
+ * files under `internal/`. In a TUI host (Ink, alternate screen), those writes interleave with the
+ * render and **corrupt the frame**. And the host had no way to intercept them: there was no
+ * injectable logger. One consumer went as far as installing `proper-lockfile` just to silence ONE
+ * of them.
  *
- * Uma biblioteca não pode assumir que `stdout`/`stderr` são sinks livres. Quem é dono do
- * terminal é a aplicação, não a dependência.
+ * A library cannot assume `stdout`/`stderr` are free sinks. The application owns the terminal, not
+ * the dependency.
  *
  * ## O contrato
  *
- * - **`setDiagnosticsSink(fn)`** entrega as mensagens à aplicação, que decide onde colocá-las
- *   (uma linha de status, um arquivo, um painel). É o que faltava para uma TUI conviver com o SDK.
- * - **Sem sink, vai para o `stderr`** — exatamente como antes desta mudança.
+ * - **`setDiagnosticsSink(fn)`** hands the messages to the application, which decides where to put
+ *   them (a status line, a file, a panel). It is what was missing for a TUI to coexist with the SDK.
+ * - **With no sink, it goes to `stderr`** — exactly as before this change.
  *
- * ## Por que o padrão NÃO mudou (ainda), e isso é deliberado
+ * ## Why the default did NOT change (yet), and why that is deliberate
  *
- * A #147 pede silêncio por padrão, e é o alvo certo. Mas **58 arquivos de teste** asseram hoje
- * que estes diagnósticos chegam ao `stderr` — eles codificam o contrato "o aviso É emitido", que
- * continua valendo e não deve ser perdido. Virar o padrão sem migrá-los reprovaria ~53 testes, e
- * migrá-los às pressas, em quatro formas diferentes de espionar o `stderr`, é a receita para
- * enfraquecer 58 suítes de uma vez.
+ * #147 asks for silence by default, and that is the right target. But **58 test files** currently
+ * assert these diagnostics reach `stderr` — they encode the contract "the warning IS emitted",
+ * which still holds and must not be lost. Flipping the default without migrating them would fail
+ * ~53 tests, and migrating them in a hurry, across four different ways of spying on `stderr`, is
+ * the recipe for weakening 58 suites at once.
  *
- * Então esta mudança entrega a metade que DESTRAVA o consumidor — o host de TUI agora consegue
+ * So this change delivers the half that UNBLOCKS the consumer — a TUI host can now
  * interceptar, que era o bloqueio relatado ("no way to intercept these; no injectable logger") — e
- * deixa a virada do padrão como migração própria, com custo medido. Um host que quer silêncio
+ * and leaves flipping the default as its own migration, with a measured cost. A host that wants silence
  * hoje instala `setDiagnosticsSink(() => {})`.
  *
- * ## O que isto NÃO é
+ * ## What this is NOT
  *
- * Não é um logger com níveis, formatação ou destinos múltiplos. É o mínimo que resolve o
- * bloqueio relatado; um logger completo aqui seria inventar requisito que ninguém pediu.
+ * It is not a logger with levels, formatting or multiple destinations. It is the minimum that
+ * resolves the reported blocker; a full logger here would be inventing a requirement nobody asked
+ * for.
  */
 
-/** Recebe cada mensagem de diagnóstico já formatada, com o `\n` final. */
+/** Receives each diagnostic message already formatted, with the trailing `\n`. */
 export type DiagnosticsSink = (message: string) => void;
 
 let sink: DiagnosticsSink | undefined;
 
 /**
- * Instala (ou remove, passando `undefined`) o destino dos diagnósticos.
+ * Installs (or removes, by passing `undefined`) the diagnostics destination.
  *
- * Quando há sink, ele é o ÚNICO destino — o `stderr` não recebe cópia. Duplicar destinos
- * devolveria o problema à TUI que instalou o sink justamente para tirar as mensagens do terminal.
+ * When a sink is present it is the ONLY destination — `stderr` gets no copy. Duplicating
+ * destinations would hand the problem back to the TUI that installed the sink precisely to get the
+ * messages out of the terminal.
  */
 export function setDiagnosticsSink(next: DiagnosticsSink | undefined): void {
   sink = next;
 }
 
 /**
- * Emite uma mensagem de diagnóstico da biblioteca.
+ * Emits a library diagnostic message.
  *
- * Substitui `process.stderr.write` nos caminhos internos. Nunca lança: um sink defeituoso não
+ * Replaces `process.stderr.write` on internal paths. Never throws: a faulty sink must not
  * pode derrubar o run que ele apenas observa.
  */
 export function diag(message: string): void {
@@ -63,7 +65,7 @@ export function diag(message: string): void {
     try {
       sink(message);
     } catch {
-      // Observabilidade nunca quebra o run — mesmo princípio de `emitRunEvent`.
+      // Observability never breaks the run — same principle as `emitRunEvent`.
     }
     return;
   }

@@ -21,15 +21,15 @@ import { flushRegistrySaves } from "../runtime/registry/agent-registry.js";
 import { liveAgentRegistry } from "../runtime/registry/live-agent-registry.js";
 import type { SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
-import { descartarSessao } from "../session/agent-session.js";
+import { discardSession } from "../session/agent-session.js";
 import { flushSessionWrites } from "../session/index.js";
 import { disposeSessionMcpClients } from "./real-local-run.js";
 
 /**
- * Toma o lease de escritor quando o store souber tomá-lo.
+ * Takes the writer lease when the store knows how to take one.
  *
- * Testar a capacidade em vez de exigi-la na interface mantém a porta de dois métodos que
- * `types/session-store.ts` declara — um store externo (Postgres, S3) não tem lease de arquivo e não
+ * Testing for the capability rather than requiring it in the interface keeps the two-method port
+ * `types/session-store.ts` declares — an external store (Postgres, S3) has no file lease and does not
  * deve ser obrigado a fingir que tem (ISP).
  *
  * @internal
@@ -40,17 +40,17 @@ export async function adquirirLeaseSePossivel(store: unknown, agentId: string): 
   try {
     await a.call(store, agentId);
   } catch (err) {
-    // `SessionBusyError` PROPAGA — é o ponto inteiro: outro processo detém a sessão, e quem
+    // `SessionBusyError` PROPAGATES — that is the whole point: another process holds the session, and whoever
     // chamou precisa decidir (o `exec` forka para um id novo).
     if (err instanceof Error && err.name === "SessionBusyError") throw err;
-    // Qualquer outra falha de I/O (EACCES num diretório read-only, ENOSPC) **não** é disputa: não
-    // há segundo escritor, há um lugar onde nada se escreve. Derrubar o init nesse caso trocaria
-    // "sem proteção contra concorrência" por "agente não sobe" — e a gravação em si já é
-    // best-effort por contrato, então o turno seguiria igual sem o lease.
+    // Any other I/O failure (EACCES in a read-only directory, ENOSPC) is **not** contention: there
+    // is no second writer, there is a place where nothing can be written. Failing init in that case
+    // would trade "no concurrency protection" for "the agent does not start" — and the write itself
+    // is best-effort by contract, so the turn would proceed the same without the lease.
     //
     // Medido: nove testes de personality usam um `baseDir` sob `/var/empty`, onde o `mkdir` do
-    // lease falha. Eles nunca escrevem transcript; exigir o lease ali seria exigir permissão para
-    // proteger um arquivo que não existe.
+    // the lease fails. They never write a transcript; requiring the lease there would mean
+    // requiring permission to protect a file that does not exist.
     diag(
       `[theokit-sdk] writer lease unavailable for ${agentId} (${
         err instanceof Error ? err.message : String(err)
@@ -60,12 +60,12 @@ export async function adquirirLeaseSePossivel(store: unknown, agentId: string): 
 }
 
 /**
- * Solta o lease de um agente, quando o store souber soltá-lo por id.
+ * Releases an agent's lease, when the store knows how to release one by id.
  *
- * `SessionStore` é uma porta de **dois métodos** por contrato (`types/session-store.ts`), e um store
- * injetado pelo consumidor não é obrigado a ter ciclo de vida. Testar a capacidade em vez de
- * exigi-la na interface mantém a porta pequena — alargá-la obrigaria todo store externo a
- * implementar um método que a maioria não precisa (ISP).
+ * `SessionStore` is a **two-method** port by contract (`types/session-store.ts`), and a store
+ * injected by the consumer is not required to have a lifecycle. Testing for the capability rather
+ * than requiring it in the interface keeps the port small — widening it would force every external
+ * store to implement a method most do not need (ISP).
  *
  * @internal
  */
@@ -121,13 +121,13 @@ export async function disposeLocalAgentSession(agent: LocalAgentDisposeTarget): 
   // before the caller proceeds (ADR D17 + D18).
   await flushSessionWrites();
   await flushRegistrySaves(agent.workspaceCwd);
-  // M95 — solta o lease de escritor e apaga as QUATRO caches de módulo deste agente.
+  // M95 — releases the writer lease and erases this agent's FOUR module caches.
   //
-  // A ordem importa: depois do `flushSessionWrites`, senão soltaríamos o lease com escrita
+  // Order matters: after `flushSessionWrites`, otherwise we would release the lease with a write
   // pendente. `invalidateSessionCache` limpava dois dos quatro mapas; `pendingWrites` e
   // `recordCounts` nunca eram apagados por id e cresciam pela vida do processo.
   await disposeSessionStore(agent.sessionStore);
-  descartarSessao(agent.workspaceCwd, agent.agentId);
+  discardSession(agent.workspaceCwd, agent.agentId);
 }
 
 /**
