@@ -23,6 +23,7 @@ import { createTelemetry } from "../telemetry/tracer.js";
 import { McpClientPool } from "./mcp-pool.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
 import { buildCustomToolsInput } from "./real-local-run-tools.js";
+import type { SDKMessage } from "../../types/messages.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -449,7 +450,24 @@ class RealLocalRun extends FixtureRunBase {
     }
   }
 
+  /**
+   * theokit#140 - events already handed to stream() by the live subscriber.
+   *
+   * The loop still RETURNS its full event list, and that batch path is deliberately kept: it is the
+   * fallback if a live event is ever lost, and removing it would make the live channel a single
+   * point of failure for the whole transcript.
+   */
+  private readonly liveDelivered = new Set<SDKMessage>();
+
   private async executeAgentLoop(inputs: AgentLoopInputs): Promise<void> {
+    // theokit#140 - subscribe BEFORE the loop runs, so nothing is missed between start and the
+    // first await. Events now reach stream() in true order as they happen, instead of arriving as
+    // one post-completion batch while onDelta streamed tokens on a separate clock.
+    inputs.onLoopEvent = (event: SDKMessage) => {
+      this.liveDelivered.add(event);
+      this.script.events.push(event);
+      this.notifyNewEvents();
+    };
     try {
       // SE18 — when the send set `activeTools`, run the loop inside a tool-whitelist
       // scope so a call to a tool outside the set is vetoed at dispatch (same path as
@@ -480,6 +498,14 @@ class RealLocalRun extends FixtureRunBase {
    */
   private applyAgentLoopOutput(output: Awaited<ReturnType<typeof runAgentLoop>>): void {
     for (const event of output.events) {
+      // theokit#140 - skip what the live subscriber already delivered. The loop now reports each
+      // event as it happens, so this batch is the SAME list, replayed. Without the guard every
+      // event would reach stream() twice: once live, once here.
+      //
+      // Identity, not deep equality: these are the very objects the live sink saw, and two
+      // genuinely distinct events can be structurally identical (the same tool called twice with
+      // the same args is not a duplicate).
+      if (this.liveDelivered.has(event)) continue;
       this.script.events.push(event);
       this.notifyNewEvents();
     }
