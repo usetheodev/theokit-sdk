@@ -6,26 +6,26 @@ import { afterEach, describe, expect, it } from "vitest";
  * theokit#101 — uma falha do provider tem de APARECER.
  *
  * Reportado: apontando um agent para um model id inexistente, o OpenRouter devolve
- * `404 {"message":"No endpoints found..."}` e o stream produzia SÓ `{type:'start'}` e
+ * `404 {"message":"No endpoints found..."}` and the stream produced ONLY `{type:'start'}` and
  * `{type:'finish'}` — sem texto, sem chunk de erro, sem throw. O turno parecia bem-sucedido e
- * vazio, em toda superfície (HTTP web, MCP, stdio, TUI in-process).
+ * empty, on every surface (HTTP web, MCP, stdio, in-process TUI).
  *
- * É a forma mais perigosa de erro: silencioso (Regra Inquebrável 8 — falhe alto, falhe cedo,
+ * It is the most dangerous kind of error: silent (Unbreakable Rule 8 — fail loud, fail early,
  * falhe claro). O sintoma foi remendado a jusante com uma dica de "no content" na TUI; a causa
  * pertence a esta camada.
  *
- * O teste é HERMÉTICO — um servidor local devolve 404 no lugar do provider. Não precisa de chave,
- * de rede nem de OpenRouter, então roda no CI e não fica flaky quando um provider muda de humor.
+ * The test is HERMETIC — a local server returns 404 in place of the provider. It needs no key,
+ * no network and no OpenRouter, so it runs in CI and does not flake when a provider changes mood.
  *
- * A asserção é deliberadamente FRACA quanto à FORMA e forte quanto ao FATO: aceita `throw`, um
- * chunk `error`, ou um `status` terminal `ERROR` — as três são superfícies legítimas, e o contrato
- * que importa é "não passa em silêncio". Uma asserção presa a uma delas reprovaria numa mudança
- * correta, e é assim que um teste vira obstáculo em vez de guarda.
+ * The assertion is deliberately WEAK about SHAPE and strong about FACT: it accepts a `throw`, an
+ * `error` chunk, or a terminal `status` of `ERROR` — all three are legitimate surfaces, and the contract
+ * that matters is "it does not pass silently". An assertion pinned to one of them would fail on a correct
+ * change, and that is how a test becomes an obstacle instead of a guard.
  */
 
 const HTTP_NOT_FOUND = 404;
 
-/** Servidor que responde 404 a QUALQUER rota — o provider indisponível/model inexistente. */
+/** A server answering 404 on ANY route — the unavailable provider / nonexistent model. */
 function startNotFoundStub(): Promise<{ server: Server; url: string }> {
   const server = createServer((_req, res) => {
     res.statusCode = HTTP_NOT_FOUND;
@@ -50,10 +50,10 @@ interface Outcome {
 }
 
 /**
- * Troca duas variáveis de ambiente e devolve o restaurador. Extraído porque o par
- * salva/restaura duplicava quatro ramos dentro do corpo do cenário e estourava o limite de
- * complexidade cognitiva do Biome — e porque `undefined` NÃO pode virar a string "undefined"
- * ao restaurar, que é o erro clássico deste padrão.
+ * Swaps two environment variables and returns the restorer. Extracted because the save/restore
+ * pair duplicated four branches inside the scenario body and blew Biome's cognitive-complexity
+ * limit — and because `undefined` must NOT become the string "undefined"
+ * on restore, which is the classic mistake of this pattern.
  */
 function withEnv(vars: Record<string, string>): () => void {
   const anterior = new Map<string, string | undefined>();
@@ -69,7 +69,7 @@ function withEnv(vars: Record<string, string>): () => void {
   };
 }
 
-/** Classifica um chunk do stream como sinal de erro, nas duas formas legítimas. */
+/** Classifies a stream chunk as an error signal, in both legitimate shapes. */
 function ehSinalDeErro(chunk: unknown): boolean {
   const c = chunk as { type?: unknown; status?: unknown };
   return c.type === "error" || (c.type === "status" && c.status === "ERROR");
@@ -100,7 +100,7 @@ async function streamAgainst404(): Promise<Outcome> {
       outcome.chunks += 1;
       if (ehSinalDeErro(chunk)) outcome.errorChunks += 1;
     }
-    // O MESMO run, pela outra superfície: `wait()` conhece o erro?
+    // The SAME run, via the other surface: does `wait()` know about the error?
     const settled = (await run.wait()) as { status?: string; error?: { message?: string } };
     outcome.waitStatus = settled.status ?? null;
     outcome.waitError = settled.error?.message ?? null;
@@ -113,12 +113,12 @@ async function streamAgainst404(): Promise<Outcome> {
   return outcome;
 }
 
-describe("falha HTTP do provider não passa em silêncio (theokit#101)", () => {
+describe("a provider HTTP failure does not pass silently (theokit#101)", () => {
   afterEach(() => {
-    // nada a limpar além do env, já restaurado no finally
+    // nothing to clean beyond the env, already restored in the finally
   });
 
-  it("um 404 do provider vira erro observável — throw ou chunk de erro", async () => {
+  it("a provider 404 becomes an observable error — throw or error chunk", async () => {
     const outcome = await streamAgainst404();
 
     const surfaced = outcome.threw !== null || outcome.errorChunks > 0;
@@ -129,11 +129,11 @@ describe("falha HTTP do provider não passa em silêncio (theokit#101)", () => {
     ).toBe(true);
   }, 30_000);
 
-  it("DIAGNÓSTICO: `wait()` conhece o erro que `stream()` omite", async () => {
+  it("DIAGNOSTIC: `wait()` knows the error `stream()` omits", async () => {
     const outcome = await streamAgainst404();
 
-    // Este teste não é o contrato — é o registro de ONDE está a assimetria. Se um dia `wait()`
-    // também parar de saber, a correção passa a ser outra (mais funda), e este teste avisa.
+    // This test is not the contract — it records WHERE the asymmetry is. If one day `wait()`
+    // also stops knowing, the fix becomes a different (deeper) one, and this test says so.
     expect({ waitStatus: outcome.waitStatus, temErro: outcome.waitError !== null }).toEqual({
       waitStatus: "error",
       temErro: true,
@@ -143,8 +143,8 @@ describe("falha HTTP do provider não passa em silêncio (theokit#101)", () => {
   it("a mensagem do erro carrega contexto suficiente para diagnosticar", async () => {
     const outcome = await streamAgainst404();
 
-    // Um "Request failed" pelado obriga o operador a instrumentar para descobrir O QUÊ falhou.
-    // O status ou o corpo do provider tem de chegar até ele.
+    // A bare "Request failed" forces the operator to instrument in order to discover WHAT failed.
+    // The provider's status or body has to reach them.
     const texto = outcome.threw ?? "";
     expect(texto === "" || /404|not found|no endpoints/i.test(texto)).toBe(true);
   }, 30_000);
