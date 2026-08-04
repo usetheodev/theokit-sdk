@@ -51,7 +51,7 @@ describe("M76 T1.1 — o contrato de question fecha sem cast", () => {
     // contract: the handler reads `input.question`, so a schema without that key produces a tool the
     // model always calls with no argument. Indexing is what proves the type AND the shape at once.
     expect(Object.keys(props as Record<string, unknown>)).toContain("question");
-    expect(t.inputSchema["required"]).toEqual(["question"]);
+    expect(t.inputSchema.required).toEqual(["question"]);
   });
 
   it("test_handler_de_um_argumento_continua_valido", () => {

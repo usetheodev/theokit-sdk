@@ -22,7 +22,7 @@ const temRetry = (c: unknown): boolean => {
   let current = c;
   for (let i = 0; i < 5 && current !== undefined && current !== null; i++) {
     if (current instanceof RetryingLlmClient) return true;
-    current = (current as { inner?: unknown; ["#inner"]?: unknown }).inner;
+    current = (current as { inner?: unknown; "#inner"?: unknown }).inner;
   }
   return false;
 };
