@@ -66,6 +66,17 @@ export class SessionBusyError extends TheokitAgentError {
 export interface SessionWriterLease {
   readonly sessionPath: string;
   release(): Promise<void>;
+  /**
+   * Re-stamp the ownership record, so a **live** owner never crosses the staleness window.
+   *
+   * Idempotent and cheap: one `write` of a ~80-byte JSON. Call it on the path that already writes to
+   * the session — appending a turn — and the cross-host window stops being a lie about liveness.
+   *
+   * A no-op after `release()`: renewing a lease you no longer hold would re-create the lock file and
+   * hand this process ownership it gave up. That is the one direction of this API that could
+   * *create* the double-writer it exists to prevent.
+   */
+  renew(): void;
 }
 
 /**
@@ -88,10 +99,15 @@ export interface SessionWriterLease {
  * remote owner loses the lease after 30 s, because there is no way to ask another machine whether
  * its process still exists.
  *
- * **Declared residue, not mechanized** (the discipline in `error-handling.md` § 4): renewing the
- * record on every append would close that window, at the cost of one `write` per turn on a file that
- * today is written once per session. It was not done, and the multi-host case is not what motivates
- * this milestone — the statement of work is `exec` and TUI on the same machine.
+ * **The residue is now closable by the caller** (`agent-builder#118`). `SessionWriterLease.renew()`
+ * re-stamps the record; calling it on the path that already writes to the session — appending a turn
+ * — keeps a live owner from ever crossing the window. It costs one `write` of ~80 bytes on a file
+ * that was previously written once per session.
+ *
+ * It is `renew()` and not an internal timer on purpose. A timer inside the lease would keep the event
+ * loop alive (or need `unref` plus its own teardown), and it would renew a lease belonging to a
+ * process that is hung rather than working — which is precisely the state the window exists to
+ * detect. Tying the renewal to a real write means the record tracks **progress**, not mere existence.
  */
 export const HEARTBEAT_WINDOW_MS = 30_000;
 
@@ -100,6 +116,11 @@ interface LockOwner {
   pid: number;
   hostname: string;
   mtime: number;
+}
+
+/** The ownership record for THIS process, stamped now. One place, so acquire and renew cannot drift. */
+function ownerNow(): LockOwner {
+  return { pid: process.pid, hostname: hostname(), mtime: Date.now() };
 }
 
 /**
@@ -243,7 +264,7 @@ export async function acquireSessionWriter(sessionPath: string): Promise<Session
   // end; the lease is OWNERSHIP, held across turns, with an explicit `release()` — the distinction
   // the M81 docstring above already explains.
   const lockPath = `${sessionPath}.writer.lock`;
-  const mine: LockOwner = { pid: process.pid, hostname: hostname(), mtime: Date.now() };
+  const mine: LockOwner = ownerNow();
   let fd: number;
   try {
     // The mode applies on CREATION — the `w` in `writeOwner` does not alter an existing file.
@@ -272,6 +293,13 @@ function createLease(sessionPath: string, lockPath: string): SessionWriterLease 
       if (released) return;
       released = true;
       rmSync(lockPath, { force: true });
+    },
+    renew: (): void => {
+      // A released lease does not own the lock. Re-stamping here would RE-CREATE the file and give
+      // this process ownership it explicitly gave up — the one way this method could manufacture the
+      // double-writer the lease exists to prevent.
+      if (released) return;
+      writeOwner(lockPath, ownerNow());
     },
   };
 }

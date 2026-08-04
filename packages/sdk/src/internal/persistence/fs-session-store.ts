@@ -74,6 +74,13 @@ function createProxy(path: string): SessionWriterLease {
   let released = false;
   return {
     sessionPath: path,
+    // The proxy forwards the renewal to the ONE real lease this path shares. Renewing through any
+    // holder is correct and is the point: the record must say "someone in this process is still
+    // writing", and the refcount already guarantees they are all the same owner.
+    renew: (): void => {
+      if (released) return;
+      sharedLeases.get(path)?.lease.renew();
+    },
     release: async (): Promise<void> => {
       if (released) return;
       released = true;
