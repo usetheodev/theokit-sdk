@@ -19,10 +19,10 @@ import { resolveProviderChain } from "../src/internal/llm/router.js";
  * Walking down the decorator chain is what the test must do to measure the real invariant.
  */
 const temRetry = (c: unknown): boolean => {
-  let atual = c;
-  for (let i = 0; i < 5 && atual !== undefined && atual !== null; i++) {
-    if (atual instanceof RetryingLlmClient) return true;
-    atual = (atual as { inner?: unknown; ["#inner"]?: unknown }).inner;
+  let current = c;
+  for (let i = 0; i < 5 && current !== undefined && current !== null; i++) {
+    if (current instanceof RetryingLlmClient) return true;
+    current = (current as { inner?: unknown; ["#inner"]?: unknown }).inner;
   }
   return false;
 };

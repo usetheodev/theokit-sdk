@@ -27,7 +27,7 @@
  * The test pair is what gives the mutation meaning: without `exclusive`, a leftover temp file **is**
  * truncated (today's behavior, preserved); with `exclusive`, it is a refusal. A test of only the
  * `true` branch would also pass under the inverse mutation (`flag = "wx"` always), which would break every
- * chamador atual.
+ * chamador current.
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

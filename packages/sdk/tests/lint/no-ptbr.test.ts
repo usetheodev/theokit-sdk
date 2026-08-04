@@ -203,6 +203,12 @@ const PT_LEXICON = new Set([
   "ambas",
   "ainda",
   "pois",
+  "atual",
+  "atualmente",
+  "bruto",
+  "vistos",
+  "espera",
+  "trecho",
 ]);
 
 /**
@@ -232,8 +238,23 @@ interface Offender {
   text: string;
 }
 
-/** Directories that hold build output or dependencies, never source we own. */
-const SKIP_DIRS = new Set(["node_modules", "dist", "coverage", ".turbo", ".git"]);
+/**
+ * Extensions the gate reads. `.md` and `.mjs` are in scope because `package.json` `files[]`
+ * publishes README, docs and the claude-template to npm — Portuguese there reaches consumers
+ * exactly like Portuguese in a `.d.ts` does. Scanning only `.ts` left them unwatched.
+ */
+const SCANNED_EXT = /\.(?:ts|mts|cts|js|mjs|cjs|md)$/;
+
+/**
+ * Directories that hold build output, dependencies or local runtime state — never source we own.
+ *
+ * Dot-directories are skipped wholesale: inside a package they are tool or runtime state
+ * (`.theokit/memory/sessions/` holds real conversation transcripts, which are Portuguese because
+ * the user writes Portuguese). Linting a session transcript would be linting the user.
+ */
+const SKIP_DIRS = new Set(["node_modules", "dist", "coverage", "docs-json"]);
+
+const isSkippedDir = (name: string): boolean => name.startsWith(".") || SKIP_DIRS.has(name);
 
 /**
  * `withFileTypes` matters here, not as a micro-optimization: the first version called `stat` once
@@ -252,8 +273,8 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
   for (const entry of entries) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) {
-      if (!SKIP_DIRS.has(entry.name)) subdirs.push(full);
-    } else if (full.endsWith(".ts") && !full.endsWith(".d.ts")) {
+      if (!isSkippedDir(entry.name)) subdirs.push(full);
+    } else if (SCANNED_EXT.test(full) && !full.endsWith(".d.ts")) {
       out.push(full);
     }
   }
@@ -329,8 +350,19 @@ async function collectOffenders(): Promise<Offender[]> {
   return perFile.flat();
 }
 
+/**
+ * A filesystem sweep of every workspace package, not a unit test — the default 20 s budget is sized
+ * for the latter and this blew it twice while the scope widened. Stating the real cost is honest;
+ * silently shrinking the scan to fit a unit-test budget would trade coverage for a green clock.
+ */
+const SWEEP_TIMEOUT_MS = 120_000;
+
 describe("codebase is English-only (no PT-BR)", () => {
-  it("packages source and tests carry no Portuguese", async () => {
-    expect(await collectOffenders()).toEqual([]);
-  });
+  it(
+    "packages source and tests carry no Portuguese",
+    async () => {
+      expect(await collectOffenders()).toEqual([]);
+    },
+    SWEEP_TIMEOUT_MS,
+  );
 });

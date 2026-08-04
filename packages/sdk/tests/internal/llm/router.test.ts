@@ -10,11 +10,11 @@
  * decorator to arrive; the third must not break these tests again.
  */
 function descascar(client: LlmClient): LlmClient {
-  let atual = client;
+  let current = client;
   for (;;) {
-    if (atual instanceof RetryingLlmClient) atual = atual.inner;
-    else if (atual instanceof FaultInjectingLlmClient) atual = atual.inner;
-    else return atual;
+    if (current instanceof RetryingLlmClient) current = current.inner;
+    else if (current instanceof FaultInjectingLlmClient) current = current.inner;
+    else return current;
   }
 }
 

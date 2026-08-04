@@ -170,7 +170,7 @@ describe("Agent.getOrCreate — cache integration (T2.6)", () => {
       model: MODEL,
       local: { cwd: root },
     });
-    // M77 — era `await new Promise((r) => setTimeout(r, 100))`: uma espera FIXA por um despejo
+    // M77 — it was `await new Promise((r) => setTimeout(r, 100))`: a FIXED wait for an eviction
     // asynchronous. It passed alone and failed under the full suite's load (observed 1 in 3),
     // because 100 ms stops being enough when the machine is busy. `rules/testing.md` § 6 lists
     // time in a unit test as an anti-pattern, and § 3 treats a flake as a bug.
