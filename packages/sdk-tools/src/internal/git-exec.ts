@@ -1,10 +1,10 @@
 /**
- * Execução de `git` para tools — o motor compartilhado por `git_diff` e `git_status`.
+ * `git` execution for tools — the engine shared by `git_diff` and `git_status`.
  *
- * M76 — promovido de `git-diff.ts`, onde era privado. Duplicá-lo em `git-status` seria duplicação de
+ * M76 — promoted from `git-diff.ts`, where it was private. Duplicating it in `git-status` would duplicate
  * CONHECIMENTO: o teto de stdout, o kill do grupo de processos no timeout e o mapeamento para erro
- * tipado são a MESMA regra para qualquer subcomando do git. Duas cópias divergiriam na primeira
- * correção, e o sintoma seria uma tool com timeout e outra que pendura o turno.
+ * typed error are the SAME rule for any git subcommand. Two copies would diverge at the first
+ * fix, and the symptom would be one tool with a timeout and another that hangs the turn.
  */
 import { spawn } from "node:child_process";
 

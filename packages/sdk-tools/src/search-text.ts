@@ -57,13 +57,13 @@ export interface CreateSearchTextToolOptions {
   /**
    * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
    *
-   * Existe porque, no Codex, o nome NASCE na definição da tool e é a chave de decisão de approval —
-   * três consumidores (modelo, approval, telemetry) de uma string decidida num lugar só. Renomear
-   * depois da construção é mudar a identidade de algo já publicado ao modelo. `withName` continua
-   * para o caso genuinamente dinâmico.
+   * It exists because, in Codex, the name is BORN in the tool definition and is the approval decision
+   * key — three consumers (model, approval, telemetry) of a string decided in one place. Renaming
+   * after construction changes the identity of something already published to the model. `withName`
+   * remains for the genuinely dynamic case.
    */
   name?: string;
-  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
   description?: string;
   projectRoot: string;
   /** Cap on total matches returned. Default 100. */

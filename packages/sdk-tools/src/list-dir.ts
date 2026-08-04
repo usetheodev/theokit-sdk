@@ -45,21 +45,21 @@ export interface CreateListDirToolOptions {
   /**
    * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
    *
-   * Existe porque, no Codex, o nome NASCE na definição da tool e é a chave de decisão de approval —
-   * três consumidores (modelo, approval, telemetry) de uma string decidida num lugar só. Renomear
-   * depois da construção é mudar a identidade de algo já publicado ao modelo. `withName` continua
-   * para o caso genuinamente dinâmico.
+   * It exists because, in Codex, the name is BORN in the tool definition and is the approval decision key —
+   * three consumers (model, approval, telemetry) of a string decided in one place. Renaming
+   * after construction changes the identity of something already published to the model. `withName` remains
+   * for the genuinely dynamic case.
    */
   name?: string;
-  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
   description?: string;
   /**
    * M76 — opt-in "lista-em-qualquer-lugar": honra um `path` ABSOLUTO fora de `projectRoot`
    * (paridade com `createReadFileTool`/`createSearchTextTool`, sandbox read-only do Codex).
    *
-   * O guard de segredo por QUALQUER segmento continua valendo, e não é separável: `isForbiddenPath`
-   * só bloqueia o item sensível quando ele é o PRIMEIRO segmento, então um `/home/u/proj/.env/sub`
-   * passaria. Ligar o flag sem o guard é abrir exfiltração. Default `false` ⇒ absoluto rejeitado.
+   * The ANY-segment secret guard still applies, and is not separable: `isForbiddenPath`
+   * only blocks the sensitive item when it is the FIRST segment, so a `/home/u/proj/.env/sub`
+   * would pass. Enabling the flag without the guard opens exfiltration. Default `false` => absolute rejected.
    */
   allowAbsolute?: boolean;
   /** Absolute path to the project root. Every listing is gated against this boundary. */
@@ -91,10 +91,10 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
     }),
     handler: async ({ path }, ctx) => {
       const relative = path === "" || path === "." ? "." : path;
-      const veredito = decidirEscopo(relative, path, opts.allowAbsolute === true);
-      if (veredito.erro !== undefined) return veredito.erro;
-      if (veredito.raizAbsoluta !== undefined) {
-        return listViaLocalFs(veredito.raizAbsoluta, ".", path, max);
+      const verdict = decidirEscopo(relative, path, opts.allowAbsolute === true);
+      if (verdict.error !== undefined) return verdict.error;
+      if (verdict.absoluteRoot !== undefined) {
+        return listViaLocalFs(verdict.absoluteRoot, ".", path, max);
       }
       // SE31 — route through the pluggable backend when one is configured; else
       // the local `projectRoot` fs.
@@ -108,32 +108,32 @@ export function createListDirTool(opts: CreateListDirToolOptions): CustomTool {
 }
 
 /**
- * A decisão de escopo do `list_dir`, separada do handler.
+ * `list_dir`'s scope decision, separated from the handler.
  *
- * Extraída porque o gate de complexidade do SDK a separou por nós — e ele estava certo: DECIDIR se o
- * caminho pode ser lido é a parte com consequência de segurança, e merece ser lida sozinha. O handler
- * só orquestra depois.
+ * Extracted because the SDK's complexity gate separated it for us — and it was right: DECIDING whether the
+ * path may be read is the part with a security consequence, and deserves to be read alone. The handler
+ * merely orchestrates afterwards.
  *
- * Devolve `{ erro }` quando o caminho é recusado, `{ raizAbsoluta }` quando é um absoluto honrado, ou
- * `{}` quando é o caso relativo de sempre.
+ * Returns `{ error }` when the path is refused, `{ absoluteRoot }` when it is an honored absolute, or
+ * `{}` for the usual relative case.
  */
 function decidirEscopo(
   relative: string,
   original: string,
   allowAbsolute: boolean,
-): { erro?: string; raizAbsoluta?: string } {
-  const recusa = (error: string): { erro: string } => ({
-    erro: JSON.stringify({ ok: false, error, path: original }),
+): { error?: string; absoluteRoot?: string } {
+  const refuse = (error: string): { error: string } => ({
+    error: JSON.stringify({ ok: false, error, path: original }),
   });
 
-  if (relative !== "." && isForbiddenPath(relative)) return recusa("forbidden_path");
+  if (relative !== "." && isForbiddenPath(relative)) return refuse("forbidden_path");
   if (!isAbsolute(relative)) return {};
 
-  // M76 — absoluto só com opt-in, e SEMPRE com o guard por segmento: `isForbiddenPath` acima só olha
-  // o PRIMEIRO segmento, então um `/home/u/proj/.env/sub` passaria por ele.
-  if (!allowAbsolute) return recusa("path_traversal");
-  if (ehProibidoEmQualquerProfundidade(relative)) return recusa("forbidden_path");
-  return { raizAbsoluta: relative };
+  // M76 — absolute only with opt-in, and ALWAYS with the per-segment guard: `isForbiddenPath` above only looks at
+  // the FIRST segment, so a `/home/u/proj/.env/sub` would slip past it.
+  if (!allowAbsolute) return refuse("path_traversal");
+  if (ehProibidoEmQualquerProfundidade(relative)) return refuse("forbidden_path");
+  return { absoluteRoot: relative };
 }
 
 /** Local-`projectRoot` listing: boundary + readdir + bounded format. */

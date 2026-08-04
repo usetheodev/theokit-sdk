@@ -53,10 +53,10 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const BINARY_PROBE_BYTES = 8 * 1024;
 
 export interface CreateReadFileToolOptions {
-  /** M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo). O nome é contrato: chave
-   *  de approval, o que o modelo vê e o que o telemetry registra. */
+  /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
+   *  the approval key, what the model sees and what telemetry records. */
   name?: string;
-  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
   description?: string;
   /** Absolute path to the project root. Every read is gated against this boundary. */
   projectRoot: string;
