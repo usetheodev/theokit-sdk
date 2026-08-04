@@ -123,7 +123,7 @@ describe("M75 T2.1 — o memo de detecção", () => {
   it("test_memo_e_concurrent_test_com_atomic_counter_invariant", async () => {
     // Estado de módulo compartilhado (`let memo`) é sinal de concorrência. O invariante é contagem de
     // CAUSA — quantas sondagens reais aconteceram — e não tempo de parede: não pisca sob carga.
-    const { detectBwrapMemoizado } = await import("../src/sandbox/index.js");
+    const { detectBwrapMemoized } = await import("../src/sandbox/index.js");
     resetBwrapMemo();
     // O contador tem de ser MEU: `realProbeCount()` só conta sondagens de `realProbes`, e este teste
     // não toca o host. Contar as chamadas do probe injetado é o que mede o memo de fato.
@@ -134,7 +134,7 @@ describe("M75 T2.1 — o memo de detecção", () => {
         return "/usr/bin/bwrap";
       },
     });
-    await Promise.all(Array.from({ length: 20 }, async () => detectBwrapMemoizado(contando)));
+    await Promise.all(Array.from({ length: 20 }, async () => detectBwrapMemoized(contando)));
     expect(
       sondagens,
       "20 chamadas concorrentes sondaram mais de uma vez — o memo não serializou",
