@@ -1,8 +1,8 @@
 /**
- * M93 — H1 e H2 da revisão adversarial: permissão e linha truncada.
+ * M93 — H1 and H2 from adversarial review: permissions and a truncated line.
  *
  * As duas nasceram da mesma troca: sair de `replaceFileAtomic` (que reescrevia tudo, com `0o600`)
- * para append incremental. O append é o que torna a gravação linear em vez de quadrática — mas
+ * to incremental append. The append is what makes writing linear rather than quadratic — but
  * herdou o umask e perdeu a auto-cura de um arquivo partido por crash.
  */
 
@@ -16,7 +16,7 @@ import { readTranscript } from "../src/internal/persistence/session-transcript.j
 const dir = (): string => mkdtempSync(join(tmpdir(), "m93-append-"));
 
 describe("M93/H1 — o transcript nasce 0600", () => {
-  it("um arquivo novo NÃO é legível por outros, qualquer que seja o umask", () => {
+  it("a new file is NOT readable by others, whatever the umask", () => {
     const p = join(dir(), "t.jsonl");
     appendJsonl(p, { a: 1 });
     // 0o077 = qualquer bit de grupo/outros. Sob `umask 022` o append cru dava 0o664 e reprovava.
@@ -24,29 +24,29 @@ describe("M93/H1 — o transcript nasce 0600", () => {
   });
 });
 
-describe("M93/H2 — append sobre linha truncada não engole o registro novo", () => {
-  it("o registro novo continua legível depois de um crash no meio de um append", async () => {
+describe("M93/H2 — appending over a truncated line does not swallow the new record", () => {
+  it("the new record stays readable after a crash mid-append", async () => {
     const p = join(dir(), "t.jsonl");
     appendJsonl(p, { type: "user", uuid: "a", parentUuid: null, sessionId: "s", timestamp: "t" });
     // Simula o crash: meia linha, sem `\n` final.
     appendFileSync(p, '{"type":"user","uuid":"b","incompl');
     appendJsonl(p, { type: "user", uuid: "c", parentUuid: null, sessionId: "s", timestamp: "t" });
 
-    // `readTranscript` é o leitor real do store e pula QUALQUER linha malformada — o parcial some
+    // `readTranscript` is the store's real reader and skips ANY malformed line — the partial disappears
     // (esperado, ele nunca esteve completo) mas o registro seguinte tem de sobreviver.
     const ids = (await readTranscript(p)).map((r) => r.uuid);
     expect(ids, "o registro novo sumiu junto com o parcial").toContain("c");
     expect(ids).toContain("a");
   });
 
-  it("não insere quebra espúria quando o arquivo já termina em \\n", () => {
+  it("does not insert a spurious break when the file already ends in \\n", () => {
     const p = join(dir(), "t.jsonl");
     writeFileSync(p, '{"id":"a"}\n');
     appendJsonl(p, { id: "b" });
     expect(readFileSync(p, "utf8")).toBe('{"id":"a"}\n{"id":"b"}\n');
   });
 
-  it("arquivo vazio não ganha quebra inicial", () => {
+  it("an empty file gains no leading break", () => {
     const p = join(dir(), "t.jsonl");
     writeFileSync(p, "");
     appendJsonl(p, { id: "a" });

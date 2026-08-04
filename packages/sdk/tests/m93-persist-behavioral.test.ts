@@ -1,22 +1,22 @@
 /**
- * M93/M1 — o teste comportamental que o gate de forma não era.
+ * M93/M1 — the behavioral test the shape gate was not.
  *
- * A primeira versão do M93 verificava a persistência no caminho de erro por regex sobre o fonte, e
- * declarava isso honestamente. A revisão adversarial mediu o custo dessa honestidade: dead-codear a
+ * M93's first version checked error-path persistence by regex over the source, and
+ * declared that honestly. Adversarial review measured the cost of that honesty: dead-coding the
  * chamada (`void 0 && persistTurnToTranscript(...)`) deixava os 5 testes **verdes**. Um gate que
- * não distingue chamada viva de chamada desligada não é gate.
+ * cannot tell a live call from a disabled one is not a gate.
  *
- * E o teste comportamental ERA escrevível: `SessionStore` é declarado "the pluggable session-store
+ * And the behavioral test WAS writable: `SessionStore` is declared "the pluggable session-store
  * seam. Exactly two methods" (`types/session-store.ts:34`) — a costura DIP existe exatamente para
- * esta substituição, e `safeConversation` só precisa de `run.conversation()`. Declinar de usá-la foi
- * escolha, não limitação.
+ * this substitution, and `safeConversation` only needs `run.conversation()`. Declining to use it was a
+ * choice, not a limitation.
  */
 import { describe, expect, it, vi } from "vitest";
 import { runPostRunLifecycle } from "../src/internal/runtime/lifecycle/post-run-lifecycle.js";
 import type { Run } from "../src/types/run.js";
 import type { SessionRecord, SessionStore } from "../src/types/session-store.js";
 
-/** Store em memória — a porta tem dois métodos, e é para isto que ela existe. */
+/** In-memory store — the port has two methods, and this is what it exists for. */
 function storeEmMemoria(): SessionStore & { gravados: SessionRecord[] } {
   const gravados: SessionRecord[] = [];
   return {
@@ -28,7 +28,7 @@ function storeEmMemoria(): SessionStore & { gravados: SessionRecord[] } {
   } as SessionStore & { gravados: SessionRecord[] };
 }
 
-/** Run cujo `wait()` rejeita — o 429 depois de N tool calls — mas que JÁ produziu conversa. */
+/** A run whose `wait()` rejects — the 429 after N tool calls — but which HAS already produced conversation. */
 function runQueFalhaComParcial(parcial: unknown[]): Run {
   return {
     wait: async () => {
@@ -58,12 +58,12 @@ describe("M93/M1 — o caminho de erro persiste de verdade", () => {
       ...inertes,
     });
     // Antes do M93 isto era 0: `flushSessionWrites` drenava um conjunto vazio, porque
-    // `persistTurnToTranscript` só era chamado adiante, num ponto que o erro nunca alcançava.
+    // `persistTurnToTranscript` was only called later, at a point the error never reached.
     expect(store.gravados.length, "nada foi persistido no caminho de erro").toBeGreaterThan(0);
     expect(JSON.stringify(store.gravados)).toContain("oi");
   });
 
-  it("uma falha ao GRAVAR não mascara o erro do provider nem estoura", async () => {
+  it("a WRITE failure neither masks the provider error nor escapes", async () => {
     const storeQuebrado = {
       readRecords: async () => [],
       appendRecords: async () => {
