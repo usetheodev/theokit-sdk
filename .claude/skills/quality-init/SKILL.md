@@ -12,8 +12,8 @@ argument-hint: "TARGET [--force] [--allow-missing-tools] [--strict] [--out PATH]
 
 > **INQUEBRAVEL — 95% Confidence Gate**
 >
-> NAO FACA NADA SE NAO TIVER 95% DE CONFIANCA.
-> SEMPRE QUE PRECISAR DE UMA DECISAO DO USUARIO, APRESENTE
+> DO NOTHING WITHOUT 95% CONFIDENCE.
+> WHENEVER YOU NEED A DECISION FROM THE USER, PRESENT
 > OPCOES PARA ELE ESCOLHER.
 >
 > Ver `/home/user/.claude/CLAUDE.md` § 1 (95% Confidence).
@@ -23,7 +23,7 @@ This skill is a **one-shot rigorous initializer**. It walks a target codebase, m
 **Project rules consumed:**
 - `/home/user/.claude/CLAUDE.md` § 7 (Testes) — hook scripts follow AAA pattern in tests
 - `/home/user/.claude/CLAUDE.md` § 8 (Error Handling) — fail-fast, fail-clear
-- `/home/user/.claude/CLAUDE.md` § 9 (Nao Reinvente) — uses `ast` stdlib for Python, `lizard` for multi-lang
+- `/home/user/.claude/CLAUDE.md` § 9 (Do Not Reinvent) — uses `ast` stdlib for Python, `lizard` for multi-lang
 - `/home/user/.claude/CLAUDE.md` § 10 (KISS) — four focused modules, each under 300 lines
 
 ---

@@ -310,7 +310,7 @@ def test_domain_secondary_resolves_via_base_lookup(
 def test_cli_override_with_empty_value_rejected(
     sample_plan: Path, tmp_path: Path, routing_rule
 ) -> None:
-    """EC-5: --model-override role= deve retornar exit code != 0."""
+    """EC-5: --model-override role= must return a non-zero exit code."""
     rule = routing_rule("architecture: haiku\ncross-validation: opus\n")
     output_dir = tmp_path / "agents-out"
     rc, data = _run(
@@ -331,7 +331,7 @@ def test_cli_override_with_empty_value_rejected(
 def test_routing_rule_malformed_line_silently_skipped(
     sample_plan: Path, tmp_path: Path
 ) -> None:
-    """EC-6: linha sem ':' descartada silenciosamente; entries válidas funcionam."""
+    """EC-6: a line without ':' is silently discarded; valid entries still work."""
     rule = tmp_path / "review-model-routing.txt"
     rule.write_text(
         "architecture haiku\n"

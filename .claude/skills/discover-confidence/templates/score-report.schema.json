@@ -11,7 +11,7 @@
     "research_coverage_score",
     "reference_citations_score",
     "blueprint_completeness_score",
-    "risco_estrutural_score",
+    "structural_risk_score",
     "active_dimensions",
     "weight_normalization_factor",
     "weighted_avg",
@@ -27,7 +27,7 @@
     "research_coverage_score": { "type": "number", "minimum": 0, "maximum": 100 },
     "reference_citations_score": { "type": "number", "minimum": 0, "maximum": 100 },
     "blueprint_completeness_score": { "type": "number", "minimum": 0, "maximum": 100 },
-    "risco_estrutural_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "structural_risk_score": { "type": "number", "minimum": 0, "maximum": 100 },
     "active_dimensions": {
       "type": "array",
       "items": {

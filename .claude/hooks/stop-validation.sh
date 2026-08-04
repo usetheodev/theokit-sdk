@@ -36,12 +36,38 @@ LAST_COMMIT=$(git diff --name-only HEAD~1..HEAD 2>/dev/null || true)
 
 ALL_FILES=$(echo -e "${UNSTAGED}\n${STAGED}\n${LAST_COMMIT}" | sort -u | grep -v '^$' || true)
 
-if [ -z "$ALL_FILES" ]; then
-  exit 0
-fi
-
 WARNINGS=()
 BLOCKERS=()
+
+# ----------------------------------------------------------------------------
+# Reference leakage (third layer of the provenance guard) — evaluated BEFORE the
+# no-diff early exit on purpose. Layers 1 and 2 live in validate-command.sh and
+# block copying content OUT of the study zone and citing its paths in commit
+# messages; neither sees a manual paste. This checks the RESULT: a block of
+# consecutive lines shared between the project and the zone.
+# It must run even when the session produced only UNTRACKED files — `git diff`
+# does not list those, so the early exit below would skip the check exactly in
+# the "pasted a brand-new file" case, which is the likeliest way a copy lands.
+# Advisory by design: exact-shingle matching is strong evidence, not proof, and a
+# false BLOCK would be worse than a WARN. SKIPs when the zone is absent.
+# ----------------------------------------------------------------------------
+LEAK_SCRIPT="$PROJECT_DIR/scripts/check_reference_leakage.py"
+if [ -f "$LEAK_SCRIPT" ] && command -v python3 >/dev/null 2>&1; then
+  LEAK_OUT=$(python3 "$LEAK_SCRIPT" --repo "$PROJECT_DIR" --strict 2>&1 || true)
+  if echo "$LEAK_OUT" | grep -q "SUSPECTED COPY"; then
+    msg="Suspected literal copy of third-party study material (provenance risk). Review each match; if legitimate, record source + licence in CHANGELOG.md:"
+    while IFS= read -r line; do
+      case "$line" in
+        *"shares"*"consecutive lines with"*) msg+="\n    -${line}" ;;
+      esac
+    done <<< "$LEAK_OUT"
+    WARNINGS+=("$msg")
+  fi
+fi
+
+if [ -z "$ALL_FILES" ] && [ ${#WARNINGS[@]} -eq 0 ]; then
+  exit 0
+fi
 
 # Escape hatch
 WARN_ONLY="${STOP_VALIDATION_WARN_ONLY:-0}"

@@ -173,8 +173,8 @@ def test_end_to_end_score_invariants(
     report = run_structural(plan, RUBRIC, THRESHOLDS)
     # Score range
     assert 0.0 <= report.final_score_after_caps <= 100.0
-    assert 0.0 <= report.completude_score <= 100.0
-    assert 0.0 <= report.risco_estrutural_score <= 100.0
+    assert 0.0 <= report.completeness_score <= 100.0
+    assert 0.0 <= report.structural_risk_score <= 100.0
     # Verdict in allowed set
     assert report.verdict in VALID_VERDICTS
     # JSON serialization works

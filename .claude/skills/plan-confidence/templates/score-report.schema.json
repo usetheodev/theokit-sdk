@@ -9,8 +9,8 @@
     "plan_path",
     "plan_version",
     "scored_at",
-    "completude_score",
-    "risco_estrutural_score",
+    "completeness_score",
+    "structural_risk_score",
     "active_dimensions",
     "weight_normalization_factor",
     "weighted_avg",
@@ -26,8 +26,8 @@
     "plan_path": { "type": "string", "minLength": 1 },
     "plan_version": { "type": "string", "minLength": 1 },
     "scored_at": { "type": "string", "format": "date-time" },
-    "completude_score": { "type": "number", "minimum": 0, "maximum": 100 },
-    "risco_estrutural_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "completeness_score": { "type": "number", "minimum": 0, "maximum": 100 },
+    "structural_risk_score": { "type": "number", "minimum": 0, "maximum": 100 },
     "active_dimensions": {
       "type": "array",
       "items": {
@@ -72,10 +72,10 @@
       "required": ["completeness", "evidence", "calibration", "structural_risk"],
       "additionalProperties": false,
       "properties": {
-        "completeness": { "$ref": "#/$defs/motivos_list" },
-        "evidence": { "$ref": "#/$defs/motivos_list" },
-        "calibration": { "$ref": "#/$defs/motivos_list" },
-        "structural_risk": { "$ref": "#/$defs/motivos_list" }
+        "completeness": { "$ref": "#/$defs/reasons_list" },
+        "evidence": { "$ref": "#/$defs/reasons_list" },
+        "calibration": { "$ref": "#/$defs/reasons_list" },
+        "structural_risk": { "$ref": "#/$defs/reasons_list" }
       }
     },
     "sub_reports": {
@@ -126,7 +126,7 @@
     }
   },
   "$defs": {
-    "motivos_list": {
+    "reasons_list": {
       "type": "array",
       "items": {
         "type": "object",

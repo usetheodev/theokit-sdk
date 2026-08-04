@@ -109,7 +109,7 @@ M2_ACTIVE_DIMENSIONS = ["completeness", "structural_risk"]
 
 
 @dataclass
-class Motivo:
+class Reason:
     sign: str  # 'positive' | 'negative' | 'neutral'
     label: str
     weight: float
@@ -121,15 +121,15 @@ class StructuralScoreReport:
     plan_path: str
     plan_version: str
     scored_at: str
-    completude_score: float
-    risco_estrutural_score: float
+    completeness_score: float
+    structural_risk_score: float
     active_dimensions: list[str]
     weight_normalization_factor: float
     weighted_avg: float
     hard_caps_triggered: list[str]
     final_score_after_caps: float
     verdict: str
-    reasons: dict[str, list[Motivo]]
+    reasons: dict[str, list[Reason]]
     sub_reports: dict[str, Any] = field(default_factory=dict)
 
 
@@ -186,7 +186,7 @@ def _lookup_verdict(score: float, bands: list[tuple[str, int]]) -> str:
     return "INVALID"
 
 
-def _compute_completude(cov: CoverageReport, adr: ADRReport, tdd: TDDReport) -> tuple[float, list[Motivo]]:
+def _compute_completeness(cov: CoverageReport, adr: ADRReport, tdd: TDDReport) -> tuple[float, list[Reason]]:
     """v1.1 EC-1 fix: single formula (rubric weights 0.6/0.2/0.2 per Phase 4.3 algorithm)."""
     coverage_int = 1.0 if cov.is_complete else 0.0
     coverage_score = 60.0 * coverage_int  # weight 0.6 * 100
@@ -194,25 +194,25 @@ def _compute_completude(cov: CoverageReport, adr: ADRReport, tdd: TDDReport) -> 
     tdd_score = 20.0 * tdd.coverage_ratio
     completeness = coverage_score + adr_score + tdd_score
 
-    reasons: list[Motivo] = []
+    reasons: list[Reason] = []
     sign_cov = "positive" if cov.is_complete else "negative"
-    reasons.append(Motivo(sign=sign_cov, label=f"Coverage Matrix {'100%' if cov.is_complete else f'{cov.coverage_ratio:.0%}'}", weight=coverage_score))
+    reasons.append(Reason(sign=sign_cov, label=f"Coverage Matrix {'100%' if cov.is_complete else f'{cov.coverage_ratio:.0%}'}", weight=coverage_score))
     sign_adr = "positive" if adr.completeness_ratio >= 1.0 else "negative"
-    reasons.append(Motivo(sign=sign_adr, label=f"ADR alternatives ({adr.with_alternatives}/{adr.total_adrs})", weight=adr_score))
+    reasons.append(Reason(sign=sign_adr, label=f"ADR alternatives ({adr.with_alternatives}/{adr.total_adrs})", weight=adr_score))
     sign_tdd = "positive" if tdd.coverage_ratio >= 1.0 else "negative"
-    reasons.append(Motivo(sign=sign_tdd, label=f"TDD in bug-fix ({tdd.with_tdd}/{tdd.total_bugfix_tasks})", weight=tdd_score))
+    reasons.append(Reason(sign=sign_tdd, label=f"TDD in bug-fix ({tdd.with_tdd}/{tdd.total_bugfix_tasks})", weight=tdd_score))
 
     return completeness, reasons
 
 
-def _compute_risco(smells: SmellReport) -> tuple[float, list[Motivo]]:
-    risco = max(0.0, 100.0 + smells.total_penalty)
+def _compute_risk(smells: SmellReport) -> tuple[float, list[Reason]]:
+    risk = max(0.0, 100.0 + smells.total_penalty)
     # Top 3 categories by hit count
     sorted_cats = sorted(smells.by_category.items(), key=lambda x: x[1], reverse=True)
-    reasons: list[Motivo] = []
+    reasons: list[Reason] = []
     for cat, count in sorted_cats[:3]:
-        reasons.append(Motivo(sign="negative" if count > 0 else "neutral", label=f"{count} {cat} hits", weight=-float(count)))
-    return risco, reasons
+        reasons.append(Reason(sign="negative" if count > 0 else "neutral", label=f"{count} {cat} hits", weight=-float(count)))
+    return risk, reasons
 
 
 def _detect_hard_caps(
@@ -310,8 +310,8 @@ def run_structural(
     patterns_consumption = check_patterns_consumption(plan_path, _find_repo_root_from_plan(plan_path))
 
     # Compute per-dimension scores
-    completeness, completude_motivos = _compute_completude(cov, adr, tdd)
-    risco, risco_motivos = _compute_risco(smells)
+    completeness, completeness_reasons = _compute_completeness(cov, adr, tdd)
+    risk, risk_reasons = _compute_risk(smells)
 
     # ADR D8 — renormalize for active dimensions
     active = M2_ACTIVE_DIMENSIONS[:]
@@ -320,7 +320,7 @@ def run_structural(
 
     weighted_avg = (
         normalized_weights["completeness"] * completeness
-        + normalized_weights["structural_risk"] * risco
+        + normalized_weights["structural_risk"] * risk
     )
 
     # Hard caps (strict, fail-closed)
@@ -387,27 +387,27 @@ def run_structural(
     ):
         verdict = "INVALID"
 
-    evidence_motivos: list[Motivo] = []
+    evidence_reasons: list[Reason] = []
     if evidence.total_citations > 0:
         resolved_count = evidence.total_citations - len(evidence.unresolved_citations)
         if resolved_count > 0:
-            evidence_motivos.append(
-                Motivo(sign="positive", label=f"{resolved_count} citations resolved", weight=float(resolved_count))
+            evidence_reasons.append(
+                Reason(sign="positive", label=f"{resolved_count} citations resolved", weight=float(resolved_count))
             )
         if evidence.unresolved_citations:
-            evidence_motivos.append(
-                Motivo(
+            evidence_reasons.append(
+                Reason(
                     sign="negative",
                     label=f"{len(evidence.unresolved_citations)} fabricated citation(s)",
                     weight=-float(len(evidence.unresolved_citations)),
                 )
             )
 
-    motivos_map: dict[str, list[Motivo]] = {
-        "completeness": completude_motivos,
-        "evidence": evidence_motivos,
+    reasons_map: dict[str, list[Reason]] = {
+        "completeness": completeness_reasons,
+        "evidence": evidence_reasons,
         "calibration": [],  # M5 future
-        "structural_risk": risco_motivos,
+        "structural_risk": risk_reasons,
     }
 
     return StructuralScoreReport(
@@ -415,15 +415,15 @@ def run_structural(
         plan_path=str(plan_path),
         plan_version=plan_version,
         scored_at=datetime.now(tz=timezone.utc).isoformat(timespec="seconds"),
-        completude_score=round(completeness, 2),
-        risco_estrutural_score=round(risco, 2),
+        completeness_score=round(completeness, 2),
+        structural_risk_score=round(risk, 2),
         active_dimensions=active,
         weight_normalization_factor=round(1.0 / norm_factor, 4),
         weighted_avg=round(weighted_avg, 2),
         hard_caps_triggered=hard_cap_ids,
         final_score_after_caps=round(final_score, 2),
         verdict=verdict,
-        reasons=motivos_map,
+        reasons=reasons_map,
         sub_reports={
             "coverage_matrix": {
                 "total_gaps": cov.total_gaps,

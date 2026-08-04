@@ -114,7 +114,7 @@ Produce a blueprint capturing Project B's full architectural shape: tier model, 
 
 The subtle bug: this plan has good ADRs (D1 with stop conditions, D2 justifying read depth), competent Research Questions (each maps to method + expected answer shape), and proper Halt-loop Checkpoints. It LOOKS thorough. But the Coverage Matrix is structurally broken (1/4 corners) and the plan does NOT include an ADR explaining why tests/deps/tools are deferred.
 
-Expected `/discover-edge-cases` veredict: **DISCOVERY PLAN PRECISA DE AJUSTE** with 5+ MUST FIX entries.
+Expected `/discover-edge-cases` verdict: **DISCOVERY PLAN NEEDS REVISION** with 5+ MUST FIX entries.
 
 If invoked despite the warnings, `/discover-execute` would produce a blueprint that `/discover-confidence` would mark INVALID (≤49) due to 3 `empty_corner_*` hard caps firing simultaneously.
 

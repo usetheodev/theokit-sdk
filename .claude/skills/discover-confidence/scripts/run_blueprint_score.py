@@ -220,7 +220,7 @@ def main() -> int:
         "research_coverage_score": round(rc_score, 1),
         "reference_citations_score": round(rcit_score, 1),
         "blueprint_completeness_score": round(bc_score, 1),
-        "risco_estrutural_score": round(re_score, 1),
+        "structural_risk_score": round(re_score, 1),
         "active_dimensions": [
             "research_coverage",
             "reference_citations",

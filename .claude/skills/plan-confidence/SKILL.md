@@ -46,7 +46,7 @@ If `compliance_score < 0.4` AND the plan otherwise scores ≥ 90, a soft cap fir
 - **M5 (Calibration via Semantic Entropy + P(True))** — N-sample uncertainty.
 - **M6 (Evolutionary Loop)** — adaptive thresholds with human-gate.
 
-These dimensions return empty `reasons` in M2 output. The composite formula renormalizes to active dimensions (ADR D8): in M2, `final = 0.60·Completude + 0.40·Risco-estrutural`.
+These dimensions return empty `reasons` in M2 output. The composite formula renormalizes to active dimensions (ADR D8): in M2, `final = 0.60*Completeness + 0.40*Structural-risk`.
 
 ## Workflow
 
@@ -101,7 +101,7 @@ trigger `verdict == INVALID`.
 The skill produces a JSON object with these top-level keys (see `templates/score-report-template.md` for full schema):
 
 - `plan_slug`, `plan_path`, `plan_version`
-- `completude_score`, `risco_estrutural_score` (0-100 each)
+- `completeness_score`, `structural_risk_score` (0-100 each)
 - `active_dimensions` — list of dimensions scored in this milestone (M2: `["completeness", "structural_risk"]`)
 - `weight_normalization_factor` — ADR D8 normalization factor applied
 - `hard_caps_triggered` — list of triggered caps (e.g., `["coverage_lt_100"]`)

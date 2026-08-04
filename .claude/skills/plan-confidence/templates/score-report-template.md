@@ -10,7 +10,7 @@ The `run_structural.py` orchestrator emits a JSON object matching this schema. U
   "plan_path": ".claude/knowledge-base/plans/example-plan-slug-plan.md",
   "plan_version": "1.0",
   "scored_at": "2026-05-17T00:00:00Z",
-  "completude_score": 95.0,
+  "completeness_score": 95.0,
   "structural_risk_score": 80.0,
   "active_dimensions": ["completeness", "structural_risk"],
   "weight_normalization_factor": 1.6666666666666667,
@@ -70,7 +70,7 @@ The `run_structural.py` orchestrator emits a JSON object matching this schema. U
 - **plan_path** (str): path relative to project root.
 - **plan_version** (str): parsed from the `> **Version X.Y**` line in the plan, or `"unknown"`.
 - **scored_at** (ISO 8601 str): when the score was computed.
-- **completude_score** (float 0-100): Completude factual score (M2 dimension active).
+- **completeness_score** (float 0-100): Factual completeness score (M2 dimension active).
 - **structural_risk_score** (float 0-100): Technical risk score, M2 part only (smells).
 - **active_dimensions** (list[str]): dimensions actually scored. M2: `["completeness", "structural_risk"]`. M3+ will add `"evidence"`. M5+ will add `"calibration"`.
 - **weight_normalization_factor** (float): ADR D8. Factor used to normalize SOTA weights (0.30/0.30/0.20/0.20) to active dimensions. In M2 with `(0.30 + 0.20) / 0.50 = 1.0` → factor for completeness is `0.30/0.50 = 0.6`; for structural_risk is `0.20/0.50 = 0.4`.
@@ -101,12 +101,12 @@ When rendering JSON to user, follow this template:
 Plan: {plan_slug} (v{plan_version})
 Verdict: {verdict}  ─── Score: {final_score_after_caps}/100
 
-Completude: {completude_score}/100
+Completeness: {completeness_score}/100
   + {reasons.completeness[0].label} (+{weight})
   + {reasons.completeness[1].label} (+{weight})
   - {reasons.completeness[2].label} ({weight})
 
-Risco Estrutural: {structural_risk_score}/100
+Structural Risk: {structural_risk_score}/100
   ...
 
 Active dimensions: {active_dimensions} (factor {weight_normalization_factor:.3f})

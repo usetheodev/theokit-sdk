@@ -7,7 +7,7 @@ status: draft
 
 # Plan: Missing Coverage Fixture (triggers Coverage Matrix < 100% hard cap)
 
-> Version 1.0 — Coverage Matrix tem 3 gaps mas only 2 mapeados. Hard cap "coverage_lt_100" deve disparar -> verdict INVALID, score ≤ 49.
+> Version 1.0 — the Coverage Matrix has 3 gaps but only 2 mapped. Hard cap "coverage_lt_100" must fire -> verdict INVALID, score ≤ 49.
 
 ## Context
 
