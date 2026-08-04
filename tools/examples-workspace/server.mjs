@@ -116,7 +116,7 @@ function streamPhase(res, slug, phase, command, args, options) {
 async function handleRun(_req, res, example) {
   if (running.has(example.slug)) {
     sendJson(res, 409, {
-      error: `"${example.slug}" já está em execução — pare antes de rodar de novo.`,
+      error: `"${example.slug}" is already running — stop it before running again.`,
     });
     return;
   }
@@ -294,6 +294,6 @@ server.listen(PORT, HOST, () => {
   console.log(
     present.length > 0
       ? `provider keys detectadas no ambiente: ${present.join(", ")}`
-      : "nenhuma provider key no ambiente do servidor — os examples ainda leem examples/<slug>/.env e o .env da raiz",
+      : "no provider key in the server environment — examples still read examples/<slug>/.env and the root .env",
   );
 });

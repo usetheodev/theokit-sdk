@@ -75,7 +75,7 @@ test("resolveRunCommand: run.ts presente → tsx do root; ausente → null", asy
   }
 });
 
-test("discoverExamples: manifest primeiro, extras alfabéticos, shells sem package.json excluídos", async () => {
+test("discoverExamples: manifest first, extras alphabetical, shells without package.json excluded", async () => {
   const root = await mkdtemp(join(tmpdir(), "ews-disc-"));
   try {
     const examplesDir = join(root, "examples");
