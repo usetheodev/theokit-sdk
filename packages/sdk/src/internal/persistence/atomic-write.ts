@@ -78,26 +78,26 @@ export function __TESTING__resetNfsWarnings(): void {
 }
 
 /**
- * M107 — controle de criação do temporário, comum a `replaceFileAtomic`,
+ * M107 — temp-file creation control, shared by `replaceFileAtomic`,
  * `atomicWriteJson` e `atomicWriteText`.
  *
- * Ambos os campos são OPCIONAIS e o default é byte-idêntico ao comportamento
- * anterior a M107. Ver `replaceFileAtomic` para por que a reafirmação de modo
- * é condicional.
+ * Both fields are OPTIONAL and the default is byte-identical to the behavior
+ * before M107. See `replaceFileAtomic` for why the mode reassertion
+ * is conditional.
  *
  * @internal
  */
 export interface AtomicWriteFileOptions {
   /**
-   * Bits de permissão do arquivo criado. Default: `0o600`, o literal fixo de
-   * antes — filtrado pelo `umask`, como sempre foi. Quando informado, o modo é
-   * reafirmado no descritor, de modo que o `umask` não pode silenciosamente
+   * Permission bits of the created file. Default: `0o600`, the previous fixed
+   * literal — filtered by the `umask`, as it always was. When provided, the mode is
+   * reasserted on the descriptor, so the `umask` cannot silently
    * limpar bits que o chamador pediu.
    */
   mode?: number;
   /**
-   * Criar o temporário com `wx` (criação exclusiva) em vez de `w`. Default:
-   * `false` — a flag de antes. Com `true`, um temporário pré-existente vira
+   * Create the temp file with `wx` (exclusive creation) instead of `w`. Default:
+   * `false` — the previous flag. With `true`, a pre-existing temp file becomes
    * `EEXIST` em vez de ser truncado.
    */
   exclusive?: boolean;
@@ -117,28 +117,28 @@ export interface AtomicWriteFileOptions {
  * `referencia/peer-project/packages/memory-host-sdk/src/host/fs-utils.ts` with
  * the multi-writer robustness fix.
  *
- * ## M107 — `options` é opcional, e o default é byte-idêntico
+ * ## M107 — `options` is optional, and the default is byte-identical
  *
- * O terceiro parâmetro é aditivo: todo chamador anterior continua compilando e
+ * The third parameter is additive: every earlier caller still compiles and
  * escrevendo exatamente o mesmo byte, com o mesmo modo, no mesmo caminho.
  *
- * A reafirmação de modo (`handle.chmod`) é **condicional a `mode !== undefined`**,
- * e isso não é cosmético. O argumento de modo do `open` é filtrado pelo `umask`,
- * que só LIMPA bits — medido nesta base de código antes da mudança:
+ * The mode reassertion (`handle.chmod`) is **conditional on `mode !== undefined`**,
+ * and that is not cosmetic. `open`'s mode argument is filtered by the `umask`,
+ * which only CLEARS bits — measured in this codebase before the change:
  *
  * ```
  * umask 0o002  ->  0o600      umask 0o022  ->  0o600      umask 0o200  ->  0o400
  * ```
  *
  * Um `chmod` incondicional levaria o terceiro caso de `0o400` para `0o600` — uma
- * mudança de disco para todo chamador que não pediu nada, incluindo consumidores
- * externos. Quando o chamador PEDE um modo, porém, deixar o `umask` decidir em
- * silêncio é o defeito que este parâmetro existe para fechar; daí a reafirmação.
+ * an on-disk change for every caller that asked for nothing, including external
+ * consumers. When the caller DOES ask for a mode, however, letting the `umask` decide
+ * silently is the defect this parameter exists to close; hence the reassertion.
  *
  * Ela vai no DESCRITOR, antes do `rename`, nunca depois: dar `chmod` no arquivo
- * final deixaria uma janela em que ele está com o modo do `umask` — o anti-padrão
+ * final one would leave a window where it carries the `umask`'s mode — the anti-pattern
  * de `opencode/packages/core/src/fs-util.ts:110-114`. A forma escolhida (modo como
- * argumento do `open`) é a de `codex-rs/network-proxy/src/certs.rs:687,783-791`.
+ * `open` argument) is that of `codex-rs/network-proxy/src/certs.rs:687,783-791`.
  *
  * @internal
  */
@@ -168,7 +168,7 @@ export async function replaceFileAtomic(
   try {
     await handle.writeFile(content, "utf8");
     await handle.sync();
-    // Condicional por medição, não por gosto — ver o docblock desta função.
+    // Conditional by measurement, not by taste — see this function's docblock.
     if (options?.mode !== undefined) await handle.chmod(options.mode);
   } finally {
     await handle.close();

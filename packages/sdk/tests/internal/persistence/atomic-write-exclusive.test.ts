@@ -1,32 +1,32 @@
 /**
- * M107 T1.1 — `exclusive?: true` faz o temporário nascer por criação EXCLUSIVA (`wx`).
+ * M107 T1.1 — `exclusive?: true` makes the temp file born by EXCLUSIVE creation (`wx`).
  *
- * ## A costura, e por que ela é obrigatória (EC-4 do `/edge-case-plan`)
+ * ## The seam, and why it is mandatory (EC-4 of `/edge-case-plan`)
  *
- * O teste que o plano pediu — *"pré-plantar o temporário e afirmar que a escrita rejeita"* — é
- * **inescrevível como especificado**. O nome do temporário é
+ * The test the plan asked for — *"pre-plant the temp file and assert the write rejects"* — is
+ * **unwritable as specified**. The temp file's name is
  * `${filePath}.${process.pid}.${randomBytes(8).toString("hex")}.tmp`
  * (`src/internal/persistence/atomic-write.ts:106-107`): 64 bits de CSPRNG, exatamente o que o T5.7
- * introduziu para que ninguém — nem um atacante, nem este teste — consiga prever o caminho.
+ * introduced precisely so nobody — neither an attacker nor this test — can predict the path.
  *
- * A costura é portanto **`vi.mock("node:crypto")`**, tornando `randomBytes` determinístico só dentro
- * deste arquivo. Ela vive num arquivo separado de propósito: `vi.mock` substitui o módulo para todo o
+ * The seam is therefore **`vi.mock("node:crypto")`**, making `randomBytes` deterministic only inside
+ * this file. It lives in a separate file on purpose: `vi.mock` replaces the module for the whole
  * grafo do arquivo de teste, e contaminar `atomic-write-json.test.ts` — que afirma justamente o
- * comportamento de produção — seria trocar um oráculo por um cenário.
+ * production behavior — it would trade an oracle for a scenario.
  *
- * Nenhuma costura foi aberta no código de PRODUÇÃO: o gerador de sufixo continua sendo o `node:crypto`
- * real em runtime. Injetá-lo como parâmetro para facilitar o teste seria acrescentar superfície que
- * ninguém pediu (rung 5 de `.claude/rules/parsimony-ladder.md`).
+ * No seam was opened in PRODUCTION code: the suffix generator is still the real `node:crypto`
+ * at runtime. Injecting it as a parameter to ease testing would add surface
+ * nobody asked for (rung 5 of `.claude/rules/parsimony-ladder.md`).
  *
- * ## Contraprova por mutação (executada; saída no log da iteração)
+ * ## Mutation counter-proof (executed; output in the iteration log)
  *
- * | Mutação em `atomic-write.ts` | Testes que morrem |
+ * | Mutation in `atomic-write.ts` | Tests that die |
  * |---|---|
  * | `const flag = options?.exclusive === true ? "wx" : "w"` → `const flag = "w"` | `test_exclusive_falha_quando_o_temporario_ja_existe` |
  *
- * O par de testes é o que dá significado à mutação: sem `exclusive`, um temporário resíduo **é**
- * truncado (comportamento de hoje, preservado); com `exclusive`, ele é uma recusa. Um teste só do
- * ramo `true` passaria também sob a mutação inversa (`flag = "wx"` sempre), que quebraria todo
+ * The test pair is what gives the mutation meaning: without `exclusive`, a leftover temp file **is**
+ * truncated (today's behavior, preserved); with `exclusive`, it is a refusal. A test of only the
+ * `true` branch would also pass under the inverse mutation (`flag = "wx"` always), which would break every
  * chamador atual.
  */
 import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -41,7 +41,7 @@ vi.mock("node:crypto", async (importOriginal) => {
 
 import { atomicWriteJson } from "../../../src/internal/persistence/atomic-write.js";
 
-/** O caminho do temporário que a produção vai escolher, dado o `randomBytes` determinístico acima. */
+/** The temp path production will choose, given the deterministic `randomBytes` above. */
 function caminhoDoTemporario(destino: string): string {
   return `${destino}.${process.pid}.${Buffer.alloc(8, 0xab).toString("hex")}.tmp`;
 }
@@ -56,39 +56,39 @@ afterEach(() => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-describe("M107 T1.1 — exclusive faz o temporário nascer por criação exclusiva", () => {
+describe("M107 T1.1 — exclusive makes the temp file born by exclusive creation", () => {
   it("test_exclusive_falha_quando_o_temporario_ja_existe", async () => {
-    // Arrange — o temporário que a produção escolheria já está em disco (resíduo de uma escrita
-    // interrompida, ou plantado). O destino tem conteúdo anterior que não pode ser perdido.
+    // Arrange — the temp file production would choose is already on disk (residue of an interrupted
+    // write, or planted). The destination has prior content that must not be lost.
     const destino = join(dir, "config.json");
     writeFileSync(destino, '{\n  "anterior": true\n}\n');
     writeFileSync(caminhoDoTemporario(destino), "residuo");
 
-    // Act + Assert — a criação exclusiva recusa com o erro do SISTEMA, não silenciada.
+    // Act + Assert — exclusive creation refuses with the SYSTEM's error, not silenced.
     await expect(atomicWriteJson(destino, { novo: true }, { exclusive: true })).rejects.toThrow(
       /EEXIST/,
     );
 
-    // Assert — o destino NÃO foi tocado, e o resíduo também não (a recusa acontece na criação).
+    // Assert — the destination was NOT touched, nor was the residue (the refusal happens at creation).
     expect(readFileSync(destino, "utf-8")).toBe('{\n  "anterior": true\n}\n');
     expect(readFileSync(caminhoDoTemporario(destino), "utf-8")).toBe("residuo");
   });
 
   it("test_sem_exclusive_um_temporario_residuo_continua_sendo_truncado", async () => {
-    // Arrange — o mesmo cenário, SEM a opção: é o comportamento de hoje, e ele é preservado.
+    // Arrange — the same scenario, WITHOUT the option: this is today's behavior, and it is preserved.
     const destino = join(dir, "config.json");
     writeFileSync(caminhoDoTemporario(destino), "residuo");
 
     // Act
     await atomicWriteJson(destino, { novo: true });
 
-    // Assert — a escrita venceu, e o temporário virou o destino (nada sobrou).
+    // Assert — the write won, and the temp file became the destination (nothing left over).
     expect(readFileSync(destino, "utf-8")).toBe('{\n  "novo": true\n}\n');
     expect(readdirSync(dir).filter((f) => f.endsWith(".tmp"))).toEqual([]);
   });
 
   it("test_exclusive_escreve_normalmente_quando_nao_ha_residuo", async () => {
-    // Arrange — o caminho feliz da opção: sem resíduo, `exclusive` não muda nada de observável.
+    // Arrange — the option's happy path: with no residue, `exclusive` changes nothing observable.
     const destino = join(dir, "config.json");
     expect(existsSync(caminhoDoTemporario(destino))).toBe(false);
 
