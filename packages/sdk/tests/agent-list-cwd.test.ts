@@ -1,79 +1,82 @@
 /**
- * M107 T1.3 — `Agent.list` passa a LER o `cwd` que o seu tipo já promete.
+ * M107 T1.3 — `Agent.list` starts READING the `cwd` its type already promises.
  *
- * ## O defeito, e por que ele é caro
+ * ## The defect, and why it is expensive
  *
- * `ListAgentsOptions` declara `{ runtime: "local"; cwd?: string }` desde sempre, mas `Agent.list`
- * hidratava `hydrateRegistryFromDisk(process.cwd())` com o `cwd` **fixo** e devolvia todo o mapa em
- * memória. Ou seja: `Agent.list({ runtime: "local", cwd: "/outro/projeto" })` **compilava e era
- * silenciosamente ignorado** — um valor mágico em vez de um erro
+ * `ListAgentsOptions` has declared `{ runtime: "local"; cwd?: string }` all along, but `Agent.list`
+ * hydrated `hydrateRegistryFromDisk(process.cwd())` with a **fixed** `cwd` and returned the whole map in
+ * memory. That is: `Agent.list({ runtime: "local", cwd: "/other/project" })` **compiled and was
+ * silently ignored** — a magic value instead of an error
  * (`.claude/rules/error-handling.md § 2`).
  *
- * A consequência não é estética. A listagem alimenta `activeKnown` no coletor de sessões do
- * consumidor, que é uma das cinco guardas NEVER-delete de `.claude/rules/audit-trail-rotation.md`,
- * num caminho que chama `unlink`. Como a hidratação era fixa, a guarda alcançava **um** projeto —
- * medido: 1 de 10.982 — e a regra declara esse resíduo por escrito há dois milestones. Honrar o
- * `cwd` é o que fecha a guarda; nenhum conserto do lado do consumidor conseguiria, porque
- * reimplementar a leitura do registry num caminho destrutivo é o que a Regra Inquebrável 9 proíbe.
+ * The consequence is not cosmetic. The listing feeds `activeKnown` in the consumer's session
+ * collector, which is one of the five NEVER-delete guards in
+ * `.claude/rules/audit-trail-rotation.md`, on a path that calls `unlink`. Because hydration was
+ * fixed, the guard reached **one** project — measured: 1 of 10,982 — and the rule has declared that
+ * residue in writing for two milestones. Honoring `cwd` is what closes the guard; no consumer-side
+ * fix could, because reimplementing the registry read on a destructive path is exactly what
+ * Unbreakable Rule 9 forbids.
  *
- * ## A regra do filtro é a MESMA da persistência (EC-7 — completude, não só correção)
+ * ## The filter's rule is the SAME as persistence's (EC-7 — completeness, not just correctness)
  *
- * `cwd` é **opcional** em `RegisteredAgent`, e `resolveRegistryCwd` já resolve a ausência para
- * `process.cwd()` — é assim que a entrada é ROTEADA para um arquivo em disco. O filtro reusa
- * exatamente essa função, e não `agent.cwd === cwd`. A diferença importa: com a comparação ingênua,
- * toda entrada sem `cwd` sumiria da listagem do próprio diretório do processo, e uma entrada que
- * some de `activeKnown` é uma entrada que o coletor deixa de proteger.
- * `test_uma_entrada_sem_cwd_pertence_ao_cwd_do_processo` é essa asserção.
+ * `cwd` is **optional** on `RegisteredAgent`, and `resolveRegistryCwd` already resolves its absence
+ * to `process.cwd()` — that is how an entry is ROUTED to a file on disk. The filter reuses exactly
+ * that function, not `agent.cwd === cwd`. The difference matters: with the naive comparison, every
+ * entry without a `cwd` would vanish from the listing of the process's own directory, and an entry
+ * that vanishes from `activeKnown` is an entry the collector stops protecting.
+ * `test_an_entry_without_cwd_belongs_to_the_process_cwd` is that assertion.
  *
- * ## Decisão sobre `cursor` e `limit` (Q5 do plano) — NÃO entram, e os dois juntos
+ * ## Decision on `cursor` and `limit` (plan Q5) — they do NOT land, and not one without the other
  *
- * A pergunta aberta era se a forma do cursor "cabe numa frase". Cabe — *"o cursor é o `agentId` do
- * último item da página, e a próxima página é o que vem depois dele na ordem estável"* — mas a
- * cláusula final é o problema: **não existe ordem estável hoje**. `listRegisteredAgents` devolve a
- * ordem de inserção de um `Map`, que varia com a ordem de hidratação. Impor `ORDER BY agentId`
- * mudaria a ordem observada por **todo** chamador atual, o que não é aditivo e não cabe num minor.
+ * The open question was whether the cursor's shape "fits in one sentence". It does — *"the cursor is
+ * the `agentId` of the page's last item, and the next page is what comes after it in the stable
+ * order"* — but the final clause is the problem: **no stable order exists today**.
+ * `listRegisteredAgents` returns a `Map`'s insertion order, which varies with hydration order.
+ * Imposing `ORDER BY agentId` would change the order observed by **every** current caller, which is
+ * not additive and does not fit in a minor.
  *
- * E `limit` não pode entrar sozinho: `limit` sem `nextCursor` é **truncamento silencioso** — exatamente
+ * And `limit` cannot land alone: `limit` without `nextCursor` is **silent truncation** — exactly
  * a armadilha latente que o `CursorNaoDrenadoError` do consumidor existe para pegar, e num caminho
- * que apaga arquivo. Entregar meia paginação seria trocar "parâmetro ignorado" por "página parcial
- * apresentada como população completa", que é estritamente pior.
+ * that deletes files. Shipping half a pagination would trade "ignored parameter" for "a partial page
+ * presented as the complete population", which is strictly worse.
  *
- * Nada está esperando por eles: o consumidor não passa `limit` (o tipo da camada ainda o fecha) e o
- * item medido como acionável é o `cwd`. Rung 1 da escada de parsimônia — o que não precisa existir
- * agora não é escrito agora. **Resíduo declarado:** o bloco de estreitamento de `limit`/`cursor` na
- * camada continua valendo e precisa de asserção própria citando seu critério de saída (EC-14),
+ * Nothing is waiting on them: the consumer does not pass `limit` (the layer's type still closes it)
+ * and the item measured as actionable is `cwd`. Parsimony rung 1 — what need not exist now is not
+ * written now. **Declared residue:** the layer's `limit`/`cursor` narrowing block still holds and
+ * needs its own assertion citing its exit criterion (EC-14),
  * trabalho da Fase 2 deste plano.
  *
- * ## Por que este arquivo NÃO é `tests/contract/agent-management.contract.test.ts`
+ * ## Why this file is NOT `tests/contract/agent-management.contract.test.ts`
  *
- * O plano nomeia aquele arquivo, e o critério de aceite manda `npx vitest run
+ * The plan names that file, and the acceptance criterion says to run `npx vitest run
  * packages/sdk/tests/contract/agent-management.contract.test.ts` retornar 0. **Medido: esse comando
- * retorna 1** — `vitest.config.ts` lista `tests/contract/**` em `exclude`, e a saída é literalmente
- * `No test files found, exiting with code 1`. Aquele diretório só roda em `pnpm test:roadmap`.
- * Escrever a trava lá produziria um gate que nunca roda no portão real (`pnpm test`) com um critério
- * de aceite impossível de satisfazer — vacuidade da forma que
- * `.claude/rules/mecanismo-anti-esquecimento.md § 5.4` manda evitar. Aqui, o arquivo é coletado pelo
- * `include` padrão.
+ * returns 1** — `vitest.config.ts` lists `tests/contract/**` under `exclude`, and the output is
+ * literally `No test files found, exiting with code 1`. That directory only runs under
+ * `pnpm test:roadmap`. Writing the lock there would produce a gate that never runs at the real
+ * checkpoint (`pnpm test`) with an acceptance criterion impossible to satisfy — vacuity of the kind
+ * `.claude/rules/mecanismo-anti-esquecimento.md` § 5.4 says to avoid. Here, the file is collected by
+ * the default `include`.
  *
- * ## A corrida que este arquivo ENCONTROU (não previu)
+ * ## The race this file FOUND (did not predict)
  *
- * `test_duas_hidratacoes_simultaneas_do_mesmo_cwd_nao_duplicam_entradas` continuou vermelho depois de
- * `Agent.list` já honrar o `cwd`, e o motivo é um defeito **preexistente**: `hydrateRegistryFromDisk`
- * marcava o `cwd` como hidratado ANTES do `await` da leitura em disco, então a segunda chamada
- * concorrente via a marca e retornava de imediato — listando um registro ainda vazio. O sintoma não é
- * entrada duplicada, que era o que o plano temia; é entrada **ausente**, que é o lado perigoso num
- * consumidor cuja listagem alimenta `activeKnown`. O conserto foi memoizar a PROMESSA, não a flag.
+ * `test_two_simultaneous_hydrations_of_the_same_cwd_do_not_duplicate_entries` continuou vermelho depois de
+ * `Agent.list` already honoring `cwd`, and the reason is a **pre-existing** defect:
+ * `hydrateRegistryFromDisk` marked the `cwd` hydrated BEFORE awaiting the disk read, so the second
+ * concurrent call saw the marker and returned immediately — listing a still-empty registry. The
+ * symptom is not a duplicated entry, which is what the plan feared; it is a **missing** entry, which
+ * is the dangerous side in a consumer whose listing feeds `activeKnown`. The fix was to memoize the
+ * PROMISE, not the flag.
  *
- * ## Contraprova por mutação (EXECUTADA; a coluna é o que caiu, não o previsto)
+ * ## Mutation counter-proof (EXECUTED; the column is what fell, not what was predicted)
  *
- * | # | Mutação | Caiu | Testes que morreram |
+ * | # | Mutation | Fell | Tests that died |
  * |---|---|---|---|
- * | D | `agent.ts`: `hydrateRegistryFromDisk(cwd)` → `(process.cwd())` | 4/6 | estrangeiro, não-contaminação, e as duas de concorrência |
- * | E | `agent-registry.ts`: `listRegisteredAgents` ignora o parâmetro `cwd` | 3/6 | não-contaminação, `sem_cwd`, concorrência de cwds diferentes |
- * | F | `agent-registry.ts`: `agent.cwd === cwd` em vez de `resolveRegistryCwd` | 1/6 | `test_uma_entrada_sem_cwd_pertence_ao_cwd_do_processo` (EC-7) |
- * | G | `agent-registry.ts`: memoizar a flag antes do `await`, como era | 1/6 | `test_duas_hidratacoes_simultaneas_do_mesmo_cwd_nao_duplicam_entradas` |
+ * | D | `agent.ts`: `hydrateRegistryFromDisk(cwd)` -> `(process.cwd())` | 4/6 | foreign, non-contamination, and both concurrency ones |
+ * | E | `agent-registry.ts`: `listRegisteredAgents` ignores the `cwd` parameter | 3/6 | non-contamination, `without_cwd`, concurrency across different cwds |
+ * | F | `agent-registry.ts`: `agent.cwd === cwd` instead of `resolveRegistryCwd` | 1/6 | `test_an_entry_without_cwd_belongs_to_the_process_cwd` (EC-7) |
+ * | G | `agent-registry.ts`: memoize the flag before the `await`, as it was | 1/6 | `test_two_simultaneous_hydrations_of_the_same_cwd_do_not_duplicate_entries` |
  *
- * F e G matam **um teste cada, e o certo** — são as duas asserções que nenhuma outra cobre.
+ * F and G kill **one test each, and the right one** — they are the two assertions no other covers.
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -90,8 +93,8 @@ import {
 } from "../src/internal/runtime/registry/agent-registry.js";
 import type { RegisteredAgent } from "../src/internal/runtime/registry/agent-registry-contract.js";
 
-/** Uma entrada de registry mínima — `agent-*` é o prefixo que a marca como local. */
-function entrada(agentId: string, cwd?: string): RegisteredAgent {
+/** A minimal registry entry — `agent-*` is the prefix that marks it local. */
+function entry(agentId: string, cwd?: string): RegisteredAgent {
   return {
     agentId,
     runtime: "local",
@@ -103,9 +106,9 @@ function entrada(agentId: string, cwd?: string): RegisteredAgent {
   };
 }
 
-/** Registra em memória E espera a gravação em disco daquele `cwd`. */
-async function persistir(agentId: string, cwd: string): Promise<void> {
-  registerAgent(entrada(agentId, cwd));
+/** Registers in memory AND waits for the disk write of that `cwd`. */
+async function persist(agentId: string, cwd: string): Promise<void> {
+  registerAgent(entry(agentId, cwd));
   await flushRegistrySaves(cwd);
 }
 
@@ -113,7 +116,7 @@ const ids = (r: { items: { agentId: string }[] }): string[] => r.items.map((i) =
 
 let projetos: string[] = [];
 
-function projeto(): string {
+function project(): string {
   const p = mkdtempSync(join(tmpdir(), "m107-list-cwd-"));
   projetos.push(p);
   return p;
@@ -124,11 +127,11 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
-  // `agent-sem-cwd` é roteado para `process.cwd()`, ou seja, para o registry do PRÓPRIO repositório
-  // (`packages/sdk/.theokit/agents/registry.json`, gitignored). Deixá-lo lá contaminaria qualquer
+  // `agent-without-cwd` is routed to `process.cwd()`, that is, to THIS repository's own registry
+  // (`packages/sdk/.theokit/agents/registry.json`, gitignored). Leaving it there would contaminate any
   // teste futuro que liste o cwd do processo — o tipo de estado compartilhado que a nota EC-7 do
-  // `vitest.config.ts` manda cada teste limpar por conta própria.
-  removeRegisteredAgent("agent-sem-cwd");
+  // `vitest.config.ts` requires each test to clean up after itself.
+  removeRegisteredAgent("agent-without-cwd");
   await flushRegistrySaves();
   clearAgentRegistry();
   for (const p of projetos) rmSync(p, { recursive: true, force: true });
@@ -136,23 +139,24 @@ afterEach(async () => {
 });
 
 describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
-  it("test_list_com_cwd_estrangeiro_devolve_as_entradas_daquele_cwd", async () => {
-    // Arrange — a entrada existe EM DISCO num projeto que não é o do processo, e o registro em
-    // memória é limpo. Sem limpar, a entrada voltaria da memória e o teste passaria por acidente.
-    const outroProjeto = projeto();
-    await persistir("agent-estrangeiro", outroProjeto);
+  it("test_list_with_a_foreign_cwd_returns_that_cwds_entries", async () => {
+    // Arrange — the entry exists ON DISK in a project that is not the process's, and the in-memory
+    // registry is cleared. Without clearing, the entry would come back from memory and the test would
+    // pass by accident.
+    const otherProject = project();
+    await persist("agent-foreign", otherProject);
     clearAgentRegistry();
 
     // Act
-    const r = await Agent.list({ runtime: "local", cwd: outroProjeto });
+    const r = await Agent.list({ runtime: "local", cwd: otherProject });
 
-    // Assert — hoje devolve `[]`: é o teste que falha ANTES e o que fecha a guarda declarada.
-    expect(ids(r)).toContain("agent-estrangeiro");
+    // Assert — today returns `[]`: this is the test that fails BEFORE and the one that closes the declared guard.
+    expect(ids(r)).toContain("agent-foreign");
   });
 
-  it("test_list_de_um_cwd_inexistente_devolve_lista_vazia_sem_lancar", async () => {
-    // Arrange — CASO NEGATIVO. Um projeto sem registry e um projeto apagado do disco são o mesmo
-    // desfecho, e o coletor de sessões DEPENDE de que isso não lance.
+  it("test_list_of_a_nonexistent_cwd_returns_an_empty_list_without_throwing", async () => {
+    // Arrange — NEGATIVE CASE. A project with no registry and a project deleted from disk are the
+    // same outcome, and the session collector DEPENDS on this not throwing.
     const inexistente = join(tmpdir(), "m107-nao-existe-de-jeito-nenhum-xyz");
 
     // Act
@@ -162,81 +166,81 @@ describe("M107 T1.3 — Agent.list honra o cwd que o tipo promete", () => {
     expect(r.items).toEqual([]);
   });
 
-  it("test_listar_um_cwd_estrangeiro_nao_contamina_a_listagem_de_outro_cwd", async () => {
-    // Arrange — o INVARIANTE DE GUARDA da task. O mapa em memória é global ao processo, então
-    // hidratar um `cwd` estrangeiro despeja as entradas dele nesse mapa. Se a listagem não filtrasse,
-    // o projeto B passaria a "ter" as sessões do projeto A — e é `activeKnown`, numa guarda de
+  it("test_listing_a_foreign_cwd_does_not_contaminate_another_cwds_listing", async () => {
+    // Arrange — the task's GUARD INVARIANT. The in-memory map is process-global, so hydrating a
+    // foreign `cwd` dumps its entries into that map. If the listing did not filter, project B would
+    // start "having" project A's sessions — and this is `activeKnown`, in a guard on
     // NEVER-delete, que consumiria isso.
-    const projetoA = projeto();
-    const projetoB = projeto();
-    await persistir("agent-so-do-A", projetoA);
-    await persistir("agent-so-do-B", projetoB);
+    const projectA = project();
+    const projectB = project();
+    await persist("agent-only-in-A", projectA);
+    await persist("agent-only-in-B", projectB);
     clearAgentRegistry();
 
-    // Act — a ordem importa: A primeiro, para que suas entradas estejam no mapa quando B for lido.
-    await Agent.list({ runtime: "local", cwd: projetoA });
-    const b = await Agent.list({ runtime: "local", cwd: projetoB });
+    // Act — order matters: A first, so its entries are in the map when B is read.
+    await Agent.list({ runtime: "local", cwd: projectA });
+    const b = await Agent.list({ runtime: "local", cwd: projectB });
 
     // Assert
-    expect(ids(b)).toContain("agent-so-do-B");
-    expect(ids(b), "as entradas do projeto A vazaram para a listagem do projeto B").not.toContain(
-      "agent-so-do-A",
+    expect(ids(b)).toContain("agent-only-in-B");
+    expect(ids(b), "project A entries leaked into project B's listing").not.toContain(
+      "agent-only-in-A",
     );
   });
 
-  it("test_uma_entrada_sem_cwd_pertence_ao_cwd_do_processo", async () => {
-    // Arrange — EC-7, a metade de COMPLETUDE. `cwd` é opcional em `RegisteredAgent`, e a ausência já
+  it("test_an_entry_without_cwd_belongs_to_the_process_cwd", async () => {
+    // Arrange — EC-7, the COMPLETENESS half. `cwd` is optional on `RegisteredAgent`, and its absence already
     // significa `process.cwd()` para efeito de ROTEAMENTO em disco. O filtro tem de usar a mesma
-    // regra, ou toda entrada sem `cwd` sumiria da listagem do próprio projeto.
-    const outroProjeto = projeto();
-    registerAgent(entrada("agent-sem-cwd"));
+    // rule, or every entry without a `cwd` would vanish from its own project's listing.
+    const otherProject = project();
+    registerAgent(entry("agent-without-cwd"));
 
     // Act
     const doProcesso = await Agent.list({ runtime: "local" });
-    const doOutro = await Agent.list({ runtime: "local", cwd: outroProjeto });
+    const fromOther = await Agent.list({ runtime: "local", cwd: otherProject });
 
     // Assert
-    expect(ids(doProcesso), "uma entrada sem cwd sumiu da listagem do cwd do processo").toContain(
-      "agent-sem-cwd",
+    expect(ids(doProcesso), "uma entry sem cwd sumiu da listagem do cwd do processo").toContain(
+      "agent-without-cwd",
     );
-    expect(ids(doOutro)).not.toContain("agent-sem-cwd");
+    expect(ids(fromOther)).not.toContain("agent-without-cwd");
   });
 
-  it("test_duas_hidratacoes_simultaneas_do_mesmo_cwd_nao_duplicam_entradas", async () => {
-    // Arrange — atomic-counter invariant sobre a guarda de memoização por `cwd`
-    // (`agent-registry.ts`: `hydratedCwds`). Passar a hidratar `cwd` arbitrário multiplica as
-    // combinações, e é onde uma corrida produziria entrada duplicada.
-    const projetoA = projeto();
-    await persistir("agent-duplo", projetoA);
+  it("test_two_simultaneous_hydrations_of_the_same_cwd_do_not_duplicate_entries", async () => {
+    // Arrange — atomic-counter invariant over the per-`cwd` memoization guard
+    // (`agent-registry.ts`: `hydratedCwds`). Hydrating an arbitrary `cwd` multiplies the
+    // combinations, and that is where a race would produce a duplicated entry.
+    const projectA = project();
+    await persist("agent-double", projectA);
     clearAgentRegistry();
 
     // Act
     const [a, b] = await Promise.all([
-      Agent.list({ runtime: "local", cwd: projetoA }),
-      Agent.list({ runtime: "local", cwd: projetoA }),
+      Agent.list({ runtime: "local", cwd: projectA }),
+      Agent.list({ runtime: "local", cwd: projectA }),
     ]);
 
     // Assert (happens-before observation, depois da barreira)
-    expect(ids(a).filter((i) => i === "agent-duplo")).toHaveLength(1);
-    expect(ids(b).filter((i) => i === "agent-duplo")).toHaveLength(1);
+    expect(ids(a).filter((i) => i === "agent-double")).toHaveLength(1);
+    expect(ids(b).filter((i) => i === "agent-double")).toHaveLength(1);
   });
 
-  it("test_hidratacoes_simultaneas_de_cwds_DIFERENTES_nao_se_misturam", async () => {
-    // Arrange — a mesma não-contaminação, agora sem a barreira sequencial que a esconderia.
-    const projetoA = projeto();
-    const projetoB = projeto();
-    await persistir("agent-concorrente-A", projetoA);
-    await persistir("agent-concorrente-B", projetoB);
+  it("test_simultaneous_hydrations_of_DIFFERENT_cwds_do_not_mix", async () => {
+    // Arrange — the same non-contamination, now without the sequential barrier that would hide it.
+    const projectA = project();
+    const projectB = project();
+    await persist("agent-concurrent-A", projectA);
+    await persist("agent-concurrent-B", projectB);
     clearAgentRegistry();
 
     // Act
     const [a, b] = await Promise.all([
-      Agent.list({ runtime: "local", cwd: projetoA }),
-      Agent.list({ runtime: "local", cwd: projetoB }),
+      Agent.list({ runtime: "local", cwd: projectA }),
+      Agent.list({ runtime: "local", cwd: projectB }),
     ]);
 
     // Assert
-    expect(ids(a)).toEqual(["agent-concorrente-A"]);
-    expect(ids(b)).toEqual(["agent-concorrente-B"]);
+    expect(ids(a)).toEqual(["agent-concurrent-A"]);
+    expect(ids(b)).toEqual(["agent-concurrent-B"]);
   });
 });
