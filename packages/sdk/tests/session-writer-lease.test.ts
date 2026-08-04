@@ -125,7 +125,7 @@ describe("M81 T1.2 — session writer lease", () => {
  * exists to detect. Tied to a real write, the record tracks **progress**.
  */
 describe("agent-builder#118 — the ownership record is renewable", () => {
-  const lerDono = (sessionPath: string): { pid: number; mtime: number } =>
+  const readOwner = (sessionPath: string): { pid: number; mtime: number } =>
     JSON.parse(readFileSync(`${sessionPath}.writer.lock`, "utf8")) as {
       pid: number;
       mtime: number;
@@ -135,13 +135,13 @@ describe("agent-builder#118 — the ownership record is renewable", () => {
     const p = join(dir, "renew.jsonl");
     const lease = await acquireSessionWriter(p);
     try {
-      const antes = lerDono(p).mtime;
+      const before = readOwner(p).mtime;
       await new Promise((r) => setTimeout(r, 5));
       lease.renew();
       expect(
-        lerDono(p).mtime,
+        readOwner(p).mtime,
         "renew() did not advance the record — a live owner still crosses the window",
-      ).toBeGreaterThan(antes);
+      ).toBeGreaterThan(before);
     } finally {
       await lease.release();
     }
@@ -153,10 +153,10 @@ describe("agent-builder#118 — the ownership record is renewable", () => {
     const p = join(dir, "renew-owner.jsonl");
     const lease = await acquireSessionWriter(p);
     try {
-      const antes = lerDono(p).pid;
+      const before = readOwner(p).pid;
       lease.renew();
-      expect(lerDono(p).pid).toBe(antes);
-      expect(lerDono(p).pid).toBe(process.pid);
+      expect(readOwner(p).pid).toBe(before);
+      expect(readOwner(p).pid).toBe(process.pid);
     } finally {
       await lease.release();
     }

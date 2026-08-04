@@ -33,6 +33,7 @@
  * @internal
  */
 
+import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -262,7 +263,10 @@ const isSkippedDir = (name: string): boolean => name.startsWith(".") || SKIP_DIR
  * to time out is a gate someone disables.
  */
 async function walk(dir: string, out: string[] = []): Promise<string[]> {
-  let entries: Awaited<ReturnType<typeof readdir>>;
+  // `Dirent[]` and NOT `Awaited<ReturnType<typeof readdir>>`: `readdir` is overloaded, and the type
+  // query collapses to ONE overload — the buffer one — so the annotation contradicted the call every
+  // time. `Dirent` defaults its name type to `string`, which is what a string path actually yields.
+  let entries: Dirent[];
   try {
     entries = await readdir(dir, { withFileTypes: true });
   } catch {
