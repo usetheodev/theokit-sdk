@@ -16,7 +16,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildBwrapArgv,
   detectBwrap,
-  detectBwrapMemoizado,
+  detectBwrapMemoized,
   resetBwrapMemo,
 } from "../src/sandbox/bwrap.js";
 
@@ -189,18 +189,18 @@ describe("M71 T1.1 — memoização por processo", () => {
       helpText: () => null,
       userns: () => false,
     };
-    detectBwrapMemoizado(comoSeFosseReal);
-    detectBwrapMemoizado(comoSeFosseReal);
-    detectBwrapMemoizado(comoSeFosseReal);
+    detectBwrapMemoized(comoSeFosseReal);
+    detectBwrapMemoized(comoSeFosseReal);
+    detectBwrapMemoized(comoSeFosseReal);
     expect(reais, "a sondagem memoizada deve rodar UMA vez").toBe(1);
   });
 
   it("test_a_segunda_chamada_e_praticamente_gratis", () => {
     resetBwrapMemo();
     const probes = { which: () => "/usr/bin/bwrap", helpText: () => "--perms", userns: () => true };
-    detectBwrapMemoizado(probes);
+    detectBwrapMemoized(probes);
     const t = performance.now();
-    for (let i = 0; i < 100; i++) detectBwrapMemoizado(probes);
+    for (let i = 0; i < 100; i++) detectBwrapMemoized(probes);
     const ms = (performance.now() - t) / 100;
     expect(ms, `segunda chamada custou ${ms.toFixed(3)}ms`).toBeLessThan(1);
   });
@@ -218,8 +218,8 @@ describe("M71 T1.1 — memoização por processo", () => {
       helpText: () => null,
       userns: () => false,
     };
-    const a = detectBwrapMemoizado(semBwrap);
-    const b = detectBwrapMemoizado(semBwrap);
+    const a = detectBwrapMemoized(semBwrap);
+    const b = detectBwrapMemoized(semBwrap);
     expect(a.ok).toBe(false);
     expect(b).toEqual(a);
     expect(n).toBe(1);
@@ -240,11 +240,11 @@ describe("M71 T1.1 — memoização por processo", () => {
     resetBwrapMemo();
     const probes = { which: () => bin, helpText: () => "--perms", userns: () => true };
 
-    expect(detectBwrapMemoizado(probes)).toEqual({ ok: true, bin });
+    expect(detectBwrapMemoized(probes)).toEqual({ ok: true, bin });
 
     rmSync(bin); // o operador removeu/renomeou o bwrap no meio da sessão
 
-    const depois = detectBwrapMemoizado(probes);
+    const depois = detectBwrapMemoized(probes);
     expect(depois.ok, "o memo seguiu afirmando confinamento de kernel sem o binário").toBe(false);
     expect(depois.ok === false && depois.reason).toMatch(/disappeared/);
   });
@@ -264,7 +264,7 @@ describe("M71 T1.1 — memoização por processo", () => {
       helpText: () => "--perms",
       userns: () => true,
     };
-    for (let i = 0; i < 50; i++) detectBwrapMemoizado(probes);
+    for (let i = 0; i < 50; i++) detectBwrapMemoized(probes);
     expect(n, "a revalidação virou re-sondagem — o ganho do M71 morreu").toBe(1);
   });
 
@@ -279,9 +279,9 @@ describe("M71 T1.1 — memoização por processo", () => {
       helpText: () => null,
       userns: () => false,
     };
-    detectBwrapMemoizado(p);
+    detectBwrapMemoized(p);
     resetBwrapMemo();
-    detectBwrapMemoizado(p);
+    detectBwrapMemoized(p);
     expect(n, "o reset é o seam do TESTE — produção nunca o chama").toBe(2);
   });
 });

@@ -9,7 +9,7 @@
  * dono do spawn e só aceita transformar o comando (`PtyInteractiveBackend({ wrapCommand })`).
  *
  * Sem esta função, todo consumidor que quisesse shell interativo confinado reescreveria a mesma
- * sequência: `detectBwrapMemoizado` → `if (!ok) WARN-once` → `wrapCommandForSandbox` com
+ * sequência: `detectBwrapMemoized` → `if (!ok) WARN-once` → `wrapCommandForSandbox` com
  * `allowlistedEnv` e `restrictedSeccompPath`. Era o que o agent-builder fazia em 99 linhas de
  * subclasse, e é precisamente o que o M75 existe para eliminar — "o que todo consumidor do theokit
  * que rode comandos vai reimplementar".

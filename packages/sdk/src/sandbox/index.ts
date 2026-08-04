@@ -7,7 +7,7 @@ export {
   type BwrapProbes,
   buildBwrapArgv,
   detectBwrap,
-  detectBwrapMemoizado,
+  detectBwrapMemoized,
   realProbeCount,
   realProbes,
   resetBwrapMemo,
