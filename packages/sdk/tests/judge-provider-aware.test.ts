@@ -33,10 +33,10 @@ import { TheokitAgentError } from "../src/errors.js";
 import type { JudgeContext } from "../src/internal/judge/judge-call.js";
 import { judgeCallImpl } from "../src/internal/judge/judge-call.js";
 
-const ctx = { goal: "fazer X", lastResponse: "fiz X", turnsUsed: 1 } as unknown as JudgeContext;
+const ctx = { goal: "do X", lastResponse: "did X", turnsUsed: 1 } as unknown as JudgeContext;
 
 /** Fake agent: records the requested model and returns the configured text (or throws). */
-function fakeAgent(comportamento: { text?: string; erro?: Error }) {
+function fakeAgent(behavior: { text?: string; error?: Error }) {
   const modelos: string[] = [];
   const chaves: (string | undefined)[] = [];
   return {
@@ -48,8 +48,8 @@ function fakeAgent(comportamento: { text?: string; erro?: Error }) {
         chaves.push(options.apiKey);
         return {
           send: async () => {
-            if (comportamento.erro !== undefined) throw comportamento.erro;
-            return { wait: async () => ({ result: comportamento.text ?? "" }) };
+            if (behavior.error !== undefined) throw behavior.error;
+            return { wait: async () => ({ result: behavior.text ?? "" }) };
           },
           dispose: async () => undefined,
         };
@@ -72,7 +72,7 @@ describe("M80 T1.1 — judge provider-aware", () => {
 
   it("test_judgeModel_explicito_VENCE_a_derivacao", () => {
     // COUNTER-PROOF: the derivation is the DEFAULT, not an imposition. M64's A/B showed the cheap judge
-    // vencendo em goals curtos, e quem sabe disso precisa poder dizer.
+    // winning on short goals, and whoever knows that must be able to say so.
     const a = fakeAgent({ text: "DONE: pronto" });
     return judgeCallImpl(
       ctx,
@@ -83,19 +83,19 @@ describe("M80 T1.1 — judge provider-aware", () => {
     });
   });
 
-  it("test_401_lanca_erro_TIPADO_e_nao_dobra_em_parseFailed", async () => {
+  it("test_a_401_throws_a_TYPED_error_and_does_not_fold_into_parseFailed", async () => {
     // The case that today burns 3 turns: the credential does not work for the judge, and the loop treats it as
     // "continue" three times before giving up with a misleading reason.
-    const a = fakeAgent({ erro: Object.assign(new Error("401 Unauthorized"), { status: 401 }) });
+    const a = fakeAgent({ error: Object.assign(new Error("401 Unauthorized"), { status: 401 }) });
 
     await expect(
       judgeCallImpl(ctx, { apiKey: "sk-ruim", agentModel: "m" }, a.deps),
     ).rejects.toBeInstanceOf(TheokitAgentError);
   });
 
-  it("test_404_de_modelo_lanca_erro_TIPADO", async () => {
+  it("test_a_model_404_throws_a_TYPED_error", async () => {
     const a = fakeAgent({
-      erro: Object.assign(new Error("404 model not found"), { status: 404 }),
+      error: Object.assign(new Error("404 model not found"), { status: 404 }),
     });
 
     await expect(
@@ -103,9 +103,9 @@ describe("M80 T1.1 — judge provider-aware", () => {
     ).rejects.toBeInstanceOf(TheokitAgentError);
   });
 
-  it("test_CONTRAPROVA_falha_de_PARSE_continua_dobrada", async () => {
+  it("test_COUNTERPROOF_a_PARSE_failure_stays_folded", async () => {
     // The half that must NOT become fail-fast. A non-parseable verdict is recoverable — the loop decides
-    // por falhas consecutivas (`judge-call.ts:44-48`), e abortar nele quebraria goals que funcionam.
+    // on consecutive failures (`judge-call.ts:44-48`), and aborting on it would break working goals.
     const a = fakeAgent({ text: "text that starts with no canonical prefix" });
     const r = await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "m" }, a.deps);
 
@@ -113,10 +113,10 @@ describe("M80 T1.1 — judge provider-aware", () => {
     expect(r.verdict).toBe("continue");
   });
 
-  it("test_CONTRAPROVA_erro_de_REDE_tambem_continua_dobrado", async () => {
+  it("test_COUNTERPROOF_a_NETWORK_error_also_stays_folded", async () => {
     // Without this, "fail fast on error" would become fail fast on EVERYTHING. A network timeout is transient; the
     // loop must be able to retry, as it always could.
-    const a = fakeAgent({ erro: new Error("ETIMEDOUT") });
+    const a = fakeAgent({ error: new Error("ETIMEDOUT") });
     const r = await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "m" }, a.deps);
 
     expect(r.parseFailed).toBe(true);
@@ -126,7 +126,7 @@ describe("M80 T1.1 — judge provider-aware", () => {
     // The half of DoD 3 this milestone's blueprint mistakenly declared done: `blocked` already
     // existia em `GoalResult.status`, mas o verdict do judge era `done | continue | skipped`. Sem
     // it, the judge has no way to say "impossible to proceed" — only "continue", which the loop repeats.
-    const a = fakeAgent({ text: "BLOCKED: o mesmo bloqueio recorreu" });
+    const a = fakeAgent({ text: "BLOCKED: the same blocker recurred" });
     const r = await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "m" }, a.deps);
 
     expect(r.verdict).toBe("blocked");

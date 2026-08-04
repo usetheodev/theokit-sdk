@@ -15,12 +15,12 @@ import type { SessionMessage } from "../src/internal/session/session-types.js";
 import type { TranscriptMessage } from "../src/types/session-record.js";
 
 describe("M94 — TranscriptMessage", () => {
-  it("descreve a forma que o escritor de fato grava", () => {
+  it("describes the shape the writer actually writes", () => {
     const m: TranscriptMessage = {
       role: "user",
       content: [
         { type: "text", text: "oi" },
-        { type: "tool_result", tool_use_id: "t1", content: "saida", is_error: false },
+        { type: "tool_result", tool_use_id: "t1", content: "output", is_error: false },
       ],
     };
     expect(m.content).toHaveLength(2);
@@ -34,14 +34,14 @@ describe("M94 — TranscriptMessage", () => {
 });
 
 describe("M94 — Provider.forModel", () => {
-  it("resolve o builtin pelo prefixo do id", () => {
+  it("resolves the builtin by the id prefix", () => {
     expect(Provider.forModel("anthropic/claude-sonnet-4-5")?.name).toBe("anthropic");
   });
 
   it("an id WITHOUT a slash returns undefined — today that silently became the default path", () => {
     // `modelId.slice(0, modelId.indexOf('/'))` with indexOf === -1 returns the id minus its LAST
     // caractere ('claude-opus-5' -> 'claude-opus-'), casa provider nenhum, e o consumidor
-    // seguia para o default sem distinguir isso de um acerto.
+    // fell through to the default without distinguishing that from a hit.
     expect(Provider.forModel("claude-opus-5")).toBeUndefined();
   });
 

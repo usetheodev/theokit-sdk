@@ -5,9 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 /**
  * theokit#101 — a provider failure has to SHOW UP.
  *
- * Reportado: apontando um agent para um model id inexistente, o OpenRouter devolve
+ * Reported: pointing an agent at a nonexistent model id, OpenRouter returns
  * `404 {"message":"No endpoints found..."}` and the stream produced ONLY `{type:'start'}` and
- * `{type:'finish'}` — sem texto, sem chunk de erro, sem throw. O turno parecia bem-sucedido e
+ * `{type:'finish'}` — no text, no error chunk, no throw. The turn looked successful and
  * empty, on every surface (HTTP web, MCP, stdio, in-process TUI).
  *
  * It is the most dangerous kind of error: silent (Unbreakable Rule 8 — fail loud, fail early,
@@ -56,21 +56,21 @@ interface Outcome {
  * on restore, which is the classic mistake of this pattern.
  */
 function withEnv(vars: Record<string, string>): () => void {
-  const anterior = new Map<string, string | undefined>();
-  for (const [chave, valor] of Object.entries(vars)) {
-    anterior.set(chave, process.env[chave]);
-    process.env[chave] = valor;
+  const previous = new Map<string, string | undefined>();
+  for (const [key, value] of Object.entries(vars)) {
+    previous.set(key, process.env[key]);
+    process.env[key] = value;
   }
   return () => {
-    for (const [chave, valor] of anterior) {
-      if (valor === undefined) delete process.env[chave];
-      else process.env[chave] = valor;
+    for (const [key, value] of previous) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
     }
   };
 }
 
 /** Classifies a stream chunk as an error signal, in both legitimate shapes. */
-function ehSinalDeErro(chunk: unknown): boolean {
+function isErrorSignal(chunk: unknown): boolean {
   const c = chunk as { type?: unknown; status?: unknown };
   return c.type === "error" || (c.type === "status" && c.status === "ERROR");
 }
@@ -98,7 +98,7 @@ async function streamAgainst404(): Promise<Outcome> {
     const run = await agent.send("oi");
     for await (const chunk of run.stream()) {
       outcome.chunks += 1;
-      if (ehSinalDeErro(chunk)) outcome.errorChunks += 1;
+      if (isErrorSignal(chunk)) outcome.errorChunks += 1;
     }
     // The SAME run, via the other surface: does `wait()` know about the error?
     const settled = (await run.wait()) as { status?: string; error?: { message?: string } };
@@ -124,7 +124,7 @@ describe("a provider HTTP failure does not pass silently (theokit#101)", () => {
     const surfaced = outcome.threw !== null || outcome.errorChunks > 0;
     expect(
       surfaced,
-      `stream terminou sem sinal de erro (chunks=${String(outcome.chunks)}, ` +
+      `stream terminou sem sinal de error (chunks=${String(outcome.chunks)}, ` +
         `errorChunks=${String(outcome.errorChunks)}, threw=${String(outcome.threw)})`,
     ).toBe(true);
   }, 30_000);
@@ -134,13 +134,13 @@ describe("a provider HTTP failure does not pass silently (theokit#101)", () => {
 
     // This test is not the contract — it records WHERE the asymmetry is. If one day `wait()`
     // also stops knowing, the fix becomes a different (deeper) one, and this test says so.
-    expect({ waitStatus: outcome.waitStatus, temErro: outcome.waitError !== null }).toEqual({
+    expect({ waitStatus: outcome.waitStatus, hasError: outcome.waitError !== null }).toEqual({
       waitStatus: "error",
-      temErro: true,
+      hasError: true,
     });
   }, 30_000);
 
-  it("a mensagem do erro carrega contexto suficiente para diagnosticar", async () => {
+  it("a mensagem do error carrega contexto suficiente para diagnosticar", async () => {
     const outcome = await streamAgainst404();
 
     // A bare "Request failed" forces the operator to instrument in order to discover WHAT failed.

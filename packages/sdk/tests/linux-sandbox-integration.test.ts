@@ -1,13 +1,13 @@
 // MIGRADO do agent-builder no M75 T4.1. A regra do plano (D4) e que os testes atravessem SEM
-// reescrita de assercao: se um teste precisasse mudar para passar, isso seria ACHADO, nao ajuste — e
+// assertion rewriting: if a test had to change in order to pass, that would be a FINDING, not an adjustment — and
 // e a unica defesa contra afrouxar silenciosamente uma garantia de seguranca numa migracao.
 //
 // Mudancas permitidas e efetivamente feitas: as linhas de `import` e o nome da classe
 // (BwrapSandbox -> LinuxSandbox). Nenhum corpo de teste, nenhuma assercao.
 //
-// Estes sao os 10 `itLive` que provam confinamento REAL via execute(): bloqueia escrita fora do
+// These are the 10 `itLive` tests proving REAL confinement via execute(): it blocks writes outside the
 // workspace, permite no cwd, bloqueia rede, .git read-only, aspas sobrevivem ao duplo shell, seccomp
-// bloqueia ptrace e AF_INET mas permite AF_UNIX. Eles nunca tinham rodado em CI ate o M75.
+// blocks ptrace and AF_INET but allows AF_UNIX. They had never run in CI until M75.
 
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -55,7 +55,7 @@ describe("LinuxSandbox (real integration with bwrap)", () => {
 
   itLive("execute_blocks_network_and_signals_child", async () => {
     const sbx = new LinuxSandbox({ workDir, timeoutMs: 10_000 }, { mode: "workspace-write" });
-    // /proc/net/route vazio ou curl falhando prova o namespace; a flag Codex sinaliza o filho (spawn.rs:20,79)
+    // an empty /proc/net/route or a failing curl proves the namespace; the Codex flag signals the child (spawn.rs:20,79)
     const r = await sbx.execute(
       'echo "flag=$CODEX_SANDBOX_NETWORK_DISABLED"; curl -sm 2 https://example.com >/dev/null 2>&1 && echo NET-LEAK || echo NET-BLOCKED',
     );
@@ -277,7 +277,7 @@ describe("M57 T0.1 — wrapCommandForSandbox (pure function, single source of th
 describe("M63 review HIGH — no brick on non-x86_64 arch", () => {
   it("non_x64_arch_skips_seccomp_and_warns (fallback honesto, nunca brick)", () => {
     const warns: string[] = [];
-    // aarch64: gerar o filtro x86_64 mataria TODO syscall → deve pular (undefined), nunca brick
+    // aarch64: generating the x86_64 filter would kill EVERY syscall -> it must skip (undefined), never brick
     expect(seccompPathForArch("arm64", (m) => warns.push(m))).toBeUndefined();
     expect(seccompPathForArch("ppc64", () => {})).toBeUndefined(); // any non-x64
     // x64: gera normalmente (path .bpf)

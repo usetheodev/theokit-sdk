@@ -59,13 +59,13 @@ describe("M75 T2.1 — buildBwrapArgv promovido", () => {
     expect(s).toContain("--unshare-net");
   });
 
-  it("test_danger_full_access_nao_embrulha", () => {
+  it("test_danger_full_access_does_not_wrap", () => {
     // `null` is the "do not wrap" contract — an explicit opt-out, not an anomaly. Returning an argv
-    // vazio confundiria "sem confinamento" com "confinamento sem flags".
+    // an empty one would conflate "no confinement" with "confinement without flags".
     expect(buildBwrapArgv("danger-full-access", { cwd: "/w", network: true, env: {} })).toBeNull();
   });
 
-  it("test_read_only_nao_da_escrita_nem_no_cwd", () => {
+  it("test_read_only_grants_no_write_even_on_the_cwd", () => {
     const s = (buildBwrapArgv("read-only", { cwd: "/w", network: false, env: {} }) ?? []).join(" ");
     expect(s).toContain("--ro-bind / /");
     expect(s, "read-only must not contain a --bind of the cwd").not.toContain("--bind /w /w");
@@ -73,25 +73,25 @@ describe("M75 T2.1 — buildBwrapArgv promovido", () => {
 });
 
 describe("M75 T2.1 — detectBwrap promovido", () => {
-  it("test_detecta_quando_todas_as_sondas_passam", () => {
+  it("test_it_detects_when_every_probe_passes", () => {
     expect(detectBwrap(probesFalsos())).toEqual({ ok: true, bin: "/usr/bin/bwrap" });
   });
 
-  it("test_userns_bloqueado_e_falha_honesta_com_motivo", () => {
-    // Foi exatamente este caminho que o CI do agent-builder exercitou: bubblewrap instalado, userns
+  it("test_a_blocked_userns_is_an_honest_failure_with_a_reason", () => {
+    // This is exactly the path the agent-builder's CI exercised: bubblewrap installed, userns
     // blocked by Ubuntu 24.04's AppArmor. The contract is to degrade with a REASON — never pretend.
     const d = detectBwrap(probesFalsos({ userns: () => false }));
     expect(d.ok).toBe(false);
-    expect(d.ok === false && d.reason, "a falha precisa dizer POR QUE").toMatch(/namespace/i);
+    expect(d.ok === false && d.reason, "the failure must say WHY").toMatch(/namespace/i);
   });
 
-  it("test_which_nulo_e_falha_honesta", () => {
+  it("test_a_null_which_is_an_honest_failure", () => {
     // O anti-hijack (recusar um `bwrap` que vive dentro do workspace) mora DENTRO de
     // `realProbes.which`, not in `detectBwrap` — injecting a fake probe would bypass it, and a test
     // that "verifies" it via an injected probe would be measuring its own fixture.
     //
     // CORRECTION (M75 review): an earlier version of this comment said the anti-hijack was
-    // "coberto pelos 18 testes de bwrap.test.ts". Falso nos dois sentidos — aqueles testes tinham
+    // "covered by bwrap.test.ts's 18 tests". False both ways — those tests had
     // been deleted (they live in `tests/bwrap-argv.test.ts` today), and even the originals NEVER
     // covered it (`grep realProbes` in the original file: zero). The gap is PRE-EXISTING and still
     // open; claiming coverage that does not exist is worse than the gap, because it stops anyone
@@ -112,7 +112,7 @@ describe("M75 T2.1 — buildSeccompFilter promovido", () => {
     expect(f.length % 8, "a cBPF program must be a multiple of 8 bytes").toBe(0);
   });
 
-  it("test_dois_builds_com_a_mesma_entrada_sao_byte_identicos", () => {
+  it("test_two_builds_with_the_same_input_are_byte_identical", () => {
     // Determinism is what allows writing the program ONCE per process and reusing the path.
     expect(
       buildSeccompFilter({ networkRestricted: true }).equals(

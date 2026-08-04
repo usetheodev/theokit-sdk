@@ -1,5 +1,5 @@
 /**
- * M77 T5.1 — `maxSessions`: um teto para o modelo parar de abrir shells indefinidamente.
+ * M77 T5.1 — `maxSessions`: a ceiling so the model stops opening shells indefinitely.
  *
  * ## O problema
  *
@@ -8,7 +8,7 @@
  * has a shell open opens another — and another. The TTL eventually collects, but "eventually" is too
  * late when the limit is the machine's PID count.
  *
- * ## O erro precisa DIZER O QUE FAZER
+ * ## The error has to SAY WHAT TO DO
  *
  * An error that only says "limit reached" teaches the model to retry. `rules/error-handling.md`
  * § 2 requires a message with context; here the useful context is the **list of live sessions**, because the
@@ -23,7 +23,7 @@
  *  1. `spawnPty` is `private` — the double would require loosening visibility just for the test;
  *  2. **the M75 lesson**: a helper replacing the whole of `spawnPty` makes everything living INSIDE it
  *     never run. The ceiling has to prove the slot is counted against sessions that genuinely exist,
- *     com `onExit` real liberando a vaga — um duplo provaria apenas que meu duplo conta.
+ *     with a real `onExit` freeing the slot — a double would only prove that my double counts.
  *
  * This file follows the convention `pty-interactive-backend.test.ts` already established: a real PTY, and
  * `describe.skip` when node-pty's native build is unavailable.
@@ -44,7 +44,7 @@ const abrir = (b: PtyInteractiveBackend): Promise<{ sessionId: string }> =>
   b.startInteractive("cat", { yieldMs: 60 });
 
 d("M77 T5.1 — interactive session ceiling (real PTY)", () => {
-  it("test_abrir_alem_do_teto_lanca_erro_TIPADO", async () => {
+  it("test_opening_past_the_ceiling_throws_a_TYPED_error", async () => {
     backend = new PtyInteractiveBackend({ maxSessions: 2 });
     await abrir(backend);
     await abrir(backend);
@@ -53,7 +53,7 @@ d("M77 T5.1 — interactive session ceiling (real PTY)", () => {
     await expect(abrir(backend)).rejects.toBeInstanceOf(MaxSessionsError);
   });
 
-  it("test_o_erro_LISTA_as_sessoes_vivas_para_o_modelo_reusar", async () => {
+  it("test_the_error_LISTS_the_live_sessions_so_the_model_can_reuse_one", async () => {
     backend = new PtyInteractiveBackend({ maxSessions: 2 });
     const a = await abrir(backend);
     const c = await abrir(backend);
@@ -68,7 +68,7 @@ d("M77 T5.1 — interactive session ceiling (real PTY)", () => {
     expect(err.message).toContain(a.sessionId);
   });
 
-  it("test_matar_uma_sessao_LIBERA_a_vaga", async () => {
+  it("test_killing_a_session_FREES_the_slot", async () => {
     backend = new PtyInteractiveBackend({ maxSessions: 1 });
     const a = await abrir(backend);
     await expect(abrir(backend)).rejects.toBeInstanceOf(MaxSessionsError);
@@ -79,7 +79,7 @@ d("M77 T5.1 — interactive session ceiling (real PTY)", () => {
     await expect(abrir(backend)).resolves.toBeDefined();
   });
 
-  it("test_CONTRAPROVA_sem_maxSessions_nao_ha_teto", async () => {
+  it("test_COUNTERPROOF_without_maxSessions_there_is_no_ceiling", async () => {
     // Without this, an implementation with a baked-in ceiling (say 3) would pass everything above and break
     // every existing consumer silently. The default MUST be unlimited.
     backend = new PtyInteractiveBackend();
@@ -91,7 +91,7 @@ d("M77 T5.1 — interactive session ceiling (real PTY)", () => {
     // Concurrent test with an atomic-counter invariant: with a ceiling of 1, two simultaneous opens contend for
     // the last slot. The guard must read the count and reserve the slot BEFORE the first `await`; if it
     // checked and only inserted into the `Map` after the spawn (which is async), both would see `0`, both
-    // duas passariam, e o teto viraria decorativo.
+    // both would pass, and the ceiling would become decorative.
     backend = new PtyInteractiveBackend({ maxSessions: 1 });
     const r = await Promise.allSettled([abrir(backend), abrir(backend)]);
 

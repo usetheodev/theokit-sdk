@@ -94,7 +94,7 @@ describe("injectSessionTurn (M51)", () => {
       store,
       loc: LOC,
       sessionId: LOC.agentId,
-      userText: "depois",
+      userText: "after",
       assistantText: "ok",
     }).then(() => order.push("inject"));
     await Promise.all([slow, inj]);
@@ -119,8 +119,11 @@ describe("M51 review F4 — corrida inject × turno em voo", () => {
       userText: "synthetic-pair",
       assistantText: "findings",
     });
-    // turno EM VOO completa depois do inject → repovoa o cache com 1 mensagem
-    appendSessionMessage(LOC.agentId, { role: "assistant", text: "resposta do turno em voo" });
+    // an IN-FLIGHT turn completes after the inject -> repopulates the cache with 1 message
+    appendSessionMessage(LOC.agentId, {
+      role: "assistant",
+      text: "answer from the in-flight turn",
+    });
     // next send -> hydrate MUST replace from disk (which has EVERYTHING), not pin at 1 message
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
     const joined = getSessionMessages(LOC.agentId)

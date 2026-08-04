@@ -71,7 +71,7 @@ function capTail(buf: string, max: number): string {
 }
 
 /**
- * M75 T3.1 — como o chamador embrulha o comando antes do spawn.
+ * M75 T3.1 — how the caller wraps the command before the spawn.
  *
  * It exists so confinement (sandbox) composes with the PTY without inheritance: the backend keeps owning the
  * spawn, the caller keeps owning the policy, and neither knows the other's type.
@@ -98,7 +98,7 @@ export interface PtyInteractiveBackendOptions {
 }
 
 /**
- * M77 — o teto de {@link PtyInteractiveBackendOptions.maxSessions} foi atingido.
+ * M77 — the {@link PtyInteractiveBackendOptions.maxSessions} ceiling was reached.
  *
  * Carrega `liveSessionIds` por design: `rules/error-handling.md § 2` pede mensagem com contexto
  * enough context to act, and here the action is reusing an existing session. An error merely stating

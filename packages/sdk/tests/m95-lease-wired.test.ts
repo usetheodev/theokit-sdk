@@ -45,7 +45,7 @@ describe("M95 — the lease is wired", () => {
 
   it("appendRecords NEVER throws SessionBusyError — the turn does not vanish silently", async () => {
     // BLOCKER-1 from adversarial review. The `SessionStore` contract says an append rejection is
-    // best-effort: "logged to stderr, NOT thrown to the caller". Adquirir o lease ali fazia o
+    // best-effort: "logged to stderr, NOT thrown to the caller". Acquiring the lease there made the
     // SessionBusyError ser ENGOLIDO, e o perdedor perdia o turno inteiro sem nada em disco e sem
     // como reagir — pior que o problema original, que era intercalar linhas.
     const base = mkdtempSync(join(tmpdir(), "m95-ligado-"));
@@ -67,7 +67,7 @@ describe("M95 — the lease is wired", () => {
     expect(existsSync(`${transcriptPath(base, "/algum/cwd", "ag")}.writer.lock`)).toBe(false);
   });
 
-  it("um OUTRO PROCESSO vivo segurando o lock produz SessionBusyError", async () => {
+  it("ANOTHER live PROCESS holding the lock produces SessionBusyError", async () => {
     // The lease protects against another PROCESS — two stores in the SAME process are a legitimate pattern
     // (the golden compaction tests do exactly that, and failed when the first version refused
     // its own owner). So a foreign owner is simulated by the parent process's pid: alive, and not us.

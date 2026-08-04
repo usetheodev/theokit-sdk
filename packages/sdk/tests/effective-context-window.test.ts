@@ -1,7 +1,7 @@
 /**
- * M77 T1.1 — a janela EFETIVA: override clampado + margem percentual.
+ * M77 T1.1 — the EFFECTIVE window: clamped override + percentage margin.
  *
- * ## Por que isto existe
+ * ## Why this exists
  *
  * `post-run-lifecycle.ts:110` reads `getCatalogModelInfo(model)?.limit?.context` and, when it is
  * `undefined`, **turns compaction off**. The comment two lines above calls that `fail-safe`;
@@ -17,7 +17,7 @@
  *  - **override clampado** — `models-manager/src/model_info.rs:26-31` deixa a config sobrepor o
  *    catalog, but bounds it by `max_context_window` (`context_window.min(max_context_window)`);
  *  - **margem percentual** — `model_info.rs:158`, `effective_context_window_percent: 95`. O Codex
- *    nunca usa 100% da janela.
+ *    never uses 100% of the window.
  *
  * The clamp is the half the ROADMAP omits, and without it the override becomes a second door to
  * overflow: the user declares 999k on a 200k model and the trigger never fires.
@@ -33,7 +33,7 @@ import { describe, expect, it } from "vitest";
 
 import { ContextWindowMarginError, resolveEffectiveContextWindow } from "../src/compaction.js";
 
-describe("M77 T1.1 — janela efetiva", () => {
+describe("M77 T1.1 — effective window", () => {
   it("test_override_menor_que_o_catalogo_vence", () => {
     // The primary use case: the user knows they want to work within a smaller budget.
     const r = resolveEffectiveContextWindow({ override: 50_000, catalog: 200_000, margin: 0.95 });
@@ -55,7 +55,7 @@ describe("M77 T1.1 — janela efetiva", () => {
     expect(r.source).toBe("catalog");
   });
 
-  it("test_sem_catalogo_e_sem_override_devolve_o_PISO_e_nao_desliga", () => {
+  it("test_no_catalog_and_no_override_returns_the_FLOOR_and_does_not_switch_off", () => {
     // The heart of the milestone: today this path returns `undefined` and compaction DIES. Now
     // it returns a floor and compaction stays alive.
     const r = resolveEffectiveContextWindow({ margin: 0.95, floor: 128_000 });
@@ -63,7 +63,7 @@ describe("M77 T1.1 — janela efetiva", () => {
     expect(r.source, "the origin must be identifiable for the structured event").toBe("fallback");
   });
 
-  it("test_margem_invalida_e_erro_TIPADO_e_nao_silencio", () => {
+  it("test_an_invalid_margin_is_a_TYPED_error_and_not_silence", () => {
     // `rules/error-handling.md` § 2: a typed error, not a magic value. A margin > 1 would increase the
     // assumed window — exactly the unsafe direction.
     expect(() => resolveEffectiveContextWindow({ catalog: 200_000, margin: 1.5 })).toThrow(
@@ -74,7 +74,7 @@ describe("M77 T1.1 — janela efetiva", () => {
     );
   });
 
-  it("test_CONTRAPROVA_margem_1_nao_encolhe_a_janela", () => {
+  it("test_COUNTERPROOF_a_margin_of_1_does_not_shrink_the_window", () => {
     // Without this, an implementation ignoring `margin` and returning the raw catalog would pass
     // some of the tests above. Margin 1.0 is the only case where the raw catalog is the right answer.
     const r = resolveEffectiveContextWindow({ catalog: 200_000, margin: 1 });
@@ -82,7 +82,7 @@ describe("M77 T1.1 — janela efetiva", () => {
     expect(r.clamped).toBe(false);
   });
 
-  it("test_o_piso_NAO_e_usado_quando_ha_catalogo", () => {
+  it("test_the_floor_is_NOT_used_when_a_catalog_exists", () => {
     // COUNTER-PROOF of the fallback: a floor that beat the catalog would make an 8k model be treated
     // como 128k — o fail-open que este milestone existe para fechar.
     const r = resolveEffectiveContextWindow({ catalog: 8_000, margin: 0.95, floor: 128_000 });

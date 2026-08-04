@@ -12,7 +12,7 @@ describe("runGoalLoop (public)", () => {
         sent.push(prompt);
         return {
           wait: async () => ({
-            result: `resposta-${sent.length}`,
+            result: `answer-${sent.length}`,
             usage: { inputTokens: 10, outputTokens: 0, totalTokens: 10 },
           }),
         };

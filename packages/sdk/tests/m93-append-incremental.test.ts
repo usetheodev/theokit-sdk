@@ -82,8 +82,8 @@ describe("M93 — append incremental", () => {
   it("an EMPTY delta never even takes the lock — the guard avoids mkdir + withFileLock", async () => {
     const base = mkdtempSync(join(tmpdir(), "m93-lock-"));
     const store = new FsSessionStore({ baseDir: base, cwd: base });
-    await store.appendRecords("ag-vazio", [] as never);
-    const filePath = transcriptPath(base, base, "ag-vazio");
+    await store.appendRecords("ag-empty", [] as never);
+    const filePath = transcriptPath(base, base, "ag-empty");
     const lockCreated = existsSync(`${filePath}.lock`);
     const dirCreated = existsSync(dirname(filePath));
     expect(lockCreated || dirCreated).toBe(false);

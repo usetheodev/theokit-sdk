@@ -83,7 +83,7 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
     const pool = new McpClientPool<FakeClient>();
 
     pool.acquire("session-1", "fs", CFG, f.create);
-    pool.acquire("session-1", "fs", { command: "node", args: ["OUTRO.js"] }, f.create);
+    pool.acquire("session-1", "fs", { command: "node", args: ["OTHER.js"] }, f.create);
 
     // Without the hash in the key, the second `acquire` would return a client bound to the WRONG server.
     expect(f.calls(), "same name + different config => different client").toBe(2);

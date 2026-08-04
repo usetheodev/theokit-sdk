@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 /**
- * M93 T3.1 — o caminho de erro passa a persistir o transcript parcial.
+ * M93 T3.1 — the error path starts persisting the partial transcript.
  *
  * ## The defect, with exact evidence
  *
@@ -9,7 +9,7 @@ import { describe, expect, it } from "vitest";
  * **returned**. The comment said "the mutex still releases via the flushes below" — true, and
  * irrelevant: `persistTurnToTranscript` is called **only later in the same function**, and it is the **only
  * caller in the whole repository** (measured by grep). Nothing had been queued, so the flush
- * drenava um conjunto **vazio**.
+ * drained an **empty** set.
  *
  * A 429 after eight tool calls destroyed the turn **leaving nothing on disk**. Combined with the
  * absent retry on the single-key path — M93's other half — the loss was total: the turn
@@ -20,10 +20,10 @@ import { describe, expect, it } from "vitest";
  * `runPostRunLifecycle` exige um `Run` real, um `SessionStore`, um `hooksExecutor`, um `memoryGlue` e
  * a `memoryProvider` — assembling all of that in a unit test would rebuild half the runtime, and the
  * result would measure my double, not the code. The invariant that matters is directly checkable: the
- * `catch` chama `persistTurnToTranscript` **antes** do `return`.
+ * `catch` calls `persistTurnToTranscript` **before** the `return`.
  *
  * It is a shape gate, and this says so rather than pretending it is behavioral. What makes it non-vacuous is the
- * ordem: ele falha se a chamada sair, e falha se ela for movida para depois do `return`.
+ * order: it fails if the call leaves, and it fails if the call moves after the `return`.
  */
 const fonte = (): string => {
   const { readFileSync } = require("node:fs") as typeof import("node:fs");
@@ -41,29 +41,29 @@ const corpoDoCatch = (): string => {
   return src.slice(i, j);
 };
 
-describe("M93 — o caminho de erro persiste o transcript parcial", () => {
-  it("o catch chama persistTurnToTranscript ANTES do return", () => {
+describe("M93 — the error path persists the partial transcript", () => {
+  it("the catch calls persistTurnToTranscript BEFORE the return", () => {
     expect(corpoDoCatch()).toContain("persistTurnToTranscript");
   });
 
-  it("persiste o PARCIAL do run, nao um turno reconstruido", () => {
+  it("persists the run PARTIAL, not a reconstructed turn", () => {
     // `safeConversation(run)` returns what the turn actually produced — user + completed tool calls.
     // Reconstructing the rest would be inventing history, which is worse than the loss.
     expect(corpoDoCatch()).toContain("safeConversation(run)");
   });
 
-  it("a falha ao gravar NAO mascara o erro do turno", () => {
+  it("a write failure does NOT mask the turn error", () => {
     // The inner `catch` exists because the caller is waiting on the provider's error, not a disk
     // error on top of it (`error-handling.md`: cleanup does not propagate over the original error).
     const corpo = corpoDoCatch();
     expect(corpo).toContain("partial transcript write failed");
   });
 
-  it("o flush continua acontecendo — o mutex ainda libera", () => {
+  it("the flush still happens — the mutex still releases", () => {
     expect(corpoDoCatch()).toContain("flushSessionWrites()");
   });
 
-  it("CONTRAPROVA — o caminho de SUCESSO continua com sua propria persistencia", () => {
+  it("COUNTERPROOF — the SUCCESS path keeps its own persistence", () => {
     // The happy-path call was neither moved nor duplicated: there are two, one on each path.
     const ocorrencias = fonte().match(/persistTurnToTranscript\(/g) ?? [];
     expect(ocorrencias).toHaveLength(2);

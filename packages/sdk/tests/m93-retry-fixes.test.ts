@@ -2,7 +2,7 @@
  * M93 — the fixes from adversarial review.
  *
  * Every test here kills a mutant the review measured SURVIVING the original suite:
- * B1 (replay de stream parcial), H3 (regex sobre texto), H4 (dupla contagem), M2 (Retry-After,
+ * B1 (partial stream replay), H3 (regex over text), H4 (double counting), M2 (Retry-After,
  * sleep and abort guard all removable without failing anything).
  */
 import { describe, expect, it, vi } from "vitest";
@@ -41,15 +41,15 @@ function transportFailingAfterEmit(before: string[], error: unknown) {
 }
 
 async function coletar(c: LlmClient, signal = new AbortController().signal) {
-  const saida: string[] = [];
+  const output: string[] = [];
   try {
     for await (const e of c.stream({} as LlmRequest, signal)) {
-      saida.push((e as unknown as { text: string }).text);
+      output.push((e as unknown as { text: string }).text);
     }
   } catch {
     /* the final error is not what this helper measures */
   }
-  return saida;
+  return output;
 }
 
 describe("M93/B1 — a partially consumed stream is NOT retried", () => {
@@ -58,12 +58,12 @@ describe("M93/B1 — a partially consumed stream is NOT retried", () => {
       ["tok1", "tok2"],
       new NetworkError("socket hang up"),
     );
-    const saida = await coletar(new RetryingLlmClient(client, { rng: () => 0 }));
+    const output = await coletar(new RetryingLlmClient(client, { rng: () => 0 }));
     expect(state.attempts).toBe(1);
-    expect(saida).toEqual(["tok1", "tok2"]);
+    expect(output).toEqual(["tok1", "tok2"]);
   });
 
-  it("falha ANTES de emitir → reexecuta normalmente", async () => {
+  it("failing BEFORE emitting -> retries normally", async () => {
     const { client, state } = transportFailingAfterEmit([], new NetworkError("ECONNRESET"));
     await coletar(new RetryingLlmClient(client, { rng: () => 0 }));
     expect(state.attempts).toBe(3);
@@ -115,7 +115,7 @@ describe("M93/H4 — the retry does not re-run what the pool already exhausted",
 });
 
 describe("M93/M2 — os mutantes que sobreviviam", () => {
-  it("o backoff realmente ESPERA — remover o sleep reprova aqui", async () => {
+  it("the backoff genuinely WAITS — removing the sleep fails here", async () => {
     vi.useFakeTimers();
     try {
       const { client } = transportFailingAfterEmit([], new NetworkError("ECONNRESET"));

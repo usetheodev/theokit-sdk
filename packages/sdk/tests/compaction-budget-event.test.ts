@@ -41,7 +41,7 @@ describe("M77 T2.1 — structured context-budget event", () => {
     expect(event?.type).toBe("compaction_fallback");
   });
 
-  it("test_o_evento_carrega_o_MODELO_e_a_JANELA_assumida", () => {
+  it("test_the_event_carries_the_MODEL_and_the_assumed_WINDOW", () => {
     // Without the model, the surface does not know WHICH configuration to fix. Without the window, the user does not
     // know what they are being measured against — and the gauge lies again, which is DoD 6 of this same
     // milestone.
@@ -52,14 +52,14 @@ describe("M77 T2.1 — structured context-budget event", () => {
     expect(event?.window).toBe(121_600);
   });
 
-  it("test_modelo_NO_catalogo_nao_emite_nenhum_dos_dois", () => {
+  it("test_a_model_IN_the_catalog_emits_neither", () => {
     // Mandatory COUNTER-PROOF: without it, an implementation that always emitted would pass both
     // tests above — and the event would become noise the surface learns to ignore.
     const resolved = resolveEffectiveContextWindow({ catalog: 200_000, margin: 0.95 });
     expect(buildContextBudgetEvent("gpt-5.4", resolved)).toBeUndefined();
   });
 
-  it("test_override_tambem_e_silencioso_pois_o_usuario_JA_sabe", () => {
+  it("test_an_override_is_also_silent_because_the_user_ALREADY_knows", () => {
     // The user who declared the window does not need to be told it was used.
     const resolved = resolveEffectiveContextWindow({ override: 50_000, margin: 0.95 });
     expect(buildContextBudgetEvent("qualquer", resolved)).toBeUndefined();
@@ -76,7 +76,7 @@ describe("M77 T2.1 — structured context-budget event", () => {
     }
   });
 
-  it("test_o_comentario_de_post_run_lifecycle_nao_chama_mais_de_fail_safe", () => {
+  it("test_the_post_run_lifecycle_comment_no_longer_calls_it_fail_safe", () => {
     // Docs truthfulness gate — M67 precedent. The comment described as "fail-safe" the
     // behavior that makes the context overflow; a reader would believe the silence was safe.
     const fonte = readFileSync(

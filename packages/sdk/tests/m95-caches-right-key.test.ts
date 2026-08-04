@@ -30,14 +30,14 @@ const storeInerte = (): SessionStore => ({
   appendRecords: async (): Promise<void> => undefined,
 });
 
-function limpar(): void {
+function clearAll(): void {
   for (const k of [...sessions.keys()]) sessions.delete(k);
   for (const k of [...hydratedKeys]) hydratedKeys.delete(k);
 }
 
-describe("M95/HIGH-1 — discardSession apaga pela chave que a escrita usou", () => {
-  it("apaga recordCounts depois do flush", async () => {
-    limpar();
+describe("M95/HIGH-1 — discardSession erases by the key the write used", () => {
+  it("erases recordCounts after the flush", async () => {
+    clearAll();
     // Populated via the REAL path — `persistTurnToTranscript` is what writes, and it uses
     // `transcriptKey(cwd, agentId)`. Populating by hand would test the double.
     persistTurnToTranscript(storeInerte(), { cwd: CWD, agentId: "ag", model: "m" }, "ag", {
@@ -50,8 +50,8 @@ describe("M95/HIGH-1 — discardSession apaga pela chave que a escrita usou", ()
     expect(discardSession(CWD, "ag"), "recordCounts was not erased").toBe(2);
   });
 
-  it("apaga pendingWrites ANTES do flush — o momento em que ele existe", () => {
-    limpar();
+  it("erases pendingWrites BEFORE the flush — the moment it exists", () => {
+    clearAll();
     persistTurnToTranscript(storeInerte(), { cwd: CWD, agentId: "ag2", model: "m" }, "ag2", {
       userText: "oi",
       conversation: [],
@@ -62,7 +62,7 @@ describe("M95/HIGH-1 — discardSession apaga pela chave que a escrita usou", ()
   });
 
   it("a second discard is a no-op", () => {
-    limpar();
+    clearAll();
     hydratedKeys.add(transcriptKey(CWD, "ag3"));
     expect(discardSession(CWD, "ag3")).toBe(1);
     expect(discardSession(CWD, "ag3")).toBe(0);
@@ -71,7 +71,7 @@ describe("M95/HIGH-1 — discardSession apaga pela chave que a escrita usou", ()
 
 describe("M95/HIGH-2 — the ceiling does not orphan hydratedKeys", () => {
   it("evicting a session via the ceiling also removes the hydration marker", () => {
-    limpar();
+    clearAll();
     // Fills to the ceiling, marking each one hydrated.
     for (let i = 0; i <= MAX_CACHED_SESSIONS; i++) {
       appendSessionMessage(`t-${i}`, { role: "user", text: "x" });

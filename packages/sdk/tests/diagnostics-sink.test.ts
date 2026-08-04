@@ -6,7 +6,7 @@ import { diag, setDiagnosticsSink } from "../src/internal/diagnostics.js";
  * theokit-sdk#147 — the library does not own the terminal.
  *
  * The SDK wrote diagnostics straight to `process.stderr` from hot paths (92 sites
- * em 51 arquivos sob `internal/`). Numa host de TUI (Ink, alternate screen), essas escritas se
+ * across 51 files under `internal/`). In a TUI host (Ink, alternate screen), those writes
  * interleave with the render and corrupt the frame — and the host **had no way to intercept them**. One
  * consumer went as far as installing `proper-lockfile` just to silence ONE of them.
  *
@@ -59,7 +59,7 @@ describe("interceptable diagnostics channel (#147)", () => {
     expect(escrever).not.toHaveBeenCalled();
   });
 
-  it("remover o sink devolve o stderr", () => {
+  it("removing the sink gives stderr back", () => {
     const escrever = vi.spyOn(process.stderr, "write").mockReturnValue(true);
     setDiagnosticsSink(() => undefined);
     setDiagnosticsSink(undefined);

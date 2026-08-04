@@ -32,26 +32,28 @@ import { PtyInteractiveBackend } from "../src/pty-interactive-backend.js";
  * only thing that proves the link.
  */
 const capturaComandoSpawnado = (backend: PtyInteractiveBackend): string[] => {
-  const vistos: string[] = [];
+  const seen: string[] = [];
   const alvo = backend as unknown as { ptyModule: unknown };
   alvo.ptyModule = {
     spawn: (_shell: string, args: string[]) => {
-      vistos.push(args[1] ?? "");
+      seen.push(args[1] ?? "");
       throw new Error("spawn intercepted — the command was already captured");
     },
   };
-  return vistos;
+  return seen;
 };
 
 describe("M75 T3.1 — wrapCommand injetado no PtyInteractiveBackend", () => {
-  it("test_wrap_e_aplicado_antes_do_spawn", async () => {
-    const b = new PtyInteractiveBackend({ wrapCommand: (cmd) => `EMBRULHADO:${cmd}` });
-    const vistos = capturaComandoSpawnado(b);
-    await b.startInteractive("echo oi").catch(() => undefined);
-    expect(vistos[0], "o comando chegou ao spawn sem passar pelo wrap").toBe("EMBRULHADO:echo oi");
+  it("test_the_wrap_is_applied_before_the_spawn", async () => {
+    const b = new PtyInteractiveBackend({ wrapCommand: (cmd) => `WRAPPED:${cmd}` });
+    const seen = capturaComandoSpawnado(b);
+    await b.startInteractive("echo hi").catch(() => undefined);
+    expect(seen[0], "the command reached the spawn without going through the wrap").toBe(
+      "WRAPPED:echo hi",
+    );
   });
 
-  it("test_wrap_recebe_o_cwd_resolvido_nao_o_bruto", async () => {
+  it("test_the_wrap_receives_the_resolved_cwd_not_the_raw_one", async () => {
     // The PTY spawns in THIS cwd; the wrap must target the SAME directory, otherwise bwrap's binds
     // would point one way and the process would run another — confinement that confines nothing.
     const cwds: string[] = [];
@@ -66,19 +68,19 @@ describe("M75 T3.1 — wrapCommand injetado no PtyInteractiveBackend", () => {
     expect(cwds[0]).toBe("/tmp");
   });
 
-  it("test_null_significa_nao_embrulhe", async () => {
+  it("test_null_means_do_not_wrap", async () => {
     const b = new PtyInteractiveBackend({ wrapCommand: () => null });
-    const vistos = capturaComandoSpawnado(b);
-    await b.startInteractive("echo oi").catch(() => undefined);
-    expect(vistos[0], "null deve deixar o comando exatamente como veio").toBe("echo oi");
+    const seen = capturaComandoSpawnado(b);
+    await b.startInteractive("echo hi").catch(() => undefined);
+    expect(seen[0], "null must leave the command exactly as it came").toBe("echo hi");
   });
 
-  it("test_sem_a_opcao_o_comportamento_e_o_de_hoje", async () => {
+  it("test_without_the_option_the_behavior_is_the_current_one", async () => {
     // Backward compatibility: the change is ADDITIVE. Every consumer already building the backend without
     // options is unchanged — that is what allows publishing as a minor.
     const b = new PtyInteractiveBackend();
-    const vistos = capturaComandoSpawnado(b);
-    await b.startInteractive("echo oi").catch(() => undefined);
-    expect(vistos[0]).toBe("echo oi");
+    const seen = capturaComandoSpawnado(b);
+    await b.startInteractive("echo hi").catch(() => undefined);
+    expect(seen[0]).toBe("echo hi");
   });
 });

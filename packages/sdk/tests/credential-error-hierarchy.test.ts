@@ -35,7 +35,7 @@ import { CredentialError } from "../src/internal/auth/credential-store.js";
 describe("M78 T1.1 — CredentialError na hierarquia tipada", () => {
   it("test_CredentialError_e_um_TheokitAgentError", () => {
     // Two levels up: CredentialError -> AuthenticationError -> TheokitAgentError.
-    const err = new CredentialError("chave ausente");
+    const err = new CredentialError("missing key");
     expect(err).toBeInstanceOf(TheokitAgentError);
     expect(err).toBeInstanceOf(AuthenticationError);
   });
@@ -43,21 +43,21 @@ describe("M78 T1.1 — CredentialError na hierarquia tipada", () => {
   it("test_CredentialError_continua_sendo_ELA_MESMA", () => {
     // The preservation half. Without it, swapping the whole class for `AuthenticationError` would pass
     // the test above and break `login.ts:48` silently.
-    const err = new CredentialError("chave ausente");
+    const err = new CredentialError("missing key");
     expect(err).toBeInstanceOf(CredentialError);
     expect(err.name).toBe("CredentialError");
-    expect(err.message).toBe("chave ausente");
+    expect(err.message).toBe("missing key");
   });
 
-  it("test_CONTRAPROVA_reparentar_NAO_tornou_o_erro_transiente", () => {
+  it("test_COUNTERPROOF_reparenting_did_NOT_make_the_error_transient", () => {
     // Reparenting grants access to the classification; it must not TURN ON retry by accident. A revoked
     // credential retried in a loop is worse than an immediate failure — `AuthenticationError` already pins
-    // `isRetryable: false` (`errors.ts:181`), e este teste trava isso.
+    // `isRetryable: false` (`errors.ts:181`), and this test locks that.
     expect(isTransientError(new CredentialError("revogada"))).toBe(false);
   });
 
   it("test_um_catch_generico_discrimina_framework_de_app_com_UM_instanceof", () => {
-    // A DoD 5 do milestone, provada onde ela nasce. Antes, um `catch` recebia `Error` nu vindo do
+    // The milestone's DoD 5, proven where it originates. Before, a `catch` received a bare `Error` from the
     // store e `Error` nu vindo do app, sem forma de distinguir sem comparar strings de `name`.
     const doFramework: unknown = new CredentialError("do store");
     const doApp: unknown = new Error("do app");

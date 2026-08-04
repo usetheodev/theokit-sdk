@@ -33,7 +33,7 @@ const agenteConstruido = { agentId: "ja-construido" } as unknown as SDKAgent;
 
 describe("M81 T2.2 — Squad.create aceita AgentDefinition", () => {
   it("test_Squad_aceita_AgentDefinition_como_membro", () => {
-    // O caminho novo: dado puro entra, o Squad materializa quando for rodar.
+    // The new path: raw data goes in, the Squad materializes when it runs.
     const squad = Squad.create({ agents: [definition] });
     expect(squad).toBeDefined();
     expect(squad.run).toBeTypeOf("function");
@@ -74,7 +74,7 @@ describe("M81 T2.2 — Squad.create aceita AgentDefinition", () => {
     ).toContain("model selection");
   });
 
-  it("test_lista_vazia_continua_sendo_erro_TIPADO", () => {
+  it("test_an_empty_list_remains_a_TYPED_error", () => {
     // The existing validation must not regress when the type gains the union.
     expect(() => Squad.create({ agents: [] })).toThrow();
   });
