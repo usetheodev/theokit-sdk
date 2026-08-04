@@ -26,7 +26,7 @@
  * last hours. `rules/error-handling.md` § 2 asks for a typed error; here it also has to be immediate,
  * para o chamador poder decidir entre forkar e desistir.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -108,5 +108,81 @@ describe("M81 T1.2 — session writer lease", () => {
     expect(err.sessionPath).toBe(p);
     expect(err.message).toContain(p);
     await first.release();
+  });
+});
+
+/**
+ * `agent-builder#118` — a live owner must never cross the staleness window.
+ *
+ * The record `{pid, hostname, mtime}` was written **once**, at acquisition, and never renewed. On the
+ * same host that is harmless: `reclaimable` decides by `pid`, which is exact, and age never enters the
+ * calculation. Across hosts it is not harmless — `pid` from another machine means nothing, so age is
+ * the only signal, and **any real session** older than the window became reclaimable while its owner
+ * was still writing. Two writers on one transcript is what the lease exists to prevent.
+ *
+ * `renew()` re-stamps the record. It is not an internal timer on purpose: a timer would renew the
+ * lease of a process that is **hung** rather than working, which is exactly the state the window
+ * exists to detect. Tied to a real write, the record tracks **progress**.
+ */
+describe("agent-builder#118 — the ownership record is renewable", () => {
+  const lerDono = (sessionPath: string): { pid: number; mtime: number } =>
+    JSON.parse(readFileSync(`${sessionPath}.writer.lock`, "utf8")) as {
+      pid: number;
+      mtime: number;
+    };
+
+  it("test_renew_advances_the_recorded_mtime", async () => {
+    const p = join(dir, "renew.jsonl");
+    const lease = await acquireSessionWriter(p);
+    try {
+      const antes = lerDono(p).mtime;
+      await new Promise((r) => setTimeout(r, 5));
+      lease.renew();
+      expect(
+        lerDono(p).mtime,
+        "renew() did not advance the record — a live owner still crosses the window",
+      ).toBeGreaterThan(antes);
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it("test_renew_keeps_the_SAME_owner", async () => {
+    // Counterproof against the tempting shortcut of rewriting the record from scratch with whatever
+    // is around: the renewal must not change WHO holds the lease.
+    const p = join(dir, "renew-owner.jsonl");
+    const lease = await acquireSessionWriter(p);
+    try {
+      const antes = lerDono(p).pid;
+      lease.renew();
+      expect(lerDono(p).pid).toBe(antes);
+      expect(lerDono(p).pid).toBe(process.pid);
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it("test_NEGATIVE_renew_after_release_does_NOT_recreate_the_lock", async () => {
+    // The one direction of this API that could MANUFACTURE the double-writer it exists to prevent:
+    // re-stamping a lease you gave up would re-create the lock file and take ownership back.
+    const p = join(dir, "renew-after-release.jsonl");
+    const lease = await acquireSessionWriter(p);
+    await lease.release();
+    lease.renew();
+    expect(
+      existsSync(`${p}.writer.lock`),
+      "renew() after release() re-created the lock — the released process took ownership back",
+    ).toBe(false);
+  });
+
+  it("test_COUNTERPROOF_the_lock_exists_while_the_lease_is_held", async () => {
+    // Without this, a renew() that never wrote anything would satisfy the negative above.
+    const p = join(dir, "held.jsonl");
+    const lease = await acquireSessionWriter(p);
+    try {
+      expect(existsSync(`${p}.writer.lock`)).toBe(true);
+    } finally {
+      await lease.release();
+    }
   });
 });
