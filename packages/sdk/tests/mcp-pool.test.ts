@@ -6,54 +6,54 @@
  * `real-local-run.ts:349` chama `createMcpClient` dentro de `buildMcpMap`, que roda **por run**.
  * Cada `send` refaz spawn + handshake do servidor: 193 / 138 / 134 ms por turn, medidos.
  *
- * ## O que a referência única faz
+ * ## What the single reference does
  *
  * O Codex ancora o `McpConnectionManager` em `SessionServices` (`core/src/state/service.rs:116`) — o
- * mesmo struct cujo campo vizinho leva o comentário *"Session-scoped model client shared across
+ * same struct whose neighboring field carries the comment *"Session-scoped model client shared across
  * turns"* — e **substitui** o runtime (`service.rs:136`, `self.mcp_runtime.replace(connections)`) em
- * vez de reconstruí-lo. O caminho que constrói e imediatamente destrói
- * (`core/src/connectors.rs:245` … `:334 shutdown()`) é descoberta one-shot de conectores, não o loop
- * de turns; confundir os dois levaria à conclusão oposta.
+ * instead of rebuilding it. The path that builds and immediately destroys
+ * (`core/src/connectors.rs:245` ... `:334 shutdown()`) is one-shot connector discovery, not the turn
+ * loop; conflating the two would lead to the opposite conclusion.
  *
  * ## Por que a chave inclui o HASH da config
  *
- * `sendOptions.mcpServers` **substitui** `agentOptions.mcpServers` (semântica documentada no docblock
- * de `resolveTools`). Dois runs da mesma sessão podem legitimamente pedir o mesmo NOME de servidor
- * com configuração diferente. Chavear só por `(sessão, nome)` devolveria um cliente conectado ao
- * servidor errado — resposta errada, não erro.
+ * `sendOptions.mcpServers` **replaces** `agentOptions.mcpServers` (semantics documented in the docblock
+ * of `resolveTools`). Two runs in the same session can legitimately ask for the same server NAME
+ * with different configuration. Keying only by `(session, name)` would return a client connected to the
+ * wrong server — a wrong answer, not an error.
  *
  * ## Por que `'run'` continua o default
  *
- * Manter clientes vivos entre turns muda o modelo de falha: um servidor que morre no meio da sessão
- * agora é um estado alcançável. Cron e one-shot não ganham nada com o pool e pagariam esse risco, então
- * o modo `'session'` é opt-in (plano ADR D3).
+ * Keeping clients alive across turns changes the failure model: a server dying mid-session
+ * is now a reachable state. Cron and one-shot gain nothing from the pool and would pay that risk, so
+ * the `'session'` mode is opt-in (plan ADR D3).
  */
 import { describe, expect, it } from "vitest";
 
 import { McpClientPool } from "../src/internal/local-agent/mcp-pool.js";
 
-/** Duplo mínimo: só precisa registrar que foi fechado. */
+/** Minimal double: it only needs to record that it was closed. */
 interface ClienteFalso {
   readonly id: number;
-  fechado: boolean;
+  closed: boolean;
   close: () => void;
 }
 
-function fabricaContada(): { criar: () => ClienteFalso; chamadas: () => number } {
+function fabricaContada(): { criar: () => ClienteFalso; calls: () => number } {
   let n = 0;
   return {
     criar: () => {
       n += 1;
-      const c: ClienteFalso = { id: n, fechado: false, close: () => (c.fechado = true) };
+      const c: ClienteFalso = { id: n, closed: false, close: () => (c.closed = true) };
       return c;
     },
-    chamadas: () => n,
+    calls: () => n,
   };
 }
 
 const CFG = { command: "node", args: ["servidor.js"] };
 
-describe("M77 T3.1 — pool de clientes MCP por sessão", () => {
+describe("M77 T3.1 — per-session MCP client pool", () => {
   it("test_segundo_turn_da_MESMA_sessao_REUSA_o_cliente", () => {
     const f = fabricaContada();
     const pool = new McpClientPool<ClienteFalso>();
@@ -61,8 +61,8 @@ describe("M77 T3.1 — pool de clientes MCP por sessão", () => {
     const a = pool.acquire("sessao-1", "fs", CFG, f.criar);
     const b = pool.acquire("sessao-1", "fs", CFG, f.criar);
 
-    // Contagem de CAUSA: prova que a fábrica não rodou de novo, não apenas que os objetos batem.
-    expect(f.chamadas(), "o segundo turn não pode respawnar o servidor").toBe(1);
+    // Counting CAUSE: it proves the factory did not run again, not merely that the objects match.
+    expect(f.calls(), "the second turn must not respawn the server").toBe(1);
     expect(b).toBe(a);
   });
 
@@ -73,8 +73,8 @@ describe("M77 T3.1 — pool de clientes MCP por sessão", () => {
     const a = pool.acquire("sessao-1", "fs", CFG, f.criar);
     const b = pool.acquire("sessao-2", "fs", CFG, f.criar);
 
-    // Compartilhar entre sessões vazaria estado de uma conversa para outra.
-    expect(f.chamadas()).toBe(2);
+    // Sharing across sessions would leak state from one conversation into another.
+    expect(f.calls()).toBe(2);
     expect(b).not.toBe(a);
   });
 
@@ -86,19 +86,19 @@ describe("M77 T3.1 — pool de clientes MCP por sessão", () => {
     pool.acquire("sessao-1", "fs", { command: "node", args: ["OUTRO.js"] }, f.criar);
 
     // Sem o hash na chave, o segundo `acquire` devolveria um cliente ligado ao servidor ERRADO.
-    expect(f.chamadas(), "mesmo nome + config diferente ⇒ cliente diferente").toBe(2);
+    expect(f.calls(), "mesmo nome + config diferente ⇒ cliente diferente").toBe(2);
   });
 
   it("test_CONTRAPROVA_a_ordem_das_chaves_da_config_nao_muda_a_identidade", () => {
     // Sem esta, o hash poderia ser `JSON.stringify` cru — e `{a,b}` vs `{b,a}` produziriam clientes
-    // distintos para configurações IDÊNTICAS, respawnando a cada turn e anulando o pool em silêncio.
+    // distinct for IDENTICAL configurations, respawning every turn and silently nullifying the pool.
     const f = fabricaContada();
     const pool = new McpClientPool<ClienteFalso>();
 
     pool.acquire("s", "fs", { command: "node", args: ["x"] }, f.criar);
     pool.acquire("s", "fs", { args: ["x"], command: "node" }, f.criar);
 
-    expect(f.chamadas()).toBe(1);
+    expect(f.calls()).toBe(1);
   });
 
   it("test_dispose_da_sessao_FECHA_os_clientes_e_libera_a_chave", () => {
@@ -109,12 +109,12 @@ describe("M77 T3.1 — pool de clientes MCP por sessão", () => {
     const b = pool.acquire("sessao-1", "git", CFG, f.criar);
     pool.disposeSession("sessao-1", (c) => c.close());
 
-    expect(a.fechado, "cliente vazado é processo vazado").toBe(true);
-    expect(b.fechado).toBe(true);
+    expect(a.closed, "a leaked client is a leaked process").toBe(true);
+    expect(b.closed).toBe(true);
 
-    // E a chave sai: um `acquire` seguinte tem de criar de novo, não devolver o fechado.
+    // And the key goes away: a subsequent `acquire` must create anew, not return the closed one.
     pool.acquire("sessao-1", "fs", CFG, f.criar);
-    expect(f.chamadas()).toBe(3);
+    expect(f.calls()).toBe(3);
   });
 
   it("test_dispose_de_uma_sessao_NAO_toca_a_outra", () => {
@@ -127,54 +127,54 @@ describe("M77 T3.1 — pool de clientes MCP por sessão", () => {
     const b = pool.acquire("sessao-2", "fs", CFG, f.criar);
     pool.disposeSession("sessao-1", (c) => c.close());
 
-    expect(a.fechado).toBe(true);
-    expect(b.fechado, "a sessão vizinha não pode ser derrubada junto").toBe(false);
+    expect(a.closed).toBe(true);
+    expect(b.closed, "the neighboring session must not be torn down with it").toBe(false);
   });
 
   it("test_TTL_de_ociosidade_fecha_o_cliente_parado", () => {
-    // Relógio INJETADO — `rules/testing.md § 6` proíbe tempo real em teste unitário. Sem o TTL, uma
-    // sessão longa que usou um servidor uma vez o mantém vivo até o dispose.
-    let agora = 1_000;
+    // INJECTED clock — `rules/testing.md` § 6 forbids real time in a unit test. Without the TTL, a
+    // long session that used a server once keeps it alive until dispose.
+    let now = 1_000;
     const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => agora });
+    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => now });
 
     const a = pool.acquire("s", "fs", CFG, f.criar);
-    agora += 501;
+    now += 501;
     pool.reapIdle((c) => c.close());
 
-    expect(a.fechado).toBe(true);
-    // E a chave saiu: o próximo acquire cria em vez de devolver um cliente morto.
+    expect(a.closed).toBe(true);
+    // And the key is gone: the next acquire creates instead of returning a dead client.
     pool.acquire("s", "fs", CFG, f.criar);
-    expect(f.chamadas()).toBe(2);
+    expect(f.calls()).toBe(2);
   });
 
   it("test_CONTRAPROVA_uso_recente_NAO_e_recolhido", () => {
     // Sem esta, um `reapIdle` que fechasse tudo passaria no teste do TTL e mataria o cliente que
-    // acabou de ser usado — o pior resultado possível, pior que não ter pool.
-    let agora = 1_000;
+    // was just used — the worst possible outcome, worse than having no pool.
+    let now = 1_000;
     const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => agora });
+    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => now });
 
     const a = pool.acquire("s", "fs", CFG, f.criar);
-    agora += 400;
+    now += 400;
     pool.reapIdle((c) => c.close());
 
-    expect(a.fechado).toBe(false);
+    expect(a.closed).toBe(false);
   });
 
   it("test_acquire_RENOVA_a_ociosidade", () => {
-    // O TTL é de OCIOSIDADE, não de vida. Um servidor usado a cada turn não pode ser recolhido só
-    // porque foi criado há muito tempo.
-    let agora = 1_000;
+    // The TTL is about IDLENESS, not lifetime. A server used every turn must not be collected just
+    // because it was created long ago.
+    let now = 1_000;
     const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => agora });
+    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => now });
 
     const a = pool.acquire("s", "fs", CFG, f.criar);
-    agora += 400;
+    now += 400;
     pool.acquire("s", "fs", CFG, f.criar); // uso — renova
-    agora += 400; // 800 desde a criação, 400 desde o último uso
+    now += 400; // 800 since creation, 400 since last use
     pool.reapIdle((c) => c.close());
 
-    expect(a.fechado, "TTL é de ociosidade; o uso renova").toBe(false);
+    expect(a.closed, "the TTL is about idleness; use renews it").toBe(false);
   });
 });
