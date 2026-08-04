@@ -1,12 +1,12 @@
 /**
- * M81 T2.1 — o loader de subagents em disco vira público.
+ * M81 T2.1 — the on-disk subagents loader becomes public.
  *
- * ## A assimetria que causou a duplicação
+ * ## The asymmetry that caused the duplication
  *
- * `src/skills.ts:19` já exporta `discoverSkills` para o domínio irmão. Subagents tinham o mesmo
- * loader — `internal/runtime/skills/subagents-loader.ts` — mas **sem porta pública**. Um consumidor
- * atrás da fronteira INQUEBRÁVEL (`agent-builder` nunca importa `@theokit/sdk*`) não conseguia
- * alcançá-lo, e a única saída legal era reimplementar.
+ * `src/skills.ts:19` already exports `discoverSkills` for the sibling domain. Subagents had the same
+ * loader — `internal/runtime/skills/subagents-loader.ts` — but **with no public port**. A consumer
+ * behind the UNBREAKABLE boundary (`agent-builder` never imports `@theokit/sdk*`) could not
+ * reach it, and the only legal way out was to reimplement.
  *
  * Foi o que aconteceu. `agents/subagents/roles.ts:13-16` documenta o resultado, por escrito:
  *
@@ -15,14 +15,14 @@
  * > drift guard in `roles-materialize.test.ts` reads the raw `.md` independently and pins the
  * > resolved whitelist against it to catch that."*
  *
- * Um teste que existe apenas para vigiar uma duplicação é a prova mais limpa de que a duplicação não
- * deveria existir. Com esta promoção, `loadRole` e o teste de drift podem ser deletados — e essa
- * deleção é o critério de sucesso do milestone (ADR D1 do plano).
+ * A test that exists solely to watch a duplication is the cleanest proof the duplication should not
+ * exist. With this promotion, `loadRole` and the drift test can be deleted — and that
+ * deletion is the milestone's success criterion (ADR D1 of the plan).
  *
- * ## O que se exporta é a config PARSEADA, não o formato de arquivo
+ * ## What is exported is the PARSED config, not the file format
  *
- * Risco #2 do ROADMAP: exportar o loader pode congelar um formato interno como API pública. Por isso
- * o retorno é `AgentDefinition` — o dado já interpretado — e não o texto do `.md` nem a forma do
+ * ROADMAP risk #2: exporting the loader may freeze an internal format as public API. That is why
+ * the return is an `AgentDefinition` — the already-interpreted data — and not the `.md` text nor the shape of
  * frontmatter. O formato de arquivo permanece detalhe interno, livre para mudar.
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -40,14 +40,14 @@ const dirAgentes = join(cwd, ".theokit", "agents");
 mkdirSync(dirAgentes, { recursive: true });
 writeFileSync(
   join(dirAgentes, "explorer.md"),
-  "---\nname: explorer\ndescription: explora o repo\ntools: read_file, search_text\n---\n\nVocê explora.\n",
+  "---\nname: explorer\ndescription: explores the repo\ntools: read_file, search_text\n---\n\nYou explore.\n",
 );
 writeFileSync(
   join(dirAgentes, "analyst.md"),
-  "---\nname: analyst\ndescription: analisa\n---\n\nVocê analisa.\n",
+  "---\nname: analyst\ndescription: analyzes\n---\n\nYou analyze.\n",
 );
 
-describe("M81 T2.1 — loader de subagents público", () => {
+describe("M81 T2.1 — public subagents loader", () => {
   it("test_discoverSubagents_lista_os_do_diretorio", async () => {
     const encontrados = await discoverSubagents(cwd);
     expect(Object.keys(encontrados).sort()).toEqual(["analyst", "explorer"]);
@@ -55,20 +55,20 @@ describe("M81 T2.1 — loader de subagents público", () => {
 
   it("test_devolve_a_config_PARSEADA_e_nao_o_formato_de_arquivo", async () => {
     // Risco #2 do ROADMAP. Devolver o texto do `.md` ou a forma do frontmatter congelaria um formato
-    // interno como API pública; devolver `AgentDefinition` deixa o formato livre para mudar.
+    // internal format as public API; returning an `AgentDefinition` leaves the format free to change.
     const encontrados = await discoverSubagents(cwd);
     const explorer = encontrados.explorer as unknown as Record<string, unknown>;
 
-    expect(explorer.description, "a descrição tem de vir interpretada").toBe("explora o repo");
+    expect(explorer.description, "the description must come interpreted").toBe("explores the repo");
     expect(
       JSON.stringify(explorer),
-      "o retorno não pode carregar o texto bruto do frontmatter",
+      "the return must not carry the raw frontmatter text",
     ).not.toContain("---");
   });
 
   it("test_CONTRAPROVA_diretorio_vazio_devolve_lista_vazia_sem_lancar", async () => {
-    // Um projeto sem subagents é o caso comum, não um erro. Sem esta contraprova, uma implementação
-    // que lançasse em `ENOENT` passaria nos testes acima e quebraria todo projeto novo.
+    // A project with no subagents is the common case, not an error. Without this counter-proof, an implementation
+    // throwing on `ENOENT` would pass the tests above and break every new project.
     const vazio = mkdtempSync(join(tmpdir(), "m81-vazio-"));
     try {
       expect(await discoverSubagents(vazio)).toEqual({});

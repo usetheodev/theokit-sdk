@@ -5,14 +5,14 @@ import { Agent } from "../src/agent.js";
  * M91 — o docstring de `getOrCreate` afirmava o oposto do comportamento real.
  *
  * Ele dizia: *"Disposed agents are NOT auto-deleted from the registry. To force a fresh agent, call
- * `Agent.delete(agentId)` first."* Medido, é falso: `dispose()` chama `liveAgentRegistry.forget(id)`,
- * então o próximo `getOrCreate(id)` constrói um handle novo.
+ * `Agent.delete(agentId)` first."* Measured, that is false: `dispose()` calls `liveAgentRegistry.forget(id)`,
+ * so the next `getOrCreate(id)` builds a fresh handle.
  *
- * A afirmação era sobre o registro PERSISTENTE e foi lida como sendo sobre o cache vivo — e consumidores
- * construíram em cima da metade errada. O agent-builder rotaciona o id de sessão na interrupção do M85
- * para contornar uma restrição que não existe.
+ * The claim was about the PERSISTENT registry and was read as being about the live cache — and consumers
+ * built on the wrong half. The agent-builder rotates the session id on M85's interruption
+ * to work around a restriction that does not exist.
  *
- * Este arquivo existe para que a correção do docstring não volte a divergir do código.
+ * This file exists so the docstring's correction does not diverge from the code again.
  */
 describe("M91 — getOrCreate depois de dispose", () => {
   const opts = {
