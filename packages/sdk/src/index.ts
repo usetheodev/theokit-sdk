@@ -236,15 +236,16 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 export type { CustomTool, SDKAgent } from "./types/agent.js";
 // SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
 export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
-// M80 — `JudgeResult` e `Verdict` viram públicos.
+// M80 — `JudgeResult` and `Verdict` become public.
 //
-// Eram `internal/`, então um consumidor que quisesse tipar o retorno do judge — para reagir a
-// `blocked` sem string mágica, por exemplo — precisava redeclarar a forma. É a mesma duplicação que
-// o M78 fechou para a hierarquia de erro: sem a superfície pública, reimplementar é a única saída
-// legal para quem está atrás da fronteira de camadas.
+// They were `internal/`, so a consumer wanting to type the judge's return — to react to `blocked`
+// without a magic string, say — had to redeclare the shape. It is the same duplication M78 closed
+// for the error hierarchy: without the public surface, reimplementing is the only legal way out for
+// anyone behind the layer boundary.
 //
-// `JudgeCredentialError` acompanha porque é o erro que a falha-rápida do M80 lança: quem faz `catch`
-// no goal loop precisa distinguir "credencial do judge não serve" de qualquer outra falha.
+// `JudgeCredentialError` comes along because it is the error M80's fail-fast throws: whoever
+// `catch`es in the goal loop needs to tell "the judge credential does not work" from any other
+// failure.
 export type { JudgeResult, Verdict } from "./types/goal-events.js";
 // Type contract
 export type * from "./types/index.js";
