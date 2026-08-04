@@ -24,7 +24,7 @@ function storeWith(initial: SessionRecord[]): SessionStore & { records: SessionR
 
 function seed(): SessionRecord[] {
   const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
-  t.appendUserTurn("olá");
+  t.appendUserTurn("hello");
   t.appendAssistantTurn({ text: "oi" });
   return [...t.records()];
 }
@@ -52,7 +52,7 @@ describe("injectSessionTurn (M51)", () => {
     const joined = texts(store.records);
     expect(joined).toContain("<user_action>");
     expect(joined).toContain("Full review comments");
-    expect(joined).toContain("olá"); // história anterior intacta
+    expect(joined).toContain("hello"); // prior history intact
   });
 
   it("inject_invalidates_cache", async () => {
@@ -61,12 +61,12 @@ describe("injectSessionTurn (M51)", () => {
     clearAllSessions();
     const store = storeWith(seed());
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
-    appendSessionMessage(LOC.agentId, { role: "user", text: "em memória" });
+    appendSessionMessage(LOC.agentId, { role: "user", text: "in memory" });
     await injectSessionTurn({
       store,
       loc: LOC,
       sessionId: LOC.agentId,
-      userText: "par sintético",
+      userText: "synthetic pair",
       assistantText: "ack",
     });
     expect(getSessionMessages(LOC.agentId)).toEqual([]); // cache invalidado
@@ -75,7 +75,7 @@ describe("injectSessionTurn (M51)", () => {
       getSessionMessages(LOC.agentId)
         .map((m) => m.text)
         .join("\n"),
-    ).toContain("par sintético");
+    ).toContain("synthetic pair");
     clearAllSessions();
   });
 
@@ -109,25 +109,25 @@ describe("M51 review F4 — corrida inject × turno em voo", () => {
       await import("../../../src/internal/session/agent-session.js");
     clearAllSessions();
     const store = storeWith(seed());
-    // sessão viva hidratada
+    // live session hydrated
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
     // review termina → inject (invalida)
     await injectSessionTurn({
       store,
       loc: LOC,
       sessionId: LOC.agentId,
-      userText: "par-sintético",
+      userText: "synthetic-pair",
       assistantText: "findings",
     });
     // turno EM VOO completa depois do inject → repovoa o cache com 1 mensagem
     appendSessionMessage(LOC.agentId, { role: "assistant", text: "resposta do turno em voo" });
-    // próximo send → hydrate DEVE substituir do disco (que tem TUDO), não pinar em 1 mensagem
+    // next send -> hydrate MUST replace from disk (which has EVERYTHING), not pin at 1 message
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
     const joined = getSessionMessages(LOC.agentId)
       .map((m) => m.text)
       .join("\n");
-    expect(joined).toContain("olá"); // história original
-    expect(joined).toContain("par-sintético"); // par injetado
+    expect(joined).toContain("hello"); // original history
+    expect(joined).toContain("synthetic-pair"); // injected pair
     clearAllSessions();
   });
 });

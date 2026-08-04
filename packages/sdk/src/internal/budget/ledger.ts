@@ -5,7 +5,7 @@
  * `spentIn(window)` filters by timestamp.
  *
  * EC-6: GC eviction runs DENTRO do mesmo mutex que charge — sem race.
- * EC-9: charge() é called inside same critical section as preflight
+ * EC-9: charge() is called inside the same critical section as preflight
  * check by Budget enforcement.
  *
  * Persistence cross-restart: deferred to v0.2 (JsonFile pattern).

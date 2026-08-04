@@ -1,26 +1,26 @@
 /**
- * M77 T3.1 — a FIAÇÃO do pool, não a capacidade dele.
+ * M77 T3.1 — the pool's WIRING, not its capability.
  *
- * `tests/mcp-pool.test.ts` prova que a CLASSE reusa, isola por sessão e recolhe por ociosidade.
- * Isso não prova que o SISTEMA usa o pool — foi exatamente esse o defeito central do M76, onde
- * `AskBridge` suportava escopo por sessão e nada encaminhava o `threadId`. A métrica passava e o
- * invariante não.
+ * `tests/mcp-pool.test.ts` proves the CLASS reuses, isolates per session and collects on idleness.
+ * That does not prove the SYSTEM uses the pool — that was exactly M76's central defect, where
+ * `AskBridge` supported per-session scoping and nothing forwarded the `threadId`. The metric passed and the
+ * invariant did not.
  *
- * Estes testes olham para o sítio real de produção, `buildMcpMap` em `real-local-run.ts`:
+ * These tests look at the real production site, `buildMcpMap` in `real-local-run.ts`:
  *
  *  - o modo `'session'` chega ao pool;
- *  - o modo default `'run'` NÃO chega — a contraprova que impede o pool de virar o caminho de todo
- *    mundo em silêncio, mudando o modelo de falha de cron e one-shot sem ninguém pedir;
- *  - `dispose()` libera os clientes da sessão, senão um processo-filho por servidor sobrevive ao
+ *  - the default `'run'` mode does NOT arrive — the counter-proof that stops the pool from silently becoming
+ *    everyone's path, changing the failure model of cron and one-shot with nobody asking;
+ *  - `dispose()` frees the session's clients, otherwise one child process per server outlives the
  *    agente pelo resto da vida do host.
  */
 import { describe, expect, it, vi } from "vitest";
 
-const criados: string[] = [];
+const created: string[] = [];
 
 vi.mock("../src/internal/mcp/client.js", () => ({
   createMcpClient: (name: string) => {
-    criados.push(name);
+    created.push(name);
     return {
       name,
       close: vi.fn(),
@@ -47,42 +47,45 @@ const opts = (agentId: string, lifecycle?: "run" | "session"): never =>
     },
   }) as never;
 
-describe("M77 T3.1 — a fiação do pool em buildMcpMap", () => {
+describe("M77 T3.1 — the pool wiring in buildMcpMap", () => {
   it("test_lifecycle_session_REUSA_entre_dois_turns_da_mesma_sessao", () => {
-    criados.length = 0;
+    created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-1", "session"));
     const b = _buildMcpMapForTests(opts("agente-1", "session"));
 
-    // Contagem de CAUSA no sítio real: prova que o segundo turn não respawnou o servidor.
-    expect(criados, "o segundo turn não pode recriar o cliente").toHaveLength(1);
+    // Counting CAUSE at the real site: proves the second turn did not respawn the server.
+    expect(created, "the second turn must not recreate the client").toHaveLength(1);
     expect(b.get("fs")).toBe(a.get("fs"));
     disposeSessionMcpClients("agente-1");
   });
 
   it("test_CONTRAPROVA_o_default_run_NAO_reusa", () => {
     // A contraprova que importa. Sem ela, fazer o pool valer para todos passaria no teste acima e
-    // mudaria o modelo de falha de cron e one-shot sem ninguém ter pedido (plano ADR D3).
-    criados.length = 0;
+    // would change the failure model of cron and one-shot with nobody having asked (plan ADR D3).
+    created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-2"));
     const b = _buildMcpMapForTests(opts("agente-2"));
 
-    expect(criados, "sem a opção, cada run tem seu cliente — como sempre foi").toHaveLength(2);
+    expect(
+      created,
+      "without the option, each run has its own client — as it always was",
+    ).toHaveLength(2);
     expect(b.get("fs")).not.toBe(a.get("fs"));
   });
 
   it("test_agentes_distintos_nao_compartilham_mesmo_em_modo_session", () => {
-    criados.length = 0;
+    created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-3", "session"));
     const b = _buildMcpMapForTests(opts("agente-4", "session"));
 
-    expect(criados).toHaveLength(2);
+    expect(created).toHaveLength(2);
     expect(b.get("fs")).not.toBe(a.get("fs"));
     disposeSessionMcpClients("agente-3");
     disposeSessionMcpClients("agente-4");
   });
 
   it("test_dispose_FECHA_o_cliente_e_o_proximo_turn_cria_de_novo", () => {
-    criados.length = 0;
+    created.length = 0;
     const a = _buildMcpMapForTests(opts("agente-5", "session"));
     const cliente = a.get("fs") as unknown as { close: ReturnType<typeof vi.fn> };
 
@@ -91,7 +94,7 @@ describe("M77 T3.1 — a fiação do pool em buildMcpMap", () => {
     // Sem isto, um processo-filho por servidor sobrevive ao agente pelo resto da vida do host.
     expect(cliente.close).toHaveBeenCalled();
     _buildMcpMapForTests(opts("agente-5", "session"));
-    expect(criados, "a chave saiu do pool — não se devolve um cliente fechado").toHaveLength(2);
+    expect(created, "the key left the pool — a closed client is not handed back").toHaveLength(2);
     disposeSessionMcpClients("agente-5");
   });
 });

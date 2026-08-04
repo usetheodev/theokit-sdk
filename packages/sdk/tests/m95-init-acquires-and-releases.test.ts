@@ -1,12 +1,12 @@
 /**
- * M95 — a correção do BLOCKER-1 tem de ser distinguível da sua ausência.
+ * M95 — the BLOCKER-1 fix must be distinguishable from its absence.
  *
- * A revisão adversarial mediu que apagar a aquisição no init **e** a propagação do
- * `SessionBusyError` deixava a suíte inteira verde: 3960/3960. É a mesma forma de dívida que abriu
+ * Adversarial review measured that deleting the init acquisition **and** the propagation of
+ * `SessionBusyError` left the whole suite green: 3960/3960. It is the same kind of debt that opened
  * este milestone — `acquireSessionWriter` com zero chamadores enquanto o roadmap a registrava como
- * entregue —, agora na correção do BLOCKER que ela veio fechar.
+ * delivered — now in the fix for the BLOCKER it came to close.
  *
- * Estes testes são os que reprovam os dois mutantes.
+ * These tests are the ones that fail both mutants.
  */
 
 import { existsSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -67,7 +67,7 @@ describe("M95 — o init toma o lease (mutante N1)", () => {
 });
 
 describe("M95 — SessionBusyError PROPAGA do init (mutante N2)", () => {
-  it("initialize() lança quando outro processo vivo detém a sessão", async () => {
+  it("initialize() throws when another live process holds the session", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
     lockDeOutroProcesso(base, "ag-n2");
     const a = new LocalAgent(opcoes(base, "ag-n2"));
@@ -77,27 +77,27 @@ describe("M95 — SessionBusyError PROPAGA do init (mutante N2)", () => {
 });
 
 describe("M95 — um init que falha DEPOIS de adquirir solta o lease (HIGH-1)", () => {
-  it("o lock não fica com o próprio processo, que o trancaria para sempre", async () => {
+  it("the lock is not left with this very process, which would lock it forever", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
     const p = transcriptPath(base, base, "ag-h1");
     mkdirSync(dirname(p), { recursive: true });
-    // Transcript ilegível: `readRecords` DEVE lançar por contrato ("a resume cannot proceed on a
-    // silent partial history"), e isso acontece DEPOIS da aquisição.
+    // Unreadable transcript: `readRecords` MUST throw by contract ("a resume cannot proceed on a
+    // silent partial history"), and that happens AFTER the acquisition.
     writeFileSync(p, "conteudo", { mode: 0o000 });
 
     const a = new LocalAgent(opcoes(base, "ag-h1"));
     await a.initialize().catch(() => undefined);
 
-    // Se o lease vazar, ele fica com ESTE processo — vivo, mesmo host — e nunca mais é reclamável.
+    // If the lease leaks, it stays with THIS process — alive, same host — and is never reclaimable again.
     expect(
       existsSync(`${p}.writer.lock`),
-      "o lease vazou: a sessão fica trancada pelo tempo de vida do processo",
+      "the lease leaked: the session stays locked for the process lifetime",
     ).toBe(false);
   });
 });
 
-describe("M95/LOW-1 — um init que falha não solta o lease dos OUTROS agentes", () => {
-  it("o lease de um agente vivo sobrevive à falha de init de outro", async () => {
+describe("M95/LOW-1 — a failing init does not release OTHER agents' leases", () => {
+  it("a live agent's lease survives another agent's init failure", async () => {
     const base = mkdtempSync(join(tmpdir(), "m95-init-"));
     const vivo = await agente(base, "ag-vivo");
     expect(existsSync(`${transcriptPath(base, base, "ag-vivo")}.writer.lock`)).toBe(true);

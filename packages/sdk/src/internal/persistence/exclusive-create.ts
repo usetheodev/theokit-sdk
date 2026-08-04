@@ -11,8 +11,8 @@
  * readable 0o644 under typical umask 022. Callers writing non-sensitive
  * files can pass `mode: 0o644` explicitly.
  *
- * NFS sem honor de O_EXCL é documentado (D61 — mesma postura do
- * `withFileLock`); SDK target é ext4/APFS/NTFS.
+ * NFS not honoring O_EXCL is documented (D61 — same stance as
+ * `withFileLock`); the SDK target is ext4/APFS/NTFS.
  *
  * @internal
  */

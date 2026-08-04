@@ -117,11 +117,11 @@ export interface ReadJsonlTailOptions {
 const TAIL_CHUNK = 64 * 1024;
 
 /**
- * Lê chunks de trás para frente até acumular linhas completas suficientes.
+ * Reads chunks backwards until enough complete lines have accumulated.
  *
- * Extraído de `readJsonlTail` porque o laço de leitura e a seleção de registros são duas
+ * Extracted from `readJsonlTail` because the read loop and the record selection are two
  * responsabilidades — e juntas passavam do teto de complexidade. A primeira linha do buffer pode
- * estar cortada ao meio quando a leitura parou antes do início do arquivo; por isso ela é descartada.
+ * be cut in half when the read stopped before the start of the file; that is why it is discarded.
  */
 function lerCaudaBruta(path: string, want: number): { linhas: string[]; bytesRead: number } {
   const size = statSync(path).size;
@@ -146,7 +146,7 @@ function lerCaudaBruta(path: string, want: number): { linhas: string[]; bytesRea
   return { linhas: pos > 0 ? linhas.slice(1) : linhas, bytesRead };
 }
 
-/** Linhas com conteúdo, na ordem do arquivo. */
+/** Non-empty lines, in file order. */
 function naoVazias(texto: string): string[] {
   return texto.split("\n").filter((l) => l.trim().length > 0);
 }

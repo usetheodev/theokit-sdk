@@ -35,8 +35,15 @@ import { describe, expect, it } from "vitest";
 
 const PACKAGES_ROOT = join(__dirname, "..", "..", "..");
 
-/** Scanned roots, relative to `packages/`. */
-const SCAN_ROOTS = ["sdk/src", "sdk/tests", "sdk-tools/src", "sdk-tools/tests"];
+/**
+ * Scanned roots, relative to `packages/`. `"."` means every workspace package.
+ *
+ * It scans the whole tree rather than an explicit list because the first version listed
+ * `sdk/{src,tests}` and `sdk-tools/{src,tests}` — and silently missed `sdk-pty` and `sdk-budget`,
+ * which carried 60 Portuguese lines nobody was watching. A gate whose coverage is a hand-kept list
+ * decays the moment a package is added.
+ */
+const SCAN_ROOTS = ["."];
 
 /**
  * Loanwords English legitimately borrows with their diacritics. `façade` is a
@@ -221,7 +228,7 @@ async function walk(dir: string, out: string[] = []): Promise<string[]> {
     return out;
   }
   for (const name of entries) {
-    if (name === "node_modules" || name === "dist") continue;
+    if (name === "node_modules" || name === "dist" || name === "coverage") continue;
     const full = join(dir, name);
     const s = await stat(full);
     if (s.isDirectory()) await walk(full, out);

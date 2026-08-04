@@ -1,12 +1,12 @@
 /**
  * Mapeamento de `LlmMessage` para o formato de mensagem da OpenAI.
  *
- * Extraído de `openai.ts` no M75 porque o gate G8 (≤ 400 LoC) o pegou em 427 — dívida PRE-EXISTENTE,
- * que ficou invisível enquanto o `knip` falhava antes de o gate rodar.
+ * Extracted from `openai.ts` in M75 because the G8 gate (<= 400 LoC) caught it at 427 — PRE-EXISTING debt,
+ * which stayed invisible while `knip` failed before the gate ran.
  *
- * A costura não é arbitrária: estas cinco funções formam UMA responsabilidade — traduzir o nosso
+ * The seam is not arbitrary: these five functions form ONE responsibility — translating our
  * formato de mensagem para o da wire da OpenAI — e nenhuma delas conhece transporte, streaming ou
- * política de request. O resto de `openai.ts` cuida disso.
+ * request policy. The rest of `openai.ts` handles that.
  */
 import { toStringToolResultContent } from "./tool-result-content.js";
 import type { LlmMessage } from "./types.js";

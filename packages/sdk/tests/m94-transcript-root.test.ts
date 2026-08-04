@@ -1,10 +1,10 @@
 /**
- * M94 Fase 1 — a raiz de transcript honra THEOKIT_HOME como seus irmãos.
+ * M94 Phase 1 — the transcript root honors THEOKIT_HOME like its siblings.
  *
- * O ROADMAP diz "como `catalog-source-models-dev.ts:49`". Medido: aquele irmão é
+ * The ROADMAP says "like `catalog-source-models-dev.ts:49`". Measured: that sibling is
  * **home-ancorado com override por env**. O `getTheokitHome(cwd)` de `paths.ts`
- * é **cwd-ancorado** — reusá-lo moveria o transcript de todo mundo que NÃO define
- * a variável, muito além do risco #1 do ROADMAP. Ver ADR-2 do plano.
+ * is **cwd-anchored** — reusing it would move the transcript of everyone who does NOT set
+ * the variable, far beyond ROADMAP risk #1. See the plan's ADR-2.
  */
 
 import { homedir } from "node:os";
@@ -24,12 +24,12 @@ describe("M94 — transcriptRoot", () => {
     expect(transcriptRoot()).toBe("/tmp/m94-raiz-custom");
   });
 
-  it("ignora THEOKIT_HOME vazia ou só com espaço (mesma disciplina do irmão)", () => {
+  it("ignores an empty or whitespace-only THEOKIT_HOME (same discipline as the sibling)", () => {
     process.env.THEOKIT_HOME = "   ";
     expect(transcriptRoot()).toBe(join(homedir(), ".theokit"));
   });
 
-  it("faz fallback para ~/.theokit — NÃO para <cwd>/.theokit (ADR-2)", () => {
+  it("falls back to ~/.theokit — NOT to <cwd>/.theokit (ADR-2)", () => {
     delete process.env.THEOKIT_HOME;
     expect(transcriptRoot()).toBe(join(homedir(), ".theokit"));
     expect(transcriptRoot()).not.toBe(join(process.cwd(), ".theokit"));

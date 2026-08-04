@@ -63,8 +63,8 @@ function redactValue(value: unknown): unknown {
 }
 
 // M94 — era `Record<string, unknown>`. O tipo publicado descreve a mesma forma que este arquivo
-// sempre produziu; o alias local passa a apontar para ele para que escritor e leitor não possam
-// divergir em silêncio.
+// has always produced; the local alias now points at it so writer and reader cannot
+// diverge silently.
 type Block = TranscriptBlock;
 
 /**
@@ -286,13 +286,13 @@ export function reconstructMessages(records: readonly SessionRecord[]): LlmMessa
 /**
  * Raiz do estado de transcript.
  *
- * `THEOKIT_HOME` vence; o fallback é `~/.theokit`. Home-ancorado de propósito, e NÃO
+ * `THEOKIT_HOME` wins; the fallback is `~/.theokit`. Home-anchored on purpose, and NOT
  * `getTheokitHome(cwd)` de `paths.ts`: aquele faz fallback para `<cwd>/.theokit`, e trocar
- * por ele moveria o transcript de todo mundo que **não** define a variável. O irmão com a
- * forma certa é `catalog-source-models-dev.ts` (M94 ADR-2).
+ * by it would move the transcript of everyone who does **not** set the variable. The sibling with the
+ * right shape is `catalog-source-models-dev.ts` (M94 ADR-2).
  *
- * Antes do M94 esta função ignorava a env, então quem a definia tinha o estado partido em
- * dois em silêncio — as sessões continuavam em `~/.theokit` enquanto o resto do SDK migrava.
+ * Before M94 this function ignored the env var, so whoever set it had their state split in
+ * two silently — sessions stayed in `~/.theokit` while the rest of the SDK migrated.
  */
 export function transcriptRoot(): string {
   const override = process.env.THEOKIT_HOME?.trim();

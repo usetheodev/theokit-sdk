@@ -11,11 +11,11 @@ import { transcriptPath } from "../src/internal/persistence/session-transcript.j
  * M93 T4.1 — `appendRecords` acrescenta o delta em vez de reescrever o arquivo.
  *
  * Antes era `readTranscript` + `writeTranscript` do arquivo **inteiro**, por turno: O(n) de I/O **e**
- * de parse a cada turno, O(n²) por sessão. A nota do consumidor registra 1,4 MB / 3000 linhas em 200
+ * of parsing on every turn, O(n^2) per session. The consumer note records 1.4 MB / 3000 lines over 200
  * turnos.
  *
- * Correto porque o formato **já é append-only** — o DAG de `parentUuid` não depende da ordem de linha.
- * E `appendJsonl` **já existia no pacote**, com um único chamador; a primitiva estava lá e o store a
+ * Correct because the format **is already append-only** — the `parentUuid` DAG does not depend on line order.
+ * And `appendJsonl` **already existed in the package**, with a single caller; the primitive was there and the store
  * ignorava.
  */
 const reg = (id: string) => ({ uuid: id, type: "user", message: { role: "user", content: id } });
@@ -72,12 +72,12 @@ describe("M93 — append incremental", () => {
   });
 
   /**
-   * A guarda de delta vazio evita o **lock**, e é isso que a torna observável.
+   * The empty-delta guard avoids the **lock**, and that is what makes it observable.
    *
-   * A primeira versão do teste acima assere só o `mtime` — e o mutante que remove a guarda
-   * **sobrevivia**, porque com `records` vazio o laço não escreve nada de qualquer jeito. O que a
-   * guarda de fato evita é `mkdir` + `withFileLock`, e o lock deixa rastro: um arquivo companheiro
-   * `<path>.lock`. Sem esse detalhe, a guarda seria uma otimização sem prova.
+   * The first version of the test above asserted only `mtime` — and the mutant removing the guard
+   * **survived**, because with an empty `records` the loop writes nothing anyway. What the
+   * guard actually avoids is `mkdir` + `withFileLock`, and the lock leaves a trace: a companion file
+   * `<path>.lock`. Without that detail, the guard would be an optimization without proof.
    */
   it("delta VAZIO nao chega a pegar o lock — a guarda evita mkdir + withFileLock", async () => {
     const base = mkdtempSync(join(tmpdir(), "m93-lock-"));
@@ -91,14 +91,14 @@ describe("M93 — append incremental", () => {
 
   /**
    * **atomic-counter invariant**: dois `appendRecords` concorrentes de 3 e 4 registros produzem
-   * exatamente 7 linhas — nenhuma perdida, nenhuma duplicada. `withFileLock` permanece e é o que
-   * serializa; trocar a operação não pode afrouxar isso.
+   * exactly 7 lines — none lost, none duplicated. `withFileLock` stays and is what
+   * serializes; swapping the operation must not loosen that.
    */
-  // NOTA (revisão adversarial do M93): este teste NÃO prova que o lock é necessário — removê-lo
-  // deixa a suíte verde, porque `appendJsonl` é síncrono e o DAG de `parentUuid` torna a
-  // intercalação segura. O que ele prova é o invariante que importa: nenhuma linha se perde sob
-  // concorrência. A defesa que o lock ainda oferece está declarada em `fs-session-store.ts` como
-  // resíduo não-mecanizado, em vez de reivindicada aqui como cobertura.
+  // NOTE (M93 adversarial review): this test does NOT prove the lock is necessary — removing it
+  // leaves the suite green, because `appendJsonl` is synchronous and the `parentUuid` DAG makes
+  // interleaving safe. What it proves is the invariant that matters: no line is lost under
+  // concurrency. The defense the lock still offers is declared in `fs-session-store.ts` as
+  // non-mechanized residue, rather than claimed here as coverage.
   it("dois appendRecords CONCORRENTES nao perdem linha", async () => {
     const { store, linhas } = montar();
     await Promise.all([

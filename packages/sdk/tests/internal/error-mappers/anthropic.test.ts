@@ -122,7 +122,7 @@ describe("mapAnthropicError", () => {
     expect(err.metadata?.endpoint).toBe("/v1/messages/special");
   });
 
-  // EC-2: Anthropic 529 "overloaded_error" — comum em horário de pico
+  // EC-2: Anthropic 529 "overloaded_error" — common at peak hours
   it("EC-2: 529 overloaded_error → NetworkError + retryAfter", () => {
     const err = mapAnthropicError({
       status: 529,
