@@ -4,21 +4,21 @@
  * ## Por que no framework
  *
  * O agent-builder tinha isto local (`agents/tools/repo-status.ts` 26 LoC +
- * `agents/tools/lib/repo-status-core.ts` 36 LoC). Não há nada de específico do consumidor em "rodar
- * `git status --porcelain` com timeout e teto de saída" — é o que qualquer agente que edite código
- * vai reimplementar, que é a definição de infraestrutura de framework.
+ * `agents/tools/lib/repo-status-core.ts` 36 LoC). There is nothing consumer-specific about "running
+ * `git status --porcelain` with a timeout and an output ceiling" — it is what any code-editing agent
+ * will reimplement, which is the definition of framework infrastructure.
  *
- * ## O padrão é herdado, não inventado
+ * ## The pattern is inherited, not invented
  *
- * Segue `git-diff.ts` campo a campo: `projectRoot` obrigatório, `timeoutMs?`, `maxStdoutBytes?`,
- * `sandbox?`. Reusa `runGitProcess`/`formatGitResult`/`checkPathScope` — nada é reescrito
- * (`parsimony-ladder.md` rung 4: reusar o que já está instalado).
+ * It follows `git-diff.ts` field by field: `projectRoot` required, `timeoutMs?`, `maxStdoutBytes?`,
+ * `sandbox?`. It reuses `runGitProcess`/`formatGitResult`/`checkPathScope` — nothing is rewritten
+ * (`parsimony-ladder.md` rung 4: reuse what is already installed).
  *
- * ## O caso negativo é o que importa
+ * ## The negative case is what matters
  *
- * "Roda em um repo" é satisfeito por quase qualquer implementação. O que separa uma tool utilizável
- * de uma armadilha é o que ela faz **fora** de um repo: `error-handling.md` § 2 exige erro tipado com
- * mensagem, não string vazia (que o modelo leria como "não há mudanças") nem exceção crua.
+ * "Runs in a repo" is satisfied by almost any implementation. What separates a usable tool
+ * from a trap is what it does **outside** a repo: `error-handling.md` § 2 requires a typed error with a
+ * message, not an empty string (which the model would read as "no changes") nor a raw exception.
  */
 import { execFileSync } from "node:child_process";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -59,34 +59,34 @@ describe("M76 T2.2 — createGitStatusTool", () => {
   });
 
   it("test_NEGATIVO_fora_de_repo_git_devolve_erro_tipado", async () => {
-    // O teste que separa tool utilizável de armadilha: fora de um repo, uma string vazia seria lida
-    // pelo modelo como "não há mudanças" — que é falso e indistinguível do caso feliz.
+    // The test that separates a usable tool from a trap: outside a repo, an empty string would be read
+    // by the model as "no changes" — which is false and indistinguishable from the happy path.
     const t = createGitStatusTool({ projectRoot: semGit });
     const out = (await t.handler({})) as string;
     const parsed = JSON.parse(out) as { ok: boolean; error?: string };
     expect(parsed.ok).toBe(false);
-    expect(parsed.error, "o erro precisa ser TIPADO, não uma string livre").toBe("not_a_repo");
+    expect(parsed.error, "the error must be TYPED, not a free-form string").toBe("not_a_repo");
   });
 
   it("test_o_nome_e_a_descricao_seguem_o_padrao", () => {
-    // ÂNCORA: o nome é contrato (chave de approval + o que o modelo vê — blueprint Q1). Se ele
+    // ANCHOR: the name is a contract (approval key + what the model sees — blueprint Q1). If it
     // mudasse silenciosamente, approvals gravados deixariam de casar.
     const t = createGitStatusTool({ projectRoot: repo });
     expect(t.name).toBe("git_status");
-    // M76 review (M3) — `length > 20` era um oráculo vazio: 21 caracteres de lixo passavam. A
-    // descrição é o que o modelo lê para decidir CHAMAR a tool; se ela não disser o que a tool faz,
-    // a tool não é escolhida, e nenhum teste de comportamento pega isso.
+    // M76 review (M3) — `length > 20` was an empty oracle: 21 characters of junk passed. The
+    // description is what the model reads to decide to CALL the tool; if it does not say what the tool does,
+    // the tool is not chosen, and no behavior test catches that.
     //
-    // Nota sobre a primeira versão desta asserção: ela exigia `/git/i` e FALHOU — a descrição fala de
-    // "working-tree status", não da ferramenta que a implementa. O oráculo estava errado, não a
-    // descrição: descrever o COMPORTAMENTO (o que o modelo precisa para escolher) em vez do
-    // executável é a prática correta, e o teste agora ancora nisso.
+    // Note on the first version of this assertion: it required `/git/i` and FAILED — the description speaks of
+    // "working-tree status", not of the tool implementing it. The oracle was wrong, not the
+    // description: describing the BEHAVIOR (what the model needs in order to choose) rather than the
+    // executable is the correct practice, and the test now anchors on that.
     expect(t.description).toMatch(/status/i);
     expect(t.description).toMatch(/staged|untracked|working-tree/i);
   });
 
   it("test_name_da_fabrica_sobrescreve_como_nas_demais", () => {
-    // Paridade com T1.2: a tool nova nasce já respeitando a opção de nome.
+    // Parity with T1.2: the new tool is born already respecting the name option.
     const t = createGitStatusTool({ projectRoot: repo, name: "repo_status" });
     expect(t.name).toBe("repo_status");
   });
@@ -94,8 +94,8 @@ describe("M76 T2.2 — createGitStatusTool", () => {
 
 describe("M76 T2.2 — a linha de branch", () => {
   it("test_inclui_branch_por_default", async () => {
-    // Sem ela o agente vê O QUE mudou mas não ONDE — e "estou na branch certa?" precede qualquer
-    // commit. O consumidor já dependia disto; migrar sem cobrir perderia comportamento em silêncio.
+    // Without it the agent sees WHAT changed but not WHERE — and "am I on the right branch?" precedes any
+    // commit. The consumer already depended on this; migrating without covering it would silently lose behavior.
     const t = createGitStatusTool({ projectRoot: repo });
     const out = (await t.handler({})) as string;
     expect(out).toMatch(/##/); // porcelain -b marca a branch com '## '

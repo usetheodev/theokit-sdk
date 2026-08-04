@@ -3,21 +3,21 @@
  *
  * ## Por que este arquivo existe
  *
- * O review por mutação provou que 3 dos 4 ramos de decisão não tinham oráculo. Reduzir
+ * Mutation review proved 3 of the 4 decision branches had no oracle. Reducing
  * `SEGMENTOS_SENSIVEIS` a `{".env"}` — deixando `.git`, `node_modules` e `.theo` passarem —, inverter
- * a exceção do `.env.example` ou remover a regex `/^\.env\./` (que pega `.env.production`) **passavam
- * com a suíte inteira verde**. Só o literal `.env` estava coberto, e por acaso: via um teste de
+ * the `.env.example` exception, or removing the regex `/^\.env\./` (which catches `.env.production`), **passed
+ * with the whole suite green**. Only the literal `.env` was covered, and by accident: through a test of
  * `list-dir` que exercitava um caminho com esse segmento.
  *
- * O guard é a metade não-negociável do `allowAbsolute`: `isForbiddenPath` só bloqueia o item sensível
- * quando ele é o PRIMEIRO segmento, então um `/home/u/proj/.env/sub` passaria. Testá-lo apenas de
- * viés, através de uma tool, é o que permitiu que 3 ramos ficassem sem prova.
+ * The guard is `allowAbsolute`'s non-negotiable half: `isForbiddenPath` only blocks the sensitive item
+ * when it is the FIRST segment, so a `/home/u/proj/.env/sub` would pass. Testing it only
+ * indirectly, through a tool, is what let 3 branches go unproven.
  *
- * ## Além disso, ele tinha DUAS cópias
+ * ## On top of that, it had TWO copies
  *
- * A "promoção" do M76 moveu o guard para `path-scope.ts` mas deixou a cópia privada em
- * `read-file.ts` — criando exatamente a duplicação que o docblock do promovido dizia existir para
- * evitar. Agora há uma só, e este arquivo é o oráculo dela.
+ * M76's "promotion" moved the guard into `path-scope.ts` but left the private copy in
+ * `read-file.ts` — creating exactly the duplication the promoted docblock said it existed to
+ * avoid. Now there is only one, and this file is its oracle.
  */
 import { describe, expect, it } from "vitest";
 
@@ -25,18 +25,18 @@ import { ehProibidoEmQualquerProfundidade } from "../src/path-scope.js";
 
 describe("M76 review — guard de segredo por qualquer segmento", () => {
   it("test_bloqueia_cada_segmento_sensivel_em_profundidade", () => {
-    // O ramo que a mutação "reduzir a lista a {.env}" quebrava sem que nada percebesse.
+    // The branch the "reduce the list to {.env}" mutation broke without anything noticing.
     for (const seg of [".env", ".git", "node_modules", ".theo"]) {
       expect(
         ehProibidoEmQualquerProfundidade(`/home/u/proj/${seg}/sub/x`),
-        `"${seg}" num segmento intermediário tem de bloquear`,
+        `"${seg}" in an intermediate segment must block`,
       ).toBe(true);
     }
   });
 
   it("test_bloqueia_variantes_de_env_como_env_production", () => {
-    // O ramo da regex `/^\.env\./`. Sem ele, `.env.production` — que carrega segredo de produção —
-    // passaria, enquanto `.env` bloqueia. A pior forma de falha: parcial e plausível.
+    // The `/^\.env\./` regex branch. Without it, `.env.production` — which carries production secrets —
+    // would pass, while `.env` blocks. The worst failure mode: partial and plausible.
     for (const seg of [".env.production", ".env.local", ".env.staging"]) {
       expect(ehProibidoEmQualquerProfundidade(`/a/${seg}/b`), `"${seg}" tem de bloquear`).toBe(
         true,
@@ -45,14 +45,14 @@ describe("M76 review — guard de segredo por qualquer segmento", () => {
   });
 
   it("test_env_example_e_a_EXCECAO_e_continua_liberado", () => {
-    // O ramo da exceção. `.env.example` é template versionado — bloqueá-lo seria falso positivo, e
-    // um falso positivo aqui ensina o usuário a desligar o guard.
+    // The exception branch. `.env.example` is a versioned template — blocking it would be a false positive, and
+    // a false positive here teaches the user to turn the guard off.
     expect(ehProibidoEmQualquerProfundidade("/a/.env.example/b")).toBe(false);
     expect(ehProibidoEmQualquerProfundidade("/a/.env.example")).toBe(false);
   });
 
   it("test_caminho_limpo_NAO_bloqueia", () => {
-    // CONTRAPROVA: sem ela, uma implementação que devolvesse `true` sempre passaria em tudo acima.
+    // COUNTER-PROOF: without it, an implementation always returning `true` would pass everything above.
     expect(ehProibidoEmQualquerProfundidade("/home/u/proj/src/lib")).toBe(false);
     expect(ehProibidoEmQualquerProfundidade("/usr/share/doc")).toBe(false);
   });
