@@ -11,7 +11,7 @@
 import type { ModelSelection } from "../../../types/agent.js";
 import type { SDKMessage } from "../../../types/messages.js";
 import type { ProcessorTripwire } from "../../../types/processors.js";
-import type { Run, RunOperation, RunResult } from "../../../types/run.js";
+import type { Run, RunOperation, RunResult, RunTimelineEvent } from "../../../types/run.js";
 import { registerRun } from "../registry/run-registry.js";
 
 const SUPPORTED: ReadonlySet<RunOperation> = new Set<RunOperation>([
@@ -20,6 +20,14 @@ const SUPPORTED: ReadonlySet<RunOperation> = new Set<RunOperation>([
   "cancel",
   "conversation",
 ]);
+
+/**
+ * theokit#140 - the timeline counterpart. Empty for the same fact `emptyStream` is empty for: a
+ * tripwire run never executed, so it produced no events of any kind.
+ */
+function emptyTimeline(): AsyncGenerator<RunTimelineEvent, void> {
+  return emptyStream() as unknown as AsyncGenerator<RunTimelineEvent, void>;
+}
 
 /** An already-exhausted async iterator — a tripwire run streams no content. */
 function emptyStream(): AsyncGenerator<SDKMessage, void> {
@@ -51,6 +59,9 @@ export function createTripwireRun(args: {
     status: "cancelled",
     ...(args.model !== undefined ? { model: args.model } : {}),
     stream: () => emptyStream(),
+    // theokit#140 - a tripwire run never executed, so its timeline is empty by construction, the
+    // same reason `stream()` is. Both are empty for the same fact, not by coincidence.
+    events: () => emptyTimeline(),
     wait: () => Promise.resolve(result),
     cancel: () => Promise.resolve(),
     conversation: () => Promise.resolve([]),

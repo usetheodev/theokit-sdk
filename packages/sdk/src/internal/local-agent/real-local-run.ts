@@ -1,5 +1,6 @@
 import { ConfigurationError } from "../../errors.js";
 import type { AgentDefinition, AgentOptions, ModelSelection } from "../../types/agent.js";
+import type { SDKMessage } from "../../types/messages.js";
 import type { Run, RunOperation, RunStatus, SDKUserMessage, SendOptions } from "../../types/run.js";
 import { emitRunEvent } from "../../types/run-events.js";
 import { type AgentLoopInputs, runAgentLoop } from "../agent-loop/loop.js";
@@ -23,7 +24,6 @@ import { createTelemetry } from "../telemetry/tracer.js";
 import { McpClientPool } from "./mcp-pool.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
 import { buildCustomToolsInput } from "./real-local-run-tools.js";
-import type { SDKMessage } from "../../types/messages.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -466,7 +466,19 @@ class RealLocalRun extends FixtureRunBase {
     inputs.onLoopEvent = (event: SDKMessage) => {
       this.liveDelivered.add(event);
       this.script.events.push(event);
+      // theokit#140 - the same event on the complete timeline. Both views are fed from the one
+      // place the loop reports, so they cannot disagree about order or contents.
+      this.pushTimeline({ kind: "message", message: event });
       this.notifyNewEvents();
+    };
+    // theokit#140 - the OTHER half of the timeline. Deltas were only ever reachable through the
+    // caller's own `onDelta`, which is why a consumer had to fuse two surfaces to see tokens and
+    // tool calls in one order. The caller's callback is preserved and still fires first: this wraps
+    // it, never replaces it.
+    const callerOnDelta = inputs.onDelta;
+    inputs.onDelta = (delta) => {
+      callerOnDelta?.(delta);
+      this.pushTimeline({ kind: "delta", update: delta.update });
     };
     try {
       // SE18 — when the send set `activeTools`, run the loop inside a tool-whitelist
@@ -497,18 +509,7 @@ class RealLocalRun extends FixtureRunBase {
    * Finding-B fix (sdk-error-packaging v1.1): set-once errorDetail copy.
    */
   private applyAgentLoopOutput(output: Awaited<ReturnType<typeof runAgentLoop>>): void {
-    for (const event of output.events) {
-      // theokit#140 - skip what the live subscriber already delivered. The loop now reports each
-      // event as it happens, so this batch is the SAME list, replayed. Without the guard every
-      // event would reach stream() twice: once live, once here.
-      //
-      // Identity, not deep equality: these are the very objects the live sink saw, and two
-      // genuinely distinct events can be structurally identical (the same tool called twice with
-      // the same args is not a duplicate).
-      if (this.liveDelivered.has(event)) continue;
-      this.script.events.push(event);
-      this.notifyNewEvents();
-    }
+    this.deliverUndeliveredEvents(output.events);
     this.script.conversation.push(...output.conversation);
     if (output.result.length > 0) this.script.result = output.result;
     if (output.usage !== undefined) this.script.usage = output.usage;
@@ -523,6 +524,26 @@ class RealLocalRun extends FixtureRunBase {
         ...(output.error.code !== undefined ? { code: output.error.code } : {}),
         cause: output.error.cause,
       };
+    }
+  }
+
+  /**
+   * theokit#140 - deliver only what the live subscriber has NOT already handed to `stream()`.
+   *
+   * The loop now reports each event as it happens, so this batch is the SAME list, replayed.
+   * Without the guard every event would reach `stream()` twice: once live, once here.
+   *
+   * Identity, not deep equality: these are the very objects the live sink saw, and two genuinely
+   * distinct events can be structurally identical (the same tool called twice with the same args
+   * is not a duplicate).
+   *
+   * Extracted because the guard pushed `applyAgentLoopOutput` past the cognitive-complexity cap.
+   */
+  private deliverUndeliveredEvents(events: readonly SDKMessage[]): void {
+    for (const event of events) {
+      if (this.liveDelivered.has(event)) continue;
+      this.script.events.push(event);
+      this.notifyNewEvents();
     }
   }
 
