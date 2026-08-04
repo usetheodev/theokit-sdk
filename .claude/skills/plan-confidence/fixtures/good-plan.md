@@ -68,7 +68,7 @@ Done = passa todos os 4 checks estruturais + os 2 novos (Baseline Context, Drawb
 ### D2 — Determinismo total
 
 - **Decision:** Zero LLM calls em M2.
-- **Rationale:** Alternativa rejeitada: usar LLM para summarization (fica para M3). Determinismo permite cache forte.
+- **Rationale:** Rejected alternative: using an LLM for summarization (deferred to M3). Determinism allows strong caching.
 - **Consequences:** Tests podem ser hashable input/output.
 
 ## Dependency Graph

@@ -44,10 +44,10 @@ def test_soft_floor_marker_fires_when_floor_binds(tmp_path: Path) -> None:
     Use a synthetic scenario where the cap CAN bind.
     """
     # Build a plan with high completeness AND exactly 30 weak imperatives spread thin
-    # (so risco floors at 100 + 30*(-3) = 10, but soft_floor not relevant — completeness
+    # (so risk floors at 100 + 30*(-3) = 10, but soft_floor not relevant — completeness
     # at 100 dominates: 0.6*100 + 0.4*10 = 64 — below 89).
     # The soft_floor cannot mathematically bind on a clean plan because smells reduce
-    # risco directly. The marker is design-safety, fires only on extreme synthesized cases.
+    # risk directly. The marker is design-safety, fires only on extreme synthesized cases.
     # This test documents that behavior is correct: marker absence here is expected.
     smell_text = "should " * 30
     plan = tmp_path / "edge.md"

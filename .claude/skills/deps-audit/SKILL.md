@@ -13,7 +13,7 @@ argument-hint: "[plan-slug] (optional — bind audit to a plan's Dependencies se
 > **INQUEBRÁVEL — 95% Confidence Gate**
 >
 > NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> WHENEVER YOU NEED A DECISION FROM THE USER, PRESENT
 > OPÇÕES PARA ELE ESCOLHER.
 >
 > See `/home/paulo/.claude/CLAUDE.md` § 1 (95% Confidence).

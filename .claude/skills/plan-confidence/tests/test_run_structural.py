@@ -34,7 +34,7 @@ def test_renormalize_weights_m2_sums_to_one() -> None:
 
 def test_renormalize_weights_m2_proportions_correct() -> None:
     weights = renormalize_weights(["completeness", "structural_risk"])
-    # SOTA: completeness=0.30, risco=0.20. Sum 0.50. completeness/0.50 = 0.6.
+    # SOTA: completeness=0.30, risk=0.20. Sum 0.50. completeness/0.50 = 0.6.
     assert abs(weights["completeness"] - 0.6) < 1e-9
     assert abs(weights["structural_risk"] - 0.4) < 1e-9
 
@@ -59,7 +59,7 @@ def test_run_structural_good_plan_passes() -> None:
     # In M2 with renormalization, max achievable is 100. We expect at least 70 (SHIPPABLE_WITH_CAVEATS).
     assert report.final_score_after_caps >= 70, (
         f"good-plan got {report.final_score_after_caps}, expected >= 70. "
-        f"completeness={report.completude_score}, risco={report.risco_estrutural_score}"
+        f"completeness={report.completeness_score}, risk={report.structural_risk_score}"
     )
 
 
@@ -87,7 +87,7 @@ def test_run_structural_no_tdd_capped() -> None:
 def test_run_structural_weak_imperatives_penalty() -> None:
     report = run_structural(FIXTURES / "weak-imperatives-plan.md", RUBRIC, THRESHOLDS)
     # Should have structural_risk < 100 due to smells, but no hard cap from smells
-    assert report.risco_estrutural_score < 100
+    assert report.structural_risk_score < 100
     assert "coverage_lt_100" not in report.hard_caps_triggered
 
 
@@ -96,7 +96,7 @@ def test_run_structural_weak_imperatives_penalty() -> None:
 def test_run_structural_emits_valid_json_compatible_data() -> None:
     """Verify the report can be serialized to valid JSON."""
     report = run_structural(FIXTURES / "good-plan.md", RUBRIC, THRESHOLDS)
-    # dataclass to dict (no Motivo nesting issue here since list is empty for M2 evidence/calibration)
+    # dataclass to dict (no Reason nesting issue here since list is empty for M2 evidence/calibration)
     from dataclasses import asdict
     d = asdict(report)
     d["reasons"] = {k: [asdict(m) for m in v] for k, v in report.reasons.items()}

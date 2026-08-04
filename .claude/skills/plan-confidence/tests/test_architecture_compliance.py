@@ -178,7 +178,7 @@ def test_compliance_motivos_are_informative(tmp_path: Path) -> None:
     )
     report = check_architecture_compliance(plan)
     assert len(report.reasons) >= 4
-    # At least one motivo should say "does NOT" since this plan has nothing
+    # At least one reason should say "does NOT" since this plan has nothing
     assert any("does NOT" in m or "does not" in m.lower() for m in report.reasons)
 
 

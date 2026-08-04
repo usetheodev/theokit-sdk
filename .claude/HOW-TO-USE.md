@@ -13,7 +13,7 @@ DISCOVER → PLAN → IMPLEMENT → CODE-QUALITY → REVIEW → RELEASE → ANAL
                                                                          ↓
                                               ON_TRACK → next milestone normally
                                               WITH_RISKS → next milestone + risk tasks
-                                              CORRECTION → /to-plan corretivo primeiro
+                                              CORRECTION -> corrective /to-plan first
                                               RETHINK → /discover-plan + redesign
 ```
 
@@ -35,7 +35,7 @@ Each arrow is an **unbreakable chain** — you don't skip a cycle, you don't adv
 | "Cut a release (develop → main + tag)" | `cycle-release` | `/release [bump-level]` |
 | "Just locate something in the code" | (no cycle) | Glob/Grep directly OR `/ast-grep` for structural queries |
 | "Ad-hoc work outside the roadmap (hotfix, exploratory)" | `cycle-auto-plan` direct | `/auto-plan {topic-slug}` (no `M<N>`) |
-| "Post-release: o projeto está no caminho certo? (benchmarks + evidence)" | `cycle-analysis` (opt-in, after release) | `/analysis [plan-slug]` |
+| "Post-release: is the project on the right track? (benchmarks + evidence)" | `cycle-analysis` (opt-in, after release) | `/analysis [plan-slug]` |
 
 ## Quick start
 

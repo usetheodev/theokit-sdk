@@ -96,7 +96,7 @@ Soft caps are listed in `hard_caps_triggered` with prefix `soft_floor_` for audi
 JSON with these top-level keys:
 
 - `blueprint_slug`, `blueprint_path`, `blueprint_version`
-- `research_coverage_score`, `reference_citations_score`, `blueprint_completeness_score`, `risco_estrutural_score` (0-100 each)
+- `research_coverage_score`, `reference_citations_score`, `blueprint_completeness_score`, `structural_risk_score` (0-100 each)
 - `active_dimensions` — `["research_coverage", "reference_citations", "blueprint_completeness", "structural_risk"]`
 - `weight_normalization_factor` — 1.0 in M2 (all four active)
 - `hard_caps_triggered` — list of triggered caps (`["empty_corner_tests"]`, `["fabricated_citation"]`, etc.)
