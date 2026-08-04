@@ -46,6 +46,9 @@ describe("MCP request timeout (#59)", () => {
       Promise.resolve({
         ok: true,
         status: 200,
+        // Without `headers` the client throws a TypeError in `readBody` before it ever reaches the
+        // body, so the assertion below would pass or fail for the wrong reason.
+        headers: new Headers(),
         json: () =>
           Promise.reject(
             new DOMException("The operation was aborted due to timeout", "TimeoutError"),
