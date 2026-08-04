@@ -1,23 +1,23 @@
 /**
- * M80 — os verdicts terminais que um judge pode devolver.
+ * M80 — the terminal verdicts a judge can return.
  *
- * `"blocked"` entrou aqui neste milestone. `GoalResult.status` já o carregava, mas o judge não tinha
- * como EMITI-LO: seu vocabulário era `done | continue | skipped`, então diante de um bloqueio real
- * ele só podia dizer `continue` — e o loop repetia o mesmo turno até estourar o orçamento,
- * reportando `failed` por limite em vez de `blocked` por impossibilidade. Duas causas diferentes com
- * o mesmo desfecho visível.
+ * `"blocked"` was added here in this milestone. `GoalResult.status` already carried it, but the
+ * judge had no way to EMIT it: its vocabulary was `done | continue | skipped`, so facing a real
+ * blocker it could only say `continue` — and the loop repeated the same turn until it blew the
+ * budget, reporting `failed` on a limit rather than `blocked` on impossibility. Two different causes
+ * with the same visible outcome.
  *
  * @public
  */
 export type Verdict = "done" | "continue" | "skipped" | "blocked";
 
 /**
- * M80 — resultado de uma chamada ao judge, agora público.
+ * M80 — the result of a judge call, now public.
  *
- * Era `internal/`, então um consumidor que quisesse tipar o retorno — para reagir a `blocked` sem
- * string mágica — precisava redeclarar a forma. É a mesma duplicação que o M78 fechou para a
- * hierarquia de erro: sem superfície pública, reimplementar é a única saída legal para quem está
- * atrás da fronteira de camadas.
+ * It was `internal/`, so a consumer wanting to type the return — to react to `blocked` without a
+ * magic string — had to redeclare the shape. It is the same duplication M78 closed for the error
+ * hierarchy: without a public surface, reimplementing is the only legal way out for anyone behind
+ * the layer boundary.
  *
  * @public
  */
@@ -25,9 +25,9 @@ export interface JudgeResult {
   verdict: Verdict;
   reason: string;
   /**
-   * `true` quando o texto não começou com um dos prefixos canônicos. O verdict vira `"continue"`
-   * (fail-safe) para não parar cedo demais; o chamador conta falhas consecutivas e desiste via
-   * `maxConsecutiveJudgeFailures`.
+   * `true` when the text did not start with one of the canonical prefixes. The verdict becomes
+   * `"continue"` (fail-safe) so the loop does not stop too early; the caller counts consecutive
+   * failures and gives up via `maxConsecutiveJudgeFailures`.
    */
   parseFailed: boolean;
 }
@@ -70,7 +70,7 @@ export type GoalEvent =
   | {
       type: "judge_verdict";
       turn: number;
-      /** M80 — `"blocked"` entrou: o judge pode declarar impossibilidade, não só "continue". */
+      /** M80 — `"blocked"` was added: the judge can declare impossibility, not just "continue". */
       verdict: "done" | "continue" | "skipped" | "blocked";
       reason: string;
       parseFailed: boolean;
@@ -78,9 +78,9 @@ export type GoalEvent =
   | { type: "continuation"; turn: number; prompt: string }
   | {
       type: "status_change";
-      // M55 — estados fiéis ao Codex (ext/goal tool.rs:467-476). `budget_limited` = cruzou o tokenBudget;
-      // `blocked` reservado p/ o impasse ≥3 turnos (v1 usa failed). Aditivo — consumidores exaustivos
-      // ganham casos novos.
+      // M55 — states faithful to Codex (ext/goal tool.rs:467-476). `budget_limited` = crossed the
+      // tokenBudget; `blocked` is reserved for the >=3-turn impasse (v1 uses failed). Additive —
+      // exhaustive consumers gain new cases.
       status: "active" | "paused" | "completed" | "failed" | "budget_limited" | "blocked";
       reason: string;
     };
@@ -94,7 +94,7 @@ export type GoalEvent =
 export interface GoalResult {
   status: "completed" | "failed" | "paused" | "budget_limited" | "blocked";
   turnsUsed: number;
-  /** M55 — tokens somados ao longo do loop (0 quando `usage` esteve ausente — fail-open). */
+  /** M55 — tokens summed across the loop (0 when `usage` was absent — fail-open). */
   tokensUsed: number;
   finalResponse: string | undefined;
 }
@@ -116,9 +116,9 @@ export interface GoalOptions {
   /** Hard cap on iterations (safety net against runaway). Default `20`. */
   maxTurns?: number;
   /**
-   * M55 — token budget (Codex ext/goal parity, tool.rs:454-465). Soma `run.wait().usage.totalTokens`
-   * por turno; ao cruzar, o loop para com status `budget_limited`. Omitido ⇒ ilimitado (só maxTurns).
-   * `usage` ausente nunca estoura o budget (fail-open).
+   * M55 — token budget (Codex ext/goal parity, tool.rs:454-465). Sums `run.wait().usage.totalTokens`
+   * per turn; on crossing it, the loop stops with status `budget_limited`. Omitted => unlimited (only
+   * maxTurns). A missing `usage` never blows the budget (fail-open).
    */
   tokenBudget?: number;
   /** Bail after N consecutive judge parse failures. Default `3` (ADR D121). */
@@ -128,11 +128,12 @@ export interface GoalOptions {
   /** Override env for the judge auxiliary agent. Default `OPENROUTER_API_KEY` (EC-A). */
   judgeApiKey?: string;
   /**
-   * M80 — o modelo do agente CONDUZIDO, base da derivação do judge quando `judgeModel` é omitido.
+   * M80 — the model of the DRIVEN agent, the basis for deriving the judge when `judgeModel` is
+   * omitted.
    *
-   * Existe porque o default fixo (`openai/gpt-4o-mini`) só resolve em OpenRouter: com chave
-   * Anthropic dá 404, com bearer OAuth dá 401, e o goal queimava 3 turnos antes de falhar com razão
-   * enganosa. Um judge que roda no mesmo modelo do chat funciona onde o chat funciona.
+   * It exists because the fixed default (`openai/gpt-4o-mini`) only resolves on OpenRouter: an
+   * Anthropic key gives 404, an OAuth bearer gives 401, and the goal burned 3 turns before failing
+   * with a misleading reason. A judge running on the chat's own model works wherever chat works.
    */
   agentModel?: string;
   /** Optional subgoals fed to the judge prompt. */

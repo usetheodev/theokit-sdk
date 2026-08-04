@@ -6,7 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **BREAKING: `TETO_ABSOLUTO_DE_JANELA` is now `ABSOLUTE_CONTEXT_WINDOW_CAP`.** The constant is exported from the `@theokit/sdk/compaction` entry point, so the Portuguese name was part of the published contract — every consumer importing it must rename. No alias is kept: an alias would leave the Portuguese identifier alive in the public surface, which is what this change exists to remove. Value and behavior are unchanged (10M cap on a declared context window with no catalog entry).
+- **The codebase is English-only, enforced by a gate.** `packages/sdk/tests/lint/no-ptbr.test.ts` scans `packages/{sdk,sdk-tools}/{src,tests}` for Portuguese in identifiers, comments, JSDoc, string literals and file names, joining the ten lint gates already in `tests/lint/`. Detection is two-tier — diacritics English does not use (near-deterministic, with a loanword allowlist for `façade` and friends) plus a conservative lexicon of unaccented Portuguese words with no English homograph. The honest limit is stated in the file: a Portuguese comment written entirely without accents can still slip past. Motivation: JSDoc on an exported symbol is emitted into the published `.d.ts`, so Portuguese comments shipped to every consumer and showed up on editor hover, contradicting `CLAUDE.md`'s rule that the exported types are the canonical public contract.
+- Public API surface translated to English: `compaction.ts`, `index.ts`, `agent.ts`, `persistence.ts` and the `types/{agent-prims,goal-events,session-record}.ts` contract files. The internal helper `abrirStoreLocal` became `openLocalStore`. Comments only, except for the two renames above — no behavior change.
+
 ### Fixed
+- Working tree also carries unstaged/untracked `.claude/` tooling changes from a concurrent session (the `acceptance`, `cycle-goal` and `roadmap-review` skills plus `scripts/check_{xrefs,reference_leakage}.py`). This line acknowledges the residual state per Inquebrável Rule 6 without claiming authorship.
 - **`run.stream()` deixa de terminar em silêncio quando o run falha (theokit#101).** Uma falha de provider — 404 `No endpoints found`, erro de auth, timeout — produzia um turno que parecia bem-sucedido e vazio: o stream entregava só `start` e `finish`, sem texto, sem chunk de erro e sem throw. O erro sempre existiu (o loop o registra e `wait()` devolve `status: 'error'` com a mensagem); só o `stream()` não o mencionava. Agora emite um `SDKStatusMessage` terminal com `status: "ERROR"` e a mensagem do provider. Aditivo: o tipo já existe na união `SDKMessage`, então nenhum consumidor quebra
 
 ### Added

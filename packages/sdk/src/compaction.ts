@@ -354,18 +354,18 @@ export interface EffectiveContextWindow {
  * Pure — no catalog lookup, no I/O. The caller supplies the numbers, mirroring `shouldCompact`.
  */
 /**
- * Teto absoluto de janela declarada, usado quando não há entrada de catálogo para comparar.
+ * Absolute cap on a declared context window, applied when no catalog entry exists to compare against.
  *
- * **10M**, não 2M. A primeira versão usou 2M com a justificativa de estar "acima da maior janela
- * publicada com folga larga" — e a revisão adversarial mediu o contrário: o Llama 4 Scout publica
- * **10M**, e chega justamente por OpenRouter, que é o provider **sem** catálogo, isto é, o caso que
- * este teto existe para cobrir. O usuário perderia 80% da janela declarada, em silêncio.
+ * **10M**, not 2M. The first version used 2M on the rationale that it sat "comfortably above the
+ * largest published window" — adversarial review measured the opposite: Llama 4 Scout publishes
+ * **10M**, and it arrives precisely via OpenRouter, the provider **without** a catalog, which is the
+ * case this cap exists to cover. The user would have silently lost 80% of the declared window.
  *
- * O teto continua servindo ao que motiva sua existência — um zero a mais em 400k dá 4M, que passa;
- * dois zeros dão 40M, que não. Um limite que recusa configuração legítima é pior que limite nenhum,
- * porque o fail-OPEN é visível quando acontece e a perda silenciosa de 80% não é.
+ * The cap still serves what motivates it — one extra zero on 400k gives 4M, which passes; two zeros
+ * give 40M, which does not. A limit that rejects legitimate configuration is worse than no limit,
+ * because failing OPEN is visible when it happens and silently losing 80% is not.
  */
-export const TETO_ABSOLUTO_DE_JANELA = 10_000_000;
+export const ABSOLUTE_CONTEXT_WINDOW_CAP = 10_000_000;
 
 export function resolveEffectiveContextWindow(
   input: EffectiveContextWindowInput,
@@ -377,20 +377,20 @@ export function resolveEffectiveContextWindow(
   const withMargin = (raw: number): number => Math.floor(raw * input.margin);
 
   if (input.override !== undefined) {
-    // O catálogo é o teto preferido; sem ele vale o TETO ABSOLUTO.
+    // The catalog is the preferred cap; without it the ABSOLUTE cap applies.
     //
-    // M95 (revisão adversarial do M94) — a versão anterior clampeava **apenas** quando havia
-    // entrada de catálogo, e a razão de ser da chave `contextWindow` é justamente o modelo que
-    // NÃO tem entrada (OpenRouter tem zero). Ou seja: o clamp faltava exatamente no caso que
-    // justifica a feature, enquanto a documentação — inclusive um CHANGELOG já publicado —
-    // afirmava sem condicional que "declarar 10M não estoura o provider".
+    // M95 (adversarial review of M94) — the previous version clamped **only** when a catalog entry
+    // existed, and the whole reason the `contextWindow` key exists is the model that has NO entry
+    // (OpenRouter has zero). So the clamp was missing in exactly the case that justifies the
+    // feature, while the documentation — including an already-published CHANGELOG — stated without
+    // qualification that "declaring 10M does not blow past the provider".
     //
-    // O cenário concreto é um zero a mais: `context_window = 4000000`. O único guarda era um
-    // `.positive().int()`, que não limita para cima. O agente nunca compactaria até o provider
-    // recusar o turno — o fail-OPEN silencioso que o M77 existe para impedir.
-    const teto = input.catalog ?? TETO_ABSOLUTO_DE_JANELA;
-    const clamped = input.override > teto;
-    return { window: withMargin(clamped ? teto : input.override), source: "override", clamped };
+    // The concrete scenario is one extra zero: `context_window = 4000000`. The only guard was a
+    // `.positive().int()`, which sets no upper bound. The agent would never compact until the
+    // provider refused the turn — the silent fail-OPEN that M77 exists to prevent.
+    const cap = input.catalog ?? ABSOLUTE_CONTEXT_WINDOW_CAP;
+    const clamped = input.override > cap;
+    return { window: withMargin(clamped ? cap : input.override), source: "override", clamped };
   }
 
   if (input.catalog !== undefined) {

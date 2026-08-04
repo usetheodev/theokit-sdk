@@ -14,7 +14,7 @@
  */
 
 /** One transcript record (one JSONL line). `message` absent on `system` (compact_boundary) records. */
-/** Um bloco de conteúdo dentro de {@link TranscriptMessage}. */
+/** A content block inside {@link TranscriptMessage}. */
 export type TranscriptBlock =
   | { type: "text"; text: string }
   | { type: "thinking"; thinking?: string; signature?: string }
@@ -24,12 +24,13 @@ export type TranscriptBlock =
 /**
  * O corpo de mensagem de um {@link SessionRecord}.
  *
- * **NÃO se chama `SessionMessage`** — esse nome já existe em `internal/session/session-types.ts` com
- * a forma `{role, text}`, incompatível com esta. Repropor um nome exportado com forma nova é
+ * **It is NOT called `SessionMessage`** — that name already exists in
+ * `internal/session/session-types.ts` with the shape `{role, text}`, incompatible with this one.
+ * Reusing an exported name for a new shape is
  * precisamente a quebra silenciosa que o M91 custou dois patches para desfazer.
  *
  * O parse do disco continua **tolerante** (`readTranscript` pula linha malformada): o que muda aqui
- * é o **tipo**, não a leniência — registros gravados por versões anteriores continuam legíveis.
+ * is the **type**, not leniency — records written by earlier versions stay readable.
  *
  * @public
  */
@@ -37,9 +38,9 @@ export interface TranscriptMessage {
   role: "user" | "assistant";
   content: TranscriptBlock[];
   /**
-   * Os três campos abaixo aparecem **só** no registro de assistant, e vêm do escritor
-   * (`SessionTranscript.appendAssistant`). Declarados opcionais porque o registro de user não os
-   * tem — medido no próprio escritor, não presumido.
+   * The three fields below appear **only** on the assistant record, and come from the writer
+   * (`SessionTranscript.appendAssistant`). Declared optional because the user record does not carry
+   * them — measured in the writer itself, not assumed.
    */
   id?: string;
   type?: "message";
@@ -62,8 +63,8 @@ export interface SessionRecord {
    * O corpo da mensagem, na forma que o escritor de transcript de fato grava.
    *
    * M94 — era `Record<string, unknown>`, e o consumidor recuperava o tipo com cast a cada leitura.
-   * A forma **sempre foi fixa** (`SessionTranscript.appendToolResults` / `#push` a produzem); só não
-   * estava declarada. Segue opcional porque registros de sistema não carregam mensagem.
+   * The shape **has always been fixed** (`SessionTranscript.appendToolResults` / `#push` produce
+   * it); it simply was not declared. It stays optional because system records carry no message.
    */
   message?: TranscriptMessage;
 }

@@ -451,7 +451,7 @@ export class Agent {
     const { compactSessionTranscript, buildDefaultSummarizer } = await import(
       "./internal/session/compact-session.js"
     );
-    const { cwd, model, store } = await abrirStoreLocal(reg);
+    const { cwd, model, store } = await openLocalStore(reg);
     // M50 review F5 — serialize on the per-agent write chain so a manual compact never interleaves
     // with an in-flight turn's persistence.
     return enqueueSessionWrite(cwd, agentId, () =>
@@ -493,7 +493,7 @@ export class Agent {
       );
     }
     const { injectSessionTurn } = await import("./internal/session/inject-session.js");
-    const { cwd, model, store } = await abrirStoreLocal(reg);
+    const { cwd, model, store } = await openLocalStore(reg);
     await injectSessionTurn({
       store,
       loc: { cwd, agentId, model },
@@ -544,15 +544,15 @@ setAgentFacade({
 });
 
 /**
- * Abre o store de sessão local de um agente registrado.
+ * Opens the local session store of a registered agent.
  *
- * Estava duplicado em `Agent.compact` e `Agent.injectSessionTurn` — os dois resolviam `cwd`, o `model`
- * (com o mesmo fallback de três níveis) e montavam o `FsSessionStore` com o mesmo `baseDir`. Isso é
- * duplicação de CONHECIMENTO: "como localizar o transcript de um agente local" é UMA regra, e uma
- * cópia corrigida sem a outra faria `compact` e `injectSessionTurn` operarem sobre arquivos
- * diferentes — corrupção silenciosa, não erro.
+ * This was duplicated across `Agent.compact` and `Agent.injectSessionTurn` — both resolved `cwd` and
+ * `model` (with the same three-level fallback) and built the `FsSessionStore` with the same
+ * `baseDir`. That is duplicated KNOWLEDGE: "how to locate a local agent's transcript" is ONE rule,
+ * and fixing one copy without the other would make `compact` and `injectSessionTurn` operate on
+ * different files — silent corruption, not an error.
  */
-async function abrirStoreLocal(reg: {
+async function openLocalStore(reg: {
   cwd?: string;
   model?: { id: string };
   options: { model?: string | { id: string }; local?: { baseDir?: string } };
