@@ -110,7 +110,7 @@ describe("autoCompactIfNeeded (guard anti-cascata)", () => {
       turnCount: 3,
       summarize: async () => {
         calls++;
-        throw new Error("llm fora");
+        throw new Error("llm down");
       },
     };
     expect(await autoCompactIfNeeded(opts)).toBe(false); // falha → não compactou
