@@ -4,15 +4,16 @@
  * ## Por que cabe no contrato sem breaking
  *
  * `SandboxBackend` declara exatamente 2 abstratos (`execute`, `uploadFile`); `readFile`/`writeFile`/
- * `glob`/`grep` são concretos sobre `execute`. `LinuxSandbox` só faz `override execute` — o método
- * **já abstrato** — e **adiciona** `wrapCommand`. Nenhum membro falta, então promover não força major.
+ * `glob`/`grep` are concrete over `execute`. `LinuxSandbox` only does `override execute` — the method
+ * **already abstract** — and **adds** `wrapCommand`. No member is missing, so promoting forces no major.
  *
- * ## O que estes testes protegem, e que não é obvio
+ * ## What these tests protect, which is not obvious
  *
- * O valor deste subsistema não está em confinar quando dá certo — está em **NUNCA fingir** quando dá
- * errado. Três caminhos de degradação honesta são testados aqui como caso negativo, com o erro/aviso
- * específico, não com "não lançou": bwrap ausente, `danger-full-access` (opt-out explícito, que NÃO
- * é anomalia e por isso não avisa) e arquitetura não-x86_64 (o filtro cBPF mataria todo syscall).
+ * This subsystem's value is not in confining when things go right — it is in **NEVER pretending**
+ * when they go wrong. Three honest-degradation paths are tested here as negative cases, asserting
+ * the specific error/warning rather than "it did not throw": bwrap absent, `danger-full-access` (an
+ * explicit opt-out, which is NOT an anomaly and therefore does not warn), and a non-x86_64
+ * architecture (where the cBPF filter would kill every syscall).
  */
 import { describe, expect, it } from "vitest";
 
@@ -39,14 +40,14 @@ describe("M75 T2.2 — wrapCommandForSandbox", () => {
       "echo 'oi'",
     );
     expect(w).not.toBeNull();
-    // O comando cruza UM `/bin/sh -c` extra: a citação tem de sobreviver, senão um comando com
+    // The command crosses ONE extra `/bin/sh -c`: the quoting must survive, otherwise a command with
     // aspas simples viraria outro comando dentro do sandbox.
     expect(w).toContain("/bin/sh -c");
     expect(w).toContain("--unshare-net");
   });
 
   it("test_danger_full_access_devolve_null", () => {
-    // `null` = "não embrulhe". Devolver o comando cru confundiria as duas coisas no chamador.
+    // `null` = "do not wrap". Returning the raw command would conflate the two in the caller.
     expect(
       wrapCommandForSandbox("danger-full-access", { cwd: "/w", env: {} }, "echo oi"),
     ).toBeNull();
@@ -60,7 +61,7 @@ describe("M75 T2.2 — wrapCommandForSandbox", () => {
       "true",
     );
     expect(sem).not.toContain("--seccomp");
-    // O programa entra por redirecionamento de fd 3 — é assim que o bwrap o lê.
+    // The program comes in via an fd 3 redirect — that is how bwrap reads it.
     expect(com).toContain("--seccomp");
     expect(com).toContain("3< ");
   });
@@ -69,7 +70,7 @@ describe("M75 T2.2 — wrapCommandForSandbox", () => {
 describe("M75 T2.2 — allowlistedEnv", () => {
   it("test_reinjeta_apenas_o_permitido_e_descarta_o_resto", () => {
     // Modelo env_clear do Codex: o filho recebe o que precisa para rodar um shell, nunca o env do pai
-    // — que pode ter um segredo com nome que nenhuma heurística de nome pega.
+    // — which may hold a secret under a name no name-based heuristic catches.
     const env = allowlistedEnv({ PATH: "/bin", MINHA_CHAVE_ESQUISITA: "s3cr3t", HOME: "/h" });
     expect(env).toEqual({ PATH: "/bin", HOME: "/h" });
     expect(Object.values(env)).not.toContain("s3cr3t");
@@ -97,50 +98,53 @@ describe("M75 T2.2 — LinuxSandbox", () => {
   });
 });
 
-describe("M75 T2.2 — degradação honesta (casos negativos)", () => {
+describe("M75 T2.2 — honest degradation (negative cases)", () => {
   it("test_bwrap_ausente_avisa_UMA_vez_e_devolve_backend_sem_confinamento", () => {
     resetSandboxWarnLatch();
-    const avisos: string[] = [];
+    const warnings: string[] = [];
     const opts = {
       mode: "workspace-write" as const,
       detect: detectaFalha,
-      warn: (m: string) => avisos.push(m),
+      warn: (m: string) => warnings.push(m),
     };
     const a = createSandboxBackend(opts);
     const b = createSandboxBackend(opts);
 
     expect(a).toBeInstanceOf(SandboxBackend);
     expect(b).toBeInstanceOf(SandboxBackend);
-    // Nenhum dos dois é LinuxSandbox: sem bwrap não há confinamento, e fingir seria o pior resultado.
+    // Neither is a LinuxSandbox: without bwrap there is no confinement, and pretending would be the worst outcome.
     expect(a).not.toBeInstanceOf(LinuxSandbox);
-    // UMA vez: o aviso é para o humano, e repeti-lo a cada tool call vira ruído que ninguém lê.
-    expect(avisos, "o aviso repetiu — vira ruído e deixa de ser lido").toHaveLength(1);
-    expect(avisos[0], "o aviso precisa dizer POR QUE e em que modo").toMatch(
+    // ONCE: the warning is for the human, and repeating it on every tool call becomes noise nobody reads.
+    expect(warnings, "the warning repeated — it becomes noise and stops being read").toHaveLength(
+      1,
+    );
+    expect(warnings[0], "o aviso precisa dizer POR QUE e em que modo").toMatch(
       /PATH.*workspace-write/s,
     );
   });
 
   it("test_danger_full_access_nao_avisa_porque_e_opt_out_explicito", () => {
     resetSandboxWarnLatch();
-    const avisos: string[] = [];
+    const warnings: string[] = [];
     const s = createSandboxBackend({
       mode: "danger-full-access",
       detect: detectaFalha,
-      warn: (m: string) => avisos.push(m),
+      warn: (m: string) => warnings.push(m),
     });
     expect(s).not.toBeInstanceOf(LinuxSandbox);
-    // A distinção que importa: "o usuário desligou" não é anomalia; "não consegui ligar" é.
-    expect(avisos, "opt-out explícito não é anomalia e não deve avisar").toHaveLength(0);
+    // The distinction that matters: "the user turned it off" is not an anomaly; "I could not turn it on" is.
+    expect(warnings, "an explicit opt-out is not an anomaly and must not warn").toHaveLength(0);
   });
 
   it("test_arquitetura_nao_x64_recusa_seccomp_e_avisa", () => {
-    // ARCH GUARD: o programa cBPF é x86_64 e seu guard MATA todo syscall de outra arquitetura — o
-    // primeiro execve morreria, e silenciosamente, porque a geração funciona e o bwrap aceita.
-    const avisos: string[] = [];
-    const p = seccompPathForArch("arm64", (m) => avisos.push(m));
+    // ARCH GUARD: the cBPF program is x86_64 and its guard KILLS every syscall from another
+    // architecture — the first execve would die, and silently, because generation works and bwrap
+    // accepts it.
+    const warnings: string[] = [];
+    const p = seccompPathForArch("arm64", (m) => warnings.push(m));
     expect(p, "em arm64 nenhum caminho de seccomp pode ser devolvido").toBeUndefined();
-    expect(avisos).toHaveLength(1);
-    expect(avisos[0]).toMatch(/x86_64|x64/i);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatch(/x86_64|x64/i);
   });
 });
 
@@ -152,7 +156,7 @@ describe("M75 T2.2 — resolveSandboxPosture", () => {
   });
 
   it("test_sem_bwrap_diz_nao_confinado_COM_o_motivo", () => {
-    // A postura é o que a UI mostra. "não confinado" sem motivo deixa o usuário sem ação; com o
+    // The posture is what the UI shows. "not confined" without a reason leaves the user with no action; with the
     // motivo ele sabe se instala o bwrap ou se mudou de modo.
     const p = resolveSandboxPosture({ mode: "workspace-write", detect: detectaFalha });
     expect(p.enforced).toBe(false);

@@ -21,8 +21,8 @@ function decode(buf: Buffer): { code: number; jt: number; jf: number; k: number 
   const out = [];
   for (let i = 0; i < buf.length; i += 8) {
     // `readUInt8` em vez de `buf[i+2]`: o SDK compila com `noUncheckedIndexedAccess`, que tipa o
-    // índice cru como possivelmente indefinido. É mudança de ACESSO, não de asserção — o valor lido
-    // é o mesmo byte, e D4 continua honrado (nenhum `expect` deste arquivo mudou).
+    // raw index as possibly undefined. This changes ACCESS, not the assertion — the value read is
+    // the same byte, and D4 is still honored (no `expect` in this file changed).
     out.push({
       code: buf.readUInt16LE(i),
       jt: buf.readUInt8(i + 2),
@@ -62,7 +62,7 @@ describe("buildSeccompFilter", () => {
     for (const nr of [42, 43, 288, 49, 50, 52, 51, 48, 44, 307, 299, 55, 54])
       expect(on).toContain(nr);
     const off = jeqConstants(buildSeccompFilter({ networkRestricted: false }));
-    // sem rede restrita, o set de socket NÃO entra (mas os sempre-negados sim)
+    // without a restricted network, the socket set does NOT go in (but the always-denied ones do)
     for (const nr of [42, 49, 44]) expect(off).not.toContain(nr);
     expect(off).toContain(101); // ptrace sempre
   });
@@ -73,7 +73,7 @@ describe("buildSeccompFilter", () => {
     const ks = f.filter((x) => x.code === 0x15).map((x) => x.k);
     expect(ks).toContain(41);
     expect(ks).toContain(53);
-    // há um LD absoluto do offset 16 (args[0] low dword): code BPF_LD|BPF_W|BPF_ABS=0x20, k=16
+    // there is an absolute LD of offset 16 (args[0] low dword): code BPF_LD|BPF_W|BPF_ABS=0x20, k=16
     expect(f.some((x) => x.code === 0x20 && x.k === 16)).toBe(true);
     // AF_UNIX(1) comparado
     expect(ks).toContain(1);
@@ -81,20 +81,20 @@ describe("buildSeccompFilter", () => {
 
   it("arch_and_x32_guard_first", () => {
     const f = decode(buildSeccompFilter({ networkRestricted: false }));
-    // 1ª instrução: LD arch@4
+    // 1st instruction: LD arch@4
     expect(f[0]?.code).toBe(0x20);
     expect(f[0]?.k).toBe(4);
     // AUDIT_ARCH_X86_64 comparado
     expect(f.some((x) => x.code === 0x15 && x.k === 0xc000003e)).toBe(true);
     // guard x32: JGE 0x40000000 (BPF_JMP|BPF_JGE|BPF_K = 0x35)
     expect(f.some((x) => x.code === 0x35 && x.k === 0x40000000)).toBe(true);
-    // há RET KILL (0x80000000) no guard
+    // there is a RET KILL (0x80000000) in the guard
     expect(f.some((x) => x.code === 0x06 && x.k === 0x80000000)).toBe(true);
   });
 
   it("default_allow_last_and_deny_is_eperm", () => {
     const f = decode(buildSeccompFilter({ networkRestricted: true }));
-    // o fall-through (1º RET, após todos os denies) DEVE ser ALLOW — default allow
+    // the fall-through (1st RET, after all denies) MUST be ALLOW — default allow
     const firstRet = f.find((x) => x.code === 0x06);
     expect(firstRet?.k).toBe(ALLOW_RET);
     // existem RET ERRNO(EPERM) e RET KILL
