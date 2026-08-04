@@ -1,28 +1,28 @@
 /**
- * M76 T1.1 — `createQuestionTool` passa a devolver o contrato canônico.
+ * M76 T1.1 — `createQuestionTool` starts returning the canonical contract.
  *
- * ## O delta é UM campo
+ * ## The delta is ONE field
  *
- * `QuestionTool` era uma interface própria com `inputSchema: unknown`, enquanto `CustomTool` declara
- * `inputSchema: Record<string, unknown>`. Nome, descrição e handler já eram estruturalmente
- * compatíveis — um handler de 1 argumento satisfaz um tipo de 2 argumentos opcionais.
+ * `QuestionTool` was its own interface with `inputSchema: unknown`, while `CustomTool` declares
+ * `inputSchema: Record<string, unknown>`. Name, description and handler were already structurally
+ * compatible — a 1-argument handler satisfies a type with 2 optional arguments.
  *
- * Estreitar é **aditivo**: o valor em runtime SEMPRE foi um objeto (a implementação constrói
- * `{ type: "object", properties: {…}, required: ["question"] }`); só o tipo declarado estava frouxo.
- * Quebraria apenas quem passasse um não-objeto, coisa que a fábrica nunca produz.
+ * Narrowing is **additive**: the runtime value has ALWAYS been an object (the implementation builds
+ * `{ type: "object", properties: {...}, required: ["question"] }`); only the declared type was loose.
+ * It would only break callers passing a non-object, which the factory never produces.
  *
  * ## Por que isso importa fora do SDK
  *
  * O consumidor era obrigado a escrever DOIS casts para registrar a tool
- * (`agent-builder/agents/chat.ts:94-95`). Cast é a assinatura de um contrato que não fecha: ele não
- * conserta o tipo, apenas silencia o compilador — e silenciar aqui significa que uma mudança de
- * assinatura no SDK chegaria ao consumidor como erro de runtime, não de compilação.
+ * (`agent-builder/agents/chat.ts:94-95`). A cast is the signature of a contract that does not close: it does not
+ * fix the type, it only silences the compiler — and silencing here means a signature change
+ * in the SDK would reach the consumer as a runtime error, not a compile error.
  *
- * ## O que o vitest NÃO prova aqui
+ * ## What vitest does NOT prove here
  *
- * A compatibilidade é um fato de TIPO. O vitest transpila sem checar tipos, então o teste de
- * atribuição abaixo passaria mesmo com o contrato quebrado — é `tsc --noEmit` que o prova, e o AC da
- * tarefa exige `tsc` verde por isso. Foi um erro cometido três vezes no M75; aqui está escrito.
+ * Compatibility is a TYPE fact. Vitest transpiles without checking types, so the assignment test
+ * below would pass even with the contract broken — `tsc --noEmit` is what proves it, and the task's AC
+ * requires a green `tsc` for that reason. It was a mistake made three times in M75; here it is written down.
  */
 import { describe, expect, it } from "vitest";
 
@@ -32,7 +32,7 @@ const askerFalso = async (): Promise<string> => "resposta";
 
 describe("M76 T1.1 — o contrato de question fecha sem cast", () => {
   it("test_input_schema_e_objeto_em_runtime", () => {
-    // A base do argumento de que estreitar é aditivo: o valor JÁ é o que o tipo estreito declara.
+    // The basis of the argument that narrowing is additive: the value ALREADY is what the narrow type declares.
     const t = createQuestionTool({ askUser: askerFalso });
     const schema = t.inputSchema as Record<string, unknown>;
     expect(typeof schema).toBe("object");
@@ -41,28 +41,28 @@ describe("M76 T1.1 — o contrato de question fecha sem cast", () => {
   });
 
   it("test_o_schema_e_indexavel_como_record", () => {
-    // `unknown` não é indexável; `Record<string, unknown>` é. Este teste falha na COMPILAÇÃO com o
-    // tipo antigo — e é essa falha, não a execução, que prova a mudança.
+    // `unknown` is not indexable; `Record<string, unknown>` is. This test fails at COMPILE time with the
+    // old type — and it is that failure, not the execution, that proves the change.
     const t = createQuestionTool({ askUser: askerFalso });
     const props = t.inputSchema.properties;
     expect(props).toBeDefined();
 
-    // M76 review (M5) — `toBeDefined()` sozinho passa com `properties: {}`. A chave `question` é o
-    // contrato: o handler lê `input.question`, então um schema sem essa chave produz uma tool que o
-    // modelo chama sempre sem argumento. É a indexação que prova o tipo E a forma ao mesmo tempo.
+    // M76 review (M5) — `toBeDefined()` alone passes with `properties: {}`. The `question` key is the
+    // contract: the handler reads `input.question`, so a schema without that key produces a tool the
+    // model always calls with no argument. Indexing is what proves the type AND the shape at once.
     expect(Object.keys(props as Record<string, unknown>)).toContain("question");
     expect(t.inputSchema["required"]).toEqual(["question"]);
   });
 
   it("test_handler_de_um_argumento_continua_valido", () => {
-    // Retrocompatibilidade do handler: quem chama com 1 argumento não muda. O 2º (`ctx`) é opcional.
+    // Handler backward compatibility: callers passing 1 argument are unaffected. The 2nd (`ctx`) is optional.
     const t = createQuestionTool({ askUser: askerFalso });
     expect(t.handler.length).toBeLessThanOrEqual(2);
   });
 
   it("test_nome_e_descricao_seguem_os_defaults_de_hoje", () => {
-    // ÂNCORA: se a promoção mudasse o default silenciosamente, o modelo veria outra tool e os
-    // approvals gravados por nome deixariam de casar. O nome é contrato, não rótulo (blueprint Q1).
+    // ANCHOR: if the promotion changed the default silently, the model would see a different tool and
+    // approvals recorded by name would stop matching. The name is a contract, not a label (blueprint Q1).
     const t = createQuestionTool({ askUser: askerFalso });
     expect(t.name).toBe("question");
     expect(t.description).toContain("Ask the user a question");
