@@ -45,7 +45,7 @@ import type { LlmClient } from "../../../src/internal/llm/types.js";
 function unwrapFaultInjection(client: LlmClient): LlmClient {
   // M93 — desembrulha os DOIS decorators. O `RetryingLlmClient` entrou entre o router e o pool;
   // the intent of these tests ("the router uses the pool") still holds, there is simply now one
-  // camada no caminho.
+  // layer in the path.
   return descascar(client);
 }
 

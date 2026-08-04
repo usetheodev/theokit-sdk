@@ -3,20 +3,20 @@
  *
  * ## O que mudou de fato
  *
- * `squad.ts` declarava `agents: ReadonlyArray<SDKAgent>`. Montar um time obrigava o chamador a
+ * `squad.ts` declared `agents: ReadonlyArray<SDKAgent>`. Assembling a team forced the caller to
  * **materialize each agent by hand** first — resolve the credential, build options, call
  * `Agent.create`, await. That is exactly the work this milestone moves into the framework in its
  * other tasks; leaving it here would be inconsistent.
  *
  * With `discoverSubagents` public (T2.1), the data describing an agent became reachable by the
- * consumidor. Aceitar esse dado direto fecha o circuito: descobrir → montar time, sem etapa manual
+ * consumer. Accepting that data directly closes the loop: discover -> assemble a team, with no manual step
  * no meio.
  *
  * ## The half that matters most is backward compatibility
  *
  * A built `SDKAgent` is still accepted, and so is mixing the two in one list — a real team
  * usually has agents from different origins. A test proving only the new path would pass
- * mesmo se o antigo tivesse quebrado.
+ * even if the old one had broken.
  */
 import { describe, expect, it } from "vitest";
 
@@ -42,7 +42,7 @@ describe("M81 T2.2 — Squad.create aceita AgentDefinition", () => {
   it("test_CONTRAPROVA_SDKAgent_ja_construido_continua_aceito", () => {
     // Sem esta, trocar o tipo por `AgentDefinition` puro passaria no teste acima e quebraria todo
     // an existing consumer silently — the Squad does not run at construction, so the break would only
-    // apareceria no primeiro `run()`.
+    // apareceria no first `run()`.
     const squad = Squad.create({ agents: [agenteConstruido] });
     expect(squad).toBeDefined();
   });

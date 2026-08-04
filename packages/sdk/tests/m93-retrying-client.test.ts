@@ -12,27 +12,27 @@ import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.j
  * M93 T1.1 — the single-key path gains the retry only the two-key path had.
  *
  * `buildPoolOrSingle` gives circuit breaker, backoff and `Retry-After` when there are **>= 2** keys; with one,
- * devolve o transporte cru. Um consumidor que resolve exatamente uma credencial — o caso comum — nunca
- * teve retry: um 429 depois de oito tool calls mata o turno inteiro.
+ * returns the raw transport. A consumer resolving exactly one credential — the common case — never
+ * had retry: a 429 after eight tool calls kills the whole turn.
  *
- * Os testes injetam um cliente falso que falha N vezes e conta tentativas. Nenhuma credencial de
+ * The tests inject a fake client that fails N times and counts attempts. No real credential is
  * a provider is required — the lesson M92 paid to learn, after the opposite was declared
  * unmeasurable.
  */
-const clienteQueFalha = (erros: unknown[]): { cliente: LlmClient; tentativas: () => number } => {
+const failingClient = (errors: unknown[]): { client: LlmClient; attempts: () => number } => {
   let n = 0;
-  const cliente: LlmClient = {
+  const client: LlmClient = {
     name: "falso",
     // eslint-disable-next-line @typescript-eslint/require-await
     // biome-ignore lint/correctness/useYield: a transport that ONLY fails — not emitting is the point
     async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
-      const erro = erros[n];
+      const error = errors[n];
       n += 1;
-      if (erro !== undefined) throw erro;
+      if (error !== undefined) throw error;
       return { stopReason: "stop", text: "", toolCalls: [] } as unknown as LlmFinish;
     },
   };
-  return { cliente, tentativas: () => n };
+  return { client, attempts: () => n };
 };
 
 const drenar = async (c: LlmClient): Promise<unknown> => {
@@ -46,26 +46,26 @@ const rate429 = (): RateLimitError =>
   new RateLimitError("429", { metadata: { statusCode: 429 } as never });
 
 describe("M93 — RetryingLlmClient", () => {
-  it("429 e REEXECUTADO ate o teto", async () => {
-    const { cliente, tentativas } = clienteQueFalha([rate429(), rate429(), rate429()]);
-    const comRetry = new RetryingLlmClient(cliente, { rng: () => 0 });
+  it("a 429 is RETRIED up to the ceiling", async () => {
+    const { client, attempts } = failingClient([rate429(), rate429(), rate429()]);
+    const comRetry = new RetryingLlmClient(client, { rng: () => 0 });
     await expect(drenar(comRetry)).rejects.toBeInstanceOf(RateLimitError);
-    expect(tentativas()).toBe(MAX_ATTEMPTS);
+    expect(attempts()).toBe(MAX_ATTEMPTS);
   });
 
-  it("401 NAO e reexecutado — retry so piora erro permanente", async () => {
+  it("a 401 is NOT retried — retry only makes a permanent error worse", async () => {
     const auth = new AuthenticationError("401");
-    const { cliente, tentativas } = clienteQueFalha([auth, auth, auth]);
-    const comRetry = new RetryingLlmClient(cliente, { rng: () => 0 });
+    const { client, attempts } = failingClient([auth, auth, auth]);
+    const comRetry = new RetryingLlmClient(client, { rng: () => 0 });
     await expect(drenar(comRetry)).rejects.toBeInstanceOf(AuthenticationError);
-    expect(tentativas()).toBe(1);
+    expect(attempts()).toBe(1);
   });
 
   it("sucesso na SEGUNDA tentativa nao chama a terceira", async () => {
-    const { cliente, tentativas } = clienteQueFalha([rate429()]);
-    const comRetry = new RetryingLlmClient(cliente, { rng: () => 0 });
+    const { client, attempts } = failingClient([rate429()]);
+    const comRetry = new RetryingLlmClient(client, { rng: () => 0 });
     await drenar(comRetry);
-    expect(tentativas()).toBe(2);
+    expect(attempts()).toBe(2);
   });
 
   it("402 (billing) NAO e transitorio — cota nao se resolve em milissegundos", () => {
@@ -77,15 +77,15 @@ describe("M93 — RetryingLlmClient", () => {
     expect(isRetriableError(rate429())).toBe(true);
   });
 
-  it("o cliente sem falha atravessa sem tentativa extra", async () => {
-    const { cliente, tentativas } = clienteQueFalha([]);
-    const comRetry = new RetryingLlmClient(cliente, { rng: () => 0 });
+  it("o client sem falha atravessa sem tentativa extra", async () => {
+    const { client, attempts } = failingClient([]);
+    const comRetry = new RetryingLlmClient(client, { rng: () => 0 });
     await drenar(comRetry);
-    expect(tentativas()).toBe(1);
+    expect(attempts()).toBe(1);
   });
 
-  it("o nome do cliente interno atravessa — o decorator e transparente", () => {
-    const { cliente } = clienteQueFalha([]);
-    expect(new RetryingLlmClient(cliente).name).toBe("falso");
+  it("o nome do client interno atravessa — o decorator e transparente", () => {
+    const { client } = failingClient([]);
+    expect(new RetryingLlmClient(client).name).toBe("falso");
   });
 });

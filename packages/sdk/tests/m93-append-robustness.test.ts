@@ -3,7 +3,7 @@
  *
  * As duas nasceram da mesma troca: sair de `replaceFileAtomic` (que reescrevia tudo, com `0o600`)
  * to incremental append. The append is what makes writing linear rather than quadratic — but
- * herdou o umask e perdeu a auto-cura de um arquivo partido por crash.
+ * inherited the umask and lost the self-healing of a file broken by a crash.
  */
 
 import { appendFileSync, mkdtempSync, readFileSync, statSync, writeFileSync } from "node:fs";
@@ -28,14 +28,14 @@ describe("M93/H2 — appending over a truncated line does not swallow the new re
   it("the new record stays readable after a crash mid-append", async () => {
     const p = join(dir(), "t.jsonl");
     appendJsonl(p, { type: "user", uuid: "a", parentUuid: null, sessionId: "s", timestamp: "t" });
-    // Simula o crash: meia linha, sem `\n` final.
+    // Simulates the crash: half a line, with no trailing `\n`.
     appendFileSync(p, '{"type":"user","uuid":"b","incompl');
     appendJsonl(p, { type: "user", uuid: "c", parentUuid: null, sessionId: "s", timestamp: "t" });
 
     // `readTranscript` is the store's real reader and skips ANY malformed line — the partial disappears
     // (esperado, ele nunca esteve completo) mas o registro seguinte tem de sobreviver.
     const ids = (await readTranscript(p)).map((r) => r.uuid);
-    expect(ids, "o registro novo sumiu junto com o parcial").toContain("c");
+    expect(ids, "o registro novo sumiu junto com o partial").toContain("c");
     expect(ids).toContain("a");
   });
 

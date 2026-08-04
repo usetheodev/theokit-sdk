@@ -4,7 +4,7 @@
  * ## Por que ela existe, e por que no SDK
  *
  * `createSandboxBackend` already does this composition for the **non-interactive** path: it detects bwrap,
- * decide entre confinar e degradar honestamente, e devolve um backend pronto. O caminho interativo
+ * decides between confining and degrading honestly, and returns a ready backend. The interactive path
  * (PTY) needs exactly the same decision, but delivered as a **wrap function** — because the PTY
  * owns the spawn and only accepts transforming the command (`PtyInteractiveBackend({ wrapCommand })`).
  *
@@ -29,21 +29,21 @@ import {
 } from "../src/sandbox/index.js";
 
 const detectaOk = (): BwrapDetection => ({ ok: true, bin: "/usr/bin/bwrap" });
-const detectaFalha = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
+const detectFailure = (): BwrapDetection => ({ ok: false, reason: "bwrap not found in PATH" });
 
 describe("M75 T3.2 — interactiveWrapCommand", () => {
-  it("test_confina_quando_bwrap_existe", () => {
+  it("test_confines_when_bwrap_exists", () => {
     const wrap = interactiveWrapCommand({ mode: "workspace-write", detect: detectaOk });
     const out = wrap("python3 -i", "/w");
     expect(out, "with bwrap available the command MUST be wrapped").not.toBeNull();
     expect(out).toContain("/usr/bin/bwrap");
     expect(out).toContain("--unshare-net");
     // The cwd received is what the PTY will use: the binds must target the SAME directory, otherwise
-    // confinamento aponta para um lugar e o processo roda em outro.
+    // the confinement points one way and the process runs another.
     expect(out).toContain("/w");
   });
 
-  it("test_danger_full_access_devolve_null_e_NAO_avisa", () => {
+  it("test_danger_full_access_returns_null_and_does_NOT_warn", () => {
     resetInteractiveWarnLatch();
     const warnings: string[] = [];
     const wrap = interactiveWrapCommand({
@@ -56,12 +56,12 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
     expect(warnings, "an explicit opt-out is not an anomaly and must not warn").toHaveLength(0);
   });
 
-  it("test_bwrap_ausente_devolve_null_e_avisa_UMA_vez", () => {
+  it("test_absent_bwrap_returns_null_and_warns_ONCE", () => {
     resetInteractiveWarnLatch();
     const warnings: string[] = [];
     const wrap = interactiveWrapCommand({
       mode: "workspace-write",
-      detect: detectaFalha,
+      detect: detectFailure,
       warn: (m) => warnings.push(m),
     });
     expect(wrap("bash", "/w")).toBeNull();
@@ -70,7 +70,7 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
     expect(warnings, "the warning repeated — it becomes noise and stops being read").toHaveLength(
       1,
     );
-    expect(warnings[0], "o aviso precisa dizer POR QUE e em que modo").toMatch(
+    expect(warnings[0], "the warning must say WHY and in which mode").toMatch(
       /PATH.*workspace-write/s,
     );
     expect(warnings[0], "the warning must make clear there is NO confinement").toMatch(
@@ -78,25 +78,25 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
     );
   });
 
-  it("test_read_only_nao_da_escrita_nem_no_cwd", () => {
+  it("test_read_only_grants_no_write_even_on_the_cwd", () => {
     const out = interactiveWrapCommand({ mode: "read-only", detect: detectaOk })("bash", "/w");
     // `wrapCommandForSandbox` returns the SHELL-QUOTED string (each flag in single quotes), not the
     // raw argv. The first version of this test asserted the raw form — and the NEGATIVE assertion
-    // passava por vacuidade: `not.toContain("--bind /w /w")` seria verdadeira mesmo com o bind
+    // passed vacuously: `not.toContain("--bind /w /w")` would be true even with the bind
     // present, because the real form is `'--bind' '/w' '/w'`. A test that cannot fail proves
-    // nada, e este era justamente o que protege o modo somente-leitura.
+    // nothing, and this was precisely the one protecting read-only mode.
     expect(out).toContain("'--ro-bind' '/' '/'");
     expect(out, "read-only must not write-bind the cwd").not.toContain("'--bind' '/w' '/w'");
   });
 
   it("test_a_lente_negativa_do_read_only_e_capaz_de_falhar", () => {
     // Proof the assertion above is NOT vacuous: in the mode that MUST write to the cwd, the same
-    // string procurada aparece. Sem esta contraprova, `not.toContain` continuaria verde para sempre.
+    // the searched string does appear. Without this counter-proof, `not.toContain` would stay green forever.
     const rw = interactiveWrapCommand({ mode: "workspace-write", detect: detectaOk })("bash", "/w");
-    expect(rw, "workspace-write TEM de dar bind de escrita no cwd").toContain("'--bind' '/w' '/w'");
+    expect(rw, "workspace-write MUST write-bind the cwd").toContain("'--bind' '/w' '/w'");
   });
 
-  it("test_a_deteccao_e_consultada_por_wrap_nao_congelada_na_construcao", () => {
+  it("test_detection_is_consulted_per_wrap_not_frozen_at_construction", () => {
     // An interactive session lives for hours. Freezing detection at construction would mean that
     // installing bwrap mid-session would never take effect — and, worse, that a stale positive
     // detection would keep asserting confinement after the binary vanished.
@@ -125,7 +125,7 @@ describe("M75 T3.2 — interactiveWrapCommand", () => {
  * This test locks both paths to the SAME decision. If anyone duplicates the rule again, it fails.
  */
 describe("M75 review — seccomp e rede decidem juntos nos dois caminhos", () => {
-  it("test_rede_liberada_NAO_instala_seccomp_no_interativo", () => {
+  it("test_an_open_network_does_NOT_install_seccomp_interactively", () => {
     const out = interactiveWrapCommand({
       mode: "workspace-write",
       network: true,
@@ -140,7 +140,7 @@ describe("M75 review — seccomp e rede decidem juntos nos dois caminhos", () =>
   });
 
   it("test_rede_restrita_instala_seccomp_no_interativo", () => {
-    // CONTRAPROVA: sem ela o `not.toContain` acima ficaria verde mesmo se o seccomp nunca fosse
+    // COUNTER-PROOF: without it the `not.toContain` above would stay green even if seccomp were never
     // installed — and then the test would protect the filter's absence instead of the rule's coherence.
     const out = interactiveWrapCommand({
       mode: "workspace-write",

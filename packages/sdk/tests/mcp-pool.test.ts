@@ -1,10 +1,10 @@
 /**
- * M77 T3.1 — o cliente MCP para de ser recriado a cada turn.
+ * M77 T3.1 — the MCP client stops being recreated on every turn.
  *
  * ## O custo medido
  *
- * `real-local-run.ts:349` chama `createMcpClient` dentro de `buildMcpMap`, que roda **por run**.
- * Cada `send` refaz spawn + handshake do servidor: 193 / 138 / 134 ms por turn, medidos.
+ * `real-local-run.ts:349` calls `createMcpClient` inside `buildMcpMap`, which runs **per run**.
+ * Every `send` redoes the server's spawn + handshake: 193 / 138 / 134 ms per turn, measured.
  *
  * ## What the single reference does
  *
@@ -15,7 +15,7 @@
  * (`core/src/connectors.rs:245` ... `:334 shutdown()`) is one-shot connector discovery, not the turn
  * loop; conflating the two would lead to the opposite conclusion.
  *
- * ## Por que a chave inclui o HASH da config
+ * ## Why the key includes the config HASH
  *
  * `sendOptions.mcpServers` **replaces** `agentOptions.mcpServers` (semantics documented in the docblock
  * of `resolveTools`). Two runs in the same session can legitimately ask for the same server NAME
@@ -33,18 +33,18 @@ import { describe, expect, it } from "vitest";
 import { McpClientPool } from "../src/internal/local-agent/mcp-pool.js";
 
 /** Minimal double: it only needs to record that it was closed. */
-interface ClienteFalso {
+interface FakeClient {
   readonly id: number;
   closed: boolean;
   close: () => void;
 }
 
-function fabricaContada(): { criar: () => ClienteFalso; calls: () => number } {
+function countedFactory(): { create: () => FakeClient; calls: () => number } {
   let n = 0;
   return {
-    criar: () => {
+    create: () => {
       n += 1;
-      const c: ClienteFalso = { id: n, closed: false, close: () => (c.closed = true) };
+      const c: FakeClient = { id: n, closed: false, close: () => (c.closed = true) };
       return c;
     },
     calls: () => n,
@@ -54,78 +54,78 @@ function fabricaContada(): { criar: () => ClienteFalso; calls: () => number } {
 const CFG = { command: "node", args: ["servidor.js"] };
 
 describe("M77 T3.1 — per-session MCP client pool", () => {
-  it("test_segundo_turn_da_MESMA_sessao_REUSA_o_cliente", () => {
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>();
+  it("test_a_second_turn_of_the_SAME_session_REUSES_the_client", () => {
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>();
 
-    const a = pool.acquire("sessao-1", "fs", CFG, f.criar);
-    const b = pool.acquire("sessao-1", "fs", CFG, f.criar);
+    const a = pool.acquire("session-1", "fs", CFG, f.create);
+    const b = pool.acquire("session-1", "fs", CFG, f.create);
 
     // Counting CAUSE: it proves the factory did not run again, not merely that the objects match.
     expect(f.calls(), "the second turn must not respawn the server").toBe(1);
     expect(b).toBe(a);
   });
 
-  it("test_sessoes_distintas_NAO_compartilham_cliente", () => {
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>();
+  it("test_distinct_sessions_do_NOT_share_a_client", () => {
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>();
 
-    const a = pool.acquire("sessao-1", "fs", CFG, f.criar);
-    const b = pool.acquire("sessao-2", "fs", CFG, f.criar);
+    const a = pool.acquire("session-1", "fs", CFG, f.create);
+    const b = pool.acquire("session-2", "fs", CFG, f.create);
 
     // Sharing across sessions would leak state from one conversation into another.
     expect(f.calls()).toBe(2);
     expect(b).not.toBe(a);
   });
 
-  it("test_config_diferente_na_mesma_sessao_cria_OUTRO_cliente", () => {
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>();
+  it("test_a_different_config_in_the_same_session_creates_ANOTHER_client", () => {
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>();
 
-    pool.acquire("sessao-1", "fs", CFG, f.criar);
-    pool.acquire("sessao-1", "fs", { command: "node", args: ["OUTRO.js"] }, f.criar);
+    pool.acquire("session-1", "fs", CFG, f.create);
+    pool.acquire("session-1", "fs", { command: "node", args: ["OUTRO.js"] }, f.create);
 
-    // Sem o hash na chave, o segundo `acquire` devolveria um cliente ligado ao servidor ERRADO.
-    expect(f.calls(), "mesmo nome + config diferente ⇒ cliente diferente").toBe(2);
+    // Without the hash in the key, the second `acquire` would return a client bound to the WRONG server.
+    expect(f.calls(), "same name + different config => different client").toBe(2);
   });
 
-  it("test_CONTRAPROVA_a_ordem_das_chaves_da_config_nao_muda_a_identidade", () => {
+  it("test_COUNTERPROOF_config_key_order_does_not_change_identity", () => {
     // Sem esta, o hash poderia ser `JSON.stringify` cru — e `{a,b}` vs `{b,a}` produziriam clientes
     // distinct for IDENTICAL configurations, respawning every turn and silently nullifying the pool.
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>();
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>();
 
-    pool.acquire("s", "fs", { command: "node", args: ["x"] }, f.criar);
-    pool.acquire("s", "fs", { args: ["x"], command: "node" }, f.criar);
+    pool.acquire("s", "fs", { command: "node", args: ["x"] }, f.create);
+    pool.acquire("s", "fs", { args: ["x"], command: "node" }, f.create);
 
     expect(f.calls()).toBe(1);
   });
 
-  it("test_dispose_da_sessao_FECHA_os_clientes_e_libera_a_chave", () => {
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>();
+  it("test_session_dispose_CLOSES_the_clients_and_frees_the_key", () => {
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>();
 
-    const a = pool.acquire("sessao-1", "fs", CFG, f.criar);
-    const b = pool.acquire("sessao-1", "git", CFG, f.criar);
-    pool.disposeSession("sessao-1", (c) => c.close());
+    const a = pool.acquire("session-1", "fs", CFG, f.create);
+    const b = pool.acquire("session-1", "git", CFG, f.create);
+    pool.disposeSession("session-1", (c) => c.close());
 
     expect(a.closed, "a leaked client is a leaked process").toBe(true);
     expect(b.closed).toBe(true);
 
     // And the key goes away: a subsequent `acquire` must create anew, not return the closed one.
-    pool.acquire("sessao-1", "fs", CFG, f.criar);
+    pool.acquire("session-1", "fs", CFG, f.create);
     expect(f.calls()).toBe(3);
   });
 
-  it("test_dispose_de_uma_sessao_NAO_toca_a_outra", () => {
+  it("test_disposing_one_session_does_NOT_touch_the_other", () => {
     // CONTRAPROVA: sem ela, um `disposeSession` que limpasse o Map inteiro passaria no teste acima e
     // derrubaria os servidores de toda conversa concorrente.
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>();
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>();
 
-    const a = pool.acquire("sessao-1", "fs", CFG, f.criar);
-    const b = pool.acquire("sessao-2", "fs", CFG, f.criar);
-    pool.disposeSession("sessao-1", (c) => c.close());
+    const a = pool.acquire("session-1", "fs", CFG, f.create);
+    const b = pool.acquire("session-2", "fs", CFG, f.create);
+    pool.disposeSession("session-1", (c) => c.close());
 
     expect(a.closed).toBe(true);
     expect(b.closed, "the neighboring session must not be torn down with it").toBe(false);
@@ -135,27 +135,27 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
     // INJECTED clock — `rules/testing.md` § 6 forbids real time in a unit test. Without the TTL, a
     // long session that used a server once keeps it alive until dispose.
     let now = 1_000;
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => now });
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>({ idleTtlMs: 500, now: () => now });
 
-    const a = pool.acquire("s", "fs", CFG, f.criar);
+    const a = pool.acquire("s", "fs", CFG, f.create);
     now += 501;
     pool.reapIdle((c) => c.close());
 
     expect(a.closed).toBe(true);
     // And the key is gone: the next acquire creates instead of returning a dead client.
-    pool.acquire("s", "fs", CFG, f.criar);
+    pool.acquire("s", "fs", CFG, f.create);
     expect(f.calls()).toBe(2);
   });
 
-  it("test_CONTRAPROVA_uso_recente_NAO_e_recolhido", () => {
+  it("test_COUNTERPROOF_recent_use_is_NOT_collected", () => {
     // Sem esta, um `reapIdle` que fechasse tudo passaria no teste do TTL e mataria o cliente que
     // was just used — the worst possible outcome, worse than having no pool.
     let now = 1_000;
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => now });
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>({ idleTtlMs: 500, now: () => now });
 
-    const a = pool.acquire("s", "fs", CFG, f.criar);
+    const a = pool.acquire("s", "fs", CFG, f.create);
     now += 400;
     pool.reapIdle((c) => c.close());
 
@@ -166,12 +166,12 @@ describe("M77 T3.1 — per-session MCP client pool", () => {
     // The TTL is about IDLENESS, not lifetime. A server used every turn must not be collected just
     // because it was created long ago.
     let now = 1_000;
-    const f = fabricaContada();
-    const pool = new McpClientPool<ClienteFalso>({ idleTtlMs: 500, now: () => now });
+    const f = countedFactory();
+    const pool = new McpClientPool<FakeClient>({ idleTtlMs: 500, now: () => now });
 
-    const a = pool.acquire("s", "fs", CFG, f.criar);
+    const a = pool.acquire("s", "fs", CFG, f.create);
     now += 400;
-    pool.acquire("s", "fs", CFG, f.criar); // uso — renova
+    pool.acquire("s", "fs", CFG, f.create); // use — renews
     now += 400; // 800 since creation, 400 since last use
     pool.reapIdle((c) => c.close());
 
