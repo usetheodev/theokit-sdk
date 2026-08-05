@@ -56,6 +56,10 @@ for (const message of await Agent.transcript("agent-abc123")) {
 // Reflect the live registry — what an agent can call, without reading source (theokit#123).
 // A projection: tool handlers and subagent prompts never leave the process.
 const { tools, subagents } = await Agent.describe("agent-abc123");
+
+// A committed workflow describes its own shape (theokit#161). No registry exists on purpose — the
+// host holds the workflows it defined, so it maps over its own and calls this.
+const { name, steps } = myWorkflow.describe();   // steps: [{ id, kind, steps? }]
 ```
 
 ## Errors & transient classification — `@theokit/sdk/errors`
