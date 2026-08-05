@@ -42,7 +42,7 @@ import { voyageMemoryEmbeddingProviderAdapter } from "./embedding/voyage-embeddi
  * **CLOSES the embedding-adapter cluster in sdk-memory.** The provider adapters + the shared
  * OpenAI-compatible runtime + the inlined HTTP error mapper are canonical here:
  * - iter 45: embedding-adapter (types)
- * - iter 46: embedding-cache (LRU)
+ * - iter 46: embedding-cache (LRU) — REMOVED by theokit#160: the shared runtime owns caching now
  * - iter 73: openai-compatible (shared factory) + adapter-http-error
  *   (inlined mapper)
  * - iter 74: openai-embedding + mistral-embedding + deepinfra-embedding
