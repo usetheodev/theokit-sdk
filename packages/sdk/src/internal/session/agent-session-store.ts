@@ -58,13 +58,27 @@ interface MappedTurn {
   toolResults: Array<{ toolUseId: string; content: string; isError?: boolean }>;
 }
 
+/**
+ * theokit#122 — record the turn's thinking block, signature included.
+ *
+ * The signature is what makes the block replayable: without it the resumed turn is rejected by
+ * Anthropic with `400 "thinking blocks cannot be modified"`.
+ */
+function applyThinkingStep(
+  assistant: AssistantTurn,
+  message: { text: string; signature?: string },
+): void {
+  assistant.thinking = message.text;
+  if (message.signature !== undefined) assistant.thinkingSignature = message.signature;
+}
+
 /** Fold one agent turn's steps into an assistant record + paired tool results. */
 function mapAgentTurn(steps: readonly ConversationStep[]): MappedTurn {
   const assistant: AssistantTurn = {};
   const toolResults: MappedTurn["toolResults"] = [];
   const toolCalls: NonNullable<AssistantTurn["toolCalls"]> = [];
   for (const step of steps) {
-    if (step.type === "thinkingMessage") assistant.thinking = step.message.text;
+    if (step.type === "thinkingMessage") applyThinkingStep(assistant, step.message);
     else if (step.type === "assistantMessage") assistant.text = step.message.text;
     else if (step.type === "toolCall")
       toolCalls.push({

@@ -224,7 +224,7 @@ async function runCollectorLoop(
   let accumulatedText = "";
   // issue #47/#48: reasoning streams on its own channel — `text` is accumulated for the
   // `thinking` SDKMessage replay; `startedAt` (set on the first delta) measures the duration.
-  const reasoning: ReasoningAccumulator = { text: "", startedAt: undefined };
+  const reasoning: ReasoningAccumulator = { text: "", startedAt: undefined, signature: undefined };
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
   // issue #48 (review Finding 1): finalize in a `finally` so a mid-stream THROW from the LLM
@@ -244,7 +244,7 @@ async function runCollectorLoop(
         await emitTextDeltaCallback(inputs, next.value.text);
       }
       if (next.value.type === "reasoning_delta") {
-        await accumulateReasoning(inputs, reasoning, next.value.text);
+        await consumeReasoningDelta(inputs, reasoning, next.value);
       }
       if (next.value.type === "error") {
         registerLoopError(ctx, next.value);
@@ -259,10 +259,31 @@ async function runCollectorLoop(
   return { accumulatedText, errored, finishValue };
 }
 
+/**
+ * theokit#122 — take one reasoning delta, text and signature alike.
+ *
+ * The signature rides its OWN text-less delta (Anthropic emits `signature_delta` after the thinking
+ * text), so it is captured before the text is accumulated — otherwise a signature-only delta would
+ * be indistinguishable from an empty reasoning chunk and thrown away.
+ */
+async function consumeReasoningDelta(
+  inputs: AgentLoopInputs,
+  reasoning: ReasoningAccumulator,
+  delta: { text: string; signature?: string },
+): Promise<void> {
+  if (delta.signature !== undefined) reasoning.signature = delta.signature;
+  await accumulateReasoning(inputs, reasoning, delta.text);
+}
+
 /** issue #47/#48: reasoning accumulated across a single LLM turn. */
 interface ReasoningAccumulator {
   text: string;
   startedAt: number | undefined;
+  /**
+   * theokit#122 — the provider's cryptographic signature for this thinking block. Anthropic sends
+   * it once, on its own delta, after the text. Kept as last-seen-wins: one block, one signature.
+   */
+  signature: string | undefined;
 }
 
 /**
@@ -293,7 +314,17 @@ async function finalizeReasoning(
   if (reasoning.text.length === 0) return;
   const thinkingDurationMs =
     reasoning.startedAt === undefined ? 0 : Date.now() - reasoning.startedAt;
-  ctx.events.push(buildThinkingEvent(inputs, reasoning.text, thinkingDurationMs));
+  ctx.events.push(
+    buildThinkingEvent(inputs, reasoning.text, thinkingDurationMs, reasoning.signature),
+  );
+  // theokit#122 — hold the block so the assistant step of THIS turn carries it into the persisted
+  // conversation. Before this, the thinking event was emitted and then dropped: nothing ever
+  // produced a `thinkingMessage` step, so `mapAgentTurn`'s branch for it was unreachable and a
+  // reasoning turn persisted with no thinking at all — signature or not.
+  ctx.pendingThinking = {
+    text: reasoning.text,
+    ...(reasoning.signature !== undefined ? { signature: reasoning.signature } : {}),
+  };
   await emitThinkingCompletedCallback(inputs, thinkingDurationMs);
 }
 

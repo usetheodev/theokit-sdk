@@ -38,6 +38,12 @@ export interface SessionTranscriptOptions {
 export interface AssistantTurn {
   text?: string;
   thinking?: string;
+  /**
+   * theokit#122 — the provider's signature for the thinking block. Written into the `thinking`
+   * record block (`Block` already declared `signature?`), so a resumed session can replay the block
+   * exactly as the provider issued it.
+   */
+  thinkingSignature?: string;
   toolCalls?: Array<{ id: string; name: string; input: Record<string, unknown> }>;
 }
 
@@ -124,7 +130,15 @@ export class SessionTranscript {
 
   appendAssistantTurn(turn: AssistantTurn): SessionRecord {
     const content: Block[] = [];
-    if (turn.thinking) content.push({ type: "thinking", thinking: red(turn.thinking) });
+    if (turn.thinking) {
+      content.push({
+        type: "thinking",
+        thinking: red(turn.thinking),
+        // theokit#122 — NOT redacted: the signature is an opaque provider token that must round-trip
+        // byte-identically or Anthropic rejects the block. It carries no user content to redact.
+        ...(turn.thinkingSignature !== undefined ? { signature: turn.thinkingSignature } : {}),
+      });
+    }
     if (turn.text) content.push({ type: "text", text: red(turn.text) });
     for (const c of turn.toolCalls ?? []) {
       content.push({ type: "tool_use", id: c.id, name: c.name, input: redactValue(c.input) });
@@ -204,9 +218,25 @@ function dedupByUuid(records: readonly SessionRecord[]): Map<string, SessionReco
   return byUuid;
 }
 
-/** Map one structured block to an LlmContentPart (`undefined` for thinking — dropped on read, SE42/#122). */
+/**
+ * Map one structured block to an `LlmContentPart`.
+ *
+ * theokit#122 — thinking blocks used to be DROPPED here, which is why an extended-thinking session
+ * could not be resumed: the block never made it back into the replayed messages, so the provider saw
+ * a conversation whose assistant turn had lost its thinking. They are now reconstructed with their
+ * signature; the Anthropic wire re-serializes signed blocks and skips unsigned ones.
+ */
+function thinkingBlockToPart(b: Extract<Block, { type: "thinking" }>): LlmContentPart {
+  return {
+    type: "thinking",
+    text: String(b.thinking ?? ""),
+    ...(b.signature !== undefined ? { signature: String(b.signature) } : {}),
+  };
+}
+
 function blockToPart(b: Block): LlmContentPart | undefined {
   if (b.type === "text") return { type: "text", text: String(b.text ?? "") };
+  if (b.type === "thinking") return thinkingBlockToPart(b);
   if (b.type === "tool_use") {
     return {
       type: "tool_use",

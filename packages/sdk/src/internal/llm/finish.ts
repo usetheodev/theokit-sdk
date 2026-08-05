@@ -70,6 +70,8 @@ export function makeLlmFinish(state: {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   reasoningTokens?: number;
+  /** theokit#122 — the turn's thinking block, with its provider signature when one was issued. */
+  thinking?: import("./types.js").LlmThinkingPart;
 }): LlmFinish {
   const finish: LlmFinish = {
     stopReason: state.stopReason,
@@ -81,5 +83,6 @@ export function makeLlmFinish(state: {
   if (state.cacheReadTokens !== undefined) finish.cacheReadTokens = state.cacheReadTokens;
   if (state.cacheWriteTokens !== undefined) finish.cacheWriteTokens = state.cacheWriteTokens;
   if (state.reasoningTokens !== undefined) finish.reasoningTokens = state.reasoningTokens;
+  if (state.thinking !== undefined) finish.thinking = state.thinking;
   return finish;
 }

@@ -24,6 +24,13 @@ export interface AssistantMessage {
 export interface ThinkingMessage {
   text: string;
   thinkingDurationMs?: number;
+  /**
+   * theokit#122 — the provider's cryptographic signature for this thinking block, when it issued
+   * one. Persisted with the block so a resumed conversation can replay it byte-identically;
+   * Anthropic rejects a modified or unsigned thinking block with
+   * `400 "thinking blocks cannot be modified"`.
+   */
+  signature?: string;
 }
 
 /**
