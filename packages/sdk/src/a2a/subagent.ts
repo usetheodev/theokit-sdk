@@ -27,8 +27,6 @@ import type {
 import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
 
-export type { InheritedCredentials } from "../internal/runtime/concurrency/subagent-credentials.js";
-
 /** Arguments passed to {@link SubAgentSpec.messageFilter} (SE12). */
 export interface MessageFilterArgs {
   /** The supervisor transcript (read-only text projection) available to this delegation. */

@@ -42,8 +42,9 @@ import type { Plugin } from "../../plugins/types.js";
  * auth (and, absent an explicit `spec.model`, its model).
  *
  * Declared here rather than in `a2a/subagent.ts` so the delivery mechanism owns the payload shape
- * and the dependency runs one way (`a2a/subagent` -> this module). `a2a/subagent.ts` re-exports it
- * for back-compat.
+ * and the dependency runs one way (`a2a/subagent` -> this module). `a2a/subagent.ts` briefly
+ * re-exported it "for back-compat"; knip proved there was no back-compat surface to preserve — the
+ * type was never in the public barrel nor the exports map — so the re-export was deleted.
  *
  * @internal
  */
