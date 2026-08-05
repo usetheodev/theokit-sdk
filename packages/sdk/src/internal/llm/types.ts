@@ -47,7 +47,30 @@ export interface LlmImagePart {
   source: { type: "base64"; media_type: string; data: string } | { type: "url"; url: string };
 }
 
-export type LlmContentPart = LlmTextPart | LlmToolCallPart | LlmToolResultPart | LlmImagePart;
+/**
+ * theokit#122 — an extended-thinking block, carried WITH its provider-issued signature.
+ *
+ * The signature is the whole reason this part exists. Anthropic requires a resumed conversation to
+ * replay each `thinking` block byte-identically, signature included; replaying the text alone is
+ * rejected with `400 "thinking blocks cannot be modified"` (anthropics/claude-code#63147). So a
+ * session that used extended thinking could be persisted but never resumed.
+ *
+ * `signature` is optional because not every provider issues one — the OpenAI-compatible reasoning
+ * channel streams `reasoning`/`reasoning_content` text with no signature at all. A part without a
+ * signature is display-only history; it must not be replayed to Anthropic as a thinking block.
+ */
+export interface LlmThinkingPart {
+  type: "thinking";
+  text: string;
+  signature?: string;
+}
+
+export type LlmContentPart =
+  | LlmTextPart
+  | LlmToolCallPart
+  | LlmToolResultPart
+  | LlmImagePart
+  | LlmThinkingPart;
 
 export interface LlmMessage {
   role: "system" | "user" | "assistant";
@@ -154,7 +177,10 @@ export interface LlmRequest {
  */
 export type LlmEvent =
   | { type: "text_delta"; text: string }
-  | { type: "reasoning_delta"; text: string }
+  // theokit#122 — `signature` rides the reasoning channel because Anthropic delivers it as a
+  // `signature_delta` on the SAME content block as the thinking text. Present only on the delta
+  // that carries it, so the accumulator keeps the last one seen for the block.
+  | { type: "reasoning_delta"; text: string; signature?: string }
   | { type: "error"; message: string };
 
 export type LlmStopReason = "end_turn" | "tool_use" | "max_tokens" | "stop_sequence" | "error";
@@ -171,6 +197,13 @@ export interface LlmFinish {
   cacheWriteTokens?: number;
   /** Reasoning tokens (OpenAI o-series). ADR D376. */
   reasoningTokens?: number;
+  /**
+   * theokit#122 — the turn's extended-thinking block, with the provider's signature when it issued
+   * one. Returned on the finish value rather than reconstructed from the `reasoning_delta` text,
+   * because the signature arrives once for the whole block and only the provider adapter knows
+   * which block it belongs to.
+   */
+  thinking?: LlmThinkingPart;
 }
 
 export interface LlmClient {

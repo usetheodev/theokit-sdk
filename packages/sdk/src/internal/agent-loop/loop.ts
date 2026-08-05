@@ -196,10 +196,16 @@ async function emitAssistantTextStep(
   text: string,
 ): Promise<void> {
   ctx.events.push(buildAssistantEvent(inputs, text));
-  ctx.conversation.push({
-    type: "agentConversationTurn",
-    turn: { steps: [{ type: "assistantMessage", message: { text } }] },
-  });
+  // theokit#122 — thinking and text belong to ONE assistant message. Anthropic requires the
+  // thinking block to come first in the message it belongs to, and `mapAgentTurn` folds one
+  // conversation turn into one assistant record — so they must share a turn, in this order.
+  const thinking = ctx.pendingThinking;
+  ctx.pendingThinking = undefined;
+  const steps: import("../../types/conversation.js").ConversationStep[] = [
+    ...(thinking !== undefined ? [{ type: "thinkingMessage" as const, message: thinking }] : []),
+    { type: "assistantMessage" as const, message: { text } },
+  ];
+  ctx.conversation.push({ type: "agentConversationTurn", turn: { steps } });
   ctx.finalText = text;
   if (inputs.onStep === undefined) return;
   const cb = inputs.onStep;

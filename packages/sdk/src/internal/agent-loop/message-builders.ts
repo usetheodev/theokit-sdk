@@ -53,6 +53,7 @@ export function buildThinkingEvent(
   inputs: AgentLoopInputs,
   text: string,
   thinkingDurationMs?: number,
+  signature?: string,
 ): SDKThinkingMessage {
   const event: SDKThinkingMessage = {
     type: "thinking",
@@ -63,6 +64,9 @@ export function buildThinkingEvent(
   if (thinkingDurationMs !== undefined && thinkingDurationMs >= 0) {
     event.thinking_duration_ms = thinkingDurationMs;
   }
+  // theokit#122 — carried so the turn can be persisted and replayed; absent for providers that
+  // stream reasoning text without signing it.
+  if (signature !== undefined) event.signature = signature;
   return event;
 }
 
