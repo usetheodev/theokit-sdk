@@ -97,6 +97,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
       startTime,
     },
     () => buildLoopInputs(options, id, userText, userImages),
+    runOwnsMcpClients(options.agentOptions),
   );
   handle.bootstrap();
   registerRun(handle);
@@ -373,6 +374,19 @@ export function _buildMcpMapForTests(options: CreateRealLocalRunOptions): Map<st
   return buildMcpMap(options);
 }
 
+/**
+ * theokit#155 — does THIS RUN own the MCP clients it was handed?
+ *
+ * Under the default `'run'` lifecycle the client is built for this send and dies with it, so the
+ * run closes it. Under `'session'` the pool owns it: closing it at the end of the turn SIGTERMs the
+ * child process, and the next turn spawns a new one — which is exactly why the option measured
+ * 0 ms of savings. Ownership is derived here, once, so `buildMcpMap` and the run's `finally` cannot
+ * disagree about who releases the resource.
+ */
+function runOwnsMcpClients(agentOptions: AgentOptions): boolean {
+  return agentOptions.mcpLifecycle !== "session";
+}
+
 function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient> {
   const map = new Map<string, McpClient>();
   const inline = options.sendOptions.mcpServers ?? options.agentOptions.mcpServers;
@@ -382,7 +396,7 @@ function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient>
   // `mcpLifecycle: 'session'` reaches the pool, because pooling changes the failure model (see the
   // option's docblock). The reap runs on acquisition rather than on a timer: a timer would keep the
   // process alive, and a pool nobody touches has nothing worth reaping.
-  const pooled = options.agentOptions.mcpLifecycle === "session";
+  const pooled = !runOwnsMcpClients(options.agentOptions);
   if (pooled) sessionMcpPool.reapIdle((c) => void c.close());
 
   for (const [name, config] of Object.entries(inline)) {
@@ -398,13 +412,17 @@ function buildMcpMap(options: CreateRealLocalRunOptions): Map<string, McpClient>
 
 class RealLocalRun extends FixtureRunBase {
   private readonly buildInputs: () => AgentLoopInputs;
+  /** theokit#155 — whether this turn releases its MCP clients, or the session pool does. */
+  private readonly ownsMcpClients: boolean;
 
   constructor(
     options: ConstructorParameters<typeof FixtureRunBase>[0],
     buildInputs: () => AgentLoopInputs,
+    ownsMcpClients: boolean,
   ) {
     super(options);
     this.buildInputs = buildInputs;
+    this.ownsMcpClients = ownsMcpClients;
   }
 
   bootstrap(): void {
@@ -494,8 +512,14 @@ class RealLocalRun extends FixtureRunBase {
       this.emitErrorEvent(cause, "Agent loop failed", "", "agent_loop_failed");
       this.transitionTo("error" satisfies RunStatus);
     } finally {
-      for (const client of inputs.mcp.values()) {
-        await client.close().catch(() => undefined);
+      // theokit#155 — release only what this TURN owns. Under `mcpLifecycle: 'session'` the pool
+      // owns the client and releases it via `disposeSessionMcpClients` (`LocalAgent.dispose()`) plus
+      // `reapIdle` on the next acquire; closing it here would kill the child the next turn expects
+      // to still be running.
+      if (this.ownsMcpClients) {
+        for (const client of inputs.mcp.values()) {
+          await client.close().catch(() => undefined);
+        }
       }
     }
   }

@@ -227,7 +227,11 @@ async function drainTimeline(): Promise<{
         },
       ],
     });
-    const run = await agent.send("do it", { onDelta: () => (callerDeltas += 1) });
+    const run = await agent.send("do it", {
+      onDelta: () => {
+        callerDeltas += 1;
+      },
+    });
     for await (const event of run.events()) {
       timeline.push(event);
       if (event.kind === "message") streamed.push(event.message.type);

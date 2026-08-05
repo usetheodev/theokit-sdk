@@ -223,7 +223,20 @@ class StdioMcpClient extends BaseMcpClient {
     });
   }
 
+  /**
+   * theokit#155 — idempotent while the child is LIVE.
+   *
+   * Under `mcpLifecycle: 'session'` the pool hands the same client back on the next turn, and
+   * `initializeMcp` runs every turn. An unconditional `spawnChild()` would overwrite `this.child`,
+   * orphaning a healthy process (its `exit` handler is skipped by the `this.child === child` guard)
+   * and paying the ~146 ms spawn + handshake the option exists to avoid.
+   *
+   * This does NOT touch the #59 reconnect path: `reconnect()` calls `spawnChild()` and
+   * `super.initialize()` directly, so it re-spawns exactly as before. After `close()` — or after a
+   * drop, which clears `child` — this method spawns again, as it must.
+   */
   override async initialize(): Promise<void> {
+    if (this.child !== undefined) return;
     this.spawnChild();
     await super.initialize();
   }
