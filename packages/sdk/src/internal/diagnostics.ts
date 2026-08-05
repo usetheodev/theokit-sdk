@@ -16,20 +16,21 @@
  *
  * - **`setDiagnosticsSink(fn)`** hands the messages to the application, which decides where to put
  *   them (a status line, a file, a panel). It is what was missing for a TUI to coexist with the SDK.
- * - **With no sink, it goes to `stderr`** — exactly as before this change.
+ * - **With no sink, nothing is emitted.** A library does not own the host's terminal.
  *
- * ## Why the default did NOT change (yet), and why that is deliberate
+ * ## Silent by default, and how 36 suites survived the flip
  *
- * #147 asks for silence by default, and that is the right target. But **58 test files** currently
- * assert these diagnostics reach `stderr` — they encode the contract "the warning IS emitted",
- * which still holds and must not be lost. Flipping the default without migrating them would fail
- * ~53 tests, and migrating them in a hurry, across four different ways of spying on `stderr`, is
- * the recipe for weakening 58 suites at once.
+ * The default WAS `stderr`, and 36 test files spy on `process.stderr.write` to assert a given
+ * warning is emitted. That contract is real and had to survive; migrating all 36 by hand, across
+ * four different spy styles, is how you weaken 36 suites in one commit.
  *
- * So this change delivers the half that UNBLOCKS the consumer — a TUI host can now
- * interceptar, que era o bloqueio relatado ("no way to intercept these; no injectable logger") — e
- * and leaves flipping the default as its own migration, with a measured cost. A host that wants silence
- * hoje instala `setDiagnosticsSink(() => {})`.
+ * So the flip happened at the default, and `vitest.setup.ts` installs a sink that FORWARDS to
+ * `stderr` for the duration of every test. Those assertions still test what they always tested —
+ * "this condition emits a diagnostic" — through the channel a host would use, while production
+ * emits nothing unless asked.
+ *
+ * The cost is stated rather than hidden: no test observes the production default by accident, so
+ * `tests/diagnostics-public-entry.test.ts` pins it explicitly by clearing the sink first.
  *
  * ## Coverage is the whole guarantee
  *
@@ -73,13 +74,12 @@ export function setDiagnosticsSink(next: DiagnosticsSink | undefined): void {
  * must not take down the run it merely observes.
  */
 export function diag(message: string): void {
-  if (sink !== undefined) {
-    try {
-      sink(message);
-    } catch {
-      // Observability never breaks the run — same principle as `emitRunEvent`.
-    }
-    return;
+  // Silent by default (#147): with no sink installed the message is dropped. A library must not
+  // assume the host's stdout/stderr are free-form log sinks — in a TUI they are the render surface.
+  if (sink === undefined) return;
+  try {
+    sink(message);
+  } catch {
+    // Observability never breaks the run — same principle as `emitRunEvent`.
   }
-  process.stderr.write(message);
 }
