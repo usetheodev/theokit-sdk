@@ -14,8 +14,13 @@ loop to compensate; the SDK's own tool assembly performs the same rebuild.
 Credentials now travel on the run's async scope, so they reach the handler no matter what the tool
 object looks like by the time it is dispatched. Consumers that normalize, wrap, or re-create SDK
 tools no longer need to preserve hidden properties — a delegated child gets the parent's key either
-way. The band-aid symbol-copy in `@theokit/agents` becomes unnecessary, and removing it is safe
-against both old and new SDK versions.
+way. The band-aid symbol-copy in `@theokit/agents` becomes unnecessary once the SDK
+carrying this change is the resolved version. Against an OLDER SDK the copy loop is still required:
+the pre-fix runtime reads the credential sink off the tool object, so a band-aid-free
+`@theokit/agents` resolving an SDK below this release reproduces the very credential loss this issue
+reports. `@theokit/agents` declares a caret range on `@theokit/sdk`, so that pairing is a normal
+install rather than a hypothetical — raise the dependency floor in the same release that removes
+the loop.
 
 Also fixes a latent defect the old design could not avoid: credentials were stored per tool
 instance, so one subagent tool shared by two concurrently running agents got last-writer-wins. Each

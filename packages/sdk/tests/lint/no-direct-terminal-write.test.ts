@@ -35,7 +35,6 @@ const ALLOWLIST = new Map<string, string>([
     "injectable `opts.warn` seam; console.warn is only the documented default",
   ],
   ["internal/workflow/ctx.ts", "the Workflow DSL's own logger seam, injectable per run"],
-  ["internal/eval/runner.ts", "eval harness — a CLI-shaped tool, not an agent hot path"],
   [
     "internal/memory/migrate-sqlite-to-lance.ts",
     "injectable `opts.logger`; console.log is default",

@@ -22,6 +22,7 @@ import type {
   Score,
   Scorer,
 } from "../../types/eval.js";
+import { diag } from "../diagnostics.js";
 import { appendJsonl, readJsonlIds } from "../persistence/jsonl.js";
 import { getAgentFacade } from "../runtime/registry/agent-factory-registry.js";
 import { clampScore, computeAggregate } from "./aggregate.js";
@@ -39,7 +40,10 @@ function safeHook(fn: () => void): void {
   try {
     fn();
   } catch (err) {
-    console.warn("[eval] hook threw (ignored):", err instanceof Error ? err.message : err);
+    // theokit#147 — through the interceptable channel. The allowlist entry that exempted this file
+    // claimed the caller controls the destination; it does not, and an in-process `Eval` run under a
+    // TUI corrupted its frame by exactly the mechanism the issue reports.
+    diag(`[eval] hook threw (ignored): ${err instanceof Error ? err.message : String(err)}\n`);
   }
 }
 
@@ -108,9 +112,8 @@ function appendRowSafely(path: string, row: EvalRowResult): void {
   try {
     appendJsonl(path, row);
   } catch (err) {
-    console.warn(
-      "[eval] persist append failed (ignored):",
-      err instanceof Error ? err.message : err,
+    diag(
+      `[eval] persist append failed (ignored): ${err instanceof Error ? err.message : String(err)}\n`,
     );
   }
 }
