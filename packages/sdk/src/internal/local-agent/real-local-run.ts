@@ -14,6 +14,10 @@ import { createMcpClient, type McpClient } from "../mcp/client.js";
 import { getProviderProfile, registerBuiltins } from "../providers/index.js";
 import { registerPluginProviderProfiles } from "../providers/register-plugin-providers.js";
 import { withToolWhitelist } from "../runtime/concurrency/async-local-storage.js";
+import {
+  type InheritedCredentials,
+  withInheritedSubAgentCredentials,
+} from "../runtime/concurrency/subagent-credentials.js";
 import { isFixtureApiKey } from "../runtime/fixtures/fixture-mode.js";
 import { FixtureRunBase, prepareRunContext } from "../runtime/fixtures/fixture-run-base.js";
 import type { FixtureScript } from "../runtime/fixtures/fixture-types.js";
@@ -23,7 +27,7 @@ import type { SessionMessage } from "../session/index.js";
 import { createTelemetry } from "../telemetry/tracer.js";
 import { McpClientPool } from "./mcp-pool.js";
 import { detectPrimaryProvider, inferProviderFromApiKey } from "./real-local-run-provider.js";
-import { buildCustomToolsInput } from "./real-local-run-tools.js";
+import { buildCustomToolsInput, resolveInheritedCredentials } from "./real-local-run-tools.js";
 
 /**
  * Real local Run. When the local agent has a non-fixture API key plus at
@@ -98,6 +102,7 @@ export function createRealLocalRun(options: CreateRealLocalRunOptions): Run {
     },
     () => buildLoopInputs(options, id, userText, userImages),
     runOwnsMcpClients(options.agentOptions),
+    resolveInheritedCredentials(options.agentOptions),
   );
   handle.bootstrap();
   registerRun(handle);
@@ -414,15 +419,19 @@ class RealLocalRun extends FixtureRunBase {
   private readonly buildInputs: () => AgentLoopInputs;
   /** theokit#155 — whether this turn releases its MCP clients, or the session pool does. */
   private readonly ownsMcpClients: boolean;
+  /** theokit#148 — what a delegated child inherits from this parent, scoped to the loop. */
+  private readonly inheritedCredentials: InheritedCredentials;
 
   constructor(
     options: ConstructorParameters<typeof FixtureRunBase>[0],
     buildInputs: () => AgentLoopInputs,
     ownsMcpClients: boolean,
+    inheritedCredentials: InheritedCredentials,
   ) {
     super(options);
     this.buildInputs = buildInputs;
     this.ownsMcpClients = ownsMcpClients;
+    this.inheritedCredentials = inheritedCredentials;
   }
 
   bootstrap(): void {
@@ -502,10 +511,15 @@ class RealLocalRun extends FixtureRunBase {
       // SE18 — when the send set `activeTools`, run the loop inside a tool-whitelist
       // scope so a call to a tool outside the set is vetoed at dispatch (same path as
       // `Agent.fork`'s `allowedTools`). Absent ⇒ the full toolset is available.
-      const output =
+      const runLoop = (): Promise<Awaited<ReturnType<typeof runAgentLoop>>> =>
         inputs.activeTools !== undefined
-          ? await withToolWhitelist(new Set(inputs.activeTools), () => runAgentLoop(inputs))
-          : await runAgentLoop(inputs);
+          ? withToolWhitelist(new Set(inputs.activeTools), () => runAgentLoop(inputs))
+          : runAgentLoop(inputs);
+      // theokit#148 — publish the parent's delegation credentials for the duration of the loop.
+      // A subagent tool reads them at dispatch, so they survive every layer that rebuilds the tool
+      // object (including the SDK's own rebuild in `real-local-run-tools.ts`), and two concurrent
+      // runs sharing one tool instance each see their own.
+      const output = await withInheritedSubAgentCredentials(this.inheritedCredentials, runLoop);
       this.applyAgentLoopOutput(output);
       this.transitionTo(output.finalStatus);
     } catch (cause) {
