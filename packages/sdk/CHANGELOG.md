@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.39.1
+
+### Patch Changes
+
+- A retry no longer runs silently: each attempt announces itself through the diagnostics channel.
+
+  Every attempt now emits its number and ceiling, the backoff it is about to wait, the error class, and
+  the provider's `Retry-After` when one arrived. Nothing is written unless a host installs a sink
+  (`setDiagnosticsSink`), so the default stays silent — a library does not own the host's terminal.
+
+  The bug this closes is not a missing retry. `RetryingLlmClient` already wraps every arm of the
+  router, and `RateLimitError` is already retryable with a ceiling of 3. The defect was that the retry
+  was _unobservable_: the backoff is full-jitter, so three attempts can complete inside milliseconds
+  and disappear into the response latency. Issue #165 is the cost, measured — a 429 was investigated on
+  the wrong hypothesis for hours, because the available evidence could not distinguish "retried three
+  times and failed" from "never retried".
+
+  ```ts
+  import { setDiagnosticsSink } from "@theokit/sdk";
+  setDiagnosticsSink((m) => process.stderr.write(m + "\n"));
+  ```
+
 ## 4.39.0
 
 ### Minor Changes
@@ -236,6 +258,32 @@
   loses one block of context rather than the whole turn), and the provider's own reported block is now
   what the loop consumes — previously it was produced and read by nobody, the same dead-channel shape
   this release deletes elsewhere.
+
+## 4.38.0
+
+### Minor Changes
+
+- New `run.events()` — every event of a run in true order, from a single source (theokit#140).
+
+  A consumer that wanted both structural messages and live token granularity had to fuse two
+  incomplete views by hand: `stream()` carries no token deltas, and `SendOptions.onDelta` carries no
+  `run_started` / `system`. Reconciling them in the consumer is what produced the ordering and
+  duplication bugs this replaces.
+
+  `events()` returns an `AsyncGenerator<RunTimelineEvent>`, a discriminated union of
+  `{ kind: "message" }` and `{ kind: "delta" }` — not a widened `SDKMessage`, because a token delta
+  is not a message and pretending otherwise would force every consumer to guess which of the two it
+  is holding.
+
+  Minor rather than major: `stream()` is untouched and remains the SDKMessage-only view, `onDelta` is
+  wrapped rather than replaced, and every existing consumer observes no change.
+
+  `RunTimelineEvent` is exported from the package barrel.
+
+  > Entry reconstructed on 2026-08-05. The 4.38.0 release was cut by a hand-written version bump
+  > (`8beb61da6`) that changed `package.json` alone — no changeset, so this section never existed and
+  > the published version shipped without notes. The facts here come from the release commit and the
+  > exported type contract, not from a recovered changeset.
 
 ## 4.37.2
 

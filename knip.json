@@ -3,7 +3,6 @@
   "ignore": [
     "scripts/**",
     "examples/**",
-    ".claude/**",
     "tools/check-node.mjs",
     "tools/preflight-native-bindings.d.mts",
     "tools/benchmark-memory-backends.mjs",
@@ -15,9 +14,7 @@
     "tools/validate-streaming-telegram-real-llm.mjs",
     "tools/validate-acp-real-llm.mjs",
     "tools/validate-tasks-real-llm.mjs",
-    "tools/validate-budget-real-llm.mjs",
-    "refactor/**",
-    "refactor"
+    "tools/validate-budget-real-llm.mjs"
   ],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "jscodeshift", "madge"],
   "ignoreBinaries": ["turbo"],

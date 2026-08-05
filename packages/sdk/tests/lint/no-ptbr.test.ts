@@ -38,15 +38,20 @@ import { readdir, readFile } from "node:fs/promises";
 import { join, relative, sep } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const PACKAGES_ROOT = join(__dirname, "..", "..", "..");
+const REPO_ROOT = join(__dirname, "..", "..", "..", "..");
 
 /**
- * Scanned roots, relative to `packages/`. `"."` means every workspace package.
+ * Scanned roots, relative to the repository root. `"."` means the whole repository.
  *
  * It scans the whole tree rather than an explicit list because the first version listed
  * `sdk/{src,tests}` and `sdk-tools/{src,tests}` — and silently missed `sdk-pty` and `sdk-budget`,
  * which carried 60 Portuguese lines nobody was watching. A gate whose coverage is a hand-kept list
  * decays the moment a package is added.
+ *
+ * The root moved out of `packages/` for the same reason, one level up: scoped to packages, the gate
+ * could not see `docs/`, `tools/`, `scripts/`, `examples/` or the root `README.md` / `CHANGELOG.md`,
+ * so nothing stopped a Portuguese document from landing there. It found exactly that — a 2156-line
+ * course under `docs/course/`, invisible for as long as the scope was narrower than the repository.
  */
 const SCAN_ROOTS = ["."];
 
@@ -56,10 +61,33 @@ const SCAN_ROOTS = ["."];
  */
 const WORD_ALLOWLIST = new Set(["façade", "façades", "naïve", "café", "résumé"]);
 
-/** Files exempt from the scan, relative to `packages/`. */
+/** Files exempt from the scan, relative to the repository root. */
 const FILE_ALLOWLIST = new Set<string>([
   // This file names Portuguese words in order to ban them.
-  "sdk/tests/lint/no-ptbr.test.ts",
+  "packages/sdk/tests/lint/no-ptbr.test.ts",
+  // A recall probe whose assertion is what a model ANSWERS. It matches both spellings of a Brazilian
+  // city because a model replying in Portuguese uses the accented one; dropping that alternative to
+  // satisfy this gate would narrow what the probe accepts and weaken the audit it exists to run.
+  // Same category as the skipped session transcripts: linting the user's own words, not our prose.
+  "tools/audit-memory-scale.mjs",
+  // 2156 lines of Portuguese teaching prose, exempted DELIBERATELY on 2026-08-05 — the only file in
+  // the repository this gate knowingly lets through.
+  //
+  // Every reason this gate exists is about the published contract: JSDoc emitted into `.d.ts`,
+  // identifiers in the public surface, test names read as documentation. None of them reach here.
+  // The course ships to nobody — `packages/sdk`'s `files[]` publishes `packages/sdk/docs`, not this
+  // one, and the repository root is private — and `docs/README.md` already labels it teaching
+  // material that loses to the exported types wherever they disagree.
+  //
+  // So the question it raises is who the course is FOR, which is an audience decision and not a
+  // correctness one. Translating 18k words of deliberate Portuguese pedagogy to satisfy a rule aimed
+  // at published type signatures would be applying the letter of the policy against its purpose.
+  //
+  // What was NOT acceptable is what held until today: the gate stopped at `packages/`, so this file
+  // was not exempt — it was merely unseen, along with anything else that might land in `docs/`. The
+  // exemption is the point. It makes the exception one line someone can argue with, instead of a
+  // blind spot nobody knew to look at. Delete this entry the day the course becomes English.
+  "docs/course/theokit-agent-ai-course.md",
 ]);
 
 /**
@@ -231,6 +259,22 @@ const WORD = /[A-Za-zÀ-ÿ]+/g;
 const NOT_PROSE =
   /\b(?:Africa|America|Antarctica|Asia|Atlantic|Australia|Europe|Indian|Pacific)\/[A-Za-z_]+/g;
 
+/**
+ * Inline code spans — a symbol NAME is not prose in the language its letters happen to spell.
+ *
+ * The live case is the CHANGELOG announcing the renames this gate motivated: you cannot write
+ * "`sessaoTemEscritor` is now `sessionHasWriter`" without naming the symbol being retired. Flagging
+ * that would make the gate forbid documenting its own outcome, and the workaround people would reach
+ * for — describing the rename without naming it — produces a changelog nobody can act on.
+ *
+ * Same trade already accepted for {@link NOT_PROSE}: strip the non-prose token from the line rather
+ * than weaken the lexicon, so the gate stays sharp on the surrounding sentence. The cost is stated:
+ * Portuguese written inside backticks is invisible here. That is the correct call for identifiers
+ * and the wrong one for a Portuguese sentence someone chose to wrap in code formatting — a gap this
+ * accepts knowingly rather than trading for false positives on every rename note.
+ */
+const INLINE_CODE = /`[^`\n]*`/g;
+
 interface Offender {
   file: string;
   line: number;
@@ -297,7 +341,7 @@ function stripDiacritics(word: string): string {
 
 /** Every word-part of a line, with allowlisted loanwords already dropped. */
 function candidateParts(line: string): string[] {
-  return (line.replace(NOT_PROSE, " ").match(WORD) ?? [])
+  return (line.replace(INLINE_CODE, " ").replace(NOT_PROSE, " ").match(WORD) ?? [])
     .filter((token) => !WORD_ALLOWLIST.has(token.toLowerCase()))
     .flatMap(identifierParts)
     .filter((part) => !WORD_ALLOWLIST.has(part.toLowerCase()));
@@ -339,7 +383,7 @@ function scanFilename(rel: string): Offender | undefined {
 }
 
 async function scanFile(file: string): Promise<Offender[]> {
-  const rel = relative(PACKAGES_ROOT, file).split(sep).join("/");
+  const rel = relative(REPO_ROOT, file).split(sep).join("/");
   if (FILE_ALLOWLIST.has(rel)) return [];
 
   const named = scanFilename(rel);
@@ -349,7 +393,7 @@ async function scanFile(file: string): Promise<Offender[]> {
 
 async function collectOffenders(): Promise<Offender[]> {
   const files: string[] = [];
-  for (const root of SCAN_ROOTS) files.push(...(await walk(join(PACKAGES_ROOT, root))));
+  for (const root of SCAN_ROOTS) files.push(...(await walk(join(REPO_ROOT, root))));
   const perFile = await Promise.all(files.map(scanFile));
   return perFile.flat();
 }
