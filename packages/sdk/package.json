@@ -1,6 +1,6 @@
 {
   "name": "@theokit/sdk",
-  "version": "4.2.8",
+  "version": "4.39.0",
   "description": "TypeScript SDK for the Theo agent harness — same surface, local or cloud.",
   "license": "Apache-2.0",
   "homepage": "https://github.com/usetheodev/theokit-sdk#readme",
@@ -218,6 +218,16 @@
         "default": "./dist/sanitize/index.cjs"
       }
     },
+    "./auth": {
+      "import": {
+        "types": "./dist/auth/index.d.ts",
+        "default": "./dist/auth/index.js"
+      },
+      "require": {
+        "types": "./dist/auth/index.d.cts",
+        "default": "./dist/auth/index.cjs"
+      }
+    },
     "./internal/persistence": {
       "import": {
         "types": "./dist/internal/persistence/index.d.ts",
@@ -236,6 +246,16 @@
       "require": {
         "types": "./dist/internal/security/index.d.cts",
         "default": "./dist/internal/security/index.cjs"
+      }
+    },
+    "./internal/memory-adapters": {
+      "import": {
+        "types": "./dist/internal/memory/adapters/index.d.ts",
+        "default": "./dist/internal/memory/adapters/index.js"
+      },
+      "require": {
+        "types": "./dist/internal/memory/adapters/index.d.cts",
+        "default": "./dist/internal/memory/adapters/index.cjs"
       }
     },
     "./a2a": {
@@ -278,12 +298,33 @@
         "default": "./dist/filesystem/index.cjs"
       }
     },
-    "./package.json": "./package.json"
+    "./interactive": {
+      "import": {
+        "types": "./dist/interactive/index.d.ts",
+        "default": "./dist/interactive/index.js"
+      },
+      "require": {
+        "types": "./dist/interactive/index.d.cts",
+        "default": "./dist/interactive/index.cjs"
+      }
+    },
+    "./package.json": "./package.json",
+    "./subagents-loader": {
+      "import": {
+        "types": "./dist/subagents-loader.d.ts",
+        "default": "./dist/subagents-loader.js"
+      },
+      "require": {
+        "types": "./dist/subagents-loader.d.cts",
+        "default": "./dist/subagents-loader.cjs"
+      }
+    }
   },
   "files": [
     "dist",
     "bin",
     "claude-template",
+    "docs",
     "README.md",
     "CHANGELOG.md",
     "LICENSE"
@@ -299,9 +340,10 @@
     "**/agent.cjs"
   ],
   "scripts": {
-    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json",
+    "build": "tsup && cp src/internal/providers/provider-catalog.json dist/provider-catalog.json && node scripts/copy-docs.mjs",
     "test": "vitest run --no-file-parallelism",
     "test:watch": "vitest",
+    "eval": "vitest run --no-file-parallelism tests/eval/suites",
     "test:contract": "vitest run --no-file-parallelism tests/theokit-consumer-contract.test.ts",
     "prepublishOnly": "pnpm build && pnpm test:contract",
     "typecheck": "tsc --noEmit",

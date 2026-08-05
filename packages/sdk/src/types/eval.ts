@@ -82,6 +82,15 @@ export interface EvalOptions {
    * `[1, 64]` (EC-3 — 0 deadlocks the semaphore, Infinity DoSs the provider).
    */
   readonly concurrency?: number;
+  /**
+   * Repeat each dataset row `trials` times to smooth non-determinism (SE41).
+   * Default 1 (no repeat; behavior byte-identical to a non-trialed run). MUST
+   * be an integer in `[1, 100]`. With `trials > 1` the returned `EvalRun.rows`
+   * still has ONE row per dataset entry — see {@link EvalRowResult.trialCount}
+   * for the collapse semantics. Reserved metadata keys `__evalTrial` /
+   * `__evalRowIndex` are attached to each per-trial persisted row.
+   */
+  readonly trials?: number;
   /** Optional metadata persisted to `EvalRun.metadata` (tags, env, version). */
   readonly metadata?: Record<string, unknown>;
   /** Optional progress / lifecycle hooks. */
@@ -110,6 +119,14 @@ export interface EvalRowResult {
    * Persisted alongside the row when `persist` is set.
    */
   readonly outcome?: string;
+  /**
+   * How many trials produced this row (SE41). Present only when
+   * `EvalOptions.trials > 1`: the row is a COLLAPSE of `trialCount` executions
+   * of the same dataset entry — each scorer's `score` is the mean over the
+   * trials (an errored trial contributes 0, a reliability signal), and
+   * `durationMs` / `tokensIn` / `tokensOut` are summed. Absent ⇒ single run.
+   */
+  readonly trialCount?: number;
   /**
    * Captured code change (M6-4): the working-tree `git diff` an agent produced
    * and whether it reverse-applies cleanly. Produced by `captureArtifact`; the
@@ -209,6 +226,36 @@ export interface EvalPersistOptions {
    * `EvalRun.rows`. Failed rows are always retried.
    */
   readonly resume?: boolean;
+}
+
+/**
+ * Threshold contract for `assertEval(run, thresholds)` (SE41) — the CI gate.
+ * Every field is optional; only the ones you set are checked. A run passes
+ * iff EVERY set threshold is satisfied; otherwise `assertEval` throws
+ * `EvalThresholdError` carrying the full list of failures.
+ */
+export interface EvalThresholds {
+  /** `aggregate.meanScore` MUST be `>=` this. */
+  readonly minMeanScore?: number;
+  /** `aggregate.passRatio` (rows with meanScore >= 0.5) MUST be `>=` this. */
+  readonly minPassRatio?: number;
+  /** `errorRows / totalRows` MUST be `<=` this (0 rows ⇒ ratio 0). */
+  readonly maxErrorRatio?: number;
+  /**
+   * Per-scorer floor on `aggregate.perScorer[name].mean`. A named scorer that
+   * never ran (absent from `perScorer`) is itself a failure ("scorer not found").
+   */
+  readonly perScorer?: Readonly<Record<string, number>>;
+}
+
+/** One unmet threshold, surfaced on `EvalThresholdError.failures`. */
+export interface EvalThresholdFailure {
+  /** Stable metric id, e.g. `"meanScore"`, `"passRatio"`, `"perScorer.exact-match"`. */
+  readonly metric: string;
+  /** The floor (or ceiling, for `maxErrorRatio`) that was required. */
+  readonly threshold: number;
+  /** The observed value that violated the threshold (`NaN` when the scorer was absent). */
+  readonly actual: number;
 }
 
 /** Per-call options for `eval.run(...)`. */

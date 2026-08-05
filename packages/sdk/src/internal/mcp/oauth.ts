@@ -4,6 +4,7 @@ import { createInterface } from "node:readline/promises";
 
 import { ConfigurationError } from "../../errors.js";
 import type { McpOAuthConfig } from "../../types/mcp.js";
+import { diag } from "../diagnostics.js";
 import { type OAuthTokens, setTokens } from "./token-storage.js";
 
 /**
@@ -117,7 +118,7 @@ export async function runPkceFlow(
     authUrl.searchParams.set("code_challenge_method", "S256");
     authUrl.searchParams.set("state", state);
 
-    process.stderr.write(
+    diag(
       `\n[theokit-sdk] OAuth required for MCP server "${serverName}".\n` +
         `Open this URL to authenticate:\n  ${authUrl.toString()}\n\n`,
     );

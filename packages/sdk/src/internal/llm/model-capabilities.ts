@@ -39,263 +39,23 @@ const CONSERVATIVE_DEFAULTS: ModelCapabilities = {
   maxOutputTokens: 4096,
 };
 
-/** Exact-match capability entries. Keys are `vendor/model` (no routing prefix). */
-const EXACT: ReadonlyMap<string, ModelCapabilities> = new Map([
-  // OpenAI family
-  [
-    "openai/gpt-4o",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: true,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 128_000,
-      maxOutputTokens: 16_384,
-    },
-  ],
-  [
-    "openai/gpt-4o-mini",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: true,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 128_000,
-      maxOutputTokens: 16_384,
-    },
-  ],
-  [
-    "openai/gpt-4-turbo",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 128_000,
-      maxOutputTokens: 4096,
-    },
-  ],
-  [
-    "openai/o1",
-    {
-      supportsVision: false,
-      supportsStructuredOutput: true,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 100_000,
-    },
-  ],
-  [
-    "openai/o3",
-    {
-      supportsVision: false,
-      supportsStructuredOutput: true,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 100_000,
-    },
-  ],
-  [
-    // GPT-4.1 — 1M-context flagship; multimodal + structured output (RADAR #92.a).
-    "openai/gpt-4.1",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: true,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 1_047_576,
-      maxOutputTokens: 32_768,
-    },
-  ],
-  // Anthropic family
-  [
-    "anthropic/claude-opus-4",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 32_000,
-    },
-  ],
-  [
-    "anthropic/claude-sonnet-4",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 16_000,
-    },
-  ],
-  [
-    "anthropic/claude-3-5-sonnet",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 8192,
-    },
-  ],
-  [
-    "anthropic/claude-3-5-sonnet-latest",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 8192,
-    },
-  ],
-  [
-    "anthropic/claude-3-5-haiku-latest",
-    {
-      supportsVision: false,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 8192,
-    },
-  ],
-  [
-    "anthropic/claude-3-haiku",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 4096,
-    },
-  ],
-  [
-    "anthropic/claude-3-opus",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 4096,
-    },
-  ],
-  // Dot-form OpenRouter slugs theocode uses (RADAR #92.a). These are the same
-  // models as their dash-form siblings above; capability parity is intentional.
-  // Without these entries the dotted slugs fall through to the 4096 default
-  // (`anthropic/claude-3.5-sonnet` ≠ `anthropic/claude-3-5-sonnet`).
-  [
-    "anthropic/claude-opus-4.1",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 32_000,
-    },
-  ],
-  [
-    "anthropic/claude-sonnet-4.5",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 16_000,
-    },
-  ],
-  [
-    "anthropic/claude-3.5-sonnet",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: true,
-      maxContextTokens: 200_000,
-      maxOutputTokens: 8192,
-    },
-  ],
-  // Cheap OpenRouter slugs (RADAR #92.a) — previously fell to the 4096
-  // CONSERVATIVE default. toolUse on; vision/structuredOutput only for Gemini.
-  [
-    "qwen/qwen3-coder-30b-a3b-instruct",
-    {
-      supportsVision: false,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 160_000,
-      maxOutputTokens: 8000,
-    },
-  ],
-  [
-    "deepseek/deepseek-v4-flash",
-    {
-      supportsVision: false,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 1_048_576,
-      maxOutputTokens: 8000,
-    },
-  ],
-  [
-    "deepseek/deepseek-v3.2",
-    {
-      supportsVision: false,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 131_072,
-      maxOutputTokens: 8000,
-    },
-  ],
-  [
-    "z-ai/glm-4.7-flash",
-    {
-      supportsVision: false,
-      supportsStructuredOutput: false,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 202_752,
-      maxOutputTokens: 8000,
-    },
-  ],
-  [
-    "google/gemini-2.5-flash-lite",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: true,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 1_048_576,
-      maxOutputTokens: 8000,
-    },
-  ],
-  [
-    "google/gemini-2.5-pro",
-    {
-      supportsVision: true,
-      supportsStructuredOutput: true,
-      supportsToolUse: true,
-      supportsCacheControl: false,
-      maxContextTokens: 1_048_576,
-      maxOutputTokens: 8000,
-    },
-  ],
-]);
-
 /** Routing prefixes to strip to find the underlying vendor model. */
 const ROUTING_PREFIXES = ["openrouter/", "vertex/", "bedrock/"] as const;
+
+import { getCatalogModelInfo } from "../providers/catalog-loader.js";
+import type { CatalogModel } from "../providers/catalog-schema.js";
+
+/** Map a catalog model block (models.dev shape) to the SDK's ModelCapabilities (M44 — catalog-backed). */
+function capsFromCatalog(m: CatalogModel): ModelCapabilities {
+  return {
+    supportsVision: m.modalities?.input?.includes("image") ?? m.attachment ?? false,
+    supportsStructuredOutput: m.structured_output ?? false,
+    supportsToolUse: m.tool_call ?? false,
+    supportsCacheControl: (m as { cache_control?: boolean }).cache_control ?? false,
+    maxContextTokens: m.limit?.context ?? CONSERVATIVE_DEFAULTS.maxContextTokens,
+    maxOutputTokens: m.limit?.output ?? CONSERVATIVE_DEFAULTS.maxOutputTokens,
+  };
+}
 
 /**
  * Resolve per-model capability flags (vision/structured-output/tool-use/cache +
@@ -308,14 +68,16 @@ const ROUTING_PREFIXES = ["openrouter/", "vertex/", "bedrock/"] as const;
  */
 export function resolveModelCapabilities(modelId: string): ModelCapabilities {
   const bare = stripVariantSuffix(stripRoutingPrefix(modelId));
-  const exact = EXACT.get(bare);
-  if (exact !== undefined) return exact;
+  // M44 — the catalog model-info index replaced the hand-curated EXACT map (single source of truth; the
+  // vendored provider-catalog.json carries the migrated data — parity-tested against the old map snapshot).
+  const fromIndex = getCatalogModelInfo(bare);
+  if (fromIndex !== undefined) return capsFromCatalog(fromIndex);
   // Routing-prefixed models (vertex/claude-3-5-sonnet) strip to bare
   // model name without vendor. Try inferring the vendor from the name.
   const withVendor = inferVendorPrefix(bare);
   if (withVendor !== bare) {
-    const vendored = EXACT.get(withVendor);
-    if (vendored !== undefined) return vendored;
+    const vendored = getCatalogModelInfo(withVendor);
+    if (vendored !== undefined) return capsFromCatalog(vendored);
   }
   return CONSERVATIVE_DEFAULTS;
 }

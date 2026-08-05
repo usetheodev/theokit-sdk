@@ -3,12 +3,41 @@
  * Includes EC-4 (auto-mkdir parent directory).
  */
 
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { atomicWriteJson } from "../../../src/internal/persistence/atomic-write.js";
+
+/** Permission bits of `path`, without the node type. */
+function fileMode(target: string): number {
+  return statSync(target).mode & 0o777;
+}
+
+/**
+ * Runs `fn` under a specific `umask` and restores the previous one — always, even on failure.
+ *
+ * `umask` is PROCESS state. This package's suite runs in a single fork
+ * (`vitest.config.ts`: `singleFork: true`), so leaking a `umask` from here would contaminate every test
+ * creating a file afterwards. The `finally` is what prevents that.
+ */
+async function sobUmask(mask: number, fn: () => Promise<void>): Promise<void> {
+  const previous = process.umask(mask);
+  try {
+    await fn();
+  } finally {
+    process.umask(previous);
+  }
+}
 
 describe("atomicWriteJson", () => {
   let dir: string;
@@ -72,5 +101,140 @@ describe("atomicWriteJson", () => {
     const circular: Record<string, unknown> = { a: 1 };
     circular.self = circular;
     await expect(atomicWriteJson(path, circular)).rejects.toThrow();
+  });
+});
+
+/**
+ * M107 T1.1 — `{ mode?, exclusive? }` in the already-published options bag.
+ *
+ * ## The default is byte-identical, and that is NOT free (EC-3)
+ *
+ * Hoje `replaceFileAtomic` faz `open(tmp, "w", 0o600)` **sem `fchmod`**. O argumento de fileMode do
+ * `open` is filtered by the `umask`, which only **clears** bits — so today's on-disk mode depends on the
+ * process `umask`. Measured on this machine BEFORE the change (`node` reproducing the
+ * `atomic-write.ts:106-122`):
+ *
+ * ```
+ * umask 0o002  ->  tmp=0o600  final=0o600
+ * umask 0o022  ->  tmp=0o600  final=0o600
+ * umask 0o200  ->  tmp=0o400  final=0o400      <-- the owner write bit is cleared by the umask
+ * ```
+ *
+ * Um `chmod` **incondicional** no descritor levaria o caso `umask 0o200` de `0o400` para `0o600` —
+ * an on-disk change for **every** caller that asked for nothing, including unknown external
+ * consumers. That is why the mode reassertion is **conditional on `mode !== undefined`**, and
+ * `test_without_options_the_behavior_is_identical` asserts the two measured numbers above, not a pretty
+ * number. It is the test that fails if the reassertion becomes unconditional.
+ *
+ * ## Why reassert, then
+ *
+ * When the caller ASKS for a mode, the `umask` must not have the last word silently — that was
+ * exactly the reason written in the local workaround this item exists to erase. The reassertion goes on the
+ * DESCRIPTOR, before the `rename`, and never after: chmod-ing after the rename would leave the file
+ * briefly carrying the umask's mode, which is the anti-pattern measured in
+ * `references/opencode/packages/core/src/fs-util.ts:110-114`. A forma escolhida — fileMode como
+ * `open` parameter — is the single reference's
+ * (`references/codex/codex-rs/network-proxy/src/certs.rs:687,783-791`).
+ */
+describe("M107 T1.1 — atomicWriteJson honra mode e exclusive", () => {
+  let dir: string;
+
+  beforeEach(() => {
+    dir = mkdtempSync(join(tmpdir(), "m107-atomic-mode-"));
+  });
+
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("test_without_options_the_behavior_is_identical", async () => {
+    // Arrange — the two modes MEASURED before the change, per umask.
+    const measuredBefore = new Map([
+      [0o002, 0o600],
+      [0o200, 0o400],
+    ]);
+
+    for (const [mask, expected] of measuredBefore) {
+      await sobUmask(mask, async () => {
+        const noBag = join(dir, `sem-bag-${mask.toString(8)}.json`);
+        const emptyBag = join(dir, `bag-empty-${mask.toString(8)}.json`);
+
+        // Act
+        await atomicWriteJson(noBag, { a: 1 });
+        await atomicWriteJson(emptyBag, { a: 1 }, {});
+
+        // Assert — content AND mode identical to before the change, under the SAME umask.
+        expect(readFileSync(noBag, "utf-8")).toBe('{\n  "a": 1\n}\n');
+        expect(readFileSync(emptyBag, "utf-8")).toBe('{\n  "a": 1\n}\n');
+        expect(fileMode(noBag)).toBe(expected);
+        expect(fileMode(emptyBag)).toBe(expected);
+      });
+    }
+  });
+
+  it("test_mode_is_honored_even_when_the_umask_would_clear_the_bit", async () => {
+    // Arrange — `umask 0o200` clears the owner write bit. Without the reassertion on the descriptor, the
+    // file comes out `0o400` (measured) and the caller's request is lost SILENTLY.
+    const path = join(dir, "pedido-explicito.json");
+
+    await sobUmask(0o200, async () => {
+      // Act
+      await atomicWriteJson(path, { a: 1 }, { mode: 0o600 });
+
+      // Assert
+      expect(fileMode(path)).toBe(0o600);
+    });
+  });
+
+  it("test_mode_mais_permissivo_que_o_default_e_honrado", async () => {
+    // Arrange — the primitive imposes no policy: it changes the DEFAULT, not the caller's freedom.
+    const path = join(dir, "permissivo.json");
+
+    await sobUmask(0o002, async () => {
+      // Act
+      await atomicWriteJson(path, { a: 1 }, { mode: 0o644 });
+
+      // Assert — sem honrar `mode`, sairia `0o600` (o literal fixo de hoje).
+      expect(fileMode(path)).toBe(0o644);
+    });
+  });
+
+  it("test_an_invalid_mode_propagates_the_system_error", async () => {
+    // Arrange — NEGATIVE CASE (distinct from an edge case): the mode is invalid, not extreme.
+    const path = join(dir, "fileMode-invalido.json");
+
+    // Act + Assert — the system error PROPAGATES; it is not converted into an SDK type nor swallowed
+    // (`.claude/rules/error-handling.md § 2`). E nada foi escrito no destino.
+    await expect(atomicWriteJson(path, { a: 1 }, { mode: -1 })).rejects.toThrow();
+    expect(readdirSync(dir)).toEqual([]);
+  });
+
+  it("test_a_rename_failure_leaves_no_temp_file", async () => {
+    // Arrange — REGRESSION (not RED): the destination is a NON-EMPTY directory, so the `rename` fails.
+    // What is proven is that temp-file cleanup still holds on the new path.
+    const path = join(dir, "alvo-ocupado");
+    mkdirSync(path, { recursive: true });
+    writeFileSync(join(path, "ocupante.txt"), "x");
+
+    // Act + Assert
+    await expect(atomicWriteJson(path, { a: 1 }, { mode: 0o600 })).rejects.toThrow();
+    expect(readdirSync(dir).filter((f) => f.includes(".tmp"))).toEqual([]);
+  });
+
+  it("test_two_concurrent_writers_on_the_same_destination_produce_no_partial_file", async () => {
+    // Arrange — atomicity under multiple writers is the module's contract, and `mode`/`exclusive`
+    // touch CREATION, which is where a race would manifest.
+    const path = join(dir, "disputado.json");
+    const conteudos = [0, 1, 2, 3, 4, 5, 6, 7];
+
+    // Act
+    await Promise.all(conteudos.map(async (n) => atomicWriteJson(path, { n }, { mode: 0o600 })));
+
+    // Assert (happens-before observation, after the barrier) — the file contains EXACTLY one of the
+    // contents, never a mixture, and no temp file was left behind.
+    const lido = JSON.parse(readFileSync(path, "utf-8")) as { n: number };
+    expect(conteudos).toContain(lido.n);
+    expect(fileMode(path)).toBe(0o600);
+    expect(readdirSync(dir).filter((f) => f.includes(".tmp"))).toEqual([]);
   });
 });

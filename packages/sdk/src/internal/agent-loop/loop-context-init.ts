@@ -1,10 +1,31 @@
 import type { CustomTool, SDKAgent } from "../../types/agent.js";
-import type { SDKMessage } from "../../types/messages.js";
+import type { SDKUserMessage } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
-import type { LlmMessage } from "../llm/types.js";
+import type { LlmContentPart, LlmMessage } from "../llm/types.js";
+
+/**
+ * M35 (multimodal) — build the first user turn's content: the text block plus one image part per attached
+ * image. Both `SDKImage` shapes are carried (no silent drop): inline `{ data, mimeType }` → a base64
+ * image part; `{ url }` → a url image part (provider adapters that support URLs forward it; those that
+ * don't fail fast). Text-only ⇒ just the text block (unchanged shape).
+ */
+function buildUserContent(text: string, images: SDKUserMessage["images"]): LlmContentPart[] {
+  const content: LlmContentPart[] = [{ type: "text", text }];
+  for (const img of images ?? []) {
+    content.push(
+      "data" in img
+        ? { type: "image", source: { type: "base64", media_type: img.mimeType, data: img.data } }
+        : { type: "image", source: { type: "url", url: img.url } },
+    );
+  }
+  return content;
+}
+
+import { diag } from "../diagnostics.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
+import { createEventLog, type LiveEventLog } from "./live-events.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
@@ -16,7 +37,12 @@ import type { ResolvedTool } from "./tool-dispatch.js";
  * @internal
  */
 export interface LoopContext {
-  events: SDKMessage[];
+  /**
+   * theokit#140 — a {@link LiveEventLog}, so the run that owns this loop can subscribe and see
+   * events AS THEY HAPPEN instead of only when the loop returns. Still an `SDKMessage[]` to every
+   * consumer that just reads it.
+   */
+  events: LiveEventLog;
   conversation: import("../../types/conversation.js").ConversationTurn[];
   messages: LlmMessage[];
   tools: ResolvedTool[];
@@ -108,13 +134,20 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       });
     }
   }
-  const events: SDKMessage[] = [
+  // theokit#140 — a live log, not a plain array. Every `events.push(...)` in the loop now reports
+  // as it happens; `AgentLoopOutput.events` is still an `SDKMessage[]` and every batch consumer is
+  // unchanged. The subscriber is attached by the run that owns the loop.
+  const events = createEventLog([
     buildSystemEvent(
       inputs,
       tools.map((t) => t.name),
     ),
     buildUserEvent(inputs),
-  ];
+  ]);
+  // theokit#140 - attach the run's subscriber, if it supplied one. Attached AFTER the seed so the
+  // two events that exist before the loop starts arrive through the batch path like they always
+  // did; re-delivering them live would be a behaviour change for no gain.
+  if (inputs.onLoopEvent !== undefined) events.subscribe(inputs.onLoopEvent);
   const priorMessages: LlmMessage[] = (inputs.priorMessages ?? []).map((msg) => ({
     role: msg.role,
     content: [{ type: "text", text: msg.text }],
@@ -145,7 +178,7 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
     conversation: [],
     messages: [
       ...priorMessages,
-      { role: "user", content: [{ type: "text", text: inputs.userMessage }] },
+      { role: "user", content: buildUserContent(inputs.userMessage, inputs.userImages) },
     ],
     tools,
     finalText: "",
@@ -170,7 +203,7 @@ export async function safeListTools(client: McpClient, serverName?: string): Pro
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
     const server = serverName ?? "unknown";
-    process.stderr.write(`[theokit-sdk] mcp listTools failed (server=${server}): ${message}\n`);
+    diag(`[theokit-sdk] mcp listTools failed (server=${server}): ${message}\n`);
     return [];
   }
 }

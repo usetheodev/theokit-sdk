@@ -27,6 +27,25 @@ export function withDescription(tool: CustomTool, description: string): CustomTo
   };
 }
 
+/**
+ * Return a new `CustomTool` exposed under a different `name`, sharing the SAME
+ * `inputSchema` + `handler` (alias parity). Preserves description; does NOT mutate
+ * the original. This is how an agent exposes a built-in under its preferred name —
+ * e.g. a Codex-style agent aliases `search_text` → `grep`, `shell_exec` → `run_shell`
+ * — without re-implementing the tool. Pure, never throws: the final `name` is
+ * validated by the SDK at tool-registration time (the single authority for the
+ * `^[a-zA-Z][a-zA-Z0-9_-]{0,63}$` + reserved-name rules), so this helper does not
+ * re-validate (no duplicated contract).
+ */
+export function withName(tool: CustomTool, name: string): CustomTool {
+  return {
+    name,
+    description: tool.description,
+    inputSchema: tool.inputSchema,
+    handler: tool.handler,
+  };
+}
+
 /** XML-escape for the `<tools>` block. `&` MUST be replaced first (no double-escape). */
 function esc(s: string): string {
   // String() guards the never-throw contract against an untyped/`as any` caller

@@ -1,5 +1,678 @@
 # Changelog
 
+## 4.39.0
+
+### Minor Changes
+
+- 5143651: New `Agent.describe(agentId)` — read-only introspection of a registered agent (theokit#123).
+
+  `Agent.list()` / `Agent.get()` enumerate agents and `agent.skills.list()` covers skills, but a
+  registered agent's tools and subagents were reachable only through the internal registry record. A
+  reflection endpoint — theokit-studio's `theokit dev` — had no way to report them, so it degraded to
+  `tools: []` / `workflows: []` with an `unavailable_reason`.
+
+  `describe` returns `{ agentId, runtime, model?, tools, subagents }`. Tools carry `name`,
+  `description` and the `inputSchema` the model is sent; subagents carry `name`, `description`, their
+  `model` and their tool whitelist.
+
+  It is a projection, not the options object: tool handlers and subagent prompts are stripped. A
+  handler is an executable that cannot cross a process boundary, and a prompt is the agent's
+  instructions rather than its signature — a reflection endpoint serializes whatever it is handed.
+
+  `tools` and `subagents` are always arrays, so a caller can distinguish "this agent has none" from
+  "the SDK did not say". An unknown agent throws `UnknownAgentError` rather than returning an empty
+  description, which would be indistinguishable from a real agent with nothing registered.
+
+  `AgentDescription`, `AgentToolDescription` and `AgentSubagentDescription` are exported from the
+  package barrel.
+
+- ae27def: Every SDK diagnostic now goes through the interceptable channel (theokit#147).
+
+  `setDiagnosticsSink` let a TUI host keep the SDK's warnings out of its alternate screen, but the
+  original migration only covered `internal/`. Six sites in the package's own modules — `batch.ts`,
+  `event-bus.ts`, `compaction.ts` and the Workflow branch step — still wrote straight to
+  `process.stderr` / `console.warn`, so a host could install a sink and still have its frame corrupted
+  by a batch run or a failed summarizer. Those are routed through the channel, and a lint gate now
+  fails the build if a new direct write appears in `src/`.
+
+  The remaining allowlisted writers are seams whose destination the caller already chooses
+  (`opts.warn`, `opts.logger`, the Workflow logger), each listed with its reason.
+
+  `setDiagnosticsSink` is now exported from the package barrel. It previously existed only on an
+  internal path no consumer could import, so the channel these six fixes route into could not actually
+  be installed by a host — the reported blocker survived a green suite.
+
+  **Diagnostics are now silent by default.** With no sink installed the SDK writes nothing to the
+  terminal — a library does not own the host's screen. Installing a sink is how you see them:
+
+  ```ts
+  import { setDiagnosticsSink } from "@theokit/sdk";
+  setDiagnosticsSink((message) => myLogger.warn(message));
+  ```
+
+  This is a behaviour change for anyone who relied on reading SDK warnings from stderr. Restore the
+  old behaviour in one line: `setDiagnosticsSink((m) => process.stderr.write(m))`.
+
+- 0bd082f: Three advertised embedding providers now actually work (theokit#159).
+
+  `azure-openai`, `cohere` and `gemini` were in the catalog and rejected on every call. The shared
+  runtime spoke exactly one wire — `Authorization: Bearer`, a `{ model, input }` body, a
+  `{ data: [{ embedding }] }` response — and none of the three speak it:
+
+  - **Azure** authenticates an API key with the `api-key` header (`Bearer` carries an Entra ID token,
+    not the key from `AZURE_OPENAI_API_KEY`), and the deployment is already in the URL path, so
+    `model` does not belong in the body.
+  - **Cohere**'s `/v2/embed` names the payload `texts`, requires `input_type`, and answers
+    `{ embeddings: { float } }`.
+  - **Gemini**'s OpenAI-compatible surface is at `/v1beta/openai/embeddings`, not `/v1/embeddings`.
+
+  The runtime gained three optional per-provider hooks — auth headers, request body, response reader —
+  whose defaults are exactly the previous behaviour, so the seven providers that were already correct
+  are untouched. Each divergence is asserted by a test that records the real request.
+
+  Advertising a provider that cannot work is worse than not advertising it; that is what this closes.
+
+- 108679d: A resumed session can be re-rendered as tool cards, not prose (theokit#146).
+
+  The transcript always replayed correctly to the model, but the only projection a host could read
+  folded a tool call to the literal string `[tool call] NAME` — no call id, no arguments — and a
+  result to `[tool result] <body>`, with nothing tying the two together. A card-rendering TUI got flat
+  text on resume, which made cross-restart resume worth less than starting fresh.
+
+  Two additions, both additive:
+
+  - `SessionMessage` gains an optional `parts` array carrying `text`, `tool_use` (id, name, input) and
+    `tool_result` (toolUseId, content, isError). `text` is byte-identical to before, so every existing
+    reader — including the runtime's own prior-context replay — is untouched.
+  - New `Agent.transcript(agentId)` returns a local agent's persisted turns with both projections.
+    Read-only; it opens the session store and walks the transcript, appending nothing. Throws
+    `UnknownAgentError` for an unknown or non-local agent rather than returning an empty list, so a
+    typo cannot look like an empty session.
+
+  `SessionMessage` and `SessionMessagePart` are exported from the package barrel.
+
+- 1e2a5e3: Extended-thinking sessions can be resumed (theokit#122).
+
+  Anthropic signs each `thinking` block and verifies that signature when the block is replayed on the
+  next turn. The SDK captured none of it, so a session that used extended thinking could be persisted
+  and then never resumed — the next request failed with `400 "thinking blocks cannot be modified"`.
+
+  The signature was dropped at four independent points, and fixing any one alone would have changed
+  nothing:
+
+  - the Anthropic adapter never requested extended thinking, so no signature was ever issued;
+  - it did not parse `thinking` blocks, so neither the text nor the signature left the stream;
+  - the agent loop emitted a thinking event and dropped it — nothing ever produced a `thinkingMessage`
+    step, so no thinking reached the transcript at all;
+  - the transcript reader discarded `thinking` blocks, so a resumed conversation lost them.
+
+  All four are closed, and the block now round-trips from the provider through persistence and back
+  onto the wire unchanged. Thinking and its answer text stay in one assistant message, in that order,
+  as Anthropic requires.
+
+  A thinking block with no signature — history recorded before this shipped, or reasoning text from an
+  OpenAI-compatible provider, which is never signed — is kept in the transcript but not replayed to
+  Anthropic. Sending it unsigned would fail the same validation and break the whole turn rather than
+  lose one block of context.
+
+  `SDKThinkingMessage` and the conversation `ThinkingMessage` gain an optional `signature`.
+
+- c3f69bc: New `workflow.describe()` — a committed workflow can report its own shape (theokit#161).
+
+  Returns `{ name, steps }`, each step carrying its `id` and `kind` and recursing into `parallel`,
+  `branch`, `foreach` and `dowhile`. Executables a step holds — predicates, conditions, agents, prompt
+  templates — are omitted: they cannot cross a process boundary and say nothing about shape.
+
+  There is deliberately **no** `Workflow.list()`. A workflow is a value the caller constructs and
+  holds, so the caller already knows which ones exist; what it lacked was a way to describe one. A
+  registry would have added process-global state that nothing releases in order to re-answer a
+  question the host can answer itself, and coupling workflows to `AgentOptions` would tie together two
+  things that are independent today — a workflow runs perfectly well without an agent.
+
+  A reflection endpoint maps over its own workflows and calls this.
+
+### Patch Changes
+
+- a4a9920: `@theokit/sdk-memory` now uses the SDK's embedding runtime instead of its own copy (theokit#160).
+
+  The two packages each carried a full copy of `createOpenAiCompatibleRuntime`, and the satellite's
+  catalog replaces the SDK's at runtime when installed — so the copy that ran was not the copy most
+  people read. That duplication is what produced the two-month adapter gap fixed in theokit#128, and
+  every fix since had to be applied to both files by hand.
+
+  There is now one implementation, imported from `@theokit/sdk/internal/memory-adapters` — a
+  semver-exempt sub-path in the same family as `internal/persistence` and `internal/security`, which
+  exist for exactly this reason.
+
+  **Behaviour change for `@theokit/sdk-memory` consumers:** embedding batches now run with bounded
+  parallelism instead of serially, and the embedding cache is process-wide instead of per-adapter.
+  Both are what the SDK already did; the satellite had silently missed both improvements.
+
+- 50ffa6c: Removed the dead `tool_use` and `stop` variants from the internal `LlmEvent` union (theokit#144).
+
+  They declared a live, provider-level tool channel that never existed: only two providers yielded
+  them, the agent loop's collector never read them, and the tool calls they carried duplicated
+  `LlmFinish.toolCalls`. A declaration without a consumer is worse than an omission — it cost
+  `@theokit/agents` a workaround that held every text delta until the stream drained, which broke
+  live token streaming on text-only turns (issue #47).
+
+  The canonical live tool channel is `onDelta`: the `tool-call-started` / `tool-call-completed`
+  `InteractionUpdate`s emitted between LLM rounds, uniform across providers and correlated by
+  `callId`. `Run.events()` merges them with the structural messages into one ordered timeline. This
+  is now documented on the `LlmEvent` type itself.
+
+  Internal type only — no public API change.
+
+- 0308f9f: `@theokit/sdk-memory` now serves every embedding provider the SDK advertises (theokit#128).
+
+  `azure-openai`, `cohere`, `jina` and `gemini` landed in the SDK core catalog in June 2026 and the
+  satellite never picked them up. That was not cosmetic drift: when `@theokit/sdk-memory` is
+  installed, its catalog _replaces_ core's in the routing path, while `Theokit.inspect.embeddingAdapters()`
+  kept listing all ten — so asking for one of the four got an "unknown provider" error from a provider
+  the SDK itself had just advertised. A cross-package test now fails the build if core ever advertises
+  a provider the peer cannot serve.
+
+  Also fixes the Azure OpenAI endpoint in both packages. Azure addresses the deployment in the URL
+  path (`/openai/deployments/{deployment}/embeddings`), and the placeholder was never substituted —
+  every Azure embedding request went to a URL containing the literal text `{model}` and could only 404. Providers with a static path are unaffected.
+
+- a15d80f: `mcpLifecycle: 'session'` now actually keeps the MCP server alive between turns (theokit#155).
+
+  The option pooled the client _object_ but not the child _process_: every run's `finally` closed
+  every client it had been handed, so the previous turn SIGTERM'd the server and the next turn's
+  `initialize()` spawned a new one. Measured at 146 ms +/- 28 (n=12) of spawn + handshake per turn
+  for one stdio server, paid identically under `'run'` and `'session'` — the knob bought 0 ms.
+
+  Two changes, both needed:
+
+  - A run now closes only the MCP clients it owns. Under `'session'` the pool owns them, and they are
+    released by `dispose()` (or by the idle reaper), not by the turn that borrowed them.
+  - `initialize()` is a no-op while the child is live, so the per-turn handshake no longer replaces a
+    healthy process (which would have orphaned it and paid the spawn cost anyway). The reconnect path
+    is unaffected — it re-spawns directly, exactly as before.
+
+  The regression tests count child PIDs rather than client objects; counting objects is what let the
+  defect ship green.
+
+- 32a82c4: Subagent credential inheritance no longer rides a property on the tool object (theokit#148).
+
+  A delegated child inherited its parent's API key through a symbol-keyed slot installed on the
+  subagent tool. That contract assumed the object would reach the dispatcher with an extra property
+  intact — and it broke twice: once because the bundler inlined two copies of the module that
+  disagreed on the key (#142/#143), and once because any layer rebuilding the tool from its known
+  fields simply dropped it. `@theokit/agents` hit the second and had to add an explicit symbol-copy
+  loop to compensate; the SDK's own tool assembly performs the same rebuild.
+
+  Credentials now travel on the run's async scope, so they reach the handler no matter what the tool
+  object looks like by the time it is dispatched. Consumers that normalize, wrap, or re-create SDK
+  tools no longer need to preserve hidden properties — a delegated child gets the parent's key either
+  way. The band-aid symbol-copy in `@theokit/agents` becomes unnecessary once the SDK
+  carrying this change is the resolved version. Against an OLDER SDK the copy loop is still required:
+  the pre-fix runtime reads the credential sink off the tool object, so a band-aid-free
+  `@theokit/agents` resolving an SDK below this release reproduces the very credential loss this issue
+  reports. `@theokit/agents` declares a caret range on `@theokit/sdk`, so that pairing is a normal
+  install rather than a hypothetical — raise the dependency floor in the same release that removes
+  the loop.
+
+  Also fixes a latent defect the old design could not avoid: credentials were stored per tool
+  instance, so one subagent tool shared by two concurrently running agents got last-writer-wins. Each
+  run now reads its own.
+
+- f760c57: Fixes four defects in the extended-thinking support shipped moments earlier (theokit#122).
+
+  A `/review` of that change found it created, on the most common thinking shape, the exact failure it
+  was meant to remove. A round that reasons and then calls a tool **without preamble text** never
+  consumed its thinking block: the block survived onto the next round and was persisted against the
+  wrong text, carrying a signature that no longer matched its body. And the replayed assistant turn
+  never carried the block at all, so the round after a thinking + tool_use turn reached the provider
+  missing it.
+
+  The block is now a value on the round's own output rather than state on the loop context, which
+  makes that class of leak unrepresentable, and it is recorded on whichever path closes the round —
+  assistant text or tool call. The replayed assistant message leads with it, as the provider requires.
+
+  Two smaller corrections in the same area: redacting the thinking text now drops the signature
+  instead of persisting a pair that cannot verify (the block survives as display-only history, which
+  loses one block of context rather than the whole turn), and the provider's own reported block is now
+  what the loop consumes — previously it was produced and read by nobody, the same dead-channel shape
+  this release deletes elsewhere.
+
+## 4.37.2
+
+### Patch Changes
+
+- MCP servers that reply with an event stream deliver their tools again: the response is now read in the format the client itself asked for, instead of failing to interpret it.
+
+## 4.37.1
+
+### Patch Changes
+
+- MCP servers on the **stateful** HTTP transport serve their tools again: the client now stores the session the server issues at handshake and replays it on subsequent calls, and declares both media types the specification asks for.
+
+## 4.37.0
+
+### Minor Changes
+
+- 2df1de1: M107 — three additive persistence/registry primitives, plus one concurrency fix.
+
+  - `atomicWriteJson` (and `replaceFileAtomic`) accept `{ mode?, exclusive? }`. Omitting them keeps
+    today's behaviour byte for byte, including the mode on disk: the mode passed to `open` is filtered
+    by the `umask`, so the file is `0o600` under `umask 002`/`022` and `0o400` under `umask 0200`, and
+    that is preserved. When you DO pass `mode`, it is reasserted on the descriptor before the rename,
+    so the `umask` cannot silently drop a bit you asked for. `exclusive: true` creates the temporary
+    with `wx`, turning a leftover temporary into `EEXIST` instead of a silent truncation.
+
+  - **Behaviour change on disk:** `forkTranscript` now creates the destination with mode `0o600` by
+    default (`mode?` overrides it). Previously no mode was passed at all, so a forked transcript was
+    born `0o666 & ~umask` — measured `0o664` (group-writable) on a `umask 002` machine and `0o644` on
+    `umask 022`. A transcript holds the conversation, so this is a privacy fix, not a tidy-up. It is
+    announced as a behaviour change rather than a silent patch because the change is visible to
+    anything that read those files as another user or group. The direction is restrictive only.
+
+  - `Agent.list` now READS the `cwd` its type has always advertised. `Agent.list({ runtime: "local",
+cwd })` previously compiled and was silently ignored — it hydrated the process directory and
+    returned every agent in memory. Listing is now scoped to the requested workspace, using the same
+    "which project owns this entry" rule the persistence layer uses to route it to disk (an entry with
+    no `cwd` belongs to the process directory). Calls without `cwd` keep listing the process
+    directory. `limit`/`cursor` are still not implemented: a `limit` without a `nextCursor` would be
+    silent truncation.
+
+  - **Fix:** two concurrent first-time hydrations of the same workspace could make the second caller
+    see an empty registry. The hydration guard marked the directory as loaded before awaiting the disk
+    read, so the second call returned early. It now awaits the same in-flight read, and a failed
+    hydration is no longer memoised as successful.
+
+  `AtomicWriteJsonOptions` gained optional fields and `replaceFileAtomic` gained an optional third
+  parameter; both are additive and every existing call site compiles unchanged.
+
+## 4.36.0
+
+### Minor Changes
+
+- a439c00: `discoverSubagents` and `loadSubagentDefinition` now accept a `settingSources` option, so a caller can decide where subagent definitions are read from instead of always reading the project directory; the parsed `AgentDefinition` type is re-exported from `@theokit/sdk/subagents-loader` so consumers can name the value they receive.
+
+## 4.35.0
+
+### Minor Changes
+
+- Publishes a query answering "does this session have a writer?" without taking the lock.
+
+  Asking by taking creates the very contention it meant to detect: two processes querying a **free** session at the same time made one of them lose, and the consumer derived a new session for no reason. The query is a snapshot, not a guarantee — callers needing the guarantee keep taking the lock; callers needing to decide an identifier before opening anything use the query and handle the race where it shows up.
+
+## 4.34.2
+
+### Patch Changes
+
+- Two refinements to the session lock.
+
+  - **An open that fails releases only its own agent's lock.** A store injected by the consumer may serve several agents, and the previous version released all of its locks — an agent failing to open tore down the protection of another that was still writing.
+  - **A lock path that is a directory becomes recoverable again.** No process in this library creates one, and treating it as an "unknown owner" locked the session out forever — the opposite of what the lock exists to guarantee.
+
+## 4.34.1
+
+### Patch Changes
+
+- Fixes three ways the session lock could get stuck or be ignored.
+
+  - **A session open that fails after taking the lock now releases it.** The owner ended up being this very process — alive, same machine — and the lock was never considered stale again: the session stayed blocked for the process's lifetime, with no crash and no recovery path. It is the same situation the lock exists to eliminate, entering through another door.
+  - **A lock that exists but cannot be read stops being treated as absent.** Not knowing who the owner is differs from there being no owner: the previous version proceeded without protection, with another writer active on the same session. In a shared directory this was the common path, because the restricted permission makes another user's lock unreadable by design.
+  - **The restricted permission now also applies to a lock inherited from an earlier version**, which previously kept the old permission after being reclaimed.
+
+## 4.34.0
+
+### Minor Changes
+
+- The writer lease is now taken when the session opens, not on the first write.
+
+  **Fixes a silent turn loss.** Session writing is best-effort by contract — a rejection is logged to stderr, never thrown to the caller. Taking the lease there made the "session busy" error get swallowed: instead of two writers interleaving lines, the loser **lost the whole turn**, with nothing on disk and no way to react. At open time the error reaches someone who can decide — and the decision it prescribes is to create a derived session.
+
+  An I/O failure that is **not** contention (an unwritable directory, a full disk) no longer fails the agent's open: there is no second writer to avoid, and the write was already best-effort.
+
+  ### Corrigido
+
+  - **The in-memory session caches are actually erased again.** Three of the four maps are addressed by a composite key and were being removed by a different one: in practice, they were never erased. And eviction by ceiling left the hydration marker behind, making an evicted session come back **empty** instead of reloading from disk.
+  - **The lock file is born restricted to its owner.** With the previous permission, another user in the same group could overwrite it and forge ownership of the session — from then on it was the legitimate owner who got refused.
+  - **The maximum declared context window rose to 10M.** The previous value refused the real window of a published model — which arrives precisely via the catalog-less provider, that is, the case the limit exists to cover. Silently losing 80% of the window is worse than the excess the limit prevents.
+
+## 4.33.1
+
+### Patch Changes
+
+- Fixes a session lease that could be taken from a live process.
+
+  The owner record is written at acquisition and is not renewed on each write, and the previous version considered any lock older than the heartbeat window reclaimable — including on the same host. In practice that meant **every** session lasting longer than the window became available to a second writer, which is exactly what the lease exists to prevent.
+
+  On the same host the question "does the owner still exist?" has an exact answer, and age adds nothing to it. The window still applies between different machines, where a process number means nothing.
+
+## 4.33.0
+
+### Minor Changes
+
+- M95 — the single writer actually starts existing, and the session caches gain an owner.
+
+  - **The single-writer guarantee is wired.** It had existed as a function since the version that introduced it and had **no** caller at all: the transcript was never protected. The store now acquires it on the first write and releases it on shutdown.
+  - **A dead process no longer locks the session forever.** The lock recorded no owner, so an abruptly terminated interface locked the user out of their own session with no recovery path. The lock now writes `{pid, hostname, mtime}`, and a dead owner — or a lock older than the heartbeat window — yields its place. Between different machines only the window counts, because a process number means nothing outside the host where it was born.
+  - **The in-memory session caches stop growing without bound.** Two of the four were never erased per session; now all of them drop when the agent shuts down, and the cached conversation respects a ceiling with least-recently-used eviction.
+
+  ### Corrigido
+
+  - **An absurdly high declared context window is bounded again even without a catalog entry.** The limit only existed when a catalog was present — and the whole reason the declaration exists is the model that has none. One extra zero in the configuration made the agent never compact until the provider refused the turn.
+  - **Provider resolution from a model id now uses the canonical parser**, so aliases, capitalization and spaces resolve as everywhere else in the SDK. The previous version redid the split by hand and did not recognize seven valid forms.
+
+## 4.32.0
+
+### Minor Changes
+
+- M94 — publishes four resolvers the SDK already knew internally.
+
+  - **`transcriptRoot()` is exported and honors `THEOKIT_HOME`.** Before, the transcript root ignored the variable while its sibling stores respected it: whoever set it had their state silently split in two, and older sessions vanished from the listing with no error. The fallback is still `~/.theokit` — deliberately **not** the cwd-anchored resolver in `paths.ts`, whose adoption would move the transcript of everyone who does **not** set the variable.
+  - **`ModelSelection.contextWindow` reaches the compaction budget.** The resolver had accepted an `override` since the previous version and no production path passed it: a 400k model with no catalog entry was budgeted against the 128k floor and compacted about three times more than it needed to. A value above what the catalog knows is still clamped.
+  - **`SessionRecord.message` stops being `Record<string, unknown>`.** The new `TranscriptMessage` describes the shape the writer has always produced. It is **not** called `SessionMessage`: that name already exists with an incompatible shape, and reusing it would repeat an earlier silent break. Reading from disk stays tolerant — what changes is the type.
+  - **`Provider.forModel(modelId)`** gives the `provider/model` grammar a single owner. An id without a slash returns `undefined` instead of matching partially, so the caller can tell "non-routable model" from "default path".
+
+  Labelling note: `4.31.1` already contained some of these additions by mistake — it was published as a patch when a minor was correct. Nothing breaks (additions are compatible), and this version declares the surface correctly.
+
+## 4.31.1
+
+### Patch Changes
+
+- M93 — eight fixes from adversarial review.
+
+  - **Retry stops re-running an already partially consumed stream.** A failure after the first event retried the whole turn, duplicating text and `tool_use` blocks — precisely in the scenario that motivated the retry (a 429 after several tool calls).
+  - **The transcript is born `0600` again.** The switch to incremental append lost the explicit mode and, under `umask 022`, the file — which carries in-flight content — was born readable by others.
+  - **An append over a crash-truncated file no longer swallows the new record.**
+  - **Transient errors are now decided by structured status, not by message text.** The previous heuristic classified `ECONNREFUSED ...:443` as non-transient because the port matched the "4xx" pattern: retry was switched off precisely for network failures.
+  - **Socket failures are now typed in the Anthropic and OpenAI transports.** Without that, the raw error escaped and no retry policy recognized it.
+  - **`CredentialPoolExhaustedError` and an open circuit stop being retried.** The pool already spent its own budget; retrying on top tripled the wait and undid the circuit breaker's fail-fast.
+  - Cancellation (`AbortError`) is never confused with a network failure.
+
+## 4.31.0
+
+### Minor Changes
+
+- d8412b6: **A transient provider error stops destroying the whole turn.**
+
+  Three defects that, combined, made the loss total:
+
+  - **The single-key path had no retry.** `buildPoolOrSingle` gave a `PoolAwareLlmClient` — circuit
+    breaker, full-jitter backoff, `Retry-After`, rotation — with **>= 2** keys, and the **raw** transport
+    with one. A consumer resolving exactly one credential (the common case) always landed on the arm without
+    resilience. The asymmetry has no domain justification: **a pool of 1 key is a pool of size
+    1**. `RetryingLlmClient` is composition — `computeBackoffMs` and `sleepWithAbort` were already
+    independent modules — and it applies to all **three** arms (the ambient pool's was also left out).
+
+  - **The error path persisted nothing.** `run.wait()`'s `catch` called `flushSessionWrites()` and
+    returned; `persistTurnToTranscript` is only called later, and it is the repository's only caller. The
+    flush drained an **empty** set. It now persists the **partial** — user + completed tool calls —
+    without reconstructing what did not happen.
+
+  - **`appendRecords` rewrote the whole file every turn.** O(n) of I/O **and** of parsing on every turn,
+    O(n^2) per session. Correct because the format **is already append-only** (the `parentUuid` DAG does not depend on
+    line order), and `appendJsonl` **already existed** in the package with a single caller. `withFileLock`
+    stays — it is what serializes concurrent appends.
+
+  Only a **transient** error is retried: 402 (billing) is not, because a quota does not resolve in milliseconds, and
+  a 401 fails on the first. Ceiling of 3 attempts, `AbortSignal`-aware.
+
+### Patch Changes
+
+- f76ed61: Corrige o docstring de `Agent.getOrCreate`, que afirmava o oposto do comportamento real.
+
+  Ele dizia: _"Disposed agents are NOT auto-deleted from the registry. To force a fresh agent, call
+  `Agent.delete(agentId)` first."_ Measured, that is false — `dispose()` calls `liveAgentRegistry.forget(id)`,
+  so the next `getOrCreate(id)` builds a fresh handle, with no `Agent.delete`.
+
+  The claim was about the **persistent** registry and was read as being about the **live cache**; a
+  consumer built on the wrong half. Locked by `tests/m91-getorcreate-after-dispose.test.ts`.
+
+  The new bullet also records what remains true: `close()` marks the handle disposed **without**
+  evicting the cache entry. It is internal and has no caller today; if it becomes reachable again, the bullet stops
+  holding for that path — and it is written down so the next person need not rediscover it.
+
+## 4.17.1
+
+### Patch Changes
+
+- fix(session): hydration REPLACES the cache from disk (source of truth) instead of skipping when non-empty — after an invalidation (compact/inject), an in-flight turn repopulating the cache with one message used to pin the parent to a 1-message context until restart (M51 review F4; race test added).
+
+## 4.17.0
+
+### Minor Changes
+
+- feat(session): `Agent.injectSessionTurn(agentId, {userText, assistantText})` — append a SYNTHETIC user+assistant pair to a local session's persisted transcript WITHOUT running an LLM turn (the Codex review-exit mechanism: the parent conversation "learns" a result for follow-ups). Chains onto the DAG leaf, invalidates the in-memory cache, serialized on the per-agent write chain (M51 agent-builder).
+
+## 4.16.7
+
+### Patch Changes
+
+- fix(session): a model-prefix profile only wins the summarizer route when its credential is actually RESOLVABLE (oauth/none own their auth; api_key needs one of the profile's env vars set) — an `openai` prefix with only OPENROUTER_API_KEY in the environment now falls through to env detection instead of failing with "No provider client".
+
+## 4.16.6
+
+### Patch Changes
+
+- fix(session): the summarizer route precedence now mirrors the run's M4 rule EXACTLY (extracted as the pure, unit-tested `resolveSummarizerRoute`): explicit key's provider > model-prefix profile (oauth builtin / M45 fleet) > env detection. The 4.16.5 ordering put the prefix profile first, so an sk-or- key + `openai/…` model 401'd against the OpenAI platform (found live).
+
+## 4.16.5
+
+### Patch Changes
+
+- fix(bundle): the M50 compaction wiring used dynamic imports of modules ALSO imported statically elsewhere — esbuild wrapped them in lazy `__esm` init blocks and static importers saw an undefined module state in the PUBLISHED dist only (`hydratedKeys.has` TypeError on every Agent.create; src/tests were unaffected — the adversarial-dist class again). All compaction imports are now static; the only dynamic edge left is agent-session→compact-session (the cycle breaker). Dist-level smoke added to the release ritual.
+
+## 4.16.4
+
+### Patch Changes
+
+- fix(session): M50 adversarial-review fixes — (F1 BLOCKER) compaction now INVALIDATES the in-memory session cache, so the live process feels the compact on the very next send (it used to keep sending the full pre-compact history until restart); (F3) the auto-trigger uses the LAST request's usage as the active-context proxy (the across-rounds aggregate fired prematurely on agentic turns); (F5) `Agent.compact` serializes on the per-agent write chain (a manual compact can no longer interleave with an in-flight turn — race test added); (F6) the summarizer routes through the model-prefix provider PROFILE when registered (oauth `openai-chatgpt` builtin owns its auth; M45 fleet resolves its own env) before falling back to key/env inference; (F2) once-per-process WARN when the model has no catalog context window + gpt-5.x family added to the catalog (400k) with the `openai-chatgpt` alias so the product default can actually trigger; (F8) the user message that overflows the 20k preservation budget is TRUNCATED and kept (Codex parity) instead of dropped.
+
+## 4.16.3
+
+### Patch Changes
+
+- fix(session): compaction summarizer falls back to the ENV-detected provider when no explicit key exists (the persisted registry never carries credentials) — a fresh-process `/compact` with only OPENROUTER_API_KEY in the environment now routes via OpenRouter instead of failing on the model-prefix provider.
+
+## 4.16.2
+
+### Patch Changes
+
+- fix(session): `Agent.compact` hydrates the per-cwd registry from disk on a miss (same D21 path as `Agent.resume`) — a fresh process compacting a persisted session no longer fails with UnknownAgentError. Found live in the M50 probe.
+
+## 4.16.1
+
+### Patch Changes
+
+- fix(session): the compaction summarizer resolves its provider the same way the RUN does (M4 rule — the explicit API key outranks the model prefix): an sk-or- key + `openai/…` model summarizes via OpenRouter with the full slug, instead of 401ing against OpenAI. Found live in the M50 tmux probe.
+
+## 4.16.0
+
+### Minor Changes
+
+- feat(session): context compaction, Codex-faithful (M50 agent-builder). `Agent.compact(agentId)` summarizes a local session's persisted transcript — recent USER messages preserved verbatim (20k-token budget, prior summaries filtered by marker) + one marker'd handoff summary as a user message — appended AFTER a `compact_boundary` (append-only; resume replays replacement + later turns). Size-driven AUTO-compaction fires in the persistence chain when the run's REAL usage crosses 90% of the model's catalog context window (Codex formula `(cw*9)/10`; missing usage/window never fires), with an anti-cascade guard (one attempt per turn). The summarizer is the compression subsystem's aux-LLM (`compressConversationWindow` — its first real caller). BREAKING-ish fix: the old 50-turn `compact_boundary` stub (no summary — it silently amnesia'd resumes) is REMOVED.
+
+## 4.15.4
+
+### Patch Changes
+
+- fix(persistence): the node:sqlite fallback now resolves via `process.getBuiltinModule` — the published bundle's esbuild predates the sqlite builtin and rewrote `import("node:sqlite")` to a bare `sqlite` package specifier, so the 4.15.3 fallback failed at runtime in the DIST while passing against src (adversarial-dist lesson, again).
+
+## 4.15.3
+
+### Patch Changes
+
+- fix(persistence): implement the `node:sqlite` fallback the SQLite driver-load error message has always promised — on Node 22.5+ without the optional `better-sqlite3`, memory tools now work via the built-in driver (adapter shims `pragma()`; `loadExtension` degrades with a clear error). Previously only better-sqlite3 was tried, so every consumer without the native dep silently lost memory tools.
+- fix(memory): the "memory tools unavailable" WARN is now emitted ONCE per process per distinct message (globalThis registry) — it used to repeat on every `Agent.create` (the TUI creates one per turn), and raw stderr mid-frame corrupts Ink-style renderers (the flicker/duplicate-greeting bug).
+
+## 4.15.2
+
+### Patch Changes
+
+- fix(providers): M47 adversarial-review fixes on the dynamic-loader trust gate — (F1) `Agent.resume` now runs provider-plugin discovery (a fresh process resuming a persisted agent whose model targets a plugin provider no longer fails resolution); (F2) `Theokit.models.list({provider})` local path runs discovery too (sync surfaces stay builtins-only, documented); (F3) the discovery idempotence flag moved to `globalThis` (`Symbol.for`) matching the registry's M44 B1 pattern — no duplicate discovery per bundle entry; (F4/F7) the NOT-trusted WARN now says "then restart the process" and documents the comma-separated env format; (F5) non-string entries in a valid trust-file array WARN instead of being silently discarded.
+
+## 4.15.1
+
+### Patch Changes
+
+- fix(providers): wire `discoverProviderPlugins()` into `Agent.create` — the dynamic provider-plugin loader (and its M47 trust gate) was exported but never invoked on any production path, making the whole discovery surface dead code at runtime. Discovery now runs upfront on agent initialization (idempotent, fail-tolerant), honoring the `resolveProviderChain` contract.
+
+## 4.15.0
+
+### Minor Changes
+
+- Dynamic provider-plugin trust gate (agent-builder M47): the out-of-tree loader (`~/.theokit/plugins/model-providers/<name>/index.{js,mjs}` — the documented extension path for shipping a provider as a package) now requires EXPLICIT human trust before any dynamic import. A plugin's code executes at import time (an arbitrary-code-execution surface), so nothing is evaluated unless the plugin name is listed in `~/.theokit/plugins/trusted-providers.json` (a JSON string array — the auditable primary) or the additive `THEOKIT_TRUSTED_PROVIDERS` env (comma-separated). Fail-closed: a missing or malformed trust file trusts NOTHING (malformed WARNs); an untrusted plugin is skipped with an actionable WARN naming the file to edit — its code is NEVER evaluated (proven by an import-side-effect fixture test). **BREAKING (deliberate security fix):** previously ANY package dropped into the plugins dir executed unguarded; existing plugin users must add their plugin names to the trust file (the WARN says exactly how).
+
+## 4.14.1
+
+### Patch Changes
+
+- M45 adversarial-review fixes: (H1) a malformed `baseUrl` (scheme-less host, empty env var) no longer throws an untyped `TypeError` from the OpenAIClient CONSTRUCTOR — poisoning the whole provider chain at `resolveProviderChain` time even when only a fallback was misconfigured; the URL parse now degrades to the legacy `/v1/chat/completions` path (byte-identical to pre-M45) and fails typed at fetch time. (M2) re-running `registerBuiltins()` across bundle copies (`@theokit/sdk` + `@theokit/sdk/models`) no longer emits 19 bogus `overridden by user plugin` WARNs — the guard lives on `globalThis` like the registry itself. (M3) a trailing-slash versioned baseUrl (`…/v1/`) now joins cleanly (no `/v1//chat/completions`). (L1) the `google` builtin also honors `GOOGLE_GENERATIVE_AI_API_KEY` (the ai-sdk convention). (L4) `getCatalogCapabilities` resolves entry aliases (e.g. `google`). NOTICE extended for the M45 adaptations. **Migration note (M1):** the chat-completions URL-join now detects version segments ANYWHERE in the baseUrl path — a gateway mounting an OpenAI-compat surface under a versioned prefix (e.g. `https://gw.corp/v2/tenants/x`) that previously got `/v1/chat/completions` appended now gets `/chat/completions`; declare `chatCompletionsPath` on the profile to pin an exact path.
+
+## 4.14.0
+
+### Minor Changes
+
+- Data-provider fleet (agent-builder M45): 9 new first-party builtins on a data-only `openAiCompatibleProfile` base — `google` (DIRECT Gemini via the OpenAI-compat endpoint, `GOOGLE_API_KEY`/`GEMINI_API_KEY`; distinct from the `gemini` OpenRouter passthrough), `mistral`, `groq`, `cohere` (via `api.cohere.ai/compatibility/v1`), `deepinfra`, `together` (alias `togetherai`), `xai` (alias `grok`), `perplexity`, `cerebras` — each ~10 lines with source-cited values. Two defects fixed: the chat_completions URL-join no longer doubles version segments (`…/v1/v1/chat/completions` — every version-suffixed catalog baseUrl was broken for streaming) via version-segment detection + a data-only `ProviderProfile.chatCompletionsPath` escape (existing builtins byte-identical, contract-asserted), and Google is finally reachable (the `google-gemini` catalog entry was silently skipped by an alias collision). The `anthropic_messages` transport now consumes `extraHeaders` + the provider `transform` (mirror of the M41 chat_completions wiring) and the anthropic builtin ships `anthropic-beta: interleaved-thinking-2025-05-14,fine-grained-tool-streaming-2025-05-14` (the sanctioned behavior delta); openrouter gains theokit's own attribution headers (`HTTP-Referer: https://usetheo.dev`, `X-Title: theokit`); cerebras sends `X-Cerebras-3rd-Party-Integration: theokit`. A table-driven contract suite asserts identity + the EXACT wire URL and headers per provider. Values adapted from OpenCode (MIT); see NOTICE.
+
+## 4.13.1
+
+### Patch Changes
+
+- M44 adversarial-review fixes for the model catalog: (B1) the provider registry + model-info index now live on `globalThis` via `Symbol.for` so every bundle copy (`dist/index.js`, `dist/models.js` — tsup bundles entries separately) shares the SAME state — previously `refreshModelCatalog` from `@theokit/sdk/models` patched a bundle-local index invisible to capability/pricing lookups and saw an empty registry (a published-artifact-only defect the src-level tests could not catch); (H2) a live models-dev patch is now a per-field MERGE that preserves theokit extension fields (`cache_control`, overlay `structured_output`) instead of a wholesale replace that wiped them; (H3) the runtime refresh gained the models.dev↔theokit id mapping (google↔google-gemini, zai↔zhipu, togetherai↔together, fireworks-ai↔fireworks, amazon-bedrock↔bedrock, google-vertex↔vertex) resolving against catalog entries (id + aliases) with a WARN for skipped unknowns — Google/Z.AI/Together/Fireworks now actually refresh; (M4) `refreshModelCatalog` self-initializes provider registration so the `/models` subpath works standalone; (M5) pricing provenance is honest post-refresh (`catalog-models-dev` vs `catalog-vendored`); (M6) the anthropic builtin defaults (opus-4-7 / sonnet-4-6 / haiku-4-5) now carry `cache_control: true` in the vendored catalog; (L8) the models-dev cache honors `THEOKIT_HOME`; (L9) a missing/corrupt vendored catalog degrades with WARN instead of throwing from `resolveModelCapabilities`, cache patch errors never delete a valid cache, and refresh never rejects; (L10) the pricing step-5 fallback also tries the date-stripped id; (L11) falsy `THEOKIT_DISABLE_MODELS_FETCH` values (`0`/`false`/empty) no longer disable the fetch.
+
+## 4.13.0
+
+### Minor Changes
+
+- Model catalog enrichment (agent-builder M44): the vendored `provider-catalog.json` now carries OPTIONAL per-model data (`models` block — models.dev shape verbatim: `cost{input,output,cache_read,cache_write}` USD-per-1M, `limit{context,input,output}`, `modalities`, `tool_call`/`reasoning`/`structured_output`/`cache_control`, `release_date`, `status`), loaded into an internal model-info index keyed `provider/model` (entry id + aliases). Fully additive: entries without `models` behave byte-identically, `ProviderProfile` is untouched, the 10 builtins + all 43 catalog entries keep resolving, and a malformed model sub-entry drops that model with WARN keeping the provider. DRY reconciliation: `resolveModelCapabilities` is now catalog-backed (the hand-curated EXACT map migrated into the catalog and was deleted — parity-tested over the full old-map snapshot), and `getPricingEntry` gains a step-5 catalog fallback on total LiteLLM miss (provenance `pricingVersion:"catalog-vendored"`; the LiteLLM snapshot keeps absolute precedence — and the new drift advisory caught a real stale rate: `openai/o3` corrected 10/40 → 2/8). New on `@theokit/sdk/models`: `getModelInfo(modelId)` (the enriched per-model view) and `refreshModelCatalog({url?, force?})` — an EXPLICIT opt-in models.dev refresh with a 1h-TTL atomic disk cache under `~/.theokit/cache/models-dev/`, kill-switch `THEOKIT_DISABLE_MODELS_FETCH`, and the vendored catalog as offline fallback; startup and requests never touch the network. Mechanism adapted from OpenCode's models.dev consumption (MIT); see NOTICE. Maintenance: `scripts/refresh-catalog.mjs` regenerates the curated vendored subset (30 models, +36KB).
+
+## 4.12.2
+
+### Patch Changes
+
+- Fix (agent-builder M43): the `openai-chatgpt` builtin's ambient credential store now uses a DEDICATED `THEOKIT_AUTH_HOME` env override instead of `THEOKIT_HOME`. `THEOKIT_HOME` is the SDK's whole home directory (personality, credential-pool, profiles) — overloading it to point the credential store redirected the entire runtime and broke non-Codex model resolution. `THEOKIT_AUTH_HOME` points ONLY the credential store; unset, the store defaults to `~/.theokit/auth.json`.
+
+## 4.12.1
+
+### Patch Changes
+
+- `Provider.builtins()` (agent-builder M43): returns every first-party builtin provider — including the `openai-chatgpt` Codex builtin — as model-provider plugins. A runtime that does NOT share the SDK's provider registry (the `theokit` agent server / `@theokit/agents`, which resolve models via their own `buildModelSelection`) can now route to any SDK builtin with ZERO provider-specific code: `Agent.create({ plugins: Provider.builtins() })` (or the agents `.plugins(Provider.builtins())`), then pick a `provider/model` id. Adding a provider stays one SDK file — it is auto-included. The full ProviderProfile (transport + the auth `transform`) rides along into the consuming runtime.
+
+## 4.12.0
+
+### Minor Changes
+
+- Codex provider as a builtin (agent-builder M43): a new first-class `openai-chatgpt` builtin `ProviderProfile` routes `openai-chatgpt/<model>` ids to the ChatGPT "Codex" backend (`https://chatgpt.com/backend-api/codex`, `responses_api`). Its `transform.fetch` resolves the LIVE credential from the ambient store per HTTP request — a freshly-refreshed Bearer + a dynamic `ChatGPT-Account-Id` header — so a mid-turn token expiry refreshes transparently with NO agent rebuild, and a not-logged-in request fails fast (no placeholder on the wire). The ambient store is `~/.theokit/auth.json` with a `THEOKIT_HOME` override so a consumer points it at its own store. Two account_id lifecycle fixes ship alongside: `ensureFreshCredential` now PRESERVES a stored `account_id` across refresh (OpenAI's refresh JWTs carry no top-level `account_id`), and `openaiDeviceLogin` JWT-extracts `chatgpt_account_id` at login. Protocol values + the OAuth config adapted from OpenCode (MIT); see NOTICE. Consumers add a provider in one SDK file; the Codex backend needs zero provider logic in the app.
+
+## 4.11.1
+
+### Patch Changes
+
+- Auth subsystem review fixes (agent-builder M42), grounded in OpenCode's provider-auth model: (1) an oauth provider that resolves NO credential now fails fast with a `ConfigurationError` (the `MissingCredentialError` analog) instead of putting the `__oauth_lazy_token__` placeholder on the wire — OpenCode never sends a placeholder; (2) `resolveCredential` no longer attributes a provider-less or mismatched-provider stored key to the requested provider (fail-closed — prevents cross-vendor key exposure, e.g. an Anthropic key POSTed to api.openai.com). The credential store/engine mechanics are unchanged.
+
+## 4.11.0
+
+### Minor Changes
+
+- Auth subsystem (agent-builder M42): a new `@theokit/sdk/auth` sub-entry ships a credential store + OAuth engine, promoted DOWN from agent-builder's hardened M37 code, generalized to `provider: string` + a caller-supplied `CredentialStoreConfig` (no hardcoded client IDs). Public surface (`import { … } from "@theokit/sdk/auth"`): `resolveCredential(name)` returns a fresh (transparently-refreshed) `ResolvedCredential`; the credential store (`writeCredential`/`readAuthFile`/`readStoredOAuth`/`authFilePath`/`credentialHome`/`CredentialError`), the OAuth engine (`exchangeCode`/`refreshOAuthTokens`/`ensureFreshCredential`/`persistOAuthTokens`), the device flows (`deviceLogin`/`openaiDeviceLogin`/`requestDeviceCode`/`pollDeviceToken`/`requestOpenAIUsercode`/`parseJwtClaims`/`extractAccountId`), and the contract types (`CredentialStoreConfig`, `ResolvedCredential`, `StoredOAuthCredential`, `OAuthProviderConfig`, `OAuthTokens`, `HttpDeps`, `DeviceOAuthConfig`, `OpenAIDeviceConfig`, …). It sits at a dedicated sub-entry (DTS via tsc) — the same isolation as `@theokit/sdk/messages` / `/subscription` / `/sanitize` — because rollup-plugin-dts cannot bundle the modules into the main barrel. The credential store does an atomic O_EXCL + rename + fsync write at mode 0600 with 0700/0600 mode gates; the OAuth engine implements RFC 8628 device-grant + the OpenAI two-step headless flow + token exchange/refresh with in-flight-refresh coalescing (keyed by store path, rejected promise evicted — single-use refresh tokens are never double-spent) and a no-token-in-error discipline. The router's lazy-sentinel path now covers `oauth_device_code` / `oauth_external` so an oauth provider builds a client whose M41 `transform.fetch(ctx)` owns the fresh bearer at stream time — a mid-turn expiry refreshes without rebuilding the agent, and plain (api-key/env) profiles resolve byte-for-byte unchanged. Device-grant + JWT extraction + OpenAI two-step adapted from OpenCode (MIT); see NOTICE.
+
+## 4.10.1
+
+### Patch Changes
+
+- Provider transform seam hardening (agent-builder M41 review): `OpenAIClient` now honors `extraHeaders` so `chat_completions` providers get `transform.headers` (previously silently dropped); the `transform` seam is invoked per-branch (no side effects for transports that ignore it); `ProviderTransform` + `ProviderTransformContext` are re-exported from the package entry; added back-compat golden tests (plain `responses_api` passthrough) + a `chat_completions` transform.fetch test.
+
+## 4.10.0
+
+### Minor Changes
+
+- Provider `transform` seam (agent-builder M41): `ProviderProfile` gains an optional `transform` (dynamic `headers(ctx)` + refresh-aware `fetch(ctx)`), fed through `selectTransport` into the `chat_completions` + `responses_api` transports — a provider can now own its per-request auth/headers. A profile without `transform` takes the static path byte-for-byte. Contract-shape adaptation of OpenCode's provider `auth.loader` (MIT).
+
+## 4.9.1
+
+### Patch Changes
+
+- Responses transport strips a `provider/` prefix from the model id (defense-in-depth: the ChatGPT Codex backend wants a bare `gpt-5.4`, decoupled from the router's provider-inference heuristic).
+
+## 4.9.0
+
+### Minor Changes
+
+- `responses_api` transport (agent-builder M40): a `ResponsesApiClient` for the OpenAI Responses API (ChatGPT Codex backend + any responses provider). The `responses_api` apiMode was declared but had no transport (`selectTransport` threw); this ships it — body build + SSE state machine, consuming `baseUrl` + `extraHeaders`. Protocol shape adapted from OpenCode's `openai-responses.ts` (MIT), recorded fixtures as golden tests.
+
+## 4.8.0
+
+### Minor Changes
+
+- `Agent.rename(agentId, name)` (agent-builder M39): the public mutator for the registry `name` field (mirrors `Agent.archive`/`setArchivedFlag`). The registry already carried `name` (`SDKAgentInfo.name`) but had no public setter.
+
+## 4.7.1
+
+### Patch Changes
+
+- ef7e172: M35 review follow-ups (fail-fast, no silent drop): a `{ url }` `SDKImage` is now forwarded as an `image_url` with the URL directly on OpenAI/OpenRouter (previously silently dropped in `buildUserContent`); and the ollama-native provider throws a typed `ConfigurationError` on an image part instead of silently discarding it (images require an OpenAI/OpenRouter model). `LlmImagePart.source` gains a `{ type: "url" }` variant.
+
+## 4.7.0
+
+### Minor Changes
+
+- 6871152: M35 (multimodal) — implement image input end-to-end. `agent.send({ text, images })` (the `SDKUserMessage` form) previously carried the `images` TYPE but the runtime dropped them (only `.text` was used). Now `prepareRunContext` carries the images, the agent loop attaches them as `image` content parts (new `LlmImagePart`), and the provider adapters serialize them: OpenAI/OpenRouter to a content-array with an `image_url` data URL, Anthropic to a native base64 image block. Text-only turns are byte-unchanged (back-compat). Zero new dependencies.
+
+## 4.6.1
+
+### Patch Changes
+
+- 4b70ff1: Per-subagent config (M33) review fixes.
+
+  - **Sandbox is no longer default-open.** A delegated child of a sandboxed parent now inherits the parent's shell-sandbox posture unless its role opts out; `AgentDefinition.sandbox` absent ⇒ inherit (as documented), `sandbox: false` explicitly confines-off, `sandbox: true` confines-on. Previously a child ran unsandboxed whenever its role omitted `sandbox` — a default-open the wiring exists to prevent.
+  - **`model: inherit` + `reasoning_effort` is now a typed load error** instead of silently dropping the effort (the inherited model id is unknown at load, so the `thinking` param has nothing to attach to).
+  - **`tools` and `sandbox` now survive persist→resume** for inline subagents (`serializeAgents`); dropping them was a default-open on resume (a confined child came back unconfined). The model's reasoning `params` are persisted too. `mcpServers` stays stripped (may carry secrets).
+  - **Quoted `model`/`reasoning_effort` scalars are stripped** (`model: "openai/gpt-4o"`), which previously passed validation and failed only at the provider.
+
+  Note on the 4.6.0 loader: rejecting unknown/unsupported frontmatter fields is a fail-closed **contract narrowing** (pre-4.6.0 silently dropped them), not a pure addition. Every subagent role in the ecosystem uses only accepted fields, so there is no known real-world break, and the failure is a diagnosable typed `ConfigurationError` — but downstreams pinned to `^4.5` whose roles carried extra keys should be aware.
+
+## 4.6.0
+
+### Minor Changes
+
+- c5951b9: Per-subagent config through the LOCAL delegation path. A disk-loaded subagent (`.theokit/agents/*.md`) may now set its own `model`, `reasoning_effort` and `sandbox`, and each reaches the spawned child — previously the local delegation seam narrowed an `AgentDefinition` to `{model.id, tools}` and dropped everything else.
+
+  - `reasoning_effort` rides inside the model as `model.params: [{ id: "thinking", value }]`; the spawn now carries the whole `ModelSelection` (with params) instead of only `.id`.
+  - `sandbox: true` (new optional `AgentDefinition.sandbox` boolean) forwards to the child as `local.sandboxOptions.enabled`. The SDK has no granular sandbox _mode_; a mode string is a typed load error, not a silent boolean coercion.
+  - The subagent loader now rejects unknown or unsupported frontmatter fields with a typed `ConfigurationError` naming the file and field (previously silently dropped): an unknown key, a non-boolean `sandbox`, `reasoning_effort` without a `model`, and `mcp` (not yet honored on the local delegation path — declare MCP servers in `.theokit/mcp.json` instead). Every `.theokit/agents/*.md` in the ecosystem already uses only accepted fields, so this is fail-closed with no real-world break.
+  - `buildChildCreateOptions` is now exported for testing the built child `AgentOptions`.
+
+## 4.5.1
+
+### Patch Changes
+
+- e39cdf6: docs: ship the reference docs inside the npm package. `harness-capability-map.md` (every public primitive + its import path) and `error-codes.md` (the `AgentRunError.code` table) are now readable offline at `node_modules/@theokit/sdk/docs/`, pinned to the installed version — useful for agents that read their own dependencies, and for air-gapped setups. They live at the repo root (linked from the root README/CONTRIBUTING/CLAUDE.md) so `build` copies them into the package via `scripts/copy-docs.mjs`, rewriting repo-relative links to absolute GitHub URLs so they still resolve from `node_modules`. A `tests/lint/shipped-docs.test.ts` gate fails if `files` drops the `docs` entry or a new root reference doc is not added to the ship list. Tarball grows ~7 KB. The package README now also points agents at the docs site's machine-readable corpora (`llms.txt` / `llms-full.txt`).
+
+## 4.5.0
+
+### Minor Changes
+
+- 283dca0: feat(eval): eval-as-CI-test primitives (SE41). Adds the pieces that turn `@theokit/sdk/eval` into a regression gate you can drop into a pipeline:
+
+  - **`assertEval(run, thresholds)`** — a pure gate over an `EvalRun` that throws `EvalThresholdError` (carrying the full list of unmet thresholds) when a run misses `minMeanScore`, `minPassRatio`, `maxErrorRatio`, or any `perScorer` floor. Passing returns `void`, so it drops straight into a Vitest `it(...)` or a standalone eval script whose non-zero exit fails CI.
+  - **Three new scorers** — `Scorers.levenshtein()` (normalized edit-distance similarity, deterministic), `Scorers.numericDiff()` (relative numeric closeness, deterministic), and `Scorers.embeddingSimilarity()` (cosine of output vs expected embeddings via OpenRouter, or an injected `embed` for other providers/tests). The two deterministic scorers always run in CI with zero token spend.
+  - **`EvalOptions.trials`** — repeat each dataset row N times and collapse to one row whose per-scorer score is the mean over the trials (an errored trial contributes 0), smoothing single-model non-determinism. `EvalRowResult.trialCount` records the collapse.
+  - A `pnpm eval` script + an OpenRouter-gated `eval` CI workflow run the new `tests/eval/suites/**` eval suites; the deterministic gate also runs on every `pnpm test`.
+
+### Patch Changes
+
+- 8932068: fix(build): emit `@theokit/sdk/interactive` CJS type declarations (`dist/interactive/index.d.cts`). The subpath was added to `tsconfig.tools-dts.json` (so `.d.ts` shipped) but omitted from `scripts/mirror-dts-to-cts.mjs`, so `exports["./interactive"].require.types` pointed at a file that was never generated — `publint` and `arethetypeswrong` both flagged it ("No types" from CJS). A CJS `require("@theokit/sdk/interactive")` now resolves its types. Added `dist/interactive` to the mirror target list with a note about the drift trap.
+
+## 4.2.10
+
+### Patch Changes
+
+- aaa3e36: fix(a2a): subagent child now inherits the parent's `apiKey` + child errors surface instead of `"(no response)"` (#143). Two bugs kept a `SubAgent` child from ever returning content when driven through a host that reaches the `/a2a` build copy (e.g. the `@theokit/agents` in-process adapter): (1) the credential-inheritance sink key was a unique `Symbol()`, so with `tsup splitting: false` the local runtime (bundled in `.`) and a `SubAgent` created via `@theokit/sdk/a2a` used DIFFERENT sink symbols — the child inherited no `apiKey` and failed with `provider_unresolved`; now a shared `Symbol.for` key (same fix class as #142). (2) `runChildAgent` read only `result.result`, so an errored child was silently swallowed to `"(no response)"` and the parent looped on it — it now throws the child's error (Rule 8, fail-fast). Adds regression tests (global sink key; error surfaced). Validated end-to-end: a delegated child (reasoning and tool-using) now returns its answer.
+
+## 4.2.9
+
+### Patch Changes
+
+- d12634e: fix(a2a): register the `Agent` facade on a process-global `Symbol.for` slot so `SubAgent` works across build entries (#142). Each public entry (`.`, `./a2a`, `./cron`, `./eval`, …) is bundled with `tsup splitting: false`, which inlines its own copy of the internal `agent-factory-registry` — a module-level `let` gave each copy a private registration slot, so a subagent invoked through `@theokit/sdk/a2a` read a slot the `.` entry (via `agent.ts`'s `setAgentFacade`) never set, throwing `internal: Agent facade not registered` even when the main entry was loaded first. The registry now stores the facade on `globalThis[Symbol.for("theokit.internal.runtime.agentFacade")]`, so all duplicated copies share ONE registration. Adds regression tests. No public API change.
+
 ## 4.2.8
 
 ### Patch Changes
@@ -1071,9 +1744,9 @@
 
 - **Forbidden-path blocklist expansion + case-insensitive matching (T5.6 of plan `sdk-superiority-2026-06-07`, DR6 finding #6)**: pre-T5.6 `isForbiddenPath` blocked only `.env*`, `.git/`, `node_modules/`, `.theo/`, and 4 lockfile basenames — and it compared case-sensitively. A coding agent recursing through a developer laptop could happily read `.ssh/id_rsa`, `.aws/credentials`, `.docker/config.json`, `.kube/config`, `.npmrc`, `.netrc`, `.pgpass`, `authorized_keys`, `known_hosts`, OR any `*.pem` / `*.key` file. On macOS/Windows case-insensitive filesystems, `.ENV` and `.SSH/` slipped through entirely because the path string was compared verbatim against lowercase constants. T5.6 (a) lowercases the normalized path BEFORE matching, defeating case-only bypass; (b) adds 3 new pattern sets: `SENSITIVE_FIRST_SEGMENTS` (.ssh / .aws / .docker / .kube / .npmrc / .netrc / .pgpass at top level), `SENSITIVE_BASENAMES` (id_rsa / id_ed25519 / id_ecdsa / id_dsa / authorized_keys / known_hosts / .npmrc / .netrc / .pgpass at any depth), and `SENSITIVE_SUFFIXES` (.pem / .key / .p12 / .pfx at any depth). Implementation matches the `.env.example` allowlist contract — `isForbiddenPath` returns false for safe templates. 28 new tests at `tests/internal/security/path-guard-forbidden-expansion.test.ts`; 102/102 path-guard sink tests GREEN across 6 files. Closes DR6 finding #6.
 
-- **NUL byte + C0/DEL control-char rejection across path-guard primitives (T5.5 of plan `sdk-superiority-2026-06-07`, DR6 finding #5)**: pre-T5.5 `safePathJoin`, `assertNoSymlinkEscape`, and `sanitizeIdentifier` did NOT explicitly reject NUL (`\x00`) or C0/DEL control characters (`\x01-\x1F`, `\x7F`) in path-shaped or identifier-shaped inputs. NUL bytes in path strings have a long history of security bugs: legacy N-API callers historically truncated paths silently at the NUL boundary, letting `foo.txt\x00.env` be opened as `foo.txt` while the upstream caller saw the full string and approved it. C0 control chars are universally invalid in POSIX paths and identifiers. `validateArtifactPath` (T1.4 — line 269) already rejected NUL, so T5.5 propagates the same defense to the sibling primitives so a caller can never bypass NUL/control checks by choosing a different entrypoint. New internal helper `rejectNulAndControlChars(input, role)` centralizes the check; wired into `safePathJoin` (for `base` + each `part`), `assertNoSymlinkEscape` (for `path` + `base`), and `sanitizeIdentifier`. The latter previously threw a generic "invalid characters" message via the alphanumeric-only `IDENTIFIER_PATTERN`; T5.5 routes NUL through the same helper so operators see a precise `<nul-byte>` / `<control-char-0x..>` diagnostic instead — making prompt-injection traces legible per Inquebrável Rule 3. 11 new tests at `tests/internal/security/path-guard-nul-rejection.test.ts` + 1 pre-existing assertion at `tests/internal/security/path-guard.test.ts:249` updated to match the new specific NUL message. 68/68 path-guard sink tests GREEN across 4 files (path-guard unit / property / public-api / agent-session-store).
+- **NUL byte + C0/DEL control-char rejection across path-guard primitives (T5.5 of plan `sdk-superiority-2026-06-07`, DR6 finding #5)**: pre-T5.5 `safePathJoin`, `assertNoSymlinkEscape`, and `sanitizeIdentifier` did NOT explicitly reject NUL (`\x00`) or C0/DEL control characters (`\x01-\x1F`, `\x7F`) in path-shaped or identifier-shaped inputs. NUL bytes in path strings have a long history of security bugs: legacy N-API callers historically truncated paths silently at the NUL boundary, letting `foo.txt\x00.env` be opened as `foo.txt` while the upstream caller saw the full string and approved it. C0 control chars are universally invalid in POSIX paths and identifiers. `validateArtifactPath` (T1.4 — line 269) already rejected NUL, so T5.5 propagates the same defense to the sibling primitives so a caller can never bypass NUL/control checks by choosing a different entrypoint. New internal helper `rejectNulAndControlChars(input, role)` centralizes the check; wired into `safePathJoin` (for `base` + each `part`), `assertNoSymlinkEscape` (for `path` + `base`), and `sanitizeIdentifier`. The latter previously threw a generic "invalid characters" message via the alphanumeric-only `IDENTIFIER_PATTERN`; T5.5 routes NUL through the same helper so operators see a precise `<nul-byte>` / `<control-char-0x..>` diagnostic instead — making prompt-injection traces legible per Unbreakable Rule 3. 11 new tests at `tests/internal/security/path-guard-nul-rejection.test.ts` + 1 pre-existing assertion at `tests/internal/security/path-guard.test.ts:249` updated to match the new specific NUL message. 68/68 path-guard sink tests GREEN across 4 files (path-guard unit / property / public-api / agent-session-store).
 
-- **HKDF-SHA256 key derivation for OAuth tx-cookie AES-256-GCM key (T5.1 of plan `sdk-superiority-2026-06-07`, CRITICAL — DR6 finding #1)**: pre-T5.1 `server/auth/oauth-transaction-store.ts:deriveKey` zero-padded secret bytes to 32 if shorter and truncated if longer. This is NOT a key derivation function. Two near-identical secrets (e.g., `"a".repeat(31)` vs `"b".repeat(31)`) produced AES keys differing in only one byte across 32 — an attacker who recovered one cookie could brute-force adjacent deployments cheaply. T5.1 replaces the zero-padding with HKDF-SHA256 (RFC 5869) using `info="theokit:oauth-tx-v1"` and a salt sourced from `THEOKIT_OAUTH_TX_SALT` env var (defaults to RFC 5869 zero-string; operators MUST set per-app salt in production to eliminate cross-deployment collision risk). Distinct secrets now produce avalanche-distinct keys (Hamming distance > 160 bits empirically). **Breaking validation**: `encodeTransaction` (and via the SDK's `defineAuth` chain, any `startSignIn`/`finishSignIn` flow) now throws the new typed `AuthSecretTooShortError` when the configured secret has fewer than 32 bytes of UTF-8 encoded entropy. Pre-T5.1 secrets shorter than 32 bytes were silently zero-padded and produced insecure keys; rejecting them surfaces the misconfiguration honestly per Inquebrável Rule 3. Generate a fresh value with `openssl rand -base64 33`. New test seam `__TESTING__deriveKey` exposed for unit-test avalanche assertions; NOT in the public barrel. 7 new tests at `tests/server-auth-hkdf-derive-key.test.ts` + 1 fixture update at `tests/server-auth.test.ts` (`secret` widened 31 → 32 bytes). 23/23 server-auth tests GREEN.
+- **HKDF-SHA256 key derivation for OAuth tx-cookie AES-256-GCM key (T5.1 of plan `sdk-superiority-2026-06-07`, CRITICAL — DR6 finding #1)**: pre-T5.1 `server/auth/oauth-transaction-store.ts:deriveKey` zero-padded secret bytes to 32 if shorter and truncated if longer. This is NOT a key derivation function. Two near-identical secrets (e.g., `"a".repeat(31)` vs `"b".repeat(31)`) produced AES keys differing in only one byte across 32 — an attacker who recovered one cookie could brute-force adjacent deployments cheaply. T5.1 replaces the zero-padding with HKDF-SHA256 (RFC 5869) using `info="theokit:oauth-tx-v1"` and a salt sourced from `THEOKIT_OAUTH_TX_SALT` env var (defaults to RFC 5869 zero-string; operators MUST set per-app salt in production to eliminate cross-deployment collision risk). Distinct secrets now produce avalanche-distinct keys (Hamming distance > 160 bits empirically). **Breaking validation**: `encodeTransaction` (and via the SDK's `defineAuth` chain, any `startSignIn`/`finishSignIn` flow) now throws the new typed `AuthSecretTooShortError` when the configured secret has fewer than 32 bytes of UTF-8 encoded entropy. Pre-T5.1 secrets shorter than 32 bytes were silently zero-padded and produced insecure keys; rejecting them surfaces the misconfiguration honestly per Unbreakable Rule 3. Generate a fresh value with `openssl rand -base64 33`. New test seam `__TESTING__deriveKey` exposed for unit-test avalanche assertions; NOT in the public barrel. 7 new tests at `tests/server-auth-hkdf-derive-key.test.ts` + 1 fixture update at `tests/server-auth.test.ts` (`secret` widened 31 → 32 bytes). 23/23 server-auth tests GREEN.
 
 ### Added
 
@@ -1098,7 +1771,7 @@
   - Self-cycle on `types/agent.ts` (audit #3) closed by replacing the inline `import("./agent.js").SDKAgent` in `AgentOptions.handoffs?` with a direct forward-reference to the locally-defined `SDKAgent` interface.
   - madge cycle count: **8 → 3** in one slice. Closed: cycles #3/#5/#6/#7/#10. Remaining: #1+#2 D428-acknowledged (rollup-dts subscribe-at-sub-path); #4 documented as deviation requiring HIGH-impact SDKAgent-interface extraction (out of T4.1 scope).
   - Zero public type surface change. Public-type-surface smoke test in `tests/architecture/type-cycles-closed.test.ts` verifies barrels still resolve.
-- **Architecture-test integrity fix (T4.1 follow-up)**: `tests/architecture/cycle-{8,9,11-12-13}-closed.test.ts` were passing **vacuously** because `repoRoot = resolve(__dirname, "../../../../..")` (5 ups) landed in the meta-repo `theokit-tools` which has no pnpm workspace — `pnpm exec madge` errored out and the cycle-line filter returned `[]`. Corrected to 4 ups (theokit-sdk workspace root). The underlying cycle closures from T1.1/T2.1/T3.1 are real (12/12 architecture tests now PASS against actual `madge --circular` output post-fix); the prior test integrity bug is surfaced honestly here per Inquebrável Rule 3 rather than buried.
+- **Architecture-test integrity fix (T4.1 follow-up)**: `tests/architecture/cycle-{8,9,11-12-13}-closed.test.ts` were passing **vacuously** because `repoRoot = resolve(__dirname, "../../../../..")` (5 ups) landed in the meta-repo `theokit-tools` which has no pnpm workspace — `pnpm exec madge` errored out and the cycle-line filter returned `[]`. Corrected to 4 ups (theokit-sdk workspace root). The underlying cycle closures from T1.1/T2.1/T3.1 are real (12/12 architecture tests now PASS against actual `madge --circular` output post-fix); the prior test integrity bug is surfaced honestly here per Unbreakable Rule 3 rather than buried.
 - **CRITICAL runtime↔persistence cycle #9 closed**: extracted `internal/runtime/session-types.ts` (leaf types file ~15 LOC) holding `SessionMessage`. `agent-session-store.ts` now imports the type from this leaf; `agent-session.ts` re-exports it for back-compat with downstream importers. Closes the audit's only CRITICAL cycle (Phase 5 cartographer cycle #9 — `agent-session.ts → conversation-storage-fs.ts → agent-session-store.ts → agent-session.ts`, runtime↔persistence layer-crossing). madge cycle count: 9 → 8. Architecture test asserts via spawnSync. **Plan-vs-reality deviation:** ADR D432 prescribed a full port-and-adapter refactor; empirical inspection found the back-edge was a single types-only import, so type-leaf extraction is the smallest break that actually closes the cycle. Documented in `session-types.ts` JSDoc.
 - **Memory cluster cycles #11 + #12 + #13 closed**: extracted `internal/memory/index-manager-contract.ts` (leaf types file holding `MemorySearchHit`, `IndexStatus`, `SearchOptions`, `MemoryBackend`, `OpenIndexOptions`). All 4 cluster members (`index-manager.ts`, `index-manager-dispatch.ts`, `lance-memory-adapter.ts`, `memory-index.ts`) now import these types from the contract; only the orchestrator imports runtime functions from dispatch (one direction). Single ~70 LOC extraction closes 3 HIGH cycles in one move (T2.1 of plan `arch-review-fixes-2026-06-06`, ADR D433). madge cycle count: 12 → 9. Back-compat re-export preserved on `index-manager.ts`. No public API touched.
 - **Runtime cycle #8 closed**: extracted `internal/runtime/agent-registry-contract.ts` (leaf types file, ~60 LOC) holding `AgentRuntime` + `RegisteredAgent`. Both `agent-registry.ts` and `agent-registry-store.ts` now import these types from the contract; the previous runtime↔store 2-node cycle is closed (T3.1 of plan `arch-review-fixes-2026-06-06`, ADR D431). Back-compat re-export preserved on `agent-registry.ts` for existing downstream importers — no public API change. madge cycle count: 13 → 12 (HIGH cycle #8 resolved; remaining 12 covered by T1.1/T2.1/T4.1).
@@ -1147,7 +1820,7 @@
 
 ### Fixed
 
-- **`safeListTools` no longer silently swallows MCP failures** (PV#6, plan `arch-review-fixes-2026-06-06` T8.1). When `client.listTools()` throws (MCP server unreachable, auth refused, etc.), the agent loop now emits a structured `[theokit-sdk] mcp listTools failed (server=<name>): <error>` line to stderr **while preserving the empty-list fallback** that consumers depend on for graceful degradation. The previous behaviour violated Inquebrável Rule 8 (`FALHE alto, FALHE cedo, FALHE claro`). `safeListTools` is now `export`ed from `internal/agent-loop/loop.ts` to enable unit-test access to the catch path — NOT promoted to the public `@theokit/sdk` API surface.
+- **`safeListTools` no longer silently swallows MCP failures** (PV#6, plan `arch-review-fixes-2026-06-06` T8.1). When `client.listTools()` throws (MCP server unreachable, auth refused, etc.), the agent loop now emits a structured `[theokit-sdk] mcp listTools failed (server=<name>): <error>` line to stderr **while preserving the empty-list fallback** that consumers depend on for graceful degradation. The previous behaviour violated Unbreakable Rule 8 (`FAIL loud, FAIL early, FAIL clear`). `safeListTools` is now `export`ed from `internal/agent-loop/loop.ts` to enable unit-test access to the catch path — NOT promoted to the public `@theokit/sdk` API surface.
 
 ### Notes
 
@@ -1215,7 +1888,7 @@
 
 ### Added
 
-- **`@theokit/sdk/server/auth` sub-path** (per ADR D6 of plan g11-auth-architecture-implementation v1.4) — orchestrator-only auth surface ships `defineAuth<TSession>(opts)` factory + 5 supporting types. Implements **Caminho C (Hybrid)** from discovery blueprint `g11-auth-architecture-decision` (SHIPPABLE 97.9). Providers ship as opt-in `@theokit/auth-*` packages (Tier 1: Google + GitHub + Magic Link — separate packages, semver-independent). Aligned with `AUTH-DELEGATION` lock in `theokit/CLAUDE.md:217-225` (lock's own escape-hatch clause "If we do adopt later: ship providers as separate optional packages under `@theokit/auth-*`, NEVER in the framework core").
+- **`@theokit/sdk/server/auth` sub-path** (per ADR D6 of plan g11-auth-architecture-implementation v1.4) — orchestrator-only auth surface ships `defineAuth<TSession>(opts)` factory + 5 supporting types. Implements **Path C (Hybrid)** from discovery blueprint `g11-auth-architecture-decision` (SHIPPABLE 97.9). Providers ship as opt-in `@theokit/auth-*` packages (Tier 1: Google + GitHub + Magic Link — separate packages, semver-independent). Aligned with `AUTH-DELEGATION` lock in `theokit/CLAUDE.md:217-225` (lock's own escape-hatch clause "If we do adopt later: ship providers as separate optional packages under `@theokit/auth-*`, NEVER in the framework core").
 - **6 type exports** at `@theokit/sdk/server/auth`:
   - `defineAuth<TSession>(opts): AuthOrchestrator<TSession>` factory
   - `DefineAuthOptions<TSession>` config shape
@@ -1238,13 +1911,13 @@
 
 - v1.6.0 is **additive** — no breaking changes. Existing consumers of `createSessionManager` (from `theokit/server/auth`) unaffected.
 - Providers (`@theokit/auth-google`, `@theokit/auth-github`, `@theokit/auth-magic-link`) ship in separate npm packages (Phase 2-4 of plan G11). They will publish to `@next` tag first per ADR D3 (4-6 week telemetry observation window before promote to `@latest`).
-- Tests: 16/16 GREEN in `tests/server-auth.test.ts` covering config validation, EC-1, EC-2, EC-10, Caminho A signIn, expired transaction, unknown provider.
+- Tests: 16/16 GREEN in `tests/server-auth.test.ts` covering config validation, EC-1, EC-2, EC-10, Path A signIn, expired transaction, unknown provider.
 
 ## 1.5.0
 
 ### Changed
 
-- **`publishConfig.provenance` removed (alinhado com política do monorepo).** Esta era a única `package.json` de 11 pacotes publicáveis com `provenance: true`; drift arquitetural — a flag prometia attestation criptográfica mas nenhum repo do monorepo tem release.yml com `id-token: write` permission para mintar OIDC token contra o npm registry. Resultado: publishes locais falhavam com `EUSAGE: Automatic provenance generation not supported for provider: null`. Decisão: alinhar intent à infra atual (10/11 outros pacotes não declaram provenance). **Follow-up estratégico:** adicionar release.yml com `id-token: write` em todos os repos (theokit-sdk + theokit + theokit-plugins + theo-ui) habilita provenance universal — escopo separado.
+- **`publishConfig.provenance` removed (aligned with the monorepo's policy).** This was the only `package.json` of 11 publishable packages with `provenance: true`; architectural drift — the flag promised cryptographic attestation but no repo in the monorepo has a release.yml with `id-token: write` permission to mint an OIDC token against the npm registry. Result: local publishes failed with `EUSAGE: Automatic provenance generation not supported for provider: null`. Decision: align intent with the current infrastructure (10 of the 11 other packages declare no provenance). **Strategic follow-up:** adding a release.yml with `id-token: write` across every repo (theokit-sdk + theokit + theokit-plugins + theo-ui) enables universal provenance — separate scope.
 
 ### Breaking Changes
 

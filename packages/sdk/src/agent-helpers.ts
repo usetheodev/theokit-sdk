@@ -7,6 +7,7 @@ import { resolveApiKey } from "./internal/env.js";
 import { httpRequest } from "./internal/http.js";
 import { isLocalAgentId } from "./internal/ids.js";
 import { LocalAgent } from "./internal/local-agent/index.js";
+import { discoverProviderPlugins } from "./internal/providers/discovery.js";
 import {
   getConfiguredBaseUrl,
   isFixtureApiKey,
@@ -207,6 +208,10 @@ export async function rehydrateExistingAgent(
   existing: RegisteredAgent,
   options: Partial<AgentOptions>,
 ): Promise<SDKAgent> {
+  // M47 review F1 — Agent.resume never flows through runCreateUnderSpan, so discovery must ALSO run
+  // here: a fresh process resuming a persisted agent whose model targets a plugin provider would
+  // otherwise fail provider resolution (the router contract expects discovery to have run upfront).
+  await discoverProviderPlugins();
   await validateRehydratedAgent(agentId, existing);
   const mergedLocal =
     options.local !== undefined && existing.options.local !== undefined
@@ -293,6 +298,17 @@ function toCloudAgentInfo(agent: RegisteredAgent): SDKAgentInfo {
 export async function setArchivedFlag(agentId: string, archived: boolean): Promise<void> {
   await getRegisteredAgentOrThrow(agentId);
   updateRegisteredAgent(agentId, { archived });
+  await flushRegistrySaves();
+}
+
+/**
+ * Set the human-facing `name` on a registered agent (used by `Agent.rename`). Mirrors
+ * {@link setArchivedFlag} — validates the agent exists, mutates the registry `name` field, and flushes.
+ * @internal
+ */
+export async function setAgentName(agentId: string, name: string): Promise<void> {
+  await getRegisteredAgentOrThrow(agentId);
+  updateRegisteredAgent(agentId, { name });
   await flushRegistrySaves();
 }
 

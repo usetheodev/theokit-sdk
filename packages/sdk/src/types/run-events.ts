@@ -24,6 +24,7 @@ export type RunEvent =
   | RunTaskUpdatedEvent
   | RunTaskCompletedEvent
   | RunCompactBoundaryEvent
+  | RunCompactionFallbackEvent
   | RunTripwireEvent
   | RunCompletionCheckEvent;
 
@@ -108,6 +109,26 @@ export interface RunCompactBoundaryEvent {
   readonly trigger: "manual" | "auto";
   /** Token count before compaction, when known. */
   readonly preTokens?: number;
+}
+
+/**
+ * M77 — auto-compaction is budgeting against a FLOOR, because neither the catalog nor the caller
+ * supplied a context window for this model.
+ *
+ * The prior behaviour was to disable auto-compaction entirely and write one line to stderr per
+ * process. That is fail-OPEN: the conversation grows until the provider rejects it. This event exists
+ * so a surface can say "I am running without a real budget" instead of the user discovering it at the
+ * moment of failure.
+ *
+ * Not emitted when the window came from the catalog (the normal path) or from an explicit caller
+ * override (the caller already knows).
+ */
+export interface RunCompactionFallbackEvent {
+  readonly type: "compaction_fallback";
+  /** The model whose window is unknown — what the user needs to fix in configuration. */
+  readonly model: string;
+  /** The floor being budgeted against, after the safety margin. */
+  readonly window: number;
 }
 
 /**

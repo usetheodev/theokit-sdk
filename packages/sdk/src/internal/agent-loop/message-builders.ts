@@ -4,7 +4,7 @@ import type {
   SDKThinkingMessage,
   SDKUserMessageEvent,
 } from "../../types/messages.js";
-import type { LlmContentPart, LlmMessage, LlmToolCallPart } from "../llm/types.js";
+import type { LlmContentPart, LlmMessage, LlmThinkingPart, LlmToolCallPart } from "../llm/types.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 
 /**
@@ -53,6 +53,7 @@ export function buildThinkingEvent(
   inputs: AgentLoopInputs,
   text: string,
   thinkingDurationMs?: number,
+  signature?: string,
 ): SDKThinkingMessage {
   const event: SDKThinkingMessage = {
     type: "thinking",
@@ -63,11 +64,28 @@ export function buildThinkingEvent(
   if (thinkingDurationMs !== undefined && thinkingDurationMs >= 0) {
     event.thinking_duration_ms = thinkingDurationMs;
   }
+  // theokit#122 — carried so the turn can be persisted and replayed; absent for providers that
+  // stream reasoning text without signing it.
+  if (signature !== undefined) event.signature = signature;
   return event;
 }
 
-export function buildAssistantTurn(text: string, toolCalls: LlmToolCallPart[]): LlmMessage {
+/**
+ * theokit#122 — `thinking` is FIRST, and that ordering is a provider requirement, not a preference.
+ *
+ * Anthropic verifies the signed block on the next request and requires it to lead the assistant
+ * message it belongs to. Omitting it (which this builder did until theokit#122's follow-up) makes
+ * round 2 of any thinking + tools run fail with `400 "thinking blocks cannot be modified"` — the
+ * exact failure the issue exists to remove. An unsigned block is passed through here and dropped at
+ * the wire by `thinkingToWireBlock`, which is where that policy belongs.
+ */
+export function buildAssistantTurn(
+  text: string,
+  toolCalls: LlmToolCallPart[],
+  thinking?: LlmThinkingPart,
+): LlmMessage {
   const content: LlmContentPart[] = [];
+  if (thinking !== undefined) content.push(thinking);
   if (text.length > 0) content.push({ type: "text", text });
   for (const call of toolCalls) content.push(call);
   return { role: "assistant", content };

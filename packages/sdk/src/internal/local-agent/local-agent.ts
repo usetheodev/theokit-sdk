@@ -34,8 +34,7 @@ import {
 import type { MemoryFact } from "../runtime/memory/memory-store.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import type { PluginMetadata, PluginsManager } from "../runtime/plugins/plugins-manager.js";
-import { flushRegistrySaves, updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
-import { liveAgentRegistry } from "../runtime/registry/live-agent-registry.js";
+import { updateRegisteredAgent } from "../runtime/registry/agent-registry.js";
 import type { SkillsHandle, SkillsManager } from "../runtime/skills/skills-manager.js";
 import { loadSubagents } from "../runtime/skills/subagents-loader.js";
 import {
@@ -46,12 +45,18 @@ import {
 import { SystemPromptPipeline } from "../runtime/system-prompt/pipeline.js";
 import { resolveSystemPromptForSend } from "../runtime/system-prompt/system-prompt.js";
 import { validateToolCatalog } from "../runtime/validation/validate-agent-options.js";
-import { flushSessionWrites, hydrateSession } from "../session/index.js";
+import { hydrateSession } from "../session/index.js";
 import { SPAN_NAMES } from "../telemetry/span-names.js";
 import { createTelemetry, type OTelSpan, type TelemetryHandle } from "../telemetry/tracer.js";
 import { bootstrapSubmanagers, registerLocalAgent } from "./local-agent-bootstrap.js";
 import { dispatchLocalRun } from "./local-agent-dispatch.js";
 import { invalidateCacheImpl } from "./local-agent-invalidate.js";
+import {
+  acquireLeaseIfPossible,
+  disposeLocalAgentSession,
+  releaseLeaseIfPossible,
+  reloadLocalAgent,
+} from "./local-agent-lifecycle.js";
 import { LocalAgentMemory } from "./local-agent-memory.js";
 import { buildAgentMemory } from "./local-agent-memory-direct.js";
 import { createLocalAgentMemoryProvider } from "./local-agent-memory-provider.js";
@@ -86,8 +91,8 @@ export class LocalAgent implements SDKAgent {
   plugins?: { list: () => Promise<PluginMetadata[]> };
   memory?: import("../../types/memory-adapter.js").AgentMemory;
 
-  private readonly options: AgentOptions;
-  private readonly workspaceCwd: string;
+  readonly options: AgentOptions;
+  readonly workspaceCwd: string;
   /**
    * SE40 — base dir for the native Claude-shaped session transcript. Default
    * `~/.theokit`; set `local.baseDir: "~/.claude"` for Claude Code CLI interop.
@@ -98,20 +103,20 @@ export class LocalAgent implements SDKAgent {
    * identical to SE40); `local.sessionStore` injects an external store (Postgres /
    * Redis / KV) so resume works on serverless (ephemeral FS) and multi-host.
    */
-  private readonly sessionStore: SessionStore;
+  readonly sessionStore: SessionStore;
   /**
    * D319: lifecycle AbortController fired on `dispose()`. Composed with the
    * caller's `SendOptions.signal` via `anySignal` so the LLM `fetch()`
    * aborts on either signal (user cancel OR dispose).
    */
-  private readonly lifecycleAbortController = new AbortController();
-  private readonly settingSourcesIncludeProject: boolean;
+  readonly lifecycleAbortController = new AbortController();
+  readonly settingSourcesIncludeProject: boolean;
   private readonly settingSourcesIncludePlugins: boolean;
   private resolvedSubagents: Record<string, AgentDefinition> = {};
   private disposed = false;
   private invalidationPending: { reason: string; at: number } | undefined;
-  private readonly skillsManager: SkillsManager | undefined;
-  private readonly pluginsManager: PluginsManager | undefined;
+  readonly skillsManager: SkillsManager | undefined;
+  readonly pluginsManager: PluginsManager | undefined;
   private readonly hooksExecutor: HooksExecutor;
   private readonly systemPromptPipeline: SystemPromptPipeline = SystemPromptPipeline.default();
   private readonly memoryGlue: LocalAgentMemory;
@@ -210,9 +215,29 @@ export class LocalAgent implements SDKAgent {
     );
     // SE40 — hydrate persisted session history from the native transcript so a
     // resumed agent sees the conversation from the previous process.
-    await hydrateSession(this.agentId, { store: this.sessionStore, cwd: this.workspaceCwd });
-    // ADR D163 — hydrate previously-active personality slug (no-op if none).
-    await this.personalityStore.hydrate(this.agentId);
+    // M95 — the writer lease is taken at INIT, before any turn.
+    //
+    // Here, and not in `appendRecords`: the `SessionStore` contract makes an append rejection
+    // best-effort (logged to stderr, not thrown), so acquiring there made the `SessionBusyError`
+    // get swallowed and the user's turn vanish silently. At init the error reaches whoever can
+    // decide — `exec` forks to a new id, which is what the error message prescribes.
+    await acquireLeaseIfPossible(this.sessionStore, this.agentId);
+    // Everything after the acquisition runs under `try`: an init failing AFTER taking the lease would leave
+    // the lock held by this very process — alive, same host — and `reclaimable` would be `false` forever.
+    // The session would stay locked for the process's lifetime, with no crash and no recovery: the
+    // mesma classe que este milestone existe para eliminar, entrando por outra porta.
+    //
+    // Measured with an unreadable transcript (EACCES), which `readRecords` must throw on by contract.
+    try {
+      await hydrateSession(this.agentId, { store: this.sessionStore, cwd: this.workspaceCwd });
+      // ADR D163 — hydrate previously-active personality slug (no-op if none).
+      await this.personalityStore.hydrate(this.agentId);
+    } catch (err) {
+      // Releases THIS agent's lease, not all of the store's: an injected store may serve several
+      // agents, and an init that fails for B must not free A's lease, which is still writing.
+      await releaseLeaseIfPossible(this.sessionStore, this.agentId);
+      throw err;
+    }
   }
 
   /** T4.2 — expose PluginManager so agent-loop can fire pre_tool_call hooks. @internal */
@@ -259,6 +284,19 @@ export class LocalAgent implements SDKAgent {
     });
   }
 
+  /**
+   * The context window declared on the model selection, in conditional-spread form.
+   *
+   * M94 — without this, `resolveEffectiveContextWindow`'s `override` had existed since M77 and no
+   * production call site passed it: a 400k model with no catalog entry was budgeted against the
+   * 128k floor. Its own method because the inline spread pushed `runLockedSendCycle` past the
+   * project's cognitive-complexity ceiling.
+   */
+  #declaredWindow(): { contextWindow?: number } {
+    const declared = this.model?.contextWindow;
+    return declared !== undefined ? { contextWindow: declared } : {};
+  }
+
   private async runLockedSendCycle(
     message: string | SDKUserMessage,
     options: SendOptions,
@@ -300,6 +338,9 @@ export class LocalAgent implements SDKAgent {
         workspaceCwd: this.workspaceCwd,
         sessionStore: this.sessionStore,
         model: this.model?.id ?? "unknown",
+        ...this.#declaredWindow(),
+        // M50 — the auto-compaction summarizer resolves credentials like the run itself.
+        ...(this.options.apiKey !== undefined ? { apiKey: this.options.apiKey } : {}),
         ...(options.onRunEvent !== undefined ? { onRunEvent: options.onRunEvent } : {}),
         hooksExecutor: this.hooksExecutor,
         memoryGlue: this.memoryGlue,
@@ -432,33 +473,13 @@ export class LocalAgent implements SDKAgent {
   }
 
   async reload(): Promise<void> {
-    if (this.context !== undefined) await this.context.refresh();
-    if (this.skillsManager !== undefined) await this.skillsManager.refresh();
-    if (this.pluginsManager !== undefined) await this.pluginsManager.refresh();
-    this.resolvedSubagents = await loadSubagents(
-      this.workspaceCwd,
-      this.settingSourcesIncludeProject,
-      this.options.agents,
-    );
+    this.resolvedSubagents = await reloadLocalAgent(this);
   }
 
   async dispose(): Promise<void> {
     if (this.disposed) return;
     this.disposed = true;
-    // Evict from live cache so the next Agent.getOrCreate(id) builds fresh.
-    liveAgentRegistry.forget(this.agentId);
-    // D319: fire the lifecycle abort so any in-flight LLM `fetch()` cancels.
-    // `abort()` is idempotent — safe to call even when already aborted.
-    this.lifecycleAbortController.abort();
-    // Wait for any in-flight send + post-run lifecycle to release the
-    // per-agent send mutex. Without this, `dispose()` could return before
-    // `writeSessionSummary` finishes, leaving the caller to read a
-    // partially-written `.theokit/memory/sessions/<runId>.md` file.
-    await withCwdMutex(`agent-send:${this.agentId}`, () => Promise.resolve());
-    // Now flush any remaining disk writes so the on-disk state matches the
-    // in-memory state before the caller proceeds (ADR D17 + D18).
-    await flushSessionWrites();
-    await flushRegistrySaves(this.workspaceCwd);
+    await disposeLocalAgentSession(this);
   }
 
   [Symbol.asyncDispose](): Promise<void> {

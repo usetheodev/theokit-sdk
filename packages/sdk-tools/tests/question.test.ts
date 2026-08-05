@@ -11,7 +11,10 @@ describe("createQuestionTool", () => {
 
     expect(result.ok).toBe(true);
     expect(result.answer).toBe("yes, proceed");
-    expect(askUser).toHaveBeenCalledWith("Continue?");
+    // M76 — o asker passou a receber um 2o argumento: o `threadId` da run, para que uma tool
+    // shared across sessions scopes state per session. There is no `ctx` here, so it comes through as
+    // `undefined` — the assertion makes that explicit instead of hiding the new argument.
+    expect(askUser).toHaveBeenCalledWith("Continue?", undefined);
   });
 
   it("returns timeout error when user does not respond in time", async () => {

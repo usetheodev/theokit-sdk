@@ -9,6 +9,7 @@
 import { parseToolArguments } from "./finish.js";
 import { toBlockToolResultContent } from "./tool-result-content.js";
 import type {
+  LlmContentPart,
   LlmMessage,
   LlmRequest,
   LlmStopReason,
@@ -66,22 +67,48 @@ export function mapAnthropicStopReason(reason: string | null): LlmStopReason {
  * Convert an SDK `LlmMessage` to the Anthropic Messages wire shape.
  * Identical across the three Anthropic-compatible clients (D289/D292).
  */
+/**
+ * theokit#122 — replay an extended-thinking block WITH its signature.
+ *
+ * Anthropic verifies the signature against the text, so both must go back byte-identically or the
+ * request is rejected with `400 "thinking blocks cannot be modified"`. A part with no signature —
+ * an OpenAI-compatible provider's reasoning text, or history recorded before this shipped — is
+ * dropped rather than sent unsigned: an unsigned block fails the same validation, so sending it
+ * would break the whole turn instead of losing one block of context.
+ */
+function thinkingToWireBlock(
+  part: Extract<LlmContentPart, { type: "thinking" }>,
+): Record<string, unknown> | undefined {
+  return part.signature === undefined
+    ? undefined
+    : { type: "thinking", thinking: part.text, signature: part.signature };
+}
+
+/** Map one SDK content part to its Anthropic wire block (`undefined` = do not send). */
+function partToWireBlock(part: LlmContentPart): Record<string, unknown> | undefined {
+  if (part.type === "text") return { type: "text", text: part.text };
+  if (part.type === "tool_use") {
+    return { type: "tool_use", id: part.id, name: part.name, input: part.input };
+  }
+  // M35 — Anthropic native image block: base64 source, unchanged shape.
+  if (part.type === "image") return { type: "image", source: part.source };
+  if (part.type === "thinking") return thinkingToWireBlock(part);
+  return {
+    type: "tool_result",
+    tool_use_id: part.toolUseId,
+    // SE7 — this wire is block-capable: strings pass through, structured
+    // text/image blocks are forwarded natively.
+    content: toBlockToolResultContent(part.content),
+    ...(part.isError === true ? { is_error: true } : {}),
+  };
+}
+
 export function toAnthropicWireMessage(message: LlmMessage): Record<string, unknown> {
   const role = message.role === "system" ? "user" : message.role;
-  const content = message.content.map((part) => {
-    if (part.type === "text") return { type: "text", text: part.text };
-    if (part.type === "tool_use") {
-      return { type: "tool_use", id: part.id, name: part.name, input: part.input };
-    }
-    return {
-      type: "tool_result",
-      tool_use_id: part.toolUseId,
-      // SE7 — this wire is block-capable: strings pass through, structured
-      // text/image blocks are forwarded natively.
-      content: toBlockToolResultContent(part.content),
-      ...(part.isError === true ? { is_error: true } : {}),
-    };
-  });
+  // theokit#122 — `filter` drops the blocks the mapper declined to serialize.
+  const content = message.content
+    .map(partToWireBlock)
+    .filter((b): b is Record<string, unknown> => b !== undefined);
   return { role, content };
 }
 
@@ -178,17 +205,42 @@ export interface AnthropicTextBlock {
   cache_control?: { type: "ephemeral" };
 }
 
+/**
+ * theokit#122 — map the provider-agnostic reasoning `effort` onto Anthropic's token budget.
+ *
+ * Anthropic does not take an effort label; it takes `budget_tokens`, and the API requires
+ * `budget_tokens >= 1024` and `max_tokens > budget_tokens`. The three tiers mirror the effort
+ * vocabulary the OpenAI-compatible wire uses, so a caller writes `thinking: "low"` once and both
+ * providers do something sensible. An unrecognised effort maps to the medium tier rather than
+ * failing the request — the knob is a hint, not a contract.
+ */
+function thinkingBudgetTokens(effort: string): number {
+  if (effort === "low" || effort === "minimal") return 1024;
+  if (effort === "high" || effort === "max") return 16_384;
+  return 4096;
+}
+
 export function buildAnthropicCommonBody(request: LlmRequest): {
   max_tokens: number;
   messages: Array<Record<string, unknown>>;
   system?: string | AnthropicTextBlock[];
   temperature?: number;
   tools?: Array<{ name: string; description: string; input_schema: unknown }>;
+  thinking?: { type: "enabled"; budget_tokens: number };
 } {
   const body: ReturnType<typeof buildAnthropicCommonBody> = {
     max_tokens: request.maxTokens ?? 4096,
     messages: request.messages.map(toAnthropicWireMessage),
   };
+  // theokit#122 — without this the adapter never requested extended thinking, so no signature was
+  // ever issued and the rest of the chain would have been dead code (the theokit#144 lesson).
+  if (request.reasoning?.effort !== undefined) {
+    const budget = thinkingBudgetTokens(request.reasoning.effort);
+    body.thinking = { type: "enabled", budget_tokens: budget };
+    // The API rejects `max_tokens <= budget_tokens`. Raise the ceiling rather than silently
+    // shrinking the budget the caller asked for.
+    if (body.max_tokens <= budget) body.max_tokens = budget + 4096;
+  }
   const wireSystem = encodeAnthropicSystem(request.system);
   if (wireSystem !== undefined) body.system = wireSystem;
   if (request.temperature !== undefined) body.temperature = request.temperature;

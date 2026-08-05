@@ -1,4 +1,5 @@
 import type { AgentOptions } from "../../types/agent.js";
+import { diag } from "../diagnostics.js";
 import { enabledPluginNames } from "../plugins/enabled-names.js";
 import { normalizeModel } from "../runtime/model-selection.js";
 import type {
@@ -69,7 +70,7 @@ export function stringifyCloudPayload(payload: CloudAgentPayload): string {
   const json = JSON.stringify(sorted);
   const size = Buffer.byteLength(json, "utf8");
   if (size > MAX_PAYLOAD_BYTES) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] cloud agent payload is ${size} bytes (>1 MB) — PaaS may reject large payloads. Consider trimming subagents/context.\n`,
     );
   }

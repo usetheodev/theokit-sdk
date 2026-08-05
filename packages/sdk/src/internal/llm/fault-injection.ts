@@ -31,6 +31,7 @@
  * @internal
  */
 
+import { diag } from "../diagnostics.js";
 import { mapOpenAICompatibleError } from "../error-mappers/openai-compatible.js";
 import type { LlmClient, LlmEvent, LlmFinish, LlmRequest } from "./types.js";
 
@@ -92,7 +93,7 @@ export class FaultInjectingLlmClient implements LlmClient {
     }
     const text = extractText(parsed.body);
     yield { type: "text_delta", text };
-    yield { type: "stop", reason: "end_turn" };
+    // theokit#144: no `stop` event — the reason travels on the finish value below.
     return {
       stopReason: "end_turn",
       text,
@@ -134,7 +135,7 @@ function parseOverrideOrWarnOnce(): ParsedOverride | undefined {
 function warnInvalidJsonOnce(_raw: string): void {
   if (warnedInvalidJson) return;
   warnedInvalidJson = true;
-  process.stderr.write(
+  diag(
     `[theokit-sdk] ${ENV_OVERRIDE_KEY} is set but value is not valid JSON of shape ` +
       `\`{"status": number, "body": object | string}\`. Falling back to real LLM call. ` +
       `This warning is shown once per process.\n`,

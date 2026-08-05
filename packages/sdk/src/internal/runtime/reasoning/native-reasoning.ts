@@ -16,6 +16,7 @@ import { z } from "zod";
 import { Tool } from "../../../define-tool.js";
 import type { CustomTool } from "../../../types/agent.js";
 import type { ModelSelection } from "../../../types/agent-prims.js";
+import { diag } from "../../diagnostics.js";
 
 /** Param ids that mean the model is doing its own (native) reasoning. */
 const NATIVE_REASONING_PARAM_IDS = new Set(["thinking", "reasoning", "reasoning_effort"]);
@@ -69,7 +70,7 @@ const warned = new Set<string>();
 export function warnDoubleReasoningOnce(): void {
   if (warned.has("double-reasoning")) return;
   warned.add("double-reasoning");
-  process.stderr.write(
+  diag(
     "[theokit-sdk] `reasoning: true` skipped — a native reasoning model is configured " +
       "(model.params thinking/reasoning); native reasoning wins. Remove one to silence.\n",
   );

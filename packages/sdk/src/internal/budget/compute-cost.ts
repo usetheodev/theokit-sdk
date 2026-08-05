@@ -10,7 +10,7 @@
  *   - "subscription_included" routes (Codex CLI, future Claude Pro) →
  *     return $0 with status="included".
  *   - Provider unknown / pricing missing → status="unknown" with
- *     undefined amountUsd (NÃO retorna 0 falso).
+ *     undefined amountUsd (does NOT return a false 0).
  *
  * @internal
  */

@@ -23,6 +23,11 @@ export interface WebSearchResult {
 export type WebSearchCallback = (query: string, maxResults: number) => Promise<WebSearchResult[]>;
 
 export interface CreateWebSearchToolOptions {
+  /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
+   *  the approval key, what the model sees and what telemetry records. */
+  name?: string;
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
+  description?: string;
   /** Search provider callback — consumer injects the implementation. */
   search: WebSearchCallback;
   /** Default max results if not specified by the LLM. */
@@ -33,13 +38,14 @@ export function createWebSearchTool(opts: CreateWebSearchToolOptions): CustomToo
   const { search, defaultMaxResults = 5 } = opts;
 
   return Tool.create({
-    name: "web_search",
+    name: opts.name ?? "web_search",
     description:
+      opts.description ??
       "Search the web for a query — use when you need current information beyond the repo or your " +
-      "training cutoff (library docs, an error message, an API). Returns a list of results with " +
-      "title, URL, and snippet; follow up with web_fetch on a promising result to read it in full. " +
-      "The search provider is injected by the consumer. " +
-      "Returns { ok, results } or { ok: false, error }.",
+        "training cutoff (library docs, an error message, an API). Returns a list of results with " +
+        "title, URL, and snippet; follow up with web_fetch on a promising result to read it in full. " +
+        "The search provider is injected by the consumer. " +
+        "Returns { ok, results } or { ok: false, error }.",
     inputSchema: z.object({
       query: z.string().min(1).describe("Search query."),
       max_results: z

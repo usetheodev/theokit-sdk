@@ -25,6 +25,7 @@
  */
 
 import { type FileHandle, open } from "node:fs/promises";
+import { isAbsolute } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
 import { Tool } from "@theokit/sdk";
 import {
@@ -42,6 +43,7 @@ import {
   PathTraversalError,
   safePathJoin,
 } from "./internal/path-guard.js";
+import { ehProibidoEmQualquerProfundidade } from "./path-scope.js";
 import type { ReadTracker } from "./read-tracker.js";
 
 /** Max single-file read size, in bytes. 5 MB ceiling — enough for any source file. */
@@ -51,6 +53,11 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const BINARY_PROBE_BYTES = 8 * 1024;
 
 export interface CreateReadFileToolOptions {
+  /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
+   *  the approval key, what the model sees and what telemetry records. */
+  name?: string;
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
+  description?: string;
   /** Absolute path to the project root. Every read is gated against this boundary. */
   projectRoot: string;
   /**
@@ -66,40 +73,98 @@ export interface CreateReadFileToolOptions {
    * identical current behavior (multi-tenant / per-request roots).
    */
   filesystem?: FilesystemProvider;
+  /**
+   * M17 — render a `cat -n`-style numbered view (`<n>\t<line>`) instead of raw content, so the model can
+   * cite / edit by line number (Codex / Claude-Code read idiom). Default `false` ⇒ raw content (unchanged).
+   */
+  lineNumbers?: boolean;
+  /**
+   * M17 — opt-in "reads-anywhere" (Codex read-only sandbox): honor an ABSOLUTE `path` outside `projectRoot`
+   * instead of rejecting it as traversal. The `isForbiddenPath` secret guard STILL fires first, so `.env`/
+   * `.git`/lock files remain blocked. Default `false` ⇒ absolute paths rejected (unchanged). Opt-in only —
+   * this widens the read boundary to the whole filesystem; enable only for a trusted local agent.
+   */
+  allowAbsolute?: boolean;
+}
+
+/** Sensitive path segments — secret-bearing dirs/files that must never be read at ANY depth. */
+
+/** Secret guard for both read paths — the project-relative first-segment check plus, for an honored
+ *  absolute path (`allowAbsolute`), an any-depth check. Returns an error JSON string, or null if safe. */
+function forbiddenReadError(path: string, allowAbsolute: boolean): string | null {
+  if (isForbiddenPath(path)) {
+    return JSON.stringify({ ok: false, error: "forbidden_path", path });
+  }
+  if (allowAbsolute && isAbsolute(path) && ehProibidoEmQualquerProfundidade(path)) {
+    return JSON.stringify({ ok: false, error: "forbidden_path", path });
+  }
+  return null;
+}
+
+/** Render `content` as a raw string, or a paginated `<n>\t<line>` numbered view. Pure. */
+function renderView(
+  content: string,
+  opts: { lineNumbers?: boolean; offset?: number; limit?: number },
+): string {
+  const paginated = opts.offset !== undefined || opts.limit !== undefined;
+  if (!opts.lineNumbers && !paginated) return content; // default — byte-identical
+  const lines = content.split("\n");
+  const start = Math.max(1, opts.offset ?? 1);
+  const end =
+    opts.limit !== undefined ? Math.min(lines.length, start - 1 + opts.limit) : lines.length;
+  const slice = lines.slice(start - 1, end);
+  return opts.lineNumbers ? slice.map((l, i) => `${start + i}\t${l}`).join("\n") : slice.join("\n");
 }
 
 export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool {
-  const { projectRoot, readTracker, filesystem } = opts;
+  const { projectRoot, readTracker, filesystem, lineNumbers, allowAbsolute } = opts;
+  const numbered = lineNumbers === true ? " Returns a cat -n numbered view (`<n>\\t<line>`)." : "";
+  const abs = allowAbsolute === true ? " Absolute paths outside the project are honored." : "";
 
   return Tool.create({
-    name: "read_file",
+    name: opts.name ?? "read_file",
     description:
-      "Read a project-relative text file as UTF-8. ALWAYS read a file before you edit it " +
-      "(edit_file) or overwrite it (write_file), so your old_string / new content matches the " +
-      "real bytes exactly. Returns the WHOLE file (there is no offset or line-range parameter); " +
-      "to locate a symbol inside a large file, use search_text instead of re-reading. Refuses " +
-      "paths that escape the project root, sensitive files (.env, .git/, node_modules/, .theo/, " +
-      "lock files), and binary files (null byte in the first 8 KB); caps at 5 MB. Returns " +
-      "{ ok, content, size } or { ok: false, error }.",
+      opts.description ??
+      "Read a text file as UTF-8. ALWAYS read a file before you edit it (edit_file) or overwrite it " +
+        "(write_file), so your old_string / new content matches the real bytes exactly." +
+        numbered +
+        abs +
+        " By default returns the whole file; use the optional offset (1-based first line) + limit to page " +
+        "through a large file, or search_text to locate a symbol. Refuses sensitive files (.env, .git/, " +
+        "node_modules/, .theo/, lock files) and " +
+        "binary files (null byte in the first 8 KB); caps at 5 MB. Returns { ok, content, size } or " +
+        "{ ok: false, error }.",
     inputSchema: z.object({
-      path: z.string().min(1).describe("Project-relative file path."),
+      path: z.string().min(1).describe("File path (project-relative; absolute when allowed)."),
+      offset: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("1-based first line to read (default 1)."),
+      limit: z
+        .number()
+        .int()
+        .min(1)
+        .optional()
+        .describe("Max number of lines to read (default: all)."),
     }),
-    handler: async ({ path }, ctx) => {
-      if (isForbiddenPath(path)) {
-        return JSON.stringify({ ok: false, error: "forbidden_path", path });
-      }
+    handler: async ({ path, offset, limit }, ctx) => {
+      const forbidden = forbiddenReadError(path, allowAbsolute === true);
+      if (forbidden !== null) return forbidden;
+      const view = { lineNumbers, offset, limit };
       // SE31 — route through the pluggable backend when one is configured (the
       // backend owns its own boundary); else the local `projectRoot` fs.
       if (filesystem) {
         const backend = await resolveFilesystem(filesystem, ctx ?? {});
-        return readViaBackend(backend, path, (mtimeMs) => readTracker?.record(path, mtimeMs));
+        return readViaBackend(backend, path, view, (mtimeMs) => readTracker?.record(path, mtimeMs));
       }
-      const boundary = resolveBoundary(path, projectRoot);
+      const boundary = resolveBoundary(path, projectRoot, allowAbsolute === true);
       if ("error" in boundary) return boundary.error;
       const opened = await openHandleSafe(boundary.absolutePath, path);
       if ("error" in opened) return opened.error;
       try {
-        return await readContent(opened.handle, path, (mtimeMs) =>
+        return await readContent(opened.handle, path, view, (mtimeMs) =>
           readTracker?.record(path, mtimeMs),
         );
       } finally {
@@ -107,6 +172,13 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
       }
     },
   });
+}
+
+/** Render options threaded from the handler into the read paths. */
+interface ViewOpts {
+  lineNumbers?: boolean;
+  offset?: number;
+  limit?: number;
 }
 
 /**
@@ -118,6 +190,7 @@ export function createReadFileTool(opts: CreateReadFileToolOptions): CustomTool 
 async function readViaBackend(
   backend: FilesystemBackend,
   path: string,
+  view: ViewOpts,
   onRead?: (mtimeMs: number) => void,
 ): Promise<string> {
   try {
@@ -131,12 +204,12 @@ async function readViaBackend(
         limit: MAX_FILE_SIZE,
       });
     }
-    const content = await backend.readFile(path);
-    if (content.includes("\u0000")) {
+    const raw = await backend.readFile(path);
+    if (raw.includes("\u0000")) {
       return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
     }
     onRead?.(stat.mtimeMs);
-    return JSON.stringify({ ok: true, content, size: stat.size });
+    return JSON.stringify({ ok: true, content: renderView(raw, view), size: stat.size });
   } catch (err) {
     if (err instanceof FileNotFoundError) {
       return JSON.stringify({ ok: false, error: "not_found", path });
@@ -151,7 +224,12 @@ async function readViaBackend(
 function resolveBoundary(
   path: string,
   projectRoot: string,
+  allowAbsolute: boolean,
 ): { absolutePath: string } | { error: string } {
+  // M17 — reads-anywhere: honor an absolute path (isForbiddenPath already ran; no projectRoot boundary).
+  if (allowAbsolute && isAbsolute(path)) {
+    return { absolutePath: path };
+  }
   try {
     const absolutePath = safePathJoin(projectRoot, path);
     assertNoSymlinkEscape(absolutePath, projectRoot);
@@ -183,6 +261,7 @@ async function openHandleSafe(
 async function readContent(
   handle: FileHandle,
   path: string,
+  view: ViewOpts,
   onRead?: (mtimeMs: number) => void,
 ): Promise<string> {
   const stat = await handle.stat();
@@ -198,14 +277,14 @@ async function readContent(
   if (await isBinaryProbe(handle, Number(stat.size))) {
     return JSON.stringify({ ok: false, error: "binary_file", path, size: stat.size });
   }
-  const content = await handle.readFile({ encoding: "utf-8" });
+  const raw = await handle.readFile({ encoding: "utf-8" });
   // SE32 — record the mtime read-before-write compares against. This is the
   // mtime captured at `handle.stat()` above; a concurrent external write between
   // that stat and this readFile is an accepted TOCTOU (the recorded snapshot may
   // trail the delivered content by one write — same-user local context). The
   // write-side guard still catches the common "edited after I read it" case.
   onRead?.(stat.mtimeMs);
-  return JSON.stringify({ ok: true, content, size: stat.size });
+  return JSON.stringify({ ok: true, content: renderView(raw, view), size: stat.size });
 }
 
 async function isBinaryProbe(handle: FileHandle, size: number): Promise<boolean> {

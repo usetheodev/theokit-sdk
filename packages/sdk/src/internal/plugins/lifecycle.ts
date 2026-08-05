@@ -11,6 +11,7 @@
  * @internal
  */
 
+import { diag } from "../diagnostics.js";
 import type { HookHandler } from "./types.js";
 
 export async function runFireAndForgetHooks<C>(
@@ -22,7 +23,7 @@ export async function runFireAndForgetHooks<C>(
       await (h as (c: C) => unknown)(ctx);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[theokit-sdk] plugin hook threw (continuing): ${msg}\n`);
+      diag(`[theokit-sdk] plugin hook threw (continuing): ${msg}\n`);
     }
   }
 }
@@ -40,7 +41,7 @@ export async function runTransformHooks<T>(
       if (next !== undefined) current = next;
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      process.stderr.write(`[theokit-sdk] plugin transform hook threw (continuing): ${msg}\n`);
+      diag(`[theokit-sdk] plugin transform hook threw (continuing): ${msg}\n`);
     }
   }
   return current;

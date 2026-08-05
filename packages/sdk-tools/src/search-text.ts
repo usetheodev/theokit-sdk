@@ -24,10 +24,14 @@
 
 import type { Dirent } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { join, relative as relativePath } from "node:path";
+import { isAbsolute, join, relative as relativePath } from "node:path";
 import type { CustomTool } from "@theokit/sdk";
-
 import { Tool } from "@theokit/sdk";
+import {
+  type FilesystemBackend,
+  type FilesystemProvider,
+  resolveFilesystem,
+} from "@theokit/sdk/filesystem";
 import { z } from "zod";
 import {
   assertNoSymlinkEscape,
@@ -41,13 +45,40 @@ const DEFAULT_MAX_MATCHES = 100;
 const DEFAULT_MAX_FILE_SIZE = 1024 * 1024; // 1 MB
 const BINARY_PROBE_BYTES = 8 * 1024;
 const PREVIEW_MAX = 200;
+/**
+ * Depth cap for the BACKEND walk only. The local `readdir(withFileTypes)` walk skips symlinks and can
+ * never loop; the backend walk decides type via `stat` (which follows symlinks), so an in-boundary
+ * symlink cycle would recurse until PATH_MAX. This bound stops that pathological case; real trees never
+ * approach it.
+ */
+const MAX_BACKEND_WALK_DEPTH = 64;
 
 export interface CreateSearchTextToolOptions {
+  /**
+   * M76 — nome exposto ao modelo. Omitido ⇒ o literal de hoje (aditivo).
+   *
+   * It exists because, in Codex, the name is BORN in the tool definition and is the approval decision
+   * key — three consumers (model, approval, telemetry) of a string decided in one place. Renaming
+   * after construction changes the identity of something already published to the model. `withName`
+   * remains for the genuinely dynamic case.
+   */
+  name?: string;
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
+  description?: string;
   projectRoot: string;
   /** Cap on total matches returned. Default 100. */
   maxMatches?: number;
   /** Skip files larger than this (bytes). Default 1 MB. */
   maxFileSize?: number;
+  /** Optional injected filesystem (`@theokit/sdk/filesystem`) — when provided, the recursive walk reads
+   *  through the backend (surface-agnostic); omitted ⇒ the local `readdir`/`readFile` walk (unchanged). */
+  filesystem?: FilesystemProvider;
+  /** M17 — treat `query` as a JavaScript RegExp instead of a literal substring (grep semantics). An
+   *  invalid pattern returns `{ ok: false, error: 'invalid_regex' }`. Default `false` ⇒ literal (unchanged). */
+  regex?: boolean;
+  /** M17 — opt-in "reads-anywhere": honor an ABSOLUTE `path` scope outside `projectRoot` (Codex read-only
+   *  sandbox). Forbidden dirs are still skipped. Default `false` ⇒ absolute scope rejected (unchanged). */
+  allowAbsolute?: boolean;
 }
 
 interface Match {
@@ -61,37 +92,66 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
     projectRoot,
     maxMatches = DEFAULT_MAX_MATCHES,
     maxFileSize = DEFAULT_MAX_FILE_SIZE,
+    filesystem,
+    regex = false,
+    allowAbsolute = false,
   } = opts;
+  const queryKind = regex ? "a JavaScript REGULAR EXPRESSION" : "LITERAL, CASE-SENSITIVE text";
+  const queryMatch = regex ? "matched as a regex" : "matched as a substring, not a regex";
 
   return Tool.create({
-    name: "search_text",
+    name: opts.name ?? "search_text",
     description:
-      `Search file CONTENTS for a LITERAL, CASE-SENSITIVE query across the project tree (the query ` +
-      `is matched as a substring, not a regex). Use search_text when you know the content; use ` +
-      `glob_files when you know the filename shape; use read_file when you know the exact path. ` +
-      `Skips sensitive dirs (.env/.git/node_modules/.theo), binary files, and files over 1 MB; ` +
-      `'path' scopes the search to a subdirectory. Returns up to ${String(maxMatches)} matches as ` +
-      `{ file, line, preview } — cite locations to the user as file:line. Returns { ok, matches } ` +
-      `or { ok: false, error }.`,
+      opts.description ??
+      `Search file CONTENTS for ${queryKind} across the project tree (the query is ${queryMatch}). ` +
+        `Use search_text when you know the content; use glob_files when you know the filename shape; use ` +
+        `read_file when you know the exact path. Skips sensitive dirs (.env/.git/node_modules/.theo), ` +
+        `binary files, and files over 1 MB; 'path' scopes the search to a subdirectory. Returns up to ` +
+        `${String(maxMatches)} matches as { file, line, preview } — cite locations to the user as ` +
+        `file:line. Returns { ok, matches } or { ok: false, error }.`,
     inputSchema: z.object({
-      query: z.string().min(1).describe("Literal text to search for. Case-sensitive."),
+      query: regex
+        ? z.string().min(1).describe("A JavaScript regular expression, e.g. 'function\\\\s+main'.")
+        : z.string().min(1).describe("Literal text to search for. Case-sensitive."),
       path: z
         .string()
         .optional()
-        .describe("Optional project-relative directory to scope the search."),
+        .describe(
+          "Optional directory to scope the search (project-relative; absolute when allowed).",
+        ),
     }),
-    handler: async ({ query, path }) => {
-      const scope = resolveSearchScope(path, projectRoot);
-      if ("error" in scope) return scope.error;
+    handler: async ({ query, path }, ctx) => {
+      // M17 — build the line matcher once (regex or literal). An invalid regex fails clear before walking.
+      const built = buildMatcher(query, regex);
+      if ("error" in built) return built.error;
+      const matcher = built.matcher;
       const state: SearchState = {
         matches: [],
         totalMatches: 0,
         truncated: false,
-        query,
+        matcher,
         maxMatches,
         maxFileSize,
         projectRoot,
       };
+
+      // Injected filesystem (surface-agnostic) ⇒ walk via the backend in project-relative path space;
+      // absent ⇒ the local `readdir`/`readFile` walk (byte-identical to before).
+      if (filesystem !== undefined) {
+        const scopeRel = resolveScopeRel(path, projectRoot, allowAbsolute);
+        if ("error" in scopeRel) return scopeRel.error;
+        const backend = await resolveFilesystem(filesystem, ctx ?? {});
+        await walkBackend(backend, scopeRel.rel, state, 0);
+        return JSON.stringify({
+          ok: true,
+          matches: state.matches,
+          truncated: state.truncated,
+          totalMatches: state.totalMatches,
+        });
+      }
+
+      const scope = resolveSearchScope(path, projectRoot, allowAbsolute);
+      if ("error" in scope) return scope.error;
       await walk(scope.scopeAbs, state);
       return JSON.stringify({
         ok: true,
@@ -103,11 +163,26 @@ export function createSearchTextTool(opts: CreateSearchTextToolOptions): CustomT
   });
 }
 
+/** Build the per-line predicate: a compiled RegExp (M17 grep mode) or a literal substring test. */
+function buildMatcher(
+  query: string,
+  regex: boolean,
+): { matcher: (line: string) => boolean } | { error: string } {
+  if (!regex) return { matcher: (line) => line.includes(query) };
+  try {
+    const re = new RegExp(query);
+    return { matcher: (line) => re.test(line) };
+  } catch {
+    return { error: JSON.stringify({ ok: false, error: "invalid_regex", query }) };
+  }
+}
+
 interface SearchState {
   matches: Match[];
   totalMatches: number;
   truncated: boolean;
-  query: string;
+  /** Per-line predicate — literal substring or compiled regex (M17). */
+  matcher: (line: string) => boolean;
   maxMatches: number;
   maxFileSize: number;
   projectRoot: string;
@@ -116,8 +191,13 @@ interface SearchState {
 function resolveSearchScope(
   path: string | undefined,
   projectRoot: string,
+  allowAbsolute: boolean,
 ): { scopeAbs: string } | { error: string } {
   const scopeRel = path === undefined || path === "" || path === "." ? "." : path;
+  // M17 — reads-anywhere: honor an absolute scope (Codex read-only sandbox); forbidden dirs still skipped.
+  if (allowAbsolute && isAbsolute(scopeRel)) {
+    return { scopeAbs: scopeRel };
+  }
   try {
     const scopeAbs = scopeRel === "." ? projectRoot : safePathJoin(projectRoot, scopeRel);
     assertNoSymlinkEscape(scopeAbs, projectRoot);
@@ -196,7 +276,97 @@ async function scanFile(absPath: string, relPath: string, state: SearchState): P
   const lines = buffer.toString("utf-8").split("\n");
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i]!;
-    if (!line.includes(state.query)) continue;
+    if (!state.matcher(line)) continue;
+    if (!recordMatch(state, relPath, i + 1, line)) return;
+  }
+}
+
+// --- Surface-agnostic backend walk (mirrors the local walk in PROJECT-RELATIVE path space) ---
+
+/** Resolve the scope to a project-relative dir (`""` = root) with the same security guard as the local
+ *  path — a traversal/forbidden scope is rejected identically. */
+function resolveScopeRel(
+  path: string | undefined,
+  projectRoot: string,
+  allowAbsolute: boolean,
+): { rel: string } | { error: string } {
+  const scopeRel = path === undefined || path === "" || path === "." ? "" : path;
+  if (scopeRel === "") return { rel: "" };
+  // M17 — reads-anywhere: pass an absolute scope through to the backend (it owns its own boundary).
+  if (allowAbsolute && isAbsolute(scopeRel)) return { rel: scopeRel };
+  try {
+    assertNoSymlinkEscape(safePathJoin(projectRoot, scopeRel), projectRoot);
+    return { rel: scopeRel };
+  } catch (err) {
+    if (err instanceof PathTraversalError || err instanceof ForbiddenPathError) {
+      return { error: JSON.stringify({ ok: false, error: "path_traversal", path }) };
+    }
+    throw err;
+  }
+}
+
+async function walkBackend(
+  backend: FilesystemBackend,
+  dirRel: string,
+  state: SearchState,
+  depth: number,
+): Promise<void> {
+  if (state.truncated) return;
+  if (depth > MAX_BACKEND_WALK_DEPTH) return; // symlink-cycle guard (see MAX_BACKEND_WALK_DEPTH)
+  let names: string[];
+  try {
+    names = await backend.list(dirRel);
+  } catch {
+    return;
+  }
+  for (const name of names) {
+    if (state.truncated) return;
+    await handleBackendEntry(backend, dirRel, name, state, depth);
+  }
+}
+
+/** Handle one backend directory entry: skip forbidden, stat, recurse on dirs, scan files. */
+async function handleBackendEntry(
+  backend: FilesystemBackend,
+  dirRel: string,
+  name: string,
+  state: SearchState,
+  depth: number,
+): Promise<void> {
+  const entryRel = dirRel === "" ? name : `${dirRel}/${name}`;
+  if (isForbiddenPath(entryRel)) return;
+  let st: { isDirectory: boolean; isFile: boolean; size: number };
+  try {
+    st = await backend.stat(entryRel);
+  } catch {
+    return;
+  }
+  if (st.isDirectory) {
+    await walkBackend(backend, entryRel, state, depth + 1);
+  } else if (st.isFile) {
+    await scanFileBackend(backend, entryRel, st.size, state);
+  }
+}
+
+async function scanFileBackend(
+  backend: FilesystemBackend,
+  relPath: string,
+  size: number,
+  state: SearchState,
+): Promise<void> {
+  if (size > state.maxFileSize) return;
+  let content: string;
+  try {
+    content = await backend.readFile(relPath);
+  } catch {
+    return;
+  }
+  // Null-byte ⇒ binary; skip (parity with the local isBinaryBuffer probe, string-side).
+  if (content.slice(0, BINARY_PROBE_BYTES).includes("\u0000")) return;
+  const lines = content.split("\n");
+  for (let i = 0; i < lines.length; i += 1) {
+    const line = lines[i]!;
+    if (!state.matcher(line)) continue;
     if (!recordMatch(state, relPath, i + 1, line)) return;
   }
 }

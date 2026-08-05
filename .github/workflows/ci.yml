@@ -2,7 +2,7 @@ name: CI
 
 on:
   push:
-    branches: [main, feat/**]
+    branches: [main, develop, feat/**]
   pull_request:
     branches: [main]
 
@@ -55,6 +55,20 @@ jobs:
       # time. We never silently swallow the test failure downstream.
       - name: Rebuild native bindings (better-sqlite3 ABI guard)
         run: pnpm rebuild better-sqlite3 || echo "::warning::native rebuild failed — preflight will surface details at test time"
+
+      # M75 — os 10 itLive de tests/linux-sandbox-integration.test.ts provam confinamento REAL de
+      # kernel (blocks writes outside the workspace, blocks network, seccomp blocks ptrace and AF_INET).
+      # Without bwrap they SKIP, and a skipped test is reported green: the M75 review proved by mutation
+      # that, without this step, swapping buildSeccompFilter for a filter denying NOTHING passed.
+      #
+      # `apt install` alone is not enough: Ubuntu 24.04 blocks unprivileged user namespaces via
+      # AppArmor and the active detection fails. The smoke test at the end FAILS the step if userns stays blocked —
+      # without it we would be back to empty green.
+      - name: Install bubblewrap + enable unprivileged userns (kernel-confinement tests)
+        run: |
+          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
+          bwrap --unshare-user --unshare-net --ro-bind / / /bin/true && echo "bwrap OK: userns liberado"
 
       - name: Tests
         run: pnpm test

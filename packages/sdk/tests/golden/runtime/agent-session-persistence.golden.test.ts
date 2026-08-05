@@ -71,9 +71,16 @@ describe("Agent session persistence (SE40 native transcript)", () => {
     });
 
     const fromDisk = await readSessionMessages(store(), agentId);
-    expect(fromDisk).toEqual([
+    // theokit#146 added `parts` alongside `text`, so this asserts the two fields it is about
+    // rather than the whole object — a strict `toEqual` here would fail on any additive field and
+    // says nothing extra about round-tripping.
+    expect(fromDisk.map((m) => ({ role: m.role, text: m.text }))).toEqual([
       { role: "user", text: "hello world" },
       { role: "assistant", text: "hi back" },
+    ]);
+    expect(fromDisk.map((m) => m.parts)).toEqual([
+      [{ type: "text", text: "hello world" }],
+      [{ type: "text", text: "hi back" }],
     ]);
   });
 

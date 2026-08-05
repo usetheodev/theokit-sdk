@@ -48,6 +48,8 @@ const targets = [
   join(DIST, "subscription"),
   // Public tool-input sanitization sub-path.
   join(DIST, "sanitize"),
+  // M42 auth subsystem sub-path.
+  join(DIST, "auth"),
   join(DIST, "concurrency.d.ts"),
   join(DIST, "retry.d.ts"),
   // V2-3: persistence sub-path.
@@ -59,9 +61,15 @@ const targets = [
   join(DIST, "sandbox"),
   // SE31: filesystem provider seam sub-path.
   join(DIST, "filesystem"),
+  // M14: interactive provider seam sub-path (was missing → `.d.cts` never
+  // mirrored, so `exports["./interactive"].require.types` 404'd; attw +
+  // publint both flagged it).
+  join(DIST, "interactive"),
   join(DIST, "server"),
   // EC-1 absorbed: internal sub-paths exposed for extracted packages.
   join(DIST, "internal", "persistence"),
+  // theokit#160: the embedding runtime shared with @theokit/sdk-memory.
+  join(DIST, "internal", "memory", "adapters"),
   join(DIST, "internal", "plugins"),
   join(DIST, "internal", "observability"),
   join(DIST, "internal", "security"),

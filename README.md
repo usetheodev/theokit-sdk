@@ -692,6 +692,10 @@ The code is the documentation: the exported TypeScript types are the canonical c
 - [Capability map](./docs/harness-capability-map.md) — every public primitive + its import path
 - [Error codes](./docs/error-codes.md) — the `AgentRunError.code` reference table
 
+Both reference docs **ship inside the package**: read them offline, pinned to the exact version you installed, at `node_modules/@theokit/sdk/docs/`. The scaffolded agent context (`npx theokit-init-claude`) ships there too, under `claude-template/`.
+
+**Building an agent that reads documentation?** The docs site publishes machine-readable corpora following the [llmstxt.org](https://llmstxt.org) convention — [`llms.txt`](https://docs.usetheo.dev/llms.txt) (curated index) and [`llms-full.txt`](https://docs.usetheo.dev/llms-full.txt) (every page inlined, code samples verbatim). Point your agent at those instead of crawling the site.
+
 ## Development
 
 New contributor? Start with [`CONTRIBUTING.md`](./CONTRIBUTING.md) — branch model, commit rules, and the PR checklist.

@@ -13,7 +13,12 @@ import {
   getCatalogCapabilities,
   type ProviderCapabilities,
 } from "./internal/providers/catalog-loader.js";
-import { getProviderProfile, listProviders, registerBuiltins } from "./internal/providers/index.js";
+import {
+  discoverProviderPlugins,
+  getProviderProfile,
+  listProviders,
+  registerBuiltins,
+} from "./internal/providers/index.js";
 import { isFixtureApiKey, shouldUseFixtureMode } from "./internal/runtime/fixtures/fixture-mode.js";
 import type { SDKProvider } from "./types/providers.js";
 import type { SDKModel, SDKRepository, SDKUser } from "./types/theokit.js";
@@ -189,6 +194,10 @@ export class Theokit {
  */
 async function maybeListLocalModels(providerName: string): Promise<SDKModel[] | undefined> {
   registerBuiltins();
+  // M47 review F2 — this async entrypoint resolves provider profiles, so plugin discovery must run
+  // here too (the sync surfaces `models.capabilities()` / `inspect.builtinProviders()` intentionally
+  // remain builtins-only — they cannot await; documented limitation).
+  await discoverProviderPlugins();
   const profile = getProviderProfile(providerName);
   if (profile === undefined) return undefined;
   if (profile.authType !== "none") return undefined;

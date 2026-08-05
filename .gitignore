@@ -116,3 +116,8 @@ deadcode-output/
 # Next.js build output (was accidentally committed once; keep it out)
 .next/
 **/.next/
+
+# Build artifact — root docs/ copied into the package so npm `files` can ship them
+# (see packages/sdk/scripts/copy-docs.mjs). Source of truth stays at repo-root docs/.
+packages/sdk/docs/
+refactor/

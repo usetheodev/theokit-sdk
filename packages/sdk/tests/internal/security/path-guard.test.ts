@@ -9,7 +9,7 @@
 
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { join, resolve, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -66,6 +66,33 @@ describe("safePathJoin (T1.1)", () => {
     }
   });
 
+  /**
+   * REGRESSION: the filesystem ROOT as base rejected EVERY path.
+   *
+   * `baseResolved + sep` assumes `baseResolved` does not already end in `sep` — true for every
+   * base EXCEPT the root, where `resolve("/") === "/"` makes the prefix `"//"`, which no absolute
+   * path starts with. Consequence downstream: a consumer that legitimately lifts its write root to
+   * `/` (an unrestricted / "full access" mode) got 100% of its writes refused as `path_traversal`
+   * — the most permissive configuration behaved as the most restrictive one.
+   *
+   * Found from agent-builder M68: `createApplyPatchTool({ projectRoot: "/" })` refused relative
+   * AND absolute targets alike.
+   */
+  it("accepts any path when base is the filesystem root", () => {
+    expect(safePathJoin(sep, "a.txt")).toBe(resolve(sep, "a.txt"));
+    expect(safePathJoin(sep, resolve(sep, "tmp", "a.txt"))).toBe(resolve(sep, "tmp", "a.txt"));
+    expect(safePathJoin(sep, "tmp", "nested", "deep.txt")).toBe(
+      resolve(sep, "tmp", "nested", "deep.txt"),
+    );
+  });
+
+  it("still rejects escape attempts when base is the filesystem root", () => {
+    // The root has nothing above it: `..` normalizes back to the root, which IS inside base.
+    expect(safePathJoin(sep, "..")).toBe(resolve(sep));
+    // A NUL byte is still rejected at the boundary, root base or not.
+    expect(() => safePathJoin(sep, "a\u0000b")).toThrow();
+  });
+
   it("EC-4: case-sensitive prefix check (syntactic, not semantic)", () => {
     // Documents that safePathJoin is syntactic — case-insensitive filesystems
     // (macOS, Windows) might allow ../base/file == /Base/file semantically,
@@ -75,6 +102,24 @@ describe("safePathJoin (T1.1)", () => {
 });
 
 describe("assertNoSymlinkEscape (T1.2)", () => {
+  /**
+   * REGRESSION (#149, second occurrence): the SAME containment check existed in two functions
+   * of this module, and the first fix covered only `safePathJoin`. With a root base, `assertNoSymlinkEscape`
+   * kept rejecting every existing path — so `apply_patch` with `projectRoot: "/"` remained
+   * broken even after #149. Both now go through `isInside`, so they cannot diverge again.
+   */
+  it("accepts an existing path when base is the filesystem root", () => {
+    const dir = mkdtempSync(join(tmpdir(), "root-base-"));
+    const file = join(dir, "f.txt");
+    writeFileSync(file, "x");
+    try {
+      expect(() => assertNoSymlinkEscape(file, sep)).not.toThrow();
+      expect(() => assertNoSymlinkEscape(dir, sep)).not.toThrow();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   let tmpRoot: string;
   let baseDir: string;
 

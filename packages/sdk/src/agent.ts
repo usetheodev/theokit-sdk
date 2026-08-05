@@ -4,6 +4,7 @@ import {
   rehydrateExistingAgent,
   resolveAgentPersistenceCwd,
   runCreateUnderSpan,
+  setAgentName,
   setArchivedFlag,
   toAgentInfo,
 } from "./agent-helpers.js";
@@ -14,6 +15,7 @@ import {
   UnknownAgentError,
 } from "./errors.js";
 import { enabledPluginNames } from "./internal/plugins/enabled-names.js";
+import { discoverProviderPlugins } from "./internal/providers/discovery.js";
 import { setAgentFacade } from "./internal/runtime/registry/agent-factory-registry.js";
 import {
   flushRegistrySaves,
@@ -30,9 +32,11 @@ import {
   getRun as getRegisteredRun,
   listRunsByAgent,
 } from "./internal/runtime/registry/run-registry.js";
+import { enqueueSessionWrite } from "./internal/session/agent-session.js";
 import { SPAN_NAMES } from "./internal/telemetry/span-names.js";
 import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
+  AgentDescription,
   AgentOperationOptions,
   AgentOptions,
   GetAgentOptions,
@@ -44,6 +48,7 @@ import type {
   SDKAgentInfo,
 } from "./types/agent.js";
 import type { Run, RunResult } from "./types/run.js";
+import type { SessionMessage } from "./types/session-message.js";
 
 // T1.8 — memoized dynamic import for streamObject so the second+ call
 // skips the promise resolution chain entirely. Module-level so it
@@ -106,6 +111,9 @@ export class Agent {
       pluginCount: enabledPluginNames(options.plugins).length,
     });
     try {
+      // M47 wiring — provider-plugin discovery runs upfront (the `resolveProviderChain`
+      // contract). Idempotent per process; fail-tolerant by design (never throws).
+      await discoverProviderPlugins();
       const agent = await runCreateUnderSpan(options, span);
       return agent;
     } catch (err) {
@@ -296,8 +304,21 @@ export class Agent {
    * Caveats:
    * - The function-level `agentId` always wins over `options.agentId`.
    * - Options differ between calls? Last-call-wins for this handle (matches `Agent.resume`).
-   * - Disposed agents are NOT auto-deleted from the registry. To force a fresh
-   *   agent, call `Agent.delete(agentId)` first.
+   * - A DISPOSED agent is replaced automatically. `dispose()` evicts the id from the
+   *   live cache (`liveAgentRegistry.forget`), so the next `getOrCreate(id)` builds a
+   *   fresh handle — no `Agent.delete(agentId)` needed.
+   *
+   *   This bullet used to say the opposite ("Disposed agents are NOT auto-deleted...
+   *   call `Agent.delete(agentId)` first"). It was measured false in M91:
+   *   `tests/m91-getorcreate-after-dispose.test.ts` builds an agent, disposes it, and
+   *   gets a different instance back. The claim was about the PERSISTENT registry and
+   *   read as being about the live cache — and consumers built around the wrong half.
+   *   The agent-builder's M85 interrupt rotates the session id to work around a
+   *   constraint that does not exist.
+   *
+   * - `close()` marks the handle disposed WITHOUT evicting the cache entry. It is
+   *   internal and unused today; if it becomes reachable, this bullet stops being true
+   *   for that path.
    *
    * @public
    */
@@ -314,15 +335,15 @@ export class Agent {
   }
 
   /**
-   * List agents (local or cloud).
+   * List agents (local or cloud). M107 — `cwd` is READ now, not ignored;
+   * `limit`/`cursor` still are not (see `tests/agent-list-cwd.test.ts`).
    *
    * @public
    */
   static async list(options: ListAgentsOptions = {}): Promise<ListResult<SDKAgentInfo>> {
-    await hydrateRegistryFromDisk(process.cwd());
-    const runtime = options.runtime;
-    const all = listRegisteredAgents(runtime);
-    const items = all.map((agent) => toAgentInfo(agent));
+    const cwd = ("cwd" in options ? options.cwd : undefined) ?? process.cwd();
+    await hydrateRegistryFromDisk(cwd);
+    const items = listRegisteredAgents(options.runtime, cwd).map((agent) => toAgentInfo(agent));
     return { items };
   }
 
@@ -385,6 +406,198 @@ export class Agent {
   }
 
   /**
+   * Set the human-facing `name` of a registered agent (the label `Agent.list()` returns). The registry
+   * already carries a `name` field; this is the missing public mutator for it. Runtime-agnostic (mutates
+   * the local per-cwd registry for local agents; the cloud registry for cloud agents).
+   *
+   * @public
+   */
+  static async rename(
+    agentId: string,
+    name: string,
+    _options: AgentOperationOptions = {},
+  ): Promise<void> {
+    await setAgentName(agentId, name);
+  }
+
+  /**
+   * M50 — compact a LOCAL agent's persisted session transcript (Codex `/compact` parity): the
+   * history is summarized (recent user messages preserved verbatim + one marker'd summary) and an
+   * append-only `compact_boundary` + replacement chain is written — resume replays only the
+   * replacement + later turns. The summarizer defaults to the compression subsystem's aux-LLM
+   * (its first real caller); tests/consumers may inject their own.
+   *
+   * @public
+   */
+  static async compact(
+    agentId: string,
+    options: {
+      trigger?: "manual" | "auto";
+      summarize?: (
+        messages: readonly import("./compaction.js").CompressibleMessage[],
+      ) => Promise<string>;
+    } = {},
+  ): Promise<import("./internal/session/compact-session.js").CompactResult> {
+    let reg = getRegisteredAgent(agentId);
+    if (reg === undefined) {
+      // Fresh process (e.g. a TUI /compact before any turn): hydrate the per-cwd registry from disk,
+      // exactly like Agent.resume does (D21).
+      await hydrateRegistryFromDisk(process.cwd());
+      reg = getRegisteredAgent(agentId);
+    }
+    if (reg === undefined || reg.runtime !== "local") {
+      throw new UnknownAgentError(
+        `No local agent "${agentId}" registered — compact targets local sessions.`,
+      );
+    }
+    const { compactSessionTranscript, buildDefaultSummarizer } = await import(
+      "./internal/session/compact-session.js"
+    );
+    const { cwd, model, store } = await openLocalStore(reg);
+    // M50 review F5 — serialize on the per-agent write chain so a manual compact never interleaves
+    // with an in-flight turn's persistence.
+    return enqueueSessionWrite(cwd, agentId, () =>
+      compactSessionTranscript({
+        store,
+        loc: { cwd, agentId, model },
+        sessionId: agentId,
+        trigger: options.trigger ?? "manual",
+        summarize:
+          options.summarize ??
+          buildDefaultSummarizer({
+            agentModel: model,
+            ...(reg.options.apiKey !== undefined ? { apiKey: reg.options.apiKey } : {}),
+          }),
+      }),
+    );
+  }
+
+  /**
+   * M51 — inject a SYNTHETIC user+assistant pair into a LOCAL session's persisted transcript WITHOUT
+   * running an LLM turn (the Codex review-exit mechanism: the parent thread "learns" a result — e.g.
+   * review findings — so follow-ups work). Appends onto the DAG leaf and invalidates the in-memory
+   * cache; serialized on the per-agent write chain.
+   *
+   * @public
+   */
+  static async injectSessionTurn(
+    agentId: string,
+    turn: { userText: string; assistantText: string },
+  ): Promise<void> {
+    let reg = getRegisteredAgent(agentId);
+    if (reg === undefined) {
+      await hydrateRegistryFromDisk(process.cwd());
+      reg = getRegisteredAgent(agentId);
+    }
+    if (reg === undefined || reg.runtime !== "local") {
+      throw new UnknownAgentError(
+        `No local agent "${agentId}" registered — injectSessionTurn targets local sessions.`,
+      );
+    }
+    const { injectSessionTurn } = await import("./internal/session/inject-session.js");
+    const { cwd, model, store } = await openLocalStore(reg);
+    await injectSessionTurn({
+      store,
+      loc: { cwd, agentId, model },
+      sessionId: agentId,
+      userText: turn.userText,
+      assistantText: turn.assistantText,
+    });
+  }
+
+  /**
+   * theokit#146 — read a LOCAL agent's persisted transcript as STRUCTURE, for rendering.
+   *
+   * A resumed session already replays correctly to the model, but a host had no way to draw it:
+   * the only projection available folded a tool call to the string `[tool call] NAME`, dropping the
+   * call id and every argument. A card UI got prose, so cross-restart resume was worth less than
+   * starting fresh — which is what at least one consumer did.
+   *
+   * Each returned message carries both projections: `text` (unchanged, what the model replay uses)
+   * and `parts` (`text` / `tool_use` / `tool_result` with ids, names, arguments and the
+   * `toolUseId` that correlates a result back to its call).
+   *
+   * Read-only and local-only: it opens the agent's session store and walks the transcript, exactly
+   * as {@link Agent.compact} and {@link Agent.injectSessionTurn} do. It appends nothing.
+   *
+   * @throws UnknownAgentError when `agentId` names no local agent.
+   * @public
+   */
+  static async transcript(agentId: string): Promise<readonly SessionMessage[]> {
+    let reg = getRegisteredAgent(agentId);
+    if (reg === undefined) {
+      // Fresh process (e.g. a TUI restoring its scrollback before any turn): hydrate the per-cwd
+      // registry from disk, exactly like Agent.resume does (D21).
+      await hydrateRegistryFromDisk(process.cwd());
+      reg = getRegisteredAgent(agentId);
+    }
+    if (reg === undefined || reg.runtime !== "local") {
+      throw new UnknownAgentError(
+        `No local agent "${agentId}" registered — transcript targets local sessions.`,
+      );
+    }
+    const { readSessionMessages } = await import("./internal/session/agent-session-store.js");
+    const { store } = await openLocalStore(reg);
+    return readSessionMessages(store, agentId);
+  }
+
+  /**
+   * theokit#123 — read-only introspection of a registered agent's tools and subagents.
+   *
+   * `Agent.list()` / `Agent.get()` enumerate agents and `agent.skills.list()` covers skills, but
+   * tools and subagents lived only on `RegisteredAgent.options` — an internal contract. A
+   * reflection endpoint (theokit-studio's `theokit dev`) therefore had to report empty lists for
+   * both, and say so with an `unavailable_reason`.
+   *
+   * A PROJECTION, not the options object. Tool handlers and subagent prompts are stripped: a
+   * handler is an executable that cannot cross a process boundary, and a prompt is the agent's
+   * instructions rather than its signature — a reflection endpoint serializes what it is handed.
+   *
+   * @throws UnknownAgentError when `agentId` names no registered agent.
+   * @public
+   */
+  static async describe(agentId: string): Promise<AgentDescription> {
+    const agent = await getRegisteredAgentOrThrow(agentId);
+    // theokit#123 — subagents are RESOLVED, not read off the declaration.
+    //
+    // The runtime's set is `loadSubagents(cwd, project?, inline)`: file-based roles from
+    // `.theokit/agents/*.md` merged with the inline `agentOptions.agents`, and it is never written
+    // back into `options`. Projecting `options.agents` therefore reported a disk-defined subagent as
+    // absent — and because this shape promises arrays so a caller can tell "none" from "unknown",
+    // that under-report was indistinguishable from an honest empty. The exact ambiguity the issue
+    // asked to remove.
+    const { loadSubagents } = await import("./internal/runtime/skills/subagents-loader.js");
+    const settingSources = agent.options.local?.settingSources;
+    const subagents = await loadSubagents(
+      agent.cwd ?? process.cwd(),
+      settingSources === undefined || settingSources.includes("project"),
+      agent.options.agents,
+    );
+    return {
+      agentId: agent.agentId,
+      runtime: agent.runtime,
+      ...(agent.model !== undefined ? { model: agent.model } : {}),
+      // Always arrays, so a caller can tell "this agent has none" from "the SDK did not say".
+      //
+      // Honest limit, stated because the alternative is an implied claim: `tools` is still the
+      // DECLARED catalog. Plugin tools and the reasoning `think` tool are assembled per run by
+      // `buildCustomToolsInput`, so they are not knowable from the registry alone. Documented on
+      // `AgentDescription.tools`.
+      tools: (agent.options.tools ?? []).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      })),
+      subagents: Object.entries(subagents).map(([name, def]) => ({
+        name,
+        description: def.description,
+        ...(def.model !== undefined ? { model: def.model } : {}),
+        ...(def.tools !== undefined ? { tools: def.tools } : {}),
+      })),
+    };
+  }
+
+  /**
    * Permanently delete a cloud agent.
    *
    * @public
@@ -423,3 +636,36 @@ setAgentFacade({
   resume: (agentId, options) => Agent.resume(agentId, options),
   batch: (prompts, options) => Agent.batch(prompts, options),
 });
+
+/**
+ * Opens the local session store of a registered agent.
+ *
+ * This was duplicated across `Agent.compact` and `Agent.injectSessionTurn` — both resolved `cwd` and
+ * `model` (with the same three-level fallback) and built the `FsSessionStore` with the same
+ * `baseDir`. That is duplicated KNOWLEDGE: "how to locate a local agent's transcript" is ONE rule,
+ * and fixing one copy without the other would make `compact` and `injectSessionTurn` operate on
+ * different files — silent corruption, not an error.
+ */
+async function openLocalStore(reg: {
+  cwd?: string;
+  model?: { id: string };
+  options: { model?: string | { id: string }; local?: { baseDir?: string } };
+}): Promise<{
+  cwd: string;
+  model: string;
+  store: import("./internal/persistence/fs-session-store.js").FsSessionStore;
+}> {
+  const cwd = reg.cwd ?? process.cwd();
+  const optModel = reg.options.model;
+  const model =
+    reg.model?.id ?? (typeof optModel === "string" ? optModel : optModel?.id) ?? "unknown";
+  const { FsSessionStore } = await import("./internal/persistence/fs-session-store.js");
+  const { defaultBaseDir, expandTilde } = await import(
+    "./internal/persistence/session-transcript.js"
+  );
+  const baseDir =
+    reg.options.local?.baseDir !== undefined
+      ? expandTilde(reg.options.local.baseDir)
+      : defaultBaseDir();
+  return { cwd, model, store: new FsSessionStore({ baseDir, cwd }) };
+}

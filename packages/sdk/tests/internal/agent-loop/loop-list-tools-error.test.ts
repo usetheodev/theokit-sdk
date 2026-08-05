@@ -4,7 +4,7 @@
  * Plan: arch-review-fixes-2026-06-06 § Phase 8 / T8.1
  *
  * The previous implementation swallowed `client.listTools()` errors with
- * `catch { return []; }` — violating Inquebrável Rule 8 ("FALHE alto, FALHE
+ * `catch { return []; }` — violating Unbreakable Rule 8 ("FAIL loud, FAIL
  * cedo, FALHE claro"). This test asserts that the catch path now emits a
  * structured stderr message including (a) the project tag, (b) the failing
  * server name, and (c) the underlying error message, while still returning
@@ -33,7 +33,7 @@ describe("safeListTools — silent-catch elimination (PV#6 / T8.1)", () => {
       // Fallback semantics preserved
       expect(result).toEqual([]);
 
-      // Structured stderr emission required by Inquebrável Rule 8
+      // Structured stderr emission required by Unbreakable Rule 8
       const joined = stderrWrites.join("");
       expect(joined).toContain("[theokit-sdk]");
       expect(joined).toContain("test-server");

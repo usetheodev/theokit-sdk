@@ -10,6 +10,7 @@
  * @internal
  */
 
+import { ConfigurationError } from "../../errors.js";
 import { mapOllamaHttpError, mapOllamaTransportError } from "../error-mappers/ollama.js";
 import { collapseSystemText, makeLlmFinish } from "./finish.js";
 import { toStringToolResultContent } from "./tool-result-content.js";
@@ -297,6 +298,14 @@ function toOllamaMessages(message: LlmMessage): OllamaChatMessage[] {
     return [{ role: "system", content: joinTextParts(message) }];
   }
   if (message.role === "user") {
+    // M35 — the ollama-native wire has no image content channel here. Fail fast rather than silently
+    // dropping an attached image (error-handling.md: no silent drop); OpenAI/OpenRouter carries images.
+    if (message.content.some((p) => p.type === "image")) {
+      throw new ConfigurationError(
+        "image input is not supported on the ollama-native provider; use an OpenAI/OpenRouter model for multimodal turns",
+        { code: "ollama_image_unsupported" },
+      );
+    }
     const out: OllamaChatMessage[] = [];
     for (const part of message.content) {
       if (part.type === "tool_result") {

@@ -27,12 +27,18 @@ function extract(mode) {
     const isTools = spec === "@theokit/sdk-tools";
     if (mode === "sdk" && isTools) continue;
     if (mode === "tools" && !isTools) continue;
+    // theokit#156 — TYPE-only entries are skipped. This check resolves each symbol at RUNTIME
+    // (`await import(spec)` + `n in mod`), and a TypeScript type does not exist there: asserting its
+    // runtime presence is a category error, and it turned the gate red the first time the map
+    // documented one. Types are still validated — by `tsc` and by the dts bundle, which is where
+    // they can be.
     const names = m[1]
       .split("\n")
       .map((l) => l.replace(/\/\/.*$/, "")) // strip line comments first
       .join("\n")
       .split(",")
-      .map((s) => s.replace(/\btype\b/, "").trim())
+      .filter((s) => !/\btype\b/.test(s))
+      .map((s) => s.trim())
       .filter((n) => /^[A-Za-z_$][\w$]*$/.test(n));
     if (!specs.has(spec)) specs.set(spec, new Set());
     for (const n of names) specs.get(spec).add(n);

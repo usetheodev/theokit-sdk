@@ -48,6 +48,14 @@ const EvalOptionsSchema = z.object({
     .min(1, "concurrency must be >= 1")
     .max(64, "concurrency must be <= 64")
     .optional(),
+  // SE41: trials MUST be a finite integer in [1, 100]. Guards against 0
+  // (no-op run) and unbounded fanout that would DoS the provider.
+  trials: z
+    .number()
+    .int("trials must be an integer")
+    .min(1, "trials must be >= 1")
+    .max(100, "trials must be <= 100")
+    .optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
   hooks: z
     .object({
@@ -81,6 +89,8 @@ export class Eval {
   }
 }
 
+// SE41: the CI gate — assert a run meets score/error thresholds or throw.
+export { assertEval, EvalThresholdError } from "./internal/eval/assert.js";
 // M6-4: capture an agent's code change as a gradeable artifact (git diff + reverse apply-check).
 export { captureArtifact } from "./internal/eval/code-runner.js";
 export { EvalAlreadyRunningError } from "./internal/eval/single-flight.js";

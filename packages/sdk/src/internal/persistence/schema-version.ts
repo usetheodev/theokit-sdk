@@ -12,7 +12,7 @@
  */
 
 import { readFile, rename } from "node:fs/promises";
-
+import { diag } from "../diagnostics.js";
 import { atomicWriteJson } from "./atomic-write.js";
 
 // ────────────────────── SQLite migrations ──────────────────────
@@ -174,11 +174,9 @@ export async function readVersionedJson<T>(opts: ReadVersionedJsonOptions<T>): P
     const asidePath = `${path}.corrupt.${Date.now()}`;
     try {
       await rename(path, asidePath);
-      process.stderr.write(
-        `[theokit-sdk] ${path} is corrupt; moved to ${asidePath}. Using default value.\n`,
-      );
+      diag(`[theokit-sdk] ${path} is corrupt; moved to ${asidePath}. Using default value.\n`);
     } catch {
-      process.stderr.write(`[theokit-sdk] ${path} is corrupt; using default value.\n`);
+      diag(`[theokit-sdk] ${path} is corrupt; using default value.\n`);
     }
     return defaultValue();
   }
@@ -196,7 +194,7 @@ export async function readVersionedJson<T>(opts: ReadVersionedJsonOptions<T>): P
   }
 
   if (stored > currentVersion) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] ${path} schema version ${stored} > current ${currentVersion}; ` +
         "using default value (forward-only).\n",
     );

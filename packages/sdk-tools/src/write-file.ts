@@ -42,6 +42,11 @@ const BINARY_PROBE_BYTES = 8 * 1024;
 type WriteToolContext = { signal?: AbortSignal; context?: unknown };
 
 export interface CreateWriteFileToolOptions {
+  /** M76 — name exposed to the model. Omitted => today's literal (additive). The name is a contract:
+   *  the approval key, what the model sees and what telemetry records. */
+  name?: string;
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
+  description?: string;
   /** Absolute path to the project root. Every write is gated against this boundary. */
   projectRoot: string;
   /**
@@ -78,15 +83,16 @@ export function createWriteFileTool(opts: CreateWriteFileToolOptions): CustomToo
   const guard = opts.requireReadBeforeWrite ? opts.readTracker : undefined;
 
   return Tool.create({
-    name: "write_file",
+    name: opts.name ?? "write_file",
     description:
+      opts.description ??
       "Write UTF-8 content to a project-relative file, creating parent directories as needed. " +
-      "OVERWRITES any existing file at the path. Prefer editing an existing file with edit_file " +
-      "over rewriting it; use write_file to create a NEW file or fully replace a small one. If the " +
-      "file already exists, read_file it first so you do not discard content you have not seen. " +
-      "Refuses paths that escape the write root and sensitive files (.env, .git/, node_modules/, " +
-      ".theo/, lock files); the default local root also refuses binary-file overwrites. Returns " +
-      "{ ok, path, bytes } or { ok: false, error }.",
+        "OVERWRITES any existing file at the path. Prefer editing an existing file with edit_file " +
+        "over rewriting it; use write_file to create a NEW file or fully replace a small one. If the " +
+        "file already exists, read_file it first so you do not discard content you have not seen. " +
+        "Refuses paths that escape the write root and sensitive files (.env, .git/, node_modules/, " +
+        ".theo/, lock files); the default local root also refuses binary-file overwrites. Returns " +
+        "{ ok, path, bytes } or { ok: false, error }.",
     inputSchema: z.object({
       path: z.string().min(1).describe("Project-relative file path."),
       content: z.string().describe("UTF-8 content to write."),

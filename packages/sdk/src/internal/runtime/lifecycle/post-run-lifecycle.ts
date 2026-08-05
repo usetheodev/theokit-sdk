@@ -1,9 +1,18 @@
+import {
+  CONTEXT_WINDOW_FLOOR,
+  CONTEXT_WINDOW_MARGIN,
+  type EffectiveContextWindow,
+  resolveEffectiveContextWindow,
+} from "../../../compaction.js";
 import type { Run } from "../../../types/run.js";
 import type { RunEventSink } from "../../../types/run-events.js";
 import { emitRunEvent } from "../../../types/run-events.js";
 import type { SessionStore } from "../../../types/session-store.js";
+import { diag } from "../../diagnostics.js";
 import type { LocalAgentMemory } from "../../local-agent/local-agent-memory.js";
 import { writeSessionSummary } from "../../memory/storage/session-summary-writer.js";
+import { getCatalogModelInfo } from "../../providers/catalog-loader.js";
+import { buildDefaultSummarizer } from "../../session/compact-session.js";
 import {
   appendSessionMessage,
   flushSessionWrites,
@@ -12,6 +21,7 @@ import {
 import type { HooksExecutor } from "../hooks/hooks-executor.js";
 import { shouldUsePortMemoryPath } from "../memory/memory-path-selector.js";
 import type { MemoryProvider } from "../memory/memory-provider.js";
+import { buildContextBudgetEvent } from "./context-budget-event.js";
 
 /**
  * Inputs for {@link runPostRunLifecycle}. Bundled into a single record so the
@@ -31,6 +41,16 @@ export interface PostRunLifecycleInputs {
   sessionStore: SessionStore;
   /** SE40 — model id stamped into the assistant records. */
   model: string;
+  /**
+   * M94 — window declared on the agent definition, in tokens.
+   *
+   * Forwarded as `override` to the resolver. It exists because a model with no catalog entry
+   * (OpenRouter) stayed pinned to the 128k floor despite having 400k — compacting ~3x more than
+   * needs it. The catalog clamp still protects against an inflated value.
+   */
+  contextWindow?: number | undefined;
+  /** M50 — provider key for the auto-compaction summarizer (absent ⇒ env-resolved by the router). */
+  apiKey?: string;
   /** SE2 — surface a `compact_boundary` RunEvent when a persistence-side compaction fires. */
   onRunEvent?: RunEventSink;
   hooksExecutor: HooksExecutor;
@@ -66,6 +86,31 @@ export interface PostRunLifecycleInputs {
  *
  * @internal
  */
+/**
+ * Resolves the window to budget for a run — the point where the declared window meets the catalog.
+ *
+ * It exists as its own function because the WIRING is what was broken: `resolveEffectiveContextWindow`
+ * has accepted `override` since M77 and the only call site never passed it. A pure function makes that
+ * forwarding testable without rebuilding half the runtime — a mutant that stops forwarding fails.
+ *
+ * A non-positive `contextWindow` is ignored: as an override it would produce a budget that triggers
+ * compaction every turn, which is worse than the conservative floor.
+ *
+ * @internal
+ */
+export function resolveWindowForRun(
+  model: string,
+  contextWindow: number | undefined,
+): EffectiveContextWindow {
+  const override = contextWindow !== undefined && contextWindow > 0 ? contextWindow : undefined;
+  return resolveEffectiveContextWindow({
+    ...(override !== undefined ? { override } : {}),
+    catalog: getCatalogModelInfo(model)?.limit?.context,
+    margin: CONTEXT_WINDOW_MARGIN,
+    floor: CONTEXT_WINDOW_FLOOR,
+  });
+}
+
 // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: lifecycle orchestrator dispatches across multiple subsystems
 export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promise<void> {
   const {
@@ -75,6 +120,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
     workspaceCwd,
     sessionStore,
     model,
+    contextWindow,
     onRunEvent,
     hooksExecutor,
     memoryGlue,
@@ -84,6 +130,30 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   try {
     result = await run.wait();
   } catch {
+    // M93 — persists what the turn HAS ALREADY PRODUCED before leaving.
+    //
+    // The `flushSessionWrites` below has always been here, and always drained an **empty** set:
+    // `persistTurnToTranscript` is only called later in this function — the **only** caller in the
+    // repository — after this `return`. A 429 after eight tool calls destroyed the whole turn
+    // leaving nothing on disk, and combined with the absent retry on the single-key path (also
+    // fechada no M93) a perda era total.
+    //
+    // Persists the **partial**, without reconstructing: a turn that failed in `run.wait()` has real history
+    // — user + completed tool calls. Discarding it is the loss; inventing the rest would be worse than the loss.
+    // The inner `catch` exists because a write failure must not mask the turn's error, which is what
+    // the caller is waiting on (`error-handling.md`: cleanup does not propagate over the original error).
+    try {
+      const parcial = await safeConversation(run);
+      if (parcial !== undefined) {
+        persistTurnToTranscript(sessionStore, { cwd: workspaceCwd, agentId, model }, agentId, {
+          userText,
+          conversation: parcial,
+        });
+      }
+    } catch (cause) {
+      const msg = cause instanceof Error ? cause.message : String(cause);
+      diag(`[theokit-sdk] partial transcript write failed (${agentId}): ${msg}\n`);
+    }
     // Caller observes failures via their own run.wait()/stream(); the
     // mutex still releases via the flushes below.
     await flushSessionWrites();
@@ -99,11 +169,44 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
   // Claude-shaped transcript, once per send, from the rich `run.conversation()` view.
   // SE41 — through the session store (FS default or injected external store).
   const conversation = await safeConversation(run);
+  // M50 — size-driven auto-compaction rides the SAME persistence chain: real usage from the run's
+  // Completed (Codex `last_token_usage.total_tokens` analog) vs the model's context window. The
+  // summarizer is the compression subsystem's aux-LLM via `buildDefaultSummarizer`.
+  //
+  // M77 — this used to read the catalog directly and, when the model was absent, leave the window
+  // `undefined` so the trigger never fired. The comment here called that "fail-safe"; it was the
+  // opposite. Not compacting when the window is unknown lets the conversation grow until the
+  // PROVIDER rejects it — fail-OPEN, and silent. It now resolves to a floor and says so, so the
+  // budget degrades instead of disappearing.
+  const resolvedWindow = resolveWindowForRun(model, contextWindow);
+  const effectiveWindow = resolvedWindow.window;
+  const budgetEvent = buildContextBudgetEvent(model, resolvedWindow);
+  if (budgetEvent !== undefined && onRunEvent !== undefined) {
+    emitRunEvent(onRunEvent, budgetEvent);
+  }
+  // M50 review F3 — Codex uses the LAST response's usage as the active-context proxy; the aggregate
+  // sums every round (each re-sends the whole context) and fires the trigger prematurely on
+  // multi-round agentic turns. Prefer the last request's breakdown when available.
+  const lastRequestUsage = result.usage?.requests?.at(-1)?.totalTokens;
+  const usageForTrigger = lastRequestUsage ?? result.usage?.totalTokens;
   persistTurnToTranscript(
     sessionStore,
     { cwd: workspaceCwd, agentId, model },
     agentId,
-    { userText, conversation },
+    {
+      userText,
+      conversation,
+      autoCompact: {
+        usageTotal: usageForTrigger,
+        // The EFFECTIVE window (after override, clamp and margin) — not the declared one. Swapping for
+        // `contextWindow` here would budget against a number the clamp already rejected.
+        contextWindow: effectiveWindow,
+        summarize: buildDefaultSummarizer({
+          agentModel: model,
+          ...(inputs.apiKey !== undefined ? { apiKey: inputs.apiKey } : {}),
+        }),
+      },
+    },
     onRunEvent !== undefined
       ? () => emitRunEvent(onRunEvent, { type: "compact_boundary", trigger: "auto" })
       : undefined,
@@ -146,9 +249,7 @@ export async function runPostRunLifecycle(inputs: PostRunLifecycleInputs): Promi
       }
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
-        `[theokit-sdk] session summary write failed (${result.id}): ${message}\n`,
-      );
+      diag(`[theokit-sdk] session summary write failed (${result.id}): ${message}\n`);
     }
   }
 

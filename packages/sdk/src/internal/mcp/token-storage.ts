@@ -2,7 +2,7 @@ import { chmodSync, existsSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
 import { join } from "node:path";
-
+import { diag } from "../diagnostics.js";
 import { atomicWriteJson } from "../persistence/atomic-write.js";
 
 /**
@@ -36,7 +36,7 @@ function tryRequireKeytar(): KeytarLike | null {
     cachedKeytar = r("keytar") as KeytarLike;
   } catch {
     if (!keytarWarned) {
-      process.stderr.write(
+      diag(
         "[theokit-sdk] keytar not installed; MCP OAuth tokens will be stored in ~/.theokit/mcp-tokens.json (chmod 600 where POSIX). Install `keytar` for OS keychain storage.\n",
       );
       keytarWarned = true;

@@ -32,7 +32,9 @@ export type {
   PreUserSendContext,
   PreUserSendResult,
   SessionLifecycleContext,
+  ToolCallSummary,
   ToolContext,
+  ToolResultTransformContext,
   TransformContext,
 } from "../../types/plugin.js";
 

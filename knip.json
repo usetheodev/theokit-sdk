@@ -15,7 +15,9 @@
     "tools/validate-streaming-telegram-real-llm.mjs",
     "tools/validate-acp-real-llm.mjs",
     "tools/validate-tasks-real-llm.mjs",
-    "tools/validate-budget-real-llm.mjs"
+    "tools/validate-budget-real-llm.mjs",
+    "refactor/**",
+    "refactor"
   ],
   "ignoreDependencies": ["@arethetypeswrong/cli", "publint", "jscodeshift", "madge"],
   "ignoreBinaries": ["turbo"],

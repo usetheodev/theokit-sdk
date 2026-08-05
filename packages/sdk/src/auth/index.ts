@@ -1,0 +1,63 @@
+/**
+ * `@theokit/sdk/auth` — the M42 auth subsystem: a hardened credential store (`api|oauth` discriminated
+ * union, atomic O_EXCL + rename + fsync write at 0600, 0700/0600 mode gates) plus an OAuth engine (RFC 8628
+ * device grant, OpenAI two-step headless flow, token exchange + transparent refresh with in-flight-refresh
+ * coalescing). Generalized to `provider: string` + a caller-supplied `CredentialStoreConfig` — no hardcoded
+ * client IDs. `resolveCredential(name)` returns a fresh (auto-refreshed) `ResolvedCredential`; an oauth
+ * provider composes it into its `ProviderProfile.transform.fetch` so the router obtains the fresh bearer at
+ * stream time. Contract shape + device flows adapted from OpenCode (MIT); see the NOTICE file.
+ *
+ * Exposed as a dedicated sub-entry (DTS built via tsc) — the same isolation the SDK uses for `messages` /
+ * `subscription` / `sanitize`, because rollup-plugin-dts cannot bundle these modules into the main barrel.
+ *
+ * @packageDocumentation
+ */
+
+// Contract types (leaf module — single canonical origin).
+export type {
+  CredentialStoreConfig,
+  DeviceCodeGrant,
+  DeviceDeps,
+  DeviceOAuthConfig,
+  HttpDeps,
+  OAuthProviderConfig,
+  OAuthTokens,
+  OpenAIDeviceConfig,
+  ResolvedCredential,
+  StoredApiCredential,
+  StoredCredential,
+  StoredOAuthCredential,
+} from "../internal/auth/auth-types.js";
+
+// Credential store.
+export {
+  authFilePath,
+  CredentialError,
+  credentialHome,
+  readAuthFile,
+  readStoredOAuth,
+  writeCredential,
+} from "../internal/auth/credential-store.js";
+// OAuth device-authorization flows (RFC 8628 + OpenAI two-step) + JWT helpers.
+export {
+  deviceLogin,
+  extractAccountId,
+  openaiDeviceLogin,
+  parseJwtClaims,
+  pollDeviceToken,
+  requestDeviceCode,
+  requestOpenAIUsercode,
+} from "../internal/auth/oauth-device.js";
+// OAuth engine — exchange / refresh / persist / transparent-refresh.
+export {
+  ensureFreshCredential,
+  exchangeCode,
+  persistOAuthTokens,
+  refreshOAuthTokens,
+} from "../internal/auth/oauth-engine.js";
+
+// The public composition entrypoint.
+export {
+  type ResolveCredentialOptions,
+  resolveCredential,
+} from "../internal/auth/resolve-credential.js";

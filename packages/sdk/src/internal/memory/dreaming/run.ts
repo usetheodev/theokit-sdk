@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-
+import { diag } from "../../diagnostics.js";
 import { replaceFileAtomic } from "../../persistence/atomic-write.js";
 import { withCwdMutex } from "../../persistence/cwd-mutex.js";
 import type { EmbeddingRuntime } from "../embedding-adapter.js";
@@ -77,7 +77,7 @@ async function runInner(options: DreamingOptions): Promise<DreamingResult> {
     return result;
   } catch (cause) {
     const message = cause instanceof Error ? cause.message : String(cause);
-    process.stderr.write(`[theokit-sdk] dreaming sweep failed: ${message}\n`);
+    diag(`[theokit-sdk] dreaming sweep failed: ${message}\n`);
     return emptyResult("error");
   }
 }

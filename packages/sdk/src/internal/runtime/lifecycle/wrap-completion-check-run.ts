@@ -17,10 +17,10 @@
  * @internal
  */
 
+import type { JudgeResult } from "../../../types/goal-events.js";
 import type { CompletionCheck, Run, RunResult } from "../../../types/run.js";
 import { emitRunEvent, type RunEventSink } from "../../../types/run-events.js";
 import type { JudgeContext, JudgeOptions } from "../../judge/judge-call.js";
-import type { JudgeResult } from "../../judge/types.js";
 
 export interface CompletionCheckDeps {
   judge: (ctx: JudgeContext, opts?: JudgeOptions) => Promise<JudgeResult>;

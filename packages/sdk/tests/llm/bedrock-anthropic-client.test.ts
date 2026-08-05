@@ -133,10 +133,13 @@ describe("BedrockAnthropicClient — body massage", () => {
 });
 
 describe("BedrockAnthropicClient — helpful errors", () => {
-  // 30s ceiling: resolving "no credentials" probes the AWS SDK peer dep, which can
-  // exceed the default 5s under parallel turbo load (flake). Passes in isolation.
   it("EC-6: throws ConfigurationError when no token resolvable", async () => {
-    // env not set + peer dep missing → throws helpful error.
+    // Hermetic precondition. Under the parallel threads pool `process.env` is
+    // shared across files, so a sibling test's AWS_BEARER_TOKEN_BEDROCK could
+    // leak here — resolving a token and reaching a REAL fetch ("fetch failed")
+    // instead of the ConfigurationError. Force the "no credentials" state.
+    delete process.env.AWS_BEARER_TOKEN_BEDROCK;
+    __resetBedrockTokenCache();
     const client = new BedrockAnthropicClient({});
     const iter = client.stream(REQ, new AbortController().signal);
     await expect(iter.next()).rejects.toBeInstanceOf(ConfigurationError);
@@ -195,7 +198,7 @@ describe("BedrockAnthropicClient — response parsing", () => {
     const fetchImpl = mockFetch({
       status: 200,
       body: {
-        content: [{ type: "text", text: "Brasília" }],
+        content: [{ type: "text", text: "Bras\u00edlia" }],
         stop_reason: "end_turn",
         usage: { input_tokens: 5, output_tokens: 2 },
       },
@@ -214,7 +217,7 @@ describe("BedrockAnthropicClient — response parsing", () => {
     }
     expect(events).toHaveLength(1);
     expect((events[0] as { type: string; text: string }).type).toBe("text_delta");
-    expect((events[0] as { type: string; text: string }).text).toBe("Brasília");
-    expect((finish as { text: string }).text).toBe("Brasília");
+    expect((events[0] as { type: string; text: string }).text).toBe("Bras\u00edlia");
+    expect((finish as { text: string }).text).toBe("Bras\u00edlia");
   });
 });

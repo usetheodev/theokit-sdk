@@ -6,9 +6,19 @@
  * test isolation, profile switching, and multi-tenant deployments.
  *
  * Rules:
- *   - `getTheokitHome(cwd)` is the ONLY canonical resolver. Never hardcode
+ *   - `getTheokitHome(cwd)` is the canonical resolver **for cwd-anchored state**. Never hardcode
  *     `path.join(cwd, ".theokit")` in callers — use this function so tests
  *     and overrides stay consistent.
+ *
+ *     M94 — this comment said "the ONLY canonical resolver", and stopped being true: the
+ *     transcript gained `transcriptRoot()`, which is **home-anchored** (`~/.theokit`) with the same
+ *     `THEOKIT_HOME` override. The two defaults differ on purpose — unifying would move the
+ *     transcript of everyone who does NOT set the variable, which is a data migration and not a
+ *     re-export.
+ *
+ *     A consequence worth writing down: **without `THEOKIT_HOME` the state stays split in two**
+ *     — registry in `<cwd>/.theokit`, transcript in `~/.theokit`. M94 unifies only for those who set
+ *     the variable. Unifying both defaults is another milestone's work.
  *   - `getProfilesRoot()` is intentionally home-anchored (not affected by
  *     `THEOKIT_HOME`) so `theokit profile list` discovers all profiles
  *     regardless of which is active.

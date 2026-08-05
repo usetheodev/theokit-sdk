@@ -8,23 +8,33 @@
  * @internal
  */
 
+import { diag } from "../diagnostics.js";
+import { globalSingleton } from "../global-singleton.js";
 import type { ProviderProfile } from "./types.js";
 
-const REGISTRY = new Map<string, ProviderProfile>();
-const ALIASES = new Map<string, string>();
+/**
+ * M44 B1 fix — the registry state lives on `globalThis` keyed by `Symbol.for`, so EVERY bundle copy of this
+ * module (tsup bundles each entry separately with `splitting: false` — `dist/index.js` and `dist/models.js`
+ * each embed their own copy) shares the SAME maps. Without this, `@theokit/sdk/models`'s
+ * `refreshModelCatalog` saw an eternally-empty registry and its patches were invisible to the core bundle's
+ * capability/pricing lookups (state duplication made load-bearing by M44).
+ */
+const REGISTRY = globalSingleton(
+  "theokit-sdk.providers.registry",
+  () => new Map<string, ProviderProfile>(),
+);
+const ALIASES = globalSingleton("theokit-sdk.providers.aliases", () => new Map<string, string>());
 
 export function registerProvider(profile: ProviderProfile): void {
   if (REGISTRY.has(profile.name)) {
-    process.stderr.write(`[theokit-sdk] Provider "${profile.name}" overridden by user plugin.\n`);
+    diag(`[theokit-sdk] Provider "${profile.name}" overridden by user plugin.\n`);
   }
   REGISTRY.set(profile.name, profile);
   for (const alias of profile.aliases ?? []) {
     // EC-5: surface alias collision so operators notice mis-routing.
     const previous = ALIASES.get(alias);
     if (previous !== undefined && previous !== profile.name) {
-      process.stderr.write(
-        `[theokit-sdk] Alias "${alias}" collision: was "${previous}", now "${profile.name}".\n`,
-      );
+      diag(`[theokit-sdk] Alias "${alias}" collision: was "${previous}", now "${profile.name}".\n`);
     }
     ALIASES.set(alias, profile.name);
   }

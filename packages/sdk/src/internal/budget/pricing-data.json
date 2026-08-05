@@ -92,9 +92,9 @@
       "cacheRead": 0.025
     },
     "openai/o3": {
-      "input": 10.0,
-      "output": 40.0,
-      "cacheRead": 2.5
+      "input": 2.0,
+      "output": 8.0,
+      "cacheRead": 0.5
     },
     "openai/o3-mini": {
       "input": 1.1,

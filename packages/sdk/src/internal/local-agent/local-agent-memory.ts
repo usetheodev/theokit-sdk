@@ -1,5 +1,6 @@
 import type { AgentOptions } from "../../types/agent.js";
 import type { MemoryToolSpec } from "../agent-loop/loop-types.js";
+import { diag } from "../diagnostics.js";
 import { runActiveMemory } from "../memory/active-memory.js";
 import { ActiveMemoryCache } from "../memory/active-memory-cache.js";
 import { MEMORY_EMBEDDING_ADAPTERS } from "../memory/adapters/catalog.js";
@@ -67,7 +68,18 @@ export class LocalAgentMemory {
       return this.toolsCache;
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(`[theokit-sdk] memory tools unavailable: ${message}\n`);
+      // Flicker-bug fix — `LocalAgentMemory` is rebuilt per Agent.create (the TUI creates one PER
+      // TURN), so an unconditional WARN repeated every turn; raw stderr mid-frame also corrupts
+      // Ink-style renderers. Warn ONCE per process per distinct message (globalThis — M44 B1
+      // pattern, shared across bundle copies).
+      const g = globalThis as unknown as Record<symbol, Set<string>>;
+      const sym = Symbol.for("theokit-sdk.memory.warned");
+      g[sym] ??= new Set<string>();
+      const warned = g[sym];
+      if (!warned.has(message)) {
+        warned.add(message);
+        diag(`[theokit-sdk] memory tools unavailable: ${message}\n`);
+      }
       return undefined;
     }
   }
@@ -143,7 +155,7 @@ export class LocalAgentMemory {
       await this.index.sync();
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(`[theokit-sdk] session index sync failed: ${message}\n`);
+      diag(`[theokit-sdk] session index sync failed: ${message}\n`);
     }
   }
 
@@ -156,9 +168,7 @@ export class LocalAgentMemory {
       return await adapter.create(cfg.model !== undefined ? { model: cfg.model } : {});
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      process.stderr.write(
-        `[theokit-sdk] memory embedding ${cfg.provider} unavailable: ${message}\n`,
-      );
+      diag(`[theokit-sdk] memory embedding ${cfg.provider} unavailable: ${message}\n`);
       return undefined;
     }
   }

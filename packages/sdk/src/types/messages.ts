@@ -74,6 +74,15 @@ export interface SDKThinkingMessage {
   run_id: string;
   text: string;
   thinking_duration_ms?: number;
+  /**
+   * theokit#122 — the provider's cryptographic signature for this thinking block, when it issued
+   * one. Anthropic requires a resumed conversation to replay each thinking block WITH its
+   * signature; without it the next request fails with `400 "thinking blocks cannot be modified"`,
+   * which made an extended-thinking session unresumable.
+   *
+   * Absent for providers that stream reasoning text unsigned (the OpenAI-compatible wire).
+   */
+  signature?: string;
 }
 
 /**

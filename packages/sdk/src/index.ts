@@ -73,6 +73,7 @@ export {
   type GenerateObjectOptions,
   type GenerateObjectResult,
 } from "./generate-object.js";
+export { GOAL_CONTINUATION_MARKER, type GoalLoopAgent, runGoalLoop } from "./goal-loop.js";
 // #57 — tool-result content guard options (SendOptions.toolResultGuard).
 export type { ToolResultGuardOptions } from "./internal/agent-loop/tool-result-guard.js";
 // BudgetTracker interface (SDK 2.0 Phase 2 / T2.1 foundation — ADR D1).
@@ -92,6 +93,18 @@ export {
   type CounterBudgetTrackerOptions,
   createCounterBudgetTracker,
 } from "./internal/budget/tracker/budget-tracker-counter.js";
+// theokit#147 — the diagnostics sink is PUBLIC, because a channel a consumer cannot install is not
+// a channel. The original fix routed 92 internal sites through `diag()` and left the installer
+// reachable only via `src/internal/diagnostics.js`, so the reported blocker ("a TUI host has no way
+// to intercept these") survived a green suite. A host now writes:
+//
+//     import { setDiagnosticsSink } from "@theokit/sdk";
+//     setDiagnosticsSink((message) => myStatusPanel.append(message));   // or `() => {}` for silence
+export {
+  type DiagnosticsSink,
+  setDiagnosticsSink,
+} from "./internal/diagnostics.js";
+export { JudgeCredentialError } from "./internal/judge/judge-call.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
 // Transitional: `Agent.create({ handoffs: [...] })` still works while
@@ -114,12 +127,26 @@ export {
   Plugin,
   type PluginContext,
   type PostAssistantReplyContext,
+  type PostToolCallContext,
   type PreToolCallContext,
   type PreToolCallDecision,
   type PreUserSendContext,
   type PreUserSendResult,
+  type SessionLifecycleContext,
+  // M82 — the transform seam's context. Public because a hook author cannot honour a tool-scoped
+  // policy without it, and typing the handler by hand is how the consumer ended up reinventing it.
+  type ToolCallSummary,
+  type ToolResultTransformContext,
+  type TransformContext,
 } from "./internal/plugins/types.js";
-export type { ProviderProfile } from "./internal/providers/types.js";
+export type {
+  ProviderProfile,
+  ProviderTransform,
+  ProviderTransformContext,
+} from "./internal/providers/types.js";
+// M42 — auth subsystem (credential store + OAuth engine) is exposed at the dedicated `@theokit/sdk/auth`
+// sub-entry (DTS built via tsc), NOT on this barrel: rollup-plugin-dts cannot bundle those modules into the
+// main `.d.ts` (same isolation the SDK uses for messages / subscription / sanitize). See `src/auth/index.ts`.
 // MemoryProvider port (SDK 2.0 Phase 1 / T1.1 foundation — Hexagonal
 // Architecture). Kernel-facing contract for the memory subsystem.
 // Default no-op impl ships with sdk; rich impl will ship in
@@ -217,9 +244,27 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // bundled .d.ts (the `export type *` indirection through `./types/index.js`
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
-export type { CustomTool, SDKAgent } from "./types/agent.js";
+// theokit#123 — the shape `Agent.describe()` returns, so a reflection endpoint can name it.
+export type {
+  AgentDescription,
+  AgentSubagentDescription,
+  AgentToolDescription,
+  CustomTool,
+  SDKAgent,
+} from "./types/agent.js";
 // SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
 export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
+// M80 — `JudgeResult` and `Verdict` become public.
+//
+// They were `internal/`, so a consumer wanting to type the judge's return — to react to `blocked`
+// without a magic string, say — had to redeclare the shape. It is the same duplication M78 closed
+// for the error hierarchy: without the public surface, reimplementing is the only legal way out for
+// anyone behind the layer boundary.
+//
+// `JudgeCredentialError` comes along because it is the error M80's fail-fast throws: whoever
+// `catch`es in the goal loop needs to tell "the judge credential does not work" from any other
+// failure.
+export type { JudgeResult, Verdict } from "./types/goal-events.js";
 // Type contract
 export type * from "./types/index.js";
 // SE24 — guardrail processor pipeline (inputProcessors / outputProcessors).
@@ -251,3 +296,7 @@ export {
   type RunToolProgressEvent,
   type RunTripwireEvent,
 } from "./types/run-events.js";
+// theokit#146 — the shape `Agent.transcript()` returns. A host rendering tool cards from a resumed
+// session needs to name these types; without them the method's return would only be reachable
+// through an inline `import(...)` in the emitted .d.ts.
+export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";
