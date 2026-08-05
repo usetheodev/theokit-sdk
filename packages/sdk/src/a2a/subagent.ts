@@ -13,7 +13,10 @@
  */
 
 import { z } from "zod";
-import type { Plugin } from "../internal/plugins/types.js";
+import {
+  currentInheritedSubAgentCredentials,
+  type InheritedCredentials,
+} from "../internal/runtime/concurrency/subagent-credentials.js";
 import { getAgentFacade } from "../internal/runtime/registry/agent-factory-registry.js";
 import type {
   AgentDefinition,
@@ -24,55 +27,7 @@ import type {
 import type { ModelSelection } from "../types/agent-prims.js";
 import type { Run } from "../types/run.js";
 
-/**
- * Credentials a parent agent hands down to its subagent tools so the child
- * inherits the parent's auth (and, absent an explicit `spec.model`, its model).
- * @internal
- */
-export interface InheritedCredentials {
-  readonly apiKey?: string;
-  readonly model?: ModelSelection;
-  /**
-   * The parent's shell-sandbox posture (`local.sandboxOptions.enabled`), handed down so a delegated
-   * child of a sandboxed parent stays sandboxed unless its role explicitly opts out. Without this a
-   * child ran unsandboxed whenever its role omitted `sandbox` — a default-open the sandbox wiring exists
-   * to prevent.
-   */
-  readonly sandbox?: boolean;
-  /**
-   * #55 — the parent's code-registered plugins (e.g. a `PermissionPlugin`) handed
-   * down so the child runs under the SAME policy. Without this, a delegated child's
-   * inner tool calls escape the parent's argument-level permission gate. First-party
-   * delegation path only — never exposed to third-party tool `ctx`.
-   */
-  readonly plugins?: readonly Plugin[];
-}
-
-/**
- * Private per-tool setter installed on subagent tools. Kept off the public
- * `CustomTool` shape (and off every tool handler's `ctx`) so the parent's API
- * key never reaches third-party tool code — only the SDK's own delegation path.
- */
-// `Symbol.for` (global registry), NOT `Symbol()`: with `tsup splitting: false` each public entry
-// (`.`, `./a2a`) inlines its own copy of this module. A unique `Symbol()` would give each copy a
-// DIFFERENT sink key — the local runtime (bundled in `.`) calls `inheritSubAgentCredentials` with the
-// `.`-copy key, but a `SubAgent` created via `@theokit/sdk/a2a` installed its sink under the `/a2a`-copy
-// key, so the lookup missed and the child inherited NO `apiKey` (→ `provider_unresolved`, "(no response)").
-// `Symbol.for` makes both copies agree on ONE key. (Same duplicated-singleton class as the facade fix, #142.)
-const INHERIT_CREDENTIALS = Symbol.for("theokit.subagent.inheritCredentials");
-
-type CredentialSink = (creds: InheritedCredentials) => void;
-
-/**
- * Called by the local runtime for every tool in a run: if the tool is a
- * subagent, its child agent inherits the parent's `apiKey`/`model`. A no-op for
- * any other tool (third-party tools never receive the parent's credentials).
- * @internal
- */
-export function inheritSubAgentCredentials(tool: CustomTool, creds: InheritedCredentials): void {
-  const sink = (tool as { [INHERIT_CREDENTIALS]?: CredentialSink })[INHERIT_CREDENTIALS];
-  if (typeof sink === "function") sink(creds);
-}
+export type { InheritedCredentials } from "../internal/runtime/concurrency/subagent-credentials.js";
 
 /** Arguments passed to {@link SubAgentSpec.messageFilter} (SE12). */
 export interface MessageFilterArgs {
@@ -400,9 +355,6 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
   // contexts. Incremented once per handler invocation before onDelegationStart.
   let iteration = 0;
 
-  // Credentials handed down by the parent runtime (see `inheritSubAgentCredentials`).
-  let inherited: InheritedCredentials | undefined;
-
   const tool: CustomTool = {
     name: spec.name,
     description: spec.description,
@@ -416,6 +368,12 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
       },
     ): Promise<string> => {
       const { input: parsed } = inputZod.parse(rawInput);
+      // theokit#148 — read the parent's credentials from the RUN's async scope, at dispatch time.
+      // They used to be stashed on this tool object by the runtime, which meant any layer that
+      // rebuilt the object (e.g. `@theokit/agents`' `toCompiledTool`) silently dropped them and the
+      // child failed with `provider_unresolved`. The scope travels with the call, so nothing about
+      // the object's shape matters — and two concurrent runs sharing one tool each read their own.
+      const inherited = currentInheritedSubAgentCredentials();
       iteration += 1; // SE15 — before onDelegationStart; a rejected delegation still counts.
       // Pin THIS invocation's iteration before any await so a concurrent invocation
       // bumping the shared counter cannot change the value onDelegationComplete /
@@ -442,14 +400,9 @@ function defineSubAgent(spec: SubAgentSpec, _parentDepth = 0): CustomTool {
     },
   };
 
-  // Install the private credential sink (off the public shape + off every ctx).
-  Object.defineProperty(tool, INHERIT_CREDENTIALS, {
-    value: ((creds: InheritedCredentials) => {
-      inherited = creds;
-    }) satisfies CredentialSink,
-    enumerable: false,
-  });
-
+  // theokit#148 — nothing is installed on the tool. The credentials arrive through the run's async
+  // scope (see `internal/runtime/concurrency/subagent-credentials.ts`), so there is no extra
+  // property for a normalizing layer to drop.
   return tool;
 }
 
