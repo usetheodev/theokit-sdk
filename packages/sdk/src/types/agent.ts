@@ -388,9 +388,11 @@ export interface AgentOptions {
    *
    * `'run'` (DEFAULT, and the historical behaviour) spawns a client per `send` and drops it when the
    * run ends. `'session'` pools clients per `(agentId, server, config)` and keeps them across turns,
-   * which is what the reference does — Codex holds its connection manager in `SessionServices`
-   * (`core/src/state/service.rs:116`). Measured cost of the per-run path: 193 / 138 / 134 ms of
-   * spawn + handshake on every turn.
+   * which is what the reference does — Codex holds its MCP runtime in `SessionServices`
+   * (`codex-rs/core/src/state/service.rs:51-58`; theokit#155 corrected the earlier
+   * `core/src/state/service.rs:116`, which named a parameter of `install_mcp_runtime`, not the
+   * owning field). Measured cost of the per-run path: 193 / 138 / 134 ms of spawn + handshake on
+   * every turn.
    *
    * Opt-in rather than default because it changes the FAILURE model: a server that dies mid-session
    * becomes a reachable state. One-shot and cron runs gain nothing from pooling and would pay that
