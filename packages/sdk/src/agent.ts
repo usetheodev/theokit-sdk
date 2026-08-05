@@ -33,7 +33,6 @@ import {
   listRunsByAgent,
 } from "./internal/runtime/registry/run-registry.js";
 import { enqueueSessionWrite } from "./internal/session/agent-session.js";
-import type { SessionMessage } from "./internal/session/session-types.js";
 import { SPAN_NAMES } from "./internal/telemetry/span-names.js";
 import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
@@ -48,6 +47,7 @@ import type {
   SDKAgentInfo,
 } from "./types/agent.js";
 import type { Run, RunResult } from "./types/run.js";
+import type { SessionMessage } from "./types/session-message.js";
 
 // T1.8 — memoized dynamic import for streamObject so the second+ call
 // skips the promise resolution chain entirely. Module-level so it

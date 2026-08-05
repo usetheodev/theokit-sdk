@@ -160,13 +160,6 @@ export type {
   EvictReason,
   LiveAgentRegistry,
 } from "./internal/runtime/registry/live-agent-registry.js";
-// theokit#146 — the shape `Agent.transcript()` returns. A host rendering tool cards from a resumed
-// session needs to name these types; without them the method's return would only be reachable
-// through an inline `import(...)` in the emitted .d.ts.
-export type {
-  SessionMessage,
-  SessionMessagePart,
-} from "./internal/session/session-types.js";
 export { JobQueue, type JobQueueOptions } from "./job-queue.js";
 // Memory subsystem (public surfaces)
 export {
@@ -285,3 +278,7 @@ export {
   type RunToolProgressEvent,
   type RunTripwireEvent,
 } from "./types/run-events.js";
+// theokit#146 — the shape `Agent.transcript()` returns. A host rendering tool cards from a resumed
+// session needs to name these types; without them the method's return would only be reachable
+// through an inline `import(...)` in the emitted .d.ts.
+export type { SessionMessage, SessionMessagePart } from "./types/session-message.js";

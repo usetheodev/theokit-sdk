@@ -36,61 +36,12 @@
  * still holds — `SessionMessage` remains a leaf type shared by the runtime
  * (`agent-session.ts`) and the native store (`agent-session-store.ts`).
  *
- * @internal — NOT part of the `@theokit/sdk` public API.
- */
-
-/**
- * One turn in an in-memory session — used by `agent-session.ts` (runtime
- * append/get/clear) and `agent-session-store.ts` (persistence serialize/
- * deserialize). The two layers historically shared this type via a direct
- * `agent-session.ts → store ← session.ts` edge; this leaf file is now the
- * single source of truth for both.
- */
-export interface SessionMessage {
-  role: "user" | "assistant";
-  text: string;
-  /**
-   * theokit#146 — the same turn, unflattened.
-   *
-   * `text` folds a tool call to the literal string `[tool call] NAME`, dropping the call id and
-   * every argument, and a result to `[tool result] <body>`. That is fine for feeding prior context
-   * back to a model, and useless to a host that renders tool CARDS: on resume it got prose where it
-   * needed structure, with no way to correlate a call to its result. The reported consequence was a
-   * consumer abandoning cross-restart resume altogether.
-   *
-   * Additive on purpose: `text` is byte-identical to what it always was, so every existing reader —
-   * including the runtime's own prior-context replay — is untouched. A host that wants cards reads
-   * `parts` instead.
-   *
-   * Optional because a `SessionMessage` can also be constructed in-memory by
-   * `appendSessionMessage` during a live turn, where only the text projection exists. Absent means
-   * "this projection carries no structure", never "this turn had none".
-   */
-  parts?: readonly SessionMessagePart[];
-}
-
-/**
- * One structured element of a {@link SessionMessage}.
- *
- * Deliberately a session-display shape rather than a re-export of the internal LLM part union: the
- * two answer different questions (what to send a provider vs. what to draw), and coupling them
- * would make every provider-wire change a change to what hosts render.
+ * **theokit#146:** `SessionMessage` and `SessionMessagePart` moved to `types/session-message.ts` —
+ * they became public contract (the return shape of `Agent.transcript()`), and `types/` is where this
+ * repo keeps public contract. They are re-exported here so the runtime and the store keep importing
+ * from the leaf they always did, and so the cycle-break rationale above still holds.
  *
  * @internal
  */
-export type SessionMessagePart =
-  | { readonly type: "text"; readonly text: string }
-  | {
-      readonly type: "tool_use";
-      readonly id: string;
-      readonly name: string;
-      readonly input: Record<string, unknown>;
-    }
-  | {
-      readonly type: "tool_result";
-      readonly toolUseId: string;
-      readonly content:
-        | string
-        | ReadonlyArray<import("../../types/content-blocks.js").ToolResultContentBlock>;
-      readonly isError?: boolean;
-    };
+
+export type { SessionMessage, SessionMessagePart } from "../../types/session-message.js";
