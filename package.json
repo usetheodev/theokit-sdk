@@ -25,11 +25,11 @@
     "quality:loc": "node tools/check-loc.mjs",
     "quality:duplication": "jscpd packages/sdk/src",
     "quality:coverage": "pnpm --filter=@theokit/sdk exec vitest run --coverage",
-    "quality:audit": "pnpm audit --prod --audit-level=high || echo '(quality:audit: high-severity advisories found — review and triage)'",
+    "quality:audit": "pnpm audit --prod --audit-level=low && pnpm audit --audit-level=high",
     "quality:cross-cluster": "node tools/check-cross-cluster.mjs",
     "examples:workspace": "node tools/examples-workspace/server.mjs",
     "examples:workspace:test": "node --test tools/examples-workspace/lib.test.mjs",
-    "quality": "pnpm run quality:dead && pnpm run quality:dead-internal && pnpm run quality:cycles && pnpm run quality:depcruise && pnpm run quality:cross-cluster && pnpm run quality:loc && pnpm run quality:duplication",
+    "quality": "pnpm run quality:dead && pnpm run quality:dead-internal && pnpm run quality:cycles && pnpm run quality:depcruise && pnpm run quality:cross-cluster && pnpm run quality:loc && pnpm run quality:duplication && pnpm run quality:audit",
     "quality:report": "pnpm run quality && pnpm run quality:coverage && pnpm run quality:audit",
     "check:bundle": "node scripts/check-bundle-budget.mjs",
     "validate": "pnpm run check && npx turbo run build typecheck test --filter='./packages/*' && pnpm run validate:naming && pnpm run validate:publint && pnpm run validate:attw && pnpm run quality && pnpm run check:bundle",
@@ -57,11 +57,26 @@
     "tsup": "^8.5.0",
     "tsx": "^4.19.0",
     "typescript": "^5.8.0",
+    "vite": "^7.3.6",
     "vitest": "^4.1.8"
   },
   "pnpm": {
     "overrides": {
-      "zod": "^4.0.0"
+      "zod": "^4.0.0",
+      "vite": "^7.3.6",
+      "brace-expansion": "^5.0.9",
+      "postcss": "^8.5.25",
+      "fast-uri": "^3.1.5",
+      "axios": "^1.19.0",
+      "form-data": "^4.0.6",
+      "linkify-it": "^5.0.2",
+      "markdown-it": "^14.3.0",
+      "esbuild": "^0.28.1",
+      "undici": "^6.23.0",
+      "uuid": "^11.1.1",
+      "@hono/node-server": "^2.0.5",
+      "js-yaml@3": "^3.15.1",
+      "js-yaml@4": "^4.3.1"
     }
   }
 }
