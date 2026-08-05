@@ -31,6 +31,18 @@
  * and leaves flipping the default as its own migration, with a measured cost. A host that wants silence
  * hoje instala `setDiagnosticsSink(() => {})`.
  *
+ * ## Coverage is the whole guarantee
+ *
+ * The first sweep migrated the 92 sites under `internal/` and left `src/`'s own modules —
+ * `event-bus.ts`, `batch.ts`, `compaction.ts`, `internal/workflow/step-branch.ts`. A host could
+ * therefore install a sink and still have its frame corrupted by a batch run, which is the reported
+ * defect with a smaller blast radius. Those are routed here too, and
+ * `tests/lint/no-direct-terminal-write.test.ts` is what keeps the next hot path from
+ * reintroducing one. "Mostly interceptable" is not interceptable.
+ *
+ * The remaining direct writers are allowlisted there with a reason, and every one of them is a seam
+ * whose destination the CALLER already chooses (`opts.warn`, `opts.logger`, the Workflow logger).
+ *
  * ## What this is NOT
  *
  * It is not a logger with levels, formatting or multiple destinations. It is the minimum that
