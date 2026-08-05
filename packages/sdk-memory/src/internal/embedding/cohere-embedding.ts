@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -22,7 +23,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "embed-multilingual-light-v3.0": 384,
 };
 
-export const cohereMemoryEmbeddingProviderAdapter = {
+export const cohereMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "cohere",
   defaultModel: DEFAULT_COHERE_EMBEDDING_MODEL,
   transport: "remote" as const,
@@ -42,13 +43,14 @@ export const cohereMemoryEmbeddingProviderAdapter = {
         // `search_document` is the right default here because this runtime embeds material for
         // storage; a query-side embedder would use `search_query`.
         dialect: {
-          body: (model, inputs) => ({
+          body: (model: string, inputs: ReadonlyArray<string>) => ({
             model,
             texts: [...inputs],
             input_type: "search_document",
             embedding_types: ["float"],
           }),
-          vectors: (json) => (json as { embeddings?: { float?: number[][] } }).embeddings?.float,
+          vectors: (json: unknown) =>
+            (json as { embeddings?: { float?: number[][] } }).embeddings?.float,
         },
       },
       options,

@@ -68,6 +68,8 @@ const targets = [
   join(DIST, "server"),
   // EC-1 absorbed: internal sub-paths exposed for extracted packages.
   join(DIST, "internal", "persistence"),
+  // theokit#160: the embedding runtime shared with @theokit/sdk-memory.
+  join(DIST, "internal", "memory", "adapters"),
   join(DIST, "internal", "plugins"),
   join(DIST, "internal", "observability"),
   join(DIST, "internal", "security"),

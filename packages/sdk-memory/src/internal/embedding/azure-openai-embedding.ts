@@ -1,3 +1,4 @@
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -28,7 +29,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "text-embedding-ada-002": 1536,
 };
 
-export const azureOpenAiMemoryEmbeddingProviderAdapter = {
+export const azureOpenAiMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "azure-openai",
   defaultModel: DEFAULT_AZURE_OPENAI_EMBEDDING_MODEL,
   transport: "remote" as const,
@@ -49,8 +50,8 @@ export const azureOpenAiMemoryEmbeddingProviderAdapter = {
         // AZURE_OPENAI_API_KEY), and the deployment already rides in the path, so `model` has no
         // place in the body. Sending the OpenAI shape meant every request was rejected.
         dialect: {
-          authHeaders: (apiKey) => ({ "api-key": apiKey }),
-          body: (_model, inputs) => ({ input: inputs }),
+          authHeaders: (apiKey: string) => ({ "api-key": apiKey }),
+          body: (_model: string, inputs: ReadonlyArray<string>) => ({ input: inputs }),
         },
       },
       options,
