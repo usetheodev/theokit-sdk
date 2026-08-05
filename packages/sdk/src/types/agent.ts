@@ -667,6 +667,61 @@ export type SDKAgentInfo = {
 );
 
 /**
+ * theokit#123 — one tool of a registered agent, as a reflection surface sees it.
+ *
+ * A projection, not the `CustomTool` itself: the handler is an executable that cannot cross a
+ * process boundary and has no meaning to a caller enumerating a registry.
+ *
+ * @public
+ */
+export interface AgentToolDescription {
+  name: string;
+  description: string;
+  /** The JSON Schema sent to the model verbatim — the tool's callable signature. */
+  inputSchema: Record<string, unknown>;
+}
+
+/**
+ * theokit#123 — one subagent of a registered agent (what theokit-studio calls a workflow).
+ *
+ * `prompt` is deliberately absent. Enumeration asks what a subagent IS and what it may call; its
+ * system prompt is instructions, not signature, and a reflection endpoint that serializes it
+ * publishes the agent's behaviour to anyone who can reach the endpoint.
+ *
+ * @public
+ */
+export interface AgentSubagentDescription {
+  /** The key under `AgentOptions.agents` — how the parent addresses it. */
+  name: string;
+  description: string;
+  /** `"inherit"` (or absent) means it runs on the parent's model. */
+  model?: ModelSelection | "inherit";
+  /** Tool whitelist, when the subagent is scoped to a subset of the parent's tools. */
+  tools?: string[];
+}
+
+/**
+ * theokit#123 — the read-only introspection of a registered agent, returned by `Agent.describe()`.
+ *
+ * `Agent.list()` / `Agent.get()` enumerate agents and `agent.skills.list()` covers skills; this
+ * fills the remaining gap, so a reflection endpoint can report the live registry instead of
+ * degrading to empty lists.
+ *
+ * `tools` and `subagents` are always arrays — never `undefined` — so a caller can distinguish
+ * "this agent has none" from "the SDK did not say".
+ *
+ * @public
+ */
+export interface AgentDescription {
+  agentId: string;
+  /** Inlined rather than imported from the registry contract: `types/` stays a leaf (theokit#146). */
+  runtime: "local" | "cloud";
+  model?: ModelSelection;
+  tools: readonly AgentToolDescription[];
+  subagents: readonly AgentSubagentDescription[];
+}
+
+/**
  * Options for `Agent.list()`.
  *
  * @public
