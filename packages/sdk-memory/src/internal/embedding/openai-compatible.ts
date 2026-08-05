@@ -87,7 +87,14 @@ export async function createOpenAiCompatibleRuntime(
       { code: "embedding_unknown_model" },
     );
   }
-  const embeddingsPath = cfg.embeddingsPath ?? "/v1/embeddings";
+  // theokit#128: `{model}` is substituted, because Azure OpenAI addresses the deployment IN THE
+  // PATH (`/openai/deployments/{model}/embeddings`) rather than in the body. Without this the URL
+  // carried the literal placeholder and every Azure request 404'd. A path with no placeholder —
+  // every other provider — is passed through untouched.
+  const embeddingsPath = (cfg.embeddingsPath ?? "/v1/embeddings").replace(
+    "{model}",
+    encodeURIComponent(model),
+  );
 
   const stats: EmbeddingRuntimeStats = {
     cacheHits: 0,

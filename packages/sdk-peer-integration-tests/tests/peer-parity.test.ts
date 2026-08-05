@@ -40,7 +40,7 @@ const sdkMemory = _sdkMemory as typeof _sdkMemory & {
   MEMORY_EMBEDDING_ADAPTERS: Record<string, unknown>;
 };
 
-import { Memory, migrateSqliteToLance } from "@theokit/sdk";
+import { Memory, migrateSqliteToLance, Theokit } from "@theokit/sdk";
 import { describe, expect, it } from "vitest";
 
 async function makeCwd(prefix: string): Promise<string> {
@@ -208,15 +208,49 @@ describe("sdk-core ↔ sdk-memory behavior parity (iter 79, Phase 4 #4)", () => 
   });
 
   describe("Adapter catalog parity", () => {
-    it("test_sdk_memory_catalog_exposes_same_provider_ids_used_by_sdk_core_routing", () => {
-      // sdk-core's routing pulls the provider list from the peer's
-      // catalog when the peer is loaded. Verify both surfaces expose
-      // the same canonical set: openai, mistral, openrouter, voyage,
-      // deepinfra, ollama (ADR D11 + D183).
-      const peerIds = Object.keys(sdkMemory.MEMORY_EMBEDDING_ADAPTERS).sort();
-      expect(peerIds).toEqual(
-        ["deepinfra", "mistral", "ollama", "openai", "openrouter", "voyage"].sort(),
-      );
+    /**
+     * theokit#128 — the peer must serve every embedding provider core ADVERTISES.
+     *
+     * This is not a symmetry nicety. When `@theokit/sdk-memory` is installed, the peer's catalog
+     * REPLACES core's in the routing path (`sdk/src/memory.ts` — `peer.MEMORY_EMBEDDING_ADAPTERS`),
+     * while the public `Theokit.inspect.embeddingAdapters()` keeps listing core's. So every id core
+     * advertises but the peer lacks is a provider the SDK promises and then rejects at open time —
+     * which is exactly what happened to `azure-openai`, `cohere`, `jina` and `gemini` for the two
+     * months between core adding them and this test existing.
+     *
+     * Written as core-is-a-subset-of-peer rather than set equality on purpose: a peer that got
+     * ahead of core is not a broken promise to anyone, so it should not fail the build.
+     */
+    it("test_peer_serves_every_embedding_provider_core_publicly_advertises", () => {
+      const advertised = Theokit.inspect.embeddingAdapters().map((a) => a.id);
+      const served = new Set(Object.keys(sdkMemory.MEMORY_EMBEDDING_ADAPTERS));
+
+      const promisedButUnserved = advertised.filter((id) => !served.has(id));
+      expect(promisedButUnserved, "core advertises these; the peer would reject them").toEqual([]);
+    });
+
+    it("test_the_canonical_catalog_is_the_ten_providers_of_ADR_D11_D183_and_T4_10", () => {
+      // Pinned explicitly so a DROP on either side is as visible as an addition. The subset
+      // assertion above cannot see a provider that vanishes from both.
+      const canonical = [
+        "azure-openai",
+        "cohere",
+        "deepinfra",
+        "gemini",
+        "jina",
+        "mistral",
+        "ollama",
+        "openai",
+        "openrouter",
+        "voyage",
+      ];
+      expect(Object.keys(sdkMemory.MEMORY_EMBEDDING_ADAPTERS).sort()).toEqual(canonical);
+      expect(
+        Theokit.inspect
+          .embeddingAdapters()
+          .map((a) => a.id)
+          .sort(),
+      ).toEqual(canonical);
     });
   });
 });
