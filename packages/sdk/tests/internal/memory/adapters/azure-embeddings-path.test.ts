@@ -16,7 +16,8 @@ import { azureOpenAiMemoryEmbeddingProviderAdapter } from "../../../../src/inter
 /** Captures the URL of the single embed request, and replies with a well-formed vector. */
 function captureUrl(): { urls: string[]; fetchImpl: typeof fetch } {
   const urls: string[] = [];
-  const fetchImpl = (async (input: RequestInfo | URL) => {
+  // `unknown` rather than `RequestInfo`: the SDK's tsconfig does not pull in the DOM lib.
+  const fetchImpl = (async (input: unknown) => {
     urls.push(String(input));
     return new Response(JSON.stringify({ data: [{ embedding: [0.1, 0.2, 0.3] }] }), {
       status: 200,
