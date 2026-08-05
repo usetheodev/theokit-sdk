@@ -6,7 +6,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Security
+- **`esbuild` now resolves to the patched 0.28.1 under the `tsx` path used by the examples.** The pinned 0.28.0 carried GHSA advisory "arbitrary file read when running the development server on Windows" (fixed in >=0.28.1). The declared range already permitted the patched version — only the lockfile was stale — so this is a lockfile refresh, not a range change. Development tooling only; nothing published was affected.
+
 ### Changed
+- **Three dead entries removed from `knip.json`'s ignore list.** `refactor/**` and `refactor` named a directory that does not exist, and `.claude/**` shadowed a tree with zero JS/TS files for knip to analyze. All three were reported by knip itself as configuration hints. Removing them widens what the gate analyzes rather than narrowing it, and knip now runs with no findings and no hints.
 - **The dead `tool_use` / `stop` variants are gone from the internal `LlmEvent` union (theokit#144).** They declared a live provider-level tool channel that never existed: two providers yielded them, no consumer read them, and their tool calls duplicated `LlmFinish.toolCalls`. The declaration cost `@theokit/agents` a workaround that broke live token streaming on text-only turns. The canonical live tool channel is `onDelta`'s `tool-call-started`/`tool-call-completed`, now documented on the type itself. Internal only — no public API change.
 - **BREAKING: `sessaoTemEscritor` is now `sessionHasWriter`.** It is re-exported from the `@theokit/sdk/persistence` entry point, so the Portuguese name was public. The initial audit missed it because it shipped inside an `export { ... }` list rather than a declaration — found while translating `session-writer.ts`. Behavior unchanged.
 - **BREAKING: `TETO_ABSOLUTO_DE_JANELA` is now `ABSOLUTE_CONTEXT_WINDOW_CAP`.** The constant is exported from the `@theokit/sdk/compaction` entry point, so the Portuguese name was part of the published contract — every consumer importing it must rename. No alias is kept: an alias would leave the Portuguese identifier alive in the public surface, which is what this change exists to remove. Value and behavior are unchanged (10M cap on a declared context window with no catalog entry).
