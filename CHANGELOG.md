@@ -6,6 +6,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [@theokit/sdk@4.39.1] - 2026-08-05
+
 ### Fixed
 - **A retry is no longer silent (#165).** Each attempt now announces itself through the diagnostics channel — attempt number, ceiling, the backoff it is about to wait, the error class, and the provider's `Retry-After` when one arrived. Nothing is written unless a host installs a sink (theokit#147), so the default stays quiet. The bug this closes is not a missing retry: `RetryingLlmClient` already wraps every arm of the router (M93). It is that the retry was *unobservable* — the backoff is full-jitter, so three attempts can complete inside milliseconds and disappear into the response latency. A report on #165 read a 429 arriving in ~3s as proof the retry path was never reached; the evidence available could not distinguish "retried three times and failed" from "never retried", and the wrong hypothesis was the only one on offer.
 
