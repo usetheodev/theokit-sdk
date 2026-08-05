@@ -60,25 +60,28 @@ describe("theokit#147 — the diagnostics sink is reachable from the public entr
     expect(stderr).not.toHaveBeenCalled();
   });
 
-  it("test_COUNTERPROOF_with_no_sink_the_diagnostic_still_reaches_stderr", async () => {
-    // Silence must be something the host CHOOSES. Default-silent would be a separate, breaking
-    // change (35 suites assert the warning is emitted) and is deliberately not what this does.
-    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
-
-    await provokeADiagnostic();
-
-    expect(stderr).toHaveBeenCalled();
-  });
-
-  it("test_uninstalling_the_sink_restores_the_default", async () => {
-    const received: string[] = [];
-    setDiagnosticsSink((message) => received.push(message));
+  it("test_the_PRODUCTION_default_is_silent", async () => {
+    // The issue's actual ask. `vitest.setup.ts` installs a stderr-forwarding sink so the 36 suites
+    // that assert "this condition emits a warning" keep working, which means nothing observes the
+    // production default by accident — so this test clears the sink and observes it deliberately.
     setDiagnosticsSink(undefined);
     const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
 
     await provokeADiagnostic();
 
-    expect(received).toEqual([]);
-    expect(stderr).toHaveBeenCalled();
+    expect(stderr, "a library does not own the host's terminal").not.toHaveBeenCalled();
+  });
+
+  it("test_a_diagnostic_is_still_PRODUCED_when_silent_so_a_late_sink_is_not_pointless", async () => {
+    // Silence must be a routing decision, not the removal of the signal. A host that installs a
+    // sink after startup must still see subsequent diagnostics.
+    setDiagnosticsSink(undefined);
+    await provokeADiagnostic();
+
+    const received: string[] = [];
+    setDiagnosticsSink((message) => received.push(message));
+    await provokeADiagnostic();
+
+    expect(received.join("")).toContain("summarizer failed");
   });
 });
