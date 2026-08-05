@@ -47,16 +47,6 @@ export interface LoopContext {
   messages: LlmMessage[];
   tools: ResolvedTool[];
   finalText: string;
-  /**
-   * theokit#122 — the thinking block of the round currently in flight, held until the assistant
-   * step of the SAME turn is emitted.
-   *
-   * It cannot be pushed as its own `agentConversationTurn`: `mapAgentTurn` folds one turn into one
-   * assistant record, so a separate turn would persist thinking and text as two assistant messages.
-   * Anthropic requires the thinking block to be the FIRST block of the assistant message it belongs
-   * to, so the two must share a turn. Cleared as soon as it is consumed.
-   */
-  pendingThinking?: { text: string; signature?: string };
   finalStatus: import("../../types/run.js").RunStatus;
   /**
    * M1-2 (T2.2): set true when the loop stopped because it exhausted the

@@ -131,12 +131,24 @@ export class SessionTranscript {
   appendAssistantTurn(turn: AssistantTurn): SessionRecord {
     const content: Block[] = [];
     if (turn.thinking) {
+      // theokit#122 — the signature is computed by the provider over the ORIGINAL text, so it is
+      // only valid while the text is byte-identical. Redaction rewrites the text; keeping the
+      // signature next to a masked body persists a pair that Anthropic rejects with
+      // `400 "thinking blocks cannot be modified"` — the very failure this issue exists to remove.
+      //
+      // So redaction WINS and the signature is dropped. The block survives as display-only history
+      // (`thinkingToWireBlock` already refuses to replay an unsigned block), which loses one block
+      // of context; keeping a signature that cannot verify would lose the whole turn.
+      //
+      // The signature itself is never redacted — it is an opaque provider token with no user
+      // content — but that was only half the reasoning the first version of this fix wrote down.
+      const redactedThinking = red(turn.thinking);
+      const signatureStillValid =
+        turn.thinkingSignature !== undefined && redactedThinking === turn.thinking;
       content.push({
         type: "thinking",
-        thinking: red(turn.thinking),
-        // theokit#122 — NOT redacted: the signature is an opaque provider token that must round-trip
-        // byte-identically or Anthropic rejects the block. It carries no user content to redact.
-        ...(turn.thinkingSignature !== undefined ? { signature: turn.thinkingSignature } : {}),
+        thinking: redactedThinking,
+        ...(signatureStillValid ? { signature: turn.thinkingSignature } : {}),
       });
     }
     if (turn.text) content.push({ type: "text", text: red(turn.text) });
