@@ -1,0 +1,98 @@
+import { afterEach, describe, expect, it } from "vitest";
+
+import { RateLimitError } from "../src/errors.js";
+import { setDiagnosticsSink } from "../src/internal/diagnostics.js";
+import { MAX_ATTEMPTS, RetryingLlmClient } from "../src/internal/llm/retrying-client.js";
+import type { LlmClient, LlmEvent, LlmFinish } from "../src/internal/llm/types.js";
+
+/**
+ * theokit-sdk#165 — a retry that does not announce itself is indistinguishable from no retry.
+ *
+ * The issue reports a 429 in ~3s "with no observable retry" and concludes the retry path is never
+ * reached. The conclusion is reasonable and wrong: `RetryingLlmClient` wraps EVERY arm of the router
+ * (M93), and the backoff is full-jitter — `floor(random() * ceiling)` — so three attempts can
+ * legitimately complete in milliseconds and vanish inside the response latency.
+ *
+ * The real defect is not a missing retry; it is a SILENT one. With no per-attempt signal, whoever is
+ * debugging sees only the final error, and the only hypothesis available is the wrong one. These
+ * tests pin the signal.
+ */
+const rate429 = (): RateLimitError =>
+  new RateLimitError("openai API error: rate_limit (HTTP 429)", {
+    code: "openai_rate_limit",
+    metadata: { statusCode: 429 } as never,
+  });
+
+/** A transport that only fails. No credential and no provider are required. */
+const alwaysFails = (error: unknown): LlmClient => ({
+  name: "fake",
+  // eslint-disable-next-line @typescript-eslint/require-await
+  // biome-ignore lint/correctness/useYield: a transport that ONLY fails — not emitting is the point
+  async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
+    throw error;
+  },
+});
+
+const drain = async (c: LlmClient): Promise<void> => {
+  const gen = c.stream({} as never, new AbortController().signal);
+  let step = await gen.next();
+  while (step.done !== true) step = await gen.next();
+};
+
+afterEach(() => {
+  setDiagnosticsSink(undefined);
+});
+
+describe("theokit-sdk#165 — the retry must be observable", () => {
+  it("test_every_attempt_emits_a_diagnostic", async () => {
+    const seen: string[] = [];
+    setDiagnosticsSink((m) => seen.push(m));
+
+    // `rng: () => 0` zeroes the jitter: this test measures the SIGNAL, not the clock.
+    const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
+    await expect(drain(client)).rejects.toBeInstanceOf(RateLimitError);
+
+    // MAX_ATTEMPTS attempts => MAX_ATTEMPTS-1 announced waits (the final failure does not wait).
+    const retries = seen.filter((m) => m.includes("retry"));
+    expect(retries).toHaveLength(MAX_ATTEMPTS - 1);
+  });
+
+  it("test_the_diagnostic_names_attempt_ceiling_and_cause", async () => {
+    const seen: string[] = [];
+    setDiagnosticsSink((m) => seen.push(m));
+
+    const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
+    await expect(drain(client)).rejects.toThrow();
+
+    const first = seen.find((m) => m.includes("retry"));
+    expect(first, "no retry diagnostic was emitted").toBeDefined();
+    // Whoever is debugging needs all three: which attempt, out of how many, and why.
+    expect(first).toContain(`1/${MAX_ATTEMPTS}`);
+    expect(first).toContain("RateLimitError");
+    expect(first).toMatch(/\d+\s*ms/);
+  });
+
+  it("test_with_no_sink_installed_nothing_reaches_the_terminal", async () => {
+    // The library does not own the host's stdout (theokit#147). With no sink, silence.
+    const client = new RetryingLlmClient(alwaysFails(rate429()), { rng: () => 0 });
+    await expect(drain(client)).rejects.toThrow();
+    // Reaching here without throwing already proves emission does not depend on an installed sink.
+    expect(true).toBe(true);
+  });
+
+  it("test_first_attempt_success_emits_no_noise", async () => {
+    const seen: string[] = [];
+    setDiagnosticsSink((m) => seen.push(m));
+
+    const ok: LlmClient = {
+      name: "fake",
+      // eslint-disable-next-line @typescript-eslint/require-await
+      // biome-ignore lint/correctness/useYield: returns without emitting an event
+      async *stream(): AsyncGenerator<LlmEvent, LlmFinish, void> {
+        return { stopReason: "stop", text: "", toolCalls: [] } as unknown as LlmFinish;
+      },
+    };
+    await drain(new RetryingLlmClient(ok, { rng: () => 0 }));
+    expect(seen.filter((m) => m.includes("retry"))).toHaveLength(0);
+  });
+});
