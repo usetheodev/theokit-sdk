@@ -54,7 +54,25 @@
 /** Receives each diagnostic message already formatted, with the trailing `\n`. */
 export type DiagnosticsSink = (message: string) => void;
 
-let sink: DiagnosticsSink | undefined;
+/**
+ * The registry lives on `globalThis`, not in a module-level `let` (theokit#173).
+ *
+ * A module-level binding is a per-INSTANCE singleton, and a package manager will install two
+ * physical copies of the same version whenever two dependents resolve different peer sets. Measured:
+ * `@theokit/sdk@4.39.1` existed under two pnpm store hashes in the theokit workspace, so a sink
+ * installed through `@theokit/agents` landed in a different registry than the emitter writes to.
+ *
+ * The failure mode is the quiet one — the re-export resolves, the function is callable, nothing
+ * throws, and no diagnostic ever arrives. `Symbol.for` gives every copy in the process the same
+ * slot; the `v1` suffix leaves room to change the shape without colliding with an older copy.
+ */
+const SINK_SLOT = Symbol.for("theokit.sdk.diagnostics.sink.v1");
+
+type SinkHolder = Record<symbol, DiagnosticsSink | undefined>;
+
+function currentSink(): DiagnosticsSink | undefined {
+  return (globalThis as unknown as SinkHolder)[SINK_SLOT];
+}
 
 /**
  * Installs (or removes, by passing `undefined`) the diagnostics destination.
@@ -64,7 +82,7 @@ let sink: DiagnosticsSink | undefined;
  * messages out of the terminal.
  */
 export function setDiagnosticsSink(next: DiagnosticsSink | undefined): void {
-  sink = next;
+  (globalThis as unknown as SinkHolder)[SINK_SLOT] = next;
 }
 
 /**
@@ -76,6 +94,7 @@ export function setDiagnosticsSink(next: DiagnosticsSink | undefined): void {
 export function diag(message: string): void {
   // Silent by default (#147): with no sink installed the message is dropped. A library must not
   // assume the host's stdout/stderr are free-form log sinks — in a TUI they are the render surface.
+  const sink = currentSink();
   if (sink === undefined) return;
   try {
     sink(message);
