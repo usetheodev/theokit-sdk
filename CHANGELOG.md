@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Security
+- **Dependency advisories went from 64 to 1 (26 high to 0), via `pnpm.overrides` pinned to versions already present in the tree.** The remaining one is a `moderate` on `@opentelemetry/core` reached only through `mem0ai`, a peer/dev dependency of `@theokit/memory-mem0` — nothing published carries it. Closing it needs `@opentelemetry/core` v2, which moves the sampler API (`AlwaysOn`) the SDK's telemetry depends on; that is a migration with its own tests, not dependency hygiene, so it was measured, attempted, reverted when it broke five telemetry suites, and left open deliberately.
+- **`vite` is now a declared root devDependency at `^7.3.6`.** It was reached only as an auto-installed peer of `vitest`, which pnpm's `overrides` does not govern — the override was tried first and provably had no effect. Declaring it is what actually moved the resolution off the advisory-affected `7.3.3`. Nothing in the repo imports `vite` directly, so the declaration exists purely to pin a transitive — knip does not flag it as unused and needed no `ignoreDependencies` entry, but the reason it is there is worth stating rather than leaving for someone to rediscover.
+
+### Changed
+- **`quality:audit` can now fail, and it is wired into `validate`.** It ended in `|| echo`, so it always exited 0 — a gate that cannot fail is documentation, not a gate. It also passed `--prod` alone, which is why 64 advisories in development tooling stayed invisible for as long as they did. It is now two assertions with different bars: **any** advisory in the production tree fails (a published package must be clean), and **high or above** anywhere fails (development tooling tolerates moderate and low).
+
+### Security
 - **`esbuild` now resolves to the patched 0.28.1 under the `tsx` path used by the examples.** The pinned 0.28.0 carried GHSA advisory "arbitrary file read when running the development server on Windows" (fixed in >=0.28.1). The declared range already permitted the patched version — only the lockfile was stale — so this is a lockfile refresh, not a range change. Development tooling only; nothing published was affected.
 
 ### Changed
