@@ -1,5 +1,27 @@
 # Changelog
 
+## 4.39.1
+
+### Patch Changes
+
+- A retry no longer runs silently: each attempt announces itself through the diagnostics channel.
+
+  Every attempt now emits its number and ceiling, the backoff it is about to wait, the error class, and
+  the provider's `Retry-After` when one arrived. Nothing is written unless a host installs a sink
+  (`setDiagnosticsSink`), so the default stays silent — a library does not own the host's terminal.
+
+  The bug this closes is not a missing retry. `RetryingLlmClient` already wraps every arm of the
+  router, and `RateLimitError` is already retryable with a ceiling of 3. The defect was that the retry
+  was _unobservable_: the backoff is full-jitter, so three attempts can complete inside milliseconds
+  and disappear into the response latency. Issue #165 is the cost, measured — a 429 was investigated on
+  the wrong hypothesis for hours, because the available evidence could not distinguish "retried three
+  times and failed" from "never retried".
+
+  ```ts
+  import { setDiagnosticsSink } from "@theokit/sdk";
+  setDiagnosticsSink((m) => process.stderr.write(m + "\n"));
+  ```
+
 ## 4.39.0
 
 ### Minor Changes
