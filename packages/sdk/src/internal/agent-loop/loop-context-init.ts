@@ -25,10 +25,10 @@ import { diag } from "../diagnostics.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
+import { createEventLog, type LiveEventLog } from "./live-events.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
-import { createEventLog, type LiveEventLog } from "./live-events.js";
 
 /**
  * Mutable state for the agent loop. Extracted to share the shape between

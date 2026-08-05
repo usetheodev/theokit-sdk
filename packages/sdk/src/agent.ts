@@ -33,6 +33,7 @@ import {
   listRunsByAgent,
 } from "./internal/runtime/registry/run-registry.js";
 import { enqueueSessionWrite } from "./internal/session/agent-session.js";
+import type { SessionMessage } from "./internal/session/session-types.js";
 import { SPAN_NAMES } from "./internal/telemetry/span-names.js";
 import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
@@ -501,6 +502,42 @@ export class Agent {
       userText: turn.userText,
       assistantText: turn.assistantText,
     });
+  }
+
+  /**
+   * theokit#146 — read a LOCAL agent's persisted transcript as STRUCTURE, for rendering.
+   *
+   * A resumed session already replays correctly to the model, but a host had no way to draw it:
+   * the only projection available folded a tool call to the string `[tool call] NAME`, dropping the
+   * call id and every argument. A card UI got prose, so cross-restart resume was worth less than
+   * starting fresh — which is what at least one consumer did.
+   *
+   * Each returned message carries both projections: `text` (unchanged, what the model replay uses)
+   * and `parts` (`text` / `tool_use` / `tool_result` with ids, names, arguments and the
+   * `toolUseId` that correlates a result back to its call).
+   *
+   * Read-only and local-only: it opens the agent's session store and walks the transcript, exactly
+   * as {@link Agent.compact} and {@link Agent.injectSessionTurn} do. It appends nothing.
+   *
+   * @throws UnknownAgentError when `agentId` names no local agent.
+   * @public
+   */
+  static async transcript(agentId: string): Promise<readonly SessionMessage[]> {
+    let reg = getRegisteredAgent(agentId);
+    if (reg === undefined) {
+      // Fresh process (e.g. a TUI restoring its scrollback before any turn): hydrate the per-cwd
+      // registry from disk, exactly like Agent.resume does (D21).
+      await hydrateRegistryFromDisk(process.cwd());
+      reg = getRegisteredAgent(agentId);
+    }
+    if (reg === undefined || reg.runtime !== "local") {
+      throw new UnknownAgentError(
+        `No local agent "${agentId}" registered — transcript targets local sessions.`,
+      );
+    }
+    const { readSessionMessages } = await import("./internal/session/agent-session-store.js");
+    const { store } = await openLocalStore(reg);
+    return readSessionMessages(store, agentId);
   }
 
   /**
