@@ -1,5 +1,242 @@
 # Changelog
 
+## 4.39.0
+
+### Minor Changes
+
+- 5143651: New `Agent.describe(agentId)` — read-only introspection of a registered agent (theokit#123).
+
+  `Agent.list()` / `Agent.get()` enumerate agents and `agent.skills.list()` covers skills, but a
+  registered agent's tools and subagents were reachable only through the internal registry record. A
+  reflection endpoint — theokit-studio's `theokit dev` — had no way to report them, so it degraded to
+  `tools: []` / `workflows: []` with an `unavailable_reason`.
+
+  `describe` returns `{ agentId, runtime, model?, tools, subagents }`. Tools carry `name`,
+  `description` and the `inputSchema` the model is sent; subagents carry `name`, `description`, their
+  `model` and their tool whitelist.
+
+  It is a projection, not the options object: tool handlers and subagent prompts are stripped. A
+  handler is an executable that cannot cross a process boundary, and a prompt is the agent's
+  instructions rather than its signature — a reflection endpoint serializes whatever it is handed.
+
+  `tools` and `subagents` are always arrays, so a caller can distinguish "this agent has none" from
+  "the SDK did not say". An unknown agent throws `UnknownAgentError` rather than returning an empty
+  description, which would be indistinguishable from a real agent with nothing registered.
+
+  `AgentDescription`, `AgentToolDescription` and `AgentSubagentDescription` are exported from the
+  package barrel.
+
+- ae27def: Every SDK diagnostic now goes through the interceptable channel (theokit#147).
+
+  `setDiagnosticsSink` let a TUI host keep the SDK's warnings out of its alternate screen, but the
+  original migration only covered `internal/`. Six sites in the package's own modules — `batch.ts`,
+  `event-bus.ts`, `compaction.ts` and the Workflow branch step — still wrote straight to
+  `process.stderr` / `console.warn`, so a host could install a sink and still have its frame corrupted
+  by a batch run or a failed summarizer. Those are routed through the channel, and a lint gate now
+  fails the build if a new direct write appears in `src/`.
+
+  The remaining allowlisted writers are seams whose destination the caller already chooses
+  (`opts.warn`, `opts.logger`, the Workflow logger), each listed with its reason.
+
+  `setDiagnosticsSink` is now exported from the package barrel. It previously existed only on an
+  internal path no consumer could import, so the channel these six fixes route into could not actually
+  be installed by a host — the reported blocker survived a green suite.
+
+  **Diagnostics are now silent by default.** With no sink installed the SDK writes nothing to the
+  terminal — a library does not own the host's screen. Installing a sink is how you see them:
+
+  ```ts
+  import { setDiagnosticsSink } from "@theokit/sdk";
+  setDiagnosticsSink((message) => myLogger.warn(message));
+  ```
+
+  This is a behaviour change for anyone who relied on reading SDK warnings from stderr. Restore the
+  old behaviour in one line: `setDiagnosticsSink((m) => process.stderr.write(m))`.
+
+- 0bd082f: Three advertised embedding providers now actually work (theokit#159).
+
+  `azure-openai`, `cohere` and `gemini` were in the catalog and rejected on every call. The shared
+  runtime spoke exactly one wire — `Authorization: Bearer`, a `{ model, input }` body, a
+  `{ data: [{ embedding }] }` response — and none of the three speak it:
+
+  - **Azure** authenticates an API key with the `api-key` header (`Bearer` carries an Entra ID token,
+    not the key from `AZURE_OPENAI_API_KEY`), and the deployment is already in the URL path, so
+    `model` does not belong in the body.
+  - **Cohere**'s `/v2/embed` names the payload `texts`, requires `input_type`, and answers
+    `{ embeddings: { float } }`.
+  - **Gemini**'s OpenAI-compatible surface is at `/v1beta/openai/embeddings`, not `/v1/embeddings`.
+
+  The runtime gained three optional per-provider hooks — auth headers, request body, response reader —
+  whose defaults are exactly the previous behaviour, so the seven providers that were already correct
+  are untouched. Each divergence is asserted by a test that records the real request.
+
+  Advertising a provider that cannot work is worse than not advertising it; that is what this closes.
+
+- 108679d: A resumed session can be re-rendered as tool cards, not prose (theokit#146).
+
+  The transcript always replayed correctly to the model, but the only projection a host could read
+  folded a tool call to the literal string `[tool call] NAME` — no call id, no arguments — and a
+  result to `[tool result] <body>`, with nothing tying the two together. A card-rendering TUI got flat
+  text on resume, which made cross-restart resume worth less than starting fresh.
+
+  Two additions, both additive:
+
+  - `SessionMessage` gains an optional `parts` array carrying `text`, `tool_use` (id, name, input) and
+    `tool_result` (toolUseId, content, isError). `text` is byte-identical to before, so every existing
+    reader — including the runtime's own prior-context replay — is untouched.
+  - New `Agent.transcript(agentId)` returns a local agent's persisted turns with both projections.
+    Read-only; it opens the session store and walks the transcript, appending nothing. Throws
+    `UnknownAgentError` for an unknown or non-local agent rather than returning an empty list, so a
+    typo cannot look like an empty session.
+
+  `SessionMessage` and `SessionMessagePart` are exported from the package barrel.
+
+- 1e2a5e3: Extended-thinking sessions can be resumed (theokit#122).
+
+  Anthropic signs each `thinking` block and verifies that signature when the block is replayed on the
+  next turn. The SDK captured none of it, so a session that used extended thinking could be persisted
+  and then never resumed — the next request failed with `400 "thinking blocks cannot be modified"`.
+
+  The signature was dropped at four independent points, and fixing any one alone would have changed
+  nothing:
+
+  - the Anthropic adapter never requested extended thinking, so no signature was ever issued;
+  - it did not parse `thinking` blocks, so neither the text nor the signature left the stream;
+  - the agent loop emitted a thinking event and dropped it — nothing ever produced a `thinkingMessage`
+    step, so no thinking reached the transcript at all;
+  - the transcript reader discarded `thinking` blocks, so a resumed conversation lost them.
+
+  All four are closed, and the block now round-trips from the provider through persistence and back
+  onto the wire unchanged. Thinking and its answer text stay in one assistant message, in that order,
+  as Anthropic requires.
+
+  A thinking block with no signature — history recorded before this shipped, or reasoning text from an
+  OpenAI-compatible provider, which is never signed — is kept in the transcript but not replayed to
+  Anthropic. Sending it unsigned would fail the same validation and break the whole turn rather than
+  lose one block of context.
+
+  `SDKThinkingMessage` and the conversation `ThinkingMessage` gain an optional `signature`.
+
+- c3f69bc: New `workflow.describe()` — a committed workflow can report its own shape (theokit#161).
+
+  Returns `{ name, steps }`, each step carrying its `id` and `kind` and recursing into `parallel`,
+  `branch`, `foreach` and `dowhile`. Executables a step holds — predicates, conditions, agents, prompt
+  templates — are omitted: they cannot cross a process boundary and say nothing about shape.
+
+  There is deliberately **no** `Workflow.list()`. A workflow is a value the caller constructs and
+  holds, so the caller already knows which ones exist; what it lacked was a way to describe one. A
+  registry would have added process-global state that nothing releases in order to re-answer a
+  question the host can answer itself, and coupling workflows to `AgentOptions` would tie together two
+  things that are independent today — a workflow runs perfectly well without an agent.
+
+  A reflection endpoint maps over its own workflows and calls this.
+
+### Patch Changes
+
+- a4a9920: `@theokit/sdk-memory` now uses the SDK's embedding runtime instead of its own copy (theokit#160).
+
+  The two packages each carried a full copy of `createOpenAiCompatibleRuntime`, and the satellite's
+  catalog replaces the SDK's at runtime when installed — so the copy that ran was not the copy most
+  people read. That duplication is what produced the two-month adapter gap fixed in theokit#128, and
+  every fix since had to be applied to both files by hand.
+
+  There is now one implementation, imported from `@theokit/sdk/internal/memory-adapters` — a
+  semver-exempt sub-path in the same family as `internal/persistence` and `internal/security`, which
+  exist for exactly this reason.
+
+  **Behaviour change for `@theokit/sdk-memory` consumers:** embedding batches now run with bounded
+  parallelism instead of serially, and the embedding cache is process-wide instead of per-adapter.
+  Both are what the SDK already did; the satellite had silently missed both improvements.
+
+- 50ffa6c: Removed the dead `tool_use` and `stop` variants from the internal `LlmEvent` union (theokit#144).
+
+  They declared a live, provider-level tool channel that never existed: only two providers yielded
+  them, the agent loop's collector never read them, and the tool calls they carried duplicated
+  `LlmFinish.toolCalls`. A declaration without a consumer is worse than an omission — it cost
+  `@theokit/agents` a workaround that held every text delta until the stream drained, which broke
+  live token streaming on text-only turns (issue #47).
+
+  The canonical live tool channel is `onDelta`: the `tool-call-started` / `tool-call-completed`
+  `InteractionUpdate`s emitted between LLM rounds, uniform across providers and correlated by
+  `callId`. `Run.events()` merges them with the structural messages into one ordered timeline. This
+  is now documented on the `LlmEvent` type itself.
+
+  Internal type only — no public API change.
+
+- 0308f9f: `@theokit/sdk-memory` now serves every embedding provider the SDK advertises (theokit#128).
+
+  `azure-openai`, `cohere`, `jina` and `gemini` landed in the SDK core catalog in June 2026 and the
+  satellite never picked them up. That was not cosmetic drift: when `@theokit/sdk-memory` is
+  installed, its catalog _replaces_ core's in the routing path, while `Theokit.inspect.embeddingAdapters()`
+  kept listing all ten — so asking for one of the four got an "unknown provider" error from a provider
+  the SDK itself had just advertised. A cross-package test now fails the build if core ever advertises
+  a provider the peer cannot serve.
+
+  Also fixes the Azure OpenAI endpoint in both packages. Azure addresses the deployment in the URL
+  path (`/openai/deployments/{deployment}/embeddings`), and the placeholder was never substituted —
+  every Azure embedding request went to a URL containing the literal text `{model}` and could only 404. Providers with a static path are unaffected.
+
+- a15d80f: `mcpLifecycle: 'session'` now actually keeps the MCP server alive between turns (theokit#155).
+
+  The option pooled the client _object_ but not the child _process_: every run's `finally` closed
+  every client it had been handed, so the previous turn SIGTERM'd the server and the next turn's
+  `initialize()` spawned a new one. Measured at 146 ms +/- 28 (n=12) of spawn + handshake per turn
+  for one stdio server, paid identically under `'run'` and `'session'` — the knob bought 0 ms.
+
+  Two changes, both needed:
+
+  - A run now closes only the MCP clients it owns. Under `'session'` the pool owns them, and they are
+    released by `dispose()` (or by the idle reaper), not by the turn that borrowed them.
+  - `initialize()` is a no-op while the child is live, so the per-turn handshake no longer replaces a
+    healthy process (which would have orphaned it and paid the spawn cost anyway). The reconnect path
+    is unaffected — it re-spawns directly, exactly as before.
+
+  The regression tests count child PIDs rather than client objects; counting objects is what let the
+  defect ship green.
+
+- 32a82c4: Subagent credential inheritance no longer rides a property on the tool object (theokit#148).
+
+  A delegated child inherited its parent's API key through a symbol-keyed slot installed on the
+  subagent tool. That contract assumed the object would reach the dispatcher with an extra property
+  intact — and it broke twice: once because the bundler inlined two copies of the module that
+  disagreed on the key (#142/#143), and once because any layer rebuilding the tool from its known
+  fields simply dropped it. `@theokit/agents` hit the second and had to add an explicit symbol-copy
+  loop to compensate; the SDK's own tool assembly performs the same rebuild.
+
+  Credentials now travel on the run's async scope, so they reach the handler no matter what the tool
+  object looks like by the time it is dispatched. Consumers that normalize, wrap, or re-create SDK
+  tools no longer need to preserve hidden properties — a delegated child gets the parent's key either
+  way. The band-aid symbol-copy in `@theokit/agents` becomes unnecessary once the SDK
+  carrying this change is the resolved version. Against an OLDER SDK the copy loop is still required:
+  the pre-fix runtime reads the credential sink off the tool object, so a band-aid-free
+  `@theokit/agents` resolving an SDK below this release reproduces the very credential loss this issue
+  reports. `@theokit/agents` declares a caret range on `@theokit/sdk`, so that pairing is a normal
+  install rather than a hypothetical — raise the dependency floor in the same release that removes
+  the loop.
+
+  Also fixes a latent defect the old design could not avoid: credentials were stored per tool
+  instance, so one subagent tool shared by two concurrently running agents got last-writer-wins. Each
+  run now reads its own.
+
+- f760c57: Fixes four defects in the extended-thinking support shipped moments earlier (theokit#122).
+
+  A `/review` of that change found it created, on the most common thinking shape, the exact failure it
+  was meant to remove. A round that reasons and then calls a tool **without preamble text** never
+  consumed its thinking block: the block survived onto the next round and was persisted against the
+  wrong text, carrying a signature that no longer matched its body. And the replayed assistant turn
+  never carried the block at all, so the round after a thinking + tool_use turn reached the provider
+  missing it.
+
+  The block is now a value on the round's own output rather than state on the loop context, which
+  makes that class of leak unrepresentable, and it is recorded on whichever path closes the round —
+  assistant text or tool call. The replayed assistant message leads with it, as the provider requires.
+
+  Two smaller corrections in the same area: redacting the thinking text now drops the signature
+  instead of persisting a pair that cannot verify (the block survives as display-only history, which
+  loses one block of context rather than the whole turn), and the provider's own reported block is now
+  what the loop consumes — previously it was produced and read by nobody, the same dead-channel shape
+  this release deletes elsewhere.
+
 ## 4.37.2
 
 ### Patch Changes
