@@ -58,7 +58,14 @@ describe("openai-chatgpt builtin (M43)", () => {
     expect(p?.apiMode).toBe("responses_api");
     expect(p?.authType).toBe("oauth_device_code");
     expect(p?.baseUrl).toBe("https://chatgpt.com/backend-api/codex");
-    expect(p?.extraHeaders?.originator).toBe("codex_cli_rs");
+    // #165 — this assertion used to pin `codex_cli_rs`, the official Codex CLI's own value. It
+    // encoded a false client identity AS THE CONTRACT, which is how the claim survived review: the
+    // test made correcting it look like a regression. A test that pins a defect protects the defect.
+    expect(p?.extraHeaders?.originator).toBe("theokit");
+    expect(
+      p?.extraHeaders?.originator,
+      "the SDK must not present itself as another vendor's client",
+    ).not.toBe("codex_cli_rs");
     expect(p?.fallbackModels).toContain("openai-chatgpt/gpt-5.4");
   });
 
@@ -90,11 +97,12 @@ describe("openai-chatgpt builtin (M43)", () => {
     const profile = getProviderProfile("openai-chatgpt");
     const wrapper = profile!.transform!.fetch!({ apiKey: "__oauth_lazy_token__" });
     await wrapper("https://chatgpt.com/backend-api/codex/responses", {
-      headers: { originator: "codex_cli_rs" },
+      headers: { originator: "theokit" },
     });
     expect(sent.authorization).toBe("Bearer LIVE-ACCESS");
     expect(sent.accountId).toBe("acct-XYZ");
-    expect(sent.originator).toBe("codex_cli_rs");
+    // The transform must pass an inbound header through untouched — it only ADDS auth headers.
+    expect(sent.originator).toBe("theokit");
   });
 
   it("transform.fetch refreshes an expired token → outbound Bearer is the FRESH token", async () => {
