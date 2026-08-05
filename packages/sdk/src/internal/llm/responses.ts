@@ -253,9 +253,11 @@ export class ResponsesApiClient implements LlmClient {
             name: c.name.length > 0 ? c.name : (event.item.name ?? ""),
             input: parseToolArguments(rawArgs),
           };
+          // theokit#144: the call is carried by `LlmFinish.toolCalls` below. It used to also be
+          // yielded as a `tool_use` event that no consumer read — see the `LlmEvent` docblock for
+          // why the live tool channel is `onDelta`, not this stream.
           toolCalls.push(call);
           delete pending[id];
-          yield { type: "tool_use", id: call.id, name: call.name, input: call.input };
         } else if (t === "response.completed" || t === "response.incomplete") {
           const usage = event.response?.usage;
           if (usage !== undefined) {
@@ -280,7 +282,7 @@ export class ResponsesApiClient implements LlmClient {
     }
 
     if (toolCalls.length > 0 && stopReason === "end_turn") stopReason = "tool_use";
-    yield { type: "stop", reason: stopReason };
+    // theokit#144: `stopReason` is returned on the finish value, not yielded as an event.
     return makeLlmFinish({
       stopReason,
       text,
