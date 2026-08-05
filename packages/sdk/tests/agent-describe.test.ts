@@ -9,7 +9,7 @@
  * The projection is read-only and strips every executable: a tool's `handler` and a subagent's
  * `prompt` never leave the process. Enumeration is the point; the system prompt is not.
  */
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -122,6 +122,34 @@ describe("theokit#123 — Agent.describe()", () => {
     expect(described.subagents).toEqual([]);
     expect(described.agentId).toBe(agent.agentId);
     expect(described.runtime).toBe("local");
+    agent.dispose();
+  });
+
+  it("test_a_subagent_defined_only_on_disk_is_reported", async () => {
+    // theokit#123 — `describe()` projected `options.agents`, but the runtime resolves subagents via
+    // `loadSubagents` (`.theokit/agents/*.md` merged with the inline map) and never writes that back
+    // into options. A disk-defined role was therefore reported as absent — and since this shape
+    // promises arrays so a caller can distinguish "none" from "unknown", the under-report read as an
+    // honest empty. That ambiguity is the thing the issue existed to remove.
+    await mkdir(join(cwd, ".theokit", "agents"), { recursive: true });
+    await writeFile(
+      join(cwd, ".theokit", "agents", "auditor.md"),
+      ["---", "description: Audits a diff", "---", "", "You are an auditor."].join("\n"),
+    );
+    const agent = await Agent.create({
+      apiKey: "theo_test_describe",
+      model: { id: "claude-sonnet-4-6" },
+      local: { cwd, settingSources: ["project"] },
+    });
+
+    const described = await Agent.describe(agent.agentId);
+
+    expect(described.subagents.map((s) => s.name)).toContain("auditor");
+    expect(described.subagents.find((s) => s.name === "auditor")?.description).toBe(
+      "Audits a diff",
+    );
+    // Still stripped: a prompt is instructions, not signature.
+    expect(JSON.stringify(described)).not.toContain("You are an auditor.");
     agent.dispose();
   });
 
