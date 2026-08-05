@@ -1,5 +1,18 @@
 # Changelog
 
+## 4.39.2
+
+### Patch Changes
+
+- The retry diagnostic reads `retry 1/3 in 431ms` — it said `em` in 4.39.1.
+
+  One Portuguese word shipped inside an English-only codebase. The lint gate that enforces the rule
+  cannot see a two-letter word inside a template literal, so it passed review and passed CI; it was
+  caught by reading the built artifact before a later publish.
+
+  The regression test now pins the WORDING and not just the fields (`/retry \d+\/\d+ in \d+ms/`), so a
+  language slip fails a test rather than depending on a gate that is structurally unable to catch it.
+
 ## 4.39.1
 
 ### Patch Changes
