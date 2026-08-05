@@ -14,6 +14,10 @@ fails the build if a new direct write appears in `src/`.
 The remaining allowlisted writers are seams whose destination the caller already chooses
 (`opts.warn`, `opts.logger`, the Workflow logger), each listed with its reason.
 
-Note that diagnostics still default to `stderr` when no sink is installed — unchanged behaviour. A
+`setDiagnosticsSink` is now exported from the package barrel. It previously existed only on an
+internal path no consumer could import, so the channel these six fixes route into could not actually
+be installed by a host — the reported blocker survived a green suite.
+
+Diagnostics still default to `stderr` when no sink is installed; that is unchanged behaviour, and a
 host that wants silence installs `setDiagnosticsSink(() => {})`. Making silence the default is a
 separate migration; see the issue.

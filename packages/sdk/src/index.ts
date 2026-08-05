@@ -93,6 +93,17 @@ export {
   type CounterBudgetTrackerOptions,
   createCounterBudgetTracker,
 } from "./internal/budget/tracker/budget-tracker-counter.js";
+// theokit#147 — the diagnostics sink is PUBLIC, because a channel a consumer cannot install is not
+// a channel. The original fix routed 92 internal sites through `diag()` and left the installer
+// reachable only via `src/internal/diagnostics.js`, so the reported blocker ("a TUI host has no way
+// to intercept these") survived a green suite. A host now writes:
+//
+//     import { setDiagnosticsSink } from "@theokit/sdk";
+//     setDiagnosticsSink((message) => myStatusPanel.append(message));   // or `() => {}` for silence
+export {
+  type DiagnosticsSink,
+  setDiagnosticsSink,
+} from "./internal/diagnostics.js";
 export { JudgeCredentialError } from "./internal/judge/judge-call.js";
 // Handoffs — EXTRACTED to `@theokit/sdk-handoff` (SDK 2.0 split, Phase 4 / T4.1).
 // Consumers: `import { Handoff, handoffTo, ... } from "@theokit/sdk-handoff"`.
