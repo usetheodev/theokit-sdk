@@ -1,6 +1,6 @@
 import type { ToolContextMessage } from "../../types/agent-prims.js";
 import { IterationBudget } from "../budget/tracker/budget.js";
-import type { LlmContentPart, LlmMessage, LlmToolCallPart } from "../llm/types.js";
+import type { LlmContentPart, LlmMessage, LlmThinkingPart, LlmToolCallPart } from "../llm/types.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { validateResponse } from "../runtime/validation/validate-response.js";
 import { evaluateBudgetGate } from "./budget-gate.js";
@@ -190,19 +190,57 @@ export async function runAgentLoop(inputs: AgentLoopInputs): Promise<AgentLoopOu
   }
 }
 
+/**
+ * theokit#122 — the round's thinking block as a conversation step.
+ *
+ * Shared by the two paths that can close a round: the assistant-text path and the tool_use path.
+ * The tool_use path is the one that matters — a round of thinking + a tool call with NO preamble
+ * text is the common Anthropic shape, and it is exactly the case the first version of this fix
+ * dropped (the block stayed on the context and was persisted against the NEXT round's text).
+ */
+function thinkingStep(
+  thinking: LlmThinkingPart,
+): import("../../types/conversation.js").ConversationStep {
+  return {
+    type: "thinkingMessage",
+    message: {
+      text: thinking.text,
+      ...(thinking.signature !== undefined ? { signature: thinking.signature } : {}),
+    },
+  };
+}
+
+/**
+ * theokit#122 — persist the block for a round that called a tool and said nothing.
+ *
+ * Such a round emits no assistant-text step, so without this the block is never recorded for it —
+ * which is exactly how the first version of this fix let round N's signature reach round N+1.
+ * No-op when the round had text (the text path already recorded it) or produced no thinking.
+ */
+function recordThinkingOnSilentToolRound(
+  ctx: LoopContext,
+  text: string,
+  thinking: LlmThinkingPart | undefined,
+): void {
+  if (text.length > 0 || thinking === undefined) return;
+  ctx.conversation.push({
+    type: "agentConversationTurn",
+    turn: { steps: [thinkingStep(thinking)] },
+  });
+}
+
 async function emitAssistantTextStep(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
   text: string,
+  thinking: LlmThinkingPart | undefined,
 ): Promise<void> {
   ctx.events.push(buildAssistantEvent(inputs, text));
   // theokit#122 — thinking and text belong to ONE assistant message. Anthropic requires the
   // thinking block to come first in the message it belongs to, and `mapAgentTurn` folds one
   // conversation turn into one assistant record — so they must share a turn, in this order.
-  const thinking = ctx.pendingThinking;
-  ctx.pendingThinking = undefined;
   const steps: import("../../types/conversation.js").ConversationStep[] = [
-    ...(thinking !== undefined ? [{ type: "thinkingMessage" as const, message: thinking }] : []),
+    ...(thinking !== undefined ? [thinkingStep(thinking)] : []),
     { type: "assistantMessage" as const, message: { text } },
   ];
   ctx.conversation.push({ type: "agentConversationTurn", turn: { steps } });
@@ -440,13 +478,18 @@ export async function continueOrTerminate(
     llmOutput.text.length > 0
       ? await transformLlmOutputText(inputs, llmOutput.text, tCtx)
       : llmOutput.text;
+  // theokit#122 — the round's block, consumed exactly once, on whichever path closes this round.
+  const thinking = llmOutput.thinking;
   if (text.length > 0) {
-    await emitAssistantTextStep(inputs, ctx, text);
+    await emitAssistantTextStep(inputs, ctx, text, thinking);
   }
   if (llmOutput.stopReason !== "tool_use" || llmOutput.toolCalls.length === 0) {
     return finishOrReflect(inputs, ctx, llmOutput);
   }
-  ctx.messages.push(buildAssistantTurn(text, llmOutput.toolCalls));
+  recordThinkingOnSilentToolRound(ctx, text, thinking);
+  // theokit#122 — and the REPLAY must carry it too: Anthropic verifies the signed block on the next
+  // request, so an assistant turn that reaches the provider without it is rejected outright.
+  ctx.messages.push(buildAssistantTurn(text, llmOutput.toolCalls, thinking));
   const rawResults = await dispatchTools(
     // SE12 — forward a read-only text projection of the transcript-so-far to tool
     // handlers via `ctx.messages` (consumed by defineSubAgent's messageFilter).
@@ -496,6 +539,8 @@ async function inspectDoomLoop(
       inputs,
       ctx,
       verdict.message ?? "Stopped: repeated identical tool calls made no progress.",
+      // The doom-loop stop message is the SDK's own text, not a model turn — it has no thinking.
+      undefined,
     );
     return "stop";
   }

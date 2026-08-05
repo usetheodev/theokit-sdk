@@ -1,5 +1,5 @@
 import { diag } from "../diagnostics.js";
-import type { LlmClient, LlmTool, LlmToolCallPart } from "../llm/types.js";
+import type { LlmClient, LlmThinkingPart, LlmTool, LlmToolCallPart } from "../llm/types.js";
 import { safeCall } from "../runtime/system-prompt/safe-call.js";
 import { HISTOGRAM_NAMES } from "../telemetry/span-names.js";
 import { stripThinkBlocks } from "../tool-dispatch/strip-think.js";
@@ -19,6 +19,17 @@ export interface LlmTurnOutput {
   cacheReadTokens?: number;
   cacheWriteTokens?: number;
   reasoningTokens?: number;
+  /**
+   * theokit#122 — the round's extended-thinking block.
+   *
+   * A per-ROUND value, deliberately. The first cut of this fix parked it on `LoopContext` as
+   * `pendingThinking` and consumed it only where the assistant TEXT step was emitted — which is
+   * skipped when a round produces thinking + a tool call and no preamble text (the common Anthropic
+   * shape). The block then survived into the next round and was persisted against the WRONG text,
+   * invalidating the signature it exists to preserve. Carrying it on the round's own output makes
+   * that class of leak unrepresentable.
+   */
+  thinking?: LlmThinkingPart;
 }
 
 /**
@@ -142,6 +153,11 @@ export async function streamLlmTurn(
   emitLlmMetrics(inputs, result, startAt);
   llmSpan?.end();
   const stripped = stripThinkBlocks(collected.accumulatedText);
+  // theokit#122 — the provider's own block wins. Anthropic reports it on the finish value WITH the
+  // signature; `collected.thinking` is the reconstruction from `reasoning_delta`s, which is all an
+  // OpenAI-compatible provider can offer (it never signs). Preferring the finish value is also what
+  // stops `LlmFinish.thinking` from being the declared-but-unread channel theokit#144 deleted.
+  const thinking = result.thinking ?? collected.thinking;
   return {
     text: stripped.visible,
     toolCalls: result.toolCalls,
@@ -152,12 +168,15 @@ export async function streamLlmTurn(
     cacheReadTokens: result.cacheReadTokens,
     cacheWriteTokens: result.cacheWriteTokens,
     reasoningTokens: result.reasoningTokens,
+    ...(thinking !== undefined ? { thinking } : {}),
   };
 }
 
 interface CollectedEvents {
   accumulatedText: string;
   errored: boolean;
+  /** theokit#122 — the block rebuilt from `reasoning_delta`s, for providers that do not report one. */
+  thinking?: LlmThinkingPart;
   finishValue: Awaited<ReturnType<ReturnType<LlmClient["stream"]>["next"]>> | undefined;
 }
 
@@ -169,11 +188,13 @@ async function collectLlmEvents(
   let accumulatedText = "";
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
+  let thinking: LlmThinkingPart | undefined;
   try {
     const result = await runCollectorLoop(generator, inputs, ctx);
     accumulatedText = result.accumulatedText;
     errored = result.errored;
     finishValue = result.finishValue;
+    thinking = result.thinking;
   } catch (cause) {
     if (inputs.signal?.aborted === true) {
       ctx.finalText = "[aborted]";
@@ -184,7 +205,12 @@ async function collectLlmEvents(
     }
     errored = true;
   }
-  return { accumulatedText, errored, finishValue };
+  return {
+    accumulatedText,
+    errored,
+    finishValue,
+    ...(thinking !== undefined ? { thinking } : {}),
+  };
 }
 
 /**
@@ -212,6 +238,31 @@ export function registerLoopError(ctx: LoopContext, cause: unknown): void {
   ctx.error = code !== undefined ? { message, code, cause } : { message, cause };
 }
 
+/**
+ * Take one non-terminal stream event; returns the text it contributed (empty for reasoning).
+ *
+ * Extracted so `runCollectorLoop` stays under the cognitive-complexity cap once theokit#122 added
+ * the reasoning branch's signature handling.
+ */
+async function consumeStreamEvent(
+  inputs: AgentLoopInputs,
+  reasoning: ReasoningAccumulator,
+  event: { type: string; text?: string; signature?: string },
+): Promise<string> {
+  if (event.type === "text_delta") {
+    const text = event.text ?? "";
+    await emitTextDeltaCallback(inputs, text);
+    return text;
+  }
+  if (event.type === "reasoning_delta") {
+    await consumeReasoningDelta(inputs, reasoning, {
+      text: event.text ?? "",
+      ...(event.signature !== undefined ? { signature: event.signature } : {}),
+    });
+  }
+  return "";
+}
+
 async function runCollectorLoop(
   generator: ReturnType<LlmClient["stream"]>,
   inputs: AgentLoopInputs,
@@ -220,6 +271,7 @@ async function runCollectorLoop(
   accumulatedText: string;
   errored: boolean;
   finishValue: CollectedEvents["finishValue"];
+  thinking?: LlmThinkingPart;
 }> {
   let accumulatedText = "";
   // issue #47/#48: reasoning streams on its own channel — `text` is accumulated for the
@@ -227,6 +279,7 @@ async function runCollectorLoop(
   const reasoning: ReasoningAccumulator = { text: "", startedAt: undefined, signature: undefined };
   let errored = false;
   let finishValue: CollectedEvents["finishValue"];
+  let thinking: LlmThinkingPart | undefined;
   // issue #48 (review Finding 1): finalize in a `finally` so a mid-stream THROW from the LLM
   // generator (e.g. a dropped connection after some reasoning deltas) still emits the one
   // `thinking-completed` — otherwise a consumer that opened a reasoning block on the first
@@ -239,24 +292,18 @@ async function runCollectorLoop(
         finishValue = next;
         break;
       }
-      if (next.value.type === "text_delta") {
-        accumulatedText += next.value.text;
-        await emitTextDeltaCallback(inputs, next.value.text);
-      }
-      if (next.value.type === "reasoning_delta") {
-        await consumeReasoningDelta(inputs, reasoning, next.value);
-      }
       if (next.value.type === "error") {
         registerLoopError(ctx, next.value);
         ctx.finalText = "";
         errored = true;
         break;
       }
+      accumulatedText += await consumeStreamEvent(inputs, reasoning, next.value);
     }
   } finally {
-    await finalizeReasoning(inputs, ctx, reasoning);
+    thinking = await finalizeReasoning(inputs, ctx, reasoning);
   }
-  return { accumulatedText, errored, finishValue };
+  return { accumulatedText, errored, finishValue, ...(thinking !== undefined ? { thinking } : {}) };
 }
 
 /**
@@ -310,22 +357,21 @@ async function finalizeReasoning(
   inputs: AgentLoopInputs,
   ctx: LoopContext,
   reasoning: ReasoningAccumulator,
-): Promise<void> {
-  if (reasoning.text.length === 0) return;
+): Promise<LlmThinkingPart | undefined> {
+  if (reasoning.text.length === 0) return undefined;
   const thinkingDurationMs =
     reasoning.startedAt === undefined ? 0 : Date.now() - reasoning.startedAt;
   ctx.events.push(
     buildThinkingEvent(inputs, reasoning.text, thinkingDurationMs, reasoning.signature),
   );
-  // theokit#122 — hold the block so the assistant step of THIS turn carries it into the persisted
-  // conversation. Before this, the thinking event was emitted and then dropped: nothing ever
-  // produced a `thinkingMessage` step, so `mapAgentTurn`'s branch for it was unreachable and a
-  // reasoning turn persisted with no thinking at all — signature or not.
-  ctx.pendingThinking = {
+  await emitThinkingCompletedCallback(inputs, thinkingDurationMs);
+  // theokit#122 — RETURNED, not stashed on the context. See `LlmTurnOutput.thinking` for why the
+  // context-state version leaked a signature onto the following round's text.
+  return {
+    type: "thinking",
     text: reasoning.text,
     ...(reasoning.signature !== undefined ? { signature: reasoning.signature } : {}),
   };
-  await emitThinkingCompletedCallback(inputs, thinkingDurationMs);
 }
 
 async function emitTextDeltaCallback(inputs: AgentLoopInputs, text: string): Promise<void> {
