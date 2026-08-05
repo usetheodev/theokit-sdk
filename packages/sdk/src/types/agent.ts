@@ -388,9 +388,11 @@ export interface AgentOptions {
    *
    * `'run'` (DEFAULT, and the historical behaviour) spawns a client per `send` and drops it when the
    * run ends. `'session'` pools clients per `(agentId, server, config)` and keeps them across turns,
-   * which is what the reference does — Codex holds its connection manager in `SessionServices`
-   * (`core/src/state/service.rs:116`). Measured cost of the per-run path: 193 / 138 / 134 ms of
-   * spawn + handshake on every turn.
+   * which is what the reference does — Codex holds its MCP runtime in `SessionServices`
+   * (`upstream/core/src/state/service.rs:51-58`; theokit#155 corrected the earlier
+   * `core/src/state/service.rs:116`, which named a parameter of `install_mcp_runtime`, not the
+   * owning field). Measured cost of the per-run path: 193 / 138 / 134 ms of spawn + handshake on
+   * every turn.
    *
    * Opt-in rather than default because it changes the FAILURE model: a server that dies mid-session
    * becomes a reachable state. One-shot and cron runs gain nothing from pooling and would pay that
@@ -663,6 +665,72 @@ export type SDKAgentInfo = {
       repos?: string[];
     }
 );
+
+/**
+ * theokit#123 — one tool of a registered agent, as a reflection surface sees it.
+ *
+ * A projection, not the `CustomTool` itself: the handler is an executable that cannot cross a
+ * process boundary and has no meaning to a caller enumerating a registry.
+ *
+ * @public
+ */
+export interface AgentToolDescription {
+  name: string;
+  description: string;
+  /** The JSON Schema sent to the model verbatim — the tool's callable signature. */
+  inputSchema: Record<string, unknown>;
+}
+
+/**
+ * theokit#123 — one subagent of a registered agent (what theokit-studio calls a workflow).
+ *
+ * `prompt` is deliberately absent. Enumeration asks what a subagent IS and what it may call; its
+ * system prompt is instructions, not signature, and a reflection endpoint that serializes it
+ * publishes the agent's behaviour to anyone who can reach the endpoint.
+ *
+ * @public
+ */
+export interface AgentSubagentDescription {
+  /** The key under `AgentOptions.agents` — how the parent addresses it. */
+  name: string;
+  description: string;
+  /** `"inherit"` (or absent) means it runs on the parent's model. */
+  model?: ModelSelection | "inherit";
+  /** Tool whitelist, when the subagent is scoped to a subset of the parent's tools. */
+  tools?: string[];
+}
+
+/**
+ * theokit#123 — the read-only introspection of a registered agent, returned by `Agent.describe()`.
+ *
+ * `Agent.list()` / `Agent.get()` enumerate agents and `agent.skills.list()` covers skills; this
+ * fills the remaining gap, so a reflection endpoint can report the live registry instead of
+ * degrading to empty lists.
+ *
+ * `tools` and `subagents` are always arrays — never `undefined` — so a caller can distinguish
+ * "this agent has none" from "the SDK did not say".
+ *
+ * @public
+ */
+export interface AgentDescription {
+  agentId: string;
+  /** Inlined rather than imported from the registry contract: `types/` stays a leaf (theokit#146). */
+  runtime: "local" | "cloud";
+  model?: ModelSelection;
+  /**
+   * The agent's DECLARED tool catalog.
+   *
+   * Plugin-contributed tools and the internal `think` tool (added when `reasoning` is on) are
+   * assembled per run and are not knowable from the registry, so they are absent here. Stated
+   * rather than implied: a reflection endpoint should not present this as the complete runtime set.
+   */
+  tools: readonly AgentToolDescription[];
+  /**
+   * Every subagent the runtime would resolve — file-based roles from `.theokit/agents/*.md` merged
+   * with the inline `agentOptions.agents`, the same set `loadSubagents` builds for a run.
+   */
+  subagents: readonly AgentSubagentDescription[];
+}
 
 /**
  * Options for `Agent.list()`.

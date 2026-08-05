@@ -27,7 +27,7 @@ export type { SessionMessage } from "./session-types.js";
 
 import type { SessionMessage } from "./session-types.js";
 
-// M75 — o cache mora numa folha; ver session-cache.ts para a razao (quebra de ciclo por extracao).
+// M75 — the cache lives in a leaf; see session-cache.ts for the reason (cycle broken by extraction).
 export {
   hydratedKeys,
   invalidateSessionCache,
@@ -51,27 +51,27 @@ const recordCounts = new Map<string, number>();
 export function appendSessionMessage(agentId: string, message: SessionMessage): void {
   const existing = sessions.get(agentId) ?? [];
   existing.push(message);
-  // `delete` + `set` reinsere no FIM: `Map` do JS preserva ordem de inserção, então a primeira
-  // chave é sempre a menos recentemente tocada. É o LRU inteiro, sem estrutura nova (rung 2/5 da
-  // parcimônia — a ordenação que precisamos já é garantia da linguagem).
+  // `delete` + `set` reinserts at the END: a JS `Map` preserves insertion order, so the first key
+  // is always the least recently touched. That is the entire LRU, with no new structure (parsimony
+  // rungs 2/5 — the ordering we need is already a language guarantee).
   sessions.delete(agentId);
   sessions.set(agentId, existing);
-  aplicarTeto();
+  enforceCeiling();
 }
 
 /**
- * Teto de sessões mantidas em memória.
+ * Ceiling on sessions kept in memory.
  *
- * O runtime só lê a sessão **ativa**; o resto é cache puro, reconstruível do transcript em disco.
- * 32 é folgado de propósito — o caminho primário de remoção é o `descartarSessao()` explícito no
- * fim da vida do agente, e este teto é rede de segurança contra um processo de vida longa que roda
- * centenas de sessões (risco #2 do plano: um teto apertado poderia evictar sessão ainda referenciada
- * por um fluxo assíncrono em voo).
+ * The runtime only reads the **active** session; the rest is pure cache, rebuildable from the
+ * on-disk transcript. 32 is deliberately generous — the primary removal path is the explicit
+ * `discardSession()` at the end of the agent's life, and this ceiling is a safety net against a
+ * long-lived process running hundreds of sessions (plan risk #2: a tight ceiling could evict a
+ * session still referenced by an in-flight async path).
  */
-export const TETO_DE_SESSOES_EM_CACHE = 32;
+export const MAX_CACHED_SESSIONS = 32;
 
-function aplicarTeto(): void {
-  while (sessions.size > TETO_DE_SESSOES_EM_CACHE) {
+function enforceCeiling(): void {
+  while (sessions.size > MAX_CACHED_SESSIONS) {
     const maisAntiga = sessions.keys().next().value;
     if (maisAntiga === undefined) return;
     sessions.delete(maisAntiga);
@@ -80,17 +80,17 @@ function aplicarTeto(): void {
 }
 
 /**
- * Apaga a escrituração de um `agentId` em TODOS os `cwd` onde ele aparece.
+ * Erases the bookkeeping for an `agentId` across EVERY `cwd` it appears in.
  *
- * Os três mapas são chaveados por `transcriptKey(cwd, agentId)`; `sessions` é o único chaveado pelo
- * `agentId` cru. A primeira versão do teto apagava os três com a chave de `sessions` — isto é, não
- * apagava nada — e deixava `hydratedKeys` **órfã**. Como `hydrateSession` retorna cedo quando a
- * marca está lá, uma sessão evictada voltava **vazia** em vez de reidratar do disco: amnésia
- * silenciosa, e regressão nova do M95, porque antes dele nada evictava.
+ * The three maps are keyed by `transcriptKey(cwd, agentId)`; `sessions` is the only one keyed by the
+ * raw `agentId`. The ceiling's first version deleted from all three using `sessions`' key — that is,
+ * deleted nothing — and left `hydratedKeys` **orphaned**. Since `hydrateSession` returns early when
+ * the marker is present, an evicted session came back **empty** instead of rehydrating from disk:
+ * silent amnesia, and a regression new to M95, because before it nothing evicted.
  *
- * O teto só conhece o `agentId`, não o `cwd`, então varre pelo sufixo — que é o formato que
- * `transcriptKey` produz. Varredura em vez de índice porque estes mapas têm dezenas de entradas,
- * não milhares: um índice inverso aqui seria estrutura nova para um problema que não existe.
+ * The ceiling only knows the `agentId`, not the `cwd`, so it scans by suffix — which is the format
+ * `transcriptKey` produces. A scan rather than an index because these maps hold tens of entries, not
+ * thousands: a reverse index here would be new structure for a problem that does not exist.
  */
 function esquecerEscrituracao(agentId: string): void {
   const sufixo = transcriptKey("", agentId).slice(0 - agentId.length - 2);
@@ -100,32 +100,32 @@ function esquecerEscrituracao(agentId: string): void {
 }
 
 /**
- * Apaga a escrituração de módulo do agente e devolve quantas entradas saíram.
+ * Erases the agent's module bookkeeping and returns how many entries were removed.
  *
  * M95 — `invalidateSessionCache` limpava **dois** dos quatro mapas (`sessions`, `hydratedKeys`);
- * `pendingWrites` e `recordCounts` nunca eram tocados por id, então cresciam pela vida do processo.
- * Nenhum dos dois é grande por entrada — o vazamento é de contagem, não de volume — mas cache sem
- * dono da remoção é cache que só cresce.
+ * `pendingWrites` and `recordCounts` were never touched by id, so they grew for the life of the
+ * process. Neither is large per entry — the leak is in count, not volume — but a cache with no owner
+ * for removal is a cache that only grows.
  *
- * Devolve a contagem para que o chamador possa provar a remoção; um segundo descarte devolve 0,
- * que é o que torna o teste de idempotência possível sem expor os mapas.
+ * Returns the count so the caller can prove the removal; a second discard returns 0, which is what
+ * makes the idempotency test possible without exposing the maps.
  */
-export function descartarSessao(cwd: string, agentId: string): number {
-  const chave = transcriptKey(cwd, agentId);
-  let removidas = 0;
-  // `sessions` NÃO é apagado aqui — e a distinção é medida, não estética. Ele é a conversa
-  // legível, e há leitor legítimo DEPOIS do dispose: o golden `two-concurrent-sends-serialize`
-  // chama `getSessionMessages(agentId)` após `agent.dispose()`. Apagá-lo aqui devolvia lista vazia
-  // e quebrava dois goldens. Quem o limita é o teto LRU acima; os três abaixo são escrituração
-  // pura, sem leitor pós-dispose.
+export function discardSession(cwd: string, agentId: string): number {
+  const key = transcriptKey(cwd, agentId);
+  let removed = 0;
+  // `sessions` is NOT erased here — and the distinction is measured, not aesthetic. It holds the
+  // readable conversation, and there is a legitimate reader AFTER dispose: the golden
+  // `two-concurrent-sends-serialize` calls `getSessionMessages(agentId)` after `agent.dispose()`.
+  // Erasing it here returned an empty list and broke two goldens. What bounds it is the LRU ceiling
+  // above; the three below are pure bookkeeping, with no post-dispose reader.
   //
-  // A chave é `transcriptKey(cwd, agentId)` nos TRÊS — não o `agentId` cru. A primeira versão
-  // apagava dois deles pelo `agentId` e portanto **nunca apagava nada**; o teste não pegava porque
-  // afirmava apenas que a SEGUNDA chamada devolve 0, o que é verdade mesmo assim.
-  if (hydratedKeys.delete(chave)) removidas++;
-  if (pendingWrites.delete(chave)) removidas++;
-  if (recordCounts.delete(chave)) removidas++;
-  return removidas;
+  // The key is `transcriptKey(cwd, agentId)` in ALL THREE — not the raw `agentId`. The first version
+  // erased two of them by `agentId` and therefore **never erased anything**; the test did not catch
+  // it because it only asserted that the SECOND call returns 0, which is true either way.
+  if (hydratedKeys.delete(key)) removed++;
+  if (pendingWrites.delete(key)) removed++;
+  if (recordCounts.delete(key)) removed++;
+  return removed;
 }
 
 export function getSessionMessages(agentId: string): SessionMessage[] {
@@ -149,11 +149,11 @@ export function persistTurnToTranscript(
   onCompact?: () => void,
 ): void {
   const key = transcriptKey(loc.cwd, loc.agentId);
-  // Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
-  // de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
-  // pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+  // PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+  // sweeping these files (a nested root under refactor/). It is not new code and was not touched
+  // by M75; refactoring SDK internals without review would trade a visible problem for a diff
   // arriscado. Rastreado em usetheodev/theokit-sdk#151.
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
   const chained = (pendingWrites.get(key) ?? Promise.resolve()).then(async () => {
     try {
       await persistTurn(store, loc, sessionId, turn);

@@ -1,32 +1,32 @@
 /**
- * M77 T5.1 — `maxSessions`: um teto para o modelo parar de abrir shells indefinidamente.
+ * M77 T5.1 — `maxSessions`: a ceiling so the model stops opening shells indefinitely.
  *
  * ## O problema
  *
- * `startInteractive` cria uma sessão e a guarda no `Map` (`pty-interactive-backend.ts:91`) sem
- * qualquer limite. Cada uma é um processo real com TTL de horas. Um modelo que não percebe que já
- * tem um shell aberto abre outro — e outro. O TTL eventualmente recolhe, mas "eventualmente" é tarde
- * demais quando o limite é o número de PIDs da máquina.
+ * `startInteractive` creates a session and stores it in the `Map` (`pty-interactive-backend.ts:91`) with
+ * no limit at all. Each is a real process with a TTL of hours. A model that does not notice it already
+ * has a shell open opens another — and another. The TTL eventually collects, but "eventually" is too
+ * late when the limit is the machine's PID count.
  *
- * ## O erro precisa DIZER O QUE FAZER
+ * ## The error has to SAY WHAT TO DO
  *
- * Um erro que só diz "limite atingido" ensina o modelo a tentar de novo. `rules/error-handling.md
- * § 2` exige mensagem com contexto; aqui o contexto útil é a **lista das sessões vivas**, porque a
- * ação correta é reusar uma delas, não esperar. É a diferença entre um erro que interrompe e um erro
+ * An error that only says "limit reached" teaches the model to retry. `rules/error-handling.md`
+ * § 2 requires a message with context; here the useful context is the **list of live sessions**, because the
+ * correct action is to reuse one of them, not to wait. It is the difference between an error that interrupts and one
  * que orienta.
  *
- * ## Por que PTY REAL, e não um duplo de `spawnPty`
+ * ## Why a REAL PTY, and not a `spawnPty` double
  *
- * A primeira versão deste arquivo subclassificava o backend para trocar `spawnPty` por um duplo. Duas
- * razões para ter desistido, e a segunda é a que importa:
+ * The first version of this file subclassed the backend to swap `spawnPty` for a double. Two
+ * reasons for abandoning that, and the second is the one that matters:
  *
- *  1. `spawnPty` é `private` — o duplo exigiria afrouxar a visibilidade só para o teste;
- *  2. **a lição do M75**: um helper que substitui `spawnPty` inteiro faz tudo que vive DENTRO dele
- *     nunca rodar. O teto precisa provar que a vaga é contada contra sessões que existem de verdade,
- *     com `onExit` real liberando a vaga — um duplo provaria apenas que meu duplo conta.
+ *  1. `spawnPty` is `private` — the double would require loosening visibility just for the test;
+ *  2. **the M75 lesson**: a helper replacing the whole of `spawnPty` makes everything living INSIDE it
+ *     never run. The ceiling has to prove the slot is counted against sessions that genuinely exist,
+ *     with a real `onExit` freeing the slot — a double would only prove that my double counts.
  *
- * Este arquivo segue a convenção que `pty-interactive-backend.test.ts` já estabeleceu: PTY real, e
- * `describe.skip` quando o build nativo do node-pty não está disponível.
+ * This file follows the convention `pty-interactive-backend.test.ts` already established: a real PTY, and
+ * `describe.skip` when node-pty's native build is unavailable.
  */
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -43,60 +43,60 @@ afterEach(() => {
 const abrir = (b: PtyInteractiveBackend): Promise<{ sessionId: string }> =>
   b.startInteractive("cat", { yieldMs: 60 });
 
-d("M77 T5.1 — teto de sessões interativas (PTY real)", () => {
-  it("test_abrir_alem_do_teto_lanca_erro_TIPADO", async () => {
+d("M77 T5.1 — interactive session ceiling (real PTY)", () => {
+  it("test_opening_past_the_ceiling_throws_a_TYPED_error", async () => {
     backend = new PtyInteractiveBackend({ maxSessions: 2 });
     await abrir(backend);
     await abrir(backend);
 
-    // Erro de domínio, não `Error` genérico — quem trata precisa distinguir "teto" de "spawn falhou".
+    // A domain error, not a generic `Error` — the handler needs to tell "ceiling" from "spawn failed".
     await expect(abrir(backend)).rejects.toBeInstanceOf(MaxSessionsError);
   });
 
-  it("test_o_erro_LISTA_as_sessoes_vivas_para_o_modelo_reusar", async () => {
+  it("test_the_error_LISTS_the_live_sessions_so_the_model_can_reuse_one", async () => {
     backend = new PtyInteractiveBackend({ maxSessions: 2 });
     const a = await abrir(backend);
     const c = await abrir(backend);
 
     const err = (await abrir(backend).catch((e: unknown) => e)) as MaxSessionsError;
 
-    // A parte que transforma o erro de interrupção em orientação.
+    // The part that turns an interrupting error into guidance.
     expect(err.liveSessionIds).toHaveLength(2);
     expect(err.liveSessionIds).toContain(a.sessionId);
     expect(err.liveSessionIds).toContain(c.sessionId);
-    // E a mensagem, que é o que o modelo de fato lê, precisa carregar os ids.
+    // And the message, which is what the model actually reads, has to carry the ids.
     expect(err.message).toContain(a.sessionId);
   });
 
-  it("test_matar_uma_sessao_LIBERA_a_vaga", async () => {
+  it("test_killing_a_session_FREES_the_slot", async () => {
     backend = new PtyInteractiveBackend({ maxSessions: 1 });
     const a = await abrir(backend);
     await expect(abrir(backend)).rejects.toBeInstanceOf(MaxSessionsError);
 
     backend.kill(a.sessionId);
 
-    // Se o teto contasse sessões já abertas em vez das VIVAS, esta abertura ainda falharia.
+    // If the ceiling counted already-opened sessions instead of LIVE ones, this open would still fail.
     await expect(abrir(backend)).resolves.toBeDefined();
   });
 
-  it("test_CONTRAPROVA_sem_maxSessions_nao_ha_teto", async () => {
-    // Sem esta, uma implementação com teto embutido (digamos 3) passaria em tudo acima e quebraria
-    // todo consumidor existente em silêncio. O default TEM de ser ilimitado.
+  it("test_COUNTERPROOF_without_maxSessions_there_is_no_ceiling", async () => {
+    // Without this, an implementation with a baked-in ceiling (say 3) would pass everything above and break
+    // every existing consumer silently. The default MUST be unlimited.
     backend = new PtyInteractiveBackend();
     for (let i = 0; i < 4; i++) await abrir(backend);
     expect(backend.activeSessionCount()).toBe(4);
   });
 
   it("test_duas_aberturas_concorrentes_no_limite_so_uma_passa", async () => {
-    // Concurrent test com atomic-counter invariant: com teto 1, duas aberturas simultâneas disputam
-    // a última vaga. O guard precisa ler a contagem e reservar a vaga ANTES do primeiro `await`; se
-    // checasse e só inserisse no `Map` depois do spawn (que é assíncrono), as duas veriam `0`, as
-    // duas passariam, e o teto viraria decorativo.
+    // Concurrent test with an atomic-counter invariant: with a ceiling of 1, two simultaneous opens contend for
+    // the last slot. The guard must read the count and reserve the slot BEFORE the first `await`; if it
+    // checked and only inserted into the `Map` after the spawn (which is async), both would see `0`, both
+    // both would pass, and the ceiling would become decorative.
     backend = new PtyInteractiveBackend({ maxSessions: 1 });
     const r = await Promise.allSettled([abrir(backend), abrir(backend)]);
 
     expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
     expect(r.filter((x) => x.status === "rejected")).toHaveLength(1);
-    expect(backend.activeSessionCount(), "nenhuma sessão pode ter vazado além do teto").toBe(1);
+    expect(backend.activeSessionCount(), "no session may have leaked past the ceiling").toBe(1);
   });
 });

@@ -83,7 +83,7 @@ describe("containsCjk", () => {
   });
 
   it("rejects accented Latin", () => {
-    expect(containsCjk("éxito")).toBe(false);
+    expect(containsCjk("\u00e9xito")).toBe(false);
     expect(containsCjk("café")).toBe(false);
   });
 

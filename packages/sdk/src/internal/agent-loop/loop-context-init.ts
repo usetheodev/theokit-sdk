@@ -1,5 +1,4 @@
 import type { CustomTool, SDKAgent } from "../../types/agent.js";
-import type { SDKMessage } from "../../types/messages.js";
 import type { SDKUserMessage } from "../../types/run.js";
 import { UsageAccumulator } from "../budget/usage-accumulator.js";
 import type { LlmContentPart, LlmMessage } from "../llm/types.js";
@@ -26,6 +25,7 @@ import { diag } from "../diagnostics.js";
 import type { McpClient, McpTool } from "../mcp/client.js";
 import type { MemoryProviderHandle } from "../runtime/memory/memory-provider.js";
 import { createDoomLoopTracker, type DoomLoopTracker } from "./doom-loop-tracker.js";
+import { createEventLog, type LiveEventLog } from "./live-events.js";
 import type { AgentLoopInputs } from "./loop-types.js";
 import { buildSystemEvent, buildUserEvent } from "./message-builders.js";
 import type { ResolvedTool } from "./tool-dispatch.js";
@@ -37,7 +37,12 @@ import type { ResolvedTool } from "./tool-dispatch.js";
  * @internal
  */
 export interface LoopContext {
-  events: SDKMessage[];
+  /**
+   * theokit#140 — a {@link LiveEventLog}, so the run that owns this loop can subscribe and see
+   * events AS THEY HAPPEN instead of only when the loop returns. Still an `SDKMessage[]` to every
+   * consumer that just reads it.
+   */
+  events: LiveEventLog;
   conversation: import("../../types/conversation.js").ConversationTurn[];
   messages: LlmMessage[];
   tools: ResolvedTool[];
@@ -129,13 +134,20 @@ export async function initLoopContext(inputs: AgentLoopInputs): Promise<LoopCont
       });
     }
   }
-  const events: SDKMessage[] = [
+  // theokit#140 — a live log, not a plain array. Every `events.push(...)` in the loop now reports
+  // as it happens; `AgentLoopOutput.events` is still an `SDKMessage[]` and every batch consumer is
+  // unchanged. The subscriber is attached by the run that owns the loop.
+  const events = createEventLog([
     buildSystemEvent(
       inputs,
       tools.map((t) => t.name),
     ),
     buildUserEvent(inputs),
-  ];
+  ]);
+  // theokit#140 - attach the run's subscriber, if it supplied one. Attached AFTER the seed so the
+  // two events that exist before the loop starts arrive through the batch path like they always
+  // did; re-delivering them live would be a behaviour change for no gain.
+  if (inputs.onLoopEvent !== undefined) events.subscribe(inputs.onLoopEvent);
   const priorMessages: LlmMessage[] = (inputs.priorMessages ?? []).map((msg) => ({
     role: msg.role,
     content: [{ type: "text", text: msg.text }],

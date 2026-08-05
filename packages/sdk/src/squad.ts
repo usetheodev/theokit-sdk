@@ -90,16 +90,16 @@ function ehAgenteConstruido(m: SDKAgent | AgentDefinition): m is SDKAgent {
 }
 
 /**
- * M81 — transforma um `AgentDefinition` num agente executável.
+ * M81 — turns an `AgentDefinition` into an executable agent.
  *
- * Import dinâmico do `Agent` porque `squad.ts` é consumido por caminhos que não querem arrastar o
- * agente inteiro só para declarar um time; o custo só é pago por quem de fato passa dado puro.
+ * `Agent` is imported dynamically because `squad.ts` is consumed by paths that do not want to drag the
+ * whole agent in just to declare a team; the cost is only paid by callers actually passing raw data.
  */
 async function materializar(def: AgentDefinition, indice: number): Promise<SDKAgent> {
   const { Agent } = await import("./agent.js");
   return Agent.create({
-    // `AgentDefinition.model` admite o sentinel `'inherit'`, que não é um id de modelo. Herdar
-    // aqui significa "não declare nada e deixe o default valer" — passar o literal adiante criaria
+    // `AgentDefinition.model` admits the sentinel `'inherit'`, which is not a model id. Inheriting
+    // here means "declare nothing and let the default apply" — forwarding the literal would create
     // um agente pedindo um modelo chamado `inherit`.
     ...(def.model !== undefined && def.model !== "inherit" ? { model: def.model } : {}),
     ...(def.prompt !== undefined ? { systemPrompt: def.prompt } : {}),
@@ -124,20 +124,20 @@ function createSquad(options: SquadOptions): Squad {
 
   return {
     run: async (input: unknown): Promise<SquadRun> => {
-      const run = await (await montarPipeline(agents, options.name)).run(input);
+      const run = await (await buildPipeline(agents, options.name)).run(input);
       return { result: run.output, status: run.status, steps: run.stepResults };
     },
   };
 }
 
 /**
- * Monta o pipeline sequencial, materializando os membros que ainda são dado puro.
+ * Builds the sequential pipeline, materializing the members that are still raw data.
  *
- * Extraído de `run` porque o gate de complexidade cognitiva barrou a função combinada — e porque
- * "montar o pipeline" e "executar e traduzir o resultado" são duas responsabilidades que só estavam
+ * Extracted from `run` because the cognitive-complexity gate rejected the combined function — and because
+ * "building the pipeline" and "running it and translating the result" are two responsibilities that were only
  * juntas por proximidade.
  */
-async function montarPipeline(
+async function buildPipeline(
   agents: ReadonlyArray<SDKAgent | AgentDefinition>,
   nome: string | undefined,
 ): Promise<ReturnType<ReturnType<typeof Workflow.create>["commit"]>> {
@@ -147,9 +147,9 @@ async function montarPipeline(
   for (let i = 0; i < agents.length; i++) {
     const membro = agents[i];
     if (membro === undefined) continue;
-    // M81 — materializa na hora de RODAR, não na construção: `Squad.create` é síncrono e um
-    // `AgentDefinition` só vira agente com um `await`. Adiar até aqui mantém a construção barata e
-    // evita que montar um time exija credencial resolvida antes da primeira execução.
+    // M81 — materializes at RUN time, not at construction: `Squad.create` is synchronous and an
+    // `AgentDefinition` only becomes an agent with an `await`. Deferring to here keeps construction cheap and
+    // avoids requiring a resolved credential to assemble a team before the first run.
     const agent = ehAgenteConstruido(membro) ? membro : await materializar(membro, i);
     // SE3 — the first agent receives the human input (no peer origin); every subsequent agent
     // receives its predecessor's output, so its turn carries `{ kind: "peer", from: "agent-<i-1>" }`.

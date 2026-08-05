@@ -4,13 +4,13 @@
  * Returns the working-tree status in porcelain v1 format (`git status --porcelain`), which is the
  * stable machine-readable form — the human format is explicitly not guaranteed across git versions.
  *
- * M76 — nasce ao lado de `git_diff` e compartilha o motor de execução (`internal/git-exec.ts`): teto
- * de stdout, kill do grupo de processos no timeout e mapeamento para erro tipado são a MESMA regra
- * para qualquer subcomando do git. O consumidor (agent-builder) tinha isto local em 62 LoC; nada ali
- * era específico dele.
+ * M76 — born alongside `git_diff` and sharing the execution engine (`internal/git-exec.ts`): the stdout
+ * ceiling, process-group kill on timeout and mapping to a typed error are the SAME rule
+ * for any git subcommand. The consumer (agent-builder) had this locally in 62 LoC; nothing there
+ * was specific to it.
  *
  * Result shape (always a JSON string):
- *   - `{ ok: true, diff: string, truncated?: boolean }` — `diff` carrega a saída porcelain
+ *   - `{ ok: true, diff: string, truncated?: boolean }` — `diff` carries the porcelain output
  *   - `{ ok: false, error: 'not_a_repo' | 'path_traversal' | 'timeout' | 'git_failed' }`
  */
 
@@ -34,28 +34,28 @@ export interface CreateGitStatusToolOptions {
   /** Cap on captured stdout; excess sets `truncated: true`. Default 5 MB. */
   maxStdoutBytes?: number;
   /**
-   * Backend de execução injetado (`@theokit/sdk/sandbox`) — quando presente, `git status` roda via
+   * Injected execution backend (`@theokit/sdk/sandbox`) — when present, `git status` runs via
    * `SandboxBackend.execute`; omitido ⇒ o `git` local (inalterado).
    *
-   * Simetria com `createGitDiffTool`, apontada pelo review do M76: sem isto `git_diff` rodaria
-   * confinado e `git_status` não, na mesma sessão — e a assimetria seria invisível até alguém
+   * Symmetry with `createGitDiffTool`, flagged by the M76 review: without it `git_diff` would run
+   * confined and `git_status` not, in the same session — and the asymmetry would be invisible until someone
    * perceber que uma das duas escapa do sandbox.
    */
   sandbox?: SandboxProvider;
   /**
    * M76 — nome exposto ao modelo. Omitido ⇒ `"git_status"` (aditivo).
    *
-   * O nome é contrato: chave de approval, o que o modelo vê e o que o telemetry registra.
+   * The name is a contract: the approval key, what the model sees and what telemetry records.
    */
   name?: string;
-  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal abaixo (aditivo). */
+  /** M76 — description exposed to the model. Omitted => the literal below (additive). */
   description?: string;
   /**
-   * Incluir a linha de branch (`-b`) no início da saída. Default `true`.
+   * Include the branch line (`-b`) at the start of the output. Default `true`.
    *
-   * Sem ela o agente vê o que mudou mas não ONDE — e "estou na branch certa?" é a pergunta que
-   * precede qualquer commit. O consumidor (agent-builder) já dependia disso; omiti-la faria a
-   * migração perder comportamento em silêncio, que é o que a deleção de código local não pode custar.
+   * Without it the agent sees what changed but not WHERE — and "am I on the right branch?" is the question that
+   * precedes any commit. The consumer (agent-builder) already depended on it; omitting it would make the
+   * migration lose behavior silently, which is what deleting local code must not cost.
    */
   includeBranch?: boolean;
 }
@@ -77,9 +77,9 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
         .describe("Optional project-relative path to scope the status report."),
     }),
     handler: async ({ path }, ctx) => {
-      // Fora de um repositório, `git status` escreve no stderr e sai não-zero. Devolver string vazia
-      // aqui seria pior que um erro: o modelo a leria como "não há mudanças" — indistinguível do
-      // caso feliz, e falso. `error-handling.md` § 2 exige erro tipado.
+      // Outside a repository, `git status` writes to stderr and exits non-zero. Returning an empty string
+      // here would be worse than an error: the model would read it as "no changes" — indistinguishable from
+      // the happy path, and false. `error-handling.md` § 2 requires a typed error.
       if (!existsSync(join(projectRoot, ".git"))) {
         return JSON.stringify({ ok: false, error: "not_a_repo" });
       }
@@ -87,7 +87,7 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
       const scopeCheck = checkPathScope(path, projectRoot);
       if (scopeCheck !== null) return scopeCheck;
 
-      const args = montarArgs(path, opts.includeBranch !== false);
+      const args = buildArgs(path, opts.includeBranch !== false);
 
       if (opts.sandbox !== undefined) {
         return statusViaSandbox(opts.sandbox, ctx, args, timeoutMs);
@@ -101,21 +101,21 @@ export function createGitStatusTool(opts: CreateGitStatusToolOptions): CustomToo
 /**
  * Os argumentos do `git status`.
  *
- * `--porcelain=v1` é deliberado: é o contrato estável para leitura por máquina. O formato humano
- * muda entre versões do git e quebraria o parsing do consumidor sem aviso.
+ * `--porcelain=v1` is deliberate: it is the stable contract for machine reading. The human format
+ * changes across git versions and would break the consumer's parsing without warning.
  */
-function montarArgs(path: string | undefined, comBranch: boolean): string[] {
+function buildArgs(path: string | undefined, withBranch: boolean): string[] {
   const args = ["status", "--porcelain=v1"];
-  if (comBranch) args.push("-b");
+  if (withBranch) args.push("-b");
   if (path !== undefined && path !== "") args.push("--", path);
   return args;
 }
 
 /**
- * `git status` via `SandboxBackend` — o caminho surface-agnostic, espelhando `diffViaSandbox`.
+ * `git status` via `SandboxBackend` — the surface-agnostic path, mirroring `diffViaSandbox`.
  *
- * Existe por simetria com `git_diff`: sem ele, numa sessão confinada o diff rodaria dentro do
- * sandbox e o status fora — e a assimetria seria invisível até alguém notar que uma das duas escapa.
+ * It exists for symmetry with `git_diff`: without it, in a confined session the diff would run inside the
+ * sandbox and the status outside — and the asymmetry would be invisible until someone noticed one of the two escapes.
  */
 async function statusViaSandbox(
   sandbox: SandboxProvider,

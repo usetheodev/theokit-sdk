@@ -1,29 +1,29 @@
 /**
- * Tipar a falha de socket que o `fetch` lança **antes** de existir resposta.
+ * Types the socket failure `fetch` throws **before** any response exists.
  *
- * ## O buraco que isto fecha
+ * ## The hole this closes
  *
- * `mapAnthropicError` / `mapOpenAIError` só entram em cena quando há uma `Response` — isto é, para
- * erros **HTTP**. Um ECONNREFUSED / ETIMEDOUT / falha de DNS estoura no `await fetch(...)`, e até o
- * M93 subia cru: `anthropic.ts` não tinha `try` nenhum, e `openai.ts` mapeava **só** Ollama e
- * relançava o resto (`throw fetchErr`).
+ * `mapAnthropicError` / `mapOpenAIError` only come into play when there is a `Response` — that is, for
+ * **HTTP** errors. An ECONNREFUSED / ETIMEDOUT / DNS failure blows up at `await fetch(...)`, and until
+ * M93 it propagated raw: `anthropic.ts` had no `try` at all, and `openai.ts` mapped **only** Ollama and
+ * rethrew the rest (`throw fetchErr`).
  *
- * Isso importa porque `isTransientError` — a fonte única de verdade do SDK — devolve `false` para
- * erro estrangeiro **por contrato** ("wrap a foreign error in the appropriate SDK error first",
- * `errors.ts:429`). Com o transporte deixando o erro cru escapar, o retry do M93 estaria morto
- * exatamente para a falha mais clássica que ele existe para cobrir. O mesmo valia para o
- * `classifyAndDecide` do pool, que é anterior a este milestone.
+ * This matters because `isTransientError` — the SDK's single source of truth — returns `false` for
+ * a foreign error **by contract** ("wrap a foreign error in the appropriate SDK error first",
+ * `errors.ts:429`). With the transport letting the raw error escape, M93's retry would be dead
+ * exactly the most classic failure it exists to cover. The same applied to the pool's
+ * `classifyAndDecide`, which predates this milestone.
  *
- * ## Cancelamento NÃO é falha de transporte
+ * ## Cancellation is NOT a transport failure
  *
- * `AbortError` também sai do `fetch`, e envolvê-lo num `NetworkError` (que é `isRetryable: true`)
- * faria um cancelamento explícito do usuário ser reexecutado três vezes. Ele propaga intacto.
+ * `AbortError` also comes out of `fetch`, and wrapping it in a `NetworkError` (which is `isRetryable: true`)
+ * would make an explicit user cancellation be retried three times. It propagates intact.
  *
  * @internal
  */
 import { NetworkError } from "../../errors.js";
 
-/** O erro veio de um `abort()`, não de uma falha de rede? */
+/** Did the error come from an `abort()` rather than a network failure? */
 function ehAbort(err: unknown): boolean {
   if (typeof err !== "object" || err === null) return false;
   const nome = (err as { name?: unknown }).name;
@@ -31,9 +31,9 @@ function ehAbort(err: unknown): boolean {
 }
 
 /**
- * Envolve uma falha de socket num {@link NetworkError}, preservando a causa.
+ * Wraps a socket failure in a {@link NetworkError}, preserving the cause.
  *
- * Devolve o erro original — sem envolver — quando ele é um abort ou já é um erro do SDK.
+ * Returns the original error — unwrapped — when it is an abort or already an SDK error.
  */
 export function wrapTransportError(
   err: unknown,

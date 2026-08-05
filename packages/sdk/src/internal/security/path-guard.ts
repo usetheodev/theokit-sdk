@@ -415,7 +415,7 @@ export function sanitizeIdentifier(input: string, options?: { maxLen?: number })
   // helper used by safePathJoin gives operators a precise diagnostic
   // ("nul-byte" / "control-char-0x..") instead of the generic
   // "invalid characters" message — making prompt-injection traces
-  // legible per Inquebrável Rule 3.
+  // legible per Unbreakable Rule 3.
   rejectNulAndControlChars(input, "identifier");
   if (!IDENTIFIER_PATTERN.test(input)) {
     throw new ConfigurationError(`Identifier contains invalid characters: "${input}"`, {

@@ -104,9 +104,9 @@ function buildClient(name: string, routerOptions: ProviderRouterOptions): LlmCli
     routerOptions.onRateLimit !== undefined ? { onRateLimit: routerOptions.onRateLimit } : {};
   const ambient = currentCredentialPool(name);
   if (ambient !== undefined) {
-    // M93 — o TERCEIRO braço. Achado ao escrever o teste do segundo: o pool ambiente também devolvia
-    // o cliente sem o decorator, e deixá-lo de fora criaria a mesma assimetria que o milestone remove,
-    // só que num caminho menos visível.
+    // M93 — the THIRD arm. Found while writing the second one's test: the ambient pool also returned
+    // the client without the decorator, and leaving it out would create the same asymmetry the milestone removes,
+    // only on a less visible path.
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         ambient,
@@ -156,9 +156,9 @@ function buildPoolOrSingle(args: {
     const pool = new CredentialPool(name, entries, strategy);
     const resilience =
       routerOptions.onRateLimit !== undefined ? { onRateLimit: routerOptions.onRateLimit } : {};
-    // M93 — o pool JÁ tinha retry por dentro; o decorator por fora cobre o que ele propaga (5xx e
-    // rede, que `classifyAndDecide` manda propagar porque "pool não ajuda"). Aditivo: o comportamento
-    // de rotação não muda.
+    // M93 — the pool ALREADY had retry inside; the outer decorator covers what it propagates (5xx and
+    // network, which `classifyAndDecide` tells it to propagate because "the pool does not help"). Additive: rotation
+    // behavior does not change.
     return new RetryingLlmClient(
       new PoolAwareLlmClient(
         pool,
@@ -179,9 +179,9 @@ function buildPoolOrSingle(args: {
     sentinelForNoAuth(profile) ??
     sentinelForLazyAuth(profile);
   if (apiKey === undefined) return undefined;
-  // M93 — o braço de UMA chave devolvia o transporte CRU, sem retry nenhum. Um pool de 1 chave é um
-  // pool de tamanho 1: o que muda entre 1 e 2 chaves é haver para onde rotacionar, não haver ou não
-  // resiliência. O consumidor típico resolve exatamente uma credencial e caía sempre aqui.
+  // M93 — the ONE-key arm returned the RAW transport, with no retry at all. A pool of 1 key is a
+  // pool of size 1: what changes between 1 and 2 keys is whether there is somewhere to rotate to, not
+  // whether resilience exists. The typical consumer resolves exactly one credential and always landed here.
   return new RetryingLlmClient(selectTransport(profile, apiKey));
 }
 
@@ -299,24 +299,24 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
   };
 
   /**
-   * Aplica o transform do provider sobre `opts` e devolve o cliente construído.
+   * Applies the provider's transform over `opts` and returns the constructed client.
    *
-   * Os ramos `chat_completions` e `anthropic_messages` faziam isto de forma IDÊNTICA, diferindo só no
-   * construtor final. É duplicação de CONHECIMENTO: "aplique o transform, exija que o OAuth esteja
-   * resolvido, e mescle os headers dinâmicos POR CIMA dos estáticos do profile" é a mesma regra para
-   * qualquer provider — corrigi-la num ramo e esquecer o outro deixaria um provider com transporte
-   * refresh-aware e o outro sem, silenciosamente.
+   * The `chat_completions` and `anthropic_messages` arms did this IDENTICALLY, differing only in the
+   * final constructor. That is duplicated KNOWLEDGE: "apply the transform, require OAuth to be
+   * resolved, and merge the dynamic headers ON TOP of the profile's static ones" is the same rule for
+   * any provider — fixing it in one arm and forgetting the other would leave one provider with a
+   * refresh-aware transport and the other without, silently.
    *
-   * Genérica sobre `O` porque cada ramo declara seu próprio `opts` com o tipo do construtor dele
-   * (`ConstructorParameters<typeof OpenAIClient>[0]` vs o do Anthropic) — foi por isso que uma
-   * primeira tentativa com helper não-genérico, declarado antes dos `if`, não compilou.
+   * Generic over `O` because each arm declares its own `opts` with its constructor's type
+   * (`ConstructorParameters<typeof OpenAIClient>[0]` vs Anthropic's) — that is why a
+   * the first attempt with a non-generic helper, declared before the `if`s, did not compile.
    */
   const comTransform = <
     O extends { fetch?: typeof fetch; extraHeaders?: Record<string, string> },
     C,
   >(
     opts: O,
-    criar: (o: O) => C,
+    construct: (o: O) => C,
   ): C => {
     const t = applyTransform();
     assertOAuthResolved(t);
@@ -326,7 +326,7 @@ function selectTransport(profile: ProviderProfile, apiKey: string): LlmClient {
         ? { ...profile.extraHeaders, ...t.headers }
         : undefined;
     if (merged !== undefined) opts.extraHeaders = merged;
-    return criar(opts);
+    return construct(opts);
   };
 
   // M42 review MEDIUM-1 — mirror Upstream's auth model (packages/llm/src/route/auth.ts): a provider's auth

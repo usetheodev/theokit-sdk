@@ -1,7 +1,7 @@
 /**
- * @theokit/sdk/server/auth — defineAuth orchestrator runtime (Caminho C Hybrid)
+ * @theokit/sdk/server/auth — defineAuth orchestrator runtime (Path C Hybrid)
  *
- * Plan T1.2 implementation per blueprint Q5 § Caminho C signatures.
+ * Plan T1.2 implementation per blueprint Q5 § Path C signatures.
  * Composes existing primitives + the v1.1 EC-1/EC-2/EC-10 fixes.
  */
 
@@ -201,7 +201,7 @@ function defineAuth<TSession>(opts: DefineAuthOptions<TSession>): AuthOrchestrat
     req: IncomingMessage,
     res: ServerResponse,
   ): Promise<TSession> {
-    // Caminho A escape hatch — skip OAuth flow, directly derive + persist session
+    // Path A escape hatch — skip OAuth flow, directly derive + persist session
     let sessionData: TSession;
     if (opts.onSignIn) {
       sessionData = await opts.onSignIn({ profile, provider: providerName });

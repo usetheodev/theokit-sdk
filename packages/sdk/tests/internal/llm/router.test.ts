@@ -3,18 +3,18 @@
  */
 
 /**
- * Descasca TODOS os decorators até o transporte real, em laço.
+ * Peels off ALL decorators down to the real transport, in a loop.
  *
- * Em laço e não em dois `if`: a ordem em que router e chain-builder envolvem não é fixa, e um
+ * In a loop and not two `if`s: the order in which router and chain-builder wrap is not fixed, and one
  * desembrulho posicional passa a depender dela. M93 — o `RetryingLlmClient` foi o segundo
- * decorator a entrar; o terceiro não deve quebrar estes testes de novo.
+ * decorator to arrive; the third must not break these tests again.
  */
 function descascar(client: LlmClient): LlmClient {
-  let atual = client;
+  let current = client;
   for (;;) {
-    if (atual instanceof RetryingLlmClient) atual = atual.inner;
-    else if (atual instanceof FaultInjectingLlmClient) atual = atual.inner;
-    else return atual;
+    if (current instanceof RetryingLlmClient) current = current.inner;
+    else if (current instanceof FaultInjectingLlmClient) current = current.inner;
+    else return current;
   }
 }
 

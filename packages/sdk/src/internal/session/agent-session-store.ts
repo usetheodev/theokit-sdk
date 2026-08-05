@@ -12,6 +12,7 @@
  * @internal
  */
 
+import type { ToolResultContentBlock } from "../../types/content-blocks.js";
 import type { ConversationStep, ConversationTurn } from "../../types/conversation.js";
 import type { SessionStore } from "../../types/session-store.js";
 import {
@@ -20,7 +21,7 @@ import {
   type SessionRecord,
   SessionTranscript,
 } from "../persistence/session-transcript.js";
-import type { SessionMessage } from "./session-types.js";
+import type { SessionMessage, SessionMessagePart } from "./session-types.js";
 
 /**
  * Seed a {@link SessionTranscript} from the already-on-disk records so a new
@@ -57,13 +58,27 @@ interface MappedTurn {
   toolResults: Array<{ toolUseId: string; content: string; isError?: boolean }>;
 }
 
+/**
+ * theokit#122 — record the turn's thinking block, signature included.
+ *
+ * The signature is what makes the block replayable: without it the resumed turn is rejected by
+ * Anthropic with `400 "thinking blocks cannot be modified"`.
+ */
+function applyThinkingStep(
+  assistant: AssistantTurn,
+  message: { text: string; signature?: string },
+): void {
+  assistant.thinking = message.text;
+  if (message.signature !== undefined) assistant.thinkingSignature = message.signature;
+}
+
 /** Fold one agent turn's steps into an assistant record + paired tool results. */
 function mapAgentTurn(steps: readonly ConversationStep[]): MappedTurn {
   const assistant: AssistantTurn = {};
   const toolResults: MappedTurn["toolResults"] = [];
   const toolCalls: NonNullable<AssistantTurn["toolCalls"]> = [];
   for (const step of steps) {
-    if (step.type === "thinkingMessage") assistant.thinking = step.message.text;
+    if (step.type === "thinkingMessage") applyThinkingStep(assistant, step.message);
     else if (step.type === "assistantMessage") assistant.text = step.message.text;
     else if (step.type === "toolCall")
       toolCalls.push({
@@ -130,7 +145,16 @@ export async function readSessionMessages(
   return reconstructMessages(records).map(narrowToSessionMessage);
 }
 
-type NarrowPart = { type: string; text?: string; content?: unknown; name?: string };
+type NarrowPart = {
+  type: string;
+  text?: string;
+  content?: unknown;
+  name?: string;
+  id?: string;
+  toolUseId?: string;
+  input?: unknown;
+  isError?: boolean;
+};
 
 /** Render one reconstructed content part as folded session text. */
 function partToText(p: NarrowPart): string {
@@ -143,6 +167,39 @@ function partToText(p: NarrowPart): string {
   return "";
 }
 
+/**
+ * theokit#146 — the same part, kept as STRUCTURE.
+ *
+ * `partToText` above is what the model replay wants; a host rendering tool cards needs the call id,
+ * the tool name and the arguments, none of which survive `[tool call] NAME`. Both projections are
+ * produced from the one reconstructed part, so they cannot drift apart.
+ *
+ * Returns `undefined` for a part with no display meaning (e.g. an image placeholder the session
+ * projection does not model), which the caller filters out.
+ */
+function partToStructured(p: NarrowPart): SessionMessagePart | undefined {
+  if (p.type === "text") return { type: "text", text: p.text ?? "" };
+  if (p.type === "tool_use") {
+    return {
+      type: "tool_use",
+      id: p.id ?? "",
+      name: p.name ?? "",
+      input: (p.input ?? {}) as Record<string, unknown>,
+    };
+  }
+  if (p.type === "tool_result") {
+    return {
+      type: "tool_result",
+      toolUseId: p.toolUseId ?? "",
+      // Reconstructed tool results carry either a string or the SE7 content blocks; both are
+      // already the session shape, so this narrows `unknown` rather than converting anything.
+      content: p.content as string | ReadonlyArray<ToolResultContentBlock>,
+      ...(p.isError === true ? { isError: true } : {}),
+    };
+  }
+  return undefined;
+}
+
 /** Flatten a reconstructed `LlmMessage` to the narrowed in-memory `SessionMessage`. */
 function narrowToSessionMessage(m: {
   role: "system" | "user" | "assistant";
@@ -153,7 +210,10 @@ function narrowToSessionMessage(m: {
     .map(partToText)
     .filter((s) => s.length > 0)
     .join("\n");
-  return { role, text };
+  const parts = m.content
+    .map(partToStructured)
+    .filter((p): p is SessionMessagePart => p !== undefined);
+  return { role, text, parts };
 }
 
 /** The records appended by the last turn (the delta beyond the seeded prior). */

@@ -105,6 +105,46 @@ export interface SuspendStep {
   readonly payloadSchema?: ZodType;
 }
 
+/* ─── Reflection (theokit#161) ─── */
+
+/**
+ * theokit#161 — one step of a workflow, as a reflection surface sees it.
+ *
+ * `id` and `kind` are the only fields every step variant shares, and they are what a reflection
+ * endpoint renders. Everything else a step carries is an executable — a predicate, a condition, an
+ * agent, a prompt template — which cannot cross a process boundary and means nothing to a caller
+ * enumerating shape.
+ *
+ * @public
+ */
+export interface WorkflowStepDescription {
+  readonly id: string;
+  readonly kind: Step["kind"];
+  /**
+   * Nested steps, for the variants that contain them: `parallel` (all branches, flattened — the
+   * branch grouping is a scheduling detail, not shape a reader needs), `branch` (each predicate's
+   * steps plus the fallback), `foreach` and `dowhile` (their single inner step).
+   *
+   * Absent for leaf steps. A flat list would misreport a parallel or branching workflow as linear.
+   */
+  readonly steps?: readonly WorkflowStepDescription[];
+}
+
+/**
+ * theokit#161 — the read-only shape of a committed workflow.
+ *
+ * Returned by `Workflow.describe()`. There is deliberately NO workflow registry to enumerate: a
+ * `Workflow` is a value the caller constructs and holds, so the caller already knows which ones
+ * exist. What it lacked was a way to DESCRIBE one. A registry would have added process-global state
+ * that nothing ever releases, to re-answer a question the host can answer itself.
+ *
+ * @public
+ */
+export interface WorkflowDescription {
+  readonly name: string;
+  readonly steps: readonly WorkflowStepDescription[];
+}
+
 /* ─── Supporting types ─── */
 
 /** D237 — retry policy applied per fn/agent step. */

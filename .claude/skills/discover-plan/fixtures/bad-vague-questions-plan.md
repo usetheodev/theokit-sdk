@@ -84,6 +84,6 @@ Things that don't seem relevant.
 | **No acceptance criteria** | "Done when we feel done" — unverifiable | MUST FIX |
 | **No halt-loop checkpoints** | section empty | MUST FIX |
 
-Expected `/discover-edge-cases` veredict for this plan: **DISCOVERY PLAN PRECISA DE AJUSTE** with ≥ 8 MUST FIX entries.
+Expected `/discover-edge-cases` verdict for this plan: **DISCOVERY PLAN NEEDS REVISION** with >= 8 MUST FIX entries.
 
 If invoked despite the warnings, `/discover-execute` would produce a blueprint that `/discover-confidence` would mark INVALID (≤49) due to empty coverage corners and fabricated/missing citations.

@@ -7,7 +7,7 @@ status: draft
 
 # Plan: Weak Imperatives Fixture (smells, no hard cap)
 
-> Version 1.0 — Coverage OK e ADRs OK, mas com varias ocorrencias de should/could/may/might e algumas loopholes. Risco-estrutural reduzido por penalties.
+> Version 1.0 — Coverage OK and ADRs OK, but with several occurrences of should/could/may/might and a few loopholes. Structural risk reduced by penalties.
 
 ## Context
 

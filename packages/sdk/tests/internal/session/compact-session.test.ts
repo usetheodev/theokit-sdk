@@ -33,9 +33,9 @@ function storeWith(initial: SessionRecord[]): SessionStore & { records: SessionR
 
 function seedHistory(): SessionRecord[] {
   const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
-  t.appendUserTurn("minha cidade favorita é Curitiba");
+  t.appendUserTurn("my favorite city is Curitiba");
   t.appendAssistantTurn({ text: "anotado" });
-  t.appendUserTurn("qual o clima lá?");
+  t.appendUserTurn("what is the weather like there?");
   t.appendAssistantTurn({ text: `ameno no inverno. ${"detalhe irrelevante ".repeat(200)}` });
   return [...t.records()];
 }
@@ -48,8 +48,7 @@ describe("compactSessionTranscript", () => {
       loc: LOC,
       sessionId: LOC.agentId,
       trigger: "manual",
-      summarize: async (msgs) =>
-        `resumo de ${msgs.length} mensagens: usuário mora perto de Curitiba`,
+      summarize: async (msgs) => `summary of ${msgs.length} messages: user lives near Curitiba`,
     });
 
     const msgs = reconstructMessages(store.records);
@@ -61,14 +60,14 @@ describe("compactSessionTranscript", () => {
     const joined = texts.join("\n");
     expect(joined).toContain(COMPACT_SUMMARY_MARKER);
     expect(joined).toContain("Curitiba"); // user message verbatim preservada
-    expect(joined).not.toContain("ameno no inverno"); // assistant NÃO é preservada verbatim
-    expect(result.postTokens).toBeLessThan(result.preTokens); // redução REAL com história não-trivial
+    expect(joined).not.toContain("mild in winter"); // the assistant message is NOT preserved verbatim
+    expect(result.postTokens).toBeLessThan(result.preTokens); // REAL reduction with non-trivial history
   });
 
   it("prior_summaries_filtered_from_preservation", async () => {
     const t = new SessionTranscript({ cwd: LOC.cwd, sessionId: LOC.agentId, model: LOC.model });
-    t.appendUserTurn(`${COMPACT_SUMMARY_MARKER}\nsumário antigo que não deve duplicar`);
-    t.appendUserTurn("pergunta atual");
+    t.appendUserTurn(`${COMPACT_SUMMARY_MARKER}\nold summary that must not duplicate`);
+    t.appendUserTurn("current question");
     const store = storeWith([...t.records()]);
 
     await compactSessionTranscript({
@@ -85,9 +84,9 @@ describe("compactSessionTranscript", () => {
         ? m.content.map((p) => ("text" in p ? (p as { text: string }).text : "")).join("")
         : String(m.content),
     );
-    const oldSummaryCopies = texts.filter((x) => x.includes("sumário antigo")).length;
-    expect(oldSummaryCopies).toBe(0); // o sumário anterior NÃO entra no verbatim do novo replacement
-    expect(texts.join("\n")).toContain("pergunta atual");
+    const oldSummaryCopies = texts.filter((x) => x.includes("old summary")).length;
+    expect(oldSummaryCopies).toBe(0); // the previous summary does NOT enter the new replacement verbatim
+    expect(texts.join("\n")).toContain("current question");
   });
 
   it("summarizer_failure_leaves_transcript_untouched", async () => {
@@ -102,12 +101,12 @@ describe("compactSessionTranscript", () => {
         sessionId: LOC.agentId,
         trigger: "auto",
         summarize: async () => {
-          throw new Error("llm indisponível");
+          throw new Error("llm unavailable");
         },
       }),
-    ).rejects.toThrow("llm indisponível");
+    ).rejects.toThrow("llm unavailable");
 
-    expect(JSON.stringify(store.records)).toBe(before); // byte-idêntico — nada parcial
+    expect(JSON.stringify(store.records)).toBe(before); // byte-identical — nothing partial
   });
 
   it("append_only_invariant_holds", async () => {
@@ -120,7 +119,7 @@ describe("compactSessionTranscript", () => {
       trigger: "manual",
       summarize: async () => "resumo",
     });
-    expect(store.records.length).toBeGreaterThan(beforeLen); // só cresce, nunca encolhe
+    expect(store.records.length).toBeGreaterThan(beforeLen); // only grows, never shrinks
     expect(store.records.slice(0, beforeLen).map((r) => r.uuid)).toEqual(
       seedHistory().map(() => expect.any(String)),
     );
@@ -135,7 +134,7 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
     const store = storeWith(seedHistory());
     // simula o processo vivo: cache hidratado + mensagens do processo
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
-    appendSessionMessage(LOC.agentId, { role: "user", text: "turno em memória" });
+    appendSessionMessage(LOC.agentId, { role: "user", text: "in-memory turn" });
     expect(getSessionMessages(LOC.agentId).length).toBeGreaterThan(0);
 
     await compactSessionTranscript({
@@ -146,12 +145,12 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
       summarize: async () => "resumo",
     });
 
-    // pós-compact: o cache foi invalidado — a PRÓXIMA hidratação relê o disco (replacement)
+    // post-compact: the cache was invalidated — the NEXT hydration re-reads disk (replacement)
     expect(getSessionMessages(LOC.agentId)).toEqual([]);
     await hydrateSession(LOC.agentId, { store, cwd: LOC.cwd });
     const rehydrated = getSessionMessages(LOC.agentId);
     const joined = rehydrated.map((m) => m.text).join("\n");
-    expect(joined).toContain(COMPACT_SUMMARY_MARKER); // replacement, não o histórico antigo
+    expect(joined).toContain(COMPACT_SUMMARY_MARKER); // the replacement, not the old history
     expect(joined).not.toContain("ameno no inverno");
     clearAllSessions();
   });
@@ -167,7 +166,7 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
       summarize: async () => "resumo",
     });
     const afterPrefix = JSON.stringify(store.records.slice(0, JSON.parse(beforePrefix).length));
-    expect(afterPrefix).toBe(beforePrefix); // prefixo BYTE-idêntico — imutabilidade real
+    expect(afterPrefix).toBe(beforePrefix); // BYTE-identical prefix — real immutability
   });
 
   it("F9_next_turn_parents_on_the_summary (seam real)", async () => {
@@ -179,13 +178,13 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
       trigger: "manual",
       summarize: async () => "resumo",
     });
-    // próximo turno via o seam real de persistência
+    // next turn through the real persistence seam
     const t = SessionTranscript.fromRecords(store.records, {
       cwd: LOC.cwd,
       sessionId: LOC.agentId,
       model: LOC.model,
     });
-    t.appendUserTurn("turno pós-compact");
+    t.appendUserTurn("post-compact turn");
     const delta = t.records().slice(store.records.length);
     await store.appendRecords(LOC.agentId, delta);
     const msgs = reconstructMessages(store.records);
@@ -196,6 +195,6 @@ describe("M50 review fixes — F1 cache invalidation + F9 hardened asserts", () 
     );
     const joined = texts.join("\n");
     expect(joined).toContain(COMPACT_SUMMARY_MARKER);
-    expect(joined).toContain("turno pós-compact"); // encadeou no replacement, não virou órfão
+    expect(joined).toContain("post-compact turn"); // chained onto the replacement, did not become an orphan
   });
 });

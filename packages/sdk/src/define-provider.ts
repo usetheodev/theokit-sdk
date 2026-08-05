@@ -75,28 +75,28 @@ export class Provider {
   }
 
   /**
-   * O builtin que atende `modelId`, ou `undefined` quando nenhum atende.
+   * The builtin serving `modelId`, or `undefined` when none does.
    *
-   * A gramática de um id de modelo — `provider/modelo` — passa a ter **um** dono. M94: o consumidor
-   * a refazia à mão com `modelId.slice(0, modelId.indexOf('/'))`, que num id **sem barra** devolve o
-   * id menos o último caractere (`claude-opus-5` → `claude-opus-`): casa provider nenhum e o
-   * chamador seguia para o default, sem distinguir isso de um acerto. Um modelo não-roteável era
-   * indistinguível do caminho feliz.
+   * The grammar of a model id — `provider/model` — now has **one** owner. M94: the consumer
+   * redid it by hand with `modelId.slice(0, modelId.indexOf('/'))`, which on an id **without a slash** returns the
+   * id minus its last character (`claude-opus-5` -> `claude-opus-`): it matches no provider and the
+   * caller fell through to the default, without distinguishing that from a hit. A non-routable model was
+   * indistinguishable from the happy path.
    *
-   * Devolve `undefined` em vez de lançar: quem decide se a ausência é erro é o chamador, e só ele
-   * sabe se o modelo veio de um `--model` explícito (erro) ou do default (normal).
+   * Returns `undefined` instead of throwing: the caller decides whether absence is an error, and only they
+   * know whether the model came from an explicit `--model` (an error) or from the default (normal).
    *
    * @public
    */
   static forModel(modelId: string): Plugin | undefined {
-    // Delega ao `parseModelId`, que é o dono canônico da gramática — o DoD do M94 pedia
-    // exatamente isso ("reusando o parser de id do próprio SDK para que a gramática tenha UM
-    // dono") e a primeira versão refez `indexOf`/`slice` inline, reinventando o dono ao lado dele.
+    // Delegates to `parseModelId`, the grammar's canonical owner — M94's DoD asked for
+    // exactly that ("reusing the SDK's own id parser so the grammar has ONE
+    // owner") and the first version redid `indexOf`/`slice` inline, reinventing the owner right next to it.
     //
-    // A revisão adversarial mediu o custo: 7 de 8 divergências. `lm-studio/qwen3` resolve para o
-    // builtin real `lmstudio` pelo parser e para NADA pelo slice — e como o consumidor passou a
-    // lançar quando não há provider, um comando customizado que funcionava antes do M94 passaria a
-    // falhar. `Anthropic/…`, `␣openai/…`, `llama.cpp/…` idem. E o inverso: `openai/` (nome vazio) o
+    // Adversarial review measured the cost: 7 of 8 divergences. `lm-studio/qwen3` resolves to the
+    // real `lmstudio` builtin via the parser and to NOTHING via the slice — and since the consumer now
+    // throwing when there is no provider, a custom command that worked before M94 would start
+    // fails. `Anthropic/...`, ` openai/...`, `llama.cpp/...` likewise. And the inverse: `openai/` (empty name) the
     // parser rejeita e o slice aceitava.
     const { provider } = parseModelId(modelId);
     if (provider === undefined) return undefined;

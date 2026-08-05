@@ -1,12 +1,12 @@
 /**
- * O erro a lançar quando um `AbortSignal` já está abortado.
+ * The error to throw when an `AbortSignal` is already aborted.
  *
- * Extraído no M93 (revisão adversarial, L1) quando esta seria a **terceira** cópia — regra de 3.
- * `pool-aware-client.ts` e `fallback-client.ts` mantinham a mesma função com fallbacks de string
- * ligeiramente diferentes; esta versão preserva a mais informativa das duas.
+ * Extracted in M93 (adversarial review, L1) when this would have been the **third** copy — rule of 3.
+ * `pool-aware-client.ts` and `fallback-client.ts` kept the same function with slightly different string
+ * fallbacks; this version preserves the more informative of the two.
  *
- * Preferir `signal.reason` a um `new Error("aborted")` cru é o que `error-handling.md § 2` pede: o
- * cancelamento carrega o motivo de quem cancelou, e substituí-lo por texto genérico apaga a causa.
+ * Preferring `signal.reason` over a raw `new Error("aborted")` is what `error-handling.md` § 2 asks for: a
+ * cancellation carries the canceller's reason, and replacing it with generic text erases the cause.
  *
  * @internal
  */

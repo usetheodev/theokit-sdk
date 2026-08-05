@@ -4,7 +4,7 @@
  * @internal
  */
 
-// M80 — a definição canônica de `Verdict`/`JudgeResult` vive em `types/goal-events.ts` (superfície
-// pública). Aqui apenas atravessa, para o código interno não precisar mudar de import e para não
-// existirem duas declarações da mesma forma.
+// M80 — the canonical definition of `Verdict`/`JudgeResult` lives in `types/goal-events.ts` (the public
+// surface). Here it merely passes through, so internal code need not change imports and so there are not
+// two declarations of the same shape.
 export type { JudgeResult, Verdict } from "../../types/goal-events.js";

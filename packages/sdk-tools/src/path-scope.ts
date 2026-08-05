@@ -28,20 +28,20 @@ export function checkPathScope(path: string | undefined, projectRoot: string): s
 }
 
 /**
- * Segmentos que nunca podem aparecer num caminho honrado por `allowAbsolute`.
+ * Segments that may never appear in a path honored by `allowAbsolute`.
  *
- * M76 — promovido de `read-file.ts`, onde era privado. Duplicá-lo em `list-dir` seria duplicação de
- * CONHECIMENTO de segurança: as cópias teriam de concordar sobre o que é segredo, e uma corrigida
+ * M76 — promoted from `read-file.ts`, where it was private. Duplicating it in `list-dir` would duplicate
+ * security KNOWLEDGE: the copies would have to agree on what counts as a secret, and one fixed
  * sem a outra reabre o buraco na tool esquecida.
  */
 const SEGMENTOS_SENSIVEIS = new Set([".env", ".git", "node_modules", ".theo"]);
 
 /**
- * Guard de segredo por QUALQUER segmento — a metade de `allowAbsolute` que não pode ser separada.
+ * ANY-segment secret guard — the half of `allowAbsolute` that cannot be separated.
  *
- * `isForbiddenPath` só bloqueia o item sensível quando ele é o PRIMEIRO segmento (relativo ao
- * projeto). Um caminho absoluto (`/home/u/proj/.env/sub`) o põe mais fundo, e passaria. Este checa
- * todos os segmentos, fechando a exfiltração "reads-anywhere".
+ * `isForbiddenPath` only blocks the sensitive item when it is the FIRST segment (relative to the
+ * project). An absolute path (`/home/u/proj/.env/sub`) puts it deeper, and it would pass. This one
+ * checks every segment, closing the "reads-anywhere" exfiltration.
  */
 export function ehProibidoEmQualquerProfundidade(path: string): boolean {
   const segs = path.replace(/\\/g, "/").split("/").filter(Boolean);

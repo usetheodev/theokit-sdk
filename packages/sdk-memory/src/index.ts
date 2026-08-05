@@ -98,7 +98,12 @@ export * from "./internal/dreaming/dreaming-phases.js";
 // CLOSES the dreaming/ cluster — 4 files (phases/diary/run + types)
 // fully in sdk-memory.
 export * from "./internal/dreaming/dreaming-run.js";
+// theokit#128 — the four adapters sdk-core advertises that this package had drifted behind.
+export * from "./internal/embedding/azure-openai-embedding.js";
+export * from "./internal/embedding/cohere-embedding.js";
 export * from "./internal/embedding/deepinfra-embedding.js";
+export * from "./internal/embedding/gemini-embedding.js";
+export * from "./internal/embedding/jina-embedding.js";
 export * from "./internal/embedding/mistral-embedding.js";
 export * from "./internal/embedding/ollama-embedding.js";
 // Iter 73: thirtieth Stage 3 file move — openai-compatible adapter

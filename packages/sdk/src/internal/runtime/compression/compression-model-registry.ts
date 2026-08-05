@@ -29,7 +29,7 @@
 /**
  * Exact `agent-model → compression-model` map. Most cases land here.
  * Entries MUST keep cheaper-tier model within the SAME vendor family
- * as the key (Inquebrável Rule 9 — provider-agnostic).
+ * as the key (Unbreakable Rule 9 — provider-agnostic).
  */
 const EXACT_REGISTRY: ReadonlyMap<string, string> = new Map([
   // OpenAI family

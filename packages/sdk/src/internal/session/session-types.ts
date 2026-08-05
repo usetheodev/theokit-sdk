@@ -36,17 +36,12 @@
  * still holds — `SessionMessage` remains a leaf type shared by the runtime
  * (`agent-session.ts`) and the native store (`agent-session-store.ts`).
  *
- * @internal — NOT part of the `@theokit/sdk` public API.
+ * **theokit#146:** `SessionMessage` and `SessionMessagePart` moved to `types/session-message.ts` —
+ * they became public contract (the return shape of `Agent.transcript()`), and `types/` is where this
+ * repo keeps public contract. They are re-exported here so the runtime and the store keep importing
+ * from the leaf they always did, and so the cycle-break rationale above still holds.
+ *
+ * @internal
  */
 
-/**
- * One turn in an in-memory session — used by `agent-session.ts` (runtime
- * append/get/clear) and `agent-session-store.ts` (persistence serialize/
- * deserialize). The two layers historically shared this type via a direct
- * `agent-session.ts → store ← session.ts` edge; this leaf file is now the
- * single source of truth for both.
- */
-export interface SessionMessage {
-  role: "user" | "assistant";
-  text: string;
-}
+export type { SessionMessage, SessionMessagePart } from "../../types/session-message.js";

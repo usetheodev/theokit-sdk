@@ -32,18 +32,18 @@ export interface JudgeContext {
 /** Caller-supplied tuning knobs for the judge call. */
 export interface JudgeOptions {
   /**
-   * Judge model identifier. Quando ausente, DERIVA de {@link agentModel} — e só cai no literal
-   * `"openai/gpt-4o-mini"` se nem esse for informado.
+   * Judge model identifier. When absent, it DERIVES from {@link agentModel} — and only falls back to the literal
+   * `"openai/gpt-4o-mini"` when neither is provided.
    *
-   * M80 — o default fixo era provider-cego: ele só resolve em OpenRouter. Com chave Anthropic dá
-   * 404, com bearer OAuth dá 401, e em ambos o goal queimava 3 turnos inteiros antes de falhar com
-   * razão enganosa. O agent-builder já contornava isso derivando por conta própria; o conhecimento
-   * pertence aqui.
+   * M80 — the fixed default was provider-blind: it only resolves on OpenRouter. With an Anthropic key it gives
+   * 404, with an OAuth bearer it gives 401, and in both the goal burned 3 whole turns before failing with
+   * a misleading reason. The agent-builder already worked around this by deriving on its own; the knowledge
+   * belongs here.
    */
   judgeModel?: string;
   /**
-   * M80 — o modelo do agente CONDUZIDO. É a base da derivação: um judge que roda no mesmo modelo do
-   * chat funciona onde o chat funciona.
+   * M80 — the DRIVEN agent's model. It is the basis of the derivation: a judge running on the same model as the
+   * chat works wherever chat works.
    */
   agentModel?: string;
   /** Override env. Default `process.env.OPENROUTER_API_KEY` (EC-A). */
@@ -51,14 +51,14 @@ export interface JudgeOptions {
 }
 
 /**
- * M80 — a credencial ou o modelo do judge não servem: 401/404.
+ * M80 — the judge's credential or model does not work: 401/404.
  *
- * Falha RÁPIDA por design. `rules/error-handling.md § 2` separa recuperável de irrecuperável, e um
- * modelo inexistente não passa a existir no retry — dobrar isso em `{parseFailed: true}` fazia o loop
- * tentar três vezes e reportar "failed" por limite de falhas consecutivas, escondendo que a causa era
- * credencial. Falha lenta e opaca trocada por rápida e clara.
+ * Fails FAST by design. `rules/error-handling.md` § 2 separates recoverable from unrecoverable, and a
+ * nonexistent model does not start existing on retry — folding that into `{parseFailed: true}` made the loop
+ * try three times and report "failed" on a consecutive-failure limit, hiding that the cause was the
+ * credential. A slow, opaque failure traded for a fast, clear one.
  *
- * Falha de PARSE e erro de rede continuam dobrados: são recuperáveis, e o loop já decide por falhas
+ * PARSE failures and network errors stay folded: they are recoverable, and the loop already decides on
  * consecutivas.
  */
 export class JudgeCredentialError extends TheokitAgentError {
@@ -78,7 +78,7 @@ export class JudgeCredentialError extends TheokitAgentError {
   }
 }
 
-/** Extrai o status HTTP de um erro de provider, quando ele o carrega. */
+/** Extracts the HTTP status from a provider error, when it carries one. */
 function statusHttpDe(err: unknown): number | undefined {
   const s =
     (err as { status?: unknown; statusCode?: unknown }).status ??
@@ -119,8 +119,8 @@ export async function judgeCallImpl(
     };
   }
 
-  // M80 — precedência: explícito > modelo do agente conduzido > o literal histórico. O literal só
-  // sobrevive como último recurso, para não quebrar quem nunca passou nenhum dos dois.
+  // M80 — precedence: explicit > driven agent's model > the historical literal. The literal only
+  // survives as a last resort, so as not to break callers who never passed either.
   const judgeModel = options?.judgeModel ?? options?.agentModel ?? "openai/gpt-4o-mini";
   let auxAgent: SDKAgent | undefined;
   try {
@@ -135,8 +135,8 @@ export async function judgeCallImpl(
     const result = await run.wait();
     return parseVerdict(result.result ?? "");
   } catch (err) {
-    // M80 — 401/403/404 são de credencial/modelo: irrecuperáveis, falham rápido e tipado. Todo o
-    // resto (rede, timeout, 5xx) segue dobrado, porque É recuperável e o loop já decide por falhas
+    // M80 — 401/403/404 are credential/model errors: unrecoverable, failing fast and typed. Everything
+    // else (network, timeout, 5xx) stays folded, because it IS recoverable and the loop already decides on
     // consecutivas.
     const status = statusHttpDe(err);
     if (status === 401 || status === 403 || status === 404) {

@@ -8,18 +8,18 @@
 
 export interface QuestionToolOptions {
   /**
-   * Callback que apresenta a pergunta ao usuário e resolve com a resposta.
+   * Callback that presents the question to the user and resolves with the answer.
    *
    * M76 — passou a ser OPCIONAL: o asker preferencial vem do contexto da run
-   * (`ctx.context.askUser`), porque um valor fixado aqui é o "baked into each factory" que a doc do
+   * (`ctx.context.askUser`), because a value pinned here is the "baked into each factory" that the
    * `CustomTool.handler` aponta como o problema que `ctx.context` existe para resolver. Este campo
-   * permanece como fallback, para quem constrói a tool com um asker fixo (retrocompatível).
+   * remains as a fallback, for callers building the tool with a fixed asker (backward-compatible).
    */
   askUser?: (question: string, threadId?: string) => Promise<string>;
   /**
-   * Chamado quando a pergunta é ABANDONADA (timeout ou cancelamento da run), para que o lado da UI
-   * libere o slot. Sem ele o timeout deixa a pergunta pendente para sempre — a UI segue mostrando
-   * um prompt que ninguém aguarda e a próxima pergunta falha com "já há uma pendente".
+   * Called when the question is ABANDONED (timeout or run cancellation), so the UI side can
+   * release the slot. Without it the timeout leaves the question pending forever — the UI keeps showing
+   * a prompt nobody is waiting on and the next question fails with "one is already pending".
    */
   onAbandon?: (threadId?: string) => void;
   /** Maximum time to wait for user response in ms. Default: 300_000 (5 min). */
@@ -27,33 +27,33 @@ export interface QuestionToolOptions {
   /**
    * M76 — nome exposto ao modelo. Omitido ⇒ `"question"` (aditivo).
    *
-   * O consumidor precisava disto: o Codex chama a tool de `request_user_input`, e sem a opção ele
-   * era obrigado a reconstruir o objeto inteiro à mão — o adaptador com dois casts que a T3.3
+   * The consumer needed this: Codex calls the tool `request_user_input`, and without the option it
+   * had to rebuild the whole object by hand — the two-cast adapter T3.3
    * eliminou.
    */
   name?: string;
-  /** M76 — descrição exposta ao modelo. Omitida ⇒ o literal de hoje (aditivo). */
+  /** M76 — description exposed to the model. Omitted => today's literal (additive). */
   description?: string;
 }
 
 /**
- * M76 — alinhado ao `CustomTool` do SDK. Era uma interface própria com `inputSchema: unknown`, o que
- * obrigava todo consumidor a escrever um cast para registrar a tool — e cast não conserta contrato,
- * só silencia o compilador, transformando uma futura mudança de assinatura em erro de RUNTIME.
+ * M76 — aligned with the SDK's `CustomTool`. It used to be its own interface with `inputSchema: unknown`, which
+ * forced every consumer to write a cast to register the tool — and a cast does not fix a contract,
+ * it only silences the compiler, turning a future signature change into a RUNTIME error.
  *
- * Estreitar foi aditivo: o valor sempre foi um objeto (`{ type: "object", properties, required }`
- * logo abaixo); só o tipo declarado estava frouxo. O handler aceita o 2º argumento opcional do
- * contrato (`ctx`), por onde o M76 passa a resolver o asker por sessão.
+ * Narrowing was additive: the value has always been an object (`{ type: "object", properties, required }`
+ * just below); only the declared type was loose. The handler accepts the contract's optional 2nd
+ * argument (`ctx`), through which M76 now resolves the asker per session.
  */
 export interface QuestionTool {
   name: string;
   description: string;
   inputSchema: Record<string, unknown>;
   /**
-   * M76 — o input é `Record<string, unknown>`, não `{ question: string }`, por CONTRAVARIÂNCIA: um
-   * handler que aceita só o tipo estreito não é atribuível a um que aceita o largo, e o `CustomTool`
-   * do SDK declara o largo. Declarar estreito aqui obrigava o consumidor a um cast — que era
-   * exatamente o defeito. O estreitamento acontece DENTRO do handler, onde há validação.
+   * M76 — the input is `Record<string, unknown>`, not `{ question: string }`, by CONTRAVARIANCE: a
+   * handler accepting only the narrow type is not assignable to one accepting the wide type, and `CustomTool`
+   * SDK declares the wide one. Declaring narrow here forced the consumer into a cast — which was
+   * exactly the defect. Narrowing happens INSIDE the handler, where validation lives.
    */
   handler: (
     input: Record<string, unknown>,
@@ -64,9 +64,9 @@ export interface QuestionTool {
 /**
  * Extrai o asker do contexto da run, se houver.
  *
- * `ctx.context` é `unknown` por contrato — é dado do usuário, e o SDK não o tipa. Um `context`
- * presente mas SEM `askUser` (ex.: só `projectRoot`) não pode ser confundido com "há asker": a
- * checagem é pela função, não pela presença do objeto.
+ * `ctx.context` is `unknown` by contract — it is user data, and the SDK does not type it. A `context`
+ * present but WITHOUT `askUser` (e.g. only `projectRoot`) must not be mistaken for "an asker exists": the
+ * check is on the function, not on the object's presence.
  */
 function askerDoContexto(
   context: unknown,
@@ -99,12 +99,12 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       input: Record<string, unknown>,
       ctx?: { signal?: AbortSignal; context?: unknown; threadId?: string },
     ): Promise<string> => {
-      // M76 — precedência: contexto da run > fábrica. `ctx.threadId` identifica a sessão, então uma
-      // tool compartilhada entre sessões passa a escopar o asker por sessão em vez de vazá-lo.
+      // M76 — precedence: run context > factory. `ctx.threadId` identifies the session, so a
+      // tool shared across sessions now scopes the asker per session instead of leaking it.
       const askUser = askerDoContexto(ctx?.context) ?? opts.askUser;
       if (askUser === undefined) {
-        // NUNCA uma promise pendente: sem asker, esperar o timeout de 5 min pararia o turno inteiro
-        // sem que ninguém soubesse por quê. Erro tipado, imediato (`error-handling.md` § 2).
+        // NEVER a pending promise: with no asker, waiting out the 5 min timeout would stall the whole turn
+        // with nobody knowing why. Typed error, immediate (`error-handling.md` § 2).
         return JSON.stringify({
           ok: false,
           error: "no_asker",
@@ -118,9 +118,9 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
       });
 
       try {
-        // M76 review — o `threadId` e ENCAMINHADO ao asker. Sem isto a cadeia ctx.threadId -> bridge
-        // nao existia: o bridge caia sempre no slot padrao e o Map tinha uma chave para sempre — o
-        // `let pending` com outro nome. A capacidade existia; a fiacao, nao.
+        // M76 review — the `threadId` is FORWARDED to the asker. Without it the chain ctx.threadId -> bridge
+        // did not exist: the bridge always fell into the default slot and the Map had one key forever — the
+        // `let pending` under another name. The capability existed; the wiring did not.
         const answer = await Promise.race([
           askUser(String(input.question ?? ""), ctx?.threadId),
           timeout,
@@ -128,9 +128,9 @@ export function createQuestionTool(opts: QuestionToolOptions): QuestionTool {
         return JSON.stringify({ ok: true, answer });
       } catch (err) {
         if (err instanceof Error && err.message === "timeout") {
-          // M76 review (MEDIUM-1) — avisa o asker que a pergunta MORREU. Sem isto o slot ficava
-          // ocupado para sempre: a UI seguia renderizando um prompt órfão, e toda pergunta seguinte
-          // recebia "já há uma pendente" — um erro permanente para algo que ninguém mais espera.
+          // M76 review (MEDIUM-1) — tells the asker the question DIED. Without it the slot stayed
+          // occupied forever: the UI kept rendering an orphaned prompt, and every subsequent question
+          // got "one is already pending" — a permanent error for something nobody awaits anymore.
           opts.onAbandon?.(ctx?.threadId);
           return JSON.stringify({
             ok: false,

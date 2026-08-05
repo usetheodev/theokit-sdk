@@ -1,28 +1,30 @@
 /**
- * M75 T2.1 — as funções puras do confinamento de kernel, promovidas do agent-builder.
+ * M75 T2.1 — the pure kernel-confinement functions, promoted out of the agent-builder.
  *
  * ## Por que promover
  *
- * `buildBwrapArgv`, `detectBwrap` e `buildSeccompFilter` não têm nada de específico do agent-builder:
- * são a infraestrutura que **todo** consumidor do theokit que rode comandos vai reimplementar. Custo
- * medido da promoção: **zero dependências** — só `node:child_process`, `node:fs` e `node:path`; o
- * filtro cBPF é um `Buffer` construído em JS puro, sem `seccompiler` e sem binding nativo.
+ * `buildBwrapArgv`, `detectBwrap` and `buildSeccompFilter` have nothing agent-builder-specific about them:
+ * they are the infrastructure **every** theokit consumer that runs commands would reimplement. Measured
+ * cost of the promotion: **zero dependencies** — only `node:child_process`, `node:fs` and
+ * `node:path`; the cBPF filter is a `Buffer` built in pure JS, with no `seccompiler` and no native
+ * binding.
  *
- * ## Por que este arquivo é RED antes de existir o código
+ * ## Why this file is RED before the code exists
  *
- * Os módulos ainda não existem. A importação falha, e é isso que prova que o teste mede o código
- * promovido — não uma reimplementação local que passaria sozinha.
+ * The modules do not exist yet. The import fails, and that is what proves the test measures the
+ * promoted code — not a local reimplementation that would pass on its own.
  *
- * ## O que este arquivo NÃO substitui
+ * ## What this file does NOT replace
  *
  * Os 24 testes originais migraram em `tests/bwrap-argv.test.ts` (18) e `tests/seccomp-filter.test.ts`
- * (6), com mudança **apenas** em linhas de `import` (D4 do plano). Este arquivo é o RED da promoção,
- * não a suíte de paridade — confundir os dois deixaria a migração sem oráculo.
+ * (6), changing **only** `import` lines (D4 of the plan). This file is the promotion's RED, not the
+ * parity suite — confusing the two would leave the migration without an oracle.
  *
- * CORREÇÃO (review do M75): esta nota **afirmava o falso** por um tempo. Os 24 tinham sido deletados
- * e substituídos pelos 9 daqui, e o review provou por mutação o custo — trocar `buildSeccompFilter`
- * por um filtro que não nega NADA passava 9/9. Os 9 daqui testam a FORMA (é Buffer, é determinístico);
- * a SEMÂNTICA (quais syscalls são negados, em que ordem, com que guard) vive nos 24 migrados.
+ * CORRECTION (M75 review): this note **asserted something false** for a while. The 24 had been
+ * deleted and replaced by the 9 here, and the review proved the cost by mutation — swapping
+ * `buildSeccompFilter` for a filter that denies NOTHING passed 9/9. The 9 here test SHAPE (it is a
+ * Buffer, it is deterministic); the SEMANTICS (which syscalls are denied, in what order, with what
+ * guard) live in the 24 migrated ones.
  */
 import { describe, expect, it } from "vitest";
 
@@ -34,7 +36,7 @@ import {
   resetBwrapMemo,
 } from "../src/sandbox/index.js";
 
-/** Probes injetáveis: nenhum teste deste arquivo toca o host. */
+/** Injectable probes: no test in this file touches the host. */
 const probesFalsos = (over: Partial<BwrapProbes> = {}): BwrapProbes => ({
   which: () => "/usr/bin/bwrap",
   helpText: () => "--perms\n--ro-bind\n--unshare-user",
@@ -49,51 +51,52 @@ describe("M75 T2.1 — buildBwrapArgv promovido", () => {
       network: false,
       env: {},
     });
-    expect(argv, "workspace-write deve produzir argv, não null").not.toBeNull();
+    expect(argv, "workspace-write must produce argv, not null").not.toBeNull();
     const s = (argv ?? []).join(" ");
-    // Disco todo read-only, cwd read-write, rede fora — os três invariantes do modo.
+    // Whole disk read-only, cwd read-write, network out — the mode's three invariants.
     expect(s).toContain("--ro-bind / /");
     expect(s).toContain("--bind /w /w");
     expect(s).toContain("--unshare-net");
   });
 
-  it("test_danger_full_access_nao_embrulha", () => {
-    // `null` é o contrato de "não embrulhe" — opt-out explícito, não anomalia. Devolver um argv
-    // vazio confundiria "sem confinamento" com "confinamento sem flags".
+  it("test_danger_full_access_does_not_wrap", () => {
+    // `null` is the "do not wrap" contract — an explicit opt-out, not an anomaly. Returning an argv
+    // an empty one would conflate "no confinement" with "confinement without flags".
     expect(buildBwrapArgv("danger-full-access", { cwd: "/w", network: true, env: {} })).toBeNull();
   });
 
-  it("test_read_only_nao_da_escrita_nem_no_cwd", () => {
+  it("test_read_only_grants_no_write_even_on_the_cwd", () => {
     const s = (buildBwrapArgv("read-only", { cwd: "/w", network: false, env: {} }) ?? []).join(" ");
     expect(s).toContain("--ro-bind / /");
-    expect(s, "read-only não pode conter --bind do cwd").not.toContain("--bind /w /w");
+    expect(s, "read-only must not contain a --bind of the cwd").not.toContain("--bind /w /w");
   });
 });
 
 describe("M75 T2.1 — detectBwrap promovido", () => {
-  it("test_detecta_quando_todas_as_sondas_passam", () => {
+  it("test_it_detects_when_every_probe_passes", () => {
     expect(detectBwrap(probesFalsos())).toEqual({ ok: true, bin: "/usr/bin/bwrap" });
   });
 
-  it("test_userns_bloqueado_e_falha_honesta_com_motivo", () => {
-    // Foi exatamente este caminho que o CI do agent-builder exercitou: bubblewrap instalado, userns
-    // bloqueado pelo AppArmor do Ubuntu 24.04. O contrato é degradar com MOTIVO — nunca fingir.
+  it("test_a_blocked_userns_is_an_honest_failure_with_a_reason", () => {
+    // This is exactly the path the agent-builder's CI exercised: bubblewrap installed, userns
+    // blocked by Ubuntu 24.04's AppArmor. The contract is to degrade with a REASON — never pretend.
     const d = detectBwrap(probesFalsos({ userns: () => false }));
     expect(d.ok).toBe(false);
-    expect(d.ok === false && d.reason, "a falha precisa dizer POR QUE").toMatch(/namespace/i);
+    expect(d.ok === false && d.reason, "the failure must say WHY").toMatch(/namespace/i);
   });
 
-  it("test_which_nulo_e_falha_honesta", () => {
+  it("test_a_null_which_is_an_honest_failure", () => {
     // O anti-hijack (recusar um `bwrap` que vive dentro do workspace) mora DENTRO de
-    // `realProbes.which`, não em `detectBwrap` — injetar um probe falso o contornaria, e um teste que
-    // o "verifica" por probe injetado estaria medindo a própria fixture.
+    // `realProbes.which`, not in `detectBwrap` — injecting a fake probe would bypass it, and a test
+    // that "verifies" it via an injected probe would be measuring its own fixture.
     //
-    // CORREÇÃO (review do M75): a versão anterior deste comentário dizia que o anti-hijack era
-    // "coberto pelos 18 testes de bwrap.test.ts". Falso nos dois sentidos — aqueles testes tinham
-    // sido deletados (hoje estão em `tests/bwrap-argv.test.ts`), e mesmo os originais NUNCA o
-    // cobriram (`grep realProbes` no arquivo original: zero). A lacuna é PRÉ-EXISTENTE e segue
-    // aberta; afirmar cobertura inexistente é pior que a lacuna, porque faz ninguém procurar.
-    // Aqui o que se mede é o contrato de `detectBwrap` diante de um `which` que não resolveu.
+    // CORRECTION (M75 review): an earlier version of this comment said the anti-hijack was
+    // "covered by bwrap.test.ts's 18 tests". False both ways — those tests had
+    // been deleted (they live in `tests/bwrap-argv.test.ts` today), and even the originals NEVER
+    // covered it (`grep realProbes` in the original file: zero). The gap is PRE-EXISTING and still
+    // open; claiming coverage that does not exist is worse than the gap, because it stops anyone
+    // from looking. What is measured here is `detectBwrap`'s contract facing a `which` that did not
+    // resolve.
     const d = detectBwrap(probesFalsos({ which: () => null }));
     expect(d.ok).toBe(false);
     expect(d.ok === false && d.reason).toMatch(/PATH|found/i);
@@ -104,13 +107,13 @@ describe("M75 T2.1 — buildSeccompFilter promovido", () => {
   it("test_gera_programa_cbpf_como_buffer_sem_dependencia_nativa", () => {
     const f = buildSeccompFilter({ networkRestricted: true });
     expect(Buffer.isBuffer(f)).toBe(true);
-    // Cada instrução cBPF ocupa 8 bytes; um programa válido é múltiplo de 8 e não é vazio.
+    // Each cBPF instruction takes 8 bytes; a valid program is a multiple of 8 and is not empty.
     expect(f.length).toBeGreaterThan(0);
-    expect(f.length % 8, "programa cBPF deve ser múltiplo de 8 bytes").toBe(0);
+    expect(f.length % 8, "a cBPF program must be a multiple of 8 bytes").toBe(0);
   });
 
-  it("test_dois_builds_com_a_mesma_entrada_sao_byte_identicos", () => {
-    // Determinismo é o que permite escrever o programa UMA vez por processo e reusar o caminho.
+  it("test_two_builds_with_the_same_input_are_byte_identical", () => {
+    // Determinism is what allows writing the program ONCE per process and reusing the path.
     expect(
       buildSeccompFilter({ networkRestricted: true }).equals(
         buildSeccompFilter({ networkRestricted: true }),
@@ -119,14 +122,14 @@ describe("M75 T2.1 — buildSeccompFilter promovido", () => {
   });
 });
 
-describe("M75 T2.1 — o memo de detecção", () => {
+describe("M75 T2.1 — the detection memo", () => {
   it("test_memo_e_concurrent_test_com_atomic_counter_invariant", async () => {
-    // Estado de módulo compartilhado (`let memo`) é sinal de concorrência. O invariante é contagem de
-    // CAUSA — quantas sondagens reais aconteceram — e não tempo de parede: não pisca sob carga.
-    const { detectBwrapMemoizado } = await import("../src/sandbox/index.js");
+    // Shared module state (`let memo`) is a concurrency signal. The invariant counts CAUSE — how
+    // many real probes happened — and not wall-clock time: it does not flake under load.
+    const { detectBwrapMemoized } = await import("../src/sandbox/index.js");
     resetBwrapMemo();
-    // O contador tem de ser MEU: `realProbeCount()` só conta sondagens de `realProbes`, e este teste
-    // não toca o host. Contar as chamadas do probe injetado é o que mede o memo de fato.
+    // The counter has to be MINE: `realProbeCount()` only counts `realProbes` probes, and this test
+    // does not touch the host. Counting the injected probe's calls is what actually measures the memo.
     let sondagens = 0;
     const contando = probesFalsos({
       which: () => {
@@ -134,10 +137,10 @@ describe("M75 T2.1 — o memo de detecção", () => {
         return "/usr/bin/bwrap";
       },
     });
-    await Promise.all(Array.from({ length: 20 }, async () => detectBwrapMemoizado(contando)));
+    await Promise.all(Array.from({ length: 20 }, async () => detectBwrapMemoized(contando)));
     expect(
       sondagens,
-      "20 chamadas concorrentes sondaram mais de uma vez — o memo não serializou",
+      "20 concurrent calls probed more than once — the memo did not serialize",
     ).toBe(1);
   });
 });

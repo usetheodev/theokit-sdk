@@ -1,5 +1,5 @@
 /**
- * @theokit/sdk/server/auth — orchestrator types (Caminho C Hybrid per G11)
+ * @theokit/sdk/server/auth — orchestrator types (Path C Hybrid per G11)
  *
  * Plan: g11-auth-architecture-implementation v1.4 (sha256 4d381020...)
  * Blueprint: g11-auth-architecture-decision v1.1 (SHIPPABLE 97.9)
@@ -60,8 +60,8 @@ export interface AuthProvider<TProfile, TName extends string = string> {
 }
 
 /**
- * `defineAuth(opts)` configuration shape — Caminho C (Hybrid).
- * `providers` optional: empty = Caminho A escape hatch (manual signIn only).
+ * `defineAuth(opts)` configuration shape — Path C (Hybrid).
+ * `providers` optional: empty = Path A escape hatch (manual signIn only).
  * `onSignIn` invoked after provider callback success; returns TSession to persist.
  */
 export interface DefineAuthOptions<TSession> {
@@ -77,7 +77,7 @@ export interface DefineAuthOptions<TSession> {
  * - startSignIn: returns Response.redirect to provider authorization URL with state cookie
  * - finishSignIn: handles provider callback; verifies state; calls onSignIn; rotates session ID
  *   (OWASP A07:2021 per EC-10); creates session cookie; clears transaction cookie
- * - signIn: Caminho A escape hatch — skip OAuth flow; directly persist session from external profile
+ * - signIn: Path A escape hatch — skip OAuth flow; directly persist session from external profile
  * - signOut: destroys session cookie + invokes onSignOut callback
  * - getSession: read-only passthrough to session.getSession
  */

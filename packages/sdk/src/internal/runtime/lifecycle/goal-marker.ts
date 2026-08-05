@@ -1,13 +1,13 @@
 /**
- * O marcador de continuação do goal-loop — num módulo FOLHA, de propósito.
+ * The goal-loop's continuation marker — in a LEAF module, on purpose.
  *
- * Ele vivia em `goal-loop.ts` e era importado por `run-until.ts`, que o `goal-loop` por sua vez
- * importa de volta. O ciclo estava quebrado em runtime (a volta é `import type` + `await import()`
- * dinâmico), mas o detector de ciclos conta a aresta dinâmica — e contar import dinâmico como ciclo
- * torna o gate impossível de satisfazer sem abandonar a técnica canônica de quebrar ciclos.
+ * It lived in `goal-loop.ts` and was imported by `run-until.ts`, which `goal-loop` in turn
+ * imports back. The cycle was broken at runtime (the return edge is `import type` + a dynamic
+ * `await import()`), but the cycle detector counts the dynamic edge — and counting a dynamic import as a cycle
+ * makes the gate impossible to satisfy without abandoning the canonical cycle-breaking technique.
  *
- * Uma constante compartilhada por dois módulos que se conhecem é o caso-escola de extração para
- * folha: ninguém precisa importar o outro para conhecê-la. Some o ciclo em QUALQUER detector, sem
- * política de ferramenta e sem mudar uma linha de comportamento.
+ * A constant shared by two modules that know each other is the textbook case for extraction into a
+ * leaf: neither needs to import the other to know it. The cycle disappears under ANY detector, with no
+ * tool policy and without changing a line of behavior.
  */
 export const GOAL_CONTINUATION_MARKER = "[[theokit:goal-continuation]]";

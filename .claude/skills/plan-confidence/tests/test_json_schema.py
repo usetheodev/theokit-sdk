@@ -92,7 +92,7 @@ def test_schema_rejects_invalid_verdict() -> None:
     bad = {
         "plan_slug": "x", "plan_path": "x", "plan_version": "1",
         "scored_at": "2026-05-17T00:00:00+00:00",
-        "completude_score": 50, "risco_estrutural_score": 50,
+        "completeness_score": 50, "structural_risk_score": 50,
         "active_dimensions": ["completeness"],
         "weight_normalization_factor": 1.0,
         "weighted_avg": 50, "hard_caps_triggered": [],
@@ -115,8 +115,8 @@ def test_schema_rejects_out_of_range_score() -> None:
     bad = {
         "plan_slug": "x", "plan_path": "x", "plan_version": "1",
         "scored_at": "2026-05-17T00:00:00+00:00",
-        "completude_score": 150,  # out of range
-        "risco_estrutural_score": 50,
+        "completeness_score": 150,  # out of range
+        "structural_risk_score": 50,
         "active_dimensions": ["completeness"],
         "weight_normalization_factor": 1.0,
         "weighted_avg": 100, "hard_caps_triggered": [],

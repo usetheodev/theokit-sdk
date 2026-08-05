@@ -36,6 +36,7 @@
  * @internal
  */
 
+import type { MemoryEmbeddingProviderAdapter } from "./embedding-adapter.js";
 import { createOpenAiCompatibleRuntime } from "./openai-compatible.js";
 
 // Iter 74 rollup-plugin-dts workaround: see openai-embedding.ts header.
@@ -62,7 +63,7 @@ const DIMENSION_BY_MODEL: Record<string, number> = {
   "mxbai-embed-large:latest": 1024,
 };
 
-export const ollamaMemoryEmbeddingProviderAdapter = {
+export const ollamaMemoryEmbeddingProviderAdapter: MemoryEmbeddingProviderAdapter = {
   id: "ollama",
   defaultModel: DEFAULT_OLLAMA_EMBEDDING_MODEL,
   transport: "local" as const,

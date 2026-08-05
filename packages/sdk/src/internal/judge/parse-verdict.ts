@@ -14,7 +14,7 @@ import type { JudgeResult } from "../../types/goal-events.js";
 const DONE_PREFIX = "DONE:";
 const CONTINUE_PREFIX = "CONTINUE:";
 const SKIPPED_PREFIX = "SKIPPED:";
-/** M80 — o judge agora pode declarar impossibilidade, não só "continue". */
+/** M80 — the judge can now declare impossibility, not just "continue". */
 const BLOCKED_PREFIX = "BLOCKED:";
 
 export function parseVerdict(text: string): JudgeResult {

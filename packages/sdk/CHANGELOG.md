@@ -1,5 +1,290 @@
 # Changelog
 
+## 4.39.0
+
+### Minor Changes
+
+- 5143651: New `Agent.describe(agentId)` — read-only introspection of a registered agent (theokit#123).
+
+  `Agent.list()` / `Agent.get()` enumerate agents and `agent.skills.list()` covers skills, but a
+  registered agent's tools and subagents were reachable only through the internal registry record. A
+  reflection endpoint — theokit-studio's `theokit dev` — had no way to report them, so it degraded to
+  `tools: []` / `workflows: []` with an `unavailable_reason`.
+
+  `describe` returns `{ agentId, runtime, model?, tools, subagents }`. Tools carry `name`,
+  `description` and the `inputSchema` the model is sent; subagents carry `name`, `description`, their
+  `model` and their tool whitelist.
+
+  It is a projection, not the options object: tool handlers and subagent prompts are stripped. A
+  handler is an executable that cannot cross a process boundary, and a prompt is the agent's
+  instructions rather than its signature — a reflection endpoint serializes whatever it is handed.
+
+  `tools` and `subagents` are always arrays, so a caller can distinguish "this agent has none" from
+  "the SDK did not say". An unknown agent throws `UnknownAgentError` rather than returning an empty
+  description, which would be indistinguishable from a real agent with nothing registered.
+
+  `AgentDescription`, `AgentToolDescription` and `AgentSubagentDescription` are exported from the
+  package barrel.
+
+- ae27def: Every SDK diagnostic now goes through the interceptable channel (theokit#147).
+
+  `setDiagnosticsSink` let a TUI host keep the SDK's warnings out of its alternate screen, but the
+  original migration only covered `internal/`. Six sites in the package's own modules — `batch.ts`,
+  `event-bus.ts`, `compaction.ts` and the Workflow branch step — still wrote straight to
+  `process.stderr` / `console.warn`, so a host could install a sink and still have its frame corrupted
+  by a batch run or a failed summarizer. Those are routed through the channel, and a lint gate now
+  fails the build if a new direct write appears in `src/`.
+
+  The remaining allowlisted writers are seams whose destination the caller already chooses
+  (`opts.warn`, `opts.logger`, the Workflow logger), each listed with its reason.
+
+  `setDiagnosticsSink` is now exported from the package barrel. It previously existed only on an
+  internal path no consumer could import, so the channel these six fixes route into could not actually
+  be installed by a host — the reported blocker survived a green suite.
+
+  **Diagnostics are now silent by default.** With no sink installed the SDK writes nothing to the
+  terminal — a library does not own the host's screen. Installing a sink is how you see them:
+
+  ```ts
+  import { setDiagnosticsSink } from "@theokit/sdk";
+  setDiagnosticsSink((message) => myLogger.warn(message));
+  ```
+
+  This is a behaviour change for anyone who relied on reading SDK warnings from stderr. Restore the
+  old behaviour in one line: `setDiagnosticsSink((m) => process.stderr.write(m))`.
+
+- 0bd082f: Three advertised embedding providers now actually work (theokit#159).
+
+  `azure-openai`, `cohere` and `gemini` were in the catalog and rejected on every call. The shared
+  runtime spoke exactly one wire — `Authorization: Bearer`, a `{ model, input }` body, a
+  `{ data: [{ embedding }] }` response — and none of the three speak it:
+
+  - **Azure** authenticates an API key with the `api-key` header (`Bearer` carries an Entra ID token,
+    not the key from `AZURE_OPENAI_API_KEY`), and the deployment is already in the URL path, so
+    `model` does not belong in the body.
+  - **Cohere**'s `/v2/embed` names the payload `texts`, requires `input_type`, and answers
+    `{ embeddings: { float } }`.
+  - **Gemini**'s OpenAI-compatible surface is at `/v1beta/openai/embeddings`, not `/v1/embeddings`.
+
+  The runtime gained three optional per-provider hooks — auth headers, request body, response reader —
+  whose defaults are exactly the previous behaviour, so the seven providers that were already correct
+  are untouched. Each divergence is asserted by a test that records the real request.
+
+  Advertising a provider that cannot work is worse than not advertising it; that is what this closes.
+
+- 108679d: A resumed session can be re-rendered as tool cards, not prose (theokit#146).
+
+  The transcript always replayed correctly to the model, but the only projection a host could read
+  folded a tool call to the literal string `[tool call] NAME` — no call id, no arguments — and a
+  result to `[tool result] <body>`, with nothing tying the two together. A card-rendering TUI got flat
+  text on resume, which made cross-restart resume worth less than starting fresh.
+
+  Two additions, both additive:
+
+  - `SessionMessage` gains an optional `parts` array carrying `text`, `tool_use` (id, name, input) and
+    `tool_result` (toolUseId, content, isError). `text` is byte-identical to before, so every existing
+    reader — including the runtime's own prior-context replay — is untouched.
+  - New `Agent.transcript(agentId)` returns a local agent's persisted turns with both projections.
+    Read-only; it opens the session store and walks the transcript, appending nothing. Throws
+    `UnknownAgentError` for an unknown or non-local agent rather than returning an empty list, so a
+    typo cannot look like an empty session.
+
+  `SessionMessage` and `SessionMessagePart` are exported from the package barrel.
+
+- 1e2a5e3: Extended-thinking sessions can be resumed (theokit#122).
+
+  Anthropic signs each `thinking` block and verifies that signature when the block is replayed on the
+  next turn. The SDK captured none of it, so a session that used extended thinking could be persisted
+  and then never resumed — the next request failed with `400 "thinking blocks cannot be modified"`.
+
+  The signature was dropped at four independent points, and fixing any one alone would have changed
+  nothing:
+
+  - the Anthropic adapter never requested extended thinking, so no signature was ever issued;
+  - it did not parse `thinking` blocks, so neither the text nor the signature left the stream;
+  - the agent loop emitted a thinking event and dropped it — nothing ever produced a `thinkingMessage`
+    step, so no thinking reached the transcript at all;
+  - the transcript reader discarded `thinking` blocks, so a resumed conversation lost them.
+
+  All four are closed, and the block now round-trips from the provider through persistence and back
+  onto the wire unchanged. Thinking and its answer text stay in one assistant message, in that order,
+  as Anthropic requires.
+
+  A thinking block with no signature — history recorded before this shipped, or reasoning text from an
+  OpenAI-compatible provider, which is never signed — is kept in the transcript but not replayed to
+  Anthropic. Sending it unsigned would fail the same validation and break the whole turn rather than
+  lose one block of context.
+
+  `SDKThinkingMessage` and the conversation `ThinkingMessage` gain an optional `signature`.
+
+- c3f69bc: New `workflow.describe()` — a committed workflow can report its own shape (theokit#161).
+
+  Returns `{ name, steps }`, each step carrying its `id` and `kind` and recursing into `parallel`,
+  `branch`, `foreach` and `dowhile`. Executables a step holds — predicates, conditions, agents, prompt
+  templates — are omitted: they cannot cross a process boundary and say nothing about shape.
+
+  There is deliberately **no** `Workflow.list()`. A workflow is a value the caller constructs and
+  holds, so the caller already knows which ones exist; what it lacked was a way to describe one. A
+  registry would have added process-global state that nothing releases in order to re-answer a
+  question the host can answer itself, and coupling workflows to `AgentOptions` would tie together two
+  things that are independent today — a workflow runs perfectly well without an agent.
+
+  A reflection endpoint maps over its own workflows and calls this.
+
+### Patch Changes
+
+- a4a9920: `@theokit/sdk-memory` now uses the SDK's embedding runtime instead of its own copy (theokit#160).
+
+  The two packages each carried a full copy of `createOpenAiCompatibleRuntime`, and the satellite's
+  catalog replaces the SDK's at runtime when installed — so the copy that ran was not the copy most
+  people read. That duplication is what produced the two-month adapter gap fixed in theokit#128, and
+  every fix since had to be applied to both files by hand.
+
+  There is now one implementation, imported from `@theokit/sdk/internal/memory-adapters` — a
+  semver-exempt sub-path in the same family as `internal/persistence` and `internal/security`, which
+  exist for exactly this reason.
+
+  **Behaviour change for `@theokit/sdk-memory` consumers:** embedding batches now run with bounded
+  parallelism instead of serially, and the embedding cache is process-wide instead of per-adapter.
+  Both are what the SDK already did; the satellite had silently missed both improvements.
+
+- 50ffa6c: Removed the dead `tool_use` and `stop` variants from the internal `LlmEvent` union (theokit#144).
+
+  They declared a live, provider-level tool channel that never existed: only two providers yielded
+  them, the agent loop's collector never read them, and the tool calls they carried duplicated
+  `LlmFinish.toolCalls`. A declaration without a consumer is worse than an omission — it cost
+  `@theokit/agents` a workaround that held every text delta until the stream drained, which broke
+  live token streaming on text-only turns (issue #47).
+
+  The canonical live tool channel is `onDelta`: the `tool-call-started` / `tool-call-completed`
+  `InteractionUpdate`s emitted between LLM rounds, uniform across providers and correlated by
+  `callId`. `Run.events()` merges them with the structural messages into one ordered timeline. This
+  is now documented on the `LlmEvent` type itself.
+
+  Internal type only — no public API change.
+
+- 0308f9f: `@theokit/sdk-memory` now serves every embedding provider the SDK advertises (theokit#128).
+
+  `azure-openai`, `cohere`, `jina` and `gemini` landed in the SDK core catalog in June 2026 and the
+  satellite never picked them up. That was not cosmetic drift: when `@theokit/sdk-memory` is
+  installed, its catalog _replaces_ core's in the routing path, while `Theokit.inspect.embeddingAdapters()`
+  kept listing all ten — so asking for one of the four got an "unknown provider" error from a provider
+  the SDK itself had just advertised. A cross-package test now fails the build if core ever advertises
+  a provider the peer cannot serve.
+
+  Also fixes the Azure OpenAI endpoint in both packages. Azure addresses the deployment in the URL
+  path (`/openai/deployments/{deployment}/embeddings`), and the placeholder was never substituted —
+  every Azure embedding request went to a URL containing the literal text `{model}` and could only 404. Providers with a static path are unaffected.
+
+- a15d80f: `mcpLifecycle: 'session'` now actually keeps the MCP server alive between turns (theokit#155).
+
+  The option pooled the client _object_ but not the child _process_: every run's `finally` closed
+  every client it had been handed, so the previous turn SIGTERM'd the server and the next turn's
+  `initialize()` spawned a new one. Measured at 146 ms +/- 28 (n=12) of spawn + handshake per turn
+  for one stdio server, paid identically under `'run'` and `'session'` — the knob bought 0 ms.
+
+  Two changes, both needed:
+
+  - A run now closes only the MCP clients it owns. Under `'session'` the pool owns them, and they are
+    released by `dispose()` (or by the idle reaper), not by the turn that borrowed them.
+  - `initialize()` is a no-op while the child is live, so the per-turn handshake no longer replaces a
+    healthy process (which would have orphaned it and paid the spawn cost anyway). The reconnect path
+    is unaffected — it re-spawns directly, exactly as before.
+
+  The regression tests count child PIDs rather than client objects; counting objects is what let the
+  defect ship green.
+
+- 32a82c4: Subagent credential inheritance no longer rides a property on the tool object (theokit#148).
+
+  A delegated child inherited its parent's API key through a symbol-keyed slot installed on the
+  subagent tool. That contract assumed the object would reach the dispatcher with an extra property
+  intact — and it broke twice: once because the bundler inlined two copies of the module that
+  disagreed on the key (#142/#143), and once because any layer rebuilding the tool from its known
+  fields simply dropped it. `@theokit/agents` hit the second and had to add an explicit symbol-copy
+  loop to compensate; the SDK's own tool assembly performs the same rebuild.
+
+  Credentials now travel on the run's async scope, so they reach the handler no matter what the tool
+  object looks like by the time it is dispatched. Consumers that normalize, wrap, or re-create SDK
+  tools no longer need to preserve hidden properties — a delegated child gets the parent's key either
+  way. The band-aid symbol-copy in `@theokit/agents` becomes unnecessary once the SDK
+  carrying this change is the resolved version. Against an OLDER SDK the copy loop is still required:
+  the pre-fix runtime reads the credential sink off the tool object, so a band-aid-free
+  `@theokit/agents` resolving an SDK below this release reproduces the very credential loss this issue
+  reports. `@theokit/agents` declares a caret range on `@theokit/sdk`, so that pairing is a normal
+  install rather than a hypothetical — raise the dependency floor in the same release that removes
+  the loop.
+
+  Also fixes a latent defect the old design could not avoid: credentials were stored per tool
+  instance, so one subagent tool shared by two concurrently running agents got last-writer-wins. Each
+  run now reads its own.
+
+- f760c57: Fixes four defects in the extended-thinking support shipped moments earlier (theokit#122).
+
+  A `/review` of that change found it created, on the most common thinking shape, the exact failure it
+  was meant to remove. A round that reasons and then calls a tool **without preamble text** never
+  consumed its thinking block: the block survived onto the next round and was persisted against the
+  wrong text, carrying a signature that no longer matched its body. And the replayed assistant turn
+  never carried the block at all, so the round after a thinking + tool_use turn reached the provider
+  missing it.
+
+  The block is now a value on the round's own output rather than state on the loop context, which
+  makes that class of leak unrepresentable, and it is recorded on whichever path closes the round —
+  assistant text or tool call. The replayed assistant message leads with it, as the provider requires.
+
+  Two smaller corrections in the same area: redacting the thinking text now drops the signature
+  instead of persisting a pair that cannot verify (the block survives as display-only history, which
+  loses one block of context rather than the whole turn), and the provider's own reported block is now
+  what the loop consumes — previously it was produced and read by nobody, the same dead-channel shape
+  this release deletes elsewhere.
+
+## 4.37.2
+
+### Patch Changes
+
+- MCP servers that reply with an event stream deliver their tools again: the response is now read in the format the client itself asked for, instead of failing to interpret it.
+
+## 4.37.1
+
+### Patch Changes
+
+- MCP servers on the **stateful** HTTP transport serve their tools again: the client now stores the session the server issues at handshake and replays it on subsequent calls, and declares both media types the specification asks for.
+
+## 4.37.0
+
+### Minor Changes
+
+- 2df1de1: M107 — three additive persistence/registry primitives, plus one concurrency fix.
+
+  - `atomicWriteJson` (and `replaceFileAtomic`) accept `{ mode?, exclusive? }`. Omitting them keeps
+    today's behaviour byte for byte, including the mode on disk: the mode passed to `open` is filtered
+    by the `umask`, so the file is `0o600` under `umask 002`/`022` and `0o400` under `umask 0200`, and
+    that is preserved. When you DO pass `mode`, it is reasserted on the descriptor before the rename,
+    so the `umask` cannot silently drop a bit you asked for. `exclusive: true` creates the temporary
+    with `wx`, turning a leftover temporary into `EEXIST` instead of a silent truncation.
+
+  - **Behaviour change on disk:** `forkTranscript` now creates the destination with mode `0o600` by
+    default (`mode?` overrides it). Previously no mode was passed at all, so a forked transcript was
+    born `0o666 & ~umask` — measured `0o664` (group-writable) on a `umask 002` machine and `0o644` on
+    `umask 022`. A transcript holds the conversation, so this is a privacy fix, not a tidy-up. It is
+    announced as a behaviour change rather than a silent patch because the change is visible to
+    anything that read those files as another user or group. The direction is restrictive only.
+
+  - `Agent.list` now READS the `cwd` its type has always advertised. `Agent.list({ runtime: "local",
+cwd })` previously compiled and was silently ignored — it hydrated the process directory and
+    returned every agent in memory. Listing is now scoped to the requested workspace, using the same
+    "which project owns this entry" rule the persistence layer uses to route it to disk (an entry with
+    no `cwd` belongs to the process directory). Calls without `cwd` keep listing the process
+    directory. `limit`/`cursor` are still not implemented: a `limit` without a `nextCursor` would be
+    silent truncation.
+
+  - **Fix:** two concurrent first-time hydrations of the same workspace could make the second caller
+    see an empty registry. The hydration guard marked the directory as loaded before awaiting the disk
+    read, so the second call returned early. It now awaits the same in-flight read, and a failed
+    hydration is no longer memoised as successful.
+
+  `AtomicWriteJsonOptions` gained optional fields and `replaceFileAtomic` gained an optional third
+  parameter; both are additive and every existing call site compiles unchanged.
+
 ## 4.36.0
 
 ### Minor Changes
@@ -10,139 +295,139 @@
 
 ### Minor Changes
 
-- Publica uma consulta que responde "esta sessão tem escritor?" sem tomar a trava.
+- Publishes a query answering "does this session have a writer?" without taking the lock.
 
-  Perguntar tomando cria a disputa que se queria detectar: dois processos consultando uma sessão **livre** ao mesmo tempo faziam um deles perder, e quem consome derivava uma sessão nova sem motivo. A consulta é uma foto, não uma garantia — quem precisa da garantia continua tomando a trava; quem precisa decidir um identificador antes de abrir qualquer coisa usa a consulta e trata a corrida onde ela aparece.
+  Asking by taking creates the very contention it meant to detect: two processes querying a **free** session at the same time made one of them lose, and the consumer derived a new session for no reason. The query is a snapshot, not a guarantee — callers needing the guarantee keep taking the lock; callers needing to decide an identifier before opening anything use the query and handle the race where it shows up.
 
 ## 4.34.2
 
 ### Patch Changes
 
-- Dois refinamentos na trava de sessão.
+- Two refinements to the session lock.
 
-  - **Uma abertura que falha solta apenas a trava do próprio agente.** Um armazenamento injetado pelo consumidor pode servir vários agentes, e a versão anterior liberava todas as travas dele — um agente que falha ao abrir derrubava a proteção de outro que seguia escrevendo.
-  - **Um caminho de trava que seja um diretório volta a ser recuperável.** Nenhum processo desta biblioteca cria um, e tratá-lo como "dono desconhecido" bloqueava a sessão para sempre — o oposto do que a trava existe para garantir.
+  - **An open that fails releases only its own agent's lock.** A store injected by the consumer may serve several agents, and the previous version released all of its locks — an agent failing to open tore down the protection of another that was still writing.
+  - **A lock path that is a directory becomes recoverable again.** No process in this library creates one, and treating it as an "unknown owner" locked the session out forever — the opposite of what the lock exists to guarantee.
 
 ## 4.34.1
 
 ### Patch Changes
 
-- Corrige três formas de a trava de sessão ficar presa ou ser ignorada.
+- Fixes three ways the session lock could get stuck or be ignored.
 
-  - **Uma abertura de sessão que falha depois de tomar a trava agora a solta.** O dono ficava sendo o próprio processo — vivo, mesma máquina — e a trava nunca mais era considerada obsoleta: a sessão ficava bloqueada pelo tempo de vida do processo, sem crash e sem caminho de recuperação. É a mesma situação que a trava existe para eliminar, entrando por outra porta.
-  - **Uma trava que existe mas não pode ser lida deixa de ser tratada como inexistente.** Não saber quem é o dono não é o mesmo que não haver dono: a versão anterior seguia em frente sem proteção, com outro escritor ativo na mesma sessão. Em diretório compartilhado isso era o caminho comum, porque a permissão restrita torna a trava alheia ilegível por desenho.
-  - **A permissão restrita passa a valer também para uma trava herdada de versão anterior**, que antes mantinha a permissão antiga depois de ser reclamada.
+  - **A session open that fails after taking the lock now releases it.** The owner ended up being this very process — alive, same machine — and the lock was never considered stale again: the session stayed blocked for the process's lifetime, with no crash and no recovery path. It is the same situation the lock exists to eliminate, entering through another door.
+  - **A lock that exists but cannot be read stops being treated as absent.** Not knowing who the owner is differs from there being no owner: the previous version proceeded without protection, with another writer active on the same session. In a shared directory this was the common path, because the restricted permission makes another user's lock unreadable by design.
+  - **The restricted permission now also applies to a lock inherited from an earlier version**, which previously kept the old permission after being reclaimed.
 
 ## 4.34.0
 
 ### Minor Changes
 
-- O lease de escritor passa a ser tomado na abertura da sessão, não na primeira gravação.
+- The writer lease is now taken when the session opens, not on the first write.
 
-  **Corrige uma perda silenciosa de turno.** A gravação de sessão é best-effort por contrato — uma rejeição é registrada em stderr, nunca lançada a quem chamou. Tomar o lease ali fazia o erro de "sessão ocupada" ser engolido: em vez de dois escritores intercalarem linhas, o perdedor **perdia o turno inteiro**, sem nada em disco e sem como reagir. Na abertura, o erro chega a quem pode decidir — e a decisão que ele prescreve é criar uma sessão derivada.
+  **Fixes a silent turn loss.** Session writing is best-effort by contract — a rejection is logged to stderr, never thrown to the caller. Taking the lease there made the "session busy" error get swallowed: instead of two writers interleaving lines, the loser **lost the whole turn**, with nothing on disk and no way to react. At open time the error reaches someone who can decide — and the decision it prescribes is to create a derived session.
 
-  Uma falha de I/O que **não** seja disputa (diretório sem permissão, disco cheio) não derruba mais a abertura do agente: não há segundo escritor a evitar, e a gravação já era best-effort.
+  An I/O failure that is **not** contention (an unwritable directory, a full disk) no longer fails the agent's open: there is no second writer to avoid, and the write was already best-effort.
 
   ### Corrigido
 
-  - **As caches de sessão em memória voltam a ser apagadas de fato.** Três dos quatro mapas são endereçados por uma chave composta e estavam sendo removidos por outra: na prática, nunca eram apagados. E o descarte por limite deixava a marca de hidratação para trás, fazendo uma sessão descartada voltar **vazia** em vez de recarregar do disco.
-  - **O arquivo de trava nasce restrito ao dono.** Com a permissão anterior, outro usuário do mesmo grupo podia sobrescrevê-lo e forjar a posse da sessão — a partir daí o dono legítimo é quem passava a ser recusado.
-  - **O limite máximo de janela de contexto declarada subiu para 10M.** O valor anterior recusava a janela real de um modelo publicado — que chega exatamente pelo provider sem catálogo, isto é, o caso que o limite existe para cobrir. Perder 80% da janela em silêncio é pior que o excesso que o limite evita.
+  - **The in-memory session caches are actually erased again.** Three of the four maps are addressed by a composite key and were being removed by a different one: in practice, they were never erased. And eviction by ceiling left the hydration marker behind, making an evicted session come back **empty** instead of reloading from disk.
+  - **The lock file is born restricted to its owner.** With the previous permission, another user in the same group could overwrite it and forge ownership of the session — from then on it was the legitimate owner who got refused.
+  - **The maximum declared context window rose to 10M.** The previous value refused the real window of a published model — which arrives precisely via the catalog-less provider, that is, the case the limit exists to cover. Silently losing 80% of the window is worse than the excess the limit prevents.
 
 ## 4.33.1
 
 ### Patch Changes
 
-- Corrige um lease de sessão que podia ser tomado de um processo vivo.
+- Fixes a session lease that could be taken from a live process.
 
-  O registro de dono é gravado na aquisição e não é renovado a cada escrita, e a versão anterior considerava reclamável qualquer lock mais velho que a janela de heartbeat — inclusive no mesmo host. Na prática isso significava que **toda** sessão que durasse mais que a janela ficava disponível para um segundo escritor, que é exatamente o que o lease existe para impedir.
+  The owner record is written at acquisition and is not renewed on each write, and the previous version considered any lock older than the heartbeat window reclaimable — including on the same host. In practice that meant **every** session lasting longer than the window became available to a second writer, which is exactly what the lease exists to prevent.
 
-  No mesmo host a pergunta "o dono ainda existe?" tem resposta exata, e a idade não acrescenta nada a ela. A janela continua valendo entre máquinas diferentes, onde um número de processo não significa nada.
+  On the same host the question "does the owner still exist?" has an exact answer, and age adds nothing to it. The window still applies between different machines, where a process number means nothing.
 
 ## 4.33.0
 
 ### Minor Changes
 
-- M95 — o escritor único passa a existir de fato, e as caches de sessão ganham dono.
+- M95 — the single writer actually starts existing, and the session caches gain an owner.
 
-  - **A garantia de escritor único está ligada.** Ela existia como função desde a versão que a introduziu e não tinha **nenhum** chamador: o transcript nunca foi protegido. Agora o store a adquire na primeira gravação e a solta ao encerrar.
-  - **Um processo que morreu deixa de trancar a sessão para sempre.** O lock não registrava dono, então uma interface encerrada abruptamente bloqueava o usuário fora da própria sessão sem caminho de recuperação. O lock passa a gravar `{pid, hostname, mtime}`, e um dono morto — ou um lock mais velho que a janela de heartbeat — cede o lugar. Entre máquinas diferentes só a janela vale, porque um número de processo não significa nada fora do host onde nasceu.
-  - **As caches de sessão em memória param de crescer sem limite.** Duas das quatro nunca eram apagadas por sessão; agora todas caem no encerramento do agente, e a conversa em cache respeita um teto com descarte da menos recente.
+  - **The single-writer guarantee is wired.** It had existed as a function since the version that introduced it and had **no** caller at all: the transcript was never protected. The store now acquires it on the first write and releases it on shutdown.
+  - **A dead process no longer locks the session forever.** The lock recorded no owner, so an abruptly terminated interface locked the user out of their own session with no recovery path. The lock now writes `{pid, hostname, mtime}`, and a dead owner — or a lock older than the heartbeat window — yields its place. Between different machines only the window counts, because a process number means nothing outside the host where it was born.
+  - **The in-memory session caches stop growing without bound.** Two of the four were never erased per session; now all of them drop when the agent shuts down, and the cached conversation respects a ceiling with least-recently-used eviction.
 
   ### Corrigido
 
-  - **Uma janela de contexto declarada absurdamente alta volta a ser limitada mesmo sem entrada de catálogo.** O limite só existia quando havia catálogo — e a razão de ser da declaração é justamente o modelo que não tem. Um zero a mais na configuração fazia o agente nunca compactar até o provider recusar o turno.
-  - **A resolução de provider a partir do id de modelo passa a usar o parser canônico**, então aliases, maiúsculas e espaços resolvem como em todo o resto do SDK. A versão anterior refazia a separação à mão e não reconhecia sete formas válidas.
+  - **An absurdly high declared context window is bounded again even without a catalog entry.** The limit only existed when a catalog was present — and the whole reason the declaration exists is the model that has none. One extra zero in the configuration made the agent never compact until the provider refused the turn.
+  - **Provider resolution from a model id now uses the canonical parser**, so aliases, capitalization and spaces resolve as everywhere else in the SDK. The previous version redid the split by hand and did not recognize seven valid forms.
 
 ## 4.32.0
 
 ### Minor Changes
 
-- M94 — publica quatro resolvedores que o SDK já conhecia internamente.
+- M94 — publishes four resolvers the SDK already knew internally.
 
-  - **`transcriptRoot()` é exportado e honra `THEOKIT_HOME`.** Antes, a raiz do transcript ignorava a variável enquanto os stores irmãos a respeitavam: quem a definia tinha o estado partido em dois em silêncio, e as sessões antigas sumiam da listagem sem erro. O fallback continua sendo `~/.theokit` — deliberadamente **não** o resolvedor cwd-ancorado de `paths.ts`, cuja troca moveria o transcript de quem **não** define a variável.
-  - **`ModelSelection.contextWindow` atravessa até o orçamento de compactação.** O resolvedor aceitava um `override` desde a versão anterior e nenhum caminho de produção o passava: um modelo de 400k sem entrada de catálogo era orçado contra o piso de 128k e compactava cerca de três vezes mais do que precisava. Um valor acima do que o catálogo conhece continua sendo limitado.
-  - **`SessionRecord.message` deixa de ser `Record<string, unknown>`.** O novo `TranscriptMessage` descreve a forma que o escritor sempre produziu. **Não** se chama `SessionMessage`: esse nome já existe com forma incompatível, e reaproveitá-lo repetiria uma quebra silenciosa anterior. A leitura do disco segue tolerante — o que muda é o tipo.
-  - **`Provider.forModel(modelId)`** dá um dono único à gramática `provider/modelo`. Um id sem barra devolve `undefined` em vez de casar parcialmente, para que quem chama possa distinguir "modelo não-roteável" de "caminho default".
+  - **`transcriptRoot()` is exported and honors `THEOKIT_HOME`.** Before, the transcript root ignored the variable while its sibling stores respected it: whoever set it had their state silently split in two, and older sessions vanished from the listing with no error. The fallback is still `~/.theokit` — deliberately **not** the cwd-anchored resolver in `paths.ts`, whose adoption would move the transcript of everyone who does **not** set the variable.
+  - **`ModelSelection.contextWindow` reaches the compaction budget.** The resolver had accepted an `override` since the previous version and no production path passed it: a 400k model with no catalog entry was budgeted against the 128k floor and compacted about three times more than it needed to. A value above what the catalog knows is still clamped.
+  - **`SessionRecord.message` stops being `Record<string, unknown>`.** The new `TranscriptMessage` describes the shape the writer has always produced. It is **not** called `SessionMessage`: that name already exists with an incompatible shape, and reusing it would repeat an earlier silent break. Reading from disk stays tolerant — what changes is the type.
+  - **`Provider.forModel(modelId)`** gives the `provider/model` grammar a single owner. An id without a slash returns `undefined` instead of matching partially, so the caller can tell "non-routable model" from "default path".
 
-  Nota de rótulo: `4.31.1` já continha, por engano, parte destas adições — foi publicado como patch quando o correto era minor. Nada quebra (adições são compatíveis), e esta versão declara a superfície corretamente.
+  Labelling note: `4.31.1` already contained some of these additions by mistake — it was published as a patch when a minor was correct. Nothing breaks (additions are compatible), and this version declares the surface correctly.
 
 ## 4.31.1
 
 ### Patch Changes
 
-- M93 — oito correções da revisão adversarial.
+- M93 — eight fixes from adversarial review.
 
-  - **O retry deixa de reexecutar um stream já parcialmente consumido.** Uma falha depois do primeiro evento reexecutava o turno inteiro, duplicando texto e blocos `tool_use` — exatamente no cenário que motivou o retry (429 depois de várias tool calls).
-  - **O transcript volta a nascer `0600`.** A troca para append incremental perdeu o modo explícito e, sob `umask 022`, o arquivo — que carrega conteúdo em trânsito — nascia legível por outros.
-  - **Um append sobre arquivo truncado por crash não engole mais o registro novo.**
-  - **Erro transitório passa a ser decidido pelo status estruturado, não pelo texto da mensagem.** A heurística anterior classificava `ECONNREFUSED …:443` como não-transitório porque a porta casava o padrão de "4xx": o retry ficava desligado justamente para falha de rede.
-  - **Falha de socket passa a ser tipada nos transportes Anthropic e OpenAI.** Sem isso, o erro cru escapava e nenhuma política de retry o reconhecia.
-  - **`CredentialPoolExhaustedError` e circuito aberto deixam de ser reexecutados.** O pool já gastou o próprio orçamento; reexecutar por cima triplicava a espera e desfazia o fail-fast do circuit breaker.
-  - Cancelamento (`AbortError`) nunca é confundido com falha de rede.
+  - **Retry stops re-running an already partially consumed stream.** A failure after the first event retried the whole turn, duplicating text and `tool_use` blocks — precisely in the scenario that motivated the retry (a 429 after several tool calls).
+  - **The transcript is born `0600` again.** The switch to incremental append lost the explicit mode and, under `umask 022`, the file — which carries in-flight content — was born readable by others.
+  - **An append over a crash-truncated file no longer swallows the new record.**
+  - **Transient errors are now decided by structured status, not by message text.** The previous heuristic classified `ECONNREFUSED ...:443` as non-transient because the port matched the "4xx" pattern: retry was switched off precisely for network failures.
+  - **Socket failures are now typed in the Anthropic and OpenAI transports.** Without that, the raw error escaped and no retry policy recognized it.
+  - **`CredentialPoolExhaustedError` and an open circuit stop being retried.** The pool already spent its own budget; retrying on top tripled the wait and undid the circuit breaker's fail-fast.
+  - Cancellation (`AbortError`) is never confused with a network failure.
 
 ## 4.31.0
 
 ### Minor Changes
 
-- d8412b6: **Um erro transitório de provider deixa de destruir o turno inteiro.**
+- d8412b6: **A transient provider error stops destroying the whole turn.**
 
-  Três defeitos que, combinados, tornavam a perda total:
+  Three defects that, combined, made the loss total:
 
-  - **O caminho de chave única não tinha retry.** `buildPoolOrSingle` dava `PoolAwareLlmClient` — circuit
-    breaker, backoff de jitter total, `Retry-After`, rotação — com **≥ 2** chaves, e o transporte **cru**
-    com uma. Um consumidor que resolve exatamente uma credencial (o caso comum) caía sempre no braço sem
-    resiliência. A assimetria não tem justificativa de domínio: **um pool de 1 chave é um pool de tamanho
-    1**. `RetryingLlmClient` é composição — `computeBackoffMs` e `sleepWithAbort` já eram módulos
-    independentes — e aplica-se aos **três** braços (o do pool ambiente também estava de fora).
+  - **The single-key path had no retry.** `buildPoolOrSingle` gave a `PoolAwareLlmClient` — circuit
+    breaker, full-jitter backoff, `Retry-After`, rotation — with **>= 2** keys, and the **raw** transport
+    with one. A consumer resolving exactly one credential (the common case) always landed on the arm without
+    resilience. The asymmetry has no domain justification: **a pool of 1 key is a pool of size
+    1**. `RetryingLlmClient` is composition — `computeBackoffMs` and `sleepWithAbort` were already
+    independent modules — and it applies to all **three** arms (the ambient pool's was also left out).
 
-  - **O caminho de erro não persistia nada.** O `catch` de `run.wait()` chamava `flushSessionWrites()` e
-    retornava; `persistTurnToTranscript` é chamado só depois, e é o único chamador do repositório. O
-    flush drenava um conjunto **vazio**. Agora persiste o **parcial** — user + tool calls concluídas —
-    sem reconstruir o que não aconteceu.
+  - **The error path persisted nothing.** `run.wait()`'s `catch` called `flushSessionWrites()` and
+    returned; `persistTurnToTranscript` is only called later, and it is the repository's only caller. The
+    flush drained an **empty** set. It now persists the **partial** — user + completed tool calls —
+    without reconstructing what did not happen.
 
-  - **`appendRecords` reescrevia o arquivo inteiro por turno.** O(n) de I/O **e** de parse a cada turno,
-    O(n²) por sessão. Correto porque o formato **já é append-only** (o DAG de `parentUuid` não depende da
-    ordem de linha), e `appendJsonl` **já existia** no pacote com um único chamador. O `withFileLock`
-    permanece — é ele que serializa appends concorrentes.
+  - **`appendRecords` rewrote the whole file every turn.** O(n) of I/O **and** of parsing on every turn,
+    O(n^2) per session. Correct because the format **is already append-only** (the `parentUuid` DAG does not depend on
+    line order), and `appendJsonl` **already existed** in the package with a single caller. `withFileLock`
+    stays — it is what serializes concurrent appends.
 
-  Só erro **transitório** reexecuta: 402 (billing) não é, porque cota não se resolve em milissegundos, e
-  401 falha na primeira. Teto de 3 tentativas, ciente de `AbortSignal`.
+  Only a **transient** error is retried: 402 (billing) is not, because a quota does not resolve in milliseconds, and
+  a 401 fails on the first. Ceiling of 3 attempts, `AbortSignal`-aware.
 
 ### Patch Changes
 
 - f76ed61: Corrige o docstring de `Agent.getOrCreate`, que afirmava o oposto do comportamento real.
 
   Ele dizia: _"Disposed agents are NOT auto-deleted from the registry. To force a fresh agent, call
-  `Agent.delete(agentId)` first."_ Medido, é falso — `dispose()` chama `liveAgentRegistry.forget(id)`,
-  então o próximo `getOrCreate(id)` constrói um handle novo, sem `Agent.delete`.
+  `Agent.delete(agentId)` first."_ Measured, that is false — `dispose()` calls `liveAgentRegistry.forget(id)`,
+  so the next `getOrCreate(id)` builds a fresh handle, with no `Agent.delete`.
 
-  A afirmação era sobre o registro **persistente** e foi lida como sendo sobre o **cache vivo**; um
-  consumidor construiu em cima da metade errada. Travado por `tests/m91-getorcreate-apos-dispose.test.ts`.
+  The claim was about the **persistent** registry and was read as being about the **live cache**; a
+  consumer built on the wrong half. Locked by `tests/m91-getorcreate-after-dispose.test.ts`.
 
-  O bullet novo também registra o que continua verdadeiro: `close()` marca o handle descartado **sem**
-  evictar a entrada do cache. É interno e sem chamador hoje; se voltar a ser alcançável, o bullet deixa
-  de valer para aquele caminho — e está escrito para que a próxima pessoa não precise redescobrir.
+  The new bullet also records what remains true: `close()` marks the handle disposed **without**
+  evicting the cache entry. It is internal and has no caller today; if it becomes reachable again, the bullet stops
+  holding for that path — and it is written down so the next person need not rediscover it.
 
 ## 4.17.1
 
@@ -1459,9 +1744,9 @@
 
 - **Forbidden-path blocklist expansion + case-insensitive matching (T5.6 of plan `sdk-superiority-2026-06-07`, DR6 finding #6)**: pre-T5.6 `isForbiddenPath` blocked only `.env*`, `.git/`, `node_modules/`, `.theo/`, and 4 lockfile basenames — and it compared case-sensitively. A coding agent recursing through a developer laptop could happily read `.ssh/id_rsa`, `.aws/credentials`, `.docker/config.json`, `.kube/config`, `.npmrc`, `.netrc`, `.pgpass`, `authorized_keys`, `known_hosts`, OR any `*.pem` / `*.key` file. On macOS/Windows case-insensitive filesystems, `.ENV` and `.SSH/` slipped through entirely because the path string was compared verbatim against lowercase constants. T5.6 (a) lowercases the normalized path BEFORE matching, defeating case-only bypass; (b) adds 3 new pattern sets: `SENSITIVE_FIRST_SEGMENTS` (.ssh / .aws / .docker / .kube / .npmrc / .netrc / .pgpass at top level), `SENSITIVE_BASENAMES` (id_rsa / id_ed25519 / id_ecdsa / id_dsa / authorized_keys / known_hosts / .npmrc / .netrc / .pgpass at any depth), and `SENSITIVE_SUFFIXES` (.pem / .key / .p12 / .pfx at any depth). Implementation matches the `.env.example` allowlist contract — `isForbiddenPath` returns false for safe templates. 28 new tests at `tests/internal/security/path-guard-forbidden-expansion.test.ts`; 102/102 path-guard sink tests GREEN across 6 files. Closes DR6 finding #6.
 
-- **NUL byte + C0/DEL control-char rejection across path-guard primitives (T5.5 of plan `sdk-superiority-2026-06-07`, DR6 finding #5)**: pre-T5.5 `safePathJoin`, `assertNoSymlinkEscape`, and `sanitizeIdentifier` did NOT explicitly reject NUL (`\x00`) or C0/DEL control characters (`\x01-\x1F`, `\x7F`) in path-shaped or identifier-shaped inputs. NUL bytes in path strings have a long history of security bugs: legacy N-API callers historically truncated paths silently at the NUL boundary, letting `foo.txt\x00.env` be opened as `foo.txt` while the upstream caller saw the full string and approved it. C0 control chars are universally invalid in POSIX paths and identifiers. `validateArtifactPath` (T1.4 — line 269) already rejected NUL, so T5.5 propagates the same defense to the sibling primitives so a caller can never bypass NUL/control checks by choosing a different entrypoint. New internal helper `rejectNulAndControlChars(input, role)` centralizes the check; wired into `safePathJoin` (for `base` + each `part`), `assertNoSymlinkEscape` (for `path` + `base`), and `sanitizeIdentifier`. The latter previously threw a generic "invalid characters" message via the alphanumeric-only `IDENTIFIER_PATTERN`; T5.5 routes NUL through the same helper so operators see a precise `<nul-byte>` / `<control-char-0x..>` diagnostic instead — making prompt-injection traces legible per Inquebrável Rule 3. 11 new tests at `tests/internal/security/path-guard-nul-rejection.test.ts` + 1 pre-existing assertion at `tests/internal/security/path-guard.test.ts:249` updated to match the new specific NUL message. 68/68 path-guard sink tests GREEN across 4 files (path-guard unit / property / public-api / agent-session-store).
+- **NUL byte + C0/DEL control-char rejection across path-guard primitives (T5.5 of plan `sdk-superiority-2026-06-07`, DR6 finding #5)**: pre-T5.5 `safePathJoin`, `assertNoSymlinkEscape`, and `sanitizeIdentifier` did NOT explicitly reject NUL (`\x00`) or C0/DEL control characters (`\x01-\x1F`, `\x7F`) in path-shaped or identifier-shaped inputs. NUL bytes in path strings have a long history of security bugs: legacy N-API callers historically truncated paths silently at the NUL boundary, letting `foo.txt\x00.env` be opened as `foo.txt` while the upstream caller saw the full string and approved it. C0 control chars are universally invalid in POSIX paths and identifiers. `validateArtifactPath` (T1.4 — line 269) already rejected NUL, so T5.5 propagates the same defense to the sibling primitives so a caller can never bypass NUL/control checks by choosing a different entrypoint. New internal helper `rejectNulAndControlChars(input, role)` centralizes the check; wired into `safePathJoin` (for `base` + each `part`), `assertNoSymlinkEscape` (for `path` + `base`), and `sanitizeIdentifier`. The latter previously threw a generic "invalid characters" message via the alphanumeric-only `IDENTIFIER_PATTERN`; T5.5 routes NUL through the same helper so operators see a precise `<nul-byte>` / `<control-char-0x..>` diagnostic instead — making prompt-injection traces legible per Unbreakable Rule 3. 11 new tests at `tests/internal/security/path-guard-nul-rejection.test.ts` + 1 pre-existing assertion at `tests/internal/security/path-guard.test.ts:249` updated to match the new specific NUL message. 68/68 path-guard sink tests GREEN across 4 files (path-guard unit / property / public-api / agent-session-store).
 
-- **HKDF-SHA256 key derivation for OAuth tx-cookie AES-256-GCM key (T5.1 of plan `sdk-superiority-2026-06-07`, CRITICAL — DR6 finding #1)**: pre-T5.1 `server/auth/oauth-transaction-store.ts:deriveKey` zero-padded secret bytes to 32 if shorter and truncated if longer. This is NOT a key derivation function. Two near-identical secrets (e.g., `"a".repeat(31)` vs `"b".repeat(31)`) produced AES keys differing in only one byte across 32 — an attacker who recovered one cookie could brute-force adjacent deployments cheaply. T5.1 replaces the zero-padding with HKDF-SHA256 (RFC 5869) using `info="theokit:oauth-tx-v1"` and a salt sourced from `THEOKIT_OAUTH_TX_SALT` env var (defaults to RFC 5869 zero-string; operators MUST set per-app salt in production to eliminate cross-deployment collision risk). Distinct secrets now produce avalanche-distinct keys (Hamming distance > 160 bits empirically). **Breaking validation**: `encodeTransaction` (and via the SDK's `defineAuth` chain, any `startSignIn`/`finishSignIn` flow) now throws the new typed `AuthSecretTooShortError` when the configured secret has fewer than 32 bytes of UTF-8 encoded entropy. Pre-T5.1 secrets shorter than 32 bytes were silently zero-padded and produced insecure keys; rejecting them surfaces the misconfiguration honestly per Inquebrável Rule 3. Generate a fresh value with `openssl rand -base64 33`. New test seam `__TESTING__deriveKey` exposed for unit-test avalanche assertions; NOT in the public barrel. 7 new tests at `tests/server-auth-hkdf-derive-key.test.ts` + 1 fixture update at `tests/server-auth.test.ts` (`secret` widened 31 → 32 bytes). 23/23 server-auth tests GREEN.
+- **HKDF-SHA256 key derivation for OAuth tx-cookie AES-256-GCM key (T5.1 of plan `sdk-superiority-2026-06-07`, CRITICAL — DR6 finding #1)**: pre-T5.1 `server/auth/oauth-transaction-store.ts:deriveKey` zero-padded secret bytes to 32 if shorter and truncated if longer. This is NOT a key derivation function. Two near-identical secrets (e.g., `"a".repeat(31)` vs `"b".repeat(31)`) produced AES keys differing in only one byte across 32 — an attacker who recovered one cookie could brute-force adjacent deployments cheaply. T5.1 replaces the zero-padding with HKDF-SHA256 (RFC 5869) using `info="theokit:oauth-tx-v1"` and a salt sourced from `THEOKIT_OAUTH_TX_SALT` env var (defaults to RFC 5869 zero-string; operators MUST set per-app salt in production to eliminate cross-deployment collision risk). Distinct secrets now produce avalanche-distinct keys (Hamming distance > 160 bits empirically). **Breaking validation**: `encodeTransaction` (and via the SDK's `defineAuth` chain, any `startSignIn`/`finishSignIn` flow) now throws the new typed `AuthSecretTooShortError` when the configured secret has fewer than 32 bytes of UTF-8 encoded entropy. Pre-T5.1 secrets shorter than 32 bytes were silently zero-padded and produced insecure keys; rejecting them surfaces the misconfiguration honestly per Unbreakable Rule 3. Generate a fresh value with `openssl rand -base64 33`. New test seam `__TESTING__deriveKey` exposed for unit-test avalanche assertions; NOT in the public barrel. 7 new tests at `tests/server-auth-hkdf-derive-key.test.ts` + 1 fixture update at `tests/server-auth.test.ts` (`secret` widened 31 → 32 bytes). 23/23 server-auth tests GREEN.
 
 ### Added
 
@@ -1486,7 +1771,7 @@
   - Self-cycle on `types/agent.ts` (audit #3) closed by replacing the inline `import("./agent.js").SDKAgent` in `AgentOptions.handoffs?` with a direct forward-reference to the locally-defined `SDKAgent` interface.
   - madge cycle count: **8 → 3** in one slice. Closed: cycles #3/#5/#6/#7/#10. Remaining: #1+#2 D428-acknowledged (rollup-dts subscribe-at-sub-path); #4 documented as deviation requiring HIGH-impact SDKAgent-interface extraction (out of T4.1 scope).
   - Zero public type surface change. Public-type-surface smoke test in `tests/architecture/type-cycles-closed.test.ts` verifies barrels still resolve.
-- **Architecture-test integrity fix (T4.1 follow-up)**: `tests/architecture/cycle-{8,9,11-12-13}-closed.test.ts` were passing **vacuously** because `repoRoot = resolve(__dirname, "../../../../..")` (5 ups) landed in the meta-repo `theokit-tools` which has no pnpm workspace — `pnpm exec madge` errored out and the cycle-line filter returned `[]`. Corrected to 4 ups (theokit-sdk workspace root). The underlying cycle closures from T1.1/T2.1/T3.1 are real (12/12 architecture tests now PASS against actual `madge --circular` output post-fix); the prior test integrity bug is surfaced honestly here per Inquebrável Rule 3 rather than buried.
+- **Architecture-test integrity fix (T4.1 follow-up)**: `tests/architecture/cycle-{8,9,11-12-13}-closed.test.ts` were passing **vacuously** because `repoRoot = resolve(__dirname, "../../../../..")` (5 ups) landed in the meta-repo `theokit-tools` which has no pnpm workspace — `pnpm exec madge` errored out and the cycle-line filter returned `[]`. Corrected to 4 ups (theokit-sdk workspace root). The underlying cycle closures from T1.1/T2.1/T3.1 are real (12/12 architecture tests now PASS against actual `madge --circular` output post-fix); the prior test integrity bug is surfaced honestly here per Unbreakable Rule 3 rather than buried.
 - **CRITICAL runtime↔persistence cycle #9 closed**: extracted `internal/runtime/session-types.ts` (leaf types file ~15 LOC) holding `SessionMessage`. `agent-session-store.ts` now imports the type from this leaf; `agent-session.ts` re-exports it for back-compat with downstream importers. Closes the audit's only CRITICAL cycle (Phase 5 cartographer cycle #9 — `agent-session.ts → conversation-storage-fs.ts → agent-session-store.ts → agent-session.ts`, runtime↔persistence layer-crossing). madge cycle count: 9 → 8. Architecture test asserts via spawnSync. **Plan-vs-reality deviation:** ADR D432 prescribed a full port-and-adapter refactor; empirical inspection found the back-edge was a single types-only import, so type-leaf extraction is the smallest break that actually closes the cycle. Documented in `session-types.ts` JSDoc.
 - **Memory cluster cycles #11 + #12 + #13 closed**: extracted `internal/memory/index-manager-contract.ts` (leaf types file holding `MemorySearchHit`, `IndexStatus`, `SearchOptions`, `MemoryBackend`, `OpenIndexOptions`). All 4 cluster members (`index-manager.ts`, `index-manager-dispatch.ts`, `lance-memory-adapter.ts`, `memory-index.ts`) now import these types from the contract; only the orchestrator imports runtime functions from dispatch (one direction). Single ~70 LOC extraction closes 3 HIGH cycles in one move (T2.1 of plan `arch-review-fixes-2026-06-06`, ADR D433). madge cycle count: 12 → 9. Back-compat re-export preserved on `index-manager.ts`. No public API touched.
 - **Runtime cycle #8 closed**: extracted `internal/runtime/agent-registry-contract.ts` (leaf types file, ~60 LOC) holding `AgentRuntime` + `RegisteredAgent`. Both `agent-registry.ts` and `agent-registry-store.ts` now import these types from the contract; the previous runtime↔store 2-node cycle is closed (T3.1 of plan `arch-review-fixes-2026-06-06`, ADR D431). Back-compat re-export preserved on `agent-registry.ts` for existing downstream importers — no public API change. madge cycle count: 13 → 12 (HIGH cycle #8 resolved; remaining 12 covered by T1.1/T2.1/T4.1).
@@ -1535,7 +1820,7 @@
 
 ### Fixed
 
-- **`safeListTools` no longer silently swallows MCP failures** (PV#6, plan `arch-review-fixes-2026-06-06` T8.1). When `client.listTools()` throws (MCP server unreachable, auth refused, etc.), the agent loop now emits a structured `[theokit-sdk] mcp listTools failed (server=<name>): <error>` line to stderr **while preserving the empty-list fallback** that consumers depend on for graceful degradation. The previous behaviour violated Inquebrável Rule 8 (`FALHE alto, FALHE cedo, FALHE claro`). `safeListTools` is now `export`ed from `internal/agent-loop/loop.ts` to enable unit-test access to the catch path — NOT promoted to the public `@theokit/sdk` API surface.
+- **`safeListTools` no longer silently swallows MCP failures** (PV#6, plan `arch-review-fixes-2026-06-06` T8.1). When `client.listTools()` throws (MCP server unreachable, auth refused, etc.), the agent loop now emits a structured `[theokit-sdk] mcp listTools failed (server=<name>): <error>` line to stderr **while preserving the empty-list fallback** that consumers depend on for graceful degradation. The previous behaviour violated Unbreakable Rule 8 (`FAIL loud, FAIL early, FAIL clear`). `safeListTools` is now `export`ed from `internal/agent-loop/loop.ts` to enable unit-test access to the catch path — NOT promoted to the public `@theokit/sdk` API surface.
 
 ### Notes
 
@@ -1603,7 +1888,7 @@
 
 ### Added
 
-- **`@theokit/sdk/server/auth` sub-path** (per ADR D6 of plan g11-auth-architecture-implementation v1.4) — orchestrator-only auth surface ships `defineAuth<TSession>(opts)` factory + 5 supporting types. Implements **Caminho C (Hybrid)** from discovery blueprint `g11-auth-architecture-decision` (SHIPPABLE 97.9). Providers ship as opt-in `@theokit/auth-*` packages (Tier 1: Google + GitHub + Magic Link — separate packages, semver-independent). Aligned with `AUTH-DELEGATION` lock in `theokit/CLAUDE.md:217-225` (lock's own escape-hatch clause "If we do adopt later: ship providers as separate optional packages under `@theokit/auth-*`, NEVER in the framework core").
+- **`@theokit/sdk/server/auth` sub-path** (per ADR D6 of plan g11-auth-architecture-implementation v1.4) — orchestrator-only auth surface ships `defineAuth<TSession>(opts)` factory + 5 supporting types. Implements **Path C (Hybrid)** from discovery blueprint `g11-auth-architecture-decision` (SHIPPABLE 97.9). Providers ship as opt-in `@theokit/auth-*` packages (Tier 1: Google + GitHub + Magic Link — separate packages, semver-independent). Aligned with `AUTH-DELEGATION` lock in `theokit/CLAUDE.md:217-225` (lock's own escape-hatch clause "If we do adopt later: ship providers as separate optional packages under `@theokit/auth-*`, NEVER in the framework core").
 - **6 type exports** at `@theokit/sdk/server/auth`:
   - `defineAuth<TSession>(opts): AuthOrchestrator<TSession>` factory
   - `DefineAuthOptions<TSession>` config shape
@@ -1626,13 +1911,13 @@
 
 - v1.6.0 is **additive** — no breaking changes. Existing consumers of `createSessionManager` (from `theokit/server/auth`) unaffected.
 - Providers (`@theokit/auth-google`, `@theokit/auth-github`, `@theokit/auth-magic-link`) ship in separate npm packages (Phase 2-4 of plan G11). They will publish to `@next` tag first per ADR D3 (4-6 week telemetry observation window before promote to `@latest`).
-- Tests: 16/16 GREEN in `tests/server-auth.test.ts` covering config validation, EC-1, EC-2, EC-10, Caminho A signIn, expired transaction, unknown provider.
+- Tests: 16/16 GREEN in `tests/server-auth.test.ts` covering config validation, EC-1, EC-2, EC-10, Path A signIn, expired transaction, unknown provider.
 
 ## 1.5.0
 
 ### Changed
 
-- **`publishConfig.provenance` removed (alinhado com política do monorepo).** Esta era a única `package.json` de 11 pacotes publicáveis com `provenance: true`; drift arquitetural — a flag prometia attestation criptográfica mas nenhum repo do monorepo tem release.yml com `id-token: write` permission para mintar OIDC token contra o npm registry. Resultado: publishes locais falhavam com `EUSAGE: Automatic provenance generation not supported for provider: null`. Decisão: alinhar intent à infra atual (10/11 outros pacotes não declaram provenance). **Follow-up estratégico:** adicionar release.yml com `id-token: write` em todos os repos (theokit-sdk + theokit + theokit-plugins + theo-ui) habilita provenance universal — escopo separado.
+- **`publishConfig.provenance` removed (aligned with the monorepo's policy).** This was the only `package.json` of 11 publishable packages with `provenance: true`; architectural drift — the flag promised cryptographic attestation but no repo in the monorepo has a release.yml with `id-token: write` permission to mint an OIDC token against the npm registry. Result: local publishes failed with `EUSAGE: Automatic provenance generation not supported for provider: null`. Decision: align intent with the current infrastructure (10 of the 11 other packages declare no provenance). **Strategic follow-up:** adding a release.yml with `id-token: write` across every repo (theokit-sdk + theokit + theokit-plugins + theo-ui) enables universal provenance — separate scope.
 
 ### Breaking Changes
 

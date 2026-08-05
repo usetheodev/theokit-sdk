@@ -78,6 +78,32 @@ export function __TESTING__resetNfsWarnings(): void {
 }
 
 /**
+ * M107 — temp-file creation control, shared by `replaceFileAtomic`,
+ * `atomicWriteJson` e `atomicWriteText`.
+ *
+ * Both fields are OPTIONAL and the default is byte-identical to the behavior
+ * before M107. See `replaceFileAtomic` for why the mode reassertion
+ * is conditional.
+ *
+ * @internal
+ */
+export interface AtomicWriteFileOptions {
+  /**
+   * Permission bits of the created file. Default: `0o600`, the previous fixed
+   * literal — filtered by the `umask`, as it always was. When provided, the mode is
+   * reasserted on the descriptor, so the `umask` cannot silently
+   * clearing bits the caller asked for.
+   */
+  mode?: number;
+  /**
+   * Create the temp file with `wx` (exclusive creation) instead of `w`. Default:
+   * `false` — the previous flag. With `true`, a pre-existing temp file becomes
+   * `EEXIST` em vez de ser truncado.
+   */
+  exclusive?: boolean;
+}
+
+/**
  * Atomic file replacement: write content to a per-call unique tmp path,
  * fsync, then rename over the target. Crash mid-write leaves either the old
  * file intact or the new file complete — never a half-written file.
@@ -91,9 +117,36 @@ export function __TESTING__resetNfsWarnings(): void {
  * `referencia/peer-project/packages/memory-host-sdk/src/host/fs-utils.ts` with
  * the multi-writer robustness fix.
  *
+ * ## M107 — `options` is optional, and the default is byte-identical
+ *
+ * The third parameter is additive: every earlier caller still compiles and
+ * writing exactly the same bytes, with the same mode, to the same path.
+ *
+ * The mode reassertion (`handle.chmod`) is **conditional on `mode !== undefined`**,
+ * and that is not cosmetic. `open`'s mode argument is filtered by the `umask`,
+ * which only CLEARS bits — measured in this codebase before the change:
+ *
+ * ```
+ * umask 0o002  ->  0o600      umask 0o022  ->  0o600      umask 0o200  ->  0o400
+ * ```
+ *
+ * Um `chmod` incondicional levaria o terceiro caso de `0o400` para `0o600` — uma
+ * an on-disk change for every caller that asked for nothing, including external
+ * consumers. When the caller DOES ask for a mode, however, letting the `umask` decide
+ * silently is the defect this parameter exists to close; hence the reassertion.
+ *
+ * It goes on the DESCRIPTOR, before the `rename`, never after: chmod-ing the final
+ * final one would leave a window where it carries the `umask`'s mode — the anti-pattern
+ * de `upstream/packages/core/src/fs-util.ts:110-114`. A forma escolhida (modo como
+ * `open` argument) is that of `upstream/network-proxy/src/certs.rs:687,783-791`.
+ *
  * @internal
  */
-export async function replaceFileAtomic(filePath: string, content: string): Promise<void> {
+export async function replaceFileAtomic(
+  filePath: string,
+  content: string,
+  options?: AtomicWriteFileOptions,
+): Promise<void> {
   // T5.8 — warn once per parent directory if it lives on a network /
   // FUSE filesystem where `rename()` atomicity is best-effort. The
   // write proceeds unchanged; the warning is purely informational so
@@ -111,10 +164,12 @@ export async function replaceFileAtomic(filePath: string, content: string): Prom
   // expose secrets during the ms-window between open and rename
   // (TOCTOU). On modern Linux the post-rename target inherits the
   // tmp's permission bits, so the final file is also 0o600.
-  const handle = await open(tmp, "w", 0o600);
+  const handle = await open(tmp, options?.exclusive === true ? "wx" : "w", options?.mode ?? 0o600);
   try {
     await handle.writeFile(content, "utf8");
     await handle.sync();
+    // Conditional by measurement, not by taste — see this function's docblock.
+    if (options?.mode !== undefined) await handle.chmod(options.mode);
   } finally {
     await handle.close();
   }
@@ -132,7 +187,7 @@ export async function replaceFileAtomic(filePath: string, content: string): Prom
  *
  * @internal
  */
-export interface AtomicWriteJsonOptions {
+export interface AtomicWriteJsonOptions extends AtomicWriteFileOptions {
   /** Indent passed to `JSON.stringify`. Default: 2. */
   indent?: number;
   /** Whether to append a trailing newline (POSIX convention). Default: true. */
@@ -165,7 +220,7 @@ export async function atomicWriteJson<T>(
   }
   const content = trailingNewline ? `${json}\n` : json;
   await mkdir(dirname(filePath), { recursive: true });
-  await replaceFileAtomic(filePath, content);
+  await replaceFileAtomic(filePath, content, options);
 }
 
 /**

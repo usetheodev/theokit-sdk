@@ -1,81 +1,81 @@
 /**
- * M81 T2.2 — `Squad.create` aceita `AgentDefinition`, não só `SDKAgent` já construído.
+ * M81 T2.2 — `Squad.create` accepts an `AgentDefinition`, not only an already-built `SDKAgent`.
  *
  * ## O que mudou de fato
  *
- * `squad.ts` declarava `agents: ReadonlyArray<SDKAgent>`. Montar um time obrigava o chamador a
- * **materializar cada agente à mão** antes — resolver credencial, construir opções, chamar
- * `Agent.create`, aguardar. Isso é exatamente o trabalho que este milestone move para o framework nas
- * outras tarefas; deixá-lo aqui seria inconsistente.
+ * `squad.ts` declared `agents: ReadonlyArray<SDKAgent>`. Assembling a team forced the caller to
+ * **materialize each agent by hand** first — resolve the credential, build options, call
+ * `Agent.create`, await. That is exactly the work this milestone moves into the framework in its
+ * other tasks; leaving it here would be inconsistent.
  *
- * Com `discoverSubagents` público (T2.1), o dado que descreve um agente passou a ser alcançável pelo
- * consumidor. Aceitar esse dado direto fecha o circuito: descobrir → montar time, sem etapa manual
+ * With `discoverSubagents` public (T2.1), the data describing an agent became reachable by the
+ * consumer. Accepting that data directly closes the loop: discover -> assemble a team, with no manual step
  * no meio.
  *
- * ## A metade que mais importa é a retrocompatibilidade
+ * ## The half that matters most is backward compatibility
  *
- * `SDKAgent` construído continua aceito, e a mistura dos dois na mesma lista também — um time real
- * costuma ter agentes vindos de origens diferentes. Um teste que só provasse o caminho novo passaria
- * mesmo se o antigo tivesse quebrado.
+ * A built `SDKAgent` is still accepted, and so is mixing the two in one list — a real team
+ * usually has agents from different origins. A test proving only the new path would pass
+ * even if the old one had broken.
  */
 import { describe, expect, it } from "vitest";
 
 import { Squad } from "../src/squad.js";
 import type { AgentDefinition, SDKAgent } from "../src/types/agent.js";
 
-const definicao: AgentDefinition = {
-  description: "explora o repositório",
-  prompt: "Você explora.",
+const definition: AgentDefinition = {
+  description: "explores the repository",
+  prompt: "You explore.",
 };
 
-/** Duplo mínimo de `SDKAgent` — o Squad só precisa que ele exista para compor o workflow. */
+/** Minimal `SDKAgent` double — the Squad only needs it to exist in order to compose the workflow. */
 const agenteConstruido = { agentId: "ja-construido" } as unknown as SDKAgent;
 
 describe("M81 T2.2 — Squad.create aceita AgentDefinition", () => {
   it("test_Squad_aceita_AgentDefinition_como_membro", () => {
-    // O caminho novo: dado puro entra, o Squad materializa quando for rodar.
-    const squad = Squad.create({ agents: [definicao] });
+    // The new path: raw data goes in, the Squad materializes when it runs.
+    const squad = Squad.create({ agents: [definition] });
     expect(squad).toBeDefined();
     expect(squad.run).toBeTypeOf("function");
   });
 
   it("test_CONTRAPROVA_SDKAgent_ja_construido_continua_aceito", () => {
     // Sem esta, trocar o tipo por `AgentDefinition` puro passaria no teste acima e quebraria todo
-    // consumidor existente em silêncio — o Squad não roda na construção, então a quebra só
-    // apareceria no primeiro `run()`.
+    // an existing consumer silently — the Squad does not run at construction, so the break would only
+    // apareceria no first `run()`.
     const squad = Squad.create({ agents: [agenteConstruido] });
     expect(squad).toBeDefined();
   });
 
   it("test_aceita_MISTURA_dos_dois_na_mesma_lista", () => {
-    // O caso real: um time com um agente vindo do disco e outro construído pelo app.
-    const squad = Squad.create({ agents: [definicao, agenteConstruido] });
+    // The real case: a team with one agent from disk and another built by the app.
+    const squad = Squad.create({ agents: [definition, agenteConstruido] });
     expect(squad).toBeDefined();
   });
 
   it("test_a_materializacao_ACONTECE_de_fato_ao_rodar", async () => {
-    // O teste que faltava, e a lacuna foi encontrada por mutação: trocar o type-guard por
-    // `() => true` (tratando TODO membro como já construído) não matava nenhum teste, porque os
-    // outros só provam que o TIPO aceita — nunca que a materialização roda.
+    // The missing test, and the gap was found by mutation: swapping the type guard for
+    // `() => true` (treating EVERY member as already built) killed no test, because the
+    // others only prove the TYPE accepts — never that materialization runs.
     //
-    // A asserção é POSITIVA de propósito. A primeira versão dizia
-    // `.not.toContain("send is not a function")` — um negativo que a mutação não movia, porque o
-    // run falha antes por outra razão e o negativo ficava vacuamente verdadeiro.
+    // The assertion is POSITIVE on purpose. The first version said
+    // `.not.toContain("send is not a function")` — a negative the mutation did not move, because the
+    // run fails earlier for another reason and the negative was vacuously true.
     //
-    // `definicao` não declara modelo, então uma materialização BEM-SUCEDIDA chega ao `Agent.create`
-    // e falha ali com "requires a model selection". Essa mensagem específica só é alcançável se
-    // alguém transformou o dado em agente — é a prova de que a materialização rodou.
-    const squad = Squad.create({ agents: [definicao] });
+    // `definition` declares no model, so a SUCCESSFUL materialization reaches `Agent.create`
+    // and fails there with "requires a model selection". That specific message is only reachable if
+    // someone turned the data into an agent — it is the proof that materialization ran.
+    const squad = Squad.create({ agents: [definition] });
     const err = await squad.run("oi").catch((e: unknown) => e);
 
     expect(
       String(err instanceof Error ? err.message : err),
-      "não chegou ao `Agent.create` — o AgentDefinition foi tratado como agente já construído",
+      "did not reach `Agent.create` — the AgentDefinition was treated as an already-built agent",
     ).toContain("model selection");
   });
 
-  it("test_lista_vazia_continua_sendo_erro_TIPADO", () => {
-    // A validação existente não pode regredir ao ganhar a união no tipo.
+  it("test_an_empty_list_remains_a_TYPED_error", () => {
+    // The existing validation must not regress when the type gains the union.
     expect(() => Squad.create({ agents: [] })).toThrow();
   });
 });

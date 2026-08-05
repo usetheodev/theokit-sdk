@@ -43,11 +43,11 @@ export interface ResponsesApiClientOptions {
 }
 
 /** Translate an `LlmMessage` into the Responses-API `input[]` items it contributes. */
-// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
-// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
-// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+// sweeping these files (a nested root under refactor/). It is not new code and was not touched
+// by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // arriscado. Rastreado em usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function messageToInputItems(message: LlmMessage): unknown[] {
   const items: unknown[] = [];
   if (message.role === "user") {
@@ -253,9 +253,11 @@ export class ResponsesApiClient implements LlmClient {
             name: c.name.length > 0 ? c.name : (event.item.name ?? ""),
             input: parseToolArguments(rawArgs),
           };
+          // theokit#144: the call is carried by `LlmFinish.toolCalls` below. It used to also be
+          // yielded as a `tool_use` event that no consumer read — see the `LlmEvent` docblock for
+          // why the live tool channel is `onDelta`, not this stream.
           toolCalls.push(call);
           delete pending[id];
-          yield { type: "tool_use", id: call.id, name: call.name, input: call.input };
         } else if (t === "response.completed" || t === "response.incomplete") {
           const usage = event.response?.usage;
           if (usage !== undefined) {
@@ -280,7 +282,7 @@ export class ResponsesApiClient implements LlmClient {
     }
 
     if (toolCalls.length > 0 && stopReason === "end_turn") stopReason = "tool_use";
-    yield { type: "stop", reason: stopReason };
+    // theokit#144: `stopReason` is returned on the finish value, not yielded as an event.
     return makeLlmFinish({
       stopReason,
       text,

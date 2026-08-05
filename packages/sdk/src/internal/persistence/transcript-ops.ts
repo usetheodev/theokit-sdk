@@ -54,6 +54,20 @@ export interface ForkTranscriptOptions {
    * registry entry. The caller supplies them because only the caller knows which session is live.
    */
   readonly liveSessionPaths?: readonly string[];
+  /**
+   * M107 — permission bits for the created destination. Default: `0o600`.
+   *
+   * A transcript carries the conversation. Before M107 no mode was passed at all, so the file was
+   * born `0o666 & ~umask` — measured `0o664` (group-WRITABLE) on a `umask 002` machine, `0o644` on
+   * `umask 022`, `0o466` on `umask 0200`. This is a DEFAULT and not a required knob on purpose: a
+   * knob would reach zero consumers by omission, which is the failure mode that matters.
+   *
+   * As with any `open` mode, the `umask` may still CLEAR bits — under `umask 0200` the result is
+   * `0o400`. That is accepted: the invariant bought here is "neither group nor others", and `0o400`
+   * satisfies it more strictly. The SDK deliberately does not `fchmod` the default back, because
+   * that would hand back a bit the operator asked to remove.
+   */
+  readonly mode?: number;
 }
 
 /**
@@ -80,8 +94,9 @@ export function forkTranscript(
     options.beforeRecordIndex === undefined ? lines : lines.slice(0, options.beforeRecordIndex);
   const body = kept.length > 0 ? `${kept.join("\n")}\n` : "";
 
-  // `wx` — fails with EEXIST instead of truncating. The exclusivity IS the concurrency guarantee.
-  const fd = openSync(dst, "wx");
+  // `wx` — fails with EEXIST instead of truncating. The exclusivity IS the concurrency guarantee,
+  // and M107 only added the third argument: the mode. See `ForkTranscriptOptions.mode`.
+  const fd = openSync(dst, "wx", options.mode ?? 0o600);
   try {
     writeSync(fd, body);
   } finally {
@@ -102,13 +117,13 @@ export interface ReadJsonlTailOptions {
 const TAIL_CHUNK = 64 * 1024;
 
 /**
- * Lê chunks de trás para frente até acumular linhas completas suficientes.
+ * Reads chunks backwards until enough complete lines have accumulated.
  *
- * Extraído de `readJsonlTail` porque o laço de leitura e a seleção de registros são duas
- * responsabilidades — e juntas passavam do teto de complexidade. A primeira linha do buffer pode
- * estar cortada ao meio quando a leitura parou antes do início do arquivo; por isso ela é descartada.
+ * Extracted from `readJsonlTail` because the read loop and the record selection are two
+ * responsibilities — and together they exceeded the complexity ceiling. The buffer's first line may
+ * be cut in half when the read stopped before the start of the file; that is why it is discarded.
  */
-function lerCaudaBruta(path: string, want: number): { linhas: string[]; bytesRead: number } {
+function lerCaudaBruta(path: string, want: number): { lines: string[]; bytesRead: number } {
   const size = statSync(path).size;
   const fd = openSync(path, "r");
   let bytesRead = 0;
@@ -122,18 +137,18 @@ function lerCaudaBruta(path: string, want: number): { linhas: string[]; bytesRea
       readSync(fd, buf, 0, len, pos);
       bytesRead += len;
       tail = buf.toString("utf8") + tail;
-      if (naoVazias(tail).length > want) break;
+      if (nonEmptyLines(tail).length > want) break;
     }
   } finally {
     closeSync(fd);
   }
-  const linhas = naoVazias(tail);
-  return { linhas: pos > 0 ? linhas.slice(1) : linhas, bytesRead };
+  const lines = nonEmptyLines(tail);
+  return { lines: pos > 0 ? lines.slice(1) : lines, bytesRead };
 }
 
-/** Linhas com conteúdo, na ordem do arquivo. */
-function naoVazias(texto: string): string[] {
-  return texto.split("\n").filter((l) => l.trim().length > 0);
+/** Non-empty lines, in file order. */
+function nonEmptyLines(text: string): string[] {
+  return text.split("\n").filter((l) => l.trim().length > 0);
 }
 
 /**
@@ -148,9 +163,9 @@ export function readJsonlTail<T = Record<string, unknown>>(
   options: ReadJsonlTailOptions = {},
 ): T[] {
   const want = options.maxRecords ?? Number.POSITIVE_INFINITY;
-  const { linhas, bytesRead } = lerCaudaBruta(path, want);
+  const { lines, bytesRead } = lerCaudaBruta(path, want);
 
-  let sel = linhas;
+  let sel = lines;
   if (options.sinceMarker !== undefined) {
     const marcador = options.sinceMarker;
     const idx = sel.findLastIndex((l) => l.includes(marcador));

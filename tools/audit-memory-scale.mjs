@@ -88,7 +88,9 @@ const queries = [
   { topic: "editor", q: "What's my favorite code editor?", expect: /helix/i },
   { topic: "language", q: "Which language do I prefer?", expect: /rust/i },
   { topic: "test runner", q: "What test runner do I use?", expect: /vitest/i },
-  { topic: "city", q: "Where do I live?", expect: /são paulo|sao paulo|brazil/i },
+  // The accented alternative is escaped, not dropped: a model answering in Portuguese writes
+  // "Sao Paulo" with the tilde, and removing the branch would silently narrow what the probe accepts.
+  { topic: "city", q: "Where do I live?", expect: /s\u00e3o paulo|sao paulo|brazil/i },
 ];
 let recallHits = 0;
 console.log("\nRecall test:");

@@ -66,6 +66,17 @@ export class SessionBusyError extends TheokitAgentError {
 export interface SessionWriterLease {
   readonly sessionPath: string;
   release(): Promise<void>;
+  /**
+   * Re-stamp the ownership record, so a **live** owner never crosses the staleness window.
+   *
+   * Idempotent and cheap: one `write` of a ~80-byte JSON. Call it on the path that already writes to
+   * the session — appending a turn — and the cross-host window stops being a lie about liveness.
+   *
+   * A no-op after `release()`: renewing a lease you no longer hold would re-create the lock file and
+   * hand this process ownership it gave up. That is the one direction of this API that could
+   * *create* the double-writer it exists to prevent.
+   */
+  renew(): void;
 }
 
 /**
@@ -76,78 +87,91 @@ export interface SessionWriterLease {
  * processes, not just across async tasks in one process.
  */
 /**
- * Janela de obsolescência **entre máquinas** — e só entre elas.
+ * Staleness window **between machines** — and only between them.
  *
- * 30 s a partir da AQUISIÇÃO. O nome "heartbeat" seria mentira: o registro é gravado uma vez, na
- * tomada do lease, e **não** é renovado a cada escrita. A versão anterior deste comentário dizia
- * "o dono toca o arquivo a cada aquisição, então um processo ativo nunca cruza a janela" — falso
- * duas vezes, e a revisão adversarial mediu as duas.
+ * 30 s from ACQUISITION. Calling it a "heartbeat" would be a lie: the record is written once, when
+ * the lease is taken, and is **not** renewed on every write. An earlier version of this comment
+ * claimed "the owner touches the file on every acquisition, so a live process never crosses the
+ * window" — false twice over, and adversarial review measured both.
  *
- * No **mesmo host** isso não importa: `reclamavel` decide pelo `pid`, que é exato, e a idade não
- * entra na conta. Entre hosts, importa e é um limite real: um dono remoto **vivo** perde o lease
- * depois de 30 s, porque não há como perguntar a outra máquina se o processo dela existe.
+ * On the **same host** this does not matter: `reclaimable` decides by `pid`, which is exact, and age
+ * never enters the calculation. Across hosts it does matter, and it is a real limit: a **live**
+ * remote owner loses the lease after 30 s, because there is no way to ask another machine whether
+ * its process still exists.
  *
- * **Resíduo declarado, não mecanizado** (a disciplina de `error-handling.md § 4`): renovar o
- * registro a cada append fecharia essa janela, ao custo de um `write` por turno num arquivo que
- * hoje é escrito uma vez por sessão. Não foi feito, e o caso multi-host não é o que motiva este
- * milestone — o enunciado é `exec` e TUI na mesma máquina.
+ * **The residue is now closable by the caller** (`agent-builder#118`). `SessionWriterLease.renew()`
+ * re-stamps the record; calling it on the path that already writes to the session — appending a turn
+ * — keeps a live owner from ever crossing the window. It costs one `write` of ~80 bytes on a file
+ * that was previously written once per session.
+ *
+ * It is `renew()` and not an internal timer on purpose. A timer inside the lease would keep the event
+ * loop alive (or need `unref` plus its own teardown), and it would renew a lease belonging to a
+ * process that is hung rather than working — which is precisely the state the window exists to
+ * detect. Tying the renewal to a real write means the record tracks **progress**, not mere existence.
  */
-export const JANELA_DE_HEARTBEAT_MS = 30_000;
+export const HEARTBEAT_WINDOW_MS = 30_000;
 
-/** Quem detém o lock. Gravado como JSON no `.writer.lock`. */
-interface DonoDoLock {
+/** Who holds the lock. Written as JSON into `.writer.lock`. */
+interface LockOwner {
   pid: number;
   hostname: string;
   mtime: number;
 }
 
+/** The ownership record for THIS process, stamped now. One place, so acquire and renew cannot drift. */
+function ownerNow(): LockOwner {
+  return { pid: process.pid, hostname: hostname(), mtime: Date.now() };
+}
+
 /**
- * Grava o dono com permissão restrita ao usuário.
+ * Writes the owner with user-only permissions.
  *
- * `0600` porque o lock é uma afirmação de POSSE: com o `0664` que o umask usual produz, outro
- * usuário do mesmo grupo pode sobrescrever o arquivo e forjar a posse da sessão — e a partir daí o
- * dono legítimo é quem passa a receber `SessionBusyError`. O conteúdo (`pid`, `hostname`) é de
- * baixa sensibilidade; o que a permissão protege é a **integridade** do sinal, não o sigilo dele.
+ * `0600` because the lock is an assertion of OWNERSHIP: with the `0664` the usual umask produces,
+ * another user in the same group can overwrite the file and forge ownership of the session — and
+ * from then on it is the legitimate owner who starts receiving `SessionBusyError`. The content
+ * (`pid`, `hostname`) is low-sensitivity; what the permission protects is the signal's
+ * **integrity**, not its secrecy.
  */
-function gravarDono(lockPath: string, dono: DonoDoLock): void {
+function writeOwner(lockPath: string, owner: LockOwner): void {
   const fd = openSync(lockPath, "w", 0o600);
   try {
-    writeSync(fd, JSON.stringify(dono));
-    // O `mode` do `open` só vale na CRIAÇÃO. Um `.writer.lock` herdado de uma versão anterior — ou
-    // deixado por um processo com umask diferente — continuaria `0664` depois de reclamado, e a
-    // janela de forja que o modo fecha para locks novos seguiria aberta para os antigos.
+    writeSync(fd, JSON.stringify(owner));
+    // `open`'s `mode` only applies on CREATION. A `.writer.lock` inherited from an earlier version —
+    // or left behind by a process with a different umask — would stay `0664` after being reclaimed,
+    // and the forgery window the mode closes for new locks would remain open for old ones.
     fchmodSync(fd, 0o600);
   } finally {
     closeSync(fd);
   }
 }
 
-/** Lê o dono do lock. `undefined` quando o arquivo sumiu ou o conteúdo é ilegível. */
-function lerDono(lockPath: string): DonoDoLock | undefined {
-  let bruto: string;
+/** Reads the lock's owner. `undefined` when the file vanished or the content is unreadable. */
+function readOwner(lockPath: string): LockOwner | undefined {
+  let raw: string;
   try {
-    bruto = readFileSync(lockPath, "utf8");
+    raw = readFileSync(lockPath, "utf8");
   } catch (err) {
     const code = (err as NodeJS.ErrnoException).code;
-    // `ENOENT` — sumiu entre o `EEXIST` e a leitura. Corrida benigna: o lock não existe mais.
+    // `ENOENT` — vanished between the `EEXIST` and the read. Benign race: the lock is gone.
     if (code === "ENOENT") return undefined;
-    // `EISDIR` — o caminho do lock é um DIRETÓRIO. Nenhum processo desta biblioteca cria um; é
-    // lixo de outra coisa, e nunca vai virar um lock legível. Fail-closed aqui trancaria a sessão
-    // para sempre. Tratado como sem-dono: a aquisição segue e falha com o erro de FS real, que
-    // diz o que está errado — em vez de um SessionBusyError permanente que não diz nada. NÃO é
-    // "reclamável": o lock não é removido, e quem chama segue sem lease.
+    // `EISDIR` — the lock path is a DIRECTORY. No process in this library creates one; it is debris
+    // from something else, and it will never become a readable lock. Failing closed here would lock
+    // the session out forever. Treated as owner-less: acquisition proceeds and fails with the real
+    // FS error, which says what is wrong — instead of a permanent SessionBusyError that says
+    // nothing. It is NOT "reclaimable": the lock is not removed, and the caller proceeds without a
+    // lease.
     if (code === "EISDIR") return undefined;
-    // Qualquer outra falha de leitura (`EACCES` num diretório compartilhado, `EIO`) é diferente em
-    // espécie: o lock **existe** e nós é que não conseguimos ler o dono. Tratar como livre faria
-    // dois escritores conviverem — precisamente o que o lease existe para impedir —, e o `0600`
-    // que protege o lock contra forja AMPLIA essa superfície: num diretório compartilhado, o lock
-    // do outro usuário é ilegível por desenho.
+    // Any other read failure (`EACCES` in a shared directory, `EIO`) differs in kind: the lock
+    // **exists** and it is we who cannot read the owner. Treating it as free would let two writers
+    // coexist — precisely what the lease exists to prevent — and the `0600` that protects the lock
+    // against forgery WIDENS that surface: in a shared directory, another user's lock is unreadable
+    // by design.
     //
-    // Não saber quem é o dono não é o mesmo que não haver dono. Fail-closed.
+    // Not knowing who the owner is differs from there being no owner. Fail closed.
     throw new SessionBusyError(lockPath.replace(/\.writer\.lock$/, ""));
   }
   try {
-    const d = JSON.parse(bruto) as Partial<DonoDoLock>;
+    const d = JSON.parse(raw) as Partial<LockOwner>;
     if (
       typeof d.pid !== "number" ||
       typeof d.hostname !== "string" ||
@@ -157,111 +181,111 @@ function lerDono(lockPath: string): DonoDoLock | undefined {
     }
     return { pid: d.pid, hostname: d.hostname, mtime: d.mtime };
   } catch {
-    // JSON ilegível: um lock que ninguém consegue interpretar não pode trancar a sessão para
-    // sempre. Tratar como obsoleto é a escolha recuperável; o custo é o mesmo de um lock velho.
+    // Unreadable JSON: a lock nobody can interpret must not lock the session out forever. Treating
+    // it as stale is the recoverable choice; the cost is the same as that of an old lock.
     return undefined;
   }
 }
 
-/** O processo existe? `signal 0` não envia nada — só consulta permissão/existência. */
-function processoVivo(pid: number): boolean {
+/** Does the process exist? `signal 0` sends nothing — it only queries permission/existence. */
+function processAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
   } catch (err) {
-    // EPERM significa que ele EXISTE e é de outro usuário.
+    // EPERM means it EXISTS and belongs to another user.
     return (err as NodeJS.ErrnoException).code === "EPERM";
   }
 }
 
 /**
- * O lock pode ser tomado de quem o detém?
+ * Can the lock be taken from whoever holds it?
  *
- * ADR-2 do plano: reclamar por `pid` sozinho tem falso positivo entre máquinas — o mesmo número
- * existe noutro host, apontando para um processo sem relação. Então:
+ * ADR-2 of the plan: reclaiming by `pid` alone has a false positive across machines — the same
+ * number exists on another host, pointing at an unrelated process. So:
  *
- * - **mesmo host:** o `pid` é autoritativo, e **só** ele. Processo morto ⇒ reclamável na hora;
- *   processo vivo ⇒ nunca, por mais velho que o lock esteja.
- * - **outro host:** o `pid` não diz nada aqui. Só a janela de heartbeat vale, porque é o único
- *   sinal que não mente entre máquinas.
+ * - **same host:** the `pid` is authoritative, and it **alone**. Dead process => reclaimable at
+ *   once; live process => never, however old the lock is.
+ * - **other host:** the `pid` says nothing here. Only the heartbeat window counts, because it is
+ *   the one signal that does not lie across machines.
  *
- * ## Por que a idade NÃO conta no mesmo host
+ * ## Why age does NOT count on the same host
  *
- * A primeira versão fazia `velho || !processoVivo(pid)`, e isso era um defeito grave: o `mtime` é
- * gravado na **aquisição** e não é tocado a cada append, então qualquer sessão que durasse mais que
- * a janela — isto é, **toda sessão real** — passava a ser roubável por outro processo. Dois
- * escritores no mesmo transcript é exatamente o que o lease existe para impedir.
+ * The first version did `stale || !processAlive(pid)`, and that was a serious defect: `mtime` is
+ * written at **acquisition** and is not touched on each append, so any session lasting longer than
+ * the window — that is, **every real session** — became stealable by another process. Two writers
+ * on the same transcript is exactly what the lease exists to prevent.
  *
- * No mesmo host a pergunta "o dono ainda existe?" tem resposta exata, e a idade não acrescenta
- * informação nenhuma a ela — só um modo de errar. Manter a janela ali seria heurística por cima de
- * um fato.
+ * On the same host the question "does the owner still exist?" has an exact answer, and age adds no
+ * information to it — only a way to be wrong. Keeping the window there would be heuristic layered
+ * on top of a fact.
  */
-function reclamavel(dono: DonoDoLock | undefined): boolean {
-  if (dono === undefined) return true; // ilegível ou sumido
-  if (dono.hostname !== hostname()) {
-    return Date.now() - dono.mtime > JANELA_DE_HEARTBEAT_MS;
+function reclaimable(owner: LockOwner | undefined): boolean {
+  if (owner === undefined) return true; // unreadable or vanished
+  if (owner.hostname !== hostname()) {
+    return Date.now() - owner.mtime > HEARTBEAT_WINDOW_MS;
   }
-  return !processoVivo(dono.pid);
+  return !processAlive(owner.pid);
 }
 
 /**
- * A sessão tem escritor **agora**? Consulta que NÃO toma o lease.
+ * Does the session have a writer **right now**? A query that does NOT take the lease.
  *
- * M95 — existe porque perguntar tomando cria a disputa que se queria detectar: dois processos
- * consultando uma sessão **livre** ao mesmo tempo faziam um deles perder, e o consumidor forkava
- * sem motivo. Medido na revisão adversarial: `CORRIDA: forks espurios = 1`.
+ * M95 — it exists because asking by taking creates the very contention it meant to detect: two
+ * processes querying a **free** session at the same time made one of them lose, and the consumer
+ * forked for no reason. Measured in adversarial review: `RACE: spurious forks = 1`.
  *
- * É uma foto, não uma garantia: entre a consulta e a aquisição real alguém pode tomar a sessão.
- * Quem precisa da garantia usa {@link acquireSessionWriter}; quem precisa **decidir um id antes de
- * abrir nada** usa isto, e trata a corrida onde ela aparece.
+ * It is a snapshot, not a guarantee: between the query and the real acquisition someone may take
+ * the session. Callers needing the guarantee use {@link acquireSessionWriter}; callers needing to
+ * **decide an id before opening anything** use this, and handle the race where it shows up.
  *
  * @internal
  */
-export function sessaoTemEscritor(sessionPath: string): boolean {
+export function sessionHasWriter(sessionPath: string): boolean {
   const lockPath = `${sessionPath}.writer.lock`;
   if (!existsSync(lockPath)) return false;
   try {
-    return !reclamavel(lerDono(lockPath));
+    return !reclaimable(readOwner(lockPath));
   } catch {
-    // `lerDono` lança quando o lock existe e não pode ser lido — fail-closed, mesma razão de lá:
-    // não saber quem é o dono não é o mesmo que não haver dono.
+    // `readOwner` throws when the lock exists and cannot be read — fail closed, for the same reason
+    // as there: not knowing who the owner is differs from there being no owner.
     return true;
   }
 }
 
 export async function acquireSessionWriter(sessionPath: string): Promise<SessionWriterLease> {
-  // M95 — `.writer.lock`, NÃO `.lock`.
+  // M95 — `.writer.lock`, NOT `.lock`.
   //
-  // `withFileLock(path, fn)` já usa `<path>.lock` como companheiro. Enquanto o lease não era
-  // chamado de lugar nenhum (o defeito que este milestone corrige) a colisão era teórica; ligá-lo
-  // ao mesmo arquivo faria o lease de vida longa bloquear toda seção crítica curta do mesmo path.
+  // `withFileLock(path, fn)` already uses `<path>.lock` as its companion. While the lease was called
+  // from nowhere (the defect this milestone fixes) the collision was theoretical; wiring it to the
+  // same file would make the long-lived lease block every short critical section on the same path.
   //
-  // Dois arquivos porque são duas coisas: `withFileLock` protege uma seção com início e fim; o
-  // lease é POSSE, mantida através de turnos, com `release()` explícito — a distinção que o
-  // docstring do M81 acima já explica.
+  // Two files because they are two things: `withFileLock` protects a section with a start and an
+  // end; the lease is OWNERSHIP, held across turns, with an explicit `release()` — the distinction
+  // the M81 docstring above already explains.
   const lockPath = `${sessionPath}.writer.lock`;
-  const meu: DonoDoLock = { pid: process.pid, hostname: hostname(), mtime: Date.now() };
+  const mine: LockOwner = ownerNow();
   let fd: number;
   try {
-    // O modo vale na CRIAÇÃO — o `w` de `gravarDono` não altera arquivo existente.
+    // The mode applies on CREATION — the `w` in `writeOwner` does not alter an existing file.
     fd = openSync(lockPath, "wx", 0o600);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "EEXIST") throw err;
-    // M95 — o lock existe. Até aqui isso bastava para recusar, e era o defeito: uma TUI morta por
-    // SIGKILL trancava o usuário para fora da própria sessão PERMANENTEMENTE, sem caminho de
-    // recuperação documentado. Agora o lock diz quem é o dono, e um dono morto cede o lugar.
-    if (!reclamavel(lerDono(lockPath))) throw new SessionBusyError(sessionPath);
-    gravarDono(lockPath, meu);
-    return criarLease(sessionPath, lockPath);
+    // M95 — the lock exists. Until now that alone was enough to refuse, and that was the defect: a
+    // TUI killed by SIGKILL locked the user out of their own session PERMANENTLY, with no documented
+    // recovery path. Now the lock says who the owner is, and a dead owner yields its place.
+    if (!reclaimable(readOwner(lockPath))) throw new SessionBusyError(sessionPath);
+    writeOwner(lockPath, mine);
+    return createLease(sessionPath, lockPath);
   }
   closeSync(fd);
-  gravarDono(lockPath, meu);
+  writeOwner(lockPath, mine);
 
-  return criarLease(sessionPath, lockPath);
+  return createLease(sessionPath, lockPath);
 }
 
-/** O lease em si — `release()` idempotente. Extraído porque a aquisição tem dois caminhos de saída. */
-function criarLease(sessionPath: string, lockPath: string): SessionWriterLease {
+/** The lease itself — idempotent `release()`. Extracted because acquisition has two exit paths. */
+function createLease(sessionPath: string, lockPath: string): SessionWriterLease {
   let released = false;
   return {
     sessionPath,
@@ -269,6 +293,13 @@ function criarLease(sessionPath: string, lockPath: string): SessionWriterLease {
       if (released) return;
       released = true;
       rmSync(lockPath, { force: true });
+    },
+    renew: (): void => {
+      // A released lease does not own the lock. Re-stamping here would RE-CREATE the file and give
+      // this process ownership it explicitly gave up — the one way this method could manufacture the
+      // double-writer the lease exists to prevent.
+      if (released) return;
+      writeOwner(lockPath, ownerNow());
     },
   };
 }

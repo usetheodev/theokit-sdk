@@ -1,12 +1,12 @@
 /**
  * Mapeamento de `LlmMessage` para o formato de mensagem da OpenAI.
  *
- * Extraído de `openai.ts` no M75 porque o gate G8 (≤ 400 LoC) o pegou em 427 — dívida PRE-EXISTENTE,
- * que ficou invisível enquanto o `knip` falhava antes de o gate rodar.
+ * Extracted from `openai.ts` in M75 because the G8 gate (<= 400 LoC) caught it at 427 — PRE-EXISTING debt,
+ * which stayed invisible while `knip` failed before the gate ran.
  *
- * A costura não é arbitrária: estas cinco funções formam UMA responsabilidade — traduzir o nosso
+ * The seam is not arbitrary: these five functions form ONE responsibility — translating our
  * formato de mensagem para o da wire da OpenAI — e nenhuma delas conhece transporte, streaming ou
- * política de request. O resto de `openai.ts` cuida disso.
+ * request policy. The rest of `openai.ts` handles that.
  */
 import { toStringToolResultContent } from "./tool-result-content.js";
 import type { LlmMessage } from "./types.js";
@@ -35,11 +35,11 @@ function joinTextParts(message: LlmMessage): string {
  * Plain text parts (and any other parts) collapse into a single user
  * message that follows the tool messages.
  */
-// Divida PRE-EXISTENTE, exposta quando o M75 consertou a config Biome que abortava antes
-// de varrer estes arquivos (raiz aninhada em refactor/). Nao e codigo novo e nao foi tocado
-// pelo M75; refatorar internals do SDK sem revisao trocaria um problema visivel por um diff
+// PRE-EXISTING debt, exposed when M75 fixed the Biome config that used to abort before
+// sweeping these files (a nested root under refactor/). It is not new code and was not touched
+// by M75; refactoring SDK internals without review would trade a visible problem for a diff
 // arriscado. Rastreado em usetheodev/theokit-sdk#151.
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: ver a razao logo acima
+// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: see the reason just above
 function userOrToolMessages(message: LlmMessage): Array<Record<string, unknown>> {
   const out: Array<Record<string, unknown>> = [];
   for (const part of message.content) {

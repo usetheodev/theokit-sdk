@@ -198,7 +198,7 @@ describe("BedrockAnthropicClient — response parsing", () => {
     const fetchImpl = mockFetch({
       status: 200,
       body: {
-        content: [{ type: "text", text: "Brasília" }],
+        content: [{ type: "text", text: "Bras\u00edlia" }],
         stop_reason: "end_turn",
         usage: { input_tokens: 5, output_tokens: 2 },
       },
@@ -217,7 +217,7 @@ describe("BedrockAnthropicClient — response parsing", () => {
     }
     expect(events).toHaveLength(1);
     expect((events[0] as { type: string; text: string }).type).toBe("text_delta");
-    expect((events[0] as { type: string; text: string }).text).toBe("Brasília");
-    expect((finish as { text: string }).text).toBe("Brasília");
+    expect((events[0] as { type: string; text: string }).text).toBe("Bras\u00edlia");
+    expect((finish as { text: string }).text).toBe("Bras\u00edlia");
   });
 });

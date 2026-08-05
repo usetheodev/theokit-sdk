@@ -13,7 +13,7 @@ argument-hint: "<topic, audience, or file>"
 > **INQUEBRÁVEL — 95% Confidence Gate**
 >
 > NÃO FAÇA NADA SE NÃO TIVER 95% DE CONFIANÇA.
-> SEMPRE QUE PRECISAR DE UMA DECISÃO DO USUÁRIO, APRESENTE
+> WHENEVER YOU NEED A DECISION FROM THE USER, PRESENT
 > OPÇÕES PARA ELE ESCOLHER.
 >
 > See `/home/user/.claude/CLAUDE.md` § 1 (95% Confidence).
@@ -186,6 +186,6 @@ Deck has ONE set of orchestration checks. Slide-quality and diagram-quality chec
 
 ### From existing content
 ```
-/deck baseado no domain.md, versao simplificada para gestores
+/deck based on domain.md, simplified version for managers
 ```
 → Reads domain.md, creates simple version with conceptual diagrams.

@@ -3,29 +3,29 @@
  *
  * ## A cadeia causal que este teste fecha
  *
- * `isTransientError` é `err instanceof TheokitAgentError && err.isRetryable === true`
+ * `isTransientError` is `err instanceof TheokitAgentError && err.isRetryable === true`
  * (`src/errors.ts:443`). `CredentialError` estendia `Error` NU
- * (`src/internal/auth/credential-store.ts:58`), então **nenhum erro de credencial podia jamais ser
- * classificado** — nem como transiente, nem como permanente. O predicado não estava "esquecido" pelo
- * consumidor: ele era inútil ali por construção.
+ * (`src/internal/auth/credential-store.ts:58`), so **no credential error could ever be
+ * classified** — neither as transient nor as permanent. The predicate was not "forgotten" by the
+ * consumer: it was useless there by construction.
  *
- * ## Por que no SDK, e não no consumidor
+ * ## Why in the SDK, and not in the consumer
  *
  * O agent-builder importa `CredentialError` da camada desde o M73
- * (`agents/lib/auth/credentials.ts:90`) — ele não é dono da classe e não pode reparentá-la. A DoD do
- * ROADMAP formula isso como trabalho no consumidor; a medição mostrou que não é.
+ * (`agents/lib/auth/credentials.ts:90`) — it does not own the class and cannot reparent it. The ROADMAP's
+ * DoD frames this as consumer-side work; measurement showed it is not.
  *
- * ## O que a referência única faz
+ * ## What the single reference does
  *
  * O Codex tem UMA enum raiz — `CodexErr` (`protocol/src/error.rs:176`) — com `is_retryable()` como
- * método que enumera por variante. Não há classes paralelas estendendo o `Error` da linguagem. Esta é
- * a nossa versão disso.
+ * method enumerating by variant. There are no parallel classes extending the language's `Error`. This is
+ * our version of that.
  *
- * ## A metade que mais importa é a de preservação
+ * ## The half that matters most is preservation
  *
- * Reparentar é ADITIVO: `CredentialError` continua sendo `CredentialError`, e o `instanceof` que já
- * existe no consumidor (`agents/lib/auth/login.ts:48`) segue verdadeiro. Um teste que só provasse o
- * ancestral novo passaria mesmo se a classe tivesse sido substituída por outra.
+ * Reparenting is ADDITIVE: `CredentialError` is still a `CredentialError`, and the `instanceof` that already
+ * exists in the consumer (`agents/lib/auth/login.ts:48`) stays true. A test proving only the
+ * new ancestor would pass even if the class had been replaced by another.
  */
 import { describe, expect, it } from "vitest";
 
@@ -34,30 +34,30 @@ import { CredentialError } from "../src/internal/auth/credential-store.js";
 
 describe("M78 T1.1 — CredentialError na hierarquia tipada", () => {
   it("test_CredentialError_e_um_TheokitAgentError", () => {
-    // Dois níveis acima: CredentialError -> AuthenticationError -> TheokitAgentError.
-    const err = new CredentialError("chave ausente");
+    // Two levels up: CredentialError -> AuthenticationError -> TheokitAgentError.
+    const err = new CredentialError("missing key");
     expect(err).toBeInstanceOf(TheokitAgentError);
     expect(err).toBeInstanceOf(AuthenticationError);
   });
 
   it("test_CredentialError_continua_sendo_ELA_MESMA", () => {
-    // A metade de preservação. Sem esta, trocar a classe inteira por `AuthenticationError` passaria
-    // no teste acima e quebraria `login.ts:48` em silêncio.
-    const err = new CredentialError("chave ausente");
+    // The preservation half. Without it, swapping the whole class for `AuthenticationError` would pass
+    // the test above and break `login.ts:48` silently.
+    const err = new CredentialError("missing key");
     expect(err).toBeInstanceOf(CredentialError);
     expect(err.name).toBe("CredentialError");
-    expect(err.message).toBe("chave ausente");
+    expect(err.message).toBe("missing key");
   });
 
-  it("test_CONTRAPROVA_reparentar_NAO_tornou_o_erro_transiente", () => {
-    // Reparentar dá acesso à classificação; não pode LIGAR retry por acidente. Uma credencial
-    // revogada repetida em loop é pior que uma falha imediata — `AuthenticationError` já fixa
-    // `isRetryable: false` (`errors.ts:181`), e este teste trava isso.
+  it("test_COUNTERPROOF_reparenting_did_NOT_make_the_error_transient", () => {
+    // Reparenting grants access to the classification; it must not TURN ON retry by accident. A revoked
+    // credential retried in a loop is worse than an immediate failure — `AuthenticationError` already pins
+    // `isRetryable: false` (`errors.ts:181`), and this test locks that.
     expect(isTransientError(new CredentialError("revogada"))).toBe(false);
   });
 
   it("test_um_catch_generico_discrimina_framework_de_app_com_UM_instanceof", () => {
-    // A DoD 5 do milestone, provada onde ela nasce. Antes, um `catch` recebia `Error` nu vindo do
+    // The milestone's DoD 5, proven where it originates. Before, a `catch` received a bare `Error` from the
     // store e `Error` nu vindo do app, sem forma de distinguir sem comparar strings de `name`.
     const doFramework: unknown = new CredentialError("do store");
     const doApp: unknown = new Error("do app");

@@ -93,7 +93,7 @@ export class FaultInjectingLlmClient implements LlmClient {
     }
     const text = extractText(parsed.body);
     yield { type: "text_delta", text };
-    yield { type: "stop", reason: "end_turn" };
+    // theokit#144: no `stop` event — the reason travels on the finish value below.
     return {
       stopReason: "end_turn",
       text,

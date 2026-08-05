@@ -1,29 +1,29 @@
 /**
- * M80 T1.1 — o judge deixa de ser provider-cego, e falha rápido quando a credencial não serve.
+ * M80 T1.1 — the judge stops being provider-blind, and fails fast when the credential does not work.
  *
- * ## O custo medido, documentado pelo próprio consumidor
+ * ## The measured cost, documented by the consumer itself
  *
- * `judge-call.ts` lê **só** `OPENROUTER_API_KEY` (*"EC-A: single env source — OpenRouter only"*) e
- * fixa `openai/gpt-4o-mini`. O agent-builder já escreveu o preço disso, em `agents/lib/goal/goal.ts`:
+ * `judge-call.ts` reads **only** `OPENROUTER_API_KEY` (*"EC-A: single env source — OpenRouter only"*) and
+ * pins `openai/gpt-4o-mini`. The agent-builder already wrote down the price, in `agents/lib/goal/goal.ts`:
  *
  * > *"The SDK's default judge (`openai/gpt-4o-mini`) only resolves on OpenRouter; with an Anthropic
  * > key it 404s and with an OAuth bearer it 401s — every goal then burns 3 full turns before
  * > 'failed' with a misleading reason."*
  *
- * Ele contornou derivando o modelo por conta própria. O conhecimento está no lugar errado: quem sabe
- * qual judge resolve para qual credencial é o subsistema de judge, não cada consumidor.
+ * It worked around this by deriving the model itself. The knowledge is in the wrong place: who knows
+ * which judge resolves for which credential is the judge subsystem, not each consumer.
  *
- * ## Por que 401/404 falham rápido e parse malformado NÃO
+ * ## Why 401/404 fail fast and a malformed parse does NOT
  *
- * São erros de natureza diferente (`rules/error-handling.md § 2`). Um modelo inexistente não melhora
- * em retry — queimar 3 turnos antes de desistir é desperdício com diagnóstico pior que o erro. Um
- * verdict não-parseável **é** recuperável: o loop decide por falhas consecutivas, política
+ * They are errors of different kinds (`rules/error-handling.md` § 2). A nonexistent model does not improve
+ * on retry — burning 3 turns before giving up is waste with a diagnostic worse than the error. A
+ * non-parseable verdict **is** recoverable: the loop decides on consecutive failures, a policy
  * documentada em `judge-call.ts:44-48`, e abortar nela quebraria goals que hoje funcionam.
  *
- * ## Uma correção ao blueprint deste milestone
+ * ## A correction to this milestone's blueprint
  *
- * O blueprint concluiu que `blocked` "já está no vocabulário" — verdadeiro para
- * `GoalResult.status` (`types/goal-events.ts:60`) e **falso** para o verdict do judge, que é
+ * The blueprint concluded that `blocked` "is already in the vocabulary" — true for
+ * `GoalResult.status` (`types/goal-events.ts:60`) and **false** for the judge's verdict, which is
  * `"done" | "continue" | "skipped"`. Eu li metade da DoD e declarei a outra metade pronta. O teste
  * abaixo cobre a metade que faltava.
  */
@@ -33,10 +33,10 @@ import { TheokitAgentError } from "../src/errors.js";
 import type { JudgeContext } from "../src/internal/judge/judge-call.js";
 import { judgeCallImpl } from "../src/internal/judge/judge-call.js";
 
-const ctx = { goal: "fazer X", lastResponse: "fiz X", turnsUsed: 1 } as unknown as JudgeContext;
+const ctx = { goal: "do X", lastResponse: "did X", turnsUsed: 1 } as unknown as JudgeContext;
 
-/** Agente falso: registra o modelo pedido e devolve o texto configurado (ou lança). */
-function agenteFalso(comportamento: { texto?: string; erro?: Error }) {
+/** Fake agent: records the requested model and returns the configured text (or throws). */
+function fakeAgent(behavior: { text?: string; error?: Error }) {
   const modelos: string[] = [];
   const chaves: (string | undefined)[] = [];
   return {
@@ -48,8 +48,8 @@ function agenteFalso(comportamento: { texto?: string; erro?: Error }) {
         chaves.push(options.apiKey);
         return {
           send: async () => {
-            if (comportamento.erro !== undefined) throw comportamento.erro;
-            return { wait: async () => ({ result: comportamento.texto ?? "" }) };
+            if (behavior.error !== undefined) throw behavior.error;
+            return { wait: async () => ({ result: behavior.text ?? "" }) };
           },
           dispose: async () => undefined,
         };
@@ -60,20 +60,20 @@ function agenteFalso(comportamento: { texto?: string; erro?: Error }) {
 
 describe("M80 T1.1 — judge provider-aware", () => {
   it("test_judge_deriva_o_modelo_do_agente_conduzido", async () => {
-    const a = agenteFalso({ texto: "DONE: pronto" });
+    const a = fakeAgent({ text: "DONE: pronto" });
     await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "anthropic/claude-4" }, a.deps);
 
     expect(
       a.modelos[0],
-      "sem `judgeModel` explícito, o judge tem de seguir o modelo do agente conduzido — " +
-        "o default fixo só resolve em OpenRouter",
+      "without an explicit `judgeModel`, the judge must follow the driven agent's model — " +
+        "the fixed default only resolves on OpenRouter",
     ).toBe("anthropic/claude-4");
   });
 
   it("test_judgeModel_explicito_VENCE_a_derivacao", () => {
-    // CONTRAPROVA: a derivação é o DEFAULT, não uma imposição. O A/B do M64 mostrou o judge barato
-    // vencendo em goals curtos, e quem sabe disso precisa poder dizer.
-    const a = agenteFalso({ texto: "DONE: pronto" });
+    // COUNTER-PROOF: the derivation is the DEFAULT, not an imposition. M64's A/B showed the cheap judge
+    // winning on short goals, and whoever knows that must be able to say so.
+    const a = fakeAgent({ text: "DONE: pronto" });
     return judgeCallImpl(
       ctx,
       { apiKey: "sk-x", agentModel: "anthropic/claude-4", judgeModel: "openai/gpt-4o-mini" },
@@ -83,19 +83,19 @@ describe("M80 T1.1 — judge provider-aware", () => {
     });
   });
 
-  it("test_401_lanca_erro_TIPADO_e_nao_dobra_em_parseFailed", async () => {
-    // O caso que hoje queima 3 turnos: a credencial não serve para o judge, e o loop trata como
-    // "continue" três vezes antes de desistir com razão enganosa.
-    const a = agenteFalso({ erro: Object.assign(new Error("401 Unauthorized"), { status: 401 }) });
+  it("test_a_401_throws_a_TYPED_error_and_does_not_fold_into_parseFailed", async () => {
+    // The case that today burns 3 turns: the credential does not work for the judge, and the loop treats it as
+    // "continue" three times before giving up with a misleading reason.
+    const a = fakeAgent({ error: Object.assign(new Error("401 Unauthorized"), { status: 401 }) });
 
     await expect(
       judgeCallImpl(ctx, { apiKey: "sk-ruim", agentModel: "m" }, a.deps),
     ).rejects.toBeInstanceOf(TheokitAgentError);
   });
 
-  it("test_404_de_modelo_lanca_erro_TIPADO", async () => {
-    const a = agenteFalso({
-      erro: Object.assign(new Error("404 model not found"), { status: 404 }),
+  it("test_a_model_404_throws_a_TYPED_error", async () => {
+    const a = fakeAgent({
+      error: Object.assign(new Error("404 model not found"), { status: 404 }),
     });
 
     await expect(
@@ -103,33 +103,33 @@ describe("M80 T1.1 — judge provider-aware", () => {
     ).rejects.toBeInstanceOf(TheokitAgentError);
   });
 
-  it("test_CONTRAPROVA_falha_de_PARSE_continua_dobrada", async () => {
-    // A metade que NÃO pode virar fail-fast. Um verdict não-parseável é recuperável — o loop decide
-    // por falhas consecutivas (`judge-call.ts:44-48`), e abortar nele quebraria goals que funcionam.
-    const a = agenteFalso({ texto: "texto que não começa com nenhum prefixo canônico" });
+  it("test_COUNTERPROOF_a_PARSE_failure_stays_folded", async () => {
+    // The half that must NOT become fail-fast. A non-parseable verdict is recoverable — the loop decides
+    // on consecutive failures (`judge-call.ts:44-48`), and aborting on it would break working goals.
+    const a = fakeAgent({ text: "text that starts with no canonical prefix" });
     const r = await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "m" }, a.deps);
 
     expect(r.parseFailed).toBe(true);
     expect(r.verdict).toBe("continue");
   });
 
-  it("test_CONTRAPROVA_erro_de_REDE_tambem_continua_dobrado", async () => {
-    // Sem esta, "fail-fast em erro" viraria fail-fast em TUDO. Um timeout de rede é transiente; o
-    // loop deve poder tentar de novo, como sempre pôde.
-    const a = agenteFalso({ erro: new Error("ETIMEDOUT") });
+  it("test_COUNTERPROOF_a_NETWORK_error_also_stays_folded", async () => {
+    // Without this, "fail fast on error" would become fail fast on EVERYTHING. A network timeout is transient; the
+    // loop must be able to retry, as it always could.
+    const a = fakeAgent({ error: new Error("ETIMEDOUT") });
     const r = await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "m" }, a.deps);
 
     expect(r.parseFailed).toBe(true);
   });
 
   it("test_blocked_entra_no_vocabulario_de_VERDICT", async () => {
-    // A metade da DoD 3 que o blueprint deste milestone declarou pronta por engano: `blocked` já
+    // The half of DoD 3 this milestone's blueprint mistakenly declared done: `blocked` already
     // existia em `GoalResult.status`, mas o verdict do judge era `done | continue | skipped`. Sem
-    // ele, o judge não tem como dizer "impossível prosseguir" — só "continue", que o loop repete.
-    const a = agenteFalso({ texto: "BLOCKED: o mesmo bloqueio recorreu" });
+    // it, the judge has no way to say "impossible to proceed" — only "continue", which the loop repeats.
+    const a = fakeAgent({ text: "BLOCKED: the same blocker recurred" });
     const r = await judgeCallImpl(ctx, { apiKey: "sk-x", agentModel: "m" }, a.deps);
 
     expect(r.verdict).toBe("blocked");
-    expect(r.parseFailed, "`blocked` é verdict legítimo, não falha de parse").toBe(false);
+    expect(r.parseFailed, "`blocked` is a legitimate verdict, not a parse failure").toBe(false);
   });
 });

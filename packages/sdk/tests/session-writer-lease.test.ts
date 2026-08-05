@@ -1,32 +1,32 @@
 /**
- * M81 T1.2 — lease de escritor único para uma sessão.
+ * M81 T1.2 — single-writer lease for a session.
  *
  * ## O problema medido
  *
- * Nada impede hoje que dois processos anexem ao mesmo transcript JSONL. O caso concreto que o M81
- * cita: `exec resume --last` pode escrever na sessão viva do TUI. Duas escritas intercaladas num
- * append-only produzem um arquivo cujas linhas são válidas individualmente e cuja SEQUÊNCIA é
- * ficção — e nada acusa, porque cada linha isolada faz parse.
+ * Nothing today stops two processes appending to the same JSONL transcript. The concrete case M81
+ * cites: `exec resume --last` can write into the TUI's live session. Two interleaved writes in an
+ * append-only file produce a file whose lines are individually valid and whose SEQUENCE is
+ * fiction — and nothing flags it, because each line parses on its own.
  *
- * ## O ADR D2 do plano dizia "compõe `withFileLock`", e a implementação divergiu — com razão escrita
+ * ## The plan's ADR D2 said "composes `withFileLock`", and the implementation diverged — with the reason written down
  *
- * O instinto do D2 estava certo: não construir um segundo mecanismo de lock. O que não coube foi a
- * FORMA. `withFileLock(path, fn)` é baseado em escopo — segura o lock pela duração de um callback.
- * Um lease de sessão é segurado **entre turnos**, enquanto o processo for dono da sessão, com
- * `release()` explícito. Embrulhar o ciclo de vida inteiro da sessão num callback inverteria o
+ * D2's instinct was right: do not build a second locking mechanism. What did not fit was the
+ * SHAPE. `withFileLock(path, fn)` is scope-based — it holds the lock for a callback's duration.
+ * A session lease is held **across turns**, for as long as the process owns the session, with an
+ * explicit `release()`. Wrapping the session's whole lifecycle in a callback would invert the
  * controle do agent loop.
  *
- * A implementação usa a MESMA primitiva que o `withFileLock` usa por baixo — lockfile de criação
- * exclusiva (`wx`) — com semântica de lease em cima. O mecanismo segue único; só a vida dele mudou.
- * A divergência está registrada no source, não escondida.
+ * The implementation uses the SAME primitive `withFileLock` uses underneath — an exclusive-creation
+ * lockfile (`wx`) — with lease semantics on top. The mechanism stays single; only its lifetime changed.
+ * The divergence is recorded in the source, not hidden.
  *
- * ## Falha RÁPIDA, não espera
+ * ## Fails FAST, does not wait
  *
- * Um segundo escritor que esperasse pelo lease travaria o `exec` atrás de uma sessão de TUI que pode
- * durar horas. `rules/error-handling.md § 2` pede erro tipado; aqui ele também precisa ser imediato,
+ * A second writer waiting for the lease would block `exec` behind a TUI session that can
+ * last hours. `rules/error-handling.md` § 2 asks for a typed error; here it also has to be immediate,
  * para o chamador poder decidir entre forkar e desistir.
  */
-import { mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -40,42 +40,42 @@ import {
 const dir = mkdtempSync(join(tmpdir(), "m81-lease-"));
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-const sessao = (nome: string): string => join(dir, `${nome}.jsonl`);
+const session = (nome: string): string => join(dir, `${nome}.jsonl`);
 
-describe("M81 T1.2 — lease de escritor de sessão", () => {
-  it("test_o_primeiro_escritor_obtem_o_lease", async () => {
-    const lease = await acquireSessionWriter(sessao("a"));
+describe("M81 T1.2 — session writer lease", () => {
+  it("test_the_first_writer_gets_the_lease", async () => {
+    const lease = await acquireSessionWriter(session("a"));
     expect(lease).toBeDefined();
     await lease.release();
   });
 
-  it("test_o_segundo_FALHA_RAPIDO_com_erro_tipado", async () => {
-    // Esperar travaria o `exec` atrás de uma sessão de TUI que pode durar horas. O erro tipado deixa
-    // o chamador escolher: forkar para um id novo, ou desistir com diagnóstico.
-    const primeiro = await acquireSessionWriter(sessao("b"));
-    const inicio = Date.now();
+  it("test_the_second_FAILS_FAST_with_a_typed_error", async () => {
+    // Waiting would block `exec` behind a TUI session that can last hours. The typed error lets
+    // the caller choose: fork to a new id, or give up with a diagnostic.
+    const first = await acquireSessionWriter(session("b"));
+    const start = Date.now();
 
-    await expect(acquireSessionWriter(sessao("b"))).rejects.toBeInstanceOf(SessionBusyError);
-    expect(Date.now() - inicio, "tem de falhar rápido, não esperar o lease").toBeLessThan(2000);
+    await expect(acquireSessionWriter(session("b"))).rejects.toBeInstanceOf(SessionBusyError);
+    expect(Date.now() - start, "must fail fast, not wait for the lease").toBeLessThan(2000);
 
-    await primeiro.release();
+    await first.release();
   });
 
-  it("test_liberar_o_lease_permite_o_proximo", async () => {
-    const primeiro = await acquireSessionWriter(sessao("c"));
-    await primeiro.release();
+  it("test_releasing_the_lease_lets_the_next_one_in", async () => {
+    const first = await acquireSessionWriter(session("c"));
+    await first.release();
 
-    // Sem isto, o lease seria uma trava permanente em vez de um lease.
-    const segundo = await acquireSessionWriter(sessao("c"));
-    expect(segundo).toBeDefined();
-    await segundo.release();
+    // Without this, the lease would be a permanent lock rather than a lease.
+    const second = await acquireSessionWriter(session("c"));
+    expect(second).toBeDefined();
+    await second.release();
   });
 
-  it("test_CONTRAPROVA_sessoes_distintas_nao_disputam", async () => {
-    // Sem esta, um lease global passaria nos testes acima e serializaria TODAS as sessões — o
-    // oposto do objetivo, e invisível até alguém rodar dois agentes ao mesmo tempo.
-    const a = await acquireSessionWriter(sessao("d1"));
-    const b = await acquireSessionWriter(sessao("d2"));
+  it("test_COUNTERPROOF_distinct_sessions_do_not_contend", async () => {
+    // Without this, a global lease would pass the tests above and serialize EVERY session — the
+    // opposite of the goal, and invisible until someone runs two agents at once.
+    const a = await acquireSessionWriter(session("d1"));
+    const b = await acquireSessionWriter(session("d2"));
 
     expect(a).toBeDefined();
     expect(b).toBeDefined();
@@ -84,10 +84,10 @@ describe("M81 T1.2 — lease de escritor de sessão", () => {
   });
 
   it("test_duas_aquisicoes_concorrentes_so_uma_vence", async () => {
-    // Concurrent test com atomic-counter invariant: `Promise.allSettled` de duas aquisições ⇒
+    // Concurrent test with an atomic-counter invariant: `Promise.allSettled` of two acquisitions =>
     // exatamente 1 `fulfilled` e 1 `rejected`. Um lease que deixasse as duas passarem seria
-    // decorativo — e é precisamente o estado de hoje, sem lease nenhum.
-    const p = sessao("e");
+    // decorative — and that is precisely today's state, with no lease at all.
+    const p = session("e");
     const r = await Promise.allSettled([acquireSessionWriter(p), acquireSessionWriter(p)]);
 
     expect(r.filter((x) => x.status === "fulfilled")).toHaveLength(1);
@@ -98,15 +98,91 @@ describe("M81 T1.2 — lease de escritor de sessão", () => {
     }
   });
 
-  it("test_o_erro_nomeia_a_sessao_disputada", async () => {
-    // `error-handling.md § 2`: contexto suficiente para agir. Saber QUAL sessão está ocupada é o que
-    // permite ao chamador decidir entre forkar e esperar o usuário fechar o TUI.
-    const p = sessao("f");
-    const primeiro = await acquireSessionWriter(p);
+  it("test_the_error_names_the_contended_session", async () => {
+    // `error-handling.md` § 2: enough context to act. Knowing WHICH session is busy is what
+    // lets the caller decide between forking and waiting for the user to close the TUI.
+    const p = session("f");
+    const first = await acquireSessionWriter(p);
     const err = (await acquireSessionWriter(p).catch((e: unknown) => e)) as SessionBusyError;
 
     expect(err.sessionPath).toBe(p);
     expect(err.message).toContain(p);
-    await primeiro.release();
+    await first.release();
+  });
+});
+
+/**
+ * `agent-builder#118` — a live owner must never cross the staleness window.
+ *
+ * The record `{pid, hostname, mtime}` was written **once**, at acquisition, and never renewed. On the
+ * same host that is harmless: `reclaimable` decides by `pid`, which is exact, and age never enters the
+ * calculation. Across hosts it is not harmless — `pid` from another machine means nothing, so age is
+ * the only signal, and **any real session** older than the window became reclaimable while its owner
+ * was still writing. Two writers on one transcript is what the lease exists to prevent.
+ *
+ * `renew()` re-stamps the record. It is not an internal timer on purpose: a timer would renew the
+ * lease of a process that is **hung** rather than working, which is exactly the state the window
+ * exists to detect. Tied to a real write, the record tracks **progress**.
+ */
+describe("agent-builder#118 — the ownership record is renewable", () => {
+  const readOwner = (sessionPath: string): { pid: number; mtime: number } =>
+    JSON.parse(readFileSync(`${sessionPath}.writer.lock`, "utf8")) as {
+      pid: number;
+      mtime: number;
+    };
+
+  it("test_renew_advances_the_recorded_mtime", async () => {
+    const p = join(dir, "renew.jsonl");
+    const lease = await acquireSessionWriter(p);
+    try {
+      const before = readOwner(p).mtime;
+      await new Promise((r) => setTimeout(r, 5));
+      lease.renew();
+      expect(
+        readOwner(p).mtime,
+        "renew() did not advance the record — a live owner still crosses the window",
+      ).toBeGreaterThan(before);
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it("test_renew_keeps_the_SAME_owner", async () => {
+    // Counterproof against the tempting shortcut of rewriting the record from scratch with whatever
+    // is around: the renewal must not change WHO holds the lease.
+    const p = join(dir, "renew-owner.jsonl");
+    const lease = await acquireSessionWriter(p);
+    try {
+      const before = readOwner(p).pid;
+      lease.renew();
+      expect(readOwner(p).pid).toBe(before);
+      expect(readOwner(p).pid).toBe(process.pid);
+    } finally {
+      await lease.release();
+    }
+  });
+
+  it("test_NEGATIVE_renew_after_release_does_NOT_recreate_the_lock", async () => {
+    // The one direction of this API that could MANUFACTURE the double-writer it exists to prevent:
+    // re-stamping a lease you gave up would re-create the lock file and take ownership back.
+    const p = join(dir, "renew-after-release.jsonl");
+    const lease = await acquireSessionWriter(p);
+    await lease.release();
+    lease.renew();
+    expect(
+      existsSync(`${p}.writer.lock`),
+      "renew() after release() re-created the lock — the released process took ownership back",
+    ).toBe(false);
+  });
+
+  it("test_COUNTERPROOF_the_lock_exists_while_the_lease_is_held", async () => {
+    // Without this, a renew() that never wrote anything would satisfy the negative above.
+    const p = join(dir, "held.jsonl");
+    const lease = await acquireSessionWriter(p);
+    try {
+      expect(existsSync(`${p}.writer.lock`)).toBe(true);
+    } finally {
+      await lease.release();
+    }
   });
 });

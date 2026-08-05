@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { buildResponsesBody, ResponsesApiClient } from "../../../src/internal/llm/responses.js";
-import type { LlmEvent, LlmRequest } from "../../../src/internal/llm/types.js";
+import type { LlmEvent, LlmRequest, LlmToolCallPart } from "../../../src/internal/llm/types.js";
 
 /**
  * M40 — the Responses-API transport. GOLDEN tests against Upstream's recorded SSE fixtures (MIT © 2025
@@ -35,7 +35,9 @@ async function drain(
     : {
         text: string;
         stopReason: string;
-        toolCalls: unknown[];
+        // theokit#144: typed rather than `unknown[]` — with the `tool_use` event gone, the finish
+        // value is the only place a tool call is reported, so the test must be able to read it.
+        toolCalls: LlmToolCallPart[];
         inputTokens?: number;
         outputTokens?: number;
       };
@@ -91,11 +93,19 @@ describe("M40 — ResponsesApiClient (golden, Upstream fixtures)", () => {
     expect(finish.text.length).toBeGreaterThan(0);
     expect(finish.text.toLowerCase()).toContain("hello");
     expect(finish.stopReason).toBe("end_turn");
-    expect(events.at(-1)).toEqual({ type: "stop", reason: "end_turn" });
+    // theokit#144: the stop reason is reported once, on the finish value (asserted above). It used
+    // to be echoed as a trailing `stop` event that no consumer read; the stream now ends with the
+    // last text delta.
+    expect(events.at(-1)?.type).toBe("text_delta");
     expect(finish.outputTokens).toBeGreaterThan(0);
   });
 
-  it("streams a function tool call → tool_use event + LlmFinish.toolCalls + stop tool_use", async () => {
+  // theokit#144: this asserted a `tool_use` EVENT alongside the finish value. The event had no
+  // consumer anywhere in the SDK and duplicated `finish.toolCalls`, so it is gone; the assertions
+  // moved onto the surviving contract, which is also the one the agent loop actually reads. The
+  // streamed `response.function_call_arguments.delta` chunks are still exercised — the parsed
+  // `input` below can only be right if they were accumulated.
+  it("accumulates a streamed function tool call onto LlmFinish.toolCalls + stop tool_use", async () => {
     const fx = loadFixture("streams-tool-call.json").interactions[0]!;
     const client = new ResponsesApiClient({
       apiKey: "sk-test",
@@ -106,14 +116,14 @@ describe("M40 — ResponsesApiClient (golden, Upstream fixtures)", () => {
       messages: [{ role: "user", content: [{ type: "text", text: "weather in Paris?" }] }],
       tools: [{ name: "get_weather", description: "", inputSchema: { type: "object" } }],
     });
-    const toolUse = events.find((e) => e.type === "tool_use") as
-      | { type: "tool_use"; id: string; name: string; input: Record<string, unknown> }
-      | undefined;
-    expect(toolUse?.name).toBe("get_weather");
-    expect(toolUse?.id).toMatch(/^call_/);
-    expect(toolUse?.input).toHaveProperty("city");
     expect(finish.toolCalls).toHaveLength(1);
+    const call = finish.toolCalls[0];
+    expect(call?.name).toBe("get_weather");
+    expect(call?.id).toMatch(/^call_/);
+    expect(call?.input).toHaveProperty("city");
     expect(finish.stopReason).toBe("tool_use");
+    // The stream reports text and reasoning only — a tool call is never an in-stream event.
+    expect(events.every((e) => e.type !== "error")).toBe(true);
   });
 
   it("maps a non-200 response to a typed provider error (no token echoed)", async () => {
