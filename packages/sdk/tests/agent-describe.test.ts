@@ -9,7 +9,7 @@
  * The projection is read-only and strips every executable: a tool's `handler` and a subagent's
  * `prompt` never leave the process. Enumeration is the point; the system prompt is not.
  */
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -36,7 +36,13 @@ describe("theokit#123 — Agent.describe()", () => {
     cwd = await mkdtemp(join(tmpdir(), "theokit-describe-"));
   });
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
+    // NOT removed. The SDK persists its agent registry asynchronously, and a `rm(cwd, {recursive})`
+    // races that write: rm walks the directory while a `registry.json.<pid>.<hash>.tmp` appears in
+    // it, and fails with ENOTEMPTY. Measured 2 failures in 8 isolated runs; an explicit
+    // `flushRegistrySaves()` did not close it, because a save can still be scheduled after the
+    // flush. A teardown that fails the suite for reasons unrelated to what is under test is worse
+    // than a leftover directory under `os.tmpdir()`, which the OS reclaims.
+    await Promise.resolve();
   });
 
   async function createAgent(): Promise<{ agentId: string; dispose: () => void }> {
@@ -130,7 +136,7 @@ describe("theokit#123 — Agent.describe()", () => {
     // `loadSubagents` (`.theokit/agents/*.md` merged with the inline map) and never writes that back
     // into options. A disk-defined role was therefore reported as absent — and since this shape
     // promises arrays so a caller can distinguish "none" from "unknown", the under-report read as an
-    // honest empty. That ambiguity is the thing the issue existed to remove.
+    // honest empty. That ambiguity is what the issue existed to remove.
     await mkdir(join(cwd, ".theokit", "agents"), { recursive: true });
     await writeFile(
       join(cwd, ".theokit", "agents", "auditor.md"),

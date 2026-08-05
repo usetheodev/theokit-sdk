@@ -7,7 +7,7 @@
  * public method composed of two already-tested pieces is exactly where a wiring bug hides — the
  * repo's own recurring lesson is that the metric can pass while the invariant does not.
  */
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -24,8 +24,13 @@ describe("theokit#146 — Agent.transcript()", () => {
   });
 
   afterEach(async () => {
-    await rm(cwd, { recursive: true, force: true });
-    await rm(baseDir, { recursive: true, force: true });
+    // NOT removed. The SDK persists its agent registry asynchronously, and a `rm(cwd, {recursive})`
+    // races that write: rm walks the directory while a `registry.json.<pid>.<hash>.tmp` appears in
+    // it, and fails with ENOTEMPTY. Measured 2 failures in 8 isolated runs; an explicit
+    // `flushRegistrySaves()` did not close it, because a save can still be scheduled after the
+    // flush. A teardown that fails the suite for reasons unrelated to what is under test is worse
+    // than a leftover directory under `os.tmpdir()`, which the OS reclaims.
+    await Promise.resolve();
   });
 
   it("test_returns_the_persisted_turns_with_both_projections", async () => {
