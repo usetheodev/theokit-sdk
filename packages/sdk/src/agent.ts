@@ -36,6 +36,7 @@ import { enqueueSessionWrite } from "./internal/session/agent-session.js";
 import { SPAN_NAMES } from "./internal/telemetry/span-names.js";
 import { createTelemetry, type OTelSpan } from "./internal/telemetry/tracer.js";
 import type {
+  AgentDescription,
   AgentOperationOptions,
   AgentOptions,
   GetAgentOptions,
@@ -538,6 +539,42 @@ export class Agent {
     const { readSessionMessages } = await import("./internal/session/agent-session-store.js");
     const { store } = await openLocalStore(reg);
     return readSessionMessages(store, agentId);
+  }
+
+  /**
+   * theokit#123 — read-only introspection of a registered agent's tools and subagents.
+   *
+   * `Agent.list()` / `Agent.get()` enumerate agents and `agent.skills.list()` covers skills, but
+   * tools and subagents lived only on `RegisteredAgent.options` — an internal contract. A
+   * reflection endpoint (theokit-studio's `theokit dev`) therefore had to report empty lists for
+   * both, and say so with an `unavailable_reason`.
+   *
+   * A PROJECTION, not the options object. Tool handlers and subagent prompts are stripped: a
+   * handler is an executable that cannot cross a process boundary, and a prompt is the agent's
+   * instructions rather than its signature — a reflection endpoint serializes what it is handed.
+   *
+   * @throws UnknownAgentError when `agentId` names no registered agent.
+   * @public
+   */
+  static async describe(agentId: string): Promise<AgentDescription> {
+    const agent = await getRegisteredAgentOrThrow(agentId);
+    return {
+      agentId: agent.agentId,
+      runtime: agent.runtime,
+      ...(agent.model !== undefined ? { model: agent.model } : {}),
+      // Always arrays, so a caller can tell "this agent has none" from "the SDK did not say".
+      tools: (agent.options.tools ?? []).map((tool) => ({
+        name: tool.name,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+      })),
+      subagents: Object.entries(agent.options.agents ?? {}).map(([name, def]) => ({
+        name,
+        description: def.description,
+        ...(def.model !== undefined ? { model: def.model } : {}),
+        ...(def.tools !== undefined ? { tools: def.tools } : {}),
+      })),
+    };
   }
 
   /**

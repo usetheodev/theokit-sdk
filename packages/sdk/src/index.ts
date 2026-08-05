@@ -233,7 +233,14 @@ export { toShareGptTrajectory } from "./trajectory-helpers.js";
 // bundled .d.ts (the `export type *` indirection through `./types/index.js`
 // does not propagate to the rollup-dts output reliably). Needed by extracted
 // packages that author custom tools (e.g., @theokit/sdk-tools).
-export type { CustomTool, SDKAgent } from "./types/agent.js";
+// theokit#123 — the shape `Agent.describe()` returns, so a reflection endpoint can name it.
+export type {
+  AgentDescription,
+  AgentSubagentDescription,
+  AgentToolDescription,
+  CustomTool,
+  SDKAgent,
+} from "./types/agent.js";
 // SE7 — structured/multimodal tool-result content blocks (explicit for rollup-dts).
 export type { ImageBlock, ToolResultContentBlock } from "./types/content-blocks.js";
 // M80 — `JudgeResult` and `Verdict` become public.

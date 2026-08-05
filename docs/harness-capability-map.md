@@ -32,6 +32,9 @@ import {
   Theokit, Cron,              // top-level namespaces (Theokit.models.list(), Cron.create(...))
   type SessionMessage,        // one turn of a persisted transcript: { role, text, parts? }
   type SessionMessagePart,    // structured part: text | tool_use (id/name/input) | tool_result (toolUseId/content)
+  type AgentDescription,      // Agent.describe(id) → { agentId, runtime, model?, tools, subagents }
+  type AgentToolDescription,  // { name, description, inputSchema } — handler stripped
+  type AgentSubagentDescription, // { name, description, model?, tools? } — prompt stripped
 } from "@theokit/sdk";
 
 // Step cap fail-closed in one line:
@@ -49,6 +52,10 @@ for (const message of await Agent.transcript("agent-abc123")) {
     if (part.type === "tool_use") renderCard(part.name, part.input, part.id);
   }
 }
+
+// Reflect the live registry — what an agent can call, without reading source (theokit#123).
+// A projection: tool handlers and subagent prompts never leave the process.
+const { tools, subagents } = await Agent.describe("agent-abc123");
 ```
 
 ## Errors & transient classification — `@theokit/sdk/errors`
