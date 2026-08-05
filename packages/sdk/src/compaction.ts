@@ -22,6 +22,7 @@
  */
 
 import { TheokitAgentError } from "./errors.js";
+import { diag } from "./internal/diagnostics.js";
 import { selectCompressionWindow } from "./internal/runtime/compression/compression-helpers.js";
 import { redactSecrets } from "./internal/security/redact.js";
 
@@ -167,8 +168,10 @@ async function runSummarize(
     // cause when a summarizer fails every turn and context grows unchecked. The
     // summarizer is caller-supplied, so its error text is routed through
     // `redactSecrets` (ADR D68 — no unredacted output sink in src/).
-    console.warn(
-      `[compaction] summarizer failed — proceeding uncompacted: ${redactSecrets(err instanceof Error ? err.message : String(err))}`,
+    // theokit#147 — through the interceptable channel. A summarizer failing every turn is exactly
+    // the breadcrumb a TUI host wants in its own panel, not smeared across its alternate screen.
+    diag(
+      `[compaction] summarizer failed — proceeding uncompacted: ${redactSecrets(err instanceof Error ? err.message : String(err))}\n`,
     );
     return FAILSAFE_ABORT;
   }

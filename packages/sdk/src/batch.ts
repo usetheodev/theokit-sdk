@@ -11,6 +11,7 @@
 
 import { randomUUID } from "node:crypto";
 import { ConfigurationError, TheokitAgentError } from "./errors.js";
+import { diag } from "./internal/diagnostics.js";
 import { CredentialPool, newPooledCredential } from "./internal/llm/credential-pool.js";
 import { withCredentialPool } from "./internal/llm/credential-pool-context.js";
 import type { CredentialPoolStrategy } from "./internal/llm/credential-pool-types.js";
@@ -218,7 +219,8 @@ async function runOne(
       try {
         await agent.dispose();
       } catch (disposeErr) {
-        process.stderr.write(
+        // theokit#147 — the interceptable channel; a batch run must not write onto a TUI's frame.
+        diag(
           `[theokit-sdk] batch: agent.dispose failed for prompt ${index}: ${
             disposeErr instanceof Error ? disposeErr.message : String(disposeErr)
           }\n`,
@@ -300,7 +302,7 @@ async function safeCallResult(cb: BatchOptions["onResult"], result: BatchResult)
   try {
     await cb(result);
   } catch (err) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] batch: onResult callback threw: ${
         err instanceof Error ? err.message : String(err)
       }\n`,
@@ -313,7 +315,7 @@ function safeCallProgress(cb: BatchOptions["onProgress"], progress: BatchProgres
   try {
     cb(progress);
   } catch (err) {
-    process.stderr.write(
+    diag(
       `[theokit-sdk] batch: onProgress callback threw: ${
         err instanceof Error ? err.message : String(err)
       }\n`,
