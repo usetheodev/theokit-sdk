@@ -1,21 +1,27 @@
-# Languages enabled for /code-quality and post-edit-check.sh.
+# Languages enabled for /code-quality.
 #
-# Format: one language identifier per line. Lines starting with '#' are comments.
-# Identifiers match the file extensions handled by hooks/post-edit-check.sh.
+# theokit#157 — this file previously used a one-identifier-per-line format that the
+# /code-quality parser rejects (`languages.txt malformed line: 'typescript'`), which meant
+# the skill had never been runnable in this repository and knowledge-base/audits/ was empty.
+# It now uses the four-column format the parser and the skill's own defaults
+# (skills/code-quality/defaults/languages.txt) share.
 #
-# Default policy: empty file = no language-specific quality checks run. Each
-# project enables the languages it actually uses. Adding a language here is a
-# signal to /code-quality and the post-edit hook that the toolchain should be
-# present and consulted.
+# The old header also claimed this file was read by hooks/post-edit-check.sh. It is not —
+# grep finds only scripts/install.sh referencing it. That claim is removed rather than
+# corrected: a comment describing a consumer that does not exist is worse than no comment.
 #
-# Supported identifiers (uncomment the ones your project uses):
+# Format (one entry per line):
+#   LANGUAGE | MANIFEST-MARKER | STATUS | NOTES
 #
-# go
-# python
-typescript
-# javascript
-# rust
-# java
-# kotlin
-# ruby
-# csharp
+#   LANGUAGE        one of: python, typescript, rust, go
+#   MANIFEST-MARKER filename used by auto-detection at the repo root
+#   STATUS          one of: ENABLED, DISABLED, DEFER
+#   NOTES           free-form rationale
+#
+# A language whose manifest is absent emits an INFO finding and is skipped anyway, so
+# DISABLED is only useful to silence that INFO entirely.
+
+typescript | package.json   | ENABLED  | The workspace language: pnpm + tsup + vitest.
+python     | pyproject.toml | DISABLED | No Python product code; only .claude/ tooling scripts, out of scope.
+rust       | Cargo.toml     | DISABLED | Not used.
+go         | go.mod         | DISABLED | Not used.

@@ -558,17 +558,37 @@ export class Agent {
    */
   static async describe(agentId: string): Promise<AgentDescription> {
     const agent = await getRegisteredAgentOrThrow(agentId);
+    // theokit#123 — subagents are RESOLVED, not read off the declaration.
+    //
+    // The runtime's set is `loadSubagents(cwd, project?, inline)`: file-based roles from
+    // `.theokit/agents/*.md` merged with the inline `agentOptions.agents`, and it is never written
+    // back into `options`. Projecting `options.agents` therefore reported a disk-defined subagent as
+    // absent — and because this shape promises arrays so a caller can tell "none" from "unknown",
+    // that under-report was indistinguishable from an honest empty. The exact ambiguity the issue
+    // asked to remove.
+    const { loadSubagents } = await import("./internal/runtime/skills/subagents-loader.js");
+    const settingSources = agent.options.local?.settingSources;
+    const subagents = await loadSubagents(
+      agent.cwd ?? process.cwd(),
+      settingSources === undefined || settingSources.includes("project"),
+      agent.options.agents,
+    );
     return {
       agentId: agent.agentId,
       runtime: agent.runtime,
       ...(agent.model !== undefined ? { model: agent.model } : {}),
       // Always arrays, so a caller can tell "this agent has none" from "the SDK did not say".
+      //
+      // Honest limit, stated because the alternative is an implied claim: `tools` is still the
+      // DECLARED catalog. Plugin tools and the reasoning `think` tool are assembled per run by
+      // `buildCustomToolsInput`, so they are not knowable from the registry alone. Documented on
+      // `AgentDescription.tools`.
       tools: (agent.options.tools ?? []).map((tool) => ({
         name: tool.name,
         description: tool.description,
         inputSchema: tool.inputSchema,
       })),
-      subagents: Object.entries(agent.options.agents ?? {}).map(([name, def]) => ({
+      subagents: Object.entries(subagents).map(([name, def]) => ({
         name,
         description: def.description,
         ...(def.model !== undefined ? { model: def.model } : {}),

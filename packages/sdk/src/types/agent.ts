@@ -717,7 +717,18 @@ export interface AgentDescription {
   /** Inlined rather than imported from the registry contract: `types/` stays a leaf (theokit#146). */
   runtime: "local" | "cloud";
   model?: ModelSelection;
+  /**
+   * The agent's DECLARED tool catalog.
+   *
+   * Plugin-contributed tools and the internal `think` tool (added when `reasoning` is on) are
+   * assembled per run and are not knowable from the registry, so they are absent here. Stated
+   * rather than implied: a reflection endpoint should not present this as the complete runtime set.
+   */
   tools: readonly AgentToolDescription[];
+  /**
+   * Every subagent the runtime would resolve — file-based roles from `.theokit/agents/*.md` merged
+   * with the inline `agentOptions.agents`, the same set `loadSubagents` builds for a run.
+   */
   subagents: readonly AgentSubagentDescription[];
 }
 
